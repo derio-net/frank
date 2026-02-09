@@ -1,0 +1,36 @@
+# Environment files with secrets
+.env
+*.env.local
+
+# Talos configs (contain sensitive cluster info)
+.talos/
+
+# SOPS age keys (never commit private keys!)
+age_private_key.txt
+*.key
+
+# Kubeconfig files
+kubeconfig
+*.kubeconfig
+*kubeconfig.yaml
+
+# Terraform/Pulumi state
+.terraform/
+*.tfstate
+*.tfstate.backup
+.pulumi/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Manual setup artifacts (already done, keep for reference but don't track changes)
+manual-omni-setup/omni/.env
+manual-omni-setup/certbot/creds.ini
