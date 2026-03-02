@@ -13,3 +13,5 @@ spec:
             network:
                 cni:
                     name: none
+            proxy:
+                disabled: true
