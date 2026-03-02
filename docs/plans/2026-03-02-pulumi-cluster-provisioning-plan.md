@@ -1,3 +1,6 @@
+> **DEPRECATED (2026-03-02):** This plan was never executed. The Pulumi approach was abandoned
+> in favor of ArgoCD. See `2026-03-02-argocd-infrastructure-plan.md` for the current plan.
+
 # Pulumi Cluster Provisioning — Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
