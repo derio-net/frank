@@ -1,3 +1,6 @@
+> **DEPRECATED (2026-03-02):** This Pulumi approach was abandoned. No Pulumi provider exists
+> for Sidero Omni. See `2026-03-02-argocd-infrastructure-design.md` for the current approach.
+
 # Pulumi Cluster Provisioning — Import & Evolve
 
 **Date:** 2026-03-02
