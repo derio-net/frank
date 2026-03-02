@@ -1,0 +1,24 @@
+## Nvidia GPU Operator Helm values — applied to gpu-operator namespace
+## Chart: nvidia/gpu-operator v25.10.1
+## Repo: https://helm.ngc.nvidia.com/nvidia
+##
+## Install command:
+##   helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
+##   helm install gpu-operator nvidia/gpu-operator --version v25.10.1 \
+##     --namespace gpu-operator --create-namespace \
+##     -f patches/phase4-gpu/gpu-operator-values.yaml
+##
+## Prerequisites:
+##   - gpu-1 image schematic updated with Nvidia extensions in Omni UI
+##   - patches/phase4-gpu/04-gpu-nvidia-modules.yaml applied
+
+# Driver is provided by Talos extensions (nvidia-open-gpu-kernel-modules)
+driver:
+  enabled: false
+
+# Toolkit is provided by Talos extensions (nvidia-container-toolkit)
+toolkit:
+  enabled: false
+
+operator:
+  defaultRuntime: containerd

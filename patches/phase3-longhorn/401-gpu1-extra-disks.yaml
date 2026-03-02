@@ -1,0 +1,20 @@
+## Mount gpu-1's dedicated 2x4TB Samsung SSD 870 drives for Longhorn
+## sda and sdb will be wiped, partitioned, and mounted automatically by Talos
+## NOTE: sda has old Linux partitions that will be destroyed
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 401-gpu1-extra-disks
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: 03ff0210-04e0-05b0-ab06-300700080009
+spec:
+    data: |
+        machine:
+            disks:
+                - device: /dev/sda
+                  partitions:
+                      - mountpoint: /var/mnt/longhorn-sda
+                - device: /dev/sdb
+                  partitions:
+                      - mountpoint: /var/mnt/longhorn-sdb

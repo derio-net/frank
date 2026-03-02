@@ -1,0 +1,21 @@
+## Nvidia kernel modules for gpu-1
+## NOTE: This patch only loads kernel modules. The Nvidia extensions
+## (nvidia-container-toolkit, nvidia-open-gpu-kernel-modules) must be
+## added to the machine's Talos image schematic via Omni's UI or
+## Image Factory BEFORE applying this patch.
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 300-gpu-nvidia-modules
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: 03ff0210-04e0-05b0-ab06-300700080009
+spec:
+    data: |
+        machine:
+            kernel:
+                modules:
+                    - name: nvidia
+                    - name: nvidia_uvm
+                    - name: nvidia_modeset
+                    - name: nvidia_drm
