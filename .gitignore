@@ -44,3 +44,4 @@ infrastructure/pulumi/secrets.yaml
 
 # Pulumi stack config (may contain secrets)
 infrastructure/pulumi/Pulumi.frank.yaml
+.env_devops
