@@ -26,7 +26,18 @@ source .env_devops   # omnictl (OMNI_ENDPOINT + OMNI_SERVICE_ACCOUNT_KEY)
 | [Phase 1: Node Config](phase1-node-config/) | `patches/phase1-node-config/` | omnictl | DONE |
 | [Phase 2: Cilium CNI](phase2-cilium/) | `patches/phase2-cilium/` | omnictl + helm | DONE |
 | [Phase 3: Longhorn Storage](phase3-longhorn/) | `patches/phase3-longhorn/` | omnictl + talosctl + helm | DONE |
-| [Phase 4: GPU Stack](phase4-gpu/) | `patches/phase4-gpu/` | omnictl + helm | TODO |
+| [Phase 4: GPU Stack](phase4-gpu/) | `patches/phase4-gpu/` | omnictl + helm | PENDING (hardware) |
+
+## ArgoCD (Layer 2: Kubernetes Workloads)
+
+Infrastructure Helm releases are now managed by ArgoCD. See `apps/` for Application manifests and Helm values.
+
+| Application | Chart | Version | Namespace | Status |
+|-------------|-------|---------|-----------|--------|
+| cilium | cilium/cilium | 1.17.0 | kube-system | Synced/Healthy |
+| longhorn | longhorn/longhorn | 1.11.0 | longhorn-system | Synced/Healthy |
+| longhorn-extras | — (raw manifests) | — | longhorn-system | Synced/Healthy |
+| gpu-operator | nvidia/gpu-operator | v25.10.1 | gpu-operator | Pending (RTX 5070 PCIe not detected) |
 
 ## Rollback
 
