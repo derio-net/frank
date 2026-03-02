@@ -1,0 +1,14 @@
+## Node labels for pc-1 (Zone D: Edge/Burst)
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 200-labels-pc-1
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: 03de0294-0480-05ab-3106-410700080009
+spec:
+    data: |
+        machine:
+            nodeLabels:
+                zone: edge
+                tier: standard

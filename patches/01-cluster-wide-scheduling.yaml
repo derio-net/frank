@@ -1,0 +1,13 @@
+## Allow scheduling on control planes
+## This removes the NoSchedule taint from control plane nodes,
+## allowing workloads to run on mini-{1,2,3} alongside the control plane.
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 100-cluster-allow-cp-scheduling
+    labels:
+        omni.sidero.dev/cluster: frank
+spec:
+    data: |
+        cluster:
+            allowSchedulingOnControlPlanes: true

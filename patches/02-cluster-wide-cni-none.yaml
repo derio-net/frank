@@ -1,0 +1,15 @@
+## Disable default CNI (Flannel) — prerequisite for Cilium
+## Apply AFTER Cilium is ready to deploy, as this will break networking
+## until Cilium takes over.
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 100-cluster-cni-none
+    labels:
+        omni.sidero.dev/cluster: frank
+spec:
+    data: |
+        cluster:
+            network:
+                cni:
+                    name: none
