@@ -1,0 +1,58 @@
+## Cilium Helm values — applied to kube-system namespace
+## Chart: cilium/cilium v1.17.0
+## Repo: https://helm.cilium.io/
+##
+## Install command:
+##   helm repo add cilium https://helm.cilium.io/
+##   helm install cilium cilium/cilium --version 1.17.0 \
+##     --namespace kube-system -f patches/05-cilium-values.yaml
+##
+## Prerequisites:
+##   - patches/02-cluster-wide-cni-none.yaml applied (disables Flannel + kube-proxy in Talos)
+##   - Flannel DaemonSet deleted: kubectl delete ds kube-flannel -n kube-system
+##   - kube-proxy DaemonSet deleted: kubectl delete ds kube-proxy -n kube-system
+
+ipam:
+  mode: kubernetes
+
+# Replace kube-proxy with Cilium's eBPF datapath
+kubeProxyReplacement: true
+k8sServiceHost: 127.0.0.1   # Talos runs kube-apiserver on localhost
+k8sServicePort: 7445          # Talos API proxy port
+
+# Talos-specific: required capabilities and cgroup settings
+securityContext:
+  capabilities:
+    ciliumAgent:
+      - CHOWN
+      - KILL
+      - NET_ADMIN
+      - NET_RAW
+      - IPC_LOCK
+      - SYS_ADMIN
+      - SYS_RESOURCE
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    cleanCiliumState:
+      - NET_ADMIN
+      - SYS_ADMIN
+      - SYS_RESOURCE
+
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+# Observability
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+
+# HA operator
+operator:
+  replicas: 2

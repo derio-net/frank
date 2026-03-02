@@ -1,0 +1,13 @@
+{
+    "name": "frank-cluster",
+    "main": "index.ts",
+    "devDependencies": {
+        "@types/node": "^18",
+        "typescript": "^5.0.0"
+    },
+    "dependencies": {
+        "@pulumi/kubernetes": "^4.26.0",
+        "@pulumi/pulumi": "^3.113.0",
+        "@pulumiverse/talos": "^0.7.1"
+    }
+}

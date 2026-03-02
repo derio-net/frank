@@ -1,0 +1,29 @@
+## Longhorn Helm values — applied to longhorn-system namespace
+## Chart: longhorn/longhorn v1.11.0
+## Repo: https://charts.longhorn.io
+##
+## Install command:
+##   helm repo add longhorn https://charts.longhorn.io
+##   helm install longhorn longhorn/longhorn --version 1.11.0 \
+##     --namespace longhorn-system --create-namespace \
+##     -f patches/phase3-longhorn/longhorn-values.yaml
+##
+## Prerequisites:
+##   - Cluster nodes are Ready
+##   - siderolabs/iscsi-tools extension installed on all nodes (400-cluster-iscsi-tools.yaml)
+##   - longhorn-system namespace labeled with pod-security.kubernetes.io/enforce=privileged
+
+defaultSettings:
+  # 3 replicas across mini-{1,2,3} for HA
+  defaultReplicaCount: 3
+  # Reserve 15% of disk for safety
+  storageMinimalAvailablePercentage: 15
+  # Allow pod deletion on node failure (HA recovery)
+  nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+  # Prefer local replica when possible
+  defaultDataLocality: best-effort
+
+persistence:
+  defaultClassReplicaCount: 3
+  # Make Longhorn the default StorageClass
+  defaultClass: true

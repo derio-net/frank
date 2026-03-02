@@ -1,0 +1,15 @@
+## Add Nvidia extensions to gpu-1's Talos image schematic
+## NOTE: This triggers an image rebuild and reboot of gpu-1
+## Apply BEFORE the kernel module patch (04-gpu-nvidia-modules.yaml)
+metadata:
+    namespace: default
+    type: ExtensionsConfigurations.omni.sidero.dev
+    id: 402-gpu1-nvidia-extensions
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: 03ff0210-04e0-05b0-ab06-300700080009
+spec:
+    extensions:
+        - siderolabs/iscsi-tools
+        - siderolabs/nvidia-container-toolkit
+        - siderolabs/nvidia-open-gpu-kernel-modules

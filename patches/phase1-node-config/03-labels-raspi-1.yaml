@@ -1,0 +1,14 @@
+## Node labels for raspi-1 (Zone D: Edge/Burst)
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 200-labels-raspi-1
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: 30303031-3030-3030-3662-353662376100
+spec:
+    data: |
+        machine:
+            nodeLabels:
+                zone: edge
+                tier: low-power
