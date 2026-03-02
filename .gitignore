@@ -38,3 +38,9 @@ node_modules/
 __pycache__/
 omni/certbot/creds-encrypted.ini
 omni/omni/populate_scripts.bash
+
+# Talos machine secrets (extracted from cluster, imported into Pulumi)
+infrastructure/pulumi/secrets.yaml
+
+# Pulumi stack config (may contain secrets)
+infrastructure/pulumi/Pulumi.frank.yaml
