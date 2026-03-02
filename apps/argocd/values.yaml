@@ -1,0 +1,31 @@
+## ArgoCD Helm values
+## Chart: argo-cd (argo/argo-cd)
+## Repo: https://argoproj.github.io/argo-helm
+
+# Single-replica for homelab (no HA needed)
+controller:
+  replicas: 1
+
+server:
+  replicas: 1
+  # Disable TLS on server (Traefik handles TLS termination if needed)
+  extraArgs:
+    - --insecure
+
+repoServer:
+  replicas: 1
+
+redis:
+  enabled: true
+
+# Disable dex (using built-in auth for now)
+dex:
+  enabled: false
+
+configs:
+  params:
+    # Allow ArgoCD to manage resources in any namespace
+    server.insecure: true
+  cm:
+    # Resource tracking via annotation (avoids conflicts with Helm labels)
+    application.resourceTrackingMethod: annotation
