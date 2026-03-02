@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(kubectl *)",
+      "Bash(flux *)",
+      "Bash(sops *)",
+      "Bash(age-keygen *)",
+      "Bash(talosctl *)",
+      "Bash(helm *)",
+      "Bash(omnictl *)",
+      "Bash(source *)",
+      "Bash(source .env)",
+      "Bash(talosctl get members)",
+      "Bash(kubectl get nodes -o custom-columns='NAME:.metadata.name,ROLES:.metadata.labels.node-role\\\\.kubernetes\\\\.io/control-plane,LABELS:.metadata.labels' --no-headers)",
+      "Bash(kubectl describe nodes *)",
+      "Bash(talosctl -n *)",
+      "WebFetch(domain:www.pulumi.com)"
+    ]
+  }
+}
