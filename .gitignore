@@ -31,12 +31,10 @@ kubeconfig
 .DS_Store
 Thumbs.db
 
-# Manual setup artifacts (already done, keep for reference but don't track changes)
-manual-omni-setup/omni/.env
-manual-omni-setup/certbot/creds.ini
-
 # Ignore all node_modules/
 node_modules/
 
 # Ignore all __pycache__/
 __pycache__/
+omni/certbot/creds-encrypted.ini
+omni/omni/populate_scripts.bash
