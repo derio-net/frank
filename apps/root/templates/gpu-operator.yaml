@@ -1,0 +1,34 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gpu-operator
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+  annotations:
+    argocd.argoproj.io/sync-wave: "10"
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://helm.ngc.nvidia.com/nvidia
+      chart: gpu-operator
+      targetRevision: "v25.10.1"
+      helm:
+        releaseName: gpu-operator
+        valueFiles:
+          - $values/apps/gpu-operator/values.yaml
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: gpu-operator
+  syncPolicy:
+    # Manual sync — GPU hardware not yet detected
+    # Change to automated after GPU is working:
+    #   automated:
+    #     prune: false
+    #     selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
