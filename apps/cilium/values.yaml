@@ -38,3 +38,9 @@ hubble:
 
 operator:
   replicas: 2
+
+l2announcements:
+  enabled: true
+
+externalIPs:
+  enabled: true
