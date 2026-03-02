@@ -2,20 +2,24 @@
   "permissions": {
     "allow": [
       "Bash(git *)",
+      "Bash(git checkout -b *)",
+      "Bash(git commit:*)",
       "Bash(kubectl *)",
-      "Bash(flux *)",
+      "Bash(talosctl *)",
+      "Bash(omnictl *)",
+      "Bash(helm *)",
+      "Bash(npm show *)",
+      "Bash(pulumi *)",
+      "Bash(source *)",
       "Bash(sops *)",
       "Bash(age-keygen *)",
-      "Bash(talosctl *)",
-      "Bash(helm *)",
-      "Bash(omnictl *)",
-      "Bash(source *)",
-      "Bash(source .env)",
-      "Bash(talosctl get members)",
-      "Bash(kubectl get nodes -o custom-columns='NAME:.metadata.name,ROLES:.metadata.labels.node-role\\\\.kubernetes\\\\.io/control-plane,LABELS:.metadata.labels' --no-headers)",
-      "Bash(kubectl describe nodes *)",
-      "Bash(talosctl -n *)",
-      "WebFetch(domain:www.pulumi.com)"
+      "Bash(test -f *)",
+      "Bash(flux *)",
+      "WebFetch(domain:www.pulumi.com)",
+      "WebFetch(domain:docs.siderolabs.com)",
+      "WebFetch(domain:registry.npmjs.org)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.cilium.io)"
     ]
   }
 }

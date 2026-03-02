@@ -18,31 +18,22 @@ specified Pulumi for IaC, but:
 
 ## Architecture: Two-Layer Management
 
-```
-┌─────────────────────────────────────────────────────┐
-│                   Git Repository                     │
-│                                                      │
-│  patches/phase{1..4}-*/     apps/                    │
-│  (Omni COSI resources)      (ArgoCD Applications)    │
-│         │                          │                  │
-│         ▼                          ▼                  │
-│  ┌─────────────┐          ┌──────────────┐           │
-│  │  omnictl     │          │   ArgoCD      │          │
-│  │  apply -f    │          │   (in-cluster)│          │
-│  └──────┬──────┘          └──────┬───────┘           │
-│         │                        │                    │
-│         ▼                        ▼                    │
-│  ┌─────────────┐          ┌──────────────┐           │
-│  │ Sidero Omni  │          │  Kubernetes   │          │
-│  │ (Talos API)  │          │  API Server   │          │
-│  └──────┬──────┘          └──────────────┘           │
-│         │                                             │
-│         ▼                                             │
-│  ┌─────────────────────────────────────────┐         │
-│  │         Talos Linux Nodes (7)            │         │
-│  │  Machine configs, extensions, kernel     │         │
-│  └─────────────────────────────────────────┘         │
-└─────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph repo [" "]
+        title["Git Repository"]
+        P1[patches/phase1 to 4-*/<br/><i>Omni COSI resources</i>]
+        A1[apps/<br/><i>ArgoCD Applications</i>]
+    end
+
+    P1 --> B1[omnictl<br/>apply -f]
+    A1 --> B2["ArgoCD<br/><i>in-cluster</i>"]
+
+    B1 --> C1["Sidero Omni<br/><i>Talos API</i>"]
+    B2 --> C2["Kubernetes<br/>API Server"]
+
+    C1 --> D["Talos Linux Nodes (7)<br/>Machine configs,<br/>extensions, kernel"]
+
 ```
 
 ### Layer 1: Talos/Omni — Machine Configuration (unchanged)

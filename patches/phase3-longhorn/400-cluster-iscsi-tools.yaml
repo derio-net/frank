@@ -1,0 +1,12 @@
+## Add iscsi-tools extension to all nodes in the cluster
+## Required by Longhorn for iSCSI target management
+## NOTE: This triggers an image rebuild and rolling reboot of all nodes
+metadata:
+    namespace: default
+    type: ExtensionsConfigurations.omni.sidero.dev
+    id: 400-cluster-iscsi-tools
+    labels:
+        omni.sidero.dev/cluster: frank
+spec:
+    extensions:
+        - siderolabs/iscsi-tools
