@@ -22,6 +22,18 @@ redis:
 dex:
   enabled: false
 
+# Schedule on core-zone minis, avoid GPU node
+global:
+  affinity:
+    podAntiAffinity: soft
+    nodeAffinity:
+      type: hard
+      matchExpressions:
+        - key: zone
+          operator: In
+          values:
+            - core
+
 configs:
   params:
     # Allow ArgoCD to manage resources in any namespace
