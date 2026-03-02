@@ -1,12 +1,12 @@
 # Enterprise AI-Hybrid Kubernetes Platform
 
 **Status:** Approved Specification
-**IaC Strategy:** Hybrid (Ansible for Management Host, Pulumi for Cluster Infrastructure)
-**Provisioning Method:** Network Boot (PXE) via Sidero Booter
+
+**IaC Strategy:** Hybrid (Ad hoc/Ansible for Management Host, Pulumi for Cluster Infrastructure)
 
 ## 1. Physical Infrastructure Zones
 
-### Zone A: The Management Plane (Bootstrapped Host)
+### Zone A: The Management Plane (Bootstrapped Host - Implemented ad hoc)
 
 * **Hardware:** Raspberry Pi 5 (8GB RAM)
 * **Hostname:** `raspi-omni`
@@ -16,16 +16,16 @@
   * **OIDC/Identity:** Authentik (SSO).
   * **Traefik:** Reverse proxy, fetches SSL Certificates (acme.json). Could then be used by Talos bootstrapping
   * **State Backend:** Postgres (for Omni/Authentik).
+* **Provisioning Method:** Ad hoc (Manual for now, automated later)
 
-
-
-### Zone B: The Core Cluster (HA Control Plane)
+### Zone B: The Core Cluster (Converged HA Control Plane)
 
 * **Hardware:** 3x ASUS NUCs (64GB RAM, 1TB nvme)
 * **Role:** `controlplane` + `worker`
 * **Hostname:** frank-mini-{1,3}
 * **Storage:** **Longhorn** (Replicated Block Storage).
 * **Critical Services:** Etcd, API, ArgoCD, Monitoring, Cilium Control Plane.
+* **Configuration Method:** Pulumi (Talos + K8s).
 
 ### Zone C: The AI Compute (GPU Acceleration)
 
@@ -35,6 +35,7 @@
 * **Taints:** `nvidia.com/gpu=present:NoSchedule` (Optional: prevents boring web apps from eating AI RAM).
 * **Labels:** `accelerator=nvidia`, `model-server=true`.
 * **Extensions:** `siderolabs/nvidia-container-toolkit`.
+* **Configuration Method:** Pulumi (Talos + K8s).
 
 ### Zone D: The Edge & Burst Pool
 
@@ -42,6 +43,7 @@
 * **Role:** `worker` (General Purpose).
 * **Hostname:** frank-raspi-{1,3}, frank-pc-{1,2}
 * **Labels:** `tier=low-power` (Pis), `tier=standard` (Desktops).
+* **Configuration Method:** Pulumi (Talos + K8s).
 
 ---
 
@@ -49,9 +51,10 @@
 
 We will adhere to a strict separation of tools based on the target environment's capabilities.
 
-### Layer 1: Host Provisioning (Ansible)
+### Layer 1: Host Provisioning (Adhoc/Ansible later)
 
 **Target:** `raspi-omni` (Raspberry Pi 5)
+
 **Why:** It runs a standard Linux OS (Ubuntu), so Ansible is perfect for setting up Docker, Systemd, and firewall rules.
 
 * **Playbook Scope:**
@@ -60,25 +63,25 @@ We will adhere to a strict separation of tools based on the target environment's
 * Configure `authentik` for OIDC.
 * Configure Gateway/NAT (if using the Pi as a router).
 
-
+**Note:** This has been already implemented manually. Ansible automation will be added later.
 
 ### Layer 2: Cluster Provisioning (Pulumi)
 
 **Target:** Talos Nodes (Zones B, C, D)
+
 **Why:** Talos is API-driven. Pulumi's Talos provider allows you to define machine configs (YAML) as objects in TypeScript/Python and apply them via the Talos API securely.
 
 * **Stack Scope:**
 * Generate Machine Secrets.
-* Generate Machine Configurations (Control Plane vs. Worker vs. GPU Node).
+* Generate Machine Configurations (converged Control Plane vs. Worker vs. GPU Node).
 * **Patching:** Automatically inject `allowSchedulingOnControlPlanes` and Nvidia extensions.
-* **Bootstrap:** Execute `talosctl bootstrap` on the first node.
+* **Bootstrap:** Execute `talosctl bootstrap` on the first node if necessary.
 * **Kubeconfig:** Retrieve and decrypt the admin kubeconfig.
-
-
 
 ### Layer 3: Application State (ArgoCD)
 
 **Target:** Kubernetes API
+
 **Why:** GitOps ensures that if the cluster burns down, the applications (Manifests/Helm Charts) are restored automatically.
 
 * **Stack Scope:** Cilium, Longhorn, Nvidia GPU Operator, KubeRay / JupyterHub.
@@ -87,18 +90,17 @@ We will adhere to a strict separation of tools based on the target environment's
 
 ## 3. Implementation Workflow
 
-### Step 1: Management Node Setup (Ansible)
+### Step 1: Management Node Setup (Adhoc/Ansible) - IMPLEMENTED for raspi-omni, Omni is already running
 
 * **Input:** Inventory file pointing to `raspi-omni`.
 * **Action:** Run Ansible Playbook.
 * **Result:**
-* Omni is running on `https://omni.lan`.
-* **Booter** is listening on the network (DHCP Proxy).
+* Omni is running on `https://omni.lan`/`https://omni.frank.derio.net/`.
 * You have an "Enrollment Key" from Omni.
 
 
 
-### Step 2: "Hands-Free" PXE Boot
+### Step 2: "Hands-Free" PXE Boot - SKIPPED, Talos was installed manually
 
 * **Action:** Turn on the NUCs, the AI Desktop, and the Pis. Ensure they are set to **Network Boot (PXE)** in BIOS.
 * **Process:**
@@ -146,12 +148,12 @@ const cpConfig = new talos.machine.Configuration("cp-node", {
 ### Step 4: The AI Stack (GitOps)
 
 Once the cluster is up, ArgoCD will sync the **Nvidia GPU Operator**.
+The NUCs also have AI chips. These will also need to be configured.
 
 * **Validation:**
 * Run `kubectl get nodes -L accelerator` -> Should show `nvidia`.
 * Run `kubectl get runtimeclasses` -> Should show `nvidia`.
 * **Workload:** Deploy a Jupyter Notebook requesting `resources: limits: nvidia.com/gpu: 1`.
-
 
 
 ---
