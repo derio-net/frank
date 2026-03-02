@@ -1,0 +1,9 @@
+defaultSettings:
+  defaultReplicaCount: 3
+  storageMinimalAvailablePercentage: 15
+  nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
+  defaultDataLocality: best-effort
+
+persistence:
+  defaultClassReplicaCount: 3
+  defaultClass: true
