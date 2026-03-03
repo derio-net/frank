@@ -11,5 +11,5 @@ metadata:
 spec:
     extensions:
         - siderolabs/iscsi-tools
-        - siderolabs/nvidia-container-toolkit
-        - siderolabs/nvidia-open-gpu-kernel-modules
+        - siderolabs/nvidia-container-toolkit-production
+        - siderolabs/nonfree-kmod-nvidia-production

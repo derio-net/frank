@@ -19,3 +19,5 @@ spec:
                     - name: nvidia_uvm
                     - name: nvidia_modeset
                     - name: nvidia_drm
+            sysctls:
+                net.core.bpf_jit_harden: "1"
