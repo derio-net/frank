@@ -54,18 +54,18 @@ flowchart TB
 
 **Key principle:** Omni owns the machine. ArgoCD owns the workloads. They don't overlap.
 
-## Cluster Snapshot (2026-03-02)
+## Cluster Snapshot (2026-03-03)
 
 | Component | Version | Status | Current Management |
 |-----------|---------|--------|--------------------|
 | Talos Linux | v1.12.4 | Running | Omni |
 | Kubernetes | v1.35.2 | Running | Omni |
-| Cilium | v1.17.0 | Running | Manual Helm release |
-| Longhorn | v1.11.0 | Running | Manual Helm release |
-| GPU Operator | v25.10.1 | NOT INSTALLED | Blocked (GPU hardware) |
-| Flux CD | — | Broken | To be removed |
-| ArgoCD | — | NOT INSTALLED | To be installed |
-| Pulumi | — | Scaffolded only | To be removed |
+| ArgoCD | v3.3.2 | Running | Manual Helm (bootstrap) |
+| Cilium | v1.17.0 | Synced/Healthy | ArgoCD |
+| Longhorn | v1.11.0 | Synced/Healthy | ArgoCD |
+| GPU Operator | v25.10.1 | OutOfSync/Missing | ArgoCD (manual sync, GPU hardware blocked) |
+| Flux CD | — | Removed | — |
+| Pulumi | — | Removed | — |
 
 ### Node Inventory
 
@@ -114,10 +114,15 @@ frankocluster/
 │   │       ├── ns-longhorn.yaml  # Namespace with PSS labels
 │   │       ├── ns-gpu-operator.yaml
 │   │       ├── cilium.yaml       # Application: Cilium
+│   │       ├── cilium-config.yaml # Application: Cilium LB + L2 manifests
 │   │       ├── longhorn.yaml     # Application: Longhorn
+│   │       ├── longhorn-extras.yaml # Application: Longhorn extra manifests
 │   │       └── gpu-operator.yaml # Application: GPU Operator
 │   ├── cilium/
-│   │   └── values.yaml           # Cilium Helm values (moved from patches/phase2-cilium/)
+│   │   ├── values.yaml           # Cilium Helm values (moved from patches/phase2-cilium/)
+│   │   └── manifests/
+│   │       ├── lb-ippool.yaml    # CiliumLoadBalancerIPPool (192.168.55.200-210)
+│   │       └── l2-policy.yaml    # CiliumL2AnnouncementPolicy
 │   ├── longhorn/
 │   │   ├── values.yaml           # Longhorn Helm values (moved from patches/phase3-longhorn/)
 │   │   └── manifests/
@@ -148,15 +153,92 @@ root-app (ArgoCD Application)
     │   └── helm.cilium.io / cilium v1.17.0
     │       └── values: apps/cilium/values.yaml
     │
+    ├── cilium-config (Application)
+    │   └── apps/cilium/manifests/
+    │       ├── lb-ippool.yaml        (192.168.55.200-210)
+    │       └── l2-policy.yaml        (L2 announcement policy)
+    │
     ├── longhorn (Application)
     │   └── charts.longhorn.io / longhorn v1.11.0
     │       └── values: apps/longhorn/values.yaml
-    │       └── extra manifests: apps/longhorn/manifests/
+    │
+    ├── longhorn-extras (Application)
+    │   └── apps/longhorn/manifests/
+    │       └── gpu-local-sc.yaml     (longhorn-gpu-local StorageClass)
     │
     └── gpu-operator (Application)
         └── helm.ngc.nvidia.com/nvidia / gpu-operator v25.10.1
             └── values: apps/gpu-operator/values.yaml
 ```
+
+### Cilium LoadBalancer (L2)
+
+Cilium provides LoadBalancer service IPs via L2 announcements (ARP). This replaces
+the need for MetalLB or an external load balancer.
+
+**Configuration:**
+- `l2announcements.enabled: true` in Cilium Helm values
+- `CiliumLoadBalancerIPPool`: `192.168.55.200` — `192.168.55.210` (11 IPs)
+- `CiliumL2AnnouncementPolicy`: advertises on all `eth*` and `en*` interfaces
+- Managed by ArgoCD via the `cilium-config` Application (`apps/cilium/manifests/`)
+
+**Assigned IPs:**
+
+| IP | Service | Namespace |
+|----|---------|-----------|
+| 192.168.55.200 | argocd-server | argocd |
+| 192.168.55.201-210 | (available) | — |
+
+To expose a new service, set `type: LoadBalancer` and optionally pin an IP:
+```yaml
+service:
+  type: LoadBalancer
+  annotations:
+    io.cilium/lb-ipam-ips: "192.168.55.201"
+```
+
+**Important:** After changing Cilium L2-related Helm values, Cilium agents need a rolling
+restart to pick up the changes: `kubectl rollout restart daemonset cilium -n kube-system`
+
+### ArgoCD External Access
+
+ArgoCD is exposed via Cilium LoadBalancer at `192.168.55.200` (HTTP port 80).
+TLS is disabled on the ArgoCD server (`--insecure` flag) — Traefik on `raspi-omni`
+handles TLS termination.
+
+**Access methods:**
+
+| Method | URL | Notes |
+|--------|-----|-------|
+| LAN direct | `http://192.168.55.200` | No TLS, for quick access |
+| Via Traefik | `https://argocd.frank.derio.net` | TLS via Let's Encrypt, production access |
+| CLI (port-forward) | `argocd login localhost:8080 --port-forward --port-forward-namespace argocd` | No LB needed |
+
+**Traefik config on raspi-omni** (Docker Compose dynamic config):
+```yaml
+# dynamic/argocd.yaml
+http:
+  routers:
+    argocd:
+      rule: "Host(`argocd.frank.derio.net`)"
+      service: argocd
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: letsencrypt
+  services:
+    argocd:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.55.200:80"
+```
+
+**Initial admin credentials:**
+```bash
+source .env
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d
+```
+Username: `admin`
 
 ### Adoption Strategy
 
@@ -269,6 +351,7 @@ argocd login localhost:8080 --port-forward --port-forward-namespace argocd
 4. **`machine.disks` won't wipe existing partitions** — must `talosctl wipe disk` first
 5. **Longhorn `diskSelector`** uses Longhorn node tags, NOT Kubernetes node labels
 6. **Talos Image Factory** needs time to rebuild images with new extensions
+7. **Cilium L2/LB config changes require agent restart** — `kubectl rollout restart ds cilium -n kube-system`
 
 ## Deferred Work
 
