@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: openrgb
+  namespace: openrgb
+  labels:
+    app: openrgb
+spec:
+  selector:
+    matchLabels:
+      app: openrgb
+  template:
+    metadata:
+      labels:
+        app: openrgb
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: gpu-1
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      initContainers:
+        - name: apply-leds
+          image: swensorm/openrgb:release_0.9
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "Waiting for HID devices..."
+              sleep 5
+              echo "Applying LED config: $OPENRGB_ARGS"
+              /usr/app/openrgb $OPENRGB_ARGS
+              echo "LED config applied."
+          env:
+            - name: OPENRGB_ARGS
+              valueFrom:
+                configMapKeyRef:
+                  name: openrgb-config
+                  key: OPENRGB_ARGS
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: dev
+              mountPath: /dev
+      containers:
+        - name: openrgb-server
+          image: swensorm/openrgb:release_0.9
+          command: ["/usr/app/openrgb", "--server"]
+          ports:
+            - containerPort: 6742
+              name: openrgb
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: dev
+              mountPath: /dev
+          resources:
+            requests:
+              memory: "32Mi"
+              cpu: "10m"
+            limits:
+              memory: "128Mi"
+      volumes:
+        - name: dev
+          hostPath:
+            path: /dev
