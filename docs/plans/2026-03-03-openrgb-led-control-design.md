@@ -4,50 +4,25 @@
 
 **Hardware:**
 - Case: FOIFKIN F1 — 6 pre-installed PWM ARGB fans connected through an internal hub
-- Motherboard: Gigabyte Z790 Eagle AX — ARGB headers, I2C/SMBus RGB controller
+- Motherboard: Gigabyte Z790 Eagle AX — ITE IT5702 USB RGB controller (vendor `048D`, product `5702`)
+- RGB controller interface: USB HID at `/dev/hidraw0` — no I2C/SMBus needed
 - Hub button: non-functional (software control required)
 
 **Approach:** OpenRGB in a privileged DaemonSet, pinned to gpu-1, with LED config stored as a ConfigMap.
 
 ---
 
-## Layer 1: Talos Machine Config (Phase 4 Patch)
+## Layer 1: Talos Machine Config
 
-### Kernel Modules
+**No Talos patches required.** The ITE IT5702 RGB controller is a USB HID device, and the Talos kernel has `CONFIG_HIDRAW=y` and `CONFIG_USB_HID=y` built-in. The device is already accessible at `/dev/hidraw0`.
 
-Load `i2c_dev` and `i2c_i801` on gpu-1 to expose the Intel Z790 SMBus controller as `/dev/i2c-*` devices.
+### Discovery notes
 
-### Kernel Parameter
+Initial investigation attempted the I2C/SMBus path (`i2c-dev` + `i2c-i801` kernel modules), but `CONFIG_I2C_CHARDEV` is not compiled in the Talos kernel. USB HID discovery via `dmesg` revealed the ITE IT5702 controller:
 
-Gigabyte boards have an ACPI conflict with the SMBus controller. The `acpi_enforce_resources=lax` kernel parameter bypasses this so the I2C controller is accessible.
-
-### Patch File
-
-`patches/phase4-gpu/05-gpu1-i2c-modules.yaml`:
-
-```yaml
-metadata:
-    namespace: default
-    type: ConfigPatches.omni.sidero.dev
-    id: 301-gpu1-i2c-modules
-    labels:
-        omni.sidero.dev/cluster: frank
-        omni.sidero.dev/cluster-machine: 03ff0210-04e0-05b0-ab06-300700080009
-spec:
-    data: |
-        machine:
-            kernel:
-                modules:
-                    - name: i2c_dev
-                    - name: i2c_i801
-            install:
-                extraKernelArgs:
-                    - acpi_enforce_resources=lax
+```text
+hid-generic 0003:048D:5702.0001: hidraw0: USB HID v1.12 Device [ITE Tech. Inc. ITE Device]
 ```
-
-Applied via: `omnictl apply -f patches/phase4-gpu/05-gpu1-i2c-modules.yaml`
-
-Requires gpu-1 reboot to take effect.
 
 ---
 
@@ -55,13 +30,13 @@ Requires gpu-1 reboot to take effect.
 
 ### Container Image
 
-`swensorm/openrgb` (server variant) — supports I2C devices and CLI profile loading.
+`swensorm/openrgb` (server variant) — supports USB HID devices and CLI profile loading.
 
 ### Architecture
 
 - **DaemonSet** pinned to gpu-1 via `nodeSelector: kubernetes.io/hostname: gpu-1`
 - **Tolerates** the `nvidia.com/gpu=present:NoSchedule` taint
-- **Privileged** container with `/dev` hostPath mount for I2C device access
+- **Privileged** container with `/dev` hostPath mount for USB HID device access
 - **Init container** runs `openrgb $OPENRGB_ARGS` to apply LED config on startup
 - **Main container** runs `openrgb --server` to keep the pod alive (re-applies on restart after reboot)
 - **ConfigMap** holds the OpenRGB CLI arguments for all devices
@@ -71,7 +46,6 @@ Requires gpu-1 reboot to take effect.
 ```
 apps/openrgb/
   manifests/
-    namespace.yaml          # namespace: openrgb
     configmap.yaml          # LED color/mode/device config
     daemonset.yaml          # privileged DaemonSet
 ```
@@ -136,30 +110,26 @@ spec:
 
 ## Implementation Order
 
-1. **Apply Talos patch** — Load I2C modules + kernel parameter on gpu-1. Reboot gpu-1.
-2. **Verify I2C** — Confirm `/dev/i2c-*` devices appear on gpu-1 (privileged debug pod).
-3. **Run discovery pod** — One-shot privileged pod on gpu-1 running `openrgb --list-devices`. Read logs to identify devices, zones, LEDs, and supported modes.
-4. **Build manifests** — Create `apps/openrgb/manifests/` with namespace, ConfigMap (based on discovery output), and DaemonSet.
-5. **Add ArgoCD app** — Create `apps/root/templates/openrgb.yaml` and `ns-openrgb.yaml`. Push to git.
-6. **Verify** — ArgoCD syncs, DaemonSet starts on gpu-1, LEDs change to configured color.
+1. **Run discovery pod** — One-shot privileged pod on gpu-1 running `openrgb --list-devices`. Read logs to identify devices, zones, LEDs, and supported modes.
+2. **Build manifests** — Create `apps/openrgb/manifests/` with ConfigMap (based on discovery output) and DaemonSet.
+3. **Add ArgoCD app** — Create `apps/root/templates/openrgb.yaml` and `ns-openrgb.yaml`. Push to git.
+4. **Verify** — ArgoCD syncs, DaemonSet starts on gpu-1, LEDs change to configured color.
 
-Steps 1-3 are manual/interactive. Steps 4-6 are standard GitOps.
+Step 1 is manual/interactive. Steps 2-4 are standard GitOps.
 
-**Runtime dependency:** Step 3 (discovery) determines the exact ConfigMap contents. The LED config cannot be finalized until we see what OpenRGB detects.
+**Runtime dependency:** Step 1 (discovery) determines the exact ConfigMap contents. The LED config cannot be finalized until we see what OpenRGB detects.
 
 ---
 
 ## Safety Notes
 
-- Gigabyte boards have reports of SMBus probing issues. OpenRGB's standard detection is safe; avoid raw `i2cdetect` dumps on unknown addresses.
-- The `spd5118` kernel driver may claim I2C addresses for DDR5 RAM. If `openrgb --list-devices` shows missing controllers, this driver may need to be blocked.
 - The DaemonSet runs privileged — scoped to gpu-1 only via nodeSelector.
+- USB HID access is safer than I2C/SMBus — no risk of probing dangerous addresses.
 
 ---
 
 ## References
 
-- [OpenRGB SMBus Access docs](https://github.com/CalcProgrammer1/OpenRGB/blob/master/Documentation/SMBusAccess.md)
 - [OpenRGB supported devices](https://openrgb.org/devices.html)
 - [swensorm/openrgb-docker](https://github.com/swensorm/openrgb-docker)
-- [acpi_enforce_resources=lax discussion](https://bbs.archlinux.org/viewtopic.php?id=265939)
+- [ITE IT5702 USB RGB controller](https://github.com/CalcProgrammer1/OpenRGB)
