@@ -1,0 +1,18 @@
+## Enable CDI device discovery in containerd for Intel GPU Device Plugin
+## Applied cluster-wide (harmless on nodes without Intel GPU)
+## Does NOT require a node reboot — containerd restarts automatically
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 303-cluster-cdi-containerd
+    labels:
+        omni.sidero.dev/cluster: frank
+spec:
+    data: |
+        machine:
+            files:
+                - path: /etc/cri/conf.d/20-customization.part
+                  op: create
+                  content: |
+                      [plugins."io.containerd.cri.v1.runtime"]
+                        cdi_spec_dirs = ["/var/cdi/static", "/var/cdi/dynamic"]
