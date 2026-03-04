@@ -1,0 +1,13 @@
+# Intel GPU Resource Driver — DRA driver for mini-{1..3} Intel Arc iGPU
+# Exposes Intel GPU via Dynamic Resource Allocation (K8s 1.32+ GA)
+# Workloads use ResourceClaim / ResourceClaimTemplate instead of resources.limits
+
+kubeletPlugin:
+  # Only run the kubelet plugin DaemonSet on nodes with Intel iGPU
+  nodeSelector:
+    accelerator: intel-igpu
+  # Default tolerations already cover control-plane nodes (mini-{1..3} are control-plane)
+
+# Node Feature Discovery not needed — labels managed via Omni/Talos directly
+nfd:
+  enabled: false
