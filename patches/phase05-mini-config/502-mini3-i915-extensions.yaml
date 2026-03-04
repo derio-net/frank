@@ -1,0 +1,15 @@
+## Add Intel Arc iGPU extensions to mini-3's Talos image schematic
+## NOTE: This triggers an image rebuild and reboot of mini-3
+## Includes iscsi-tools to prevent overriding the cluster-wide extension config
+metadata:
+    namespace: default
+    type: ExtensionsConfigurations.omni.sidero.dev
+    id: 502-mini3-i915-extensions
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: d1f01c97-d17e-e3ef-12ee-88aedd6768b6
+spec:
+    extensions:
+        - siderolabs/iscsi-tools
+        - siderolabs/i915
+        - siderolabs/intel-ucode
