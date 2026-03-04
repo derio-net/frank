@@ -12,5 +12,5 @@ spec:
             nodeLabels:
                 zone: core
                 tier: standard
-                accelerator: amd-igpu
-                igpu: radeon-780m
+                accelerator: intel-igpu
+                igpu: intel-arc
