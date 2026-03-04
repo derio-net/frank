@@ -40,3 +40,4 @@ omni/certbot/creds-encrypted.ini
 omni/omni/populate_scripts.bash
 
 .env_devops
+.env_common
