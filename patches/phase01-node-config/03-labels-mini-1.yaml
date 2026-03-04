@@ -1,16 +1,16 @@
-## Node labels for mini-3 (Zone B: Core HA Control Plane)
+## Node labels for mini-1 (Zone B: Core HA Control Plane)
 metadata:
     namespace: default
     type: ConfigPatches.omni.sidero.dev
-    id: 200-labels-mini-3
+    id: 200-labels-mini-1
     labels:
         omni.sidero.dev/cluster: frank
-        omni.sidero.dev/cluster-machine: d1f01c97-d17e-e3ef-12ee-88aedd6768b6
+        omni.sidero.dev/cluster-machine: ce4d0d52-6c10-bdc9-746c-88aedd67681b
 spec:
     data: |
         machine:
             nodeLabels:
                 zone: core
                 tier: standard
-                accelerator: amd-igpu
-                igpu: radeon-780m
+                accelerator: intel-igpu
+                igpu: intel-arc
