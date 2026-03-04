@@ -8,16 +8,13 @@ metadata:
 spec:
   project: infrastructure
   sources:
-    - repoURL: https://intel.github.io/helm-charts
-      chart: intel-gpu-resource-driver
-      targetRevision: "0.7.0"
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      path: apps/intel-gpu-driver/chart
       helm:
         releaseName: intel-gpu-driver
         valueFiles:
-          - $values/apps/intel-gpu-driver/values.yaml
-    - repoURL: {{ .Values.repoURL }}
-      targetRevision: {{ .Values.targetRevision }}
-      ref: values
+          - ../values.yaml
   destination:
     server: {{ .Values.destination.server }}
     namespace: intel-gpu-resource-driver
