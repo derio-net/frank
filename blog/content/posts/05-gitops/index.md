@@ -244,6 +244,8 @@ The adoption sequence was:
 4. For each child, ArgoCD compares the desired state (from the Helm chart + values) against the live cluster state.
 5. Because the chart versions and values match what was already deployed, ArgoCD finds minimal diff and reports "Synced."
 
+![ArgoCD UI showing the Cilium application resource tree with sync status](argocd-ui.png)
+
 The entire process took under five minutes and required zero pod restarts. Cilium agents kept routing packets, Longhorn kept serving volumes, and ArgoCD quietly attached its tracking annotations in the background.
 
 ## Self-Managing ArgoCD

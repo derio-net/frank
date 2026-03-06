@@ -31,6 +31,8 @@ The trade-off is real: when something goes wrong, you cannot SSH in and poke aro
 
 Sidero Omni sits on `raspi-omni` in Zone A (the management zone) and handles machine lifecycle: enrollment, configuration, upgrades, and cluster creation. It is a SaaS-like control plane for Talos clusters -- you boot a machine with the Omni ISO, it phones home, and you assign it to a cluster through the Omni dashboard or API.
 
+![Omni dashboard showing all nodes with IPs, OS versions, roles, and status](omni-nodes.png)
+
 For Frank Cluster, the bootstrap sequence was straightforward:
 
 1. Flash each machine (minis, gpu-1, pc-1, Raspberry Pis) with the Omni Talos ISO.
@@ -250,6 +252,8 @@ spec:
 The `io.cilium/lb-ipam-ips` annotation pins this service to `192.168.55.202`, the same mechanism used for ArgoCD at `.200`. Because this manifest lives in `apps/cilium/manifests/`, the existing `cilium-config` ArgoCD Application picks it up automatically — no new Application CR needed.
 
 Hubble UI is then reachable at `http://192.168.55.202` from any machine on the LAN.
+
+![Hubble UI showing network flows for the longhorn-system namespace](hubble-ui.png)
 
 ## What We Have Now
 

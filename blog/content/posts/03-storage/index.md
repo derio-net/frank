@@ -216,6 +216,8 @@ The `io.cilium/lb-ipam-ips` annotation pins the service to `192.168.55.201`. Bec
 
 The Longhorn dashboard is then reachable at `http://192.168.55.201` from any machine on the LAN.
 
+![Longhorn dashboard showing storage capacity, node count, and volume health](longhorn-dashboard.png)
+
 ## Using the StorageClasses
 
 With both StorageClasses in place, workloads choose their storage strategy through their PVC spec. A standard application uses the default class implicitly:
