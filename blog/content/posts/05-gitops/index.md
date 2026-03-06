@@ -66,21 +66,21 @@ root (Application)
   |     values:   apps/cilium/values.yaml
   |
   +-- cilium-config (Application)
-  |     source: apps/cilium/manifests/
+  |     source: apps/cilium/manifests/   (L2 pool, L2 policy, Hubble UI LB)
   |
   +-- longhorn (Application)
   |     upstream: charts.longhorn.io / longhorn v1.11.0
   |     values:   apps/longhorn/values.yaml
   |
   +-- longhorn-extras (Application)
-  |     source: apps/longhorn/manifests/
+  |     source: apps/longhorn/manifests/  (GPU-local SC, Longhorn UI LB)
   |
   +-- gpu-operator (Application)
         upstream: helm.ngc.nvidia.com/nvidia / gpu-operator v25.10.1
         values:   apps/gpu-operator/values.yaml
 ```
 
-Each "main" app (cilium, longhorn, gpu-operator) pulls its Helm chart from the upstream registry. Each "-extras" or "-config" companion app points at a `manifests/` directory in the Git repo for resources that sit outside the Helm chart — things like Cilium's `LoadBalancerIPPool` or Longhorn's custom `StorageClass`.
+Each "main" app (cilium, longhorn, gpu-operator) pulls its Helm chart from the upstream registry. Each "-extras" or "-config" companion app points at a `manifests/` directory in the Git repo for resources that sit outside the Helm chart — things like Cilium's `LoadBalancerIPPool`, Longhorn's custom `StorageClass`, or LoadBalancer services that expose UIs at fixed IPs (Longhorn at `192.168.55.201`, Hubble at `192.168.55.202`).
 
 ### Root Chart Structure
 
@@ -293,7 +293,7 @@ A few decisions here:
 
 - **Single replicas** everywhere. This is a homelab, not a production SaaS platform. HA is nice but wastes resources on three NUCs.
 - **`--insecure` and `server.insecure: true`** disable TLS on the ArgoCD server itself. A Traefik reverse proxy on the management node handles TLS termination with Let's Encrypt certificates. No need for ArgoCD to manage its own certs.
-- **Cilium LoadBalancer IP** via `io.cilium/lb-ipam-ips` pins ArgoCD to `192.168.55.200`. Cilium's L2 announcement policy handles ARP responses so any machine on the LAN can reach it.
+- **Cilium LoadBalancer IP** via `io.cilium/lb-ipam-ips` pins ArgoCD to `192.168.55.200`. Cilium's L2 announcement policy handles ARP responses so any machine on the LAN can reach it. The same annotation pattern is used to expose Longhorn UI at `.201` and Hubble UI at `.202`.
 - **Node affinity to `zone: core`** keeps ArgoCD on the mini NUCs. It should not land on the GPU worker or the Raspberry Pis.
 - **Dex disabled** — no SSO yet. Built-in admin credentials for now, with Authentik integration planned for later.
 
