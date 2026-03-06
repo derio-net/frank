@@ -1,0 +1,15 @@
+{{- $url := .Get 0 -}}
+{{- $height := .Get 1 | default "600px" -}}
+{{- if not (or (hasPrefix $url "https://") (hasPrefix $url "http://")) -}}
+  {{ errorf "roadmap shortcode: URL must start with https:// or http://" }}
+{{- end -}}
+<div style="width: 100%; overflow: hidden;">
+  <iframe
+    src="{{ $url | safeURL }}"
+    width="100%"
+    height="{{ $height }}"
+    style="border: none;"
+    loading="lazy"
+    title="Frank Cluster roadmap">
+  </iframe>
+</div>

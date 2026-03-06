@@ -1,7 +1,7 @@
 # Phase 5: Intel iGPU (Arc) Stack for mini-{1..3}
 
 **Tools:** `omnictl apply -f` + ArgoCD
-**Status:** TODO
+**Status:** DONE (applied 2026-03-04)
 
 ## What This Does
 

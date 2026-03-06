@@ -1,0 +1,46 @@
+---
+title: "Frank Cluster: Overview & Roadmap"
+date: 2026-03-06
+draft: false
+tags: ["overview", "roadmap"]
+summary: "A living overview of Frank Cluster — an AI-hybrid Kubernetes homelab. Technology roadmap, capabilities, and series index."
+weight: 1
+---
+
+This is the overview post for the **Frank Cluster** series — a tutorial-style walkthrough of building an AI-hybrid Kubernetes homelab from scratch.
+
+This post is a **living document**: it gets updated as new technologies and capabilities are added to the cluster.
+
+## Roadmap
+
+{{< roadmap "https://roadmap.sh/r/frank" "700px" >}}
+
+## Technology → Capability Map
+
+| Technology | Capabilities Unlocked |
+|------------|----------------------|
+| **Talos Linux + Omni** | Immutable OS, declarative machine config, secure bootstrap |
+| **Cilium (eBPF)** | Kube-proxy replacement, L2 LoadBalancer, Hubble observability |
+| **Longhorn** | Distributed block storage, GPU-local StorageClass, 3-replica HA |
+| **ArgoCD** | GitOps, App-of-Apps, self-healing, drift detection |
+| **NVIDIA GPU Operator** | GPU scheduling, AI/ML workloads, container toolkit |
+| **Intel GPU DRA Driver** | iGPU sharing via DRA, namespace-scoped GPU access |
+| **OpenRGB** | LED control from K8s (just for fun) |
+
+## Cluster State
+
+| Node | Zone | Role | Hardware |
+|------|------|------|----------|
+| mini-1/2/3 | Core (B) | Control-plane + Worker | Intel Ultra 5, 64GB RAM, 1TB NVMe, Arc iGPU |
+| gpu-1 | AI Compute (C) | Worker | i9, 128GB RAM, RTX 5070, 2x4TB SSD |
+| pc-1 | Edge (D) | Worker | Legacy desktop, 64GB SSD + 3x HDD |
+| raspi-1/2 | Edge (D) | Worker | Raspberry Pi 4, 32GB SD |
+
+## Series Index
+
+1. [Introduction — Why Build a Kubernetes Homelab?]({{< relref "/posts/01-introduction" >}})
+2. Building the Foundation — Talos, Nodes, and Cilium *(coming soon)*
+3. Persistent Storage with Longhorn *(coming soon)*
+4. GPU Compute — NVIDIA and Intel *(coming soon)*
+5. GitOps Everything with ArgoCD *(coming soon)*
+6. Fun Stuff — Controlling Case LEDs from Kubernetes *(coming soon)*

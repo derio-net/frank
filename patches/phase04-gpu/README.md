@@ -1,7 +1,7 @@
 # Phase 4: Nvidia GPU Stack
 
 **Tools:** `omnictl apply -f` + `helm` + `kubectl` + `talosctl`
-**Status:** TODO
+**Status:** DONE (applied 2026-03-02)
 
 ## What This Does
 

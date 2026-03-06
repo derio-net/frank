@@ -41,3 +41,8 @@ omni/omni/populate_scripts.bash
 
 .env_devops
 .env_common
+
+# Hugo
+blog/public/
+blog/resources/_gen/
+blog/.hugo_build.lock
