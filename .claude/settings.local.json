@@ -21,7 +21,15 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:docs.cilium.io)",
       "Bash(argocd app list --port-forward --port-forward-namespace argocd)",
-      "Bash(argocd app sync root --port-forward --port-forward-namespace argocd)"
+      "Bash(argocd app sync root --port-forward --port-forward-namespace argocd)",
+      "WebFetch(domain:openrgb.org)",
+      "WebFetch(domain:www.talos.dev)",
+      "WebFetch(domain:hub.docker.com)",
+      "Bash(hugo version)",
+      "Bash(/opt/homebrew/bin/hugo new site blog --format toml)",
+      "Bash(hugo --minify)",
+      "Bash(hugo --minify -D)",
+      "WebFetch(domain:github.com)"
     ]
   }
 }

@@ -1,0 +1,46 @@
+baseURL = "https://derio-net.github.io/frank/"
+languageCode = "en-us"
+title = "Building Frank Cluster"
+theme = "PaperMod"
+
+[params]
+  env = "production"
+  description = "Building an AI-hybrid Kubernetes homelab with Talos Linux"
+  author = "Ioannis Dermitzakis"
+  defaultTheme = "auto"
+  ShowReadingTime = true
+  ShowShareButtons = false
+  ShowPostNavLinks = true
+  ShowBreadCrumbs = true
+  ShowCodeCopyButtons = true
+  ShowToc = true
+  TocOpen = false
+
+  [params.homeInfoParams]
+    Title = "Frank Cluster"
+    Content = "A tutorial series on building an AI-hybrid Kubernetes homelab from scratch with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute."
+
+  [[params.socialIcons]]
+    name = "github"
+    url = "https://github.com/derio-net/frank"
+
+[menu]
+  [[menu.main]]
+    identifier = "posts"
+    name = "Posts"
+    url = "/posts/"
+    weight = 10
+  [[menu.main]]
+    identifier = "tags"
+    name = "Tags"
+    url = "/tags/"
+    weight = 20
+
+[outputs]
+  home = ["HTML", "RSS", "JSON"]
+
+[markup]
+  [markup.highlight]
+    codeFences = true
+    lineNos = false
+    style = "monokai"
