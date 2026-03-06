@@ -1,0 +1,282 @@
+<style>
+.roadmap {
+  --rm-bg: #f8f9fa;
+  --rm-border: #dee2e6;
+  --rm-text: #212529;
+  --rm-muted: #6c757d;
+  --rm-line: #adb5bd;
+  --rm-accent-1: #0d6efd;
+  --rm-accent-2: #198754;
+  --rm-accent-3: #6f42c1;
+  --rm-accent-4: #dc3545;
+  --rm-accent-5: #fd7e14;
+  --rm-accent-6: #20c997;
+  --rm-accent-7: #e83e8c;
+  font-family: inherit;
+  max-width: 720px;
+  margin: 1.5rem auto;
+}
+
+.dark .roadmap {
+  --rm-bg: #1a1a2e;
+  --rm-border: #333;
+  --rm-text: #e0e0e0;
+  --rm-muted: #999;
+  --rm-line: #555;
+  --rm-accent-1: #4dabf7;
+  --rm-accent-2: #51cf66;
+  --rm-accent-3: #b197fc;
+  --rm-accent-4: #ff6b6b;
+  --rm-accent-5: #ffa94d;
+  --rm-accent-6: #63e6be;
+  --rm-accent-7: #f783ac;
+}
+
+.roadmap-layer {
+  position: relative;
+  margin-bottom: 0;
+}
+
+.roadmap-layer::after {
+  content: '';
+  display: block;
+  width: 2px;
+  height: 24px;
+  background: var(--rm-line);
+  margin: 0 auto;
+}
+
+.roadmap-layer:last-child::after {
+  display: none;
+}
+
+.roadmap-card {
+  background: var(--rm-bg);
+  border: 1px solid var(--rm-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  border-left: 4px solid var(--rm-accent-1);
+}
+
+.roadmap-card .layer-title {
+  margin: 0 0 4px 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--rm-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roadmap-card .layer-title .layer-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.roadmap-card .tech {
+  font-size: 0.85rem;
+  color: var(--rm-text);
+  font-weight: 500;
+  margin-bottom: 2px;
+}
+
+.roadmap-card .desc {
+  font-size: 0.8rem;
+  color: var(--rm-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.roadmap-card .tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.roadmap-card .tag {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--rm-border);
+  color: var(--rm-muted);
+  font-weight: 500;
+}
+
+.layer-hw { border-left-color: var(--rm-accent-4); }
+.layer-hw .layer-num { background: var(--rm-accent-4); }
+
+.layer-os { border-left-color: var(--rm-accent-5); }
+.layer-os .layer-num { background: var(--rm-accent-5); }
+
+.layer-net { border-left-color: var(--rm-accent-1); }
+.layer-net .layer-num { background: var(--rm-accent-1); }
+
+.layer-stor { border-left-color: var(--rm-accent-2); }
+.layer-stor .layer-num { background: var(--rm-accent-2); }
+
+.layer-gpu { border-left-color: var(--rm-accent-3); }
+.layer-gpu .layer-num { background: var(--rm-accent-3); }
+
+.layer-gitops { border-left-color: var(--rm-accent-6); }
+.layer-gitops .layer-num { background: var(--rm-accent-6); }
+
+.layer-fun { border-left-color: var(--rm-accent-7); }
+.layer-fun .layer-num { background: var(--rm-accent-7); }
+
+.roadmap-card .sub-items {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 16px;
+  margin-top: 6px;
+}
+
+.roadmap-card .sub-item {
+  font-size: 0.8rem;
+  color: var(--rm-text);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.roadmap-card .sub-item::before {
+  content: '›';
+  color: var(--rm-muted);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .roadmap-card .sub-items {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+<div class="roadmap">
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-hw">
+      <div class="layer-title"><span class="layer-num">1</span> Hardware — 7 Nodes, 3 Zones</div>
+      <div class="sub-items">
+        <span class="sub-item">3x Intel NUC (Core zone)</span>
+        <span class="sub-item">1x GPU tower — RTX 5070</span>
+        <span class="sub-item">1x Legacy desktop</span>
+        <span class="sub-item">2x Raspberry Pi 4</span>
+      </div>
+      <div class="tags">
+        <span class="tag">x86_64</span>
+        <span class="tag">arm64</span>
+        <span class="tag">heterogeneous</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-os">
+      <div class="layer-title"><span class="layer-num">2</span> OS & Bootstrap</div>
+      <div class="sub-items">
+        <span class="sub-item">Talos Linux (immutable)</span>
+        <span class="sub-item">Sidero Omni (lifecycle)</span>
+        <span class="sub-item">Declarative machine config</span>
+        <span class="sub-item">Rolling upgrades</span>
+      </div>
+      <div class="tags">
+        <span class="tag">no SSH</span>
+        <span class="tag">API-driven</span>
+        <span class="tag">reproducible</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-net">
+      <div class="layer-title"><span class="layer-num">3</span> Networking — Cilium CNI</div>
+      <div class="sub-items">
+        <span class="sub-item">eBPF kube-proxy replacement</span>
+        <span class="sub-item">L2 LoadBalancer (ARP)</span>
+        <span class="sub-item">Hubble observability</span>
+        <span class="sub-item">Network policy</span>
+      </div>
+      <div class="tags">
+        <span class="tag">eBPF</span>
+        <span class="tag">192.168.55.200-210</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-stor">
+      <div class="layer-title"><span class="layer-num">4</span> Storage — Longhorn</div>
+      <div class="sub-items">
+        <span class="sub-item">Distributed 3-replica block storage</span>
+        <span class="sub-item">GPU-local StorageClass</span>
+        <span class="sub-item">2x 4TB SSD on gpu-1</span>
+        <span class="sub-item">iSCSI via Talos extensions</span>
+      </div>
+      <div class="tags">
+        <span class="tag">strict-local</span>
+        <span class="tag">best-effort</span>
+        <span class="tag">all 7 nodes</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-gpu">
+      <div class="layer-title"><span class="layer-num">5</span> GPU Compute</div>
+      <div class="sub-items">
+        <span class="sub-item">NVIDIA GPU Operator (RTX 5070)</span>
+        <span class="sub-item">Intel DRA driver (Arc iGPU)</span>
+        <span class="sub-item">Dynamic Resource Allocation</span>
+        <span class="sub-item">CDI device injection</span>
+      </div>
+      <div class="tags">
+        <span class="tag">K8s 1.35 DRA</span>
+        <span class="tag">ResourceClaim</span>
+        <span class="tag">DeviceClass</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-gitops">
+      <div class="layer-title"><span class="layer-num">6</span> GitOps — ArgoCD</div>
+      <div class="sub-items">
+        <span class="sub-item">App-of-Apps pattern</span>
+        <span class="sub-item">Multi-source Applications</span>
+        <span class="sub-item">Self-healing + drift detection</span>
+        <span class="sub-item">Zero-downtime adoption</span>
+      </div>
+      <div class="tags">
+        <span class="tag">single repo</span>
+        <span class="tag">annotation tracking</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-fun">
+      <div class="layer-title"><span class="layer-num">7</span> Fun Stuff</div>
+      <div class="sub-items">
+        <span class="sub-item">OpenRGB via USB HID</span>
+        <span class="sub-item">DaemonSet + ConfigMap</span>
+        <span class="sub-item">GitOps-managed RGB</span>
+        <span class="sub-item">Change LED color via git push</span>
+      </div>
+      <div class="tags">
+        <span class="tag">completely unnecessary</span>
+        <span class="tag">worth it</span>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -16,6 +16,11 @@ theme = "PaperMod"
   ShowToc = true
   TocOpen = false
 
+  [params.label]
+    text = "Building Frank Cluster"
+    icon = "/frank-icon.png"
+    iconHeight = 35
+
   [params.homeInfoParams]
     Title = "Frank Cluster"
     Content = "A tutorial series on building an AI-hybrid Kubernetes homelab from scratch with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute."

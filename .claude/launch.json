@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "blog",
+      "runtimeExecutable": "hugo",
+      "runtimeArgs": ["server", "--source", "blog", "--buildDrafts"],
+      "port": 1313
+    }
+  ]
+}

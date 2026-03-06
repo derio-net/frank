@@ -5,6 +5,10 @@ draft: false
 tags: ["introduction", "architecture"]
 summary: "The motivation behind Frank Cluster — learning enterprise infrastructure and building solopreneur products on your own hardware."
 weight: 2
+cover:
+  image: cover.png
+  alt: "Frank the cluster monster sketching blueprints at his workbench"
+  relative: true
 ---
 
 ## Why?

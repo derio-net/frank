@@ -13,9 +13,9 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Zone | Hardware | Role | Hostname(s) | IP(s) |
 |------|----------|------|-------------|-------|
 | A — Management | Raspberry Pi 5 (8GB) | Sidero Omni, Authentik, Traefik | raspi-omni | 192.168.55.1 |
-| B — Core HA | 3x ASUS NUC (64GB, 1TB nvme) | control-plane + worker | mini-1/2/3 | 192.168.55.21-23 |
-| C — AI Compute | Desktop (i9, 128GB, RTX 5070, 1TB nvme) | GPU worker | gpu-1 | 192.168.55.31 |
-| D — Edge/Burst | 3x RPi 4 + 2x legacy desktops | General workers | raspi-1/2, pc-1 | 192.168.55.41-42, .71 |
+| B — Core HA | 3x ASUS NUC (Intel Ultra 5, 64GB, 1TB NVMe, Arc iGPU) | Control-plane + worker | mini-1/2/3 | 192.168.55.21-23 |
+| C — AI Compute | Desktop (i9, 128GB, RTX 5070, 2x4TB SSD) | GPU worker | gpu-1 | 192.168.55.31 |
+| D — Edge | 2x RPi 4 + 1x legacy desktop | General workers | raspi-1/2, pc-1 | 192.168.55.41-42, .71 |
 
 ### Technology Stack
 
@@ -23,35 +23,48 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 |-------|-----------|-------|
 | OS | Talos Linux | Immutable, API-driven |
 | Management | Sidero Omni | Cluster lifecycle + Talos upgrades |
-| Networking | Cilium CNI | kube-proxy replacement, Hubble UI |
-| Storage | Longhorn | Distributed block storage, 3-replica default |
-| GitOps | ArgoCD v3.x | App-of-Apps pattern |
-| GPU | NVIDIA GPU Operator | Pending — RTX 5070 PCIe issue |
+| Networking | Cilium CNI | eBPF kube-proxy replacement, L2 LoadBalancer, Hubble UI |
+| Storage | Longhorn | Distributed block storage, 3-replica default + GPU-local StorageClass |
+| GitOps | ArgoCD | App-of-Apps pattern, annotation-based tracking |
+| GPU (NVIDIA) | GPU Operator | Pending — RTX 5070 PCIe issue |
+| GPU (Intel) | Intel GPU Resource Driver | DRA-based iGPU sharing on mini-1/2/3 (K8s 1.35) |
+| RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID |
 
 ## Repository Structure
 
 ```
-frankocluster/
+frank/
 ├── apps/
-│   ├── root/               # App-of-Apps Helm chart (ArgoCD entry point)
+│   ├── root/                  # App-of-Apps Helm chart (ArgoCD entry point)
 │   │   ├── Chart.yaml
 │   │   ├── values.yaml
-│   │   └── templates/      # One Application per infrastructure component
-│   ├── argocd/values.yaml  # ArgoCD Helm values
-│   ├── cilium/values.yaml
+│   │   └── templates/         # One Application CR per infrastructure component
+│   ├── argocd/values.yaml     # ArgoCD Helm values
+│   ├── cilium/
+│   │   ├── values.yaml
+│   │   └── manifests/         # L2 pool, announcement policy
 │   ├── longhorn/
 │   │   ├── values.yaml
-│   │   └── manifests/      # Extra manifests (GPU-local StorageClass)
-│   └── gpu-operator/values.yaml
+│   │   └── manifests/         # GPU-local StorageClass
+│   ├── gpu-operator/values.yaml
+│   ├── intel-gpu-driver/
+│   │   ├── values.yaml
+│   │   └── chart/             # Vendored chart with K8s 1.35 / Talos patches
+│   └── openrgb/manifests/     # DaemonSet + ConfigMap for LED control
 ├── patches/
-│   ├── README.md           # Node reference + phase status
-│   ├── phase1-node-config/ # Omni machine config patches
-│   ├── phase2-cilium/      # Cilium install reference
-│   ├── phase3-longhorn/    # Longhorn install reference
-│   └── phase4-gpu/         # GPU stack reference
-├── docs/plans/             # Architecture and implementation plans
-├── omni/                   # Omni-specific configs
-└── scripts/                # Utility scripts
+│   ├── README.md              # Node reference + phase status
+│   ├── phase01-node-config/   # Node labels, scheduling
+│   ├── phase02-cilium/        # CNI swap to Cilium
+│   ├── phase03-longhorn/      # iSCSI tools, extra disks
+│   ├── phase04-gpu/           # NVIDIA extensions + GPU taint
+│   └── phase05-mini-config/   # Intel i915 + iGPU DRA extensions
+├── blog/                      # Hugo blog (PaperMod theme)
+│   ├── hugo.toml
+│   ├── content/posts/         # 7 posts documenting the build
+│   └── layouts/shortcodes/    # Custom shortcodes (roadmap, etc.)
+├── docs/plans/                # Architecture and implementation plans
+├── omni/                      # Omni-specific configs
+└── scripts/                   # Utility scripts
 ```
 
 ## Environment Setup
@@ -63,27 +76,32 @@ source .env_devops   # Sets OMNI_ENDPOINT + OMNI_SERVICE_ACCOUNT_KEY
 
 ## ArgoCD Access
 
-```bash
-# Port-forward (no ingress configured yet)
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+ArgoCD is exposed via Cilium L2 LoadBalancer:
 
-# CLI login
-argocd login localhost:8080 \
-  --port-forward \
-  --port-forward-namespace argocd \
-  --username admin
+```
+http://192.168.55.200
+```
+
+CLI access:
+
+```bash
+argocd login 192.168.55.200 --plaintext --username admin
 
 # List all apps
-argocd app list --port-forward --port-forward-namespace argocd
+argocd app list
 ```
 
 ## Current Status
 
-```bash
-# All apps: root, cilium, longhorn, longhorn-extras = Synced/Healthy
-# gpu-operator = OutOfSync/Missing (GPU PCIe hardware issue — manual sync when fixed)
-argocd app list --port-forward --port-forward-namespace argocd
-```
+| Application | Status | Notes |
+|------------|--------|-------|
+| cilium | Synced/Healthy | 7/7 agents, eBPF kube-proxy replacement |
+| cilium-config | Synced/Healthy | L2 pool + announcement policy |
+| longhorn | Synced/Healthy | All 7 nodes schedulable |
+| longhorn-extras | Synced/Healthy | GPU-local StorageClass |
+| intel-gpu-driver | Synced/Healthy | DRA driver on mini-1/2/3 |
+| openrgb | Synced/Healthy | LED control on gpu-1 |
+| gpu-operator | OutOfSync/Missing | RTX 5070 PCIe issue — manual sync when fixed |
 
 ## Adding a New Application
 
@@ -101,7 +119,7 @@ source .env
 talosctl -n 192.168.55.31 dmesg | grep -i nvidia | head -5
 
 # Sync the GPU Operator
-argocd app sync gpu-operator --port-forward --port-forward-namespace argocd
+argocd app sync gpu-operator
 
 # Then enable automated sync in apps/root/templates/gpu-operator.yaml
 ```
@@ -113,3 +131,4 @@ argocd app sync gpu-operator --port-forward --port-forward-namespace argocd
 - [ArgoCD Docs](https://argo-cd.readthedocs.io/)
 - [Longhorn Docs](https://longhorn.io/docs/)
 - [Cilium Docs](https://docs.cilium.io/)
+- [Intel GPU Resource Driver](https://github.com/intel/intel-resource-drivers-for-kubernetes)
