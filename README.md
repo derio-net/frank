@@ -42,10 +42,10 @@ frank/
 │   ├── argocd/values.yaml     # ArgoCD Helm values
 │   ├── cilium/
 │   │   ├── values.yaml
-│   │   └── manifests/         # L2 pool, announcement policy
+│   │   └── manifests/         # L2 pool, announcement policy, Hubble UI LB
 │   ├── longhorn/
 │   │   ├── values.yaml
-│   │   └── manifests/         # GPU-local StorageClass
+│   │   └── manifests/         # GPU-local StorageClass, Longhorn UI LB
 │   ├── gpu-operator/values.yaml
 │   ├── intel-gpu-driver/
 │   │   ├── values.yaml
@@ -74,15 +74,17 @@ source .env          # Sets KUBECONFIG + TALOSCONFIG
 source .env_devops   # Sets OMNI_ENDPOINT + OMNI_SERVICE_ACCOUNT_KEY
 ```
 
-## ArgoCD Access
+## Service Access
 
-ArgoCD is exposed via Cilium L2 LoadBalancer:
+The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 
-```
-http://192.168.55.200
-```
+| Service | URL | IP |
+|---------|-----|-----|
+| ArgoCD | http://192.168.55.200 | 192.168.55.200 |
+| Longhorn UI | http://192.168.55.201 | 192.168.55.201 |
+| Hubble UI | http://192.168.55.202 | 192.168.55.202 |
 
-CLI access:
+ArgoCD CLI access:
 
 ```bash
 argocd login 192.168.55.200 --plaintext --username admin

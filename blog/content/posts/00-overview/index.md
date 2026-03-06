@@ -24,8 +24,8 @@ This post is a **living document**: it gets updated as new technologies and capa
 | Technology | Capabilities Unlocked |
 |------------|----------------------|
 | **Talos Linux + Omni** | Immutable OS, declarative machine config, secure bootstrap |
-| **Cilium (eBPF)** | Kube-proxy replacement, L2 LoadBalancer, Hubble observability |
-| **Longhorn** | Distributed block storage, GPU-local StorageClass, 3-replica HA |
+| **Cilium (eBPF)** | Kube-proxy replacement, L2 LoadBalancer, Hubble UI (`192.168.55.202`) |
+| **Longhorn** | Distributed block storage, GPU-local StorageClass, 3-replica HA, UI (`192.168.55.201`) |
 | **ArgoCD** | GitOps, App-of-Apps, self-healing, drift detection |
 | **NVIDIA GPU Operator** | GPU scheduling, AI/ML workloads, container toolkit |
 | **Intel GPU DRA Driver** | iGPU sharing via DRA, namespace-scoped GPU access |

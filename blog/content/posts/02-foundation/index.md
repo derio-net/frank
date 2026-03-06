@@ -224,6 +224,33 @@ A few things that tripped me up during this phase:
 
 5. **kube-proxy cleanup.** Even after setting `proxy.disabled: true` in the Talos config, the existing kube-proxy DaemonSet does not automatically disappear. You need to delete it manually. If you forget, you will have both Cilium and kube-proxy fighting over iptables rules, which leads to confusing connectivity issues.
 
+### Exposing Hubble UI
+
+Cilium deploys Hubble UI as a ClusterIP service by default, which means it is only accessible from inside the cluster. To reach it from the local network, a LoadBalancer service with a fixed IP is added alongside the L2 pool and announcement policy:
+
+```yaml
+# apps/cilium/manifests/hubble-ui-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: hubble-ui-lb
+  namespace: kube-system
+  annotations:
+    io.cilium/lb-ipam-ips: "192.168.55.202"
+spec:
+  type: LoadBalancer
+  selector:
+    k8s-app: hubble-ui
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8081
+```
+
+The `io.cilium/lb-ipam-ips` annotation pins this service to `192.168.55.202`, the same mechanism used for ArgoCD at `.200`. Because this manifest lives in `apps/cilium/manifests/`, the existing `cilium-config` ArgoCD Application picks it up automatically — no new Application CR needed.
+
+Hubble UI is then reachable at `http://192.168.55.202` from any machine on the LAN.
+
 ## What We Have Now
 
 At this point the cluster has:
@@ -231,6 +258,6 @@ At this point the cluster has:
 - Labeled zones (Core, AI Compute, Edge) for workload placement
 - Cilium CNI with eBPF kube-proxy replacement
 - L2 LoadBalancer (192.168.55.200-210) for service exposure
-- Hubble for network observability
+- Hubble UI for network observability at `http://192.168.55.202`
 
 **Next: [Persistent Storage with Longhorn]({{< relref "/posts/03-storage" >}})**
