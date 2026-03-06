@@ -54,6 +54,8 @@ The cluster spans 4 zones of heterogeneous hardware:
 
 ## Architecture
 
+![Omni cluster dashboard showing CPU, pods, memory, and node status for the frank cluster](omni-cluster.png)
+
 The cluster uses a **two-layer management model**:
 
 - **Layer 1 (Machine Config):** Sidero Omni manages Talos Linux machine configurations — OS extensions, kernel modules, disk mounts, network settings. Applied via `omnictl`.
