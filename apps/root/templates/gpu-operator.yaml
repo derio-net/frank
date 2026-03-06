@@ -24,11 +24,9 @@ spec:
     server: {{ .Values.destination.server }}
     namespace: gpu-operator
   syncPolicy:
-    # Manual sync — GPU hardware not yet detected
-    # Change to automated after GPU is working:
-    #   automated:
-    #     prune: false
-    #     selfHeal: true
+    automated:
+      prune: false
+      selfHeal: true
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
