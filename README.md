@@ -26,7 +26,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Networking | Cilium CNI | eBPF kube-proxy replacement, L2 LoadBalancer, Hubble UI |
 | Storage | Longhorn | Distributed block storage, 3-replica default + GPU-local StorageClass |
 | GitOps | ArgoCD | App-of-Apps pattern, annotation-based tracking |
-| GPU (NVIDIA) | GPU Operator | Pending — RTX 5070 PCIe issue |
+| GPU (NVIDIA) | GPU Operator | RTX 5070 on gpu-1, driver-less (host driver) |
 | GPU (Intel) | Intel GPU Resource Driver | DRA-based iGPU sharing on mini-1/2/3 (K8s 1.35) |
 | RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID |
 
@@ -101,28 +101,13 @@ argocd app list
 | longhorn-extras | Synced/Healthy | GPU-local StorageClass |
 | intel-gpu-driver | Synced/Healthy | DRA driver on mini-1/2/3 |
 | openrgb | Synced/Healthy | LED control on gpu-1 |
-| gpu-operator | OutOfSync/Missing | RTX 5070 PCIe issue — manual sync when fixed |
+| gpu-operator | Synced/Healthy | RTX 5070 on gpu-1 |
 
 ## Adding a New Application
 
 1. Add Helm values to `apps/<name>/values.yaml`
 2. Add an Application template to `apps/root/templates/<name>.yaml`
 3. Commit and push — ArgoCD auto-syncs the root app and creates the child Application
-
-## GPU Operator (Pending)
-
-The RTX 5070 is not detected on the PCIe bus. When the hardware issue is resolved:
-
-```bash
-# Verify GPU detected
-source .env
-talosctl -n 192.168.55.31 dmesg | grep -i nvidia | head -5
-
-# Sync the GPU Operator
-argocd app sync gpu-operator
-
-# Then enable automated sync in apps/root/templates/gpu-operator.yaml
-```
 
 ## References
 
