@@ -29,7 +29,9 @@
       "Bash(/opt/homebrew/bin/hugo new site blog --format toml)",
       "Bash(hugo --minify)",
       "Bash(hugo --minify -D)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(ls -d /Users/idermitzakis/Docs/projects/HOMELAB/frankocluster/apps/*/)"
     ]
   }
 }
