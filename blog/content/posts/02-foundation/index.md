@@ -94,7 +94,7 @@ The pattern across all seven nodes:
 |-------|--------|---------|
 | `zone` | `core`, `ai-compute`, `edge` | Maps to the physical zone architecture (B, C, D) |
 | `tier` | `standard`, `low-power` | Distinguishes capable nodes from Raspberry Pis |
-| `accelerator` | `nvidia`, `intel-igpu`, (absent) | Marks GPU-equipped nodes for device plugin scheduling |
+| `accelerator` | `nvidia`, `intel-igpu` | Marks GPU-equipped nodes for device plugin scheduling |
 | `igpu` | `intel-arc` | Specific iGPU model (used by Intel DRA driver) |
 | `model-server` | `"true"` | Flags gpu-1 for future AI inference workloads |
 
