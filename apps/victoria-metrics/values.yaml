@@ -4,17 +4,21 @@ vmalert:
 alertmanager:
   enabled: false
 
+# Disable kube-controller-manager scraping — service name exceeds 63 chars with this release name
+kubeControllerManager:
+  enabled: false
+
 # VMSingle — single-node metrics storage
 vmsingle:
   spec:
     retentionPeriod: "1"   # 1 month
     storage:
-      volumeClaimTemplate:
-        spec:
-          storageClassName: longhorn
-          resources:
-            requests:
-              storage: 20Gi
+      storageClassName: longhorn
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 20Gi
 
 # Grafana — exposed via Cilium L2 LoadBalancer
 grafana:
@@ -33,5 +37,5 @@ grafana:
     - name: VictoriaLogs
       type: victoriametrics-logs-datasource
       access: proxy
-      url: http://victoria-logs-victoria-logs-single.monitoring.svc.cluster.local:9428
+      url: http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428
       isDefault: false
