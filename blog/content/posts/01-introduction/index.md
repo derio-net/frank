@@ -74,3 +74,15 @@ The rest of this series walks through each capability layer:
 5. Fun Stuff — Controlling RGB LEDs from Kubernetes
 
 Let's start building.
+
+## References
+
+- [Talos Linux](https://www.talos.dev/) — Immutable, secure, minimal Kubernetes OS
+- [Sidero Omni](https://www.siderolabs.com/omni/) — SaaS-simple Kubernetes cluster management for Talos Linux
+- [Kubernetes](https://kubernetes.io/) — Production-grade container orchestration
+- [ArgoCD](https://argo-cd.readthedocs.io/en/stable/) — Declarative GitOps continuous delivery for Kubernetes
+- [Cilium](https://docs.cilium.io/en/stable/) — eBPF-based networking, observability, and security for Kubernetes
+- [Longhorn](https://longhorn.io/) — Cloud-native distributed block storage for Kubernetes
+- [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/) — Automated GPU management in Kubernetes
+- [Intel Resource Drivers for Kubernetes](https://github.com/intel/intel-resource-drivers-for-kubernetes) — DRA-based resource drivers for Intel GPUs
+- [eBPF](https://ebpf.io/) — Technology for programmable networking, observability, and security in the Linux kernel

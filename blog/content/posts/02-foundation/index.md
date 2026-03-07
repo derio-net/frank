@@ -264,4 +264,16 @@ At this point the cluster has:
 - L2 LoadBalancer (192.168.55.200-210) for service exposure
 - Hubble UI for network observability at `http://192.168.55.202`
 
+## References
+
+- [Talos Linux](https://www.talos.dev/) — Immutable, secure, minimal Kubernetes OS
+- [Talos Machine Configuration Reference](https://www.talos.dev/v1.11/) — Declarative machine config documentation
+- [Sidero Omni](https://www.siderolabs.com/omni/) — SaaS-simple Kubernetes cluster management for Talos Linux
+- [Deploying Cilium CNI on Talos](https://docs.siderolabs.com/kubernetes-guides/cni/deploying-cilium) — Official Talos guide for Cilium installation
+- [Cilium — Kubernetes Without kube-proxy](https://docs.cilium.io/en/stable/network/kubernetes/kubeproxy-free/) — eBPF-based kube-proxy replacement documentation
+- [Cilium L2 Announcements](https://docs.cilium.io/en/stable/network/l2-announcements/) — L2 Aware LoadBalancer and ARP announcement policy
+- [Cilium LB-IPAM](https://docs.cilium.io/en/stable/network/lb-ipam/) — LoadBalancer IP Address Management with CiliumLoadBalancerIPPool
+- [Hubble — Network Observability](https://docs.cilium.io/en/stable/observability/hubble/) — Cilium's built-in network observability platform
+- [eBPF](https://ebpf.io/) — Technology for programmable networking, observability, and security in the Linux kernel
+
 **Next: [Persistent Storage with Longhorn]({{< relref "/posts/03-storage" >}})**

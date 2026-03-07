@@ -259,4 +259,14 @@ At this point the cluster has:
 - Longhorn UI exposed at `http://192.168.55.201` for storage management
 - Automatic volume rebalancing and health monitoring
 
+## References
+
+- [Longhorn](https://longhorn.io/) — Cloud-native distributed block storage for Kubernetes (CNCF incubating)
+- [Longhorn Concepts and Architecture](https://longhorn.io/docs/1.11.0/what-is-longhorn/) — How Longhorn engines, replicas, and volumes work
+- [Longhorn StorageClass Parameters](https://longhorn.io/docs/latest/references/storage-class-parameters/) — Reference for numberOfReplicas, dataLocality, diskSelector, and more
+- [Talos Linux Storage Guide](https://docs.siderolabs.com/kubernetes-guides/csi/storage) — iSCSI prerequisites and CSI setup on Talos
+- [Talos System Extensions](https://github.com/siderolabs/extensions) — Official Talos Linux system extensions repository (includes iscsi-tools)
+- [Rook-Ceph](https://rook.io/) — Cloud-native storage orchestration for Kubernetes using Ceph
+- [Kubernetes Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) — Official PV and PVC documentation
+
 **Next: [GPU Compute — NVIDIA and Intel]({{< relref "/posts/04-gpu-compute" >}})**

@@ -406,4 +406,15 @@ At this point the cluster has:
 
 The DRA stack on the Intel side is fully operational and demonstrates the future of GPU scheduling in Kubernetes. The NVIDIA side is infrastructure-complete, waiting on a PCIe bus that refuses to cooperate. When it does, enabling it is a single ArgoCD sync away.
 
+## References
+
+- [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/) — Automated GPU management in Kubernetes
+- [NVIDIA GPU Support on Talos Linux](https://docs.siderolabs.com/talos/v1.9/configure-your-talos-cluster/hardware-and-drivers/nvidia-gpu-proprietary) — Talos extensions and kernel modules for NVIDIA GPUs
+- [Kubernetes Dynamic Resource Allocation (DRA)](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) — Official Kubernetes DRA documentation (ResourceSlice, DeviceClass, ResourceClaim)
+- [DRA Cluster Setup Guide](https://kubernetes.io/docs/tasks/configure-pod-container/assign-resources/set-up-dra-cluster/) — How to set up DRA in a Kubernetes cluster
+- [Intel Resource Drivers for Kubernetes](https://github.com/intel/intel-resource-drivers-for-kubernetes) — DRA-based GPU resource driver for Intel GPUs
+- [Container Device Interface (CDI)](https://github.com/cncf-tags/container-device-interface) — CNCF specification for container runtime device injection
+- [Kubernetes Device Plugins](https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/device-plugins/) — Legacy device plugin framework (predecessor to DRA)
+- [Talos Dynamic Resource Allocation Guide](https://docs.siderolabs.com/kubernetes-guides/advanced-guides/dynamic-resource-allocation) — DRA configuration on Talos Linux
+
 **Next: [GitOps Everything with ArgoCD]({{< relref "/posts/05-gitops" >}})**
