@@ -31,7 +31,8 @@
       "Bash(hugo --minify -D)",
       "WebFetch(domain:github.com)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(ls -d /Users/idermitzakis/Docs/projects/HOMELAB/frankocluster/apps/*/)"
+      "Bash(ls -d /Users/idermitzakis/Docs/projects/HOMELAB/frankocluster/apps/*/)",
+      "WebSearch"
     ]
   }
 }

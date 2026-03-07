@@ -198,3 +198,11 @@ Let us take stock. To control six case fans, we: ran a discovery pod, wrote a Da
 The pod requests 10 millicores of CPU and 32Mi of memory. The ConfigMap is twelve lines long. The entire deployment exists so that the fans on one machine are black instead of rainbow.
 
 Absolutely not worth it. But the fans look great, the pod is Synced/Healthy in ArgoCD, and if anyone ever asks whether our homelab has GitOps-managed RGB, the answer is yes.
+
+## References
+
+- [OpenRGB](https://openrgb.org/) — Open-source RGB lighting control across manufacturers
+- [OpenRGB GitLab Repository](https://gitlab.com/CalcProgrammer1/OpenRGB) — Source code and device compatibility information
+- [OpenRGB Supported Devices Wiki](https://gitlab.com/OpenRGBDevelopers/OpenRGB-Wiki) — Device detection, compatibility, and protocol documentation
+- [Linux HID Subsystem](https://www.kernel.org/doc/html/latest/hid/index.html) — Kernel documentation for USB HID and hidraw devices
+- [Kubernetes DaemonSet](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/) — Official DaemonSet documentation for node-level workloads

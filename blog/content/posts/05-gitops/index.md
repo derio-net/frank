@@ -326,4 +326,15 @@ At this point the cluster has:
 
 The two-layer split is clean: Omni owns the machines (kernel, extensions, disk mounts), ArgoCD owns the workloads (Helm releases, manifests, namespaces). They never overlap, and changes to either layer follow the same workflow: edit YAML, push to main, watch it converge.
 
+## References
+
+- [ArgoCD](https://argo-cd.readthedocs.io/en/stable/) — Declarative GitOps continuous delivery for Kubernetes
+- [ArgoCD App-of-Apps Pattern](https://argo-cd.readthedocs.io/en/stable/operator-manual/cluster-bootstrapping/) — Cluster bootstrapping with the App-of-Apps pattern
+- [ArgoCD Multi-Source Applications](https://argo-cd.readthedocs.io/en/latest/user-guide/multiple_sources/) — Using multiple sources (Helm chart + Git values) in a single Application
+- [ArgoCD Resource Tracking](https://argo-cd.readthedocs.io/en/latest/user-guide/resource_tracking/) — Annotation-based vs. label-based resource tracking methods
+- [ArgoCD Sync Options](https://argo-cd.readthedocs.io/en/stable/user-guide/sync-options/) — ServerSideApply, selfHeal, prune, and other sync options
+- [ArgoCD Helm Chart (argo-helm)](https://github.com/argoproj/argo-helm) — Official Helm charts for Argo projects
+- [Flux CD](https://fluxcd.io/) — CNCF GitOps toolkit for Kubernetes
+- [Kubernetes Pod Security Admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/) — Pod Security Standards enforcement at the namespace level
+
 **Next: [Fun Stuff -- Controlling Case LEDs from Kubernetes]({{< relref "/posts/06-fun-stuff" >}})**
