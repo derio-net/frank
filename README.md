@@ -1,10 +1,10 @@
-# Frank Cluster — AI-Hybrid Kubernetes Homelab
+# Frank, the Talos Cluster — AI-Hybrid Kubernetes Homelab
 
 [![Deploy Blog](https://github.com/derio-net/frank/actions/workflows/deploy-blog.yml/badge.svg)](https://github.com/derio-net/frank/actions/workflows/deploy-blog.yml)
 
 Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware, managed with GitOps via ArgoCD.
 
-**Blog:** [Building Frank Cluster](https://derio-net.github.io/frank/) — A tutorial series documenting the build process.
+**Blog:** [Building Frank, the Talos Cluster](https://derio-net.github.io/frank/) — A tutorial series documenting the build process.
 
 ## Architecture
 

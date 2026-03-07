@@ -1,9 +1,9 @@
 ---
-title: "Frank Cluster: Overview & Roadmap"
+title: "Frank, the Talos Cluster: Overview & Roadmap"
 date: 2026-03-06
 draft: false
 tags: ["overview", "roadmap"]
-summary: "A living overview of Frank Cluster — an AI-hybrid Kubernetes homelab. Technology roadmap, capabilities, and series index."
+summary: "A living overview of Frank, the Talos Cluster — an AI-hybrid Kubernetes homelab. Technology roadmap, capabilities, and series index."
 weight: 1
 cover:
   image: cover.png
@@ -11,7 +11,7 @@ cover:
   relative: true
 ---
 
-This is the overview post for the **Frank Cluster** series — a tutorial-style walkthrough of building an AI-hybrid Kubernetes homelab from scratch.
+This is the overview post for the **Frank, the Talos Cluster** series — a tutorial-style walkthrough of building an AI-hybrid Kubernetes homelab from scratch.
 
 This post is a **living document**: it gets updated as new technologies and capabilities are added to the cluster.
 

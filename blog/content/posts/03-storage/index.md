@@ -21,7 +21,7 @@ For a homelab, Rook-Ceph is overkill. It demands a minimum of three dedicated OS
 
 Longhorn takes the opposite approach. It is a lightweight, cloud-native distributed block storage system originally built by Rancher Labs. Each volume is an independent Linux process backed by a sparse file, and replication happens at the volume level rather than the cluster level. This makes it straightforward to reason about: a 3-replica volume simply means three copies of the data living on three different nodes.
 
-For Frank Cluster, Longhorn wins on three counts:
+For Frank, the Talos Cluster, Longhorn wins on three counts:
 
 1. **No dedicated storage nodes.** Every node contributes its local disk to the storage pool. The three mini nodes, gpu-1, pc-1, and both Raspberry Pis all participate.
 2. **Simple operations.** The Longhorn UI (bundled with the install) gives you a clear view of volume health, replica status, and node capacity. No CRUSH maps.
@@ -31,7 +31,7 @@ For Frank Cluster, Longhorn wins on three counts:
 
 Longhorn uses iSCSI under the hood to expose block devices to pods. On a traditional Linux distribution, you would install `open-iscsi` from the package manager and be done with it. Talos Linux has no package manager — the root filesystem is immutable and read-only. Instead, you install system extensions that get baked into the Talos image at boot time.
 
-The `iscsi-tools` extension must be present on every node that will participate in Longhorn storage. In Frank Cluster, that means all seven nodes. Using Omni, this is a single cluster-scoped patch:
+The `iscsi-tools` extension must be present on every node that will participate in Longhorn storage. In Frank, the Talos Cluster, that means all seven nodes. Using Omni, this is a single cluster-scoped patch:
 
 ```yaml
 # patches/phase03-longhorn/400-cluster-iscsi-tools.yaml
@@ -59,7 +59,7 @@ Look for `siderolabs/iscsi-tools` in the output. If it is missing, the image reb
 
 ## Mounting Extra Disks on gpu-1
 
-Most nodes in Frank Cluster use their single internal disk for both the OS and Longhorn storage. The gpu-1 node is different. It has two Samsung 870 EVO 4TB SATA SSDs dedicated to storage — the kind of capacity you want available when training models or caching large datasets locally.
+Most nodes in Frank, the Talos Cluster use their single internal disk for both the OS and Longhorn storage. The gpu-1 node is different. It has two Samsung 870 EVO 4TB SATA SSDs dedicated to storage — the kind of capacity you want available when training models or caching large datasets locally.
 
 On a standard Linux system, you would partition and mount these drives with `fdisk` and `fstab`. On Talos, disk management is declarative — you describe the desired state in the machine config, and Talos handles partitioning and mounting.
 
@@ -101,7 +101,7 @@ You should see both `/var/mnt/longhorn-sda` and `/var/mnt/longhorn-sdb` listed a
 
 ## Installing Longhorn
 
-With iSCSI available and disks mounted, Longhorn itself goes in via Helm. In Frank Cluster, ArgoCD manages the Longhorn Helm release through an Application resource that references the upstream chart and a values file in the Git repo.
+With iSCSI available and disks mounted, Longhorn itself goes in via Helm. In Frank, the Talos Cluster, ArgoCD manages the Longhorn Helm release through an Application resource that references the upstream chart and a values file in the Git repo.
 
 The ArgoCD Application pulls Longhorn chart version 1.11.0 from the official `charts.longhorn.io` repository, with values sourced from the Git repo:
 

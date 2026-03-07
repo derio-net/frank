@@ -11,7 +11,7 @@ cover:
   relative: true
 ---
 
-This post covers the first three steps of building Frank Cluster: bootstrapping Talos Linux via Omni, organizing nodes into labeled zones, and installing Cilium as the CNI with eBPF kube-proxy replacement.
+This post covers the first three steps of building Frank, the Talos Cluster: bootstrapping Talos Linux via Omni, organizing nodes into labeled zones, and installing Cilium as the CNI with eBPF kube-proxy replacement.
 
 ## Why Talos Linux?
 
@@ -33,7 +33,7 @@ Sidero Omni sits on `raspi-omni` in Zone A (the management zone) and handles mac
 
 ![Omni dashboard showing all nodes with IPs, OS versions, roles, and status](omni-nodes.png)
 
-For Frank Cluster, the bootstrap sequence was straightforward:
+For Frank, the Talos Cluster, the bootstrap sequence was straightforward:
 
 1. Flash each machine (minis, gpu-1, pc-1, Raspberry Pis) with the Omni Talos ISO.
 2. Machines appear in the Omni inventory as unallocated.

@@ -1,6 +1,6 @@
 baseURL = "https://derio-net.github.io/frank/"
 languageCode = "en-us"
-title = "Building Frank Cluster"
+title = "Building Frank, the Talos Cluster"
 theme = "PaperMod"
 
 [params]
@@ -17,12 +17,12 @@ theme = "PaperMod"
   TocOpen = false
 
   [params.label]
-    text = "Building Frank Cluster"
+    text = "Building Frank, the Talos Cluster"
     icon = "/frank-icon.png"
     iconHeight = 35
 
   [params.homeInfoParams]
-    Title = "Frank Cluster"
+    Title = "Frank, the Talos Cluster"
     Content = "A tutorial series on building an AI-hybrid Kubernetes homelab from scratch with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute."
 
   [[params.socialIcons]]
