@@ -178,7 +178,7 @@ the need for MetalLB or an external load balancer.
 
 **Configuration:**
 - `l2announcements.enabled: true` in Cilium Helm values
-- `CiliumLoadBalancerIPPool`: `192.168.55.200` — `192.168.55.210` (11 IPs)
+- `CiliumLoadBalancerIPPool`: `192.168.55.200` — `192.168.55.254` (11 IPs)
 - `CiliumL2AnnouncementPolicy`: advertises on all `eth*` and `en*` interfaces
 - Managed by ArgoCD via the `cilium-config` Application (`apps/cilium/manifests/`)
 

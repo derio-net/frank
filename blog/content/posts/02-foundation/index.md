@@ -193,7 +193,7 @@ metadata:
 spec:
   blocks:
     - start: "192.168.55.200"
-      stop: "192.168.55.210"
+      stop: "192.168.55.254"
 ```
 
 ```yaml
