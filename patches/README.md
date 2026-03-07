@@ -1,4 +1,4 @@
-# Frank Cluster — Deployment Phases
+# Frank, the Talos Cluster — Deployment Phases
 
 ## Machine Reference
 
