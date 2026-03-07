@@ -1,0 +1,9 @@
+server:
+  retentionPeriod: 14d
+  persistentVolume:
+    enabled: true
+    size: 20Gi
+    storageClass: longhorn
+  service:
+    type: ClusterIP
+    port: 9428
