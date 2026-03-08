@@ -3,7 +3,7 @@ installCRDs: true
 crds:
   createClusterExternalSecret: true
   createClusterSecretStore: true
-  createPushSecret: false
+  createPushSecret: true
 
 webhook:
   create: true

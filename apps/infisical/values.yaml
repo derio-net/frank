@@ -1,8 +1,8 @@
-backend:
+infisical:
   replicaCount: 1
 
   image:
-    pullPolicy: IfNotPresent
+    tag: "v0.151.0"
 
   # Reference to the SOPS-bootstrapped secret containing all required env vars.
   # Applied manually: sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -
@@ -13,25 +13,35 @@ backend:
     annotations:
       lbipam.cilium.io/ips: "192.168.55.204"
 
-mongodb:
+postgresql:
   enabled: true
   auth:
-    usernames:
-      - infisical
-    databases:
-      - infisical
-    # Passwords come from the bootstrap secret (keys: mongodb-passwords, mongodb-root-password)
+    username: infisical
+    database: infisicalDB
+    # Passwords come from the bootstrap secret (keys: password, postgres-password).
+    # Never put plaintext credentials here.
     existingSecret: infisical-secrets
-  persistence:
+  primary:
+    persistence:
+      size: 5Gi
+      storageClass: longhorn
+
+  # DB_CONNECTION_URI env var is read from infisical-secrets (via kubeSecretRef envFrom).
+  # Setting useExistingPostgresSecret here as well so the chart does not auto-inject
+  # a conflicting connection string built from postgresql.auth.password.
+  useExistingPostgresSecret:
     enabled: true
-    size: 5Gi
-    storageClass: longhorn
+    existingConnectionStringSecret:
+      name: infisical-secrets
+      key: DB_CONNECTION_URI
 
 redis:
   enabled: true
   architecture: standalone
   auth:
-    enabled: false
+    # Password comes from the bootstrap secret.
+    existingSecret: infisical-secrets
+    existingSecretPasswordKey: redis-password
 
 ingress:
   enabled: false
