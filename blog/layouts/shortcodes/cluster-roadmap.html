@@ -12,6 +12,9 @@
   --rm-accent-5: #fd7e14;
   --rm-accent-6: #20c997;
   --rm-accent-7: #e83e8c;
+  --rm-accent-8: #ffd43b;
+  --rm-accent-9: #74c0fc;
+  --rm-accent-10: #a9e34b;
   font-family: inherit;
   max-width: 720px;
   margin: 1.5rem auto;
@@ -30,7 +33,25 @@
   --rm-accent-5: #ffa94d;
   --rm-accent-6: #63e6be;
   --rm-accent-7: #f783ac;
+  --rm-accent-8: #ffe066;
+  --rm-accent-9: #a5d8ff;
+  --rm-accent-10: #c0eb75;
 }
+
+.layer-obs { border-left-color: var(--rm-accent-8); }
+.layer-obs .layer-num { background: var(--rm-accent-8); color: #333; }
+
+.layer-backup { border-left-color: var(--rm-accent-9); }
+.layer-backup .layer-num { background: var(--rm-accent-9); color: #333; }
+
+.layer-secrets { border-left-color: var(--rm-accent-10); }
+.layer-secrets .layer-num { background: var(--rm-accent-10); color: #333; }
+
+.layer-upcoming {
+  border-left-style: dashed;
+  opacity: 0.55;
+}
+.layer-upcoming .layer-num { background: var(--rm-muted); }
 
 .roadmap-layer {
   position: relative;
@@ -131,6 +152,7 @@
 
 .layer-fun { border-left-color: var(--rm-accent-7); }
 .layer-fun .layer-num { background: var(--rm-accent-7); }
+
 
 .roadmap-card .sub-items {
   display: grid;
@@ -275,6 +297,88 @@
       <div class="tags">
         <span class="tag">completely unnecessary</span>
         <span class="tag">worth it</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-obs">
+      <div class="layer-title"><span class="layer-num">8</span> Observability</div>
+      <div class="sub-items">
+        <span class="sub-item">VictoriaMetrics (metrics + alerts)</span>
+        <span class="sub-item">VictoriaLogs (log aggregation)</span>
+        <span class="sub-item">Grafana dashboards</span>
+        <span class="sub-item">Fluent Bit log shipping</span>
+      </div>
+      <div class="tags">
+        <span class="tag">VMSingle</span>
+        <span class="tag">Alertmanager</span>
+        <span class="tag">192.168.55.203</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-backup">
+      <div class="layer-title"><span class="layer-num">9</span> Backup</div>
+      <div class="sub-items">
+        <span class="sub-item">Longhorn → Cloudflare R2</span>
+        <span class="sub-item">Daily + weekly recurring jobs</span>
+        <span class="sub-item">SOPS-encrypted credentials</span>
+        <span class="sub-item">NAS target (pending Longhorn 1.13)</span>
+      </div>
+      <div class="tags">
+        <span class="tag">S3-compatible</span>
+        <span class="tag">7-day RPO</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-secrets">
+      <div class="layer-title"><span class="layer-num">10</span> Secrets Management</div>
+      <div class="sub-items">
+        <span class="sub-item">Infisical (self-hosted vault)</span>
+        <span class="sub-item">External Secrets Operator</span>
+        <span class="sub-item">ClusterSecretStore</span>
+        <span class="sub-item">ExternalSecret → K8s Secret</span>
+      </div>
+      <div class="tags">
+        <span class="tag">audit trail</span>
+        <span class="tag">Universal Auth</span>
+        <span class="tag">192.168.55.204</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-upcoming">
+      <div class="layer-title"><span class="layer-num">11</span> Multi-tenancy — upcoming</div>
+      <div class="sub-items">
+        <span class="sub-item">vCluster (K8s-in-K8s)</span>
+        <span class="sub-item">Disposable experiment clusters</span>
+        <span class="sub-item">Isolated tenant access</span>
+        <span class="sub-item">GitOps-provisioned vClusters</span>
+      </div>
+      <div class="tags">
+        <span class="tag">vcluster</span>
+        <span class="tag">multi-tenant</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-upcoming">
+      <div class="layer-title"><span class="layer-num">12</span> Virtual Machines — upcoming</div>
+      <div class="sub-items">
+        <span class="sub-item">KubeVirt (VMs as pods)</span>
+        <span class="sub-item">CDI disk image import</span>
+        <span class="sub-item">KubeVirt Manager UI</span>
+        <span class="sub-item">Longhorn-backed DataVolumes</span>
+      </div>
+      <div class="tags">
+        <span class="tag">KVM</span>
+        <span class="tag">192.168.55.205</span>
       </div>
     </div>
   </div>

@@ -30,6 +30,10 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **NVIDIA GPU Operator** | GPU scheduling, AI/ML workloads, container toolkit |
 | **Intel GPU DRA Driver** | iGPU sharing via DRA, namespace-scoped GPU access |
 | **OpenRGB** | LED control from K8s (just for fun) |
+| **VictoriaMetrics + Grafana** | Cluster-wide metrics, alerting, dashboards, Grafana UI (`192.168.55.203`) |
+| **VictoriaLogs + Fluent Bit** | Centralised log aggregation and querying |
+| **Longhorn Backup + Cloudflare R2** | PVC backup/restore, daily + weekly schedules, offsite storage |
+| **Infisical + External Secrets Operator** | Secret management with audit trail, ExternalSecret → K8s Secret sync (`192.168.55.204`) |
 
 ## Cluster State
 
@@ -48,3 +52,8 @@ This post is a **living document**: it gets updated as new technologies and capa
 4. [GPU Compute — NVIDIA and Intel]({{< relref "/posts/04-gpu-compute" >}})
 5. [GitOps Everything with ArgoCD]({{< relref "/posts/05-gitops" >}})
 6. [Fun Stuff — Controlling Case LEDs from Kubernetes]({{< relref "/posts/06-fun-stuff" >}})
+7. [Observability — VictoriaMetrics, Grafana, and Fluent Bit]({{< relref "/posts/07-observability" >}})
+8. [Backup — Longhorn to Cloudflare R2]({{< relref "/posts/08-backup" >}})
+9. [Secrets Management — Infisical + External Secrets Operator]({{< relref "/posts/09-secrets" >}})
+10. Multi-tenancy with vCluster _(coming soon)_
+11. Virtual Machines with KubeVirt _(coming soon)_

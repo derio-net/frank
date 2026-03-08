@@ -77,14 +77,22 @@ Typical structure:
 - Inline images: co-locate in the page bundle directory (NOT in `/static/images/`)
 - Use relative paths: `![Alt text](image.png)`
 
-### 5. Blog Preview
+### 5. Update Overview Post
+
+`blog/content/posts/00-overview/index.md` is a **living document** — update it after every new post:
+
+1. **Series Index** — append the new post as a numbered list item with a Hugo relref link.
+2. **Technology → Capability Map** — add a row for any new technology introduced in this post (tool name in bold, capabilities in the second column).
+3. **`blog/layouts/shortcodes/cluster-roadmap.html`** — add a new `roadmap-layer` div for the new phase/capability. Use the existing colour classes (`layer-hw`, `layer-net`, etc.) or add a new `layer-*` class with its own `--rm-accent-N` colour variable (add to both light and dark mode sections). Use `layer-upcoming` for phases that are planned but not yet deployed (dashed border, muted opacity).
+
+### 6. Blog Preview
 
 After creating the post, start the Hugo dev server to preview:
 - Use `preview_start "hugo-dev"` (configured in `.claude/launch.json`)
 - Or: `cd blog && hugo server --buildDrafts`
 - Verify the post renders at http://localhost:1313/
 
-### 6. Conventions
+### 7. Conventions
 
 - Tags should be lowercase, descriptive (check existing posts for reuse)
 - Summary should be one sentence, compelling, under 150 chars
