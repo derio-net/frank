@@ -18,3 +18,13 @@ spec:
     automated:
       prune: false
       selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: longhorn-r2-secret
+      namespace: longhorn-system
+      jsonPointers:
+        - /data
