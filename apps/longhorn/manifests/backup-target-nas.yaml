@@ -1,0 +1,16 @@
+## NFS backup target — disabled pending Longhorn bug fix
+## https://github.com/longhorn/longhorn/issues/11412
+## Longhorn 1.11.0 generates host/path instead of host:/path in the NFS
+## mount command, causing "remote share not in 'host:dir' format" errors.
+## Fix is targeted for Longhorn v1.13.0. Re-enable by renaming this file
+## to backup-target-nas.yaml and removing the leading ## comments.
+#
+# apiVersion: longhorn.io/v1beta2
+# kind: BackupTarget
+# metadata:
+#   name: nas
+#   namespace: longhorn-system
+# spec:
+#   backupTargetURL: "nfs://192.168.50.42/volume1/frank-backup"
+#   credentialSecret: ""
+#   pollInterval: "5m"

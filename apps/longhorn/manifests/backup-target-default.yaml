@@ -4,6 +4,6 @@ metadata:
   name: default
   namespace: longhorn-system
 spec:
-  backupTargetURL: "nfs://192.168.50.42/volume1/frank-backup"
-  credentialSecret: ""
+  backupTargetURL: "s3://frank-longhorn-backups@auto/"
+  credentialSecret: "longhorn-r2-secret"
   pollInterval: "5m"
