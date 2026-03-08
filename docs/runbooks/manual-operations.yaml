@@ -85,16 +85,16 @@ operations:
     when: "Task 5 complete — Infisical pod Running and UI reachable at http://192.168.55.204"
     why_manual: "Initial admin account, project creation, and Machine Identity setup have no CLI equivalent in self-hosted Infisical"
     commands:
-      - "Open http://192.168.55.204 → Sign Up → create admin account"
+      - "Open http://192.168.55.204:8080 → Sign Up → create admin account"
       - "Create project: frank-cluster"
-      - "Verify prod environment exists (Settings → Environments)"
-      - "Organization Settings → Machine Identities → Create Identity: eso-cluster-reader, Universal Auth"
-      - "Click Add Client Secret → copy Client ID and Client Secret (shown once)"
-      - "frank-cluster project → Access Control → add eso-cluster-reader with Viewer role"
+      - "Organization Access → Identities → Create Identity: eso-cluster-reader, Member role"
+      - "Click identity → Authentication → Create Client Secret → copy Client ID and Client Secret"
+      - "frank-cluster project → Project Access → Access Control → Machine Identities → add eso-cluster-reader with Viewer role"
     verify:
-      - "Machine Identity eso-cluster-reader exists in Organization Settings"
+      - "Identity eso-cluster-reader exists under Organization Access → Identities"
       - "eso-cluster-reader has Viewer access to frank-cluster project"
-    status: pending
+    status: done
+    notes: "UI paths differ from docs in v0.151.0: Organization Access → Identities (not Organization Settings → Machine Identities). Client Secret found under the identity's Authentication tab."
 
   - id: phase09-eso-credentials-secret
     phase: 9
@@ -107,4 +107,4 @@ operations:
       - sops --decrypt secrets/infisical/eso-credentials.yaml | kubectl apply -f -
     verify:
       - kubectl get secret infisical-credentials -n external-secrets
-    status: pending
+    status: done
