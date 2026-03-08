@@ -7,7 +7,7 @@ summary: "Replacing the SOPS-only secrets workflow with Infisical + ESO — and 
 weight: 10
 cover:
   image: cover.png
-  alt: "Frank the cluster monster carefully placing glowing encrypted keys into a vault while a small robot labeled ESO delivers secret envelopes to pods"
+  alt: "Frank the cluster monster placing encrypted keys in a vault while ESO delivers secrets to pods"
   relative: true
 ---
 

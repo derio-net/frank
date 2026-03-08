@@ -44,6 +44,9 @@ Here are prompts for Gemini, tailored to each image you need. They all share a c
 **Post 8 — Backup (Longhorn, Cloudflare R2):**
 > A Frankenstein monster made of server hardware carefully pouring a glowing stream of data cubes from a Longhorn bull (miniature, made of stacked hard drives) into a large orange bucket labeled "R2" with the Cloudflare logo. The bucket floats in the air like a cloud. In the corner, a Synology NAS box sits on a shelf with a drooping, disconnected NFS cable and a small sad face — a sticky note reads "Soon™". The monster looks focused and responsible. Dark server room background with electric blue lightning accents.
 
+**Post 9 — Secrets Management (Infisical + ESO):**
+> A Frankenstein monster made of server hardware standing in front of a large glowing vault door, carefully placing labeled key-shaped data blocks inside. Each key is engraved with a secret name (DATABASE_URL, REDIS_URL, API_KEY). A small helpful robot labeled "ESO" stands nearby with a stack of sealed envelopes, each addressed to a different pod (small box-shaped robots). The monster looks focused and security-conscious. The vault glows with blue encryption lines. Dark server room background with electric blue lightning accents.
+
 ---
 
 For PaperMod, once you have the images, drop them as `cover.png` inside each post's page bundle directory and add this to each post's front matter:

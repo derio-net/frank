@@ -102,6 +102,8 @@ cover:
 ---
 ```
 
+Cover image generation prompts go in `blog/prompts_for_images.md` — one entry per post, following the existing format. Do NOT embed the prompt in the frontmatter `alt` field; `alt` should be a short human-readable description.
+
 ## Architecture
 
 ```
@@ -118,6 +120,8 @@ patches/               # Talos machine config patches (per phase)
 blog/                  # Hugo static site (PaperMod theme)
 omni/                  # Sidero Omni self-hosted config
 docs/plans/            # Design and implementation plans
+docs/runbooks/         # Manual operations registry (manual-operations.yaml)
+secrets/               # SOPS-encrypted bootstrap secrets (applied out-of-band)
 scripts/               # Utility scripts
 ```
 
@@ -140,6 +144,8 @@ scripts/               # Utility scripts
 | ArgoCD | 192.168.55.200 | Cilium L2 LoadBalancer |
 | Longhorn UI | 192.168.55.201 | Cilium L2 LoadBalancer |
 | Hubble UI | 192.168.55.202 | Cilium L2 LoadBalancer |
+| Grafana | 192.168.55.203 | Cilium L2 LoadBalancer |
+| Infisical | 192.168.55.204 | Cilium L2 LoadBalancer |
 
 ## Declarative-Only Principle
 
