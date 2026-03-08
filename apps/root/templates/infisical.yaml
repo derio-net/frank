@@ -35,3 +35,9 @@ spec:
       namespace: infisical
       jsonPointers:
         - /data
+    - group: ""
+      kind: Secret
+      name: infisical-db-uri
+      namespace: infisical
+      jsonPointers:
+        - /data
