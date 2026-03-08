@@ -6,8 +6,8 @@ infisical:
 
   # Reference to the SOPS-bootstrapped secret containing Infisical app env vars.
   # Applied manually: sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -
-  # Note: DB_CONNECTION_URI is intentionally absent from this secret to avoid
-  # duplicate env var conflicts — it is injected via useExistingPostgresSecret below.
+  # DB_CONNECTION_URI is intentionally absent from this secret — it is injected via
+  # useExistingPostgresSecret below (avoids duplicate with postgresql.enabled path).
   kubeSecretRef: infisical-secrets
 
   service:
@@ -15,20 +15,11 @@ infisical:
     annotations:
       lbipam.cilium.io/ips: "192.168.55.204"
 
+# PostgreSQL is deployed as a separate ArgoCD app (infisical-postgresql)
+# to avoid the chart bug where both postgresql.enabled AND useExistingPostgresSecret
+# both inject DB_CONNECTION_URI independently (no else branch = duplicate env var).
 postgresql:
-  enabled: true
-  auth:
-    username: infisical
-    database: infisicalDB
-    # Passwords come from the bootstrap secret (keys: password, postgres-password).
-    existingSecret: infisical-secrets
-  primary:
-    persistence:
-      size: 5Gi
-      storageClass: longhorn
-
-  # DB_CONNECTION_URI is read from a dedicated secret to prevent duplicate env var
-  # conflict with kubeSecretRef envFrom injection.
+  enabled: false
   useExistingPostgresSecret:
     enabled: true
     existingConnectionStringSecret:

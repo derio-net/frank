@@ -1,0 +1,17 @@
+# fullnameOverride ensures the service is named "postgresql" so the
+# infisical-db-uri connection string (postgresql://...@postgresql:5432/...) resolves.
+fullnameOverride: "postgresql"
+
+architecture: standalone
+
+auth:
+  username: infisical
+  database: infisicalDB
+  # Passwords sourced from SOPS bootstrap secret.
+  # Keys: postgres-password (admin), password (infisical user)
+  existingSecret: infisical-secrets
+
+primary:
+  persistence:
+    size: 5Gi
+    storageClass: longhorn
