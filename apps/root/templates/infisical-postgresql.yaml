@@ -10,7 +10,7 @@ spec:
   sources:
     - repoURL: https://charts.bitnami.com/bitnami
       chart: postgresql
-      targetRevision: "16.7.27"
+      targetRevision: "11.6.11"
       helm:
         releaseName: infisical-postgresql
         valueFiles:
