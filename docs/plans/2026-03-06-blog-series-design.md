@@ -10,7 +10,7 @@ A series of tutorial-style blog posts documenting the construction of the franko
 ## Goals
 
 1. Document the cluster build as a learning resource for intermediate K8s practitioners
-2. Serve as a living portfolio for solopreneur infrastructure work
+2. Serve as a living portfolio for infrastructure work
 3. Keep blog source in the same repo as the infrastructure code
 4. Deploy independently via GitHub Pages (or Netlify)
 

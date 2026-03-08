@@ -3,7 +3,7 @@ title: "Why Build a Kubernetes Homelab?"
 date: 2026-03-06
 draft: false
 tags: ["introduction", "architecture"]
-summary: "The motivation behind Frank, the Talos Cluster — learning enterprise infrastructure and building solopreneur products on your own hardware."
+summary: "The motivation behind Frank, the Talos Cluster — learning enterprise infrastructure and building interesting projects on your own hardware."
 weight: 2
 cover:
   image: cover.png
