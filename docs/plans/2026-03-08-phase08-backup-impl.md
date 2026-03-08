@@ -613,3 +613,22 @@ At this point:
 - Weekly backups run Sunday 03:00 to R2, retaining 4 snapshots
 - R2 credentials are SOPS-encrypted in git
 - Blog post documents the architecture and design decisions
+
+---
+
+## Manual Operations
+
+```yaml
+# manual-operation
+id: phase08-r2-sops-secret
+phase: 8
+app: longhorn
+plan: docs/plans/2026-03-08-phase08-backup-impl.md
+when: "After Task 2 — after SOPS-encrypting the R2 secret"
+why_manual: "SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
+commands:
+  - sops --decrypt secrets/longhorn/r2-secret.yaml | kubectl apply -f -
+verify:
+  - kubectl get secret longhorn-r2-secret -n longhorn-system
+status: done
+```
