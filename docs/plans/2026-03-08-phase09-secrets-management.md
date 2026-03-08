@@ -332,6 +332,24 @@ Expected: `5` (one per stringData key).
 
 **Step 5: Apply the secret to the cluster**
 
+```yaml
+# manual-operation
+id: phase09-infisical-bootstrap-secrets
+phase: 9
+app: infisical
+plan: docs/plans/2026-03-08-phase09-secrets-management.md
+when: "Task 4 — after SOPS-encrypting infisical-secrets.yaml and infisical-db-uri.yaml"
+why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
+commands:
+  - source .env
+  - sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -
+  - sops --decrypt secrets/infisical/infisical-db-uri.yaml | kubectl apply -f -
+verify:
+  - kubectl get secret infisical-secrets -n infisical
+  - kubectl get secret infisical-db-uri -n infisical
+status: done
+```
+
 ```bash
 source .env
 sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -
@@ -422,6 +440,27 @@ Expected: JSON response with `"status": "ok"` or similar health indicator.
 
 ## Task 6: Infisical UI Setup (Manual)
 
+```yaml
+# manual-operation
+id: phase09-infisical-ui-setup
+phase: 9
+app: infisical
+plan: docs/plans/2026-03-08-phase09-secrets-management.md
+when: "Task 5 complete — Infisical pod Running and UI reachable at http://192.168.55.204"
+why_manual: "Initial admin account, project creation, and Machine Identity setup have no CLI equivalent in self-hosted Infisical"
+commands:
+  - "Open http://192.168.55.204 → Sign Up → create admin account"
+  - "Create project: frank-cluster"
+  - "Verify prod environment exists (Settings → Environments)"
+  - "Organization Settings → Machine Identities → Create Identity: eso-cluster-reader, Universal Auth"
+  - "Click Add Client Secret → copy Client ID and Client Secret (shown once)"
+  - "frank-cluster project → Access Control → add eso-cluster-reader with Viewer role"
+verify:
+  - "Machine Identity eso-cluster-reader exists in Organization Settings"
+  - "eso-cluster-reader has Viewer access to frank-cluster project"
+status: pending
+```
+
 These steps are performed in the Infisical web UI. There is no CLI equivalent for initial setup.
 
 **Step 1: Open the Infisical UI**
@@ -496,6 +535,22 @@ sops --encrypt --in-place secrets/infisical/eso-credentials.yaml
 Expected: Both `stringData` values are now `ENC[AES256_GCM,...]`.
 
 **Step 3: Apply to cluster**
+
+```yaml
+# manual-operation
+id: phase09-eso-credentials-secret
+phase: 9
+app: external-secrets
+plan: docs/plans/2026-03-08-phase09-secrets-management.md
+when: "Task 7 — after SOPS-encrypting eso-credentials.yaml with Client ID and Secret from Infisical UI"
+why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
+commands:
+  - source .env
+  - sops --decrypt secrets/infisical/eso-credentials.yaml | kubectl apply -f -
+verify:
+  - kubectl get secret infisical-credentials -n external-secrets
+status: pending
+```
 
 ```bash
 sops --decrypt secrets/infisical/eso-credentials.yaml | kubectl apply -f -
