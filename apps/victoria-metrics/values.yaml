@@ -33,10 +33,11 @@ grafana:
   # Install VictoriaLogs datasource plugin (pre-installs on pod start)
   plugins:
     - victoriametrics-logs-datasource
-  # NOTE: additionalDataSources is not passed through by victoria-metrics-k8s-stack.
-  # The chart manages datasource provisioning via its own ConfigMap
-  # (victoria-metrics-victoria-metrics-k8s-stack-grafana-ds) and ignores the
-  # grafana subchart's additionalDataSources values.
-  # TODO: investigate whether extraDatasources or a custom provisioning ConfigMap
-  # can be used instead. See: https://github.com/VictoriaMetrics/helm-charts/issues
-  # Workaround: VictoriaLogs datasource was added via Grafana API and persists in the PVC.
+  # VictoriaLogs datasource is provisioned declaratively via grafana-victorialogs-ds ConfigMap.
+  # extraConfigmapMounts mounts it into /etc/grafana/provisioning/datasources/.
+  extraConfigmapMounts:
+    - name: victorialogs-datasource
+      mountPath: /etc/grafana/provisioning/datasources/victorialogs.yaml
+      subPath: victorialogs-datasource.yaml
+      configMap: grafana-victorialogs-datasource
+      readOnly: true

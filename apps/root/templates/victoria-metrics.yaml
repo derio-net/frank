@@ -18,6 +18,9 @@ spec:
     - repoURL: {{ .Values.repoURL }}
       targetRevision: {{ .Values.targetRevision }}
       ref: values
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      path: apps/victoria-metrics/manifests
   destination:
     server: {{ .Values.destination.server }}
     namespace: monitoring
