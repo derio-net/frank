@@ -588,7 +588,7 @@ git commit -m "feat(secrets): add SOPS-encrypted ESO credentials secret"
 
 ```yaml
 # apps/infisical/manifests/cluster-secret-store.yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:
   name: infisical
@@ -598,16 +598,18 @@ spec:
       auth:
         universalAuthCredentials:
           clientId:
-            secretRef:
-              name: infisical-credentials
-              namespace: external-secrets
-              key: clientId
+            name: infisical-credentials
+            namespace: external-secrets
+            key: clientId
           clientSecret:
-            secretRef:
-              name: infisical-credentials
-              namespace: external-secrets
-              key: clientSecret
-      hostAPI: http://192.168.55.204/api
+            name: infisical-credentials
+            namespace: external-secrets
+            key: clientSecret
+      hostAPI: http://192.168.55.204:8080/api
+      secretsScope:
+        projectSlug: frank-cluster-iwpg
+        environmentSlug: prod
+        secretsPath: /
 ```
 
 **Step 2: Create infisical-extras Application CR**
@@ -726,7 +728,7 @@ kind: Namespace
 metadata:
   name: secrets-test
 ---
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: cluster-test
@@ -743,10 +745,6 @@ spec:
     - secretKey: testValue
       remoteRef:
         key: CLUSTER_TEST_KEY
-        metaData:
-          secretPath: /
-          projectSlug: frank-cluster
-          envSlug: prod
 EOF
 ```
 
@@ -922,7 +920,7 @@ sops --decrypt secrets/infisical/eso-credentials.yaml | kubectl apply -f -
 The `ClusterSecretStore` wires it together:
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ClusterSecretStore
 metadata:
   name: infisical
@@ -932,16 +930,18 @@ spec:
       auth:
         universalAuthCredentials:
           clientId:
-            secretRef:
-              name: infisical-credentials
-              namespace: external-secrets
-              key: clientId
+            name: infisical-credentials
+            namespace: external-secrets
+            key: clientId
           clientSecret:
-            secretRef:
-              name: infisical-credentials
-              namespace: external-secrets
-              key: clientSecret
-      hostAPI: http://192.168.55.204/api
+            name: infisical-credentials
+            namespace: external-secrets
+            key: clientSecret
+      hostAPI: http://192.168.55.204:8080/api
+      secretsScope:
+        projectSlug: frank-cluster-iwpg
+        environmentSlug: prod
+        secretsPath: /
 ```
 
 ## Consuming a Secret
@@ -949,7 +949,7 @@ spec:
 An app that needs a secret declares an `ExternalSecret` in its namespace:
 
 ```yaml
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: my-app-secrets
@@ -964,10 +964,6 @@ spec:
     - secretKey: DATABASE_URL
       remoteRef:
         key: DATABASE_URL
-        metaData:
-          secretPath: /
-          projectSlug: frank-cluster
-          envSlug: prod
 ```
 
 ESO creates a K8s Secret named `my-app-secrets` with the value from Infisical, refreshed every 5 minutes. The app references it via `secretKeyRef` or `envFrom` — standard Kubernetes, no Infisical SDK required.
@@ -1066,4 +1062,6 @@ kubectl get pvc -n infisical
 - **Machine Identity token shown once**: The Client Secret in Infisical's UI is only shown at creation time. Encrypt it immediately with SOPS.
 - **Infisical chart values drift**: The Infisical helm chart is actively developed. Always run `helm show values infisical-helm-charts/infisical` to confirm field names before writing `values.yaml`. The key field is `kubeSecretRef` (or similar) pointing to the bootstrap secret.
 - **ClusterSecretStore namespace**: The `ClusterSecretStore` is cluster-scoped but ESO deploys it into the `external-secrets` namespace conceptually. The `infisical-extras` ArgoCD app targets the `external-secrets` namespace so the secret reference `namespace: external-secrets` resolves correctly.
-- **ExternalSecret `metaData` fields**: The `secretPath`, `projectSlug`, and `envSlug` fields in `remoteRef.metaData` must exactly match what's in Infisical. `projectSlug` is the URL-safe slug shown in project settings, not the display name.
+- **ESO v1 ExternalSecret**: Use `apiVersion: external-secrets.io/v1` (ESO 2.x dropped `v1beta1`). Project scope (projectSlug, environmentSlug) is declared once in the `ClusterSecretStore.spec.provider.infisical.secretsScope` — `remoteRef` only needs the secret `key`.
+- **Infisical project slug**: The slug is auto-generated and differs from the project display name (e.g. `frank-cluster-iwpg` vs `frank-cluster`). Find it at Project Settings → General. The `eso-cluster-reader` Viewer identity cannot list workspaces via API — look it up in the UI.
+- **ESO ClusterSecretStore credentials schema**: In ESO v1, `universalAuthCredentials.clientId` and `.clientSecret` are direct `SecretKeySelector` objects (`name/namespace/key`) — no `secretRef:` wrapper.
