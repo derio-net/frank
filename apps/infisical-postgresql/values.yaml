@@ -4,6 +4,12 @@ fullnameOverride: "postgresql"
 
 architecture: standalone
 
+# Pin to the image that was confirmed working in the bundled infisical-standalone chart.
+# Bitnami's newer tags (17.x) are not available on docker.io at this time.
+image:
+  registry: registry-1.docker.io
+  tag: "16.2.0-debian-11-r16"
+
 auth:
   username: infisical
   database: infisicalDB
