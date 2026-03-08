@@ -30,12 +30,8 @@ grafana:
     enabled: true
     storageClassName: longhorn
     size: 1Gi
-  # Install VictoriaLogs datasource plugin
+  # Install VictoriaLogs datasource plugin (pre-installs on pod start)
   plugins:
     - victoriametrics-logs-datasource
-  additionalDataSources:
-    - name: VictoriaLogs
-      type: victoriametrics-logs-datasource
-      access: proxy
-      url: http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428
-      isDefault: false
+  # NOTE: additionalDataSources is not passed through by victoria-metrics-k8s-stack
+  # The VictoriaLogs datasource was added manually via Grafana API and persists in the PVC.
