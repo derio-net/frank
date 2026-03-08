@@ -41,6 +41,9 @@ Here are prompts for Gemini, tailored to each image you need. They all share a c
 **Post 7 — Observability (VictoriaMetrics, Grafana, Fluent Bit):**
 > A Frankenstein monster made of server hardware sitting at a desk covered in glowing monitors, each showing colorful time-series graphs, log streams, and Grafana dashboards. His eyes are replaced with magnifying glasses, zooming into the screens. One hand holds a tiny Fluent Bit (a small bird made of log lines), feeding log entries into a funnel on his chest that leads to a glowing database in his torso. A VMSingle label on the database. The monster looks satisfied and analytical. Dark server room background.
 
+**Post 8 — Backup (Longhorn, Cloudflare R2):**
+> A Frankenstein monster made of server hardware carefully pouring a glowing stream of data cubes from a Longhorn bull (miniature, made of stacked hard drives) into a large orange bucket labeled "R2" with the Cloudflare logo. The bucket floats in the air like a cloud. In the corner, a Synology NAS box sits on a shelf with a drooping, disconnected NFS cable and a small sad face — a sticky note reads "Soon™". The monster looks focused and responsible. Dark server room background with electric blue lightning accents.
+
 ---
 
 For PaperMod, once you have the images, drop them as `cover.png` inside each post's page bundle directory and add this to each post's front matter:
