@@ -32,7 +32,9 @@
       "WebFetch(domain:github.com)",
       "mcp__Claude_Preview__preview_start",
       "Bash(ls -d /Users/idermitzakis/Docs/projects/HOMELAB/frankocluster/apps/*/)",
-      "WebSearch"
+      "Bash(source .env:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:infisical.com)"
     ]
   }
 }

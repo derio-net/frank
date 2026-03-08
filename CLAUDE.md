@@ -140,6 +140,16 @@ scripts/               # Utility scripts
 | Longhorn UI | 192.168.55.201 | Cilium L2 LoadBalancer |
 | Hubble UI | 192.168.55.202 | Cilium L2 LoadBalancer |
 
+## Declarative-Only Principle
+
+**Every resource on the cluster must be reproducible from code in this repo.** No `helm install`, no ad-hoc `kubectl apply` for workloads or configuration.
+
+- All workloads: ArgoCD App-of-Apps (`apps/`)
+- All machine config: Talos patches (`patches/`)
+- The **only** accepted exception: SOPS-encrypted bootstrap secrets that must exist before the secret store is running. Apply them manually via `sops --decrypt <file> | kubectl apply -f -` and document the exception in the relevant app's README or gotchas.
+
+`helm repo add` and `helm show values` are fine as **local research tools** to discover chart schemas — they don't touch the cluster.
+
 ## Gotchas
 
 - Always use `ServerSideApply=true` in ArgoCD sync options (avoids annotation size limits)
@@ -150,3 +160,4 @@ scripts/               # Utility scripts
 - GPU-1 has a NoSchedule taint — only GPU workloads schedule there
 - SOPS/age encryption for secrets — never commit plaintext secrets
 - Longhorn default replicaCount: 3 (matches 3 control-plane nodes)
+- SOPS + ArgoCD ServerSideApply don't mix — encrypted secrets must live outside ArgoCD-managed paths (see `secrets/` dir) and be applied out-of-band
