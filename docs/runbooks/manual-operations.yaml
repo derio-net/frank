@@ -1,0 +1,63 @@
+# docs/runbooks/manual-operations.yaml
+#
+# Central registry of all manual operations required across phases.
+# Each entry corresponds to a # manual-operation block in a plan file.
+# Maintained by the /sync-runbook skill — run it after editing any plan
+# that adds or changes manual operations.
+#
+# Fields:
+#   id          — unique identifier, format: phaseNN-short-name
+#   phase       — phase number (0 = bootstrap, before ArgoCD)
+#   app         — ArgoCD app name or "bootstrap"
+#   plan        — relative path to the plan file, or null
+#   when        — trigger: what must be done first
+#   why_manual  — reason this cannot be declarative
+#   commands    — exact steps to execute
+#   verify      — how to confirm success
+#   status      — pending | done
+
+operations:
+  - id: phase00-argocd-bootstrap
+    phase: 0
+    app: bootstrap
+    plan: null
+    when: "Initial cluster setup — before any ArgoCD apps exist"
+    why_manual: "ArgoCD must be installed before it can manage itself; chicken-and-egg bootstrap"
+    commands:
+      - helm repo add argo https://argoproj.github.io/argo-helm
+      - helm repo update
+      - helm install argocd argo/argo-cd -n argocd --create-namespace --version 9.4.6
+      - kubectl apply -f apps/root/ -n argocd
+    verify:
+      - kubectl get pods -n argocd
+      - argocd app list --port-forward --port-forward-namespace argocd
+    status: done
+
+  - id: phase07-grafana-victorialogs-migration
+    phase: 7
+    app: victoria-metrics
+    plan: docs/plans/2026-03-08-declarative-drift-remediation-plan.md
+    when: "After drift remediation Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap"
+    why_manual: "The live API-added datasource must be deleted via Grafana UI before the provisioned one activates; Grafana does not auto-replace API datasources with provisioned ones of the same name"
+    commands:
+      - "Open Grafana at http://192.168.55.203"
+      - "Navigate to Connections → Data sources"
+      - "Find 'VictoriaLogs' (the API-added one, editable) and click Delete datasource"
+      - kubectl -n monitoring rollout restart deployment victoria-metrics-grafana
+    verify:
+      - kubectl -n monitoring logs -l app.kubernetes.io/name=grafana | grep -i victorialogs
+      - "Open Grafana → Connections → Data sources — VictoriaLogs should appear as provisioned (non-editable)"
+      - "Click Test on VictoriaLogs — expect green success"
+    status: pending
+
+  - id: phase08-r2-sops-secret
+    phase: 8
+    app: longhorn
+    plan: docs/plans/2026-03-08-phase08-backup-impl.md
+    when: "After Task 2 — after SOPS-encrypting the R2 secret"
+    why_manual: "SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
+    commands:
+      - sops --decrypt secrets/longhorn/r2-secret.yaml | kubectl apply -f -
+    verify:
+      - kubectl get secret longhorn-r2-secret -n longhorn-system
+    status: done
