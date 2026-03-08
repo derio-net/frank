@@ -9,7 +9,8 @@ Every phase follows this sequence:
 1. **Brainstorm** — `/brainstorming` (Superpowers plugin) to explore requirements, refine scope, and design the approach via Socratic dialogue
 2. **Deploy** — Implement the ArgoCD app (values, Application CR, manifests)
 3. **Blog** — Write a Hugo blog post documenting the phase
-4. **Review** — Verify deployment health and blog accuracy
+4. **Sync runbook** — Run `/sync-runbook` if the phase plan contains any `# manual-operation` blocks
+5. **Review** — Verify deployment health and blog accuracy
 
 ## Commands
 
@@ -146,7 +147,7 @@ scripts/               # Utility scripts
 
 - All workloads: ArgoCD App-of-Apps (`apps/`)
 - All machine config: Talos patches (`patches/`)
-- The **only** accepted exception: SOPS-encrypted bootstrap secrets that must exist before the secret store is running. Apply them manually via `sops --decrypt <file> | kubectl apply -f -` and document the exception in the relevant app's README or gotchas.
+- The **only** accepted exception: SOPS-encrypted bootstrap secrets that must exist before the secret store is running. Apply them manually via `sops --decrypt <file> | kubectl apply -f -` and document the exception as a `# manual-operation` block in the plan and sync the runbook.
 
 `helm repo add` and `helm show values` are fine as **local research tools** to discover chart schemas — they don't touch the cluster.
 
@@ -161,3 +162,31 @@ scripts/               # Utility scripts
 - SOPS/age encryption for secrets — never commit plaintext secrets
 - Longhorn default replicaCount: 3 (matches 3 control-plane nodes)
 - SOPS + ArgoCD ServerSideApply don't mix — encrypted secrets must live outside ArgoCD-managed paths (see `secrets/` dir) and be applied out-of-band
+
+## Manual Operations
+
+Some steps cannot be declarative (SOPS secrets, UI-only config). Every such step must be:
+
+1. Documented in the relevant plan as a fenced YAML block tagged `# manual-operation`
+2. Synced to `docs/runbooks/manual-operations.yaml` via `/sync-runbook`
+
+### Block format (in plans)
+
+```yaml
+# manual-operation
+id: phaseNN-short-name        # unique across all plans
+phase: NN
+app: <argocd-app-name>
+plan: docs/plans/<filename>.md
+when: "After Task N — <trigger description>"
+why_manual: "<reason this cannot be automated>"
+commands:
+  - <exact command or UI instruction>
+verify:
+  - <command or instruction to confirm success>
+status: pending               # update to: done after execution
+```
+
+### Central runbook
+
+`docs/runbooks/manual-operations.yaml` — single source of truth for all manual ops across all phases. Run `/sync-runbook` to update it from plan files.
