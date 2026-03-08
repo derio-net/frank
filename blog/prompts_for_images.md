@@ -38,6 +38,9 @@ Here are prompts for Gemini, tailored to each image you need. They all share a c
 **Post 6 — Fun Stuff (RGB LEDs):**
 > A Frankenstein monster made of server hardware standing in front of a mirror, admiring himself. His chest fans glow with rainbow RGB lighting. He holds a tiny git commit message that says "color: red" and his fans are changing from rainbow to red. A small ArgoCD octopus on his shoulder holds a paintbrush. The monster looks proud and slightly vain. Disco ball made of a CPU die hangs from ceiling.
 
+**Post 7 — Observability (VictoriaMetrics, Grafana, Fluent Bit):**
+> A Frankenstein monster made of server hardware sitting at a desk covered in glowing monitors, each showing colorful time-series graphs, log streams, and Grafana dashboards. His eyes are replaced with magnifying glasses, zooming into the screens. One hand holds a tiny Fluent Bit (a small bird made of log lines), feeding log entries into a funnel on his chest that leads to a glowing database in his torso. A VMSingle label on the database. The monster looks satisfied and analytical. Dark server room background.
+
 ---
 
 For PaperMod, once you have the images, drop them as `cover.png` inside each post's page bundle directory and add this to each post's front matter:
