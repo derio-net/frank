@@ -540,6 +540,36 @@ Expected: both return data, confirming vmagent is scraping these existing export
 
 ---
 
+## Known Gotchas (discovered during deployment)
+
+### 1. Stale ValidatingWebhookConfiguration blocks VMAgent/VMSingle deployment
+
+**Symptom:** VMAgent and/or VMSingle pods never appear after the operator deploys, despite the CRDs existing. Operator logs show:
+```
+cannot patch finalizers: failed calling webhook "vmagents.operator.victoriametrics.com":
+tls: failed to verify certificate: x509: certificate signed by unknown authority
+```
+
+**Cause:** A prior failed install left a `ValidatingWebhookConfiguration` with a stale CA bundle. The operator cannot re-register its webhook while the old config exists.
+
+**Fix:** Delete the stale webhook config and let the operator re-register:
+```bash
+kubectl delete validatingwebhookconfiguration victoria-metrics-victoria-metrics-operator-admission
+```
+The operator will recreate it with the correct CA within ~10 seconds, and VMAgent/VMSingle will appear immediately after.
+
+**Blog note:** Worth covering — this is a common `victoria-metrics-k8s-stack` first-install pain point.
+
+### 2. Fluent Bit ConfigMap hostname vs actual service name
+
+The `victoria-logs-single` chart appends `-server` to its service name (`victoria-logs-victoria-logs-single-server`), making it longer than expected. The Fluent Bit `Host` must use the full `-server` suffix or DNS resolution fails silently with repeated retry loops.
+
+### 3. additionalDataSources not passed through by victoria-metrics-k8s-stack
+
+The chart manages datasource provisioning via its own ConfigMap (`victoria-metrics-victoria-metrics-k8s-stack-grafana-ds`) and does not forward `grafana.additionalDataSources` from values to the Grafana subchart. The VictoriaLogs datasource must be added via Grafana API or a custom provisioning ConfigMap. See TODO in `apps/victoria-metrics/values.yaml`.
+
+---
+
 ## Task 10: Final commit and push
 
 **Step 1: Verify all apps healthy**
