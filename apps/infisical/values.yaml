@@ -1,0 +1,37 @@
+backend:
+  replicaCount: 1
+
+  image:
+    pullPolicy: IfNotPresent
+
+  # Reference to the SOPS-bootstrapped secret containing all required env vars.
+  # Applied manually: sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -
+  kubeSecretRef: infisical-secrets
+
+  service:
+    type: LoadBalancer
+    annotations:
+      lbipam.cilium.io/ips: "192.168.55.204"
+
+mongodb:
+  enabled: true
+  auth:
+    usernames:
+      - infisical
+    databases:
+      - infisical
+    # Passwords come from the bootstrap secret (keys: mongodb-passwords, mongodb-root-password)
+    existingSecret: infisical-secrets
+  persistence:
+    enabled: true
+    size: 5Gi
+    storageClass: longhorn
+
+redis:
+  enabled: true
+  architecture: standalone
+  auth:
+    enabled: false
+
+ingress:
+  enabled: false
