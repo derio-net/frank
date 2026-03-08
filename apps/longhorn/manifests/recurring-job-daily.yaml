@@ -10,4 +10,3 @@ spec:
     - default
   retain: 7
   concurrency: 2
-  backupTargetName: nas

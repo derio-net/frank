@@ -10,4 +10,3 @@ spec:
     - default
   retain: 4
   concurrency: 1
-  backupTargetName: r2

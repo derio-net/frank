@@ -1,7 +1,7 @@
 apiVersion: longhorn.io/v1beta2
 kind: BackupTarget
 metadata:
-  name: nas
+  name: default
   namespace: longhorn-system
 spec:
   backupTargetURL: "nfs://192.168.50.42/volume1/frank-backup"
