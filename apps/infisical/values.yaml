@@ -45,3 +45,5 @@ redis:
 
 ingress:
   enabled: false
+  nginx:
+    enabled: false
