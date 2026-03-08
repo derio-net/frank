@@ -9,8 +9,9 @@ Every phase follows this sequence:
 1. **Brainstorm** — `/brainstorming` (Superpowers plugin) to explore requirements, refine scope, and design the approach via Socratic dialogue
 2. **Deploy** — Implement the ArgoCD app (values, Application CR, manifests)
 3. **Blog** — Use the `/blog-post` skill to write the Hugo post. After creating the post, update `blog/content/posts/00-overview/index.md` (Series Index + Capability Map) and `blog/layouts/shortcodes/cluster-roadmap.html` (add new roadmap layer)
-4. **Sync runbook** — Run `/sync-runbook` if the phase plan contains any `# manual-operation` blocks
-5. **Review** — Verify deployment health and blog accuracy
+4. **Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status in `README.md`
+5. **Sync runbook** — Run `/sync-runbook` if the phase plan contains any `# manual-operation` blocks
+6. **Review** — Verify deployment health and blog accuracy
 
 ## Commands
 

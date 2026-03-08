@@ -28,6 +28,11 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | GitOps | ArgoCD | App-of-Apps pattern, annotation-based tracking |
 | GPU (NVIDIA) | GPU Operator | RTX 5070 on gpu-1, driver-less (host driver) |
 | GPU (Intel) | Intel GPU Resource Driver | DRA-based iGPU sharing on mini-1/2/3 (K8s 1.35) |
+| Metrics | VictoriaMetrics | VMSingle + Alertmanager + node/kube-state exporters |
+| Logs | VictoriaLogs + Fluent Bit | Centralised log aggregation and querying |
+| Dashboards | Grafana | Pre-provisioned datasources (VictoriaMetrics, VictoriaLogs) |
+| Backup | Longhorn → Cloudflare R2 | Daily + weekly PVC backup, SOPS-encrypted credentials |
+| Secrets | Infisical + External Secrets Operator | Self-hosted secret store, ExternalSecret → K8s Secret sync |
 | RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID |
 
 ## Repository Structure
@@ -39,30 +44,32 @@ frank/
 │   │   ├── Chart.yaml
 │   │   ├── values.yaml
 │   │   └── templates/         # One Application CR per infrastructure component
-│   ├── argocd/values.yaml     # ArgoCD Helm values
-│   ├── cilium/
-│   │   ├── values.yaml
-│   │   └── manifests/         # L2 pool, announcement policy, Hubble UI LB
-│   ├── longhorn/
-│   │   ├── values.yaml
-│   │   └── manifests/         # GPU-local StorageClass, Longhorn UI LB
+│   ├── argocd/values.yaml
+│   ├── cilium/values.yaml + manifests/
+│   ├── longhorn/values.yaml + manifests/
 │   ├── gpu-operator/values.yaml
-│   ├── intel-gpu-driver/
-│   │   ├── values.yaml
-│   │   └── chart/             # Vendored chart with K8s 1.35 / Talos patches
-│   └── openrgb/manifests/     # DaemonSet + ConfigMap for LED control
+│   ├── intel-gpu-driver/values.yaml + chart/  # Vendored, K8s 1.35 patches
+│   ├── openrgb/manifests/
+│   ├── victoria-metrics/values.yaml + manifests/  # Metrics, alerting, Grafana
+│   ├── fluent-bit/values.yaml                     # Log shipping
+│   ├── external-secrets/values.yaml              # ESO operator
+│   ├── infisical/values.yaml + manifests/         # Infisical + ClusterSecretStore
+│   ├── infisical-postgresql/values.yaml
+│   └── infisical-redis/values.yaml
 ├── patches/
-│   ├── README.md              # Node reference + phase status
 │   ├── phase01-node-config/   # Node labels, scheduling
 │   ├── phase02-cilium/        # CNI swap to Cilium
 │   ├── phase03-longhorn/      # iSCSI tools, extra disks
 │   ├── phase04-gpu/           # NVIDIA extensions + GPU taint
 │   └── phase05-mini-config/   # Intel i915 + iGPU DRA extensions
+├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/posts/         # 7 posts documenting the build
-│   └── layouts/shortcodes/    # Custom shortcodes (roadmap, etc.)
-├── docs/plans/                # Architecture and implementation plans
+│   ├── content/posts/         # 9 posts documenting the build
+│   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
+├── docs/
+│   ├── plans/                 # Architecture and implementation plans
+│   └── runbooks/              # Manual operations registry
 ├── omni/                      # Omni-specific configs
 └── scripts/                   # Utility scripts
 ```
@@ -83,6 +90,8 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | ArgoCD | http://192.168.55.200 | 192.168.55.200 |
 | Longhorn UI | http://192.168.55.201 | 192.168.55.201 |
 | Hubble UI | http://192.168.55.202 | 192.168.55.202 |
+| Grafana | http://192.168.55.203 | 192.168.55.203 |
+| Infisical | http://192.168.55.204:8080 | 192.168.55.204 |
 
 ArgoCD CLI access:
 
@@ -95,15 +104,23 @@ argocd app list
 
 ## Current Status
 
-| Application | Status | Notes |
-|------------|--------|-------|
-| cilium | Synced/Healthy | 7/7 agents, eBPF kube-proxy replacement |
-| cilium-config | Synced/Healthy | L2 pool + announcement policy |
-| longhorn | Synced/Healthy | All 7 nodes schedulable |
-| longhorn-extras | Synced/Healthy | GPU-local StorageClass |
-| intel-gpu-driver | Synced/Healthy | DRA driver on mini-1/2/3 |
-| openrgb | Synced/Healthy | LED control on gpu-1 |
-| gpu-operator | Synced/Healthy | RTX 5070 on gpu-1 |
+| Application | Namespace | Notes |
+|------------|-----------|-------|
+| cilium | kube-system | 7/7 agents, eBPF kube-proxy replacement |
+| cilium-config | kube-system | L2 pool + announcement policy |
+| longhorn | longhorn-system | All 7 nodes schedulable |
+| longhorn-extras | longhorn-system | GPU-local StorageClass, BackupTarget (R2), RecurringJobs |
+| gpu-operator | gpu-operator | RTX 5070 on gpu-1 |
+| intel-gpu-driver | intel-gpu-resource-driver | DRA driver on mini-1/2/3 |
+| openrgb | openrgb | LED control on gpu-1 via USB HID |
+| victoria-metrics | monitoring | VMSingle, Grafana, Alertmanager, kube-state-metrics |
+| fluent-bit | monitoring | Log shipping to VictoriaLogs |
+| victoria-logs | monitoring | VictoriaLogs standalone |
+| external-secrets | external-secrets | ESO 2.1.0 operator |
+| infisical-postgresql | infisical | PostgreSQL backend for Infisical |
+| infisical-redis | infisical | Redis backend for Infisical |
+| infisical | infisical | Infisical v0.151.0 secret store (192.168.55.204:8080) |
+| infisical-extras | external-secrets | ClusterSecretStore (infisical provider) |
 
 ## Adding a New Application
 
