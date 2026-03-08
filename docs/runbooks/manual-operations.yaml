@@ -48,7 +48,8 @@ operations:
       - kubectl -n monitoring logs -l app.kubernetes.io/name=grafana | grep -i victorialogs
       - "Open Grafana → Connections → Data sources — VictoriaLogs should appear as provisioned (non-editable)"
       - "Click Test on VictoriaLogs — expect green success"
-    status: pending
+    status: done
+    notes: "Grafana automatically adopted the API-added datasource when it found a provisioning config with the same name on pod restart — no manual UI deletion was needed. Datasource now readOnly=True (confirmed via API)."
 
   - id: phase08-r2-sops-secret
     phase: 8

@@ -300,7 +300,8 @@ verify:
   - "kubectl -n monitoring logs -l app.kubernetes.io/name=grafana | grep -i victorialogs"
   - "Open Grafana → Connections → Data sources — VictoriaLogs should appear as provisioned (non-editable)"
   - "Click Test on VictoriaLogs — expect green success"
-status: pending
+status: done
+notes: "Grafana automatically adopted the API-added datasource on pod restart — no manual UI deletion needed. readOnly=True confirmed via API."
 ```
 ````
 
@@ -679,5 +680,6 @@ verify:
   - kubectl -n monitoring logs -l app.kubernetes.io/name=grafana | grep -i victorialogs
   - "Open Grafana → Connections → Data sources — VictoriaLogs should appear as provisioned (non-editable)"
   - "Click Test on VictoriaLogs — expect green success"
-status: pending
+status: done
+notes: "Grafana automatically adopted the API-added datasource on pod restart — no manual UI deletion needed. readOnly=True confirmed via API."
 ```
