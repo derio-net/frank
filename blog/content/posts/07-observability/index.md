@@ -336,25 +336,44 @@ The `victoria-metrics-k8s-stack` chart manages Grafana datasource provisioning t
 
 The consequence: `grafana.additionalDataSources`, which works by adding entries to the Grafana subchart's own datasource provisioning ConfigMap, is never consulted. The chart simply does not pass that value through. The VictoriaMetrics chart's own datasource ConfigMap overwrites whatever the subchart would have generated.
 
-The values file documents this clearly as a known issue:
-
-```yaml
-# NOTE: additionalDataSources is not passed through by victoria-metrics-k8s-stack.
-# The chart manages datasource provisioning via its own ConfigMap
-# (victoria-metrics-victoria-metrics-k8s-stack-grafana-ds) and ignores the
-# grafana subchart's additionalDataSources values.
-# Workaround: VictoriaLogs datasource was added via Grafana API and persists in the PVC.
-```
-
 ### Fix
 
-The VictoriaLogs datasource was added manually through the Grafana UI / API after initial setup. Because Grafana is configured with `persistence.enabled: true` backed by a Longhorn PVC, the datasource survives pod restarts and is not lost when Grafana updates.
+The solution is a standalone provisioning ConfigMap mounted into Grafana via `extraConfigmapMounts` — bypassing the chart's own provisioning entirely:
 
-The datasource configuration in Grafana points to:
-- **Type:** VictoriaLogs (via the `victoriametrics-logs-datasource` Grafana plugin, pre-installed via `grafana.plugins`)
-- **URL:** `http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428`
+```yaml
+# apps/victoria-metrics/manifests/grafana-victorialogs-ds.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-victorialogs-datasource
+  namespace: monitoring
+data:
+  victorialogs-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: VictoriaLogs
+        type: victoriametrics-logs-datasource
+        access: proxy
+        url: http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428
+        isDefault: false
+        editable: false
+```
 
-**The lesson:** Helm chart composition is leaky. When chart A embeds chart B as a subchart, chart A can intercept and override anything chart B would have done. Relying on subchart values working end-to-end is not safe without reading the parent chart's templates. For production use, the correct long-term fix is to use a separate Grafana provisioning ConfigMap or explore whether the `extraDatasources` value in the VictoriaMetrics chart's own schema handles this.
+This ConfigMap is deployed as a third source in the `victoria-metrics` ArgoCD Application and mounted into Grafana at `/etc/grafana/provisioning/datasources/victorialogs.yaml` via:
+
+```yaml
+grafana:
+  extraConfigmapMounts:
+    - name: victorialogs-datasource
+      mountPath: /etc/grafana/provisioning/datasources/victorialogs.yaml
+      subPath: victorialogs-datasource.yaml
+      configMap: grafana-victorialogs-datasource
+      readOnly: true
+```
+
+On pod restart, Grafana reads the provisioning file and adopts the datasource — marking it `readOnly` (non-editable in the UI). The datasource is now fully declarative: it will be recreated correctly on any Grafana redeploy, regardless of PVC state.
+
+**The lesson:** Helm chart composition is leaky. When chart A embeds chart B as a subchart, chart A can intercept and override anything chart B would have done. Relying on subchart values working end-to-end is not safe without reading the parent chart's templates. The escape hatch is `extraConfigmapMounts` — it operates at the Pod level and is independent of the chart's own provisioning logic.
 
 ---
 
