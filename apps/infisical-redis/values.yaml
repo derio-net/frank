@@ -1,0 +1,22 @@
+# fullnameOverride: "redis" creates services named redis-master and redis-headless,
+# matching the hostnames the Infisical chart hardcodes in REDIS_URL.
+fullnameOverride: "redis"
+
+architecture: standalone
+
+# Use the same image mirror that Infisical's own infisical-standalone chart uses.
+image:
+  registry: mirror.gcr.io
+  repository: bitnamilegacy/redis
+
+auth:
+  enabled: true
+  # Password sourced from SOPS bootstrap secret (key: redis-password).
+  existingSecret: infisical-secrets
+  existingSecretPasswordKey: redis-password
+
+master:
+  persistence:
+    enabled: true
+    size: 2Gi
+    storageClass: longhorn

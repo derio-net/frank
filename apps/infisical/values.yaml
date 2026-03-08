@@ -6,8 +6,9 @@ infisical:
 
   # Reference to the SOPS-bootstrapped secret containing Infisical app env vars.
   # Applied manually: sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -
-  # DB_CONNECTION_URI is intentionally absent from this secret — it is injected via
-  # useExistingPostgresSecret below (avoids duplicate with postgresql.enabled path).
+  # DB_CONNECTION_URI and REDIS_URL are intentionally absent — injected by the chart
+  # via useExistingPostgresSecret and redis.auth.password paths respectively.
+  # (Both exist in separate secrets applied out-of-band.)
   kubeSecretRef: infisical-secrets
 
   service:
@@ -26,12 +27,11 @@ postgresql:
       name: infisical-db-uri
       key: DB_CONNECTION_URI
 
+# Redis is deployed as a separate ArgoCD app (infisical-redis).
+# The chart injects REDIS_URL from redis.auth.password (not existingSecret),
+# so REDIS_URL must come from infisical-secrets via envFrom.
 redis:
-  enabled: true
-  architecture: standalone
-  auth:
-    existingSecret: infisical-secrets
-    existingSecretPasswordKey: redis-password
+  enabled: false
 
 ingress:
   enabled: false
