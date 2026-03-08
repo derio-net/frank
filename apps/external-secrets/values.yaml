@@ -1,0 +1,12 @@
+installCRDs: true
+
+crds:
+  createClusterExternalSecret: true
+  createClusterSecretStore: true
+  createPushSecret: false
+
+webhook:
+  create: true
+
+certController:
+  create: true
