@@ -21,7 +21,7 @@ Cloud-managed Kubernetes (EKS, GKE) abstracts away the parts I wanted to underst
 
 The goal was never "run a production cluster at home." It was to build one that *could* be production, so the skills transfer directly.
 
-### Reason 2: Solopreneur Infrastructure
+### Reason 2: Self-hosted Infrastructure
 
 As a solo builder, I want self-hosted infrastructure for:
 

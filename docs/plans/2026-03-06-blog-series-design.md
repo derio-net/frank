@@ -72,7 +72,7 @@ Each post uses Hugo page bundles (directory with `index.md`) for co-located imag
 ### Post 1: Introduction — Why Build a Kubernetes Homelab?
 
 - Motivation 1: Learning enterprise-grade infra (Talos, GitOps, GPU scheduling, DRA)
-- Motivation 2: Solopreneur infrastructure — self-hosted AI/ML, services, products
+- Motivation 2: Self-hosted infrastructure — self-hosted AI/ML, services, products
 - Hardware inventory with photos/specs (zones A-D)
 - High-level architecture diagram (4 zones, 2 management layers)
 - What makes this cluster different (heterogeneous hardware, AI-hybrid, Talos)
