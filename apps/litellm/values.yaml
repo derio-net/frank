@@ -44,33 +44,36 @@ proxy_config:
     # Free model availability shifts — update as needed
     # ──────────────────────────────────────────────
 
-    # Gemini 2.5 Flash — Google's reasoning/coding workhorse
-    # ⚠ Data: Google; prompts may train future models
-    - model_name: gemini-flash
+    # Qwen3 Coder — 480B MoE (35B active), 262K context
+    # Top-tier coding model, strong reasoning
+    # ⚠ Data: Alibaba Cloud; prompts may be retained
+    - model_name: qwen3-coder
       litellm_params:
-        model: openrouter/google/gemini-2.5-flash:free
+        model: openrouter/qwen/qwen3-coder:free
         api_key: os.environ/OPENROUTER_API_KEY
 
-    # DeepSeek V3.2 — 685B MoE, strong general-purpose and reasoning
-    # ⚠ Data: Chinese servers, prompts may train models, no opt-out
-    - model_name: deepseek
+    # Hermes 3 405B — NousResearch fine-tune of Llama 3.1 405B, 131K context
+    # Largest free model, strong general-purpose and instruction following
+    # ✅ Data: Open-weight, served by third-party
+    - model_name: hermes-405b
       litellm_params:
-        model: openrouter/deepseek/deepseek-v3.2-20251201:free
+        model: openrouter/nousresearch/hermes-3-llama-3.1-405b:free
         api_key: os.environ/OPENROUTER_API_KEY
 
-    # GPT-4.1 Mini — OpenAI's efficient model, 128K context
-    # Good for coding and general tasks
-    # ⚠ Data: OpenAI; standard data usage policy
-    - model_name: gpt-4.1-mini
+    # Gemma 3 27B — Google's best free open model, 131K context
+    # Good general-purpose, vision capable
+    # ✅ Data: Open-weight, served by third-party
+    - model_name: gemma-27b
       litellm_params:
-        model: openrouter/openai/gpt-4.1-mini-2025-04-14:free
+        model: openrouter/google/gemma-3-27b-it:free
         api_key: os.environ/OPENROUTER_API_KEY
 
-    # Grok 4.1 Fast — xAI's fast general-purpose model
-    # ✅ Data: xAI; check provider policy
-    - model_name: grok-fast
+    # Mistral Small 3.1 24B — Mistral's efficient model, 128K context
+    # Fast, good for coding and general tasks
+    # ✅ Data: Open-weight, served by third-party
+    - model_name: mistral-small
       litellm_params:
-        model: openrouter/x-ai/grok-4.1-fast:free
+        model: openrouter/mistralai/mistral-small-3.1-24b-instruct:free
         api_key: os.environ/OPENROUTER_API_KEY
 
     # Llama 3.3 70B — Meta's general-purpose open model, 128K context

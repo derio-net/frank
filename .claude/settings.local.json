@@ -36,7 +36,9 @@
       "Bash(curl:*)",
       "WebFetch(domain:infisical.com)",
       "Bash(sort -t'<' -k2)",
-      "Bash(uniq -f1 -c)"
+      "Bash(uniq -f1 -c)",
+      "WebFetch(domain:docs.litellm.ai)",
+      "WebFetch(domain:openrouter.ai)"
     ]
   }
 }

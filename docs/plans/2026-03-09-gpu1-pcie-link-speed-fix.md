@@ -83,8 +83,10 @@ plan: docs/plans/2026-03-09-gpu1-pcie-link-speed-fix.md
 when: "After Task 2 — BIOS F6 confirmed, Secure Boot confirmed disabled"
 why_manual: "PCIe slot speed is a BIOS setting — no Talos patch or kernel parameter equivalent exists for this board/driver combination"
 commands:
-  - "Settings → IO Ports → PEG/PCIe Slot Configuration"
-  - "Set the x16 slot from Auto → Gen 4"
+  - "Settings → IO Ports → Above 4G Decoding → Enabled"
+  - "Settings → IO Ports → Re-Size BAR Support → Enabled"
+  - "Settings → IO Ports → PEG/PCIe Slot Configuration → Set x16 slot from Auto → Gen 4"
+  - "Boot → CSM Support → Disabled"
   - "Press F10 to save and exit"
   - "Allow gpu-1 to boot into Talos"
 verify:
