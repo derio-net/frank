@@ -1,0 +1,41 @@
+# Sympozium — Kubernetes-native agentic control plane
+# Deploys controller, API server, webhook, NATS JetStream, OTel collector
+# Web UI exposed at 192.168.55.207:8080 via Cilium L2 LoadBalancer
+
+# API server with embedded web dashboard
+apiserver:
+  webUI:
+    enabled: true
+    token: ""  # Auto-generates Secret on first deploy
+
+  service:
+    type: LoadBalancer
+    annotations:
+      lbipam.cilium.io/ips: "192.168.55.207"
+
+# NATS JetStream — durable event bus for inter-component messaging
+nats:
+  persistence:
+    enabled: true
+    storageClass: longhorn
+    size: 1Gi
+
+# cert-manager integration for webhook TLS
+certManager:
+  enabled: true
+
+# Install Sympozium CRDs
+installCRDs: true
+
+# Network policies for pod isolation
+networkPolicies:
+  enabled: true
+
+# Built-in OTel collector for observability
+observability:
+  enabled: true
+
+# We deploy our own PersonaPack manifests in sympozium-extras
+# with LiteLLM-specific auth config, so skip chart defaults
+defaultPersonas:
+  enabled: false
