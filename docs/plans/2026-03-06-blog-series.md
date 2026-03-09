@@ -408,7 +408,7 @@ At this point the cluster has:
 - 7 nodes running Talos Linux, managed by Omni
 - Labeled zones (Core, AI Compute, Edge) for workload placement
 - Cilium CNI with eBPF kube-proxy replacement
-- L2 LoadBalancer (192.168.55.200-210) for service exposure
+- L2 LoadBalancer (192.168.55.200-254) for service exposure
 - Hubble for network observability
 
 **Next: [Persistent Storage with Longhorn](/posts/03-storage/)**

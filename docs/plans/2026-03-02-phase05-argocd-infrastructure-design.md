@@ -121,7 +121,7 @@ frankocluster/
 │   ├── cilium/
 │   │   ├── values.yaml           # Cilium Helm values (moved from patches/phase2-cilium/)
 │   │   └── manifests/
-│   │       ├── lb-ippool.yaml    # CiliumLoadBalancerIPPool (192.168.55.200-210)
+│   │       ├── lb-ippool.yaml    # CiliumLoadBalancerIPPool (192.168.55.200-254)
 │   │       └── l2-policy.yaml    # CiliumL2AnnouncementPolicy
 │   ├── longhorn/
 │   │   ├── values.yaml           # Longhorn Helm values (moved from patches/phase3-longhorn/)
@@ -155,7 +155,7 @@ root-app (ArgoCD Application)
     │
     ├── cilium-config (Application)
     │   └── apps/cilium/manifests/
-    │       ├── lb-ippool.yaml        (192.168.55.200-210)
+    │       ├── lb-ippool.yaml        (192.168.55.200-254)
     │       └── l2-policy.yaml        (L2 announcement policy)
     │
     ├── longhorn (Application)

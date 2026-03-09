@@ -210,7 +210,7 @@ spec:
   loadBalancerIPs: true
 ```
 
-The IP pool reserves `192.168.55.200-210` on the home subnet for LoadBalancer services. The L2 announcement policy tells Cilium to respond to ARP requests for those IPs on any Ethernet interface matching the regex patterns -- this covers both `eth0` (Raspberry Pis) and `enp`-style names (the x86 machines). Any service of type `LoadBalancer` automatically gets an IP from this pool and becomes reachable from the local network.
+The IP pool reserves `192.168.55.200-254` on the home subnet for LoadBalancer services. The L2 announcement policy tells Cilium to respond to ARP requests for those IPs on any Ethernet interface matching the regex patterns -- this covers both `eth0` (Raspberry Pis) and `enp`-style names (the x86 machines). Any service of type `LoadBalancer` automatically gets an IP from this pool and becomes reachable from the local network.
 
 ### Gotchas
 
@@ -261,7 +261,7 @@ At this point the cluster has:
 - 7 nodes running Talos Linux, managed by Omni
 - Labeled zones (Core, AI Compute, Edge) for workload placement
 - Cilium CNI with eBPF kube-proxy replacement
-- L2 LoadBalancer (192.168.55.200-210) for service exposure
+- L2 LoadBalancer (192.168.55.200-254) for service exposure
 - Hubble UI for network observability at `http://192.168.55.202`
 
 ## References
