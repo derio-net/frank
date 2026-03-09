@@ -7,9 +7,15 @@ Here are prompts for Gemini, tailored to each image you need. They all share a c
 
 ---
 
-## Site Banner (wide, 1200x630)
+## Site Banner — Hero (wide, 1200x630, landing page)
 
-> A wide banner illustration of a Frankenstein-like monster made entirely of server hardware. His torso is a rack-mount server chassis with blinking LEDs, shoulders are CPU heatsinks with spinning fans, arms are bundles of ethernet cables and PCIe risers, legs are stacked NVMe SSDs. Bolts on his neck are RJ45 connectors crackling with blue electricity. He stands triumphantly on a pile of Raspberry Pis and NUC mini-PCs, arms raised. Behind him, a glowing Kubernetes wheel logo floats like a full moon. Text space on the right side. Wide cinematic aspect ratio.
+> A wide banner illustration of a wise Frankenstein-like monster made entirely of server hardware. His torso is a rack-mount server chassis with blinking LEDs, shoulders are CPU heatsinks with spinning fans, arms are bundles of ethernet cables and PCIe risers, legs are stacked NVMe SSDs. Bolts on his neck are RJ45 connectors crackling with blue electricity. He stands triumphantly on a pile of Raspberry Pis and NUC mini-PCs, one arm a fist on his side, the other raised, holding a glowing Talos Linux Logo as though saying "To Talos or not to Talos...". His eyes are glowing blue LED status lights. Behind him, a glowing Kubernetes wheel logo floats like a full moon.  Wide cinematic aspect ratio.
+>
+> **Status:** Done → `blog/static/images/banner-hero.png`
+
+## Site Banner — Thin Strip (ultra-wide, ~1200x200, post header)
+
+> A horizontal masthead strip banner in extreme wide-and-short format (about 8:1 aspect ratio). On the left: Frank the Frankenstein monster made of server hardware in chibi proportions, striding confidently to the right, much smaller than in the hero banner — only about 60% the strip height. His torso is a rack-mount server chassis, neck bolts are RJ45 connectors sparking blue electricity, eyes are LED status lights glowing cyan. Centered or right-of-center: the title "Building Frank" in bold chunky retro-tech lettering, glowing electric blue, with subtle circuit-trace underlines. The full width background is a dark circuit board surface with faint PCB green traces, electric blue lightning arcs scattered sparsely across the width. Small decorative icons along the bottom edge: a Raspberry Pi, a NUC mini-PC, an SSD, a Kubernetes wheel — each tiny and icon-like. The composition fades gracefully at both edges into the dark background. Ultra-wide strip, dark background, cartoon illustration, thick outlines, vibrant colors, tech-horror aesthetic playful not scary.
 
 ## Favicon (square, simple)
 

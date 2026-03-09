@@ -16,10 +16,11 @@ theme = "PaperMod"
   ShowToc = true
   TocOpen = false
 
+  heroBanner = "images/banner-hero.png"
+  thinBanner = "images/banner-thin.png"
+
   [params.label]
     text = "Building Frank, the Talos Cluster"
-    icon = "/frank-icon.png"
-    iconHeight = 35
 
   [params.homeInfoParams]
     Title = "Frank, the Talos Cluster"
