@@ -2,6 +2,7 @@ FROM debian:bookworm-slim AS builder
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    ca-certificates \
     git \
     qtbase5-dev \
     qtchooser \
