@@ -1,0 +1,39 @@
+apiVersion: sympozium.ai/v1alpha1
+kind: PersonaPack
+metadata:
+  name: devops-essentials
+  namespace: sympozium-system
+spec:
+  enabled: true
+  description: "Development workflow agents for code review and GitOps"
+  category: development
+  version: "1.0.0"
+
+  authRefs:
+    - provider: openai
+      secret: sympozium-llm-key
+
+  policyRef: restrictive-policy
+
+  personas:
+    - name: code-reviewer
+      displayName: "Code Reviewer"
+      model: qwen3.5
+      systemPrompt: |
+        You are a code review agent. You review pull requests and provide
+        constructive feedback on code quality, security, and best practices.
+        Focus on correctness, security vulnerabilities, and maintainability.
+      skills:
+        - code-review
+      toolPolicy:
+        allow:
+          - read_file
+          - list_directory
+          - fetch_url
+        deny:
+          - write_file
+          - execute_command
+      memory:
+        enabled: true
+        seeds:
+          - "Follow existing project conventions found in each repo"
