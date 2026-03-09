@@ -1,0 +1,61 @@
+# Ollama — local LLM inference on gpu-1's RTX 5070
+# Serves models via OpenAI-compatible API on ClusterIP:11434
+# Consumed by LiteLLM gateway, not exposed externally
+
+ollama:
+  gpu:
+    enabled: true
+    type: nvidia
+    number: 1
+    nvidiaResource: "nvidia.com/gpu"
+
+  models:
+    pull:
+      - qwen3.5:9b
+      - deepseek-coder:6.7b
+    run: []
+    clean: false
+
+extraEnv:
+  - name: OLLAMA_KEEP_ALIVE
+    value: "24h"
+  - name: OLLAMA_MAX_LOADED_MODELS
+    value: "1"
+
+persistentVolume:
+  enabled: true
+  size: 30Gi
+  storageClass: longhorn
+  accessModes:
+    - ReadWriteOnce
+
+tolerations:
+  - key: nvidia.com/gpu
+    operator: Exists
+    effect: NoSchedule
+
+nodeSelector:
+  kubernetes.io/hostname: gpu-1
+
+resources:
+  requests:
+    memory: 16Gi
+    cpu: 4000m
+  limits:
+    memory: 32Gi
+
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 120
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 6
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 6
+
+terminationGracePeriodSeconds: 120
