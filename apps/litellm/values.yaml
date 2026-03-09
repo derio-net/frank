@@ -41,45 +41,44 @@ proxy_config:
     # ──────────────────────────────────────────────
     # CLOUD MODELS — Free tier via OpenRouter
     # Rate limit: 20 req/min, 200 req/day per model
+    # Free model availability shifts — update as needed
     # ──────────────────────────────────────────────
 
-    # DeepSeek R1 — 671B MoE (37B active), reasoning model
-    # Visible chain-of-thought, on par with OpenAI o1
-    # ⚠ Data: Chinese servers, prompts may train models, no opt-out
-    - model_name: deepseek-r1
-      litellm_params:
-        model: openrouter/deepseek/deepseek-r1:free
-        api_key: os.environ/OPENROUTER_API_KEY
-
-    # Gemini 2.0 Flash Exp — 1M context, long document processing
-    # ⚠ Data: Google experimental; prompts may train future models
+    # Gemini 2.5 Flash — Google's reasoning/coding workhorse
+    # ⚠ Data: Google; prompts may train future models
     - model_name: gemini-flash
       litellm_params:
-        model: openrouter/google/gemini-2.0-flash-exp:free
+        model: openrouter/google/gemini-2.5-flash:free
         api_key: os.environ/OPENROUTER_API_KEY
 
-    # Devstral 2 — Mistral's 123B dense coding model, 256K context
-    # Agentic coding, multi-file project understanding
-    # ⚠ Data: Mistral Experiment plan; prompts may train models
-    - model_name: devstral
+    # DeepSeek V3.2 — 685B MoE, strong general-purpose and reasoning
+    # ⚠ Data: Chinese servers, prompts may train models, no opt-out
+    - model_name: deepseek
       litellm_params:
-        model: openrouter/mistralai/devstral-2512:free
+        model: openrouter/deepseek/deepseek-v3.2-20251201:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # GPT-4.1 Mini — OpenAI's efficient model, 128K context
+    # Good for coding and general tasks
+    # ⚠ Data: OpenAI; standard data usage policy
+    - model_name: gpt-4.1-mini
+      litellm_params:
+        model: openrouter/openai/gpt-4.1-mini-2025-04-14:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # Grok 4.1 Fast — xAI's fast general-purpose model
+    # ✅ Data: xAI; check provider policy
+    - model_name: grok-fast
+      litellm_params:
+        model: openrouter/x-ai/grok-4.1-fast:free
         api_key: os.environ/OPENROUTER_API_KEY
 
     # Llama 3.3 70B — Meta's general-purpose open model, 128K context
-    # Strong all-rounder, Apache-like license
-    # ✅ Data: Open-weight, served by third-party; check provider policy
+    # Strong all-rounder
+    # ✅ Data: Open-weight, served by third-party
     - model_name: llama-70b
       litellm_params:
         model: openrouter/meta-llama/llama-3.3-70b-instruct:free
-        api_key: os.environ/OPENROUTER_API_KEY
-
-    # GPT-OSS 120B — OpenAI's open-weight MoE (5.1B active), 131K context
-    # Designed for agentic and general-purpose production use
-    # ✅ Data: Open-weight (Apache 2.0), served by third-party
-    - model_name: gpt-oss
-      litellm_params:
-        model: openrouter/openai/gpt-oss-120b:free
         api_key: os.environ/OPENROUTER_API_KEY
 
     # Step 3.5 Flash — StepFun's 196B MoE (11B active), 256K context
@@ -99,6 +98,8 @@ proxy_config:
 service:
   type: LoadBalancer
   port: 4000
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.206"
 
 # Standalone PostgreSQL for virtual keys, spend tracking, usage logs
 db:
