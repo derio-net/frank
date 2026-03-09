@@ -172,7 +172,7 @@ This is the kind of thing that does not show up in architecture diagrams. A conn
 
 ## Part 2: Intel Arc iGPU via DRA (Phase 5)
 
-The three mini nodes (`mini-1`, `mini-2`, `mini-3`) each have an Intel Core Ultra with an integrated Intel Arc GPU. These are not powerhouse GPUs, but they handle video transcode (Quick Sync), light inference, and OpenCL workloads well. More importantly, they gave us a reason to implement DRA — the replacement for the Kubernetes device plugin model.
+The three mini nodes (`mini-1`, `mini-2`, `mini-3`) each have an Intel Core Ultra with an integrated Intel Arc GPU. These are not powerhouse GPUs — they share system RAM instead of having dedicated VRAM, which makes them unsuitable for LLM inference (where memory bandwidth is the bottleneck). Where they shine is media and vision workloads: hardware video transcode via Quick Sync, object detection and computer vision via OpenVINO, and OpenCL compute. More importantly, they gave us a reason to implement DRA — the replacement for the Kubernetes device plugin model.
 
 ### Why DRA Over Device Plugins?
 

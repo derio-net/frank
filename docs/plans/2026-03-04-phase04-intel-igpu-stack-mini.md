@@ -8,7 +8,9 @@
 
 **Tech Stack:** `omnictl` (Talos/Omni patches), ArgoCD GitOps, Intel GPU Resource Driver Helm chart (`intel/intel-gpu-resource-driver`, K8s DRA GA since 1.32)
 
-**Why DRA over device plugin:** K8s 1.35 has DRA GA. The target workload (otwld/ollama-helm) already supports `draEnabled`. DRA provides namespace-scoped `ResourceClaim` objects, quota integration, and fine-grained sharing — essential for future multitenancy.
+**Why DRA over device plugin:** K8s 1.35 has DRA GA. DRA provides namespace-scoped `ResourceClaim` objects, quota integration, and fine-grained sharing — essential for future multitenancy.
+
+**Note on iGPU workloads:** Intel Arc iGPUs share system RAM (no dedicated VRAM), making them unsuitable for LLM inference where memory bandwidth is the bottleneck. Their strengths are media/vision workloads: hardware video transcode (Quick Sync), object detection (OpenVINO/Frigate), computer vision, and OpenCL compute. LLM inference runs on gpu-1's RTX 5070 via the Ollama + LiteLLM stack (see `docs/plans/2026-03-09-local-inference-design.md`).
 
 **Prereqs:** All commands assume `source .env` (KUBECONFIG) or `source .env_devops` (OMNI) has been run. Phase 1 (node labels) and Phase 2 (Cilium) must be complete.
 
