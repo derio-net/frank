@@ -20,35 +20,20 @@ spec:
         - key: nvidia.com/gpu
           operator: Exists
           effect: NoSchedule
-      initContainers:
-        - name: apply-leds
+      containers:
+        - name: openrgb
           image: swensorm/openrgb:release_0.9
           command: ["/bin/sh", "-c"]
           args:
             - |
-              echo "Waiting for HID devices..."
-              sleep 5
-              echo "Applying LED config: $OPENRGB_ARGS"
-              /usr/app/openrgb $OPENRGB_ARGS
-              echo "LED config applied."
+              /usr/app/openrgb --noautoconnect $OPENRGB_ARGS
+              sleep infinity
           env:
             - name: OPENRGB_ARGS
               valueFrom:
                 configMapKeyRef:
                   name: openrgb-config
                   key: OPENRGB_ARGS
-          securityContext:
-            privileged: true
-          volumeMounts:
-            - name: dev
-              mountPath: /dev
-      containers:
-        - name: openrgb-server
-          image: swensorm/openrgb:release_0.9
-          command: ["/usr/app/openrgb", "--server"]
-          ports:
-            - containerPort: 6742
-              name: openrgb
           securityContext:
             privileged: true
           volumeMounts:
