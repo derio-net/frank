@@ -15,6 +15,7 @@
   --rm-accent-8: #ffd43b;
   --rm-accent-9: #74c0fc;
   --rm-accent-10: #a9e34b;
+  --rm-accent-11: #da77f2;
   font-family: inherit;
   max-width: 720px;
   margin: 1.5rem auto;
@@ -36,6 +37,7 @@
   --rm-accent-8: #ffe066;
   --rm-accent-9: #a5d8ff;
   --rm-accent-10: #c0eb75;
+  --rm-accent-11: #e599f7;
 }
 
 .layer-obs { border-left-color: var(--rm-accent-8); }
@@ -46,6 +48,9 @@
 
 .layer-secrets { border-left-color: var(--rm-accent-10); }
 .layer-secrets .layer-num { background: var(--rm-accent-10); color: #333; }
+
+.layer-inference { border-left-color: var(--rm-accent-11); }
+.layer-inference .layer-num { background: var(--rm-accent-11); color: #333; }
 
 .layer-upcoming {
   border-left-style: dashed;
@@ -352,8 +357,25 @@
   </div>
 
   <div class="roadmap-layer">
+    <div class="roadmap-card layer-inference">
+      <div class="layer-title"><span class="layer-num">11</span> Local Inference</div>
+      <div class="sub-items">
+        <span class="sub-item">Ollama (gpu-1, RTX 5070)</span>
+        <span class="sub-item">LiteLLM (unified gateway)</span>
+        <span class="sub-item">OpenRouter (free cloud models)</span>
+        <span class="sub-item">OpenAI-compatible API</span>
+      </div>
+      <div class="tags">
+        <span class="tag">ollama</span>
+        <span class="tag">litellm</span>
+        <span class="tag">192.168.55.206</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
     <div class="roadmap-card layer-upcoming">
-      <div class="layer-title"><span class="layer-num">11</span> Multi-tenancy — upcoming</div>
+      <div class="layer-title"><span class="layer-num">—</span> Multi-tenancy — upcoming</div>
       <div class="sub-items">
         <span class="sub-item">vCluster (K8s-in-K8s)</span>
         <span class="sub-item">Disposable experiment clusters</span>
@@ -369,7 +391,7 @@
 
   <div class="roadmap-layer">
     <div class="roadmap-card layer-upcoming">
-      <div class="layer-title"><span class="layer-num">12</span> Virtual Machines — upcoming</div>
+      <div class="layer-title"><span class="layer-num">—</span> Virtual Machines — upcoming</div>
       <div class="sub-items">
         <span class="sub-item">KubeVirt (VMs as pods)</span>
         <span class="sub-item">CDI disk image import</span>
