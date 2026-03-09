@@ -27,6 +27,7 @@ spec:
           args:
             - |
               set -e
+              sleep 30
               /usr/app/openrgb --noautoconnect $OPENRGB_ARGS
               sleep infinity
           env:
