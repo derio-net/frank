@@ -10,7 +10,7 @@
 
 **Why DRA over device plugin:** K8s 1.35 has DRA GA. DRA provides namespace-scoped `ResourceClaim` objects, quota integration, and fine-grained sharing — essential for future multitenancy.
 
-**Note on iGPU workloads:** Intel Arc iGPUs share system RAM (no dedicated VRAM), making them unsuitable for LLM inference where memory bandwidth is the bottleneck. Their strengths are media/vision workloads: hardware video transcode (Quick Sync), object detection (OpenVINO/Frigate), computer vision, and OpenCL compute. LLM inference runs on gpu-1's RTX 5070 via the Ollama + LiteLLM stack (see `docs/plans/2026-03-09-local-inference-design.md`).
+**Note on iGPU workloads:** Intel Arc iGPUs share system RAM (no dedicated VRAM), making them unsuitable for LLM inference where memory bandwidth is the bottleneck. Their strengths are media/vision workloads: hardware video transcode (Quick Sync), object detection (OpenVINO/Frigate), computer vision, and OpenCL compute. LLM inference runs on gpu-1's RTX 5070 via the Ollama + LiteLLM stack (see `docs/plans/2026-03-09-phase10-local-inference-design.md`).
 
 **Prereqs:** All commands assume `source .env` (KUBECONFIG) or `source .env_devops` (OMNI) has been run. Phase 1 (node labels) and Phase 2 (Cilium) must be complete.
 

@@ -36,7 +36,7 @@ operations:
   - id: gpu1-bios-f3-to-f6
     phase: 4
     app: gpu-operator
-    plan: docs/plans/2026-03-09-gpu1-pcie-link-speed-fix.md
+    plan: docs/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
     when: "After Task 1 — USB drive prepared with F6 and F3 BIOS files"
     why_manual: "BIOS update requires physical access to the machine and Q-Flash interaction — cannot be done remotely or declaratively"
     commands:
@@ -55,7 +55,7 @@ operations:
   - id: gpu1-pcie-gen4
     phase: 4
     app: gpu-operator
-    plan: docs/plans/2026-03-09-gpu1-pcie-link-speed-fix.md
+    plan: docs/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
     when: "After Task 2 — BIOS F6 confirmed, Secure Boot confirmed disabled"
     why_manual: "PCIe slot speed is a BIOS setting — no Talos patch or kernel parameter equivalent exists for this board/driver combination"
     commands:

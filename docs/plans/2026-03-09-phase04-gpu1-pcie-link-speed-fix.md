@@ -4,7 +4,7 @@
 
 **Goal:** Fix `gpu-1` PCIe link speed from Gen 1 (2.5 GT/s) to Gen 4 (16 GT/s) by updating the BIOS from F3 to F6 and forcing PCIe Gen 4 in BIOS settings.
 
-**Architecture:** All work is physical/firmware — no cluster code changes. BIOS updated via Gigabyte Q-Flash from USB. PCIe Gen 4 forced at firmware level to bypass a confirmed bug in NVIDIA open kernel modules (570.x–590.x) where Gen 5 training failure falls back to Gen 1 instead of Gen 4. See design doc: `docs/plans/2026-03-09-gpu1-pcie-link-speed-fix-design.md`.
+**Architecture:** All work is physical/firmware — no cluster code changes. BIOS updated via Gigabyte Q-Flash from USB. PCIe Gen 4 forced at firmware level to bypass a confirmed bug in NVIDIA open kernel modules (570.x–590.x) where Gen 5 training failure falls back to Gen 1 instead of Gen 4. See design doc: `docs/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix-design.md`.
 
 **Tech Stack:** Gigabyte Q-Flash, Talos Linux, kubectl, talosctl
 
@@ -45,7 +45,7 @@ Z790EAGLEAX.F3
 id: gpu1-bios-f3-to-f6
 phase: 4
 app: gpu-operator
-plan: docs/plans/2026-03-09-gpu1-pcie-link-speed-fix.md
+plan: docs/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
 when: "After Task 1 — USB drive prepared with F6 and F3 BIOS files"
 why_manual: "BIOS update requires physical access to the machine and Q-Flash interaction — cannot be done remotely or declaratively"
 commands:
@@ -79,7 +79,7 @@ Load profile z790-eagle-f3-backup.cmo from USB
 id: gpu1-pcie-gen4
 phase: 4
 app: gpu-operator
-plan: docs/plans/2026-03-09-gpu1-pcie-link-speed-fix.md
+plan: docs/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
 when: "After Task 2 — BIOS F6 confirmed, Secure Boot confirmed disabled"
 why_manual: "PCIe slot speed is a BIOS setting — no Talos patch or kernel parameter equivalent exists for this board/driver combination"
 commands:
@@ -182,13 +182,13 @@ This adds `gpu1-bios-f3-to-f6` and `gpu1-pcie-gen4` to `docs/runbooks/manual-ope
 
 **Step 2: Update manual operation statuses to `done` in this plan**
 
-Edit `docs/plans/2026-03-09-gpu1-pcie-link-speed-fix.md`:
+Edit `docs/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md`:
 - Change `status: pending` → `status: done` on both manual-operation blocks
 
 **Step 3: Commit**
 
 ```bash
-git add docs/plans/2026-03-09-gpu1-pcie-link-speed-fix.md
+git add docs/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
 git add docs/runbooks/manual-operations.yaml
 git commit -m "ops(gpu1): flash BIOS F6 and force PCIe Gen 4 — link speed 2.5→16 GT/s"
 ```

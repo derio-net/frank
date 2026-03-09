@@ -10,7 +10,7 @@
 
 **Prereqs:** `source .env` (KUBECONFIG) and `source .env_devops` (OMNI) available. Phase 4 (GPU Operator) complete — gpu-1 has `nvidia.com/gpu` resource and NoSchedule taint. Infisical running at `192.168.55.204`.
 
-**Design doc:** `docs/plans/2026-03-09-local-inference-design.md`
+**Design doc:** `docs/plans/2026-03-09-phase10-local-inference-design.md`
 
 ---
 
@@ -392,7 +392,7 @@ git commit -m "feat(litellm): add ArgoCD app for LLM inference gateway"
 id: inference-infisical-secrets
 phase: inference
 app: litellm
-plan: docs/plans/2026-03-09-local-inference.md
+plan: docs/plans/2026-03-09-phase10-local-inference.md
 when: "Before Task 5 — secrets must exist in Infisical before ExternalSecret can sync"
 why_manual: "API keys are user credentials — must be entered via Infisical UI"
 commands:
