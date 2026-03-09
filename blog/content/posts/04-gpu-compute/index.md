@@ -11,7 +11,7 @@ cover:
   relative: true
 ---
 
-This post covers two GPU stories with very different endings. The NVIDIA RTX 5070 in `gpu-1` should have been the crown jewel of the cluster, but a hardware issue turned it into a cautionary tale. Meanwhile, the Intel Arc iGPUs hiding inside the three mini nodes became fully operational through Kubernetes 1.35's Dynamic Resource Allocation — the new standard for GPU scheduling that replaces device plugins.
+This post covers two GPU paths that converged on the same cluster. The NVIDIA RTX 5070 in `gpu-1` started as a cautionary tale — a card that booted fans and RGB but refused to appear on the PCIe bus — and ended with a successful reseat and a fully deployed GPU Operator. Meanwhile, the Intel Arc iGPUs hiding inside the three mini nodes became fully operational through Kubernetes 1.35's Dynamic Resource Allocation — the new standard for GPU scheduling that replaces device plugins.
 
 Both paths required Talos extensions, kernel-level config, and some chart surgery. Let's walk through them.
 
@@ -102,36 +102,73 @@ Notice the sync policy: no `automated` block. This is intentional, and brings us
 
 The RTX 5070 is physically installed in `gpu-1`. The Gigabyte Z790 Eagle AX motherboard has a PCIe 5.0 x16 slot. The card is seated, powered (dual 8-pin), and the fans spin on boot. The RGB on the case fans (controlled via a separate USB HID controller) works fine.
 
-But `lspci` shows nothing. No NVIDIA device. No unknown PCI device. The card is invisible to the PCIe bus.
+Initially, the card was completely invisible to the PCIe bus — `lspci` showed nothing, no NVIDIA vendor ID `10de`, silence. The NVIDIA kernel modules would load without error and simply find no hardware to bind to. The GPU Operator deployed fine from a software perspective, but there was no GPU to operate on.
+
+What was tried before the fix:
+
+- **BIOS settings** — confirmed PCIe set to Auto/Gen5, CSM disabled, Above 4G Decoding enabled, Resizable BAR enabled.
+- **Different BIOS versions** — updated from the factory BIOS (predating the RTX 50-series) to the latest available. No change.
+- **Power supply** — verified PSU rail stability with a multimeter on the PCIe power connectors.
+
+**The fix: reseating the card.** Removing and firmly reinstalling the RTX 5070 in the x16 slot resolved the detection issue. The kernel boot log now shows the card enumerating on the PCIe bus:
 
 ```
-$ talosctl -n 192.168.55.31 dmesg | grep -i nvidia
-# (silence)
-
-$ talosctl -n 192.168.55.31 read /proc/bus/pci/devices | head
-# No NVIDIA vendor ID (10de)
+$ talosctl -n 192.168.55.31 dmesg | grep "0000:01:00.0"
+pci 0000:01:00.0: [10de:2c05] type 00 class 0x030000 PCIe Legacy Endpoint
+pci 0000:01:00.0: BAR 1 [mem 0x4800000000-0x4bffffffff 64bit pref]
+pci 0000:01:00.0: 32.000 Gb/s available PCIe bandwidth, limited by 2.5 GT/s PCIe x16 link
+pci 0000:01:00.0: vgaarb: setting as boot VGA device
 ```
 
-The NVIDIA kernel modules load without error — they simply find no hardware to bind to. The GPU Operator deploys, the validator pod runs, and everything reports healthy from a software perspective. There is just no GPU to operate on.
+Vendor ID `10de` is NVIDIA, confirming the RTX 5070 is now visible to the PCIe bus. There is one quirk in the output: the link is negotiating at 2.5 GT/s (PCIe Gen 1) rather than the expected 32 GT/s (Gen 5). The card is *capable* of 504 Gb/s at full Gen 5 x16 width — but the BIOS is training the link at Gen 1. This is a known issue with some Z790 boards and the RTX 50-series requiring a BIOS update to negotiate Gen 5 properly. The reduced bandwidth affects workloads that are PCIe-transfer-bound (like streaming large tensors from host to GPU), but compute-bound workloads run at full GPU speed regardless.
 
-What has been tried:
+With the card detected, the NVIDIA kernel module loads and binds:
 
-- **Reseating the card** — removed and reinstalled in the x16 slot. No change.
-- **BIOS settings** — confirmed PCIe is set to Auto/Gen5, CSM disabled, Above 4G Decoding enabled, Resizable BAR enabled.
-- **Different BIOS versions** — the Z790 Eagle AX shipped with a BIOS from before the RTX 5070 existed. Updated to the latest available. No change.
-- **Power supply** — the PSU provides adequate wattage. Rails are stable (verified with a multimeter on the PCIe power connectors).
-
-The leading theories are a dead PCIe slot, a defective card, or an RTX 5070-specific BIOS incompatibility with this board. The RTX 50-series was brand new at the time of this build, and early BIOS support has been spotty across vendors.
-
-The practical consequence: the `gpu-operator` ArgoCD application sits on manual sync. When the hardware issue is resolved, the fix is one command:
-
-```bash
-argocd app sync gpu-operator
+```
+$ talosctl -n 192.168.55.31 dmesg | grep NVRM
+NVRM: loading NVIDIA UNIX Open Kernel Module for x86_64  570.211.01
 ```
 
-Then update the Application template to enable automated sync. Until then, Phase 4 is infrastructure-complete but hardware-blocked.
+And DRI devices appear on the node:
 
-This is the kind of thing that does not show up in architecture diagrams. You can plan every layer of the stack perfectly and still get stopped by a PCIe bus that refuses to enumerate a device. The cluster moves on — there are three other GPUs that work.
+```
+$ talosctl -n 192.168.55.31 ls /dev/dri
+card0
+renderD128
+```
+
+The Talos NVIDIA extensions are also confirmed active via the node labels that the extension system writes during boot:
+
+```
+$ kubectl get node gpu-1 --show-labels | tr ',' '\n' | grep nvidia
+extensions.talos.dev/nvidia-container-toolkit-production=570.211.01-v1.18.2
+extensions.talos.dev/nvidia-open-gpu-kernel-modules-production=570.211.01-v1.12.4
+nvidia.com/gpu.present=true
+nvidia.com/gpu.deploy.device-plugin=true
+nvidia.com/gpu.deploy.dcgm=true
+nvidia.com/gpu.deploy.dcgm-exporter=true
+nvidia.com/gpu.deploy.gpu-feature-discovery=true
+nvidia.com/gpu.deploy.operator-validator=true
+```
+
+`nvidia.com/gpu.present=true` is the GPU Operator's node feature discovery confirming a physical NVIDIA GPU is detected. The `nvidia.com/gpu.deploy.*` labels tell the operator which components to instantiate on this node.
+
+The ArgoCD Application was updated from manual sync to automated:
+
+```yaml
+syncPolicy:
+  automated:
+    prune: false
+    selfHeal: true
+```
+
+```
+$ argocd app get gpu-operator
+Health Status:  Healthy
+Sync Policy:    Automated
+```
+
+This is the kind of thing that does not show up in architecture diagrams. A connection that was making just enough contact to power the fans but not enough to establish PCIe signaling — fixed by a firm reseat. The software stack was ready and waiting; the hardware just needed to catch up.
 
 ## Part 2: Intel Arc iGPU via DRA (Phase 5)
 
@@ -401,10 +438,10 @@ Both `card0` (display) and `renderD128` (compute/render) are present. The GPU is
 
 At this point the cluster has:
 - Intel Arc iGPU exposed on mini-1/2/3 via DRA (ResourceSlice/ResourceClaim)
-- NVIDIA GPU Operator ready (manual sync, awaiting RTX 5070 hardware fix)
+- NVIDIA RTX 5070 detected and operational on gpu-1, GPU Operator deployed with automated sync
 - GPU-local Longhorn storage on gpu-1 for AI workloads
 
-The DRA stack on the Intel side is fully operational and demonstrates the future of GPU scheduling in Kubernetes. The NVIDIA side is infrastructure-complete, waiting on a PCIe bus that refuses to cooperate. When it does, enabling it is a single ArgoCD sync away.
+Both GPU paths are live. The DRA stack on the Intel side demonstrates the future of GPU scheduling in Kubernetes. The NVIDIA side took a hardware detour — an invisible card that turned out to need nothing more than a firm reseat — but the full software stack was ready and waiting when the hardware came online.
 
 ## References
 
