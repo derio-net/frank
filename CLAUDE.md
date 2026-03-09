@@ -126,6 +126,13 @@ secrets/               # SOPS-encrypted bootstrap secrets (applied out-of-band)
 scripts/               # Utility scripts
 ```
 
+### Plan Naming Convention
+
+Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
+
+- **New phases** start as `phaseXX` (no number). They get a real number only once implementation begins.
+- **Bugfixes and extensions** of existing phases use the original phase number (e.g., `phase04-gpu1-pcie-link-speed-fix` extends Phase 4 GPU Stack).
+
 ## Nodes
 
 | Host | IP | Role | Zone | Key Hardware |
