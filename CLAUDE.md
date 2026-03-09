@@ -147,6 +147,7 @@ scripts/               # Utility scripts
 | Hubble UI | 192.168.55.202 | Cilium L2 LoadBalancer |
 | Grafana | 192.168.55.203 | Cilium L2 LoadBalancer |
 | Infisical | 192.168.55.204 | Cilium L2 LoadBalancer |
+| LiteLLM Gateway | 192.168.55.206 | Cilium L2 LoadBalancer |
 
 ## Declarative-Only Principle
 
