@@ -323,11 +323,7 @@ This separation means Omni never touches workloads, and ArgoCD never touches mac
 
 The rest of this series walks through each capability layer:
 
-1. **[Building the Foundation](/posts/02-foundation/)** — Bootstrapping Talos, configuring nodes, installing Cilium
-2. **[Persistent Storage](/posts/03-storage/)** — Longhorn across heterogeneous disks
-3. **[GPU Compute](/posts/04-gpu-compute/)** — NVIDIA and Intel iGPU via DRA
-4. **[GitOps Everything](/posts/05-gitops/)** — ArgoCD App-of-Apps
-5. **[Fun Stuff](/posts/06-fun-stuff/)** — Controlling RGB LEDs from Kubernetes
+{{< cluster-roadmap >}}
 
 Let's start building.
 ```
