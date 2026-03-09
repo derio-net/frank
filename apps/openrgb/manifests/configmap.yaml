@@ -9,4 +9,4 @@ data:
   # 8 LEDs total. Modes: Direct, Static, Breathing, Blinking, Color Cycle, Flashing
   # To turn LEDs on, change 000000 to a color (e.g. ff0000 for red).
   # To change mode, replace "Static" (options: Static, Breathing, Blinking, Color Cycle, Flashing).
-  OPENRGB_ARGS: "-d 0 -m Static -c 000000"
+  OPENRGB_ARGS: "-d 0 -m Static -c ffffff"
