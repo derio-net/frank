@@ -22,7 +22,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: openrgb
-          image: swensorm/openrgb:release_0.9
+          image: ghcr.io/derio-net/openrgb:1.0rc2
           command: ["/bin/sh", "-c"]
           args:
             - |
