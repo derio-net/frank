@@ -1,0 +1,33 @@
+apiVersion: sympozium.ai/v1alpha1
+kind: SympoziumPolicy
+metadata:
+  name: restrictive-policy
+  namespace: sympozium-system
+spec:
+  toolGating:
+    defaultAction: deny
+    rules:
+      - tool: execute_command
+        action: ask
+      - tool: read_file
+        action: allow
+      - tool: list_directory
+        action: allow
+      - tool: write_file
+        action: deny
+      - tool: fetch_url
+        action: deny
+      - tool: send_channel_message
+        action: allow
+  subagentPolicy:
+    maxDepth: 2
+    maxConcurrent: 3
+  sandboxPolicy:
+    required: true
+    maxCPU: "2"
+    maxMemory: 4Gi
+  featureGates:
+    browser-automation: false
+    code-execution: true
+    file-access: false
+    sub-agents: true
