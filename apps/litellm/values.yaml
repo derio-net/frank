@@ -1,0 +1,114 @@
+# LiteLLM — unified LLM inference gateway
+# Routes between local Ollama models and cloud providers via OpenRouter
+# Exposed at 192.168.55.206:4000 as OpenAI-compatible API
+
+image:
+  repository: ghcr.io/berriai/litellm-database
+  pullPolicy: Always
+
+# Master key from ExternalSecret-managed K8s Secret
+masterkeySecretName: "litellm-api-keys"
+masterkeySecretKey: "LITELLM_MASTER_KEY"
+
+# Inject API keys from K8s Secret as env vars
+# ExternalSecret "litellm-api-keys" syncs from Infisical
+environmentSecrets:
+  - litellm-api-keys
+
+# LiteLLM proxy configuration (rendered as config.yaml)
+proxy_config:
+  model_list:
+    # ──────────────────────────────────────────────
+    # LOCAL MODELS (Ollama on gpu-1)
+    # ──────────────────────────────────────────────
+
+    # Qwen 3.5 9B — default general-purpose model
+    # Multimodal (text+image), 256K context, tool calling, thinking mode
+    # Runs fully in VRAM on RTX 5070 (6.6GB Q4)
+    - model_name: qwen3.5
+      litellm_params:
+        model: ollama/qwen3.5:9b
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+
+    # DeepSeek Coder 6.7B — code generation and completion
+    # Swapped in on-demand (~5s cold load)
+    - model_name: deepseek-coder
+      litellm_params:
+        model: ollama/deepseek-coder:6.7b
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+
+    # ──────────────────────────────────────────────
+    # CLOUD MODELS — Free tier via OpenRouter
+    # Rate limit: 20 req/min, 200 req/day per model
+    # ──────────────────────────────────────────────
+
+    # DeepSeek R1 — 671B MoE (37B active), reasoning model
+    # Visible chain-of-thought, on par with OpenAI o1
+    # ⚠ Data: Chinese servers, prompts may train models, no opt-out
+    - model_name: deepseek-r1
+      litellm_params:
+        model: openrouter/deepseek/deepseek-r1:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # Gemini 2.0 Flash Exp — 1M context, long document processing
+    # ⚠ Data: Google experimental; prompts may train future models
+    - model_name: gemini-flash
+      litellm_params:
+        model: openrouter/google/gemini-2.0-flash-exp:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # Devstral 2 — Mistral's 123B dense coding model, 256K context
+    # Agentic coding, multi-file project understanding
+    # ⚠ Data: Mistral Experiment plan; prompts may train models
+    - model_name: devstral
+      litellm_params:
+        model: openrouter/mistralai/devstral-2512:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # Llama 3.3 70B — Meta's general-purpose open model, 128K context
+    # Strong all-rounder, Apache-like license
+    # ✅ Data: Open-weight, served by third-party; check provider policy
+    - model_name: llama-70b
+      litellm_params:
+        model: openrouter/meta-llama/llama-3.3-70b-instruct:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # GPT-OSS 120B — OpenAI's open-weight MoE (5.1B active), 131K context
+    # Designed for agentic and general-purpose production use
+    # ✅ Data: Open-weight (Apache 2.0), served by third-party
+    - model_name: gpt-oss
+      litellm_params:
+        model: openrouter/openai/gpt-oss-120b:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # Step 3.5 Flash — StepFun's 196B MoE (11B active), 256K context
+    # Reasoning model, strong general-purpose
+    # ⚠ Data: Training disabled, but prompts retained by StepFun
+    - model_name: step-flash
+      litellm_params:
+        model: openrouter/stepfun/step-3.5-flash:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+  litellm_settings:
+    default_model: qwen3.5
+
+  general_settings:
+    master_key: os.environ/LITELLM_MASTER_KEY
+
+service:
+  type: LoadBalancer
+  port: 4000
+
+# Standalone PostgreSQL for virtual keys, spend tracking, usage logs
+db:
+  deployStandalone: true
+
+postgresql:
+  auth:
+    username: litellm
+    database: litellm
+  primary:
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClass: longhorn
