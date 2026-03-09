@@ -55,6 +55,6 @@ This post is a **living document**: it gets updated as new technologies and capa
 7. [Observability — VictoriaMetrics, Grafana, and Fluent Bit]({{< relref "/posts/07-observability" >}})
 8. [Backup — Longhorn to Cloudflare R2]({{< relref "/posts/08-backup" >}})
 9. [Secrets Management — Infisical + External Secrets Operator]({{< relref "/posts/09-secrets" >}})
-10. Local Inference — Ollama, LiteLLM, and OpenRouter _(coming soon)_
+10. [Local Inference — Ollama, LiteLLM, and OpenRouter]({{< relref "/posts/10-local-inference" >}})
 - Multi-tenancy with vCluster _(planned)_
 - Virtual Machines with KubeVirt _(planned)_

@@ -53,6 +53,9 @@ Here are prompts for Gemini, tailored to each image you need. They all share a c
 **Post 9 — Secrets Management (Infisical + ESO):**
 > A Frankenstein monster made of server hardware standing in front of a large glowing vault door, carefully placing labeled key-shaped data blocks inside. Each key is engraved with a secret name (DATABASE_URL, REDIS_URL, API_KEY). A small helpful robot labeled "ESO" stands nearby with a stack of sealed envelopes, each addressed to a different pod (small box-shaped robots). The monster looks focused and security-conscious. The vault glows with blue encryption lines. Dark server room background with electric blue lightning accents.
 
+**Post 10 — Local Inference (Ollama, LiteLLM, OpenRouter):**
+> A Frankenstein monster made of server hardware standing at a grand switchboard console, routing glowing data streams. His left hand pulls a lever connected to a small GPU server rack (labeled with a tiny llama icon), while his right hand gestures toward a cloud portal with multiple provider logos streaming through it. Bright neural-network-style lines flow from both sources into a single unified pipe that feeds into a row of small robot consumers (chatbots, document scanners, coding assistants) waiting eagerly below. The switchboard has a glowing sign reading "LiteLLM". Dark server room background with electric blue and purple lightning accents.
+
 ---
 
 For PaperMod, once you have the images, drop them as `cover.png` inside each post's page bundle directory and add this to each post's front matter:
