@@ -26,6 +26,7 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
+              set -e
               /usr/app/openrgb --noautoconnect $OPENRGB_ARGS
               sleep infinity
           env:
@@ -45,7 +46,9 @@ spec:
               cpu: "10m"
             limits:
               memory: "128Mi"
+              cpu: "50m"
       volumes:
         - name: dev
           hostPath:
             path: /dev
+            type: Directory
