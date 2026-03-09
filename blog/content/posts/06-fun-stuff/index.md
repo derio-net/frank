@@ -60,12 +60,21 @@ This revealed one device — `Z790 EAGLE AX (IT5701-GIGABYTE)` at device index 0
 
 ## The OpenRGB DaemonSet
 
-The deployment is a DaemonSet pinned to gpu-1, which makes the scheduling trivial — it only ever runs on the one node with the fans. The architecture has two containers:
+The deployment is a DaemonSet pinned to gpu-1. The architecture is a single container: it
+runs `openrgb --noautoconnect $OPENRGB_ARGS` to apply the LED config at startup, then
+`sleep infinity` to keep the pod alive.
 
-1. An **init container** that applies the LED configuration on startup and exits.
-2. A **main container** running `openrgb --server` on port 6742, which keeps the pod alive and re-applies the config if the pod restarts after a reboot.
+The `--noautoconnect` flag is the key detail. It runs OpenRGB in standalone mode without
+starting a local server. This matters because of a subtle hardware behavior: the IT5701
+controller saves its last color to non-volatile memory, and when OpenRGB starts a server, the
+server's device initialization sequence restores that saved state — overwriting whatever the
+config just applied. Standalone mode applies the config and exits cleanly, with nothing to
+undo it afterward.
 
-Both containers run privileged with `/dev` mounted from the host, giving them access to `/dev/hidraw0`. The gpu-1 node carries a `nvidia.com/gpu=present:NoSchedule` taint, so the DaemonSet needs a matching toleration.
+The pod runs privileged with `/dev` mounted from the host, giving it access to the HID device
+(currently at `/dev/hidraw2` — the device path can shift after hardware changes, but OpenRGB
+uses device index `-d 0`, not the hidraw path directly). The gpu-1 node carries a
+`nvidia.com/gpu=present:NoSchedule` taint, so the DaemonSet needs a matching toleration.
 
 ```yaml
 apiVersion: apps/v1
@@ -85,35 +94,20 @@ spec:
         - key: nvidia.com/gpu
           operator: Exists
           effect: NoSchedule
-      initContainers:
-        - name: apply-leds
+      containers:
+        - name: openrgb
           image: swensorm/openrgb:release_0.9
           command: ["/bin/sh", "-c"]
           args:
             - |
-              echo "Waiting for HID devices..."
-              sleep 5
-              echo "Applying LED config: $OPENRGB_ARGS"
-              /usr/app/openrgb $OPENRGB_ARGS
-              echo "LED config applied."
+              /usr/app/openrgb --noautoconnect $OPENRGB_ARGS
+              sleep infinity
           env:
             - name: OPENRGB_ARGS
               valueFrom:
                 configMapKeyRef:
                   name: openrgb-config
                   key: OPENRGB_ARGS
-          securityContext:
-            privileged: true
-          volumeMounts:
-            - name: dev
-              mountPath: /dev
-      containers:
-        - name: openrgb-server
-          image: swensorm/openrgb:release_0.9
-          command: ["/usr/app/openrgb", "--server"]
-          ports:
-            - containerPort: 6742
-              name: openrgb
           securityContext:
             privileged: true
           volumeMounts:
@@ -131,9 +125,23 @@ spec:
             path: /dev
 ```
 
-The five-second sleep in the init container gives the HID subsystem a moment to settle after the pod starts. Without it, OpenRGB occasionally fails to find the device.
+A note on the image: `swensorm/openrgb:release_0.9` puts the binary at `/usr/app/openrgb`,
+not on the PATH. There is no `latest` tag.
 
-A note on the image: `swensorm/openrgb:release_0.9` puts the binary at `/usr/app/openrgb`, not on the PATH. There is no `latest` tag.
+### The Server Detour
+
+The original implementation used a two-container design: an init container to apply the LED
+config, and a main container running `openrgb --server` as a keepalive. It appeared to work.
+
+It stopped appearing to work during an unrelated hardware session — reseating the RTX 5070,
+resetting the CMOS battery, and rebooting the node several times. The LEDs came back as green,
+then blue, then lila. Each reboot a different color. The server was the culprit: it
+reinitializes the device every time the pod starts, and initialization restores the
+controller's non-volatile saved state from the *last write* — which varied depending on which
+OpenRGB invocation had touched it most recently.
+
+The fix is the design above. The server was added speculatively as a keepalive and never used
+as a remote control interface. `sleep infinity` does the same job without touching the device.
 
 ## ConfigMap-Driven LED Config
 
@@ -159,7 +167,7 @@ The workflow to change the LED color on a live cluster:
 1. Edit the `OPENRGB_ARGS` value in `apps/openrgb/manifests/configmap.yaml`
 2. Commit and push
 3. ArgoCD detects the change and syncs
-4. The DaemonSet pod restarts, the init container applies the new config
+4. The DaemonSet pod restarts, the container applies the new config on startup
 5. The fans change color
 
 That is a five-stage pipeline to change an LED color. We could have used the button on the hub, except it does not work. So really this is the *only* option. (We tell ourselves this.)
