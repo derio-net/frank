@@ -8,10 +8,8 @@ apiserver:
     enabled: true
     token: ""  # Auto-generates Secret on first deploy
 
-  service:
-    type: LoadBalancer
-    annotations:
-      lbipam.cilium.io/ips: "192.168.55.207"
+  # Note: chart service template doesn't support type/annotations overrides.
+  # LoadBalancer is handled by a separate Service in sympozium-extras.
 
 # NATS JetStream — durable event bus for inter-component messaging
 nats:
@@ -25,7 +23,8 @@ certManager:
   enabled: true
 
 # Install Sympozium CRDs
-installCRDs: true
+crds:
+  install: true
 
 # Network policies for pod isolation
 networkPolicies:

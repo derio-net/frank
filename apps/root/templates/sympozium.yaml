@@ -8,9 +8,9 @@ metadata:
 spec:
   project: infrastructure
   sources:
-    - repoURL: ghcr.io/alexsjones/sympozium/charts
-      chart: sympozium
-      targetRevision: "0.1.0"
+    - repoURL: https://github.com/AlexsJones/sympozium.git
+      targetRevision: v0.1.1
+      path: charts/sympozium
       helm:
         releaseName: sympozium
         valueFiles:

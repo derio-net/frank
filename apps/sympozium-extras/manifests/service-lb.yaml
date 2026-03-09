@@ -1,0 +1,19 @@
+# LoadBalancer Service for Sympozium API server / web dashboard
+# The chart's built-in service doesn't support type or annotation overrides,
+# so we create a separate LoadBalancer Service to expose the web UI.
+apiVersion: v1
+kind: Service
+metadata:
+  name: sympozium-apiserver-lb
+  namespace: sympozium-system
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.207"
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/component: apiserver
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
