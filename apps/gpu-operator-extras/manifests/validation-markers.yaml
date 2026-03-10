@@ -1,0 +1,52 @@
+# Fake validation markers for Talos Linux.
+# The GPU Operator's toolkit DaemonSet is disabled (Talos provides it via
+# system extensions), but other DaemonSets have hardcoded init containers
+# that poll for /run/nvidia/validations/toolkit-ready.  This DaemonSet
+# creates the expected files so the init containers unblock.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvidia-validation-markers
+  namespace: gpu-operator
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nvidia-validation-markers
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nvidia-validation-markers
+    spec:
+      nodeSelector:
+        nvidia.com/gpu.present: "true"
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: marker
+          image: busybox:1.37
+          securityContext:
+            privileged: true
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              mkdir -p /host-run/nvidia/validations
+              touch /host-run/nvidia/validations/driver-ready
+              touch /host-run/nvidia/validations/toolkit-ready
+              echo "Validation markers created"
+              sleep infinity
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              memory: 16Mi
+          volumeMounts:
+            - name: host-run
+              mountPath: /host-run
+      volumes:
+        - name: host-run
+          hostPath:
+            path: /run
+            type: Directory
