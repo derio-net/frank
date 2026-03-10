@@ -1,0 +1,23 @@
+## Set nvidia as the default containerd runtime on gpu-1
+## Required for GPU containers to work on Talos Linux — without this,
+## the nvidia-container-runtime hook never injects GPU devices.
+## See: https://www.siderolabs.com/blog/ai-workloads-on-talos-linux/
+## Does NOT require a reboot — containerd restarts automatically.
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 306-gpu1-nvidia-default-runtime
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: 03ff0210-04e0-05b0-ab06-300700080009
+spec:
+    data: |
+        machine:
+            files:
+                - path: /etc/cri/conf.d/20-customization.part
+                  op: create
+                  content: |
+                      [plugins."io.containerd.cri.v1.runtime"]
+                        cdi_spec_dirs = ["/var/cdi/static", "/var/cdi/dynamic"]
+                        [plugins."io.containerd.cri.v1.runtime".containerd]
+                          default_runtime_name = "nvidia"
