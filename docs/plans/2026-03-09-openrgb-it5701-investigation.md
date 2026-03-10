@@ -1,8 +1,8 @@
 # OpenRGB IT5701 On-Demand Control Investigation
 
 **Date:** 2026-03-09 (updated 2026-03-10)
-**Status:** Blocked — IT5701 PID 5702 writes broken in both OpenRGB 0.9 and 1.0rc2
-**Outcome:** Root cause narrowed; 1.0rc2 does not fix IT5701 (PID 5702) + V3.5.14.0
+**Status:** Closed — root cause confirmed, requires USB traffic capture on Windows to fix
+**Outcome:** IT5701 V3.5.14.0 has a firmware write lock set by BIOS; unlock sequence unknown
 
 ---
 
@@ -237,6 +237,51 @@ firmware version.
 | BIOS downgrade to F3 | Restores compatible firmware; loses BIOS security/stability updates |
 | Raw HID protocol reverse engineering | Capture Windows RGB Fusion traffic, implement correct V3.5.14.0 packets directly |
 | Accept NV replay state | LEDs stay black (off) — the NV state set before the BIOS update persists correctly |
+
+### Direct HID protocol investigation (definitive)
+
+**Date:** 2026-03-10
+
+With OpenRGB exhausted, a Python probe pod was run with `ioctl(HIDIOCSFEATURE)` to
+send raw HID feature reports directly — bypassing OpenRGB entirely.
+
+**Key findings:**
+
+1. **Correct ioctl confirmed**: `HIDIOCSFEATURE = 0xC0404806`
+   (`_IOC(_IOC_WRITE|_IOC_READ, 'H', 0x06, 64)` — direction is 3, not 1).
+   Using 0x40404806 caused `EINVAL`; 0xC0404806 worked.
+
+2. **Device info readback** (`[0xCC, 0x60]` → `HIDIOCGFEATURE`):
+   `cc 01 00 07 03 05 0e 00 00 00 00 01 49 54 35 37 ...`
+   Bytes 4–7 = `03 05 0E 00` = firmware V3.5.14.0.
+   `support_cmd_flag` (byte 6) = `0x0E` — OpenRGB's `>= 0x02` check passes,
+   so `EnableLampArray(false)` IS called during OpenRGB init. LampArray is not
+   the cause.
+
+3. **Write storage confirmed**: After writing Static red to register `0x20`,
+   the readback showed `effect_type = 0x01` (Static) and `color BGR = 00 00 FF`
+   (red). The device stores the write correctly.
+
+4. **All commit variants tried, all fail:**
+   - `[0xCC, 0x28, 0xFF, 0x00]` — IT5701 fast apply
+   - `[0xCC, 0x28, 0xFF, 0x07]` — IT5711 fast apply
+   - zone 0 only, all zones full, all bits set
+   — none produced any physical LED change.
+
+5. **Rapid-fire loop (245 cycles in 3 seconds) — zero effect**: Sending
+   `SetStripBuiltinEffectState(0xFF)` + Static red on all zone registers +
+   both apply variants, 245 times in 3 seconds, produced not a single flicker.
+
+6. **No host process writing to the device**: `lsof`/`/proc` scan confirmed no
+   process has `/dev/hidraw2` open between our writes. The rainbow is driven
+   entirely by the IT5701's own autonomous firmware.
+
+**Definitive conclusion**: The IT5701 V3.5.14.0 firmware enters a **write-locked
+state** set by the BIOS on cold boot. It accepts all HID feature reports without
+error and stores them in registers, but the physical LED output never changes.
+The unlock sequence required to exit this locked state is unknown — it exists
+only in Gigabyte's Windows RGB Fusion binary and has not been reverse-engineered
+or documented anywhere publicly.
 
 ### Talos udev rules (tried, did not fix)
 
