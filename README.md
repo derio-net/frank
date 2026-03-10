@@ -33,7 +33,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Dashboards | Grafana | Pre-provisioned datasources (VictoriaMetrics, VictoriaLogs) |
 | Backup | Longhorn → Cloudflare R2 | Daily + weekly PVC backup, SOPS-encrypted credentials |
 | Secrets | Infisical + External Secrets Operator | Self-hosted secret store, ExternalSecret → K8s Secret sync |
-| RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID |
+| RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID (IT5701 V3.5.14.0 firmware lock under investigation) |
 | Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 (qwen3.5:9b, deepseek-coder:6.7b) |
 | API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to Ollama + OpenRouter cloud models |
 | Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
@@ -123,7 +123,7 @@ argocd app list
 | longhorn-extras | longhorn-system | GPU-local StorageClass, BackupTarget (R2), RecurringJobs |
 | gpu-operator | gpu-operator | RTX 5070 on gpu-1 |
 | intel-gpu-driver | intel-gpu-resource-driver | DRA driver on mini-1/2/3 |
-| openrgb | openrgb | LED control on gpu-1 via USB HID |
+| openrgb | openrgb | LED control on gpu-1 via USB HID (firmware V3.5.14.0 write lock; fans currently rainbow) |
 | victoria-metrics | monitoring | VMSingle, Grafana, Alertmanager, kube-state-metrics |
 | fluent-bit | monitoring | Log shipping to VictoriaLogs |
 | victoria-logs | monitoring | VictoriaLogs standalone |
