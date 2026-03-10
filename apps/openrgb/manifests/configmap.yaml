@@ -4,9 +4,9 @@ metadata:
   name: openrgb-config
   namespace: openrgb
 data:
-  # Device 0: Z790 EAGLE AX (IT5701-GIGABYTE) at /dev/hidraw0
-  # Zones: D_LED1 Bottom, D_LED2 Top, Motherboard
-  # 8 LEDs total. Modes: Direct, Static, Breathing, Blinking, Color Cycle, Flashing
-  # To turn LEDs on, change 000000 to a color (e.g. ff0000 for red).
-  # To change mode, replace "Static" (options: Static, Breathing, Blinking, Color Cycle, Flashing).
-  OPENRGB_ARGS: "-d 0 -m Static -c ffffff"
+  # Device 0: Z790 EAGLE AX (IT5701-GIGABYTE V3.5.14.0) at /dev/hidraw2
+  # Zones: D_LED1, D_LED2 (ARGB strips)
+  # NOTE: On-demand writes currently blocked — IT5701 PID 5702 + firmware V3.5.14.0 not
+  # supported in OpenRGB 0.9 or 1.0rc2. LEDs stay in NV-saved state (black/off).
+  # See docs/plans/2026-03-09-openrgb-it5701-investigation.md for full analysis.
+  OPENRGB_ARGS: "-d 0 -m Static -c 000000"

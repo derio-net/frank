@@ -1,8 +1,8 @@
 # OpenRGB IT5701 On-Demand Control Investigation
 
-**Date:** 2026-03-09
-**Status:** In progress — OpenRGB 1.0rc2 image build pending
-**Outcome:** Root cause identified; fix staged for testing
+**Date:** 2026-03-09 (updated 2026-03-10)
+**Status:** Blocked — IT5701 PID 5702 writes broken in both OpenRGB 0.9 and 1.0rc2
+**Outcome:** Root cause narrowed; 1.0rc2 does not fix IT5701 (PID 5702) + V3.5.14.0
 
 ---
 
@@ -137,29 +137,106 @@ by Phase 6) has not published anything beyond `release_0.9`.
 - `.github/workflows/build-openrgb.yml` — builds and pushes to
   `ghcr.io/derio-net/openrgb:1.0rc2` on push to `apps/openrgb/docker/**`
 
-### DaemonSet update (pending image build)
+### DaemonSet update (complete)
 
-After the image is built and available at `ghcr.io/derio-net/openrgb:1.0rc2`, update
-`apps/openrgb/manifests/daemonset.yaml`:
+`apps/openrgb/manifests/daemonset.yaml` updated to `ghcr.io/derio-net/openrgb:1.0rc2`.
+Testing confirmed the image runs correctly; on-demand writes still fail (see Phase 3).
 
-```yaml
-image: ghcr.io/derio-net/openrgb:1.0rc2
-```
+---
 
-Then retest on-demand color writes.
+## Investigation Phase 3 — OpenRGB 1.0rc2 Also Fails
+
+**Date:** 2026-03-10
+
+A custom Docker image was built from OpenRGB 1.0rc2 (`release_candidate_1.0rc2` tag on
+Codeberg) and deployed to `ghcr.io/derio-net/openrgb:1.0rc2`. The DaemonSet was updated to
+use this image.
+
+### Build notes
+
+- `make install` is broken in 1.0rc2 (tries to write to `/etc/systemd/system`); binary copied
+  from build dir directly
+- `ca-certificates` required in the builder stage (Codeberg uses TLS; the base image
+  `debian:bookworm-slim` ships without CA certs)
+- `QT_QPA_PLATFORM=offscreen` required — Qt panics without a display backend
+- GHCR packages default private even on public repos; had to manually set package visibility
+  to Public before the pod could pull the image
+
+### 1.0rc2 behavior
+
+| Test | Result |
+|------|--------|
+| `--list-devices` | Device found: `Z790 EAGLE AX`, firmware `V3.5.14.0`, Zones: D_LED1 D_LED2 |
+| Modes | `[Direct] Static Breathing Flashing 'Color Cycle' 'Double Flash' Wave Random 'Wave 1/2/3/4'` |
+| `-d 0 -m Static -c ff0000` | Exit 0, LEDs unchanged |
+| `-d 0 -m Direct -c ff0000` | Exit 0, LEDs unchanged |
+| `-d 0 --zone 0 -m Static -c ff0000` | Exit 0, LEDs unchanged |
+| USB device reset + immediate write | LEDs unchanged |
+| `-vv` verbose log | Shows `[CLI] using device number 0 for argument 0` then immediately `OpenRGB finishing with exit code 0` — no mode/color write output |
+
+### Key observations
+
+1. **1.0rc2 detects the device differently from 0.9**: 0.9 showed 3 zones
+   (D_LED1 Bottom, D_LED2 Top, Motherboard) and 8 LEDs total. 1.0rc2 shows only 2 zones
+   (D_LED1, D_LED2) with no LED count in the `--list-devices` output.
+2. **No LED count reported**: If the LED count query returned 0 for both ARGB strip zones,
+   `SetStripColors()` would loop over 0 LEDs and write nothing. This would explain exit 0
+   with no effect.
+3. **Verbose log ends immediately after device selection**: After `[CLI] using device number 0
+   for argument 0`, the program exits with no write-phase output. The IT5701 driver may not
+   log write operations, or the write phase is being skipped.
+
+### Protocol analysis (IT5701 source code review)
+
+After reviewing the OpenRGB 1.0rc2 Gigabyte RGB Fusion 2 USB controller source:
+
+- All HID communication uses **feature reports** (`ioctl(HIDIOCSFEATURE)`), not interrupt
+  OUT reports. Plain `write()` to hidraw sends interrupt OUT reports, which the IT5701 rejects
+  with I/O error. The earlier `dd if=/dev/zero` "success" was a no-op write to the wrong
+  endpoint.
+- A **commit packet** (`[0xCC, 0x28, ...]`) is mandatory — without it, no color change
+  appears. OpenRGB's `ApplyEffect()` is supposed to send this automatically.
+- **Critical finding**: The IT5701 (PID `0x5702`) and IT5711 (PID `0x5711`) take completely
+  separate code paths. OpenRGB 1.0rc2 added significant new features for the IT5711
+  (calibration data, 4 DLED headers, Wave/Double Flash modes, LampArray disable). The IT5701
+  code path received far less attention. If V3.5.14.0 introduced a protocol change that only
+  the IT5711 path accounts for, IT5701 writes would continue to fail.
+
+### Current hypothesis
+
+The Z790 Eagle AX's IT5701 (PID `0x5702`) with firmware `V3.5.14.0` is not correctly
+supported in OpenRGB 1.0rc2. The IT5711 (PID `0x5711`) path likely got the V3.5.x
+compatibility fixes; the IT5701 path did not. Writes enumerate and parse correctly but the
+actual HID feature report sequence is either wrong or missing a required step for this
+firmware version.
+
+---
+
+## Current State
+
+- DaemonSet runs `ghcr.io/derio-net/openrgb:1.0rc2` with `--noautoconnect -d 0 -m Static -c 000000`
+- LED state: black (off) — replaying the NV-saved color from before the BIOS update
+- On-demand color changes: not working with any tested OpenRGB version or invocation method
+- The single-container design (no server) remains correct to prevent NV state corruption
 
 ---
 
 ## Open Questions
 
-1. Does OpenRGB 1.0rc2 actually fix IT5701 `V3.5.14.0` writes? (unconfirmed — testing
-   pending image build)
-2. If 1.0rc2 writes work, do they persist to NV memory, or only change the current display
-   state? (affects cold boot behavior)
-3. The correct value for `sleep` before the OpenRGB command: `sleep 5` targets the cold boot
-   hardware initialization window; `sleep 30` was added to wait for the hardware rainbow but
-   overshoots the window. If 1.0rc2 writes work at any time (no window constraint), the sleep
-   value matters less.
+1. Does IT5701 PID `0x5702` with V3.5.14.0 work with any OpenRGB version beyond 1.0rc2?
+2. Is this a known issue in the OpenRGB tracker? (not confirmed — no issue found for PID 5702
+   + V3.5.14.0 specifically)
+3. Does the LED count query return 0 for the ARGB zones on V3.5.14.0? If so, this is a
+   discrete bug separate from the general protocol incompatibility.
+
+## Paths Forward
+
+| Option | Notes |
+|--------|-------|
+| Wait for upstream OpenRGB fix | Passive — file a bug with firmware version + PID, wait for support |
+| BIOS downgrade to F3 | Restores compatible firmware; loses BIOS security/stability updates |
+| Raw HID protocol reverse engineering | Capture Windows RGB Fusion traffic, implement correct V3.5.14.0 packets directly |
+| Accept NV replay state | LEDs stay black (off) — the NV state set before the BIOS update persists correctly |
 
 ---
 
@@ -167,13 +244,17 @@ Then retest on-demand color writes.
 
 | Time | Event |
 |------|-------|
-| Phase 6 setup | Two-container DaemonSet deployed, LEDs off (working) |
+| Phase 6 setup | Two-container DaemonSet deployed, LEDs off (working, BIOS F3) |
 | Hardware session | GPU reseated, CMOS reset, BIOS F3→F6, multiple reboots |
 | Post-hardware | LEDs showing green/blue/lila on each boot (regression) |
 | Investigation | Root cause: `--server` container restoring NV state |
 | Fix attempt 1 | Single container, `--noautoconnect`, `sleep 30` |
-| Verification | Cold boot: LEDs off — attributed to fix, actually NV replay |
+| Verification | Cold boot: LEDs off — attributed to fix, actually NV replay of black |
 | On-demand test | ConfigMap changed to `ffffff`, pod restarted — no change |
 | Deep debug | All write approaches fail; verbose log shows no post-detection activity |
 | Root cause | IT5701 firmware `V3.5.14.0` incompatible with OpenRGB 0.9 protocol |
 | Fix staged | OpenRGB 1.0rc2 Dockerfile + GitHub Actions build pipeline created |
+| GHCR build | Image `ghcr.io/derio-net/openrgb:1.0rc2` built and pushed; package set public |
+| 1.0rc2 testing | DaemonSet updated; writes still fail — USB reset, zone targeting, all modes |
+| Protocol analysis | Source reviewed: IT5701 PID 5702 + V3.5.14.0 not fixed in 1.0rc2 |
+| Status | Blocked — awaiting upstream OpenRGB fix or manual protocol reverse engineering |
