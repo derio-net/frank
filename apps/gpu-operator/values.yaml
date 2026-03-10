@@ -7,8 +7,17 @@ toolkit:
 operator:
   defaultRuntime: containerd
 
-# Talos installs NVIDIA driver/toolkit via system extensions at /usr/local,
-# not at the operator's default /run/nvidia/driver.  The validator binary
-# uses this path to locate nvidia-smi for health checks.
+# Talos installs NVIDIA driver/toolkit via system extensions.
+# The driver binaries are at /usr/local/bin and libraries at
+# /usr/local/glibc/usr/lib64.  driverInstallDir tells the operator
+# where to mount the driver root into its pods.
 hostPaths:
   driverInstallDir: /usr/local
+
+# Disable CDI — Talos's nvidia-container-toolkit extension already
+# configures containerd with the nvidia runtime hook.  CDI mode fails
+# because the device plugin can't locate libcuda.so at the non-standard
+# Talos path (/usr/local/glibc/usr/lib64).
+cdi:
+  enabled: false
+  default: false
