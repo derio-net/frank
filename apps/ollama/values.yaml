@@ -10,9 +10,7 @@ ollama:
     nvidiaResource: "nvidia.com/gpu"
 
   models:
-    pull:
-      - qwen3.5:9b
-      - deepseek-coder:6.7b
+    pull: []
     run: []
     clean: false
 
