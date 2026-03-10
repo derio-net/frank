@@ -26,6 +26,10 @@ spec:
     required: true
     maxCPU: "2"
     maxMemory: 4Gi
+  networkPolicy:
+    denyAll: true
+    allowDNS: true
+    allowEventBus: true
   featureGates:
     browser-automation: false
     code-execution: true
