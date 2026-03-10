@@ -96,10 +96,11 @@ spec:
           effect: NoSchedule
       containers:
         - name: openrgb
-          image: swensorm/openrgb:release_0.9
+          image: ghcr.io/derio-net/openrgb:1.0rc2
           command: ["/bin/sh", "-c"]
           args:
             - |
+              sleep 5
               /usr/app/openrgb --noautoconnect $OPENRGB_ARGS
               sleep infinity
           env:
@@ -125,8 +126,10 @@ spec:
             path: /dev
 ```
 
-A note on the image: `swensorm/openrgb:release_0.9` puts the binary at `/usr/app/openrgb`,
-not on the PATH. There is no `latest` tag.
+A note on the image: no pre-built container exists for OpenRGB 1.0rc2. We build our own
+from the Codeberg source (`release_candidate_1.0rc2` tag) via a GitHub Actions workflow
+that pushes to `ghcr.io/derio-net/openrgb:1.0rc2`. The binary lands at
+`/usr/app/openrgb`, same path as the old `swensorm/openrgb` image.
 
 ### The Server Detour
 
@@ -154,23 +157,33 @@ metadata:
   name: openrgb-config
   namespace: openrgb
 data:
-  # Device 0: Z790 EAGLE AX (IT5701-GIGABYTE) at /dev/hidraw0
-  # Zones: D_LED1 Bottom, D_LED2 Top, Motherboard
-  # 8 LEDs total. Modes: Direct, Static, Breathing, Blinking, Color Cycle, Flashing
+  # Device 0: Z790 EAGLE AX (IT5701-GIGABYTE V3.5.14.0) at /dev/hidraw2
+  # Zones: D_LED1, D_LED2 (ARGB strips)
+  # NOTE: On-demand writes currently blocked — see "The Firmware Detour" below
   OPENRGB_ARGS: "-d 0 -m Static -c 000000"
 ```
 
-The `-d 0` selects the device, `-m Static` sets the mode, and `-c 000000` sets the color — in this case, black (LEDs off). Change `000000` to `ff0000` for red, `00ff00` for green, or whatever you want. Swap `Static` for `Breathing` or `Color Cycle` to get fancier.
-
-The workflow to change the LED color on a live cluster:
+The `-d 0` selects the device, `-m Static` sets the mode, and `-c 000000` sets the color — in this case, black (LEDs off). The workflow to change the LED color on a live cluster:
 
 1. Edit the `OPENRGB_ARGS` value in `apps/openrgb/manifests/configmap.yaml`
 2. Commit and push
 3. ArgoCD detects the change and syncs
 4. The DaemonSet pod restarts, the container applies the new config on startup
-5. The fans change color
+5. The fans... stay exactly as they are
 
-That is a five-stage pipeline to change an LED color. We could have used the button on the hub, except it does not work. So really this is the *only* option. (We tell ourselves this.)
+That is a five-stage pipeline that terminates in nothing. We will get to why shortly.
+
+## The Firmware Detour
+
+After getting the DaemonSet running and confirming the pod was Synced/Healthy in ArgoCD, we noticed the fans were still showing a rainbow pattern from the last cold boot. OpenRGB reported success. The HID device accepted every write. The LEDs ignored all of it.
+
+The investigation went deep. A privileged pod ran Python directly against `/dev/hidraw2` using the correct `HIDIOCSFEATURE` ioctl (`0xC0404806`). Readback via `HIDIOCGFEATURE` confirmed the device was storing the writes — register state changed exactly as expected. 245 rapid write cycles. Zero effect on the physical LEDs.
+
+The culprit is a BIOS update. The Z790 Eagle AX shipped with IT5701 firmware that OpenRGB supported. Somewhere between the original installation and now, a BIOS update (F3 → F6) swapped in IT5701 firmware version `V3.5.14.0`. This firmware version requires an unlock handshake before it will apply LED writes — a handshake that is not in OpenRGB 0.9 or 1.0rc2 for this specific PID (`0x5702`).
+
+The device is not broken. It is not a permissions problem (udev rules were verified). It is not USB autosuspend. The IT5701 simply will not apply color writes until something sends the right initialization sequence, and that sequence is not public. The only reliable way to reverse-engineer it is to capture USB traffic from the Windows RGB Fusion application while it successfully changes the color.
+
+KubeVirt is already on the roadmap. When it arrives, a Windows VM with USB passthrough for `048d:5702` will let us capture that traffic and finally close this loop. For now, the fans are rainbow, the pod is Synced/Healthy, and the ConfigMap is twelve lines of aspiration.
 
 ## ArgoCD Integration
 
@@ -201,11 +214,13 @@ Self-heal is enabled, so if someone manually messes with the LED config on the n
 
 ## Was It Worth It?
 
-Let us take stock. To control six case fans, we: ran a discovery pod, wrote a DaemonSet and a ConfigMap, registered an ArgoCD Application, set up a namespace with Pod Security Admission labels, and built a five-step CI/CD pipeline that terminates in changing an LED color.
+Let us take stock. To control six case fans, we: ruled out I2C, ran a discovery pod, wrote a DaemonSet and a ConfigMap, registered an ArgoCD Application, set up a namespace with Pod Security Admission labels, built a custom OpenRGB container image with a GitHub Actions pipeline, applied Talos udev rules via Omni machine config, ran 245 HID feature report writes with correct ioctls and verified register state, and reverse-engineered enough of the IT5701 protocol to know exactly why it does not work.
 
-The pod requests 10 millicores of CPU and 32Mi of memory. The ConfigMap is twelve lines long. The entire deployment exists so that the fans on one machine are black instead of rainbow.
+The fans are rainbow. They were rainbow when we started. They are rainbow now.
 
-Absolutely not worth it. But the fans look great, the pod is Synced/Healthy in ArgoCD, and if anyone ever asks whether our homelab has GitOps-managed RGB, the answer is yes.
+The pod requests 10 millicores of CPU and 32Mi of memory. It is Synced/Healthy in ArgoCD. It runs `sleep infinity` approximately full-time. The LEDs ignore it completely.
+
+Absolutely not worth it. But we now know more about HID feature reports, IT5701 firmware versioning, and Talos udev rule syntax than any reasonable person should. And when KubeVirt arrives and we finally capture that Windows USB traffic, we will have the best-documented RGB setup in any homelab that has never successfully changed an LED color on demand.
 
 ## References
 
@@ -214,3 +229,4 @@ Absolutely not worth it. But the fans look great, the pod is Synced/Healthy in A
 - [OpenRGB Supported Devices Wiki](https://gitlab.com/OpenRGBDevelopers/OpenRGB-Wiki) — Device detection, compatibility, and protocol documentation
 - [Linux HID Subsystem](https://www.kernel.org/doc/html/latest/hid/index.html) — Kernel documentation for USB HID and hidraw devices
 - [Kubernetes DaemonSet](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/) — Official DaemonSet documentation for node-level workloads
+- [IT5701 Investigation Notes](https://github.com/derio-net/frank/blob/main/docs/plans/2026-03-09-openrgb-it5701-investigation.md) — Full analysis of the firmware write lock, ioctl findings, and recommended fix path
