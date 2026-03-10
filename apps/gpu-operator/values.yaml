@@ -6,3 +6,9 @@ toolkit:
 
 operator:
   defaultRuntime: containerd
+
+# Talos installs NVIDIA driver/toolkit via system extensions at /usr/local,
+# not at the operator's default /run/nvidia/driver.  The validator binary
+# uses this path to locate nvidia-smi for health checks.
+hostPaths:
+  driverInstallDir: /usr/local
