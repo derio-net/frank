@@ -62,5 +62,6 @@ This post is a **living document**: it gets updated as new technologies and capa
 9. [Secrets Management — Infisical + External Secrets Operator]({{< relref "/posts/09-secrets" >}})
 10. [Local Inference — Ollama, LiteLLM, and OpenRouter]({{< relref "/posts/10-local-inference" >}})
 11. [Agentic Control Plane — Sympozium]({{< relref "/posts/11-agentic-control-plane" >}})
+12. [GPU Containers on Talos — The Validation Fix]({{< relref "/posts/12-gpu-talos-fix" >}})
 - Multi-tenancy with vCluster _(planned)_
 - Virtual Machines with KubeVirt _(planned)_

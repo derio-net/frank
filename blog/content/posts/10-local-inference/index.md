@@ -59,7 +59,7 @@ It also means model migration is invisible to consumers. If a cloud model gets r
 
 The RTX 5070 has 12GB of VRAM. That is the hard constraint. Ollama quantizes models to Q4 by default, which cuts memory roughly in half.
 
-Two models are pre-pulled on startup:
+Two models are available:
 
 | Model | Size (Q4) | Context | Best For |
 |-------|-----------|---------|----------|
@@ -205,6 +205,6 @@ LiteLLM has built-in virtual key management. Each consumer gets its own key with
 
 ## What is Next
 
-Ollama is deployed but waiting on a GPU Operator fix — the RTX 5070 is stuck at PCIe Gen 1 due to a known NVIDIA open kernel module bug. A BIOS update to force Gen 4 is in progress. Once that lands, local models will come online.
+**Update:** The GPU Operator fix landed. The RTX 5070 Ti is running Ollama at 100% GPU with 15.9 GiB VRAM. Local models are live. See [GPU Containers on Talos — The Validation Fix]({{< relref "/posts/12-gpu-talos-fix" >}}) for the full debugging story.
 
-The cloud models are live and verified. Any consumer on the network can start using `192.168.55.206:4000` today.
+Any consumer on the network can use `192.168.55.206:4000` today — both local GPU models and cloud fallback are operational.

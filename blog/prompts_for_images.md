@@ -59,6 +59,9 @@ Here are prompts for Gemini, tailored to each image you need. They all share a c
 **Post 11 — Agentic Control Plane (Sympozium):**
 > A Frankenstein monster made of server hardware standing in a command tower high above a factory floor. Below him, rows of small identical robot workers (agent pods) march in orderly lines, each carrying a glowing task card. The monster holds a large glowing policy scroll in one hand and a conductor's baton in the other, directing the robots. Some robots have green badges (allowed), others have red stop signs (denied by policy). A large glowing screen behind the monster shows a Kubernetes dashboard with CRD icons. A small NATS-branded mailbox sits in the corner, with glowing event streams flowing between the robots and the tower. Dark server room background with electric blue and orange lightning accents.
 
+**Post 12 — GPU Containers on Talos — The Validation Fix:**
+> A Frankenstein monster made of server hardware crouching inside a giant GPU card, using oversized wrenches and soldering irons to reconnect glowing circuit traces. The GPU card's casing is open like a panel, revealing tangled wires and blinking validation checkmarks appearing one by one. Sparks fly where connections are being repaired. Around the monster, floating error messages ("Init:0/1", "ContainerCreating", "resource already exists") dissolve into green "Running" status badges as the fixes land. A small Talos Linux penguin-shield logo sits in the corner, watching approvingly. Dark server room background with electric blue and green lightning accents.
+
 ---
 
 For PaperMod, once you have the images, drop them as `cover.png` inside each post's page bundle directory and add this to each post's front matter:

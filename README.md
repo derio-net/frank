@@ -26,7 +26,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Networking | Cilium CNI | eBPF kube-proxy replacement, L2 LoadBalancer, Hubble UI |
 | Storage | Longhorn | Distributed block storage, 3-replica default + GPU-local StorageClass |
 | GitOps | ArgoCD | App-of-Apps pattern, annotation-based tracking |
-| GPU (NVIDIA) | GPU Operator | RTX 5070 on gpu-1, driver-less (host driver) |
+| GPU (NVIDIA) | GPU Operator | RTX 5070 Ti on gpu-1, driver-less (host driver), validation markers DaemonSet |
 | GPU (Intel) | Intel GPU Resource Driver | DRA-based iGPU sharing on mini-1/2/3 (K8s 1.35) |
 | Metrics | VictoriaMetrics | VMSingle + Alertmanager + node/kube-state exporters |
 | Logs | VictoriaLogs + Fluent Bit | Centralised log aggregation and querying |
@@ -51,7 +51,8 @@ frank/
 │   ├── argocd/values.yaml
 │   ├── cilium/values.yaml + manifests/
 │   ├── longhorn/values.yaml + manifests/
-│   ├── gpu-operator/values.yaml
+│   ├── gpu-operator/values.yaml + manifests/  # GPU Operator values
+│   ├── gpu-operator-extras/manifests/         # Validation markers DaemonSet
 │   ├── intel-gpu-driver/values.yaml + chart/  # Vendored, K8s 1.35 patches
 │   ├── openrgb/manifests/
 │   ├── victoria-metrics/values.yaml + manifests/  # Metrics, alerting, Grafana
@@ -74,7 +75,7 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/posts/         # 12 posts documenting the build
+│   ├── content/posts/         # 13 posts documenting the build
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
 │   ├── plans/                 # Architecture and implementation plans
@@ -121,7 +122,8 @@ argocd app list
 | cilium-config | kube-system | L2 pool + announcement policy |
 | longhorn | longhorn-system | All 7 nodes schedulable |
 | longhorn-extras | longhorn-system | GPU-local StorageClass, BackupTarget (R2), RecurringJobs |
-| gpu-operator | gpu-operator | RTX 5070 on gpu-1 |
+| gpu-operator | gpu-operator | RTX 5070 Ti on gpu-1, nvidia.com/gpu: 1 allocatable |
+| gpu-operator-extras | gpu-operator | Validation markers DaemonSet for Talos |
 | intel-gpu-driver | intel-gpu-resource-driver | DRA driver on mini-1/2/3 |
 | openrgb | openrgb | LED control on gpu-1 via USB HID (firmware V3.5.14.0 write lock; fans currently rainbow) |
 | victoria-metrics | monitoring | VMSingle, Grafana, Alertmanager, kube-state-metrics |
@@ -132,7 +134,7 @@ argocd app list
 | infisical-redis | infisical | Redis backend for Infisical |
 | infisical | infisical | Infisical v0.151.0 secret store (192.168.55.204:8080) |
 | infisical-extras | external-secrets | ClusterSecretStore (infisical provider) |
-| ollama | ollama | LLM inference on gpu-1 (RTX 5070) |
+| ollama | ollama | LLM inference on gpu-1 (RTX 5070 Ti, 100% GPU) |
 | litellm | litellm | Unified OpenAI-compatible API gateway |
 | litellm-extras | litellm | Model router config + ExternalSecret for API keys |
 | cert-manager | cert-manager | TLS certificate automation for webhooks |
