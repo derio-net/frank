@@ -2,6 +2,11 @@
 # Deploys controller, API server, webhook, NATS JetStream, OTel collector
 # Web UI exposed at 192.168.55.207:8080 via Cilium L2 LoadBalancer
 
+# Override image tag to v0.1.3 (chart appVersion is 0.1.1 but v0.1.3
+# images include the webhook nil-pointer fix from commit 095c37c7)
+image:
+  tag: v0.1.3
+
 # API server with embedded web dashboard
 apiserver:
   webUI:
