@@ -103,7 +103,7 @@ cover:
 ---
 ```
 
-Cover image generation prompts go in `blog/prompts_for_images.md` — one entry per post, following the existing format. Do NOT embed the prompt in the frontmatter `alt` field; `alt` should be a short human-readable description.
+Cover image generation prompts go in `blog/prompt_for_images.yaml` — one entry per post, following the existing YAML format (key, output, description, prompt, optional post_process). Do NOT embed the prompt in the frontmatter `alt` field; `alt` should be a short human-readable description. Generate images with: `.venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only <key>`
 
 ## Architecture
 

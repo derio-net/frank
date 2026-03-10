@@ -1,0 +1,10 @@
+[project]
+name = "frank-cluster-scripts"
+version = "0.1.0"
+description = "Utility scripts for the Frank cluster blog"
+requires-python = ">=3.11"
+dependencies = [
+    "google-genai",
+    "pillow",
+    "pyyaml",
+]

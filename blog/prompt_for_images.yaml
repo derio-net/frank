@@ -1,0 +1,277 @@
+# Image Generation Prompts for "Building Frank" Blog
+#
+# Used by: scripts/generate-all-images.py
+# Reference: blog/static/images/reference.png
+#
+# Character: "Frank" — a chibi Frankenstein monster made of server hardware.
+#   Green skin, messy black hair, black eyes, flat-top head, stitched/scarred.
+#   Neck bolts are RJ45 connectors. Wears a utility belt of ethernet cables.
+#   Torso is a rack-mount server chassis with blinking LEDs.
+#   Blue glow comes from environment/props (sparks, tools, screens) — NOT his eyes.
+#
+# IMPORTANT: The reference image is for CHARACTER DESIGN only — body proportions,
+# color palette, outfit, and overall aesthetic. Do NOT copy the face as a flat
+# sticker or paste it unchanged. Redraw the face fresh in each scene with
+# appropriate expression, angle, and lighting for the composition.
+
+base_style: >-
+  Cartoon illustration, vibrant colors, thick outlines, chibi proportions.
+  Dark background with electric blue lightning accents.
+  Tech-horror aesthetic, playful not scary.
+  The character has green skin, messy black hair, black eyes, stitches, and
+  RJ45 bolt connectors on his neck. Blue glow comes from the environment,
+  props, and electric sparks.
+  Draw the character's face naturally for the scene — match expression to the
+  action, vary the head angle, and apply scene-appropriate lighting. Do NOT
+  copy-paste the face from the reference; use it only as a design guide.
+
+reference_guidance: >-
+  Use the attached reference image as a CHARACTER DESIGN SHEET — it defines
+  Frank's body shape, proportions, color palette, outfit, and hardware-part
+  anatomy. Key face details: black messy hair, black eyes,
+  green skin, stitch scars, expressive brow. For each new image,
+  redraw Frank from scratch in the scene's perspective and lighting. His
+  facial expression should match the scene's mood. Vary his pose, angle,
+  and body language naturally.
+
+# ---------------------------------------------------------------------------
+# Site-wide assets (banner, favicon) — share a unified design language
+# ---------------------------------------------------------------------------
+
+images:
+  # --- Site Banners & Icons ---------------------------------------------------
+
+  - key: banner-hero
+    output: blog/static/images/banner-hero.png
+    description: Landing page hero banner (1200x630)
+    prompt: >-
+      A wide cinematic banner. The character from the reference image — Frank
+      the server-hardware Frankenstein monster — stands triumphantly atop a pile
+      of Raspberry Pis and NUC mini-PCs, one fist on his hip, the other raised
+      holding a glowing Kubernetes wheel logo. Keep his design exactly as shown
+      in the reference: green skin, messy black hair, black eyes, stitched face,
+      rack-mount server torso with blinking LEDs, shoulders are CPU heatsinks
+      with spinning fans, arms are bundles of ethernet cables and PCIe risers,
+      legs are stacked NVMe SSDs. Neck bolts are RJ45 connectors crackling with
+      blue electricity. Behind him, a dark server room fades into a starfield,
+      with a faint circuit-board pattern on the floor. Blue electric sparks arc
+      from his neck bolts and between hardware joints. Output dimensions exactly
+      1200x630 pixels. Wide cinematic aspect ratio, 1200 pixels wide by 630
+      pixels tall.
+
+  - key: banner-thin
+    output: blog/static/images/banner-thin.png
+    description: Post header strip banner (1200x200, 6:1 ratio)
+    prompt: >-
+      An ultra-wide horizontal strip banner, extremely wide and short — exactly
+      1200 pixels wide by 200 pixels tall (6:1 aspect ratio). On the left third,
+      Frank the server-hardware Frankenstein monster strides confidently to the
+      right, about 60% the strip height — green skin, messy black hair, black
+      eyes, rack-mount torso, RJ45 neck bolts sparking blue electricity.
+      Center-right: the title "Building Frank" in bold chunky retro-tech
+      lettering, glowing electric blue with subtle circuit-trace underlines.
+      Background: dark circuit-board surface with faint green PCB traces and
+      sparse blue lightning arcs. Bottom edge: tiny decorative icons — a
+      Raspberry Pi, a NUC, an SSD, a Kubernetes wheel. Composition fades at
+      both edges into darkness. The image MUST be extremely wide and short,
+      like a letterbox strip — 1200x200 pixels, 6:1 ratio.
+
+  - key: favicon
+    output: blog/static/images/favicon.png
+    description: Master favicon (512x512, resized to 32/16/180 after generation)
+    prompt: >-
+      A simple square icon of Frank's head — green Frankenstein monster head made
+      of computer parts. Green skin, messy black hair, black eyes, flat-top head
+      is a CPU die with circuit traces, neck bolts are RJ45 connectors sparking
+      with blue electricity, forehead stitches are solder traces. Minimal detail,
+      icon-friendly, works when scaled down to 32x32px. Solid dark background
+      (#1a1a2e). No body, just the head and neck bolts. Square 1:1 aspect ratio.
+    post_process:
+      - resize: {target: "blog/static/favicon-32x32.png", size: 32}
+      - resize: {target: "blog/static/favicon-16x16.png", size: 16}
+      - resize: {target: "blog/static/apple-touch-icon.png", size: 180}
+      - ico: {target: "blog/static/favicon.ico", size: 32}
+
+  # --- Post Covers ------------------------------------------------------------
+
+  - key: post-00
+    output: blog/content/posts/00-overview/cover.png
+    description: "Overview & Roadmap — Frank assembling himself"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at a workbench
+      covered in blueprints. He wears blue-tinted safety goggles pushed up
+      on his forehead. He is assembling himself — one arm (ethernet cables)
+      is attached, the other (a GPU card) is being bolted on with blue sparks
+      flying at the joint. On the workbench: Raspberry Pis, NUC mini-PCs,
+      SSDs, RAM sticks, and a large blueprint/schematic showing a full cluster
+      topology with seven nodes connected by lines. A roadmap checklist floats
+      in the air beside him with glowing checkmarks. A blue-flame blowtorch
+      lies on the bench. Workshop/lab setting with server rack shelves in
+      background.
+
+  - key: post-01
+    output: blog/content/posts/01-introduction/cover.png
+    description: "Introduction — Why build a homelab (rejecting the cloud)"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at a cozy desk,
+      sketching blueprints of a cluster on paper. The desk has scattered
+      hardware: a Raspberry Pi, a NUC mini-PC, a GPU card, ethernet cables.
+      A thought bubble above his head shows a cloud icon with a big red X
+      through it — he's rejecting the cloud. On the wall behind him, a
+      poster shows four zones labeled "Management", "Core HA", "AI Compute",
+      "Edge" with tiny hardware silhouettes in each. Warm workshop lighting,
+      server rack shelves in background.
+
+  - key: post-02
+    output: blog/content/posts/02-foundation/cover.png
+    description: "Foundation — Talos immutable OS, Cilium eBPF networking"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster laying the foundation
+      of a building on a construction site. He wears a hard hat with a small
+      blue antenna on top, crackling with faint blue sparks. He places three
+      identical NUC-shaped bricks as the base layer, each stamped with a Talos
+      shield logo. Glowing green eBPF/Cilium network threads weave between
+      the bricks like mortar. A hexagonal bee (Cilium mascot) buzzes nearby
+      trailing green network threads. Above the foundation, a ghostly padlock
+      icon represents immutability — no SSH, no shell. Construction site
+      setting with scaffolding and a "No SSH" warning sign.
+
+  - key: post-03
+    output: blog/content/posts/03-storage/cover.png
+    description: "Storage — Longhorn distributed storage with 3 replicas"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster riding a longhorn bull
+      made of stacked hard drives and SSDs. The bull's horns are SATA cables,
+      body is a RAID array of glowing drives. Frank holds reins made of
+      iSCSI cables. Behind them, three glowing copies of a data block
+      float in the air — representing three replicas. A small "gpu-local"
+      label on a separate SSD strapped to the bull's saddle. Western ranch
+      setting with server racks as fence posts, sunset sky.
+
+  - key: post-04
+    output: blog/content/posts/04-gpu-compute/cover.png
+    description: "GPU Compute — RTX 5070 drama + Intel Arc iGPU"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster with two mismatched
+      arms: his right arm is a massive NVIDIA RTX 5070 GPU card (green
+      glow, oversized, crackling with energy) and his left arm is a smaller
+      Intel Arc iGPU (compact, sleek blue glow). The NVIDIA arm has a
+      "PCIe Gen 1?!" warning sticker being peeled off — now fixed and
+      working. The Intel arm has a tiny "DRA" badge. Lightning bolts arc
+      between both arms. Frank grins triumphantly. Below him, a "Node
+      Feature Discovery" label floats. Dark server room background.
+
+  - key: post-05
+    output: blog/content/posts/05-gitops/cover.png
+    description: "GitOps — ArgoCD App-of-Apps orchestra"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster conducting an orchestra.
+      Each orchestra member is a small box-shaped robot labeled with an
+      app name (cilium, longhorn, gpu-operator, ollama, litellm). Frank
+      holds a conductor's baton shaped like a git branch. The sheet music
+      on the stand shows YAML code. An orange ArgoCD octopus sits on
+      Frank's shoulder, tentacles reaching out to touch each orchestra
+      member with sync arrows. A "Root App" music stand glows at the
+      center. Concert hall setting with dark curtains and spotlights.
+
+  - key: post-06
+    output: blog/content/posts/06-fun-stuff/cover.png
+    description: "Fun Stuff — GitOps-managed RGB LEDs on case hardware"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing in front of a
+      mirror, admiring himself. His chest fans glow with rainbow RGB
+      lighting. He holds a tiny YAML ConfigMap that reads "color: rainbow"
+      but the fans remain stubbornly unchanged — a small "Firmware Bug"
+      sticky note is on the mirror. A USB HID cable connects from Frank's
+      chest to a small OpenRGB controller box. A tiny ArgoCD octopus on
+      his shoulder shrugs. Frank looks both proud and slightly frustrated.
+      Disco ball made of a CPU die hangs from ceiling, casting rainbow
+      reflections.
+
+  - key: post-07
+    output: blog/content/posts/07-observability/cover.png
+    description: "Observability — VictoriaMetrics + Grafana + Fluent Bit"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at a curved
+      desk surrounded by glowing monitors. He wears blue-tinted data-visor
+      glasses (like Google Glass) that project holographic metrics beside
+      his head. Each monitor displays different Grafana dashboards —
+      time-series graphs, node resource panels, log streams in green-on-black.
+      One hand holds a tiny blue bird (Fluent Bit mascot) that feeds log
+      entries into a funnel on Frank's chest, leading to a glowing "VM"
+      database inside his torso. The other hand adjusts a dial labeled
+      "Retention: 30d". Dark server room background with a subtle heartbeat
+      line running along the bottom edge.
+
+  - key: post-08
+    output: blog/content/posts/08-backup/cover.png
+    description: "Backup — Longhorn daily/weekly to Cloudflare R2"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster carefully pouring
+      glowing data cubes from a miniature Longhorn bull (made of stacked
+      drives) into a large orange bucket labeled "R2" with the Cloudflare
+      logo, floating in the air like a cloud. In the corner, a Synology
+      NAS box sits on a shelf with a drooping disconnected NFS cable and
+      a small sad face — a sticky note reads "Bug #10strk, fix in v1.13".
+      Frank looks focused and responsible. A calendar on the wall shows
+      "Daily" and "Weekly" backup schedules circled. Dark server room.
+
+  - key: post-09
+    output: blog/content/posts/09-secrets/cover.png
+    description: "Secrets — Infisical vault + External Secrets Operator"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing before a
+      large glowing vault door with the Infisical logo, carefully placing
+      labeled key-shaped data blocks inside (DATABASE_URL, REDIS_URL,
+      API_KEY engraved on each). A small helpful robot labeled "ESO"
+      stands nearby with sealed envelopes addressed to different pods
+      (small box-robots). A separate small locked chest labeled "SOPS"
+      sits off to the side for bootstrap secrets. Blue encryption lines
+      ripple across the vault. Three smaller vaults behind Frank are
+      labeled "PostgreSQL", "Redis", "Infisical". Dark server room.
+
+  - key: post-10
+    output: blog/content/posts/10-local-inference/cover.png
+    description: "Local Inference — Ollama + LiteLLM gateway + OpenRouter"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at a grand
+      switchboard console labeled "LiteLLM" in glowing text. He wears a
+      VR headset pushed up on his forehead, its lenses glowing faint blue.
+      His left hand pulls a lever connected to a small GPU server rack with
+      a tiny llama icon (Ollama) and "RTX 5070 — 12GB" on it. His right
+      hand gestures toward a cloud portal labeled "OpenRouter" with streaming
+      data. Neural-network lines flow from both sources into a single
+      unified pipe feeding a row of small robot consumers (a chatbot, a
+      code editor, a document scanner) waiting below. A "one model at a
+      time" sign hangs on the GPU rack. Dark server room with blue and
+      purple lightning.
+
+  - key: post-11
+    output: blog/content/posts/11-agentic-control-plane/cover.png
+    description: "Sympozium — Kubernetes-native agentic control plane"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing in a command
+      tower high above a factory floor, a blue-glowing radio antenna
+      protruding from his shoulder, broadcasting signals to the robots
+      below. Rows of small identical robot workers (agent pods) march in
+      orderly lines carrying glowing task cards. Frank holds a policy
+      scroll in one hand and a conductor's baton in the other. Some robots wear green "Allowed"
+      badges, others have red "Denied" stop signs. A large screen behind
+      Frank shows CRD icons (AgentRun, PersonaPack, SympoziumPolicy). A
+      NATS-branded mailbox in the corner streams glowing events between
+      robots and tower. Dark server room with blue and orange lightning.
+
+  - key: post-12
+    output: blog/content/posts/12-gpu-talos-fix/cover.png
+    description: "GPU Talos Fix — debugging containerd, validation markers"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster crouching inside a
+      giant open GPU card, wearing a blue-flame headlamp on his forehead,
+      using oversized wrenches and a blue-sparking soldering iron to
+      reconnect glowing circuit traces. Floating around him: error
+      badges dissolving — "Init:0/1" (red, fading), "EtcFileSpec conflict"
+      (orange, fading), "postStart failed" (red, fading) — each
+      transforming into green "Running" status badges. A validation
+      checklist floats nearby with four checkmarks appearing one by one.
+      A small Talos Linux penguin-shield watches approvingly from the
+      corner. Dark server room with electric blue and green sparks.
