@@ -235,8 +235,26 @@ firmware version.
 |--------|-------|
 | Wait for upstream OpenRGB fix | Passive — file a bug with firmware version + PID, wait for support |
 | BIOS downgrade to F3 | Restores compatible firmware; loses BIOS security/stability updates |
-| Raw HID protocol reverse engineering | Capture Windows RGB Fusion traffic, implement correct V3.5.14.0 packets directly |
+| Raw HID protocol reverse engineering | Capture Windows RGB Fusion traffic, implement correct V3.5.14.0 unlock sequence |
+| **KubeVirt Windows VM + USB passthrough** | **Recommended** — see below |
 | Accept NV replay state | LEDs stay black (off) — the NV state set before the BIOS update persists correctly |
+
+### Recommended path: KubeVirt Windows VM
+
+KubeVirt is on the cluster roadmap. Once deployed, a Windows VM with USB device
+passthrough for `048d:5702` (IT5701) would allow:
+
+1. **Immediate fix**: Run Gigabyte RGB Fusion 2.0 natively in the VM — it knows
+   the V3.5.14.0 unlock sequence and can control the LEDs directly.
+2. **Protocol capture**: USBPcap/Wireshark inside the Windows VM captures the
+   exact USB traffic RGB Fusion sends, including the unlock handshake.
+3. **OpenRGB fix**: Implement the unlock sequence in OpenRGB's IT5701 driver
+   (or as a pre-write step in the DaemonSet startup script) and resume GitOps
+   LED control from the Linux DaemonSet.
+
+USB passthrough in KubeVirt uses the `hostDevices` field in the VM spec with the
+device's vendor/product IDs. The IT5701 would need to be unbound from the host
+`hid-generic` driver first (or use `virtiofs`/`vfio-pci` approach).
 
 ### Direct HID protocol investigation (definitive)
 
