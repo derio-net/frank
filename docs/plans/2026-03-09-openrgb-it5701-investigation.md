@@ -238,6 +238,21 @@ firmware version.
 | Raw HID protocol reverse engineering | Capture Windows RGB Fusion traffic, implement correct V3.5.14.0 packets directly |
 | Accept NV replay state | LEDs stay black (off) — the NV state set before the BIOS update persists correctly |
 
+### Talos udev rules (tried, did not fix)
+
+Added `machine.udev.rules` to the gpu-1 Talos machine config via
+`patches/phase04-gpu/05-gpu1-openrgb-udev.yaml` (Omni config patch
+`305-gpu1-openrgb-udev`). Rule content:
+
+```
+SUBSYSTEMS=="usb|hidraw", ATTRS{idVendor}=="048d", ATTRS{idProduct}=="5702", TAG+="uaccess", TAG+="Gigabyte_RGB_Fusion_2_USB"
+```
+
+Result: no change. The `TAG+="uaccess"` rule affects user-space device access via
+systemd-logind; it has no effect on a privileged root container. The write protocol
+issue is unrelated to udev permissions. Patch left in place as it is correct hygiene
+for future non-root scenarios and matches OpenRGB's standard setup.
+
 ---
 
 ## Timeline

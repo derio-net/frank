@@ -1,0 +1,26 @@
+## Add OpenRGB udev rules to gpu-1
+## Installs the standard OpenRGB udev rules for the IT5701 RGB controller
+## (vendor 048d, product 5702) on the Z790 Eagle AX motherboard.
+##
+## These rules add TAG+="uaccess" to the hidraw device, which is required
+## by OpenRGB's hidapi to send HID feature reports (color write commands).
+##
+## Without these rules OpenRGB prints a warning: "The OpenRGB udev rules
+## are not installed. Most devices will not be available unless running
+## OpenRGB as root." Running as root bypasses permission issues, but
+## TAG+="uaccess" also affects how hidapi opens the device descriptor.
+##
+## Reference: https://openrgb.org/releases/release_0.9/60-openrgb.rules
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 305-gpu1-openrgb-udev
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: 03ff0210-04e0-05b0-ab06-300700080009
+spec:
+    data: |
+        machine:
+            udev:
+                rules:
+                    - SUBSYSTEMS=="usb|hidraw", ATTRS{idVendor}=="048d", ATTRS{idProduct}=="5702", TAG+="uaccess", TAG+="Gigabyte_RGB_Fusion_2_USB"
