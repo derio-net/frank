@@ -1,0 +1,13 @@
+# Namespace declaration for sympozium-system with privileged PodSecurity.
+# Agent pods (especially those using the llmfit SkillPack) require hostPID
+# and hostPath volumes, which violate the baseline PodSecurity standard.
+# Sympozium runs agent pods in the controller's namespace (no agentNamespace
+# config exists), so the label must be set here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sympozium-system
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

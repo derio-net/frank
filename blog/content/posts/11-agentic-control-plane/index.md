@@ -80,7 +80,7 @@ Five components run in the `sympozium-system` namespace:
 
 Rather than configuring agents one by one, Sympozium uses PersonaPacks — CRDs that bundle a persona's identity, policy, skills, and schedule into a single resource. When a PersonaPack is applied, the controller stamps out the individual SympoziumInstances, schedules, and configuration.
 
-Two PersonaPacks are deployed:
+Three PersonaPacks are deployed:
 
 ### Platform Team
 
@@ -89,7 +89,7 @@ Two PersonaPacks are deployed:
 | `sre-agent` | default-policy | Hourly heartbeat | Cluster health checks, resource monitoring |
 | `incident-responder` | default-policy | On-demand | Event-triggered diagnostics |
 
-The SRE agent runs every hour via a SympoziumSchedule. It uses the `k8s-ops` SkillPack to interact with the Kubernetes API — listing nodes, checking pod health, reading logs.
+The SRE agent runs every hour via a SympoziumSchedule. It uses the `k8s-ops` SkillPack to interact with the Kubernetes API — listing nodes, checking pod health, reading logs. The `sre-watchdog` persona also uses the `llmfit` SkillPack for hardware-aware model placement recommendations.
 
 ### DevOps Essentials
 
@@ -98,6 +98,22 @@ The SRE agent runs every hour via a SympoziumSchedule. It uses the `k8s-ops` Ski
 | `code-reviewer` | restrictive-policy | On-demand | Read-only code analysis |
 
 The code reviewer has a deliberately constrained policy. It can read files and list directories but cannot write, execute commands, or fetch URLs. The restrictive policy enforces this at the webhook level.
+
+### Developer Team
+
+The Sympozium chart ships with a built-in `developer-team` PersonaPack — a 2-pizza dev team of seven agents that collaborate on GitHub repositories:
+
+| Persona | Schedule | Purpose |
+|---------|----------|---------|
+| `tech-lead` | 30m | PR review, issue triage, merge approved PRs |
+| `backend-dev` | 1h sweep | Pick up `backend` issues, implement, open PRs |
+| `frontend-dev` | 1h sweep | Pick up `frontend`/`ui` issues, implement, open PRs |
+| `qa-engineer` | 1h sweep | Test coverage gaps, bug discovery, edge cases |
+| `code-reviewer` | 30m sweep | Security/correctness/performance review of all PRs |
+| `devops-engineer` | 2h sweep | CI/CD health, Dockerfile updates, CVE patching |
+| `docs-writer` | 2h | Documentation drift detection, changelog updates |
+
+We deploy a customised version in `sympozium-extras` rather than using the chart default — this adds `authRefs` (LiteLLM credentials), `policyRef`, `model: qwen3.5`, and homelab-appropriate schedule intervals (the built-in default is 5 minutes for all agents, which would saturate the RTX 5070).
 
 ## Policy Enforcement
 
@@ -151,7 +167,11 @@ Agent Pods don't talk directly to Ollama. They route through the LiteLLM gateway
 Agent Pod → LiteLLM (litellm.litellm.svc:4000) → Ollama / OpenRouter
 ```
 
-This means agents automatically benefit from the full model roster — local models on the RTX 5070 and free cloud models via OpenRouter. The LLM API key is managed by an ExternalSecret that syncs a LiteLLM virtual key from Infisical:
+This means agents automatically benefit from the full model roster — local models on the RTX 5070 and free cloud models via OpenRouter.
+
+There is a subtlety here. The PersonaPack CRD has no `baseURL` field — generated SympoziumInstances don't know where LiteLLM lives. Manually created instances can set `spec.agents.default.baseURL`, but PersonaPack-generated ones default to `api.openai.com`.
+
+The fix exploits how the controller injects auth credentials. It uses `envFrom` with `SecretRef` — the **entire Secret** is projected as environment variables into the agent container. By adding `OPENAI_BASE_URL` alongside `OPENAI_API_KEY` in the auth secret, all agent pods automatically discover the LiteLLM endpoint:
 
 ```yaml
 apiVersion: external-secrets.io/v1
@@ -163,13 +183,19 @@ spec:
   secretStoreRef:
     name: infisical
     kind: ClusterSecretStore
+  target:
+    name: sympozium-llm-key
+    template:
+      data:
+        OPENAI_API_KEY: "{{ .OPENAI_API_KEY }}"
+        OPENAI_BASE_URL: "http://litellm.litellm.svc:4000"
   data:
     - secretKey: OPENAI_API_KEY
       remoteRef:
         key: SYMPOZIUM_LITELLM_KEY
 ```
 
-No plaintext secrets in the repo. The ExternalSecret refreshes every 5 minutes.
+The ExternalSecret `template` merges the Infisical-sourced API key with a static base URL. No plaintext secrets in the repo — only the endpoint URL is hardcoded, and the actual key refreshes every 5 minutes from Infisical.
 
 ## Deploying with ArgoCD
 
@@ -247,12 +273,31 @@ The chart's `appVersion` lags behind the latest tagged release. The v0.1.3 image
 
 The chart's apiserver deployment template hardcodes a ClusterIP service with no support for type or annotation overrides. Custom service configuration requires a separate manifest in extras.
 
+### PodSecurity and the llmfit SkillPack
+
+The `llmfit` SkillPack injects sidecars that require `hostPID: true` and `hostPath` volumes for `/proc`, `/sys`, `/dev`, and `/run/udev`. Under the default `baseline` PodSecurity standard, the admission controller rejects these pods:
+
+```
+pods "frankie-heartbeat-5-zlxjf" is forbidden: violates PodSecurity
+"baseline:latest": host namespaces (hostPID=true), hostPath volumes
+```
+
+Sympozium runs agent pods in the controller's namespace — there is no `agentNamespace` configuration. The controller reads its namespace from the downward API and creates all Jobs there. A separate "agents" namespace would not help because the controller has no mechanism to redirect agent pods.
+
+The fix is a declarative Namespace manifest in `sympozium-extras` that sets `pod-security.kubernetes.io/enforce: privileged` on `sympozium-system`. This allows llmfit-using agents to run while keeping the label under ArgoCD management.
+
+### PersonaPack baseURL Limitation
+
+The PersonaPack CRD has no `baseURL` field at either the pack or persona level. When the controller stamps out SympoziumInstances from a PersonaPack, the generated instances lack `baseURL` and default to `api.openai.com`. Manually created SympoziumInstances (like `frankie`) can set `spec.agents.default.baseURL` directly, but PersonaPack-generated instances cannot.
+
+The workaround is to inject `OPENAI_BASE_URL` into the auth secret (see [LLM Routing](#llm-routing-through-litellm) above). The controller uses `envFrom` with `SecretRef`, so all keys in the secret become environment variables in agent pods.
+
 ### CRD Discovery Timing
 
 After initial deployment, `sympozium-extras` may fail to sync because ArgoCD hasn't discovered the Sympozium CRDs yet. A manual sync of the root app followed by a retry resolves this.
 
 ## What is Next
 
-The control plane is running. PersonaPacks are deployed and schedules are active. Agent execution depends on Ollama, which is waiting for a GPU Operator fix on gpu-1 (PCIe link speed resolved, operator pod init sequence in progress).
+The control plane is running. Three PersonaPacks are deployed — platform-team, devops-essentials, and the 7-persona developer-team. The PodSecurity and LLM routing fixes unblock agent execution, so scheduled heartbeats and sweeps can now produce real results through the local inference stack on the RTX 5070.
 
-Once local inference is live, the SRE agent's hourly heartbeat will start producing real cluster health reports. From there: Telegram channel integration for mobile notifications, custom SkillPacks for cluster-specific operations, and connecting agents to the observability stack for closed-loop monitoring.
+Next steps: Telegram channel integration for mobile notifications, custom SkillPacks for cluster-specific operations, pointing the developer-team at a target repository, and connecting agent traces to the observability stack for closed-loop monitoring.

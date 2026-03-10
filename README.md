@@ -139,7 +139,7 @@ argocd app list
 | litellm-extras | litellm | Model router config + ExternalSecret for API keys |
 | cert-manager | cert-manager | TLS certificate automation for webhooks |
 | sympozium | sympozium-system | Agentic control plane (controller, apiserver, webhook, NATS, OTel) |
-| sympozium-extras | sympozium-system | PersonaPacks, SympoziumPolicies, ExternalSecret, LB Service |
+| sympozium-extras | sympozium-system | PersonaPacks (platform-team, devops-essentials, developer-team), Policies, ExternalSecret (LLM key + base URL), LB Service, Namespace (privileged PodSecurity) |
 
 ## Adding a New Application
 
