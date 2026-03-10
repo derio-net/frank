@@ -36,6 +36,9 @@ node_modules/
 
 # Ignore all __pycache__/
 __pycache__/
+
+# Python venv
+scripts/.venv/
 omni/certbot/creds-encrypted.ini
 omni/omni/populate_scripts.bash
 

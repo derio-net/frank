@@ -73,7 +73,14 @@ Typical structure:
 - **Cover image prompt**: Generate a Gemini image prompt for the cover image following the style and examples in `blog/prompts_for_images.md`. The base style is:
   > `Cartoon illustration, vibrant colors, thick outlines, chibi proportions. Dark background with electric blue lightning accents. Tech-horror aesthetic, playful not scary.`
   The subject is always the Frank monster (a Frankenstein monster made of server/computer hardware) in a scene related to the post topic. Present the prompt to the user for approval, then append it to `blog/prompts_for_images.md` under a new heading for this post.
-- **Cover image file**: The user will generate the image externally (Gemini) and place it as `cover.png` in the page bundle directory.
+- **Cover image generation**: After the prompt is approved, generate the cover image automatically:
+  ```bash
+  source .env && scripts/.venv/bin/python scripts/generate-image.py \
+    -r blog/static/images/reference.png \
+    -p "<the approved prompt>" \
+    -o blog/content/posts/$ARGUMENTS.number-$ARGUMENTS.slug/cover.png
+  ```
+  Show the generated image to the user for review. If they want a regeneration, run the command again.
 - Inline images: co-locate in the page bundle directory (NOT in `/static/images/`)
 - Use relative paths: `![Alt text](image.png)`
 
