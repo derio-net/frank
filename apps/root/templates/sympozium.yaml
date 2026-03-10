@@ -9,7 +9,7 @@ spec:
   project: infrastructure
   sources:
     - repoURL: https://github.com/AlexsJones/sympozium.git
-      targetRevision: v0.1.1
+      targetRevision: v0.1.3
       path: charts/sympozium
       helm:
         releaseName: sympozium
