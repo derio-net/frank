@@ -1,0 +1,19 @@
+## Enable CDI device discovery in containerd for Intel GPU DRA
+## Applied to mini-3 only
+## Does NOT require a node reboot — containerd restarts automatically
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 303-mini3-cdi-containerd
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: d1f01c97-d17e-e3ef-12ee-88aedd6768b6
+spec:
+    data: |
+        machine:
+            files:
+                - path: /etc/cri/conf.d/20-customization.part
+                  op: create
+                  content: |
+                      [plugins."io.containerd.cri.v1.runtime"]
+                        cdi_spec_dirs = ["/var/cdi/static", "/var/cdi/dynamic"]

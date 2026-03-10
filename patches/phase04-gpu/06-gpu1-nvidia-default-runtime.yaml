@@ -2,6 +2,8 @@
 ## Required for GPU containers to work on Talos Linux — without this,
 ## the nvidia-container-runtime hook never injects GPU devices.
 ## See: https://www.siderolabs.com/blog/ai-workloads-on-talos-linux/
+## Also sets base_runtime_spec for the nvidia runtime so it uses the same
+## OCI base spec as runc — without this, kubelet can't track pod lifecycle.
 ## Does NOT require a reboot — containerd restarts automatically.
 metadata:
     namespace: default
@@ -21,3 +23,5 @@ spec:
                         cdi_spec_dirs = ["/var/cdi/static", "/var/cdi/dynamic"]
                         [plugins."io.containerd.cri.v1.runtime".containerd]
                           default_runtime_name = "nvidia"
+                        [plugins."io.containerd.cri.v1.runtime".containerd.runtimes.nvidia]
+                          base_runtime_spec = "/etc/cri/conf.d/base-spec.json"

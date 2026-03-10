@@ -41,7 +41,8 @@
       "WebFetch(domain:openrouter.ai)",
       "WebFetch(domain:sympozium.ai)",
       "Bash(ls:*)",
-      "WebFetch(domain:deploy.sympozium.ai)"
+      "WebFetch(domain:deploy.sympozium.ai)",
+      "WebFetch(domain:www.siderolabs.com)"
     ]
   }
 }
