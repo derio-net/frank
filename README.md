@@ -36,6 +36,8 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID |
 | Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 (qwen3.5:9b, deepseek-coder:6.7b) |
 | API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to Ollama + OpenRouter cloud models |
+| Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
+| Certificate Management | cert-manager | Automated TLS certificate lifecycle for webhooks and internal services |
 
 ## Repository Structure
 
@@ -59,7 +61,10 @@ frank/
 │   ├── infisical-postgresql/values.yaml
 │   ├── infisical-redis/values.yaml
 │   ├── ollama/values.yaml                       # Ollama LLM server on gpu-1
-│   └── litellm/values.yaml + manifests/         # LiteLLM gateway + model config
+│   ├── litellm/values.yaml + manifests/         # LiteLLM gateway + model config
+│   ├── cert-manager/values.yaml                 # cert-manager for webhook TLS
+│   ├── sympozium/values.yaml                    # Sympozium agentic control plane
+│   └── sympozium-extras/manifests/              # Policies, PersonaPacks, LB Service
 ├── patches/
 │   ├── phase01-node-config/   # Node labels, scheduling
 │   ├── phase02-cilium/        # CNI swap to Cilium
@@ -69,7 +74,7 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/posts/         # 11 posts documenting the build
+│   ├── content/posts/         # 12 posts documenting the build
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
 │   ├── plans/                 # Architecture and implementation plans
@@ -97,6 +102,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Grafana | http://192.168.55.203 | 192.168.55.203 |
 | Infisical | http://192.168.55.204:8080 | 192.168.55.204 |
 | LiteLLM Gateway | http://192.168.55.206:4000 | 192.168.55.206 |
+| Sympozium Web UI | http://192.168.55.207:8080 | 192.168.55.207 |
 
 ArgoCD CLI access:
 
@@ -129,6 +135,9 @@ argocd app list
 | ollama | ollama | LLM inference on gpu-1 (RTX 5070) |
 | litellm | litellm | Unified OpenAI-compatible API gateway |
 | litellm-extras | litellm | Model router config + ExternalSecret for API keys |
+| cert-manager | cert-manager | TLS certificate automation for webhooks |
+| sympozium | sympozium-system | Agentic control plane (controller, apiserver, webhook, NATS, OTel) |
+| sympozium-extras | sympozium-system | PersonaPacks, SympoziumPolicies, ExternalSecret, LB Service |
 
 ## Adding a New Application
 

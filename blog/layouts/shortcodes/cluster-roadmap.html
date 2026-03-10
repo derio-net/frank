@@ -16,6 +16,7 @@
   --rm-accent-9: #74c0fc;
   --rm-accent-10: #a9e34b;
   --rm-accent-11: #da77f2;
+  --rm-accent-12: #ff922b;
   font-family: inherit;
   max-width: 720px;
   margin: 1.5rem auto;
@@ -38,6 +39,7 @@
   --rm-accent-9: #a5d8ff;
   --rm-accent-10: #c0eb75;
   --rm-accent-11: #e599f7;
+  --rm-accent-12: #ffa94d;
 }
 
 .layer-obs { border-left-color: var(--rm-accent-8); }
@@ -51,6 +53,9 @@
 
 .layer-inference { border-left-color: var(--rm-accent-11); }
 .layer-inference .layer-num { background: var(--rm-accent-11); color: #333; }
+
+.layer-agents { border-left-color: var(--rm-accent-12); }
+.layer-agents .layer-num { background: var(--rm-accent-12); color: #333; }
 
 .layer-upcoming {
   border-left-style: dashed;
@@ -369,6 +374,23 @@
         <span class="tag">ollama</span>
         <span class="tag">litellm</span>
         <span class="tag">192.168.55.206</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-agents">
+      <div class="layer-title"><span class="layer-num">12</span> Agentic Control Plane</div>
+      <div class="sub-items">
+        <span class="sub-item">Sympozium (K8s-native agents)</span>
+        <span class="sub-item">PersonaPacks + SympoziumPolicies</span>
+        <span class="sub-item">NATS JetStream event bus</span>
+        <span class="sub-item">cert-manager (webhook TLS)</span>
+      </div>
+      <div class="tags">
+        <span class="tag">agent=Pod</span>
+        <span class="tag">policy=CRD</span>
+        <span class="tag">192.168.55.207</span>
       </div>
     </div>
   </div>

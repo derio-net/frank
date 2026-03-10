@@ -37,6 +37,8 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Ollama** | Local LLM inference on gpu-1's RTX 5070 (qwen3.5:9b, deepseek-coder:6.7b) |
 | **LiteLLM** | Unified OpenAI-compatible gateway, virtual keys, spend tracking (`192.168.55.206`) |
 | **OpenRouter** | Free-tier cloud model aggregation (DeepSeek R1, Gemini Flash, Llama 3.3 70B) |
+| **Sympozium** | Kubernetes-native agentic control plane — agent=Pod, policy=CRD, execution=Job (`192.168.55.207`) |
+| **cert-manager** | Automated TLS certificate lifecycle for webhooks and internal services |
 
 ## Cluster State
 
@@ -59,5 +61,6 @@ This post is a **living document**: it gets updated as new technologies and capa
 8. [Backup — Longhorn to Cloudflare R2]({{< relref "/posts/08-backup" >}})
 9. [Secrets Management — Infisical + External Secrets Operator]({{< relref "/posts/09-secrets" >}})
 10. [Local Inference — Ollama, LiteLLM, and OpenRouter]({{< relref "/posts/10-local-inference" >}})
+11. [Agentic Control Plane — Sympozium]({{< relref "/posts/11-agentic-control-plane" >}})
 - Multi-tenancy with vCluster _(planned)_
 - Virtual Machines with KubeVirt _(planned)_

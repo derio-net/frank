@@ -56,6 +56,9 @@ Here are prompts for Gemini, tailored to each image you need. They all share a c
 **Post 10 — Local Inference (Ollama, LiteLLM, OpenRouter):**
 > A Frankenstein monster made of server hardware standing at a grand switchboard console, routing glowing data streams. His left hand pulls a lever connected to a small GPU server rack (labeled with a tiny llama icon), while his right hand gestures toward a cloud portal with multiple provider logos streaming through it. Bright neural-network-style lines flow from both sources into a single unified pipe that feeds into a row of small robot consumers (chatbots, document scanners, coding assistants) waiting eagerly below. The switchboard has a glowing sign reading "LiteLLM". Dark server room background with electric blue and purple lightning accents.
 
+**Post 11 — Agentic Control Plane (Sympozium):**
+> A Frankenstein monster made of server hardware standing in a command tower high above a factory floor. Below him, rows of small identical robot workers (agent pods) march in orderly lines, each carrying a glowing task card. The monster holds a large glowing policy scroll in one hand and a conductor's baton in the other, directing the robots. Some robots have green badges (allowed), others have red stop signs (denied by policy). A large glowing screen behind the monster shows a Kubernetes dashboard with CRD icons. A small NATS-branded mailbox sits in the corner, with glowing event streams flowing between the robots and the tower. Dark server room background with electric blue and orange lightning accents.
+
 ---
 
 For PaperMod, once you have the images, drop them as `cover.png` inside each post's page bundle directory and add this to each post's front matter:
