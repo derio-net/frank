@@ -1,8 +1,10 @@
 # Fake validation markers for Talos Linux.
-# The GPU Operator's toolkit DaemonSet is disabled (Talos provides it via
-# system extensions), but other DaemonSets have hardcoded init containers
-# that poll for /run/nvidia/validations/toolkit-ready.  This DaemonSet
-# creates the expected files so the init containers unblock.
+# The GPU Operator's toolkit and driver DaemonSets are disabled (Talos provides
+# them via system extensions), but other DaemonSets have hardcoded init containers
+# that poll for /run/nvidia/validations/{toolkit,driver}-ready.  The validator
+# DaemonSet is also disabled (node label) because its nvidia-validator binary has
+# hardcoded paths incompatible with Talos.  This DaemonSet creates and maintains
+# the expected marker files so all init containers unblock.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -31,11 +33,15 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              mkdir -p /host-run/nvidia/validations
-              touch /host-run/nvidia/validations/driver-ready
-              touch /host-run/nvidia/validations/toolkit-ready
+              dir=/host-run/nvidia/validations
+              mkdir -p "$dir"
+              touch "$dir/driver-ready" "$dir/toolkit-ready"
               echo "Validation markers created"
-              sleep infinity
+              # Re-touch every 30s in case another component removes them
+              while true; do
+                touch "$dir/driver-ready" "$dir/toolkit-ready"
+                sleep 30
+              done
           resources:
             requests:
               cpu: 1m
