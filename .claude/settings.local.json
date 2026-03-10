@@ -38,7 +38,10 @@
       "Bash(sort -t'<' -k2)",
       "Bash(uniq -f1 -c)",
       "WebFetch(domain:docs.litellm.ai)",
-      "WebFetch(domain:openrouter.ai)"
+      "WebFetch(domain:openrouter.ai)",
+      "WebFetch(domain:sympozium.ai)",
+      "Bash(ls:*)",
+      "WebFetch(domain:deploy.sympozium.ai)"
     ]
   }
 }

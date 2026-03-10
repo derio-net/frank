@@ -155,6 +155,7 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 | Grafana | 192.168.55.203 | Cilium L2 LoadBalancer |
 | Infisical | 192.168.55.204 | Cilium L2 LoadBalancer |
 | LiteLLM Gateway | 192.168.55.206 | Cilium L2 LoadBalancer |
+| Sympozium Web UI | 192.168.55.207 | Cilium L2 LoadBalancer |
 
 ## Declarative-Only Principle
 
@@ -177,6 +178,9 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 - SOPS/age encryption for secrets — never commit plaintext secrets
 - Longhorn default replicaCount: 3 (matches 3 control-plane nodes)
 - SOPS + ArgoCD ServerSideApply don't mix — encrypted secrets must live outside ArgoCD-managed paths (see `secrets/` dir) and be applied out-of-band
+- Sympozium Helm chart is Git-sourced (not OCI) — chart isn't published to any registry
+- Sympozium chart service template doesn't support type/annotations — use separate LB Service in extras
+- Sympozium image.tag must be overridden (chart appVersion lags behind latest fix releases)
 
 ## Manual Operations
 
