@@ -34,6 +34,10 @@ tolerations:
     operator: Exists
     effect: NoSchedule
 
+# Talos requires the nvidia RuntimeClass for GPU containers since CDI is
+# disabled (CDI can't discover libs at Talos's non-standard paths).
+runtimeClassName: nvidia
+
 nodeSelector:
   kubernetes.io/hostname: gpu-1
 
