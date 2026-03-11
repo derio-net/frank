@@ -179,7 +179,11 @@ Authentik's OIDC and proxy outpost flows require browser redirects between servi
 | Authentik Worker | Background tasks (email, sync, blueprints) | Control-plane nodes | 1 |
 | PostgreSQL | User store, config, sessions | Control-plane nodes | 1 (Longhorn 3-replica PVC) |
 | Redis | Cache, session store, task queue | Control-plane nodes | 1 (Longhorn PVC) |
-| Proxy Outpost | Forward auth for non-OIDC services | Control-plane nodes | Auto-managed by Authentik |
+| Proxy Outpost (embedded) | Forward auth for non-OIDC services | Control-plane nodes | Auto-managed by Authentik |
+
+**Scheduling note:** All Authentik pods require `tolerations` for the control-plane taint (`node-role.kubernetes.io/control-plane: NoSchedule`), consistent with the Infisical deployment pattern.
+
+**Proxy outpost model:** Use Authentik's **embedded outpost** (runs inside the Authentik server pod, no separate deployment). This avoids needing a separate LoadBalancer IP for the outpost. The `proxy-outpost.yaml` in authentik-extras defines the outpost configuration object (which services to proxy), not a standalone pod deployment. The embedded outpost handles forward-auth callbacks on the same hostname (`auth.frank.local`).
 
 ### ArgoCD Structure
 
@@ -234,7 +238,9 @@ Authentik requires several secrets that must exist before the application starts
 
 **Storage:** `secrets/authentik/` directory with SOPS/age-encrypted YAML files, gitignored plaintext.
 
-**Application:** Manual out-of-band via `sops --decrypt <file> | kubectl apply -f -`. Each secret requires a `# manual-operation` block in the implementation plan, synced to the runbook via `/sync-runbook`.
+**Application:** Manual out-of-band via `sops --decrypt <file> | kubectl apply -f -`.
+
+**Manual operations:** The `# manual-operation` blocks for each secret are deferred to the implementation plan (not this design spec). The implementation plan will include a block per secret with `when`, `why_manual`, `commands`, and `verify` fields, and will be synced to the runbook via `/sync-runbook`.
 
 ## Migration Path
 
