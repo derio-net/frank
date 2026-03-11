@@ -39,6 +39,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **OpenRouter** | Free-tier cloud model aggregation (DeepSeek R1, Gemini Flash, Llama 3.3 70B) |
 | **Sympozium** | Kubernetes-native agentic control plane — agent=Pod, policy=CRD, execution=Job (`192.168.55.207`) |
 | **cert-manager** | Automated TLS certificate lifecycle for webhooks and internal services |
+| **Authentik** | Unified SSO — OIDC for ArgoCD, Grafana, Infisical; forward-auth proxy for Longhorn, Hubble, Sympozium (`192.168.55.211`) |
 
 ## Cluster State
 
@@ -63,5 +64,6 @@ This post is a **living document**: it gets updated as new technologies and capa
 10. [Local Inference — Ollama, LiteLLM, and OpenRouter]({{< relref "/posts/10-local-inference" >}})
 11. [Agentic Control Plane — Sympozium]({{< relref "/posts/11-agentic-control-plane" >}})
 12. [GPU Containers on Talos — The Validation Fix]({{< relref "/posts/12-gpu-talos-fix" >}})
+13. [Unified Auth — Authentik SSO for the Entire Cluster]({{< relref "/posts/13-unified-auth" >}})
 - Multi-tenancy with vCluster _(planned)_
 - Virtual Machines with KubeVirt _(planned)_
