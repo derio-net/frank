@@ -34,6 +34,16 @@ controlPlane:
     database:
       embedded:
         enabled: true
+  # Distro init container needs more memory than default 256Mi
+  distro:
+    k3s:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 512Mi
+        requests:
+          cpu: 50m
+          memory: 128Mi
   statefulSet:
     persistence:
       volumeClaim:
