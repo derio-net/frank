@@ -37,6 +37,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 (qwen3.5:9b, deepseek-coder:6.7b) |
 | API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to Ollama + OpenRouter cloud models |
 | Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
+| Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
 | Certificate Management | cert-manager | Automated TLS certificate lifecycle for webhooks and internal services |
 
 ## Repository Structure
@@ -65,13 +66,16 @@ frank/
 │   ├── litellm/values.yaml + manifests/         # LiteLLM gateway + model config
 │   ├── cert-manager/values.yaml                 # cert-manager for webhook TLS
 │   ├── sympozium/values.yaml                    # Sympozium agentic control plane
-│   └── sympozium-extras/manifests/              # Policies, PersonaPacks, LB Service
+│   ├── sympozium-extras/manifests/              # Policies, PersonaPacks, LB Service
+│   ├── authentik/values.yaml + manifests/       # Authentik IdP + blueprints
+│   └── authentik-extras/manifests/              # K8s RBAC bindings for OIDC groups
 ├── patches/
 │   ├── phase01-node-config/   # Node labels, scheduling
 │   ├── phase02-cilium/        # CNI swap to Cilium
 │   ├── phase03-longhorn/      # iSCSI tools, extra disks
 │   ├── phase04-gpu/           # NVIDIA extensions + GPU taint
-│   └── phase05-mini-config/   # Intel i915 + iGPU DRA extensions
+│   ├── phase05-mini-config/   # Intel i915 + iGPU DRA extensions
+│   └── phase13-auth/          # kube-apiserver OIDC flags for Authentik
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
@@ -104,6 +108,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Infisical | http://192.168.55.204:8080 | 192.168.55.204 |
 | LiteLLM Gateway | http://192.168.55.206:4000 | 192.168.55.206 |
 | Sympozium Web UI | http://192.168.55.207:8080 | 192.168.55.207 |
+| Authentik | http://192.168.55.211:9000 | 192.168.55.211 |
 
 ArgoCD CLI access:
 
@@ -126,7 +131,7 @@ argocd app list
 | gpu-operator-extras | gpu-operator | Validation markers DaemonSet for Talos |
 | intel-gpu-driver | intel-gpu-resource-driver | DRA driver on mini-1/2/3 |
 | openrgb | openrgb | LED control on gpu-1 via USB HID (firmware V3.5.14.0 write lock; fans currently rainbow) |
-| victoria-metrics | monitoring | VMSingle, Grafana, Alertmanager, kube-state-metrics |
+| victoria-metrics | monitoring | VMSingle, Grafana (OIDC SSO via Authentik), Alertmanager, kube-state-metrics |
 | fluent-bit | monitoring | Log shipping to VictoriaLogs |
 | victoria-logs | monitoring | VictoriaLogs standalone |
 | external-secrets | external-secrets | ESO 2.1.0 operator |
@@ -140,6 +145,9 @@ argocd app list
 | cert-manager | cert-manager | TLS certificate automation for webhooks |
 | sympozium | sympozium-system | Agentic control plane (controller, apiserver, webhook, NATS, OTel) |
 | sympozium-extras | sympozium-system | PersonaPacks (platform-team, devops-essentials, developer-team), Policies, ExternalSecret (LLM key + base URL), LB Service, Namespace (privileged PodSecurity) |
+| argocd | argocd | Self-managed via App-of-Apps, OIDC SSO via Authentik |
+| authentik | authentik | Authentik IdP (192.168.55.211:9000), OIDC providers for ArgoCD, Grafana, Infisical |
+| authentik-extras | authentik | K8s RBAC ClusterRoleBindings mapping Authentik groups to cluster roles |
 
 ## Adding a New Application
 
