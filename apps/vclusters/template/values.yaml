@@ -11,13 +11,13 @@ sync:
       enabled: true
     services:
       enabled: true
-    configmaps:
+    configMaps:
       enabled: true
     secrets:
       enabled: true
     endpoints:
       enabled: true
-    persistentvolumeclaims:
+    persistentVolumeClaims:
       enabled: true
     ingresses:
       enabled: true
@@ -48,15 +48,8 @@ controlPlane:
         cpu: 500m
         memory: 512Mi
 
-# Networking — no built-in ingress, access via vcluster connect
-networking:
-  service:
-    type: ClusterIP
-
-# Isolation — deny host cluster access from tenant workloads
-isolation:
-  enabled: true
-  podSecurityStandard: baseline
+# Policies — resource quotas, limit ranges, and network policies
+policies:
   resourceQuota:
     enabled: true
     quota:
@@ -64,9 +57,9 @@ isolation:
       requests.memory: 8Gi
       limits.cpu: "8"
       limits.memory: 16Gi
-      pods: "50"
-      services: "20"
-      persistentvolumeclaims: "10"
+      count/pods: "50"
+      count/services: "20"
+      count/persistentvolumeclaims: "10"
   limitRange:
     enabled: true
     default:
