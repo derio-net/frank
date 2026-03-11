@@ -154,20 +154,27 @@ Usage: `source .env_agent && kubectl get nodes` — works without browser intera
 
 **Security:** `.env_agent` is gitignored (contains plaintext secrets). It is generated manually from credentials stored in Infisical (the cluster's secrets manager). Never committed to the repo.
 
-## DNS and Hostname Strategy
+## DNS and TLS Strategy
 
-Authentik's OIDC and proxy outpost flows require browser redirects between services and Authentik. This requires a resolvable hostname for Authentik — bare IPs break redirect URI validation and complicate TLS.
+Authentik's OIDC and proxy outpost flows require browser redirects between services and Authentik. This requires resolvable hostnames with TLS.
 
-**Approach:** Use a local DNS resolver (e.g., Pi-hole, CoreDNS, or router-level DNS) to map hostnames to cluster LB IPs:
+**Existing infrastructure:** A Traefik reverse proxy on raspi-omni holds a wildcard `*.frank.derio.net` certificate from Let's Encrypt. It already routes hostnames to Cilium L2 IPs for all exposed services (ArgoCD, Grafana, Longhorn UI, etc.).
 
-- `auth.frank.local` -> 192.168.55.211 (Authentik)
-- `argocd.frank.local` -> 192.168.55.200
-- `grafana.frank.local` -> 192.168.55.203
-- etc.
+**Authentik hostname:** `auth.frank.derio.net` -> 192.168.55.211
 
-**TLS:** For the initial deployment, operate over HTTP on the LAN. TLS can be added later via cert-manager (already deployed) issuing certificates for the `.frank.local` domain using a self-signed CA or Let's Encrypt with DNS-01 challenge. The design supports both modes — OIDC redirect URIs are configured per-provider and can be updated when TLS is enabled.
+This is added to the Traefik config on raspi-omni as a manual step (consistent with existing services). All OIDC redirect URIs use `https://<service>.frank.derio.net` — no HTTP redirect concerns.
 
-**Decision point during implementation:** Verify that each OIDC consumer (ArgoCD, Grafana, Infisical) accepts HTTP redirect URIs. If any require HTTPS, TLS must be configured before that service is integrated.
+**Service hostnames for OIDC redirect URIs:**
+
+| Service | Hostname | Already configured |
+|---------|----------|--------------------|
+| Authentik | `auth.frank.derio.net` | No — add during deployment |
+| ArgoCD | `argocd.frank.derio.net` | Yes |
+| Grafana | `grafana.frank.derio.net` | Yes |
+| Infisical | `infisical.frank.derio.net` | Yes |
+| Longhorn UI | `longhorn.frank.derio.net` | Yes |
+| Hubble UI | `hubble.frank.derio.net` | Yes |
+| Sympozium | `sympozium.frank.derio.net` | Yes |
 
 ## Deployment Architecture
 
@@ -183,7 +190,7 @@ Authentik's OIDC and proxy outpost flows require browser redirects between servi
 
 **Scheduling note:** All Authentik pods require `tolerations` for the control-plane taint (`node-role.kubernetes.io/control-plane: NoSchedule`), consistent with the Infisical deployment pattern.
 
-**Proxy outpost model:** Use Authentik's **embedded outpost** (runs inside the Authentik server pod, no separate deployment). This avoids needing a separate LoadBalancer IP for the outpost. The `proxy-outpost.yaml` in authentik-extras defines the outpost configuration object (which services to proxy), not a standalone pod deployment. The embedded outpost handles forward-auth callbacks on the same hostname (`auth.frank.local`).
+**Proxy outpost model:** Use Authentik's **embedded outpost** (runs inside the Authentik server pod, no separate deployment). This avoids needing a separate LoadBalancer IP for the outpost. The `proxy-outpost.yaml` in authentik-extras defines the outpost configuration object (which services to proxy), not a standalone pod deployment. The embedded outpost handles forward-auth callbacks on the same hostname (`auth.frank.derio.net`).
 
 ### ArgoCD Structure
 
