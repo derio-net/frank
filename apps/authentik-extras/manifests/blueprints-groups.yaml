@@ -1,0 +1,60 @@
+# Authentik Blueprint: Organization Groups
+# Defines the root organization's group hierarchy.
+# Groups use org-aware naming for future multi-org support.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-groups
+  namespace: authentik
+  labels:
+    app.kubernetes.io/component: blueprint
+data:
+  groups.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Root Organization Groups
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      # Root organization parent group
+      - model: authentik_core.group
+        state: present
+        identifiers:
+          name: root
+        id: group-root
+        attrs:
+          is_superuser: false
+
+      # Root organization roles
+      - model: authentik_core.group
+        state: present
+        identifiers:
+          name: root-admins
+        attrs:
+          is_superuser: true
+          parent: !KeyOf group-root
+
+      - model: authentik_core.group
+        state: present
+        identifiers:
+          name: root-devops
+        attrs:
+          is_superuser: false
+          parent: !KeyOf group-root
+
+      - model: authentik_core.group
+        state: present
+        identifiers:
+          name: root-developers
+        attrs:
+          is_superuser: false
+          parent: !KeyOf group-root
+
+      - model: authentik_core.group
+        state: present
+        identifiers:
+          name: root-agents
+        attrs:
+          is_superuser: false
+          parent: !KeyOf group-root
