@@ -112,6 +112,9 @@ apps/                  # ArgoCD App-of-Apps (Helm chart + per-app values)
   root/                # Entry point — templates all Application CRs
   <app>/values.yaml    # Per-app Helm values
   <app>/manifests/     # Raw K8s manifests (when no upstream chart)
+  vclusters/           # Per-vCluster Helm values (multi-tenancy)
+    template/          # Base values template
+    <name>/values.yaml # Per-instance overrides
 patches/               # Talos machine config patches (per phase)
   phase01-node-config/ # Node labels, scheduling
   phase02-cilium/      # CNI, eBPF kube-proxy

@@ -292,3 +292,20 @@ images:
       around Frank's head like a halo. A rejected intruder robot with a
       red X tries to sneak past but is blocked by a blue force field.
       Dark server room with blue and gold lightning accents.
+
+  - key: post-14
+    output: blog/content/posts/14-multi-tenancy/cover.png
+    description: "Multi-tenancy — vCluster disposable sandbox clusters"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster holding a snow globe in
+      both hands, peering into it with curiosity. Inside the snow globe is a
+      tiny, perfect miniature Kubernetes cluster — three small server nodes
+      connected by glowing blue network lines, with a tiny kubectl terminal
+      floating above them. The snow globe's base is labeled "experiments" in
+      small engraved text. On a shelf behind Frank, several more snow globes
+      sit in a row, each containing a different tiny cluster setup. One snow
+      globe lies shattered on the floor with its tiny servers dissolving into
+      sparkles — representing disposability. Frank's other hand hovers over
+      a "git push" button on a small console. A resource quota meter on the
+      wall shows CPU and memory gauges. Dark server room with blue and
+      teal lighting accents.

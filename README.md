@@ -38,6 +38,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to Ollama + OpenRouter cloud models |
 | Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
 | Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
+| Multi-tenancy | vCluster | Virtual K8s clusters inside Frank — disposable sandboxes via ArgoCD |
 | Certificate Management | cert-manager | Automated TLS certificate lifecycle for webhooks and internal services |
 
 ## Repository Structure
@@ -68,7 +69,10 @@ frank/
 │   ├── sympozium/values.yaml                    # Sympozium agentic control plane
 │   ├── sympozium-extras/manifests/              # Policies, PersonaPacks, LB Service
 │   ├── authentik/values.yaml + manifests/       # Authentik IdP + blueprints
-│   └── authentik-extras/manifests/              # K8s RBAC bindings for OIDC groups
+│   ├── authentik-extras/manifests/              # K8s RBAC bindings for OIDC groups
+│   └── vclusters/                               # Per-vCluster Helm values
+│       ├── template/values.yaml                 # Base config (SQLite, policies, sync)
+│       └── experiments/values.yaml              # First sandbox instance
 ├── patches/
 │   ├── phase01-node-config/   # Node labels, scheduling
 │   ├── phase02-cilium/        # CNI swap to Cilium
@@ -148,6 +152,7 @@ argocd app list
 | argocd | argocd | Self-managed via App-of-Apps, OIDC SSO via Authentik |
 | authentik | authentik | Authentik IdP (192.168.55.211:9000), OIDC providers for ArgoCD, Grafana, Infisical |
 | authentik-extras | authentik | K8s RBAC ClusterRoleBindings mapping Authentik groups to cluster roles |
+| vcluster-experiments | vcluster-experiments | Disposable virtual K8s cluster (SQLite-backed, resource-quoted sandbox) |
 
 ## Adding a New Application
 
