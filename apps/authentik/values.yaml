@@ -1,0 +1,85 @@
+# Authentik — Identity Provider for Frank Cluster
+# Phase 13: Unified Authentication & Authorization
+# Chart: goauthentik/authentik (https://charts.goauthentik.io)
+#
+# Secrets injected via env vars from SOPS-bootstrapped K8s Secret
+# (secrets/authentik/authentik-secrets.yaml, applied out-of-band).
+#
+# Redis: NOT required since Authentik 2025.10 (migrated to PostgreSQL).
+# Bundled PostgreSQL subchart is used with Longhorn persistence.
+
+# -- Authentik core configuration
+authentik:
+  # secret_key injected via AUTHENTIK_SECRET_KEY env var from global.env
+  secret_key: ""
+  log_level: info
+  error_reporting:
+    enabled: false
+
+# -- Global env vars (applied to both server + worker deployments)
+# Using global.env avoids duplicating secret refs across server.env and worker.env.
+global:
+  env:
+    - name: AUTHENTIK_SECRET_KEY
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: secret_key
+    - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: bootstrap_password
+
+# -- Server (Django web app + OIDC provider)
+server:
+  replicas: 2
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoSchedule
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+  service:
+    type: ClusterIP
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false  # Enable after Prometheus is deployed
+
+# -- Worker (background tasks, blueprint processing)
+worker:
+  replicas: 1
+  tolerations:
+    - key: node-role.kubernetes.io/control-plane
+      effect: NoSchedule
+  nodeSelector:
+    node-role.kubernetes.io/control-plane: ""
+
+# -- Blueprints (declarative config, mounted from ConfigMaps)
+# ConfigMaps are created by authentik-extras app.
+# Only keys ending in .yaml inside each ConfigMap are discovered and applied.
+blueprints:
+  configMaps:
+    - authentik-blueprints-groups
+
+# -- Bundled PostgreSQL subchart (Bitnami)
+# Production note: Authentik docs recommend external PostgreSQL for production.
+# For homelab use, the bundled subchart with Longhorn persistence is acceptable.
+postgresql:
+  enabled: true
+  auth:
+    username: authentik
+    database: authentik
+    existingSecret: authentik-secrets
+    secretKeys:
+      userPasswordKey: postgresql_password
+  primary:
+    tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        effect: NoSchedule
+    nodeSelector:
+      node-role.kubernetes.io/control-plane: ""
+    persistence:
+      enabled: true
+      storageClass: longhorn
+      size: 8Gi
