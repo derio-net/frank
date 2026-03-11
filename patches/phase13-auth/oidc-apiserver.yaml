@@ -1,0 +1,9 @@
+# Configures kube-apiserver to accept Authentik OIDC tokens
+# Applied to all control-plane nodes via Omni
+cluster:
+  apiServer:
+    extraArgs:
+      oidc-issuer-url: https://auth.frank.derio.net/application/o/k8s-agent/
+      oidc-client-id: k8s-agent
+      oidc-username-claim: preferred_username
+      oidc-groups-claim: groups
