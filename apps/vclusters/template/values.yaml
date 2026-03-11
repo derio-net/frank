@@ -1,0 +1,79 @@
+# vCluster template values — sensible defaults for Frank cluster
+# Individual vClusters import these and override as needed.
+#
+# Chart: loft-sh/vcluster v0.32.1
+# Repo:  https://charts.loft.sh
+
+# Syncer configuration — what gets synced between host and virtual cluster
+sync:
+  toHost:
+    pods:
+      enabled: true
+    services:
+      enabled: true
+    configmaps:
+      enabled: true
+    secrets:
+      enabled: true
+    endpoints:
+      enabled: true
+    persistentvolumeclaims:
+      enabled: true
+    ingresses:
+      enabled: true
+  fromHost:
+    nodes:
+      enabled: true
+    storageClasses:
+      enabled: true
+
+# Backing store — embedded etcd with Longhorn persistence
+controlPlane:
+  backingStore:
+    etcd:
+      embedded:
+        enabled: true
+  statefulSet:
+    persistence:
+      volumeClaim:
+        enabled: true
+        storageClass: longhorn
+        size: 5Gi
+        retentionPolicy: Delete
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+# Networking — no built-in ingress, access via vcluster connect
+networking:
+  service:
+    type: ClusterIP
+
+# Isolation — deny host cluster access from tenant workloads
+isolation:
+  enabled: true
+  podSecurityStandard: baseline
+  resourceQuota:
+    enabled: true
+    quota:
+      requests.cpu: "4"
+      requests.memory: 8Gi
+      limits.cpu: "8"
+      limits.memory: 16Gi
+      pods: "50"
+      services: "20"
+      persistentvolumeclaims: "10"
+  limitRange:
+    enabled: true
+    default:
+      cpu: 500m
+      memory: 512Mi
+    defaultRequest:
+      cpu: 100m
+      memory: 128Mi
+  networkPolicy:
+    enabled: true
