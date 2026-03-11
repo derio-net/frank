@@ -41,3 +41,19 @@ grafana:
       subPath: victorialogs-datasource.yaml
       configMap: grafana-victorialogs-datasource
       readOnly: true
+  # Authentik OIDC SSO (Phase 13)
+  envFromSecret: grafana-oidc-secret
+  grafana.ini:
+    server:
+      root_url: https://grafana.frank.derio.net
+    auth.generic_oauth:
+      enabled: true
+      name: Authentik
+      client_id: grafana
+      client_secret: ${GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
+      scopes: openid profile email groups offline_access
+      auth_url: https://auth.frank.derio.net/application/o/authorize/
+      token_url: https://auth.frank.derio.net/application/o/token/
+      api_url: https://auth.frank.derio.net/application/o/userinfo/
+      role_attribute_path: "contains(groups[*], 'root-admins') && 'Admin' || contains(groups[*], 'root-devops') && 'Editor' || 'Viewer'"
+      allow_assign_grafana_admin: true
