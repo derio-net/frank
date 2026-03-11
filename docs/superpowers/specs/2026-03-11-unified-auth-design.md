@@ -152,6 +152,23 @@ AUTHENTIK_CLIENT_SECRET=...
 
 Usage: `source .env_agent && kubectl get nodes` — works without browser interaction.
 
+**Security:** `.env_agent` is gitignored (contains plaintext secrets). It is generated manually from credentials stored in Infisical (the cluster's secrets manager). Never committed to the repo.
+
+## DNS and Hostname Strategy
+
+Authentik's OIDC and proxy outpost flows require browser redirects between services and Authentik. This requires a resolvable hostname for Authentik — bare IPs break redirect URI validation and complicate TLS.
+
+**Approach:** Use a local DNS resolver (e.g., Pi-hole, CoreDNS, or router-level DNS) to map hostnames to cluster LB IPs:
+
+- `auth.frank.local` -> 192.168.55.211 (Authentik)
+- `argocd.frank.local` -> 192.168.55.200
+- `grafana.frank.local` -> 192.168.55.203
+- etc.
+
+**TLS:** For the initial deployment, operate over HTTP on the LAN. TLS can be added later via cert-manager (already deployed) issuing certificates for the `.frank.local` domain using a self-signed CA or Let's Encrypt with DNS-01 challenge. The design supports both modes — OIDC redirect URIs are configured per-provider and can be updated when TLS is enabled.
+
+**Decision point during implementation:** Verify that each OIDC consumer (ArgoCD, Grafana, Infisical) accepts HTTP redirect URIs. If any require HTTPS, TLS must be configured before that service is integrated.
+
 ## Deployment Architecture
 
 ### Components
@@ -180,7 +197,9 @@ apps/
 
 ### Helm Chart
 
-Official `goauthentik/authentik` chart, which bundles PostgreSQL and Redis as subcharts. Self-contained deployment — no shared databases.
+Official `goauthentik/authentik` chart. Chart version must be pinned (research latest stable version during implementation).
+
+**Subchart strategy:** The chart bundles PostgreSQL and Redis as subcharts. The existing Infisical deployment in this repo splits these into separate ArgoCD apps to avoid subchart secret drift issues. During implementation, evaluate whether Authentik's chart has the same subchart environment variable collision bug. If so, adopt the split-app pattern (`authentik`, `authentik-postgresql`, `authentik-redis`). If not, use bundled subcharts with `ignoreDifferences` on auto-generated PostgreSQL/Redis secrets to prevent perpetual ArgoCD diffs.
 
 ### LoadBalancer
 
@@ -196,7 +215,26 @@ Authentik blueprints (YAML) define:
 - Groups (org hierarchy)
 - Service accounts (agent users)
 
-Blueprints are mounted into the Authentik server pod via ConfigMaps or directly from the Git repo. All auth config lives in code — aligned with the declarative-only principle.
+Blueprints are mounted into the Authentik server pod via ConfigMaps, sourced from the Git repo. All auth config lives in code — aligned with the declarative-only principle.
+
+**Blueprint scope:** Blueprints define only structural config (flows, groups, applications, providers). They do NOT contain secret values (OAuth2 client secrets, admin passwords). Secret values are handled separately via SOPS-encrypted Kubernetes Secrets applied out-of-band (see Secrets Handling section).
+
+## Secrets Handling
+
+Authentik requires several secrets that must exist before the application starts. Following the project's declarative-only principle, these are stored as SOPS-encrypted files in `secrets/authentik/` and applied manually out-of-band.
+
+**Required secrets:**
+
+| Secret | Purpose | Notes |
+|--------|---------|-------|
+| `authentik-secret-key` | Signs cookies, tokens, sessions | Generated once, must not change |
+| `authentik-postgresql-password` | PostgreSQL database password | Used by both Authentik and PostgreSQL pods |
+| `authentik-bootstrap-password` | Initial admin (`akadmin`) password | Used only on first boot |
+| OAuth2 client secrets | Per-service OIDC client secrets | One per integrated service (ArgoCD, Grafana, etc.) |
+
+**Storage:** `secrets/authentik/` directory with SOPS/age-encrypted YAML files, gitignored plaintext.
+
+**Application:** Manual out-of-band via `sops --decrypt <file> | kubectl apply -f -`. Each secret requires a `# manual-operation` block in the implementation plan, synced to the runbook via `/sync-runbook`.
 
 ## Migration Path
 
