@@ -22,7 +22,7 @@ repoServer:
 redis:
   enabled: true
 
-# Disable dex (using built-in auth for now)
+# Disable dex (using Authentik OIDC instead)
 dex:
   enabled: false
 
@@ -45,3 +45,23 @@ configs:
   cm:
     # Resource tracking via annotation (avoids conflicts with Helm labels)
     application.resourceTrackingMethod: annotation
+    # Authentik OIDC SSO (Phase 13)
+    url: https://argocd.frank.derio.net
+    oidc.config: |
+      name: Authentik
+      issuer: https://auth.frank.derio.net/application/o/argocd/
+      clientID: argocd
+      clientSecret: $argocd-oidc-secret:oidc.authentik.clientSecret
+      requestedScopes:
+        - openid
+        - profile
+        - email
+        - groups
+        - offline_access
+  rbac:
+    policy.csv: |
+      g, root-admins, role:admin
+      g, root-devops, role:admin
+      g, root-developers, role:readonly
+    policy.default: role:readonly
+    scopes: "[groups]"

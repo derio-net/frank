@@ -68,6 +68,7 @@ worker:
 blueprints:
   configMaps:
     - authentik-blueprints-groups
+    - authentik-blueprints-provider-argocd
 
 # -- Bundled PostgreSQL subchart (Bitnami)
 # Production note: Authentik docs recommend external PostgreSQL for production.
