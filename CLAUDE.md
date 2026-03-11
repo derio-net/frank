@@ -156,6 +156,7 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 | Infisical | 192.168.55.204 | Cilium L2 LoadBalancer |
 | LiteLLM Gateway | 192.168.55.206 | Cilium L2 LoadBalancer |
 | Sympozium Web UI | 192.168.55.207 | Cilium L2 LoadBalancer |
+| Authentik | 192.168.55.211 | Cilium L2 LoadBalancer (port 9000) |
 
 ## Declarative-Only Principle
 
@@ -181,6 +182,11 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 - Sympozium Helm chart is Git-sourced (not OCI) — chart isn't published to any registry
 - Sympozium chart service template doesn't support type/annotations — use separate LB Service in extras
 - Sympozium image.tag must be overridden (chart appVersion lags behind latest fix releases)
+- Authentik blueprints may not auto-discover from ConfigMaps — create providers/apps via API as fallback
+- Authentik API requires Bearer token (not basic auth) — create token via Django ORM: `Token.objects.get_or_create(identifier="name", defaults={"user": user, "intent": TokenIntents.INTENT_API})`
+- Authentik 2026.x requires `invalidation_flow` and `redirect_uris` as list format in API calls
+- Authentik `global.env` applies env vars to both server + worker (avoids duplication)
+- Grafana OIDC: secret key must be `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` for `envFromSecret` to work
 
 ## Manual Operations
 
