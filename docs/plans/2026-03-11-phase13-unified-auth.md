@@ -132,10 +132,10 @@ Expected: `secret/authentik-secrets created`
 
 ```yaml
 # manual-operation
-id: phaseXX-authentik-bootstrap-secrets
+id: phase13-authentik-bootstrap-secrets
 phase: XX
 app: authentik
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "Before Task 3 — secrets must exist before Authentik pods start"
 why_manual: "SOPS-encrypted secrets cannot be applied via ArgoCD (SOPS + ServerSideApply don't mix)"
 commands:
@@ -150,7 +150,7 @@ status: pending
 
 ```bash
 git add secrets/authentik/authentik-secrets.yaml
-git commit -m "feat(phaseXX): add SOPS-encrypted Authentik bootstrap secrets
+git commit -m "feat(phase13): add SOPS-encrypted Authentik bootstrap secrets
 
 Contains: secret_key, postgresql_password, bootstrap_password.
 Applied out-of-band before ArgoCD sync."
@@ -182,7 +182,7 @@ metadata:
 
 ```bash
 git add apps/root/templates/ns-authentik.yaml
-git commit -m "feat(phaseXX): add Authentik namespace manifest
+git commit -m "feat(phase13): add Authentik namespace manifest
 
 Declarative namespace with pod-security labels, applied before
 SOPS secrets and ArgoCD app sync."
@@ -367,7 +367,7 @@ spec:
 
 ```bash
 git add apps/authentik/values.yaml apps/root/templates/authentik.yaml
-git commit -m "feat(phaseXX): add Authentik ArgoCD application
+git commit -m "feat(phase13): add Authentik ArgoCD application
 
 Deploys Authentik server (2 replicas), worker, bundled PostgreSQL + Redis.
 Secrets injected from SOPS-bootstrapped K8s Secret via env vars.
@@ -519,7 +519,7 @@ spec:
 
 ```bash
 git add apps/authentik-extras/ apps/root/templates/authentik-extras.yaml
-git commit -m "feat(phaseXX): add Authentik extras (LB service + blueprints)
+git commit -m "feat(phase13): add Authentik extras (LB service + blueprints)
 
 LoadBalancer at 192.168.55.211 for auth.frank.derio.net.
 Blueprint ConfigMaps define root org groups (admins, devops,
@@ -587,10 +587,10 @@ authentik:
 
 ```yaml
 # manual-operation
-id: phaseXX-traefik-authentik-route
+id: phase13-traefik-authentik-route
 phase: XX
 app: authentik
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 5 Step 4 — LB service has external IP"
 why_manual: "Traefik config on raspi-omni is outside cluster management"
 commands:
@@ -622,10 +622,10 @@ In Authentik Admin UI:
 
 ```yaml
 # manual-operation
-id: phaseXX-akadmin-group
+id: phase13-akadmin-group
 phase: XX
 app: authentik
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 5 Step 6 — Authentik initial setup complete"
 why_manual: "Bootstrap user assignment cannot be done via blueprint (user doesn't exist until first login)"
 commands:
@@ -678,10 +678,10 @@ sops --decrypt secrets/authentik/argocd-oidc-secret.yaml | kubectl apply -f -
 
 ```yaml
 # manual-operation
-id: phaseXX-argocd-oidc-secret
+id: phase13-argocd-oidc-secret
 phase: XX
 app: argocd
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "Before Task 6 Step 3 — ArgoCD needs the OIDC secret before OIDC is enabled"
 why_manual: "SOPS-encrypted secret applied out-of-band"
 commands:
@@ -801,10 +801,10 @@ After the blueprint creates the ArgoCD provider, set the client secret manually:
 
 ```yaml
 # manual-operation
-id: phaseXX-argocd-oidc-client-secret
+id: phase13-argocd-oidc-client-secret
 phase: XX
 app: authentik
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 6 Step 4 — Blueprint has created the ArgoCD provider"
 why_manual: "Client secret cannot be set via blueprint (secret value must not be in Git)"
 commands:
@@ -821,7 +821,7 @@ git add apps/authentik-extras/manifests/blueprints-provider-argocd.yaml \
         apps/authentik/values.yaml \
         apps/argocd/values.yaml \
         secrets/authentik/argocd-oidc-secret.yaml
-git commit -m "feat(phaseXX): integrate ArgoCD with Authentik OIDC
+git commit -m "feat(phase13): integrate ArgoCD with Authentik OIDC
 
 Blueprint creates OAuth2 provider + application for ArgoCD.
 ArgoCD config switches from Dex to Authentik OIDC.
@@ -886,10 +886,10 @@ sops --decrypt secrets/authentik/grafana-oidc-secret.yaml | kubectl apply -f -
 
 ```yaml
 # manual-operation
-id: phaseXX-grafana-oidc-secret
+id: phase13-grafana-oidc-secret
 phase: XX
 app: grafana
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "Before Task 7 Step 4 — Grafana needs OIDC secret"
 why_manual: "SOPS-encrypted secret applied out-of-band"
 commands:
@@ -998,10 +998,10 @@ Same process as ArgoCD (Task 6 Step 5): set the Grafana client secret in the Aut
 
 ```yaml
 # manual-operation
-id: phaseXX-grafana-oidc-client-secret
+id: phase13-grafana-oidc-client-secret
 phase: XX
 app: authentik
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 7 Step 5 — Blueprint has created the Grafana provider"
 why_manual: "Client secret cannot be set via blueprint"
 commands:
@@ -1015,7 +1015,7 @@ status: pending
 git add apps/authentik-extras/manifests/blueprints-provider-grafana.yaml \
         apps/authentik/values.yaml \
         secrets/authentik/grafana-oidc-secret.yaml
-git commit -m "feat(phaseXX): integrate Grafana with Authentik OIDC
+git commit -m "feat(phase13): integrate Grafana with Authentik OIDC
 
 Blueprint creates OAuth2 provider for Grafana.
 Role mapping: root-admins=Admin, root-devops=Editor, others=Viewer."
@@ -1131,10 +1131,10 @@ Infisical's OIDC configuration is typically done through its admin panel:
 
 ```yaml
 # manual-operation
-id: phaseXX-infisical-oidc-config
+id: phase13-infisical-oidc-config
 phase: XX
 app: infisical
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 8 Step 2 — Blueprint has created the Infisical provider"
 why_manual: "Infisical OIDC configuration is done via admin UI, not Helm values"
 commands:
@@ -1160,7 +1160,7 @@ Add to `apps/authentik/values.yaml` blueprints list:
 git add apps/authentik-extras/manifests/blueprints-provider-infisical.yaml \
         apps/authentik/values.yaml \
         secrets/authentik/infisical-oidc-secret.yaml
-git commit -m "feat(phaseXX): integrate Infisical with Authentik OIDC
+git commit -m "feat(phase13): integrate Infisical with Authentik OIDC
 
 Blueprint creates OAuth2 provider for Infisical.
 OIDC configuration in Infisical done via admin UI (manual operation)."
@@ -1288,10 +1288,10 @@ For each proxied service, update Traefik config to use forward auth through Auth
 
 ```yaml
 # manual-operation
-id: phaseXX-traefik-forward-auth
+id: phase13-traefik-forward-auth
 phase: XX
 app: authentik
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 9 Step 3 — Proxy providers created in Authentik"
 why_manual: "Traefik config on raspi-omni is outside cluster management"
 commands:
@@ -1310,7 +1310,7 @@ status: pending
 ```bash
 git add apps/authentik-extras/manifests/blueprints-proxy-providers.yaml \
         apps/authentik/values.yaml
-git commit -m "feat(phaseXX): add proxy outpost for Longhorn, Hubble, Sympozium
+git commit -m "feat(phase13): add proxy outpost for Longhorn, Hubble, Sympozium
 
 Blueprint creates forward-auth proxy providers for services without
 native OIDC. Uses embedded outpost via Traefik forwardAuth middleware."
@@ -1392,7 +1392,7 @@ Add to `apps/authentik/values.yaml` blueprints list:
 ```bash
 git add apps/authentik-extras/manifests/blueprints-agent-auth.yaml \
         apps/authentik/values.yaml
-git commit -m "feat(phaseXX): add agent authentication blueprint
+git commit -m "feat(phase13): add agent authentication blueprint
 
 Creates OAuth2 provider for non-interactive kubectl access via
 client credentials grant. 8-hour token validity."
@@ -1402,10 +1402,10 @@ client credentials grant. 8-hour token validity."
 
 ```yaml
 # manual-operation
-id: phaseXX-agent-machine-user
+id: phase13-agent-machine-user
 phase: XX
 app: authentik
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 10 Step 2 — Agent auth blueprint deployed"
 why_manual: "Machine user credentials and client secret must be set via Authentik admin UI"
 commands:
@@ -1440,7 +1440,7 @@ Research if this requires a Talos machine config patch in `patches/`.
 Create a Talos machine config patch for OIDC:
 
 ```yaml
-# patches/phaseXX-auth/oidc-apiserver.yaml
+# patches/phase13-auth/oidc-apiserver.yaml
 # Configures kube-apiserver to accept Authentik OIDC tokens
 cluster:
   apiServer:
@@ -1451,7 +1451,7 @@ cluster:
       oidc-groups-claim: groups
 ```
 
-Create `patches/phaseXX-auth/README.md`:
+Create `patches/phase13-auth/README.md`:
 ```markdown
 # Phase XX — Authentication OIDC API Server Patch
 
@@ -1463,10 +1463,10 @@ Apply via Omni (exact method depends on current Omni workflow).
 
 ```yaml
 # manual-operation
-id: phaseXX-talos-oidc-patch
+id: phase13-talos-oidc-patch
 phase: XX
 app: n/a
-plan: docs/plans/2026-03-11-phaseXX-unified-auth.md
+plan: docs/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 10 — Authentik agent provider exists"
 why_manual: "Talos machine config patches are applied via Omni UI"
 commands:
@@ -1613,7 +1613,7 @@ Expected: lists all cluster nodes without any browser popup.
 
 ```bash
 git add apps/authentik-extras/manifests/k8s-rbac.yaml
-git commit -m "feat(phaseXX): add Kubernetes RBAC for Authentik groups
+git commit -m "feat(phase13): add Kubernetes RBAC for Authentik groups
 
 ClusterRoleBindings map Authentik groups to K8s roles:
 root-admins/agents=cluster-admin, root-devops=admin, root-developers=view."
@@ -1716,7 +1716,7 @@ Run `/sync-runbook` to collect all `# manual-operation` blocks from this plan in
 
 ```bash
 git add -A
-git commit -m "feat(phaseXX): complete unified auth deployment
+git commit -m "feat(phase13): complete unified auth deployment
 
 All services integrated with Authentik SSO:
 - Native OIDC: ArgoCD, Grafana, Infisical
