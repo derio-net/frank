@@ -27,10 +27,11 @@ sync:
     storageClasses:
       enabled: true
 
-# Backing store — embedded etcd with Longhorn persistence
+# Backing store — embedded SQLite (default for OSS vCluster)
+# Embedded etcd requires a Pro license; SQLite works for homelab scale.
 controlPlane:
   backingStore:
-    etcd:
+    database:
       embedded:
         enabled: true
   statefulSet:
