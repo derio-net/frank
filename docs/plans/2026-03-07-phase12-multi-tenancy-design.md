@@ -1,4 +1,4 @@
-# Phase 10: Multi-tenancy — Design
+# Phase 12: Multi-tenancy — Design
 
 **Date:** 2026-03-07
 
