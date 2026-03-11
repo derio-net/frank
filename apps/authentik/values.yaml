@@ -30,6 +30,13 @@ global:
         secretKeyRef:
           name: authentik-secrets
           key: bootstrap_password
+    # PostgreSQL password: the Bitnami subchart uses existingSecret for its own auth,
+    # but Authentik server/worker need the password via this env var to connect.
+    - name: AUTHENTIK_POSTGRESQL__PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: authentik-secrets
+          key: postgresql_password
 
 # -- Server (Django web app + OIDC provider)
 server:
