@@ -275,3 +275,20 @@ images:
       checklist floats nearby with four checkmarks appearing one by one.
       A small Talos Linux penguin-shield watches approvingly from the
       corner. Dark server room with electric blue and green sparks.
+
+  - key: post-13
+    output: blog/content/posts/13-unified-auth/cover.png
+    description: "Unified Auth — Authentik SSO for the entire cluster"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing in front of
+      a massive ornate gate made of circuit boards and glowing blue OIDC
+      token rings. He holds a large golden skeleton key labeled "SSO" in
+      one hand, and with the other hand gestures toward a line of service
+      icons (ArgoCD octopus, Grafana flame, a vault door, a longhorn bull,
+      a network eye, a robot) all passing through the gate single-file.
+      Each service wears a glowing green badge after passing through.
+      Above the gate, a shield emblem shows the Authentik logo. Small
+      floating group badges ("admins", "devops", "developers") orbit
+      around Frank's head like a halo. A rejected intruder robot with a
+      red X tries to sneak past but is blocked by a blue force field.
+      Dark server room with blue and gold lightning accents.

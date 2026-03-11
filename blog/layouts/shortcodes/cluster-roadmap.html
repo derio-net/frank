@@ -57,6 +57,9 @@
 .layer-agents { border-left-color: var(--rm-accent-12); }
 .layer-agents .layer-num { background: var(--rm-accent-12); color: #333; }
 
+.layer-auth { border-left-color: var(--rm-accent-4); }
+.layer-auth .layer-num { background: var(--rm-accent-4); }
+
 .layer-upcoming {
   border-left-style: dashed;
   opacity: 0.55;
@@ -391,6 +394,23 @@
         <span class="tag">agent=Pod</span>
         <span class="tag">policy=CRD</span>
         <span class="tag">192.168.55.207</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-auth">
+      <div class="layer-title"><span class="layer-num">13</span> Unified Auth</div>
+      <div class="sub-items">
+        <span class="sub-item">Authentik IdP (OIDC + proxy)</span>
+        <span class="sub-item">SSO for ArgoCD, Grafana, Infisical</span>
+        <span class="sub-item">Forward auth for Longhorn, Hubble, Sympozium</span>
+        <span class="sub-item">OIDC-backed kubectl via apiserver</span>
+      </div>
+      <div class="tags">
+        <span class="tag">OIDC</span>
+        <span class="tag">forward-auth</span>
+        <span class="tag">192.168.55.211</span>
       </div>
     </div>
   </div>
