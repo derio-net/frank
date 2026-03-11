@@ -219,3 +219,86 @@ operations:
     verify:
       - "kubectl get pods -n sympozium-system -l app=sympozium-telegram — should be Running"
     status: pending
+
+  - id: phase13-authentik-bootstrap-secrets
+    phase: 13
+    app: authentik
+    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    when: "Before Authentik deployment — secrets must exist in namespace"
+    why_manual: "SOPS-encrypted secret applied out-of-band before ArgoCD can manage the app"
+    commands:
+      - source .env_common
+      - sops --decrypt secrets/authentik/authentik-secrets.yaml | kubectl apply -f -
+    verify:
+      - kubectl get secret authentik-secrets -n authentik
+    status: done
+
+  - id: phase13-argocd-oidc-secret
+    phase: 13
+    app: argocd
+    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    when: "Before ArgoCD OIDC sync — secret must exist in argocd namespace"
+    why_manual: "SOPS-encrypted secret applied out-of-band"
+    commands:
+      - source .env_common
+      - sops --decrypt secrets/authentik/argocd-oidc-secret.yaml | kubectl apply -f -
+    verify:
+      - kubectl get secret argocd-oidc-secret -n argocd
+    status: done
+
+  - id: phase13-grafana-oidc-secret
+    phase: 13
+    app: victoria-metrics
+    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    when: "Before Grafana OIDC sync — secret must exist in monitoring namespace"
+    why_manual: "SOPS-encrypted secret applied out-of-band"
+    commands:
+      - source .env_common
+      - sops --decrypt secrets/authentik/grafana-oidc-secret.yaml | kubectl apply -f -
+    verify:
+      - kubectl get secret grafana-oidc-secret -n monitoring
+    status: done
+
+  - id: phase13-infisical-oidc-config
+    phase: 13
+    app: infisical
+    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    when: "After Authentik Infisical provider created — configure OIDC via admin UI"
+    why_manual: "Infisical OIDC configuration is done via admin UI, not Helm values"
+    commands:
+      - "Decrypt client secret: source .env_common && sops --decrypt secrets/authentik/infisical-oidc-secret.yaml"
+      - "In Infisical Admin UI: Organization Settings > Security > SSO > Configure OIDC"
+      - "Set Issuer URL: https://auth.frank.derio.net/application/o/infisical/"
+      - "Set Client ID: infisical"
+      - "Set Client Secret: (from decrypted secret)"
+    verify:
+      - "Navigate to https://infisical.frank.derio.net, see 'Sign in with SSO' option"
+    status: pending
+
+  - id: phase13-traefik-forward-auth
+    phase: 13
+    app: n/a
+    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    when: "After proxy outpost configured in Authentik — update Traefik on raspi-omni"
+    why_manual: "Traefik runs outside K8s on raspi-omni, managed via Ansible"
+    commands:
+      - "Add forwardAuth middleware to Traefik Ansible vars for Longhorn, Hubble, Sympozium"
+      - "ForwardAuth address: http://192.168.55.211:9000/outpost.goauthentik.io/auth/traefik"
+      - "Run Ansible playbook to apply Traefik config"
+    verify:
+      - "Navigating to longhorn.frank.derio.net redirects to Authentik login"
+    status: done
+    notes: "User applied Traefik changes via Ansible before implementation started"
+
+  - id: phase13-talos-oidc-patch
+    phase: 13
+    app: n/a
+    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    when: "After agent auth provider created — apply OIDC patch to kube-apiserver"
+    why_manual: "Talos machine config patches are applied via Omni UI"
+    commands:
+      - "Apply patches/phase13-auth/oidc-apiserver.yaml via Omni to control-plane machine set"
+      - "Wait for rolling restart of kube-apiserver on all control-plane nodes"
+    verify:
+      - "kubectl get --raw /.well-known/openid-configuration | jq .issuer"
+    status: pending
