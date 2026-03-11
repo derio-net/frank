@@ -1,0 +1,20 @@
+# vCluster "experiments" — disposable sandbox environment
+# Base values come from apps/vclusters/template/values.yaml (loaded first in ArgoCD).
+# This file contains only instance-specific overrides.
+#
+# Chart: loft-sh/vcluster v0.32.1
+# Namespace: vcluster-experiments
+
+# Currently using all template defaults.
+# To override, add only the keys that differ. Examples:
+#
+# controlPlane:
+#   statefulSet:
+#     persistence:
+#       volumeClaim:
+#         size: 10Gi      # Larger etcd for long-lived experiments
+#
+# isolation:
+#   resourceQuota:
+#     quota:
+#       pods: "100"       # Allow more pods in this vCluster
