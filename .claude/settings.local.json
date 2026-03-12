@@ -31,7 +31,6 @@
       "Bash(hugo --minify -D)",
       "WebFetch(domain:github.com)",
       "mcp__Claude_Preview__preview_start",
-      "Bash(ls -d /Users/idermitzakis/Docs/projects/HOMELAB/frankocluster/apps/*/)",
       "Bash(source .env:*)",
       "Bash(curl:*)",
       "WebFetch(domain:infisical.com)",
@@ -42,7 +41,7 @@
       "WebFetch(domain:sympozium.ai)",
       "Bash(ls:*)",
       "WebFetch(domain:deploy.sympozium.ai)",
-      "WebFetch(domain:www.siderolabs.com)"
+      "WebFetch(domain:www.siderolabs.com)",
     ]
   }
 }
