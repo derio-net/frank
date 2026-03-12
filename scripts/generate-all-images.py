@@ -33,19 +33,53 @@ def load_prompts(path: Path) -> dict:
         return yaml.safe_load(f)
 
 
-def post_process_favicon(source_path: Path, steps: list[dict]) -> None:
-    """Resize/convert the master favicon into required sizes."""
+def post_process(source_path: Path, steps: list[dict]) -> None:
+    """Run post-processing steps: resize, crop_resize, or ICO conversion."""
     img = Image.open(source_path)
 
     for step in steps:
-        if "resize" in step:
-            cfg = step["resize"]
+        if "crop_resize" in step:
+            # Crop to target aspect ratio, then scale to final size.
+            # Optional "gravity" (0.0=top/left, 0.5=center, 1.0=bottom/right)
+            # controls where the crop window sits. Default: 0.5 (center).
+            cfg = step["crop_resize"]
             target = REPO_ROOT / cfg["target"]
-            size = cfg["size"]
-            resized = img.resize((size, size), Image.LANCZOS)
+            tw, th = cfg["width"], cfg["height"]
+            gravity = cfg.get("gravity", 0.5)
+            target_ratio = tw / th
+            src_w, src_h = img.size
+            src_ratio = src_w / src_h
+
+            if src_ratio > target_ratio:
+                # Source is wider — crop sides
+                new_w = int(src_h * target_ratio)
+                left = int((src_w - new_w) * gravity)
+                cropped = img.crop((left, 0, left + new_w, src_h))
+            else:
+                # Source is taller — crop top/bottom
+                new_h = int(src_w / target_ratio)
+                top = int((src_h - new_h) * gravity)
+                cropped = img.crop((0, top, src_w, top + new_h))
+
+            resized = cropped.resize((tw, th), Image.LANCZOS)
             target.parent.mkdir(parents=True, exist_ok=True)
             resized.save(str(target))
-            print(f"    Resized → {target.relative_to(REPO_ROOT)} ({size}x{size})")
+            print(f"    Crop+Resize → {target.relative_to(REPO_ROOT)} ({tw}x{th})")
+            # Update img for subsequent steps
+            img = resized
+
+        elif "resize" in step:
+            cfg = step["resize"]
+            target = REPO_ROOT / cfg["target"]
+            width = cfg.get("width")
+            height = cfg.get("height")
+            size = cfg.get("size")  # shorthand for square
+            if size:
+                width, height = size, size
+            resized = img.resize((width, height), Image.LANCZOS)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            resized.save(str(target))
+            print(f"    Resized → {target.relative_to(REPO_ROOT)} ({width}x{height})")
 
         elif "ico" in step:
             cfg = step["ico"]
@@ -66,6 +100,8 @@ def generate_one(
     base_style: str,
     reference_guidance: str,
     model: str = MODEL,
+    aspect_ratio: str | None = None,
+    image_size: str | None = None,
 ) -> bool:
     full_prompt = (
         f"{base_style}\n\n"
@@ -76,13 +112,28 @@ def generate_one(
     print(f"\n{'='*60}")
     print(f"  [{key}] → {output_path.relative_to(REPO_ROOT)}")
     print(f"{'='*60}")
+    if aspect_ratio or image_size:
+        print(f"  Image config: aspect_ratio={aspect_ratio}, image_size={image_size}")
     print(f"  Prompt: {prompt[:80]}...")
     print(f"  Generating...", flush=True)
 
     try:
+        # Build generation config if aspect_ratio or image_size specified
+        gen_config = None
+        if aspect_ratio or image_size:
+            image_config_kwargs = {}
+            if aspect_ratio:
+                image_config_kwargs["aspect_ratio"] = aspect_ratio
+            if image_size:
+                image_config_kwargs["image_size"] = image_size
+            gen_config = genai.types.GenerateContentConfig(
+                image_config=genai.types.ImageConfig(**image_config_kwargs),
+            )
+
         response = client.models.generate_content(
             model=model,
             contents=[full_prompt, reference],
+            config=gen_config,
         )
 
         for part in response.parts:
@@ -186,13 +237,15 @@ def main() -> None:
         ok = generate_one(
             client, reference, key, output_path, prompt,
             base_style, reference_guidance, model=args.model,
+            aspect_ratio=img.get("aspect_ratio"),
+            image_size=img.get("image_size"),
         )
         if ok:
             succeeded += 1
             # Run post-processing if defined (e.g., favicon resizing)
             if img.get("post_process"):
                 print(f"  Post-processing {key}...")
-                post_process_favicon(output_path, img["post_process"])
+                post_process(output_path, img["post_process"])
         else:
             failed.append(key)
 

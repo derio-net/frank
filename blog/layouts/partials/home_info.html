@@ -1,5 +1,10 @@
 {{- with site.Params.homeInfoParams }}
 <article class="first-entry home-info">
+    {{- with site.Params.heroBanner }}
+    <div class="hero-banner">
+        <img class="hero-banner-img" src="{{ . | relURL }}" alt="Frank the Talos Cluster Monster">
+    </div>
+    {{- end }}
     <header class="entry-header">
         <h1>{{ .Title | markdownify }}</h1>
     </header>

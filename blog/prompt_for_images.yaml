@@ -18,7 +18,7 @@ base_style: >-
   Cartoon illustration, vibrant colors, thick outlines, chibi proportions.
   Dark background with electric blue lightning accents.
   Tech-horror aesthetic, playful not scary.
-  The character has green skin, messy black hair, black eyes, stitches, and
+  The character has green skin, messy black hair, black eyes with white pupils, stitches, and
   RJ45 bolt connectors on his neck. Blue glow comes from the environment,
   props, and electric sparks.
   Draw the character's face naturally for the scene — match expression to the
@@ -28,7 +28,7 @@ base_style: >-
 reference_guidance: >-
   Use the attached reference image as a CHARACTER DESIGN SHEET — it defines
   Frank's body shape, proportions, color palette, outfit, and hardware-part
-  anatomy. Key face details: black messy hair, black eyes,
+  anatomy. Key face details: black messy hair, black eyes with white pupils,
   green skin, stitch scars, expressive brow. For each new image,
   redraw Frank from scratch in the scene's perspective and lighting. His
   facial expression should match the scene's mood. Vary his pose, angle,
@@ -298,7 +298,7 @@ images:
     description: "Multi-tenancy — vCluster disposable sandbox clusters"
     prompt: >-
       Frank the server-hardware Frankenstein monster holding a snow globe in
-      both hands, peering into it with curiosity. Inside the snow globe is a
+      one hand, peering into it with curiosity. Inside the snow globe is a
       tiny, perfect miniature Kubernetes cluster — three small server nodes
       connected by glowing blue network lines, with a tiny kubectl terminal
       floating above them. The snow globe's base is labeled "experiments" in
