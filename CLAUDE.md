@@ -8,7 +8,7 @@ Every phase follows this sequence:
 
 1. **Brainstorm** — `/brainstorming` (Superpowers plugin) to explore requirements, refine scope, and design the approach via Socratic dialogue
 2. **Deploy** — Implement the ArgoCD app (values, Application CR, manifests)
-3. **Blog** — Use the `/blog-post` skill to write the Hugo post. After creating the post, update `blog/content/posts/00-overview/index.md` (Series Index + Capability Map) and `blog/layouts/shortcodes/cluster-roadmap.html` (add new roadmap layer)
+3. **Blog** — Use the `/blog-post` skill to write the Hugo post. After creating the post, update `blog/content/building/00-overview/index.md` (Series Index + Capability Map) and `blog/layouts/shortcodes/cluster-roadmap.html` (add new roadmap layer)
 4. **Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status in `README.md`
 5. **Sync runbook** — Run `/sync-runbook` if the phase plan contains any `# manual-operation` blocks
 6. **Review** — Verify deployment health and blog accuracy
@@ -81,7 +81,8 @@ For raw manifests (no upstream chart), use `path: apps/<app-name>/manifests` ins
 Posts use Hugo page bundles with PaperMod theme:
 
 ```
-blog/content/posts/NN-slug/
+blog/content/building/NN-slug/   # "Building Frank" posts
+blog/content/operating/NN-slug/  # "Operating on Frank" posts
   index.md       # Post content
   cover.png      # Cover image
   *.png          # Inline images
@@ -121,7 +122,7 @@ patches/               # Talos machine config patches (per phase)
   phase03-longhorn/    # Distributed storage
   phase04-gpu/         # NVIDIA GPU operator
   phase05-mini-config/ # Intel iGPU DRA
-blog/                  # Hugo static site (PaperMod theme)
+blog/                  # Hugo static site (PaperMod theme, building/ + operating/ series)
 omni/                  # Sidero Omni self-hosted config
 docs/plans/            # Design and implementation plans
 docs/runbooks/         # Manual operations registry (manual-operations.yaml)
