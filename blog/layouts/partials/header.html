@@ -1,6 +1,10 @@
-{{- if site.Params.thinBanner }}
+{{- $banner := site.Params.thinBanner -}}
+{{- if eq .Section "operating" -}}
+  {{- $banner = site.Params.operatingThinBanner -}}
+{{- end -}}
+{{- if $banner }}
 <div class="site-banner-strip">
-    <img src="{{ site.Params.thinBanner | relURL }}" alt="Frank the Talos Cluster Monster">
+    <img src="{{ $banner | relURL }}" alt="Frank the Talos Cluster Monster">
 </div>
 {{- end }}
 <header class="header">
