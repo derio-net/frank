@@ -276,4 +276,4 @@ At this point the cluster has:
 - [Hubble — Network Observability](https://docs.cilium.io/en/stable/observability/hubble/) — Cilium's built-in network observability platform
 - [eBPF](https://ebpf.io/) — Technology for programmable networking, observability, and security in the Linux kernel
 
-**Next: [Persistent Storage with Longhorn]({{< relref "/posts/03-storage" >}})**
+**Next: [Persistent Storage with Longhorn]({{< relref "/building/03-storage" >}})**

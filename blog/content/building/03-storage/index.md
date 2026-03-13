@@ -269,4 +269,4 @@ At this point the cluster has:
 - [Rook-Ceph](https://rook.io/) — Cloud-native storage orchestration for Kubernetes using Ceph
 - [Kubernetes Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) — Official PV and PVC documentation
 
-**Next: [GPU Compute — NVIDIA and Intel]({{< relref "/posts/04-gpu-compute" >}})**
+**Next: [GPU Compute — NVIDIA and Intel]({{< relref "/building/04-gpu-compute" >}})**

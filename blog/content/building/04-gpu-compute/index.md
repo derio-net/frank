@@ -454,4 +454,4 @@ Both GPU paths are live. The DRA stack on the Intel side demonstrates the future
 - [Kubernetes Device Plugins](https://kubernetes.io/docs/concepts/extend-kubernetes/compute-storage-net/device-plugins/) — Legacy device plugin framework (predecessor to DRA)
 - [Talos Dynamic Resource Allocation Guide](https://docs.siderolabs.com/kubernetes-guides/advanced-guides/dynamic-resource-allocation) — DRA configuration on Talos Linux
 
-**Next: [GitOps Everything with ArgoCD]({{< relref "/posts/05-gitops" >}})**
+**Next: [GitOps Everything with ArgoCD]({{< relref "/building/05-gitops" >}})**

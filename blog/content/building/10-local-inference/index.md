@@ -205,6 +205,6 @@ LiteLLM has built-in virtual key management. Each consumer gets its own key with
 
 ## What is Next
 
-**Update:** The GPU Operator fix landed. The RTX 5070 Ti is running Ollama at 100% GPU with 15.9 GiB VRAM. Local models are live. See [GPU Containers on Talos — The Validation Fix]({{< relref "/posts/12-gpu-talos-fix" >}}) for the full debugging story.
+**Update:** The GPU Operator fix landed. The RTX 5070 Ti is running Ollama at 100% GPU with 15.9 GiB VRAM. Local models are live. See [GPU Containers on Talos — The Validation Fix]({{< relref "/building/12-gpu-talos-fix" >}}) for the full debugging story.
 
 Any consumer on the network can use `192.168.55.206:4000` today — both local GPU models and cloud fallback are operational.

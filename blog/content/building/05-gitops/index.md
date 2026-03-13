@@ -337,4 +337,4 @@ The two-layer split is clean: Omni owns the machines (kernel, extensions, disk m
 - [Flux CD](https://fluxcd.io/) — CNCF GitOps toolkit for Kubernetes
 - [Kubernetes Pod Security Admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/) — Pod Security Standards enforcement at the namespace level
 
-**Next: [Fun Stuff -- Controlling Case LEDs from Kubernetes]({{< relref "/posts/06-fun-stuff" >}})**
+**Next: [Fun Stuff -- Controlling Case LEDs from Kubernetes]({{< relref "/building/06-fun-stuff" >}})**

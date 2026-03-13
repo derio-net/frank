@@ -1,4 +1,4 @@
-# Image Generation Prompts for "Building Frank" Blog
+# Image Generation Prompts for "Frank, the Talos Cluster" Blog
 #
 # Used by: scripts/generate-all-images.py
 # Reference: blog/static/images/reference.png
@@ -95,7 +95,7 @@ images:
   # --- Post Covers ------------------------------------------------------------
 
   - key: post-00
-    output: blog/content/posts/00-overview/cover.png
+    output: blog/content/building/00-overview/cover.png
     description: "Overview & Roadmap — Frank assembling himself"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing at a workbench
@@ -110,7 +110,7 @@ images:
       background.
 
   - key: post-01
-    output: blog/content/posts/01-introduction/cover.png
+    output: blog/content/building/01-introduction/cover.png
     description: "Introduction — Why build a homelab (rejecting the cloud)"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting at a cozy desk,
@@ -123,7 +123,7 @@ images:
       server rack shelves in background.
 
   - key: post-02
-    output: blog/content/posts/02-foundation/cover.png
+    output: blog/content/building/02-foundation/cover.png
     description: "Foundation — Talos immutable OS, Cilium eBPF networking"
     prompt: >-
       Frank the server-hardware Frankenstein monster laying the foundation
@@ -137,7 +137,7 @@ images:
       setting with scaffolding and a "No SSH" warning sign.
 
   - key: post-03
-    output: blog/content/posts/03-storage/cover.png
+    output: blog/content/building/03-storage/cover.png
     description: "Storage — Longhorn distributed storage with 3 replicas"
     prompt: >-
       Frank the server-hardware Frankenstein monster riding a longhorn bull
@@ -149,7 +149,7 @@ images:
       setting with server racks as fence posts, sunset sky.
 
   - key: post-04
-    output: blog/content/posts/04-gpu-compute/cover.png
+    output: blog/content/building/04-gpu-compute/cover.png
     description: "GPU Compute — RTX 5070 drama + Intel Arc iGPU"
     prompt: >-
       Frank the server-hardware Frankenstein monster with two mismatched
@@ -162,7 +162,7 @@ images:
       Feature Discovery" label floats. Dark server room background.
 
   - key: post-05
-    output: blog/content/posts/05-gitops/cover.png
+    output: blog/content/building/05-gitops/cover.png
     description: "GitOps — ArgoCD App-of-Apps orchestra"
     prompt: >-
       Frank the server-hardware Frankenstein monster conducting an orchestra.
@@ -175,7 +175,7 @@ images:
       center. Concert hall setting with dark curtains and spotlights.
 
   - key: post-06
-    output: blog/content/posts/06-fun-stuff/cover.png
+    output: blog/content/building/06-fun-stuff/cover.png
     description: "Fun Stuff — GitOps-managed RGB LEDs on case hardware"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing in front of a
@@ -189,7 +189,7 @@ images:
       reflections.
 
   - key: post-07
-    output: blog/content/posts/07-observability/cover.png
+    output: blog/content/building/07-observability/cover.png
     description: "Observability — VictoriaMetrics + Grafana + Fluent Bit"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting at a curved
@@ -204,7 +204,7 @@ images:
       line running along the bottom edge.
 
   - key: post-08
-    output: blog/content/posts/08-backup/cover.png
+    output: blog/content/building/08-backup/cover.png
     description: "Backup — Longhorn daily/weekly to Cloudflare R2"
     prompt: >-
       Frank the server-hardware Frankenstein monster carefully pouring
@@ -217,7 +217,7 @@ images:
       "Daily" and "Weekly" backup schedules circled. Dark server room.
 
   - key: post-09
-    output: blog/content/posts/09-secrets/cover.png
+    output: blog/content/building/09-secrets/cover.png
     description: "Secrets — Infisical vault + External Secrets Operator"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing before a
@@ -231,7 +231,7 @@ images:
       labeled "PostgreSQL", "Redis", "Infisical". Dark server room.
 
   - key: post-10
-    output: blog/content/posts/10-local-inference/cover.png
+    output: blog/content/building/10-local-inference/cover.png
     description: "Local Inference — Ollama + LiteLLM gateway + OpenRouter"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing at a grand
@@ -247,7 +247,7 @@ images:
       purple lightning.
 
   - key: post-11
-    output: blog/content/posts/11-agentic-control-plane/cover.png
+    output: blog/content/building/11-agentic-control-plane/cover.png
     description: "Sympozium — Kubernetes-native agentic control plane"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing in a command
@@ -262,7 +262,7 @@ images:
       robots and tower. Dark server room with blue and orange lightning.
 
   - key: post-12
-    output: blog/content/posts/12-gpu-talos-fix/cover.png
+    output: blog/content/building/12-gpu-talos-fix/cover.png
     description: "GPU Talos Fix — debugging containerd, validation markers"
     prompt: >-
       Frank the server-hardware Frankenstein monster crouching inside a
@@ -277,7 +277,7 @@ images:
       corner. Dark server room with electric blue and green sparks.
 
   - key: post-13
-    output: blog/content/posts/13-unified-auth/cover.png
+    output: blog/content/building/13-unified-auth/cover.png
     description: "Unified Auth — Authentik SSO for the entire cluster"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing in front of
@@ -294,7 +294,7 @@ images:
       Dark server room with blue and gold lightning accents.
 
   - key: post-14
-    output: blog/content/posts/14-multi-tenancy/cover.png
+    output: blog/content/building/14-multi-tenancy/cover.png
     description: "Multi-tenancy — vCluster disposable sandbox clusters"
     prompt: >-
       Frank the server-hardware Frankenstein monster holding a snow globe in
