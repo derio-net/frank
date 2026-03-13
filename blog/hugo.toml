@@ -1,11 +1,11 @@
 baseURL = "https://derio-net.github.io/frank/"
 languageCode = "en-us"
-title = "Building Frank, the Talos Cluster"
+title = "Frank, the Talos Cluster"
 theme = "PaperMod"
 
 [params]
   env = "production"
-  description = "Building an AI-hybrid Kubernetes homelab with Talos Linux"
+  description = "Tutorial series on building and operating an AI-hybrid Kubernetes homelab"
   author = "Ioannis Dermitzakis"
   defaultTheme = "auto"
   ShowReadingTime = true
@@ -18,13 +18,15 @@ theme = "PaperMod"
 
   heroBanner = "images/banner-hero.png"
   thinBanner = "images/banner-thin.png"
+  operatingThinBanner = "images/banner-operating-thin.png"
+  mainSections = ["building", "operating"]
 
   [params.label]
-    text = "Building Frank, the Talos Cluster"
+    text = "Frank, the Talos Cluster"
 
   [params.homeInfoParams]
     Title = "Frank, the Talos Cluster"
-    Content = "A tutorial series on building an AI-hybrid Kubernetes homelab from scratch with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute."
+    Content = "Tutorial series on building and operating an AI-hybrid Kubernetes homelab with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute."
 
   [[params.socialIcons]]
     name = "github"
@@ -32,10 +34,15 @@ theme = "PaperMod"
 
 [menu]
   [[menu.main]]
-    identifier = "posts"
-    name = "Posts"
-    url = "/posts/"
+    identifier = "building"
+    name = "Building"
+    url = "/building/"
     weight = 10
+  [[menu.main]]
+    identifier = "operating"
+    name = "Operating"
+    url = "/operating/"
+    weight = 15
   [[menu.main]]
     identifier = "tags"
     name = "Tags"
