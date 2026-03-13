@@ -228,4 +228,4 @@ These are specific to the intersection of Talos Linux (immutable OS, system exte
 - [Container Device Interface (CDI)](https://github.com/cncf-tags/container-device-interface) — CNCF spec for runtime device injection
 - [Talos Containerd Config](https://www.talos.dev/v1.12/reference/configuration/extensions/containerd/) — Talos containerd customization documentation
 
-**Previous: [Agentic Control Plane — Sympozium]({{< relref "/posts/11-agentic-control-plane" >}})**
+**Previous: [Agentic Control Plane — Sympozium]({{< relref "/building/11-agentic-control-plane" >}})**
