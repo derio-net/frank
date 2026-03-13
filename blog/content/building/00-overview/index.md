@@ -73,12 +73,12 @@ This post is a **living document**: it gets updated as new technologies and capa
 
 Companion series with day-to-day commands, health checks, and debugging guides.
 
-1. Operating on Cluster & Nodes _(coming soon)_
-2. Operating on Storage & Backups _(coming soon)_
-3. Operating on GitOps _(coming soon)_
-4. Operating on GPU Compute _(coming soon)_
-5. Operating on Observability _(coming soon)_
-6. Operating on Secrets _(coming soon)_
-7. Operating on Local Inference _(coming soon)_
-8. Operating on Authentication _(coming soon)_
-9. Operating on Multi-tenancy _(coming soon)_
+1. [Operating on Cluster & Nodes]({{< relref "/operating/01-cluster-nodes" >}})
+2. [Operating on Storage & Backups]({{< relref "/operating/02-storage-backups" >}})
+3. [Operating on GitOps]({{< relref "/operating/03-gitops" >}})
+4. [Operating on GPU Compute]({{< relref "/operating/04-gpu-compute" >}})
+5. [Operating on Observability]({{< relref "/operating/05-observability" >}})
+6. [Operating on Secrets]({{< relref "/operating/06-secrets" >}})
+7. [Operating on Local Inference]({{< relref "/operating/07-inference" >}})
+8. [Operating on Authentication]({{< relref "/operating/08-auth" >}})
+9. [Operating on Multi-tenancy]({{< relref "/operating/09-multi-tenancy" >}})
