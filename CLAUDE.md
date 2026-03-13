@@ -172,6 +172,22 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 
 `helm repo add` and `helm show values` are fine as **local research tools** to discover chart schemas — they don't touch the cluster.
 
+## Maintenance
+
+### Superpowers plugin skills (vendored)
+
+The superpowers skills in `.claude/skills/` and agents in `.claude/agents/` are vendored copies from the user-level plugin cache so they work in cloud/CI environments. They don't auto-update.
+
+After updating the plugin locally (`claude plugin update superpowers@claude-plugins-official`), re-sync and commit:
+
+```bash
+./scripts/sync-superpowers.sh
+git add .claude/skills/ .claude/agents/
+git commit -m "chore: sync superpowers plugin skills"
+```
+
+Check for updates periodically (e.g., when starting a new phase).
+
 ## Gotchas
 
 - Always use `ServerSideApply=true` in ArgoCD sync options (avoids annotation size limits)
