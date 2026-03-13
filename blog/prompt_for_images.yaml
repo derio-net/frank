@@ -76,6 +76,30 @@ images:
       both edges into darkness. The image MUST be extremely wide and short,
       like a letterbox strip — 1200x200 pixels, 6:1 ratio.
 
+  - key: banner-operating-thin
+    output: blog/static/images/banner-operating-thin.png
+    description: Operating series header strip banner (1200x200, 6:1 ratio)
+    prompt: >-
+      An ultra-wide horizontal strip banner, extremely wide and short — exactly
+      1200 pixels wide by 200 pixels tall (6:1 aspect ratio). Frank the
+      server-hardware Frankenstein monster lies on his back on a surgical
+      operating table on the left third of the image, about 60% the strip
+      height. His chest cavity is open, revealing circuit boards, drives, and
+      glowing cables inside. Multiple robotic arms (mounted to the ceiling or
+      the table frame) reach into his chest — one arm solders a circuit trace,
+      another swaps a miniature SSD, a third reconnects a glowing cable. Frank
+      is conscious and focused, guiding the arms with a small handheld
+      controller. Green skin, messy black hair, black eyes, RJ45 neck bolts
+      sparking blue electricity. Center-right: the title "Operating on Frank"
+      in bold chunky retro-tech lettering, glowing electric blue with subtle
+      circuit-trace underlines (matching the "Building Frank" thin banner
+      style). Background: dark circuit-board surface with faint green PCB
+      traces and sparse blue lightning arcs. Bottom edge: tiny decorative icons
+      — a wrench, a stethoscope, a terminal prompt, a heartbeat monitor.
+      Composition fades at both edges into darkness. The image MUST be
+      extremely wide and short, like a letterbox strip — 1200x200 pixels,
+      6:1 ratio.
+
   - key: favicon
     output: blog/static/images/favicon.png
     description: Master favicon (512x512, resized to 32/16/180 after generation)
