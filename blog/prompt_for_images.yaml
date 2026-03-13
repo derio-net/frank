@@ -394,45 +394,52 @@ images:
 
   - key: ops-05-observability
     output: blog/content/operating/05-observability/cover.png
-    description: "Operating on Observability — Frank monitoring his own vitals"
+    description: "Operating on Observability — Frank at his command center"
     prompt: >-
-      Frank the server-hardware Frankenstein monster on a surgical table,
-      surrounded by medical-style monitoring equipment repurposed with tech.
-      A heart rate monitor shows a Grafana time-series graph instead of a
-      heartbeat. An IV drip bag is filled with flowing log entries (green
-      text). A robotic arm holds a stethoscope connected to a VictoriaMetrics
-      database icon on Frank's chest. A tiny Fluent Bit bird perches on
-      the stethoscope. Multiple screens around the table show dashboards
-      with green status indicators. Dark server room with blue and purple
-      monitoring glow.
+      Frank the server-hardware Frankenstein monster sitting in a large
+      command center chair, surrounded by a curved wall of glowing monitors.
+      Each monitor displays different Grafana dashboards — time-series
+      graphs, node resource panels, log streams in green-on-black. He leans
+      forward studying a particular time-series graph closely, one hand on
+      his chin. A tiny Fluent Bit bird perches on his shoulder, feeding log
+      entries into a small funnel. A VictoriaMetrics "VM" logo glows on
+      the central monitor. Green skin, messy black hair, black eyes with
+      white pupils, RJ45 neck bolts sparking blue electricity. The chair
+      and desk are built from server rack parts. Dark server room with
+      blue and purple monitoring glow.
 
   - key: ops-06-secrets
     output: blog/content/operating/06-secrets/cover.png
-    description: "Operating on Secrets — Frank handling encrypted data capsules"
+    description: "Operating on Secrets — Frank cracking a safe with a blowtorch"
     prompt: >-
-      Frank the server-hardware Frankenstein monster on a surgical table.
-      Robotic arms carefully handle glowing encrypted data capsules — each
-      capsule has a tiny padlock icon and a label (DATABASE_URL, API_KEY).
-      One arm transfers a capsule from an Infisical vault (ornate glowing
-      door in the background) into Frank's chest cavity. Another arm uses
-      a SOPS key (shaped like an age encryption key) to unlock a sealed
-      capsule. A small ESO robot assistant passes capsules between the vault
-      and Frank. Blue encryption ripples flow across the scene. Dark server
-      room with blue and gold lighting.
+      Frank the server-hardware Frankenstein monster crouching in front of a
+      large ornate vault safe with the Infisical logo engraved on its door.
+      He holds a blue-flame blowtorch to the safe's lock mechanism, blue
+      sparks flying as he tries to force it open. Glowing encrypted data
+      capsules with tiny padlock icons and labels (DATABASE_URL, API_KEY,
+      REDIS_URL) are visible through a small window in the safe door. A
+      small ESO robot assistant stands beside Frank holding a ring of
+      age-encryption keys, offering them as the proper way in. A SOPS
+      lockbox sits on the floor nearby. Green skin, messy black hair, black
+      eyes with white pupils, RJ45 neck bolts sparking blue electricity.
+      Blue encryption ripples flow across the scene. Dark server room with
+      blue and gold lighting.
 
   - key: ops-07-inference
     output: blog/content/operating/07-inference/cover.png
-    description: "Operating on Local Inference — Frank adjusting his AI brain"
+    description: "Operating on Local Inference — Frank holding his own head open"
     prompt: >-
-      Frank the server-hardware Frankenstein monster on a surgical table. His
-      head is opened (the flat-top CPU die head), and robotic arms carefully
-      adjust neural network circuitry inside — tiny glowing LLM model blocks
-      labeled 'qwen3.5' and 'deepseek-coder'. A switchboard console labeled
-      'LiteLLM' sits beside the table, with routing lines flowing from
-      Frank's brain to a local GPU rack (Ollama llama icon) and a cloud
-      portal (OpenRouter). A tiny robot consumer waits at the end of the
-      routing pipe. Frank looks focused on getting the brain tuning just
-      right. Dark server room with purple and blue neural network lighting.
+      Frank the server-hardware Frankenstein monster lying on a surgical
+      table on his back. His flat-top CPU die head is hinged open, and
+      Frank holds his own head open with both hands, peering down at the
+      neural network circuitry inside — tiny glowing LLM model blocks
+      labeled 'qwen3.5' and 'deepseek-coder' are visible among the wiring.
+      A switchboard console labeled 'LiteLLM' sits beside the table, with
+      routing lines flowing from Frank's brain to a local GPU rack (Ollama
+      llama icon) and a cloud portal (OpenRouter). Green skin, messy black
+      hair, black eyes with white pupils, RJ45 neck bolts sparking blue
+      electricity. Frank looks focused and curious, examining his own AI
+      brain. Dark server room with purple and blue neural network lighting.
 
   - key: ops-08-auth
     output: blog/content/operating/08-auth/cover.png
@@ -449,15 +456,16 @@ images:
 
   - key: ops-09-multi-tenancy
     output: blog/content/operating/09-multi-tenancy/cover.png
-    description: "Operating on Multi-tenancy — Frank maintaining snow globe clusters"
+    description: "Operating on Multi-tenancy — Frank juggling vCluster snow globes"
     prompt: >-
-      Frank the server-hardware Frankenstein monster on a surgical table.
-      His open chest cavity contains several tiny snow globes, each holding
-      a miniature Kubernetes cluster. A robotic arm carefully lifts one snow
-      globe out for inspection — inside it, tiny servers glow with blue
-      network lines. Another arm installs a fresh snow globe into an empty
-      slot. A third arm holds a magnifying glass over a snow globe, checking
-      its tiny resource quota meter. One shattered snow globe dissolves into
-      sparkles on the table — representing disposability. A vCluster logo
-      floats on a nearby monitor. Dark server room with blue and teal
-      lighting.
+      Frank the server-hardware Frankenstein monster standing upright,
+      confidently juggling three or four glowing snow globes in the air.
+      Each snow globe contains a tiny miniature Kubernetes cluster — small
+      server nodes connected by blue network lines, with a tiny kubectl
+      terminal floating inside. One globe is labeled "experiments", another
+      "staging". Frank grins with focus, his green skin, messy black hair,
+      black eyes with white pupils, RJ45 neck bolts sparking blue. At his
+      feet, one shattered snow globe dissolves into sparkles — representing
+      disposability. A vCluster logo glows on a monitor behind him. A
+      resource quota meter on the wall shows CPU and memory gauges. Dark
+      server room with blue and teal lighting.
