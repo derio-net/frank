@@ -344,9 +344,10 @@ images:
       Frank the server-hardware Frankenstein monster lying on a surgical table
       on his back, surrounded by monitoring screens showing node health status
       dashboards — green checkmarks for 7 nodes, heartbeat lines, network
-      flow diagrams. Two ceiling-mounted articulated robotic arms descend from
-      a heavy rail system bolted to the ceiling — one holds a stethoscope to
-      his chest (the server rack torso), the other types on a floating
+      flow diagrams. His chest is a big screen, showing 7 nodes connected by
+      glowing blue network lines. Two ceiling-mounted articulated robotic arms
+      descend from a heavy rail system bolted to the ceiling — one holds a
+      stethoscope to his chest (the server rack torso), the other types on a floating
       terminal showing 'talosctl health' output. The ceiling rail has visible
       tracks and cable guides. A Cilium hexagonal bee icon floats nearby
       with green status lights. Frank looks relaxed and confident — routine
@@ -358,6 +359,8 @@ images:
     description: "Operating on Storage & Backups — Frank maintaining his storage drives"
     prompt: >-
       Frank the server-hardware Frankenstein monster lying on a surgical table.
+      His chest is open, revealing a rack of small glowing SSD drives in a Longhorn
+      storage array. A replica indicator shows "3/3" above the drives.
       A robotic arm carefully removes a glowing SSD from his torso while
       another arm inserts a fresh replacement drive. A third arm holds a
       magnifying glass over the drive bay, inspecting data integrity. Nearby,
