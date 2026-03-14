@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPU Switcher - Frank Cluster</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .container { max-width: 600px; width: 100%; padding: 2rem; }
+    h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: #f8fafc; }
+    .subtitle { color: #94a3b8; margin-bottom: 2rem; font-size: 0.875rem; }
+    .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; border: 1px solid #334155; transition: border-color 0.2s; }
+    .card.active { border-color: #22c55e; }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .card-name { font-size: 1.125rem; font-weight: 600; }
+    .badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .badge-active { background: #166534; color: #86efac; }
+    .badge-inactive { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+    .badge-pending { background: #854d0e; color: #fde047; }
+    .meta { display: flex; gap: 1.5rem; color: #94a3b8; font-size: 0.875rem; }
+    .actions { display: flex; gap: 0.75rem; margin-top: 2rem; }
+    button { flex: 1; padding: 0.75rem 1.5rem; border-radius: 8px; border: none; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.2s, opacity 0.2s; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-ollama { background: #3b82f6; color: white; }
+    .btn-ollama:hover:not(:disabled) { background: #2563eb; }
+    .btn-comfyui { background: #a855f7; color: white; }
+    .btn-comfyui:hover:not(:disabled) { background: #9333ea; }
+    .btn-stop { background: #334155; color: #e2e8f0; }
+    .btn-stop:hover:not(:disabled) { background: #475569; }
+    .error { background: #7f1d1d; color: #fca5a5; padding: 1rem; border-radius: 8px; margin-top: 1rem; display: none; }
+    .loading { opacity: 0.6; pointer-events: none; }
+    .refresh-note { text-align: center; color: #475569; font-size: 0.75rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>GPU Switcher</h1>
+    <p class="subtitle">Frank Cluster - RTX 5070 Ti (16 GB)</p>
+
+    <div id="workloads"></div>
+
+    <div class="actions">
+      <button class="btn-ollama" onclick="activate('ollama')">Activate Ollama</button>
+      <button class="btn-comfyui" onclick="activate('comfyui')">Activate ComfyUI</button>
+      <button class="btn-stop" onclick="deactivateAll()">Stop All</button>
+    </div>
+
+    <div id="error" class="error"></div>
+    <p class="refresh-note">Auto-refreshes every 5 seconds</p>
+  </div>
+
+  <script>
+    function createWorkloadCard(w) {
+      var isActive = w.replicas > 0;
+      var isReady = w.readyReplicas > 0;
+
+      var card = document.createElement('div');
+      card.className = 'card' + (isActive ? ' active' : '');
+
+      var header = document.createElement('div');
+      header.className = 'card-header';
+
+      var nameEl = document.createElement('span');
+      nameEl.className = 'card-name';
+      nameEl.textContent = w.name;
+      header.appendChild(nameEl);
+
+      var badge = document.createElement('span');
+      if (isActive && isReady) {
+        badge.className = 'badge badge-active';
+        badge.textContent = 'Active';
+      } else if (isActive) {
+        badge.className = 'badge badge-pending';
+        badge.textContent = 'Starting';
+      } else {
+        badge.className = 'badge badge-inactive';
+        badge.textContent = 'Inactive';
+      }
+      header.appendChild(badge);
+      card.appendChild(header);
+
+      var meta = document.createElement('div');
+      meta.className = 'meta';
+      var items = [
+        'Replicas: ' + w.replicas,
+        'Ready: ' + w.readyReplicas,
+        'Pod: ' + w.podPhase
+      ];
+      items.forEach(function(text) {
+        var span = document.createElement('span');
+        span.textContent = text;
+        meta.appendChild(span);
+      });
+      card.appendChild(meta);
+
+      return card;
+    }
+
+    function renderWorkloads(workloads) {
+      var container = document.getElementById('workloads');
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
+      workloads.forEach(function(w) {
+        container.appendChild(createWorkloadCard(w));
+      });
+    }
+
+    async function fetchStatus() {
+      try {
+        var resp = await fetch('/api/status');
+        if (!resp.ok) throw new Error(await resp.text());
+        var data = await resp.json();
+        renderWorkloads(data);
+        document.getElementById('error').style.display = 'none';
+      } catch (e) {
+        showError(e.message);
+      }
+    }
+
+    async function activate(name) {
+      if (!confirm('Switch GPU to ' + name + '? This will stop the other workload.')) return;
+      document.body.classList.add('loading');
+      try {
+        var resp = await fetch('/api/activate/' + name, { method: 'POST' });
+        if (!resp.ok) throw new Error(await resp.text());
+        await fetchStatus();
+      } catch (e) {
+        showError(e.message);
+      } finally {
+        document.body.classList.remove('loading');
+      }
+    }
+
+    async function deactivateAll() {
+      if (!confirm('Stop all GPU workloads?')) return;
+      document.body.classList.add('loading');
+      try {
+        var resp = await fetch('/api/deactivate', { method: 'POST' });
+        if (!resp.ok) throw new Error(await resp.text());
+        await fetchStatus();
+      } catch (e) {
+        showError(e.message);
+      } finally {
+        document.body.classList.remove('loading');
+      }
+    }
+
+    function showError(msg) {
+      var el = document.getElementById('error');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    fetchStatus();
+    setInterval(fetchStatus, 5000);
+  </script>
+</body>
+</html>

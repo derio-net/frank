@@ -1,37 +1,30 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: ollama
+  name: comfyui
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: infrastructure
-  sources:
-    - repoURL: https://helm.otwld.com/
-      chart: ollama
-      targetRevision: "1.50.0"
-      helm:
-        releaseName: ollama
-        valueFiles:
-          - $values/apps/ollama/values.yaml
-    - repoURL: {{ .Values.repoURL }}
-      targetRevision: {{ .Values.targetRevision }}
-      ref: values
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: apps/comfyui/manifests
   destination:
     server: {{ .Values.destination.server }}
-    namespace: ollama
+    namespace: comfyui
   syncPolicy:
     automated:
       prune: false
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
+      - CreateNamespace=false
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
   ignoreDifferences:
     - group: apps
       kind: Deployment
-      name: ollama
+      name: comfyui
       jsonPointers:
         - /spec/replicas

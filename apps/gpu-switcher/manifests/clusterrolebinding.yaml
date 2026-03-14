@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gpu-switcher
+  labels:
+    app.kubernetes.io/name: gpu-switcher
+subjects:
+  - kind: ServiceAccount
+    name: gpu-switcher
+    namespace: gpu-switcher
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gpu-switcher

@@ -163,6 +163,8 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 | Sympozium Web UI | 192.168.55.207 | Cilium L2 LoadBalancer |
 | Authentik | 192.168.55.211 | Cilium L2 LoadBalancer (port 9000) |
 | Paperclip | 192.168.55.212 | Cilium L2 LoadBalancer (port 3100) |
+| ComfyUI | 192.168.55.213 | Cilium L2 LoadBalancer (port 8188) |
+| GPU Switcher | 192.168.55.214 | Cilium L2 LoadBalancer (port 8080) |
 
 ## Declarative-Only Principle
 

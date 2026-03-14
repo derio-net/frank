@@ -1,0 +1,19 @@
+# GPU Switcher dashboard at 192.168.55.214 via Cilium L2 IPAM
+apiVersion: v1
+kind: Service
+metadata:
+  name: gpu-switcher
+  namespace: gpu-switcher
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.214"
+  labels:
+    app.kubernetes.io/name: gpu-switcher
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: gpu-switcher
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      protocol: TCP
