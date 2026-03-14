@@ -55,14 +55,12 @@ spec:
               memory: 1Gi
               cpu: "1"
           readinessProbe:
-            httpGet:
+            tcpSocket:
               port: http
-              path: /api/health
             periodSeconds: 10
           livenessProbe:
-            httpGet:
+            tcpSocket:
               port: http
-              path: /api/health
             initialDelaySeconds: 30
             periodSeconds: 15
       volumes:
