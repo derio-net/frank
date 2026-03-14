@@ -329,7 +329,7 @@ that tolerates degraded state. When the hardware is fixed:
 **Preserved (deprecated):**
 | Artifact | Action | Reason |
 |----------|--------|--------|
-| `docs/plans/2026-03-02-pulumi-*` | Mark deprecated in header | Historical reference |
+| `docs/superpowers/plans/2026-03-02-pulumi-*` | Mark deprecated in header | Historical reference |
 
 ## Environment Setup
 

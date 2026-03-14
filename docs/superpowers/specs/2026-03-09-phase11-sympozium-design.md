@@ -153,7 +153,7 @@ A dedicated LiteLLM API key for Sympozium agents, stored in Infisical and synced
 id: phase11-create-sympozium-llm-key
 phase: 11
 app: sympozium-extras
-plan: docs/plans/2026-03-09-phase11-sympozium-design.md
+plan: docs/superpowers/plans/2026-03-09-phase11-sympozium-design.md
 when: "Before deploying sympozium-extras — ExternalSecret needs the Infisical source"
 why_manual: "Infisical secret creation requires UI/API interaction outside ArgoCD"
 commands:
@@ -171,7 +171,7 @@ status: pending
 id: phase11-telegram-bot-setup
 phase: 11
 app: sympozium-extras
-plan: docs/plans/2026-03-09-phase11-sympozium-design.md
+plan: docs/superpowers/plans/2026-03-09-phase11-sympozium-design.md
 when: "When ready to enable Telegram channel — not required for initial deploy"
 why_manual: "Telegram BotFather interaction is manual, token must be stored in Infisical"
 commands:

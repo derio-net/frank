@@ -623,7 +623,7 @@ At this point:
 id: phase08-r2-sops-secret
 phase: 8
 app: longhorn
-plan: docs/plans/2026-03-08-phase08-backup-impl.md
+plan: docs/superpowers/plans/2026-03-08-phase08-backup-impl.md
 when: "After Task 2 — after SOPS-encrypting the R2 secret"
 why_manual: "SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
 commands:

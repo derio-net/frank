@@ -8,5 +8,5 @@ data:
   # Zones: D_LED1, D_LED2 (ARGB strips)
   # NOTE: On-demand writes currently blocked — IT5701 PID 5702 + firmware V3.5.14.0 not
   # supported in OpenRGB 0.9 or 1.0rc2. LEDs stay in NV-saved state (black/off).
-  # See docs/plans/2026-03-09-openrgb-it5701-investigation.md for full analysis.
+  # See docs/superpowers/plans/2026-03-09-openrgb-it5701-investigation.md for full analysis.
   OPENRGB_ARGS: "-d 0 -m Static -c 000000"

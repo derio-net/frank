@@ -307,7 +307,7 @@ Each service: configure, test, confirm, then move to next. If any service has is
 
 ## IP Allocation Note
 
-When selecting LoadBalancer IPs, check both implemented and planned (phaseXX) design documents in `docs/plans/` for reservations. Current known allocations:
+When selecting LoadBalancer IPs, check both implemented and planned (phaseXX) design documents in `docs/superpowers/plans/` for reservations. Current known allocations:
 
 | IP | Service | Status |
 |----|---------|--------|

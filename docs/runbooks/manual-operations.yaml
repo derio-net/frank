@@ -36,7 +36,7 @@ operations:
   - id: gpu1-bios-f3-to-f6
     phase: 4
     app: gpu-operator
-    plan: docs/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
+    plan: docs/superpowers/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
     when: "After Task 1 — USB drive prepared with F6 and F3 BIOS files"
     why_manual: "BIOS update requires physical access to the machine and Q-Flash interaction — cannot be done remotely or declaratively"
     commands:
@@ -55,7 +55,7 @@ operations:
   - id: gpu1-pcie-gen4
     phase: 4
     app: gpu-operator
-    plan: docs/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
+    plan: docs/superpowers/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
     when: "After Task 2 — BIOS F6 confirmed, Secure Boot confirmed disabled"
     why_manual: "PCIe slot speed is a BIOS setting — no Talos patch or kernel parameter equivalent exists for this board/driver combination"
     commands:
@@ -73,7 +73,7 @@ operations:
   - id: phase07-grafana-victorialogs-migration
     phase: 7
     app: victoria-metrics
-    plan: docs/plans/2026-03-08-declarative-drift-remediation-plan.md
+    plan: docs/superpowers/plans/2026-03-08-declarative-drift-remediation-plan.md
     when: "After drift remediation Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap"
     why_manual: "The live API-added datasource must be deleted via Grafana UI before the provisioned one activates; Grafana does not auto-replace API datasources with provisioned ones of the same name"
     commands:
@@ -91,7 +91,7 @@ operations:
   - id: phase08-r2-sops-secret
     phase: 8
     app: longhorn
-    plan: docs/plans/2026-03-08-phase08-backup-impl.md
+    plan: docs/superpowers/plans/2026-03-08-phase08-backup-impl.md
     when: "After Task 2 — after SOPS-encrypting the R2 secret"
     why_manual: "SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
     commands:
@@ -103,7 +103,7 @@ operations:
   - id: phase09-infisical-bootstrap-secrets
     phase: 9
     app: infisical
-    plan: docs/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
     when: "Task 4 — after SOPS-encrypting infisical-secrets.yaml and infisical-db-uri.yaml"
     why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
     commands:
@@ -118,7 +118,7 @@ operations:
   - id: phase09-infisical-ui-setup
     phase: 9
     app: infisical
-    plan: docs/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
     when: "Task 5 complete — Infisical pod Running and UI reachable at http://192.168.55.204"
     why_manual: "Initial admin account, project creation, and Machine Identity setup have no CLI equivalent in self-hosted Infisical"
     commands:
@@ -136,7 +136,7 @@ operations:
   - id: phase09-eso-credentials-secret
     phase: 9
     app: external-secrets
-    plan: docs/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
     when: "Task 7 — after SOPS-encrypting eso-credentials.yaml with Client ID and Secret from Infisical UI"
     why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
     commands:
@@ -149,7 +149,7 @@ operations:
   - id: phase09-infisical-secrets-redis-update
     phase: 9
     app: infisical
-    plan: docs/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
     when: "After discovering Redis chart bug — after REDIS_URL added to infisical-secrets.yaml via sops --set"
     why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; re-apply required after adding REDIS_URL because the chart builds REDIS_URL from redis.auth.password (plain value) rather than existingSecret, so the correct URL must come from infisical-secrets envFrom"
     commands:
@@ -163,7 +163,7 @@ operations:
   - id: phase09-redis-statefulset-cleanup
     phase: 9
     app: infisical-redis
-    plan: docs/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
     when: "After creating infisical-redis ArgoCD app — when infisical pod reports EPERM connecting to Redis"
     why_manual: "ArgoCD prune:false leaves orphaned StatefulSets; the old redis-master StatefulSet (created by bundled infisical chart, label instance:infisical) conflicts with the NetworkPolicy from infisical-redis app (selects instance:infisical-redis) — must delete manually to allow correct StatefulSet to be recreated"
     commands:
@@ -177,7 +177,7 @@ operations:
   - id: phase09-infisical-project-slug
     phase: 9
     app: infisical-extras
-    plan: docs/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
     when: "After ClusterSecretStore deployed and reports 'Project with slug not found'"
     why_manual: "Infisical auto-generates a slug that differs from the project name; no API endpoint accessible to eso-cluster-reader (Viewer) returns workspace list — slug must be read from Infisical UI"
     commands:
@@ -195,7 +195,7 @@ operations:
   - id: phase11-create-sympozium-llm-key
     phase: 11
     app: sympozium-extras
-    plan: docs/plans/2026-03-09-phase11-sympozium.md
+    plan: docs/superpowers/plans/2026-03-09-phase11-sympozium.md
     when: "Before deploying sympozium-extras — ExternalSecret needs the Infisical source"
     why_manual: "Infisical secret creation requires UI/API interaction outside ArgoCD"
     commands:
@@ -209,7 +209,7 @@ operations:
   - id: phase11-telegram-bot-setup
     phase: 11
     app: sympozium-extras
-    plan: docs/plans/2026-03-09-phase11-sympozium-design.md
+    plan: docs/superpowers/plans/2026-03-09-phase11-sympozium-design.md
     when: "When ready to enable Telegram channel — not required for initial deploy"
     why_manual: "Telegram BotFather interaction is manual, token must be stored in Infisical"
     commands:
@@ -223,7 +223,7 @@ operations:
   - id: phase13-authentik-bootstrap-secrets
     phase: 13
     app: authentik
-    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
     when: "Before Authentik deployment — secrets must exist in namespace"
     why_manual: "SOPS-encrypted secret applied out-of-band before ArgoCD can manage the app"
     commands:
@@ -236,7 +236,7 @@ operations:
   - id: phase13-argocd-oidc-secret
     phase: 13
     app: argocd
-    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
     when: "Before ArgoCD OIDC sync — secret must exist in argocd namespace"
     why_manual: "SOPS-encrypted secret applied out-of-band"
     commands:
@@ -249,7 +249,7 @@ operations:
   - id: phase13-grafana-oidc-secret
     phase: 13
     app: victoria-metrics
-    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
     when: "Before Grafana OIDC sync — secret must exist in monitoring namespace"
     why_manual: "SOPS-encrypted secret applied out-of-band"
     commands:
@@ -262,7 +262,7 @@ operations:
   - id: phase13-infisical-oidc-config
     phase: 13
     app: infisical
-    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
     when: "After Authentik Infisical provider created — configure OIDC via admin UI"
     why_manual: "Infisical OIDC configuration is done via admin UI, not Helm values"
     commands:
@@ -278,7 +278,7 @@ operations:
   - id: phase13-traefik-forward-auth
     phase: 13
     app: n/a
-    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
     when: "After proxy outpost configured in Authentik — update Traefik on raspi-omni"
     why_manual: "Traefik runs outside K8s on raspi-omni, managed via Ansible"
     commands:
@@ -293,7 +293,7 @@ operations:
   - id: phase13-talos-oidc-patch
     phase: 13
     app: n/a
-    plan: docs/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
     when: "After agent auth provider created — apply OIDC patch to kube-apiserver"
     why_manual: "Talos machine config patches are applied via Omni UI"
     commands:
