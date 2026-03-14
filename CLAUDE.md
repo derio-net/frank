@@ -161,6 +161,7 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 | LiteLLM Gateway | 192.168.55.206 | Cilium L2 LoadBalancer |
 | Sympozium Web UI | 192.168.55.207 | Cilium L2 LoadBalancer |
 | Authentik | 192.168.55.211 | Cilium L2 LoadBalancer (port 9000) |
+| Paperclip | 192.168.55.212 | Cilium L2 LoadBalancer (port 3100) |
 
 ## Declarative-Only Principle
 
