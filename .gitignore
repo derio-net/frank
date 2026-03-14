@@ -49,3 +49,4 @@ omni/omni/populate_scripts.bash
 blog/public/
 blog/resources/_gen/
 blog/.hugo_build.lock
+.infisical.json
