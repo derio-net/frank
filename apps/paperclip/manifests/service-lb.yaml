@@ -1,0 +1,19 @@
+# LoadBalancer Service for Paperclip web UI
+# Exposed at 192.168.55.212:3100 via Cilium L2 IPAM
+apiVersion: v1
+kind: Service
+metadata:
+  name: paperclip-lb
+  namespace: paperclip-system
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.212"
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: paperclip
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 3100
+      targetPort: http
+      protocol: TCP
