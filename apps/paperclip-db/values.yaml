@@ -28,4 +28,5 @@ primary:
       cpu: 250m
 
 metrics:
-  enabled: true
+  # Disabled — Bitnami postgres-exporter tag is purged from Docker Hub
+  enabled: false
