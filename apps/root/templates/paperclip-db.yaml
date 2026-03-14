@@ -1,0 +1,36 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: paperclip-db
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: registry-1.docker.io/bitnamicharts
+      chart: postgresql
+      targetRevision: "14.1.10"
+      helm:
+        releaseName: paperclip-db
+        valueFiles:
+          - $values/apps/paperclip-db/values.yaml
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: paperclip-system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
