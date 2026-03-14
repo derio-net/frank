@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paperclip
+  namespace: paperclip-system
+  labels:
+    app.kubernetes.io/name: paperclip
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: paperclip
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: paperclip
+        app.kubernetes.io/component: server
+    spec:
+      imagePullSecrets:
+        - name: paperclip-ghcr
+      containers:
+        - name: paperclip
+          image: ghcr.io/derio-net/paperclip:v0.3.1
+          ports:
+            - name: http
+              containerPort: 3100
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: paperclip-config
+            - secretRef:
+                name: paperclip-llm-key
+            - secretRef:
+                name: paperclip-auth
+          env:
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: paperclip-db-postgresql
+                  key: password
+            - name: DATABASE_URL
+              value: "postgres://paperclip:$(PG_PASSWORD)@paperclip-db-postgresql.paperclip-system.svc:5432/paperclip"
+          volumeMounts:
+            - name: data
+              mountPath: /paperclip
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: "1"
+          readinessProbe:
+            httpGet:
+              port: http
+              path: /
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              port: http
+              path: /
+            initialDelaySeconds: 30
+            periodSeconds: 15
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: paperclip-data
