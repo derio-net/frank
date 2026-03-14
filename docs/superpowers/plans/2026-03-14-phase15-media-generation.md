@@ -1475,10 +1475,10 @@ Expected: Both workloads scaled to 0. No GPU pods running.
 
 ```yaml
 # manual-operation
-id: phaseXX-comfyui-model-download
-phase: XX
+id: phase15-comfyui-model-download
+phase: 15
 app: comfyui
-plan: docs/superpowers/plans/2026-03-14-phaseXX-media-generation.md
+plan: docs/superpowers/plans/2026-03-14-phase15-media-generation.md
 when: "After Task 15 - ComfyUI first confirmed running"
 why_manual: "Model files must be downloaded interactively into the PVC; cannot be declarative"
 commands:

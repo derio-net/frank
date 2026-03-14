@@ -490,6 +490,21 @@ images:
       resource quota meter on the wall shows CPU and memory gauges. Dark
       server room with blue and teal lighting.
 
+  - key: ops-10-media-generation
+    output: blog/content/operating/10-media-generation/cover.png
+    description: "Operating on Media Generation — Frank at a control panel managing GPU workloads"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at a large
+      industrial control panel with two big labelled buttons: "LLM" (blue,
+      currently lit) and "MEDIA" (purple, currently dim). His hand hovers
+      over the MEDIA button, about to press it. Above the panel, two
+      holographic status screens float — one shows a chat interface (Ollama)
+      powering down, the other shows a ComfyUI node graph lighting up with
+      connected nodes for video/image/audio. A GPU card glows between the
+      screens like a shared trophy. Tools and checklists are pinned to the
+      wall behind him — operational runbook style. Dark server room with
+      blue and purple lighting accents.
+
   - key: building-16-media-generation
     output: blog/content/building/16-media-generation/cover.png
     description: "Media Generation — Frank juggling video frames and audio waves between ComfyUI and Ollama"

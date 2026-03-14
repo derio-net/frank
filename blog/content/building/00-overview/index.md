@@ -88,3 +88,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 7. [Operating on Local Inference]({{< relref "/operating/07-inference" >}})
 8. [Operating on Authentication]({{< relref "/operating/08-auth" >}})
 9. [Operating on Multi-tenancy]({{< relref "/operating/09-multi-tenancy" >}})
+10. [Operating on Media Generation]({{< relref "/operating/10-media-generation" >}})
