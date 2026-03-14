@@ -4,6 +4,12 @@
 
 architecture: standalone
 
+# docker.io/bitnami/postgresql images are unavailable; use the same GCR mirror
+# as infisical-postgresql (the working pattern in this cluster).
+image:
+  registry: mirror.gcr.io
+  repository: bitnamilegacy/postgresql
+
 auth:
   username: paperclip
   database: paperclip
