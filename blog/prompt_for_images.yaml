@@ -335,6 +335,23 @@ images:
       wall shows CPU and memory gauges. Dark server room with blue and
       teal lighting accents.
 
+  - key: post-15
+    output: blog/content/building/15-paperclip/cover.png
+    description: "Paperclip — AI agent orchestrator with virtual companies and org charts"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at the head of a
+      corporate boardroom table, wearing a tiny suit jacket over his server-rack
+      torso. Around the table sit small robot agents in business attire — one
+      labeled "CEO", one "Head of Engineering", one "Developer", one "Analyst".
+      Each robot has a glowing budget meter above their head showing remaining
+      LLM token credits. Frank holds an org chart printout in one hand and a
+      gavel in the other, presiding over the meeting. A whiteboard behind him
+      shows a delegation chain diagram with arrows flowing down the hierarchy.
+      One robot raises a tiny robotic hand to ask a question. Through a window
+      behind Frank, another boardroom is visible with a different company setup —
+      hinting at multiple parallel agent companies. Dark server room with warm
+      boardroom lighting overlay, blue electric accents from Frank's neck bolts.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
