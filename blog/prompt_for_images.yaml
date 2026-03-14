@@ -119,7 +119,7 @@ images:
 
   # --- Post Covers ------------------------------------------------------------
 
-  - key: post-00
+  - key: building-00-overview
     output: blog/content/building/00-overview/cover.png
     description: "Overview & Roadmap — Frank assembling himself"
     prompt: >-
@@ -134,7 +134,7 @@ images:
       lies on the bench. Workshop/lab setting with server rack shelves in
       background.
 
-  - key: post-01
+  - key: building-01-introduction
     output: blog/content/building/01-introduction/cover.png
     description: "Introduction — Why build a homelab (rejecting the cloud)"
     prompt: >-
@@ -147,7 +147,7 @@ images:
       "Edge" with tiny hardware silhouettes in each. Warm workshop lighting,
       server rack shelves in background.
 
-  - key: post-02
+  - key: building-02-foundation
     output: blog/content/building/02-foundation/cover.png
     description: "Foundation — Talos immutable OS, Cilium eBPF networking"
     prompt: >-
@@ -161,7 +161,7 @@ images:
       icon represents immutability — no SSH, no shell. Construction site
       setting with scaffolding and a "No SSH" warning sign.
 
-  - key: post-03
+  - key: building-03-storage
     output: blog/content/building/03-storage/cover.png
     description: "Storage — Longhorn distributed storage with 3 replicas"
     prompt: >-
@@ -173,7 +173,7 @@ images:
       label on a separate SSD strapped to the bull's saddle. Western ranch
       setting with server racks as fence posts, sunset sky.
 
-  - key: post-04
+  - key: building-04-gpu-compute
     output: blog/content/building/04-gpu-compute/cover.png
     description: "GPU Compute — RTX 5070 drama + Intel Arc iGPU"
     prompt: >-
@@ -186,7 +186,7 @@ images:
       between both arms. Frank grins triumphantly. Below him, a "Node
       Feature Discovery" label floats. Dark server room background.
 
-  - key: post-05
+  - key: building-05-gitops
     output: blog/content/building/05-gitops/cover.png
     description: "GitOps — ArgoCD App-of-Apps orchestra"
     prompt: >-
@@ -199,7 +199,7 @@ images:
       member with sync arrows. A "Root App" music stand glows at the
       center. Concert hall setting with dark curtains and spotlights.
 
-  - key: post-06
+  - key: building-06-fun-stuff
     output: blog/content/building/06-fun-stuff/cover.png
     description: "Fun Stuff — GitOps-managed RGB LEDs on case hardware"
     prompt: >-
@@ -213,7 +213,7 @@ images:
       Disco ball made of a CPU die hangs from ceiling, casting rainbow
       reflections.
 
-  - key: post-07
+  - key: building-07-observability
     output: blog/content/building/07-observability/cover.png
     description: "Observability — VictoriaMetrics + Grafana + Fluent Bit"
     prompt: >-
@@ -228,7 +228,7 @@ images:
       "Retention: 30d". Dark server room background with a subtle heartbeat
       line running along the bottom edge.
 
-  - key: post-08
+  - key: building-08-backup
     output: blog/content/building/08-backup/cover.png
     description: "Backup — Longhorn daily/weekly to Cloudflare R2"
     prompt: >-
@@ -241,7 +241,7 @@ images:
       Frank looks focused and responsible. A calendar on the wall shows
       "Daily" and "Weekly" backup schedules circled. Dark server room.
 
-  - key: post-09
+  - key: building-09-secrets
     output: blog/content/building/09-secrets/cover.png
     description: "Secrets — Infisical vault + External Secrets Operator"
     prompt: >-
@@ -255,7 +255,7 @@ images:
       ripple across the vault. Three smaller vaults behind Frank are
       labeled "PostgreSQL", "Redis", "Infisical". Dark server room.
 
-  - key: post-10
+  - key: building-10-local-inference
     output: blog/content/building/10-local-inference/cover.png
     description: "Local Inference — Ollama + LiteLLM gateway + OpenRouter"
     prompt: >-
@@ -271,7 +271,7 @@ images:
       time" sign hangs on the GPU rack. Dark server room with blue and
       purple lightning.
 
-  - key: post-11
+  - key: building-11-agentic-control-plane
     output: blog/content/building/11-agentic-control-plane/cover.png
     description: "Sympozium — Kubernetes-native agentic control plane"
     prompt: >-
@@ -286,7 +286,7 @@ images:
       NATS-branded mailbox in the corner streams glowing events between
       robots and tower. Dark server room with blue and orange lightning.
 
-  - key: post-12
+  - key: building-12-gpu-talos-fix
     output: blog/content/building/12-gpu-talos-fix/cover.png
     description: "GPU Talos Fix — debugging containerd, validation markers"
     prompt: >-
@@ -301,7 +301,7 @@ images:
       A small Talos Linux penguin-shield watches approvingly from the
       corner. Dark server room with electric blue and green sparks.
 
-  - key: post-13
+  - key: building-13-unified-auth
     output: blog/content/building/13-unified-auth/cover.png
     description: "Unified Auth — Authentik SSO for the entire cluster"
     prompt: >-
@@ -318,7 +318,7 @@ images:
       red X tries to sneak past but is blocked by a blue force field.
       Dark server room with blue and gold lightning accents.
 
-  - key: post-14
+  - key: building-14-multi-tenancy
     output: blog/content/building/14-multi-tenancy/cover.png
     description: "Multi-tenancy — vCluster disposable sandbox clusters"
     prompt: >-
@@ -335,7 +335,7 @@ images:
       wall shows CPU and memory gauges. Dark server room with blue and
       teal lighting accents.
 
-  - key: post-15
+  - key: building-15-paperclip
     output: blog/content/building/15-paperclip/cover.png
     description: "Paperclip — AI agent orchestrator with virtual companies and org charts"
     prompt: >-
@@ -352,6 +352,22 @@ images:
       hinting at multiple parallel agent companies. Dark server room with warm
       boardroom lighting overlay, blue electric accents from Frank's neck bolts.
 
+  - key: building-16-media-generation
+    output: blog/content/building/16-media-generation/cover.png
+    description: "Media Generation — Frank juggling video frames and audio waves between ComfyUI and Ollama"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at a glowing
+      control panel with a large lever in the center labeled "GPU". His left
+      hand pulls the lever. On the left side, a holographic display shows a
+      chat bubble and text cursor — representing Ollama LLM inference,
+      fading out as it powers down. On the right side, an explosion of color
+      as video frames, painted canvases, and musical notes burst to life —
+      representing ComfyUI media generation activating. A single GPU card
+      (glowing green with NVIDIA logo) floats above the lever, connected by
+      electric arcs to whichever side is active. A small web dashboard
+      (the GPU Switcher) glows on a tablet screen nearby. Frank grins with
+      creative energy. Dark server room with purple, orange, and blue
+      lighting accents.
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -504,20 +520,3 @@ images:
       screens like a shared trophy. Tools and checklists are pinned to the
       wall behind him — operational runbook style. Dark server room with
       blue and purple lighting accents.
-
-  - key: building-16-media-generation
-    output: blog/content/building/16-media-generation/cover.png
-    description: "Media Generation — Frank juggling video frames and audio waves between ComfyUI and Ollama"
-    prompt: >-
-      Frank the server-hardware Frankenstein monster standing at a glowing
-      control panel with a large lever in the center labeled "GPU". His left
-      hand pulls the lever. On the left side, a holographic display shows a
-      chat bubble and text cursor — representing Ollama LLM inference,
-      fading out as it powers down. On the right side, an explosion of color
-      as video frames, painted canvases, and musical notes burst to life —
-      representing ComfyUI media generation activating. A single GPU card
-      (glowing green with NVIDIA logo) floats above the lever, connected by
-      electric arcs to whichever side is active. A small web dashboard
-      (the GPU Switcher) glows on a tablet screen nearby. Frank grins with
-      creative energy. Dark server room with purple, orange, and blue
-      lighting accents.
