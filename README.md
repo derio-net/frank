@@ -39,6 +39,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
 | Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
 | Multi-tenancy | vCluster | Virtual K8s clusters inside Frank — disposable sandboxes via ArgoCD |
+| Agent Orchestrator | Paperclip | Company-model AI agents — org charts, budgets, delegation chains routing through LiteLLM |
 | Certificate Management | cert-manager | Automated TLS certificate lifecycle for webhooks and internal services |
 
 ## Repository Structure
@@ -70,7 +71,9 @@ frank/
 │   ├── sympozium-extras/manifests/              # Policies, PersonaPacks, LB Service
 │   ├── authentik/values.yaml + manifests/       # Authentik IdP + blueprints
 │   ├── authentik-extras/manifests/              # K8s RBAC bindings for OIDC groups
-│   └── vclusters/                               # Per-vCluster Helm values
+│   ├── vclusters/                               # Per-vCluster Helm values
+│   ├── paperclip-db/values.yaml                 # Bitnami PostgreSQL for Paperclip
+│   └── paperclip/manifests/                     # Paperclip Deployment, ExternalSecrets, PVC, LB Service
 │       ├── template/values.yaml                 # Base config (SQLite, policies, sync)
 │       └── experiments/values.yaml              # First sandbox instance
 ├── patches/
@@ -83,7 +86,7 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/posts/         # 13 posts documenting the build
+│   ├── content/posts/         # 15 posts documenting the build
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
 │   ├── plans/                 # Architecture and implementation plans
@@ -113,6 +116,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | LiteLLM Gateway | http://192.168.55.206:4000 | 192.168.55.206 |
 | Sympozium Web UI | http://192.168.55.207:8080 | 192.168.55.207 |
 | Authentik | http://192.168.55.211:9000 | 192.168.55.211 |
+| Paperclip | http://192.168.55.212:3100 | 192.168.55.212 |
 
 ArgoCD CLI access:
 
@@ -153,6 +157,8 @@ argocd app list
 | authentik | authentik | Authentik IdP (192.168.55.211:9000), OIDC providers for ArgoCD, Grafana, Infisical |
 | authentik-extras | authentik | K8s RBAC ClusterRoleBindings mapping Authentik groups to cluster roles |
 | vcluster-experiments | vcluster-experiments | Disposable virtual K8s cluster (SQLite-backed, resource-quoted sandbox) |
+| paperclip-db | paperclip-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 5Gi |
+| paperclip | paperclip-system | Paperclip v0.3.1 AI agent orchestrator (192.168.55.212:3100) |
 
 ## Adding a New Application
 
