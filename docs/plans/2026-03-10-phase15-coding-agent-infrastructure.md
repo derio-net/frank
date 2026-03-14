@@ -1,4 +1,4 @@
-# Phase 12 — Autonomous Coding Agent Infrastructure — Implementation Plan
+# Phase 15 — Autonomous Coding Agent Infrastructure — Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -8,7 +8,7 @@
 
 **Tech Stack:** ArgoCD, Helm, Longhorn, Cilium L2, Infisical + ExternalSecrets, Talos Linux, Gitea, Harbor, n8n, Aider
 
-**Design doc:** `docs/plans/2026-03-10-phase12-coding-agent-infrastructure-design.md`
+**Design doc:** `docs/plans/2026-03-10-phase15-coding-agent-infrastructure-design.md`
 
 ---
 
@@ -36,10 +36,10 @@ Via Longhorn UI (`192.168.55.201`):
 
 ```yaml
 # manual-operation
-id: phase12-longhorn-disk-tags
-phase: 12
+id: phase15-longhorn-disk-tags
+phase: 15
 app: longhorn
-plan: docs/plans/2026-03-10-phase12-coding-agent-infrastructure.md
+plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "Before Task 1 Step 2 — Longhorn needs disk tags before StorageClass can schedule"
 why_manual: "Longhorn disk tagging requires UI or API interaction"
 commands:
@@ -108,7 +108,7 @@ spec:
 Create Talos machine config patches for pc-1 and pc-2 node labels (following the existing pattern in `patches/phase01-node-config/`):
 
 ```yaml
-# patches/phase12-cicd-zone/200-labels-pc-1.yaml
+# patches/phase15-cicd-zone/200-labels-pc-1.yaml
 metadata:
     namespace: default
     type: ConfigPatches.omni.sidero.dev
@@ -125,7 +125,7 @@ spec:
 ```
 
 ```yaml
-# patches/phase12-cicd-zone/200-labels-pc-2.yaml
+# patches/phase15-cicd-zone/200-labels-pc-2.yaml
 metadata:
     namespace: default
     type: ConfigPatches.omni.sidero.dev
@@ -146,9 +146,9 @@ Look up machine IDs with: `omnictl get machines`
 **Step 5: Commit**
 
 ```bash
-git add apps/longhorn/manifests/storageclass-longhorn-hdd.yaml patches/phase12-cicd-zone/
+git add apps/longhorn/manifests/storageclass-longhorn-hdd.yaml patches/phase15-cicd-zone/
 git add apps/root/templates/longhorn-extras.yaml  # if created
-git commit -m "feat(phase12): add longhorn-hdd StorageClass and CI/CD zone node labels"
+git commit -m "feat(phase15): add longhorn-hdd StorageClass and CI/CD zone node labels"
 ```
 
 **Step 6: Verify**
@@ -182,10 +182,10 @@ Review defaults for: `persistence`, `postgresql`, `gitea.config`, `service`, `no
 
 ```yaml
 # manual-operation
-id: phase12-gitea-infisical-secrets
-phase: 12
+id: phase15-gitea-infisical-secrets
+phase: 15
 app: gitea
-plan: docs/plans/2026-03-10-phase12-coding-agent-infrastructure.md
+plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "Before deploying gitea — ExternalSecret needs Infisical source"
 why_manual: "Infisical secret creation requires UI/API interaction"
 commands:
@@ -368,7 +368,7 @@ spec:
 
 ```bash
 git add apps/gitea/ apps/root/templates/gitea.yaml apps/root/templates/gitea-extras.yaml
-git commit -m "feat(phase12): add Gitea git forge for CI/CD zone"
+git commit -m "feat(phase15): add Gitea git forge for CI/CD zone"
 ```
 
 **Step 8: Push and verify**
@@ -397,10 +397,10 @@ curl -s http://192.168.55.209:3000/api/v1/version
 
 ```yaml
 # manual-operation
-id: phase12-gitea-runner-token
-phase: 12
+id: phase15-gitea-runner-token
+phase: 15
 app: gitea
-plan: docs/plans/2026-03-10-phase12-coding-agent-infrastructure.md
+plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "After Gitea is running — runner needs registration token"
 why_manual: "Runner token is generated via Gitea admin API"
 commands:
@@ -559,7 +559,7 @@ Note: This uses DinD sidecar for container execution. The `privileged: true` is 
 
 ```bash
 git add apps/gitea/manifests/act-runner-*.yaml apps/gitea/manifests/externalsecret-runner-token.yaml
-git commit -m "feat(phase12): add Gitea Actions runners with DinD sidecar"
+git commit -m "feat(phase15): add Gitea Actions runners with DinD sidecar"
 ```
 
 **Step 6: Push and verify**
@@ -598,7 +598,7 @@ Push and verify the workflow runs successfully in the Gitea UI → Actions tab.
 - Create: `apps/harbor/manifests/externalsecret-harbor.yaml`
 - Create: `apps/root/templates/harbor.yaml`
 - Create: `apps/root/templates/harbor-extras.yaml`
-- Create: `patches/phase12-cicd-zone/containerd-mirror.yaml`
+- Create: `patches/phase15-cicd-zone/containerd-mirror.yaml`
 
 **Step 1: Research Harbor Helm chart**
 
@@ -611,10 +611,10 @@ helm show values harbor/harbor > /tmp/harbor-defaults.yaml
 
 ```yaml
 # manual-operation
-id: phase12-harbor-infisical-secrets
-phase: 12
+id: phase15-harbor-infisical-secrets
+phase: 15
 app: harbor
-plan: docs/plans/2026-03-10-phase12-coding-agent-infrastructure.md
+plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "Before deploying Harbor"
 why_manual: "Infisical secret creation requires UI/API interaction"
 commands:
@@ -788,7 +788,7 @@ Pin `targetRevision` to latest stable at implementation time.
 Create a cluster-wide Talos machine patch so all nodes pull from Harbor:
 
 ```yaml
-# patches/phase12-cicd-zone/containerd-harbor-mirror.yaml
+# patches/phase15-cicd-zone/containerd-harbor-mirror.yaml
 metadata:
     namespace: default
     type: ConfigPatches.omni.sidero.dev
@@ -814,8 +814,8 @@ Note: `insecureSkipVerify` because Harbor uses a self-signed cert. Replace with 
 **Step 7: Commit**
 
 ```bash
-git add apps/harbor/ apps/root/templates/harbor.yaml apps/root/templates/harbor-extras.yaml patches/phase12-cicd-zone/containerd-harbor-mirror.yaml
-git commit -m "feat(phase12): add Harbor container registry with containerd mirrors"
+git add apps/harbor/ apps/root/templates/harbor.yaml apps/root/templates/harbor-extras.yaml patches/phase15-cicd-zone/containerd-harbor-mirror.yaml
+git commit -m "feat(phase15): add Harbor container registry with containerd mirrors"
 ```
 
 **Step 8: Push and verify**
@@ -855,10 +855,10 @@ Determine which chart is more actively maintained at implementation time. Both a
 
 ```yaml
 # manual-operation
-id: phase12-n8n-infisical-secrets
-phase: 12
+id: phase15-n8n-infisical-secrets
+phase: 15
 app: n8n
-plan: docs/plans/2026-03-10-phase12-coding-agent-infrastructure.md
+plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "Before deploying n8n"
 why_manual: "Infisical secret creation requires UI/API interaction"
 commands:
@@ -1015,7 +1015,7 @@ Pin `targetRevision` to latest stable at implementation time.
 
 ```bash
 git add apps/n8n/ apps/root/templates/n8n.yaml apps/root/templates/n8n-extras.yaml
-git commit -m "feat(phase12): add n8n workflow orchestrator"
+git commit -m "feat(phase15): add n8n workflow orchestrator"
 ```
 
 **Step 7: Push and verify**
@@ -1047,10 +1047,10 @@ curl -s http://192.168.55.208:5678/healthz
 
 ```yaml
 # manual-operation
-id: phase12-aider-infisical-secrets
-phase: 12
+id: phase15-aider-infisical-secrets
+phase: 15
 app: aider
-plan: docs/plans/2026-03-10-phase12-coding-agent-infrastructure.md
+plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "Before deploying Aider resources"
 why_manual: "Infisical secret creation + LiteLLM key generation"
 commands:
@@ -1258,7 +1258,7 @@ Note: `job-template.yaml` is excluded from ArgoCD sync — it's a reference temp
 
 ```bash
 git add apps/aider/ apps/root/templates/aider.yaml
-git commit -m "feat(phase12): add Aider coding agent Job template and config"
+git commit -m "feat(phase15): add Aider coding agent Job template and config"
 ```
 
 **Step 8: Push and verify**
@@ -1347,10 +1347,10 @@ Open n8n at `http://192.168.55.208:5678` and create the workflow:
 
 ```yaml
 # manual-operation
-id: phase12-n8n-workflow-setup
-phase: 12
+id: phase15-n8n-workflow-setup
+phase: 15
 app: n8n
-plan: docs/plans/2026-03-10-phase12-coding-agent-infrastructure.md
+plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "After n8n and Aider are both deployed and verified"
 why_manual: "Initial workflow creation is done via n8n UI, then exported to JSON"
 commands:
@@ -1368,7 +1368,7 @@ status: pending
 ```bash
 git add apps/n8n/manifests/rbac-job-creator.yaml
 git add apps/n8n/workflows/  # after exporting from UI
-git commit -m "feat(phase12): add n8n-to-Aider workflow and RBAC"
+git commit -m "feat(phase15): add n8n-to-Aider workflow and RBAC"
 ```
 
 ---
@@ -1411,13 +1411,13 @@ Note any issues, workarounds, or configuration adjustments needed. Update values
 
 | ID | Phase | When | What |
 |----|-------|------|------|
-| `phase12-longhorn-disk-tags` | 12 | Before Task 1.2 | Tag HDD disks in Longhorn UI |
-| `phase12-gitea-infisical-secrets` | 12 | Before Task 2 | Create Gitea admin creds in Infisical |
-| `phase12-gitea-runner-token` | 12 | After Task 2 | Generate runner registration token |
-| `phase12-harbor-infisical-secrets` | 12 | Before Task 4 | Create Harbor admin creds in Infisical |
-| `phase12-n8n-infisical-secrets` | 12 | Before Task 5 | Create n8n encryption key in Infisical |
-| `phase12-aider-infisical-secrets` | 12 | Before Task 6 | Create Aider LiteLLM key + Gitea token |
-| `phase12-n8n-workflow-setup` | 12 | After Tasks 5+6 | Build n8n workflow via UI |
+| `phase15-longhorn-disk-tags` | 15 | Before Task 1.2 | Tag HDD disks in Longhorn UI |
+| `phase15-gitea-infisical-secrets` | 15 | Before Task 2 | Create Gitea admin creds in Infisical |
+| `phase15-gitea-runner-token` | 15 | After Task 2 | Generate runner registration token |
+| `phase15-harbor-infisical-secrets` | 15 | Before Task 4 | Create Harbor admin creds in Infisical |
+| `phase15-n8n-infisical-secrets` | 15 | Before Task 5 | Create n8n encryption key in Infisical |
+| `phase15-aider-infisical-secrets` | 15 | Before Task 6 | Create Aider LiteLLM key + Gitea token |
+| `phase15-n8n-workflow-setup` | 15 | After Tasks 5+6 | Build n8n workflow via UI |
 
 ---
 

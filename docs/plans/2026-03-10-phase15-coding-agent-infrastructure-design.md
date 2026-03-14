@@ -1,4 +1,4 @@
-# Phase 12 — Autonomous Coding Agent Infrastructure — Design
+# Phase 15 — Autonomous Coding Agent Infrastructure — Design
 
 **Date:** 2026-03-10
 
