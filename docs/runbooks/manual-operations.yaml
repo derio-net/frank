@@ -303,6 +303,37 @@ operations:
       - "kubectl get --raw /.well-known/openid-configuration | jq .issuer"
     status: pending
 
+  - id: phase14-build-paperclip-image
+    phase: 14
+    app: paperclip
+    plan: docs/superpowers/plans/2026-03-14-phase14-paperclip-design.md
+    when: "Before deploying paperclip — image must exist in GHCR"
+    why_manual: "Upstream repo has no published images; building requires local Docker and GHCR auth"
+    commands:
+      - "git clone https://github.com/paperclipai/paperclip.git /tmp/paperclip && cd /tmp/paperclip && git checkout v0.3.1"
+      - "docker build -t ghcr.io/derio-net/paperclip:v0.3.1 ."
+      - "echo $GHCR_PAT | docker login ghcr.io -u derio-net --password-stdin"
+      - "docker push ghcr.io/derio-net/paperclip:v0.3.1"
+    verify:
+      - "docker pull ghcr.io/derio-net/paperclip:v0.3.1"
+    status: done
+
+  - id: phase14-create-infisical-secrets
+    phase: 14
+    app: paperclip
+    plan: docs/superpowers/plans/2026-03-14-phase14-paperclip-design.md
+    when: "Before deploying paperclip — ExternalSecrets need source data"
+    why_manual: "Secrets must be created in Infisical UI/CLI — cannot be declared in git"
+    commands:
+      - "Create LiteLLM virtual key for Paperclip in LiteLLM admin UI, store as PAPERCLIP_LITELLM_KEY in Infisical"
+      - "Generate random string: openssl rand -base64 32 — store as PAPERCLIP_AUTH_SECRET in Infisical"
+      - "Create GitHub PAT with read:packages scope, store as GHCR_PAT in Infisical (if not already present)"
+    verify:
+      - "infisical secrets get PAPERCLIP_LITELLM_KEY"
+      - "infisical secrets get PAPERCLIP_AUTH_SECRET"
+      - "kubectl get externalsecret -n paperclip-system"
+    status: done
+
   - id: phaseXX-comfyui-model-download
     phase: XX
     app: comfyui
