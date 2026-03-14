@@ -1,4 +1,4 @@
-# Phase XX — Unified Authentication & Authorization Implementation Plan
+# Phase 13 — Unified Authentication & Authorization Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -133,9 +133,9 @@ Expected: `secret/authentik-secrets created`
 ```yaml
 # manual-operation
 id: phase13-authentik-bootstrap-secrets
-phase: XX
+phase: 13
 app: authentik
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "Before Task 3 — secrets must exist before Authentik pods start"
 why_manual: "SOPS-encrypted secrets cannot be applied via ArgoCD (SOPS + ServerSideApply don't mix)"
 commands:
@@ -204,7 +204,7 @@ Create `apps/authentik/values.yaml`:
 
 ```yaml
 # Authentik — Identity Provider for Frank Cluster
-# Phase XX: Unified Authentication & Authorization
+# Phase 13: Unified Authentication & Authorization
 # Chart: goauthentik/authentik (https://charts.goauthentik.io)
 #
 # Secrets are injected via env vars from SOPS-bootstrapped K8s Secret
@@ -588,9 +588,9 @@ authentik:
 ```yaml
 # manual-operation
 id: phase13-traefik-authentik-route
-phase: XX
+phase: 13
 app: authentik
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 5 Step 4 — LB service has external IP"
 why_manual: "Traefik config on raspi-omni is outside cluster management"
 commands:
@@ -623,9 +623,9 @@ In Authentik Admin UI:
 ```yaml
 # manual-operation
 id: phase13-akadmin-group
-phase: XX
+phase: 13
 app: authentik
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 5 Step 6 — Authentik initial setup complete"
 why_manual: "Bootstrap user assignment cannot be done via blueprint (user doesn't exist until first login)"
 commands:
@@ -679,9 +679,9 @@ sops --decrypt secrets/authentik/argocd-oidc-secret.yaml | kubectl apply -f -
 ```yaml
 # manual-operation
 id: phase13-argocd-oidc-secret
-phase: XX
+phase: 13
 app: argocd
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "Before Task 6 Step 3 — ArgoCD needs the OIDC secret before OIDC is enabled"
 why_manual: "SOPS-encrypted secret applied out-of-band"
 commands:
@@ -802,9 +802,9 @@ After the blueprint creates the ArgoCD provider, set the client secret manually:
 ```yaml
 # manual-operation
 id: phase13-argocd-oidc-client-secret
-phase: XX
+phase: 13
 app: authentik
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 6 Step 4 — Blueprint has created the ArgoCD provider"
 why_manual: "Client secret cannot be set via blueprint (secret value must not be in Git)"
 commands:
@@ -887,9 +887,9 @@ sops --decrypt secrets/authentik/grafana-oidc-secret.yaml | kubectl apply -f -
 ```yaml
 # manual-operation
 id: phase13-grafana-oidc-secret
-phase: XX
+phase: 13
 app: grafana
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "Before Task 7 Step 4 — Grafana needs OIDC secret"
 why_manual: "SOPS-encrypted secret applied out-of-band"
 commands:
@@ -999,9 +999,9 @@ Same process as ArgoCD (Task 6 Step 5): set the Grafana client secret in the Aut
 ```yaml
 # manual-operation
 id: phase13-grafana-oidc-client-secret
-phase: XX
+phase: 13
 app: authentik
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 7 Step 5 — Blueprint has created the Grafana provider"
 why_manual: "Client secret cannot be set via blueprint"
 commands:
@@ -1132,9 +1132,9 @@ Infisical's OIDC configuration is typically done through its admin panel:
 ```yaml
 # manual-operation
 id: phase13-infisical-oidc-config
-phase: XX
+phase: 13
 app: infisical
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 8 Step 2 — Blueprint has created the Infisical provider"
 why_manual: "Infisical OIDC configuration is done via admin UI, not Helm values"
 commands:
@@ -1289,9 +1289,9 @@ For each proxied service, update Traefik config to use forward auth through Auth
 ```yaml
 # manual-operation
 id: phase13-traefik-forward-auth
-phase: XX
+phase: 13
 app: authentik
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 9 Step 3 — Proxy providers created in Authentik"
 why_manual: "Traefik config on raspi-omni is outside cluster management"
 commands:
@@ -1403,9 +1403,9 @@ client credentials grant. 8-hour token validity."
 ```yaml
 # manual-operation
 id: phase13-agent-machine-user
-phase: XX
+phase: 13
 app: authentik
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 10 Step 2 — Agent auth blueprint deployed"
 why_manual: "Machine user credentials and client secret must be set via Authentik admin UI"
 commands:
@@ -1453,7 +1453,7 @@ cluster:
 
 Create `patches/phase13-auth/README.md`:
 ```markdown
-# Phase XX — Authentication OIDC API Server Patch
+# Phase 13 — Authentication OIDC API Server Patch
 
 Configures kube-apiserver to accept Authentik OIDC tokens for kubectl authentication.
 Applied to all control-plane nodes via Omni.
@@ -1464,9 +1464,9 @@ Apply via Omni (exact method depends on current Omni workflow).
 ```yaml
 # manual-operation
 id: phase13-talos-oidc-patch
-phase: XX
+phase: 13
 app: n/a
-plan: docs/plans/2026-03-11-phase13-unified-auth.md
+plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
 when: "After Task 10 — Authentik agent provider exists"
 why_manual: "Talos machine config patches are applied via Omni UI"
 commands:

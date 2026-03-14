@@ -97,8 +97,8 @@ git commit -m "chore: remove Flux CD controllers, CRDs, and namespace"
 
 **Files:**
 - Delete: `infrastructure/pulumi/` (entire directory)
-- Modify: `docs/plans/2026-03-02-pulumi-cluster-provisioning-design.md:1-6`
-- Modify: `docs/plans/2026-03-02-pulumi-cluster-provisioning-plan.md:1-10`
+- Modify: `docs/superpowers/plans/2026-03-02-pulumi-cluster-provisioning-design.md:1-6`
+- Modify: `docs/superpowers/plans/2026-03-02-pulumi-cluster-provisioning-plan.md:1-10`
 - Modify: `.gitignore`
 
 **Step 1: Delete the Pulumi directory**
@@ -112,7 +112,7 @@ Expected: `infrastructure/` directory gone.
 
 **Step 2: Add deprecation header to old design doc**
 
-Prepend to `docs/plans/2026-03-02-pulumi-cluster-provisioning-design.md`:
+Prepend to `docs/superpowers/plans/2026-03-02-pulumi-cluster-provisioning-design.md`:
 
 ```markdown
 > **DEPRECATED (2026-03-02):** This Pulumi approach was abandoned. No Pulumi provider exists
@@ -122,7 +122,7 @@ Prepend to `docs/plans/2026-03-02-pulumi-cluster-provisioning-design.md`:
 
 **Step 3: Add deprecation header to old plan doc**
 
-Prepend to `docs/plans/2026-03-02-pulumi-cluster-provisioning-plan.md`:
+Prepend to `docs/superpowers/plans/2026-03-02-pulumi-cluster-provisioning-plan.md`:
 
 ```markdown
 > **DEPRECATED (2026-03-02):** This plan was never executed. The Pulumi approach was abandoned
@@ -150,7 +150,7 @@ Keep the general `.pulumi/` entry (it's fine to leave as a catch-all).
 ls infrastructure/ 2>&1
 # Expected: No such file or directory
 
-head -3 docs/plans/2026-03-02-pulumi-cluster-provisioning-design.md
+head -3 docs/superpowers/plans/2026-03-02-pulumi-cluster-provisioning-design.md
 # Expected: > **DEPRECATED...**
 ```
 

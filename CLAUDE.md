@@ -124,7 +124,8 @@ patches/               # Talos machine config patches (per phase)
   phase05-mini-config/ # Intel iGPU DRA
 blog/                  # Hugo static site (PaperMod theme, building/ + operating/ series)
 omni/                  # Sidero Omni self-hosted config
-docs/plans/            # Design and implementation plans
+docs/superpowers/plans/ # Implementation plans
+docs/superpowers/specs/ # Design specs
 docs/runbooks/         # Manual operations registry (manual-operations.yaml)
 secrets/               # SOPS-encrypted bootstrap secrets (applied out-of-band)
 scripts/               # Utility scripts
@@ -223,7 +224,7 @@ Some steps cannot be declarative (SOPS secrets, UI-only config). Every such step
 id: phaseNN-short-name        # unique across all plans
 phase: NN
 app: <argocd-app-name>
-plan: docs/plans/<filename>.md
+plan: docs/superpowers/plans/<filename>.md
 when: "After Task N — <trigger description>"
 why_manual: "<reason this cannot be automated>"
 commands:
