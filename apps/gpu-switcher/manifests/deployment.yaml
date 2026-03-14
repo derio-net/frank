@@ -1,0 +1,51 @@
+# GPU Switcher dashboard — runs on any amd64 node (no GPU needed)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gpu-switcher
+  namespace: gpu-switcher
+  labels:
+    app.kubernetes.io/name: gpu-switcher
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: gpu-switcher
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: gpu-switcher
+    spec:
+      serviceAccountName: gpu-switcher
+      containers:
+        - name: gpu-switcher
+          image: ghcr.io/derio-net/gpu-switcher:v0.1.0
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: WORKLOADS
+              value: "ollama:ollama:ollama,comfyui:comfyui:comfyui"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 10
+      # Constrain to amd64 (image is amd64-only; avoids ARM raspi nodes)
+      nodeSelector:
+        kubernetes.io/arch: amd64

@@ -1,0 +1,22 @@
+# LoadBalancer Service for browser access to ComfyUI Web UI
+# Exposed at 192.168.55.213:8188 via Cilium L2 IPAM
+apiVersion: v1
+kind: Service
+metadata:
+  name: comfyui-lb
+  namespace: comfyui
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.213"
+  labels:
+    app.kubernetes.io/name: comfyui
+    app.kubernetes.io/component: server
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: comfyui
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 8188
+      targetPort: http
+      protocol: TCP

@@ -1,0 +1,19 @@
+# ClusterIP Service for internal access (agents call the API here)
+apiVersion: v1
+kind: Service
+metadata:
+  name: comfyui
+  namespace: comfyui
+  labels:
+    app.kubernetes.io/name: comfyui
+    app.kubernetes.io/component: server
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: comfyui
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 8188
+      targetPort: http
+      protocol: TCP
