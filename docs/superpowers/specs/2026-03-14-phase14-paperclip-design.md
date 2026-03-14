@@ -184,7 +184,7 @@ This uses Kubernetes variable expansion (`$(PG_PASSWORD)`) to construct the URL 
 id: phase14-build-paperclip-image
 phase: 14
 app: paperclip
-plan: docs/plans/2026-03-14-phase14-paperclip-design.md
+plan: docs/superpowers/plans/2026-03-14-phase14-paperclip-design.md
 when: "Before deploying paperclip — image must exist in GHCR"
 why_manual: "Upstream repo has no published images; building requires local Docker and GHCR auth"
 commands:
@@ -204,7 +204,7 @@ status: pending
 id: phase14-create-infisical-secrets
 phase: 14
 app: paperclip
-plan: docs/plans/2026-03-14-phase14-paperclip-design.md
+plan: docs/superpowers/plans/2026-03-14-phase14-paperclip-design.md
 when: "Before deploying paperclip — ExternalSecrets need source data"
 why_manual: "Secrets must be created in Infisical UI/CLI — cannot be declared in git"
 commands:
@@ -223,6 +223,6 @@ status: pending
 - [Paperclip GitHub repository](https://github.com/paperclipai/paperclip)
 - [Paperclip v0.3.1 release](https://github.com/paperclipai/paperclip/releases/tag/v0.3.1)
 - [Bitnami PostgreSQL Helm chart](https://github.com/bitnami/charts/tree/main/bitnami/postgresql)
-- [Phase 11 — Sympozium design](docs/plans/2026-03-09-phase11-sympozium-design.md) (reference pattern)
+- [Phase 11 — Sympozium design](docs/superpowers/plans/2026-03-09-phase11-sympozium-design.md) (reference pattern)
 - [LiteLLM deployment](apps/litellm/) (LLM gateway dependency)
 - [Infisical/ExternalSecrets](apps/infisical/) (secret management dependency)

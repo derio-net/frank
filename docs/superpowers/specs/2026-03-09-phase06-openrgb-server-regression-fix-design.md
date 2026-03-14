@@ -61,6 +61,6 @@ The ConfigMap is unchanged. Updating LED config remains a one-line git edit + Ar
 
 1. Apply fix to `apps/openrgb/manifests/daemonset.yaml`
 2. **Verify live** — confirm LEDs turn off on pod restart before updating any docs
-3. Update `docs/plans/2026-03-03-phase06-openrgb-led-control-design.md`
-4. Update `docs/plans/2026-03-03-phase06-openrgb-led-control.md`
+3. Update `docs/superpowers/plans/2026-03-03-phase06-openrgb-led-control-design.md`
+4. Update `docs/superpowers/plans/2026-03-03-phase06-openrgb-led-control.md`
 5. Update Phase 6 blog post with corrected architecture and regression note

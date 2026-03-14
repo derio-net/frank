@@ -8,7 +8,7 @@
 
 **Tech Stack:** ArgoCD, Helm, Longhorn, Cilium L2, Infisical + ExternalSecrets, Talos Linux, Gitea, Harbor, n8n, Aider
 
-**Design doc:** `docs/plans/2026-03-10-phase15-coding-agent-infrastructure-design.md`
+**Design doc:** `docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure-design.md`
 
 ---
 
@@ -39,7 +39,7 @@ Via Longhorn UI (`192.168.55.201`):
 id: phase15-longhorn-disk-tags
 phase: 15
 app: longhorn
-plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "Before Task 1 Step 2 — Longhorn needs disk tags before StorageClass can schedule"
 why_manual: "Longhorn disk tagging requires UI or API interaction"
 commands:
@@ -185,7 +185,7 @@ Review defaults for: `persistence`, `postgresql`, `gitea.config`, `service`, `no
 id: phase15-gitea-infisical-secrets
 phase: 15
 app: gitea
-plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "Before deploying gitea — ExternalSecret needs Infisical source"
 why_manual: "Infisical secret creation requires UI/API interaction"
 commands:
@@ -400,7 +400,7 @@ curl -s http://192.168.55.209:3000/api/v1/version
 id: phase15-gitea-runner-token
 phase: 15
 app: gitea
-plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "After Gitea is running — runner needs registration token"
 why_manual: "Runner token is generated via Gitea admin API"
 commands:
@@ -614,7 +614,7 @@ helm show values harbor/harbor > /tmp/harbor-defaults.yaml
 id: phase15-harbor-infisical-secrets
 phase: 15
 app: harbor
-plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "Before deploying Harbor"
 why_manual: "Infisical secret creation requires UI/API interaction"
 commands:
@@ -858,7 +858,7 @@ Determine which chart is more actively maintained at implementation time. Both a
 id: phase15-n8n-infisical-secrets
 phase: 15
 app: n8n
-plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "Before deploying n8n"
 why_manual: "Infisical secret creation requires UI/API interaction"
 commands:
@@ -1050,7 +1050,7 @@ curl -s http://192.168.55.208:5678/healthz
 id: phase15-aider-infisical-secrets
 phase: 15
 app: aider
-plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "Before deploying Aider resources"
 why_manual: "Infisical secret creation + LiteLLM key generation"
 commands:
@@ -1350,7 +1350,7 @@ Open n8n at `http://192.168.55.208:5678` and create the workflow:
 id: phase15-n8n-workflow-setup
 phase: 15
 app: n8n
-plan: docs/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
 when: "After n8n and Aider are both deployed and verified"
 why_manual: "Initial workflow creation is done via n8n UI, then exported to JSON"
 commands:

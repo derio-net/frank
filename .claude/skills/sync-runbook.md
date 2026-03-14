@@ -3,7 +3,7 @@ name: sync-runbook
 description: >
   Sync the central manual-operations runbook from all plan files.
   Use after writing or editing any plan that contains manual-operation
-  YAML blocks. Scans docs/plans/*.md, extracts blocks tagged
+  YAML blocks. Scans docs/superpowers/plans/*.md, extracts blocks tagged
   "# manual-operation", merges into docs/runbooks/manual-operations.yaml
   (deduplicates by id, preserves status of existing entries), then commits.
 ---
@@ -19,7 +19,7 @@ Invoke `/sync-runbook` after any session that:
 
 ## Process
 
-1. **Scan** all `docs/plans/*.md` for fenced code blocks tagged `# manual-operation`
+1. **Scan** all `docs/superpowers/plans/*.md` for fenced code blocks tagged `# manual-operation`
 2. **Parse** each block as YAML — extract all fields
 3. **Read** existing `docs/runbooks/manual-operations.yaml`
 4. **Merge** — for each extracted entry:
@@ -52,7 +52,7 @@ Each block in a plan file looks like this — fenced, with `# manual-operation` 
 id: phaseNN-short-name
 phase: NN
 app: <argocd-app-name>
-plan: docs/plans/<filename>.md
+plan: docs/superpowers/plans/<filename>.md
 when: "After Task N — <trigger description>"
 why_manual: "<reason this cannot be automated>"
 commands:

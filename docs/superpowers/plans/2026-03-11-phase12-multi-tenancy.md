@@ -8,7 +8,7 @@
 
 **Tech Stack:** vCluster v0.32.1 (Helm chart from `https://charts.loft.sh`), ArgoCD App-of-Apps, Longhorn storage (etcd backing), Cilium L2 LoadBalancer (vCluster API exposure).
 
-**Design doc:** `docs/plans/2026-03-07-phaseXX-multi-tenancy-design.md`
+**Design doc:** `docs/superpowers/plans/2026-03-07-phaseXX-multi-tenancy-design.md`
 
 ---
 
@@ -410,19 +410,19 @@ vcluster disconnect
 ### Task 7: Rename design file from phaseXX to phase12
 
 **Files:**
-- Rename: `docs/plans/2026-03-07-phaseXX-multi-tenancy-design.md`
+- Rename: `docs/superpowers/plans/2026-03-07-phaseXX-multi-tenancy-design.md`
 
 - [ ] **Step 1: Rename the design file**
 
 ```bash
-git mv docs/plans/2026-03-07-phaseXX-multi-tenancy-design.md \
-       docs/plans/2026-03-07-phase12-multi-tenancy-design.md
+git mv docs/superpowers/plans/2026-03-07-phaseXX-multi-tenancy-design.md \
+       docs/superpowers/plans/2026-03-07-phase12-multi-tenancy-design.md
 ```
 
 - [ ] **Step 2: Verify and update the title inside the file**
 
 ```bash
-head -1 docs/plans/2026-03-07-phase12-multi-tenancy-design.md
+head -1 docs/superpowers/plans/2026-03-07-phase12-multi-tenancy-design.md
 ```
 
 Expected: `# Phase 10: Multi-tenancy — Design` (the design was drafted before phase numbering was finalized).

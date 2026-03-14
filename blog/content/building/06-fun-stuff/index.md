@@ -229,4 +229,4 @@ Absolutely not worth it. But we now know more about HID feature reports, IT5701 
 - [OpenRGB Supported Devices Wiki](https://gitlab.com/OpenRGBDevelopers/OpenRGB-Wiki) — Device detection, compatibility, and protocol documentation
 - [Linux HID Subsystem](https://www.kernel.org/doc/html/latest/hid/index.html) — Kernel documentation for USB HID and hidraw devices
 - [Kubernetes DaemonSet](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/) — Official DaemonSet documentation for node-level workloads
-- [IT5701 Investigation Notes](https://github.com/derio-net/frank/blob/main/docs/plans/2026-03-09-openrgb-it5701-investigation.md) — Full analysis of the firmware write lock, ioctl findings, and recommended fix path
+- [IT5701 Investigation Notes](https://github.com/derio-net/frank/blob/main/docs/superpowers/plans/2026-03-09-openrgb-it5701-investigation.md) — Full analysis of the firmware write lock, ioctl findings, and recommended fix path

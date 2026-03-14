@@ -8,7 +8,7 @@
 
 **Tech Stack:** kubectl, ArgoCD, OpenRGB, Hugo (blog)
 
-**Design doc:** `docs/plans/2026-03-09-phase06-openrgb-server-regression-fix-design.md`
+**Design doc:** `docs/superpowers/plans/2026-03-09-phase06-openrgb-server-regression-fix-design.md`
 
 ---
 

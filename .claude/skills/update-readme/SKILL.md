@@ -15,7 +15,7 @@ Keep `README.md` in sync with the cluster after each new phase is deployed.
 
 Add a row for each new technology introduced in the phase. Columns: `Layer | Technology | Notes`.
 
-- Check `docs/plans/` for the phase design file to confirm the stack choices.
+- Check `docs/superpowers/plans/` for the phase design file to confirm the stack choices.
 - Layer names should be concise (e.g. Metrics, Logs, Dashboards, Backup, Secrets, Multi-tenancy, VMs).
 
 ### 2. Repository Structure

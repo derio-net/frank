@@ -8,7 +8,7 @@
 
 **Tech Stack:** Paperclip v0.3.1 (custom GHCR image), Bitnami PostgreSQL 14.1.10 (OCI Helm chart), ExternalSecrets for Infisical, Cilium L2 LoadBalancer.
 
-**Design doc:** `docs/plans/2026-03-14-phase14-paperclip-design.md`
+**Design doc:** `docs/superpowers/plans/2026-03-14-phase14-paperclip-design.md`
 
 ---
 
@@ -744,7 +744,7 @@ Run `/sync-runbook` to sync the manual operations from the design spec to `docs/
 
 - [ ] **Step 1: Run sync-runbook**
 
-Execute the `/sync-runbook` skill (a Claude Code slash command) to pick up the two `# manual-operation` blocks from `docs/plans/2026-03-14-phase14-paperclip-design.md`. In Claude Code, type `/sync-runbook` and it will scan all plan files in `docs/plans/` for `# manual-operation` YAML blocks and merge them into `docs/runbooks/manual-operations.yaml`.
+Execute the `/sync-runbook` skill (a Claude Code slash command) to pick up the two `# manual-operation` blocks from `docs/superpowers/plans/2026-03-14-phase14-paperclip-design.md`. In Claude Code, type `/sync-runbook` and it will scan all plan files in `docs/superpowers/plans/` for `# manual-operation` YAML blocks and merge them into `docs/runbooks/manual-operations.yaml`.
 
 - [ ] **Step 2: Verify the runbook was updated**
 

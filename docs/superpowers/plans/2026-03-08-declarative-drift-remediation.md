@@ -287,7 +287,7 @@ Append the following fenced block at the end of this file (before the Task 6 hea
 id: phase07-grafana-victorialogs-migration
 phase: 7
 app: victoria-metrics
-plan: docs/plans/2026-03-08-declarative-drift-remediation-plan.md
+plan: docs/superpowers/plans/2026-03-08-declarative-drift-remediation-plan.md
 when: "After Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap"
 why_manual: "The live API-added datasource (id:3) must be deleted via Grafana UI before the provisioned one activates; Grafana does not auto-replace API datasources with provisioned ones of the same name"
 commands:
@@ -307,7 +307,7 @@ notes: "Grafana automatically adopted the API-added datasource on pod restart �
 
 **Step 2: Retroactively add manual-operation block to Phase 8 plan**
 
-Append this block to `docs/plans/2026-03-08-phase08-backup-impl.md`:
+Append this block to `docs/superpowers/plans/2026-03-08-phase08-backup-impl.md`:
 
 ````markdown
 ```yaml
@@ -315,7 +315,7 @@ Append this block to `docs/plans/2026-03-08-phase08-backup-impl.md`:
 id: phase08-r2-sops-secret
 phase: 8
 app: longhorn
-plan: docs/plans/2026-03-08-phase08-backup-impl.md
+plan: docs/superpowers/plans/2026-03-08-phase08-backup-impl.md
 when: "After Task 2 — after SOPS-encrypting the R2 secret"
 why_manual: "SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
 commands:
@@ -329,8 +329,8 @@ status: done
 **Step 3: Commit**
 
 ```bash
-git add docs/plans/2026-03-08-declarative-drift-remediation-plan.md \
-        docs/plans/2026-03-08-phase08-backup-impl.md
+git add docs/superpowers/plans/2026-03-08-declarative-drift-remediation-plan.md \
+        docs/superpowers/plans/2026-03-08-phase08-backup-impl.md
 git commit -m "docs(plans): add manual-operation YAML blocks to drift remediation and phase 8 plans"
 ```
 
@@ -382,7 +382,7 @@ operations:
   - id: phase08-r2-sops-secret
     phase: 8
     app: longhorn
-    plan: docs/plans/2026-03-08-phase08-backup-impl.md
+    plan: docs/superpowers/plans/2026-03-08-phase08-backup-impl.md
     when: "After Task 2 — after SOPS-encrypting the R2 secret"
     why_manual: "SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
     commands:
@@ -394,7 +394,7 @@ operations:
   - id: phase07-grafana-victorialogs-migration
     phase: 7
     app: victoria-metrics
-    plan: docs/plans/2026-03-08-declarative-drift-remediation-plan.md
+    plan: docs/superpowers/plans/2026-03-08-declarative-drift-remediation-plan.md
     when: "After drift remediation Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap"
     why_manual: "The live API-added datasource must be deleted via Grafana UI before the provisioned one activates; Grafana does not auto-replace API datasources with provisioned ones of the same name"
     commands:
@@ -431,7 +431,7 @@ name: sync-runbook
 description: >
   Sync the central manual-operations runbook from all plan files.
   Use after writing or editing any plan that contains manual-operation
-  YAML blocks. Scans docs/plans/*.md, extracts blocks tagged
+  YAML blocks. Scans docs/superpowers/plans/*.md, extracts blocks tagged
   "# manual-operation", merges into docs/runbooks/manual-operations.yaml
   (deduplicates by id, preserves status of existing entries), then commits.
 ---
@@ -447,7 +447,7 @@ Invoke `/sync-runbook` after any session that:
 
 ## Process
 
-1. **Scan** all `docs/plans/*.md` for fenced code blocks tagged `# manual-operation`
+1. **Scan** all `docs/superpowers/plans/*.md` for fenced code blocks tagged `# manual-operation`
 2. **Parse** each block as YAML — extract all fields
 3. **Read** existing `docs/runbooks/manual-operations.yaml`
 4. **Merge** — for each extracted entry:
@@ -479,7 +479,7 @@ Each block in a plan file looks like:
 id: phaseNN-short-name
 phase: NN
 app: <argocd-app-name>
-plan: docs/plans/<filename>.md
+plan: docs/superpowers/plans/<filename>.md
 when: "After Task N — <trigger>"
 why_manual: "<reason>"
 commands:
@@ -570,7 +570,7 @@ Some steps cannot be declarative (SOPS secrets, UI-only config). Every such step
 id: phaseNN-short-name        # unique across all plans
 phase: NN
 app: <argocd-app-name>
-plan: docs/plans/<filename>.md
+plan: docs/superpowers/plans/<filename>.md
 when: "After Task N — <trigger description>"
 why_manual: "<reason this cannot be automated>"
 commands:
@@ -654,7 +654,7 @@ After completing: update `status: done` in both the plan block and the runbook e
 **Step 8: Final commit if runbook status was updated**
 
 ```bash
-git add docs/runbooks/manual-operations.yaml docs/plans/2026-03-08-declarative-drift-remediation-plan.md
+git add docs/runbooks/manual-operations.yaml docs/superpowers/plans/2026-03-08-declarative-drift-remediation-plan.md
 git commit -m "chore(runbooks): mark Grafana datasource migration as done"
 git push
 ```
@@ -668,7 +668,7 @@ git push
 id: phase07-grafana-victorialogs-migration
 phase: 7
 app: victoria-metrics
-plan: docs/plans/2026-03-08-declarative-drift-remediation-plan.md
+plan: docs/superpowers/plans/2026-03-08-declarative-drift-remediation-plan.md
 when: "After Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap"
 why_manual: "The live API-added datasource must be deleted via Grafana UI before the provisioned one activates; Grafana does not auto-replace API datasources with provisioned ones of the same name"
 commands:

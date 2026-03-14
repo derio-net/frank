@@ -12,7 +12,7 @@
 
 ## Design Reference
 
-See: `docs/plans/2026-03-07-phase09-secrets-management-design.md`
+See: `docs/superpowers/plans/2026-03-07-phase09-secrets-management-design.md`
 
 ---
 
@@ -337,7 +337,7 @@ Expected: `5` (one per stringData key).
 id: phase09-infisical-bootstrap-secrets
 phase: 9
 app: infisical
-plan: docs/plans/2026-03-08-phase09-secrets-management.md
+plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
 when: "Task 4 — after SOPS-encrypting infisical-secrets.yaml and infisical-db-uri.yaml"
 why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
 commands:
@@ -445,7 +445,7 @@ Expected: JSON response with `"status": "ok"` or similar health indicator.
 id: phase09-infisical-ui-setup
 phase: 9
 app: infisical
-plan: docs/plans/2026-03-08-phase09-secrets-management.md
+plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
 when: "Task 5 complete — Infisical pod Running and UI reachable at http://192.168.55.204"
 why_manual: "Initial admin account, project creation, and Machine Identity setup have no CLI equivalent in self-hosted Infisical"
 commands:
@@ -541,7 +541,7 @@ Expected: Both `stringData` values are now `ENC[AES256_GCM,...]`.
 id: phase09-eso-credentials-secret
 phase: 9
 app: external-secrets
-plan: docs/plans/2026-03-08-phase09-secrets-management.md
+plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
 when: "Task 7 — after SOPS-encrypting eso-credentials.yaml with Client ID and Secret from Infisical UI"
 why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
 commands:

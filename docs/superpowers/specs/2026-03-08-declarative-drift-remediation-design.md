@@ -68,7 +68,7 @@ Every plan that includes steps that cannot be declarative embeds one YAML block 
 id: <phase-app-short-name>       # unique across all plans
 phase: <NN>
 app: <app-name>
-plan: docs/plans/<filename>.md
+plan: docs/superpowers/plans/<filename>.md
 when: "After Task N — <trigger description>"
 why_manual: "<reason this cannot be automated>"
 commands:
@@ -111,7 +111,7 @@ Retroactively populated with:
 
 A Claude skill at `~/.claude/plugins/skills/sync-runbook.md` that:
 
-1. Globs all `docs/plans/*.md` files
+1. Globs all `docs/superpowers/plans/*.md` files
 2. Extracts fenced YAML blocks tagged `# manual-operation`
 3. Merges with any existing entries in `docs/runbooks/manual-operations.yaml` (deduplicates by `id`, preserves `status`)
 4. Rewrites the runbook file sorted by phase, then by id

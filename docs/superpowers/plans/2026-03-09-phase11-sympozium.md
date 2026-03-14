@@ -8,7 +8,7 @@
 
 **Tech Stack:** Sympozium v0.1.0 Helm chart (OCI), cert-manager v1.17.1, NATS JetStream (bundled), ExternalSecrets for Infisical, Cilium L2 LoadBalancer.
 
-**Design doc:** `docs/plans/2026-03-09-phase11-sympozium-design.md`
+**Design doc:** `docs/superpowers/plans/2026-03-09-phase11-sympozium-design.md`
 
 ---
 
@@ -598,7 +598,7 @@ This task cannot be automated. Create the LiteLLM API key in Infisical so the Ex
 id: phase11-create-sympozium-llm-key
 phase: 11
 app: sympozium-extras
-plan: docs/plans/2026-03-09-phase11-sympozium.md
+plan: docs/superpowers/plans/2026-03-09-phase11-sympozium.md
 when: "Before pushing — ExternalSecret needs the Infisical source"
 why_manual: "Infisical secret creation requires UI/API interaction outside ArgoCD"
 commands:
