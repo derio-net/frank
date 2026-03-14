@@ -57,12 +57,12 @@ spec:
           readinessProbe:
             httpGet:
               port: http
-              path: /
+              path: /api/health
             periodSeconds: 10
           livenessProbe:
             httpGet:
               port: http
-              path: /
+              path: /api/health
             initialDelaySeconds: 30
             periodSeconds: 15
       volumes:
