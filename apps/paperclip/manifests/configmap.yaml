@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: paperclip-config
+  namespace: paperclip-system
+data:
+  PORT: "3100"
+  HOST: "0.0.0.0"
+  SERVE_UI: "true"
+  PAPERCLIP_HOME: "/paperclip"
+  PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
+  PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
+  PAPERCLIP_PUBLIC_URL: "http://192.168.55.212:3100"
