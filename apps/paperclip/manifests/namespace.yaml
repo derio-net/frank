@@ -1,0 +1,10 @@
+# Namespace for Paperclip AI orchestrator (Phase 14)
+# Baseline PodSecurity — Paperclip runs as non-root (node:node user)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: paperclip-system
+  labels:
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
