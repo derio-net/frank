@@ -99,7 +99,7 @@ target:
   template:
     data:
       OPENAI_API_KEY: "{{ .llmkey }}"
-      OPENAI_BASE_URL: "http://litellm.litellm.svc.cluster.local:4000/v1"
+      OPENAI_BASE_URL: "http://litellm.litellm.svc:4000"
 ```
 
 Paperclip uses the OpenAI SDK internally, so setting `OPENAI_BASE_URL` routes all model calls through the in-cluster LiteLLM gateway. Available models (via LiteLLM): local models via Ollama, OpenRouter cloud models.
