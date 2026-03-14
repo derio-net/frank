@@ -18,6 +18,8 @@ spec:
         app.kubernetes.io/name: paperclip
         app.kubernetes.io/component: server
     spec:
+      securityContext:
+        fsGroup: 1000
       imagePullSecrets:
         - name: paperclip-ghcr
       containers:
