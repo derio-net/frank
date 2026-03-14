@@ -302,3 +302,20 @@ operations:
     verify:
       - "kubectl get --raw /.well-known/openid-configuration | jq .issuer"
     status: pending
+
+  - id: phaseXX-comfyui-model-download
+    phase: XX
+    app: comfyui
+    plan: docs/superpowers/plans/2026-03-14-phaseXX-media-generation.md
+    when: "After Task 15 - ComfyUI first confirmed running"
+    why_manual: "Model files must be downloaded interactively into the PVC; cannot be declarative"
+    commands:
+      - "# Activate ComfyUI via GPU Switcher UI at http://192.168.55.214:8080"
+      - "# Wait for ComfyUI pod to be Running"
+      - "# Open ComfyUI Manager at http://192.168.55.213:8188 -> Manager -> Install Models"
+      - "# Install LTX-2.3 video model (~5GB)"
+      - "# Optionally install Flux/SDXL image model and audio models"
+    verify:
+      - "kubectl exec -n comfyui deploy/comfyui -- ls -la /opt/ComfyUI/models/checkpoints/"
+      - "# Verify models appear in ComfyUI Web UI model dropdown"
+    status: pending
