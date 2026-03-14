@@ -1,0 +1,14 @@
+# Persistent storage for ComfyUI models (checkpoints, LoRAs, VAEs)
+# Sized for video (LTX-2.3 ~5GB), image (Flux/SDXL ~12GB), audio (~4GB) + headroom
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comfyui-models
+  namespace: comfyui
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 100Gi
