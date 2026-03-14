@@ -41,6 +41,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **cert-manager** | Automated TLS certificate lifecycle for webhooks and internal services |
 | **Authentik** | Unified SSO — OIDC for ArgoCD, Grafana, Infisical; forward-auth proxy for Longhorn, Hubble, Sympozium (`192.168.55.211`) |
 | **vCluster** | Virtual K8s clusters inside Frank — disposable sandboxes with own API server, resource quotas, network policies |
+| **Paperclip** | AI agent orchestrator — virtual companies with org charts, budgets, and delegation chains; complements Sympozium (`192.168.55.212`) |
 
 ## Cluster State
 
@@ -67,6 +68,8 @@ This post is a **living document**: it gets updated as new technologies and capa
 12. [GPU Containers on Talos — The Validation Fix]({{< relref "/building/12-gpu-talos-fix" >}})
 13. [Unified Auth — Authentik SSO for the Entire Cluster]({{< relref "/building/13-unified-auth" >}})
 14. [Multi-tenancy — Disposable Kubernetes Clusters with vCluster]({{< relref "/building/14-multi-tenancy" >}})
+15. [Paperclip — An AI Agent Orchestrator on Frank]({{< relref "/building/15-paperclip" >}})
+
 - Virtual Machines with KubeVirt _(planned)_
 
 ## Operating on Frank — Series Index
