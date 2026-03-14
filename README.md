@@ -40,6 +40,8 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
 | Multi-tenancy | vCluster | Virtual K8s clusters inside Frank — disposable sandboxes via ArgoCD |
 | Agent Orchestrator | Paperclip | Company-model AI agents — org charts, budgets, delegation chains routing through LiteLLM |
+| Media Generation | ComfyUI | Diffusion models (LTX-2.3 video, SDXL image, Stable Audio) on gpu-1, time-shared with Ollama |
+| GPU Switching | GPU Switcher | Custom Go dashboard for one-click GPU time-sharing between Ollama and ComfyUI |
 | Certificate Management | cert-manager | Automated TLS certificate lifecycle for webhooks and internal services |
 
 ## Repository Structure
@@ -73,7 +75,9 @@ frank/
 │   ├── authentik-extras/manifests/              # K8s RBAC bindings for OIDC groups
 │   ├── vclusters/                               # Per-vCluster Helm values
 │   ├── paperclip-db/values.yaml                 # Bitnami PostgreSQL for Paperclip
-│   └── paperclip/manifests/                     # Paperclip Deployment, ExternalSecrets, PVC, LB Service
+│   ├── paperclip/manifests/                     # Paperclip Deployment, ExternalSecrets, PVC, LB Service
+│   ├── comfyui/manifests/                       # ComfyUI diffusion model server (time-shared GPU)
+│   └── gpu-switcher/manifests/ + app/           # GPU Switcher Go app + K8s manifests
 │       ├── template/values.yaml                 # Base config (SQLite, policies, sync)
 │       └── experiments/values.yaml              # First sandbox instance
 ├── patches/
@@ -86,7 +90,7 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/posts/         # 15 posts documenting the build
+│   ├── content/posts/         # 16 posts documenting the build
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
 │   ├── plans/                 # Architecture and implementation plans
@@ -117,6 +121,8 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Sympozium Web UI | http://192.168.55.207:8080 | 192.168.55.207 |
 | Authentik | http://192.168.55.211:9000 | 192.168.55.211 |
 | Paperclip | http://192.168.55.212:3100 | 192.168.55.212 |
+| ComfyUI | http://192.168.55.213:8188 | 192.168.55.213 |
+| GPU Switcher | http://192.168.55.214:8080 | 192.168.55.214 |
 
 ArgoCD CLI access:
 
@@ -159,6 +165,8 @@ argocd app list
 | vcluster-experiments | vcluster-experiments | Disposable virtual K8s cluster (SQLite-backed, resource-quoted sandbox) |
 | paperclip-db | paperclip-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 5Gi |
 | paperclip | paperclip-system | Paperclip v0.3.1 AI agent orchestrator (192.168.55.212:3100) |
+| comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
+| gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
 
 ## Adding a New Application
 
