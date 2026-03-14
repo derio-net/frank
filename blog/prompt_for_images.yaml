@@ -489,3 +489,20 @@ images:
       disposability. A vCluster logo glows on a monitor behind him. A
       resource quota meter on the wall shows CPU and memory gauges. Dark
       server room with blue and teal lighting.
+
+  - key: building-16-media-generation
+    output: blog/content/building/16-media-generation/cover.png
+    description: "Media Generation — Frank juggling video frames and audio waves between ComfyUI and Ollama"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at a glowing
+      control panel with a large lever in the center labeled "GPU". His left
+      hand pulls the lever. On the left side, a holographic display shows a
+      chat bubble and text cursor — representing Ollama LLM inference,
+      fading out as it powers down. On the right side, an explosion of color
+      as video frames, painted canvases, and musical notes burst to life —
+      representing ComfyUI media generation activating. A single GPU card
+      (glowing green with NVIDIA logo) floats above the lever, connected by
+      electric arcs to whichever side is active. A small web dashboard
+      (the GPU Switcher) glows on a tablet screen nearby. Frank grins with
+      creative energy. Dark server room with purple, orange, and blue
+      lighting accents.

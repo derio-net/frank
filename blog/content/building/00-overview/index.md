@@ -42,6 +42,8 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Authentik** | Unified SSO — OIDC for ArgoCD, Grafana, Infisical; forward-auth proxy for Longhorn, Hubble, Sympozium (`192.168.55.211`) |
 | **vCluster** | Virtual K8s clusters inside Frank — disposable sandboxes with own API server, resource quotas, network policies |
 | **Paperclip** | AI agent orchestrator — virtual companies with org charts, budgets, and delegation chains; complements Sympozium (`192.168.55.212`) |
+| **ComfyUI** | Diffusion model serving — video (LTX-2.3), image (SDXL), audio (Stable Audio), node-based workflow editor (`192.168.55.213`) |
+| **GPU Switcher** | Custom Go dashboard for GPU time-sharing — one-click switching between Ollama and ComfyUI (`192.168.55.214`) |
 
 ## Cluster State
 
@@ -69,6 +71,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 13. [Unified Auth — Authentik SSO for the Entire Cluster]({{< relref "/building/13-unified-auth" >}})
 14. [Multi-tenancy — Disposable Kubernetes Clusters with vCluster]({{< relref "/building/14-multi-tenancy" >}})
 15. [Paperclip — An AI Agent Orchestrator on Frank]({{< relref "/building/15-paperclip" >}})
+16. [Media Generation — ComfyUI and GPU Time-Sharing]({{< relref "/building/16-media-generation" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
