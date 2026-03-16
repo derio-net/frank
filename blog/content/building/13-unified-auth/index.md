@@ -68,6 +68,17 @@ The flow:
 4. After login, the outpost returns a success response to Traefik
 5. Traefik forwards the original request to the backend
 
+**Critical: `AUTHENTIK_HOST`** — The embedded outpost needs to know its own external URL to generate correct OAuth2 redirect URIs. Without the `AUTHENTIK_HOST` environment variable, the outpost defaults to `http://0.0.0.0:9000` (the container's bind address), and forward-auth redirects send users to an unreachable address instead of `https://auth.frank.derio.net`.
+
+```yaml
+global:
+  env:
+    - name: AUTHENTIK_HOST
+      value: "https://auth.frank.derio.net"
+```
+
+This is set via `global.env` so it applies to both the server and worker deployments.
+
 ### Pattern 3: Agent Auth (Kubernetes OIDC)
 
 The kube-apiserver itself can validate Authentik-issued tokens. A Talos machine config patch adds OIDC flags to the apiserver:

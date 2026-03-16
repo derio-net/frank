@@ -211,6 +211,7 @@ Check for updates periodically (e.g., when starting a new phase).
 - Authentik 2026.x requires `invalidation_flow` and `redirect_uris` as list format in API calls
 - Authentik `global.env` applies env vars to both server + worker (avoids duplication)
 - Grafana OIDC: secret key must be `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` for `envFromSecret` to work
+- Authentik embedded outpost requires `AUTHENTIK_HOST` env var set to external URL (e.g., `https://auth.frank.derio.net`) — without it, forward-auth redirects use `0.0.0.0:9000`
 
 ## Manual Operations
 
