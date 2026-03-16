@@ -1,0 +1,11 @@
+# Packer cache
+.packer_cache/
+packer_cache/
+
+# Downloaded Talos images
+*.raw
+*.raw.xz
+*.iso
+
+# Packer crash logs
+crash.log

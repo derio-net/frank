@@ -1,0 +1,4 @@
+apiVersion: v2
+name: hop-infrastructure
+version: 1.0.0
+description: App-of-Apps for hop edge cluster infrastructure
