@@ -1,0 +1,7 @@
+# Git repo containing Helm values for each app
+repoURL: https://github.com/derio-net/frank.git
+targetRevision: main
+
+# Cluster destination
+destination:
+  server: https://kubernetes.default.svc
