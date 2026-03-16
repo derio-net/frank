@@ -122,6 +122,32 @@ Common causes:
 - `redirect_uris` must be a list in Authentik 2026.x API calls
 - Missing `invalidation_flow` in provider config (required in 2026.x)
 
+### Forward Auth Redirects to `0.0.0.0`
+
+If clicking a forward-auth-protected service (Longhorn, Hubble, Sympozium) redirects the browser to `http://0.0.0.0:9000/...` instead of `https://auth.frank.derio.net/...`:
+
+The embedded outpost does not know its own external URL. Set `AUTHENTIK_HOST` in the Helm values:
+
+```yaml
+global:
+  env:
+    - name: AUTHENTIK_HOST
+      value: "https://auth.frank.derio.net"
+```
+
+After updating `apps/authentik/values.yaml`, ArgoCD will sync the change. Verify with:
+
+```bash
+# Check that the env var is set on the server pods
+kubectl get deploy -n authentik authentik-server \
+  -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="AUTHENTIK_HOST")].value}'
+# Expected: https://auth.frank.derio.net
+
+# Test that forward-auth now redirects correctly
+curl -sk -o /dev/null -w "%{redirect_url}\n" https://longhorn.frank.derio.net/
+# Expected: https://auth.frank.derio.net/outpost.goauthentik.io/... (not 0.0.0.0)
+```
+
 ### Forward Auth 403
 
 ```bash
