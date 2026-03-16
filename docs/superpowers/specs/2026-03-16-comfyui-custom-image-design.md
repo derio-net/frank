@@ -66,6 +66,7 @@ ComfyUI-Manager is baked into the image at `/app/default_custom_nodes/ComfyUI-Ma
 
 ```bash
 #!/bin/bash
+set -e
 # /app/entrypoint.sh
 
 # Seed ComfyUI-Manager into the PVC if not already present
