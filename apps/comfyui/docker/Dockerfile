@@ -37,11 +37,13 @@ WORKDIR /app
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ── ComfyUI-Manager (baked into default location) ───────────────────
+# Manager 4.x is a pyproject.toml package — pip install makes it importable.
+# Clone to default_custom_nodes so entrypoint can seed it into the PVC.
 RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git \
         /app/default_custom_nodes/ComfyUI-Manager \
     && cd /app/default_custom_nodes/ComfyUI-Manager \
     && git checkout ${MANAGER_REF} \
-    && if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
+    && pip install --no-cache-dir -e .
 
 # ── Non-root user ───────────────────────────────────────────────────
 RUN groupadd -g 1000 comfyui \
