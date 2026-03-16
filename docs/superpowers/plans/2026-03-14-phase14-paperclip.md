@@ -759,6 +759,28 @@ git commit -m "docs: sync Phase 14 manual operations to runbook"
 
 ---
 
+### Task 16b: Add Traefik route on raspi-omni
+
+Paperclip needs a Traefik route to be accessible at `paperclip.frank.derio.net`. Traefik runs outside K8s on raspi-omni.
+
+```yaml
+# manual-operation
+id: phase14-traefik-paperclip-route
+phase: 14
+app: paperclip
+plan: docs/superpowers/plans/2026-03-14-phase14-paperclip.md
+when: "After Paperclip deployment is healthy — add Traefik route on raspi-omni"
+why_manual: "Traefik runs outside K8s on raspi-omni, managed via Ansible"
+commands:
+  - "Add paperclip entry to Traefik Ansible vars: host paperclip.frank.derio.net, backend 192.168.55.212:3100"
+  - "Run Ansible playbook to apply Traefik config on raspi-omni"
+verify:
+  - "curl -sk https://paperclip.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)"
+status: pending
+```
+
+---
+
 ### Task 17: Final push
 
 Push all documentation updates.
