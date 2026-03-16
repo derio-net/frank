@@ -37,7 +37,7 @@ spec:
               containerPort: 18188
               protocol: TCP
           env:
-            - name: COMFYUI_FLAGS
+            - name: COMFYUI_ARGS
               value: "--listen 0.0.0.0"
             - name: WEB_ENABLE_AUTH
               value: "false"
