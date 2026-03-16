@@ -28,6 +28,8 @@ spec:
         - key: nvidia.com/gpu
           operator: Exists
           effect: NoSchedule
+      securityContext:
+        fsGroup: 1111
       terminationGracePeriodSeconds: 30
       containers:
         - name: comfyui
