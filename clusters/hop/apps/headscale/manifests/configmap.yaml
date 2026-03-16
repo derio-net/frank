@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headscale-config
+  namespace: headscale-system
+data:
+  config.yaml: |
+    server_url: https://headscale.hop.derio.net
+    listen_addr: 0.0.0.0:8080
+    metrics_listen_addr: 0.0.0.0:9090
+    grpc_listen_addr: 0.0.0.0:50443
+    grpc_allow_insecure: false
+
+    database:
+      type: sqlite
+      sqlite:
+        path: /var/lib/headscale/db.sqlite
+
+    noise:
+      private_key_path: /var/lib/headscale/noise_private.key
+
+    prefixes:
+      v4: 100.64.0.0/10
+      v6: fd7a:115c:a1e0::/48
+      allocation: sequential
+
+    derp:
+      server:
+        enabled: true
+        region_id: 999
+        region_code: hop
+        region_name: "Hop DERP"
+        stun_listen_addr: 0.0.0.0:3478
+      urls:
+        - https://controlplane.tailscale.com/derpmap/default
+      paths: []
+      auto_update_enabled: false
+
+    dns:
+      base_domain: mesh.hop.derio.net
+      magic_dns: true
+      nameservers:
+        global:
+          - 1.1.1.1
+          - 8.8.8.8
+
+    log:
+      level: info
+
+    policy:
+      mode: file
+      path: /etc/headscale/acl.yaml
+
+  acl.yaml: |
+    # Headscale ACL policy
+    # Allow all traffic within the mesh for now — tighten later
+    acls:
+      - action: accept
+        src:
+          - "*"
+        dst:
+          - "*:*"
