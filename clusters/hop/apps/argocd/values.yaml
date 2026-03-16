@@ -1,0 +1,54 @@
+## ArgoCD Helm values for Hop (minimal single-replica)
+## Chart: argo-cd (argo/argo-cd)
+## Repo: https://argoproj.github.io/argo-helm
+
+# Single-replica minimal install for edge node
+controller:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+server:
+  replicas: 1
+  extraArgs:
+    - --insecure
+  # No external LoadBalancer — ArgoCD is cluster-internal only
+  service:
+    type: ClusterIP
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+repoServer:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+
+redis:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      memory: 128Mi
+
+dex:
+  enabled: false
+
+applicationSet:
+  enabled: false
+
+notifications:
+  enabled: false
