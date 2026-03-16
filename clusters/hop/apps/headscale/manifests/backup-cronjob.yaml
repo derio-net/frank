@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: headscale-backup
+  namespace: headscale-system
+spec:
+  schedule: "0 3 * * *"  # Daily at 3am UTC
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: alpine:3.20
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  apk add --no-cache sqlite
+                  # Use SQLite .backup for a consistent copy (not just cp)
+                  sqlite3 /var/lib/headscale/db.sqlite ".backup '/backup/headscale-$(date +%Y%m%d).db'"
+                  # Keep only last 7 backups
+                  ls -t /backup/headscale-*.db | tail -n +8 | xargs rm -f 2>/dev/null || true
+                  echo "Backup complete: /backup/headscale-$(date +%Y%m%d).db"
+              volumeMounts:
+                - name: data
+                  mountPath: /var/lib/headscale
+                  readOnly: true
+                - name: backup
+                  mountPath: /backup
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: headscale-data
+            - name: backup
+              hostPath:
+                path: /var/mnt/hop-data/backups/headscale
+                type: DirectoryOrCreate
