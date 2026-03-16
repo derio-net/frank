@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: headplane
+  namespace: headscale-system
+  labels:
+    app.kubernetes.io/name: headplane
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: headplane
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: headplane
+    spec:
+      serviceAccountName: headplane
+      containers:
+        - name: headplane
+          image: ghcr.io/tale/headplane:0.5.5
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: HEADSCALE_URL
+              value: "http://headscale.headscale-system.svc:8080"
+            - name: HEADSCALE_INTEGRATION
+              value: "kubernetes"
+            - name: KUBERNETES_NAMESPACE
+              value: "headscale-system"
+            - name: KUBERNETES_POD_LABEL
+              value: "app.kubernetes.io/name=headscale"
+            - name: KUBERNETES_CONTAINER
+              value: "headscale"
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              memory: 128Mi
