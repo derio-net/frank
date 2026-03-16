@@ -41,6 +41,8 @@ spec:
               value: "--listen 0.0.0.0"
             - name: WEB_ENABLE_AUTH
               value: "false"
+            - name: CF_QUICK_TUNNELS
+              value: "false"
           resources:
             requests:
               cpu: 4000m
@@ -52,22 +54,27 @@ spec:
           volumeMounts:
             - name: models
               mountPath: /opt/ComfyUI/models
+          startupProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 60
           livenessProbe:
             httpGet:
               path: /
               port: http
-            initialDelaySeconds: 120
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 6
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /
               port: http
-            initialDelaySeconds: 60
             periodSeconds: 5
             timeoutSeconds: 3
-            failureThreshold: 6
+            failureThreshold: 3
       volumes:
         - name: models
           persistentVolumeClaim:
