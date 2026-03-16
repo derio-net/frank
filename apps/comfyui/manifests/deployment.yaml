@@ -29,22 +29,15 @@ spec:
           operator: Exists
           effect: NoSchedule
       securityContext:
-        fsGroup: 1111
+        fsGroup: 1000
       terminationGracePeriodSeconds: 30
       containers:
         - name: comfyui
-          image: ghcr.io/ai-dock/comfyui:latest-cuda
+          image: ghcr.io/derio-net/comfyui:comfyui-v0.3.10-pt2.6.0-cu128
           ports:
             - name: http
-              containerPort: 18188
+              containerPort: 8188
               protocol: TCP
-          env:
-            - name: COMFYUI_ARGS
-              value: "--listen 0.0.0.0"
-            - name: WEB_ENABLE_AUTH
-              value: "false"
-            - name: CF_QUICK_TUNNELS
-              value: "false"
           resources:
             requests:
               cpu: 4000m
@@ -55,14 +48,16 @@ spec:
               nvidia.com/gpu: "1"
           volumeMounts:
             - name: models
-              mountPath: /opt/ComfyUI/models
+              mountPath: /app/models
+            - name: custom-nodes
+              mountPath: /app/custom_nodes
           startupProbe:
             httpGet:
               path: /
               port: http
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 60
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /
@@ -81,3 +76,6 @@ spec:
         - name: models
           persistentVolumeClaim:
             claimName: comfyui-models
+        - name: custom-nodes
+          persistentVolumeClaim:
+            claimName: comfyui-custom-nodes

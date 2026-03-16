@@ -1,0 +1,13 @@
+# Persistent storage for ComfyUI custom nodes (installed via ComfyUI-Manager)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comfyui-custom-nodes
+  namespace: comfyui
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi

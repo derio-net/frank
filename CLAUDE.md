@@ -149,7 +149,7 @@ scripts/               # Utility scripts
 Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 
 - **New phases** start as `phaseXX` (no number). They get a real number only once implementation begins.
-- **Bugfixes and extensions** of existing phases use the original phase number (e.g., `phase04-gpu1-pcie-link-speed-fix` extends Phase 4 GPU Stack).
+- **Bugfixes and extensions** of existing phases use the original phase number (e.g., `phase04-gpu1-pcie-link-speed-fix` extends Phase 4 GPU Stack). In such case, the relevant blog posts ('building' and 'operating' if appropriate) must be retroactively updated.
 
 ## Nodes
 
