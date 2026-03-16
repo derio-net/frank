@@ -1500,6 +1500,28 @@ status: pending
 **Files:**
 - Modify: `CLAUDE.md` (Services table)
 
+- [ ] **Step 0: Add Traefik routes on raspi-omni**
+
+ComfyUI and GPU Switcher need Traefik routes to be accessible at their `frank.derio.net` subdomains. Traefik runs outside K8s on raspi-omni.
+
+```yaml
+# manual-operation
+id: phase15-traefik-comfyui-route
+phase: 15
+app: comfyui
+plan: docs/superpowers/plans/2026-03-14-phase15-media-generation.md
+when: "After ComfyUI deployment is healthy — add Traefik route on raspi-omni"
+why_manual: "Traefik runs outside K8s on raspi-omni, managed via Ansible"
+commands:
+  - "Add comfyui entry to Traefik Ansible vars: host comfyui.frank.derio.net, backend 192.168.55.213:8188"
+  - "Add gpu-switcher entry to Traefik Ansible vars: host gpu.frank.derio.net, backend 192.168.55.214:8080"
+  - "Run Ansible playbook to apply Traefik config on raspi-omni"
+verify:
+  - "curl -sk https://comfyui.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)"
+  - "curl -sk https://gpu.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)"
+status: pending
+```
+
 - [ ] **Step 1: Add ComfyUI and GPU Switcher to the Services table in CLAUDE.md**
 
 Add after the Paperclip entry:

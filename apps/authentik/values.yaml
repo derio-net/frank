@@ -30,6 +30,10 @@ global:
         secretKeyRef:
           name: authentik-secrets
           key: bootstrap_password
+    # External URL for the embedded proxy outpost to generate correct OAuth redirects.
+    # Without this, forward-auth redirects use the container's internal 0.0.0.0:9000.
+    - name: AUTHENTIK_HOST
+      value: "https://auth.frank.derio.net"
     # PostgreSQL password: the Bitnami subchart uses existingSecret for its own auth,
     # but Authentik server/worker need the password via this env var to connect.
     - name: AUTHENTIK_POSTGRESQL__PASSWORD
