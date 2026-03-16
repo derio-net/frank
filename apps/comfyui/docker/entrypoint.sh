@@ -9,11 +9,9 @@ if [ ! -d /app/custom_nodes/ComfyUI-Manager ]; then
   cp -r /app/default_custom_nodes/ComfyUI-Manager /app/custom_nodes/
 fi
 
-# Manager 4.x is a pyproject.toml package — ensure it's pip-installed
-# so ComfyUI can discover it. The editable install points at the PVC copy.
-if ! python -c "import comfyui_manager" 2>/dev/null; then
-  echo "Installing ComfyUI-Manager package..."
-  pip install --no-cache-dir -e /app/custom_nodes/ComfyUI-Manager
-fi
+# Manager 4.x is a pyproject.toml package — create editable link on each boot.
+# Dependencies are pre-installed in the image; --no-deps makes this instant.
+# The .egg-link is ephemeral (in-container, not on PVC) so this runs every boot.
+pip install --no-deps --break-system-packages -e /app/custom_nodes/ComfyUI-Manager 2>&1 | tail -1
 
 exec python main.py "$@"
