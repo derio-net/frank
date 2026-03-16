@@ -33,7 +33,7 @@ spec:
       terminationGracePeriodSeconds: 30
       containers:
         - name: comfyui
-          image: ghcr.io/derio-net/comfyui:comfyui-v0.3.10-pt2.6.0-cu128
+          image: ghcr.io/derio-net/comfyui:comfyui-v0.3.10-pt2.10.0-cu128
           ports:
             - name: http
               containerPort: 8188
