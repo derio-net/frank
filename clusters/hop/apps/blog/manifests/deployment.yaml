@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blog
+  namespace: blog-system
+  labels:
+    app.kubernetes.io/name: blog
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: blog
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: blog
+    spec:
+      containers:
+        - name: blog
+          image: ghcr.io/derio-net/blog:latest
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /frank/
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
