@@ -58,4 +58,4 @@ USER comfyui
 EXPOSE 8188
 
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["--listen", "0.0.0.0", "--port", "8188"]
+CMD ["--listen", "0.0.0.0", "--port", "8188", "--enable-manager"]
