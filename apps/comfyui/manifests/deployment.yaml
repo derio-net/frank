@@ -34,7 +34,7 @@ spec:
           image: ghcr.io/ai-dock/comfyui:latest-cuda
           ports:
             - name: http
-              containerPort: 8188
+              containerPort: 18188
               protocol: TCP
           env:
             - name: COMFYUI_FLAGS
