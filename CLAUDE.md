@@ -109,13 +109,25 @@ Cover image generation prompts go in `blog/prompt_for_images.yaml` — one entry
 ## Architecture
 
 ```
-apps/                  # ArgoCD App-of-Apps (Helm chart + per-app values)
+apps/                  # ArgoCD App-of-Apps for Frank (Helm chart + per-app values)
   root/                # Entry point — templates all Application CRs
   <app>/values.yaml    # Per-app Helm values
   <app>/manifests/     # Raw K8s manifests (when no upstream chart)
   vclusters/           # Per-vCluster Helm values (multi-tenancy)
     template/          # Base values template
     <name>/values.yaml # Per-instance overrides
+clusters/
+  hop/                 # Hop edge cluster (Hetzner CX22, Omni-managed)
+    apps/              # Hop ArgoCD App-of-Apps
+      root/            # Entry point for Hop's Application CRs
+      argocd/          # ArgoCD values (minimal single-replica)
+      headscale/       # Headscale mesh coordination server
+      headplane/       # Headscale web UI
+      caddy/           # Reverse proxy + TLS (Cloudflare DNS challenge)
+      blog/            # Hugo blog container deployment
+      landing/         # Private landing page (mesh-only)
+      storage/         # Static PVs for Hetzner Volume
+    packer/            # Packer template for Hetzner Talos image
 patches/               # Talos machine config patches (per phase)
   phase01-node-config/ # Node labels, scheduling
   phase02-cilium/      # CNI, eBPF kube-proxy
@@ -128,6 +140,7 @@ docs/superpowers/plans/ # Implementation plans
 docs/superpowers/specs/ # Design specs
 docs/runbooks/         # Manual operations registry (manual-operations.yaml)
 secrets/               # SOPS-encrypted bootstrap secrets (applied out-of-band)
+  hop/                 # Hop cluster secrets
 scripts/               # Utility scripts
 ```
 
@@ -150,7 +163,15 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 | raspi-1 | 192.168.55.41 | worker | Edge | RPi 4, low-power |
 | raspi-2 | 192.168.55.42 | worker | Edge | RPi 4, low-power |
 
+### Hop Cluster (Hetzner Cloud)
+
+| Host | IP | Role | Zone | Key Hardware |
+|------|-----|------|------|-------------|
+| hop-1 | TBD | control-plane+worker | Edge (Hetzner) | CX22, 2 vCPU, 4GB |
+
 ## Services
+
+### Frank Cluster
 
 | Service | IP | Exposed Via |
 |---------|-----|-------------|
@@ -166,11 +187,21 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 | ComfyUI | 192.168.55.213 | Cilium L2 LoadBalancer (port 8188) |
 | GPU Switcher | 192.168.55.214 | Cilium L2 LoadBalancer (port 8080) |
 
+### Hop Cluster
+
+| Service | Domain | Exposed Via |
+|---------|--------|-------------|
+| Headscale | headscale.hop.derio.net | Caddy (public) |
+| Headplane | headplane.hop.derio.net | Caddy (mesh only) |
+| Blog | blog.derio.net/frank | Caddy (public) |
+| Landing | entry.hop.derio.net | Caddy (mesh only) |
+
 ## Declarative-Only Principle
 
 **Every resource on the cluster must be reproducible from code in this repo.** No `helm install`, no ad-hoc `kubectl apply` for workloads or configuration.
 
-- All workloads: ArgoCD App-of-Apps (`apps/`)
+- Frank workloads: ArgoCD App-of-Apps (`apps/`)
+- Hop workloads: ArgoCD App-of-Apps (`clusters/hop/apps/`)
 - All machine config: Talos patches (`patches/`)
 - The **only** accepted exception: SOPS-encrypted bootstrap secrets that must exist before the secret store is running. Apply them manually via `sops --decrypt <file> | kubectl apply -f -` and document the exception as a `# manual-operation` block in the plan and sync the runbook.
 
