@@ -36,15 +36,13 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# ── ComfyUI-Manager (baked into default location) ───────────────────
-# Manager 4.x is a pyproject.toml package. Install deps at build time
-# (as root, into system site-packages). The entrypoint creates the
-# editable link from the PVC copy on each boot (fast, no downloads).
-RUN git clone https://github.com/ltdrdata/ComfyUI-Manager.git \
-        /app/default_custom_nodes/ComfyUI-Manager \
-    && cd /app/default_custom_nodes/ComfyUI-Manager \
-    && git checkout ${MANAGER_REF} \
-    && pip install --no-cache-dir -e .
+# ── ComfyUI-Manager (pip package, not custom_nodes) ─────────────────
+# Manager 4.x is a proper Python package imported by ComfyUI via
+# `import comfyui_manager`. It must NOT live in custom_nodes/ —
+# ComfyUI's custom_nodes loader expects __init__.py at root which
+# Manager 4.x doesn't have. Pip install makes it globally importable.
+RUN pip install --no-cache-dir \
+    comfyui-manager==${MANAGER_REF}
 
 # ── Non-root user ───────────────────────────────────────────────────
 RUN groupadd -g 1000 comfyui \
