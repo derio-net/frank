@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: caddy-config
+  namespace: caddy-system
+data:
+  Caddyfile: |
+    # Global options
+    {
+      email admin@derio.net
+      acme_dns cloudflare {env.CF_API_TOKEN}
+    }
+
+    # --- Public routes ---
+
+    # Headscale coordination server (public — clients must reach it)
+    headscale.hop.derio.net {
+      reverse_proxy headscale.headscale-system.svc:8080
+    }
+
+    # Blog (public)
+    blog.derio.net {
+      handle /frank* {
+        reverse_proxy blog.blog-system.svc:8080
+      }
+      handle {
+        redir https://blog.derio.net/frank{uri} permanent
+      }
+    }
+
+    # Portfolio / personal site (public — placeholder for now)
+    www.derio.net {
+      respond "Coming soon." 200
+    }
+
+    # --- Private routes (Tailscale mesh only) ---
+
+    # Headplane (Headscale admin UI)
+    headplane.hop.derio.net {
+      @not_mesh not remote_ip 100.64.0.0/10
+      respond @not_mesh "Forbidden" 403
+      reverse_proxy headplane.headscale-system.svc:3000
+    }
+
+    # Private landing page
+    entry.hop.derio.net {
+      @not_mesh not remote_ip 100.64.0.0/10
+      respond @not_mesh "Forbidden" 403
+      reverse_proxy landing.landing-system.svc:8080
+    }
+
+    # Note: DERP relay traffic goes through the main headscale.hop.derio.net
+    # block above — Headscale handles /derp paths internally. No separate
+    # route block needed.

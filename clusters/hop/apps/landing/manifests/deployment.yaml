@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: landing
+  namespace: landing-system
+  labels:
+    app.kubernetes.io/name: landing
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: landing
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: landing
+    spec:
+      containers:
+        - name: landing
+          image: caddy:2.9-alpine
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/caddy
+              readOnly: true
+            - name: caddyfile
+              mountPath: /etc/caddy
+              readOnly: true
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+      volumes:
+        - name: html
+          configMap:
+            name: landing-html
+        - name: caddyfile
+          configMap:
+            name: landing-caddy
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: landing-caddy
+  namespace: landing-system
+data:
+  Caddyfile: |
+    :8080 {
+      root * /usr/share/caddy
+      file_server
+    }
