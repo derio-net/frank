@@ -1,8 +1,8 @@
 FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
 
 # Version pins — passed as build args from CI, with defaults for local builds
-ARG COMFYUI_REF=v0.3.10
-ARG MANAGER_REF=2.58
+ARG COMFYUI_REF=v0.9.2
+ARG MANAGER_REF=4.0.5
 ARG PYTORCH_VERSION=2.10.0
 ARG CUDA_VERSION_PIP=cu128
 
