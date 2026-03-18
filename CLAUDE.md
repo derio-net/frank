@@ -16,16 +16,24 @@ Every phase follows this sequence:
 ## Commands
 
 ```bash
-# Environment
-source .env          # General (KUBECONFIG, TALOSCONFIG, OMNICONFIG)
+# Environment — Frank cluster
+source .env          # Frank (KUBECONFIG, TALOSCONFIG, OMNICONFIG)
 source .env_devops   # DevOps (OMNI_ENDPOINT, service account key)
 
-# Cluster operations
+# Environment — Hop cluster (CAUTION: overrides KUBECONFIG)
+source .env_hop      # Hop (KUBECONFIG → clusters/hop/talosconfig/kubeconfig)
+
+# Frank cluster operations
 kubectl get nodes -o wide
 talosctl health --nodes $CONTROL_PLANE_IP_1
 omnictl get machines
 
-# ArgoCD
+# Hop cluster operations (source .env_hop first)
+export TALOSCONFIG=$(pwd)/clusters/hop/talosconfig/talosconfig
+talosctl -n $HOP_IP health  # HOP_IP exported from .env_hop
+kubectl -n argocd get applications
+
+# ArgoCD (Frank)
 argocd app list --port-forward --port-forward-namespace argocd
 argocd app sync root --port-forward --port-forward-namespace argocd
 
@@ -117,17 +125,18 @@ apps/                  # ArgoCD App-of-Apps for Frank (Helm chart + per-app valu
     template/          # Base values template
     <name>/values.yaml # Per-instance overrides
 clusters/
-  hop/                 # Hop edge cluster (Hetzner CX22, Omni-managed)
+  hop/                 # Hop edge cluster (Hetzner CX23, standalone talosctl)
     apps/              # Hop ArgoCD App-of-Apps
       root/            # Entry point for Hop's Application CRs
       argocd/          # ArgoCD values (minimal single-replica)
-      headscale/       # Headscale mesh coordination server
+      headscale/       # Headscale mesh + Tailscale DaemonSet
       headplane/       # Headscale web UI
       caddy/           # Reverse proxy + TLS (Cloudflare DNS challenge)
       blog/            # Hugo blog container deployment
       landing/         # Private landing page (mesh-only)
       storage/         # Static PVs for Hetzner Volume
     packer/            # Packer template for Hetzner Talos image
+    talosconfig/       # Talos client config (gitignored, contains secrets)
 patches/               # Talos machine config patches (per phase)
   phase01-node-config/ # Node labels, scheduling
   phase02-cilium/      # CNI, eBPF kube-proxy
@@ -163,11 +172,11 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 | raspi-1 | 192.168.55.41 | worker | Edge | RPi 4, low-power |
 | raspi-2 | 192.168.55.42 | worker | Edge | RPi 4, low-power |
 
-### Hop Cluster (Hetzner Cloud)
+### Hop Cluster (Hetzner Cloud — standalone talosctl, not Omni)
 
-| Host | IP | Role | Zone | Key Hardware |
-|------|-----|------|------|-------------|
-| hop-1 | TBD | control-plane+worker | Edge (Hetzner) | CX22, 2 vCPU, 4GB |
+| Host  | IP                     | Role                 | Zone                | Key Hardware       |
+|-------|------------------------|----------------------|---------------------|--------------------|
+| hop-1 | $HOP_IP (see .env_hop) | control-plane+worker | Edge (Hetzner fsn1) | CX23, 2 vCPU, 4GB |
 
 ## Services
 
@@ -203,7 +212,10 @@ Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 - Frank workloads: ArgoCD App-of-Apps (`apps/`)
 - Hop workloads: ArgoCD App-of-Apps (`clusters/hop/apps/`)
 - All machine config: Talos patches (`patches/`)
-- The **only** accepted exception: SOPS-encrypted bootstrap secrets that must exist before the secret store is running. Apply them manually via `sops --decrypt <file> | kubectl apply -f -` and document the exception as a `# manual-operation` block in the plan and sync the runbook.
+- Hop machine config: `talosctl` with combined patch file (not Omni)
+- The **only** accepted exception: bootstrap secrets that must exist before the secret store is running. Apply them manually and document as a `# manual-operation` block in the plan.
+  - Frank: SOPS-encrypted secrets applied via `sops --decrypt <file> | kubectl apply -f -`
+  - Hop: Plain Kubernetes Secrets applied via `kubectl create secret` (Caddy Cloudflare token, Tailscale auth key)
 
 `helm repo add` and `helm show values` are fine as **local research tools** to discover chart schemas — they don't touch the cluster.
 
@@ -243,6 +255,13 @@ Check for updates periodically (e.g., when starting a new phase).
 - Authentik `global.env` applies env vars to both server + worker (avoids duplication)
 - Grafana OIDC: secret key must be `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` for `envFromSecret` to work
 - Authentik embedded outpost requires `AUTHENTIK_HOST` env var set to external URL (e.g., `https://auth.frank.derio.net`) — without it, forward-auth redirects use `0.0.0.0:9000`
+- **Hop:** Never `source .env` when working on Hop — it overrides KUBECONFIG to Frank. Use `source .env_hop` instead
+- **Hop:** Talos control-plane taint must be removed for single-node cluster (`allowSchedulingOnControlPlanes: true` in Talos config)
+- **Hop:** PodSecurity namespaces (`caddy-system`, `headscale-system`) must be labeled `pod-security.kubernetes.io/enforce: privileged` for hostPort/privileged pods
+- **Hop:** Headplane v0.5+ requires a `config.yaml` ConfigMap — env vars alone are insufficient
+- **Hop:** Headscale `extra_records` in DNS config provides split-DNS for mesh-only services — add entries for any new mesh-only service
+- **Hop:** `talosctl apply-config --config-patch` patches the base file, not the running config — all patches must be combined in one invocation
+- **Hop:** Tailscale DaemonSet must run in kernel mode (`TS_USERSPACE=false`, `privileged: true`) for Caddy to see mesh source IPs
 
 ## Manual Operations
 

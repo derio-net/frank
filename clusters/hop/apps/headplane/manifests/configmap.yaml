@@ -18,6 +18,4 @@ data:
 
     integration:
       kubernetes:
-        enabled: true
-        validate_manifest: false
-        pod_name: "headscale"
+        enabled: false
