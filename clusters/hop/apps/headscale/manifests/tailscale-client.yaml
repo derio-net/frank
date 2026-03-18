@@ -34,6 +34,14 @@ spec:
               value: "true"
             - name: TS_HOSTNAME
               value: hop-1
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
           volumeMounts:
             - name: state
               mountPath: /var/lib/tailscale
@@ -56,3 +64,30 @@ kind: ServiceAccount
 metadata:
   name: tailscale
   namespace: headscale-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: tailscale
+  namespace: headscale-system
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "update", "create", "patch"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tailscale
+  namespace: headscale-system
+subjects:
+  - kind: ServiceAccount
+    name: tailscale
+    namespace: headscale-system
+roleRef:
+  kind: Role
+  name: tailscale
+  apiGroup: rbac.authorization.k8s.io
