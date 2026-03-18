@@ -3,4 +3,4 @@ kind: Namespace
 metadata:
   name: headscale-system
   labels:
-    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/enforce: privileged
