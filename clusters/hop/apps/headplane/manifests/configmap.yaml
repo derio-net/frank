@@ -8,7 +8,7 @@ data:
     server:
       host: "0.0.0.0"
       port: 3000
-      cookie_secret: "headplane-hop-cookie-secret-change-me"
+      cookie_secret: "hop-headplane-cookie-secret-32c!"
       cookie_secure: false
 
     headscale:
