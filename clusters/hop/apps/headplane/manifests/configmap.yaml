@@ -8,10 +8,13 @@ data:
     server:
       host: "0.0.0.0"
       port: 3000
+      cookie_secret: "headplane-hop-cookie-secret-change-me"
+      cookie_secure: false
 
     headscale:
       url: "http://headscale.headscale-system.svc:8080"
       config_path: "/etc/headscale/config.yaml"
+      config_strict: false
 
     integration:
       kubernetes:
