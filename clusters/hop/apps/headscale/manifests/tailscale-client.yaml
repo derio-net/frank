@@ -29,7 +29,7 @@ spec:
             - name: TS_STATE_DIR
               value: /var/lib/tailscale
             - name: TS_USERSPACE
-              value: "true"
+              value: "false"
             - name: TS_EXTRA_ARGS
               value: "--login-server=https://headscale.hop.derio.net --hostname=hop-1"
             - name: POD_NAME
@@ -43,6 +43,8 @@ spec:
           volumeMounts:
             - name: state
               mountPath: /var/lib/tailscale
+            - name: dev-net-tun
+              mountPath: /dev/net/tun
           resources:
             requests:
               cpu: 25m
@@ -50,12 +52,15 @@ spec:
             limits:
               memory: 128Mi
           securityContext:
-            runAsNonRoot: false
+            privileged: true
       volumes:
         - name: state
           hostPath:
             path: /var/mnt/hop-data/tailscale
             type: DirectoryOrCreate
+        - name: dev-net-tun
+          hostPath:
+            path: /dev/net/tun
 ---
 apiVersion: v1
 kind: ServiceAccount
