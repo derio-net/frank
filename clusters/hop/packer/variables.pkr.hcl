@@ -15,7 +15,7 @@ variable "location" {
 
 variable "server_type" {
   type    = string
-  default = "cx22"
+  default = "cx23"
 }
 
 variable "snapshot_name" {
