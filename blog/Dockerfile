@@ -1,5 +1,5 @@
 # Stage 1: Build Hugo site
-FROM hugomods/hugo:exts-0.157.0 AS builder
+FROM ghcr.io/gohugoio/hugo:v0.157.0 AS builder
 WORKDIR /src
 COPY . .
 RUN hugo --minify --baseURL https://blog.derio.net
