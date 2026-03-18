@@ -51,3 +51,4 @@ blog/resources/_gen/
 blog/.hugo_build.lock
 .infisical.json
 .env_hop
+clusters/hop/talosconfig/
