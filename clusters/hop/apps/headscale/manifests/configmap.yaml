@@ -31,6 +31,7 @@ data:
         region_code: hop
         region_name: "Hop DERP"
         stun_listen_addr: 0.0.0.0:3478
+        private_key_path: /var/lib/headscale/derp_server_private.key
       urls:
         - https://controlplane.tailscale.com/derpmap/default
       paths: []
