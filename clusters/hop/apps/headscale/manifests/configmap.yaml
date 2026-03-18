@@ -44,6 +44,13 @@ data:
         global:
           - 1.1.1.1
           - 8.8.8.8
+      extra_records:
+        - name: headplane.hop.derio.net
+          type: A
+          value: 100.64.0.4
+        - name: entry.hop.derio.net
+          type: A
+          value: 100.64.0.4
 
     log:
       level: info
