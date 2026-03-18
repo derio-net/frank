@@ -1,12 +1,13 @@
 # Phase XX — Hop: Public Edge Entrypoint
 
 **Date:** 2026-03-16
-**Status:** Design
+**Updated:** 2026-03-19
+**Status:** Deployed
 **Phase:** XX (assigned on implementation)
 
 ## Overview
 
-Deploy a Hetzner Cloud VPS running Talos Linux as a public-facing edge node ("Hop"), managed by Omni as a separate single-node cluster. Hop provides three capabilities:
+Deploy a Hetzner Cloud VPS running Talos Linux as a public-facing edge node ("Hop"), managed as a standalone single-node Talos cluster via `talosctl`. Hop provides three capabilities:
 
 1. **Headscale mesh** — self-hosted Tailscale coordination server enabling remote access to the entire homelab via VLAN 10 subnet routers
 2. **Public web presence** — Hugo blog at `blog.derio.net/frank` and portfolio at `www.derio.net`, served by Caddy
@@ -18,8 +19,8 @@ Two dedicated Raspberry Pis on VLAN 10 (Services) act as Tailscale subnet router
 
 ```
                     ┌─────────────────────────────────────────────┐
-                    │         Hetzner Cloud CX22 (Hop)            │
-                    │         Talos Linux · Omni-managed          │
+                    │         Hetzner Cloud CX23 (Hop)            │
+                    │         Talos Linux · standalone talosctl   │
                     │                                             │
   Internet ────▶    │  ┌────────────────────────────────────┐     │
   :80/:443          │  │ Caddy (hostPort 80/443)            │     │
@@ -32,9 +33,19 @@ Two dedicated Raspberry Pis on VLAN 10 (Services) act as Tailscale subnet router
                     │  Headscale Headplane Blog  Landing          │
                     │  (public)  (mesh)  (pub)  (mesh)            │
                     │     │                                       │
+                    │     │  Tailscale DaemonSet (kernel-mode)    │
+                    │     │  hostNetwork + privileged             │
+                    │     │  → gives hop-1 a mesh IP (100.64.x)   │
+                    │     │  → Caddy sees mesh source IPs         │
+                    │     │                                       │
+                    │     │  MagicDNS (extra_records)             │
+                    │     │  → mesh clients resolve mesh-only     │
+                    │     │    domains to Tailscale IP            │
+                    │     │                                       │
                     │     │  Hetzner Volume (10GB)                │
                     │     │  ├── headscale.db                     │
-                    │     │  └── caddy certs                      │
+                    │     │  ├── caddy certs                      │
+                    │     │  └── tailscale state                  │
                     │     │                                       │
                     │  ArgoCD (Hop instance)                      │
                     └─────┼───────────────────────────────────────┘
@@ -62,40 +73,54 @@ Two dedicated Raspberry Pis on VLAN 10 (Services) act as Tailscale subnet router
 
 ## Hetzner Provisioning
 
-**Node:** CX22 (2 vCPU, 4GB RAM, 40GB disk, ~€3.49/mo)
+**Node:** CX23 (2 vCPU, 4GB RAM, 40GB disk, ~€3.49/mo) — CX22 was deprecated by Hetzner
 **Storage:** Hetzner Volume 10GB (~€0.48/mo)
-**Location:** EU (e.g., `hel1` Helsinki or `fsn1` Falkenstein)
+**Location:** `fsn1` (Falkenstein)
+**Public IP:** stored in `.env_hop` as `HOP_IP` (not committed)
 
 **Image build workflow:**
 
-1. Download Talos installation media from Omni dashboard — select "Hetzner" variant (includes Omni join credentials + hcloud platform extensions)
+1. Download plain Talos Hetzner image from Talos Image Factory (`hcloud-amd64.raw.xz`)
 2. Packer builds a Hetzner Cloud snapshot from the image (rescue mode → `dd` → snapshot)
-3. `hcloud server create --image <SNAPSHOT_ID> --type cx22 --location <loc>`
-4. Server auto-registers with Omni, allocate to "hop" cluster
+3. `hcloud server create --image <SNAPSHOT_ID> --type cx23 --location fsn1 --volume hop-data`
+4. Apply Talos config via `talosctl apply-config --insecure`
+5. Bootstrap etcd via `talosctl bootstrap`
+6. Retrieve kubeconfig via `talosctl kubeconfig`
 
-Packer config lives at `clusters/hop/packer/`.
+**Why not Omni:** The self-hosted Omni instance at `omni.frank.derio.net` is only reachable on the home network. A Hetzner VPS cannot reach it for registration. Standalone `talosctl` is simpler for a single-node cluster.
+
+Packer config lives at `clusters/hop/packer/`. Talosconfig (secrets) at `clusters/hop/talosconfig/` (gitignored).
 
 ## Hop Cluster Configuration
 
-**Single-node Talos cluster in Omni:**
-- Control plane + worker on same node
+**Standalone single-node Talos cluster managed via `talosctl`:**
+- Control plane + worker on same node (`allowSchedulingOnControlPlanes: true`)
 - CNI: Flannel (default) — Cilium is unnecessary for a single public node
 - No LoadBalancer abstraction — Caddy uses `hostPort` on 80/443
+- PodSecurity: `caddy-system` and `headscale-system` namespaces labeled `privileged` (required for hostPort and privileged containers)
 
 **Workloads:**
 
 | App | Type | Source | Notes |
 |-----|------|--------|-------|
-| ArgoCD | Helm chart | Upstream | Minimal single-replica install (~512MB RAM), manages Hop's app-of-apps |
-| Headscale | Raw manifests | `headscale/headscale` container | Coordination server, gRPC + HTTPS, embedded DERP |
-| Headplane | Raw manifests | Container image | Web UI for Headscale |
-| Caddy | Raw manifests | Container image | Reverse proxy, TLS, static file serving |
-| Blog | Raw manifests | `ghcr.io/derio-net/blog` | Hugo static output baked into container |
+| ArgoCD | Helm chart | Upstream (argo-cd 9.4.14) | Minimal single-replica install, manages Hop's app-of-apps |
+| Headscale | Raw manifests | `headscale/headscale:0.25.1` | Coordination server, gRPC + HTTPS, embedded DERP |
+| Headplane | Raw manifests | `ghcr.io/tale/headplane:0.5.5` | Web UI for Headscale (requires config.yaml file) |
+| Caddy | Raw manifests | `ghcr.io/derio-net/caddy-cloudflare:2.9` | Reverse proxy, TLS via Cloudflare DNS challenge |
+| Blog | Raw manifests | `ghcr.io/derio-net/blog:latest` | Hugo static output baked into Caddy container |
+| Landing | Raw manifests | ConfigMap HTML | Private entry page for mesh members |
+| Tailscale | Raw manifests (DaemonSet) | `tailscale/tailscale:v1.82.5` | Kernel-mode client, gives hop-1 a mesh IP |
+
+**Talos machine config (combined patch applied via `talosctl`):**
+- Disk mount: `/dev/sdb` → `/var/mnt/hop-data` (XFS, auto-formatted)
+- Kubelet extra mount: binds `/var/mnt/hop-data` into kubelet namespace
+- `allowSchedulingOnControlPlanes: true`
 
 **Storage:**
-- Hetzner Volume (10GB) attached as a block device, mounted via Talos machine config (`extraMounts`)
+- Hetzner Volume (10GB) attached as `/dev/sdb`, mounted at `/var/mnt/hop-data` via Talos `machine.disks` config
 - Static PV + PVC pointing to the host mount path — no CSI driver needed
-- Used for: Headscale SQLite DB, Caddy certificate storage
+- Used for: Headscale SQLite DB, Caddy certificate storage, Tailscale state
+- Subdirectories: `headscale/`, `caddy/`, `backups/headscale/`, `tailscale/`
 - Survives node reimaging (Hetzner Volume persists independently of the server)
 
 ## Networking & DNS
@@ -120,13 +145,18 @@ Packer config lives at `clusters/hop/packer/`.
 
 **Private route enforcement:** Caddy `remote_ip` matcher restricts to `100.64.0.0/10` (Tailscale CGNAT range). Non-mesh requests get 403.
 
+**MagicDNS (mesh-only DNS resolution):** Headscale's `extra_records` config maps mesh-only domains to hop-1's Tailscale IP. Mesh clients automatically resolve `headplane.hop.derio.net` and `entry.hop.derio.net` to the Tailscale IP (e.g., `100.64.0.4`), routing traffic through the mesh tunnel. Public DNS (Cloudflare) resolves the same domains to the public IP, where Caddy blocks them with 403. No per-client DNS configuration needed — any device joining the mesh gets the correct records automatically.
+
+**Tailscale DaemonSet:** A kernel-mode Tailscale client runs on hop-1 as a DaemonSet with `hostNetwork: true` and `privileged: true`. This creates a `tailscale0` interface on the host's network namespace, giving hop-1 a mesh IP. When mesh clients connect to hop-1's Tailscale IP, traffic arrives through the tunnel and Caddy sees the source as a `100.64.0.0/10` IP — allowing access to mesh-only routes.
+
 ## Headscale Mesh
 
 **Headscale** runs on Hop as the coordination server. It manages:
+
 - Client registrations (phone, laptop)
 - Subnet router approvals (RPi subnet routers)
 - ACL policies (which clients can reach which subnets)
-- DNS configuration (optional: MagicDNS for mesh hostnames)
+- DNS configuration (MagicDNS with `extra_records` for mesh-only service resolution)
 - **Embedded DERP server** — Headscale runs its own DERP relay for NAT traversal, sharing port 443 with Caddy via path-based routing (`/derp` path proxied from Caddy to Headscale's DERP listener). Public Tailscale DERP servers used as fallback.
 
 **Subnet routers (out of scope for this repo):**
@@ -216,11 +246,12 @@ omni/                          # Omni self-hosted config (unchanged)
 
 ## Dependencies
 
-- Hetzner Cloud account with API token
-- Omni dashboard access (for Hetzner image download)
-- Packer installed locally (or in CI)
+- Hetzner Cloud account with API token (`HCLOUD_TOKEN` in `.env_common`)
+- Packer installed locally
 - `hcloud` CLI installed
+- `talosctl` installed (for cluster management)
 - Cloudflare DNS access (for new records)
+- Cloudflare API token (`CF_API_TOKEN` in `.env_hop`) for Caddy TLS
 - 2 Raspberry Pis on VLAN 10 (pre-existing hardware, setup is out of scope)
 - `derio.net` domain (already owned)
 
@@ -228,17 +259,19 @@ omni/                          # Omni self-hosted config (unchanged)
 
 | Item | Monthly Cost |
 |------|-------------|
-| CX22 (2 vCPU, 4GB) | ~€3.49 |
+| CX23 (2 vCPU, 4GB) | ~€3.49 |
 | Hetzner Volume 10GB | ~€0.48 |
 | **Total** | **~€3.97/mo** |
 
 ## Security Considerations
 
 - Headscale endpoint is public (necessary for client registration) — rate limiting and auth via Headscale's built-in mechanisms
-- All other Hop management (Headplane, landing page) restricted to mesh members via Caddy IP filtering
+- All other Hop management (Headplane, landing page) restricted to mesh members via Caddy IP filtering + MagicDNS
 - ArgoCD on Hop is cluster-internal only (no external exposure)
-- Hetzner firewall: allow inbound TCP 80, TCP 443, UDP 3478 (STUN for DERP); deny all other inbound
-- SOPS-encrypted secrets for Headscale private key, Caddy config secrets
+- Hetzner firewall (`hop-fw`): allow inbound TCP 80, TCP 443, UDP 3478 (STUN), TCP 6443 (K8s API), TCP 50000 (talosctl); deny all other inbound
+- Ports 6443 and 50000 are left open as a break-glass path. Both the Kubernetes API and Talos API require mutual TLS (client certificates from talosconfig) — unauthenticated access is not possible. Prefer the Tailscale mesh for daily management (faster, encrypted tunnel), but the public ports ensure recovery if the mesh goes down. Home IP is not static, so IP-based firewall rules are impractical.
+- Caddy Cloudflare API token stored as Kubernetes Secret (`caddy-cloudflare`), applied out-of-band
+- Tailscale auth key stored as Kubernetes Secret (`tailscale-auth`), applied out-of-band
 - Blog and portfolio are intentionally public — no secrets involved
 
 ## Git Repo Access
@@ -254,4 +287,4 @@ Mitigation:
 - Alternatively, a periodic `kubectl cp` via the mesh to a home NAS
 - Headscale config itself is declarative (in Git), so only the runtime state (registrations) needs backup
 
-**Private route IP verification:** Caddy sees real source IPs because it binds directly via `hostPort`. Flannel's default SNAT applies only to pod-to-pod traffic leaving the node, not to inbound traffic arriving on the host network interface. No additional configuration needed.
+**Private route IP verification:** For public traffic, Caddy sees real source IPs because it binds directly via `hostPort`. For mesh traffic, the kernel-mode Tailscale DaemonSet creates a `tailscale0` interface in the host network namespace. Since Caddy also runs with `hostPort` (same network namespace), it sees mesh source IPs (`100.64.0.0/10`) on connections arriving through the tunnel. MagicDNS `extra_records` ensure mesh clients resolve mesh-only domains to the Tailscale IP, directing traffic through the tunnel rather than the public IP.

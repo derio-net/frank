@@ -9,13 +9,7 @@ kind: Role
 metadata:
   name: headplane
   namespace: headscale-system
-rules:
-  - apiGroups: [""]
-    resources: ["pods"]
-    verbs: ["get", "list"]
-  - apiGroups: [""]
-    resources: ["pods/exec"]
-    verbs: ["create"]
+rules: []
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

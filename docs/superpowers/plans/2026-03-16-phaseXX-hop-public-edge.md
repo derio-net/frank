@@ -2,13 +2,95 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deploy a Hetzner Cloud CX22 running Talos Linux as "Hop" — a public-facing single-node Kubernetes cluster managed by Omni, providing Headscale mesh networking for remote homelab access, Caddy reverse proxy with TLS, a Hugo blog, and a private landing page.
+**Goal:** Deploy a Hetzner Cloud CX23 running Talos Linux as "Hop" — a public-facing single-node Kubernetes cluster managed via `talosctl`, providing Headscale mesh networking for remote homelab access, Caddy reverse proxy with TLS, a Hugo blog, and a private landing page.
 
-**Architecture:** Hop is a separate Omni-managed cluster living in `clusters/hop/` within the existing frank-cluster monorepo. Packer builds a Hetzner Cloud snapshot from Omni's Talos image. ArgoCD on Hop manages all workloads via an independent app-of-apps. Caddy handles all ingress via hostPort 80/443. Hetzner Volume provides persistent storage via Talos `extraMounts` + static PV. After Hop is operational, an optional repo restructure moves Frank's `apps/` and `patches/` under `clusters/frank/`.
+**Architecture:** Hop is a standalone Talos cluster living in `clusters/hop/` within the existing frank-cluster monorepo. Packer builds a Hetzner Cloud snapshot from the official Talos hcloud image. ArgoCD on Hop manages all workloads via an independent app-of-apps. Caddy handles all ingress via hostPort 80/443. Hetzner Volume provides persistent storage via Talos `machine.disks` config + static PV. A kernel-mode Tailscale DaemonSet gives hop-1 a mesh IP, enabling Caddy to distinguish mesh vs public traffic. MagicDNS `extra_records` provide split-DNS for mesh-only services.
 
-**Tech Stack:** Talos Linux, Omni, Packer (HCL), Hetzner Cloud (`hcloud` CLI), ArgoCD (Helm), Headscale, Headplane, Caddy, Hugo, Flannel CNI, SOPS/age
+**Tech Stack:** Talos Linux, talosctl, Packer (HCL), Hetzner Cloud (`hcloud` CLI), ArgoCD (Helm), Headscale, Headplane, Tailscale, Caddy, Hugo, Flannel CNI
+
+**Status:** Deployed 2026-03-18. All services healthy. See deployment deviations below.
 
 **Spec:** `docs/superpowers/specs/2026-03-16-phaseXX-hop-public-edge-design.md`
+
+---
+
+## Deployment Deviations (2026-03-18)
+
+The plan was executed interactively on 2026-03-18. The following deviations from the original plan occurred:
+
+### 1. Standalone Talos (not Omni)
+
+**Original:** Omni-managed cluster with auto-registration via SideroLink.
+**Actual:** Standalone Talos cluster managed via `talosctl`. The self-hosted Omni at `omni.frank.derio.net` is unreachable from Hetzner (internal-only hostname). Used `talosctl gen config`, `talosctl apply-config --insecure`, and `talosctl bootstrap` directly.
+**Impact:** Tasks 1-2 manual operations changed entirely. No Omni dashboard needed. Talosconfig stored at `clusters/hop/talosconfig/` (gitignored).
+
+### 2. Server Type CX23
+
+**Original:** CX22.
+**Actual:** CX23 — Hetzner deprecated/renamed CX22. Same specs, same price.
+
+### 3. Tailscale DaemonSet for Mesh Routing
+
+**Original:** Not in plan. Caddy's `remote_ip` check assumed mesh traffic would arrive with CGNAT source IPs.
+**Actual:** Added `clusters/hop/apps/headscale/manifests/tailscale-client.yaml` — a kernel-mode Tailscale DaemonSet with `hostNetwork: true` and `privileged: true`. This gives hop-1 a real `tailscale0` interface and mesh IP, so Caddy can distinguish mesh vs public traffic.
+**Impact:** New manifests (DaemonSet, ServiceAccount, Role, RoleBinding). Required `headscale-system` namespace to be labeled `pod-security.kubernetes.io/enforce: privileged`.
+
+### 4. MagicDNS with extra_records
+
+**Original:** Not in plan. Mesh-only access was expected to work via Caddy IP filtering alone.
+**Actual:** Added `extra_records` to Headscale's DNS config mapping mesh-only domains to hop-1's Tailscale IP. Mesh clients resolve via Headscale DNS, public clients via Cloudflare. Split-DNS without per-client configuration.
+
+### 5. PodSecurity Namespace Labels
+
+**Original:** Not addressed.
+**Actual:** `caddy-system` and `headscale-system` namespaces required `pod-security.kubernetes.io/enforce: privileged` label for hostPort and privileged containers. Added to namespace templates in root app.
+
+### 6. Headplane v0.5+ Config File
+
+**Original:** Environment variables only.
+**Actual:** Headplane 0.5.5 requires a `config.yaml` file. Added ConfigMap with `headscale.url`, `headscale.integration`, and `server.cookie_secret` (exactly 32 chars).
+
+### 7. Control Plane Scheduling
+
+**Original:** Not addressed (single-node cluster assumed to work).
+**Actual:** Talos applies `NoSchedule` taint to control-plane nodes by default. Required `kubectl taint nodes hop-1 node-role.kubernetes.io/control-plane:NoSchedule-` and permanent fix via `cluster.allowSchedulingOnControlPlanes: true` in Talos config patch.
+
+### 8. Hetzner Firewall Ports
+
+**Original:** TCP 80, TCP 443, UDP 3478 only.
+**Actual:** Also opened TCP 6443 (K8s API) and TCP 50000 (talosctl API) — needed since Omni is not managing the cluster. Both APIs require mutual TLS (client certificates), so unauthenticated access is not possible. Ports are left open as a break-glass recovery path in case the Tailscale mesh goes down. Prefer mesh IP (`100.64.0.4`) for daily management.
+
+### 9. Blog Path Handling
+
+**Original:** Hugo builds with `baseURL: https://blog.derio.net/frank`, content at `/frank/` in container.
+**Actual:** Hugo outputs to root `/` in the container regardless of baseURL. Caddy's reverse proxy handles the `/frank` path prefix by stripping it before forwarding to the blog container.
+
+### 10. Env File Structure
+
+**Original:** `.env` only.
+**Actual:** Added `.env_hop` for Hop-specific vars (KUBECONFIG, CF_API_TOKEN). Critical: sourcing `.env` overrides KUBECONFIG to Frank — never source it when working on Hop.
+
+### Task Completion Summary
+
+| Task | Status | Notes |
+|------|--------|-------|
+| 1. Packer Image Build | Done | Used plain Talos image instead of Omni |
+| 2. Provision Server | Done | `talosctl` instead of Omni registration |
+| 3. Root Chart | Done | Pre-existing from plan execution |
+| 4. Bootstrap ArgoCD | Done | Helm install + root app apply |
+| 5. Static Storage | Done | PV/PVC + StorageClass |
+| 6. Headscale | Done | + Tailscale DaemonSet + MagicDNS |
+| 7. Headplane | Done | Config file required for v0.5+ |
+| 8. Caddy | Done | Cloudflare secret applied out-of-band |
+| 9. Blog | Done | Path handling differs from plan |
+| 10. Landing Page | Done | |
+| 11. Blog CI | Done | Hugo image tag updated |
+| 12. Custom Caddy Image | Done | Pre-existing from plan execution |
+| 13. SOPS Secrets | Skipped | Secrets applied as plain K8s Secrets out-of-band |
+| 14. Backup CronJob | Done | Pre-existing from plan execution, needs verification |
+| 15. E2E Verification | Done | All services healthy |
+| 16. Update Documentation | In Progress | This update |
+| 17. Repo Restructure | Deferred | Separate phase |
 
 ---
 
