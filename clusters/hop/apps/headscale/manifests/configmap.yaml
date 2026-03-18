@@ -52,11 +52,13 @@ data:
       path: /etc/headscale/acl.yaml
 
   acl.yaml: |
-    # Headscale ACL policy
-    # Allow all traffic within the mesh for now — tighten later
-    acls:
-      - action: accept
-        src:
-          - "*"
-        dst:
-          - "*:*"
+    {
+      // Allow all traffic within the mesh for now — tighten later
+      "acls": [
+        {
+          "action": "accept",
+          "src": ["*"],
+          "dst": ["*:*"]
+        }
+      ]
+    }
