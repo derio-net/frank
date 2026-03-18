@@ -21,21 +21,21 @@ Two dedicated Raspberry Pis on VLAN 10 (Services) act as Tailscale subnet router
                     │         Hetzner Cloud CX22 (Hop)            │
                     │         Talos Linux · Omni-managed          │
                     │                                             │
-  Internet ────▶   │  ┌────────────────────────────────────┐     │
-  :80/:443         │  │ Caddy (hostPort 80/443)            │     │
+  Internet ────▶    │  ┌────────────────────────────────────┐     │
+  :80/:443          │  │ Caddy (hostPort 80/443)            │     │
                     │  │  *.hop.derio.net  (wildcard cert)  │     │
                     │  │  blog.derio.net   (public)         │     │
                     │  │  www.derio.net    (public)         │     │
-                    │  └──┬──────┬──────┬──────┬───────────┘     │
+                    │  └──┬──────┬──────┬──────┬────────────┘     │
                     │     │      │      │      │                  │
                     │     ▼      ▼      ▼      ▼                  │
-                    │  Headscale Headplane Blog  Landing           │
+                    │  Headscale Headplane Blog  Landing          │
                     │  (public)  (mesh)  (pub)  (mesh)            │
-                    │     │                                        │
-                    │     │  Hetzner Volume (10GB)                 │
+                    │     │                                       │
+                    │     │  Hetzner Volume (10GB)                │
                     │     │  ├── headscale.db                     │
                     │     │  └── caddy certs                      │
-                    │     │                                        │
+                    │     │                                       │
                     │  ArgoCD (Hop instance)                      │
                     └─────┼───────────────────────────────────────┘
                           │
@@ -51,12 +51,12 @@ Two dedicated Raspberry Pis on VLAN 10 (Services) act as Tailscale subnet router
                          │                │
                          ▼                ▼
                     ┌─────────────────────────┐
-                    │  Home Network            │
-                    │  VLAN 10 (Services)      │
-                    │    → routes to VLAN 55   │
-                    │      (Frank cluster)     │
-                    │    → routes to other     │
-                    │      homelab services    │
+                    │  Home Network           │
+                    │  VLAN 10 (Services)     │
+                    │    → routes to VLAN 55  │
+                    │      (Frank cluster)    │
+                    │    → routes to other    │
+                    │      homelab services   │
                     └─────────────────────────┘
 ```
 

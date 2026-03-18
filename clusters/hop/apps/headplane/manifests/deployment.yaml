@@ -24,19 +24,30 @@ spec:
               containerPort: 3000
               protocol: TCP
           env:
-            - name: HEADSCALE_URL
-              value: "http://headscale.headscale-system.svc:8080"
-            - name: HEADSCALE_INTEGRATION
-              value: "kubernetes"
-            - name: KUBERNETES_NAMESPACE
-              value: "headscale-system"
-            - name: KUBERNETES_POD_LABEL
-              value: "app.kubernetes.io/name=headscale"
-            - name: KUBERNETES_CONTAINER
-              value: "headscale"
+            - name: HP_POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          volumeMounts:
+            - name: config
+              mountPath: /etc/headplane
+              readOnly: true
+            - name: headscale-config
+              mountPath: /etc/headscale
+              readOnly: true
           resources:
             requests:
               cpu: 25m
               memory: 64Mi
             limits:
               memory: 128Mi
+      volumes:
+        - name: config
+          configMap:
+            name: headplane-config
+        - name: headscale-config
+          configMap:
+            name: headscale-config
+            items:
+              - key: config.yaml
+                path: config.yaml
