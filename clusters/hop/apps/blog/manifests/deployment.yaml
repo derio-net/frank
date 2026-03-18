@@ -30,7 +30,7 @@ spec:
               memory: 64Mi
           readinessProbe:
             httpGet:
-              path: /frank/
+              path: /
               port: http
             initialDelaySeconds: 3
             periodSeconds: 10
