@@ -13,6 +13,4 @@ data:
 
     headscale:
       url: "http://headscale.headscale-system.svc:8080"
-      config_path: "/etc/headscale/config.yaml"
-      config_strict: false
 
