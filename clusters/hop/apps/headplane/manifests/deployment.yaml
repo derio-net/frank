@@ -28,6 +28,11 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: HEADPLANE_HEADSCALE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: headplane-api-key
+                  key: api-key
           volumeMounts:
             - name: config
               mountPath: /etc/headplane
