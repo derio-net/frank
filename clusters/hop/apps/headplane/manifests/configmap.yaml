@@ -13,4 +13,5 @@ data:
 
     headscale:
       url: "http://headscale.headscale-system.svc:8080"
+      config_strict: true
 
