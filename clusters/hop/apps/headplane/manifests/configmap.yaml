@@ -16,6 +16,3 @@ data:
       config_path: "/etc/headscale/config.yaml"
       config_strict: false
 
-    integration:
-      kubernetes:
-        enabled: false
