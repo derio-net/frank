@@ -11,7 +11,21 @@ Every phase follows this sequence:
 3. **Blog** — Use the `/blog-post` skill to write the Hugo post. After creating the post, update `blog/content/building/00-overview/index.md` (Series Index + Capability Map) and `blog/layouts/shortcodes/cluster-roadmap.html` (add new roadmap layer)
 4. **Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status in `README.md`
 5. **Sync runbook** — Run `/sync-runbook` if the phase plan contains any `# manual-operation` blocks
-6. **Review** — Verify deployment health and blog accuracy
+6. **Sync Hop blog** — `source .env_hop && kubectl -n blog-system rollout restart deploy/blog` (GitHub Actions pushes the image but can't reach Hop's kubectl; manual rollout required until ArgoCD Image Updater is deployed)
+7. **Review** — Verify deployment health and blog accuracy
+
+## Phase Fix/Extension Workflow
+
+When a deployed phase needs a bugfix or unplanned extension:
+
+1. **Diagnose** — `/systematic-debugging` to identify root cause. Document findings in the existing phase plan as a new "Deviation" entry
+2. **Fix** — Implement the fix in the original phase's ArgoCD app/manifests (not a new app)
+3. **Update plan** — Add deviation notes inline at the affected task + append to the Deployment Deviations section
+4. **Update blog** — Retroactively update the phase's building/ post (add gotcha or correction) and operating/ post (add new operational commands). Do NOT create a new post unless the fix is substantial enough to warrant its own narrative (e.g., Phase 12 GPU Talos fix)
+5. **Update CLAUDE.md gotchas** — If the fix reveals a non-obvious pattern, add it to the Gotchas section
+6. **Sync Hop blog** — If blog content changed: `source .env_hop && kubectl -n blog-system rollout restart deploy/blog`
+
+Use the original phase number in commit messages: `fix(phaseNN): <description>` or `feat(phaseNN): <description>`.
 
 ## Commands
 
@@ -51,38 +65,12 @@ hugo --minify                          # Production build
 
 ### Application Template Pattern
 
-```yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: <app-name>
-  namespace: argocd
-spec:
-  project: infrastructure
-  sources:
-    - repoURL: <upstream-helm-repo>
-      chart: <chart>
-      targetRevision: "<version>"
-      helm:
-        releaseName: <release>
-        valueFiles:
-          - $values/apps/<app-name>/values.yaml
-    - repoURL: {{ .Values.repoURL }}
-      targetRevision: main
-      ref: values
-  destination:
-    server: {{ .Values.destination.server }}
-    namespace: <namespace>
-  syncPolicy:
-    automated:
-      prune: false
-      selfHeal: true
-    syncOptions:
-      - ServerSideApply=true
-      - RespectIgnoreDifferences=true
-```
+Copy an existing template from `apps/root/templates/` and adapt. Key decisions:
 
-For raw manifests (no upstream chart), use `path: apps/<app-name>/manifests` instead of `chart`.
+- **Helm chart**: Multi-source — upstream chart + `$values/apps/<app>/values.yaml` ref
+- **Raw manifests**: Single source — `path: apps/<app>/manifests`
+- **Always include**: `ServerSideApply=true`, `prune: false`, `selfHeal: true`
+- **Secrets**: Add `ignoreDifferences` on `/data` jsonPointer
 
 ## Blog Post Pattern
 
@@ -112,7 +100,7 @@ cover:
 ---
 ```
 
-Cover image generation prompts go in `blog/prompt_for_images.yaml` — one entry per post, following the existing YAML format (key, output, description, prompt, optional post_process). Do NOT embed the prompt in the frontmatter `alt` field; `alt` should be a short human-readable description. Generate images with: `.venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only <key>`
+Cover image generation prompts go in `blog/prompt_for_images.yaml` — one entry per post, following the existing YAML format (key, output, description, prompt, optional post_process). Insert prompts in their correct section (building prompts before `# --- Operating Series Covers`, operating prompts at end of operating section). Do NOT embed the prompt in the frontmatter `alt` field; `alt` should be a short human-readable description. Generate images with: `.venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only <key>` (run `uv sync` first if the venv is stale)
 
 ## Architecture
 
@@ -274,22 +262,9 @@ Some steps cannot be declarative (SOPS secrets, UI-only config). Every such step
 1. Documented in the relevant plan as a fenced YAML block tagged `# manual-operation`
 2. Synced to `docs/runbooks/manual-operations.yaml` via `/sync-runbook`
 
-### Block format (in plans)
+### Block format
 
-```yaml
-# manual-operation
-id: phaseNN-short-name        # unique across all plans
-phase: NN
-app: <argocd-app-name>
-plan: docs/superpowers/plans/<filename>.md
-when: "After Task N — <trigger description>"
-why_manual: "<reason this cannot be automated>"
-commands:
-  - <exact command or UI instruction>
-verify:
-  - <command or instruction to confirm success>
-status: pending               # update to: done after execution
-```
+Use fenced YAML with `# manual-operation` as first line. Required fields: `id`, `phase`, `app`, `plan`, `when`, `why_manual`, `commands`, `verify`, `status`. See `/sync-runbook` skill for the canonical schema.
 
 ### Central runbook
 
