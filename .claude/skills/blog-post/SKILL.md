@@ -4,6 +4,9 @@ description: Create a new Hugo blog post for the Frank cluster documentation ser
 user-invocable: true
 disable-model-invocation: true
 arguments:
+  - name: series
+    description: "Series name: 'building' or 'operating'"
+    required: true
   - name: number
     description: "Post number (e.g. 07)"
     required: true
@@ -21,6 +24,7 @@ Create a new Hugo blog post for the Frank cluster documentation series.
 
 ## Arguments
 
+- `$ARGUMENTS.series` — the series name (`building` or `operating`)
 - `$ARGUMENTS.number` — post number (e.g. `07`)
 - `$ARGUMENTS.slug` — URL slug (e.g. `monitoring`)
 - `$ARGUMENTS.title` — post title
@@ -32,7 +36,7 @@ Create a new Hugo blog post for the Frank cluster documentation series.
 Create directory and index file:
 
 ```
-blog/content/posts/$ARGUMENTS.number-$ARGUMENTS.slug/index.md
+blog/content/$ARGUMENTS.series/$ARGUMENTS.number-$ARGUMENTS.slug/index.md
 ```
 
 ### 2. Frontmatter
@@ -75,19 +79,28 @@ Typical structure:
   ```bash
   source .env && .venv/bin/python scripts/generate-all-images.py \
     -r blog/static/images/reference.png \
-    --only post-$ARGUMENTS.number
+    --only <key>
   ```
-  Show the generated image to the user for review. If they want a regeneration, run the command again.
+  Use the `key` from the YAML entry you just added (e.g. `post-07` for building, `operating-03` for operating). Show the generated image to the user for review. If they want a regeneration, run the command again.
 - Inline images: co-locate in the page bundle directory (NOT in `/static/images/`)
 - Use relative paths: `![Alt text](image.png)`
 
-### 5. Update Overview Post
+### 5. Update Overview Posts
 
-`blog/content/posts/00-overview/index.md` is a **living document** — update it after every new post:
+Each series has its own **00-overview** post — a living document updated after every new post.
 
-1. **Series Index** — append the new post as a numbered list item with a Hugo relref link.
+**For `building` series posts** — update `blog/content/building/00-overview/index.md`:
+
+1. **Series Index** — append the new post as a numbered list item with a Hugo relref link (under the "Series Index" heading).
 2. **Technology → Capability Map** — add a row for any new technology introduced in this post (tool name in bold, capabilities in the second column).
 3. **`blog/layouts/shortcodes/cluster-roadmap.html`** — add a new `roadmap-layer` div for the new phase/capability. Use the existing colour classes (`layer-hw`, `layer-net`, etc.) or add a new `layer-*` class with its own `--rm-accent-N` colour variable (add to both light and dark mode sections). Use `layer-upcoming` for phases that are planned but not yet deployed (dashed border, muted opacity).
+
+**For `operating` series posts** — update `blog/content/operating/00-overview/index.md`:
+
+1. **Series Index** — append the new post as a numbered list item with a Hugo relref link.
+2. No roadmap or capability map — the operating series is a companion reference, not a build narrative.
+
+**For both**: also update the cross-reference index in `blog/content/building/00-overview/index.md` under "Operating on Frank — Series Index" when adding a new operating post.
 
 ### 6. Blog Preview
 
