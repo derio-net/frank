@@ -44,6 +44,9 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Paperclip** | AI agent orchestrator — virtual companies with org charts, budgets, and delegation chains; complements Sympozium (`192.168.55.212`) |
 | **ComfyUI** | Diffusion model serving — video (LTX-2.3), image (SDXL), audio (Stable Audio), node-based workflow editor (`192.168.55.213`) |
 | **GPU Switcher** | Custom Go dashboard for GPU time-sharing — one-click switching between Ollama and ComfyUI (`192.168.55.214`) |
+| **Hop (Hetzner Edge)** | Public-facing single-node Talos cluster — Headscale mesh, Caddy reverse proxy, blog hosting, split-DNS |
+| **Headscale + Tailscale** | WireGuard mesh networking — remote homelab access from any device, MagicDNS for split-DNS |
+| **Caddy** | Automatic TLS (Cloudflare DNS challenge), public/mesh routing, path rewriting |
 
 ## Cluster State
 
@@ -72,6 +75,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 14. [Multi-tenancy — Disposable Kubernetes Clusters with vCluster]({{< relref "/building/14-multi-tenancy" >}})
 15. [Paperclip — An AI Agent Orchestrator on Frank]({{< relref "/building/15-paperclip" >}})
 16. [Media Generation — ComfyUI and GPU Time-Sharing]({{< relref "/building/16-media-generation" >}})
+17. [Hopping Through the Portal — A Public Edge Cluster]({{< relref "/building/17-public-edge" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
@@ -89,3 +93,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 8. [Operating on Authentication]({{< relref "/operating/08-auth" >}})
 9. [Operating on Multi-tenancy]({{< relref "/operating/09-multi-tenancy" >}})
 10. [Operating on Media Generation]({{< relref "/operating/10-media-generation" >}})
+11. [Operating on Hop — Single-Node Talos Edge Cluster]({{< relref "/operating/11-public-edge" >}})
