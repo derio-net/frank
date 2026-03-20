@@ -16,6 +16,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | B — Core HA | 3x ASUS NUC (Intel Ultra 5, 64GB, 1TB NVMe, Arc iGPU) | Control-plane + worker | mini-1/2/3 | 192.168.55.21-23 |
 | C — AI Compute | Desktop (i9, 128GB, RTX 5070, 2x4TB SSD) | GPU worker | gpu-1 | 192.168.55.31 |
 | D — Edge | 2x RPi 4 + 1x legacy desktop | General workers | raspi-1/2, pc-1 | 192.168.55.41-42, .71 |
+| E — Public Edge | Hetzner CX23 (2 vCPU, 4GB) | Hop cluster (standalone talosctl) | hop-1 | Hetzner public IP |
 
 ### Technology Stack
 
@@ -43,6 +44,9 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Media Generation | ComfyUI | Diffusion models (LTX-2.3 video, SDXL image, Stable Audio) on gpu-1, time-shared with Ollama |
 | GPU Switching | GPU Switcher | Custom Go dashboard for one-click GPU time-sharing between Ollama and ComfyUI |
 | Certificate Management | cert-manager | Automated TLS certificate lifecycle for webhooks and internal services |
+| Public Edge | Hop (Hetzner CX23) | Single-node Talos cluster — public-facing edge for mesh networking and blog hosting |
+| Mesh Networking | Headscale + Tailscale | WireGuard mesh — remote homelab access, MagicDNS split-DNS |
+| Edge Ingress | Caddy | Automatic TLS (Cloudflare DNS challenge), public/mesh routing on Hop |
 
 ## Repository Structure
 
@@ -80,6 +84,19 @@ frank/
 │   └── gpu-switcher/manifests/ + app/           # GPU Switcher Go app + K8s manifests
 │       ├── template/values.yaml                 # Base config (SQLite, policies, sync)
 │       └── experiments/values.yaml              # First sandbox instance
+├── clusters/
+│   └── hop/                   # Hop edge cluster (Hetzner CX23, standalone talosctl)
+│       ├── apps/              # Hop ArgoCD App-of-Apps
+│       │   ├── root/          # Entry point — 7 Application CRs
+│       │   ├── argocd/        # Minimal single-replica ArgoCD
+│       │   ├── headscale/     # Headscale + Tailscale DaemonSet
+│       │   ├── headplane/     # Headscale web UI
+│       │   ├── caddy/         # Reverse proxy + TLS (Cloudflare DNS)
+│       │   ├── blog/          # Hugo blog container
+│       │   ├── landing/       # Private landing page (mesh-only)
+│       │   └── storage/       # Static PVs for Hetzner Volume
+│       ├── packer/            # Packer template for Hetzner Talos image
+│       └── talosconfig/       # Talos client config (gitignored)
 ├── patches/
 │   ├── phase01-node-config/   # Node labels, scheduling
 │   ├── phase02-cilium/        # CNI swap to Cilium
@@ -90,7 +107,8 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/posts/         # 16 posts documenting the build
+│   ├── content/building/       # 17 posts documenting the build
+│   ├── content/operating/      # 11 companion operations guides
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
 │   ├── plans/                 # Architecture and implementation plans
@@ -102,8 +120,12 @@ frank/
 ## Environment Setup
 
 ```bash
+# Frank cluster
 source .env          # Sets KUBECONFIG + TALOSCONFIG
 source .env_devops   # Sets OMNI_ENDPOINT + OMNI_SERVICE_ACCOUNT_KEY
+
+# Hop cluster (CAUTION: overrides KUBECONFIG)
+source .env_hop      # Sets KUBECONFIG → clusters/hop/talosconfig/kubeconfig
 ```
 
 ## Service Access
@@ -123,6 +145,15 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Paperclip | http://192.168.55.212:3100 | 192.168.55.212 |
 | ComfyUI | http://192.168.55.213:8188 | 192.168.55.213 |
 | GPU Switcher | http://192.168.55.214:8080 | 192.168.55.214 |
+
+### Hop Cluster (Public Edge)
+
+| Service | Domain | Access |
+|---------|--------|--------|
+| Headscale | headscale.hop.derio.net | Public |
+| Headplane | headplane.hop.derio.net | Mesh only |
+| Blog | blog.derio.net/frank | Public |
+| Landing | entry.hop.derio.net | Mesh only |
 
 ArgoCD CLI access:
 
@@ -168,11 +199,31 @@ argocd app list
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
 
+### Hop Cluster Applications
+
+| Application | Namespace | Notes |
+|------------|-----------|-------|
+| argocd | argocd | Self-managed, minimal single-replica |
+| headscale | headscale-system | Mesh coordination server + Tailscale DaemonSet (kernel mode) |
+| headplane | headscale-system | Headscale web UI at /admin/ (mesh-only access) |
+| caddy | caddy-system | Reverse proxy + TLS, hostPort 80/443, Cloudflare DNS challenge |
+| blog | blog-system | Hugo static site (ghcr.io/derio-net/frank-blog:latest) |
+| landing | landing-system | Private landing page (mesh-only) |
+| storage | kube-system | Local StorageClass + static PVs on Hetzner Volume |
+
 ## Adding a New Application
+
+### Frank Cluster
 
 1. Add Helm values to `apps/<name>/values.yaml`
 2. Add an Application template to `apps/root/templates/<name>.yaml`
 3. Commit and push — ArgoCD auto-syncs the root app and creates the child Application
+
+### Hop Cluster
+
+1. Add raw manifests to `clusters/hop/apps/<name>/manifests/`
+2. Add an Application template to `clusters/hop/apps/root/templates/<name>.yaml`
+3. Commit and push — Hop's ArgoCD auto-syncs
 
 ## References
 
@@ -182,3 +233,6 @@ argocd app list
 - [Longhorn Docs](https://longhorn.io/docs/)
 - [Cilium Docs](https://docs.cilium.io/)
 - [Intel GPU Resource Driver](https://github.com/intel/intel-resource-drivers-for-kubernetes)
+- [Headscale](https://github.com/juanfont/headscale) — Open-source Tailscale control server
+- [Caddy](https://caddyserver.com/) — Automatic HTTPS web server
+- [Hetzner Cloud](https://www.hetzner.com/cloud) — European cloud provider

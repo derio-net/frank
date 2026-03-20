@@ -368,6 +368,26 @@ images:
       (the GPU Switcher) glows on a tablet screen nearby. Frank grins with
       creative energy. Dark server room with purple, orange, and blue
       lighting accents.
+
+  - key: building-17-public-edge
+    output: blog/content/building/17-public-edge/cover.png
+    description: "Public Edge — Frank hopping through a glowing Tailscale portal into a cloud datacenter"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster mid-leap through a huge
+      glowing portal that crackles with electric blue and teal energy. The
+      portal frame is made of intertwined ethernet cables and RJ45 connectors,
+      pulsing with Tailscale-style mesh network lines. The portal divides the 
+      scene in two very different places. On the left (behind
+      Frank), a cozy dark server room with his familiar rack of blinking NUCs
+      and Raspberry Pis — the Frank homelab. On the right (through the portal),
+      a sleek Hetzner-style cloud datacenter with a single small server rack
+      labeled "hop-1" floating in a clean, minimal space. Frank's foot is
+      already through the portal, one arm reaching toward the cloud server,
+      his expression excited and determined. A tiny Caddy padlock icon floats
+      above the cloud server. Small WireGuard tunnel lines connect back through
+      the portal to the homelab. Dark background with the portal as the
+      primary light source, electric blue and teal accents.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -520,3 +540,19 @@ images:
       screens like a shared trophy. Tools and checklists are pinned to the
       wall behind him — operational runbook style. Dark server room with
       blue and purple lighting accents.
+
+  - key: ops-11-public-edge
+    output: blog/content/operating/11-public-edge/cover.png
+    description: "Operating on Hop — Frank monitoring a miniature portal-connected cloud server"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at a desk with a
+      small holographic projection of the hop-1 server floating above a
+      portal-shaped device. The hologram shows the single-node cluster status —
+      one green node, ArgoCD sync indicators, Headscale mesh lines extending
+      outward to tiny device icons (laptop, phone). Frank holds a wrench in
+      one hand and a terminal showing "talosctl health" in the other. A small
+      portal glow connects the hologram back to a miniature server rack (Frank
+      cluster) on the shelf behind him. Post-it notes on the desk read
+      "source .env_hop" and "NOT .env!" with underlines. Operational checklist
+      on a clipboard. Dark server room with warm desk lamp and blue portal
+      accents.
