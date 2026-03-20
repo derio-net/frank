@@ -45,10 +45,17 @@ The plan was executed interactively on 2026-03-18. The following deviations from
 **Original:** Not addressed.
 **Actual:** `caddy-system` and `headscale-system` namespaces required `pod-security.kubernetes.io/enforce: privileged` label for hostPort and privileged containers. Added to namespace templates in root app.
 
-### 6. Headplane v0.5+ Config File
+### 6. Headplane v0.5.5 — Config, Base Path, and API Key
 
-**Original:** Environment variables only.
-**Actual:** Headplane 0.5.5 requires a `config.yaml` file. Added ConfigMap with `headscale.url`, `headscale.integration`, and `server.cookie_secret` (exactly 32 chars).
+**Original:** Environment variables only, UI expected at root `/`.
+**Actual:** Multiple issues discovered and fixed:
+
+- Headplane 0.5.5 requires a `config.yaml` file (ConfigMap with `headscale.url`, `server.cookie_secret` exactly 32 chars).
+- K8s integration (`integration.kubernetes`) must be removed entirely — it tries to exec into the Headscale pod to find the process PID and crashes when it can't.
+- `config_path` must point to a mounted Headscale config file, AND `config_strict: false` is required (strict mode silently drops the HTTP listener with Headscale v0.25.1 due to unknown config fields).
+- Headplane's React Router build uses `basename="/admin/"` — all routes live under `/admin/*`. Added Caddy redirect from `/` → `/admin/`.
+- API key must be injected via `HEADPLANE_HEADSCALE_API_KEY` env var from a K8s Secret (created with `headscale apikeys create`).
+- Headplane binds IPv4 only — `wget localhost:3000` fails (resolves to `::1`); use `wget 127.0.0.1:3000` to test.
 
 ### 7. Control Plane Scheduling
 
@@ -80,7 +87,7 @@ The plan was executed interactively on 2026-03-18. The following deviations from
 | 4. Bootstrap ArgoCD | Done | Helm install + root app apply |
 | 5. Static Storage | Done | PV/PVC + StorageClass |
 | 6. Headscale | Done | + Tailscale DaemonSet + MagicDNS |
-| 7. Headplane | Done | Config file required for v0.5+ |
+| 7. Headplane | Done | See deviation #6 — config file, /admin/ base path, API key |
 | 8. Caddy | Done | Cloudflare secret applied out-of-band |
 | 9. Blog | Done | Path handling differs from plan |
 | 10. Landing Page | Done | |
@@ -89,8 +96,11 @@ The plan was executed interactively on 2026-03-18. The following deviations from
 | 13. SOPS Secrets | Skipped | Secrets applied as plain K8s Secrets out-of-band |
 | 14. Backup CronJob | Done | Pre-existing from plan execution, needs verification |
 | 15. E2E Verification | Done | All services healthy |
-| 16. Update Documentation | In Progress | This update |
+| 16. Update Documentation | In Progress | Plan updated, design doc + blog still needed |
 | 17. Repo Restructure | Deferred | Separate phase |
+| 18. Scrub Public IP from Git History | **TODO** | `<HOP_PUBLIC_IP>` in committed history — needs `git filter-repo` + reflog cleanup + force push |
+| 19. Write Blog Post | TODO | Hop phase blog post |
+| 20. Restrict 6443/50000 to Mesh | TODO | Close from public firewall, use via `100.64.0.4` |
 
 ---
 

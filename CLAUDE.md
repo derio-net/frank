@@ -262,6 +262,10 @@ Check for updates periodically (e.g., when starting a new phase).
 - **Hop:** Headscale `extra_records` in DNS config provides split-DNS for mesh-only services — add entries for any new mesh-only service
 - **Hop:** `talosctl apply-config --config-patch` patches the base file, not the running config — all patches must be combined in one invocation
 - **Hop:** Tailscale DaemonSet must run in kernel mode (`TS_USERSPACE=false`, `privileged: true`) for Caddy to see mesh source IPs
+- **Hop:** Headplane v0.5.5 serves at `/admin/` base path (`basename="/admin/"`) — Caddy must redirect `/` → `/admin/` and all routes are under `/admin/*`
+- **Hop:** Headplane requires `config_path` pointing to mounted Headscale config AND `config_strict: false` (strict mode silently drops the HTTP listener with Headscale v0.25.1)
+- **Hop:** Headplane binds IPv4 only — `wget localhost:3000` fails (resolves to `::1`), use `wget 127.0.0.1:3000` to test
+- **Hop:** Headplane API key must be injected via `HEADPLANE_HEADSCALE_API_KEY` env var from a Secret
 
 ## Manual Operations
 
