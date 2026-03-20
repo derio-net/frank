@@ -98,7 +98,7 @@ The plan was executed interactively on 2026-03-18. The following deviations from
 | 15. E2E Verification | Done | All services healthy |
 | 16. Update Documentation | In Progress | Plan updated, design doc + blog still needed |
 | 17. Repo Restructure | Deferred | Separate phase |
-| 18. Scrub Public IP from Git History | **TODO** | `<HOP_PUBLIC_IP>` in committed history — needs `git filter-repo` + reflog cleanup + force push |
+| 18. Scrub Public IP from Git History | Done | Scrubbed with `git filter-repo --replace-text` + force push |
 | 19. Write Blog Post | TODO | Hop phase blog post |
 | 20. Restrict 6443/50000 to Mesh | TODO | Close from public firewall, use via `100.64.0.4` |
 
