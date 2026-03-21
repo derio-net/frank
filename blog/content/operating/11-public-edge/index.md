@@ -233,12 +233,18 @@ Caddy manages TLS automatically via Cloudflare DNS challenge. To check certifica
 kubectl -n caddy-system logs deploy/caddy | grep -i "tls\|cert\|acme"
 ```
 
-The Cloudflare API token is stored as a Kubernetes Secret (`caddy-cloudflare-token`). If TLS stops working, check the token hasn't expired:
+The Cloudflare API token is stored as a Kubernetes Secret (`caddy-cloudflare`). If TLS stops working, check the token hasn't expired or been emptied:
 
 ```bash
-kubectl -n caddy-system get secret caddy-cloudflare-token -o jsonpath='{.data.CF_API_TOKEN}' | base64 -d
-# Verify the token is valid in Cloudflare dashboard
+# Check the token exists and has a value (shows last 4 chars only)
+kubectl -n caddy-system get secret caddy-cloudflare -o jsonpath='{.data.api-token}' | base64 -d | tail -c 4
+# If empty, recreate:
+kubectl -n caddy-system delete secret caddy-cloudflare
+kubectl -n caddy-system create secret generic caddy-cloudflare \
+  --from-literal=api-token=<YOUR_CLOUDFLARE_API_TOKEN>
 ```
+
+**Gotcha:** Running pods don't detect secret changes — env vars from `secretKeyRef` are injected at pod creation and never refreshed. A pod can keep running with a valid token long after the secret is emptied or deleted. You'll only discover the problem on the next `rollout restart`.
 
 ### Reloading Caddy Config
 
@@ -248,7 +254,7 @@ After editing the Caddyfile ConfigMap:
 kubectl -n caddy-system rollout restart deploy/caddy
 ```
 
-Caddy reloads gracefully — existing connections are not dropped.
+The Caddy Deployment uses `strategy: Recreate` (not `RollingUpdate`) because it binds host ports 80 and 443. On a single-node cluster, `RollingUpdate` would deadlock — the new pod can't bind the ports while the old pod holds them. `Recreate` kills the old pod first, causing ~5 seconds of downtime during restarts.
 
 ### Debugging Access Issues
 

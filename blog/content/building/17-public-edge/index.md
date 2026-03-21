@@ -236,29 +236,32 @@ The plan said: set a few environment variables, point it at Headscale, done. Rea
 headscale:
   url: http://headscale.headscale-system.svc:8080
   config_path: /etc/headscale/config.yaml
-  config_strict: false    # Critical — see below
+  config_strict: true     # Initially false — see below
 server:
   host: 0.0.0.0
   port: 3000
   cookie_secret: "exactly-32-characters-needed!!!"
 ```
 
-**Problem 2: config_strict kills the listener.** The default is `config_strict: true`. With Headscale v0.25.1, this causes Headplane to detect "unknown" config fields in Headscale's own config file and... silently not start the HTTP listener. No error, no log line, no crash. The pod runs, health checks pass (the process is alive), but port 3000 never opens.
+**Problem 2: config_strict kills the listener (initially).** The default is `config_strict: true`. During initial deployment with Headscale v0.25.1, this caused Headplane to detect "unknown" config fields and silently not start the HTTP listener. No error, no log line, no crash. The pod runs, health checks pass (the process is alive), but port 3000 never opens.
 
 This took the longest to diagnose. The symptom was `wget 127.0.0.1:3000` returning "Connection refused" inside a pod that `kubectl` showed as Running/Ready. Setting `config_strict: false` fixed it instantly.
+
+**Post-deploy update:** After stabilizing the Headscale config (removing fields that tripped strict parsing), `config_strict: true` works correctly. The non-strict setting was reverted a few days later. The lesson stands — silent failures are hostile — but the workaround turned out to be temporary.
 
 **Problem 3: Base path.** Headplane's React Router is compiled with `basename="/admin/"`. All routes live under `/admin/*`. Hitting `/` returns a blank page. Caddy needs a redirect:
 
 ```
 headplane.hop.derio.net {
-  @mesh remote_ip 100.64.0.0/10
-  handle @mesh {
-    redir / /admin/ permanent
-    reverse_proxy headplane.headscale-system.svc:3000
-  }
-  respond 403
+  @not_mesh not remote_ip 100.64.0.0/10
+  respond @not_mesh "Forbidden" 403
+  @not_admin not path /admin /admin/*
+  redir @not_admin /admin/ permanent
+  reverse_proxy headplane.headscale-system.svc:3000
 }
 ```
+
+The `@not_admin` matcher catches *any* path that isn't already under `/admin*` and redirects — not just the root `/`. This prevents 404s from stale bookmarks or mistyped URLs.
 
 **Problem 4: API key injection.** Headplane authenticates to Headscale via an API key, injected through `HEADPLANE_HEADSCALE_API_KEY` from a Kubernetes Secret. The key is created manually:
 
@@ -291,12 +294,11 @@ blog.derio.net {
 }
 
 headplane.hop.derio.net {
-  @mesh remote_ip 100.64.0.0/10
-  handle @mesh {
-    redir / /admin/ permanent
-    reverse_proxy headplane.headscale-system.svc:3000
-  }
-  respond 403
+  @not_mesh not remote_ip 100.64.0.0/10
+  respond @not_mesh "Forbidden" 403
+  @not_admin not path /admin /admin/*
+  redir @not_admin /admin/ permanent
+  reverse_proxy headplane.headscale-system.svc:3000
 }
 ```
 
@@ -406,9 +408,39 @@ Hop gives the homelab a public presence:
 - **Private services** (Headplane, landing page) accessible only from the mesh, enforced at Caddy's `remote_ip` check.
 - **Full GitOps** — all workloads managed by ArgoCD, same pattern as Frank.
 
+## Post-Deploy Fixes (Day 3)
+
+Three days after the initial deployment, a routine check surfaced four more issues. These are less dramatic than the deployment deviations — more "cleaning up what we left behind" than "discovering the plan was wrong."
+
+### Deviation #11: Caddy Deployment Strategy
+
+The Caddy Deployment used the default `RollingUpdate` strategy. On a single-node cluster with `hostPort`, this deadlocks: the new pod can't bind ports 80/443 while the old pod still holds them. The old pod won't terminate until the new pod is ready. Stalemate.
+
+Changed to `strategy: Recreate`, which kills the old pod first. There's a ~5-second window where no pod serves traffic, but on a single-node edge cluster, that's acceptable — you're already accepting that a node reboot means full downtime.
+
+**What we learned:** `RollingUpdate` assumes you have somewhere else to schedule the replacement. Single-node clusters need `Recreate` for any resource that can't be shared (hostPorts, exclusive volume mounts).
+
+### Deviation #12: Empty Cloudflare Secret
+
+After a `rollout restart`, the new Caddy pod crashed: `API token '' appears invalid`. The secret `caddy-cloudflare` existed but contained an empty value. The old pod was fine because Kubernetes injects `secretKeyRef` env vars at pod creation — they're baked in and never refreshed. The old pod had the valid token from when it was first created; the secret was emptied at some point afterward.
+
+**What we learned:** Running pods mask broken secrets. A `rollout restart` is the moment the truth surfaces. After any out-of-band secret management, consider restarting the consumer pod to verify the secret is still valid.
+
+### Deviation #13: config_strict Corrected
+
+During the original deployment (Deviation #6), `config_strict: false` was set as a workaround for a silent HTTP listener failure. But strict mode had actually worked at one point during the debugging session — non-strict just happened to be active when the fix landed. Three days later, switched back to `config_strict: true` — no issues. The Headscale config no longer contains the fields that tripped strict parsing.
+
+**What we learned:** Workarounds that stick around become cargo cult. When a workaround is applied under pressure, note it for later review. "It works now, don't touch it" is a reasonable attitude during deployment, but not a permanent configuration strategy.
+
+### Deviation #14: Caddy Redirect Robustness
+
+The original Caddy redirect `redir / /admin/ permanent` only matched the exact root path `/`. Any other path (bookmarks, typos, stale links) would pass through to Headplane, which returns 404 for anything outside `/admin/*`. Changed to a `@not_admin` matcher that catches all non-`/admin*` paths.
+
+**What we learned:** Exact-path redirects are brittle. If you're redirecting to a base path, catch everything that *isn't* already under that path.
+
 ## The Deviation Scorecard
 
-Ten deviations out of 17 tasks. That's a 59% deviation rate, which sounds bad but tells a useful story:
+Fourteen deviations across the deployment and post-deploy period. The original ten happened during deployment; four more surfaced during the first week of operation.
 
 | Category | Count | Example |
 |----------|-------|---------|
@@ -416,12 +448,15 @@ Ten deviations out of 17 tasks. That's a 59% deviation rate, which sounds bad bu
 | **Software behavior** | 3 | Headplane config, blog path handling, IPv4 binding |
 | **Platform surprise** | 2 | CX23 rename, control-plane taint |
 | **Operational gap** | 2 | Firewall ports, env file conflicts |
+| **Post-deploy cleanup** | 4 | Recreate strategy, empty secret, strict mode revert, redirect robustness |
 
 The architecture gaps are the most interesting. The plan was designed top-down from the spec, but the spec didn't account for the difference between "hosting a service" and "participating in a service." Hop hosts Headscale, but it also needs to *be on* the mesh. The plan had Caddy checking source IPs, but didn't think through how those IPs would actually appear on the wire.
 
 The Headplane issues are a different class — they're upstream documentation and design problems. No amount of planning prevents a silent failure mode that isn't documented. The only defense is verifying that each service actually listens on its expected port, not just that the pod is running.
 
-**The meta-lesson:** Plans are hypotheses about how infrastructure will behave. The plan was right about *what* to build (the architecture is sound) but wrong about *how* several components would need to be configured. The deviations were all fixable in-session — none required rethinking the architecture. That's the sign of a good plan with imperfect details, which is the normal outcome for infrastructure work.
+The post-deploy fixes are the most preventable category. The Recreate strategy is something any single-node operator should set from the start. The empty secret is a side effect of out-of-band secret management. The redirect and strict mode are cleanup of expedient choices made under deployment pressure. This is the category that shrinks with experience — you start adding `strategy: Recreate` to your single-node templates before you hit the deadlock.
+
+**The meta-lesson:** Plans are hypotheses about how infrastructure will behave. The plan was right about *what* to build (the architecture is sound) but wrong about *how* several components would need to be configured. The deviations were all fixable — none required rethinking the architecture. That's the sign of a good plan with imperfect details, which is the normal outcome for infrastructure work. The post-deploy fixes show that "deployed" isn't "done" — the first week of operation always reveals configuration decisions that were expedient rather than correct.
 
 ## References
 
