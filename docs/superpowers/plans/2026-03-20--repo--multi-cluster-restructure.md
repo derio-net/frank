@@ -8,7 +8,7 @@
 
 **Tech Stack:** Git, ArgoCD, Omni (config patch paths), Hugo (blog post references), GitHub Actions (CI workflow references)
 
-**Status:** Not started.
+**Status:** Not Started
 
 **Origin:** Extracted from Hop edge plan (`docs/superpowers/plans/2026-03-16--edge--hop-public.md`, former Task 17 / Chunk 7).
 
