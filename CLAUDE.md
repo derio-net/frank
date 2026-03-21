@@ -14,7 +14,7 @@ Every layer follows this sequence:
 6. **Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status in `README.md`
 7. **Sync runbook** — Run `/sync-runbook` if the layer plan contains any `# manual-operation` blocks
 8. **Sync Hop blog** — `source .env_hop && kubectl -n blog-system rollout restart deploy/blog` (GitHub Actions pushes the image but can't reach Hop's kubectl; manual rollout required until ArgoCD Image Updater is deployed)
-9. **Review** — Verify deployment health and blog accuracy
+9. **Review** — Verify deployment health and blog accuracy. Update the plan's `**Status:**` to `Deployed` (cluster workload) or `Complete` (repo/meta work)
 
 ## Layer Fix/Extension Workflow
 
