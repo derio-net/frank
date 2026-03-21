@@ -19,7 +19,7 @@ Load plan, review critically, execute all tasks, report when complete.
 1. Read plan file
 2. Review critically - identify any questions or concerns about the plan
 3. If concerns: Raise them with your human partner before starting
-4. If no concerns: Create TodoWrite and proceed
+4. If no concerns: Update the plan's `**Status:**` field to `In Progress`, then create TodoWrite and proceed
 
 ### Step 2: Execute Tasks
 
@@ -29,9 +29,15 @@ For each task:
 3. Run verifications as specified
 4. Mark as completed
 
-### Step 3: Complete Development
+### Step 3: Update Plan Status
 
-After all tasks complete and verified:
+After all tasks complete and verified, update the plan's `**Status:**` field:
+- `Deployed` — if the plan deployed cluster workloads
+- `Complete` — if the plan is finished but not a cluster deployment (e.g., repo tooling, blog infra)
+
+### Step 4: Complete Development
+
+After status is updated:
 - Announce: "I'm using the finishing-a-development-branch skill to complete this work."
 - **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
 - Follow that skill to verify tests, present options, execute choice
