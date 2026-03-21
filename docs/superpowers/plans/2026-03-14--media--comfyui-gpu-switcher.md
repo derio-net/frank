@@ -7,6 +7,7 @@
 **Architecture:** ComfyUI runs as a Kubernetes Deployment on gpu-1 with a 100Gi Longhorn PVC for model storage. A custom Go web app ("GPU Switcher") provides a dashboard to scale one GPU workload up and the other down, ensuring only one holds the GPU at a time. Both are managed via ArgoCD App-of-Apps.
 
 **Tech Stack:** ComfyUI (ai-dock CUDA image), Go 1.22+ (client-go, net/http, embed), Longhorn storage, Cilium L2 LoadBalancer, ArgoCD
+**Status:** Deployed
 
 ---
 

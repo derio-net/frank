@@ -13,6 +13,7 @@
 **Layer:** media (Media Generation Stack) — this is an extension/bugfix of the media layer, not a new layer.
 
 **Blog update required:** After deployment, retroactively update the Media Generation blog post at `blog/content/building/16-media-generation/index.md` to document the custom image replacement (per CLAUDE.md convention for layer extensions).
+**Status:** Deployed
 
 ---
 

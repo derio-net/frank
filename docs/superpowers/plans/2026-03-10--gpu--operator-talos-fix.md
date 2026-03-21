@@ -7,6 +7,7 @@
 **Architecture:** A busybox DaemonSet in `gpu-operator` namespace creates `/run/nvidia/validations/toolkit-ready` and `driver-ready` on the host. This unblocks the hardcoded init containers in device-plugin, feature-discovery, DCGM exporter, and validator pods. Deployed as a new `gpu-operator-extras` ArgoCD app following the established `-extras` pattern.
 
 **Tech Stack:** Kubernetes DaemonSet, ArgoCD Application CR, kubectl, busybox
+**Status:** Deployed
 
 ---
 

@@ -11,6 +11,7 @@
 **Prereqs:** `source .env` (KUBECONFIG) and `source .env_devops` (OMNI) available. GPU layer (GPU Operator) complete — gpu-1 has `nvidia.com/gpu` resource and NoSchedule taint. Infisical running at `192.168.55.204`.
 
 **Design doc:** `docs/superpowers/specs/2026-03-09--infer--ollama-litellm-design.md`
+**Status:** Deployed
 
 ---
 

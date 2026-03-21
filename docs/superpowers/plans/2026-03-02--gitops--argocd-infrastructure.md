@@ -7,6 +7,7 @@
 **Architecture:** Install ArgoCD v3.x, create an App-of-Apps Helm chart in `apps/root/` that bootstraps multi-source Applications for each infrastructure component. Each Application references its upstream Helm chart + local values from `apps/{name}/values.yaml`. ArgoCD adopts the existing Cilium and Longhorn releases in-place (no reinstall).
 
 **Tech Stack:** ArgoCD v3.3, Helm, kubectl, omnictl (Layer 1 unchanged)
+**Status:** Deployed
 
 **Prereqs:** All commands assume `source .env` (loads KUBECONFIG + TALOSCONFIG) or `source .env_devops` (loads OMNI_ENDPOINT + OMNI_SERVICE_ACCOUNT_KEY) has been run.
 

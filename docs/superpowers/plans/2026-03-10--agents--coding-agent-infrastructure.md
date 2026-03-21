@@ -9,6 +9,7 @@
 **Tech Stack:** ArgoCD, Helm, Longhorn, Cilium L2, Infisical + ExternalSecrets, Talos Linux, Gitea, Harbor, n8n, Aider
 
 **Design doc:** `docs/superpowers/specs/2026-03-10--agents--coding-agent-infrastructure-design.md`
+**Status:** Not Started
 
 ---
 

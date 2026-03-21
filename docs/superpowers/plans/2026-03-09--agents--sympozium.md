@@ -9,6 +9,7 @@
 **Tech Stack:** Sympozium v0.1.0 Helm chart (OCI), cert-manager v1.17.1, NATS JetStream (bundled), ExternalSecrets for Infisical, Cilium L2 LoadBalancer.
 
 **Design doc:** `docs/superpowers/specs/2026-03-09--agents--sympozium-design.md`
+**Status:** Deployed
 
 ---
 

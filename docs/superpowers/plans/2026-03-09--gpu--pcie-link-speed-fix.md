@@ -7,6 +7,7 @@
 **Architecture:** All work is physical/firmware — no cluster code changes. BIOS updated via Gigabyte Q-Flash from USB. PCIe Gen 4 forced at firmware level to bypass a confirmed bug in NVIDIA open kernel modules (570.x–590.x) where Gen 5 training failure falls back to Gen 1 instead of Gen 4. See design doc: `docs/superpowers/specs/2026-03-09--gpu--pcie-link-speed-fix-design.md`.
 
 **Tech Stack:** Gigabyte Q-Flash, Talos Linux, kubectl, talosctl
+**Status:** Deployed
 
 ---
 

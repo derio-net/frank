@@ -57,6 +57,8 @@ This structure informs the task decomposition. Each task should produce self-con
 
 **Tech Stack:** [Key technologies/libraries]
 
+**Status:** Not Started
+
 ---
 ```
 

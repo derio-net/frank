@@ -7,6 +7,7 @@
 **Architecture:** Hugo static site in `blog/` subdirectory, PaperMod theme as git submodule, page bundles for posts, GitHub Actions CI/CD targeting GitHub Pages with path filter on `blog/**`.
 
 **Tech Stack:** Hugo v0.157.0, PaperMod theme, GitHub Actions, GitHub Pages
+**Status:** Complete
 
 ---
 
