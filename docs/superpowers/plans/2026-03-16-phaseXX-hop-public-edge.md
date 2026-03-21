@@ -8,7 +8,7 @@
 
 **Tech Stack:** Talos Linux, talosctl, Packer (HCL), Hetzner Cloud (`hcloud` CLI), ArgoCD (Helm), Headscale, Headplane, Tailscale, Caddy, Hugo, Flannel CNI
 
-**Status:** Complete. Deployed 2026-03-18, plan finalized 2026-03-20. All services healthy.
+**Status:** Complete. Deployed 2026-03-18, plan finalized 2026-03-20. Post-deploy fixes applied 2026-03-21 (Deviations #11-14). All services healthy.
 
 **Spec:** `docs/superpowers/specs/2026-03-16-phaseXX-hop-public-edge-design.md`
 
@@ -2167,7 +2167,7 @@ Chunks 1-6 were executed autonomously on 2026-03-18. The autonomous run complete
 - API key must be injected via `HEADPLANE_HEADSCALE_API_KEY` env var from a K8s Secret (created with `headscale apikeys create`).
 - Headplane binds IPv4 only — `wget localhost:3000` fails (resolves to `::1`); use `wget 127.0.0.1:3000` to test.
 
-**Lesson learned:** This was the most time-consuming deviation. The root cause was that Headplane's documentation doesn't cover the v0.5.5 config changes adequately, and `config_strict: true` (the default) causes a silent failure — the HTTP listener simply doesn't start, with no error message.
+**Lesson learned:** This was the most time-consuming deviation. The root cause was that Headplane's documentation doesn't cover the v0.5.5 config changes adequately, and `config_strict: true` (the default) caused a silent failure during initial debugging. However, `config_strict: false` was later corrected back to `true` (see Deviation #13) — the strict mode issue was transient and the Headscale config no longer triggers it.
 
 ### 7. Control Plane Scheduling
 
@@ -2188,6 +2188,30 @@ Chunks 1-6 were executed autonomously on 2026-03-18. The autonomous run complete
 
 **Original:** `.env` only.
 **Actual:** Added `.env_hop` for Hop-specific vars (KUBECONFIG, CF_API_TOKEN). Critical: sourcing `.env` overrides KUBECONFIG to Frank — never source it when working on Hop.
+
+### 11. Caddy Deployment Strategy (post-deploy fix, 2026-03-21)
+
+**Original:** Default `RollingUpdate` strategy.
+**Actual:** `RollingUpdate` deadlocks on a single-node cluster when using `hostPort` — the new pod can't bind ports 80/443 while the old pod still holds them. The new pod stays `Pending` forever. Changed to `strategy: Recreate`, which kills the old pod first. Brief downtime (~5s) is acceptable for a single-node edge cluster.
+**Impact:** Updated `clusters/hop/apps/caddy/manifests/deployment.yaml`.
+
+### 12. Caddy Cloudflare Secret Emptied (post-deploy fix, 2026-03-21)
+
+**Original:** Cloudflare API token stored in `caddy-cloudflare` Secret, applied out-of-band.
+**Actual:** After a `rollout restart`, the new Caddy pod crashed with `API token '' appears invalid`. The secret existed but contained an empty value. The old pod survived because env vars from `secretKeyRef` are injected at pod creation and never refreshed. The secret was recreated with the correct token.
+**Lesson learned:** Running pods mask broken secrets. Verify secrets after any out-of-band changes — a `rollout restart` is the moment the truth surfaces.
+
+### 13. Headplane config_strict Corrected (post-deploy fix, 2026-03-21)
+
+**Original:** `config_strict: false` (set during Deviation #6 debugging).
+**Actual:** During the original debugging session, strict mode was also working at some point — non-strict just happened to be active when the listener issue was resolved, so it stuck. Changed back to `config_strict: true`. The Headscale v0.25.1 config no longer contains unknown fields that would trip strict parsing. Eliminates the warning spam about forfeiting GitHub issue support.
+**Impact:** Updated `clusters/hop/apps/headplane/manifests/configmap.yaml` and CLAUDE.md gotcha.
+
+### 14. Caddy Redirect Robustness (post-deploy fix, 2026-03-21)
+
+**Original:** `redir / /admin/ permanent` — only matches exact root path `/`.
+**Actual:** Changed to `@not_admin not path /admin /admin/*` matcher + `redir @not_admin /admin/ permanent`. This catches any path that isn't already under `/admin*` and redirects to `/admin/`, preventing 404s from stale bookmarks or typos.
+**Impact:** Updated `clusters/hop/apps/caddy/manifests/configmap.yaml`.
 
 ---
 
