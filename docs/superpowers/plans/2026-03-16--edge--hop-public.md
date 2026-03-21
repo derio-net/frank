@@ -8,7 +8,9 @@
 
 **Tech Stack:** Talos Linux, talosctl, Packer (HCL), Hetzner Cloud (`hcloud` CLI), ArgoCD (Helm), Headscale, Headplane, Tailscale, Caddy, Hugo, Flannel CNI
 
-**Status:** Complete. Deployed 2026-03-18, plan finalized 2026-03-20. Post-deploy fixes applied 2026-03-21 (Deviations #11-14). All services healthy.
+**Status:** Deployed
+
+**Notes:** Deployed 2026-03-18, plan finalized 2026-03-20. Post-deploy fixes applied 2026-03-21 (Deviations #11-14). All services healthy.
 
 **Spec:** `docs/superpowers/specs/2026-03-16--edge--hop-public-design.md`
 

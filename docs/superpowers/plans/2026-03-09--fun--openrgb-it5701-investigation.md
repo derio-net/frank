@@ -1,7 +1,9 @@
 # OpenRGB IT5701 On-Demand Control Investigation
 
 **Date:** 2026-03-09 (updated 2026-03-10)
-**Status:** Closed — root cause confirmed, requires USB traffic capture on Windows to fix
+**Status:** Closed
+
+**Outcome:** Root cause confirmed — IT5701 V3.5.14.0 firmware write lock set by BIOS; requires USB traffic capture on Windows to find unlock sequence.
 **Outcome:** IT5701 V3.5.14.0 has a firmware write lock set by BIOS; unlock sequence unknown
 
 ---
