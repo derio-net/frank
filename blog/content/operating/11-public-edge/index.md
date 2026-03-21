@@ -126,18 +126,61 @@ kubectl -n headscale-system exec deploy/headscale -- \
   headscale preauthkeys create --user <username> --reusable --expiration 24h
 ```
 
-### Registering a New Device
+### Adding a Node to the Tailscale Network
 
-On the client device:
+Adding a device to the Hop mesh is a two-step process: create a pre-auth key on the server side, then register the client.
+
+**Step 1 — Create a user (if needed) and generate a pre-auth key:**
 
 ```bash
+source .env_hop
+
+# Create a user for the device (skip if user already exists)
+kubectl -n headscale-system exec deploy/headscale -- headscale users create <username>
+
+# Generate a pre-auth key
+kubectl -n headscale-system exec deploy/headscale -- \
+  headscale preauthkeys create --user <username> --reusable --expiration 24h
+```
+
+The `--reusable` flag lets you register multiple devices with the same key (useful for a batch of machines). Omit it for single-use keys. The `--expiration` controls how long the key is valid — after that, it can't be used for new registrations but already-registered nodes stay connected.
+
+**Step 2 — Register the client device:**
+
+On the device you want to add (macOS, Linux, Windows, iOS, Android — anything that runs Tailscale):
+
+```bash
+# Linux / macOS
+tailscale up --login-server https://headscale.hop.derio.net --authkey <PREAUTH_KEY>
+
+# If Tailscale was previously connected to a different control server, reset first:
+tailscale logout
 tailscale up --login-server https://headscale.hop.derio.net --authkey <PREAUTH_KEY>
 ```
 
-Verify the node appears in Headscale:
+On mobile devices (iOS/Android), you can set the control server URL in the Tailscale app settings before signing in. Enter `https://headscale.hop.derio.net` as the control server and use the pre-auth key.
+
+**Step 3 — Verify registration:**
 
 ```bash
+# From the Hop cluster — confirm the node appears
 kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
+
+# From the new client — confirm connectivity
+tailscale status
+tailscale ping <another-mesh-node>
+```
+
+The new node gets a `100.64.0.x` address from Headscale's IP pool. MagicDNS automatically makes it reachable by name (e.g., `device-name.mesh.hop.derio.net`).
+
+**Removing a node:**
+
+```bash
+# List nodes to find the ID
+kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
+
+# Delete by ID
+kubectl -n headscale-system exec deploy/headscale -- headscale nodes delete --identifier <NODE_ID>
 ```
 
 ### Adding a Mesh-Only Service
