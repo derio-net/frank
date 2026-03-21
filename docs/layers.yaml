@@ -1,0 +1,100 @@
+# Layer Registry — Architectural/operational domains for the Frank cluster
+#
+# Each layer represents a capability domain. Plans and specs are named:
+#   <date>--<layer>--<details>[-design].md
+#
+# Commit messages use the layer code: fix(gpu): ..., feat(edge): ...
+#
+# Layer numbers reflect order of introduction (matches roadmap shortcode).
+# New layers always get the next number. The 'repo' layer has no number
+# (it's meta-work, not a cluster capability).
+
+layers:
+  - code: hw
+    number: 1
+    name: Hardware & Nodes
+    description: Physical hardware, node provisioning, zone topology
+
+  - code: os
+    number: 2
+    name: OS & Bootstrap
+    description: Talos Linux, Sidero Omni, machine config lifecycle
+
+  - code: net
+    number: 3
+    name: Networking
+    description: Cilium CNI, eBPF, L2 LoadBalancer, Hubble
+
+  - code: stor
+    number: 4
+    name: Storage
+    description: Longhorn distributed block storage, StorageClasses
+
+  - code: gpu
+    number: 5
+    name: GPU Compute
+    description: NVIDIA GPU Operator, Intel DRA driver, CDI
+
+  - code: gitops
+    number: 6
+    name: GitOps
+    description: ArgoCD App-of-Apps, drift detection, self-healing
+
+  - code: fun
+    number: 7
+    name: Fun Stuff
+    description: OpenRGB LED control, cosmetic/fun workloads
+
+  - code: obs
+    number: 8
+    name: Observability
+    description: VictoriaMetrics, Grafana, Fluent Bit, alerting
+
+  - code: backup
+    number: 9
+    name: Backup & DR
+    description: Longhorn backups to Cloudflare R2, disaster recovery
+
+  - code: secrets
+    number: 10
+    name: Secrets Management
+    description: Infisical vault, External Secrets Operator
+
+  - code: infer
+    number: 11
+    name: Local Inference
+    description: Ollama, LiteLLM gateway, OpenRouter
+
+  - code: agents
+    number: 12
+    name: Agentic Control Plane
+    description: Sympozium, autonomous coding agents
+
+  - code: auth
+    number: 13
+    name: Unified Auth
+    description: Authentik IdP, OIDC, forward-auth proxy
+
+  - code: tenant
+    number: 14
+    name: Multi-tenancy
+    description: vCluster, disposable experiment clusters
+
+  - code: orch
+    number: 15
+    name: AI Agent Orchestrator
+    description: Paperclip org-chart agents, delegation chains
+
+  - code: media
+    number: 16
+    name: Media Generation
+    description: ComfyUI, GPU Switcher, diffusion models
+
+  - code: edge
+    number: 17
+    name: Public Edge
+    description: Hop cluster, Headscale mesh, Caddy, public blog
+
+  - code: repo
+    name: Repository & Tooling
+    description: Blog infrastructure, CI, repo restructuring, meta-tasks

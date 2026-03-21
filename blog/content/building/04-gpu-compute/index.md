@@ -15,7 +15,7 @@ This post covers two GPU paths that converged on the same cluster. The NVIDIA RT
 
 Both paths required Talos extensions, kernel-level config, and some chart surgery. Let's walk through them.
 
-## Part 1: NVIDIA GPU Operator (Phase 4)
+## Part 1: NVIDIA GPU Operator (Layer 4)
 
 The plan for `gpu-1` was straightforward: install NVIDIA's Talos extensions, load the kernel modules, deploy the GPU Operator via Helm, and start scheduling CUDA workloads. The infrastructure side worked. The hardware had other ideas.
 
@@ -170,7 +170,7 @@ Sync Policy:    Automated
 
 This is the kind of thing that does not show up in architecture diagrams. A connection that was making just enough contact to power the fans but not enough to establish PCIe signaling — fixed by a firm reseat. The software stack was ready and waiting; the hardware just needed to catch up.
 
-## Part 2: Intel Arc iGPU via DRA (Phase 5)
+## Part 2: Intel Arc iGPU via DRA (Layer 5)
 
 The three mini nodes (`mini-1`, `mini-2`, `mini-3`) each have an Intel Core Ultra with an integrated Intel Arc GPU. These are not powerhouse GPUs — they share system RAM instead of having dedicated VRAM, which makes them unsuitable for LLM inference (where memory bandwidth is the bottleneck). Where they shine is media and vision workloads: hardware video transcode via Quick Sync, object detection and computer vision via OpenVINO, and OpenCL compute. More importantly, they gave us a reason to implement DRA — the replacement for the Kubernetes device plugin model.
 
@@ -239,7 +239,7 @@ spec:
         - siderolabs/intel-ucode
 ```
 
-The same `iscsi-tools` gotcha from Phase 4 applies: per-machine extension configs override the cluster-wide list, so `iscsi-tools` must be re-included.
+The same `iscsi-tools` gotcha from Layer 4 applies: per-machine extension configs override the cluster-wide list, so `iscsi-tools` must be re-included.
 
 There are three separate files — one per mini node (`500-mini1`, `501-mini2`, `502-mini3`) — because all three mini nodes are control-plane members. Applying an extension triggers an image rebuild and reboot. If you apply all three simultaneously, you lose quorum and the cluster goes down.
 

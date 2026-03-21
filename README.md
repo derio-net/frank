@@ -97,7 +97,7 @@ frank/
 │       │   └── storage/       # Static PVs for Hetzner Volume
 │       ├── packer/            # Packer template for Hetzner Talos image
 │       └── talosconfig/       # Talos client config (gitignored)
-├── patches/
+├── patches/                   # Talos machine config patches (legacy phaseNN- naming)
 │   ├── phase01-node-config/   # Node labels, scheduling
 │   ├── phase02-cilium/        # CNI swap to Cilium
 │   ├── phase03-longhorn/      # iSCSI tools, extra disks

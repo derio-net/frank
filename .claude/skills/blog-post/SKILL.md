@@ -93,7 +93,7 @@ Each series has its own **00-overview** post — a living document updated after
 
 1. **Series Index** — append the new post as a numbered list item with a Hugo relref link (under the "Series Index" heading).
 2. **Technology → Capability Map** — add a row for any new technology introduced in this post (tool name in bold, capabilities in the second column).
-3. **`blog/layouts/shortcodes/cluster-roadmap.html`** — add a new `roadmap-layer` div for the new phase/capability. Use the existing colour classes (`layer-hw`, `layer-net`, etc.) or add a new `layer-*` class with its own `--rm-accent-N` colour variable (add to both light and dark mode sections). Use `layer-upcoming` for phases that are planned but not yet deployed (dashed border, muted opacity).
+3. **`blog/layouts/shortcodes/cluster-roadmap.html`** — add a new `roadmap-layer` div for the new layer/capability. Use the existing colour classes (`layer-hw`, `layer-net`, etc.) or add a new `layer-*` class with its own `--rm-accent-N` colour variable (add to both light and dark mode sections). Use `layer-upcoming` for layers that are planned but not yet deployed (dashed border, muted opacity). Layer codes are defined in `docs/layers.yaml`.
 
 **For `operating` series posts** — update `blog/content/operating/00-overview/index.md`:
 

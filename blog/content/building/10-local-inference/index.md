@@ -11,9 +11,9 @@ cover:
   relative: true
 ---
 
-The cluster has a GPU. Phase 4 installed the NVIDIA operator. Phase 5 gave the mini nodes their Intel iGPUs. But none of that is useful until something actually runs inference.
+The cluster has a GPU. Layer 4 installed the NVIDIA operator. Layer 5 gave the mini nodes their Intel iGPUs. But none of that is useful until something actually runs inference.
 
-Phase 10 wires up a unified LLM gateway. Any tool on the network — agentic frameworks, document processors, coding assistants — talks to one OpenAI-compatible endpoint at `192.168.55.206:4000`. Behind that endpoint, requests route to either a local model on gpu-1's RTX 5070 or a free cloud model via OpenRouter. The consumer never needs to know which.
+Layer 10 wires up a unified LLM gateway. Any tool on the network — agentic frameworks, document processors, coding assistants — talks to one OpenAI-compatible endpoint at `192.168.55.206:4000`. Behind that endpoint, requests route to either a local model on gpu-1's RTX 5070 or a free cloud model via OpenRouter. The consumer never needs to know which.
 
 ## The Architecture
 
@@ -201,7 +201,7 @@ During deployment, four of the six originally selected cloud models had already 
 
 ## Multi-tenancy
 
-LiteLLM has built-in virtual key management. Each consumer gets its own key with optional per-key budgets and rate limits. When multi-tenancy via vCluster arrives in a future phase, tenant isolation is a configuration concern — not an architectural change.
+LiteLLM has built-in virtual key management. Each consumer gets its own key with optional per-key budgets and rate limits. When multi-tenancy via vCluster arrives in a future layer, tenant isolation is a configuration concern — not an architectural change.
 
 ## What is Next
 

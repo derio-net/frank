@@ -13,7 +13,7 @@ cover:
 
 Every experiment on a shared cluster carries risk. Install a CRD that conflicts with something in production. Deploy a Helm chart that creates cluster-scoped resources you did not expect. Run a fuzz test that fills all available memory. On a homelab with one cluster, the blast radius is everything.
 
-Phase 12 adds vCluster — virtual Kubernetes clusters that run inside Frank. Each one has its own API server, its own namespaces, its own resources. From the inside, it looks and feels like a real cluster. From the outside, it is a StatefulSet in a namespace.
+Layer 12 adds vCluster — virtual Kubernetes clusters that run inside Frank. Each one has its own API server, its own namespaces, its own resources. From the inside, it looks and feels like a real cluster. From the outside, it is a StatefulSet in a namespace.
 
 ## What vCluster Actually Is
 

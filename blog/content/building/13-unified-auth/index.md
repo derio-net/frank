@@ -11,11 +11,11 @@ cover:
   relative: true
 ---
 
-Twelve phases in, every service on the cluster has its own local admin account. ArgoCD has its built-in admin user. Grafana has a default `admin/admin` login. Infisical has a self-created admin account. Longhorn, Hubble, and Sympozium have no authentication at all — anyone on the LAN can access them.
+Twelve layers deep, every service on the cluster has its own local admin account. ArgoCD has its built-in admin user. Grafana has a default `admin/admin` login. Infisical has a self-created admin account. Longhorn, Hubble, and Sympozium have no authentication at all — anyone on the LAN can access them.
 
 This is fine for a homelab with one user. It is not fine the moment you add a second person, set up CI agents, or want an audit trail that says who did what.
 
-Phase 13 fixes this. One identity provider — [Authentik](https://goauthentik.io) — handles authentication and authorization for every service on the cluster. Log in once, access everything your group membership allows.
+Layer 13 fixes this. One identity provider — [Authentik](https://goauthentik.io) — handles authentication and authorization for every service on the cluster. Log in once, access everything your group membership allows.
 
 ## Why Authentik?
 
@@ -139,11 +139,11 @@ Manually triggering blueprint discovery via the API failed with a `CurrentTaskNo
 
 After several attempts, the approach shifted to the Authentik REST API. Every provider, application, and outpost assignment was created via `curl` against `/api/v3/`. The API is well-documented and worked on every attempt. The blueprints for groups remain in the chart as they work; everything else is API-managed.
 
-This is the one part of Phase 13 that is not fully declarative. If Authentik's database is lost, the providers and applications would need to be recreated via the API. The groups and RBAC bindings are still GitOps-managed.
+This is the one part of Layer 13 that is not fully declarative. If Authentik's database is lost, the providers and applications would need to be recreated via the API. The groups and RBAC bindings are still GitOps-managed.
 
 ## ArgoCD: Self-Management
 
-A surprise requirement: ArgoCD was not managing itself. It was bootstrapped manually with `helm install` during Phase 0 and never brought under App-of-Apps control. Changing its Helm values (to add OIDC config) had no declarative path — every change would require a manual `helm upgrade`.
+A surprise requirement: ArgoCD was not managing itself. It was bootstrapped manually with `helm install` during Layer 0 and never brought under App-of-Apps control. Changing its Helm values (to add OIDC config) had no declarative path — every change would require a manual `helm upgrade`.
 
 The fix was to create an Application CR for ArgoCD:
 
@@ -187,7 +187,7 @@ role_attribute_path: >-
 
 ## What Remains Manual
 
-Phase 13 has two manual operations still pending:
+Layer 13 has two manual operations still pending:
 
 1. **Infisical OIDC** — Infisical's OIDC configuration is done via the admin UI, not Helm values. The OIDC provider exists in Authentik; the Infisical side needs to be connected.
 
@@ -197,7 +197,7 @@ Both are documented in the runbook at `docs/runbooks/manual-operations.yaml`.
 
 ## The Result
 
-Before Phase 13, the cluster had seven independent authentication boundaries. After:
+Before Layer 13, the cluster had seven independent authentication boundaries. After:
 
 - **One login** for ArgoCD, Grafana, and (pending) Infisical
 - **One gate** protecting Longhorn, Hubble, and Sympozium UIs

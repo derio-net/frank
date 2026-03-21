@@ -1,13 +1,13 @@
 # docs/runbooks/manual-operations.yaml
 #
-# Central registry of all manual operations required across phases.
+# Central registry of all manual operations required across layers.
 # Each entry corresponds to a # manual-operation block in a plan file.
 # Maintained by the /sync-runbook skill — run it after editing any plan
 # that adds or changes manual operations.
 #
 # Fields:
-#   id          — unique identifier, format: phaseNN-short-name
-#   phase       — phase number (0 = bootstrap, before ArgoCD)
+#   id          — unique identifier, format: <layer>-short-name
+#   layer       — layer code (hw, os, net, stor, gpu, gitops, fun, obs, backup, secrets, infer, agents, auth, tenant, orch, media, edge, repo)
 #   app         — ArgoCD app name or "bootstrap"
 #   plan        — relative path to the plan file, or null
 #   when        — trigger: what must be done first
@@ -18,8 +18,8 @@
 
 
 operations:
-  - id: phase00-argocd-bootstrap
-    phase: 0
+  - id: gitops-argocd-bootstrap
+    layer: gitops
     app: bootstrap
     plan: null
     when: "Initial cluster setup — before any ArgoCD apps exist"
@@ -34,10 +34,10 @@ operations:
       - argocd app list --port-forward --port-forward-namespace argocd
     status: done
 
-  - id: gpu1-bios-f3-to-f6
-    phase: 4
+  - id: gpu-bios-f3-to-f6
+    layer: gpu
     app: gpu-operator
-    plan: docs/superpowers/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
+    plan: docs/superpowers/plans/2026-03-09--gpu--pcie-link-speed-fix.md
     when: "After Task 1 — USB drive prepared with F6 and F3 BIOS files"
     why_manual: "BIOS update requires physical access to the machine and Q-Flash interaction — cannot be done remotely or declaratively"
     commands:
@@ -53,10 +53,10 @@ operations:
       - Secure Boot shows Disabled
     status: pending
 
-  - id: gpu1-pcie-gen4
-    phase: 4
+  - id: gpu-pcie-gen4
+    layer: gpu
     app: gpu-operator
-    plan: docs/superpowers/plans/2026-03-09-phase04-gpu1-pcie-link-speed-fix.md
+    plan: docs/superpowers/plans/2026-03-09--gpu--pcie-link-speed-fix.md
     when: "After Task 2 — BIOS F6 confirmed, Secure Boot confirmed disabled"
     why_manual: "PCIe slot speed is a BIOS setting — no Talos patch or kernel parameter equivalent exists for this board/driver combination"
     commands:
@@ -71,10 +71,10 @@ operations:
       - Output should show 16.0 GT/s (not 2.5 GT/s)
     status: pending
 
-  - id: phase07-grafana-victorialogs-migration
-    phase: 7
+  - id: obs-grafana-victorialogs-migration
+    layer: obs
     app: victoria-metrics
-    plan: docs/superpowers/plans/2026-03-08-declarative-drift-remediation-plan.md
+    plan: docs/superpowers/plans/2026-03-08--repo--declarative-drift-remediation.md
     when: "After Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap"
     why_manual: "The live API-added datasource must be deleted via Grafana UI before the provisioned one activates; Grafana does not auto-replace API datasources with provisioned ones of the same name"
     commands:
@@ -89,10 +89,10 @@ operations:
     status: done
     notes: "Grafana automatically adopted the API-added datasource when it found a provisioning config with the same name on pod restart — no manual UI deletion was needed. Datasource now readOnly=True (confirmed via API)."
 
-  - id: phase08-r2-sops-secret
-    phase: 8
+  - id: backup-r2-sops-secret
+    layer: backup
     app: longhorn
-    plan: docs/superpowers/plans/2026-03-08-phase08-backup-impl.md
+    plan: docs/superpowers/plans/2026-03-08--backup--longhorn-r2.md
     when: "After Task 2 — after SOPS-encrypting the R2 secret"
     why_manual: "SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
     commands:
@@ -101,10 +101,10 @@ operations:
       - kubectl get secret longhorn-r2-secret -n longhorn-system
     status: done
 
-  - id: phase09-eso-credentials-secret
-    phase: 9
+  - id: secrets-eso-credentials-secret
+    layer: secrets
     app: external-secrets
-    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
     when: "Task 7 — after SOPS-encrypting eso-credentials.yaml with Client ID and Secret from Infisical UI"
     why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
     commands:
@@ -114,10 +114,10 @@ operations:
       - kubectl get secret infisical-credentials -n external-secrets
     status: done
 
-  - id: phase09-infisical-bootstrap-secrets
-    phase: 9
+  - id: secrets-infisical-bootstrap-secrets
+    layer: secrets
     app: infisical
-    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
     when: "Task 4 — after SOPS-encrypting infisical-secrets.yaml and infisical-db-uri.yaml"
     why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
     commands:
@@ -129,10 +129,10 @@ operations:
       - kubectl get secret infisical-db-uri -n infisical
     status: done
 
-  - id: phase09-infisical-project-slug
-    phase: 9
+  - id: secrets-infisical-project-slug
+    layer: secrets
     app: infisical-extras
-    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
     when: "After ClusterSecretStore deployed and reports 'Project with slug not found'"
     why_manual: "Infisical auto-generates a slug that differs from the project name; no API endpoint accessible to eso-cluster-reader (Viewer) returns workspace list — slug must be read from Infisical UI"
     commands:
@@ -147,10 +147,10 @@ operations:
     status: done
     notes: "Project slug is 'frank-cluster-iwpg' (auto-generated by Infisical v0.151.0; differs from project name 'frank-cluster'). Workspace list endpoint /api/v1/workspace returns empty array for Viewer-scoped identity."
 
-  - id: phase09-infisical-secrets-redis-update
-    phase: 9
+  - id: secrets-infisical-secrets-redis-update
+    layer: secrets
     app: infisical
-    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
     when: "After discovering Redis chart bug — after REDIS_URL added to infisical-secrets.yaml via sops --set"
     why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; re-apply required after adding REDIS_URL because the chart builds REDIS_URL from redis.auth.password (plain value) rather than existingSecret, so the correct URL must come from infisical-secrets envFrom"
     commands:
@@ -161,10 +161,10 @@ operations:
     status: done
     notes: "REDIS_URL value: redis://default:<password>@redis-master:6379 — password matches redis.auth.existingSecretPasswordKey in infisical-redis chart"
 
-  - id: phase09-infisical-ui-setup
-    phase: 9
+  - id: secrets-infisical-ui-setup
+    layer: secrets
     app: infisical
-    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
     when: "Task 5 complete — Infisical pod Running and UI reachable at http://192.168.55.204"
     why_manual: "Initial admin account, project creation, and Machine Identity setup have no CLI equivalent in self-hosted Infisical"
     commands:
@@ -180,10 +180,10 @@ operations:
     status: done
     notes: "UI paths differ from docs in v0.151.0: Organization Access → Identities (not Organization Settings → Machine Identities). Client Secret found under the identity's Authentication tab."
 
-  - id: phase09-redis-statefulset-cleanup
-    phase: 9
+  - id: secrets-redis-statefulset-cleanup
+    layer: secrets
     app: infisical-redis
-    plan: docs/superpowers/plans/2026-03-08-phase09-secrets-management.md
+    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
     when: "After creating infisical-redis ArgoCD app — when infisical pod reports EPERM connecting to Redis"
     why_manual: "ArgoCD prune:false leaves orphaned StatefulSets; the old redis-master StatefulSet (created by bundled infisical chart, label instance:infisical) conflicts with the NetworkPolicy from infisical-redis app (selects instance:infisical-redis) — must delete manually to allow correct StatefulSet to be recreated"
     commands:
@@ -194,10 +194,10 @@ operations:
     status: done
     notes: "selfHeal:true in infisical-redis app recreated the StatefulSet immediately with correct labels (instance:infisical-redis)"
 
-  - id: phase11-create-sympozium-llm-key
-    phase: 11
+  - id: agents-create-sympozium-llm-key
+    layer: agents
     app: sympozium-extras
-    plan: docs/superpowers/plans/2026-03-09-phase11-sympozium.md
+    plan: docs/superpowers/plans/2026-03-09--agents--sympozium.md
     when: "Before pushing — ExternalSecret needs the Infisical source"
     why_manual: "Infisical secret creation requires UI/API interaction outside ArgoCD"
     commands:
@@ -208,10 +208,10 @@ operations:
       - kubectl get externalsecret sympozium-llm-key -n sympozium-system — should show SecretSynced (after push and sync)
     status: done
 
-  - id: phase11-telegram-bot-setup
-    phase: 11
+  - id: agents-telegram-bot-setup
+    layer: agents
     app: sympozium-extras
-    plan: docs/superpowers/plans/2026-03-09-phase11-sympozium-design.md
+    plan: docs/superpowers/plans/2026-03-09--agents--sympozium.md
     when: "When ready to enable Telegram channel — not required for initial deploy"
     why_manual: "Telegram BotFather interaction is manual, token must be stored in Infisical"
     commands:
@@ -222,10 +222,10 @@ operations:
       - "kubectl get pods -n sympozium-system -l app=sympozium-telegram — should be Running"
     status: pending
 
-  - id: phase13-agent-machine-user
-    phase: 13
+  - id: auth-agent-machine-user
+    layer: auth
     app: authentik
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "After Task 10 Step 2 — Agent auth blueprint deployed"
     why_manual: "Machine user credentials and client secret must be set via Authentik admin UI"
     commands:
@@ -240,10 +240,10 @@ operations:
       - "In Authentik Admin UI: Directory > Users > claude-agent shows root-admins membership"
     status: pending
 
-  - id: phase13-akadmin-group
-    phase: 13
+  - id: auth-akadmin-group
+    layer: auth
     app: authentik
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "After Task 5 Step 6 — Authentik initial setup complete"
     why_manual: "Bootstrap user assignment cannot be done via blueprint (user doesn't exist until first login)"
     commands:
@@ -252,10 +252,10 @@ operations:
       - "In Authentik Admin UI: Directory > Users > akadmin shows root-admins group membership"
     status: pending
 
-  - id: phase13-argocd-oidc-client-secret
-    phase: 13
+  - id: auth-argocd-oidc-client-secret
+    layer: auth
     app: authentik
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "After Task 6 Step 4 — Blueprint has created the ArgoCD provider"
     why_manual: "Client secret cannot be set via blueprint (secret value must not be in Git)"
     commands:
@@ -264,10 +264,10 @@ operations:
       - "In Authentik Admin UI: Providers > ArgoCD shows client_secret is set (not empty)"
     status: pending
 
-  - id: phase13-argocd-oidc-secret
-    phase: 13
+  - id: auth-argocd-oidc-secret
+    layer: auth
     app: argocd
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "Before Task 6 Step 3 — ArgoCD needs the OIDC secret before OIDC is enabled"
     why_manual: "SOPS-encrypted secret applied out-of-band"
     commands:
@@ -276,10 +276,10 @@ operations:
       - kubectl get secret argocd-oidc-secret -n argocd
     status: done
 
-  - id: phase13-authentik-bootstrap-secrets
-    phase: 13
+  - id: auth-authentik-bootstrap-secrets
+    layer: auth
     app: authentik
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "Before Task 3 — secrets must exist before Authentik pods start"
     why_manual: "SOPS-encrypted secrets cannot be applied via ArgoCD (SOPS + ServerSideApply don't mix)"
     commands:
@@ -289,10 +289,10 @@ operations:
       - "kubectl get secret authentik-secrets -n authentik -o jsonpath='{.data.secret_key}' | base64 -d | head -c 5 && echo '...'"
     status: done
 
-  - id: phase13-grafana-oidc-client-secret
-    phase: 13
+  - id: auth-grafana-oidc-client-secret
+    layer: auth
     app: authentik
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "After Task 7 Step 5 — Blueprint has created the Grafana provider"
     why_manual: "Client secret cannot be set via blueprint"
     commands:
@@ -301,10 +301,10 @@ operations:
       - "Navigate to https://grafana.frank.derio.net, click 'Sign in with Authentik', login as akadmin"
     status: pending
 
-  - id: phase13-grafana-oidc-secret
-    phase: 13
+  - id: auth-grafana-oidc-secret
+    layer: auth
     app: grafana
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "Before Task 7 Step 4 — Grafana needs OIDC secret"
     why_manual: "SOPS-encrypted secret applied out-of-band"
     commands:
@@ -313,10 +313,10 @@ operations:
       - kubectl get secret grafana-oidc-secret -n monitoring
     status: done
 
-  - id: phase13-infisical-oidc-config
-    phase: 13
+  - id: auth-infisical-oidc-config
+    layer: auth
     app: infisical
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "After Task 8 Step 2 — Blueprint has created the Infisical provider"
     why_manual: "Infisical OIDC configuration is done via admin UI, not Helm values"
     commands:
@@ -330,10 +330,10 @@ operations:
       - "Navigate to https://infisical.frank.derio.net, see 'Sign in with SSO' option"
     status: pending
 
-  - id: phase13-talos-oidc-patch
-    phase: 13
+  - id: auth-talos-oidc-patch
+    layer: auth
     app: n/a
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "After Task 10 — Authentik agent provider exists"
     why_manual: "Talos machine config patches are applied via Omni UI"
     commands:
@@ -344,10 +344,10 @@ operations:
       - "kubectl logs -n kube-system kube-apiserver-mini-1 | grep oidc"
     status: pending
 
-  - id: phase13-traefik-authentik-route
-    phase: 13
+  - id: auth-traefik-authentik-route
+    layer: auth
     app: authentik
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "After Task 5 Step 4 — LB service has external IP"
     why_manual: "Traefik config on raspi-omni is outside cluster management"
     commands:
@@ -357,10 +357,10 @@ operations:
       - "curl -s https://auth.frank.derio.net/if/flow/initial-setup/ | grep -i authentik"
     status: pending
 
-  - id: phase13-traefik-forward-auth
-    phase: 13
+  - id: auth-traefik-forward-auth
+    layer: auth
     app: authentik
-    plan: docs/superpowers/plans/2026-03-11-phase13-unified-auth.md
+    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "After Task 9 Step 3 — Proxy providers created in Authentik"
     why_manual: "Traefik config on raspi-omni is outside cluster management"
     commands:
@@ -374,10 +374,10 @@ operations:
     status: done
     notes: "User applied Traefik changes via Ansible before implementation started"
 
-  - id: phase14-build-paperclip-image
-    phase: 14
+  - id: orch-build-paperclip-image
+    layer: orch
     app: paperclip
-    plan: docs/superpowers/plans/2026-03-14-phase14-paperclip-design.md
+    plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
     when: "Before deploying paperclip — image must exist in GHCR"
     why_manual: "Upstream repo has no published images; building requires local Docker and GHCR auth"
     commands:
@@ -389,10 +389,10 @@ operations:
       - "docker pull ghcr.io/derio-net/paperclip:v0.3.1"
     status: done
 
-  - id: phase14-create-infisical-secrets
-    phase: 14
+  - id: orch-create-infisical-secrets
+    layer: orch
     app: paperclip
-    plan: docs/superpowers/plans/2026-03-14-phase14-paperclip-design.md
+    plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
     when: "Before deploying paperclip — ExternalSecrets need source data"
     why_manual: "Secrets must be created in Infisical UI/CLI — cannot be declared in git"
     commands:
@@ -405,10 +405,10 @@ operations:
       - kubectl get externalsecret -n paperclip-system
     status: done
 
-  - id: phase14-traefik-paperclip-route
-    phase: 14
+  - id: orch-traefik-paperclip-route
+    layer: orch
     app: paperclip
-    plan: docs/superpowers/plans/2026-03-14-phase14-paperclip.md
+    plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
     when: "After Paperclip deployment is healthy — add Traefik route on raspi-omni"
     why_manual: "Traefik runs outside K8s on raspi-omni, managed via Ansible"
     commands:
@@ -418,10 +418,10 @@ operations:
       - "curl -sk https://paperclip.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)"
     status: pending
 
-  - id: phase15-aider-infisical-secrets
-    phase: 15
+  - id: agents-aider-infisical-secrets
+    layer: agents
     app: aider
-    plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+    plan: docs/superpowers/plans/2026-03-10--agents--coding-agent-infrastructure.md
     when: "Before deploying Aider resources"
     why_manual: "Infisical secret creation + LiteLLM key generation"
     commands:
@@ -434,10 +434,10 @@ operations:
       - Infisical UI → Secrets → AIDER_GITEA_TOKEN exists
     status: pending
 
-  - id: phase15-comfyui-model-download
-    phase: 15
+  - id: media-comfyui-model-download
+    layer: media
     app: comfyui
-    plan: docs/superpowers/plans/2026-03-14-phase15-media-generation.md
+    plan: docs/superpowers/plans/2026-03-14--media--comfyui-gpu-switcher.md
     when: "After Task 15 - ComfyUI first confirmed running"
     why_manual: "Model files must be downloaded interactively into the PVC; cannot be declarative"
     commands:
@@ -451,10 +451,10 @@ operations:
       - "# Verify models appear in ComfyUI Web UI model dropdown"
     status: pending
 
-  - id: phase15-gitea-infisical-secrets
-    phase: 15
+  - id: agents-gitea-infisical-secrets
+    layer: agents
     app: gitea
-    plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+    plan: docs/superpowers/plans/2026-03-10--agents--coding-agent-infrastructure.md
     when: "Before deploying gitea — ExternalSecret needs Infisical source"
     why_manual: "Infisical secret creation requires UI/API interaction"
     commands:
@@ -465,10 +465,10 @@ operations:
       - Infisical UI → Secrets → GITEA_ADMIN_USER exists
     status: pending
 
-  - id: phase15-gitea-runner-token
-    phase: 15
+  - id: agents-gitea-runner-token
+    layer: agents
     app: gitea
-    plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+    plan: docs/superpowers/plans/2026-03-10--agents--coding-agent-infrastructure.md
     when: "After Gitea is running — runner needs registration token"
     why_manual: "Runner token is generated via Gitea admin API"
     commands:
@@ -478,10 +478,10 @@ operations:
       - Infisical UI → Secrets → GITEA_RUNNER_REGISTRATION_TOKEN exists
     status: pending
 
-  - id: phase15-harbor-infisical-secrets
-    phase: 15
+  - id: agents-harbor-infisical-secrets
+    layer: agents
     app: harbor
-    plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+    plan: docs/superpowers/plans/2026-03-10--agents--coding-agent-infrastructure.md
     when: "Before deploying Harbor"
     why_manual: "Infisical secret creation requires UI/API interaction"
     commands:
@@ -492,10 +492,10 @@ operations:
       - Infisical UI → Secrets → HARBOR_SECRET_KEY exists
     status: pending
 
-  - id: phase15-longhorn-disk-tags
-    phase: 15
+  - id: stor-longhorn-disk-tags
+    layer: stor
     app: longhorn
-    plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+    plan: docs/superpowers/plans/2026-03-10--agents--coding-agent-infrastructure.md
     when: "Before Task 1 Step 2 — Longhorn needs disk tags before StorageClass can schedule"
     why_manual: "Longhorn disk tagging requires UI or API interaction"
     commands:
@@ -506,10 +506,10 @@ operations:
       - Longhorn UI → Node → pc-2 → disk shows tag 'hdd' and status 'Schedulable'
     status: pending
 
-  - id: phase15-n8n-infisical-secrets
-    phase: 15
+  - id: agents-n8n-infisical-secrets
+    layer: agents
     app: n8n
-    plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+    plan: docs/superpowers/plans/2026-03-10--agents--coding-agent-infrastructure.md
     when: "Before deploying n8n"
     why_manual: "Infisical secret creation requires UI/API interaction"
     commands:
@@ -518,10 +518,10 @@ operations:
       - Infisical UI → Secrets → N8N_ENCRYPTION_KEY exists
     status: pending
 
-  - id: phase15-n8n-workflow-setup
-    phase: 15
+  - id: agents-n8n-workflow-setup
+    layer: agents
     app: n8n
-    plan: docs/superpowers/plans/2026-03-10-phase15-coding-agent-infrastructure.md
+    plan: docs/superpowers/plans/2026-03-10--agents--coding-agent-infrastructure.md
     when: "After n8n and Aider are both deployed and verified"
     why_manual: "Initial workflow creation is done via n8n UI, then exported to JSON"
     commands:
@@ -533,10 +533,10 @@ operations:
       - Trigger webhook with test payload → Aider Job created → PR opened in Gitea
     status: pending
 
-  - id: phase15-traefik-comfyui-route
-    phase: 15
+  - id: media-traefik-comfyui-route
+    layer: media
     app: comfyui
-    plan: docs/superpowers/plans/2026-03-14-phase15-media-generation.md
+    plan: docs/superpowers/plans/2026-03-14--media--comfyui-gpu-switcher.md
     when: "After ComfyUI deployment is healthy — add Traefik route on raspi-omni"
     why_manual: "Traefik runs outside K8s on raspi-omni, managed via Ansible"
     commands:
@@ -548,10 +548,10 @@ operations:
       - "curl -sk https://gpu.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)"
     status: pending
 
-  - id: inference-infisical-secrets
-    phase: inference
+  - id: infer-infisical-secrets
+    layer: infer
     app: litellm
-    plan: docs/superpowers/plans/2026-03-09-phase10-local-inference.md
+    plan: docs/superpowers/plans/2026-03-09--infer--ollama-litellm.md
     when: "Before Task 5 — secrets must exist in Infisical before ExternalSecret can sync"
     why_manual: "API keys are user credentials — must be entered via Infisical UI"
     commands:
@@ -563,10 +563,10 @@ operations:
       - Secrets visible in Infisical UI under frank-cluster/prod
     status: pending
 
-  - id: phaseXX-hop-argocd-bootstrap
-    phase: XX
+  - id: edge-hop-argocd-bootstrap
+    layer: edge
     app: argocd (hop)
-    plan: docs/superpowers/plans/2026-03-16-phaseXX-hop-public-edge.md
+    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
     when: "After Task 3 — Hop root chart is committed and hop-1 is Ready"
     why_manual: "ArgoCD must be Helm-installed before it can manage itself"
     commands:
@@ -601,10 +601,10 @@ operations:
       - "# Note: root app initially uses project:default (AppProject hop-infrastructure doesn't exist yet). After first sync creates the AppProject, update: argocd app set root --project hop-infrastructure"
     status: pending
 
-  - id: phaseXX-hop-caddy-cloudflare-secret
-    phase: XX
+  - id: edge-hop-caddy-cloudflare-secret
+    layer: edge
     app: caddy
-    plan: docs/superpowers/plans/2026-03-16-phaseXX-hop-public-edge.md
+    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
     when: "Before Caddy deployment — needs Cloudflare API token"
     why_manual: "SOPS-encrypted secret applied out-of-band"
     commands:
@@ -626,10 +626,10 @@ operations:
       - "kubectl --kubeconfig <HOP_KUBECONFIG> -n caddy-system get secret caddy-cloudflare"
     status: pending
 
-  - id: phaseXX-hop-dns-records
-    phase: XX
+  - id: edge-hop-dns-records
+    layer: edge
     app: hop-infrastructure
-    plan: docs/superpowers/plans/2026-03-16-phaseXX-hop-public-edge.md
+    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
     when: "After hop-1 has a public IP"
     why_manual: "Cloudflare DNS changes via UI or API — depends on user's Cloudflare setup"
     commands:
@@ -642,10 +642,10 @@ operations:
       - "dig +short www.derio.net  # should return Hetzner IP"
     status: done
 
-  - id: phaseXX-hop-headscale-first-client
-    phase: XX
+  - id: edge-hop-headscale-first-client
+    layer: edge
     app: headscale
-    plan: docs/superpowers/plans/2026-03-16-phaseXX-hop-public-edge.md
+    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
     when: "After all Hop services are verified running"
     why_manual: "Requires interactive Tailscale client setup on a personal device"
     commands:
@@ -656,10 +656,10 @@ operations:
       - "kubectl --kubeconfig <HOP_KUBECONFIG> -n headscale-system exec -it deploy/headscale -- headscale nodes list"
     status: pending
 
-  - id: phaseXX-hop-hetzner-provision
-    phase: XX
+  - id: edge-hop-hetzner-provision
+    layer: edge
     app: hop-infrastructure
-    plan: docs/superpowers/plans/2026-03-16-phaseXX-hop-public-edge.md
+    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
     when: "After Task 1 — Packer template is committed"
     why_manual: "Requires Hetzner API token, Omni dashboard image download, and cluster allocation"
     commands:
@@ -680,10 +680,10 @@ operations:
       - "hcloud volume list  # should show hop-data attached to hop-1"
     status: done
 
-  - id: phaseXX-hop-secrets-bootstrap
-    phase: XX
+  - id: edge-hop-secrets-bootstrap
+    layer: edge
     app: hop-infrastructure
-    plan: docs/superpowers/plans/2026-03-16-phaseXX-hop-public-edge.md
+    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
     when: "Before deploying Headscale and Caddy"
     why_manual: "SOPS-encrypted secrets must be applied before the workloads start"
     commands:
@@ -707,10 +707,10 @@ operations:
       - "kubectl --kubeconfig <HOP_KUBECONFIG> -n caddy-system get secret caddy-cloudflare"
     status: pending
 
-  - id: phaseXX-hop-volume-mount-patch
-    phase: XX
+  - id: edge-hop-volume-mount-patch
+    layer: edge
     app: hop-infrastructure
-    plan: docs/superpowers/plans/2026-03-16-phaseXX-hop-public-edge.md
+    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
     when: "After hop-1 is registered in Omni and hop-data volume is attached"
     why_manual: "Requires Omni machine config patch with actual Hetzner Volume device ID"
     commands:

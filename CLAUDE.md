@@ -2,32 +2,32 @@
 
 AI-hybrid Kubernetes homelab managed via two-tier IaC: Omni (machine config) + ArgoCD (workloads).
 
-## Standard Phase Workflow
+## Standard Layer Workflow
 
-Every phase follows this sequence:
+Every layer follows this sequence:
 
 1. **Brainstorm** — `/brainstorming` to explore requirements, refine scope, and design the approach via Socratic dialogue
-2. **Plan** — `/writing-plans` to produce a step-by-step implementation plan (saved as `phaseXX` — number not yet assigned)
-3. **Execute** — `/executing-plans` to implement the plan with review checkpoints. At this point, check existing phase numbers and assign the next free one (rename `phaseXX` → `phaseNN` in the plan filename and content)
+2. **Plan** — `/writing-plans` to produce a step-by-step implementation plan. The layer code is chosen at this step (see `docs/layers.yaml` for the registry)
+3. **Execute** — `/executing-plans` to implement the plan with review checkpoints
 4. **Deploy** — Implement the ArgoCD app (values, Application CR, manifests)
 5. **Blog** — Use the `/blog-post` skill to write the Hugo post. After creating the post, update `blog/content/building/00-overview/index.md` (Series Index + Capability Map) and `blog/layouts/shortcodes/cluster-roadmap.html` (add new roadmap layer)
 6. **Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status in `README.md`
-7. **Sync runbook** — Run `/sync-runbook` if the phase plan contains any `# manual-operation` blocks
+7. **Sync runbook** — Run `/sync-runbook` if the layer plan contains any `# manual-operation` blocks
 8. **Sync Hop blog** — `source .env_hop && kubectl -n blog-system rollout restart deploy/blog` (GitHub Actions pushes the image but can't reach Hop's kubectl; manual rollout required until ArgoCD Image Updater is deployed)
 9. **Review** — Verify deployment health and blog accuracy
 
-## Phase Fix/Extension Workflow
+## Layer Fix/Extension Workflow
 
-When a deployed phase needs a bugfix or unplanned extension:
+When a deployed layer needs a bugfix or unplanned extension:
 
-1. **Diagnose** — `/systematic-debugging` to identify root cause. Document findings in the existing phase plan as a new "Deviation" entry
-2. **Fix** — Implement the fix in the original phase's ArgoCD app/manifests (not a new app)
+1. **Diagnose** — `/systematic-debugging` to identify root cause. Document findings in the existing layer plan as a new "Deviation" entry
+2. **Fix** — Implement the fix in the original layer's ArgoCD app/manifests (not a new app)
 3. **Update plan** — Add deviation notes inline at the affected task + append to the Deployment Deviations section
-4. **Update blog** — Retroactively update the phase's building/ post (add gotcha or correction) and operating/ post (add new operational commands). Do NOT create a new post unless the fix is substantial enough to warrant its own narrative (e.g., Phase 12 GPU Talos fix)
+4. **Update blog** — Retroactively update the layer's building/ post (add gotcha or correction) and operating/ post (add new operational commands). Do NOT create a new post unless the fix is substantial enough to warrant its own narrative (e.g., the GPU Talos validation fix)
 5. **Update CLAUDE.md gotchas** — If the fix reveals a non-obvious pattern, add it to the Gotchas section
 6. **Sync Hop blog** — If blog content changed: `source .env_hop && kubectl -n blog-system rollout restart deploy/blog`
 
-Use the original phase number in commit messages: `fix(phaseNN): <description>` or `feat(phaseNN): <description>`.
+Use the layer code in commit messages: `fix(gpu): <description>` or `feat(edge): <description>`.
 
 ## Commands
 
@@ -127,7 +127,7 @@ clusters/
       storage/         # Static PVs for Hetzner Volume
     packer/            # Packer template for Hetzner Talos image
     talosconfig/       # Talos client config (gitignored, contains secrets)
-patches/               # Talos machine config patches (per phase)
+patches/               # Talos machine config patches (legacy phaseNN- naming)
   phase01-node-config/ # Node labels, scheduling
   phase02-cilium/      # CNI, eBPF kube-proxy
   phase03-longhorn/    # Distributed storage
@@ -145,10 +145,12 @@ scripts/               # Utility scripts
 
 ### Plan Naming Convention
 
-Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
+Plan and spec files follow: `YYYY-MM-DD--<layer>--<details>[-design].md`
 
-- **New phases** start as `phaseXX` (no number). They get a real number when `/executing-plans` is triggered — check existing phase numbers and assign the next free one, then rename the plan file and update references within it.
-- **Bugfixes and extensions** of existing phases use the original phase number (e.g., `phase04-gpu1-pcie-link-speed-fix` extends Phase 4 GPU Stack). In such case, the relevant blog posts ('building' and 'operating' if appropriate) must be retroactively updated.
+- `<layer>` is the short code from `docs/layers.yaml` (e.g., `gpu`, `edge`, `auth`, `repo`)
+- Multiple plans on the same layer share the code with different detail suffixes (e.g., `--gpu--intel-igpu-stack-mini` and `--gpu--operator-talos-fix`)
+- The `repo` layer is for meta-tasks (blog infra, CI, restructuring)
+- Bugfixes and extensions of existing layers use the same layer code. The relevant blog posts ('building' and 'operating' if appropriate) must be retroactively updated.
 
 ## Nodes
 
@@ -223,7 +225,7 @@ git add .claude/skills/ .claude/agents/
 git commit -m "chore: sync superpowers plugin skills"
 ```
 
-Check for updates periodically (e.g., when starting a new phase).
+Check for updates periodically (e.g., when starting a new layer).
 
 ## Gotchas
 
@@ -267,8 +269,8 @@ Some steps cannot be declarative (SOPS secrets, UI-only config). Every such step
 
 ### Block format
 
-Use fenced YAML with `# manual-operation` as first line. Required fields: `id`, `phase`, `app`, `plan`, `when`, `why_manual`, `commands`, `verify`, `status`. See `/sync-runbook` skill for the canonical schema.
+Use fenced YAML with `# manual-operation` as first line. Required fields: `id`, `layer`, `app`, `plan`, `when`, `why_manual`, `commands`, `verify`, `status`. See `/sync-runbook` skill for the canonical schema.
 
 ### Central runbook
 
-`docs/runbooks/manual-operations.yaml` — single source of truth for all manual ops across all phases. Run `/sync-runbook` to update it from plan files.
+`docs/runbooks/manual-operations.yaml` — single source of truth for all manual ops across all layers. Run `/sync-runbook` to update it from plan files.

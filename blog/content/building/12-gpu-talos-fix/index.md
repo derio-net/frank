@@ -11,7 +11,7 @@ cover:
   relative: true
 ---
 
-Phase 4 deployed the NVIDIA GPU Operator. Phase 10 deployed Ollama. But between "operator deployed" and "model running at 100% GPU" lay a series of Talos-specific issues that kept every GPU container stuck at `Init:0/1` or `ContainerCreating`. This post is the debugging story of getting NVIDIA GPU containers to actually work on Talos Linux — from the validation deadlock to the final `ollama ps` showing `100% GPU`.
+Layer 4 deployed the NVIDIA GPU Operator. Layer 10 deployed Ollama. But between "operator deployed" and "model running at 100% GPU" lay a series of Talos-specific issues that kept every GPU container stuck at `Init:0/1` or `ContainerCreating`. This post is the debugging story of getting NVIDIA GPU containers to actually work on Talos Linux — from the validation deadlock to the final `ollama ps` showing `100% GPU`.
 
 ## The Problem
 
@@ -104,7 +104,7 @@ This configuration lives in a Talos machine config patch applied via Omni. And h
 
 ### The EtcFileSpec Resource Conflict
 
-Phase 5 had deployed a **cluster-wide** CDI containerd patch — a single Omni ConfigPatch that applied to all nodes in the cluster. It created `/etc/cri/conf.d/20-customization.part` with the CDI directory configuration.
+Layer 5 had deployed a **cluster-wide** CDI containerd patch — a single Omni ConfigPatch that applied to all nodes in the cluster. It created `/etc/cri/conf.d/20-customization.part` with the CDI directory configuration.
 
 The gpu-1 nvidia runtime patch also needed to create `/etc/cri/conf.d/20-customization.part` — the same file path, but with additional nvidia-specific content.
 

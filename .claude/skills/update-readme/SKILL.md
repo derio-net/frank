@@ -1,22 +1,23 @@
 ---
 name: update-readme
-description: Update README.md to reflect the current state of the Frank cluster after a new phase
+description: Update README.md to reflect the current state of the Frank cluster after new layer work
 user-invocable: true
 disable-model-invocation: true
 ---
 
 # Update README
 
-Keep `README.md` in sync with the cluster after each new phase is deployed.
+Keep `README.md` in sync with the cluster after each new layer is deployed.
 
 ## Sections to Update
 
 ### 1. Technology Stack
 
-Add a row for each new technology introduced in the phase. Columns: `Layer | Technology | Notes`.
+Add a row for each new technology introduced in the layer. Columns: `Layer | Technology | Notes`.
 
-- Check `docs/superpowers/plans/` for the phase design file to confirm the stack choices.
+- Check `docs/superpowers/plans/` for the layer design file to confirm the stack choices.
 - Layer names should be concise (e.g. Metrics, Logs, Dashboards, Backup, Secrets, Multi-tenancy, VMs).
+- Layer codes are defined in `docs/layers.yaml`.
 
 ### 2. Repository Structure
 
@@ -44,9 +45,9 @@ Add a row for each new ArgoCD application. Columns: `Application | Namespace | N
 
 ## After Updating
 
-Commit with the phase number in the message:
+Commit with the layer code in the message:
 
 ```bash
 git add README.md
-git commit -m "docs(readme): update for phase NN — <one-line summary>"
+git commit -m "docs(readme): update for <layer> — <one-line summary>"
 ```
