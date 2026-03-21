@@ -39,7 +39,8 @@ data:
     headplane.hop.derio.net {
       @not_mesh not remote_ip 100.64.0.0/10
       respond @not_mesh "Forbidden" 403
-      redir / /admin/ permanent
+      @not_admin not path /admin /admin/*
+      redir @not_admin /admin/ permanent
       reverse_proxy headplane.headscale-system.svc:3000
     }
 
