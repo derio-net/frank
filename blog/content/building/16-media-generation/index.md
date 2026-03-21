@@ -11,7 +11,7 @@ cover:
   relative: true
 ---
 
-The cluster has one GPU. Phase 10 gave it to Ollama for LLM inference. This phase adds a second GPU consumer — ComfyUI for diffusion-based media generation — and a mechanism to share the hardware between them.
+The cluster has one GPU. Layer 10 gave it to Ollama for LLM inference. This layer adds a second GPU consumer — ComfyUI for diffusion-based media generation — and a mechanism to share the hardware between them.
 
 ## The Constraint: One GPU, Two Workloads
 

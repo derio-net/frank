@@ -15,7 +15,7 @@ A Kubernetes cluster without backups is a disaster waiting to happen. But the sc
 
 Frank, the Talos Cluster, is fully GitOps-managed. Every Kubernetes resource is committed to the repo and applied by ArgoCD. If the cluster evaporates tonight, ArgoCD restores every Deployment, Service, ConfigMap, and StorageClass in under ten minutes. The one thing it cannot restore is the _contents_ of PersistentVolumes: the VictoriaMetrics time-series, Grafana dashboards, application state.
 
-Phase 8 protects that data. The implementation turned out to be more interesting than planned, with three Longhorn 1.11 bugs and limitations found along the way.
+Layer 8 protects that data. The implementation turned out to be more interesting than planned, with three Longhorn 1.11 bugs and limitations found along the way.
 
 ## Why Not Velero?
 
@@ -67,7 +67,7 @@ ignoreDifferences:
       - /data
 ```
 
-**The lesson:** SOPS-encrypted secrets and ArgoCD ServerSideApply do not mix in a raw manifest path. Encrypted secrets need to be applied out-of-band, or a SOPS decryption plugin (KSOPS) needs to be wired into ArgoCD — a project for Phase 9.
+**The lesson:** SOPS-encrypted secrets and ArgoCD ServerSideApply do not mix in a raw manifest path. Encrypted secrets need to be applied out-of-band, or a SOPS decryption plugin (KSOPS) needs to be wired into ArgoCD — a project for Layer 9.
 
 ## Gotcha 2: RecurringJob Has No `backupTargetName` Field
 

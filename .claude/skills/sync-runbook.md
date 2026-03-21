@@ -15,7 +15,7 @@ description: >
 Invoke `/sync-runbook` after any session that:
 - Writes a new implementation plan containing `# manual-operation` blocks
 - Edits an existing plan's manual-operation block (e.g. marking `status: done`)
-- Adds a Phase 0 / bootstrap step directly to the runbook
+- Adds a bootstrap step directly to the runbook
 
 ## Process
 
@@ -25,7 +25,7 @@ Invoke `/sync-runbook` after any session that:
 4. **Merge** — for each extracted entry:
    - If `id` already exists in runbook: update all fields EXCEPT `status` (preserve human-set status)
    - If `id` is new: append the entry with `status: pending`
-5. **Sort** the final list by `phase` ascending, then `id` alphabetically within each phase
+5. **Sort** the final list by `layer` ascending, then `id` alphabetically within each layer
 6. **Rewrite** `docs/runbooks/manual-operations.yaml` with the merged, sorted list (preserve the file header comment block)
 7. **Report** summary: N new entries added, N updated, N total
 8. **Commit**:
@@ -49,8 +49,8 @@ Each block in a plan file looks like this — fenced, with `# manual-operation` 
 ````markdown
 ```yaml
 # manual-operation
-id: phaseNN-short-name
-phase: NN
+id: <layer>-short-name
+layer: NN
 app: <argocd-app-name>
 plan: docs/superpowers/plans/<filename>.md
 when: "After Task N — <trigger description>"
@@ -71,8 +71,8 @@ status: pending
 # [header comment block — preserve as-is]
 
 operations:
-  - id: phaseNN-short-name
-    phase: NN
+  - id: <layer>-short-name
+    layer: NN
     app: <app>
     plan: <path or null>
     when: "<trigger>"

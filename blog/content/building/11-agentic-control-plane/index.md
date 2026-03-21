@@ -11,9 +11,9 @@ cover:
   relative: true
 ---
 
-The cluster can serve models. Phase 10 wired up Ollama and LiteLLM so anything on the network can call an OpenAI-compatible endpoint. But models sitting behind an API are passive — they wait for requests and return responses. They don't act.
+The cluster can serve models. Layer 10 wired up Ollama and LiteLLM so anything on the network can call an OpenAI-compatible endpoint. But models sitting behind an API are passive — they wait for requests and return responses. They don't act.
 
-Phase 11 adds the layer that makes them act. [Sympozium](https://sympozium.ai/) is a Kubernetes-native agentic control plane. It turns the cluster into something that can reason, plan, and execute — autonomously, on a schedule, or on demand — all governed by Kubernetes-native policy.
+Layer 11 adds the capability that makes them act. [Sympozium](https://sympozium.ai/) is a Kubernetes-native agentic control plane. It turns the cluster into something that can reason, plan, and execute — autonomously, on a schedule, or on demand — all governed by Kubernetes-native policy.
 
 ## Why Not Just Run Agents in Containers?
 
@@ -161,7 +161,7 @@ The webhook enforces these at admission time. An AgentRun referencing a restrict
 
 ## LLM Routing Through LiteLLM
 
-Agent Pods don't talk directly to Ollama. They route through the LiteLLM gateway from Phase 10:
+Agent Pods don't talk directly to Ollama. They route through the LiteLLM gateway from Layer 10:
 
 ```
 Agent Pod → LiteLLM (litellm.litellm.svc:4000) → Ollama / OpenRouter

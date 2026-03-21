@@ -11,7 +11,7 @@ cover:
   relative: true
 ---
 
-A Kubernetes cluster without observability is just a box of mystery. Pods crash silently. Memory leaks hide behind restart counts. Network blips become finger-pointing exercises. Phase 7 fixes that: a full metrics and logging stack built around VictoriaMetrics, VictoriaLogs, and Grafana, managed by ArgoCD, backed by Longhorn storage.
+A Kubernetes cluster without observability is just a box of mystery. Pods crash silently. Memory leaks hide behind restart counts. Network blips become finger-pointing exercises. Layer 7 fixes that: a full metrics and logging stack built around VictoriaMetrics, VictoriaLogs, and Grafana, managed by ArgoCD, backed by Longhorn storage.
 
 Three gotchas made the deployment more interesting than expected. They are documented in full below.
 
@@ -49,7 +49,7 @@ Four ArgoCD Applications make up the observability layer:
 
 **`fluent-bit`** — DaemonSet on all nodes (including GPU and control-plane). Ships container logs from every node to VictoriaLogs via HTTP jsonline.
 
-**Note:** `vmalert` and `alertmanager` are disabled in this phase. Alerting is planned for Phase 9 after the alert rules have been properly tuned. Running alertmanager without tuned rules just produces noise.
+**Note:** `vmalert` and `alertmanager` are disabled in this layer. Alerting is planned for Layer 9 after the alert rules have been properly tuned. Running alertmanager without tuned rules just produces noise.
 
 ## ArgoCD Deployment
 
@@ -404,7 +404,7 @@ With all three Applications healthy, the cluster has full observability:
 
 **node-exporter** is running on all six nodes (the Raspberry Pis count — raspi-1 and raspi-2 each contribute their ARM metrics to the same dashboards).
 
-**What is not yet visible:** alerting. VMAlert and Alertmanager are disabled pending alert rule tuning. That is Phase 9.
+**What is not yet visible:** alerting. VMAlert and Alertmanager are disabled pending alert rule tuning. That is Layer 9.
 
 ## References
 

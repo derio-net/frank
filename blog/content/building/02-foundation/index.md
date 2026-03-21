@@ -40,9 +40,9 @@ For Frank, the Talos Cluster, the bootstrap sequence was straightforward:
 3. Create the `frank` cluster in Omni, assign `mini-1`, `mini-2`, `mini-3` as control planes, and the rest as workers.
 4. Omni generates machine configs, pushes them to each node, and bootstraps etcd.
 
-Omni lives outside this repo -- it is Zone A infrastructure, managed manually on `raspi-omni`. Everything from Phase 1 onward is applied as **config patches** through `omnictl`, which layer on top of the base machine configs that Omni generated. This is how you customize Talos nodes without touching the base config directly: each patch targets either the whole cluster or a specific machine by ID.
+Omni lives outside this repo -- it is Zone A infrastructure, managed manually on `raspi-omni`. Everything from Layer 1 onward is applied as **config patches** through `omnictl`, which layer on top of the base machine configs that Omni generated. This is how you customize Talos nodes without touching the base config directly: each patch targets either the whole cluster or a specific machine by ID.
 
-## Phase 1: Node Configuration
+## Layer 1: Node Configuration
 
 With the cluster bootstrapped and all seven nodes reporting Ready, the first order of business is making the cluster usable for a homelab workload mix. That means two things: letting workloads run on the control plane nodes, and labeling every node so we can target scheduling decisions later.
 
@@ -111,7 +111,7 @@ metadata:
         omni.sidero.dev/cluster-machine: ce4d0d52-6c10-bdc9-746c-88aedd67681b
 ```
 
-## Phase 2: Cilium CNI
+## Layer 2: Cilium CNI
 
 Talos ships with Flannel as the default CNI. Flannel works, but it is a minimal overlay network -- no network policy enforcement, no built-in observability, and no native LoadBalancer implementation. For a homelab that needs to expose services on the local network and wants visibility into pod-to-pod traffic, Cilium is a significant upgrade.
 
@@ -214,7 +214,7 @@ The IP pool reserves `192.168.55.200-254` on the home subnet for LoadBalancer se
 
 ### Gotchas
 
-A few things that tripped me up during this phase:
+A few things that tripped me up during this layer:
 
 1. **The CNI swap is not atomic.** There is a window between applying `cni: none` and Cilium becoming ready where pods cannot communicate. If you are doing this on a running cluster, expect a few minutes of downtime. On a fresh cluster it is less of an issue because you can apply the patch before deploying workloads.
 

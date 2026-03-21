@@ -11,9 +11,9 @@ cover:
   relative: true
 ---
 
-Phase 11 gave the cluster a Kubernetes-native agentic control plane: Sympozium, where agents are Pods, policies are CRDs, and the API server is the source of truth. It maps cleanly onto the mental model of someone who already lives in Kubernetes.
+Layer 11 gave the cluster a Kubernetes-native agentic control plane: Sympozium, where agents are Pods, policies are CRDs, and the API server is the source of truth. It maps cleanly onto the mental model of someone who already lives in Kubernetes.
 
-Phase 14 adds a second perspective. [Paperclip](https://github.com/paperclipai/paperclip) organises agents differently — into virtual companies with org charts, budgets, reporting lines, and governance. Where Sympozium asks "which Kubernetes primitive models this agent?", Paperclip asks "what role would this agent have in a company?".
+Layer 14 adds a second perspective. [Paperclip](https://github.com/paperclipai/paperclip) organises agents differently — into virtual companies with org charts, budgets, reporting lines, and governance. Where Sympozium asks "which Kubernetes primitive models this agent?", Paperclip asks "what role would this agent have in a company?".
 
 The goal is not to choose one over the other right now. Both run side by side. The cluster will make the comparison for me.
 
@@ -23,7 +23,7 @@ Paperclip is an open-source AI agent orchestrator. Its core abstraction is the *
 
 The web UI — served on the same port as the API — lets you define the org chart, deploy the company, watch agents reason and delegate, and review execution traces.
 
-Paperclip does not publish container images. The project ships a Dockerfile but leaves building to the operator. That made this phase slightly more involved than usual.
+Paperclip does not publish container images. The project ships a Dockerfile but leaves building to the operator. That made this layer slightly more involved than usual.
 
 ## Architecture
 
@@ -166,7 +166,7 @@ Database migrations applied on first start. Automatic PostgreSQL backups to `/pa
 
 ## What's Next
 
-Paperclip and Sympozium now coexist on the same cluster, sharing the same LiteLLM gateway. The practical comparison will play out over the next few phases as I try to automate the same workflows through both and see which abstraction fits better.
+Paperclip and Sympozium now coexist on the same cluster, sharing the same LiteLLM gateway. The practical comparison will play out over the next few layers as I try to automate the same workflows through both and see which abstraction fits better.
 
 Paperclip's company/org-chart model might be better suited for long-running autonomous work with clear delegation chains. Sympozium's CRD-native model fits better for workloads that need to interact with Kubernetes directly. Or they serve different purposes entirely and both stay.
 

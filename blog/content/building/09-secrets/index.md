@@ -11,9 +11,9 @@ cover:
   relative: true
 ---
 
-Phase 8 established that SOPS-encrypted secrets cannot live in ArgoCD-managed manifest paths. The fix was to apply them out-of-band with `sops --decrypt | kubectl apply -f -`. That is a workable pattern for bootstrap secrets — the ones that exist before anything else can run. It is not a workable pattern for runtime secrets consumed by applications.
+Layer 8 established that SOPS-encrypted secrets cannot live in ArgoCD-managed manifest paths. The fix was to apply them out-of-band with `sops --decrypt | kubectl apply -f -`. That is a workable pattern for bootstrap secrets — the ones that exist before anything else can run. It is not a workable pattern for runtime secrets consumed by applications.
 
-Phase 9 replaces the runtime half of that story. The goal: secrets live in a versioned, audited store; applications consume them as standard Kubernetes Secrets; no engineer ever touches a plaintext credential.
+Layer 9 replaces the runtime half of that story. The goal: secrets live in a versioned, audited store; applications consume them as standard Kubernetes Secrets; no engineer ever touches a plaintext credential.
 
 ## The Architecture
 
@@ -83,7 +83,7 @@ Three ArgoCD apps, all in the `infisical` namespace:
 | `infisical-redis` | `registry-1.docker.io/bitnamicharts/redis:18.14.1` | Redis standalone, same image mirror |
 | `infisical` | `infisical-helm-charts/infisical-standalone:1.7.2` | Infisical app only, both sub-charts disabled |
 
-Bootstrap secrets — the PostgreSQL password, Redis password, and Infisical app env vars — are SOPS-encrypted and applied out-of-band. The pattern is the same as Phase 8: live in `secrets/infisical/`, never in an ArgoCD-managed manifest path.
+Bootstrap secrets — the PostgreSQL password, Redis password, and Infisical app env vars — are SOPS-encrypted and applied out-of-band. The pattern is the same as Layer 8: live in `secrets/infisical/`, never in an ArgoCD-managed manifest path.
 
 ## Connecting ESO to Infisical
 
@@ -178,7 +178,7 @@ kubectl get secret cluster-test-secret -n secrets-test \
 
 ## What Changed
 
-Before Phase 9, adding a runtime secret to the cluster meant:
+Before Layer 9, adding a runtime secret to the cluster meant:
 
 1. Write the plaintext value into a YAML file
 2. Encrypt it with `sops`
