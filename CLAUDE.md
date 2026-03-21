@@ -6,13 +6,15 @@ AI-hybrid Kubernetes homelab managed via two-tier IaC: Omni (machine config) + A
 
 Every phase follows this sequence:
 
-1. **Brainstorm** — `/brainstorming` (Superpowers plugin) to explore requirements, refine scope, and design the approach via Socratic dialogue
-2. **Deploy** — Implement the ArgoCD app (values, Application CR, manifests)
-3. **Blog** — Use the `/blog-post` skill to write the Hugo post. After creating the post, update `blog/content/building/00-overview/index.md` (Series Index + Capability Map) and `blog/layouts/shortcodes/cluster-roadmap.html` (add new roadmap layer)
-4. **Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status in `README.md`
-5. **Sync runbook** — Run `/sync-runbook` if the phase plan contains any `# manual-operation` blocks
-6. **Sync Hop blog** — `source .env_hop && kubectl -n blog-system rollout restart deploy/blog` (GitHub Actions pushes the image but can't reach Hop's kubectl; manual rollout required until ArgoCD Image Updater is deployed)
-7. **Review** — Verify deployment health and blog accuracy
+1. **Brainstorm** — `/brainstorming` to explore requirements, refine scope, and design the approach via Socratic dialogue
+2. **Plan** — `/writing-plans` to produce a step-by-step implementation plan (saved as `phaseXX` — number not yet assigned)
+3. **Execute** — `/executing-plans` to implement the plan with review checkpoints. At this point, check existing phase numbers and assign the next free one (rename `phaseXX` → `phaseNN` in the plan filename and content)
+4. **Deploy** — Implement the ArgoCD app (values, Application CR, manifests)
+5. **Blog** — Use the `/blog-post` skill to write the Hugo post. After creating the post, update `blog/content/building/00-overview/index.md` (Series Index + Capability Map) and `blog/layouts/shortcodes/cluster-roadmap.html` (add new roadmap layer)
+6. **Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status in `README.md`
+7. **Sync runbook** — Run `/sync-runbook` if the phase plan contains any `# manual-operation` blocks
+8. **Sync Hop blog** — `source .env_hop && kubectl -n blog-system rollout restart deploy/blog` (GitHub Actions pushes the image but can't reach Hop's kubectl; manual rollout required until ArgoCD Image Updater is deployed)
+9. **Review** — Verify deployment health and blog accuracy
 
 ## Phase Fix/Extension Workflow
 
@@ -145,7 +147,7 @@ scripts/               # Utility scripts
 
 Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
 
-- **New phases** start as `phaseXX` (no number). They get a real number only once implementation begins.
+- **New phases** start as `phaseXX` (no number). They get a real number when `/executing-plans` is triggered — check existing phase numbers and assign the next free one, then rename the plan file and update references within it.
 - **Bugfixes and extensions** of existing phases use the original phase number (e.g., `phase04-gpu1-pcie-link-speed-fix` extends Phase 4 GPU Stack). In such case, the relevant blog posts ('building' and 'operating' if appropriate) must be retroactively updated.
 
 ## Nodes
@@ -250,8 +252,8 @@ Check for updates periodically (e.g., when starting a new phase).
 - **Hop:** Headscale `extra_records` in DNS config provides split-DNS for mesh-only services — add entries for any new mesh-only service
 - **Hop:** `talosctl apply-config --config-patch` patches the base file, not the running config — all patches must be combined in one invocation
 - **Hop:** Tailscale DaemonSet must run in kernel mode (`TS_USERSPACE=false`, `privileged: true`) for Caddy to see mesh source IPs
-- **Hop:** Headplane v0.5.5 serves at `/admin/` base path (`basename="/admin/"`) — Caddy must redirect `/` → `/admin/` and all routes are under `/admin/*`
-- **Hop:** Headplane requires `config_path` pointing to mounted Headscale config AND `config_strict: false` (strict mode silently drops the HTTP listener with Headscale v0.25.1)
+- **Hop:** Headplane v0.5.5 serves at `/admin/` base path (`basename="/admin/"`) — Caddy redirects all non-`/admin*` paths to `/admin/`
+- **Hop:** Headplane requires `config_path` pointing to mounted Headscale config with `config_strict: true` — non-strict mode works but logs scary warnings and forfeits upstream support
 - **Hop:** Headplane binds IPv4 only — `wget localhost:3000` fails (resolves to `::1`), use `wget 127.0.0.1:3000` to test
 - **Hop:** Headplane API key must be injected via `HEADPLANE_HEADSCALE_API_KEY` env var from a Secret
 
