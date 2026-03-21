@@ -7,6 +7,7 @@
 **Architecture:** Four git-only template fixes (ArgoCD self-heals after push); one ConfigMap addition to make the Grafana datasource declarative; one new runbook file + retroactive manual-op blocks; one new project skill; one CLAUDE.md update.
 
 **Tech Stack:** ArgoCD Application CRs, Helm values, Grafana provisioning ConfigMaps, Kubernetes YAML, Claude Code skill (Markdown).
+**Status:** Complete
 
 ---
 

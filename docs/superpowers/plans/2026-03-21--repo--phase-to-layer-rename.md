@@ -7,6 +7,7 @@
 **Architecture:** Layers are architectural/operational domains (gpu, edge, auth, etc.) with short codes. Plans/specs are named `<date>--<layer>--<details>.md`. Blog posts keep sequential reading-order numbers. Roadmap shortcode already uses layers. patches/ directories keep legacy names.
 
 **Tech Stack:** git mv, sed, manual edits
+**Status:** Complete
 
 ---
 

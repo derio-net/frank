@@ -7,6 +7,7 @@
 **Architecture:** Infisical runs in the `infisical` namespace with a bundled PostgreSQL (5Gi Longhorn) and Redis, exposed at `192.168.55.204` via Cilium L2 LoadBalancer. ESO runs in `external-secrets` and bridges Infisical → K8s Secrets via a ClusterSecretStore. Infisical's own DB/app credentials are bootstrapped with SOPS (the only remaining SOPS use case).
 
 **Tech Stack:** Infisical Helm chart, External Secrets Operator Helm chart, SOPS/age, ArgoCD App-of-Apps, Cilium L2 LoadBalancer, Longhorn storage.
+**Status:** Deployed
 
 ---
 

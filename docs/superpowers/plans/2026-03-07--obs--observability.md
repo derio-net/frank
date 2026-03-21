@@ -7,6 +7,7 @@
 **Architecture:** Three ArgoCD apps (`victoria-metrics`, `victoria-logs`, `fluent-bit`) all in the `monitoring` namespace. VictoriaMetrics k8s-stack handles metrics scraping + Grafana. VictoriaLogs handles log storage. Fluent Bit DaemonSet ships pod logs from all nodes to VictoriaLogs. Grafana has both as datasources.
 
 **Tech Stack:** `victoria-metrics/victoria-metrics-k8s-stack`, `victoria-metrics/victoria-logs-single`, `fluent/fluent-bit`, Longhorn PVCs, Cilium L2 LoadBalancer.
+**Status:** Deployed
 
 ---
 

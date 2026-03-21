@@ -13,6 +13,7 @@
 **Note on iGPU workloads:** Intel Arc iGPUs share system RAM (no dedicated VRAM), making them unsuitable for LLM inference where memory bandwidth is the bottleneck. Their strengths are media/vision workloads: hardware video transcode (Quick Sync), object detection (OpenVINO/Frigate), computer vision, and OpenCL compute. LLM inference runs on gpu-1's RTX 5070 via the Ollama + LiteLLM stack (see `docs/superpowers/specs/2026-03-09--infer--ollama-litellm-design.md`).
 
 **Prereqs:** All commands assume `source .env` (KUBECONFIG) or `source .env_devops` (OMNI) has been run. Layer 1 (node labels) and Layer 2 (Cilium) must be complete.
+**Status:** Deployed
 
 ---
 

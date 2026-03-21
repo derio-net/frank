@@ -9,6 +9,7 @@
 **Tech Stack:** Paperclip v0.3.1 (custom GHCR image), Bitnami PostgreSQL 14.1.10 (OCI Helm chart), ExternalSecrets for Infisical, Cilium L2 LoadBalancer.
 
 **Design doc:** `docs/superpowers/specs/2026-03-14--orch--paperclip-design.md`
+**Status:** Deployed
 
 ---
 

@@ -9,6 +9,7 @@
 **Tech Stack:** Hugo, PaperMod theme, Go templates, YAML frontmatter, image generation pipeline (`scripts/generate-all-images.py`)
 
 **Spec:** `docs/superpowers/specs/2026-03-13--repo--operating-blog-series-design.md`
+**Status:** Complete
 
 ---
 

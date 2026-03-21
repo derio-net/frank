@@ -7,6 +7,7 @@
 **Architecture:** Four manifests added to `apps/longhorn/manifests/` are picked up automatically by the existing `longhorn-extras` ArgoCD Application (path-based sync). The R2 credentials secret is SOPS-encrypted before commit; if ArgoCD SOPS decryption is not configured, the secret is applied manually via kubectl and ArgoCD is told to ignore Secret data diffs. The existing `longhorn-extras` Application CR needs one edit to add `ignoreDifferences` for the R2 Secret.
 
 **Tech Stack:** Longhorn 1.11 CRDs (`longhorn.io/v1beta2`), Kubernetes Secrets, SOPS/age encryption, ArgoCD, Cloudflare R2 (S3-compatible), NFS
+**Status:** Deployed
 
 ---
 

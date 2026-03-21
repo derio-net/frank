@@ -9,6 +9,7 @@
 **Tech Stack:** vCluster v0.32.1 (Helm chart from `https://charts.loft.sh`), ArgoCD App-of-Apps, Longhorn storage (etcd backing), Cilium L2 LoadBalancer (vCluster API exposure).
 
 **Design doc:** `docs/superpowers/specs/2026-03-07--tenant--vcluster-design.md`
+**Status:** Deployed
 
 ---
 
