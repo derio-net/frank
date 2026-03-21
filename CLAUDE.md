@@ -248,6 +248,7 @@ Check for updates periodically (e.g., when starting a new phase).
 - **Hop:** Never `source .env` when working on Hop — it overrides KUBECONFIG to Frank. Use `source .env_hop` instead
 - **Hop:** Talos control-plane taint must be removed for single-node cluster (`allowSchedulingOnControlPlanes: true` in Talos config)
 - **Hop:** PodSecurity namespaces (`caddy-system`, `headscale-system`) must be labeled `pod-security.kubernetes.io/enforce: privileged` for hostPort/privileged pods
+- **Hop:** Deployments using `hostPort` (e.g., Caddy) must use `strategy: Recreate` — `RollingUpdate` deadlocks on a single-node cluster because the new pod can't bind ports while the old pod still holds them
 - **Hop:** Headplane v0.5+ requires a `config.yaml` ConfigMap — env vars alone are insufficient
 - **Hop:** Headscale `extra_records` in DNS config provides split-DNS for mesh-only services — add entries for any new mesh-only service
 - **Hop:** `talosctl apply-config --config-patch` patches the base file, not the running config — all patches must be combined in one invocation
