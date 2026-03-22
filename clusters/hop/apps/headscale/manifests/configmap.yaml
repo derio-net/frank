@@ -44,6 +44,13 @@ data:
         global:
           - 1.1.1.1
           - 8.8.8.8
+        split:
+          lab.derio.net:
+            - 192.168.10.11
+            - 192.168.10.12
+          frank.derio.net:
+            - 192.168.10.11
+            - 192.168.10.12
       extra_records:
         - name: headplane.hop.derio.net
           type: A
@@ -68,5 +75,16 @@ data:
           "src": ["*"],
           "dst": ["*:*"]
         }
-      ]
+      ],
+      "tagOwners": {
+        "tag:subnet-router": ["default"]
+      },
+      "autoApprovers": {
+        "routes": {
+          "192.168.10.0/24": ["tag:subnet-router"],
+          "192.168.50.0/24": ["tag:subnet-router"],
+          "192.168.55.0/24": ["tag:subnet-router"]
+        },
+        "exitNode": ["tag:subnet-router"]
+      }
     }
