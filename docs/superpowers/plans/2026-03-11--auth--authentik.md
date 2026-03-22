@@ -633,7 +633,7 @@ commands:
   - "In Authentik Admin UI: Directory > Users > akadmin > Groups > Add to root-admins"
 verify:
   - "In Authentik Admin UI: Directory > Users > akadmin shows root-admins group membership"
-status: pending
+status: done
 ```
 
 ---
@@ -812,7 +812,7 @@ commands:
   - "In Authentik Admin UI: Applications > Providers > ArgoCD > Edit > set Client Secret from SOPS secret value"
 verify:
   - "In Authentik Admin UI: Providers > ArgoCD shows client_secret is set (not empty)"
-status: pending
+status: done
 ```
 
 - [ ] **Step 6: Commit and deploy**
@@ -1009,7 +1009,7 @@ commands:
   - "In Authentik Admin UI: Applications > Providers > Grafana > Edit > set Client Secret"
 verify:
   - "Navigate to https://grafana.frank.derio.net, click 'Sign in with Authentik', login as akadmin"
-status: pending
+status: done
 ```
 
 ```bash
@@ -1147,7 +1147,7 @@ commands:
   - "Set Client Secret: (same value as in Authentik)"
 verify:
   - "Navigate to https://infisical.frank.derio.net, see 'Sign in with SSO' option"
-status: pending
+status: n/a  # Infisical OIDC requires Pro plan
 ```
 
 - [ ] **Step 4: Update authentik values and commit**
@@ -1419,7 +1419,7 @@ commands:
 verify:
   - "In Authentik Admin UI: Directory > Users shows claude-agent service account"
   - "In Authentik Admin UI: Directory > Users > claude-agent shows root-admins membership"
-status: pending
+status: done
 ```
 
 ---
@@ -1469,14 +1469,15 @@ layer: auth
 app: n/a
 plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
 when: "After Task 10 — Authentik agent provider exists"
-why_manual: "Talos machine config patches are applied via Omni UI"
+why_manual: "Talos machine config patches are applied via Omni (omnictl apply), not declaratively in this repo"
 commands:
-  - "Apply OIDC patch via Omni to control-plane machine set"
-  - "Wait for rolling restart of kube-apiserver on all control-plane nodes"
+  - "omnictl apply -f patches/phase13-auth/omni-configpatch.yaml"
+  - "Wait for Omni to propagate config to control-plane nodes (configuptodate: true in ClusterMachineStatus)"
 verify:
-  - "talosctl get kubernetesconfig -n 192.168.55.21 | grep oidc"
-  - "kubectl logs -n kube-system kube-apiserver-mini-1 | grep oidc"
-status: pending
+  - "talosctl -n 192.168.55.21 get staticpod kube-apiserver -o yaml | grep oidc"
+  - "talosctl -n 192.168.55.22 get staticpod kube-apiserver -o yaml | grep oidc"
+  - "talosctl -n 192.168.55.23 get staticpod kube-apiserver -o yaml | grep oidc"
+status: done
 ```
 
 - [ ] **Step 3: Create Kubernetes RBAC for Authentik groups**
