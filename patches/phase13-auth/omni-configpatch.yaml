@@ -1,0 +1,15 @@
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 150-auth-oidc-apiserver
+    labels:
+        omni.sidero.dev/cluster: frank
+spec:
+    data: |
+        cluster:
+            apiServer:
+                extraArgs:
+                    oidc-issuer-url: https://auth.frank.derio.net/application/o/k8s-agent/
+                    oidc-client-id: k8s-agent
+                    oidc-username-claim: preferred_username
+                    oidc-groups-claim: groups
