@@ -9,7 +9,7 @@
 **Tech Stack:** Authentik 2026.2.1 Helm chart, PostgreSQL 17 (bundled subchart), Cilium L2 LoadBalancer (192.168.55.211), SOPS/age secrets, Authentik blueprints (YAML).
 
 **Design doc:** `docs/superpowers/specs/2026-03-11-unified-auth-design.md`
-**Status:** Partial
+**Status:** Deployed
 
 ---
 
@@ -1303,7 +1303,7 @@ verify:
   - "Navigate to https://longhorn.frank.derio.net — redirects to Authentik login"
   - "After login, Longhorn UI loads normally"
   - "Repeat for https://hubble.frank.derio.net and https://sympozium.frank.derio.net"
-status: pending
+status: done
 ```
 
 - [ ] **Step 5: Commit**
