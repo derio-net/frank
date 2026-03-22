@@ -1,0 +1,81 @@
+# Authentik Blueprint: Proxy Providers for non-OIDC services
+# Uses embedded outpost with forward-auth for services that don't support OIDC.
+# Traefik forwardAuth middleware must be configured on raspi-omni (manual operation).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-proxy-providers
+  namespace: authentik
+  labels:
+    app.kubernetes.io/component: blueprint
+data:
+  proxy-providers.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Proxy Providers for Non-OIDC Services
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      # Longhorn UI proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Longhorn UI
+        id: provider-longhorn
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          mode: forward_single
+          external_host: https://longhorn.frank.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: longhorn
+        attrs:
+          name: Longhorn UI
+          provider: !KeyOf provider-longhorn
+          meta_launch_url: https://longhorn.frank.derio.net
+
+      # Hubble UI proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Hubble UI
+        id: provider-hubble
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          mode: forward_single
+          external_host: https://hubble.frank.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: hubble
+        attrs:
+          name: Hubble UI
+          provider: !KeyOf provider-hubble
+          meta_launch_url: https://hubble.frank.derio.net
+
+      # Sympozium proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Sympozium
+        id: provider-sympozium
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          mode: forward_single
+          external_host: https://sympozium.frank.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: sympozium
+        attrs:
+          name: Sympozium
+          provider: !KeyOf provider-sympozium
+          meta_launch_url: https://sympozium.frank.derio.net

@@ -1,0 +1,50 @@
+# Authentik Blueprint: Infisical OIDC Provider
+# Creates an OAuth2 provider and application entry for Infisical SSO.
+# Infisical OIDC is configured via admin UI (manual operation).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-provider-infisical
+  namespace: authentik
+  labels:
+    app.kubernetes.io/component: blueprint
+data:
+  provider-infisical.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Infisical OIDC Provider
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      # OAuth2 Provider for Infisical
+      - model: authentik_providers_oauth2.oauth2provider
+        state: present
+        identifiers:
+          name: Infisical
+        id: provider-infisical
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          client_type: confidential
+          client_id: infisical
+          # client_secret is set via Authentik Admin UI (from SOPS secret)
+          redirect_uris: |
+            https://infisical.frank.derio.net/api/v1/sso/oidc/callback
+          signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
+          property_mappings:
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
+            - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+          sub_mode: hashed_user_id
+          include_claims_in_id_token: true
+
+      # Application entry
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: infisical
+        attrs:
+          name: Infisical
+          provider: !KeyOf provider-infisical
+          meta_launch_url: https://infisical.frank.derio.net
