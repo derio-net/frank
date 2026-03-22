@@ -118,6 +118,32 @@ Omni merges the patch into the node's machine config. Depending on the change, t
 talosctl reboot --nodes 192.168.55.21
 ```
 
+### Cleaning Up Stale Pods
+
+If you run `kubectl get pods -A` and see a sea of `Completed` or `Error` pods, that is normal — but it is worth understanding why they accumulate and how to clean them up.
+
+**Why they appear:** Kubernetes operators and storage drivers (Longhorn CSI provisioners, External Secrets, etc.) schedule work as **Jobs** rather than Deployments. Each Job run creates a new pod. When the run finishes, the pod stays in `Completed` or `Error` state instead of disappearing, because Job pods are not automatically recycled unless the Job spec includes `ttlSecondsAfterFinished`. Many upstream Helm charts do not set this field.
+
+**Do they consume resources?** No CPU or memory — the container process is gone. They do consume a small amount of etcd storage (~2–4 KB per pod object) and add noise to `kubectl get pods` output. On a cluster this size it is rarely a problem, but cleaning them up periodically is good hygiene.
+
+**Will they ever go away on their own?** Only when the cluster-wide terminated-pod garbage collector kicks in. Its default threshold is 12,500 pods — so in practice they accumulate indefinitely on a homelab.
+
+To delete all `Succeeded` pods cluster-wide:
+
+```bash
+kubectl get pods -A --field-selector=status.phase==Succeeded \
+  -o json | kubectl delete -f -
+```
+
+And for `Failed` pods:
+
+```bash
+kubectl get pods -A --field-selector=status.phase==Failed \
+  -o json | kubectl delete -f -
+```
+
+> **Note:** These commands delete the pod objects but not the parent Job records. Deleting a Job deletes its pods too: `kubectl delete jobs -A --field-selector=status.completionTime` (selects completed jobs). Be careful deleting Jobs if you want to preserve their history.
+
 ### Rebooting Nodes
 
 For a controlled reboot of a single node:
@@ -208,6 +234,8 @@ Common causes on Talos: missing security capabilities (the agent needs a specifi
 | `cilium endpoint list` | List all Cilium-managed pod endpoints |
 | `hubble observe` | Stream live network flows |
 | `hubble observe --verdict DROPPED` | Show only dropped flows |
+| `kubectl get pods -A --field-selector=status.phase==Succeeded -o json \| kubectl delete -f -` | Delete all Completed pods cluster-wide |
+| `kubectl get pods -A --field-selector=status.phase==Failed -o json \| kubectl delete -f -` | Delete all Failed pods cluster-wide |
 
 ## References
 
