@@ -73,6 +73,10 @@ blueprints:
   configMaps:
     - authentik-blueprints-groups
     - authentik-blueprints-provider-argocd
+    - authentik-blueprints-provider-grafana
+    - authentik-blueprints-provider-infisical
+    - authentik-blueprints-proxy-providers
+    - authentik-blueprints-agent-auth
 
 # -- Bundled PostgreSQL subchart (Bitnami)
 # Production note: Authentik docs recommend external PostgreSQL for production.

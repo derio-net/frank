@@ -9,7 +9,7 @@
 **Tech Stack:** Authentik 2026.2.1 Helm chart, PostgreSQL 17 (bundled subchart), Cilium L2 LoadBalancer (192.168.55.211), SOPS/age secrets, Authentik blueprints (YAML).
 
 **Design doc:** `docs/superpowers/specs/2026-03-11-unified-auth-design.md`
-**Status:** Deployed
+**Status:** Partial
 
 ---
 
@@ -144,7 +144,7 @@ commands:
   - sops --decrypt secrets/authentik/authentik-secrets.yaml | kubectl apply -f -
 verify:
   - kubectl get secret authentik-secrets -n authentik -o jsonpath='{.data.secret_key}' | base64 -d | head -c 5 && echo '...'
-status: pending
+status: done
 ```
 
 - [ ] **Step 5: Commit encrypted secrets**
@@ -599,7 +599,7 @@ commands:
   - "Restart Traefik on raspi-omni"
 verify:
   - "curl -s https://auth.frank.derio.net/if/flow/initial-setup/ | grep -i authentik"
-status: pending
+status: done
 ```
 
 - [ ] **Step 6: Access Authentik initial setup**
@@ -689,7 +689,7 @@ commands:
   - sops --decrypt secrets/authentik/argocd-oidc-secret.yaml | kubectl apply -f -
 verify:
   - kubectl get secret argocd-oidc-secret -n argocd
-status: pending
+status: done
 ```
 
 - [ ] **Step 2: Create Authentik OIDC provider blueprint for ArgoCD**
@@ -897,7 +897,7 @@ commands:
   - sops --decrypt secrets/authentik/grafana-oidc-secret.yaml | kubectl apply -f -
 verify:
   - kubectl get secret grafana-oidc-secret -n monitoring
-status: pending
+status: done
 ```
 
 - [ ] **Step 3: Create Authentik OIDC provider blueprint for Grafana**
