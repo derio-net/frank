@@ -16,6 +16,9 @@ masterkeySecretKey: "LITELLM_MASTER_KEY"
 environmentSecrets:
   - litellm-api-keys
 
+envVars:
+  STORE_MODEL_IN_DB: "True"
+
 # LiteLLM proxy configuration (rendered as config.yaml)
 proxy_config:
   model_list:
@@ -36,6 +39,13 @@ proxy_config:
     - model_name: deepseek-coder
       litellm_params:
         model: ollama/deepseek-coder:6.7b
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+
+    # Tesslate OmniCoder-9B
+    # Swapped in on-demand (~5s cold load)
+    - model_name: omnicoder
+      litellm_params:
+        model: ollama/carstenuhlig/omnicoder-9b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
     # ──────────────────────────────────────────────
