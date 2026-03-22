@@ -735,3 +735,48 @@ operations:
     verify:
       - "talosctl --nodes <HOP_IP> read /proc/mounts | grep hop-data"
     status: done
+
+  - id: edge-tag-subnet-routers
+    layer: edge
+    app: headscale
+    plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
+    when: After ConfigMap deploy and Headscale restart
+    why_manual: Node tagging is an imperative Headscale CLI operation; cannot be declared in config
+    commands:
+      - source .env_hop
+      - kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
+      - kubectl -n headscale-system exec deploy/headscale -- headscale nodes tag --identifier <RASPI_D_ID> --tags tag:subnet-router
+      - kubectl -n headscale-system exec deploy/headscale -- headscale nodes tag --identifier <RASPI_E_ID> --tags tag:subnet-router
+    verify:
+      - "kubectl -n headscale-system exec deploy/headscale -- headscale nodes list  # Both nodes should show tag:subnet-router"
+    status: done
+
+  - id: edge-configure-raspi-d
+    layer: edge
+    app: headscale
+    plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
+    when: After Headscale ConfigMap deploy
+    why_manual: Raspberry Pis are standalone devices outside the cluster; OS and Tailscale config is imperative
+    commands:
+      - sudo sysctl -w net.ipv4.ip_forward=1
+      - echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
+      - sudo tailscale up --login-server=https://headscale.hop.derio.net --advertise-exit-node --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24 --advertise-tags=tag:subnet-router --accept-dns=false --hostname=$(hostname) --authkey $HEADSCALE_PREAUTH_KEY
+    verify:
+      - "cat /proc/sys/net/ipv4/ip_forward  # Should return 1"
+      - "tailscale status  # Should show connected with tag:subnet-router"
+    status: done
+
+  - id: edge-configure-raspi-e
+    layer: edge
+    app: headscale
+    plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
+    when: After Headscale ConfigMap deploy
+    why_manual: Raspberry Pis are standalone devices outside the cluster; OS and Tailscale config is imperative
+    commands:
+      - sudo sysctl -w net.ipv4.ip_forward=1
+      - echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
+      - sudo tailscale up --login-server=https://headscale.hop.derio.net --advertise-exit-node --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24 --advertise-tags=tag:subnet-router --accept-dns=false --hostname=$(hostname) --authkey $HEADSCALE_PREAUTH_KEY
+    verify:
+      - "cat /proc/sys/net/ipv4/ip_forward  # Should return 1"
+      - "tailscale status  # Should show connected with tag:subnet-router"
+    status: done
