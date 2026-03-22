@@ -24,7 +24,7 @@ spec:
         - name: paperclip-ghcr
       containers:
         - name: paperclip
-          image: ghcr.io/derio-net/paperclip:v0.3.1
+          image: ghcr.io/derio-net/paperclip:v0.3.2
           ports:
             - name: http
               containerPort: 3100
@@ -36,6 +36,8 @@ spec:
                 name: paperclip-llm-key
             - secretRef:
                 name: paperclip-auth
+            - secretRef:
+                name: paperclip-anthropic
           env:
             - name: PG_PASSWORD
               valueFrom:

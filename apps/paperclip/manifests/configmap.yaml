@@ -11,3 +11,4 @@ data:
   PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
   PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
   PAPERCLIP_PUBLIC_URL: "http://192.168.55.212:3100"
+  LITELLM_BASE_URL: "http://litellm.litellm.svc:4000"
