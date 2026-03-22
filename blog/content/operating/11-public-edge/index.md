@@ -183,6 +183,111 @@ kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
 kubectl -n headscale-system exec deploy/headscale -- headscale nodes delete --identifier <NODE_ID>
 ```
 
+### Registering a Subnet Router / Exit Node
+
+A subnet router advertises LAN subnets to the mesh, making homelab services reachable from any mesh client. An exit node routes all internet traffic through itself. The Raspberry Pi subnet routers serve both roles.
+
+**Prerequisites on the device:**
+
+```bash
+# Enable IP forwarding (required for routing — persistent across reboots)
+sudo sysctl -w net.ipv4.ip_forward=1
+echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
+```
+
+**Step 1 — Register the device with subnet routes, exit node, and tag:**
+
+```bash
+sudo tailscale up \
+  --login-server=https://headscale.hop.derio.net \
+  --advertise-exit-node \
+  --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24 \
+  --advertise-tags=tag:subnet-router \
+  --accept-dns=false \
+  --hostname=$(hostname) \
+  --authkey $HEADSCALE_PREAUTH_KEY
+```
+
+Key flags:
+
+- `--advertise-routes` — exposes these LAN subnets to all mesh clients
+- `--advertise-exit-node` — offers this node as an exit node for tunneling all traffic
+- `--advertise-tags=tag:subnet-router` — carries the tag with registration so `autoApprovers` in the ACL policy auto-approves routes immediately
+- `--accept-dns=false` — prevents MagicDNS from overriding the device's OS-level DNS (the raspis need their local DNS to resolve internal hostnames)
+- `--authkey` — pre-auth key from `.env_hop` (`HEADSCALE_PREAUTH_KEY`)
+
+**Step 2 — Tag the node (one-time, for existing nodes without the tag):**
+
+If the node was registered before `--advertise-tags` was added, apply the tag server-side:
+
+```bash
+source .env_hop
+kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
+kubectl -n headscale-system exec deploy/headscale -- \
+  headscale nodes tag --identifier <NODE_ID> --tags tag:subnet-router
+```
+
+Future re-registrations carry the tag automatically via `--advertise-tags`.
+
+**Step 3 — Verify routes are approved:**
+
+```bash
+kubectl -n headscale-system exec deploy/headscale -- headscale routes list
+```
+
+All routes should show `Enabled: true`. With `autoApprovers` configured, no manual `headscale routes enable` is needed.
+
+**Step 4 — Use the exit node from another mesh client:**
+
+```bash
+# Connect to the exit node
+tailscale set --exit-node=<exit-node-hostname>
+
+# Verify internet traffic routes through the exit node
+curl ifconfig.me
+# Should show the exit node's network's public IP
+
+# Verify LAN access
+ping 192.168.55.21  # Frank cluster mini-1
+
+# Disconnect
+tailscale set --exit-node=
+```
+
+**Gotcha:** `--login-server` must use the **public URL** (`https://headscale.hop.derio.net`), not the Kubernetes-internal service name (`headscale.headscale-system.svc:8080`). The internal name only resolves inside the Hop cluster's pod network — from any external device, including Frank cluster nodes, it will hang indefinitely without error.
+
+**Gotcha:** Without `net.ipv4.ip_forward=1` on the device, exit node connections will appear to work (Tailscale reports connected) but all traffic will black-hole — `ping google.com` hangs silently.
+
+### Split DNS for Internal Domains
+
+Headscale pushes split DNS configuration to all mesh clients. Queries for internal domains go to the home DNS servers; everything else uses public DNS.
+
+| Domain | Nameservers | Purpose |
+| ------ | ----------- | ------- |
+| `*.lab.derio.net` | 192.168.10.11, 192.168.10.12 | Home lab services |
+| `*.frank.derio.net` | 192.168.10.11, 192.168.10.12 | Frank cluster services |
+| Everything else | 1.1.1.1, 8.8.8.8 | Public DNS |
+
+The home DNS servers (192.168.10.11/12) are on the 192.168.10.0/24 subnet, which is advertised by the subnet routers. Any mesh client can reach them — you don't need to be using an exit node.
+
+**Verify split DNS from a mesh client:**
+
+```bash
+# Should resolve via home DNS
+dig litellm.frank.derio.net
+
+# Should resolve via public DNS
+dig google.com
+```
+
+**Limitation:** If both Raspberry Pi subnet routers are offline, mesh clients lose both the subnet routes and DNS resolution for `*.lab.derio.net` and `*.frank.derio.net`. This is consistent — the services themselves are also unreachable without the subnet routes.
+
+To add more internal domains to split DNS, edit the Headscale ConfigMap's `dns.nameservers.split` section and restart Headscale:
+
+```bash
+kubectl -n headscale-system rollout restart deploy/headscale
+```
+
 ### Adding a Mesh-Only Service
 
 When adding a new mesh-only domain to Hop, three things need updating:
