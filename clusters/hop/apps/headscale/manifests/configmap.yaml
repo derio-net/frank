@@ -51,6 +51,9 @@ data:
           frank.derio.net:
             - 192.168.10.11
             - 192.168.10.12
+          arr.derio.net:
+            - 192.168.10.11
+            - 192.168.10.12
       extra_records:
         - name: headplane.hop.derio.net
           type: A
