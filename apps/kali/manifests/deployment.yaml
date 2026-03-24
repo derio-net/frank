@@ -71,4 +71,3 @@ spec:
         - name: ssh-keys
           secret:
             secretName: kali-ssh-keys
-            optional: true

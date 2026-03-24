@@ -21,11 +21,3 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
-      - RespectIgnoreDifferences=true
-  ignoreDifferences:
-    - group: ""
-      kind: Secret
-      name: kali-ssh-keys
-      namespace: kali-system
-      jsonPointers:
-        - /data
