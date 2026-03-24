@@ -145,6 +145,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Paperclip | http://192.168.55.212:3100 | 192.168.55.212 |
 | ComfyUI | http://192.168.55.213:8188 | 192.168.55.213 |
 | GPU Switcher | http://192.168.55.214:8080 | 192.168.55.214 |
+| Kali Workstation | ssh root@192.168.55.215 | 192.168.55.215 |
 
 ### Hop Cluster (Public Edge)
 
@@ -198,6 +199,7 @@ argocd app list
 | paperclip | paperclip-system | Paperclip v0.3.1 AI agent orchestrator (192.168.55.212:3100) |
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
+| kali | kali-system | Persistent Kali Linux workstation on gpu-1 (192.168.55.215:22/SSH), Claude Code remote |
 
 ### Hop Cluster Applications
 

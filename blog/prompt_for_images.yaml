@@ -412,6 +412,22 @@ images:
       the portal to the homelab. Dark background with the portal as the
       primary light source, electric blue and teal accents.
 
+  - key: building-18-persistent-agent
+    output: blog/content/building/18-persistent-agent/cover.png
+    description: "Persistent Agent — Frank at an always-on workstation terminal"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at a glowing
+      workstation terminal in the dark server room, typing intently. The
+      terminal screen casts a cool blue glow on his face. Above the monitor,
+      a bright green LED status light pulses steadily — signaling "always on".
+      Behind him, server racks with blinking LEDs stretch into the shadows.
+      A translucent SSH tunnel visualization connects from a small laptop
+      icon floating to the left (with its lid closed and a "zzz" above it)
+      through glowing blue lines to Frank's terminal. A small Claude AI
+      sparkle icon floats near the terminal screen. The scene conveys
+      persistence and autonomy — the agent keeps working even when the
+      human steps away. Dark background, electric blue and green accents.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
