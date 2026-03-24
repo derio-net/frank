@@ -1,0 +1,49 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kali-startup
+  namespace: kali-system
+data:
+  startup.sh: |
+    #!/bin/bash
+    set -e
+
+    echo "[kali] Installing openssh-server..."
+    apt-get update -qq
+    apt-get install -y -qq openssh-server curl git procps
+
+    echo "[kali] Configuring SSH..."
+    mkdir -p /run/sshd
+    mkdir -p /root/.ssh
+    chmod 700 /root/.ssh
+
+    # Persist SSH host keys across restarts (stored in PVC-backed /root)
+    HOST_KEY_DIR=/root/.ssh-host-keys
+    mkdir -p "$HOST_KEY_DIR"
+    if [ -f "$HOST_KEY_DIR/ssh_host_ed25519_key" ]; then
+      echo "[kali] Restoring persisted host keys..."
+      cp "$HOST_KEY_DIR"/ssh_host_* /etc/ssh/
+    else
+      echo "[kali] Generating and persisting host keys..."
+      ssh-keygen -A
+      cp /etc/ssh/ssh_host_* "$HOST_KEY_DIR/"
+    fi
+
+    # Copy authorized_keys from mounted secret
+    if [ -f /etc/ssh-keys/authorized_keys ]; then
+      cp /etc/ssh-keys/authorized_keys /root/.ssh/authorized_keys
+      chmod 600 /root/.ssh/authorized_keys
+    fi
+
+    # Configure sshd for key-based auth only
+    cat > /etc/ssh/sshd_config.d/kali-k8s.conf <<'SSHCONF'
+    PermitRootLogin prohibit-password
+    PubkeyAuthentication yes
+    PasswordAuthentication no
+    SSHCONF
+
+    echo "[kali] Starting SSH server..."
+    /usr/sbin/sshd
+
+    echo "[kali] SSH server running on port 22. Container ready."
+    exec sleep infinity

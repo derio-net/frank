@@ -47,6 +47,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Hop (Hetzner Edge)** | Public-facing single-node Talos cluster — Headscale mesh, Caddy reverse proxy, blog hosting, split-DNS |
 | **Headscale + Tailscale** | WireGuard mesh networking — remote homelab access from any device, MagicDNS for split-DNS |
 | **Caddy** | Automatic TLS (Cloudflare DNS challenge), public/mesh routing, path rewriting |
+| **Kali Workstation** | Persistent always-on container on gpu-1, SSH remote access, Claude Code `--remote` agent (`192.168.55.215`) |
 
 ## Cluster State
 
@@ -76,6 +77,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 15. [Paperclip — An AI Agent Orchestrator on Frank]({{< relref "/building/15-paperclip" >}})
 16. [Media Generation — ComfyUI and GPU Time-Sharing]({{< relref "/building/16-media-generation" >}})
 17. [Hopping Through the Portal — A Public Edge Cluster]({{< relref "/building/17-public-edge" >}})
+18. [Persistent Agent — A Kali Workstation on Kubernetes]({{< relref "/building/18-persistent-agent" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 

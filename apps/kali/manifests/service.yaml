@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kali-ssh
+  namespace: kali-system
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.215"
+  labels:
+    app.kubernetes.io/name: kali
+    app.kubernetes.io/component: workstation
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: kali
+    app.kubernetes.io/component: workstation
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: ssh
+      protocol: TCP
