@@ -17,19 +17,19 @@ The goal is to add safe, observable rollout primitives to the platform — not a
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  argo-rollouts namespace                                         │
-│                                                                  │
+│  argo-rollouts namespace                                        │
+│                                                                 │
 │  ┌─────────────────────────────────┐                            │
 │  │  argo-rollouts controller       │                            │
 │  │  + Cilium traffic router plugin │                            │
 │  └──────────┬──────────────────────┘                            │
-│             │ watches Rollout CRDs cluster-wide                  │
+│             │ watches Rollout CRDs cluster-wide                 │
 └─────────────┼───────────────────────────────────────────────────┘
               │
     ┌─────────┴──────────────────────────────────────┐
-    │                                                 │
-    ▼                                                 ▼
-┌──────────────────────────┐         ┌──────────────────────────────┐
+    │                                                │
+    ▼                                                ▼
+┌───────────────────────────┐         ┌───────────────────────────────┐
 │  litellm namespace        │         │  paperclip-system namespace   │
 │                           │         │                               │
 │  Rollout/litellm          │         │  Rollout/paperclip            │
@@ -38,12 +38,12 @@ The goal is to add safe, observable rollout primitives to the platform — not a
 │                           │         │  strategy: blueGreen          │
 │  strategy: canary         │         │  autoPromotionEnabled: false  │
 │  steps:                   │         │                               │
-│  - setWeight: 20          │         │  active svc  → LB 55.212     │
+│  - setWeight: 20          │         │  active svc  → LB 55.212      │
 │  - pause: {}              │         │  preview svc → ClusterIP      │
 │  - analysis               │         │                               │
 │  - setWeight: 50          │         │  pre-promotion: HTTP probe    │
 │  - pause: {}              │         │  on preview svc               │
-│  - analysis               │         └──────────────────────────────┘
+│  - analysis               │         └───────────────────────────────┘
 │  - setWeight: 100         │
 │                           │
 │  stableService: litellm   │  ◀── existing Helm svc (LB 55.206)
@@ -53,7 +53,7 @@ The goal is to add safe, observable rollout primitives to the platform — not a
 │                           │
 │  AnalysisTemplate         │  ──▶ VictoriaMetrics (Prometheus API)
 │  (error rate < 5%)        │       inconclusiveCondition: rate < 10 req
-└──────────────────────────┘
+└───────────────────────────┘
 ```
 
 ## Phase 1: Controller Install
@@ -186,6 +186,22 @@ Required migration sequence (manual operation):
 1. Manually delete the existing Deployment: `kubectl delete deployment paperclip -n paperclip-system`
 2. Rename `apps/paperclip/manifests/deployment.yaml` → `rollout.yaml` with `kind: Rollout`
 3. ArgoCD syncs and creates the Rollout — no gap in service since the existing Service selector still matches pod labels
+
+```yaml
+# manual-operation
+id: deploy-delete-paperclip-deployment
+layer: deploy
+app: paperclip
+plan: docs/superpowers/specs/2026-03-25--deploy--argo-rollouts-design.md
+when: Before committing rollout.yaml — the existing Deployment must be removed first
+why_manual: Kubernetes does not allow changing the kind of an existing resource in-place; ArgoCD prune:false means it will not delete the Deployment automatically
+commands:
+  - "kubectl delete deployment paperclip -n paperclip-system"
+verify:
+  - "kubectl get deployment paperclip -n paperclip-system  # should return NotFound"
+  - "kubectl get rollout paperclip -n paperclip-system     # should exist after ArgoCD sync"
+status: pending
+```
 
 ### Strategy
 
