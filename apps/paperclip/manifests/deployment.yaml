@@ -38,6 +38,7 @@ spec:
                 name: paperclip-auth
             - secretRef:
                 name: paperclip-anthropic
+                optional: true
           env:
             - name: PG_PASSWORD
               valueFrom:
