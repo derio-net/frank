@@ -122,13 +122,16 @@ spec:
 
 ## Secret Management
 
-Three ExternalSecrets sync from Infisical:
+Four ExternalSecrets sync from Infisical:
 
 | Secret | Contains | How Used |
 |--------|----------|----------|
 | `paperclip-llm-key` | `OPENAI_API_KEY` + `OPENAI_BASE_URL` | `envFrom` — routes LLM calls through LiteLLM |
 | `paperclip-auth` | `BETTER_AUTH_SECRET` | `envFrom` — session signing |
 | `paperclip-ghcr` | `.dockerconfigjson` | `imagePullSecrets` — GHCR auth |
+| `paperclip-anthropic` | `ANTHROPIC_API_KEY` | `envFrom` — direct Anthropic access via `claude_local` adapter (optional) |
+
+The `paperclip-anthropic` secret is marked `optional: true` in the Deployment — the pod starts normally without it. The `claude_local` adapter only needs it if you want to bypass LiteLLM and call Anthropic directly. Lesson learned: any `secretRef` for a feature that isn't always provisioned should be `optional: true`, otherwise a missing Secret blocks rolling updates entirely (`CreateContainerConfigError` on the new pod, old pod stuck alive).
 
 The LiteLLM secret uses the template merge pattern from Sympozium: a single Infisical key (`PAPERCLIP_LITELLM_KEY`) is combined with a static base URL at sync time, so the Deployment just does `envFrom` and gets both variables.
 
