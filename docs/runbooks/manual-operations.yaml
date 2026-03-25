@@ -238,7 +238,7 @@ operations:
     verify:
       - "In Authentik Admin UI: Directory > Users shows claude-agent service account"
       - "In Authentik Admin UI: Directory > Users > claude-agent shows root-admins membership"
-    status: pending
+    status: done
 
   - id: auth-akadmin-group
     layer: auth
@@ -250,7 +250,7 @@ operations:
       - "In Authentik Admin UI: Directory > Users > akadmin > Groups > Add to root-admins"
     verify:
       - "In Authentik Admin UI: Directory > Users > akadmin shows root-admins group membership"
-    status: pending
+    status: done
 
   - id: auth-argocd-oidc-client-secret
     layer: auth
@@ -262,7 +262,7 @@ operations:
       - "In Authentik Admin UI: Applications > Providers > ArgoCD > Edit > set Client Secret from SOPS secret value"
     verify:
       - "In Authentik Admin UI: Providers > ArgoCD shows client_secret is set (not empty)"
-    status: pending
+    status: done
 
   - id: auth-argocd-oidc-secret
     layer: auth
@@ -299,7 +299,7 @@ operations:
       - "In Authentik Admin UI: Applications > Providers > Grafana > Edit > set Client Secret"
     verify:
       - "Navigate to https://grafana.frank.derio.net, click 'Sign in with Authentik', login as akadmin"
-    status: pending
+    status: done
 
   - id: auth-grafana-oidc-secret
     layer: auth
@@ -328,21 +328,21 @@ operations:
       - "Set Client Secret: (same value as in Authentik)"
     verify:
       - "Navigate to https://infisical.frank.derio.net, see 'Sign in with SSO' option"
-    status: pending
+    status: n/a
+    notes: "Infisical OIDC SSO requires Pro plan — blocked on free tier"
 
   - id: auth-talos-oidc-patch
     layer: auth
     app: n/a
     plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
     when: "After Task 10 — Authentik agent provider exists"
-    why_manual: "Talos machine config patches are applied via Omni UI"
+    why_manual: "Talos machine config patches are applied via omnictl"
     commands:
-      - Apply OIDC patch via Omni to control-plane machine set
-      - Wait for rolling restart of kube-apiserver on all control-plane nodes
+      - "omnictl apply -f patches/phase13-auth/omni-configpatch.yaml"
     verify:
-      - "talosctl get kubernetesconfig -n 192.168.55.21 | grep oidc"
-      - "kubectl logs -n kube-system kube-apiserver-mini-1 | grep oidc"
-    status: pending
+      - "talosctl -n 192.168.55.21 get staticpod kube-apiserver -o yaml | grep oidc"
+    status: done
+    notes: "Applied as ConfigPatch 150-auth-oidc-apiserver via omnictl. Verified on all 3 control planes via staticpod resource."
 
   - id: auth-traefik-authentik-route
     layer: auth
@@ -355,7 +355,7 @@ operations:
       - Restart Traefik on raspi-omni
     verify:
       - "curl -s https://auth.frank.derio.net/if/flow/initial-setup/ | grep -i authentik"
-    status: pending
+    status: done
 
   - id: auth-traefik-forward-auth
     layer: auth
