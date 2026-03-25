@@ -70,9 +70,15 @@ New app: `apps/argo-rollouts/values.yaml` + `apps/root/templates/argo-rollouts.y
 
 ### Cilium Traffic Router Plugin
 
-The Argo Rollouts controller loads traffic router plugins at startup via a `ConfigMap` named `argo-rollouts-config` in the `argo-rollouts` namespace. The Cilium plugin (`argoproj-labs/rollouts-plugin-trafficrouter-cilium`) is referenced by download URL — the controller fetches and caches it on first run.
+The Argo Rollouts controller loads traffic router plugins at startup via a `ConfigMap` named `argo-rollouts-config` in the `argo-rollouts` namespace. The Cilium plugin (`argoproj-labs/rollouts-plugin-trafficrouter-cilium`) is referenced by a **pinned download URL** (specific release tag, not `latest`) — the controller fetches and caches it on first boot. Subsequent restarts use the cached binary from the controller pod's filesystem.
+
+**Accepted risk:** the controller requires internet access on first startup to download the plugin. This is acceptable for a homelab but must be noted for air-gapped environments. Pin the URL to a specific version in the ConfigMap to ensure reproducibility.
 
 Plugin config manifest: `apps/argo-rollouts/manifests/plugin-config.yaml`
+
+### RBAC for CiliumEnvoyConfig
+
+The Argo Rollouts controller must be able to create/update/delete `CiliumEnvoyConfig` objects (a Cilium CRD). The default Helm chart RBAC does not include Cilium CRD permissions. A supplemental `ClusterRole` and `ClusterRoleBinding` must be added to `apps/argo-rollouts/manifests/` granting the controller's ServiceAccount access to `cilium.io/ciliumenvoyconfigs`.
 
 ### Layer Registration
 
@@ -124,6 +130,8 @@ The current `values.yaml` uses `tag: main-stable` with `pullPolicy: Always`. For
 
 The Rollout spec references both. The Cilium plugin creates a `CiliumEnvoyConfig` that splits traffic between them according to the current canary weight.
 
+**Cilium L2 LB + CiliumEnvoyConfig compatibility:** The Cilium traffic router plugin intercepts traffic at the ClusterIP/eBPF level, which should work regardless of whether the stable service has `type: LoadBalancer`. However, this is an uncommon configuration in the plugin's documented examples (which show ClusterIP pairs). During implementation, verify that the `CiliumEnvoyConfig` correctly intercepts external traffic arriving via the L2 LB IP. If not, the fallback is to change the stable service to `ClusterIP` and add a separate `LoadBalancer` service (following the Sympozium pattern) to hold the static IP.
+
 ### Canary Steps
 
 ```
@@ -147,8 +155,15 @@ sum(rate(litellm_request_total[5m]))
 - `successCondition`: `result < 0.05` (less than 5% errors)
 - `failureCondition`: `result >= 0.05`
 - `inconclusiveCondition`: `isNaN(result) || sum(rate(litellm_request_total[5m])) < 10` — if fewer than 10 requests in the window, mark inconclusive rather than aborting
+- `inconclusiveLimit: 3` — after 3 consecutive inconclusive results (15 min of sparse traffic), the analysis aborts and the Rollout pauses indefinitely
 
-**Inconclusive behaviour:** the Rollout pauses and waits rather than failing. The operator checks the situation (Is Ollama up? Are consumers active?) and either manually promotes or aborts.
+**Inconclusive behaviour:** when an AnalysisRun returns `Inconclusive`, the Rollout pauses and waits. The operator checks the situation (Is Ollama up? Are consumers active?) then either:
+
+- **Resume:** wait for traffic to pick up, then re-run analysis via `kubectl argo rollouts promote litellm -n litellm`
+- **Force promote:** skip remaining analysis with `--full` if confident the release is healthy
+- **Abort:** roll back to stable with `kubectl argo rollouts abort`
+
+**VictoriaMetrics address:** the AnalysisTemplate `provider.prometheus.address` must be set to the in-cluster VMSingle service URL (e.g., `http://victoria-metrics-victoria-metrics-single-server.monitoring.svc.cluster.local:8428`). Determine the exact service name during implementation via `kubectl get svc -n monitoring`.
 
 ### New Manifests
 
@@ -162,9 +177,15 @@ Added to `apps/litellm/manifests/` (deployed by existing `litellm-extras` ArgoCD
 
 ## Phase 3: Paperclip Blue-Green
 
-### Migration
+### Migration Sequence
 
-Paperclip uses raw manifests — no Helm chart. Replace `apps/paperclip/manifests/deployment.yaml` directly with an Argo Rollouts `Rollout` resource (same spec, `kind: Rollout`, `apiVersion: argoproj.io/v1alpha1`).
+Paperclip uses raw manifests — no Helm chart. However, Kubernetes does not allow changing the `kind` of an existing resource in-place. A direct `apply` of a Rollout where a Deployment exists will fail or leave both resources alive (since ArgoCD uses `prune: false`).
+
+Required migration sequence (manual operation):
+
+1. Manually delete the existing Deployment: `kubectl delete deployment paperclip -n paperclip-system`
+2. Rename `apps/paperclip/manifests/deployment.yaml` → `rollout.yaml` with `kind: Rollout`
+3. ArgoCD syncs and creates the Rollout — no gap in service since the existing Service selector still matches pod labels
 
 ### Strategy
 
@@ -232,7 +253,7 @@ kubectl argo rollouts abort paperclip -n paperclip-system
 
 - **Cilium plugin downloads at controller startup** — first boot requires internet access from the `argo-rollouts` pod; subsequent restarts use the cached binary
 - **`workloadRef` scales the source Deployment to 0** — after applying the LiteLLM Rollout, the Helm chart's Deployment will show 0/0 replicas; this is expected and correct
-- **ArgoCD sees the Deployment at 0 replicas** — add an `ignoreDifferences` entry on the Deployment's `spec.replicas` field in the `litellm` app to prevent ArgoCD from fighting with the Rollout controller
+- **ArgoCD fights `workloadRef` on `spec.replicas`** — the Rollout controller scales the Helm chart's Deployment to 0; ArgoCD tries to reconcile it back to the chart's replica count. Add `ignoreDifferences` on `spec.replicas` (`jsonPointers: [/spec/replicas]`) in the `litellm` ArgoCD Application. Only `spec.replicas` needs ignoring — the Rollout reads but does not modify `spec.template` in the Deployment, so ArgoCD and the Rollout controller do not conflict there
 - **LiteLLM image tag must be pinned** — `main-stable` with `pullPolicy: Always` makes canary non-deterministic; pin to a semver tag before enabling the Rollout
 - **VictoriaMetrics internal URL** — the AnalysisTemplate must use the in-cluster service URL for VMSingle (not Grafana's LB IP)
 - **`inconclusiveLimit`** — set to a reasonable value (e.g., 3) to prevent infinite inconclusive loops if VictoriaMetrics is down
@@ -240,7 +261,7 @@ kubectl argo rollouts abort paperclip -n paperclip-system
 
 ## Out of Scope
 
-- Argo Rollouts dashboard UI (the kubectl plugin is sufficient for now)
+- Argo Rollouts dashboard UI and Grafana dashboard (the kubectl plugin is sufficient; the official Argo Rollouts Grafana dashboard can be added later as a ConfigMap to the monitoring stack)
 - Migrating other workloads (Authentik, Ollama, Infisical are stateful and singleton — blue-green adds complexity without benefit)
 - Automated image tag bumps via Argo CD Image Updater (separate concern)
 - Istio/Gateway API traffic management (Cilium is already the CNI)
