@@ -17,3 +17,4 @@
 - Authentik `global.env` applies env vars to both server + worker (avoids duplication)
 - Grafana OIDC: secret key must be `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` for `envFromSecret` to work
 - Authentik embedded outpost requires `AUTHENTIK_HOST` env var set to external URL (e.g., `https://auth.frank.derio.net`) — without it, forward-auth redirects use `0.0.0.0:9000`
+- `envFrom.secretRef` without `optional: true` blocks rolling updates entirely if the Secret is missing — the new pod hits `CreateContainerConfigError` and Kubernetes keeps the old pod alive indefinitely. Mark adapter/feature secrets as `optional: true` when the app can run without them.

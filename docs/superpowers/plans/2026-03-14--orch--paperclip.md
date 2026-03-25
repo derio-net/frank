@@ -791,3 +791,17 @@ Push all documentation updates.
 ```bash
 git push -u origin claude/deploy-paperclip-orchestrator-2mo3D
 ```
+
+---
+
+## Deployment Deviations
+
+### 2026-03-25 — `paperclip-anthropic` secret made optional
+
+**Symptom:** After deploying a new image tag, the old pod persisted. Rolling update was stalled with the new pod in `CreateContainerConfigError`.
+
+**Root cause:** `ANTHROPIC_API_KEY` was never added to Infisical (`frank-cluster` / `prod` / `/`), so the `paperclip-anthropic` ExternalSecret was stuck in `SecretSyncedError`. The `secretRef` in the Deployment had no `optional: true`, so Kubernetes refused to construct the container spec for the new pod.
+
+**Fix:** Added `optional: true` to the `paperclip-anthropic` `secretRef` in `apps/paperclip/manifests/deployment.yaml`. The `claude_local` adapter simply won't have a key when the secret is absent — acceptable since LiteLLM is the primary backend.
+
+**Affected task:** Task 9 (Deployment manifest)
