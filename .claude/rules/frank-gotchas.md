@@ -18,3 +18,4 @@
 - Grafana OIDC: secret key must be `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` for `envFromSecret` to work
 - Authentik embedded outpost requires `AUTHENTIK_HOST` env var set to external URL (e.g., `https://auth.frank.derio.net`) — without it, forward-auth redirects use `0.0.0.0:9000`
 - `envFrom.secretRef` without `optional: true` blocks rolling updates entirely if the Secret is missing — the new pod hits `CreateContainerConfigError` and Kubernetes keeps the old pod alive indefinitely. Mark adapter/feature secrets as `optional: true` when the app can run without them.
+- RWO PVC + RollingUpdate strategy deadlocks: new pod can't mount the volume while the old pod holds it, so the new pod never becomes Ready, so the old pod is never deleted. Use `strategy: type: Recreate` for any single-replica deployment backed by a RWO PVC.

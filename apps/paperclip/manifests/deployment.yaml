@@ -8,6 +8,8 @@ metadata:
     app.kubernetes.io/component: server
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: paperclip
@@ -18,6 +20,8 @@ spec:
         app.kubernetes.io/name: paperclip
         app.kubernetes.io/component: server
     spec:
+      nodeSelector:
+        zone: core
       securityContext:
         fsGroup: 1000
       imagePullSecrets:
