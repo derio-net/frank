@@ -1,5 +1,7 @@
 # Auth Plan Audit + Missing Implementation
 
+**Status:** Complete
+
 ## Context
 
 The Authentik plan (`docs/superpowers/plans/2026-03-11--auth--authentik.md`) says `Status: Deployed` but has **11 manual-operation blocks all `status: pending`**. Several declarative artifacts were also never created. Live cluster checks reveal the core is working but integration is incomplete.

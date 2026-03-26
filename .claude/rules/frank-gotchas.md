@@ -19,3 +19,7 @@
 - Authentik embedded outpost requires `AUTHENTIK_HOST` env var set to external URL (e.g., `https://auth.frank.derio.net`) — without it, forward-auth redirects use `0.0.0.0:9000`
 - `envFrom.secretRef` without `optional: true` blocks rolling updates entirely if the Secret is missing — the new pod hits `CreateContainerConfigError` and Kubernetes keeps the old pod alive indefinitely. Mark adapter/feature secrets as `optional: true` when the app can run without them.
 - RWO PVC + RollingUpdate strategy deadlocks: new pod can't mount the volume while the old pod holds it, so the new pod never becomes Ready, so the old pod is never deleted. Use `strategy: type: Recreate` for any single-replica deployment backed by a RWO PVC.
+- Argo Rollouts only supports `canary` and `blueGreen` strategies — there is no `recreate` strategy. Stateful apps with RWO PVCs that need Recreate behavior must stay as plain Deployments.
+- Argo Rollouts `AnalysisTemplate` has no `inconclusiveCondition` field — NaN results (0 traffic) implicitly match neither `successCondition` nor `failureCondition`, so they are automatically treated as inconclusive. Use `inconclusiveLimit` to cap retries.
+- Argo Rollouts `workloadRef` scales the referenced Deployment to 0 — add `ignoreDifferences` on `spec.replicas` (`group: apps`, `kind: Deployment`) in the ArgoCD Application to prevent ArgoCD from fighting the Rollout controller.
+- Argo Rollouts Prometheus provider `successCondition`/`failureCondition` use `result[0]` syntax (not `result`) for scalar query results.
