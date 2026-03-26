@@ -1,0 +1,23 @@
+# Supplemental RBAC: grants argo-rollouts controller access to CiliumEnvoyConfig
+# Required by the Cilium traffic router plugin — not included in chart defaults
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: argo-rollouts-cilium
+rules:
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumenvoyconfigs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: argo-rollouts-cilium
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: argo-rollouts-cilium
+subjects:
+  - kind: ServiceAccount
+    name: argo-rollouts
+    namespace: argo-rollouts
