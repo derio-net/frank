@@ -1,9 +1,5 @@
-# Argo Rollouts Recreate strategy required: paperclip uses RWO PVC (ReadWriteOnce)
-# which cannot be mounted by multiple pods simultaneously. RollingUpdate would deadlock
-# (new pod can't mount PVC while old pod holds it). Recreate terminates old pod before
-# starting new one, breaking the deadlock.
-apiVersion: argoproj.io/v1alpha1
-kind: Rollout
+apiVersion: apps/v1
+kind: Deployment
 metadata:
   name: paperclip
   namespace: paperclip-system
@@ -12,6 +8,8 @@ metadata:
     app.kubernetes.io/component: server
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: paperclip
@@ -76,5 +74,3 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: paperclip-data
-  strategy:
-    recreate: {}
