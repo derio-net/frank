@@ -1,0 +1,41 @@
+# Argo Rollouts canary for LiteLLM Gateway
+#
+# workloadRef: Rollout reads pod template from the Helm chart's Deployment.
+# The Deployment is scaled to 0 — this is expected and correct.
+# ArgoCD ignoreDifferences on apps/Deployment/spec.replicas prevents fight.
+#
+# Canary steps:
+#   20% → manual pause (wait for consumers to be active) → 5-min VictoriaMetrics analysis →
+#   50% → manual pause → 5-min analysis →
+#   100% (full promotion)
+#
+# Traffic: Cilium plugin creates CiliumEnvoyConfig weighting litellm:litellm-canary.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: litellm
+  namespace: litellm
+spec:
+  replicas: 1
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: litellm
+  strategy:
+    canary:
+      stableService: litellm
+      canaryService: litellm-canary
+      trafficRouting:
+        plugins:
+          argoproj-labs/cilium: {}
+      steps:
+        - setWeight: 20
+        - pause: {}
+        - analysis:
+            templates:
+              - templateName: litellm-error-rate
+        - setWeight: 50
+        - pause: {}
+        - analysis:
+            templates:
+              - templateName: litellm-error-rate
