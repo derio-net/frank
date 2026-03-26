@@ -1,0 +1,13 @@
+# Argo Rollouts — progressive delivery controller
+# Layer 18 (deploy)
+# Cilium traffic router plugin loaded via argo-rollouts-extras manifests
+
+controller:
+  replicas: 1
+
+# Dashboard UI is out of scope — kubectl plugin is sufficient
+dashboard:
+  enabled: false
+
+notifications:
+  enabled: false

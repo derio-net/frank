@@ -95,6 +95,11 @@ layers:
     name: Public Edge
     description: Hop cluster, Headscale mesh, Caddy, public blog
 
+  - code: deploy
+    number: 18
+    name: Progressive Delivery
+    description: Argo Rollouts, canary and blue-green deployment strategies
+
   - code: repo
     name: Repository & Tooling
     description: Blog infrastructure, CI, repo restructuring, meta-tasks
