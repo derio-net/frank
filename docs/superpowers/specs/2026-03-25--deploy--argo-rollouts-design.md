@@ -9,7 +9,7 @@
 Install Argo Rollouts as a cluster-wide progressive delivery controller, and migrate two workloads to demonstrate each major deployment strategy:
 
 - **LiteLLM Gateway** → canary with Cilium-native traffic splitting and VictoriaMetrics metric-gated analysis
-- **Paperclip** → blue-green with manual promotion gate and pre-promotion healthcheck
+- **Paperclip** → Recreate Rollout (adds observability and rollback over a plain Deployment; blue-green is not viable due to the RWO `/paperclip` PVC — Longhorn RWO is single-pod exclusive, so green pods can never start while blue holds the mount)
 
 The goal is to add safe, observable rollout primitives to the platform — not automation for its own sake. In a homelab with bursty or paused traffic, the human operator remains in the loop; metric analysis acts as a safety net when traffic is flowing, not a hard gate when the cluster is quiet.
 
@@ -175,17 +175,24 @@ Added to `apps/litellm/manifests/` (deployed by existing `litellm-extras` ArgoCD
 | `service-canary.yaml` | `Service/litellm-canary` (ClusterIP) |
 | `analysis-template.yaml` | `AnalysisTemplate/litellm-error-rate` |
 
-## Phase 3: Paperclip Blue-Green
+## Phase 3: Paperclip Recreate Rollout
+
+### Why Not Blue-Green
+
+Paperclip's `/paperclip` PVC has `accessModes: ReadWriteOnce`. Longhorn RWO volumes are single-pod exclusive — no two pods can mount simultaneously, even on the same node. Blue-green requires both the active and preview ReplicaSets to be fully running at the same time; the preview pods would be permanently `Pending: volume already attached`. The Rollout would deadlock indefinitely.
+
+**The upgrade path** (if Paperclip becomes permanent): move the `/paperclip` writable state into PostgreSQL, making the app pod fully stateless. At that point, true blue-green works with no workarounds. VolumeSnapshot-based blue-green is also possible (green gets a point-in-time clone of the PVC) but adds operational complexity that isn't justified while Paperclip is experimental.
 
 ### Migration Sequence
 
-Paperclip uses raw manifests — no Helm chart. However, Kubernetes does not allow changing the `kind` of an existing resource in-place. A direct `apply` of a Rollout where a Deployment exists will fail or leave both resources alive (since ArgoCD uses `prune: false`).
+Paperclip uses raw manifests — no Helm chart. Kubernetes does not allow changing the `kind` of an existing resource in-place. ArgoCD `prune: false` means the old Deployment won't be auto-deleted.
 
 Required migration sequence (manual operation):
 
-1. Manually delete the existing Deployment: `kubectl delete deployment paperclip -n paperclip-system`
-2. Rename `apps/paperclip/manifests/deployment.yaml` → `rollout.yaml` with `kind: Rollout`
-3. ArgoCD syncs and creates the Rollout — no gap in service since the existing Service selector still matches pod labels
+1. Scale Deployment to 0: `kubectl scale deployment paperclip --replicas=0 -n paperclip-system` (wait for pods to terminate)
+2. Delete the Deployment: `kubectl delete deployment paperclip -n paperclip-system`
+3. Rename `apps/paperclip/manifests/deployment.yaml` → `rollout.yaml` with `kind: Rollout`
+4. ArgoCD syncs and creates the Rollout
 
 ```yaml
 # manual-operation
@@ -193,9 +200,11 @@ id: deploy-delete-paperclip-deployment
 layer: deploy
 app: paperclip
 plan: docs/superpowers/specs/2026-03-25--deploy--argo-rollouts-design.md
-when: Before committing rollout.yaml — the existing Deployment must be removed first
+when: Before committing rollout.yaml — scale to 0, wait, then delete
 why_manual: Kubernetes does not allow changing the kind of an existing resource in-place; ArgoCD prune:false means it will not delete the Deployment automatically
 commands:
+  - "kubectl scale deployment paperclip --replicas=0 -n paperclip-system"
+  - "kubectl wait --for=delete pod -l app.kubernetes.io/name=paperclip -n paperclip-system --timeout=60s"
   - "kubectl delete deployment paperclip -n paperclip-system"
 verify:
   - "kubectl get deployment paperclip -n paperclip-system  # should return NotFound"
@@ -207,32 +216,16 @@ status: pending
 
 ```yaml
 strategy:
-  blueGreen:
-    activeService: paperclip        # existing LB service (55.212)
-    previewService: paperclip-preview  # new ClusterIP service
-    autoPromotionEnabled: false     # always require manual promote
-    prePromotionAnalysis:
-      templates:
-        - templateName: paperclip-health
+  recreate: {}
 ```
 
-Add `apps/paperclip/manifests/service-preview.yaml` for the preview ClusterIP service.
+No preview service, no analysis template, no concurrent pods. The Rollout controller terminates the old ReplicaSet before starting the new one — identical behaviour to the existing `strategy: Recreate` Deployment, but with Argo Rollouts observability and the ability to roll back to the previous ReplicaSet via `kubectl argo rollouts abort`.
 
-### Pre-Promotion Analysis
+### Files
 
-A lightweight `AnalysisTemplate/paperclip-health` that issues an HTTP GET to the preview service's healthcheck endpoint. No VictoriaMetrics dependency — works regardless of LiteLLM/Ollama state.
-
-If the green stack fails the health probe, the Rollout stays on blue and the operator investigates before re-promoting.
-
-### Database Migration Discipline
-
-Blue-green provides instant cutover but does not solve schema migration safety automatically. The required discipline for any Paperclip version that touches the DB schema:
-
-1. **Expand** — v(N) adds new columns/tables without removing old ones. Both v(N-1) and v(N) can read/write the DB.
-2. **Deploy** — blue-green cutover to v(N). If rollback needed, v(N-1) still works with the expanded schema.
-3. **Contract** — v(N+1) removes the old columns/tables once v(N) is confirmed stable.
-
-This is not enforced by tooling in this layer — it is a documented requirement for future Paperclip version upgrades.
+| File | Action |
+| ---- | ------ |
+| `apps/paperclip/manifests/deployment.yaml` | Rename → `rollout.yaml` with `kind: Rollout`, `strategy: recreate: {}` |
 
 ## Operating Rollouts
 
@@ -252,17 +245,17 @@ kubectl argo rollouts abort litellm -n litellm
 kubectl argo rollouts promote litellm -n litellm --full
 ```
 
-### Blue-Green (Paperclip)
+### Recreate (Paperclip)
 
 ```bash
 # Watch rollout status
 kubectl argo rollouts get rollout paperclip -n paperclip-system --watch
 
-# Promote green to active (after manual verification on preview svc)
-kubectl argo rollouts promote paperclip -n paperclip-system
-
-# Abort — keeps blue as active, tears down green
+# Abort — restores previous ReplicaSet (another brief downtime window)
 kubectl argo rollouts abort paperclip -n paperclip-system
+
+# Retry after abort
+kubectl argo rollouts retry rollout paperclip -n paperclip-system
 ```
 
 ## Gotchas
@@ -273,7 +266,7 @@ kubectl argo rollouts abort paperclip -n paperclip-system
 - **LiteLLM image tag must be pinned** — `main-stable` with `pullPolicy: Always` makes canary non-deterministic; pin to a semver tag before enabling the Rollout
 - **VictoriaMetrics internal URL** — the AnalysisTemplate must use the in-cluster service URL for VMSingle (not Grafana's LB IP)
 - **`inconclusiveLimit`** — set to a reasonable value (e.g., 3) to prevent infinite inconclusive loops if VictoriaMetrics is down
-- **Blue-green preview service** — Paperclip's `PAPERCLIP_PUBLIC_URL` configmap references the LB IP; the preview stack is only accessible via `kubectl port-forward` or direct pod IP for smoke testing
+- **Paperclip Recreate has a brief downtime window** — the old pod is terminated before the new one starts; abort also incurs a second downtime window (another Recreate cycle back to previous). This matches the existing Deployment behaviour and is acceptable for a single-replica experimental workload.
 
 ## Out of Scope
 
