@@ -1,0 +1,12 @@
+# ConfigMap read by argo-rollouts controller at startup
+# Downloads the Cilium traffic router plugin binary on first boot (requires internet access)
+# Subsequent restarts use the cached binary
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-rollouts-config
+  namespace: argo-rollouts
+data:
+  trafficRouterPlugins: |-
+    - name: "argoproj-labs/cilium"
+      location: "https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-cilium/releases/download/v0.4.1/rollouts-plugin-trafficrouter-cilium-linux-amd64"
