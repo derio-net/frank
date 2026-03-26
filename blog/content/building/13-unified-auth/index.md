@@ -108,7 +108,7 @@ The deployment follows the standard ArgoCD pattern: two apps.
 
 **`authentik`** — the Helm chart. Authentik server, worker, and embedded PostgreSQL. The chart bundles its own PostgreSQL subchart (unlike Infisical's chart, no env var collision bug here). Redis is also embedded. Secret key and PostgreSQL password come from a SOPS-encrypted Kubernetes Secret applied out-of-band.
 
-**`authentik-extras`** — raw manifests. A Cilium L2 LoadBalancer Service for external access and ClusterRoleBindings for OIDC group-to-role mapping.
+**`authentik-extras`** — raw manifests. Blueprint ConfigMaps for OIDC and proxy providers, a Cilium L2 LoadBalancer Service for external access, and ClusterRoleBindings for OIDC group-to-role mapping.
 
 Key values:
 
@@ -129,7 +129,7 @@ server:
 
 The bootstrap password creates an initial `akadmin` user on first boot. After SSO is working, this account becomes a break-glass fallback.
 
-## Blueprints: Declarative in Theory
+## Blueprints: Declarative in Theory (and Eventually in Practice)
 
 Authentik supports YAML blueprints for defining providers, applications, and groups. The plan was to mount them as ConfigMaps and let Authentik auto-discover them.
 
@@ -137,9 +137,18 @@ The groups blueprint worked. Three groups (`root-admins`, `root-devops`, `root-d
 
 Manually triggering blueprint discovery via the API failed with a `CurrentTaskNotFound` error — the function requires a Dramatiq task context that does not exist outside the worker process.
 
-After several attempts, the approach shifted to the Authentik REST API. Every provider, application, and outpost assignment was created via `curl` against `/api/v3/`. The API is well-documented and worked on every attempt. The blueprints for groups remain in the chart as they work; everything else is API-managed.
+After several attempts, the initial approach shifted to the Authentik REST API. Every provider, application, and outpost assignment was created via `curl` against `/api/v3/`. The API is well-documented and worked on every attempt.
 
-This is the one part of Layer 13 that is not fully declarative. If Authentik's database is lost, the providers and applications would need to be recreated via the API. The groups and RBAC bindings are still GitOps-managed.
+**Update:** A later audit revisited the blueprint failures and found the issue was blueprint YAML syntax — not an Authentik bug. With corrected YAML, all provider blueprints now work as ConfigMaps in `authentik-extras`. The full set:
+
+- `blueprints-groups.yaml` — group hierarchy (root-admins, root-devops, root-developers)
+- `blueprints-provider-argocd.yaml` — ArgoCD OIDC provider and application
+- `blueprints-provider-grafana.yaml` — Grafana OIDC provider and application
+- `blueprints-provider-infisical.yaml` — Infisical OIDC provider and application
+- `blueprints-proxy-providers.yaml` — forward-auth proxy providers for Longhorn, Hubble, and Sympozium
+- `blueprints-agent-auth.yaml` — k8s-agent OAuth2 provider for OIDC-backed kubectl
+
+Layer 13 is now fully declarative. If Authentik's database is lost, all providers, applications, and group mappings are recreated from blueprints on startup.
 
 ## ArgoCD: Self-Management
 
@@ -187,13 +196,9 @@ role_attribute_path: >-
 
 ## What Remains Manual
 
-Layer 13 has two manual operations still pending:
+Layer 13's manual operations are mostly complete. The Talos OIDC patch has been applied, ArgoCD and Grafana SSO are working, and forward-auth protects the proxy-outpost services. The one exception: **Infisical OIDC** was dropped (`n/a`) — Infisical's admin UI requires manual OIDC configuration, and the integration was deprioritized.
 
-1. **Infisical OIDC** — Infisical's OIDC configuration is done via the admin UI, not Helm values. The OIDC provider exists in Authentik; the Infisical side needs to be connected.
-
-2. **Talos OIDC patch** — The kube-apiserver OIDC flags are applied as a Talos machine config patch via the Omni UI. The patch file exists at `patches/phase13-auth/oidc-apiserver.yaml`; it needs to be applied to the control-plane machine set.
-
-Both are documented in the runbook at `docs/runbooks/manual-operations.yaml`.
+All manual operation statuses are tracked in `docs/runbooks/manual-operations.yaml`.
 
 ## The Result
 

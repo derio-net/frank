@@ -175,57 +175,21 @@ Added to `apps/litellm/manifests/` (deployed by existing `litellm-extras` ArgoCD
 | `service-canary.yaml` | `Service/litellm-canary` (ClusterIP) |
 | `analysis-template.yaml` | `AnalysisTemplate/litellm-error-rate` |
 
-## Phase 3: Paperclip Recreate Rollout
+## Phase 3: Blue-Green Demo (TBD)
 
-### Why Not Blue-Green
+### Paperclip — Dropped
 
-Paperclip's `/paperclip` PVC has `accessModes: ReadWriteOnce`. Longhorn RWO volumes are single-pod exclusive — no two pods can mount simultaneously, even on the same node. Blue-green requires both the active and preview ReplicaSets to be fully running at the same time; the preview pods would be permanently `Pending: volume already attached`. The Rollout would deadlock indefinitely.
+Originally planned as a Recreate Rollout, but **Argo Rollouts has no `recreate` strategy** — only `canary` and `blueGreen`. Blue-green is also not viable due to the RWO PVC constraint. Paperclip stays as a plain Deployment.
 
-**The upgrade path** (if Paperclip becomes permanent): move the `/paperclip` writable state into PostgreSQL, making the app pod fully stateless. At that point, true blue-green works with no workarounds. VolumeSnapshot-based blue-green is also possible (green gets a point-in-time clone of the PVC) but adds operational complexity that isn't justified while Paperclip is experimental.
+### Blue-Green Candidate
 
-### Migration Sequence
+A stateless workload is needed to demonstrate blue-green. Requirements:
 
-Paperclip uses raw manifests — no Helm chart. Kubernetes does not allow changing the `kind` of an existing resource in-place. ArgoCD `prune: false` means the old Deployment won't be auto-deleted.
+- No PVC (or RWX-capable storage)
+- Benefits from zero-downtime cutover with preview testing
+- Already deployed on the cluster
 
-Required migration sequence (manual operation):
-
-1. Scale Deployment to 0: `kubectl scale deployment paperclip --replicas=0 -n paperclip-system` (wait for pods to terminate)
-2. Delete the Deployment: `kubectl delete deployment paperclip -n paperclip-system`
-3. Rename `apps/paperclip/manifests/deployment.yaml` → `rollout.yaml` with `kind: Rollout`
-4. ArgoCD syncs and creates the Rollout
-
-```yaml
-# manual-operation
-id: deploy-delete-paperclip-deployment
-layer: deploy
-app: paperclip
-plan: docs/superpowers/specs/2026-03-25--deploy--argo-rollouts-design.md
-when: Before committing rollout.yaml — scale to 0, wait, then delete
-why_manual: Kubernetes does not allow changing the kind of an existing resource in-place; ArgoCD prune:false means it will not delete the Deployment automatically
-commands:
-  - "kubectl scale deployment paperclip --replicas=0 -n paperclip-system"
-  - "kubectl wait --for=delete pod -l app.kubernetes.io/name=paperclip -n paperclip-system --timeout=60s"
-  - "kubectl delete deployment paperclip -n paperclip-system"
-verify:
-  - "kubectl get deployment paperclip -n paperclip-system  # should return NotFound"
-  - "kubectl get rollout paperclip -n paperclip-system     # should exist after ArgoCD sync"
-status: pending
-```
-
-### Strategy
-
-```yaml
-strategy:
-  recreate: {}
-```
-
-No preview service, no analysis template, no concurrent pods. The Rollout controller terminates the old ReplicaSet before starting the new one — identical behaviour to the existing `strategy: Recreate` Deployment, but with Argo Rollouts observability and the ability to roll back to the previous ReplicaSet via `kubectl argo rollouts abort`.
-
-### Files
-
-| File | Action |
-| ---- | ------ |
-| `apps/paperclip/manifests/deployment.yaml` | Rename → `rollout.yaml` with `kind: Rollout`, `strategy: recreate: {}` |
+**TBD** — to be selected in a follow-up brainstorm.
 
 ## Operating Rollouts
 
@@ -245,28 +209,17 @@ kubectl argo rollouts abort litellm -n litellm
 kubectl argo rollouts promote litellm -n litellm --full
 ```
 
-### Recreate (Paperclip)
-
-```bash
-# Watch rollout status
-kubectl argo rollouts get rollout paperclip -n paperclip-system --watch
-
-# Abort — restores previous ReplicaSet (another brief downtime window)
-kubectl argo rollouts abort paperclip -n paperclip-system
-
-# Retry after abort
-kubectl argo rollouts retry rollout paperclip -n paperclip-system
-```
-
 ## Gotchas
 
+- **Argo Rollouts only supports `canary` and `blueGreen`** — there is no `recreate` strategy. Stateful apps with RWO PVCs that need Recreate behavior must stay as plain Deployments.
 - **Cilium plugin downloads at controller startup** — first boot requires internet access from the `argo-rollouts` pod; subsequent restarts use the cached binary
 - **`workloadRef` scales the source Deployment to 0** — after applying the LiteLLM Rollout, the Helm chart's Deployment will show 0/0 replicas; this is expected and correct
 - **ArgoCD fights `workloadRef` on `spec.replicas`** — the Rollout controller scales the Helm chart's Deployment to 0; ArgoCD tries to reconcile it back to the chart's replica count. Add `ignoreDifferences` on `spec.replicas` (`jsonPointers: [/spec/replicas]`) in the `litellm` ArgoCD Application. Only `spec.replicas` needs ignoring — the Rollout reads but does not modify `spec.template` in the Deployment, so ArgoCD and the Rollout controller do not conflict there
 - **LiteLLM image tag must be pinned** — `main-stable` with `pullPolicy: Always` makes canary non-deterministic; pin to a semver tag before enabling the Rollout
 - **VictoriaMetrics internal URL** — the AnalysisTemplate must use the in-cluster service URL for VMSingle (not Grafana's LB IP)
 - **`inconclusiveLimit`** — set to a reasonable value (e.g., 3) to prevent infinite inconclusive loops if VictoriaMetrics is down
-- **Paperclip Recreate has a brief downtime window** — the old pod is terminated before the new one starts; abort also incurs a second downtime window (another Recreate cycle back to previous). This matches the existing Deployment behaviour and is acceptable for a single-replica experimental workload.
+- **`inconclusiveCondition` does not exist** — the AnalysisTemplate CRD has no such field. NaN results implicitly match neither `successCondition` nor `failureCondition` and are automatically inconclusive.
+- **Prometheus `successCondition`/`failureCondition` use `result[0]`** — scalar query results require array indexing syntax, not bare `result`.
 
 ## Out of Scope
 
