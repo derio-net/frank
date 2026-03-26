@@ -1,0 +1,25 @@
+# AnalysisTemplate: LiteLLM error rate via VictoriaMetrics Prometheus API
+# Runs 5 x 1-minute intervals (5 min total) at each canary step
+# inconclusiveCondition: NaN result = 0 traffic (sparse homelab) → pause, not abort
+# inconclusiveLimit: 3 = after 15 min with no traffic, abort and hold rollout
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: litellm-error-rate
+  namespace: litellm
+spec:
+  metrics:
+    - name: error-rate
+      interval: 1m
+      count: 5
+      inconclusiveLimit: 3
+      successCondition: "result < 0.05"
+      failureCondition: "result >= 0.05"
+      inconclusiveCondition: "isNaN(result)"
+      provider:
+        prometheus:
+          address: "http://vmsingle-victoria-metrics-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428"
+          query: |
+            sum(rate(litellm_request_total{status=~"5.."}[5m]))
+            /
+            sum(rate(litellm_request_total[5m]))
