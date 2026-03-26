@@ -45,6 +45,9 @@ omni/omni/populate_scripts.bash
 .env_devops
 .env_common
 
+# Git worktrees
+.worktrees/
+
 # Hugo
 blog/public/
 blog/resources/_gen/
