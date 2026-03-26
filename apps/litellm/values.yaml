@@ -4,8 +4,8 @@
 
 image:
   repository: ghcr.io/berriai/litellm-database
-  tag: main-stable
-  pullPolicy: Always
+  tag: "main-v1.82.3-stable"
+  pullPolicy: IfNotPresent
 
 # Master key from ExternalSecret-managed K8s Secret
 masterkeySecretName: "litellm-api-keys"

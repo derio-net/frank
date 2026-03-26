@@ -34,3 +34,9 @@ spec:
       kind: Secret
       jsonPointers:
         - /data
+    - group: apps
+      kind: Deployment
+      name: litellm
+      namespace: litellm
+      jsonPointers:
+        - /spec/replicas
