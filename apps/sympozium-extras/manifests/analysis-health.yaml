@@ -1,0 +1,17 @@
+# Pre-promotion health check for Sympozium blue-green
+# Hits the preview service's /healthz endpoint — no VictoriaMetrics dependency
+# Runs 3 checks at 10s intervals (30s total)
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: sympozium-health
+  namespace: sympozium-system
+spec:
+  metrics:
+    - name: health-check
+      interval: 10s
+      count: 3
+      successCondition: "result.status == 200"
+      provider:
+        web:
+          url: http://sympozium-apiserver-preview.sympozium-system.svc.cluster.local:8080/healthz
