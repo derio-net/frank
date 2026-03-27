@@ -428,6 +428,23 @@ images:
       persistence and autonomy — the agent keeps working even when the
       human steps away. Dark background, electric blue and green accents.
 
+  - key: building-19-progressive-delivery
+    output: blog/content/building/19-progressive-delivery/cover.png
+    description: "Progressive Delivery — Frank at a traffic control tower directing canary and blue-green lanes"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at a traffic
+      control tower overlooking two lanes of tiny pod-robots. The left lane
+      is a "canary" lane — a single yellow pod-robot walks cautiously forward
+      while a row of stable blue pod-robots continues on the main path. A
+      traffic light shows "20%" in yellow. The right lane is "blue-green" —
+      two identical groups of pod-robots face each other, one group glowing
+      blue (active), the other glowing green (preview), with a large switch
+      lever between them. Frank holds a clipboard with a metrics graph and
+      peers through binoculars at the canary pod. A VictoriaMetrics "VM"
+      logo glows on a monitor in the tower. Green skin, messy black hair,
+      black eyes with white pupils, RJ45 neck bolts sparking blue electricity.
+      Dark server room with blue, green, and yellow lighting accents.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
