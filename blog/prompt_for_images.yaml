@@ -613,3 +613,19 @@ images:
       "source .env_hop" and "NOT .env!" with underlines. Operational checklist
       on a clipboard. Dark server room with warm desk lamp and blue portal
       accents.
+
+  - key: ops-12-progressive-delivery
+    output: blog/content/operating/12-progressive-delivery/cover.png
+    description: "Operating on Progressive Delivery — Frank at a control panel managing canary and blue-green rollouts"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster lying on a surgical table.
+      His chest cavity is open, revealing two parallel conveyor belts inside —
+      one belt carries tiny yellow canary pods moving gradually forward (with
+      a "20%" weight dial), the other belt has two groups of pods, blue and
+      green, with a large toggle switch between them. A robotic arm adjusts
+      the canary weight dial while another arm holds a clipboard showing a
+      metrics graph with a green "pass" checkmark. A third arm hovers over
+      the blue-green toggle, ready to flip. A small VictoriaMetrics "VM"
+      logo glows on a monitor beside the table. Green skin, messy black hair,
+      black eyes with white pupils, RJ45 neck bolts sparking blue electricity.
+      Dark server room with blue, green, and yellow lighting accents.
