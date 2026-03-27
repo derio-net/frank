@@ -48,6 +48,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Headscale + Tailscale** | WireGuard mesh networking — remote homelab access from any device, MagicDNS for split-DNS |
 | **Caddy** | Automatic TLS (Cloudflare DNS challenge), public/mesh routing, path rewriting |
 | **Kali Workstation** | Persistent always-on container on gpu-1, SSH remote access, Claude Code `--remote` agent (`192.168.55.215`) |
+| **Argo Rollouts** | Progressive delivery — canary (Cilium traffic splitting + VictoriaMetrics analysis) and blue-green (preview + atomic cutover) |
 
 ## Cluster State
 
@@ -78,6 +79,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 16. [Media Generation — ComfyUI and GPU Time-Sharing]({{< relref "/building/16-media-generation" >}})
 17. [Hopping Through the Portal — A Public Edge Cluster]({{< relref "/building/17-public-edge" >}})
 18. [Persistent Agent — A Kali Workstation on Kubernetes]({{< relref "/building/18-persistent-agent" >}})
+19. [Progressive Delivery with Argo Rollouts]({{< relref "/building/19-progressive-delivery" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
