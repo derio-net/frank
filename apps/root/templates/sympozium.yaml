@@ -34,3 +34,9 @@ spec:
       kind: Secret
       jsonPointers:
         - /data
+    - group: apps
+      kind: Deployment
+      name: sympozium-apiserver
+      namespace: sympozium-system
+      jsonPointers:
+        - /spec/replicas

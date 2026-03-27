@@ -1,0 +1,30 @@
+# Argo Rollouts blue-green for Sympozium API server
+#
+# workloadRef: Rollout reads pod template from the Helm chart's Deployment.
+# The Deployment is scaled to 0 — this is expected and correct.
+# ArgoCD ignoreDifferences on apps/Deployment/spec.replicas prevents fight.
+#
+# Blue-green: both active (blue) and preview (green) run simultaneously.
+# On promotion, traffic switches atomically from blue to green.
+# autoPromotionEnabled: false — always require manual promote.
+#
+# Pre-promotion analysis: HTTP health check on preview service /healthz.
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: sympozium-apiserver
+  namespace: sympozium-system
+spec:
+  replicas: 1
+  workloadRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sympozium-apiserver
+  strategy:
+    blueGreen:
+      activeService: sympozium-apiserver-lb
+      previewService: sympozium-apiserver-preview
+      autoPromotionEnabled: false
+      prePromotionAnalysis:
+        templates:
+          - templateName: sympozium-health

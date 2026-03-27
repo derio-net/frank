@@ -9,7 +9,7 @@
 Install Argo Rollouts as a cluster-wide progressive delivery controller, and migrate two workloads to demonstrate each major deployment strategy:
 
 - **LiteLLM Gateway** → canary with Cilium-native traffic splitting and VictoriaMetrics metric-gated analysis
-- **Paperclip** → Recreate Rollout (adds observability and rollback over a plain Deployment; blue-green is not viable due to the RWO `/paperclip` PVC — Longhorn RWO is single-pod exclusive, so green pods can never start while blue holds the mount)
+- **Sympozium** → blue-green with manual promotion gate and pre-promotion HTTP healthcheck (stateless API server — all state in NATS JetStream StatefulSet)
 
 The goal is to add safe, observable rollout primitives to the platform — not automation for its own sake. In a homelab with bursty or paused traffic, the human operator remains in the loop; metric analysis acts as a safety net when traffic is flowing, not a hard gate when the cluster is quiet.
 
@@ -175,21 +175,54 @@ Added to `apps/litellm/manifests/` (deployed by existing `litellm-extras` ArgoCD
 | `service-canary.yaml` | `Service/litellm-canary` (ClusterIP) |
 | `analysis-template.yaml` | `AnalysisTemplate/litellm-error-rate` |
 
-## Phase 3: Blue-Green Demo (TBD)
+## Phase 3: Sympozium Blue-Green
 
-### Paperclip — Dropped
+### Why Sympozium
 
-Originally planned as a Recreate Rollout, but **Argo Rollouts has no `recreate` strategy** — only `canary` and `blueGreen`. Blue-green is also not viable due to the RWO PVC constraint. Paperclip stays as a plain Deployment.
+Sympozium's API server pod is fully stateless — all persistent state lives in the NATS JetStream StatefulSet (separate component with its own PVC). The API server serves the web UI and API on port 8080 with no local storage. This makes it an ideal blue-green candidate.
 
-### Blue-Green Candidate
+Paperclip was originally considered but dropped: Argo Rollouts has no `recreate` strategy, and the RWO PVC prevents `blueGreen`. Paperclip stays as a plain Deployment.
 
-A stateless workload is needed to demonstrate blue-green. Requirements:
+### Architecture
 
-- No PVC (or RWX-capable storage)
-- Benefits from zero-downtime cutover with preview testing
-- Already deployed on the cluster
+Like LiteLLM, Sympozium uses a Helm chart. The Rollout uses `workloadRef` to reference the chart's `Deployment/sympozium-apiserver`, scaling it to 0 while the Rollout controller manages pods directly.
 
-**TBD** — to be selected in a follow-up brainstorm.
+| Service | Type | IP | Role |
+|---------|------|----|------|
+| `sympozium-apiserver-lb` | LoadBalancer | 192.168.55.207 | Active (blue) |
+| `sympozium-apiserver-preview` | ClusterIP | internal | Preview (green) |
+
+### Strategy
+
+```yaml
+strategy:
+  blueGreen:
+    activeService: sympozium-apiserver-lb
+    previewService: sympozium-apiserver-preview
+    autoPromotionEnabled: false
+    prePromotionAnalysis:
+      templates:
+        - templateName: sympozium-health
+```
+
+### Pre-Promotion Analysis
+
+`AnalysisTemplate/sympozium-health` — HTTP GET on the preview service's `/healthz` endpoint. 3 checks at 10-second intervals. No VictoriaMetrics dependency — works regardless of cluster traffic. If the green stack fails the health probe, the Rollout stays on blue.
+
+### ArgoCD Configuration
+
+- `sympozium` Application: add `ignoreDifferences` on `spec.replicas` for `Deployment/sympozium-apiserver` (Rollout controller scales it to 0)
+- `sympozium-extras` Application: add `ignoreDifferences` on `spec.selector` for `Service` kind (Rollout controller adds `rollouts-pod-template-hash` to service selectors) + `RespectIgnoreDifferences=true`
+
+### New Manifests
+
+Added to `apps/sympozium-extras/manifests/`:
+
+| File | Resource |
+|------|----------|
+| `rollout.yaml` | `Rollout/sympozium-apiserver` with `workloadRef`, blue-green strategy |
+| `service-preview.yaml` | `Service/sympozium-apiserver-preview` (ClusterIP) |
+| `analysis-health.yaml` | `AnalysisTemplate/sympozium-health` (HTTP healthcheck) |
 
 ## Operating Rollouts
 
@@ -207,6 +240,19 @@ kubectl argo rollouts abort litellm -n litellm
 
 # Force promote to 100% (skip remaining steps)
 kubectl argo rollouts promote litellm -n litellm --full
+```
+
+### Blue-Green (Sympozium)
+
+```bash
+# Watch rollout status
+kubectl argo rollouts get rollout sympozium-apiserver -n sympozium-system --watch
+
+# Promote green to active (after pre-promotion analysis passes)
+kubectl argo rollouts promote sympozium-apiserver -n sympozium-system
+
+# Abort — keeps blue as active, tears down green
+kubectl argo rollouts abort sympozium-apiserver -n sympozium-system
 ```
 
 ## Gotchas
