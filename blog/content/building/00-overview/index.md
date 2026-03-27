@@ -98,3 +98,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 9. [Operating on Multi-tenancy]({{< relref "/operating/09-multi-tenancy" >}})
 10. [Operating on Media Generation]({{< relref "/operating/10-media-generation" >}})
 11. [Operating on Hop — Single-Node Talos Edge Cluster]({{< relref "/operating/11-public-edge" >}})
+12. [Operating on Progressive Delivery]({{< relref "/operating/12-progressive-delivery" >}})
