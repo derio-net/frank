@@ -102,14 +102,24 @@ Each series has its own **00-overview** post — a living document updated after
 
 **For both**: also update the cross-reference index in `blog/content/building/00-overview/index.md` under "Operating on Frank — Series Index" when adding a new operating post.
 
-### 6. Blog Preview
+### 6. Companion Operating Post
+
+**When `series` is `building`:** After completing the building post, check whether the layer introduces operational concerns (day-to-day commands, health checks, promotion flows, troubleshooting). Most deployed layers do. If so, **prompt the user** to also create the companion operating post:
+
+> "This layer has operational commands (e.g., promoting rollouts, checking status). Should I also create the operating post? Suggested: `/blog-post series:operating number:NN slug:<slug> title:'Operating on <Layer>'`"
+
+Do NOT silently skip this step. The operating series is a companion reference — every building post that deploys a workload should have one.
+
+**When `series` is `operating`:** No companion prompt needed.
+
+### 7. Blog Preview
 
 After creating the post, start the Hugo dev server to preview:
 - Use `preview_start "hugo-dev"` (configured in `.claude/launch.json`)
 - Or: `cd blog && hugo server --buildDrafts`
 - Verify the post renders at http://localhost:1313/
 
-### 7. Conventions
+### 8. Conventions
 
 - Tags should be lowercase, descriptive (check existing posts for reuse)
 - Summary should be one sentence, compelling, under 150 chars
