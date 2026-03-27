@@ -47,6 +47,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Public Edge | Hop (Hetzner CX23) | Single-node Talos cluster — public-facing edge for mesh networking and blog hosting |
 | Mesh Networking | Headscale + Tailscale | WireGuard mesh — remote homelab access, MagicDNS split-DNS |
 | Edge Ingress | Caddy | Automatic TLS (Cloudflare DNS challenge), public/mesh routing on Hop |
+| Progressive Delivery | Argo Rollouts | Canary (LiteLLM + Cilium traffic split + VictoriaMetrics analysis), blue-green (Sympozium + HTTP healthcheck) |
 
 ## Repository Structure
 
@@ -71,16 +72,18 @@ frank/
 │   ├── infisical-postgresql/values.yaml
 │   ├── infisical-redis/values.yaml
 │   ├── ollama/values.yaml                       # Ollama LLM server on gpu-1
-│   ├── litellm/values.yaml + manifests/         # LiteLLM gateway + model config
+│   ├── litellm/values.yaml + manifests/         # LiteLLM gateway + canary Rollout + analysis template
 │   ├── cert-manager/values.yaml                 # cert-manager for webhook TLS
 │   ├── sympozium/values.yaml                    # Sympozium agentic control plane
-│   ├── sympozium-extras/manifests/              # Policies, PersonaPacks, LB Service
+│   ├── sympozium-extras/manifests/              # Policies, PersonaPacks, LB Service, blue-green Rollout
 │   ├── authentik/values.yaml + manifests/       # Authentik IdP + blueprints
 │   ├── authentik-extras/manifests/              # K8s RBAC bindings for OIDC groups
 │   ├── vclusters/                               # Per-vCluster Helm values
 │   ├── paperclip-db/values.yaml                 # Bitnami PostgreSQL for Paperclip
 │   ├── paperclip/manifests/                     # Paperclip Deployment, ExternalSecrets, PVC, LB Service
 │   ├── comfyui/manifests/                       # ComfyUI diffusion model server (time-shared GPU)
+│   ├── argo-rollouts/values.yaml               # Argo Rollouts controller
+│   ├── argo-rollouts-extras/manifests/          # Cilium plugin config + RBAC
 │   └── gpu-switcher/manifests/ + app/           # GPU Switcher Go app + K8s manifests
 │       ├── template/values.yaml                 # Base config (SQLite, policies, sync)
 │       └── experiments/values.yaml              # First sandbox instance
@@ -107,7 +110,7 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/building/       # 17 posts documenting the build
+│   ├── content/building/       # 19 posts documenting the build
 │   ├── content/operating/      # 11 companion operations guides
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
@@ -187,10 +190,10 @@ argocd app list
 | infisical-extras | external-secrets | ClusterSecretStore (infisical provider) |
 | ollama | ollama | LLM inference on gpu-1 (RTX 5070 Ti, 100% GPU) |
 | litellm | litellm | Unified OpenAI-compatible API gateway |
-| litellm-extras | litellm | Model router config + ExternalSecret for API keys |
+| litellm-extras | litellm | Model router config, ExternalSecret for API keys, canary Rollout + AnalysisTemplate |
 | cert-manager | cert-manager | TLS certificate automation for webhooks |
 | sympozium | sympozium-system | Agentic control plane (controller, apiserver, webhook, NATS, OTel) |
-| sympozium-extras | sympozium-system | PersonaPacks (platform-team, devops-essentials, developer-team), Policies, ExternalSecret (LLM key + base URL), LB Service, Namespace (privileged PodSecurity) |
+| sympozium-extras | sympozium-system | PersonaPacks, Policies, ExternalSecret, LB Service, blue-green Rollout + AnalysisTemplate |
 | argocd | argocd | Self-managed via App-of-Apps, OIDC SSO via Authentik |
 | authentik | authentik | Authentik IdP (192.168.55.211:9000), OIDC providers for ArgoCD, Grafana, Infisical |
 | authentik-extras | authentik | K8s RBAC ClusterRoleBindings mapping Authentik groups to cluster roles |
@@ -200,6 +203,8 @@ argocd app list
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
 | kali | kali-system | Persistent Kali Linux workstation on gpu-1 (192.168.55.215:22/SSH), Claude Code remote |
+| argo-rollouts | argo-rollouts | Progressive delivery controller + Cilium traffic router plugin |
+| argo-rollouts-extras | argo-rollouts | Cilium plugin ConfigMap + supplemental RBAC for CiliumEnvoyConfig |
 
 ### Hop Cluster Applications
 
