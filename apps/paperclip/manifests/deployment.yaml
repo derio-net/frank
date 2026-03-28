@@ -28,7 +28,7 @@ spec:
         - name: paperclip-ghcr
       containers:
         - name: paperclip
-          image: ghcr.io/derio-net/paperclip:v2026.325.0-derio
+          image: ghcr.io/derio-net/paperclip:v2026.325.0-derio.0
           ports:
             - name: http
               containerPort: 3100
