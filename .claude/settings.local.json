@@ -42,6 +42,10 @@
       "Bash(ls:*)",
       "WebFetch(domain:deploy.sympozium.ai)",
       "WebFetch(domain:www.siderolabs.com)",
+      "Bash(python3 -m json.tool)",
+      "Bash(for app:*)",
+      "Bash(do kubectl:*)",
+      "Bash(done)"
     ]
   }
 }
