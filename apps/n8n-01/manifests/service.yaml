@@ -1,0 +1,21 @@
+# n8n-01 LoadBalancer at 192.168.55.216 via Cilium L2 IPAM
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n-01
+  namespace: n8n-01
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.216"
+  labels:
+    app.kubernetes.io/name: n8n-01
+    app.kubernetes.io/component: server
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: n8n-01
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 5678
+      targetPort: http
+      protocol: TCP
