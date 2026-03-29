@@ -1,0 +1,22 @@
+# PostgreSQL for n8n-01 — standalone instance in n8n-01 namespace
+# Matches the infisical-postgresql pattern (Bitnami chart + SOPS existingSecret)
+fullnameOverride: "n8n-01-postgresql"
+
+architecture: standalone
+
+# Docker Hub mirror workaround (docker.io/bitnami/postgresql images unavailable)
+image:
+  registry: mirror.gcr.io
+  repository: bitnamilegacy/postgresql
+
+auth:
+  username: n8n
+  database: n8n
+  # Passwords sourced from SOPS bootstrap secret.
+  # Keys: postgres-password (admin), password (n8n user)
+  existingSecret: n8n-01-secrets
+
+primary:
+  persistence:
+    size: 5Gi
+    storageClass: longhorn
