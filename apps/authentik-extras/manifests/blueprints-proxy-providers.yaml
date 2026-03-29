@@ -79,3 +79,24 @@ data:
           name: Sympozium
           provider: !KeyOf provider-sympozium
           meta_launch_url: https://sympozium.frank.derio.net
+
+      # n8n-01 proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: n8n-01
+        id: provider-n8n-01
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          mode: forward_single
+          external_host: https://n8n-01.frank.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: n8n-01
+        attrs:
+          name: n8n-01
+          provider: !KeyOf provider-n8n-01
+          meta_launch_url: https://n8n-01.frank.derio.net
