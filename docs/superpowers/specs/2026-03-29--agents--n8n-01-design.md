@@ -122,7 +122,7 @@ apps/n8n-01/manifests/service.yaml                # LoadBalancer Service
 apps/n8n-01/manifests/pvc.yaml                    # 10Gi Longhorn PVC
 apps/n8n-01-postgresql/values.yaml                # Postgres Helm values
 apps/authentik-extras/manifests/                   # Update blueprints-proxy-providers.yaml
-secrets/n8n-01-secrets.yaml                        # SOPS-encrypted bootstrap secret
+secrets/n8n-01/n8n-01-secrets.yaml                   # SOPS-encrypted bootstrap secret
 ```
 
 ### ArgoCD Application CRs
@@ -141,7 +141,7 @@ plan: 2026-03-29--agents--n8n-01
 when: Before first ArgoCD sync
 why_manual: Bootstrap secret must exist before n8n-01-postgresql starts; SOPS secrets applied out-of-band
 commands:
-  - sops --decrypt secrets/n8n-01-secrets.yaml | kubectl apply -f -
+  - sops --decrypt secrets/n8n-01/n8n-01-secrets.yaml | kubectl apply -f -
 verify:
   - kubectl -n n8n-01 get secret n8n-01-secrets -o jsonpath='{.data.password}' | base64 -d
 status: pending
