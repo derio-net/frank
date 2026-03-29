@@ -1,0 +1,74 @@
+# Gitea — self-hosted Git forge, GitHub mirror
+# Exposed at 192.168.55.209:3000 (HTTP) and :2222 (SSH)
+# Runs on pc-1 with Longhorn-CICD storage (single replica)
+
+gitea:
+  admin:
+    existingSecret: gitea-secrets
+
+  config:
+    server:
+      DOMAIN: 192.168.55.209
+      ROOT_URL: http://192.168.55.209:3000/
+      SSH_DOMAIN: 192.168.55.209
+      SSH_PORT: 2222
+      LFS_START_SERVER: true
+
+    oauth2:
+      ENABLE: true
+
+    openid:
+      ENABLE_OPENID_SIGNIN: true
+
+    service:
+      DISABLE_REGISTRATION: false
+      ALLOW_ONLY_EXTERNAL_REGISTRATION: true
+      SHOW_REGISTRATION_BUTTON: false
+
+    repository:
+      DEFAULT_BRANCH: main
+
+    mirror:
+      ENABLED: true
+      DEFAULT_INTERVAL: 10m
+
+  oauth:
+    - name: authentik
+      provider: openidConnect
+      existingSecret: gitea-secrets
+      autoDiscoverUrl: "http://192.168.55.211:9000/application/o/gitea/.well-known/openid-configuration"
+      iconUrl: "https://goauthentik.io/img/icon.png"
+      scopes: "openid email profile"
+      groupClaimName: "groups"
+      adminGroup: "authentik Admins"
+
+service:
+  http:
+    type: LoadBalancer
+    port: 3000
+    annotations:
+      lbipam.cilium.io/ips: "192.168.55.209"
+  ssh:
+    type: LoadBalancer
+    port: 2222
+    annotations:
+      lbipam.cilium.io/ips: "192.168.55.209"
+
+persistence:
+  enabled: true
+  size: 10Gi
+  storageClass: longhorn-cicd
+  accessModes:
+    - ReadWriteOnce
+
+strategy:
+  type: Recreate
+
+postgresql:
+  enabled: false
+
+postgresql-ha:
+  enabled: false
+
+nodeSelector:
+  kubernetes.io/hostname: pc-1
