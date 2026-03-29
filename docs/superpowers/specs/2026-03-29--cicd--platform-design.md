@@ -53,7 +53,7 @@ Tekton Pipeline (ephemeral pods on pc-1)
 
 | IP | Service | Port |
 |---|---|---|
-| `192.168.55.209` | Gitea (web + SSH) | 3000, 22 |
+| `192.168.55.209` | Gitea (web + SSH) | 3000, 2222 |
 | `192.168.55.210` | Zot registry | 5000 |
 | `192.168.55.217` | Tekton Dashboard | 9097 |
 
@@ -69,9 +69,7 @@ These IPs were verified as unallocated on 2026-03-29 via `kubectl get svc -A | g
 
 **Service:**
 - `192.168.55.209:3000` — Web UI + API (LoadBalancer via Cilium L2)
-- `192.168.55.209:22` — SSH (same LoadBalancer IP)
-
-Note: Talos does not run an SSH daemon, so port 22 on the host is free — no conflict. The Gitea Helm chart defaults SSH to port 2222; override to 22 via `service.ssh.port=22` and `gitea.config.server.SSH_PORT=22` in values.
+- `192.168.55.209:2222` — SSH (same LoadBalancer IP, Gitea's default SSH port)
 
 **Database:** Embedded SQLite. Single-user homelab doesn't need PostgreSQL overhead. Migration to Postgres is straightforward if needed later. SQLite uses file locking, which requires single-writer access — combined with the RWO PVC constraint, `strategy: Recreate` is mandatory (both for volume detach and to avoid concurrent SQLite writers).
 
@@ -188,13 +186,13 @@ apps/tekton/
 
 **Storage:** Longhorn PVC (`longhorn-cicd` StorageClass, `numberOfReplicas: 1`), 50Gi (expandable). Durability via Longhorn backup-to-R2.
 
-**TLS:** Self-signed cert initially. Containerd mirror config on all nodes with `insecureSkipVerify: true`. Replace with cert-manager issued cert later.
+**TLS:** cert-manager ClusterIssuer (already deployed on the cluster). Zot gets a Certificate CR for its service. The cert's SAN should include the IP `192.168.55.210` so containerd can validate TLS without `insecureSkipVerify`. If IP-based SANs prove problematic with cert-manager's self-signed issuer, fall back to `insecureSkipVerify` in the containerd config.
 
 **Cosign support:** Native — Zot stores cosign signatures as OCI reference artifacts alongside images. No additional configuration.
 
 **Containerd mirror config (Talos machine patch, cluster-wide via Omni):**
 
-Containerd uses the mirror hostname `192.168.55.210:5000` directly — no DNS alias needed. The mirror config maps this to the Zot endpoint:
+Containerd uses the IP directly. With a valid cert-manager certificate:
 
 ```yaml
 machine:
@@ -202,7 +200,8 @@ machine:
     config:
       "192.168.55.210:5000":
         tls:
-          insecureSkipVerify: true
+          # If cert-manager cert has IP SAN, no insecureSkipVerify needed.
+          # If IP SAN doesn't work, set insecureSkipVerify: true as fallback.
 ```
 
 **Secrets (Infisical → ExternalSecret):**
@@ -438,7 +437,7 @@ plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
 when: "After Zot is deployed and verified"
 why_manual: "Omni config patch requires UI or omnictl interaction; triggers node reboot"
 commands:
-  - "Apply Omni cluster-wide config patch with containerd mirror for 192.168.55.210:5000"
+  - "Apply Omni cluster-wide config patch with containerd mirror for 192.168.55.210:5000 (with or without insecureSkipVerify depending on cert-manager IP SAN support)"
   - "Verify nodes reboot and come back Ready"
 verify:
   - "talosctl -n 192.168.55.21 get machineconfig -o yaml | grep 192.168.55.210"
@@ -482,10 +481,11 @@ status: pending
 
 ## Gotchas
 
-- Gitea Helm chart defaults SSH to port 2222 — must override to 22 in values (`service.ssh.port` and `gitea.config.server.SSH_PORT`). Safe on Talos (no host SSH daemon).
+- Gitea SSH uses port 2222 (chart default) — no remapping needed. Clone URLs use `ssh://git@192.168.55.209:2222/`.
 - Gitea with SQLite on Longhorn RWO requires `strategy: Recreate` for two reasons: (1) RWO volume can't be mounted by two pods simultaneously, (2) SQLite file locking doesn't support concurrent writers.
 - Tekton CRDs are bundled in release YAMLs — on version upgrades, use sync-wave annotations (CRDs at wave -1, controllers at wave 0) or apply CRDs out-of-band first.
 - Tekton release YAMLs are vendored into the repo (not fetched from URLs) because ArgoCD doesn't support raw HTTPS URLs as sources.
 - VolumeClaimTemplate PVCs add ~2-3s Longhorn provisioning latency to pipeline startup.
 - Containerd mirror Talos patch triggers node reboots — schedule during maintenance window.
+- Zot TLS via cert-manager — if IP-based SANs (192.168.55.210) don't work with the ClusterIssuer, fall back to `insecureSkipVerify` in containerd config.
 - `GITEA_API_TOKEN` can only be created after Gitea is deployed — implementation order must account for this dependency.
