@@ -1,0 +1,14 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: zot-tls
+  namespace: zot
+spec:
+  secretName: zot-tls
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+  ipAddresses:
+    - "192.168.55.210"
+  dnsNames:
+    - "zot.frank.local"
