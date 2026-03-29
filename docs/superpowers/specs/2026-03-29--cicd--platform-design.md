@@ -298,16 +298,14 @@ layer: cicd
 app: gitea
 plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
 when: "Before Gitea deploy — OIDC provider must exist in Authentik"
-why_manual: "Authentik provider/application creation requires UI or API interaction"
+why_manual: "Authentik provider/application creation requires API token"
 commands:
-  - "Authentik Admin → Applications → Create Provider → OAuth2/OIDC"
-  - "Name: Gitea, Redirect URI: http://192.168.55.209:3000/user/oauth2/authentik/callback"
-  - "Authentik Admin → Applications → Create Application → name: Gitea, provider: Gitea"
-  - "Copy Client ID and Client Secret → store in Infisical as GITEA_OIDC_CLIENT_SECRET"
+  - "Run: bash scripts/tmp/setup-authentik-cicd-oidc.sh (creates both Gitea and Zot providers+apps)"
+  - "Store printed GITEA_OIDC_CLIENT_SECRET in Infisical"
 verify:
-  - "Authentik Admin → Applications → Gitea shows active provider"
+  - "curl -H 'Authorization: Bearer $AK_TOKEN' http://192.168.55.211:9000/api/v3/providers/oauth2/ | jq '.results[].name' — includes Gitea"
   - "Infisical → GITEA_OIDC_CLIENT_SECRET exists"
-status: pending
+status: done
 ```
 
 ```yaml
@@ -401,16 +399,14 @@ layer: cicd
 app: zot
 plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
 when: "Before Zot deploy — OIDC provider must exist in Authentik"
-why_manual: "Authentik provider/application creation requires UI or API interaction"
+why_manual: "Authentik provider/application creation requires API token"
 commands:
-  - "Authentik Admin → Applications → Create Provider → OAuth2/OIDC"
-  - "Name: Zot, Redirect URI: http://192.168.55.210:5000/auth/callback"
-  - "Authentik Admin → Applications → Create Application → name: Zot, provider: Zot"
-  - "Copy Client ID and Client Secret → store in Infisical as ZOT_OIDC_CLIENT_SECRET"
+  - "Run: bash scripts/tmp/setup-authentik-cicd-oidc.sh (creates both Gitea and Zot providers+apps)"
+  - "Store printed ZOT_OIDC_CLIENT_SECRET in Infisical"
 verify:
-  - "Authentik Admin → Applications → Zot shows active provider"
+  - "curl -H 'Authorization: Bearer $AK_TOKEN' http://192.168.55.211:9000/api/v3/providers/oauth2/ | jq '.results[].name' — includes Zot"
   - "Infisical → ZOT_OIDC_CLIENT_SECRET exists"
-status: pending
+status: done
 ```
 
 ```yaml
@@ -489,3 +485,4 @@ status: pending
 - Containerd mirror Talos patch triggers node reboots — schedule during maintenance window.
 - Zot TLS via cert-manager — if IP-based SANs (192.168.55.210) don't work with the ClusterIssuer, fall back to `insecureSkipVerify` in containerd config.
 - `GITEA_API_TOKEN` can only be created after Gitea is deployed — implementation order must account for this dependency.
+- Authentik 2026.x `redirect_uris` requires array of objects `[{"matching_mode": "strict", "url": "..."}]`, not array of strings. Also requires `signing_key` UUID (query existing providers to find it). Script at `scripts/tmp/setup-authentik-cicd-oidc.sh` handles this.

@@ -123,16 +123,14 @@ layer: cicd
 app: gitea
 plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
 when: "Before Gitea deploy — OIDC provider must exist in Authentik"
-why_manual: "Authentik provider/application creation requires UI or API interaction"
+why_manual: "Authentik provider/application creation requires API token"
 commands:
-  - "Authentik Admin → Applications → Create Provider → OAuth2/OIDC"
-  - "Name: Gitea, Redirect URI: http://192.168.55.209:3000/user/oauth2/authentik/callback"
-  - "Authentik Admin → Applications → Create Application → name: Gitea, provider: Gitea"
-  - "Copy Client ID and Client Secret → store in Infisical as GITEA_OIDC_CLIENT_SECRET"
+  - "Run: bash scripts/tmp/setup-authentik-cicd-oidc.sh (creates both Gitea and Zot providers+apps)"
+  - "Store printed GITEA_OIDC_CLIENT_SECRET in Infisical"
 verify:
-  - "Authentik Admin → Applications → Gitea shows active provider"
+  - "curl -H 'Authorization: Bearer $AK_TOKEN' http://192.168.55.211:9000/api/v3/providers/oauth2/ | jq '.results[].name' — includes Gitea"
   - "Infisical → GITEA_OIDC_CLIENT_SECRET exists"
-status: pending
+status: done
 ```
 
 - [ ] **Step 2: Research Gitea Helm chart**
@@ -1026,16 +1024,14 @@ layer: cicd
 app: zot
 plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
 when: "Before Zot deploy — OIDC provider must exist in Authentik"
-why_manual: "Authentik provider/application creation requires UI or API interaction"
+why_manual: "Authentik provider/application creation requires API token"
 commands:
-  - "Authentik Admin → Applications → Create Provider → OAuth2/OIDC"
-  - "Name: Zot, Redirect URI: http://192.168.55.210:5000/auth/callback (update to https:// after TLS cert is confirmed working in Step 4)"
-  - "Authentik Admin → Applications → Create Application → name: Zot, provider: Zot"
-  - "Copy Client ID and Client Secret → store in Infisical as ZOT_OIDC_CLIENT_SECRET"
+  - "Run: bash scripts/tmp/setup-authentik-cicd-oidc.sh (creates both Gitea and Zot providers+apps)"
+  - "Store printed ZOT_OIDC_CLIENT_SECRET in Infisical"
 verify:
-  - "Authentik Admin → Applications → Zot shows active provider"
+  - "curl -H 'Authorization: Bearer $AK_TOKEN' http://192.168.55.211:9000/api/v3/providers/oauth2/ | jq '.results[].name' — includes Zot"
   - "Infisical → ZOT_OIDC_CLIENT_SECRET exists"
-status: pending
+status: done
 ```
 
 - [ ] **Step 2: Research Zot Helm chart**
@@ -1842,13 +1838,13 @@ cosign verify --key apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecu
 |----|-------|------|------|
 | `cicd-pc1-role-label` | cicd | Before Task 2 | Add role=cicd label to pc-1 via Omni |
 | `cicd-infisical-gitea-secrets` | cicd | Before Task 2 | Create Gitea secrets in Infisical |
-| `cicd-authentik-gitea-oidc` | cicd | Before Task 2 | Create Authentik OIDC provider for Gitea |
+| `cicd-authentik-gitea-oidc` | cicd | Before Task 2 | ~~Create Authentik OIDC provider for Gitea~~ DONE (via script) |
 | `cicd-gitea-service-account` | cicd | After Task 2 | Create Gitea service account + API token |
 | `cicd-gitea-mirror-test-repo` | cicd | After Task 2 | Mirror test repo from GitHub |
 | `cicd-infisical-webhook-secret` | cicd | Before Task 5 | Create webhook secret in Infisical |
 | `cicd-gitea-webhook` | cicd | After Task 5 | Configure Gitea webhook for test repo |
 | `cicd-infisical-zot-secrets` | cicd | Before Task 6 | Create Zot secrets in Infisical |
-| `cicd-authentik-zot-oidc` | cicd | Before Task 6 | Create Authentik OIDC provider for Zot |
+| `cicd-authentik-zot-oidc` | cicd | Before Task 6 | ~~Create Authentik OIDC provider for Zot~~ DONE (via script) |
 | `cicd-talos-containerd-mirror` | cicd | After Task 6 | Apply containerd mirror Talos patch |
 | `cicd-cosign-keypair` | cicd | Before Task 9 | Generate cosign key pair |
 

@@ -13,7 +13,7 @@
 - Sympozium image.tag must be overridden (chart appVersion lags behind latest fix releases)
 - Authentik blueprints may not auto-discover from ConfigMaps — create providers/apps via API as fallback
 - Authentik API requires Bearer token (not basic auth) — create token via Django ORM: `Token.objects.get_or_create(identifier="name", defaults={"user": user, "intent": TokenIntents.INTENT_API})`
-- Authentik 2026.x requires `invalidation_flow` and `redirect_uris` as list format in API calls
+- Authentik 2026.x requires `invalidation_flow` and `redirect_uris` as list of objects `[{"matching_mode": "strict", "url": "..."}]` (not strings) in API calls. Also requires `signing_key` UUID — query an existing provider to find it
 - Authentik `global.env` applies env vars to both server + worker (avoids duplication)
 - Grafana OIDC: secret key must be `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` for `envFromSecret` to work
 - Authentik embedded outpost requires `AUTHENTIK_HOST` env var set to external URL (e.g., `https://auth.frank.derio.net`) — without it, forward-auth redirects use `0.0.0.0:9000`
