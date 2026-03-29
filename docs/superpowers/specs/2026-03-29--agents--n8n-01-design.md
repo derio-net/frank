@@ -2,7 +2,7 @@
 
 **Layer:** agents (12 — Agentic Control Plane)
 **Date:** 2026-03-29
-**Status:** Design
+**Status:** Deployed
 
 ## Overview
 
