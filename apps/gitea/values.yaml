@@ -28,6 +28,18 @@ gitea:
     repository:
       DEFAULT_BRANCH: main
 
+    database:
+      DB_TYPE: sqlite3
+
+    cache:
+      ADAPTER: memory
+
+    session:
+      PROVIDER: memory
+
+    queue:
+      TYPE: level
+
     mirror:
       ENABLED: true
       DEFAULT_INTERVAL: 10m
@@ -68,6 +80,15 @@ postgresql:
   enabled: false
 
 postgresql-ha:
+  enabled: false
+
+redis-cluster:
+  enabled: false
+
+valkey-cluster:
+  enabled: false
+
+valkey:
   enabled: false
 
 nodeSelector:
