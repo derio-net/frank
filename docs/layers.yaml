@@ -100,6 +100,11 @@ layers:
     name: Progressive Delivery
     description: Argo Rollouts, canary and blue-green deployment strategies
 
+  - code: cicd
+    number: 19
+    name: CI/CD Platform
+    description: Gitea, Tekton, Zot registry, supply chain security
+
   - code: repo
     name: Repository & Tooling
     description: Blog infrastructure, CI, repo restructuring, meta-tasks
