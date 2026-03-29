@@ -1,0 +1,43 @@
+# Creates a PipelineRun from Gitea webhook data
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: gitea-pipeline-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: repo-url
+    - name: revision
+    - name: repo-full-name
+    - name: branch
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: gitea-ci-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef:
+          name: gitea-ci
+        params:
+          - name: repo-url
+            value: $(tt.params.repo-url)
+          - name: revision
+            value: $(tt.params.revision)
+          - name: repo-full-name
+            value: $(tt.params.repo-full-name)
+          - name: branch
+            value: $(tt.params.branch)
+        workspaces:
+          - name: shared-workspace
+            volumeClaimTemplate:
+              spec:
+                accessModes:
+                  - ReadWriteOnce
+                storageClassName: longhorn-cicd
+                resources:
+                  requests:
+                    storage: 1Gi
+          - name: docker-credentials
+            secret:
+              secretName: zot-push-creds

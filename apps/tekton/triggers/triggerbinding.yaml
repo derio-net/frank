@@ -1,0 +1,16 @@
+# Extracts fields from Gitea webhook payloads
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: gitea-push-binding
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: repo-url
+      value: $(body.repository.clone_url)
+    - name: revision
+      value: $(body.after)
+    - name: repo-full-name
+      value: $(body.repository.full_name)
+    - name: branch
+      value: $(extensions.branch_name)
