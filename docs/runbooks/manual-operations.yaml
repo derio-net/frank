@@ -222,6 +222,18 @@ operations:
       - "kubectl get pods -n sympozium-system -l app=sympozium-telegram — should be Running"
     status: pending
 
+  - id: n8n-01-sops-secret
+    layer: agents
+    app: n8n-01
+    plan: docs/superpowers/specs/2026-03-29--agents--n8n-01-design.md
+    when: "Before first ArgoCD sync"
+    why_manual: "Bootstrap secret must exist before n8n-01-postgresql starts; SOPS secrets applied out-of-band"
+    commands:
+      - "sops --decrypt secrets/n8n-01/n8n-01-secrets.yaml | kubectl apply -f -"
+    verify:
+      - "kubectl -n n8n-01 get secret n8n-01-secrets -o jsonpath='{.data.password}' | base64 -d"
+    status: done
+
   - id: auth-agent-machine-user
     layer: auth
     app: authentik
