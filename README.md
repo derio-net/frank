@@ -48,6 +48,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Mesh Networking | Headscale + Tailscale | WireGuard mesh — remote homelab access, MagicDNS split-DNS |
 | Edge Ingress | Caddy | Automatic TLS (Cloudflare DNS challenge), public/mesh routing on Hop |
 | Progressive Delivery | Argo Rollouts | Canary (LiteLLM + Cilium traffic split + VictoriaMetrics analysis), blue-green (Sympozium + HTTP healthcheck) |
+| Workflow Automation | n8n | Per-user instances on gpu-1, Authentik forward-auth, dedicated PostgreSQL, Prometheus metrics |
 
 ## Repository Structure
 
@@ -84,7 +85,9 @@ frank/
 │   ├── comfyui/manifests/                       # ComfyUI diffusion model server (time-shared GPU)
 │   ├── argo-rollouts/values.yaml               # Argo Rollouts controller
 │   ├── argo-rollouts-extras/manifests/          # Cilium plugin config + RBAC
-│   └── gpu-switcher/manifests/ + app/           # GPU Switcher Go app + K8s manifests
+│   ├── gpu-switcher/manifests/ + app/           # GPU Switcher Go app + K8s manifests
+│   ├── n8n-01/manifests/                       # n8n workflow automation (gpu-1, 192.168.55.216)
+│   └── n8n-01-postgresql/values.yaml           # Bitnami PostgreSQL for n8n-01
 │       ├── template/values.yaml                 # Base config (SQLite, policies, sync)
 │       └── experiments/values.yaml              # First sandbox instance
 ├── clusters/
@@ -110,8 +113,8 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/building/       # 19 posts documenting the build
-│   ├── content/operating/      # 11 companion operations guides
+│   ├── content/building/       # 20 posts documenting the build
+│   ├── content/operating/      # 13 companion operations guides
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
 │   ├── plans/                 # Architecture and implementation plans
@@ -149,6 +152,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | ComfyUI | http://192.168.55.213:8188 | 192.168.55.213 |
 | GPU Switcher | http://192.168.55.214:8080 | 192.168.55.214 |
 | Kali Workstation | ssh root@192.168.55.215 | 192.168.55.215 |
+| n8n-01 | http://192.168.55.216:5678 | 192.168.55.216 |
 
 ### Hop Cluster (Public Edge)
 
@@ -205,6 +209,8 @@ argocd app list
 | kali | kali-system | Persistent Kali Linux workstation on gpu-1 (192.168.55.215:22/SSH), Claude Code remote |
 | argo-rollouts | argo-rollouts | Progressive delivery controller + Cilium traffic router plugin |
 | argo-rollouts-extras | argo-rollouts | Cilium plugin ConfigMap + supplemental RBAC for CiliumEnvoyConfig |
+| n8n-01 | n8n-01 | n8n workflow automation on gpu-1 (192.168.55.216:5678), Authentik forward-auth |
+| n8n-01-postgresql | n8n-01 | Bitnami PostgreSQL 14.1.10 for n8n-01 |
 
 ### Hop Cluster Applications
 
