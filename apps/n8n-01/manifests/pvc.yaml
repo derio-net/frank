@@ -1,0 +1,13 @@
+# Persistent storage for n8n data (binary data, file uploads, custom nodes)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-01-data
+  namespace: n8n-01
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi
