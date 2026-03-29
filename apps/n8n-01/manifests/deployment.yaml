@@ -35,36 +35,6 @@ spec:
       securityContext:
         fsGroup: 1000
       terminationGracePeriodSeconds: 30
-      initContainers:
-        - name: bootstrap-admin
-          image: docker.io/n8nio/n8n:2.13.4
-          command:
-            - /bin/sh
-            - -c
-            - |
-              n8n user:create \
-                --email admin@n8n.local \
-                --firstName Admin \
-                --lastName Admin \
-                --password admin \
-                --role global:owner \
-              || true
-          env:
-            - name: DB_TYPE
-              value: postgresdb
-            - name: DB_POSTGRESDB_HOST
-              value: n8n-01-postgresql
-            - name: DB_POSTGRESDB_PORT
-              value: "5432"
-            - name: DB_POSTGRESDB_DATABASE
-              value: n8n
-            - name: DB_POSTGRESDB_USER
-              value: n8n
-            - name: DB_POSTGRESDB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: n8n-01-secrets
-                  key: password
       containers:
         - name: n8n
           image: docker.io/n8nio/n8n:2.13.4
@@ -103,6 +73,8 @@ spec:
               value: "5678"
             - name: WEBHOOK_URL
               value: "https://n8n-01.frank.derio.net/"
+            - name: N8N_SECURE_COOKIE
+              value: "false"
           resources:
             requests:
               cpu: 500m

@@ -23,3 +23,6 @@
 - Argo Rollouts `AnalysisTemplate` has no `inconclusiveCondition` field — NaN results (0 traffic) implicitly match neither `successCondition` nor `failureCondition`, so they are automatically treated as inconclusive. Use `inconclusiveLimit` to cap retries.
 - Argo Rollouts `workloadRef` scales the referenced Deployment to 0 — add `ignoreDifferences` on `spec.replicas` (`group: apps`, `kind: Deployment`) in the ArgoCD Application to prevent ArgoCD from fighting the Rollout controller.
 - Argo Rollouts Prometheus provider `successCondition`/`failureCondition` use `result[0]` syntax (not `result`) for scalar query results.
+- n8n Community Edition has no `user:create` CLI command — owner account must be created via the first-time setup wizard in the browser
+- n8n Community Edition OIDC/SSO is enterprise-only — use Authentik forward-auth proxy for SSO
+- n8n requires `N8N_SECURE_COOKIE=false` when accessed over plain HTTP (without TLS termination); remove once TLS is in place

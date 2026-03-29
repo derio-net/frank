@@ -56,7 +56,7 @@ n8n-01-postgresql (Bitnami chart, 5Gi Longhorn)
   - Requests: `500m` CPU, `512Mi` memory
   - Limits: `2000m` CPU, `2Gi` memory
 - **PVC:** `n8n-01-data` — 10Gi Longhorn, mounted at `/home/node/.n8n`
-- **Init container:** Runs `n8n user:create --email admin@n8n.local --firstName Admin --lastName Admin --password admin --role global:owner || true` then exits. The main container starts n8n normally. The `|| true` ensures the init container succeeds even if the user already exists (idempotency to be verified at implementation time).
+- **Init container:** REMOVED — `n8n user:create` CLI command does not exist in n8n Community Edition 2.13.4. Owner account is created via the first-time setup wizard in the browser instead.
 - **Probes:** HTTP GET `/healthz` (startup, liveness, readiness)
 
 ### Environment Variables
