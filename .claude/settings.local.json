@@ -45,7 +45,19 @@
       "Bash(python3 -m json.tool)",
       "Bash(for app:*)",
       "Bash(do kubectl:*)",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(bash scripts/plan-status.sh)",
+      "WebSearch",
+      "Bash(gh api:*)",
+      "WebFetch(domain:docs.n8n.io)",
+      "Bash(grep -v '^\\\\s*$')",
+      "WebFetch(domain:docs.goauthentik.io)",
+      "WebFetch(domain:projectcontour.io)",
+      "WebFetch(domain:community.traefik.io)",
+      "WebFetch(domain:docs.k3s.io)",
+      "Read(//private/tmp/frank-n8n-01/**)",
+      "Bash(chmod:*)",
+      "Bash(argocd app:*)"
     ]
   }
 }

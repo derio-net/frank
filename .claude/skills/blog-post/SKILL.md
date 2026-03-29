@@ -2,7 +2,7 @@
 name: blog-post
 description: Create a new Hugo blog post for the Frank cluster documentation series
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 arguments:
   - name: series
     description: "Series name: 'building' or 'operating'"

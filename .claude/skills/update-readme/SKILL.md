@@ -2,7 +2,7 @@
 name: update-readme
 description: Update README.md to reflect the current state of the Frank cluster after new layer work
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 ---
 
 # Update README
