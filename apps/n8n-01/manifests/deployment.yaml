@@ -1,0 +1,140 @@
+# n8n-01 workflow automation on gpu-1
+# Single-user instance; auth gated by Authentik forward-auth
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n-01
+  namespace: n8n-01
+  labels:
+    app.kubernetes.io/name: n8n-01
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: n8n-01
+      app.kubernetes.io/component: server
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: n8n-01
+        app.kubernetes.io/component: server
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "5678"
+        prometheus.io/path: "/metrics"
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: gpu-1
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      securityContext:
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 30
+      initContainers:
+        - name: bootstrap-admin
+          image: docker.io/n8nio/n8n:2.13.4
+          command:
+            - /bin/sh
+            - -c
+            - |
+              n8n user:create \
+                --email admin@n8n.local \
+                --firstName Admin \
+                --lastName Admin \
+                --password admin \
+                --role global:owner \
+              || true
+          env:
+            - name: DB_TYPE
+              value: postgresdb
+            - name: DB_POSTGRESDB_HOST
+              value: n8n-01-postgresql
+            - name: DB_POSTGRESDB_PORT
+              value: "5432"
+            - name: DB_POSTGRESDB_DATABASE
+              value: n8n
+            - name: DB_POSTGRESDB_USER
+              value: n8n
+            - name: DB_POSTGRESDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-01-secrets
+                  key: password
+      containers:
+        - name: n8n
+          image: docker.io/n8nio/n8n:2.13.4
+          ports:
+            - name: http
+              containerPort: 5678
+              protocol: TCP
+          env:
+            - name: DB_TYPE
+              value: postgresdb
+            - name: DB_POSTGRESDB_HOST
+              value: n8n-01-postgresql
+            - name: DB_POSTGRESDB_PORT
+              value: "5432"
+            - name: DB_POSTGRESDB_DATABASE
+              value: n8n
+            - name: DB_POSTGRESDB_USER
+              value: n8n
+            - name: DB_POSTGRESDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-01-secrets
+                  key: password
+            - name: N8N_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-01-secrets
+                  key: encryption-key
+            - name: N8N_METRICS
+              value: "true"
+            - name: N8N_METRICS_PREFIX
+              value: "n8n_"
+            - name: N8N_HOST
+              value: "0.0.0.0"
+            - name: N8N_PORT
+              value: "5678"
+            - name: WEBHOOK_URL
+              value: "https://n8n-01.frank.derio.net/"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /home/node/.n8n
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: n8n-01-data
