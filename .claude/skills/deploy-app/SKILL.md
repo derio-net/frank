@@ -2,7 +2,7 @@
 name: deploy-app
 description: Deploy a new app to Frank cluster via ArgoCD App-of-Apps pattern
 user-invocable: true
-disable-model-invocation: true
+disable-model-invocation: false
 arguments:
   - name: app-name
     description: Name of the app to deploy (kebab-case, e.g. "cert-manager")
