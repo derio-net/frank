@@ -1,0 +1,84 @@
+# Main CI pipeline triggered by Gitea webhooks
+# Stage A: clone → test → report status
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: gitea-ci
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: repo-url
+      type: string
+    - name: revision
+      type: string
+    - name: repo-full-name
+      type: string
+    - name: branch
+      type: string
+    - name: test-command
+      type: string
+      default: "echo 'No tests configured — pipeline works!'"
+    - name: image
+      type: string
+      default: ""
+      description: "Image to build and push (empty = skip build)"
+  workspaces:
+    - name: shared-workspace
+    - name: docker-credentials
+      optional: true
+      description: "Docker config.json for registry auth (bound to zot-push-creds Secret)"
+  tasks:
+    - name: clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.revision)
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+    - name: test
+      runAfter: ["clone"]
+      taskRef:
+        name: run-tests
+      params:
+        - name: test-command
+          value: $(params.test-command)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+  finally:
+    - name: report-success
+      when:
+        - input: $(tasks.status)
+          operator: in
+          values: ["Succeeded"]
+      taskRef:
+        name: gitea-status
+      params:
+        - name: repo-full-name
+          value: $(params.repo-full-name)
+        - name: revision
+          value: $(params.revision)
+        - name: state
+          value: "success"
+        - name: description
+          value: "All checks passed"
+    - name: report-failure
+      when:
+        - input: $(tasks.status)
+          operator: notin
+          values: ["Succeeded"]
+      taskRef:
+        name: gitea-status
+      params:
+        - name: repo-full-name
+          value: $(params.repo-full-name)
+        - name: revision
+          value: $(params.revision)
+        - name: state
+          value: "failure"
+        - name: description
+          value: "Pipeline failed"

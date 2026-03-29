@@ -1,0 +1,49 @@
+# Reports commit status (success/failure) back to Gitea PR
+# Used in the finally block of pipelines
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: gitea-status
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+      description: "Full repo name (e.g., owner/repo)"
+    - name: revision
+      type: string
+      description: "Git commit SHA"
+    - name: state
+      type: string
+      description: "success, pending, failure, or error"
+    - name: description
+      type: string
+      default: "Tekton CI"
+    - name: context
+      type: string
+      default: "tekton-ci"
+    - name: gitea-url
+      type: string
+      default: "http://gitea-http.gitea.svc.cluster.local:3000"
+  steps:
+    - name: report
+      image: alpine:3
+      env:
+        - name: GITEA_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: gitea-api-token
+              key: token
+      script: |
+        #!/bin/sh
+        apk add --no-cache curl
+        STATUS_URL="$(params.gitea-url)/api/v1/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+        curl -s -X POST "$STATUS_URL" \
+          -H "Authorization: token $GITEA_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"state\": \"$(params.state)\",
+            \"description\": \"$(params.description)\",
+            \"context\": \"$(params.context)\"
+          }"
+        echo "Reported status '$(params.state)' for $(params.revision)"
