@@ -49,6 +49,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Caddy** | Automatic TLS (Cloudflare DNS challenge), public/mesh routing, path rewriting |
 | **Kali Workstation** | Persistent always-on container on gpu-1, SSH remote access, Claude Code `--remote` agent (`192.168.55.215`) |
 | **Argo Rollouts** | Progressive delivery — canary (Cilium traffic splitting + VictoriaMetrics analysis) and blue-green (preview + atomic cutover) |
+| **n8n** | Per-user workflow automation — 400+ integrations, visual node editor, webhook triggers, Authentik forward-auth (`192.168.55.216`) |
 
 ## Cluster State
 
@@ -80,6 +81,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 17. [Hopping Through the Portal — A Public Edge Cluster]({{< relref "/building/17-public-edge" >}})
 18. [Persistent Agent — A Kali Workstation on Kubernetes]({{< relref "/building/18-persistent-agent" >}})
 19. [Progressive Delivery with Argo Rollouts]({{< relref "/building/19-progressive-delivery" >}})
+20. [Workflow Automation with n8n]({{< relref "/building/20-workflow-automation" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
@@ -99,3 +101,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 10. [Operating on Media Generation]({{< relref "/operating/10-media-generation" >}})
 11. [Operating on Hop — Single-Node Talos Edge Cluster]({{< relref "/operating/11-public-edge" >}})
 12. [Operating on Progressive Delivery]({{< relref "/operating/12-progressive-delivery" >}})
+13. [Operating on Workflow Automation]({{< relref "/operating/13-workflow-automation" >}})
