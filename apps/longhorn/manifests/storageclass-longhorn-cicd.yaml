@@ -11,4 +11,3 @@ allowVolumeExpansion: true
 parameters:
   numberOfReplicas: "1"
   dataLocality: best-effort
-  nodeSelector: "kubernetes.io/hostname:pc-1"
