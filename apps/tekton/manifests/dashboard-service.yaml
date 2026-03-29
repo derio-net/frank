@@ -1,0 +1,21 @@
+# Tekton Dashboard — exposed on 192.168.55.217:9097
+# Overrides the ClusterIP service from the vendored release YAML
+apiVersion: v1
+kind: Service
+metadata:
+  name: tekton-dashboard-lb
+  namespace: tekton-pipelines
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.217"
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/component: dashboard
+    app.kubernetes.io/instance: default
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: tekton-dashboard
+  ports:
+    - name: http
+      port: 9097
+      targetPort: 9097
+      protocol: TCP
