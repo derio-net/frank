@@ -52,11 +52,11 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-  # New: build and push container image for Hop
+  # Build container image for Hop and update deployment manifest
   build-container:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
     steps:
       - name: Checkout
@@ -79,3 +79,22 @@ jobs:
           tags: |
             ghcr.io/derio-net/blog:latest
             ghcr.io/derio-net/blog:${{ github.sha }}
+
+      - name: Update deployment manifest with new image tag
+        run: |
+          sed -i "s|image: ghcr.io/derio-net/blog:.*|image: ghcr.io/derio-net/blog:$IMAGE_SHA  # updated by CI — do not pin manually|" \
+            clusters/hop/apps/blog/manifests/deployment.yaml
+        env:
+          IMAGE_SHA: ${{ github.sha }}
+
+      - name: Commit and push updated manifest
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add clusters/hop/apps/blog/manifests/deployment.yaml
+          # Only commit if the file actually changed
+          git diff --cached --quiet && echo "No changes to commit" && exit 0
+          git commit -m "ci(blog): update image to ${IMAGE_SHA:0:7}"
+          git push
+        env:
+          IMAGE_SHA: ${{ github.sha }}
