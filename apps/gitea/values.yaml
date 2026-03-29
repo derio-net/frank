@@ -15,7 +15,7 @@ gitea:
       LFS_START_SERVER: true
 
     oauth2:
-      ENABLE: true
+      ENABLED: true
 
     openid:
       ENABLE_OPENID_SIGNIN: true
