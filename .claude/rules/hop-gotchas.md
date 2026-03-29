@@ -12,3 +12,4 @@
 - Headplane requires `config_path` pointing to mounted Headscale config with `config_strict: true` — non-strict mode works but logs scary warnings and forfeits upstream support
 - Headplane binds IPv4 only — `wget localhost:3000` fails (resolves to `::1`), use `wget 127.0.0.1:3000` to test
 - Headplane API key must be injected via `HEADPLANE_HEADSCALE_API_KEY` env var from a Secret
+- Blog deployment uses SHA-pinned image tags (`ghcr.io/derio-net/blog:<sha>`) — CI commits the tag update to `deployment.yaml`, ArgoCD syncs automatically. No manual `rollout restart` needed
