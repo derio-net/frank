@@ -445,6 +445,22 @@ images:
       black eyes with white pupils, RJ45 neck bolts sparking blue electricity.
       Dark server room with blue, green, and yellow lighting accents.
 
+  - key: building-20-workflow-automation
+    output: blog/content/building/20-workflow-automation/cover.png
+    description: "Workflow Automation — Frank orchestrating n8n conveyor belt pipelines"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at a massive
+      conveyor belt assembly line. The belt carries glowing workflow nodes —
+      API icons, database cylinders, LLM brain icons, and email envelopes —
+      connected by blue electric arcs flowing left to right. Frank's hands
+      orchestrate the flow, one hand placing a new node onto the belt, the
+      other adjusting a connection point. A large n8n logo glows on a control
+      panel beside the belt. Behind him, multiple identical conveyor belts
+      stretch into the background — representing per-user instances. Each
+      belt has a number plate ("01", "02", "03"). An Authentik shield gate
+      blocks the entrance to each belt. Dark server room with blue and
+      orange lightning accents.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -629,3 +645,18 @@ images:
       logo glows on a monitor beside the table. Green skin, messy black hair,
       black eyes with white pupils, RJ45 neck bolts sparking blue electricity.
       Dark server room with blue, green, and yellow lighting accents.
+
+  - key: ops-13-workflow-automation
+    output: blog/content/operating/13-workflow-automation/cover.png
+    description: "Operating on Workflow Automation — Frank maintaining n8n workflow internals"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster lying on a surgical table.
+      His chest cavity is open, revealing a miniature conveyor belt assembly
+      inside — tiny workflow nodes (API icons, database cylinders, LLM brains)
+      flowing along the belt. A robotic arm inspects the conveyor with a
+      magnifying glass while another arm tightens a connection point between
+      two workflow nodes. A small PostgreSQL elephant icon sits on the table
+      edge beside an open toolbox. A health monitor displays a green heartbeat
+      line and "/healthz: 200" text. A clipboard shows a checklist labeled
+      "instances: n8n-01 ✓, n8n-02 pending". Dark server room with blue and
+      orange lighting accents.
