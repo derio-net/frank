@@ -1,0 +1,34 @@
+# Builds a container image and pushes to Zot
+# Default: Kaniko (no Docker daemon required, Talos-compatible)
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-push
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: image
+      type: string
+      description: "Full image reference (e.g., 192.168.55.210:5000/myapp:latest)"
+    - name: dockerfile
+      type: string
+      default: "Dockerfile"
+    - name: context
+      type: string
+      default: "."
+  workspaces:
+    - name: source
+      description: "The git repo with Dockerfile"
+    - name: dockerconfig
+      description: "Docker config.json for registry auth"
+  steps:
+    - name: build-and-push
+      image: gcr.io/kaniko-project/executor:latest
+      args:
+        - "--dockerfile=$(params.dockerfile)"
+        - "--context=$(workspaces.source.path)/$(params.context)"
+        - "--destination=$(params.image)"
+        - "--skip-tls-verify"
+      env:
+        - name: DOCKER_CONFIG
+          value: $(workspaces.dockerconfig.path)

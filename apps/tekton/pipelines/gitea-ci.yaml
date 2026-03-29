@@ -49,6 +49,33 @@ spec:
       workspaces:
         - name: source
           workspace: shared-workspace
+    - name: build-push
+      runAfter: ["test"]
+      when:
+        - input: $(params.image)
+          operator: notin
+          values: [""]
+      taskRef:
+        name: build-push
+      params:
+        - name: image
+          value: $(params.image)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+        - name: dockerconfig
+          workspace: docker-credentials
+    - name: sign
+      runAfter: ["build-push"]
+      when:
+        - input: $(params.image)
+          operator: notin
+          values: [""]
+      taskRef:
+        name: cosign-sign
+      params:
+        - name: image
+          value: $(params.image)
   finally:
     - name: report-success
       when:

@@ -1,0 +1,33 @@
+# Signs an OCI image with cosign
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: cosign-sign
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: image
+      type: string
+      description: "Full image reference to sign"
+  steps:
+    - name: sign
+      image: bitnami/cosign:latest
+      env:
+        - name: COSIGN_PASSWORD
+          value: ""
+      command: ["cosign"]
+      args:
+        - "sign"
+        - "--key"
+        - "/cosign/cosign.key"
+        - "--tlog-upload=false"
+        - "--allow-insecure-registry"
+        - "$(params.image)"
+      volumeMounts:
+        - name: cosign-key
+          mountPath: /cosign
+          readOnly: true
+  volumes:
+    - name: cosign-key
+      secret:
+        secretName: cosign-key
