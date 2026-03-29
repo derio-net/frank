@@ -12,3 +12,4 @@ spec:
             nodeLabels:
                 zone: edge
                 tier: standard
+                role: cicd
