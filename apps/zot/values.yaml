@@ -1,16 +1,12 @@
 # Zot — OCI container and artifact registry
 # Exposed at 192.168.55.210:5000 (HTTPS)
 # Runs on pc-1 with Longhorn-CICD storage (single replica)
-# TLS via cert-manager self-signed ClusterIssuer
-# Auth: Authentik OIDC for UI, htpasswd for machine access (Tekton push)
-#
-# NOTE: The exact chart values structure must be verified against
-# `helm show values zotregistry/zot` during deployment.
-# Key areas to configure from chart research:
-# - configFiles.config.json (Zot main config: storage, htpasswd, OIDC)
-# - TLS secret reference (zot-tls)
-# - Service type, port, annotations
-# - The htpasswd file for the push user
+
+service:
+  type: LoadBalancer
+  port: 5000
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.210"
 
 persistence:
   enabled: true
