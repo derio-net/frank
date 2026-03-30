@@ -1,6 +1,6 @@
 # Paperclip AI Orchestrator Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Deploy Paperclip v0.3.1 (AI agent orchestrator) on Frank via ArgoCD with Bitnami PostgreSQL, LiteLLM integration, and Cilium L2 LoadBalancer exposure at 192.168.55.212.
 
@@ -24,7 +24,7 @@ Create the Bitnami PostgreSQL Helm values file. This mirrors the `infisical-post
 
 **Reference:** `apps/infisical-postgresql/values.yaml` for structure and Longhorn storage pattern.
 
-- [ ] **Step 1: Create the values file**
+- [x] **Step 1: Create the values file**
 
 Create `apps/paperclip-db/values.yaml`:
 
@@ -56,7 +56,7 @@ metrics:
   enabled: true
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/paperclip-db/values.yaml
@@ -74,7 +74,7 @@ Create the ArgoCD Application CR that deploys Bitnami PostgreSQL into `paperclip
 
 **Reference:** `apps/root/templates/infisical-postgresql.yaml` for OCI Helm chart pattern.
 
-- [ ] **Step 1: Create the Application CR**
+- [x] **Step 1: Create the Application CR**
 
 Create `apps/root/templates/paperclip-db.yaml`:
 
@@ -124,7 +124,7 @@ Notes:
 - `releaseName: paperclip-db` means the auto-generated Secret will be named `paperclip-db-postgresql` (chart convention: `<releaseName>-postgresql`).
 - Chart version `14.1.10` matches the existing infisical-postgresql deployment.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/root/templates/paperclip-db.yaml
@@ -144,7 +144,7 @@ Create the `paperclip-system` namespace with baseline PodSecurity. Paperclip doe
 
 **Reference:** `apps/sympozium-extras/manifests/namespace.yaml` for structure.
 
-- [ ] **Step 1: Create the namespace manifest**
+- [x] **Step 1: Create the namespace manifest**
 
 Create `apps/paperclip/manifests/namespace.yaml`:
 
@@ -161,7 +161,7 @@ metadata:
     pod-security.kubernetes.io/warn: baseline
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/paperclip/manifests/namespace.yaml
@@ -179,7 +179,7 @@ Create the ConfigMap with non-secret environment variables for the Paperclip Dep
 
 **Reference:** Design spec lines 117-125 for env var list.
 
-- [ ] **Step 1: Create the ConfigMap**
+- [x] **Step 1: Create the ConfigMap**
 
 Create `apps/paperclip/manifests/configmap.yaml`:
 
@@ -199,7 +199,7 @@ data:
   PAPERCLIP_PUBLIC_URL: "http://192.168.55.212:3100"
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/paperclip/manifests/configmap.yaml
@@ -217,7 +217,7 @@ Create the ExternalSecret that syncs the LiteLLM API key from Infisical and merg
 
 **Reference:** `apps/sympozium-extras/manifests/external-secret.yaml` for the template merge pattern.
 
-- [ ] **Step 1: Create the ExternalSecret**
+- [x] **Step 1: Create the ExternalSecret**
 
 Create `apps/paperclip/manifests/external-secret-llm.yaml`:
 
@@ -248,7 +248,7 @@ spec:
         key: PAPERCLIP_LITELLM_KEY
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/paperclip/manifests/external-secret-llm.yaml
@@ -266,7 +266,7 @@ Create the ExternalSecret that syncs `BETTER_AUTH_SECRET` from Infisical. This i
 
 **Reference:** `apps/litellm/manifests/external-secret.yaml` for simple passthrough pattern.
 
-- [ ] **Step 1: Create the ExternalSecret**
+- [x] **Step 1: Create the ExternalSecret**
 
 Create `apps/paperclip/manifests/external-secret-auth.yaml`:
 
@@ -292,7 +292,7 @@ spec:
         key: PAPERCLIP_AUTH_SECRET
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/paperclip/manifests/external-secret-auth.yaml
@@ -310,7 +310,7 @@ Create the ExternalSecret that syncs a GitHub PAT from Infisical and formats it 
 
 **Reference:** No existing imagePullSecret ExternalSecret in the cluster — this is a new pattern.
 
-- [ ] **Step 1: Create the ExternalSecret**
+- [x] **Step 1: Create the ExternalSecret**
 
 Create `apps/paperclip/manifests/external-secret-ghcr.yaml`:
 
@@ -345,7 +345,7 @@ Notes:
 - `type: kubernetes.io/dockerconfigjson` is required for imagePullSecrets.
 - The username can be any string for GHCR PAT auth; `derio-net` (the org name) is conventional.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/paperclip/manifests/external-secret-ghcr.yaml
@@ -361,7 +361,7 @@ Create the Longhorn PVC for Paperclip's `/paperclip` data volume (instance confi
 **Files:**
 - Create: `apps/paperclip/manifests/pvc.yaml`
 
-- [ ] **Step 1: Create the PVC**
+- [x] **Step 1: Create the PVC**
 
 Create `apps/paperclip/manifests/pvc.yaml`:
 
@@ -380,7 +380,7 @@ spec:
       storage: 2Gi
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/paperclip/manifests/pvc.yaml
@@ -398,7 +398,7 @@ Create the Paperclip Deployment. References ConfigMap, ExternalSecrets, PVC, Bit
 
 **Reference:** Design spec lines 130-145 for DATABASE_URL construction, resource limits, and health checks.
 
-- [ ] **Step 1: Create the Deployment**
+- [x] **Step 1: Create the Deployment**
 
 Create `apps/paperclip/manifests/deployment.yaml`:
 
@@ -480,7 +480,7 @@ Notes:
 - The Bitnami chart names its Secret `<releaseName>-postgresql`, so with `releaseName: paperclip-db` it becomes `paperclip-db-postgresql`.
 - The container runs as `node:node` user (set in the Dockerfile's `USER node` directive).
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/paperclip/manifests/deployment.yaml
@@ -498,7 +498,7 @@ Create the Cilium L2 LoadBalancer Service exposing Paperclip's web UI at 192.168
 
 **Reference:** `apps/sympozium-extras/manifests/service-lb.yaml` for Cilium annotation pattern.
 
-- [ ] **Step 1: Create the Service**
+- [x] **Step 1: Create the Service**
 
 Create `apps/paperclip/manifests/service-lb.yaml`:
 
@@ -524,7 +524,7 @@ spec:
       protocol: TCP
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/paperclip/manifests/service-lb.yaml
@@ -544,7 +544,7 @@ Create the ArgoCD Application CR that deploys the raw manifests from `apps/paper
 
 **Reference:** `apps/root/templates/sympozium-extras.yaml` for raw manifests Application CR pattern.
 
-- [ ] **Step 1: Create the Application CR**
+- [x] **Step 1: Create the Application CR**
 
 Create `apps/root/templates/paperclip.yaml`:
 
@@ -587,7 +587,7 @@ Notes:
 - `ignoreDifferences` + `RespectIgnoreDifferences=true` prevents ArgoCD from detecting drift on ExternalSecret-managed Secrets. This is an improvement over the `sympozium-extras` reference pattern which lacks both — ExternalSecrets constantly update Secret data, causing unnecessary sync diffs without this.
 - Uses single `source` (not `sources`) since there's no upstream chart — just raw manifests from this repo.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/root/templates/paperclip.yaml
@@ -600,7 +600,7 @@ git commit -m "feat(phase14): add Paperclip ArgoCD Application CR"
 
 This step must be performed by the operator before ArgoCD can deploy Paperclip. The image doesn't exist yet in GHCR.
 
-- [ ] **Step 1: Execute manual operation `orch-build-paperclip-image`**
+- [x] **Step 1: Execute manual operation `orch-build-paperclip-image`**
 
 Follow the commands in the design spec's `# manual-operation` block:
 
@@ -611,7 +611,7 @@ echo $GHCR_PAT | docker login ghcr.io -u derio-net --password-stdin
 docker push ghcr.io/derio-net/paperclip:v0.3.1
 ```
 
-- [ ] **Step 2: Verify the image is pullable**
+- [x] **Step 2: Verify the image is pullable**
 
 ```bash
 docker pull ghcr.io/derio-net/paperclip:v0.3.1
@@ -625,7 +625,7 @@ Expected: Image pulls successfully.
 
 Create the three secrets in Infisical that the ExternalSecrets reference.
 
-- [ ] **Step 1: Execute manual operation `orch-create-infisical-secrets`**
+- [x] **Step 1: Execute manual operation `orch-create-infisical-secrets`**
 
 Follow the commands in the design spec's `# manual-operation` block:
 
@@ -633,7 +633,7 @@ Follow the commands in the design spec's `# manual-operation` block:
 2. Generate a random auth secret: `openssl rand -base64 32` — store as `PAPERCLIP_AUTH_SECRET` in Infisical.
 3. Create a GitHub PAT with `read:packages` scope (or reuse existing), store as `GHCR_PAT` in Infisical (if not already present).
 
-- [ ] **Step 2: Verify secrets exist**
+- [x] **Step 2: Verify secrets exist**
 
 ```bash
 infisical secrets get PAPERCLIP_LITELLM_KEY
@@ -649,13 +649,13 @@ Expected: All three secrets return values.
 
 Push all changes and verify ArgoCD picks up both applications.
 
-- [ ] **Step 1: Push to remote**
+- [x] **Step 1: Push to remote**
 
 ```bash
 git push -u origin claude/deploy-paperclip-orchestrator-2mo3D
 ```
 
-- [ ] **Step 2: Verify ArgoCD detects the new apps**
+- [x] **Step 2: Verify ArgoCD detects the new apps**
 
 ```bash
 argocd app list --port-forward --port-forward-namespace argocd | grep paperclip
@@ -663,13 +663,13 @@ argocd app list --port-forward --port-forward-namespace argocd | grep paperclip
 
 Expected: Two apps listed — `paperclip-db` and `paperclip`.
 
-- [ ] **Step 3: Sync the root app to pick up new Application CRs**
+- [x] **Step 3: Sync the root app to pick up new Application CRs**
 
 ```bash
 argocd app sync root --port-forward --port-forward-namespace argocd
 ```
 
-- [ ] **Step 4: Verify paperclip-db is healthy**
+- [x] **Step 4: Verify paperclip-db is healthy**
 
 ```bash
 kubectl get pods -n paperclip-system -l app.kubernetes.io/instance=paperclip-db
@@ -678,7 +678,7 @@ kubectl get pvc -n paperclip-system
 
 Expected: PostgreSQL pod is `Running`, PVC is `Bound`.
 
-- [ ] **Step 5: Verify ExternalSecrets are synced**
+- [x] **Step 5: Verify ExternalSecrets are synced**
 
 ```bash
 kubectl get externalsecret -n paperclip-system
@@ -686,7 +686,7 @@ kubectl get externalsecret -n paperclip-system
 
 Expected: All three ExternalSecrets show `SecretSynced` status.
 
-- [ ] **Step 6: Verify Paperclip deployment is running**
+- [x] **Step 6: Verify Paperclip deployment is running**
 
 ```bash
 kubectl get pods -n paperclip-system -l app.kubernetes.io/name=paperclip
@@ -695,7 +695,7 @@ kubectl logs -n paperclip-system -l app.kubernetes.io/name=paperclip --tail=20
 
 Expected: Paperclip pod is `Running`, logs show successful startup and DB connection.
 
-- [ ] **Step 7: Verify LoadBalancer Service has IP assigned**
+- [x] **Step 7: Verify LoadBalancer Service has IP assigned**
 
 ```bash
 kubectl get svc -n paperclip-system paperclip-lb
@@ -703,7 +703,7 @@ kubectl get svc -n paperclip-system paperclip-lb
 
 Expected: `EXTERNAL-IP` shows `192.168.55.212`.
 
-- [ ] **Step 8: Test web UI access**
+- [x] **Step 8: Test web UI access**
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" http://192.168.55.212:3100/
@@ -722,7 +722,7 @@ Add Paperclip to the services table in CLAUDE.md.
 **Files:**
 - Modify: `CLAUDE.md` (Services table)
 
-- [ ] **Step 1: Add Paperclip to the services table**
+- [x] **Step 1: Add Paperclip to the services table**
 
 Add this row to the `## Services` table in `CLAUDE.md`, after the Authentik row:
 
@@ -730,7 +730,7 @@ Add this row to the `## Services` table in `CLAUDE.md`, after the Authentik row:
 | Paperclip | 192.168.55.212 | Cilium L2 LoadBalancer (port 3100) |
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add CLAUDE.md
@@ -743,15 +743,15 @@ git commit -m "docs: add Paperclip to CLAUDE.md services table"
 
 Run `/sync-runbook` to sync the manual operations from the design spec to `docs/runbooks/manual-operations.yaml`.
 
-- [ ] **Step 1: Run sync-runbook**
+- [x] **Step 1: Run sync-runbook**
 
 Execute the `/sync-runbook` skill (a Claude Code slash command) to pick up the two `# manual-operation` blocks from `docs/superpowers/specs/2026-03-14--orch--paperclip-design.md`. In Claude Code, type `/sync-runbook` and it will scan all plan files in `docs/superpowers/plans/` for `# manual-operation` YAML blocks and merge them into `docs/runbooks/manual-operations.yaml`.
 
-- [ ] **Step 2: Verify the runbook was updated**
+- [x] **Step 2: Verify the runbook was updated**
 
 Check that `docs/runbooks/manual-operations.yaml` contains entries for `orch-build-paperclip-image` and `orch-create-infisical-secrets`.
 
-- [ ] **Step 3: Commit if changed**
+- [x] **Step 3: Commit if changed**
 
 ```bash
 git add docs/runbooks/manual-operations.yaml
@@ -786,7 +786,7 @@ status: pending
 
 Push all documentation updates.
 
-- [ ] **Step 1: Push**
+- [x] **Step 1: Push**
 
 ```bash
 git push -u origin claude/deploy-paperclip-orchestrator-2mo3D
