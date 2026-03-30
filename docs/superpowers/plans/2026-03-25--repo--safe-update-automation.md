@@ -9,7 +9,7 @@
 **Tech Stack:** ARC v2 (`gha-runner-scale-set-controller` + `gha-runner-scale-set` OCI charts), Renovate GitHub App, GitHub Actions, Helm 3, kubectl, yq, SOPS/age.
 
 **Design doc:** `docs/superpowers/specs/2026-03-25--repo--safe-update-automation-design.md`
-**Status:** In Progress
+**Status:** Not Started
 
 ---
 

@@ -9,6 +9,7 @@
 **Tech Stack:** Traefik v3 (Helm chart), Traefik CRDs (IngressRoute, Middleware), cert via built-in ACME, Authentik forward-auth, gethomepage.dev, ArgoCD App-of-Apps
 
 **Spec:** `docs/superpowers/specs/2026-03-29--net--in-cluster-ingress-design.md`
+**Status:** Not Started
 
 **IMPORTANT:** Do NOT `git push` until Task 9 Step 4. ArgoCD will try to sync Traefik immediately on push, and the SOPS secret (Task 9 Step 1) must exist in the cluster first. All commits in Tasks 1-8 are local only.
 

@@ -1,6 +1,6 @@
 # Multi-tenancy — vCluster Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Deploy vCluster to enable disposable, fully isolated virtual Kubernetes clusters inside Frank, managed GitOps-style via ArgoCD.
 
@@ -41,13 +41,13 @@ This is the reusable base configuration. Individual vClusters override specific 
 **Files:**
 - Create: `apps/vclusters/template/values.yaml`
 
-- [ ] **Step 1: Create directory structure**
+- [x] **Step 1: Create directory structure**
 
 ```bash
 mkdir -p apps/vclusters/template
 ```
 
-- [ ] **Step 2: Write the template values file**
+- [x] **Step 2: Write the template values file**
 
 Create `apps/vclusters/template/values.yaml`:
 
@@ -133,7 +133,7 @@ isolation:
     enabled: true
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/vclusters/template/values.yaml
@@ -153,7 +153,7 @@ Sensible defaults for disposable virtual clusters:
 **Files:**
 - Create: `apps/root/templates/ns-vcluster-experiments.yaml`
 
-- [ ] **Step 1: Write namespace manifest**
+- [x] **Step 1: Write namespace manifest**
 
 Create `apps/root/templates/ns-vcluster-experiments.yaml`:
 
@@ -169,7 +169,7 @@ metadata:
     pod-security.kubernetes.io/warn: restricted
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/root/templates/ns-vcluster-experiments.yaml
@@ -189,13 +189,13 @@ For the first "experiments" vCluster, the template defaults are fine as-is. The 
 **Files:**
 - Create: `apps/vclusters/experiments/values.yaml`
 
-- [ ] **Step 1: Create directory**
+- [x] **Step 1: Create directory**
 
 ```bash
 mkdir -p apps/vclusters/experiments
 ```
 
-- [ ] **Step 2: Write values file (overrides only)**
+- [x] **Step 2: Write values file (overrides only)**
 
 Create `apps/vclusters/experiments/values.yaml`:
 
@@ -222,7 +222,7 @@ Create `apps/vclusters/experiments/values.yaml`:
 #       pods: "100"       # Allow more pods in this vCluster
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/vclusters/experiments/values.yaml
@@ -241,7 +241,7 @@ The Application CR loads two valueFiles in order: template first, then instance 
 **Files:**
 - Create: `apps/root/templates/vcluster-experiments.yaml`
 
-- [ ] **Step 1: Write the Application CR**
+- [x] **Step 1: Write the Application CR**
 
 Create `apps/root/templates/vcluster-experiments.yaml`:
 
@@ -286,7 +286,7 @@ spec:
         - /data
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/root/templates/vcluster-experiments.yaml
@@ -300,13 +300,13 @@ ServerSideApply + selfHeal, Secret data ignored."
 
 ### Task 5: Push and verify ArgoCD sync
 
-- [ ] **Step 1: Push all commits**
+- [x] **Step 1: Push all commits**
 
 ```bash
 git push origin main
 ```
 
-- [ ] **Step 2: Wait for ArgoCD to pick up changes**
+- [x] **Step 2: Wait for ArgoCD to pick up changes**
 
 ```bash
 # Check root app sees the new application
@@ -315,13 +315,13 @@ argocd app list --port-forward --port-forward-namespace argocd | grep vcluster
 
 Expected: `vcluster-experiments` appears in the app list.
 
-- [ ] **Step 3: Sync if not auto-synced**
+- [x] **Step 3: Sync if not auto-synced**
 
 ```bash
 argocd app sync root --port-forward --port-forward-namespace argocd
 ```
 
-- [ ] **Step 4: Wait for vCluster to become healthy**
+- [x] **Step 4: Wait for vCluster to become healthy**
 
 ```bash
 # Watch the vCluster pods come up
@@ -330,7 +330,7 @@ kubectl get pods -n vcluster-experiments -w
 
 Expected: `experiments-0` pod reaches `Running` + `Ready` state (may take 1-2 minutes for etcd init).
 
-- [ ] **Step 5: Verify ArgoCD app health**
+- [x] **Step 5: Verify ArgoCD app health**
 
 ```bash
 argocd app get vcluster-experiments --port-forward --port-forward-namespace argocd
@@ -338,13 +338,13 @@ argocd app get vcluster-experiments --port-forward --port-forward-namespace argo
 
 Expected: Status `Synced`, Health `Healthy`.
 
-- [ ] **Step 6: Commit nothing — this is a verification step only**
+- [x] **Step 6: Commit nothing — this is a verification step only**
 
 ---
 
 ### Task 6: Connect to vCluster and validate
 
-- [ ] **Step 1: Install vcluster CLI (if not present)**
+- [x] **Step 1: Install vcluster CLI (if not present)**
 
 ```bash
 if ! command -v vcluster &> /dev/null; then
@@ -359,7 +359,7 @@ fi
 
 Expected: `vcluster version 0.32.1` (or similar).
 
-- [ ] **Step 2: Connect to the experiments vCluster**
+- [x] **Step 2: Connect to the experiments vCluster**
 
 ```bash
 vcluster connect experiments -n vcluster-experiments
@@ -367,7 +367,7 @@ vcluster connect experiments -n vcluster-experiments
 
 Expected: A kubeconfig is generated and the current context is switched to the virtual cluster.
 
-- [ ] **Step 3: Verify the virtual cluster is functional**
+- [x] **Step 3: Verify the virtual cluster is functional**
 
 ```bash
 # Inside the vCluster context:
@@ -380,7 +380,7 @@ kubectl get pods -n test-sandbox -w
 
 Expected: Nodes are visible (synced from host), nginx pod reaches `Running`.
 
-- [ ] **Step 4: Verify host-side isolation**
+- [x] **Step 4: Verify host-side isolation**
 
 ```bash
 # Switch back to host context
@@ -394,7 +394,7 @@ kubectl get pods -A | grep test-sandbox
 # Expected: no results (virtual namespace doesn't exist on host)
 ```
 
-- [ ] **Step 5: Clean up test workload**
+- [x] **Step 5: Clean up test workload**
 
 ```bash
 vcluster connect experiments -n vcluster-experiments
@@ -402,7 +402,7 @@ kubectl delete namespace test-sandbox
 vcluster disconnect
 ```
 
-- [ ] **Step 6: Commit nothing — verification only**
+- [x] **Step 6: Commit nothing — verification only**
 
 ---
 
@@ -419,7 +419,7 @@ The design file has been renamed to `docs/superpowers/specs/2026-03-07--tenant--
 **Files:**
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Update Architecture directory tree in CLAUDE.md**
+- [x] **Step 1: Update Architecture directory tree in CLAUDE.md**
 
 vCluster access is kubeconfig-based (`vcluster connect`), not exposed via a LoadBalancer UI. No entry needed in the Services table.
 
@@ -431,7 +431,7 @@ In the `## Architecture` section's directory tree, add the `vclusters/` entry un
     <name>/values.yaml   # Per-instance overrides
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add CLAUDE.md
@@ -446,10 +446,10 @@ Documents the per-vCluster values pattern under apps/."
 
 Per the Standard Layer Workflow in CLAUDE.md:
 
-- [ ] **Step 1: Blog post** — Run `/blog-post` skill. Title: "Multi-tenancy: Disposable Kubernetes Clusters with vCluster". Update the series index (`blog/content/posts/00-overview/index.md`) and roadmap shortcode (`blog/layouts/shortcodes/cluster-roadmap.html`).
+- [x] **Step 1: Blog post** — Run `/blog-post` skill. Title: "Multi-tenancy: Disposable Kubernetes Clusters with vCluster". Update the series index (`blog/content/posts/00-overview/index.md`) and roadmap shortcode (`blog/layouts/shortcodes/cluster-roadmap.html`).
 
-- [ ] **Step 2: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status.
+- [x] **Step 2: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status.
 
-- [ ] **Step 3: Sync runbook** — Run `/sync-runbook` if any `# manual-operation` blocks exist in this plan. (This plan has none — vCluster CLI install is a developer tool, not a cluster operation.)
+- [x] **Step 3: Sync runbook** — Run `/sync-runbook` if any `# manual-operation` blocks exist in this plan. (This plan has none — vCluster CLI install is a developer tool, not a cluster operation.)
 
-- [ ] **Step 4: Review** — Verify deployment health and blog accuracy.
+- [x] **Step 4: Review** — Verify deployment health and blog accuracy.

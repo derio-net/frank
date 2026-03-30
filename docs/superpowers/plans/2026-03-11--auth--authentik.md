@@ -19,7 +19,7 @@
 
 Before creating any files, research the chart to confirm values structure and version.
 
-- [ ] **Step 1: Add Authentik Helm repo and inspect chart**
+- [x] **Step 1: Add Authentik Helm repo and inspect chart**
 
 ```bash
 helm repo add authentik https://charts.goauthentik.io
@@ -29,7 +29,7 @@ helm search repo authentik/authentik --versions | head -5
 
 Expected: shows `authentik/authentik` with latest version `2026.2.1` (or newer).
 
-- [ ] **Step 2: Inspect default values**
+- [x] **Step 2: Inspect default values**
 
 ```bash
 helm show values authentik/authentik > /tmp/authentik-values-full.yaml
@@ -43,7 +43,7 @@ Review `/tmp/authentik-values-full.yaml` to confirm:
 - `blueprints.configMaps` path exists
 - `server.service.type` defaults to `ClusterIP`
 
-- [ ] **Step 3: Check subchart behavior**
+- [x] **Step 3: Check subchart behavior**
 
 Verify whether the bundled PostgreSQL subchart has the same env var collision bug as Infisical's chart. Check if enabling `postgresql.enabled: true` alongside `server.env` for `AUTHENTIK_POSTGRESQL__PASSWORD` causes duplicate env injection.
 
@@ -61,7 +61,7 @@ Create the Kubernetes secrets Authentik needs before it can start. These are app
 **Files:**
 - Create: `secrets/authentik/authentik-secrets.yaml` (SOPS-encrypted)
 
-- [ ] **Step 1: Generate secret values**
+- [x] **Step 1: Generate secret values**
 
 ```bash
 # Generate a 50-char random secret key
@@ -78,7 +78,7 @@ echo "Bootstrap Password: $AUTHENTIK_BOOTSTRAP_PASSWORD"
 
 **Save these values securely — you'll need them in the next step.**
 
-- [ ] **Step 2: Create the Kubernetes Secret manifest**
+- [x] **Step 2: Create the Kubernetes Secret manifest**
 
 Create `secrets/authentik/authentik-secrets.yaml` (plaintext, will encrypt next):
 
@@ -97,7 +97,7 @@ stringData:
 
 Replace the placeholders with the generated values from Step 1.
 
-- [ ] **Step 3: Encrypt with SOPS**
+- [x] **Step 3: Encrypt with SOPS**
 
 ```bash
 cd /Users/idermitzakis/Docs/projects/HOMELAB/frank-cluster
@@ -111,7 +111,7 @@ head -20 secrets/authentik/authentik-secrets.yaml
 
 Expected: `data` or `stringData` values are encrypted, metadata is readable.
 
-- [ ] **Step 4: Apply the secret to the cluster**
+- [x] **Step 4: Apply the secret to the cluster**
 
 ```bash
 sops --decrypt secrets/authentik/authentik-secrets.yaml | kubectl apply -f -
@@ -147,7 +147,7 @@ verify:
 status: done
 ```
 
-- [ ] **Step 5: Commit encrypted secrets**
+- [x] **Step 5: Commit encrypted secrets**
 
 ```bash
 git add secrets/authentik/authentik-secrets.yaml
@@ -166,7 +166,7 @@ Create a declarative namespace manifest, consistent with other apps (infisical, 
 **Files:**
 - Create: `apps/root/templates/ns-authentik.yaml`
 
-- [ ] **Step 1: Create namespace manifest**
+- [x] **Step 1: Create namespace manifest**
 
 Create `apps/root/templates/ns-authentik.yaml`:
 
@@ -179,7 +179,7 @@ metadata:
     pod-security.kubernetes.io/enforce: privileged
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/root/templates/ns-authentik.yaml
@@ -199,7 +199,7 @@ Deploy Authentik server + worker + PostgreSQL via the official Helm chart.
 - Create: `apps/authentik/values.yaml`
 - Create: `apps/root/templates/authentik.yaml`
 
-- [ ] **Step 1: Create Authentik Helm values**
+- [x] **Step 1: Create Authentik Helm values**
 
 Create `apps/authentik/values.yaml`:
 
@@ -317,7 +317,7 @@ redis:
       size: 2Gi
 ```
 
-- [ ] **Step 2: Create Authentik Application CR**
+- [x] **Step 2: Create Authentik Application CR**
 
 Create `apps/root/templates/authentik.yaml`:
 
@@ -364,7 +364,7 @@ spec:
     # Add entries for PostgreSQL and Redis auto-generated secrets here.
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/authentik/values.yaml apps/root/templates/authentik.yaml
@@ -387,7 +387,7 @@ Deploy supplementary resources: LoadBalancer Service, blueprint ConfigMaps.
 - Create: `apps/authentik-extras/manifests/blueprints-flows.yaml`
 - Create: `apps/root/templates/authentik-extras.yaml`
 
-- [ ] **Step 1: Create LoadBalancer Service**
+- [x] **Step 1: Create LoadBalancer Service**
 
 Create `apps/authentik-extras/manifests/lb-service.yaml`:
 
@@ -417,7 +417,7 @@ spec:
       protocol: TCP
 ```
 
-- [ ] **Step 2: Create groups blueprint ConfigMap**
+- [x] **Step 2: Create groups blueprint ConfigMap**
 
 Create `apps/authentik-extras/manifests/blueprints-groups.yaml`:
 
@@ -486,7 +486,7 @@ data:
 
 Note: Authentik ships with default authentication and authorization flows out of the box. We don't need custom flow blueprints for the initial deployment — the defaults work for username/password + OIDC. Custom flows (e.g., MFA enrollment) can be added later as additional blueprint ConfigMaps.
 
-- [ ] **Step 3: Create authentik-extras Application CR**
+- [x] **Step 3: Create authentik-extras Application CR**
 
 Create `apps/root/templates/authentik-extras.yaml`:
 
@@ -516,7 +516,7 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/authentik-extras/ apps/root/templates/authentik-extras.yaml
@@ -533,13 +533,13 @@ developers, agents) with nested group hierarchy."
 
 Push changes and verify Authentik comes up correctly.
 
-- [ ] **Step 1: Push to remote**
+- [x] **Step 1: Push to remote**
 
 ```bash
 git push origin main
 ```
 
-- [ ] **Step 2: Sync ArgoCD root app**
+- [x] **Step 2: Sync ArgoCD root app**
 
 ```bash
 argocd app sync root --port-forward --port-forward-namespace argocd
@@ -552,7 +552,7 @@ argocd app list --port-forward --port-forward-namespace argocd | grep authentik
 
 Expected: `authentik` and `authentik-extras` both show `Synced` / `Healthy`.
 
-- [ ] **Step 3: Verify pods are running**
+- [x] **Step 3: Verify pods are running**
 
 ```bash
 kubectl get pods -n authentik
@@ -567,7 +567,7 @@ authentik-postgresql-0         1/1     Running
 authentik-redis-master-0       1/1     Running
 ```
 
-- [ ] **Step 4: Verify LoadBalancer**
+- [x] **Step 4: Verify LoadBalancer**
 
 ```bash
 kubectl get svc -n authentik | grep LoadBalancer
@@ -575,7 +575,7 @@ kubectl get svc -n authentik | grep LoadBalancer
 
 Expected: `authentik-server-lb` with `EXTERNAL-IP` `192.168.55.211`.
 
-- [ ] **Step 5: Add Traefik route on raspi-omni**
+- [x] **Step 5: Add Traefik route on raspi-omni**
 
 Add to the Traefik config on raspi-omni:
 
@@ -602,7 +602,7 @@ verify:
 status: done
 ```
 
-- [ ] **Step 6: Access Authentik initial setup**
+- [x] **Step 6: Access Authentik initial setup**
 
 Navigate to `https://auth.frank.derio.net/if/flow/initial-setup/` in a browser.
 
@@ -615,7 +615,7 @@ Verify:
 - Groups `root`, `root-admins`, `root-devops`, `root-developers`, `root-agents` exist (check Admin > Directory > Groups)
 - `akadmin` user exists
 
-- [ ] **Step 7: Add akadmin to root-admins group**
+- [x] **Step 7: Add akadmin to root-admins group**
 
 In Authentik Admin UI:
 1. Go to Directory > Users > `akadmin`
@@ -649,7 +649,7 @@ Configure ArgoCD to use Authentik as its OIDC provider, replacing the built-in D
 - Create: `secrets/authentik/argocd-oidc-secret.yaml` (SOPS-encrypted)
 - Modify: `apps/argocd/values.yaml` (add OIDC config)
 
-- [ ] **Step 1: Create OIDC client secret for ArgoCD**
+- [x] **Step 1: Create OIDC client secret for ArgoCD**
 
 ```bash
 ARGOCD_CLIENT_SECRET=$(openssl rand -base64 32 | tr -d '\n' | head -c 32)
@@ -692,7 +692,7 @@ verify:
 status: done
 ```
 
-- [ ] **Step 2: Create Authentik OIDC provider blueprint for ArgoCD**
+- [x] **Step 2: Create Authentik OIDC provider blueprint for ArgoCD**
 
 Create `apps/authentik-extras/manifests/blueprints-provider-argocd.yaml`:
 
@@ -751,7 +751,7 @@ data:
           meta_launch_url: https://argocd.frank.derio.net
 ```
 
-- [ ] **Step 3: Update authentik values to include new blueprint ConfigMap**
+- [x] **Step 3: Update authentik values to include new blueprint ConfigMap**
 
 Modify `apps/authentik/values.yaml` — add the new ConfigMap to the blueprints list:
 
@@ -762,7 +762,7 @@ blueprints:
     - authentik-blueprints-provider-argocd
 ```
 
-- [ ] **Step 4: Update ArgoCD values for OIDC**
+- [x] **Step 4: Update ArgoCD values for OIDC**
 
 Modify `apps/argocd/values.yaml` to add OIDC configuration. Add under the `configs` section (or create it if it doesn't exist):
 
@@ -792,7 +792,7 @@ configs:
     scopes: "[groups]"
 ```
 
-- [ ] **Step 5: Set the client_secret in Authentik UI**
+- [x] **Step 5: Set the client_secret in Authentik UI**
 
 After the blueprint creates the ArgoCD provider, set the client secret manually:
 
@@ -815,7 +815,7 @@ verify:
 status: done
 ```
 
-- [ ] **Step 6: Commit and deploy**
+- [x] **Step 6: Commit and deploy**
 
 ```bash
 git add apps/authentik-extras/manifests/blueprints-provider-argocd.yaml \
@@ -829,7 +829,7 @@ ArgoCD config switches from Dex to Authentik OIDC.
 RBAC: root-admins=admin, root-devops=admin, root-developers=readonly."
 ```
 
-- [ ] **Step 7: Verify ArgoCD OIDC login**
+- [x] **Step 7: Verify ArgoCD OIDC login**
 
 After sync:
 1. Navigate to `https://argocd.frank.derio.net`
@@ -848,7 +848,7 @@ After sync:
 - Create: `secrets/authentik/grafana-oidc-secret.yaml` (SOPS-encrypted)
 - Modify: `apps/grafana/values.yaml` (or observability stack values — research actual path)
 
-- [ ] **Step 1: Research current Grafana deployment**
+- [x] **Step 1: Research current Grafana deployment**
 
 Check how Grafana is deployed:
 ```bash
@@ -859,7 +859,7 @@ ls apps/ | grep -i observ
 
 Read the Grafana values file and Application CR to understand the current configuration. Grafana may be deployed as part of a kube-prometheus-stack or standalone.
 
-- [ ] **Step 2: Generate OIDC client secret for Grafana**
+- [x] **Step 2: Generate OIDC client secret for Grafana**
 
 ```bash
 GRAFANA_CLIENT_SECRET=$(openssl rand -base64 32 | tr -d '\n' | head -c 32)
@@ -900,7 +900,7 @@ verify:
 status: done
 ```
 
-- [ ] **Step 3: Create Authentik OIDC provider blueprint for Grafana**
+- [x] **Step 3: Create Authentik OIDC provider blueprint for Grafana**
 
 Create `apps/authentik-extras/manifests/blueprints-provider-grafana.yaml`:
 
@@ -953,7 +953,7 @@ data:
           meta_launch_url: https://grafana.frank.derio.net
 ```
 
-- [ ] **Step 4: Update Grafana values for OIDC**
+- [x] **Step 4: Update Grafana values for OIDC**
 
 Add to Grafana's values (exact path depends on Step 1 research):
 
@@ -986,14 +986,14 @@ grafana:
 
 Note: The exact YAML structure depends on whether Grafana is standalone or part of kube-prometheus-stack. Adjust paths accordingly during implementation.
 
-- [ ] **Step 5: Update authentik values with new blueprint ConfigMap**
+- [x] **Step 5: Update authentik values with new blueprint ConfigMap**
 
 Add to `apps/authentik/values.yaml` blueprints list:
 ```yaml
     - authentik-blueprints-provider-grafana
 ```
 
-- [ ] **Step 6: Set client secret in Authentik UI and commit**
+- [x] **Step 6: Set client secret in Authentik UI and commit**
 
 Same process as ArgoCD (Task 6 Step 5): set the Grafana client secret in the Authentik provider via the admin UI.
 
@@ -1031,7 +1031,7 @@ Note: Grafana values changes need to be committed separately once the exact file
 **Files:**
 - Create: `apps/authentik-extras/manifests/blueprints-provider-infisical.yaml`
 
-- [ ] **Step 1: Research Infisical OIDC support**
+- [x] **Step 1: Research Infisical OIDC support**
 
 Check Infisical's docs for OIDC/SSO configuration. Infisical supports OIDC but configuration may be done via the Infisical admin UI rather than Helm values.
 
@@ -1039,7 +1039,7 @@ Check Infisical's docs for OIDC/SSO configuration. Infisical supports OIDC but c
 grep -r "oidc\|oauth\|sso\|saml" apps/infisical/ --include="*.yaml" -i
 ```
 
-- [ ] **Step 2: Create Authentik OIDC provider blueprint for Infisical**
+- [x] **Step 2: Create Authentik OIDC provider blueprint for Infisical**
 
 Create `apps/authentik-extras/manifests/blueprints-provider-infisical.yaml`:
 
@@ -1091,7 +1091,7 @@ data:
           meta_launch_url: https://infisical.frank.derio.net
 ```
 
-- [ ] **Step 3: Generate and store Infisical OIDC client secret**
+- [x] **Step 3: Generate and store Infisical OIDC client secret**
 
 ```bash
 INFISICAL_CLIENT_SECRET=$(openssl rand -base64 32 | tr -d '\n' | head -c 32)
@@ -1118,7 +1118,7 @@ sops --encrypt --in-place secrets/authentik/infisical-oidc-secret.yaml
 
 This stores the client secret for reproducibility — if the Authentik DB is lost, the secret can be recovered from SOPS.
 
-- [ ] **Step 4: Configure Infisical OIDC via admin UI**
+- [x] **Step 4: Configure Infisical OIDC via admin UI**
 
 Infisical's OIDC configuration is typically done through its admin panel:
 
@@ -1150,7 +1150,7 @@ verify:
 status: n/a  # Infisical OIDC requires Pro plan
 ```
 
-- [ ] **Step 4: Update authentik values and commit**
+- [x] **Step 4: Update authentik values and commit**
 
 Add to `apps/authentik/values.yaml` blueprints list:
 ```yaml
@@ -1178,7 +1178,7 @@ Deploy Authentik's embedded proxy outpost to protect services without native OID
 **Files:**
 - Create: `apps/authentik-extras/manifests/blueprints-proxy-providers.yaml`
 
-- [ ] **Step 1: Research embedded outpost configuration**
+- [x] **Step 1: Research embedded outpost configuration**
 
 The embedded outpost runs inside the Authentik server pod. It needs:
 - A Proxy Provider per service in Authentik
@@ -1189,7 +1189,7 @@ Check Authentik docs for embedded outpost + forward auth configuration:
 - Whether Traefik's `forwardAuth` middleware can be used
 - **Verify the blueprint model name** for proxy providers (`authentik_providers_proxy.proxyprovider` — confirm via Authentik API schema or docs)
 
-- [ ] **Step 2: Create proxy provider blueprints**
+- [x] **Step 2: Create proxy provider blueprints**
 
 Create `apps/authentik-extras/manifests/blueprints-proxy-providers.yaml`:
 
@@ -1276,14 +1276,14 @@ data:
           meta_launch_url: https://sympozium.frank.derio.net
 ```
 
-- [ ] **Step 3: Update authentik values with proxy blueprint**
+- [x] **Step 3: Update authentik values with proxy blueprint**
 
 Add to `apps/authentik/values.yaml` blueprints list:
 ```yaml
     - authentik-blueprints-proxy-providers
 ```
 
-- [ ] **Step 4: Configure Traefik forward auth on raspi-omni**
+- [x] **Step 4: Configure Traefik forward auth on raspi-omni**
 
 For each proxied service, update Traefik config to use forward auth through Authentik:
 
@@ -1306,7 +1306,7 @@ verify:
 status: done
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/authentik-extras/manifests/blueprints-proxy-providers.yaml \
@@ -1328,7 +1328,7 @@ Create a machine user and OAuth2 application in Authentik for non-interactive ag
 **Files:**
 - Create: `apps/authentik-extras/manifests/blueprints-agent-auth.yaml`
 
-- [ ] **Step 1: Create agent auth blueprint**
+- [x] **Step 1: Create agent auth blueprint**
 
 Create `apps/authentik-extras/manifests/blueprints-agent-auth.yaml`:
 
@@ -1383,7 +1383,7 @@ data:
           provider: !KeyOf provider-k8s-agent
 ```
 
-- [ ] **Step 2: Update authentik values and commit**
+- [x] **Step 2: Update authentik values and commit**
 
 Add to `apps/authentik/values.yaml` blueprints list:
 ```yaml
@@ -1399,7 +1399,7 @@ Creates OAuth2 provider for non-interactive kubectl access via
 client credentials grant. 8-hour token validity."
 ```
 
-- [ ] **Step 3: Create machine user and set client secret in Authentik UI**
+- [x] **Step 3: Create machine user and set client secret in Authentik UI**
 
 ```yaml
 # manual-operation
@@ -1428,7 +1428,7 @@ status: done
 
 Configure the Kubernetes API server to accept Authentik OIDC tokens, and create the agent kubeconfig.
 
-- [ ] **Step 1: Research Kubernetes OIDC configuration on Talos**
+- [x] **Step 1: Research Kubernetes OIDC configuration on Talos**
 
 Talos configures kube-apiserver OIDC flags via machine config. Check Omni/Talos docs for:
 - `cluster.apiServer.extraArgs` in machine config
@@ -1436,7 +1436,7 @@ Talos configures kube-apiserver OIDC flags via machine config. Check Omni/Talos 
 
 Research if this requires a Talos machine config patch in `patches/`.
 
-- [ ] **Step 2: Create Talos OIDC patch**
+- [x] **Step 2: Create Talos OIDC patch**
 
 Create a Talos machine config patch for OIDC:
 
@@ -1480,7 +1480,7 @@ verify:
 status: done
 ```
 
-- [ ] **Step 3: Create Kubernetes RBAC for Authentik groups**
+- [x] **Step 3: Create Kubernetes RBAC for Authentik groups**
 
 Create `apps/authentik-extras/manifests/k8s-rbac.yaml`:
 
@@ -1541,7 +1541,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 ```
 
-- [ ] **Step 4: Install kubelogin (oidc-login) plugin**
+- [x] **Step 4: Install kubelogin (oidc-login) plugin**
 
 ```bash
 # Install kubelogin kubectl plugin for OIDC authentication
@@ -1550,7 +1550,7 @@ kubectl krew install oidc-login
 brew install int128/kubelogin/kubelogin
 ```
 
-- [ ] **Step 5: Create .env_agent with OIDC kubeconfig**
+- [x] **Step 5: Create .env_agent with OIDC kubeconfig**
 
 Create the `.env_agent` file (gitignored) with a kubeconfig that uses OIDC client credentials:
 
@@ -1602,7 +1602,7 @@ users:
 
 Replace placeholders with actual values.
 
-- [ ] **Step 6: Verify agent auth**
+- [x] **Step 6: Verify agent auth**
 
 ```bash
 source .env_agent
@@ -1611,7 +1611,7 @@ kubectl get nodes
 
 Expected: lists all cluster nodes without any browser popup.
 
-- [ ] **Step 7: Commit RBAC manifests**
+- [x] **Step 7: Commit RBAC manifests**
 
 ```bash
 git add apps/authentik-extras/manifests/k8s-rbac.yaml
@@ -1627,7 +1627,7 @@ root-admins/agents=cluster-admin, root-devops=admin, root-developers=view."
 
 ### Task 12: Investigate and Fix Omni Service Account TTL
 
-- [ ] **Step 1: Check current Omni service account configuration**
+- [x] **Step 1: Check current Omni service account configuration**
 
 ```bash
 source .env_devops
@@ -1641,7 +1641,7 @@ ls omni/
 cat omni/docker-compose.yaml  # or whatever the Omni config file is
 ```
 
-- [ ] **Step 2: Research Omni service account TTL docs**
+- [x] **Step 2: Research Omni service account TTL docs**
 
 Check the Siderolabs docs at `https://docs.siderolabs.com/omni/self-hosted/` for:
 - Service account key TTL configuration
@@ -1652,7 +1652,7 @@ Check the Siderolabs docs at `https://docs.siderolabs.com/omni/self-hosted/` for
 omnictl serviceaccount create claude-agent --ttl 87600h  # 10 years, if supported
 ```
 
-- [ ] **Step 3: Document findings**
+- [x] **Step 3: Document findings**
 
 If TTL is configurable:
 - Generate a new long-lived service account key
@@ -1669,7 +1669,7 @@ If TTL is not configurable:
 
 ### Task 13: End-to-End Verification and Cleanup
 
-- [ ] **Step 1: Verify all ArgoCD apps are healthy**
+- [x] **Step 1: Verify all ArgoCD apps are healthy**
 
 ```bash
 argocd app list --port-forward --port-forward-namespace argocd | grep -E "authentik|argocd|grafana|infisical"
@@ -1677,21 +1677,21 @@ argocd app list --port-forward --port-forward-namespace argocd | grep -E "authen
 
 Expected: all apps show `Synced` / `Healthy`.
 
-- [ ] **Step 2: Verify OIDC login for all native OIDC services**
+- [x] **Step 2: Verify OIDC login for all native OIDC services**
 
 Test each service:
 1. ArgoCD: `https://argocd.frank.derio.net` — "Log in via Authentik" works
 2. Grafana: `https://grafana.frank.derio.net` — "Sign in with Authentik" works
 3. Infisical: `https://infisical.frank.derio.net` — SSO login works
 
-- [ ] **Step 3: Verify proxy outpost for non-OIDC services**
+- [x] **Step 3: Verify proxy outpost for non-OIDC services**
 
 Test each proxied service:
 1. Longhorn: `https://longhorn.frank.derio.net` — redirects to Authentik login, then loads
 2. Hubble: `https://hubble.frank.derio.net` — same
 3. Sympozium: `https://sympozium.frank.derio.net` — same
 
-- [ ] **Step 4: Verify agent auth**
+- [x] **Step 4: Verify agent auth**
 
 ```bash
 source .env_agent
@@ -1699,7 +1699,7 @@ kubectl get nodes -o wide
 kubectl auth whoami  # Should show OIDC identity
 ```
 
-- [ ] **Step 5: Create .env_agent alongside existing .env_devops**
+- [x] **Step 5: Create .env_agent alongside existing .env_devops**
 
 `.env_agent` is a new file for non-interactive OIDC-based credentials (created in Task 11). `.env_devops` continues to exist for Omni service account access. Update CLAUDE.md to document both files:
 
@@ -1710,11 +1710,11 @@ kubectl auth whoami  # Should show OIDC identity
 # source .env_agent    # Agent (OIDC client credentials for non-interactive kubectl)
 ```
 
-- [ ] **Step 6: Sync runbook**
+- [x] **Step 6: Sync runbook**
 
 Run `/sync-runbook` to collect all `# manual-operation` blocks from this plan into `docs/runbooks/manual-operations.yaml`.
 
-- [ ] **Step 7: Final commit**
+- [x] **Step 7: Final commit**
 
 ```bash
 git add -A

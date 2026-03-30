@@ -1,6 +1,6 @@
 # Operating on Frank — Blog Series Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a second blog series ("Operating on Frank") with 9 operational runbook posts, restructuring the Hugo site into `building/` and `operating/` subsections with section-aware banners.
 
@@ -22,7 +22,7 @@
 - Move: `blog/content/posts/*` → `blog/content/building/`
 - Delete: `blog/content/posts/` (empty after move)
 
-- [ ] **Step 1: Create the `building/` directory and `_index.md`**
+- [x] **Step 1: Create the `building/` directory and `_index.md`**
 
 ```bash
 mkdir -p blog/content/building
@@ -37,14 +37,14 @@ description: "A tutorial series on building an AI-hybrid Kubernetes homelab from
 ---
 ```
 
-- [ ] **Step 2: Move all post directories into `building/`**
+- [x] **Step 2: Move all post directories into `building/`**
 
 ```bash
 mv blog/content/posts/* blog/content/building/
 rmdir blog/content/posts
 ```
 
-- [ ] **Step 3: Update all relref links across all moved posts**
+- [x] **Step 3: Update all relref links across all moved posts**
 
 Multiple posts contain `relref "/posts/..."` cross-references that now need to point to `/building/...`. Run a global find-and-replace across all markdown files:
 
@@ -60,7 +60,7 @@ grep -r 'relref "/posts/' blog/content/building/
 
 Expected: no output (all references updated).
 
-- [ ] **Step 3b: Update `prompt_for_images.yaml` output paths**
+- [x] **Step 3b: Update `prompt_for_images.yaml` output paths**
 
 The existing cover image entries in `blog/prompt_for_images.yaml` reference `blog/content/posts/` paths. Update them to `blog/content/building/`:
 
@@ -83,7 +83,7 @@ grep 'blog/content/posts/' blog/prompt_for_images.yaml
 
 Expected: no output.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add blog/content/building/ blog/content/posts/ blog/prompt_for_images.yaml
@@ -101,7 +101,7 @@ relref cross-references and prompt_for_images.yaml output paths."
 **Files:**
 - Create: `blog/content/operating/_index.md`
 
-- [ ] **Step 1: Create the `operating/` directory and `_index.md`**
+- [x] **Step 1: Create the `operating/` directory and `_index.md`**
 
 ```bash
 mkdir -p blog/content/operating
@@ -116,7 +116,7 @@ description: "Day-to-day commands, health checks, and debugging guides for every
 ---
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add blog/content/operating/
@@ -130,7 +130,7 @@ git commit -m "blog: add operating/ subsection scaffolding"
 **Files:**
 - Modify: `blog/hugo.toml`
 
-- [ ] **Step 1: Update site title and label**
+- [x] **Step 1: Update site title and label**
 
 In `blog/hugo.toml`, change line 3:
 ```
@@ -144,7 +144,7 @@ Before: text = "Building Frank, the Talos Cluster"
 After:  text = "Frank, the Talos Cluster"
 ```
 
-- [ ] **Step 2: Update description and add mainSections + operatingThinBanner**
+- [x] **Step 2: Update description and add mainSections + operatingThinBanner**
 
 Change `params.description` (line 8):
 ```
@@ -158,7 +158,7 @@ Add after line 20 (`thinBanner = "images/banner-thin.png"`):
   mainSections = ["building", "operating"]
 ```
 
-- [ ] **Step 3: Update homeInfoParams content**
+- [x] **Step 3: Update homeInfoParams content**
 
 Change `params.homeInfoParams.Content` (line 27):
 ```
@@ -166,7 +166,7 @@ Before: Content = "A tutorial series on building an AI-hybrid Kubernetes homelab
 After:  Content = "Tutorial series on building and operating an AI-hybrid Kubernetes homelab with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute."
 ```
 
-- [ ] **Step 4: Replace menu entries**
+- [x] **Step 4: Replace menu entries**
 
 Replace the menu section (lines 33-43):
 
@@ -189,7 +189,7 @@ Replace the menu section (lines 33-43):
     weight = 20
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add blog/hugo.toml
@@ -208,7 +208,7 @@ git commit -m "blog: update hugo.toml for two-section layout
 **Files:**
 - Modify: `blog/layouts/partials/header.html:1-5`
 
-- [ ] **Step 1: Replace the banner block**
+- [x] **Step 1: Replace the banner block**
 
 In `blog/layouts/partials/header.html`, replace lines 1-5:
 
@@ -234,7 +234,7 @@ With:
 {{- end }}
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add blog/layouts/partials/header.html
@@ -252,7 +252,7 @@ default 'Building Frank' banner for everything else."
 - Create: `blog/layouts/partials/post_nav_links.html`
 - Reference: `blog/themes/PaperMod/layouts/partials/post_nav_links.html`
 
-- [ ] **Step 1: Create override partial**
+- [x] **Step 1: Create override partial**
 
 The theme's `post_nav_links.html` at `blog/themes/PaperMod/layouts/partials/post_nav_links.html` contains:
 
@@ -302,7 +302,7 @@ Create `blog/layouts/partials/post_nav_links.html` with line 1 changed to scope 
 {{- end }}
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add blog/layouts/partials/post_nav_links.html
@@ -316,7 +316,7 @@ between building and operating series."
 
 ### Task 6: Verify Hugo build and site structure
 
-- [ ] **Step 1: Run Hugo build**
+- [x] **Step 1: Run Hugo build**
 
 ```bash
 cd blog && hugo --minify 2>&1
@@ -327,7 +327,7 @@ Expected: Build succeeds with no errors. Check output for:
 - Pages in `operating/` section (just `_index.md` for now)
 - No references to old `posts/` path
 
-- [ ] **Step 2: Spot-check generated output**
+- [x] **Step 2: Spot-check generated output**
 
 ```bash
 ls blog/public/building/
@@ -336,7 +336,7 @@ ls blog/public/operating/
 ls blog/public/posts/ 2>&1 || echo "posts/ correctly removed"
 ```
 
-- [ ] **Step 3: Start dev server and visually verify**
+- [x] **Step 3: Start dev server and visually verify**
 
 ```bash
 cd blog && hugo server --buildDrafts &
@@ -353,7 +353,7 @@ Check:
 
 Stop the server after verification.
 
-- [ ] **Step 4: Commit any fixes if needed**
+- [x] **Step 4: Commit any fixes if needed**
 
 ---
 
@@ -362,7 +362,7 @@ Stop the server after verification.
 **Files:**
 - Modify: `blog/prompt_for_images.yaml`
 
-- [ ] **Step 1: Add operating thin banner prompt**
+- [x] **Step 1: Add operating thin banner prompt**
 
 Add after the existing `banner-thin` entry (after approximately line 77, before the `favicon` entry) in `blog/prompt_for_images.yaml`:
 
@@ -392,14 +392,14 @@ Add after the existing `banner-thin` entry (after approximately line 77, before 
       6:1 ratio.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add blog/prompt_for_images.yaml
 git commit -m "blog: add operating series banner image prompt"
 ```
 
-- [ ] **Step 3: Generate the banner image**
+- [x] **Step 3: Generate the banner image**
 
 ```bash
 .venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only banner-operating-thin
@@ -409,7 +409,7 @@ Expected: Image generated at `blog/static/images/banner-operating-thin.png`.
 
 Visually inspect the image — it should show Frank on a surgical table with robotic arms and "Operating on Frank" text.
 
-- [ ] **Step 4: Quick visual check of operating banner**
+- [x] **Step 4: Quick visual check of operating banner**
 
 Start the dev server briefly and verify `/operating/` now shows the new "Operating on Frank" thin banner instead of the building banner:
 
@@ -419,7 +419,7 @@ cd blog && hugo server --buildDrafts &
 
 Check `/operating/` — should show the new banner. Stop the server.
 
-- [ ] **Step 5: Commit generated image**
+- [x] **Step 5: Commit generated image**
 
 ```bash
 git add blog/static/images/banner-operating-thin.png
@@ -433,7 +433,7 @@ git commit -m "blog: add 'Operating on Frank' thin banner image"
 **Files:**
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Update Standard Layer Workflow path**
+- [x] **Step 1: Update Standard Layer Workflow path**
 
 In `CLAUDE.md` line 11, change:
 ```
@@ -441,7 +441,7 @@ Before: update `blog/content/posts/00-overview/index.md`
 After:  update `blog/content/building/00-overview/index.md`
 ```
 
-- [ ] **Step 2: Update Blog Post Pattern section**
+- [x] **Step 2: Update Blog Post Pattern section**
 
 Replace the Blog Post Pattern path block (lines 83-88) to show both series:
 
@@ -460,7 +460,7 @@ After:
     *.png          # Inline images
 ```
 
-- [ ] **Step 3: Update Architecture section**
+- [x] **Step 3: Update Architecture section**
 
 In `CLAUDE.md` line 124, change:
 ```
@@ -468,7 +468,7 @@ Before: blog/                  # Hugo static site (PaperMod theme)
 After:  blog/                  # Hugo static site (PaperMod theme, building/ + operating/ series)
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add CLAUDE.md
@@ -482,7 +482,7 @@ git commit -m "docs: update CLAUDE.md paths for building/operating subsections"
 **Files:**
 - Modify: `blog/content/building/00-overview/index.md`
 
-- [ ] **Step 1: Add operating series section**
+- [x] **Step 1: Add operating series section**
 
 After the Series Index (after line 70 in the original, which lists the last building post), add:
 
@@ -524,7 +524,7 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 
 Convert each to a `relref` link once the corresponding operating post is created.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add blog/content/building/00-overview/index.md
@@ -551,11 +551,11 @@ Each operating post follows the template from the spec. The implementer must:
 
 **Key technologies to cover:** Talos Linux (`talosctl`), Cilium (`cilium` CLI, Hubble), node management, Omni (`omnictl`).
 
-- [ ] **Step 1: Read the building post for context**
+- [x] **Step 1: Read the building post for context**
 
 Read `blog/content/building/02-foundation/index.md` thoroughly to understand what was deployed and how.
 
-- [ ] **Step 2: Research upstream docs for operational commands**
+- [x] **Step 2: Research upstream docs for operational commands**
 
 Key sources to reference in the post:
 - Talos docs: `https://www.talos.dev/v1.9/reference/cli/` — `talosctl` commands
@@ -563,7 +563,7 @@ Key sources to reference in the post:
 - Hubble docs: `https://docs.cilium.io/en/stable/observability/hubble/` — flow observability
 - Omni docs: `https://omni.siderolabs.com/docs/` — machine management
 
-- [ ] **Step 3: Write the post**
+- [x] **Step 3: Write the post**
 
 Create `blog/content/operating/01-cluster-nodes/index.md` with:
 
@@ -591,7 +591,7 @@ Sections to include:
 - **Quick Reference:** Table with ~15 most useful commands and source links
 - **References:** Links to Talos, Cilium, Hubble, Omni docs
 
-- [ ] **Step 4: Add cover image prompt**
+- [x] **Step 4: Add cover image prompt**
 
 Add to `blog/prompt_for_images.yaml`:
 ```yaml
@@ -610,13 +610,13 @@ Add to `blog/prompt_for_images.yaml`:
       and green accent lighting.
 ```
 
-- [ ] **Step 5: Generate cover image**
+- [x] **Step 5: Generate cover image**
 
 ```bash
 .venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only ops-01-cluster-nodes
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add blog/content/operating/01-cluster-nodes/ blog/prompt_for_images.yaml
@@ -637,18 +637,18 @@ routine operations, and debugging."
 
 **Key technologies:** Longhorn (`longhornctl`, UI), Cloudflare R2 backups, SOPS/age secrets.
 
-- [ ] **Step 1: Read the building posts**
+- [x] **Step 1: Read the building posts**
 
 Read `blog/content/building/03-storage/index.md` and `blog/content/building/08-backup/index.md`.
 
-- [ ] **Step 2: Research upstream docs**
+- [x] **Step 2: Research upstream docs**
 
 Key sources:
 - Longhorn docs: `https://longhorn.io/docs/1.8.1/` — operations, troubleshooting
 - Longhorn CLI: `https://longhorn.io/docs/1.8.1/advanced-resources/longhornctl/` — `longhornctl`
 - Cloudflare R2 docs: `https://developers.cloudflare.com/r2/` — S3-compatible backup target
 
-- [ ] **Step 3: Write the post**
+- [x] **Step 3: Write the post**
 
 Create `blog/content/operating/02-storage-backups/index.md` with frontmatter:
 ```yaml
@@ -674,7 +674,7 @@ Sections to include:
 - **Quick Reference:** Table of key commands
 - **References:** Longhorn docs, R2 docs, building posts
 
-- [ ] **Step 4: Add cover image prompt and generate**
+- [x] **Step 4: Add cover image prompt and generate**
 
 ```yaml
   - key: ops-02-storage-backups
@@ -695,7 +695,7 @@ Sections to include:
 .venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only ops-02-storage-backups
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add blog/content/operating/02-storage-backups/ blog/prompt_for_images.yaml
@@ -716,17 +716,17 @@ operations, and troubleshooting degraded volumes."
 
 **Key technologies:** ArgoCD (`argocd` CLI), App-of-Apps, sync operations.
 
-- [ ] **Step 1: Read the building post**
+- [x] **Step 1: Read the building post**
 
 Read `blog/content/building/05-gitops/index.md`.
 
-- [ ] **Step 2: Research upstream docs**
+- [x] **Step 2: Research upstream docs**
 
 Key sources:
 - ArgoCD docs: `https://argo-cd.readthedocs.io/en/stable/` — operations, CLI, troubleshooting
 - ArgoCD CLI: `https://argo-cd.readthedocs.io/en/stable/user-guide/commands/argocd/`
 
-- [ ] **Step 3: Write the post**
+- [x] **Step 3: Write the post**
 
 Frontmatter:
 ```yaml
@@ -752,7 +752,7 @@ Sections to include:
 - **Quick Reference:** Table of key `argocd` CLI commands
 - **References:** ArgoCD docs, building post
 
-- [ ] **Step 4: Add cover image prompt and generate**
+- [x] **Step 4: Add cover image prompt and generate**
 
 ```yaml
   - key: ops-03-gitops
@@ -773,7 +773,7 @@ Sections to include:
 .venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only ops-03-gitops
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add blog/content/operating/03-gitops/ blog/prompt_for_images.yaml
@@ -794,11 +794,11 @@ and troubleshooting degraded applications."
 
 **Key technologies:** NVIDIA GPU Operator, Intel DRA driver, `nvidia-smi`, containerd, `talosctl`.
 
-- [ ] **Step 1: Read the building posts**
+- [x] **Step 1: Read the building posts**
 
 Read `blog/content/building/04-gpu-compute/index.md` and `blog/content/building/12-gpu-talos-fix/index.md`.
 
-- [ ] **Step 2: Research upstream docs**
+- [x] **Step 2: Research upstream docs**
 
 Key sources:
 - NVIDIA GPU Operator: `https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/`
@@ -806,7 +806,7 @@ Key sources:
 - Intel GPU DRA: `https://github.com/intel/intel-resource-drivers-for-kubernetes`
 - Talos NVIDIA extensions: `https://www.talos.dev/v1.9/talos-guides/configuration/nvidia-gpu/`
 
-- [ ] **Step 3: Write the post**
+- [x] **Step 3: Write the post**
 
 Frontmatter:
 ```yaml
@@ -826,7 +826,7 @@ cover:
 
 Sections: Overview (NVIDIA on gpu-1 + Intel iGPU on minis), Observing State (`nvidia-smi`, GPU operator pods, DRA resource claims), Routine Operations (model loading, GPU memory management, checking utilization), Debugging (GPU not allocating, containerd issues, validation markers, Talos reboot loops), Quick Reference, References.
 
-- [ ] **Step 4: Add cover image prompt and generate**
+- [x] **Step 4: Add cover image prompt and generate**
 
 ```yaml
   - key: ops-04-gpu-compute
@@ -847,7 +847,7 @@ Sections: Overview (NVIDIA on gpu-1 + Intel iGPU on minis), Observing State (`nv
 .venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only ops-04-gpu-compute
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add blog/content/operating/04-gpu-compute/ blog/prompt_for_images.yaml
@@ -868,11 +868,11 @@ debugging, and Talos-specific GPU gotchas."
 
 **Key technologies:** VictoriaMetrics, Grafana (`192.168.55.203`), Fluent Bit, VictoriaLogs.
 
-- [ ] **Step 1: Read the building post**
+- [x] **Step 1: Read the building post**
 
 Read `blog/content/building/07-observability/index.md`.
 
-- [ ] **Step 2: Research upstream docs**
+- [x] **Step 2: Research upstream docs**
 
 Key sources:
 - VictoriaMetrics: `https://docs.victoriametrics.com/` — operations, querying
@@ -880,7 +880,7 @@ Key sources:
 - Fluent Bit: `https://docs.fluentbit.io/manual/` — pipeline, troubleshooting
 - VictoriaLogs: `https://docs.victoriametrics.com/victorialogs/` — log querying
 
-- [ ] **Step 3: Write the post**
+- [x] **Step 3: Write the post**
 
 Frontmatter:
 ```yaml
@@ -900,7 +900,7 @@ cover:
 
 Sections: Overview (VM + Grafana + Fluent Bit + VictoriaLogs stack), Observing State (Grafana dashboards, MetricsQL queries, log queries), Routine Operations (create/import dashboards, adjust retention, check Fluent Bit pipeline, silence alerts), Debugging (missing metrics, Fluent Bit not shipping, stale webhook alertmanager, high cardinality), Quick Reference, References.
 
-- [ ] **Step 4: Add cover image prompt and generate**
+- [x] **Step 4: Add cover image prompt and generate**
 
 ```yaml
   - key: ops-05-observability
@@ -922,7 +922,7 @@ Sections: Overview (VM + Grafana + Fluent Bit + VictoriaLogs stack), Observing S
 .venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only ops-05-observability
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add blog/content/operating/05-observability/ blog/prompt_for_images.yaml
@@ -945,11 +945,11 @@ pipeline debugging, and VictoriaLogs log querying."
 
 **Key technologies:** Infisical (`192.168.55.204`), External Secrets Operator (ESO), SOPS/age.
 
-- [ ] **Step 1: Read the building post**
+- [x] **Step 1: Read the building post**
 
 Read `blog/content/building/09-secrets/index.md`.
 
-- [ ] **Step 2: Research upstream docs**
+- [x] **Step 2: Research upstream docs**
 
 Key sources:
 - Infisical docs: `https://infisical.com/docs/documentation/getting-started/introduction`
@@ -957,7 +957,7 @@ Key sources:
 - SOPS: `https://github.com/getsops/sops` — encryption/decryption
 - age: `https://github.com/FiloSottile/age` — key management
 
-- [ ] **Step 3: Write the post**
+- [x] **Step 3: Write the post**
 
 Frontmatter:
 ```yaml
@@ -977,7 +977,7 @@ cover:
 
 Sections: Overview (Infisical as source of truth, ESO syncs to K8s, SOPS for bootstrap), Observing State (ESO sync status, Infisical UI, `kubectl get externalsecrets`), Routine Operations (add/rotate secrets in Infisical, force ESO refresh, apply SOPS secrets), Debugging (ESO sync failed, secret not updating, SOPS decrypt errors, project slug issues), Quick Reference, References.
 
-- [ ] **Step 4: Add cover image prompt and generate**
+- [x] **Step 4: Add cover image prompt and generate**
 
 ```yaml
   - key: ops-06-secrets
@@ -999,7 +999,7 @@ Sections: Overview (Infisical as source of truth, ESO syncs to K8s, SOPS for boo
 .venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only ops-06-secrets
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add blog/content/operating/06-secrets/ blog/prompt_for_images.yaml
@@ -1020,18 +1020,18 @@ and troubleshooting secret sync issues."
 
 **Key technologies:** Ollama, LiteLLM (`192.168.55.206`), OpenRouter.
 
-- [ ] **Step 1: Read the building post**
+- [x] **Step 1: Read the building post**
 
 Read `blog/content/building/10-local-inference/index.md`.
 
-- [ ] **Step 2: Research upstream docs**
+- [x] **Step 2: Research upstream docs**
 
 Key sources:
 - Ollama: `https://github.com/ollama/ollama/blob/main/docs/api.md` — API reference
 - LiteLLM: `https://docs.litellm.ai/` — proxy, virtual keys, model management
 - OpenRouter: `https://openrouter.ai/docs/` — API, free models
 
-- [ ] **Step 3: Write the post**
+- [x] **Step 3: Write the post**
 
 Frontmatter:
 ```yaml
@@ -1051,7 +1051,7 @@ cover:
 
 Sections: Overview (Ollama on gpu-1, LiteLLM gateway, OpenRouter cloud), Observing State (Ollama model list, LiteLLM health, GPU memory, active models), Routine Operations (pull/remove models, test inference, check LiteLLM routing, update OpenRouter model list), Debugging (OOM on GPU, model loading slow, LiteLLM routing errors, Ollama not responding), Quick Reference, References.
 
-- [ ] **Step 4: Add cover image prompt and generate**
+- [x] **Step 4: Add cover image prompt and generate**
 
 ```yaml
   - key: ops-07-inference
@@ -1073,7 +1073,7 @@ Sections: Overview (Ollama on gpu-1, LiteLLM gateway, OpenRouter cloud), Observi
 .venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only ops-07-inference
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add blog/content/operating/07-inference/ blog/prompt_for_images.yaml
@@ -1094,18 +1094,18 @@ monitoring, and OpenRouter routing."
 
 **Key technologies:** Authentik (`192.168.55.211`), OIDC, forward auth proxy.
 
-- [ ] **Step 1: Read the building post**
+- [x] **Step 1: Read the building post**
 
 Read `blog/content/building/13-unified-auth/index.md`.
 
-- [ ] **Step 2: Research upstream docs**
+- [x] **Step 2: Research upstream docs**
 
 Key sources:
 - Authentik docs: `https://docs.goauthentik.io/docs/` — administration, troubleshooting
 - Authentik API: `https://docs.goauthentik.io/developer-docs/api/` — REST API
 - OIDC spec: `https://openid.net/specs/openid-connect-core-1_0.html`
 
-- [ ] **Step 3: Write the post**
+- [x] **Step 3: Write the post**
 
 Frontmatter:
 ```yaml
@@ -1125,7 +1125,7 @@ cover:
 
 Sections: Overview (Authentik SSO for ArgoCD/Grafana/Infisical, forward auth for Longhorn/Hubble/Sympozium), Observing State (Authentik admin UI, check provider status, user/group listing via API), Routine Operations (add users/groups, create new provider, rotate client secrets, manage API tokens), Debugging (OIDC login loop, token validation failures, forward auth 403, Grafana secret key mismatch), Quick Reference, References.
 
-- [ ] **Step 4: Add cover image prompt and generate**
+- [x] **Step 4: Add cover image prompt and generate**
 
 ```yaml
   - key: ops-08-auth
@@ -1146,7 +1146,7 @@ Sections: Overview (Authentik SSO for ArgoCD/Grafana/Infisical, forward auth for
 .venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only ops-08-auth
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add blog/content/operating/08-auth/ blog/prompt_for_images.yaml
@@ -1167,17 +1167,17 @@ management, and debugging auth flow issues."
 
 **Key technologies:** vCluster, virtual Kubernetes clusters, resource quotas.
 
-- [ ] **Step 1: Read the building post**
+- [x] **Step 1: Read the building post**
 
 Read `blog/content/building/14-multi-tenancy/index.md`.
 
-- [ ] **Step 2: Research upstream docs**
+- [x] **Step 2: Research upstream docs**
 
 Key sources:
 - vCluster docs: `https://www.vcluster.com/docs` — operations, CLI
 - vCluster CLI: `https://www.vcluster.com/docs/vcluster/reference/vcluster-cli`
 
-- [ ] **Step 3: Write the post**
+- [x] **Step 3: Write the post**
 
 Frontmatter:
 ```yaml
@@ -1197,7 +1197,7 @@ cover:
 
 Sections: Overview (vCluster creates virtual K8s clusters inside Frank, template pattern), Observing State (`vcluster list`, check virtual cluster pods, connect to virtual cluster), Routine Operations (create new vCluster from template, delete/recreate, access virtual cluster kubectl, manage resource quotas), Debugging (vCluster not syncing, virtual API server unresponsive, resource quota exceeded, network policy issues), Quick Reference, References.
 
-- [ ] **Step 4: Add cover image prompt and generate**
+- [x] **Step 4: Add cover image prompt and generate**
 
 ```yaml
   - key: ops-09-multi-tenancy
@@ -1220,7 +1220,7 @@ Sections: Overview (vCluster creates virtual K8s clusters inside Frank, template
 .venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only ops-09-multi-tenancy
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add blog/content/operating/09-multi-tenancy/ blog/prompt_for_images.yaml
@@ -1237,7 +1237,7 @@ creation, and debugging isolation issues."
 **Files:**
 - Modify: `blog/content/building/00-overview/index.md`
 
-- [ ] **Step 1: Replace "coming soon" items with relref links**
+- [x] **Step 1: Replace "coming soon" items with relref links**
 
 In the "Operating on Frank — Series Index" section added in Task 9, replace each plain text entry with a `relref` link:
 
@@ -1257,7 +1257,7 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 9. [Operating on Multi-tenancy]({{< relref "/operating/09-multi-tenancy" >}})
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add blog/content/building/00-overview/index.md
@@ -1268,7 +1268,7 @@ git commit -m "blog: update overview page with live operating series links"
 
 ### Task 20: Final verification
 
-- [ ] **Step 1: Run Hugo build**
+- [x] **Step 1: Run Hugo build**
 
 ```bash
 cd blog && hugo --minify 2>&1
@@ -1276,7 +1276,7 @@ cd blog && hugo --minify 2>&1
 
 Expected: Build succeeds, no broken `relref` links, no errors.
 
-- [ ] **Step 2: Start dev server and verify all pages**
+- [x] **Step 2: Start dev server and verify all pages**
 
 ```bash
 cd blog && hugo server --buildDrafts &
@@ -1292,4 +1292,4 @@ Check:
 - Overview page has both series indexes with working links
 - Navigation menu: "Building | Operating | Tags"
 
-- [ ] **Step 3: Final commit if any fixes needed**
+- [x] **Step 3: Final commit if any fixes needed**
