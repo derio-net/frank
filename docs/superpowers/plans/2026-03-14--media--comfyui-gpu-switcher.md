@@ -1,6 +1,6 @@
 # Media Generation Stack Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Deploy ComfyUI for diffusion-based media generation (video/image/audio) on gpu-1, with a GPU Switcher web app for time-sharing the GPU between Ollama and ComfyUI.
 
@@ -56,7 +56,7 @@
 **Files:**
 - Create: `apps/root/templates/ns-comfyui.yaml`
 
-- [ ] **Step 1: Create the namespace manifest**
+- [x] **Step 1: Create the namespace manifest**
 
 ```yaml
 # apps/root/templates/ns-comfyui.yaml
@@ -73,12 +73,12 @@ metadata:
 
 > **Why privileged?** ComfyUI needs GPU access via the NVIDIA runtime, which requires privileged pod-security (same pattern as `ns-gpu-operator.yaml` and `ns-openrgb.yaml`).
 
-- [ ] **Step 2: Verify template renders**
+- [x] **Step 2: Verify template renders**
 
 Run: `helm template apps/root/ | grep -A6 'name: comfyui'`
 Expected: The namespace manifest appears in the rendered output.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/root/templates/ns-comfyui.yaml
@@ -92,7 +92,7 @@ git commit -m "feat(comfyui): add comfyui namespace"
 **Files:**
 - Create: `apps/comfyui/manifests/pvc.yaml`
 
-- [ ] **Step 1: Create the PVC manifest**
+- [x] **Step 1: Create the PVC manifest**
 
 ```yaml
 # apps/comfyui/manifests/pvc.yaml
@@ -112,12 +112,12 @@ spec:
       storage: 100Gi
 ```
 
-- [ ] **Step 2: Validate YAML syntax**
+- [x] **Step 2: Validate YAML syntax**
 
 Run: `kubectl apply --dry-run=client -f apps/comfyui/manifests/pvc.yaml`
 Expected: `persistentvolumeclaim/comfyui-models created (dry run)`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/comfyui/manifests/pvc.yaml
@@ -131,7 +131,7 @@ git commit -m "feat(comfyui): add 100Gi Longhorn PVC for model storage"
 **Files:**
 - Create: `apps/comfyui/manifests/deployment.yaml`
 
-- [ ] **Step 1: Create the Deployment manifest**
+- [x] **Step 1: Create the Deployment manifest**
 
 ```yaml
 # apps/comfyui/manifests/deployment.yaml
@@ -219,12 +219,12 @@ spec:
 > - Resource requests mirror Ollama's pattern (4 CPU, 16Gi RAM, 1 GPU)
 > - **Image tag:** Using `latest-cuda` initially. After first successful deploy, pin to a specific digest or version tag (e.g., `v2-cuda-12.1.1-base-22.04-v0.2.7`) for reproducibility. Add the pinned tag to CLAUDE.md gotchas (similar to Sympozium/LiteLLM pattern).
 
-- [ ] **Step 2: Validate YAML syntax**
+- [x] **Step 2: Validate YAML syntax**
 
 Run: `kubectl apply --dry-run=client -f apps/comfyui/manifests/deployment.yaml`
 Expected: `deployment.apps/comfyui created (dry run)`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/comfyui/manifests/deployment.yaml
@@ -239,7 +239,7 @@ git commit -m "feat(comfyui): add Deployment with GPU scheduling and model PVC"
 - Create: `apps/comfyui/manifests/service.yaml`
 - Create: `apps/comfyui/manifests/service-lb.yaml`
 
-- [ ] **Step 1: Create ClusterIP Service**
+- [x] **Step 1: Create ClusterIP Service**
 
 ```yaml
 # apps/comfyui/manifests/service.yaml
@@ -264,7 +264,7 @@ spec:
       protocol: TCP
 ```
 
-- [ ] **Step 2: Create LoadBalancer Service**
+- [x] **Step 2: Create LoadBalancer Service**
 
 ```yaml
 # apps/comfyui/manifests/service-lb.yaml
@@ -292,12 +292,12 @@ spec:
       protocol: TCP
 ```
 
-- [ ] **Step 3: Validate both**
+- [x] **Step 3: Validate both**
 
 Run: `kubectl apply --dry-run=client -f apps/comfyui/manifests/service.yaml && kubectl apply --dry-run=client -f apps/comfyui/manifests/service-lb.yaml`
 Expected: Both created (dry run).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/comfyui/manifests/service.yaml apps/comfyui/manifests/service-lb.yaml
@@ -311,7 +311,7 @@ git commit -m "feat(comfyui): add ClusterIP and LoadBalancer services"
 **Files:**
 - Create: `apps/root/templates/comfyui.yaml`
 
-- [ ] **Step 1: Create the Application CR**
+- [x] **Step 1: Create the Application CR**
 
 ```yaml
 # apps/root/templates/comfyui.yaml
@@ -351,12 +351,12 @@ spec:
 >
 > **Critical:** `ignoreDifferences` on `/spec/replicas` prevents ArgoCD self-heal from reverting GPU Switcher's scaling changes. Without this, ArgoCD would continuously fight the switcher by resetting replicas to the declared value (0).
 
-- [ ] **Step 2: Verify template renders**
+- [x] **Step 2: Verify template renders**
 
 Run: `helm template apps/root/ | grep -A20 'name: comfyui' | head -25`
 Expected: Application CR renders with the correct repoURL and path.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/root/templates/comfyui.yaml
@@ -372,7 +372,7 @@ git commit -m "feat(comfyui): add ArgoCD Application CR"
 
 > **Why:** ArgoCD's `selfHeal: true` will fight GPU Switcher scaling. When the switcher sets Ollama replicas to 0, ArgoCD would revert it back to the declared value. We must tell ArgoCD to ignore replica drift on Ollama too.
 
-- [ ] **Step 1: Add ignoreDifferences to ollama.yaml**
+- [x] **Step 1: Add ignoreDifferences to ollama.yaml**
 
 Add before the closing of the `spec:` block in `apps/root/templates/ollama.yaml`:
 
@@ -399,12 +399,12 @@ The full file should end with:
         - /spec/replicas
 ```
 
-- [ ] **Step 2: Verify template renders**
+- [x] **Step 2: Verify template renders**
 
 Run: `helm template apps/root/ | grep -A30 'name: ollama' | head -35`
 Expected: `ignoreDifferences` section appears in the rendered Ollama Application.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/root/templates/ollama.yaml
@@ -420,7 +420,7 @@ git commit -m "feat(ollama): add ignoreDifferences for replicas (GPU Switcher su
 **Files:**
 - Create: `apps/gpu-switcher/app/go.mod`
 
-- [ ] **Step 1: Create directory and initialize Go module**
+- [x] **Step 1: Create directory and initialize Go module**
 
 Run:
 ```bash
@@ -428,14 +428,14 @@ mkdir -p apps/gpu-switcher/app/static
 cd apps/gpu-switcher/app && go mod init github.com/derio-net/gpu-switcher
 ```
 
-- [ ] **Step 2: Add kubernetes client-go dependency**
+- [x] **Step 2: Add kubernetes client-go dependency**
 
 Run:
 ```bash
 cd apps/gpu-switcher/app && go get k8s.io/client-go@latest k8s.io/apimachinery@latest k8s.io/api@latest
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/gpu-switcher/app/go.mod apps/gpu-switcher/app/go.sum
@@ -449,7 +449,7 @@ git commit -m "feat(gpu-switcher): initialize Go module with client-go"
 **Files:**
 - Create: `apps/gpu-switcher/app/k8s.go`
 
-- [ ] **Step 1: Write the failing test first**
+- [x] **Step 1: Write the failing test first**
 
 Create `apps/gpu-switcher/app/k8s_test.go`:
 
@@ -556,12 +556,12 @@ func TestDeactivateAll(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd apps/gpu-switcher/app && go test -v -run TestGetStatus`
 Expected: FAIL — compilation error (undefined: `Workload`, `GetStatus`, `ActivateWorkload`, `DeactivateAll`). This is expected TDD — the types and functions don't exist yet.
 
-- [ ] **Step 3: Implement k8s.go**
+- [x] **Step 3: Implement k8s.go**
 
 Create `apps/gpu-switcher/app/k8s.go`:
 
@@ -669,12 +669,12 @@ func scaleDeployment(ctx context.Context, client kubernetes.Interface, namespace
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `cd apps/gpu-switcher/app && go test -v ./...`
 Expected: All 4 tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/gpu-switcher/app/k8s.go apps/gpu-switcher/app/k8s_test.go
@@ -689,7 +689,7 @@ git commit -m "feat(gpu-switcher): implement K8s client operations with tests"
 - Create: `apps/gpu-switcher/app/main.go`
 - Create: `apps/gpu-switcher/app/static/index.html`
 
-- [ ] **Step 1: Create the dashboard HTML**
+- [x] **Step 1: Create the dashboard HTML**
 
 Create `apps/gpu-switcher/app/static/index.html` — a single-page dashboard using safe DOM construction (no innerHTML):
 
@@ -856,7 +856,7 @@ Create `apps/gpu-switcher/app/static/index.html` — a single-page dashboard usi
 </html>
 ```
 
-- [ ] **Step 2: Create main.go with HTTP server**
+- [x] **Step 2: Create main.go with HTTP server**
 
 Create `apps/gpu-switcher/app/main.go`:
 
@@ -1018,17 +1018,17 @@ func parseWorkloads() []Workload {
 > - 5-second auto-refresh in the UI for live status updates
 > - Confirm dialog before any switching action
 
-- [ ] **Step 3: Verify it compiles**
+- [x] **Step 3: Verify it compiles**
 
 Run: `cd apps/gpu-switcher/app && go build -o /dev/null .`
 Expected: Compiles without errors.
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 Run: `cd apps/gpu-switcher/app && go test -v ./...`
 Expected: All tests PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/gpu-switcher/app/main.go apps/gpu-switcher/app/static/index.html
@@ -1042,7 +1042,7 @@ git commit -m "feat(gpu-switcher): add HTTP server and dashboard UI"
 **Files:**
 - Create: `apps/gpu-switcher/app/Dockerfile`
 
-- [ ] **Step 1: Create multi-stage Dockerfile**
+- [x] **Step 1: Create multi-stage Dockerfile**
 
 ```dockerfile
 # apps/gpu-switcher/app/Dockerfile
@@ -1062,7 +1062,7 @@ ENTRYPOINT ["/gpu-switcher"]
 
 > Uses distroless for minimal attack surface. `nonroot` user for security. Static binary (CGO_ENABLED=0) so no libc needed.
 
-- [ ] **Step 2: Verify Docker and GHCR access**
+- [x] **Step 2: Verify Docker and GHCR access**
 
 Run:
 ```bash
@@ -1071,7 +1071,7 @@ echo $GITHUB_TOKEN | docker login ghcr.io -u derio-net --password-stdin
 ```
 Expected: Docker available and GHCR login successful.
 
-- [ ] **Step 3: Build the image for amd64**
+- [x] **Step 3: Build the image for amd64**
 
 Run:
 ```bash
@@ -1081,7 +1081,7 @@ Expected: Image builds successfully.
 
 > **Why amd64 only?** GPU Switcher runs on non-GPU nodes, but the cluster has ARM nodes (raspi-1/2). We constrain to amd64 via nodeSelector in the Deployment (Task 12) and build only amd64 to keep it simple.
 
-- [ ] **Step 4: Push to GHCR**
+- [x] **Step 4: Push to GHCR**
 
 Run:
 ```bash
@@ -1089,7 +1089,7 @@ docker push ghcr.io/derio-net/gpu-switcher:latest
 ```
 Expected: Image pushed to `ghcr.io/derio-net/gpu-switcher:latest`.
 
-- [ ] **Step 4: Tag with a version for reproducibility**
+- [x] **Step 4: Tag with a version for reproducibility**
 
 Run:
 ```bash
@@ -1097,7 +1097,7 @@ docker tag ghcr.io/derio-net/gpu-switcher:latest ghcr.io/derio-net/gpu-switcher:
 docker push ghcr.io/derio-net/gpu-switcher:v0.1.0
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/gpu-switcher/app/Dockerfile
@@ -1115,7 +1115,7 @@ git commit -m "feat(gpu-switcher): add multi-stage Dockerfile"
 **Files:**
 - Create: `apps/root/templates/ns-gpu-switcher.yaml`
 
-- [ ] **Step 1: Create the namespace manifest**
+- [x] **Step 1: Create the namespace manifest**
 
 ```yaml
 # apps/root/templates/ns-gpu-switcher.yaml
@@ -1132,7 +1132,7 @@ metadata:
 
 > **Note:** `baseline` (not `privileged`) — GPU Switcher doesn't need GPU or host access, just K8s API calls.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/root/templates/ns-gpu-switcher.yaml
@@ -1148,7 +1148,7 @@ git commit -m "feat(gpu-switcher): add gpu-switcher namespace"
 - Create: `apps/gpu-switcher/manifests/clusterrole.yaml`
 - Create: `apps/gpu-switcher/manifests/clusterrolebinding.yaml`
 
-- [ ] **Step 1: Create ServiceAccount**
+- [x] **Step 1: Create ServiceAccount**
 
 ```yaml
 # apps/gpu-switcher/manifests/serviceaccount.yaml
@@ -1161,7 +1161,7 @@ metadata:
     app.kubernetes.io/name: gpu-switcher
 ```
 
-- [ ] **Step 2: Create ClusterRole**
+- [x] **Step 2: Create ClusterRole**
 
 ```yaml
 # apps/gpu-switcher/manifests/clusterrole.yaml
@@ -1188,7 +1188,7 @@ rules:
 
 > **Why ClusterRole (not Role)?** GPU Switcher needs to access deployments across two namespaces (`ollama` and `comfyui`). A ClusterRole with a ClusterRoleBinding is the cleanest way. The verb set is minimal — no create, delete, or list on deployments.
 
-- [ ] **Step 3: Create ClusterRoleBinding**
+- [x] **Step 3: Create ClusterRoleBinding**
 
 ```yaml
 # apps/gpu-switcher/manifests/clusterrolebinding.yaml
@@ -1208,7 +1208,7 @@ roleRef:
   name: gpu-switcher
 ```
 
-- [ ] **Step 4: Validate all RBAC manifests**
+- [x] **Step 4: Validate all RBAC manifests**
 
 Run:
 ```bash
@@ -1218,7 +1218,7 @@ kubectl apply --dry-run=client -f apps/gpu-switcher/manifests/clusterrolebinding
 ```
 Expected: All created (dry run).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/gpu-switcher/manifests/serviceaccount.yaml apps/gpu-switcher/manifests/clusterrole.yaml apps/gpu-switcher/manifests/clusterrolebinding.yaml
@@ -1233,7 +1233,7 @@ git commit -m "feat(gpu-switcher): add RBAC (ServiceAccount, ClusterRole, Cluste
 - Create: `apps/gpu-switcher/manifests/deployment.yaml`
 - Create: `apps/gpu-switcher/manifests/service.yaml`
 
-- [ ] **Step 1: Create the Deployment**
+- [x] **Step 1: Create the Deployment**
 
 ```yaml
 # apps/gpu-switcher/manifests/deployment.yaml
@@ -1290,7 +1290,7 @@ spec:
         kubernetes.io/arch: amd64
 ```
 
-- [ ] **Step 2: Create the LoadBalancer Service**
+- [x] **Step 2: Create the LoadBalancer Service**
 
 ```yaml
 # apps/gpu-switcher/manifests/service.yaml
@@ -1315,7 +1315,7 @@ spec:
       protocol: TCP
 ```
 
-- [ ] **Step 3: Validate both**
+- [x] **Step 3: Validate both**
 
 Run:
 ```bash
@@ -1324,7 +1324,7 @@ kubectl apply --dry-run=client -f apps/gpu-switcher/manifests/service.yaml
 ```
 Expected: Both created (dry run).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/gpu-switcher/manifests/deployment.yaml apps/gpu-switcher/manifests/service.yaml
@@ -1338,7 +1338,7 @@ git commit -m "feat(gpu-switcher): add Deployment and LoadBalancer Service"
 **Files:**
 - Create: `apps/root/templates/gpu-switcher.yaml`
 
-- [ ] **Step 1: Create the Application CR**
+- [x] **Step 1: Create the Application CR**
 
 ```yaml
 # apps/root/templates/gpu-switcher.yaml
@@ -1367,12 +1367,12 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 2: Verify template renders**
+- [x] **Step 2: Verify template renders**
 
 Run: `helm template apps/root/ | grep -A18 'name: gpu-switcher'`
 Expected: Application CR renders correctly.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/root/templates/gpu-switcher.yaml
@@ -1385,18 +1385,18 @@ git commit -m "feat(gpu-switcher): add ArgoCD Application CR"
 
 ### Task 14: Push and verify ArgoCD sync
 
-- [ ] **Step 1: Push all commits to main**
+- [x] **Step 1: Push all commits to main**
 
 Run: `git push origin main`
 
-- [ ] **Step 2: Wait for ArgoCD to sync the root app**
+- [x] **Step 2: Wait for ArgoCD to sync the root app**
 
 Run:
 ```bash
 argocd app sync root --port-forward --port-forward-namespace argocd
 ```
 
-- [ ] **Step 3: Verify ComfyUI app is synced and healthy**
+- [x] **Step 3: Verify ComfyUI app is synced and healthy**
 
 Run:
 ```bash
@@ -1404,7 +1404,7 @@ argocd app get comfyui --port-forward --port-forward-namespace argocd
 ```
 Expected: Status `Synced`, Health `Healthy` (or `Suspended` since replicas=0).
 
-- [ ] **Step 4: Verify GPU Switcher app is synced and running**
+- [x] **Step 4: Verify GPU Switcher app is synced and running**
 
 Run:
 ```bash
@@ -1413,12 +1413,12 @@ kubectl get pods -n gpu-switcher
 ```
 Expected: GPU Switcher pod is Running.
 
-- [ ] **Step 5: Verify ComfyUI PVC is bound**
+- [x] **Step 5: Verify ComfyUI PVC is bound**
 
 Run: `kubectl get pvc -n comfyui`
 Expected: `comfyui-models` PVC is `Bound` (Longhorn provisioned the volume).
 
-- [ ] **Step 6: Verify GPU Switcher is accessible**
+- [x] **Step 6: Verify GPU Switcher is accessible**
 
 Run: `curl -s http://192.168.55.214:8080/api/status | jq .`
 Expected: JSON with two workloads — ollama (replicas=1) and comfyui (replicas=0).
@@ -1427,17 +1427,17 @@ Expected: JSON with two workloads — ollama (replicas=1) and comfyui (replicas=
 
 ### Task 15: Test GPU switching end-to-end
 
-- [ ] **Step 1: Open GPU Switcher UI in browser**
+- [x] **Step 1: Open GPU Switcher UI in browser**
 
 Navigate to `http://192.168.55.214:8080`
 Expected: Dashboard shows Ollama as Active, ComfyUI as Inactive.
 
-- [ ] **Step 2: Switch to ComfyUI via the dashboard**
+- [x] **Step 2: Switch to ComfyUI via the dashboard**
 
 Click "Activate ComfyUI" and confirm.
 Expected: Ollama scales down, ComfyUI scales up. UI shows ComfyUI as "Starting" then "Active".
 
-- [ ] **Step 3: Verify ComfyUI is running**
+- [x] **Step 3: Verify ComfyUI is running**
 
 Run:
 ```bash
@@ -1446,17 +1446,17 @@ kubectl get pods -n ollama
 ```
 Expected: ComfyUI pod Running in `comfyui`, no pods in `ollama`.
 
-- [ ] **Step 4: Verify ComfyUI Web UI is accessible**
+- [x] **Step 4: Verify ComfyUI Web UI is accessible**
 
 Navigate to `http://192.168.55.213:8188`
 Expected: ComfyUI node-based workflow editor loads.
 
-- [ ] **Step 5: Switch back to Ollama**
+- [x] **Step 5: Switch back to Ollama**
 
 Click "Activate Ollama" in GPU Switcher and confirm.
 Expected: ComfyUI scales down, Ollama scales up.
 
-- [ ] **Step 6: Verify Ollama restored**
+- [x] **Step 6: Verify Ollama restored**
 
 Run:
 ```bash
@@ -1465,7 +1465,7 @@ kubectl exec -n ollama deploy/ollama -- ollama list
 ```
 Expected: Ollama pod Running, model list returned.
 
-- [ ] **Step 7: Test "Stop All"**
+- [x] **Step 7: Test "Stop All"**
 
 Click "Stop All" in GPU Switcher and confirm.
 Expected: Both workloads scaled to 0. No GPU pods running.
@@ -1501,7 +1501,7 @@ status: pending
 **Files:**
 - Modify: `CLAUDE.md` (Services table)
 
-- [ ] **Step 0: Add Traefik routes on raspi-omni**
+- [x] **Step 0: Add Traefik routes on raspi-omni**
 
 ComfyUI and GPU Switcher need Traefik routes to be accessible at their `frank.derio.net` subdomains. Traefik runs outside K8s on raspi-omni.
 
@@ -1523,7 +1523,7 @@ verify:
 status: pending
 ```
 
-- [ ] **Step 1: Add ComfyUI and GPU Switcher to the Services table in CLAUDE.md**
+- [x] **Step 1: Add ComfyUI and GPU Switcher to the Services table in CLAUDE.md**
 
 Add after the Paperclip entry:
 
@@ -1532,7 +1532,7 @@ Add after the Paperclip entry:
 | GPU Switcher | 192.168.55.214 | Cilium L2 LoadBalancer (port 8080) |
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add CLAUDE.md

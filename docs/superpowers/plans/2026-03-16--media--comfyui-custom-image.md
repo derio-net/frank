@@ -1,6 +1,6 @@
 # Custom ComfyUI Docker Image Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the broken ai-dock ComfyUI image with a lean, single-process custom image (`ghcr.io/derio-net/comfyui`) that runs modern ComfyUI on PyTorch with CUDA 12.8 / Blackwell sm_120 support.
 
@@ -36,7 +36,7 @@
 **Files:**
 - Create: `apps/comfyui/docker/entrypoint.sh`
 
-- [ ] **Step 1: Write the entrypoint script**
+- [x] **Step 1: Write the entrypoint script**
 
 This script seeds ComfyUI-Manager into the `custom_nodes` PVC on first boot (since the PVC mount shadows the baked-in path), then exec's ComfyUI.
 
@@ -55,7 +55,7 @@ fi
 exec python main.py "$@"
 ```
 
-- [ ] **Step 2: Set executable bit and commit**
+- [x] **Step 2: Set executable bit and commit**
 
 ```bash
 chmod +x apps/comfyui/docker/entrypoint.sh
@@ -73,7 +73,7 @@ then exec's ComfyUI as PID 1."
 **Files:**
 - Create: `apps/comfyui/docker/Dockerfile`
 
-- [ ] **Step 1: Write the Dockerfile**
+- [x] **Step 1: Write the Dockerfile**
 
 Key design choices (from spec):
 - `nvidia/cuda:12.8.0-devel-ubuntu22.04` base — `devel` needed for custom nodes that compile CUDA extensions at install time; 12.8 includes sm_120 for RTX 5070 Ti Blackwell arch
@@ -144,7 +144,7 @@ ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["--listen", "0.0.0.0", "--port", "8188"]
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/comfyui/docker/Dockerfile
@@ -163,7 +163,7 @@ and Manager refs. Single-process, non-root, no supervisord."
 **Files:**
 - Create: `.github/workflows/build-comfyui.yml`
 
-- [ ] **Step 1: Write the workflow**
+- [x] **Step 1: Write the workflow**
 
 Follows the existing `build-openrgb.yml` pattern. Version pins are workflow-level `env` vars so updating versions is a single-line change (no Dockerfile edit needed for version bumps).
 
@@ -225,7 +225,7 @@ jobs:
           cache-to: type=gha,mode=max
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add .github/workflows/build-comfyui.yml
@@ -244,7 +244,7 @@ Pushes to ghcr.io/derio-net/comfyui with composite version tag."
 **Files:**
 - Create: `apps/comfyui/manifests/pvc-custom-nodes.yaml`
 
-- [ ] **Step 1: Write the PVC manifest**
+- [x] **Step 1: Write the PVC manifest**
 
 Follows the existing `pvc.yaml` pattern. 10Gi is sufficient for ComfyUI-Manager-installed custom nodes (Python packages + git repos).
 
@@ -264,7 +264,7 @@ spec:
       storage: 10Gi
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/comfyui/manifests/pvc-custom-nodes.yaml
@@ -281,7 +281,7 @@ mounted at /app/custom_nodes."
 **Files:**
 - Modify: `apps/comfyui/manifests/deployment.yaml`
 
-- [ ] **Step 1: Update the deployment**
+- [x] **Step 1: Update the deployment**
 
 Changes from ai-dock to custom image:
 - `image` → `ghcr.io/derio-net/comfyui:comfyui-v0.3.10-pt2.6.0-cu128`
@@ -378,11 +378,11 @@ spec:
             claimName: comfyui-custom-nodes
 ```
 
-- [ ] **Step 2: Verify services don't need changes**
+- [x] **Step 2: Verify services don't need changes**
 
 Check that both services use `targetPort: http` (not a hardcoded port number). They do — see `apps/comfyui/manifests/service.yaml:18` and `apps/comfyui/manifests/service-lb.yaml:20`. No changes needed.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/comfyui/manifests/deployment.yaml
@@ -402,7 +402,7 @@ reduces startup probe to 5 min."
 
 The spec requires NVIDIA driver 570.x+ on gpu-1 for CUDA 12.8 / sm_120 support. Verify this before building and deploying the new image.
 
-- [ ] **Step 1: Check host NVIDIA driver version**
+- [x] **Step 1: Check host NVIDIA driver version**
 
 ```bash
 kubectl exec -n ollama deploy/ollama -- nvidia-smi --query-gpu=driver_version --format=csv,noheader
@@ -410,7 +410,7 @@ kubectl exec -n ollama deploy/ollama -- nvidia-smi --query-gpu=driver_version --
 
 Expected: `570.x` or higher. If the output shows a driver version below 570, **stop here** — the Talos NVIDIA extension must be updated first (separate task, out of scope for this plan).
 
-- [ ] **Step 2: Confirm sm_120 capability**
+- [x] **Step 2: Confirm sm_120 capability**
 
 ```bash
 kubectl exec -n ollama deploy/ollama -- nvidia-smi --query-gpu=compute_cap --format=csv,noheader
@@ -422,7 +422,7 @@ Expected: `12.0` (Blackwell). If this shows a lower compute capability, the GPU 
 
 ### Task 7: Trigger the image build
 
-- [ ] **Step 1: Push to trigger CI**
+- [x] **Step 1: Push to trigger CI**
 
 ```bash
 git push origin main
@@ -430,7 +430,7 @@ git push origin main
 
 The push includes changes to `apps/comfyui/docker/**` which triggers the `build-comfyui.yml` workflow.
 
-- [ ] **Step 2: Monitor the build**
+- [x] **Step 2: Monitor the build**
 
 ```bash
 gh run list --workflow=build-comfyui.yml --limit 1
@@ -442,7 +442,7 @@ Expected: Build succeeds, image pushed to `ghcr.io/derio-net/comfyui:comfyui-v0.
 
 **Note:** The first build will take ~15-20 minutes due to PyTorch download (2+ GB) and CUDA compilation. Subsequent builds with the same PyTorch version will be faster thanks to GHA cache.
 
-- [ ] **Step 3: Verify image exists in registry**
+- [x] **Step 3: Verify image exists in registry**
 
 ```bash
 # For org-owned repos (derio-net):
@@ -457,7 +457,7 @@ Expected: `["comfyui-v0.3.10-pt2.6.0-cu128", "latest"]`
 
 ### Task 8: Verify ArgoCD sync and deployment health
 
-- [ ] **Step 1: Check ArgoCD sync status**
+- [x] **Step 1: Check ArgoCD sync status**
 
 ArgoCD will auto-sync the manifest changes (new PVC, updated deployment). Verify:
 
@@ -467,7 +467,7 @@ argocd app get comfyui --port-forward --port-forward-namespace argocd
 
 Expected: Synced, Healthy (with 0 replicas the deployment is healthy but idle).
 
-- [ ] **Step 2: Verify PVC was created**
+- [x] **Step 2: Verify PVC was created**
 
 ```bash
 kubectl get pvc -n comfyui
@@ -477,7 +477,7 @@ Expected output includes both:
 - `comfyui-models` — 100Gi, Bound
 - `comfyui-custom-nodes` — 10Gi, Bound (or Pending until first pod mounts it)
 
-- [ ] **Step 3: Activate ComfyUI via GPU Switcher**
+- [x] **Step 3: Activate ComfyUI via GPU Switcher**
 
 Scale up ComfyUI to test the new image:
 
@@ -487,7 +487,7 @@ kubectl scale deployment comfyui -n comfyui --replicas=1
 
 Or use the GPU Switcher UI at `http://192.168.55.214:8080` and click "Activate" on ComfyUI.
 
-- [ ] **Step 4: Watch pod startup**
+- [x] **Step 4: Watch pod startup**
 
 ```bash
 kubectl logs -n comfyui -l app.kubernetes.io/name=comfyui -f
@@ -498,7 +498,7 @@ Expected log sequence:
 2. ComfyUI startup messages (loading models, starting server)
 3. `To see the GUI go to: http://0.0.0.0:8188`
 
-- [ ] **Step 5: Verify GPU/CUDA inside the container**
+- [x] **Step 5: Verify GPU/CUDA inside the container**
 
 ```bash
 kubectl exec -n comfyui deploy/comfyui -- python -c "
@@ -539,13 +539,13 @@ Expected:
 
 Rebuild and re-test: `gh workflow run build-comfyui.yml`
 
-- [ ] **Step 6: Access ComfyUI Web UI**
+- [x] **Step 6: Access ComfyUI Web UI**
 
 Open `http://192.168.55.213:8188` in a browser.
 
 Expected: ComfyUI web interface loads. The default workflow should be visible. ComfyUI-Manager should be accessible from the Manager menu.
 
-- [ ] **Step 7: Deactivate ComfyUI**
+- [x] **Step 7: Deactivate ComfyUI**
 
 Scale back to 0 when done testing:
 
@@ -553,7 +553,7 @@ Scale back to 0 when done testing:
 kubectl scale deployment comfyui -n comfyui --replicas=0
 ```
 
-- [ ] **Step 8: Final commit (if any adjustments were needed)**
+- [x] **Step 8: Final commit (if any adjustments were needed)**
 
 If any manifest tweaks were required during verification, commit them:
 

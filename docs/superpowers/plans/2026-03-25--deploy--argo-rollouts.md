@@ -44,7 +44,7 @@
 - Modify: `docs/layers.yaml`
 - Create: `apps/argo-rollouts/values.yaml`
 
-- [ ] **Step 1: Add layer 18 to docs/layers.yaml**
+- [x] **Step 1: Add layer 18 to docs/layers.yaml**
 
 Append after the `edge` entry (before `repo`):
 
@@ -55,7 +55,7 @@ Append after the `edge` entry (before `repo`):
     description: Argo Rollouts, canary and blue-green deployment strategies
 ```
 
-- [ ] **Step 2: Create apps/argo-rollouts/values.yaml**
+- [x] **Step 2: Create apps/argo-rollouts/values.yaml**
 
 ```yaml
 # Argo Rollouts — progressive delivery controller
@@ -73,7 +73,7 @@ notifications:
   enabled: false
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/layers.yaml apps/argo-rollouts/values.yaml
@@ -91,7 +91,7 @@ git commit -m "feat(deploy): scaffold argo-rollouts layer and values"
 
 Reference pattern: `apps/root/templates/argocd.yaml` (Helm chart source) and `apps/root/templates/litellm-extras.yaml` (manifests source).
 
-- [ ] **Step 1: Find the latest chart version**
+- [x] **Step 1: Find the latest chart version**
 
 ```bash
 helm repo add argo https://argoproj.github.io/argo-helm
@@ -99,7 +99,7 @@ helm search repo argo/argo-rollouts
 # Pin targetRevision to the exact version shown — do NOT use "*" or "latest"
 ```
 
-- [ ] **Step 2: Create apps/root/templates/argo-rollouts.yaml**
+- [x] **Step 2: Create apps/root/templates/argo-rollouts.yaml**
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -136,7 +136,7 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 3: Create apps/root/templates/argo-rollouts-extras.yaml**
+- [x] **Step 3: Create apps/root/templates/argo-rollouts-extras.yaml**
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -166,7 +166,7 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/root/templates/argo-rollouts.yaml apps/root/templates/argo-rollouts-extras.yaml
@@ -184,7 +184,7 @@ git commit -m "feat(deploy): add argo-rollouts and argo-rollouts-extras Applicat
 
 The controller reads `argo-rollouts-config` ConfigMap in its namespace at startup to discover traffic router plugins. The `argo-rollouts` ServiceAccount (created by the Helm chart) needs supplemental RBAC for `CiliumEnvoyConfig`.
 
-- [ ] **Step 1: Find the latest Cilium plugin release**
+- [x] **Step 1: Find the latest Cilium plugin release**
 
 ```bash
 # Visit https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-cilium/releases
@@ -192,7 +192,7 @@ The controller reads `argo-rollouts-config` ConfigMap in its namespace at startu
 # Note the version (e.g., v0.4.1)
 ```
 
-- [ ] **Step 2: Create plugin-config.yaml**
+- [x] **Step 2: Create plugin-config.yaml**
 
 Replace `v0.x.y` with the actual release tag:
 
@@ -211,7 +211,7 @@ data:
       location: "https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-cilium/releases/download/v0.x.y/rollouts-plugin-trafficrouter-cilium-linux-amd64"
 ```
 
-- [ ] **Step 3: Create cilium-rbac.yaml**
+- [x] **Step 3: Create cilium-rbac.yaml**
 
 The ServiceAccount name matches the chart's `releaseName: argo-rollouts`.
 
@@ -241,7 +241,7 @@ subjects:
     namespace: argo-rollouts
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/argo-rollouts-extras/
@@ -254,7 +254,7 @@ git commit -m "feat(deploy): add Cilium plugin config and RBAC for argo-rollouts
 
 `CiliumEnvoyConfig` objects are only processed by Cilium when the Envoy proxy is active on nodes. This is a prerequisite for Phase 2 traffic splitting. Verify before proceeding.
 
-- [ ] **Step 1: Check if Cilium Envoy DaemonSet is running**
+- [x] **Step 1: Check if Cilium Envoy DaemonSet is running**
 
 ```bash
 source .env
@@ -263,14 +263,14 @@ kubectl get daemonset -n kube-system | grep -i envoy
 # If not found → continue to Step 2.
 ```
 
-- [ ] **Step 2: Check current Cilium values**
+- [x] **Step 2: Check current Cilium values**
 
 ```bash
 cat apps/cilium/values.yaml | grep -A5 -i envoy
 # Look for envoy.enabled or l7proxy settings
 ```
 
-- [ ] **Step 3: Enable Envoy if not present**
+- [x] **Step 3: Enable Envoy if not present**
 
 If `cilium-envoy` DaemonSet does not exist, add to `apps/cilium/values.yaml`:
 
@@ -289,7 +289,7 @@ argocd app sync cilium --port-forward --port-forward-namespace argocd
 kubectl rollout status daemonset/cilium-envoy -n kube-system
 ```
 
-- [ ] **Step 4: Verify CiliumEnvoyConfig CRD exists**
+- [x] **Step 4: Verify CiliumEnvoyConfig CRD exists**
 
 ```bash
 kubectl get crd ciliumenvoyconfigs.cilium.io
@@ -300,7 +300,7 @@ kubectl get crd ciliumenvoyconfigs.cilium.io
 
 ### Task 5: Deploy Phase 1 and verify
 
-- [ ] **Step 1: Push and sync**
+- [x] **Step 1: Push and sync**
 
 ```bash
 git push
@@ -309,21 +309,21 @@ argocd app sync argo-rollouts --port-forward --port-forward-namespace argocd
 argocd app sync argo-rollouts-extras --port-forward --port-forward-namespace argocd
 ```
 
-- [ ] **Step 2: Verify controller is running**
+- [x] **Step 2: Verify controller is running**
 
 ```bash
 kubectl get pods -n argo-rollouts
 # Expected: argo-rollouts-<hash> Running 1/1
 ```
 
-- [ ] **Step 3: Verify Cilium plugin loaded**
+- [x] **Step 3: Verify Cilium plugin loaded**
 
 ```bash
 kubectl logs -n argo-rollouts -l app.kubernetes.io/name=argo-rollouts | grep -i plugin
 # Expected: log line confirming plugin "argoproj-labs/cilium" was downloaded/cached
 ```
 
-- [ ] **Step 4: Verify CiliumEnvoyConfig RBAC**
+- [x] **Step 4: Verify CiliumEnvoyConfig RBAC**
 
 ```bash
 kubectl auth can-i create ciliumenvoyconfigs \
@@ -332,7 +332,7 @@ kubectl auth can-i create ciliumenvoyconfigs \
 # Expected: yes
 ```
 
-- [ ] **Step 5: Install kubectl-argo-rollouts CLI plugin locally (manual operation)**
+- [x] **Step 5: Install kubectl-argo-rollouts CLI plugin locally (manual operation)**
 
 ```bash
 # Check latest release version at https://github.com/argoproj/argo-rollouts/releases
@@ -356,14 +356,14 @@ kubectl argo rollouts version
 
 `workloadRef` scales the Helm chart's Deployment to 0 replicas. Without `ignoreDifferences` on the Deployment's `spec.replicas`, ArgoCD will continuously try to restore the chart's replica count, fighting the Rollout controller.
 
-- [ ] **Step 1: Find the current LiteLLM stable release**
+- [x] **Step 1: Find the current LiteLLM stable release**
 
 ```bash
 # Check https://github.com/BerriAI/litellm/releases for the latest tagged release
 # Use the tag that matches the current container image version, not main-stable
 ```
 
-- [ ] **Step 2: Pin image tag in apps/litellm/values.yaml**
+- [x] **Step 2: Pin image tag in apps/litellm/values.yaml**
 
 Change:
 
@@ -383,7 +383,7 @@ image:
   pullPolicy: IfNotPresent
 ```
 
-- [ ] **Step 3: Add ignoreDifferences for Deployment spec.replicas**
+- [x] **Step 3: Add ignoreDifferences for Deployment spec.replicas**
 
 In `apps/root/templates/litellm.yaml`, the existing `ignoreDifferences` covers Secrets. Add a second entry for the Deployment. The final `ignoreDifferences` block should read:
 
@@ -403,7 +403,7 @@ In `apps/root/templates/litellm.yaml`, the existing `ignoreDifferences` covers S
 
 > **Note:** `group: apps` is required (not `group: ""`). Omitting it causes the rule to not match and ArgoCD continues fighting the Rollout controller.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/litellm/values.yaml apps/root/templates/litellm.yaml
@@ -416,7 +416,7 @@ git commit -m "feat(deploy): pin litellm tag and suppress spec.replicas ignoreDi
 
 Gather the exact names needed before writing manifests — don't guess.
 
-- [ ] **Step 1: Find the LiteLLM stable service name**
+- [x] **Step 1: Find the LiteLLM stable service name**
 
 ```bash
 source .env
@@ -425,14 +425,14 @@ kubectl get svc -n litellm
 kubectl get svc litellm -n litellm -o yaml | grep -A5 selector
 ```
 
-- [ ] **Step 2: Find LiteLLM pod labels**
+- [x] **Step 2: Find LiteLLM pod labels**
 
 ```bash
 kubectl get pods -n litellm --show-labels
 # Note the exact label key=value pairs — the canary service selector must match these
 ```
 
-- [ ] **Step 3: Find the VictoriaMetrics service URL**
+- [x] **Step 3: Find the VictoriaMetrics service URL**
 
 ```bash
 kubectl get svc -n monitoring | grep -i victoria
@@ -443,7 +443,7 @@ kubectl run vmtest --image=curlimages/curl --rm -it --restart=Never -- \
 # Note the full URL for use in analysis-template.yaml
 ```
 
-- [ ] **Step 4: Verify LiteLLM exposes metrics**
+- [x] **Step 4: Verify LiteLLM exposes metrics**
 
 ```bash
 kubectl exec -n litellm deploy/litellm -- curl -s localhost:4000/metrics 2>/dev/null | grep litellm_request || echo "No metrics endpoint"
@@ -462,7 +462,7 @@ kubectl exec -n litellm deploy/litellm -- curl -s localhost:4000/metrics 2>/dev/
 
 The `litellm-extras` ArgoCD app already watches `apps/litellm/manifests/` — these files deploy automatically on sync.
 
-- [ ] **Step 1: Create service-canary.yaml**
+- [x] **Step 1: Create service-canary.yaml**
 
 Use the pod labels discovered in Task 7 Step 2. The Rollout controller will manage the selector (adding `rollouts-pod-template-hash`) — set the base labels only here.
 
@@ -487,7 +487,7 @@ spec:
     app: litellm   # verify against Task 7 Step 2 — use the chart's actual pod label
 ```
 
-- [ ] **Step 2: Create analysis-template.yaml**
+- [x] **Step 2: Create analysis-template.yaml**
 
 Replace `<vm-service-url>` with the URL from Task 7 Step 3:
 
@@ -519,7 +519,7 @@ spec:
             sum(rate(litellm_request_total[5m]))
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/litellm/manifests/service-canary.yaml apps/litellm/manifests/analysis-template.yaml
@@ -534,7 +534,7 @@ git commit -m "feat(deploy): add litellm canary service and VictoriaMetrics anal
 
 - Create: `apps/litellm/manifests/rollout.yaml`
 
-- [ ] **Step 1: Create rollout.yaml**
+- [x] **Step 1: Create rollout.yaml**
 
 Use the stable service name confirmed in Task 7 Step 1 (expected: `litellm`):
 
@@ -584,7 +584,7 @@ spec:
               - templateName: litellm-error-rate
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/litellm/manifests/rollout.yaml
@@ -595,7 +595,7 @@ git commit -m "feat(deploy): add litellm Rollout with workloadRef and Cilium can
 
 ### Task 10: Deploy and verify Phase 2
 
-- [ ] **Step 1: Push and sync**
+- [x] **Step 1: Push and sync**
 
 ```bash
 git push
@@ -604,7 +604,7 @@ argocd app sync litellm --port-forward --port-forward-namespace argocd
 argocd app sync litellm-extras --port-forward --port-forward-namespace argocd
 ```
 
-- [ ] **Step 2: Verify Deployment is at 0 and Rollout is healthy**
+- [x] **Step 2: Verify Deployment is at 0 and Rollout is healthy**
 
 ```bash
 kubectl get deployment litellm -n litellm
@@ -613,14 +613,14 @@ kubectl argo rollouts get rollout litellm -n litellm
 # Expected: Phase: Healthy, pods running under Rollout
 ```
 
-- [ ] **Step 3: Verify LiteLLM is still accessible**
+- [x] **Step 3: Verify LiteLLM is still accessible**
 
 ```bash
 curl -s http://192.168.55.206:4000/health
 # Expected: 200 response
 ```
 
-- [ ] **Step 4: Trigger a test canary**
+- [x] **Step 4: Trigger a test canary**
 
 ```bash
 # Bump image tag by one patch version to trigger a rollout
@@ -646,7 +646,7 @@ kubectl argo rollouts abort litellm -n litellm
 > 2. Update `stableService: litellm-stable` in rollout.yaml
 > 3. Update the LB IP annotation on the new LoadBalancer service
 
-- [ ] **Step 5: Commit any fixes**
+- [x] **Step 5: Commit any fixes**
 
 ```bash
 git add -p

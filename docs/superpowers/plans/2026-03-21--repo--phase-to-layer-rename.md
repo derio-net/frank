@@ -1,6 +1,6 @@
 # Phase-to-Layer Naming Convention Rename
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace the "Phase" numbering system with "Layer" domain codes across all plans, specs, docs, skills, and blog posts.
 
@@ -36,7 +36,7 @@
 **Files:**
 - Create: `docs/layers.yaml`
 
-- [ ] **Step 1: Write the layer registry**
+- [x] **Step 1: Write the layer registry**
 
 ```yaml
 # Layer Registry — Architectural/operational domains for the Frank cluster
@@ -140,7 +140,7 @@ layers:
     description: Blog infrastructure, CI, repo restructuring, meta-tasks
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/layers.yaml
@@ -180,7 +180,7 @@ The complete rename mapping:
 | `2026-03-16-phaseXX-hop-public-edge.md` | `2026-03-16--edge--hop-public.md` |
 | `2026-03-20-phaseXX-multi-cluster-restructure.md` | `2026-03-20--repo--multi-cluster-restructure.md` |
 
-- [ ] **Step 1: Execute all git mv commands for plans**
+- [x] **Step 1: Execute all git mv commands for plans**
 
 ```bash
 cd docs/superpowers/plans
@@ -219,7 +219,7 @@ git mv 2026-03-03-phase06-openrgb-led-control.md 2026-03-03--fun--openrgb-led-co
 | `2026-03-16-phaseXX-hop-public-edge-design.md` | `2026-03-16--edge--hop-public-design.md` |
 | `2026-03-20-phaseXX-multi-cluster-restructure-design.md` | `2026-03-20--repo--multi-cluster-restructure-design.md` |
 
-- [ ] **Step 1: Execute all git mv commands for specs**
+- [x] **Step 1: Execute all git mv commands for specs**
 
 ```bash
 cd docs/superpowers/specs
@@ -227,7 +227,7 @@ git mv 2026-03-02-phase05-argocd-infrastructure-design.md 2026-03-02--gitops--ar
 # ... (all 22 renames)
 ```
 
-- [ ] **Step 2: Commit renames**
+- [x] **Step 2: Commit renames**
 
 ```bash
 git add -A docs/superpowers/plans/ docs/superpowers/specs/
@@ -238,18 +238,18 @@ git commit -m "refactor(repo): rename plans/specs from phase to layer naming con
 
 Plans reference their spec files (and sometimes other plans) by filename. These internal references must be updated to match the new filenames.
 
-- [ ] **Step 1: Find and replace old filenames with new filenames inside all plan/spec files**
+- [x] **Step 1: Find and replace old filenames with new filenames inside all plan/spec files**
 
 Use `grep -r` to find all cross-references, then `sed` to update them. Key patterns:
 - `Spec:` lines in plan headers pointing to spec files
 - `Origin:` lines referencing other plans
 - `plan:` fields in manual-operation YAML blocks inside plans
 
-- [ ] **Step 2: Replace `Phase XX`, `Phase 04`, etc. in plan/spec headers with layer references**
+- [x] **Step 2: Replace `Phase XX`, `Phase 04`, etc. in plan/spec headers with layer references**
 
 In each plan/spec, the header typically has `Phase: XX` or `Phase: 04`. Replace with the layer code, e.g., `Layer: gpu` or `Layer: edge`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/superpowers/plans/ docs/superpowers/specs/
@@ -265,7 +265,7 @@ git commit -m "refactor(repo): update cross-references in plans/specs for layer 
 **Files:**
 - Modify: `CLAUDE.md`
 
-- [ ] **Step 1: Update "Standard Phase Workflow" section**
+- [x] **Step 1: Update "Standard Phase Workflow" section**
 
 Rename to a workflow section that references layers:
 - Section title: `## Standard Layer Workflow`
@@ -273,13 +273,13 @@ Rename to a workflow section that references layers:
 - Step 2 (Plan): reference layer code instead of phaseXX
 - Step 3 (Execute): no phase number assignment needed — layer code is known from brainstorm
 
-- [ ] **Step 2: Update "Phase Fix/Extension Workflow" section**
+- [x] **Step 2: Update "Phase Fix/Extension Workflow" section**
 
 - Section title: `## Layer Fix/Extension Workflow`
 - "deployed phase" → "deployed layer"
 - Commit template: `fix(phaseNN):` → `fix(<layer>):` e.g., `fix(gpu):`
 
-- [ ] **Step 3: Update "Plan Naming Convention" section**
+- [x] **Step 3: Update "Plan Naming Convention" section**
 
 Replace:
 ```
@@ -296,16 +296,16 @@ Plan files follow: `YYYY-MM-DD--<layer>--<details>[-design].md`
 - The `repo` layer is for meta-tasks (blog infra, CI, restructuring)
 ```
 
-- [ ] **Step 4: Update Architecture tree comments**
+- [x] **Step 4: Update Architecture tree comments**
 
 `patches/` directory comments reference phases — update to note these are legacy names:
 ```
 patches/               # Talos machine config patches (legacy phaseNN naming)
 ```
 
-- [ ] **Step 5: Update Gotchas if any reference phases conceptually**
+- [x] **Step 5: Update Gotchas if any reference phases conceptually**
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add CLAUDE.md
@@ -321,21 +321,21 @@ git commit -m "docs(repo): update CLAUDE.md for layer naming convention"
 **Files:**
 - Modify: `docs/runbooks/manual-operations.yaml`
 
-- [ ] **Step 1: Rename `phase` field to `layer` throughout**
+- [x] **Step 1: Rename `phase` field to `layer` throughout**
 
 All entries have `phase: NN` — replace with `layer: NN`.
 
-- [ ] **Step 2: Update operation IDs from `phaseNN-*` to `<layer>-*`**
+- [x] **Step 2: Update operation IDs from `phaseNN-*` to `<layer>-*`**
 
 e.g., `phaseXX-hop-argocd-bootstrap` → `edge-hop-argocd-bootstrap`
 
-- [ ] **Step 3: Update `plan:` path references to new filenames**
+- [x] **Step 3: Update `plan:` path references to new filenames**
 
 e.g., `plan: docs/superpowers/plans/2026-03-16-phaseXX-hop-public-edge.md` → `plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md`
 
-- [ ] **Step 4: Update any comments referencing phases**
+- [x] **Step 4: Update any comments referencing phases**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/runbooks/manual-operations.yaml
@@ -349,11 +349,11 @@ git commit -m "refactor(repo): update runbook for layer naming convention"
 - Modify: `.claude/skills/update-readme/SKILL.md` (~6 lines)
 - Modify: `.claude/skills/sync-runbook.md` (~5 lines)
 
-- [ ] **Step 1: Update blog-post skill**
+- [x] **Step 1: Update blog-post skill**
 
 Line 96: "new phase/capability" → "new layer/capability"
 
-- [ ] **Step 2: Update update-readme skill**
+- [x] **Step 2: Update update-readme skill**
 
 - Line 3: "after a new phase" → "after new layer work"
 - Line 10: "after each new phase is deployed" → "after each new layer is deployed"
@@ -361,13 +361,13 @@ Line 96: "new phase/capability" → "new layer/capability"
 - Line 18: "for the phase design file" → "for the layer design file"
 - Lines 47, 51: commit message template `phase NN` → `layer <code> — <summary>`
 
-- [ ] **Step 3: Update sync-runbook skill**
+- [x] **Step 3: Update sync-runbook skill**
 
 - Line 18: "Phase 0 / bootstrap" → "Layer 0 / bootstrap"
 - Line 28: "by phase ascending" → "by layer ascending"
 - Lines 52-53, 74-75: schema example `phaseNN-short-name` / `phase: NN` → `<layer>-short-name` / `layer: NN`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .claude/skills/
@@ -379,16 +379,16 @@ git commit -m "docs(repo): update skills for layer naming convention"
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: Update architecture tree comments**
+- [x] **Step 1: Update architecture tree comments**
 
 The `patches/` section references phase names — add a note about legacy naming:
 ```
 patches/               # Talos machine config patches (legacy phaseNN- prefixed dirs)
 ```
 
-- [ ] **Step 2: Update any narrative references to "phase" → "layer"**
+- [x] **Step 2: Update any narrative references to "phase" → "layer"**
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add README.md
@@ -419,24 +419,24 @@ Key posts to update (found by grep):
 - `blog/content/building/17-public-edge/index.md`
 - `blog/content/operating/01-cluster-nodes/index.md`
 
-- [ ] **Step 1: Find all "phase"/"Phase" occurrences in blog posts**
+- [x] **Step 1: Find all "phase"/"Phase" occurrences in blog posts**
 
 ```bash
 grep -rn -i "phase" blog/content/building/*/index.md blog/content/operating/*/index.md
 ```
 
-- [ ] **Step 2: Update each occurrence contextually**
+- [x] **Step 2: Update each occurrence contextually**
 
 - "Phase N" → "Layer N" (when referring to a capability domain)
 - "Twelve phases in" → "Twelve layers deep" or similar natural phrasing
 - "a future phase" → "a future layer"
 - File path references to `patches/phaseNN-*/` → keep as-is (these are actual directory paths)
 
-- [ ] **Step 3: Update `blog/content/building/00-overview/index.md`**
+- [x] **Step 3: Update `blog/content/building/00-overview/index.md`**
 
 Check the Technology → Capability Map and Series Index for any phase references.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add blog/content/
@@ -449,14 +449,14 @@ git commit -m "docs(repo): update blog posts for layer naming convention"
 
 ### Task 10: Verify no stale phase references remain
 
-- [ ] **Step 1: Grep for stale references**
+- [x] **Step 1: Grep for stale references**
 
 ```bash
 # Should return only: patches/ directory names (legacy, intentional)
 grep -rn "phase[0-9]\|phaseXX\|phaseNN" --include="*.md" --include="*.yaml" --include="*.html" .
 ```
 
-- [ ] **Step 2: Verify all plan/spec cross-references resolve**
+- [x] **Step 2: Verify all plan/spec cross-references resolve**
 
 ```bash
 # Check that every Spec: and plan: reference in plans actually points to an existing file
@@ -465,7 +465,7 @@ grep -rh "Spec:\|plan:" docs/superpowers/plans/ | grep -oP '[\w/.-]+\.md' | whil
 done
 ```
 
-- [ ] **Step 3: Final commit (if any fixups needed)**
+- [x] **Step 3: Final commit (if any fixups needed)**
 
 ```bash
 git add -A

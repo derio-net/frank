@@ -1,6 +1,6 @@
 # CI/CD Platform Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Deploy a K8s-native CI/CD platform — Gitea (git forge mirroring GitHub), Tekton (pipeline engine), Zot (OCI registry) with cosign signing — all on pc-1.
 
@@ -9,7 +9,7 @@
 **Tech Stack:** ArgoCD, Helm, Longhorn, Cilium L2, Infisical + ExternalSecrets, Tekton Pipelines/Triggers/Dashboard, Gitea, Zot, cosign, cert-manager
 
 **Design doc:** `docs/superpowers/specs/2026-03-29--cicd--platform-design.md`
-**Status:** Not Started
+**Status:** Deployed (pending: Infisical secrets, Gitea post-deploy config, webhook wiring, cosign keypair, containerd mirror patch)
 
 ---
 
@@ -26,7 +26,7 @@
 **Files:**
 - Create: `apps/longhorn/manifests/storageclass-longhorn-cicd.yaml`
 
-- [ ] **Step 1: Create the StorageClass manifest**
+- [x] **Step 1: Create the StorageClass manifest**
 
 Create `apps/longhorn/manifests/storageclass-longhorn-cicd.yaml`:
 
@@ -47,14 +47,14 @@ parameters:
   nodeSelector: "kubernetes.io/hostname:pc-1"
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/longhorn/manifests/storageclass-longhorn-cicd.yaml
 git commit -m "feat(cicd): add longhorn-cicd StorageClass for single-replica CI/CD PVCs"
 ```
 
-- [ ] **Step 3: Push and verify StorageClass syncs**
+- [x] **Step 3: Push and verify StorageClass syncs**
 
 ```bash
 git push
@@ -97,7 +97,7 @@ kubectl get node pc-1 --show-labels | grep role=cicd
 - Create: `apps/root/templates/gitea.yaml`
 - Create: `apps/root/templates/gitea-extras.yaml`
 
-- [ ] **Step 1: Create Infisical secrets and Authentik OIDC provider**
+- [x] **Step 1: Create Infisical secrets and Authentik OIDC provider**
 
 ```yaml
 # manual-operation
@@ -133,7 +133,7 @@ verify:
 status: done
 ```
 
-- [ ] **Step 2: Research Gitea Helm chart**
+- [x] **Step 2: Research Gitea Helm chart**
 
 ```bash
 helm repo add gitea-charts https://dl.gitea.com/charts/
@@ -142,7 +142,7 @@ helm show values gitea-charts/gitea > /tmp/gitea-defaults.yaml
 
 Review `/tmp/gitea-defaults.yaml` for: `persistence`, `postgresql`, `gitea.config`, `service`, `nodeSelector`, `gitea.admin`, and `gitea.oauth`. Find the exact key paths for OIDC config and admin secret. Also check: `helm search repo gitea-charts/gitea --versions | head -5` to pin the chart version.
 
-- [ ] **Step 3: Create ExternalSecret**
+- [x] **Step 3: Create ExternalSecret**
 
 Create `apps/gitea/manifests/externalsecret-gitea.yaml`:
 
@@ -176,7 +176,7 @@ spec:
         key: GITHUB_MIRROR_TOKEN
 ```
 
-- [ ] **Step 4: Create Helm values**
+- [x] **Step 4: Create Helm values**
 
 Create `apps/gitea/values.yaml`. Adjust key paths based on Step 2 research. This is the target structure:
 
@@ -266,7 +266,7 @@ Note: The `gitea.oauth` section syntax varies between chart versions. Key points
 - The client ID is not sensitive — it can be hardcoded in values.yaml if the chart supports separate `key`/`existingSecret` fields. If the chart requires both in the secret, add `GITEA_OIDC_CLIENT_ID` to Infisical and the ExternalSecret
 - The Authentik auto-discovery URL follows the pattern `http://<authentik-ip>:9000/application/o/<slug>/.well-known/openid-configuration`
 
-- [ ] **Step 5: Create ArgoCD Application CR for Helm chart**
+- [x] **Step 5: Create ArgoCD Application CR for Helm chart**
 
 Create `apps/root/templates/gitea.yaml`:
 
@@ -309,7 +309,7 @@ spec:
         - /data
 ```
 
-- [ ] **Step 6: Create ArgoCD Application CR for extras (manifests)**
+- [x] **Step 6: Create ArgoCD Application CR for extras (manifests)**
 
 Create `apps/root/templates/gitea-extras.yaml`:
 
@@ -339,14 +339,14 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/gitea/ apps/root/templates/gitea.yaml apps/root/templates/gitea-extras.yaml
 git commit -m "feat(cicd): add Gitea git forge with Authentik OIDC"
 ```
 
-- [ ] **Step 8: Push and verify**
+- [x] **Step 8: Push and verify**
 
 ```bash
 git push
@@ -359,7 +359,7 @@ curl -s http://192.168.55.209:3000/api/v1/version
 # Expect: {"version":"..."}
 ```
 
-- [ ] **Step 9: Verify Authentik OIDC login**
+- [x] **Step 9: Verify Authentik OIDC login**
 
 1. Open `http://192.168.55.209:3000` in a browser
 2. Click "Sign in with authentik" (or similar OIDC button)
@@ -433,7 +433,7 @@ rm -rf /tmp/test-clone
 - Create: `apps/root/templates/tekton-pipelines.yaml`
 - Create: `apps/root/templates/tekton-dashboard.yaml`
 
-- [ ] **Step 1: Download and vendor Tekton Pipelines release YAML**
+- [x] **Step 1: Download and vendor Tekton Pipelines release YAML**
 
 ```bash
 mkdir -p apps/tekton/vendor/pipelines apps/tekton/vendor/triggers apps/tekton/vendor/dashboard
@@ -452,7 +452,7 @@ grep -c "^kind:" apps/tekton/vendor/pipelines/release.yaml
 # Expect: 50+ resources (CRDs, Deployments, Services, etc.)
 ```
 
-- [ ] **Step 2: Download and vendor Tekton Dashboard release YAML**
+- [x] **Step 2: Download and vendor Tekton Dashboard release YAML**
 
 ```bash
 TEKTON_DASHBOARD_VERSION=$(curl -sL https://api.github.com/repos/tektoncd/dashboard/releases/latest | jq -r '.tag_name')
@@ -465,7 +465,7 @@ grep -c "^kind:" apps/tekton/vendor/dashboard/release.yaml
 # Expect: 15+ resources
 ```
 
-- [ ] **Step 3: Create Dashboard LoadBalancer Service**
+- [x] **Step 3: Create Dashboard LoadBalancer Service**
 
 Create `apps/tekton/manifests/dashboard-service.yaml`:
 
@@ -493,7 +493,7 @@ spec:
 
 Note: Check the vendored Dashboard YAML for the exact label selectors (`app.kubernetes.io/component` and `app.kubernetes.io/part-of`). Adjust `selector` if they differ.
 
-- [ ] **Step 4: Create ArgoCD Application for Tekton Pipelines**
+- [x] **Step 4: Create ArgoCD Application for Tekton Pipelines**
 
 Create `apps/root/templates/tekton-pipelines.yaml`:
 
@@ -523,7 +523,7 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 5: Create ArgoCD Application for Tekton Dashboard**
+- [x] **Step 5: Create ArgoCD Application for Tekton Dashboard**
 
 Create `apps/root/templates/tekton-dashboard.yaml`:
 
@@ -553,7 +553,7 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 6: Create ArgoCD Application for Tekton extras (manifests)**
+- [x] **Step 6: Create ArgoCD Application for Tekton extras (manifests)**
 
 Create `apps/root/templates/tekton-extras.yaml`:
 
@@ -588,14 +588,14 @@ spec:
 
 Note: `directory.recurse: true` with `exclude: "vendor/**"` picks up all YAML in `apps/tekton/manifests/`, `apps/tekton/pipelines/`, `apps/tekton/tasks/`, and `apps/tekton/triggers/` while excluding the vendored release YAMLs (those are managed by separate ArgoCD apps).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add apps/tekton/ apps/root/templates/tekton-pipelines.yaml apps/root/templates/tekton-dashboard.yaml apps/root/templates/tekton-extras.yaml
 git commit -m "feat(cicd): add Tekton Pipelines and Dashboard (vendored release YAMLs)"
 ```
 
-- [ ] **Step 8: Push and verify**
+- [x] **Step 8: Push and verify**
 
 ```bash
 git push
@@ -670,7 +670,7 @@ verify:
 status: pending
 ```
 
-- [ ] **Step 2: Download and vendor Tekton Triggers release YAML**
+- [x] **Step 2: Download and vendor Tekton Triggers release YAML**
 
 ```bash
 TEKTON_TRIGGERS_VERSION=$(curl -sL https://api.github.com/repos/tektoncd/triggers/releases/latest | jq -r '.tag_name')
@@ -687,7 +687,7 @@ grep -c "^kind:" apps/tekton/vendor/triggers/release.yaml
 # Expect: 15+ resources
 ```
 
-- [ ] **Step 3: Create ExternalSecret for webhook secret**
+- [x] **Step 3: Create ExternalSecret for webhook secret**
 
 Create `apps/tekton/manifests/externalsecret-webhook.yaml`:
 
@@ -711,7 +711,7 @@ spec:
         key: GITEA_WEBHOOK_SECRET
 ```
 
-- [ ] **Step 4: Create ExternalSecret for Gitea API token**
+- [x] **Step 4: Create ExternalSecret for Gitea API token**
 
 Create `apps/tekton/manifests/externalsecret-gitea-token.yaml`:
 
@@ -735,7 +735,7 @@ spec:
         key: GITEA_API_TOKEN
 ```
 
-- [ ] **Step 5: Create TriggerBinding**
+- [x] **Step 5: Create TriggerBinding**
 
 Create `apps/tekton/triggers/triggerbinding.yaml`:
 
@@ -760,7 +760,7 @@ spec:
 
 Note: Gitea webhook payload structure should be verified during implementation. The field paths may differ from GitHub's — check `https://gitea.com/gitea/gitea/wiki/Webhook` or inspect a test delivery payload from Gitea.
 
-- [ ] **Step 6: Create TriggerTemplate**
+- [x] **Step 6: Create TriggerTemplate**
 
 Create `apps/tekton/triggers/triggertemplate.yaml`:
 
@@ -807,7 +807,7 @@ spec:
                     storage: 1Gi
 ```
 
-- [ ] **Step 7: Create EventListener**
+- [x] **Step 7: Create EventListener**
 
 Create `apps/tekton/triggers/eventlistener.yaml`:
 
@@ -860,7 +860,7 @@ spec:
 
 Note: Gitea webhook payloads use the same HMAC-SHA256 signature format as GitHub (`X-Hub-Signature-256` header). The built-in `github` interceptor validates this signature using the `secretRef`. If Gitea uses a different header name (`X-Gitea-Signature`), the `github` interceptor may not work — in that case, fall back to a CEL-based HMAC check or verify that the interceptor handles it. Test with a Gitea webhook delivery during Step 13.
 
-- [ ] **Step 8: Create RBAC for Tekton Triggers**
+- [x] **Step 8: Create RBAC for Tekton Triggers**
 
 The EventListener needs a ServiceAccount with permissions to create PipelineRuns. Check if the vendored Triggers release YAML already creates a `tekton-triggers-sa` ServiceAccount. If not, create one:
 
@@ -903,7 +903,7 @@ roleRef:
 
 Note: The ClusterRole names (`tekton-triggers-eventlistener-roles`, `tekton-triggers-eventlistener-clusterroles`) come from the vendored Triggers release YAML. Verify they exist: `grep "tekton-triggers-eventlistener" apps/tekton/vendor/triggers/release.yaml`.
 
-- [ ] **Step 9: Create ArgoCD Application for Tekton Triggers**
+- [x] **Step 9: Create ArgoCD Application for Tekton Triggers**
 
 Create `apps/root/templates/tekton-triggers.yaml`:
 
@@ -933,14 +933,14 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add apps/tekton/ apps/root/templates/tekton-triggers.yaml
 git commit -m "feat(cicd): add Tekton Triggers with Gitea EventListener"
 ```
 
-- [ ] **Step 11: Push and verify**
+- [x] **Step 11: Push and verify**
 
 ```bash
 git push
@@ -1000,7 +1000,7 @@ If no PipelineRun is created, debug:
 - Create: `apps/root/templates/zot.yaml`
 - Create: `apps/root/templates/zot-extras.yaml`
 
-- [ ] **Step 1: Create Infisical secrets and Authentik OIDC provider**
+- [x] **Step 1: Create Infisical secrets and Authentik OIDC provider**
 
 ```yaml
 # manual-operation
@@ -1034,7 +1034,7 @@ verify:
 status: done
 ```
 
-- [ ] **Step 2: Research Zot Helm chart**
+- [x] **Step 2: Research Zot Helm chart**
 
 ```bash
 helm repo add zotregistry https://zotregistry.dev/helm-charts/
@@ -1044,7 +1044,7 @@ helm search repo zotregistry/zot --versions | head -5
 
 Review `/tmp/zot-defaults.yaml` for: `persistence`, `service`, `configFiles`, TLS configuration, htpasswd auth, and OIDC settings.
 
-- [ ] **Step 3: Create self-signed ClusterIssuer (if not exists)**
+- [x] **Step 3: Create self-signed ClusterIssuer (if not exists)**
 
 Check if a self-signed ClusterIssuer already exists:
 
@@ -1065,7 +1065,7 @@ spec:
 
 Note: This may be better placed in `apps/cert-manager/manifests/` if it's a cluster-wide resource. Check if there's an existing cert-manager extras app. If not, place it in `apps/zot/manifests/` for now and move later.
 
-- [ ] **Step 4: Create Certificate for Zot TLS**
+- [x] **Step 4: Create Certificate for Zot TLS**
 
 Create `apps/zot/manifests/certificate.yaml`:
 
@@ -1086,7 +1086,7 @@ spec:
     - "zot.frank.local"
 ```
 
-- [ ] **Step 5: Create ExternalSecret**
+- [x] **Step 5: Create ExternalSecret**
 
 Create `apps/zot/manifests/externalsecret-zot.yaml`:
 
@@ -1113,7 +1113,7 @@ spec:
         key: ZOT_OIDC_CLIENT_SECRET
 ```
 
-- [ ] **Step 6: Create Helm values**
+- [x] **Step 6: Create Helm values**
 
 Create `apps/zot/values.yaml`. Adjust based on Step 2 research:
 
@@ -1148,7 +1148,7 @@ htpasswd -nbB tekton-push "$(kubectl get secret zot-secrets -n zot -o jsonpath='
 
 This will need to be a ConfigMap or embedded in the Zot config. The exact approach depends on the chart.
 
-- [ ] **Step 7: Create ArgoCD Application CRs**
+- [x] **Step 7: Create ArgoCD Application CRs**
 
 Create `apps/root/templates/zot.yaml`:
 
@@ -1219,14 +1219,14 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add apps/zot/ apps/root/templates/zot.yaml apps/root/templates/zot-extras.yaml
 git commit -m "feat(cicd): add Zot OCI registry with cert-manager TLS"
 ```
 
-- [ ] **Step 9: Push and verify**
+- [x] **Step 9: Push and verify**
 
 ```bash
 git push
@@ -1284,7 +1284,7 @@ status: pending
 - Create: `apps/tekton/tasks/gitea-status.yaml`
 - Create: `apps/tekton/pipelines/gitea-ci.yaml`
 
-- [ ] **Step 1: Vendor git-clone Task from Tekton catalog**
+- [x] **Step 1: Vendor git-clone Task from Tekton catalog**
 
 ```bash
 curl -sL "https://raw.githubusercontent.com/tektoncd/catalog/main/task/git-clone/0.9/git-clone.yaml" \
@@ -1297,7 +1297,7 @@ grep "^kind:" apps/tekton/tasks/git-clone.yaml
 
 Note: Check the Tekton catalog for the latest version of git-clone. The URL path includes the version number.
 
-- [ ] **Step 2: Create run-tests Task**
+- [x] **Step 2: Create run-tests Task**
 
 Create `apps/tekton/tasks/run-tests.yaml`:
 
@@ -1329,7 +1329,7 @@ spec:
         echo "Tests passed."
 ```
 
-- [ ] **Step 3: Create gitea-status Task**
+- [x] **Step 3: Create gitea-status Task**
 
 Create `apps/tekton/tasks/gitea-status.yaml`:
 
@@ -1387,7 +1387,7 @@ spec:
 
 Note: The Gitea internal service name (`gitea-http.gitea.svc.cluster.local`) depends on the Helm chart's service naming. Verify after Gitea deployment: `kubectl get svc -n gitea`.
 
-- [ ] **Step 4: Create the gitea-ci Pipeline**
+- [x] **Step 4: Create the gitea-ci Pipeline**
 
 Create `apps/tekton/pipelines/gitea-ci.yaml`:
 
@@ -1471,14 +1471,14 @@ spec:
           value: "Pipeline failed"
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/tekton/tasks/ apps/tekton/pipelines/
 git commit -m "feat(cicd): add Stage A pipeline — clone, test, report status to Gitea"
 ```
 
-- [ ] **Step 6: Push and verify end-to-end**
+- [x] **Step 6: Push and verify end-to-end**
 
 ```bash
 git push
@@ -1519,7 +1519,7 @@ curl -s -H "Authorization: token <GITEA_API_TOKEN>" \
 - Modify: `apps/tekton/pipelines/gitea-ci.yaml`
 - Create: `apps/tekton/manifests/externalsecret-zot-push.yaml`
 
-- [ ] **Step 1: Create ExternalSecret for Zot push credentials**
+- [x] **Step 1: Create ExternalSecret for Zot push credentials**
 
 Create `apps/tekton/manifests/externalsecret-zot-push.yaml`:
 
@@ -1550,7 +1550,7 @@ spec:
 
 Note: Kaniko uses `kubernetes.io/dockerconfigjson` type secrets for registry auth. The ExternalSecret template renders the push password into the dockerconfig format.
 
-- [ ] **Step 2: Create build-push Task**
+- [x] **Step 2: Create build-push Task**
 
 Create `apps/tekton/tasks/build-push.yaml`:
 
@@ -1593,7 +1593,7 @@ spec:
 
 Note: The `dockerconfig` workspace is bound to the `zot-push-creds` Secret (type `kubernetes.io/dockerconfigjson`) via the Pipeline's workspace binding. Kaniko reads `$(DOCKER_CONFIG)/config.json` for registry auth. `--skip-tls-verify` handles the self-signed cert — remove if cert-manager cert is trusted.
 
-- [ ] **Step 3: Extend the gitea-ci Pipeline with build-push**
+- [x] **Step 3: Extend the gitea-ci Pipeline with build-push**
 
 Add the build-push task to `apps/tekton/pipelines/gitea-ci.yaml` after the `test` task. Add new params:
 
@@ -1639,7 +1639,7 @@ Also update the TriggerTemplate to pass the `docker-credentials` workspace:
         secretName: zot-push-creds
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/tekton/tasks/build-push.yaml apps/tekton/manifests/externalsecret-zot-push.yaml apps/tekton/pipelines/gitea-ci.yaml apps/tekton/triggers/triggertemplate.yaml
@@ -1723,7 +1723,7 @@ verify:
 status: pending
 ```
 
-- [ ] **Step 2: Create ExternalSecret for cosign key**
+- [x] **Step 2: Create ExternalSecret for cosign key**
 
 Create `apps/tekton/manifests/externalsecret-cosign.yaml`:
 
@@ -1747,7 +1747,7 @@ spec:
         key: COSIGN_KEY
 ```
 
-- [ ] **Step 3: Create cosign-sign Task**
+- [x] **Step 3: Create cosign-sign Task**
 
 Create `apps/tekton/tasks/cosign-sign.yaml`:
 
@@ -1791,7 +1791,7 @@ spec:
 
 Note: `--tlog-upload=false` disables transparency log upload (Rekor) since this is a private registry. `--allow-insecure-registry` handles the self-signed cert. Remove if cert is trusted.
 
-- [ ] **Step 4: Extend gitea-ci Pipeline with cosign-sign**
+- [x] **Step 4: Extend gitea-ci Pipeline with cosign-sign**
 
 Add to `apps/tekton/pipelines/gitea-ci.yaml`, after `build-push`:
 
@@ -1812,7 +1812,7 @@ Add to `apps/tekton/pipelines/gitea-ci.yaml`, after `build-push`:
 
 Note: Ideally the cosign-sign task should use the image digest (not tag) for signing. The build-push task should output the digest as a result, and the sign task should consume it. This requires adding a `results` field to the build-push task. Implement this refinement during execution — for now, the tag-based signing works.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/tekton/tasks/cosign-sign.yaml apps/tekton/manifests/externalsecret-cosign.yaml apps/tekton/pipelines/gitea-ci.yaml apps/tekton/cosign.pub
