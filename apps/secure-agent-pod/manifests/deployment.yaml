@@ -1,0 +1,233 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: secure-agent-pod
+  namespace: secure-agent-pod
+  labels:
+    app: secure-agent-pod
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # RWO PVCs — cannot mount on two pods simultaneously
+  selector:
+    matchLabels:
+      app: secure-agent-pod
+  template:
+    metadata:
+      labels:
+        app: secure-agent-pod
+    spec:
+      serviceAccountName: agent-sa
+      terminationGracePeriodSeconds: 30
+      nodeSelector:
+        kubernetes.io/hostname: gpu-1
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      securityContext:
+        fsGroup: 1000
+
+      volumes:
+        - name: agent-home
+          persistentVolumeClaim:
+            claimName: agent-home
+        - name: vibekanban-db-data
+          persistentVolumeClaim:
+            claimName: vibekanban-db-data
+        - name: vibekanban-electric-data
+          emptyDir: {}
+        - name: agent-configs
+          secret:
+            secretName: agent-configs
+            optional: true
+            defaultMode: 0400
+      containers:
+        # ── Main: Kali agent workstation ──
+        - name: kali
+          image: ghcr.io/derio-net/secure-agent-kali:latest  # TODO: pin to SHA after first build
+          ports:
+            - name: ssh
+              containerPort: 2222  # Non-root cannot bind 22; Service maps 22→2222
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: agent-secrets-tier1
+                optional: true
+            - secretRef:
+                name: agent-secrets-tier2
+                optional: true
+          volumeMounts:
+            - name: agent-home
+              mountPath: /home/claude
+            - name: agent-configs
+              mountPath: /run/secrets
+              readOnly: true
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "2000m"
+              memory: 8Gi
+            limits:
+              memory: 32Gi
+          readinessProbe:
+            tcpSocket:
+              port: ssh
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          livenessProbe:
+            tcpSocket:
+              port: ssh
+            initialDelaySeconds: 30
+            periodSeconds: 60
+
+        # ── Sidecar: VibeKanban server ──
+        - name: vibekanban-server
+          image: ghcr.io/derio-net/vibe-kanban:latest  # TODO: pin to SHA after first build
+          ports:
+            - name: vk-http
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8081"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vibekanban-secrets
+                  key: DB_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://remote:$(DB_PASSWORD)@127.0.0.1:5432/remote"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vibekanban-secrets
+                  key: VIBEKANBAN_REMOTE_JWT_SECRET
+            - name: SELF_HOST_LOCAL_AUTH_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: vibekanban-secrets
+                  key: SELF_HOST_LOCAL_AUTH_EMAIL
+            - name: SELF_HOST_LOCAL_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vibekanban-secrets
+                  key: SELF_HOST_LOCAL_AUTH_PASSWORD
+          volumeMounts:
+            - name: agent-home
+              mountPath: /home/claude
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "250m"
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /v1/health
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 30
+
+        # ── Sidecar: VibeKanban PostgreSQL ──
+        - name: vibekanban-db
+          image: postgres:16-alpine
+          command: ["postgres", "-c", "wal_level=logical"]
+          ports:
+            - name: pg
+              containerPort: 5432
+              protocol: TCP
+          env:
+            - name: POSTGRES_DB
+              value: remote
+            - name: POSTGRES_USER
+              value: remote
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vibekanban-secrets
+                  key: DB_PASSWORD
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: vibekanban-db-data
+              mountPath: /var/lib/postgresql/data
+          securityContext:
+            runAsUser: 999     # postgres user in alpine image
+            runAsGroup: 999
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "remote", "-d", "remote"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "remote", "-d", "remote"]
+            initialDelaySeconds: 15
+            periodSeconds: 30
+
+        # ── Sidecar: ElectricSQL ──
+        - name: vibekanban-electric
+          image: electricsql/electric:1.4.13
+          ports:
+            - name: electric
+              containerPort: 3000
+              protocol: TCP
+            - name: electric-proxy
+              containerPort: 65432
+              protocol: TCP
+          env:
+            - name: ELECTRIC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vibekanban-secrets
+                  key: DB_PASSWORD
+            - name: DATABASE_URL
+              value: "postgresql://remote:$(ELECTRIC_DB_PASSWORD)@127.0.0.1:5432/remote"
+            - name: AUTH_MODE
+              value: insecure
+            - name: ELECTRIC_USAGE_REPORTING
+              value: "false"
+          volumeMounts:
+            - name: vibekanban-electric-data
+              mountPath: /var/lib/electric
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "100m"
+              memory: 128Mi
+            limits:
+              memory: 256Mi
