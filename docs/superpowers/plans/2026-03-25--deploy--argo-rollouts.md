@@ -11,7 +11,7 @@
 **Tech Stack:** Argo Rollouts Helm chart (argoproj.github.io/argo-helm), Cilium traffic router plugin (argoproj-labs/rollouts-plugin-trafficrouter-cilium), VictoriaMetrics (Prometheus-compatible API), Argo Rollouts CRDs (Rollout, AnalysisTemplate).
 
 **Design doc:** `docs/superpowers/specs/2026-03-25--deploy--argo-rollouts-design.md`
-**Status:** In Progress
+**Status:** Deployed (Phase 3 Paperclip Rollout reverted — runs as plain Deployment)
 
 ---
 
