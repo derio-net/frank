@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: secure-agent-ssh
+  namespace: secure-agent-pod
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.215"
+spec:
+  type: LoadBalancer
+  selector:
+    app: secure-agent-pod
+  ports:
+    - name: ssh
+      port: 22
+      targetPort: 2222  # Non-root sshd port inside container
+      protocol: TCP
