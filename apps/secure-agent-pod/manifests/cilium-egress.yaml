@@ -1,0 +1,69 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: agent-egress
+  namespace: secure-agent-pod
+spec:
+  endpointSelector:
+    matchLabels:
+      app: secure-agent-pod
+  egress:
+    # DNS (required for FQDN-based rules to resolve)
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+
+    # Claude API
+    - toFQDNs:
+        - matchName: api.anthropic.com
+      toPorts:
+        - ports:
+            - port: "443"
+
+    # Telegram Bot API (agent notifications)
+    - toFQDNs:
+        - matchName: api.telegram.org
+      toPorts:
+        - ports:
+            - port: "443"
+
+    # GitHub (git clone/push, API, container registry)
+    - toFQDNs:
+        - matchName: github.com
+        - matchPattern: "*.github.com"
+        - matchName: ghcr.io
+        - matchPattern: "*.ghcr.io"
+      toPorts:
+        - ports:
+            - port: "443"
+            - port: "22"
+
+    # Cloudflare R2 (backup access)
+    - toFQDNs:
+        - matchPattern: "*.r2.cloudflarestorage.com"
+      toPorts:
+        - ports:
+            - port: "443"
+
+    # npm + PyPI (dependency installs)
+    - toFQDNs:
+        - matchName: registry.npmjs.org
+        - matchName: pypi.org
+        - matchName: files.pythonhosted.org
+      toPorts:
+        - ports:
+            - port: "443"
+
+    # Cluster-internal (LAN services, Tailscale subnet)
+    - toCIDR:
+        - 192.168.55.0/24
+        - 192.168.50.0/24
+
+    # K8s API server (kubectl from inside pod)
+    - toEntities:
+        - kube-apiserver
