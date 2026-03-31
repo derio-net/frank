@@ -8,9 +8,9 @@
 
 Running AI coding agents (Claude Code, Codex, etc.) with `--dangerously-skip-permissions` or equivalent is required for agentic workflows but creates significant security risk. The agent can execute arbitrary commands, access any credential available in its environment, and communicate with any network endpoint.
 
-This spec designs a hardened Kubernetes pod for running coding agents safely on a Talos Linux cluster with Cilium CNI. The pod includes VibeKanban as a sidecar for agent orchestration.
+This spec designs a hardened Kubernetes pod for running coding agents safely on a Talos Linux cluster with Cilium CNI. The pod includes VibeKanban as an in-container process for agent orchestration.
 
-**Replaces:** frank-kali (the existing Kali Linux pod on gpu-1, SSH at 192.168.55.215, 50Gi PVC at /root). The secure-agent-pod retains the Kali base image and gpu-1 placement but adds security hardening, a non-root user model, and VibeKanban sidecars. The frank-kali pod should be retired once this is deployed and verified.
+**Replaces:** frank-kali (the existing Kali Linux pod on gpu-1, SSH at 192.168.55.215, 50Gi PVC at /root). The secure-agent-pod retains the Kali base image and gpu-1 placement but adds security hardening, a non-root user model, and VibeKanban. The frank-kali pod should be retired once this is deployed and verified.
 
 ## Approach: Layered Defense
 
@@ -86,68 +86,37 @@ securityContext:
 
 ---
 
-## 2. VibeKanban Sidecar Architecture
+## 2. VibeKanban (In-Container Process)
 
-VibeKanban (https://github.com/BloopAI/vibe-kanban) runs as sidecar containers in the same pod. All containers share localhost networking and volumes.
+VibeKanban (https://github.com/BloopAI/vibe-kanban) runs as a process inside the kali container, using its local mode (SQLite storage).
 
-### Why sidecars
+### Why in-container (not sidecars)
 
-- Containers in the same pod share `localhost` — no service networking needed
-- The repos volume (`/home/claude/repos/`) is naturally shared — VibeKanban manages workspaces in the same filesystem the agent uses
-- Single pod lifecycle (one restart brings everything up)
-- Cilium egress policy applies to the entire pod uniformly
+The original plan used 3 sidecar containers (server, PostgreSQL, ElectricSQL) for VibeKanban's remote/self-hosted mode. Testing revealed that the remote-server container does NOT expose the local workspace to its sessions, even with shared volume mounts. Pairing a second vibe-kanban process would require SSL/JWT authentication — unnecessary complexity for a single-agent pod.
 
-### Container layout (4 containers, 1 pod)
+Local mode:
+- Uses SQLite (file-based, zero-config) — database lives on the agent-home PVC
+- Runs as the same `claude` user (UID 1000) — sees the same filesystem
+- No external database services needed
+- Built-in authentication for the web UI
+- Data survives container restarts (PVC-backed)
 
-```
-secure-agent-pod
-├── kali (main)
-│   Image: custom Kali + Claude Code + tools
-│   User: claude (1000)
-│   Volumes: agent-home, secrets
-│   Ports: SSH (22)
-│
-├── vibekanban-server (sidecar)
-│   Image: ghcr.io/derio-net/vibe-kanban (built from fork)
-│   User: claude (1000)
-│   Ports: 8081 (localhost — accessed via Tailscale)
-│   Env: DB connection, JWT secret, auth creds (from K8s Secrets)
-│   Volumes: agent-home (shared, read-write)
-│   Health: wget --spider -q http://127.0.0.1:8081/v1/health
-│
-├── vibekanban-db (sidecar)
-│   Image: postgres:16-alpine
-│   Command: postgres -c wal_level=logical
-│   Ports: 5432 (localhost only)
-│   Env: POSTGRES_DB=remote, POSTGRES_USER=remote, POSTGRES_PASSWORD (K8s Secret)
-│   Volumes: vibekanban-db-data (separate PVC)
-│   Health: pg_isready -U remote -d remote
-│
-└── vibekanban-electric (sidecar)
-    Image: electricsql/electric:1.4.13
-    Ports: 3000 (localhost), 65432 (proxy)
-    Env: DATABASE_URL, AUTH_MODE=insecure, ELECTRIC_USAGE_REPORTING=false
-    Volumes: vibekanban-electric-data (emptyDir or small PVC)
-```
+### Setup
 
-### VibeKanban image
-
-No pre-built images exist on GHCR or Docker Hub (checked 2026-03-30). Fork BloopAI/vibe-kanban to derio-net/vibe-kanban, add GitHub Actions CI to build and push to `ghcr.io/derio-net/vibe-kanban`.
-
-### VibeKanban access
-
-- Web UI via Tailscale/Headscale mesh only — NOT publicly exposed
-- No Caddy needed (Tailscale provides encrypted transport)
-- Authentication: local auth (single email/password, stored as K8s Secret)
+- `npm install -g vibe-kanban` baked into the Kali image (Prereq A)
+- Started as a child process in `entrypoint.sh`: `vibe-kanban &`
+- Supervised by the existing `wait -n` pattern (pod restarts if process dies)
+- Web UI on port 8081, exposed via LoadBalancer at 192.168.55.218
+- Accessed via Tailscale only — NOT publicly exposed
 
 ### How VibeKanban spawns agents
 
-VibeKanban creates git worktrees under `/home/claude/repos/` and invokes coding agents. Because it runs in the same pod:
+VibeKanban creates git worktrees under `/home/claude/repos/` and invokes coding agents. Because it runs in the same container:
 
 - Spawned agent sessions inherit the Cilium egress policy
 - User-deployed Claude Code hooks apply to all sessions
 - The `claude` user's permissions apply uniformly
-- Shared filesystem means VibeKanban and the agent operate on the same repos
+- Same filesystem — no volume mount coordination needed
 
 ---
 
@@ -214,23 +183,6 @@ kubectl create secret generic agent-configs \
   --from-file=talosconfig=./talosconfig.yaml \
   --from-file=kubeconfig=./kubeconfig.yaml \
   --from-file=omniconfig=./omniconfig.yaml
-```
-
-### VibeKanban Secrets
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: vibekanban-secrets
-  namespace: secure-agent-pod
-type: Opaque
-stringData:
-  VIBEKANBAN_REMOTE_JWT_SECRET: "<openssl rand -base64 48>"
-  DB_PASSWORD: "<strong password>"
-  ELECTRIC_ROLE_PASSWORD: "<strong password>"
-  SELF_HOST_LOCAL_AUTH_EMAIL: "<email>"
-  SELF_HOST_LOCAL_AUTH_PASSWORD: "<strong password>"
 ```
 
 ### Kubernetes Identity
@@ -368,7 +320,7 @@ Hook scripts are deployed separately and are not part of the pod spec.
 | cluster-admin is broad | Named SA, audit logging | Agent can affect any namespace |
 | talosctl/omnictl are host-level | Hook-based blocking (user-deployed) | Agent can still read host state |
 | ESO Universal Auth token is long-lived | Quarterly rotation, project-scoped | Compromise = access until rotation |
-| VibeKanban shares PVC | Both run as UID 1000 | VK bug could corrupt repos |
+| VibeKanban SQLite on shared PVC | Single process, same user | VK bug could corrupt its own DB; repos unaffected |
 
 ---
 
@@ -387,6 +339,6 @@ Hook scripts are deployed separately and are not part of the pod spec.
 3. **Egress blocked:** `kubectl exec <pod> -c kali -- curl https://httpbin.org/ip` → fails
 4. **Egress allowed:** `kubectl exec <pod> -c kali -- curl -s https://api.anthropic.com/` → succeeds
 5. **Secrets injected:** `kubectl exec <pod> -c kali -- env | grep -i key` → set, no file at `/home/claude/.env`
-6. **VibeKanban healthy:** `kubectl exec <pod> -c kali -- curl -s http://127.0.0.1:8081/v1/health` → OK
+6. **VibeKanban running:** `kubectl exec <pod> -c kali -- pgrep -f vibe-kanban` → PID exists, `curl -s http://127.0.0.1:8081` → responds
 7. **PVC persists:** Delete pod, wait for restart, verify `/home/claude/repos/` survives
-8. **VibeKanban UI:** Access via Tailscale at `http://<tailscale-ip>:8081`, login, create workspace
+8. **VibeKanban UI:** Access via Tailscale at `http://<tailscale-ip>:8081`, log in with VibeKanban's built-in local auth
