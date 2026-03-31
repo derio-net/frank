@@ -47,7 +47,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Hop (Hetzner Edge)** | Public-facing single-node Talos cluster — Headscale mesh, Caddy reverse proxy, blog hosting, split-DNS |
 | **Headscale + Tailscale** | WireGuard mesh networking — remote homelab access from any device, MagicDNS for split-DNS |
 | **Caddy** | Automatic TLS (Cloudflare DNS challenge), public/mesh routing, path rewriting |
-| **Kali Workstation** | Persistent always-on container on gpu-1, SSH remote access, Claude Code `--remote` agent (`192.168.55.215`) |
+| **Secure Agent Pod** | Hardened non-root coding agent workstation — Cilium egress, dropped capabilities, VibeKanban orchestration, SSH (`192.168.55.215`) + UI (`192.168.55.218`) |
 | **Argo Rollouts** | Progressive delivery — canary (Cilium traffic splitting + VictoriaMetrics analysis) and blue-green (preview + atomic cutover) |
 | **n8n** | Per-user workflow automation — 400+ integrations, visual node editor, webhook triggers, Authentik forward-auth (`192.168.55.216`) |
 
@@ -82,6 +82,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 18. [Persistent Agent — A Kali Workstation on Kubernetes]({{< relref "/building/18-persistent-agent" >}})
 19. [Progressive Delivery with Argo Rollouts]({{< relref "/building/19-progressive-delivery" >}})
 20. [Workflow Automation with n8n]({{< relref "/building/20-workflow-automation" >}})
+21. [Secure Agent Pod — Hardening an AI Coding Workstation]({{< relref "/building/21-secure-agent-pod" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
