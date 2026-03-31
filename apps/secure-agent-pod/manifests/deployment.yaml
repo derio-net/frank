@@ -62,7 +62,7 @@ spec:
             - name: agent-home
               mountPath: /home/claude
             - name: agent-configs
-              mountPath: /run/secrets
+              mountPath: /home/claude/.kube/configs
               readOnly: true
             - name: ssh-keys
               mountPath: /etc/ssh-keys
