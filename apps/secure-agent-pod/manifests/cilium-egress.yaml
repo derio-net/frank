@@ -50,11 +50,12 @@ spec:
         - ports:
             - port: "443"
 
-    # npm + PyPI (dependency installs)
+    # npm + PyPI + VibeKanban CDN (dependency installs)
     - toFQDNs:
         - matchName: registry.npmjs.org
         - matchName: pypi.org
         - matchName: files.pythonhosted.org
+        - matchName: npm-cdn.vibekanban.com
       toPorts:
         - ports:
             - port: "443"
