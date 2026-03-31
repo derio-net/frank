@@ -30,3 +30,4 @@
 - VibeKanban local mode binds to a random port by default — set `PORT=8081` and `HOST=0.0.0.0` env vars to fix the port and allow external access (default host is `127.0.0.1`)
 - PVC mounts at `/home/claude` hide all image-baked files under that path — entrypoints, configs, and templates must live outside (e.g., `/opt/`, `/entrypoint.sh`) and seed PVC contents on first boot
 - VibeKanban tries to reach `api.vibekanban.com` for remote features — add to Cilium egress allowlist if needed, or leave blocked (local mode works without it)
+- ESO ExternalSecret validation webhook rejects empty `data: []` — if all keys are removed, delete the ExternalSecret entirely rather than leaving an empty data array
