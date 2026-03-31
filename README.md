@@ -49,6 +49,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Edge Ingress | Caddy | Automatic TLS (Cloudflare DNS challenge), public/mesh routing on Hop |
 | Progressive Delivery | Argo Rollouts | Canary (LiteLLM + Cilium traffic split + VictoriaMetrics analysis), blue-green (Sympozium + HTTP healthcheck) |
 | Workflow Automation | n8n | Per-user instances on gpu-1, Authentik forward-auth, dedicated PostgreSQL, Prometheus metrics |
+| Secure Agent Pod | Kali Linux + VibeKanban | Hardened non-root coding agent workstation on gpu-1, Cilium egress controls, ESO secrets, SSH + VibeKanban UI |
 
 ## Repository Structure
 
@@ -87,7 +88,8 @@ frank/
 │   ├── argo-rollouts-extras/manifests/          # Cilium plugin config + RBAC
 │   ├── gpu-switcher/manifests/ + app/           # GPU Switcher Go app + K8s manifests
 │   ├── n8n-01/manifests/                       # n8n workflow automation (gpu-1, 192.168.55.216)
-│   └── n8n-01-postgresql/values.yaml           # Bitnami PostgreSQL for n8n-01
+│   ├── n8n-01-postgresql/values.yaml           # Bitnami PostgreSQL for n8n-01
+│   └── secure-agent-pod/manifests/             # Secure coding agent pod (gpu-1, SSH + VibeKanban)
 │       ├── template/values.yaml                 # Base config (SQLite, policies, sync)
 │       └── experiments/values.yaml              # First sandbox instance
 ├── clusters/
@@ -151,8 +153,9 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Paperclip | http://192.168.55.212:3100 | 192.168.55.212 |
 | ComfyUI | http://192.168.55.213:8188 | 192.168.55.213 |
 | GPU Switcher | http://192.168.55.214:8080 | 192.168.55.214 |
-| Kali Workstation | ssh root@192.168.55.215 | 192.168.55.215 |
+| Secure Agent Pod (SSH) | ssh claude@192.168.55.215 | 192.168.55.215 |
 | n8n-01 | http://192.168.55.216:5678 | 192.168.55.216 |
+| Secure Agent Pod (VibeKanban) | http://192.168.55.218:8081 | 192.168.55.218 |
 
 ### Hop Cluster (Public Edge)
 
@@ -206,7 +209,7 @@ argocd app list
 | paperclip | paperclip-system | Paperclip v0.3.1 AI agent orchestrator (192.168.55.212:3100) |
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
-| kali | kali-system | Persistent Kali Linux workstation on gpu-1 (192.168.55.215:22/SSH), Claude Code remote |
+| secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1 (SSH :22, VibeKanban :8081), non-root, Cilium egress, ESO secrets |
 | argo-rollouts | argo-rollouts | Progressive delivery controller + Cilium traffic router plugin |
 | argo-rollouts-extras | argo-rollouts | Cilium plugin ConfigMap + supplemental RBAC for CiliumEnvoyConfig |
 | n8n-01 | n8n-01 | n8n workflow automation on gpu-1 (192.168.55.216:5678), Authentik forward-auth |
