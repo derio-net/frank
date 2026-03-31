@@ -103,3 +103,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 11. [Operating on Hop — Single-Node Talos Edge Cluster]({{< relref "/operating/11-public-edge" >}})
 12. [Operating on Progressive Delivery]({{< relref "/operating/12-progressive-delivery" >}})
 13. [Operating on Workflow Automation]({{< relref "/operating/13-workflow-automation" >}})
+14. [Operating on Secure Agent Pod]({{< relref "/operating/14-secure-agent-pod" >}})
