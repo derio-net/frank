@@ -461,6 +461,23 @@ images:
       blocks the entrance to each belt. Dark server room with blue and
       orange lightning accents.
 
+  - key: post-21
+    output: blog/content/building/21-secure-agent-pod/cover.png
+    description: "Secure Agent Pod — Frank in a hardened vault operating a locked-down workstation"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster inside a reinforced steel
+      vault, sitting at a minimalist terminal workstation. The vault door behind
+      him has multiple layers of locks — a padlock, a digital keypad, and a
+      biometric scanner — all glowing blue. His terminal screen shows a CLI
+      with green text. Around the workstation, translucent shield layers float
+      in concentric rings — each labeled with a tiny icon: a user silhouette
+      (non-root), a broken chain (dropped caps), a network firewall grid
+      (Cilium), and a key with a slash through it (no sudo). Frank looks
+      focused and calm, one hand on the keyboard, the other adjusting a shield
+      layer. Electric blue sparks arc between the shield layers. A small kanban
+      board floats beside the terminal showing task cards. Dark server room
+      with blue lightning accents and steel textures.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
