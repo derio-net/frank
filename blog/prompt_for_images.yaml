@@ -677,3 +677,23 @@ images:
       line and "/healthz: 200" text. A clipboard shows a checklist labeled
       "instances: n8n-01 ✓, n8n-02 pending". Dark server room with blue and
       orange lighting accents.
+
+  - key: ops-14-secure-agent-pod
+    output: blog/content/operating/14-secure-agent-pod/cover.png
+    description: "Operating on Secure Agent Pod — Frank maintaining a layered security orb"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting in a workshop
+      chair at a heavy steel workbench. One arm rests palm-up on the table,
+      cradling a partially disassembled glowing orb. The orb has three thick
+      concentric layers — an outer steel shell etched with network patterns,
+      a middle translucent blue energy shield layer, and an inner golden core
+      pulsing with light. The layers are spread apart like an exploded diagram,
+      revealing the internals. With his other hand Frank holds a sleek
+      futuristic calibration instrument — a pen-like tool with a glowing blue
+      tip — delicately adjusting a connection point between the shield layer
+      and the core. On the workbench: a magnifying loupe on a stand, a
+      clipboard showing "uid=1000 ✓" and "caps: NONE ✓", tiny SSH key cards,
+      and a small kanban board with task cards. The workshop background has
+      tool racks, server parts, and a wall-mounted network diagram with green
+      and red connection lines. Dark server room with blue and steel-gray
+      lighting accents.
