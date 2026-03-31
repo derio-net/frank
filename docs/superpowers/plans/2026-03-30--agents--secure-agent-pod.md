@@ -665,7 +665,7 @@ app: secure-agent-pod
 plan: 2026-03-30--agents--secure-agent-pod
 when: Before first ArgoCD sync
 why_manual: Bootstrap secrets must exist before ESO can sync; SOPS decryption requires manual key access
-status: pending
+status: done
 commands:
   # 1. Create tier-2 manual secrets
   - |
@@ -811,7 +811,7 @@ app: secure-agent-pod
 plan: 2026-03-30--agents--secure-agent-pod
 when: After Kali manifests removed and ArgoCD synced
 why_manual: PVC data deletion is destructive and irreversible; requires human confirmation
-status: pending
+status: done
 commands:
   - kubectl delete pvc kali-data -n kali-system
   - kubectl delete namespace kali-system
