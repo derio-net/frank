@@ -234,6 +234,46 @@ operations:
       - "kubectl -n n8n-01 get secret n8n-01-secrets -o jsonpath='{.data.password}' | base64 -d"
     status: done
 
+  - id: secure-agent-pod-bootstrap-secrets
+    layer: agents
+    app: secure-agent-pod
+    plan: docs/superpowers/plans/2026-03-30--agents--secure-agent-pod.md
+    when: "Before first ArgoCD sync"
+    why_manual: "Bootstrap secrets must exist before ESO can sync; SOPS decryption requires manual key access"
+    commands:
+      - "sops --decrypt secrets/secure-agent-pod/agent-secrets-tier2.yaml | kubectl apply -f -"
+      - "sops --decrypt secrets/secure-agent-pod/agent-configs.yaml | kubectl apply -f -"
+    verify:
+      - "kubectl get secret agent-secrets-tier2 -n secure-agent-pod"
+      - "kubectl get secret agent-configs -n secure-agent-pod"
+    status: done
+
+  - id: secure-agent-pod-infisical-setup
+    layer: agents
+    app: secure-agent-pod
+    plan: docs/superpowers/plans/2026-03-30--agents--secure-agent-pod.md
+    when: "Before first ArgoCD sync (after bootstrap secrets)"
+    why_manual: "Infisical project/secret creation requires Infisical UI; ESO universal auth token must be provisioned"
+    commands:
+      - "Navigate to Infisical → project → verify ANTHROPIC_API_KEY exists"
+      - "kubectl get externalsecret agent-secrets-infisical -n secure-agent-pod"
+    verify:
+      - "kubectl get externalsecret agent-secrets-infisical -n secure-agent-pod -o jsonpath='{.status.conditions[0].status}'  # Should return True"
+    status: done
+
+  - id: secure-agent-pod-kali-cleanup
+    layer: agents
+    app: secure-agent-pod
+    plan: docs/superpowers/plans/2026-03-30--agents--secure-agent-pod.md
+    when: "After Kali manifests removed and ArgoCD synced"
+    why_manual: "PVC data deletion is destructive and irreversible; requires human confirmation"
+    commands:
+      - "kubectl delete pvc kali-root -n kali-system"
+      - "kubectl delete namespace kali-system"
+    verify:
+      - "kubectl get namespace kali-system  # Should return not found"
+    status: done
+
   - id: auth-agent-machine-user
     layer: auth
     app: authentik
