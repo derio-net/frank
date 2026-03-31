@@ -839,7 +839,7 @@ Run all spec verification checks after deployment.
 
 - [x] **Step 7: PVC persistence** — SSH host keys persist across pod restarts
 
-- [ ] **Step 8: VibeKanban UI access** — pending manual test via Tailscale at `http://192.168.55.218:8081`
+- [x] **Step 8: VibeKanban UI access** — confirmed via Tailscale at `http://192.168.55.218:8081`
 
 - [ ] **Step 9: SSH access** — pending manual test: `ssh claude@192.168.55.215`
 

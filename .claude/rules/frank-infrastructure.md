@@ -25,5 +25,6 @@
 | Paperclip | 192.168.55.212 | Cilium L2 LoadBalancer (port 3100) |
 | ComfyUI | 192.168.55.213 | Cilium L2 LoadBalancer (port 8188) |
 | GPU Switcher | 192.168.55.214 | Cilium L2 LoadBalancer (port 8080) |
-| Kali Workstation | 192.168.55.215 | Cilium L2 LoadBalancer (port 22/SSH) |
+| Secure Agent Pod (SSH) | 192.168.55.215 | Cilium L2 LoadBalancer (port 22/SSH) |
 | n8n-01 | 192.168.55.216 | Cilium L2 LoadBalancer (port 5678) |
+| Secure Agent Pod (VibeKanban) | 192.168.55.218 | Cilium L2 LoadBalancer (port 8081) |
