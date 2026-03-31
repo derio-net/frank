@@ -26,3 +26,7 @@
 - n8n Community Edition has no `user:create` CLI command — owner account must be created via the first-time setup wizard in the browser
 - n8n Community Edition OIDC/SSO is enterprise-only — use Authentik forward-auth proxy for SSO
 - n8n requires `N8N_SECURE_COOKIE=false` when accessed over plain HTTP (without TLS termination); remove once TLS is in place
+- Cilium 1.17 FQDN policies fail with "FQDN regex compilation LRU not yet initialized" if no endpoint on the node has previously triggered DNS proxy initialization. Workaround: restart Cilium agent on the node, or use CIDR-based policies until the issue is resolved upstream. Stale BPF egress rules persist even after deleting the CiliumNetworkPolicy — must also restart the Cilium agent to clear them
+- VibeKanban local mode binds to a random port by default — set `PORT=8081` and `HOST=0.0.0.0` env vars to fix the port and allow external access (default host is `127.0.0.1`)
+- PVC mounts at `/home/claude` hide all image-baked files under that path — entrypoints, configs, and templates must live outside (e.g., `/opt/`, `/entrypoint.sh`) and seed PVC contents on first boot
+- VibeKanban tries to reach `api.vibekanban.com` for remote features — add to Cilium egress allowlist if needed, or leave blocked (local mode works without it)
