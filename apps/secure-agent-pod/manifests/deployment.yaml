@@ -42,6 +42,10 @@ spec:
             secretName: agent-configs
             optional: true
             defaultMode: 0400
+        - name: ssh-keys
+          secret:
+            secretName: agent-ssh-keys
+            defaultMode: 0400
       containers:
         # ── Main: Kali agent workstation ──
         - name: kali
@@ -63,13 +67,9 @@ spec:
             - name: agent-configs
               mountPath: /run/secrets
               readOnly: true
-          securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-            runAsNonRoot: true
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
+            - name: ssh-keys
+              mountPath: /etc/ssh-keys
+              readOnly: true
           resources:
             requests:
               cpu: "2000m"
