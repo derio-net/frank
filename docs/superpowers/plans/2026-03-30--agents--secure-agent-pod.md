@@ -595,6 +595,8 @@ spec:
 
 Populate `data` entries as secrets are added to Infisical. Start with just `ANTHROPIC_API_KEY`.
 
+**Note:** ExternalSecret was later removed from manifests because Claude Code authenticates via Max subscription login (`claude login`), not via `ANTHROPIC_API_KEY` env var. See commit 7d02c06. Re-add this manifest when Infisical-managed secrets are needed.
+
 - [x] **Step 2: Commit** (a3aa519 — batched with Task 6)
 
 ```bash
@@ -860,3 +862,4 @@ _Document any deviations from the spec discovered during implementation here._
 - **PVC mount path conflict:** `/run/secrets` mount for agent-configs conflicted with K8s SA token mount at `/var/run/secrets/kubernetes.io/serviceaccount`. Moved to `/home/claude/.kube/configs`.
 - **Image files hidden by PVC:** All files Dockerfile placed under `/home/claude/` (entrypoint, sshd_config, .crontab, .load-env.sh) are hidden by the PVC mount. Moved to `/opt/` and `/entrypoint.sh`; entrypoint seeds PVC on first boot.
 - **Cilium FQDN egress policy:** Invalid on Cilium 1.17 ("LRU not yet initialized"). Temporarily disabled — manifests moved to `cilium-egress.yaml.disabled`. Re-enable after Cilium upgrade or workaround found.
+- **ExternalSecret removed:** Claude Code authenticates via Max subscription login, not ANTHROPIC_API_KEY env var. ExternalSecret manifest deleted (7d02c06). Re-add when Infisical-managed secrets are needed.

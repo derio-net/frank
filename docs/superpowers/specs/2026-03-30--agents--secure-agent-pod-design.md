@@ -167,6 +167,8 @@ spec:
       projectId: <project-id>
 ```
 
+**Note:** As of deployment, no Tier 1 secrets are active. Claude Code authenticates via Max subscription login (`claude login`), not via `ANTHROPIC_API_KEY` env var. The ExternalSecret was removed from manifests. Re-add when Infisical-managed secrets are needed.
+
 ### Tier 2: Manual K8s Secrets (quarterly rotation)
 
 For credentials that can't go through Infisical or are file-based.
