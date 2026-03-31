@@ -51,6 +51,11 @@ spec:
             - name: vk-http
               containerPort: 8081  # VibeKanban local mode UI
               protocol: TCP
+          env:
+            - name: PORT
+              value: "8081"
+            - name: HOST
+              value: "0.0.0.0"
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1
