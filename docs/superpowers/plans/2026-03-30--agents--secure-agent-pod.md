@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-03-30--agents--secure-agent-pod-design.md`
 
-**Status:** In progress (Tasks 1-9 manifests complete, Tasks 10-12 pending manual ops)
+**Status:** Deployed
 
 ---
 
@@ -771,7 +771,7 @@ Remove the existing frank-kali workstation after secure-agent-pod is verified wo
 
 - [x] **Step 1: Verify secure-agent-pod is fully operational** — 6/9 PASS, 1 SKIP (Cilium), 2 pending manual (SSH + VK UI via Tailscale)
 
-- [ ] **Step 2: Scale down Kali**
+- [x] **Step 2: Scale down Kali**
 
 ```bash
 source .env
@@ -780,7 +780,7 @@ kubectl scale deployment kali -n kali-system --replicas=0
 
 Verify nothing depends on the Kali pod. Wait 24h.
 
-- [ ] **Step 3: Remove Kali manifests and ArgoCD templates**
+- [x] **Step 3: Remove Kali manifests and ArgoCD templates** (d5b6901)
 
 ```bash
 rm -rf apps/kali/
@@ -788,20 +788,20 @@ rm apps/root/templates/kali.yaml
 rm apps/root/templates/ns-kali.yaml
 ```
 
-- [ ] **Step 4: Update infrastructure docs**
+- [x] **Step 4: Update infrastructure docs** (d5b6901)
 
 Update `.claude/rules/frank-infrastructure.md`:
 - Replace `Kali Workstation | 192.168.55.215 | Cilium L2 LoadBalancer (port 22/SSH)` with `Secure Agent Pod (SSH) | 192.168.55.215 | Cilium L2 LoadBalancer (port 22/SSH)`
 - Add `Secure Agent Pod (VibeKanban) | 192.168.55.218 | Cilium L2 LoadBalancer (port 8081)`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit** (d5b6901)
 
 ```bash
 git add -A apps/kali/ apps/root/templates/kali.yaml apps/root/templates/ns-kali.yaml .claude/rules/frank-infrastructure.md
 git commit -m "feat(agents): decommission frank-kali, replaced by secure-agent-pod"
 ```
 
-- [ ] **Step 6: Clean up Kali namespace (manual)**
+- [x] **Step 6: Clean up Kali namespace (manual)** — PVC, deployment, service, secrets, configmap, namespace all deleted
 
 # manual-operation
 ```yaml
@@ -841,7 +841,7 @@ Run all spec verification checks after deployment.
 
 - [x] **Step 8: VibeKanban UI access** — confirmed via Tailscale at `http://192.168.55.218:8081`
 
-- [ ] **Step 9: SSH access** — pending manual test: `ssh claude@192.168.55.215`
+- [x] **Step 9: SSH access** — confirmed: `ssh claude@192.168.55.215`
 
 ---
 
