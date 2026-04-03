@@ -150,7 +150,7 @@ spec:
       targetPort: 9115
 ```
 
-- [ ] **Step 3: Apply and verify**
+- [x] **Step 3: Apply and verify**
 
 ```bash
 kubectl apply -f <path-to-manifests>
@@ -209,7 +209,7 @@ If using raw Prometheus scrape config, add a scrape job with relabeling:
       replacement: blackbox-exporter.<observability-namespace>.svc:9115
 ```
 
-- [ ] **Step 5: Test a probe**
+- [x] **Step 5: Test a probe**
 
 ```bash
 kubectl port-forward -n <observability-namespace> svc/blackbox-exporter 9115:9115 &
@@ -286,7 +286,7 @@ spec:
       targetPort: 9091
 ```
 
-- [ ] **Step 2: Apply and verify**
+- [x] **Step 2: Apply and verify**
 
 ```bash
 kubectl apply -f <path-to-manifests>
@@ -325,7 +325,7 @@ If using raw scrape config:
 
 `honor_labels: true` is critical -- it preserves the job/instance labels from pushed metrics.
 
-- [ ] **Step 4: Verify end-to-end push and scrape**
+- [x] **Step 4: Verify end-to-end push and scrape**
 
 ```bash
 # Push a test metric
@@ -340,7 +340,7 @@ echo 'test_heartbeat 42' | curl -s --data-binary @- \
 curl -s -X DELETE http://pushgateway.<observability-namespace>.svc:9091/metrics/job/test
 ```
 
-- [ ] **Step 5: Verify agent pod can reach Pushgateway**
+- [x] **Step 5: Verify agent pod can reach Pushgateway**
 
 From the secure-agent-pod, test connectivity:
 
@@ -378,7 +378,7 @@ helm install kube-state-metrics prometheus-community/kube-state-metrics \
   --set resources.requests.memory=32Mi
 ```
 
-- [ ] **Step 3: Verify pod metrics are available**
+- [x] **Step 3: Verify pod metrics are available**
 
 In Grafana Explore, query:
 ```
@@ -391,7 +391,7 @@ Expected: Returns pod phase data for the agent pod.
 
 ## Task 4: Configure Grafana Telegram Contact Point
 
-- [ ] **Step 1: Create Telegram contact point**
+- [x] **Step 1: Create Telegram contact point**
 
 In Grafana (https://grafana.frank.derio.net): Alerting > Contact points > Add contact point
 
@@ -413,7 +413,7 @@ Parse Mode: Markdown
 
 Use Grafana's "Test" button. Verify message arrives on Telegram.
 
-- [ ] **Step 3: Create notification policy**
+- [x] **Step 3: Create notification policy**
 
 Alerting > Notification policies > Add nested policy:
 
@@ -433,11 +433,11 @@ Continue matching: false
 
 **Prerequisites:** Issue numbers from the Willikins plan (Task 2, Step 5).
 
-- [ ] **Step 1: Create alert folder**
+- [x] **Step 1: Create alert folder**
 
 Alerting > Alert rules > New folder: `Feature Health`
 
-- [ ] **Step 2: Create heartbeat stale alerts**
+- [x] **Step 2: Create heartbeat stale alerts**
 
 **Exercise Reminder Heartbeat:**
 ```
@@ -487,7 +487,7 @@ Annotations:
   description: No successful audit digest in over 26 hours.
 ```
 
-- [ ] **Step 3: Create endpoint probe alerts**
+- [x] **Step 3: Create endpoint probe alerts**
 
 **Endpoint Down (generic):**
 ```
@@ -504,7 +504,7 @@ Annotations:
   description: HTTP probe failing for over 5 minutes.
 ```
 
-- [ ] **Step 4: Create pod health alert**
+- [x] **Step 4: Create pod health alert**
 
 **Agent Pod Not Running:**
 ```
@@ -522,7 +522,7 @@ Annotations:
   description: Pod not in Running state for 5+ minutes.
 ```
 
-- [ ] **Step 5: Verify alert rules are evaluating**
+- [x] **Step 5: Verify alert rules are evaluating**
 
 Alerting > Alert rules > Feature Health folder. All rules should show "Normal" (green) or "Pending"/"Firing" if conditions are already met (e.g., heartbeats don't exist yet -- this is expected and validates the alerting works).
 
@@ -530,7 +530,7 @@ Alerting > Alert rules > Feature Health folder. All rules should show "Normal" (
 
 ## Task 6: Create Grafana Feature Health Dashboard
 
-- [ ] **Step 1: Create dashboard**
+- [x] **Step 1: Create dashboard**
 
 Name: "Feature Health"
 
@@ -569,9 +569,11 @@ Column: namespace, pod, phase
 Value mapping: Running green, Pending yellow, Failed red
 ```
 
-- [ ] **Step 2: Save dashboard and note URL**
+- [x] **Step 2: Save dashboard and note URL**
 
 Save. Note the URL for the health bridge service (M3) and for linking in GitHub Issue descriptions.
+
+Dashboard URL: http://grafana.frank.derio.net/d/fh-overview/feature-health
 
 ---
 
