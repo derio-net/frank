@@ -63,7 +63,7 @@ All files are created in the **frank repo** (derio-net/frank). Exact paths depen
 
 ## Task 1: Deploy Blackbox Exporter
 
-- [ ] **Step 1: Create Blackbox Exporter ConfigMap**
+- [x] **Step 1: Create Blackbox Exporter ConfigMap**
 
 ```yaml
 apiVersion: v1
@@ -94,7 +94,7 @@ data:
         timeout: 5s
 ```
 
-- [ ] **Step 2: Create Blackbox Exporter Deployment + Service**
+- [x] **Step 2: Create Blackbox Exporter Deployment + Service**
 
 ```yaml
 apiVersion: apps/v1
@@ -160,7 +160,7 @@ kubectl logs -n <observability-namespace> -l app=blackbox-exporter --tail=20
 
 Expected: Pod running, logs show "Listening on :9115".
 
-- [ ] **Step 4: Configure VictoriaMetrics to scrape probes**
+- [x] **Step 4: Configure VictoriaMetrics to scrape probes**
 
 If using VM Operator CRDs:
 
@@ -219,7 +219,7 @@ kill %1
 
 Expected: `probe_success 1`
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add <manifest paths>
@@ -230,7 +230,7 @@ git commit -m "feat: deploy blackbox-exporter for feature health probes"
 
 ## Task 2: Deploy Pushgateway
 
-- [ ] **Step 1: Create Pushgateway Deployment + Service**
+- [x] **Step 1: Create Pushgateway Deployment + Service**
 
 ```yaml
 apiVersion: apps/v1
@@ -295,7 +295,7 @@ kubectl get pods -n <observability-namespace> -l app=pushgateway
 
 Expected: Pod running.
 
-- [ ] **Step 3: Configure VictoriaMetrics to scrape Pushgateway**
+- [x] **Step 3: Configure VictoriaMetrics to scrape Pushgateway**
 
 If using VM Operator CRDs:
 
@@ -350,7 +350,7 @@ curl -s http://pushgateway.<observability-namespace>.svc.cluster.local:9091/api/
 
 Expected: JSON status response. If blocked by Cilium egress policy, add a rule allowing traffic from `secure-agent-pod` namespace to `<observability-namespace>` on port 9091.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add <manifest paths>
@@ -361,7 +361,7 @@ git commit -m "feat: deploy pushgateway for heartbeat metrics from cron jobs"
 
 ## Task 3: Verify kube-state-metrics
 
-- [ ] **Step 1: Check if kube-state-metrics is deployed**
+- [x] **Step 1: Check if kube-state-metrics is deployed**
 
 ```bash
 kubectl get pods -A | grep kube-state-metrics
