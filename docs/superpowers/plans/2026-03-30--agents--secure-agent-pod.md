@@ -63,6 +63,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     && rm -rf /var/lib/apt/lists/*
 
+# ── GitHub CLI ──
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+    | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+    > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update && apt-get install -y --no-install-recommends gh \
+    && rm -rf /var/lib/apt/lists/*
+
 # ── Node.js 22 ──
 RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
@@ -89,6 +97,7 @@ RUN ARCH=$([ "${TARGETARCH}" = "arm64" ] && echo "arm64" || echo "amd64") \
     -o /usr/local/bin/supercronic && chmod +x /usr/local/bin/supercronic
 
 # ── Claude Code CLI + VibeKanban ──
+# npm bootstrap — claude self-updates to ~/.local/ (PVC-backed) on first run
 RUN npm install -g @anthropic-ai/claude-code vibe-kanban
 
 # ── User: claude (UID 1000) ──
@@ -724,6 +733,10 @@ git commit -m "feat(agents): add secrets directory for secure-agent-pod"
 
 Generate real values, SOPS-encrypt, commit the encrypted files. Apply to cluster before deploying.
 
+- [x] **Step 4: Migrate GITHUB_TOKEN to ESO** (62b05c7)
+
+Replaced SOPS-encrypted `agent-secrets-tier2` with an ExternalSecret syncing `GITHUB_SECURE_AGENT_POD` from Infisical. The secret key is still `GITHUB_TOKEN` in the K8s Secret (mapped via `remoteRef`). See `apps/secure-agent-pod/manifests/externalsecret-github-token.yaml`.
+
 ---
 
 ### Task 10: Configure Infisical
@@ -863,3 +876,7 @@ _Document any deviations from the spec discovered during implementation here._
 - **Image files hidden by PVC:** All files Dockerfile placed under `/home/claude/` (entrypoint, sshd_config, .crontab, .load-env.sh) are hidden by the PVC mount. Moved to `/opt/` and `/entrypoint.sh`; entrypoint seeds PVC on first boot.
 - **Cilium FQDN egress policy:** Invalid on Cilium 1.17 ("LRU not yet initialized"). Temporarily disabled — manifests moved to `cilium-egress.yaml.disabled`. Re-enable after Cilium upgrade or workaround found.
 - **ExternalSecret removed:** Claude Code authenticates via Max subscription login, not ANTHROPIC_API_KEY env var. ExternalSecret manifest deleted (7d02c06). Re-add when Infisical-managed secrets are needed.
+- **GitHub CLI added:** `gh` not in Kali base repos — requires adding the official GitHub CLI apt repository before installing. Added in image `22a2915`.
+- **GITHUB_TOKEN migrated to ESO:** `agent-secrets-tier2` was originally a SOPS-encrypted manual secret. Replaced with an ExternalSecret (62b05c7) syncing `GITHUB_SECURE_AGENT_POD` from Infisical as `GITHUB_TOKEN`. The token is a fine-grained PAT for `clawdia-ai-assistant` with `repo` + `write:packages` scopes.
+- **Image pinned to SHA:** Deployment image changed from `:latest` to `:22a2915` (56b15a3). SHA tags are pushed alongside `latest` by the GitHub Actions build workflow.
+- **Git identity:** Pod uses `Clawdia <clawdia-ai-assistant@gmail.com>` for git commits, matching the GitHub bot user. Git credential helper configured to use `$GITHUB_TOKEN` dynamically (no PAT embedded in remote URLs).
