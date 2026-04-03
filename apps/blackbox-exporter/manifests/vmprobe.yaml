@@ -1,0 +1,18 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: feature-health-probes
+  namespace: monitoring
+spec:
+  targets:
+    staticConfig:
+      targets:
+        - http://n8n-01.n8n-01.svc.cluster.local:5678
+        - https://paperclip.frank.derio.net
+        - https://grafana.frank.derio.net
+        - https://blog.derio.net
+      labels:
+        probe_group: feature_health
+  module: http_2xx
+  vmProberSpec:
+    url: blackbox-exporter.monitoring.svc:9115
