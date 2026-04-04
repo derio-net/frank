@@ -409,16 +409,13 @@ Message: |
 Parse Mode: Markdown
 ```
 
-Contact point created via Grafana API with real bot token. Chat ID still placeholder.
+Contact point `efi04e0201jb4f` created and updated via Grafana API with real credentials.
 
-- [ ] **Step 2: Add chat ID to Infisical and test notification**
+- [x] **Step 2: Add chat ID to Infisical and test notification**
 
-To get the chat ID:
-1. Message `@agent_zero_cc_bot` on Telegram (any message)
-2. Run: `curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates"` — note `chat.id`
-3. Add `FRANK_C2_TELEGRAM_CHAT_ID` to Infisical prod
-4. Update Grafana contact point via API or UI with the real chat ID
-5. Use Grafana's "Test" button — verify message arrives on Telegram
+`FRANK_C2_TELEGRAM_CHAT_ID` = 2034763022 added to Infisical prod.
+Grafana contact point updated with real bot token + chat ID via API.
+Direct Bot API delivery confirmed (msg_ids 56, 59) — Grafana → Telegram path is live.
 
 - [x] **Step 3: Create notification policy**
 
