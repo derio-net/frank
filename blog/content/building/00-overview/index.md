@@ -50,6 +50,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Secure Agent Pod** | Hardened non-root coding agent workstation — Cilium egress, dropped capabilities, VibeKanban orchestration, SSH (`192.168.55.215`) + UI (`192.168.55.218`) |
 | **Argo Rollouts** | Progressive delivery — canary (Cilium traffic splitting + VictoriaMetrics analysis) and blue-green (preview + atomic cutover) |
 | **n8n** | Per-user workflow automation — 400+ integrations, visual node editor, webhook triggers, Authentik forward-auth (`192.168.55.216`) |
+| **Blackbox Exporter + Pushgateway** | Feature-level health monitoring — HTTP endpoint probes, cron heartbeat ingestion, Grafana alerting to Telegram |
 
 ## Cluster State
 
@@ -83,6 +84,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 19. [Progressive Delivery with Argo Rollouts]({{< relref "/building/19-progressive-delivery" >}})
 20. [Workflow Automation with n8n]({{< relref "/building/20-workflow-automation" >}})
 21. [Secure Agent Pod — Hardening an AI Coding Workstation]({{< relref "/building/21-secure-agent-pod" >}})
+22. [Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts]({{< relref "/building/22-health-monitoring" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
@@ -104,3 +106,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 12. [Operating on Progressive Delivery]({{< relref "/operating/12-progressive-delivery" >}})
 13. [Operating on Workflow Automation]({{< relref "/operating/13-workflow-automation" >}})
 14. [Operating on Secure Agent Pod]({{< relref "/operating/14-secure-agent-pod" >}})
+15. [Operating on Health Monitoring]({{< relref "/operating/15-health-monitoring" >}})
