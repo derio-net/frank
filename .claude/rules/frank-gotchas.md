@@ -1,6 +1,6 @@
 ## Frank Cluster Gotchas
 
-- Telegram alerting uses bot `@agent_zero_cc_bot` — token in Infisical as `FRANK_C2_TELEGRAM_BOT_TOKEN`, chat ID as `FRANK_C2_TELEGRAM_CHAT_ID` (still needed). To get chat ID: message the bot, then call `getUpdates` on the Bot API.
+- Telegram alerting uses bot `@agent_zero_cc_bot` — token in Infisical as `FRANK_C2_TELEGRAM_BOT_TOKEN`, chat ID as `FRANK_C2_TELEGRAM_CHAT_ID`. Grafana contact point uid: `efi04e0201jb4f`.
 - Always use `ServerSideApply=true` in ArgoCD sync options (avoids annotation size limits)
 - Ignore Secret data diffs in ArgoCD (`ignoreDifferences` on `/data` jsonPointer)
 - `prune: false` in syncPolicy — manual pruning only to avoid accidental deletion
