@@ -11,6 +11,7 @@ spec:
         - https://paperclip.frank.derio.net
         - https://grafana.frank.derio.net
         - https://blog.derio.net
+        - http://health-bridge.monitoring.svc.cluster.local:8080/healthz
       labels:
         probe_group: feature_health
   module: http_2xx
