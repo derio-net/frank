@@ -89,6 +89,60 @@ operations:
     status: done
     notes: "Grafana automatically adopted the API-added datasource when it found a provisioning config with the same name on pod restart — no manual UI deletion was needed. Datasource now readOnly=True (confirmed via API)."
 
+  - id: grafana-alert-labels-github-issue
+    layer: obs
+    app: health-bridge
+    plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+    when: "After health-bridge is deployed and webhook configured"
+    why_manual: "Grafana alert rules are API-provisioned"
+    commands:
+      - "List current alert rules to get UIDs"
+      - "For each rule (exercise-reminder-stale, session-manager-stale, audit-digest-stale, agent-pod-not-running): GET full rule, add github_issue label, PUT back"
+      - "Mapping: exercise-reminder-stale→willikins#11, session-manager-stale→willikins#13, audit-digest-stale→willikins#12, agent-pod-not-running→frank#8"
+    verify:
+      - "curl -s -u admin:$GRAFANA_PASS $GRAFANA_URL/api/v1/provisioning/alert-rules | jq '.[] | {title, github_issue: .labels.github_issue}'"
+    status: done
+
+  - id: grafana-health-bridge-webhook
+    layer: obs
+    app: health-bridge
+    plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+    when: "After health-bridge pod is running"
+    why_manual: "Grafana provisioning is API-only (not GitOps)"
+    commands:
+      - "Create webhook contact point 'Health Bridge Webhook' via Grafana API"
+      - "URL: http://health-bridge.monitoring.svc.cluster.local:8080/webhook"
+      - "Auth: Bearer token from HEALTH_BRIDGE_WEBHOOK_SECRET"
+    verify:
+      - "curl -s -u admin:$GRAFANA_PASS $GRAFANA_URL/api/v1/provisioning/contact-points | jq '.[].name' | grep 'Health Bridge'"
+    status: done
+
+  - id: grafana-notification-policy-webhook
+    layer: obs
+    app: health-bridge
+    plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+    when: "After webhook contact point is created"
+    why_manual: "Grafana notification policy is API-only"
+    commands:
+      - "Add route to notification policy: receiver='Health Bridge Webhook', matcher=grafana_folder='Feature Health'"
+      - "Ensure existing Telegram routes have continue:true so alerts reach both"
+    verify:
+      - "curl -s -u admin:$GRAFANA_PASS $GRAFANA_URL/api/v1/provisioning/policies | jq '.routes[] | select(.receiver == \"Health Bridge Webhook\")'"
+    status: done
+
+  - id: health-bridge-webhook-secret
+    layer: obs
+    app: health-bridge
+    plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+    when: "Before deploying K8s manifests"
+    why_manual: "Infisical secret creation is UI-only"
+    commands:
+      - "Generate webhook secret: openssl rand -hex 32"
+      - "Create in Infisical UI: HEALTH_BRIDGE_WEBHOOK_SECRET and HEALTH_BRIDGE_GITHUB_TOKEN"
+    verify:
+      - "kubectl get externalsecret -n monitoring health-bridge-secrets -o jsonpath='{.status.conditions[0].status}' # Should return True"
+    status: done
+
   - id: backup-r2-sops-secret
     layer: backup
     app: longhorn
