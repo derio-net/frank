@@ -732,3 +732,37 @@ images:
       tool racks, server parts, and a wall-mounted network diagram with green
       and red connection lines. Dark server room with blue and steel-gray
       lighting accents.
+
+  - key: post-23
+    output: blog/content/building/23-health-bridge/cover.png
+    description: "Health Bridge — Frank routing alert signals from monitoring to project boards"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing between two large
+      floating holographic screens. The left screen shows a Grafana-style
+      dashboard with red and amber alert indicators pulsing. The right screen
+      shows a GitHub-style project board with cards in columns labeled
+      "healthy", "degraded", "dead". Glowing signal lines arc from the alert
+      indicators on the left screen, through Frank's outstretched hands, and
+      land on the project board cards on the right — physically moving a card
+      from "healthy" to "degraded" as it arrives. Frank stands confidently in
+      the middle, conducting the signals like an orchestra conductor. A small
+      webhook icon (a curved arrow) glows on his chest. At his feet, a tiny
+      Telegram paper airplane icon flies off to the side. Green skin, messy
+      black hair, black eyes with white pupils, RJ45 neck bolts sparking blue
+      electricity. Dark server room with amber and blue lighting accents.
+
+  - key: ops-16-health-bridge
+    output: blog/content/operating/16-health-bridge/cover.png
+    description: "Operating on Health Bridge — Frank at a console managing alert-to-issue routing"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at an operations
+      console with a split-screen monitor. The left half shows a terminal with
+      curl commands and JSON responses. The right half shows a simplified
+      GitHub issue with a lifecycle state badge changing from "degraded" to
+      "healthy" with a green glow. His left hand types on a keyboard while
+      his right hand holds a small wrench, adjusting a webhook connector box
+      mounted on the desk — a small box with an input cable (labeled "alerts")
+      and an output cable (labeled "GitHub"). A clipboard on the desk shows
+      a checklist with items ticked off. A small Grafana logo glows on a
+      sticker on the monitor bezel. Dark server room with blue and green
+      lighting accents.
