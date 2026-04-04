@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-bridge
+  namespace: monitoring
+  labels:
+    app: health-bridge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: health-bridge
+  template:
+    metadata:
+      labels:
+        app: health-bridge
+    spec:
+      containers:
+        - name: health-bridge
+          image: ghcr.io/derio-net/health-bridge:v0.1.0
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: health-bridge-config
+            - secretRef:
+                name: health-bridge-secrets
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              memory: 32Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: health-bridge
+  namespace: monitoring
+  labels:
+    app: health-bridge
+spec:
+  selector:
+    app: health-bridge
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

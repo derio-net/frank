@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: health-bridge-config
+  namespace: monitoring
+data:
+  GITHUB_ORG: "derio-net"
+  PROJECT_NUMBER: "1"
+  PORT: "8080"
