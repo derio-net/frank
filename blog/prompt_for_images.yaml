@@ -478,6 +478,24 @@ images:
       board floats beside the terminal showing task cards. Dark server room
       with blue lightning accents and steel textures.
 
+  - key: building-22-health-monitoring
+    output: blog/content/building/22-health-monitoring/cover.png
+    description: "Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing in a dark
+      control room, one hand raised holding a glowing smartphone showing
+      a Telegram chat with alert messages (red circle and green circle
+      emoji visible on screen). His other hand rests on a tall heartbeat
+      monitor — a medical-style vital signs screen mounted on a server
+      rack, displaying green ECG traces for four endpoints and one red
+      flatlined trace labeled STALE. Around him, four floating holographic
+      orbs each showing a tiny website icon (a gear, a clipboard, a graph,
+      a document) — three glow steady green, one flickers amber. At his
+      feet, a small box labeled PUSHGATEWAY with glowing tubes connecting
+      to the heartbeat monitor. On the wall behind him, a large dashboard
+      screen shows a table with UP indicators in green. Blue and amber
+      lighting accents, dark server room atmosphere.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -677,6 +695,23 @@ images:
       line and "/healthz: 200" text. A clipboard shows a checklist labeled
       "instances: n8n-01 ✓, n8n-02 pending". Dark server room with blue and
       orange lighting accents.
+
+  - key: ops-15-health-monitoring
+    output: blog/content/operating/15-health-monitoring/cover.png
+    description: "Operating on Health Monitoring — Frank tuning heartbeat monitors"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at a wide
+      operations console with multiple screens. The central screen shows
+      a Grafana-style dashboard with green UP indicators and one amber
+      warning. His left hand adjusts a dial on a heartbeat monitor panel
+      — a rack-mounted device with ECG-style traces scrolling across a
+      small screen. His right hand holds a wrench, tightening a bolt on
+      a small Pushgateway box sitting on the console. A smartphone lies
+      on the desk showing a Telegram notification with a green circle
+      emoji. Behind him, a wall of server racks with status LEDs. On the
+      console surface: a clipboard with a checklist, a coffee mug with
+      a heartbeat symbol, and scattered ethernet cables. Calm operational
+      mood. Dark server room with blue and green lighting accents.
 
   - key: ops-14-secure-agent-pod
     output: blog/content/operating/14-secure-agent-pod/cover.png
