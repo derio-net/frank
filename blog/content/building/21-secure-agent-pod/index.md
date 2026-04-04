@@ -2,7 +2,7 @@
 title: "Secure Agent Pod — Hardening an AI Coding Workstation"
 date: 2026-03-31
 draft: false
-tags: ["security", "agent", "claude", "cilium", "ssh", "gpu-1", "vibekanban", "non-root"]
+tags: ["security", "agent", "claude", "cilium", "ssh", "gpu-1", "vibekanban", "non-root", "cron", "telegram", "monitoring"]
 summary: "Rebuilding the Kali workstation as a hardened, non-root pod with layered defenses — because giving an AI agent skip-permissions demands more than trust."
 weight: 22
 cover:
@@ -77,6 +77,8 @@ The Dockerfile installs:
 
 What's **not** installed: sudo. If new tools are needed, rebuild the image and redeploy. Intentional friction.
 
+The image also bundles the agent's operational scripts at `/opt/scripts/` — a security guardrails hook (PreToolUse/PostToolUse), session manager for Claude Code remote-control, exercise reminders, daily audit digest, Telegram notifications, and Pushgateway heartbeat. These are pod infrastructure, not application code, so they belong in the image rather than a separate repo. Config templates (crontab, `.bashrc`, Claude Code `settings.json`) are baked into `/opt/` and seeded to the PVC on first boot — user-modifiable from that point on.
+
 ### The PVC Mount Problem
 
 The biggest gotcha in the build: **mounting a PVC at `/home/claude` hides everything the Dockerfile placed there**. The entrypoint, sshd config, crontab template — all invisible once Kubernetes mounts the persistent volume.
@@ -85,12 +87,14 @@ The solution: bake config files into `/opt/` and `/entrypoint.sh` (outside the m
 
 ```bash
 # First-boot: create directories on PVC
-mkdir -p "$HOME/.ssh-host-keys" "$HOME/.ssh" "$HOME/repos"
+mkdir -p "$HOME/.ssh-host-keys" "$HOME/.ssh" "$HOME/repos" "$HOME/.claude" "$HOME/.willikins-agent"
 chmod 700 "$HOME/.ssh-host-keys" "$HOME/.ssh"
 
 # First-boot: seed config files from /opt/ templates
-[ -f "$HOME/.crontab" ]     || cp /opt/crontab "$HOME/.crontab"
-[ -f "$HOME/.load-env.sh" ] || cp /opt/load-env.sh "$HOME/.load-env.sh"
+[ -f "$HOME/.crontab" ]              || cp /opt/crontab "$HOME/.crontab"
+[ -f "$HOME/.load-env.sh" ]          || cp /opt/load-env.sh "$HOME/.load-env.sh"
+[ -f "$HOME/.bashrc" ]               || cp /opt/bashrc "$HOME/.bashrc"
+[ -f "$HOME/.claude/settings.json" ] || cp /opt/settings.json "$HOME/.claude/settings.json"
 ```
 
 Subsequent boots find the files already on the PVC and skip the copy.
@@ -228,8 +232,8 @@ The full verification checklist:
 The pod is deployed and operational. The remaining work:
 
 - **Re-enable Cilium egress policy** once the FQDN LRU bug is resolved (Cilium upgrade or workaround)
-- **Deploy Claude Code hooks** for command filtering (PreToolUse Bash guards, PostToolUse audit logging)
-- **VibeKanban workflows** — configure workspaces, agent profiles, and task automation
+- **Agent scripts deployed** — Guardrails hook, session manager, exercise reminders, audit digest, and Telegram notifications are baked into the image at `/opt/scripts/`. Crontab and `.bashrc` templates seeded to PVC on first boot.
+- **Health monitoring active** — Heartbeat metrics pushed to Prometheus Pushgateway, with Grafana alerts for stale heartbeats bridged to GitHub Issues via the health-bridge webhook.
 
 The layered security model means each defense is independent. Even without Cilium egress (the biggest gap right now), the pod runs non-root with all capabilities dropped, no sudo, key-only SSH, and auditable ServiceAccount identity. Adding each layer back is additive hardening, not a single point of failure.
 
