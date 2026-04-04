@@ -368,7 +368,7 @@ kubectl get pods -A | grep kube-state-metrics
 kubectl get svc -A | grep kube-state-metrics
 ```
 
-- [ ] **Step 2: If not deployed, install**
+- [-] **Step 2: If not deployed, install** *(skipped — already deployed via victoria-metrics-k8s-stack)*
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
