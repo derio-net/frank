@@ -51,6 +51,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Argo Rollouts** | Progressive delivery — canary (Cilium traffic splitting + VictoriaMetrics analysis) and blue-green (preview + atomic cutover) |
 | **n8n** | Per-user workflow automation — 400+ integrations, visual node editor, webhook triggers, Authentik forward-auth (`192.168.55.216`) |
 | **Blackbox Exporter + Pushgateway** | Feature-level health monitoring — HTTP endpoint probes, cron heartbeat ingestion, Grafana alerting to Telegram |
+| **Health Bridge** | Grafana alert → GitHub Project lifecycle state bridge — automatic degraded/dead/healthy transitions, issue comments, bug issue creation |
 
 ## Cluster State
 
@@ -85,6 +86,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 20. [Workflow Automation with n8n]({{< relref "/building/20-workflow-automation" >}})
 21. [Secure Agent Pod — Hardening an AI Coding Workstation]({{< relref "/building/21-secure-agent-pod" >}})
 22. [Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts]({{< relref "/building/22-health-monitoring" >}})
+23. [Health Bridge — Closing the Loop from Grafana Alerts to GitHub Issues]({{< relref "/building/23-health-bridge" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
@@ -107,3 +109,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 13. [Operating on Workflow Automation]({{< relref "/operating/13-workflow-automation" >}})
 14. [Operating on Secure Agent Pod]({{< relref "/operating/14-secure-agent-pod" >}})
 15. [Operating on Health Monitoring]({{< relref "/operating/15-health-monitoring" >}})
+16. [Operating on Health Bridge]({{< relref "/operating/16-health-bridge" >}})
