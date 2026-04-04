@@ -528,7 +528,15 @@ Annotations:
 
 - [x] **Step 5: Verify alert rules are evaluating**
 
-Alerting > Alert rules > Feature Health folder. All rules should show "Normal" (green) or "Pending"/"Firing" if conditions are already met (e.g., heartbeats don't exist yet -- this is expected and validates the alerting works).
+Rules initially created with classic condition format (`datasourceUid: "-100"`) which broke in Grafana 12.x SSE.
+Fixed via PUT to provisioning API with 3-step A→B→C format (see Deployment Deviations below).
+
+Verified states post-fix:
+- `endpoint-down`: Normal × 4 (all probe targets healthy)
+- `agent-pod-not-running`: Normal (pod running)
+- `exercise-reminder-stale`: Pending (metric exists but stale — threshold temporarily lowered to 60s for testing)
+- `session-manager-stale`: NoData (metric not yet pushed — expected until M1)
+- `audit-digest-stale`: NoData (metric not yet pushed — expected until M1)
 
 ---
 
@@ -623,3 +631,29 @@ Updated via `gh project item-edit`:
 - [x] **Step 6: Commit any remaining changes**
 
 Willikins repo: `fix: correct Pushgateway namespace in crontab (observability → monitoring)`
+
+---
+
+## Deployment Deviations
+
+### Grafana 12.x SSE expression format (Task 5)
+
+Alert rules created via Grafana provisioning API (not UI). Initially used classic condition format (`datasourceUid: "-100"`, query.params referencing refId A directly). Grafana 12.x SSE rejects this with `[sse.parseError] failed to parse expression [C]: no variable specified to reference for refId C`.
+
+Required 3-step A→B→C format:
+- A: datasource query (VictoriaMetrics, `datasourceUid: P4169E866C3094E38`)
+- B: reduce expression (`datasourceUid: "__expr__"`, type: reduce, reducer: last)
+- C: threshold expression (`datasourceUid: "__expr__"`, type: threshold, referencing B)
+
+All 5 rules fixed via PUT to provisioning API.
+
+### VictoriaMetrics Operator webhook TLS mismatch
+
+Helm `genCA` regenerates caBundle on every chart render. When ArgoCD synced `victoria-metrics`, the new caBundle didn't match the operator's serving cert from the existing Secret (different CA keypair), causing `x509: certificate signed by unknown authority` on all VM Operator webhook calls (VMProbe, VMServiceScrape rejected).
+
+Temporary fix: patched all 23 VWC webhook `clientConfig.caBundle` entries to match the actual serving cert.
+Permanent fix: added `ignoreDifferences` on `ValidatingWebhookConfiguration` caBundle in `apps/root/templates/victoria-metrics.yaml`.
+
+### exercise-reminder-stale threshold temporarily lowered
+
+Threshold set to 60s (from plan's 10800s) for testing alert firing. Restore to 10800 once M1 Willikins cron scripts are running and confirmed healthy.
