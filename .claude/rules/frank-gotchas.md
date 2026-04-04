@@ -32,3 +32,10 @@
 - PVC mounts at `/home/claude` hide all image-baked files under that path — entrypoints, configs, and templates must live outside (e.g., `/opt/`, `/entrypoint.sh`) and seed PVC contents on first boot
 - VibeKanban tries to reach `api.vibekanban.com` for remote features — add to Cilium egress allowlist if needed, or leave blocked (local mode works without it)
 - ESO ExternalSecret validation webhook rejects empty `data: []` — if all keys are removed, delete the ExternalSecret entirely rather than leaving an empty data array
+- Grafana 12.x SSE alert rules require 3-step A→B→C format: A (datasource query), B (reduce `__expr__`, reducer: last), C (threshold `__expr__`, expression: B). Classic condition format (`datasourceUid: "-100"`) fails with `sse.parseError`
+- Grafana `ALERTS{}` metric does NOT exist in VictoriaMetrics for Grafana-managed alerts — use `alertlist` panel type, not a stat panel querying `ALERTS{}`
+- Grafana table panels with Prometheus instant queries require `"format": "table"` on targets — without it, data returns as time-series frames that don't render in tables. Use `filterFieldsByName` transform, not `labelsToFields` with `mode: "rows"`
+- Grafana alertmanager notification dedup: after re-provisioning a contact point, the alertmanager treats previously-fired alerts as "already notified" for the default 4h `repeat_interval`. Fix: restart the Grafana pod to reset internal notification state
+- Grafana dashboard, alert rules, contact points, and notification policies are API-provisioned (stored in PVC database, not GitOps). They survive pod restarts but not PVC loss — re-provision from plan documentation if PVC is recreated
+- VictoriaMetrics Helm chart `genCA` regenerates webhook caBundle on every render — must add `ignoreDifferences` on `ValidatingWebhookConfiguration` `.webhooks[].clientConfig.caBundle` in the ArgoCD Application to prevent ArgoCD from overwriting the operator-managed cert
+- Supercronic watches `~/.crontab` and auto-reloads on file change — no restart needed after updating crontab content
