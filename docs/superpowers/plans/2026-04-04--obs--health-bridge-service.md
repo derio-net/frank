@@ -8,11 +8,14 @@
 
 **Tech Stack:** Go 1.22+, GitHub GraphQL API, Grafana webhooks, Docker (distroless base), Kubernetes raw manifests, ArgoCD
 
+**Status:** **Deployed** (2026-04-04) — All 11 tasks complete. health-bridge v0.1.0 running in monitoring namespace. E2E verified: firing→degraded→resolved→healthy round-trip on willikins#11.
+
 **Spec:** `willikins/docs/superpowers/specs/2026-04-01-work-lifecycle-tracking-design.md` (Milestone 3)
 
 **Companion plans:**
 - `willikins/docs/superpowers/plans/2026-04-01-work-lifecycle-m1-willikins.md` (M1: GitHub Projects board) — **Complete**
 - `frank/docs/superpowers/plans/2026-04-01--obs--work-lifecycle-health-monitoring.md` (M2: Probes & dashboards) — **Complete**
+- This plan (M3: Health Bridge) — **Complete**
 
 **Prerequisites from M1/M2:**
 - "Derio Ops" GitHub Project exists (project number from M1)
