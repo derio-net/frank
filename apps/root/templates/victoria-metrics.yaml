@@ -36,3 +36,7 @@ spec:
       kind: Secret
       jsonPointers:
         - /data
+    - group: admissionregistration.k8s.io
+      kind: ValidatingWebhookConfiguration
+      jqPathExpressions:
+        - .webhooks[].clientConfig.caBundle
