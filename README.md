@@ -31,7 +31,9 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | GPU (Intel) | Intel GPU Resource Driver | DRA-based iGPU sharing on mini-1/2/3 (K8s 1.35) |
 | Metrics | VictoriaMetrics | VMSingle + Alertmanager + node/kube-state exporters |
 | Logs | VictoriaLogs + Fluent Bit | Centralised log aggregation and querying |
-| Dashboards | Grafana | Pre-provisioned datasources (VictoriaMetrics, VictoriaLogs) |
+| Dashboards | Grafana | Pre-provisioned datasources (VictoriaMetrics, VictoriaLogs), Feature Health dashboard + Telegram alerting |
+| Health Probes | Blackbox Exporter | HTTP endpoint probing for feature health (n8n, Paperclip, Grafana, Blog) |
+| Heartbeat Ingestion | Pushgateway | Receives heartbeat metrics from cron jobs, scraped by VictoriaMetrics |
 | Backup | Longhorn → Cloudflare R2 | Daily + weekly PVC backup, SOPS-encrypted credentials |
 | Secrets | Infisical + External Secrets Operator | Self-hosted secret store, ExternalSecret → K8s Secret sync |
 | RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID (IT5701 V3.5.14.0 firmware lock under investigation) |
@@ -68,6 +70,8 @@ frank/
 │   ├── intel-gpu-driver/values.yaml + chart/  # Vendored, K8s 1.35 patches
 │   ├── openrgb/manifests/
 │   ├── victoria-metrics/values.yaml + manifests/  # Metrics, alerting, Grafana
+│   ├── blackbox-exporter/manifests/               # HTTP endpoint probes (Feature Health)
+│   ├── pushgateway/manifests/                     # Heartbeat metric ingestion from cron jobs
 │   ├── fluent-bit/values.yaml                     # Log shipping
 │   ├── external-secrets/values.yaml              # ESO operator
 │   ├── infisical/values.yaml + manifests/         # Infisical + ClusterSecretStore
@@ -214,6 +218,8 @@ argocd app list
 | argo-rollouts-extras | argo-rollouts | Cilium plugin ConfigMap + supplemental RBAC for CiliumEnvoyConfig |
 | n8n-01 | n8n-01 | n8n workflow automation on gpu-1 (192.168.55.216:5678), Authentik forward-auth |
 | n8n-01-postgresql | n8n-01 | Bitnami PostgreSQL 14.1.10 for n8n-01 |
+| blackbox-exporter | monitoring | HTTP endpoint probes for feature health (VMProbe → VictoriaMetrics) |
+| pushgateway | monitoring | Heartbeat metric ingestion from Willikins cron jobs (VMServiceScrape) |
 
 ### Hop Cluster Applications
 
