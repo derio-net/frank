@@ -585,7 +585,7 @@ Dashboard URL: http://grafana.frank.derio.net/d/fh-overview/feature-health
 
 Run from the **secure-agent-pod** after both plans (Willikins + Frank) are complete.
 
-- [ ] **Step 1: Trigger exercise cron and verify heartbeat**
+- [x] **Step 1: Trigger exercise cron and verify heartbeat**
 
 ```bash
 /home/claude/repos/willikins/scripts/willikins-agent/exercise-cron.sh desk
@@ -599,32 +599,27 @@ curl -s http://pushgateway.<observability-namespace>.svc.cluster.local:9091/api/
 
 Expected: `willikins_heartbeat_last_success_timestamp` with a recent timestamp.
 
-- [ ] **Step 2: Check Grafana dashboard**
+- [x] **Step 2: Check Grafana dashboard**
 
 Open Feature Health dashboard. "Cron Job Heartbeats" panel should show `exercise_reminder` with a small "Minutes Since Last Success" value.
 
-- [ ] **Step 3: Simulate stale heartbeat**
+- [ ] **Step 3: Simulate stale heartbeat** *(waiting — heartbeat at ~90 min, threshold is 3h + 10m pending)*
 
 Wait for the heartbeat threshold to expire (or temporarily lower it in Grafana). Verify:
 - Alert transitions Normal > Pending > Firing
 - Telegram notification arrives
 
-- [ ] **Step 4: Check Blackbox probes**
+- [x] **Step 4: Check Blackbox probes**
 
 Dashboard "Endpoint Probes" panel should show green for all configured endpoints.
+Verified via API: n8n UP, blog.derio.net UP, grafana UP, paperclip UP.
 
-- [ ] **Step 5: Update GitHub Issue lifecycle states**
+- [x] **Step 5: Update GitHub Issue lifecycle states**
 
-For features confirmed healthy, update Issues from `deployed` to `healthy`:
+Updated via `gh project item-edit`:
+- frank#8 (secure-agent-pod): deployed → **healthy**
+- willikins#11 (exercise reminder): dead → **healthy**
 
-```bash
-# Use gh project item-edit to move Issues to "healthy" state
-# (Use the helper function from the Willikins plan or edit directly)
-```
+- [x] **Step 6: Commit any remaining changes**
 
-- [ ] **Step 6: Commit any remaining changes**
-
-```bash
-git add <any modified manifests>
-git commit -m "feat: complete M2 health monitoring -- probes, dashboards, alerting"
-```
+Willikins repo: `fix: correct Pushgateway namespace in crontab (observability → monitoring)`
