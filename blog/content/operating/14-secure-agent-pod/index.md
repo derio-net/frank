@@ -2,7 +2,7 @@
 title: "Operating on Secure Agent Pod"
 date: 2026-03-31
 draft: false
-tags: ["operations", "security", "agent", "claude", "ssh", "vibekanban", "cilium"]
+tags: ["operations", "security", "agent", "claude", "ssh", "vibekanban", "cilium", "cron", "telegram", "monitoring"]
 summary: "Day-to-day commands for managing the secure agent pod — SSH access, process health, VibeKanban, secret rotation, and troubleshooting."
 weight: 114
 cover:
@@ -238,23 +238,76 @@ For pinned SHA tags, update the `image:` field in `apps/secure-agent-pod/manifes
 
 ## Cron Jobs
 
-Cron is managed by supercronic reading `/home/claude/.crontab`:
+Cron is managed by supercronic reading `/home/claude/.crontab`. The crontab template is seeded from the image on first boot; after that it's user-modifiable on the PVC.
+
+Scripts live at `/opt/scripts/` — baked into the image, immutable. They update when the `secure-agent-kali` image is rebuilt and the pod is restarted.
 
 ```bash
 # View current crontab
-kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- cat /home/claude/.crontab
+cat ~/.crontab
 
-# Edit crontab (SSH in first)
-ssh claude@192.168.55.215
+# View available scripts
+ls /opt/scripts/
+# audit-digest.sh      guardrails-hook.py  push-heartbeat.sh
+# exercise-cron.sh     notify-telegram.sh  session-manager.sh
+
+# Edit crontab (supercronic picks up changes automatically)
 vi ~/.crontab
-# supercronic picks up changes automatically (no restart needed)
 ```
 
-For cron jobs that need K8s env vars (API keys, etc.), source the env loader first:
+### Current Schedule
+
+| Job | Schedule | Script |
+|-----|----------|--------|
+| Session manager | Every 5 min | `/opt/scripts/session-manager.sh` |
+| Self-update (git pull) | Daily 04:00 UTC | inline |
+| Claude Code update | Weekly Sun 04:30 UTC | inline |
+| Exercise reminders | 5x daily, Fri-Mon | `/opt/scripts/exercise-cron.sh` |
+| Audit digest | Daily 21:00 UTC | `/opt/scripts/audit-digest.sh` |
+
+### Updating Scripts
+
+Scripts at `/opt/scripts/` are read-only (from the image). To update them:
+
+1. Commit changes to the `secure-agent-kali` repo
+2. GHA rebuilds and pushes the image to GHCR
+3. Restart the pod: `kubectl rollout restart deployment/secure-agent-pod -n secure-agent-pod`
+
+The crontab on the PVC is independent — editing `~/.crontab` takes effect immediately via supercronic's file watcher.
+
+## Health Monitoring
+
+Each cron script pushes a heartbeat metric to Prometheus Pushgateway after successful execution:
 
 ```bash
-# In .crontab:
-*/5 * * * * source /home/claude/.load-env.sh && /path/to/script.sh
+# Check current heartbeat state
+curl -s http://pushgateway.monitoring.svc.cluster.local:9091/api/v1/metrics | \
+  python3 -c "
+import json, sys
+from datetime import datetime, timezone
+for g in json.load(sys.stdin)['data']:
+    job = g['labels'].get('job','?')
+    ts = float(g['push_time_seconds']['metrics'][0]['value'])
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc).strftime('%H:%M:%S UTC')
+    print(f'{job:30s} {dt}')
+"
+```
+
+Grafana alert rules fire when heartbeats go stale:
+
+| Alert | Threshold | Severity |
+|-------|-----------|----------|
+| `exercise-reminder-stale` | 3 hours | critical |
+| `audit-digest-stale` | 26 hours | warning |
+| `session-manager-stale` | 10 minutes | critical |
+
+Alerts are bridged to GitHub Issues via the health-bridge webhook — the Quartermaster (Willikins staff) tracks these on the "Derio Ops" project board.
+
+### Manually Pushing a Heartbeat
+
+```bash
+/opt/scripts/push-heartbeat.sh <job_name> [label=value ...]
+# Example: /opt/scripts/push-heartbeat.sh exercise_reminder context=desk
 ```
 
 ## Cilium Egress Policy
