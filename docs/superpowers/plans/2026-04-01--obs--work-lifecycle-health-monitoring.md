@@ -398,8 +398,8 @@ In Grafana (https://grafana.frank.derio.net): Alerting > Contact points > Add co
 ```
 Name: Telegram - Willikins
 Type: Telegram
-Bot Token: <TELEGRAM_BOT_TOKEN from Infisical>
-Chat ID: <TELEGRAM_CHAT_ID from Infisical>
+Bot Token: FRANK_C2_TELEGRAM_BOT_TOKEN (Infisical prod) — bot: @agent_zero_cc_bot
+Chat ID: FRANK_C2_TELEGRAM_CHAT_ID (Infisical prod) — NOT YET ADDED, see step 2 below
 Message: |
   {{ if eq .Status "firing" }}🔴{{ else }}🟢{{ end }} {{ .CommonLabels.alertname }}
   Status: {{ .Status }}
@@ -409,9 +409,16 @@ Message: |
 Parse Mode: Markdown
 ```
 
-- [ ] **Step 2: Send test notification**
+Contact point created via Grafana API with real bot token. Chat ID still placeholder.
 
-Use Grafana's "Test" button. Verify message arrives on Telegram.
+- [ ] **Step 2: Add chat ID to Infisical and test notification**
+
+To get the chat ID:
+1. Message `@agent_zero_cc_bot` on Telegram (any message)
+2. Run: `curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates"` — note `chat.id`
+3. Add `FRANK_C2_TELEGRAM_CHAT_ID` to Infisical prod
+4. Update Grafana contact point via API or UI with the real chat ID
+5. Use Grafana's "Test" button — verify message arrives on Telegram
 
 - [x] **Step 3: Create notification policy**
 
