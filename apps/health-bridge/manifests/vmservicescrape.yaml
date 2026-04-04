@@ -1,0 +1,12 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: health-bridge
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: health-bridge
+  endpoints:
+    - port: http
+      path: /metrics
