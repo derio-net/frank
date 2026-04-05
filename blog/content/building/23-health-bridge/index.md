@@ -106,6 +106,17 @@ The bridge parses this label, finds the corresponding project item, and updates 
 
 Every state transition adds a comment to the GitHub Issue with full context — alert name, severity, summary, timestamp, and a link back to Grafana. This creates an audit trail of health transitions directly on the issue.
 
+### Alert Deduplication (v0.2.0)
+
+Grafana sends a webhook on every alert evaluation cycle (typically every few minutes). Without dedup, a persistently firing alert would create a new bug issue and comment on every cycle.
+
+Two-layer dedup prevents this:
+
+1. **In-memory state tracking** — The bridge tracks the last known lifecycle state per issue reference. Comments and bug issues are only created on actual state *transitions* (e.g., healthy → dead), not on repeated evaluations of the same state.
+2. **GitHub search before bug creation** — As a restart safety net (in-memory state is lost on pod restart), the bridge searches for existing open bug issues with a matching title before creating a new one.
+
+The lifecycle state update itself (the GraphQL mutation) remains unconditional — it's idempotent, so repeated calls are harmless.
+
 ## Deployment
 
 The service runs as a single-replica Deployment in the monitoring namespace, managed by ArgoCD.
