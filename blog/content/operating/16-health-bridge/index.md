@@ -189,6 +189,16 @@ kubectl logs -n monitoring -l app=health-bridge | head -5
 
 Bridge logs show `Alert <name> has no github_issue label, skipping`. Add the label to the alert rule — see "Managing Alert Rule Labels" above.
 
+### Duplicate bug issues appearing
+
+**Symptom:** Multiple identical `[Bug] ... is dead` issues created for the same alert.
+
+**Cause:** Before v0.2.0, the bridge had no dedup logic. If you're running v0.1.0 or earlier, upgrade.
+
+**If running v0.2.0+:** This can happen once after a pod restart (in-memory state is lost). The GitHub search safety net should prevent all but the first duplicate. If duplicates persist, check pod restart frequency.
+
+**Cleanup:** Close duplicates with `gh issue close <number> --repo derio-net/<repo> --comment "Duplicate"`, keeping the earliest one open.
+
 ### GitHub API errors
 
 ```bash
