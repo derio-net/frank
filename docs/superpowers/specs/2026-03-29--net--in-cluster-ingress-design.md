@@ -1,7 +1,7 @@
 # In-Cluster Ingress: Traefik + Authentik Forward-Auth
 
 **Date:** 2026-03-29
-**Status:** Proposed
+**Status:** Deployed
 **Layer:** net
 
 ## Overview
