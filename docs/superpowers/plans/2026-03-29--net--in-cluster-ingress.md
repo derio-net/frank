@@ -9,7 +9,7 @@
 **Tech Stack:** Traefik v3 (Helm chart), Traefik CRDs (IngressRoute, Middleware), cert via built-in ACME, Authentik forward-auth, gethomepage.dev, ArgoCD App-of-Apps
 
 **Spec:** `docs/superpowers/specs/2026-03-29--net--in-cluster-ingress-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **IMPORTANT:** Do NOT `git push` until Task 9 Step 4. ArgoCD will try to sync Traefik immediately on push, and the SOPS secret (Task 9 Step 1) must exist in the cluster first. All commits in Tasks 1-8 are local only.
 
@@ -22,19 +22,19 @@ Before writing any IngressRoutes, resolve all VERIFY markers from the spec by ch
 **Files:**
 - None created or modified — this is a discovery task
 
-- [ ] **Step 1: Source the Frank cluster environment**
+- [x] **Step 1: Source the Frank cluster environment**
 
 ```bash
 source .env
 ```
 
-- [ ] **Step 2: List all ClusterIP and LoadBalancer services**
+- [x] **Step 2: List all ClusterIP and LoadBalancer services**
 
 ```bash
 kubectl get svc -A -o wide | grep -E '(ClusterIP|LoadBalancer)' | sort -k1,1
 ```
 
-- [ ] **Step 3: Resolve each VERIFY marker**
+- [x] **Step 3: Resolve each VERIFY marker**
 
 Record the actual service name, namespace, and port for each:
 
@@ -48,7 +48,7 @@ Record the actual service name, namespace, and port for each:
 
 If any service only has a LoadBalancer type with no ClusterIP, note it — we'll need to create a ClusterIP service in that app's `-extras` manifests or reference the LB service directly.
 
-- [ ] **Step 4: Check Authentik outpost forward-auth port**
+- [x] **Step 4: Check Authentik outpost forward-auth port**
 
 ```bash
 kubectl get svc -n authentik -o wide
@@ -56,7 +56,7 @@ kubectl get svc -n authentik -o wide
 
 Determine whether `/outpost.goauthentik.io/auth/traefik` is reachable on the ClusterIP service's port 80 or port 9000.
 
-- [ ] **Step 5: Record findings**
+- [x] **Step 5: Record findings**
 
 Note the discovered service names, namespaces, and ports. These will be used directly in Tasks 5 and 6 when creating middlewares and IngressRoutes. No need to commit — just carry the values forward into the manifest files.
 
@@ -67,7 +67,7 @@ Note the discovered service names, namespaces, and ports. These will be used dir
 **Files:**
 - Create: `apps/root/templates/traefik.yaml`
 
-- [ ] **Step 1: Research the current Traefik Helm chart version**
+- [x] **Step 1: Research the current Traefik Helm chart version**
 
 ```bash
 helm repo add traefik https://traefik.github.io/charts 2>/dev/null || true
@@ -77,7 +77,7 @@ helm search repo traefik/traefik --versions | head -5
 
 Note the latest chart version (expected: `36.x.x` range). Pin to the exact latest patch.
 
-- [ ] **Step 2: Create the Application CR**
+- [x] **Step 2: Create the Application CR**
 
 Create `apps/root/templates/traefik.yaml` following the multi-source pattern from `litellm.yaml`:
 
@@ -114,7 +114,7 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/root/templates/traefik.yaml
@@ -128,7 +128,7 @@ git commit -m "feat(net): add Traefik ArgoCD Application CR"
 **Files:**
 - Create: `apps/root/templates/traefik-extras.yaml`
 
-- [ ] **Step 1: Create the extras Application CR**
+- [x] **Step 1: Create the extras Application CR**
 
 Create `apps/root/templates/traefik-extras.yaml` following the `-extras` pattern from `authentik-extras.yaml`:
 
@@ -158,7 +158,7 @@ spec:
       - CreateNamespace=false
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/root/templates/traefik-extras.yaml
@@ -176,7 +176,7 @@ git commit -m "feat(net): add Traefik Extras ArgoCD Application CR"
 - Traefik Helm chart values: https://github.com/traefik/traefik-helm-chart/blob/master/traefik/values.yaml
 - Traefik ACME DNS challenge: https://doc.traefik.io/traefik/https/acme/#dnschallenge
 
-- [ ] **Step 1: Create the values file**
+- [x] **Step 1: Create the values file**
 
 Create `apps/traefik/values.yaml`:
 
@@ -250,7 +250,7 @@ ingressRoute:
     enabled: false
 ```
 
-- [ ] **Step 2: Verify YAML syntax**
+- [x] **Step 2: Verify YAML syntax**
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('apps/traefik/values.yaml'))"
@@ -258,7 +258,7 @@ python3 -c "import yaml; yaml.safe_load(open('apps/traefik/values.yaml'))"
 
 Expected: no output (valid YAML).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/traefik/values.yaml
@@ -272,7 +272,7 @@ git commit -m "feat(net): add Traefik Helm values with ACME and Cilium L2"
 **Files:**
 - Create: `apps/traefik/manifests/middlewares.yaml`
 
-- [ ] **Step 1: Create the middlewares file**
+- [x] **Step 1: Create the middlewares file**
 
 Create `apps/traefik/manifests/middlewares.yaml` with all four Middleware CRDs. Use the Authentik service port discovered in Task 1.
 
@@ -339,7 +339,7 @@ spec:
 
 Note: the spec mentions "Four Middleware CRDs" but only 3 are created here. The `https-redirect` middleware is NOT needed as a CRD — HTTP→HTTPS redirect is handled at the entrypoint level in the Helm values (`ports.web.http.redirections`). This is a deliberate deviation: entrypoint-level redirects are more reliable than per-route middleware.
 
-- [ ] **Step 2: Verify YAML syntax**
+- [x] **Step 2: Verify YAML syntax**
 
 ```bash
 python3 -c "
@@ -356,7 +356,7 @@ Middleware/ip-allowlist
 Middleware/authentik-forwardauth
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/traefik/manifests/middlewares.yaml
@@ -372,7 +372,7 @@ git commit -m "feat(net): add Traefik middleware CRDs for security and auth"
 
 Use the service names/ports discovered in Task 1 to fill in all backend references.
 
-- [ ] **Step 1: Create the IngressRoutes file**
+- [x] **Step 1: Create the IngressRoutes file**
 
 Create `apps/traefik/manifests/ingressroutes.yaml` with one IngressRoute per deployed service. The template for each route follows one of two patterns:
 
@@ -431,7 +431,7 @@ Route order in the file:
 11. `comfyui.cluster.derio.net` → comfyui (forward-auth)
 12. `gpu.cluster.derio.net` → gpu-switcher (forward-auth)
 
-- [ ] **Step 2: Verify YAML syntax and count**
+- [x] **Step 2: Verify YAML syntax and count**
 
 ```bash
 python3 -c "
@@ -448,7 +448,7 @@ for d in docs:
 
 Expected: 12 IngressRoutes listed with correct hostnames and middleware assignments.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/traefik/manifests/ingressroutes.yaml
@@ -462,7 +462,7 @@ git commit -m "feat(net): add IngressRoute CRDs for all cluster services"
 **Files:**
 - Create: `apps/root/templates/homepage.yaml`
 
-- [ ] **Step 1: Create the Application CR**
+- [x] **Step 1: Create the Application CR**
 
 Create `apps/root/templates/homepage.yaml` following the raw-manifests pattern from `comfyui.yaml`:
 
@@ -492,7 +492,7 @@ spec:
       - ServerSideApply=true
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/root/templates/homepage.yaml
@@ -514,7 +514,7 @@ git commit -m "feat(net): add Homepage ArgoCD Application CR"
 - Homepage Kubernetes docs: https://gethomepage.dev/installation/k8s/
 - Homepage service widgets: https://gethomepage.dev/configs/services/
 
-- [ ] **Step 1: Create the Deployment**
+- [x] **Step 1: Create the Deployment**
 
 Create `apps/homepage/manifests/deployment.yaml`:
 
@@ -560,7 +560,7 @@ spec:
             name: homepage-settings
 ```
 
-- [ ] **Step 2: Create the Service**
+- [x] **Step 2: Create the Service**
 
 Create `apps/homepage/manifests/service.yaml`:
 
@@ -582,7 +582,7 @@ spec:
       name: http
 ```
 
-- [ ] **Step 3: Create the services ConfigMap**
+- [x] **Step 3: Create the services ConfigMap**
 
 Create `apps/homepage/manifests/configmap-services.yaml`. Consult Homepage docs for the exact YAML schema. The services list should include all cluster services organized by category, using `*.cluster.derio.net` URLs:
 
@@ -644,7 +644,7 @@ data:
 
 Note: Gitea, Harbor, KubeVirt, and n8n are omitted because they're not yet deployed. Add them when their ArgoCD apps are created (per the Claude rule update in Task 10).
 
-- [ ] **Step 4: Create the settings ConfigMap**
+- [x] **Step 4: Create the settings ConfigMap**
 
 Create `apps/homepage/manifests/configmap-settings.yaml`:
 
@@ -671,7 +671,7 @@ data:
         columns: 3
 ```
 
-- [ ] **Step 5: Verify all manifests parse correctly**
+- [x] **Step 5: Verify all manifests parse correctly**
 
 ```bash
 for f in apps/homepage/manifests/*.yaml; do
@@ -682,7 +682,7 @@ done
 
 Expected: Deployment/homepage, Service/homepage, ConfigMap/homepage-services, ConfigMap/homepage-settings
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add apps/homepage/manifests/
@@ -847,7 +847,7 @@ Expected: HTTP 200 with Homepage content.
 - Modify: `.claude/rules/frank-argocd.md`
 - Modify: `.claude/rules/frank-infrastructure.md`
 
-- [ ] **Step 1: Update frank-argocd.md**
+- [x] **Step 1: Update frank-argocd.md**
 
 Append to `.claude/rules/frank-argocd.md`:
 
@@ -859,7 +859,7 @@ When adding a new outward-facing service with an IngressRoute:
 2. Add the IngressRoute to `apps/traefik/manifests/ingressroutes.yaml`
 ```
 
-- [ ] **Step 2: Update frank-infrastructure.md Services table**
+- [x] **Step 2: Update frank-infrastructure.md Services table**
 
 Add to the Services table in `.claude/rules/frank-infrastructure.md`:
 
@@ -868,7 +868,7 @@ Add to the Services table in `.claude/rules/frank-infrastructure.md`:
 | Homepage | (via Traefik) | IngressRoute (master.cluster.derio.net) |
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add .claude/rules/frank-argocd.md .claude/rules/frank-infrastructure.md
@@ -882,11 +882,11 @@ git commit -m "docs(net): update Claude rules for Homepage and Traefik ingress"
 **Files:**
 - Modify: `docs/runbooks/manual-operations.yaml`
 
-- [ ] **Step 1: Run the sync-runbook skill**
+- [x] **Step 1: Run the sync-runbook skill**
 
 Use `/sync-runbook` to sync the 3 manual operation blocks from the spec into `docs/runbooks/manual-operations.yaml`.
 
-- [ ] **Step 2: Verify all 3 manual ops are in the runbook**
+- [x] **Step 2: Verify all 3 manual ops are in the runbook**
 
 ```bash
 grep -c "net-traefik-cloudflare-secret\|net-pihole-cluster-wildcard\|net-authentik-cluster-proxy-provider" docs/runbooks/manual-operations.yaml
@@ -894,7 +894,7 @@ grep -c "net-traefik-cloudflare-secret\|net-pihole-cluster-wildcard\|net-authent
 
 Expected: 3
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs/runbooks/manual-operations.yaml
