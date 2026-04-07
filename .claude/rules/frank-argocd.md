@@ -13,3 +13,9 @@ Copy an existing template from `apps/root/templates/` and adapt. Key decisions:
 - **Raw manifests**: Single source — `path: apps/<app>/manifests`
 - **Always include**: `ServerSideApply=true`, `prune: false`, `selfHeal: true`
 - **Secrets**: Add `ignoreDifferences` on `/data` jsonPointer
+
+### Homepage Dashboard
+
+When adding a new outward-facing service with an IngressRoute:
+1. Add the service to `apps/homepage/manifests/configmap-services.yaml` (icon, category, description, URL)
+2. Add the IngressRoute to `apps/traefik/manifests/ingressroutes.yaml`
