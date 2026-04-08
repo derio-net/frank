@@ -1,0 +1,282 @@
+# Authentik Blueprint: Cluster Proxy Providers for *.cluster.derio.net
+# Forward-auth for in-cluster Traefik ingress (in-cluster-ingress plan).
+# Spec: docs/superpowers/specs/2026-03-29--net--in-cluster-ingress-design.md
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: authentik-blueprints-cluster-proxy-providers
+  namespace: authentik
+  labels:
+    app.kubernetes.io/component: blueprint
+data:
+  cluster-proxy-providers.yaml: |
+    # yaml-language-server: $schema=https://goauthentik.io/blueprints/schema.json
+    version: 1
+    metadata:
+      name: Proxy Providers for cluster.derio.net Services
+      labels:
+        blueprints.goauthentik.io/instantiate: "true"
+    entries:
+      # Grafana (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Grafana (cluster)
+        id: provider-grafana-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://grafana.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: grafana-cluster
+        attrs:
+          name: Grafana (cluster)
+          provider: !KeyOf provider-grafana-cluster
+          meta_launch_url: https://grafana.cluster.derio.net
+
+      # Longhorn UI (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Longhorn UI (cluster)
+        id: provider-longhorn-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://longhorn.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: longhorn-cluster
+        attrs:
+          name: Longhorn UI (cluster)
+          provider: !KeyOf provider-longhorn-cluster
+          meta_launch_url: https://longhorn.cluster.derio.net
+
+      # Hubble UI (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Hubble UI (cluster)
+        id: provider-hubble-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://hubble.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: hubble-cluster
+        attrs:
+          name: Hubble UI (cluster)
+          provider: !KeyOf provider-hubble-cluster
+          meta_launch_url: https://hubble.cluster.derio.net
+
+      # Infisical (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Infisical (cluster)
+        id: provider-infisical-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://infisical.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: infisical-cluster
+        attrs:
+          name: Infisical (cluster)
+          provider: !KeyOf provider-infisical-cluster
+          meta_launch_url: https://infisical.cluster.derio.net
+
+      # LiteLLM (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: LiteLLM (cluster)
+        id: provider-litellm-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://litellm.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: litellm-cluster
+        attrs:
+          name: LiteLLM (cluster)
+          provider: !KeyOf provider-litellm-cluster
+          meta_launch_url: https://litellm.cluster.derio.net
+
+      # Paperclip (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Paperclip (cluster)
+        id: provider-paperclip-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://paperclip.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: paperclip-cluster
+        attrs:
+          name: Paperclip (cluster)
+          provider: !KeyOf provider-paperclip-cluster
+          meta_launch_url: https://paperclip.cluster.derio.net
+
+      # ComfyUI (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: ComfyUI (cluster)
+        id: provider-comfyui-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://comfyui.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: comfyui-cluster
+        attrs:
+          name: ComfyUI (cluster)
+          provider: !KeyOf provider-comfyui-cluster
+          meta_launch_url: https://comfyui.cluster.derio.net
+
+      # GPU Switcher (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: GPU Switcher (cluster)
+        id: provider-gpu-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://gpu.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: gpu-cluster
+        attrs:
+          name: GPU Switcher (cluster)
+          provider: !KeyOf provider-gpu-cluster
+          meta_launch_url: https://gpu.cluster.derio.net
+
+      # n8n (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: n8n (cluster)
+        id: provider-n8n-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://n8n.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: n8n-cluster
+        attrs:
+          name: n8n (cluster)
+          provider: !KeyOf provider-n8n-cluster
+          meta_launch_url: https://n8n.cluster.derio.net
+
+      # Gitea (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Gitea (cluster)
+        id: provider-gitea-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://gitea.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: gitea-cluster
+        attrs:
+          name: Gitea (cluster)
+          provider: !KeyOf provider-gitea-cluster
+          meta_launch_url: https://gitea.cluster.derio.net
+
+      # Zot (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Zot (cluster)
+        id: provider-zot-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://zot.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: zot-cluster
+        attrs:
+          name: Zot (cluster)
+          provider: !KeyOf provider-zot-cluster
+          meta_launch_url: https://zot.cluster.derio.net
+
+      # Tekton Dashboard (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Tekton Dashboard (cluster)
+        id: provider-tekton-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://tekton.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: tekton-cluster
+        attrs:
+          name: Tekton Dashboard (cluster)
+          provider: !KeyOf provider-tekton-cluster
+          meta_launch_url: https://tekton.cluster.derio.net

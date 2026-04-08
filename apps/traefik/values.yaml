@@ -1,0 +1,75 @@
+# Traefik In-Cluster Ingress Controller
+# Spec: docs/superpowers/specs/2026-03-29--net--in-cluster-ingress-design.md
+
+deployment:
+  replicas: 1
+
+# Fix PVC permissions — Longhorn creates root-owned volumes,
+# Traefik runs as uid 65532 (nonroot). fsGroup makes K8s chown volumes.
+podSecurityContext:
+  fsGroup: 65532
+  fsGroupChangePolicy: "OnRootMismatch"
+
+# RWO PVC requires Recreate strategy (see frank-gotchas.md)
+updateStrategy:
+  type: Recreate
+
+# Schedule on raspi edge nodes
+nodeSelector:
+  zone: edge
+  tier: low-power
+
+# Cilium L2 LoadBalancer with static IP
+service:
+  type: LoadBalancer
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.220"
+
+# Entrypoints
+ports:
+  web:
+    exposedPort: 80
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    exposedPort: 443
+
+# Allow IngressRoutes to reference services in other namespaces
+providers:
+  kubernetesCRD:
+    allowCrossNamespace: true
+
+# Built-in ACME — wildcard cert via Cloudflare DNS-01
+certificatesResolvers:
+  cloudflare:
+    acme:
+      email: "admin@derio.net"
+      storage: /data/acme.json
+      dnsChallenge:
+        provider: cloudflare
+        propagation:
+          disableChecks: true
+          delayBeforeChecks: 60
+
+# Persist ACME cert data on Longhorn
+persistence:
+  enabled: true
+  size: 128Mi
+  accessMode: ReadWriteOnce
+
+# Cloudflare API token from SOPS-encrypted Secret
+env:
+  - name: CF_DNS_API_TOKEN
+    valueFrom:
+      secretKeyRef:
+        name: traefik-cloudflare-credentials
+        key: api-token
+
+# Disable Traefik dashboard (accessed via ArgoCD, not needed)
+ingressRoute:
+  dashboard:
+    enabled: false

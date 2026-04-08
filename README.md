@@ -53,6 +53,8 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Progressive Delivery | Argo Rollouts | Canary (LiteLLM + Cilium traffic split + VictoriaMetrics analysis), blue-green (Sympozium + HTTP healthcheck) |
 | Workflow Automation | n8n | Per-user instances on gpu-1, Authentik forward-auth, dedicated PostgreSQL, Prometheus metrics |
 | Secure Agent Pod | Kali Linux + VibeKanban | Hardened non-root coding agent workstation on gpu-1, Cilium egress controls, ESO secrets, SSH + VibeKanban UI |
+| In-Cluster Ingress | Traefik v3 | Wildcard TLS (`*.cluster.derio.net`) via ACME + Cloudflare DNS-01, Authentik forward-auth, raspi edge nodes |
+| Cluster Dashboard | gethomepage.dev | Service catalog at `master.cluster.derio.net` with HTTP health indicators and custom bookmarks |
 
 ## Repository Structure
 
@@ -95,7 +97,9 @@ frank/
 │   ├── gpu-switcher/manifests/ + app/           # GPU Switcher Go app + K8s manifests
 │   ├── n8n-01/manifests/                       # n8n workflow automation (gpu-1, 192.168.55.216)
 │   ├── n8n-01-postgresql/values.yaml           # Bitnami PostgreSQL for n8n-01
-│   └── secure-agent-pod/manifests/             # Secure coding agent pod (gpu-1, SSH + VibeKanban)
+│   ├── secure-agent-pod/manifests/             # Secure coding agent pod (gpu-1, SSH + VibeKanban)
+│   ├── traefik/values.yaml + manifests/        # Traefik ingress (192.168.55.220), middlewares, IngressRoutes
+│   └── homepage/manifests/                     # gethomepage.dev dashboard (master.cluster.derio.net)
 │       ├── template/values.yaml                 # Base config (SQLite, policies, sync)
 │       └── experiments/values.yaml              # First sandbox instance
 ├── clusters/
@@ -121,7 +125,7 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/building/       # 23 posts documenting the build
+│   ├── content/building/       # 24 posts documenting the build
 │   ├── content/operating/      # 16 companion operations guides
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
@@ -162,6 +166,8 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Secure Agent Pod (SSH) | ssh claude@192.168.55.215 | 192.168.55.215 |
 | n8n-01 | http://192.168.55.216:5678 | 192.168.55.216 |
 | Secure Agent Pod (VibeKanban) | http://192.168.55.218:8081 | 192.168.55.218 |
+| Traefik Ingress | https://*.cluster.derio.net | 192.168.55.220 |
+| Homepage Dashboard | https://master.cluster.derio.net | (via Traefik) |
 
 ### Hop Cluster (Public Edge)
 
@@ -223,6 +229,9 @@ argocd app list
 | blackbox-exporter | monitoring | HTTP endpoint probes for feature health (VMProbe → VictoriaMetrics) |
 | pushgateway | monitoring | Heartbeat metric ingestion from Willikins cron jobs (VMServiceScrape) |
 | health-bridge | monitoring | Grafana webhook → GitHub Project lifecycle updates (ghcr.io/derio-net/health-bridge:v0.1.0) |
+| traefik | traefik-system | In-cluster ingress controller (192.168.55.220), ACME wildcard TLS for `*.cluster.derio.net` |
+| traefik-extras | traefik-system | Middleware CRDs (security headers, IP allowlist, Authentik forward-auth) + 16 IngressRoutes |
+| homepage | homepage | Cluster dashboard at `master.cluster.derio.net`, HTTP health indicators, service catalog |
 
 ### Hop Cluster Applications
 

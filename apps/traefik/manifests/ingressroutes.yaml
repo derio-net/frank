@@ -1,0 +1,380 @@
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: homepage
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`master.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+      services:
+        - name: homepage
+          namespace: homepage
+          port: 3000
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: argocd
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`argocd.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+      services:
+        - name: argocd-server
+          namespace: argocd
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sympozium
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`sympozium.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+      services:
+        - name: sympozium-apiserver
+          namespace: sympozium-system
+          port: 8080
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: authentik
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`auth.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+      services:
+        - name: authentik-server
+          namespace: authentik
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: grafana
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`grafana.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: victoria-metrics-grafana
+          namespace: monitoring
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: longhorn
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`longhorn.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: longhorn-frontend
+          namespace: longhorn-system
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: hubble
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`hubble.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: hubble-ui
+          namespace: kube-system
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: infisical
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`infisical.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: infisical-infisical-standalone-infisical
+          namespace: infisical
+          port: 8080
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: litellm
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`litellm.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: litellm
+          namespace: litellm
+          port: 4000
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: paperclip
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`paperclip.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: paperclip-lb
+          namespace: paperclip-system
+          port: 3100
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: comfyui
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`comfyui.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: comfyui
+          namespace: comfyui
+          port: 8188
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: gpu-switcher
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`gpu.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: gpu-switcher
+          namespace: gpu-switcher
+          port: 8080
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: n8n
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`n8n.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: n8n-01
+          namespace: n8n-01
+          port: 5678
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: gitea
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`gitea.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: gitea-http
+          namespace: gitea
+          port: 3000
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: zot
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`zot.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: zot
+          namespace: zot
+          port: 5000
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: tekton
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`tekton.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: tekton-dashboard
+          namespace: tekton-pipelines
+          port: 9097
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"

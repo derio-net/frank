@@ -12,7 +12,9 @@
 - Sympozium Helm chart is Git-sourced (not OCI) — chart isn't published to any registry
 - Sympozium chart service template doesn't support type/annotations — use separate LB Service in extras
 - Sympozium image.tag must be overridden (chart appVersion lags behind latest fix releases)
-- Authentik blueprints may not auto-discover from ConfigMaps — create providers/apps via API as fallback
+- Authentik blueprints are mounted into the **worker** pod (not server) via `blueprints.configMaps` in `apps/authentik/values.yaml`. New ConfigMaps must be registered in that list or they won't be discovered
+- Authentik blueprints create proxy providers and applications, but do NOT assign providers to the embedded outpost — outpost assignment must be done manually via Django ORM (`outpost.providers.add(provider)`) after the blueprint applies. See `frank-argocd.md` for the full command
+- Authentik embedded outpost provider assignment persists in the database — it survives pod restarts but not database loss
 - Authentik API requires Bearer token (not basic auth) — create token via Django ORM: `Token.objects.get_or_create(identifier="name", defaults={"user": user, "intent": TokenIntents.INTENT_API})`
 - Authentik 2026.x requires `invalidation_flow` and `redirect_uris` as list of objects `[{"matching_mode": "strict", "url": "..."}]` (not strings) in API calls. Also requires `signing_key` UUID — query an existing provider to find it
 - Authentik `global.env` applies env vars to both server + worker (avoids duplication)
