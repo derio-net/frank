@@ -973,7 +973,7 @@ git commit -m "feat(obs): wire grafana alerting ConfigMaps + secrets into victor
 
 **Context:** After pushing, ArgoCD auto-syncs the new `grafana-alerting` Application and the updated `victoria-metrics` Application. The Grafana pod restarts to pick up the new mounts. At this point, both API-provisioned and file-provisioned resources coexist — Grafana does NOT deduplicate them.
 
-- [ ] **Step 1: Push the branch and wait for ArgoCD sync**
+- [x] **Step 1: Push the branch and wait for ArgoCD sync**
 
 ```bash
 git push origin HEAD
@@ -988,7 +988,7 @@ argocd app list --port-forward --port-forward-namespace argocd | grep -E 'grafan
 
 Expected: `grafana-alerting` shows `Synced`/`Healthy`. `victoria-metrics` shows `Synced` (may briefly show `Progressing` as Grafana pod restarts).
 
-- [ ] **Step 2: Verify the ExternalSecret synced**
+- [x] **Step 2: Verify the ExternalSecret synced**
 
 ```bash
 kubectl get externalsecret -n monitoring grafana-alerting-secrets
@@ -996,7 +996,7 @@ kubectl get externalsecret -n monitoring grafana-alerting-secrets
 
 Expected: `SecretSynced` status. If it shows `SecretSyncedError`, check that the 3 keys exist in Infisical.
 
-- [ ] **Step 3: Verify Grafana pod is running with new mounts**
+- [x] **Step 3: Verify Grafana pod is running with new mounts**
 
 ```bash
 kubectl get pods -n monitoring -l app.kubernetes.io/name=grafana
@@ -1005,7 +1005,7 @@ kubectl describe pod -n monitoring -l app.kubernetes.io/name=grafana | grep -A2 
 
 Expected: Pod in `Running` state with the 5 new volume mounts visible.
 
-- [ ] **Step 4: Verify file-provisioned alert rules appear**
+- [x] **Step 4: Verify file-provisioned alert rules appear**
 
 ```bash
 GRAFANA_AUTH="admin:$(kubectl get secret -n monitoring victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
@@ -1016,7 +1016,7 @@ curl -sk -u "$GRAFANA_AUTH" \
 
 Expected: Each rule UID appears **twice** — once with `provenance: file` (new) and once with `provenance: none` or `provenance: api` (old). This confirms file-provisioned versions loaded correctly.
 
-- [ ] **Step 5: Verify file-provisioned contact points appear**
+- [x] **Step 5: Verify file-provisioned contact points appear**
 
 ```bash
 curl -sk -u "$GRAFANA_AUTH" \
@@ -1025,7 +1025,7 @@ curl -sk -u "$GRAFANA_AUTH" \
 
 Expected: Contact points with `provenance: file` present. Telegram UID `efi04e0201jb4f` appears in file-provisioned version.
 
-- [ ] **Step 6: Verify notification policy**
+- [x] **Step 6: Verify notification policy**
 
 ```bash
 curl -sk -u "$GRAFANA_AUTH" \
@@ -1034,7 +1034,7 @@ curl -sk -u "$GRAFANA_AUTH" \
 
 Expected: Routing tree with 3 routes (severity=critical, severity=warning, grafana_folder=Feature Health).
 
-- [ ] **Step 7: Verify Feature Health dashboard in feature-health folder**
+- [x] **Step 7: Verify Feature Health dashboard in feature-health folder**
 
 ```bash
 curl -sk -u "$GRAFANA_AUTH" \
@@ -1102,14 +1102,14 @@ verify:
 status: pending
 ```
 
-- [ ] **Step 1: Set up auth variable**
+- [x] **Step 1: Set up auth variable**
 
 ```bash
 source .env
 GRAFANA_AUTH="admin:$(kubectl get secret -n monitoring victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
 ```
 
-- [ ] **Step 2: Delete API-provisioned alert rules**
+- [x] **Step 2: Delete API-provisioned alert rules**
 
 ```bash
 for uid in exercise-reminder-stale session-manager-stale audit-digest-stale endpoint-down agent-pod-not-running; do
@@ -1123,7 +1123,7 @@ done
 
 Expected: `HTTP 204` (deleted) or `HTTP 400` (already file-provisioned, no separate API copy). Both are OK.
 
-- [ ] **Step 3: Check for duplicate contact points and delete API copies**
+- [x] **Step 3: Check for duplicate contact points and delete API copies**
 
 ```bash
 curl -sk -u "$GRAFANA_AUTH" \
@@ -1148,7 +1148,7 @@ Delete any identified API-provisioned duplicates:
 #   -H "X-Disable-Provenance: true"
 ```
 
-- [ ] **Step 4: Restart Grafana pod to flush alertmanager dedup state**
+- [x] **Step 4: Restart Grafana pod to flush alertmanager dedup state**
 
 Required after contact point changes (gotcha: alertmanager treats previously-fired alerts as "already notified" for the default repeat_interval after re-provisioning).
 
@@ -1193,7 +1193,7 @@ verify:
 status: pending
 ```
 
-- [ ] **Step 1: Verify all 5 alert rules are file-provisioned**
+- [x] **Step 1: Verify all 5 alert rules are file-provisioned**
 
 ```bash
 GRAFANA_AUTH="admin:$(kubectl get secret -n monitoring victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
@@ -1216,7 +1216,7 @@ if not missing: print(f'All {len(expected)} expected rules present')
 
 Expected: All 5 rules present with `provenance: file`.
 
-- [ ] **Step 2: Verify contact points and notification policy**
+- [x] **Step 2: Verify contact points and notification policy**
 
 ```bash
 echo "=== Contact Points ==="
@@ -1239,7 +1239,7 @@ for r in p.get('routes', []):
 
 Expected: 2 contact points (both `provenance: file`), 3 routes in the policy.
 
-- [ ] **Step 3: Verify dashboard**
+- [x] **Step 3: Verify dashboard**
 
 ```bash
 curl -sk -u "$GRAFANA_AUTH" \
@@ -1260,7 +1260,7 @@ for p in dash['panels']:
 
 Expected: Title `Feature Health`, Folder `feature-health`, Provisioned `True`, 4 panels.
 
-- [ ] **Step 4: PVC loss simulation — restart Grafana and verify survival**
+- [x] **Step 4: PVC loss simulation — restart Grafana and verify survival**
 
 ```bash
 kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
@@ -1269,7 +1269,7 @@ kubectl wait --for=condition=Ready pod -n monitoring -l app.kubernetes.io/name=g
 
 Then re-run Steps 1–3 above. All rules, contact points, policy, and dashboard should survive the restart (loaded from ConfigMaps, not PVC).
 
-- [ ] **Step 5: Trigger test alert (optional live verification)**
+- [-] **Step 5: Trigger test alert (optional live verification)**
 
 Temporarily lower the `exercise-reminder-stale` threshold to 60s to trigger a test alert:
 
