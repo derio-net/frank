@@ -9,7 +9,7 @@
 **Tech Stack:** Traefik v3 (Helm chart), Traefik CRDs (IngressRoute, Middleware), cert via built-in ACME, Authentik forward-auth, gethomepage.dev, ArgoCD App-of-Apps
 
 **Spec:** `docs/superpowers/specs/2026-03-29--net--in-cluster-ingress-design.md`
-**Status:** In Progress
+**Status:** Deployed
 
 **IMPORTANT:** Do NOT `git push` until Task 9 Step 4. ArgoCD will try to sync Traefik immediately on push, and the SOPS secret (Task 9 Step 1) must exist in the cluster first. All commits in Tasks 1-8 are local only.
 
@@ -698,7 +698,7 @@ This task contains manual operations that require user interaction. The implemen
 **Files:**
 - Create: `secrets/traefik-cloudflare-credentials.yaml` (SOPS-encrypted)
 
-- [ ] **Step 1: Create and encrypt the Cloudflare credentials Secret**
+- [x] **Step 1: Create and encrypt the Cloudflare credentials Secret** *(done by operator on main)*
 
 ```yaml
 # manual-operation
@@ -730,7 +730,7 @@ status: pending
 
 Prompt user to execute these commands. Verify the secret exists after creation.
 
-- [ ] **Step 2: Configure Pi-hole DNS**
+- [x] **Step 2: Configure Pi-hole DNS** *(done by operator)*
 
 ```yaml
 # manual-operation
@@ -752,14 +752,14 @@ status: pending
 
 Prompt user to configure DNS. Verify resolution works after configuration.
 
-- [ ] **Step 3: Commit the encrypted secret**
+- [x] **Step 3: Commit the encrypted secret** *(done by operator on main)*
 
 ```bash
 git add secrets/traefik-cloudflare-credentials.yaml
 git commit -m "feat(net): add SOPS-encrypted Cloudflare credentials for Traefik"
 ```
 
-- [ ] **Step 4: Push all commits and verify ArgoCD sync**
+- [x] **Step 4: Push all commits and verify ArgoCD sync**
 
 ```bash
 git push
@@ -774,7 +774,7 @@ argocd app list --port-forward --port-forward-namespace argocd | grep -E '(traef
 
 Expected: `traefik`, `traefik-extras`, and `homepage` apps visible (may show as `OutOfSync` or `Syncing`).
 
-- [ ] **Step 5: Verify Traefik pod is running**
+- [x] **Step 5: Verify Traefik pod is running**
 
 ```bash
 kubectl get pods -n traefik-system
@@ -783,7 +783,7 @@ kubectl logs -n traefik-system -l app.kubernetes.io/name=traefik --tail=20
 
 Expected: Traefik pod running on a raspi node. Logs should show ACME certificate request for `*.cluster.derio.net`.
 
-- [ ] **Step 6: Verify ACME certificate was issued**
+- [x] **Step 6: Verify ACME certificate was issued**
 
 ```bash
 kubectl logs -n traefik-system -l app.kubernetes.io/name=traefik | grep -i "acme\|certificate\|challenge"
@@ -791,7 +791,7 @@ kubectl logs -n traefik-system -l app.kubernetes.io/name=traefik | grep -i "acme
 
 Expected: Successful certificate issuance from Let's Encrypt via Cloudflare DNS-01.
 
-- [ ] **Step 7: Test a no-auth route**
+- [x] **Step 7: Test a no-auth route**
 
 ```bash
 curl -sI https://argocd.cluster.derio.net 2>&1 | head -20
@@ -803,7 +803,7 @@ Expected: HTTP 200 or 302 (ArgoCD login redirect), valid TLS certificate for `*.
 
 Implemented as `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml` — 8 `forward_single` proxy providers for `*.cluster.derio.net` forward-auth services. ArgoCD syncs the ConfigMap to Authentik via the blueprint controller. The manual operation is superseded.
 
-- [ ] **Step 9: Test a forward-auth route**
+- [x] **Step 9: Test a forward-auth route**
 
 ```bash
 curl -sI https://longhorn.cluster.derio.net 2>&1 | head -20
@@ -811,7 +811,7 @@ curl -sI https://longhorn.cluster.derio.net 2>&1 | head -20
 
 Expected: HTTP 302 redirect to Authentik login page.
 
-- [ ] **Step 10: Verify Homepage loads**
+- [x] **Step 10: Verify Homepage loads**
 
 ```bash
 curl -sI https://master.cluster.derio.net 2>&1 | head -20
@@ -885,7 +885,7 @@ git commit -m "docs(net): sync manual operations for in-cluster ingress"
 
 ### Task 12: Final verification and spec status update
 
-- [ ] **Step 1: Verify all routes**
+- [x] **Step 1: Verify all routes**
 
 Test each deployed IngressRoute:
 
@@ -900,14 +900,14 @@ Expected:
 - `master`, `argocd`, `sympozium`, `auth` → 200 or 302 (app login)
 - `grafana`, `longhorn`, `hubble`, `infisical`, `litellm`, `paperclip`, `comfyui`, `gpu` → 302 (Authentik redirect) or 200 (if already authenticated)
 
-- [ ] **Step 2: Verify Homepage shows all services**
+- [x] **Step 2: Verify Homepage shows all services**
 
 Open `https://master.cluster.derio.net` in a browser. Verify:
 - Infrastructure category shows: ArgoCD, Longhorn, Hubble, Grafana, Infisical, Authentik
 - Development category shows: LiteLLM, Sympozium, Paperclip, ComfyUI, GPU Switcher
 - All links work and point to `*.cluster.derio.net` URLs
 
-- [ ] **Step 3: Update spec status**
+- [x] **Step 3: Update spec status**
 
 Change the status in `docs/superpowers/specs/2026-03-29--net--in-cluster-ingress-design.md`:
 
@@ -915,7 +915,7 @@ Change the status in `docs/superpowers/specs/2026-03-29--net--in-cluster-ingress
 **Status:** Deployed
 ```
 
-- [ ] **Step 4: Final commit**
+- [x] **Step 4: Final commit**
 
 ```bash
 git add docs/superpowers/specs/2026-03-29--net--in-cluster-ingress-design.md
