@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage-services
+  namespace: homepage
+data:
+  services.yaml: |
+    - Infrastructure:
+        - ArgoCD:
+            icon: argo-cd
+            href: https://argocd.cluster.derio.net
+            description: GitOps continuous delivery for Kubernetes
+        - Longhorn:
+            icon: longhorn
+            href: https://longhorn.cluster.derio.net
+            description: Distributed block storage for Kubernetes
+        - Hubble:
+            icon: cilium
+            href: https://hubble.cluster.derio.net
+            description: Cilium network observability
+        - Grafana:
+            icon: grafana
+            href: https://grafana.cluster.derio.net
+            description: Metrics dashboards and observability
+        - Infisical:
+            icon: infisical
+            href: https://infisical.cluster.derio.net
+            description: Secrets management platform
+        - Authentik:
+            icon: authentik
+            href: https://auth.cluster.derio.net
+            description: Identity provider and SSO
+    - Development:
+        - LiteLLM:
+            icon: mdi-robot
+            href: https://litellm.cluster.derio.net
+            description: LLM proxy and gateway
+        - Sympozium:
+            icon: element
+            href: https://sympozium.cluster.derio.net
+            description: Matrix chat client
+        - Paperclip:
+            icon: mdi-paperclip
+            href: https://paperclip.cluster.derio.net
+            description: AI agent orchestrator
+        - ComfyUI:
+            icon: mdi-alpha-c-box-outline
+            href: https://comfyui.cluster.derio.net
+            description: Visual editor for diffusion model pipelines
+        - GPU Switcher:
+            icon: mdi-expansion-card
+            href: https://gpu.cluster.derio.net
+            description: Dashboard for managing GPU time-sharing

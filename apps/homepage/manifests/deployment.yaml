@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: homepage
+  namespace: homepage
+  labels:
+    app: homepage
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: homepage
+  template:
+    metadata:
+      labels:
+        app: homepage
+    spec:
+      nodeSelector:
+        zone: edge
+      containers:
+        - name: homepage
+          image: ghcr.io/gethomepage/homepage:v1.12.1
+          ports:
+            - containerPort: 3000
+              name: http
+          volumeMounts:
+            - name: config-services
+              mountPath: /app/config/services.yaml
+              subPath: services.yaml
+            - name: config-settings
+              mountPath: /app/config/settings.yaml
+              subPath: settings.yaml
+      volumes:
+        - name: config-services
+          configMap:
+            name: homepage-services
+        - name: config-settings
+          configMap:
+            name: homepage-settings
