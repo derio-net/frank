@@ -496,6 +496,27 @@ images:
       screen shows a table with UP indicators in green. Blue and amber
       lighting accents, dark server room atmosphere.
 
+  - key: post-24
+    output: blog/content/building/24-in-cluster-ingress/cover.png
+    description: "In-Cluster Ingress — Frank directing traffic through a glowing gateway"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at a grand
+      illuminated gateway arch made of intertwined ethernet cables and
+      circuit boards, glowing electric blue and teal. He wears a traffic
+      controller's vest over his server-rack torso and holds a glowing
+      baton in one hand, directing streams of tiny service icons (a flame,
+      an octopus, a bull, a lock, a brain, a robot) through the gateway.
+      Each service icon passes through a translucent TLS shield layer
+      (showing a padlock and "*.cluster.derio.net" text) as it enters.
+      Above the gateway, a wildcard certificate unfurls like a banner —
+      a golden scroll with "Let's Encrypt" seal and stars for the wildcard.
+      On one side of the gateway, an Authentik shield checkpoint scans
+      some service icons (green badge = pass), while others walk through
+      a VIP lane unchecked. Below the gateway, a small glowing dashboard
+      screen shows a Homepage-style grid of service cards with green
+      status dots. Frank grins confidently, orchestrating the flow.
+      Dark server room with blue, teal, and gold lighting accents.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
