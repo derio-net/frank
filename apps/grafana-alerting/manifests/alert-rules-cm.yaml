@@ -1,0 +1,287 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerting-rules
+  namespace: monitoring
+data:
+  alert-rules.yaml: |
+    apiVersion: 1
+    groups:
+      # --- Heartbeat-stale: exercise reminder (eval every 5m) ---
+      - orgId: 1
+        name: heartbeat-stale-5m
+        folder: feature-health
+        interval: 5m
+        rules:
+          - uid: exercise-reminder-stale
+            title: Exercise Reminder Stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'time() - willikins_heartbeat_last_success_timestamp{job="exercise_reminder"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params:
+                          - 10800
+            noDataState: OK
+            execErrState: Error
+            for: 1m
+            labels:
+              severity: critical
+              github_issue: "willikins#11"
+            annotations:
+              summary: Exercise reminder cron heartbeat is stale (>3h since last success)
+
+      # --- Heartbeat-stale: session manager (eval every 1m) ---
+      - orgId: 1
+        name: heartbeat-stale-1m
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: session-manager-stale
+            title: Session Manager Stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'time() - willikins_heartbeat_last_success_timestamp{job="session_manager"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params:
+                          - 600
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+              github_issue: "willikins#13"
+            annotations:
+              summary: Session manager cron heartbeat is stale (>10m since last success)
+
+      # --- Heartbeat-stale: audit digest (eval every 30m) ---
+      - orgId: 1
+        name: heartbeat-stale-30m
+        folder: feature-health
+        interval: 30m
+        rules:
+          - uid: audit-digest-stale
+            title: Audit Digest Stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'time() - willikins_heartbeat_last_success_timestamp{job="audit_digest"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params:
+                          - 93600
+            noDataState: OK
+            execErrState: Error
+            for: 1h
+            labels:
+              severity: warning
+              github_issue: "willikins#12"
+            annotations:
+              summary: Audit digest cron heartbeat is stale (>26h since last success)
+
+      # --- Endpoint-down (eval every 1m) ---
+      - orgId: 1
+        name: endpoint-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: endpoint-down
+            title: Endpoint Down
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'probe_success{probe_group="feature_health"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params:
+                          - 1
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "HTTP endpoint probe failing"
+
+      # --- Pod-not-running (eval every 1m) ---
+      - orgId: 1
+        name: pod-not-running
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: agent-pod-not-running
+            title: Agent Pod Not Running
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'kube_pod_status_phase{namespace="secure-agent-pod", phase="Running"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: lt
+                        params:
+                          - 1
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+              github_issue: "frank#8"
+            annotations:
+              summary: Secure agent pod is not in Running phase
