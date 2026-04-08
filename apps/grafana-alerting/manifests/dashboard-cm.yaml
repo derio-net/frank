@@ -1,0 +1,181 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerting-dashboard
+  namespace: monitoring
+data:
+  feature-health-provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: feature-health
+        folder: feature-health
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/feature-health
+  feature-health.json: |
+    {
+      "uid": "fh-overview",
+      "title": "Feature Health",
+      "tags": ["feature-health"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "refresh": "30s",
+      "time": { "from": "now-1h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Alert Summary",
+          "type": "alertlist",
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+          "options": {
+            "alertListType": "alertRules",
+            "folder": { "title": "feature-health" },
+            "stateFilter": {
+              "firing": true,
+              "pending": true,
+              "noData": true,
+              "normal": false,
+              "error": true
+            },
+            "viewMode": "list"
+          }
+        },
+        {
+          "id": 2,
+          "title": "Cron Job Heartbeats",
+          "type": "table",
+          "gridPos": { "h": 8, "w": 16, "x": 8, "y": 0 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "(time() - willikins_heartbeat_last_success_timestamp) / 60",
+              "instant": true,
+              "format": "table",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": { "type": "auto" },
+                "inspect": false
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 60 },
+                  { "color": "red", "value": 180 }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Value" },
+                "properties": [
+                  { "id": "displayName", "value": "Minutes Since Last Success" },
+                  { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+                ]
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "filterFieldsByName",
+              "options": {
+                "include": { "names": ["job", "Value"] }
+              }
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Endpoint Probes",
+          "type": "table",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "probe_success{probe_group=\"feature_health\"}",
+              "instant": true,
+              "format": "table",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": { "type": "auto" },
+                "inspect": false
+              },
+              "mappings": [
+                { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+              ]
+            },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Value" },
+                "properties": [
+                  { "id": "displayName", "value": "Success" },
+                  { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+                ]
+              }
+            ]
+          },
+          "transformations": [
+            {
+              "id": "filterFieldsByName",
+              "options": {
+                "include": { "names": ["instance", "Value"] }
+              }
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Pod Status",
+          "type": "table",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "kube_pod_status_phase{namespace=~\"secure-agent-pod|n8n-01|paperclip-system\", phase=\"Running\"}",
+              "instant": true,
+              "format": "table",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "custom": {
+                "align": "auto",
+                "cellOptions": { "type": "auto" },
+                "inspect": false
+              }
+            },
+            "overrides": []
+          },
+          "transformations": [
+            {
+              "id": "filterFieldsByName",
+              "options": {
+                "include": { "names": ["namespace", "pod", "phase", "Value"] }
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "renameByName": { "Value": "Count" }
+              }
+            }
+          ]
+        }
+      ]
+    }
