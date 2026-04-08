@@ -52,6 +52,8 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **n8n** | Per-user workflow automation — 400+ integrations, visual node editor, webhook triggers, Authentik forward-auth (`192.168.55.216`) |
 | **Blackbox Exporter + Pushgateway** | Feature-level health monitoring — HTTP endpoint probes, cron heartbeat ingestion, Grafana alerting to Telegram |
 | **Health Bridge** | Grafana alert → GitHub Project lifecycle state bridge — automatic degraded/dead/healthy transitions, issue comments, bug issue creation |
+| **Traefik (in-cluster)** | In-cluster ingress controller, wildcard TLS (`*.cluster.derio.net`), ACME via Cloudflare DNS-01, Authentik forward-auth for 12 services (`192.168.55.220`) |
+| **gethomepage.dev** | Cluster dashboard at `master.cluster.derio.net` — service catalog with HTTP health indicators, custom bookmarks |
 
 ## Cluster State
 
@@ -87,6 +89,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 21. [Secure Agent Pod — Hardening an AI Coding Workstation]({{< relref "/building/21-secure-agent-pod" >}})
 22. [Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts]({{< relref "/building/22-health-monitoring" >}})
 23. [Health Bridge — Closing the Loop from Grafana Alerts to GitHub Issues]({{< relref "/building/23-health-bridge" >}})
+24. [In-Cluster Ingress — Traefik, Wildcard TLS, and a Homepage Dashboard]({{< relref "/building/24-in-cluster-ingress" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
@@ -110,3 +113,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 14. [Operating on Secure Agent Pod]({{< relref "/operating/14-secure-agent-pod" >}})
 15. [Operating on Health Monitoring]({{< relref "/operating/15-health-monitoring" >}})
 16. [Operating on Health Bridge]({{< relref "/operating/16-health-bridge" >}})
+17. [Operating on In-Cluster Ingress]({{< relref "/operating/17-ingress" >}})

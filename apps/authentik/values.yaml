@@ -76,6 +76,7 @@ blueprints:
     - authentik-blueprints-provider-grafana
     - authentik-blueprints-provider-infisical
     - authentik-blueprints-proxy-providers
+    - authentik-blueprints-cluster-proxy-providers
     - authentik-blueprints-agent-auth
 
 # -- Bundled PostgreSQL subchart (Bitnami)

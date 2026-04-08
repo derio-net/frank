@@ -18,786 +18,1006 @@
 
 
 operations:
-  - id: gitops-argocd-bootstrap
-    layer: gitops
-    app: bootstrap
-    plan: null
-    when: "Initial cluster setup — before any ArgoCD apps exist"
-    why_manual: "ArgoCD must be installed before it can manage itself; chicken-and-egg bootstrap"
-    commands:
-      - "helm repo add argo https://argoproj.github.io/argo-helm"
-      - helm repo update
-      - helm install argocd argo/argo-cd -n argocd --create-namespace --version 9.4.6
-      - kubectl apply -f apps/root/ -n argocd
-    verify:
-      - kubectl get pods -n argocd
-      - argocd app list --port-forward --port-forward-namespace argocd
-    status: done
-
-  - id: gpu-bios-f3-to-f6
-    layer: gpu
-    app: gpu-operator
-    plan: docs/superpowers/plans/2026-03-09--gpu--pcie-link-speed-fix.md
-    when: "After Task 1 — USB drive prepared with F6 and F3 BIOS files"
-    why_manual: "BIOS update requires physical access to the machine and Q-Flash interaction — cannot be done remotely or declaratively"
-    commands:
-      - "Power on gpu-1, press DEL during POST to enter BIOS setup"
-      - "Save & Exit → Save Profiles → export to USB as z790-eagle-f3-backup.cmo"
-      - "Press F8 to launch Q-Flash, select Z790EAGLEAX.F6 from USB, confirm flash"
-      - "Wait for board to reboot automatically, re-enter BIOS setup (DEL on POST)"
-      - Verify BIOS version shows F6 in the top-right corner of the BIOS screen
-      - "Save & Exit → Save Profiles → export to USB as z790-eagle-f6-defaults.cmo"
-      - ⚠️  Settings → Miscellaneous → Secure Boot → confirm DISABLED (F6 enables it by default)
-    verify:
-      - BIOS version shown as F6 in BIOS setup header
-      - Secure Boot shows Disabled
-    status: pending
-
-  - id: gpu-pcie-gen4
-    layer: gpu
-    app: gpu-operator
-    plan: docs/superpowers/plans/2026-03-09--gpu--pcie-link-speed-fix.md
-    when: "After Task 2 — BIOS F6 confirmed, Secure Boot confirmed disabled"
-    why_manual: "PCIe slot speed is a BIOS setting — no Talos patch or kernel parameter equivalent exists for this board/driver combination"
-    commands:
-      - Settings → IO Ports → Above 4G Decoding → Enabled
-      - Settings → IO Ports → Re-Size BAR Support → Enabled
-      - Settings → IO Ports → PEG/PCIe Slot Configuration → Set x16 slot from Auto → Gen 4
-      - Boot → CSM Support → Disabled
-      - Press F10 to save and exit
-      - Allow gpu-1 to boot into Talos
-    verify:
-      - "talosctl -n 192.168.55.31 dmesg | grep '0000:01:00.0' | grep 'GT/s'"
-      - Output should show 16.0 GT/s (not 2.5 GT/s)
-    status: pending
-
-  - id: obs-grafana-victorialogs-migration
-    layer: obs
-    app: victoria-metrics
-    plan: docs/superpowers/plans/2026-03-08--repo--declarative-drift-remediation.md
-    when: "After Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap"
-    why_manual: "The live API-added datasource must be deleted via Grafana UI before the provisioned one activates; Grafana does not auto-replace API datasources with provisioned ones of the same name"
-    commands:
-      - "Open Grafana at http://192.168.55.203"
-      - Navigate to Connections → Data sources
-      - "Find 'VictoriaLogs' (the API-added one, editable) and click Delete datasource"
-      - kubectl -n monitoring rollout restart deployment victoria-metrics-grafana
-    verify:
-      - "kubectl -n monitoring logs -l app.kubernetes.io/name=grafana | grep -i victorialogs"
-      - Open Grafana → Connections → Data sources — VictoriaLogs should appear as provisioned (non-editable)
-      - Click Test on VictoriaLogs — expect green success
-    status: done
-    notes: "Grafana automatically adopted the API-added datasource when it found a provisioning config with the same name on pod restart — no manual UI deletion was needed. Datasource now readOnly=True (confirmed via API)."
-
-  - id: grafana-alert-labels-github-issue
-    layer: obs
-    app: health-bridge
-    plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
-    when: "After health-bridge is deployed and webhook configured"
-    why_manual: "Grafana alert rules are API-provisioned"
-    commands:
-      - "List current alert rules to get UIDs"
-      - "For each rule (exercise-reminder-stale, session-manager-stale, audit-digest-stale, agent-pod-not-running): GET full rule, add github_issue label, PUT back"
-      - "Mapping: exercise-reminder-stale→willikins#11, session-manager-stale→willikins#13, audit-digest-stale→willikins#12, agent-pod-not-running→frank#8"
-    verify:
-      - "curl -s -u admin:$GRAFANA_PASS $GRAFANA_URL/api/v1/provisioning/alert-rules | jq '.[] | {title, github_issue: .labels.github_issue}'"
-    status: done
-
-  - id: grafana-health-bridge-webhook
-    layer: obs
-    app: health-bridge
-    plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
-    when: "After health-bridge pod is running"
-    why_manual: "Grafana provisioning is API-only (not GitOps)"
-    commands:
-      - "Create webhook contact point 'Health Bridge Webhook' via Grafana API"
-      - "URL: http://health-bridge.monitoring.svc.cluster.local:8080/webhook"
-      - "Auth: Bearer token from HEALTH_BRIDGE_WEBHOOK_SECRET"
-    verify:
-      - "curl -s -u admin:$GRAFANA_PASS $GRAFANA_URL/api/v1/provisioning/contact-points | jq '.[].name' | grep 'Health Bridge'"
-    status: done
-
-  - id: grafana-notification-policy-webhook
-    layer: obs
-    app: health-bridge
-    plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
-    when: "After webhook contact point is created"
-    why_manual: "Grafana notification policy is API-only"
-    commands:
-      - "Add route to notification policy: receiver='Health Bridge Webhook', matcher=grafana_folder='Feature Health'"
-      - "Ensure existing Telegram routes have continue:true so alerts reach both"
-    verify:
-      - "curl -s -u admin:$GRAFANA_PASS $GRAFANA_URL/api/v1/provisioning/policies | jq '.routes[] | select(.receiver == \"Health Bridge Webhook\")'"
-    status: done
-
-  - id: health-bridge-webhook-secret
-    layer: obs
-    app: health-bridge
-    plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
-    when: "Before deploying K8s manifests"
-    why_manual: "Infisical secret creation is UI-only"
-    commands:
-      - "Generate webhook secret: openssl rand -hex 32"
-      - "Create in Infisical UI: HEALTH_BRIDGE_WEBHOOK_SECRET and HEALTH_BRIDGE_GITHUB_TOKEN"
-    verify:
-      - "kubectl get externalsecret -n monitoring health-bridge-secrets -o jsonpath='{.status.conditions[0].status}' # Should return True"
-    status: done
-
-  - id: backup-r2-sops-secret
-    layer: backup
-    app: longhorn
-    plan: docs/superpowers/plans/2026-03-08--backup--longhorn-r2.md
-    when: "After Task 2 — after SOPS-encrypting the R2 secret"
-    why_manual: "SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
-    commands:
-      - "sops --decrypt secrets/longhorn/r2-secret.yaml | kubectl apply -f -"
-    verify:
-      - kubectl get secret longhorn-r2-secret -n longhorn-system
-    status: done
-
-  - id: secrets-eso-credentials-secret
-    layer: secrets
-    app: external-secrets
-    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
-    when: "Task 7 — after SOPS-encrypting eso-credentials.yaml with Client ID and Secret from Infisical UI"
-    why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
-    commands:
-      - source .env
-      - "sops --decrypt secrets/infisical/eso-credentials.yaml | kubectl apply -f -"
-    verify:
-      - kubectl get secret infisical-credentials -n external-secrets
-    status: done
-
-  - id: secrets-infisical-bootstrap-secrets
-    layer: secrets
-    app: infisical
-    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
-    when: "Task 4 — after SOPS-encrypting infisical-secrets.yaml and infisical-db-uri.yaml"
-    why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
-    commands:
-      - source .env
-      - "sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -"
-      - "sops --decrypt secrets/infisical/infisical-db-uri.yaml | kubectl apply -f -"
-    verify:
-      - kubectl get secret infisical-secrets -n infisical
-      - kubectl get secret infisical-db-uri -n infisical
-    status: done
-
-  - id: secrets-infisical-project-slug
-    layer: secrets
-    app: infisical-extras
-    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
-    when: "After ClusterSecretStore deployed and reports 'Project with slug not found'"
-    why_manual: "Infisical auto-generates a slug that differs from the project name; no API endpoint accessible to eso-cluster-reader (Viewer) returns workspace list — slug must be read from Infisical UI"
-    commands:
-      - Open Infisical UI → frank-cluster project → Project Settings → General → copy Project Slug
-      - "Update apps/infisical/manifests/cluster-secret-store.yaml: secretsScope.projectSlug: <slug>"
-      - git add apps/infisical/manifests/cluster-secret-store.yaml
-      - "{'git commit -m \"fix(infisical)': 'set correct project slug in ClusterSecretStore\"'}"
-      - git push
-    verify:
-      - "kubectl get clustersecretstore infisical -o jsonpath='{.status.conditions[0].message}'"
-      - "Expected: Valid — store validated"
-    status: done
-    notes: "Project slug is 'frank-cluster-iwpg' (auto-generated by Infisical v0.151.0; differs from project name 'frank-cluster'). Workspace list endpoint /api/v1/workspace returns empty array for Viewer-scoped identity."
-
-  - id: secrets-infisical-secrets-redis-update
-    layer: secrets
-    app: infisical
-    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
-    when: "After discovering Redis chart bug — after REDIS_URL added to infisical-secrets.yaml via sops --set"
-    why_manual: "SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; re-apply required after adding REDIS_URL because the chart builds REDIS_URL from redis.auth.password (plain value) rather than existingSecret, so the correct URL must come from infisical-secrets envFrom"
-    commands:
-      - source .env
-      - "sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -"
-    verify:
-      - "kubectl get secret infisical-secrets -n infisical -o jsonpath='{.data.REDIS_URL}' | base64 -d"
-    status: done
-    notes: "REDIS_URL value: redis://default:<password>@redis-master:6379 — password matches redis.auth.existingSecretPasswordKey in infisical-redis chart"
-
-  - id: secrets-infisical-ui-setup
-    layer: secrets
-    app: infisical
-    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
-    when: "Task 5 complete — Infisical pod Running and UI reachable at http://192.168.55.204"
-    why_manual: "Initial admin account, project creation, and Machine Identity setup have no CLI equivalent in self-hosted Infisical"
-    commands:
-      - "Open http://192.168.55.204 → Sign Up → create admin account"
-      - "Create project: frank-cluster"
-      - Verify prod environment exists (Settings → Environments)
-      - "Organization Settings → Machine Identities → Create Identity: eso-cluster-reader, Universal Auth"
-      - Click Add Client Secret → copy Client ID and Client Secret (shown once)
-      - frank-cluster project → Access Control → add eso-cluster-reader with Viewer role
-    verify:
-      - Machine Identity eso-cluster-reader exists in Organization Settings
-      - eso-cluster-reader has Viewer access to frank-cluster project
-    status: done
-    notes: "UI paths differ from docs in v0.151.0: Organization Access → Identities (not Organization Settings → Machine Identities). Client Secret found under the identity's Authentication tab."
-
-  - id: secrets-redis-statefulset-cleanup
-    layer: secrets
-    app: infisical-redis
-    plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
-    when: "After creating infisical-redis ArgoCD app — when infisical pod reports EPERM connecting to Redis"
-    why_manual: "ArgoCD prune:false leaves orphaned StatefulSets; the old redis-master StatefulSet (created by bundled infisical chart, label instance:infisical) conflicts with the NetworkPolicy from infisical-redis app (selects instance:infisical-redis) — must delete manually to allow correct StatefulSet to be recreated"
-    commands:
-      - kubectl delete statefulset redis-master -n infisical
-    verify:
-      - kubectl get pods -n infisical
-      - "Wait for redis-master-0 to restart with correct labels: kubectl get pod redis-master-0 -n infisical --show-labels"
-    status: done
-    notes: "selfHeal:true in infisical-redis app recreated the StatefulSet immediately with correct labels (instance:infisical-redis)"
-
-  - id: agents-create-sympozium-llm-key
-    layer: agents
-    app: sympozium-extras
-    plan: docs/superpowers/plans/2026-03-09--agents--sympozium.md
-    when: "Before pushing — ExternalSecret needs the Infisical source"
-    why_manual: "Infisical secret creation requires UI/API interaction outside ArgoCD"
-    commands:
-      - "Generate a LiteLLM virtual key: curl -X POST http://192.168.55.206:4000/key/generate -H 'Authorization: Bearer <MASTER_KEY>' -H 'Content-Type: application/json' -d '{\"key_alias\": \"sympozium\"}'"
-      - Copy the generated key from the response
-      - "In Infisical UI (192.168.55.204:8080), project frank-cluster-iwpg, environment prod: create secret SYMPOZIUM_LITELLM_KEY with the generated key value"
-    verify:
-      - kubectl get externalsecret sympozium-llm-key -n sympozium-system — should show SecretSynced (after push and sync)
-    status: done
-
-  - id: agents-telegram-bot-setup
-    layer: agents
-    app: sympozium-extras
-    plan: docs/superpowers/plans/2026-03-09--agents--sympozium.md
-    when: "When ready to enable Telegram channel — not required for initial deploy"
-    why_manual: "Telegram BotFather interaction is manual, token must be stored in Infisical"
-    commands:
-      - "Create bot via Telegram BotFather: /newbot, follow prompts"
-      - Store bot token in Infisical under path /sympozium/TELEGRAM_BOT_TOKEN
-      - Enable Telegram channel in SympoziumInstance manifest and push
-    verify:
-      - "kubectl get pods -n sympozium-system -l app=sympozium-telegram — should be Running"
-    status: pending
-
-  - id: n8n-01-sops-secret
-    layer: agents
-    app: n8n-01
-    plan: docs/superpowers/specs/2026-03-29--agents--n8n-01-design.md
-    when: "Before first ArgoCD sync"
-    why_manual: "Bootstrap secret must exist before n8n-01-postgresql starts; SOPS secrets applied out-of-band"
-    commands:
-      - "sops --decrypt secrets/n8n-01/n8n-01-secrets.yaml | kubectl apply -f -"
-    verify:
-      - "kubectl -n n8n-01 get secret n8n-01-secrets -o jsonpath='{.data.password}' | base64 -d"
-    status: done
-
-  - id: secure-agent-pod-bootstrap-secrets
-    layer: agents
-    app: secure-agent-pod
-    plan: docs/superpowers/plans/2026-03-30--agents--secure-agent-pod.md
-    when: "Before first ArgoCD sync"
-    why_manual: "Bootstrap secrets must exist before ESO can sync; SOPS decryption requires manual key access"
-    commands:
-      - "sops --decrypt secrets/secure-agent-pod/agent-secrets-tier2.yaml | kubectl apply -f -"
-      - "sops --decrypt secrets/secure-agent-pod/agent-configs.yaml | kubectl apply -f -"
-    verify:
-      - "kubectl get secret agent-secrets-tier2 -n secure-agent-pod"
-      - "kubectl get secret agent-configs -n secure-agent-pod"
-    status: done
-
-  - id: secure-agent-pod-infisical-setup
-    layer: agents
-    app: secure-agent-pod
-    plan: docs/superpowers/plans/2026-03-30--agents--secure-agent-pod.md
-    when: "Before first ArgoCD sync (after bootstrap secrets)"
-    why_manual: "Infisical project/secret creation requires Infisical UI; ESO universal auth token must be provisioned"
-    commands:
-      - "Navigate to Infisical → project → verify ANTHROPIC_API_KEY exists"
-      - "kubectl get externalsecret agent-secrets-infisical -n secure-agent-pod"
-    verify:
-      - "kubectl get externalsecret agent-secrets-infisical -n secure-agent-pod -o jsonpath='{.status.conditions[0].status}'  # Should return True"
-    status: done
-
-  - id: secure-agent-pod-kali-cleanup
-    layer: agents
-    app: secure-agent-pod
-    plan: docs/superpowers/plans/2026-03-30--agents--secure-agent-pod.md
-    when: "After Kali manifests removed and ArgoCD synced"
-    why_manual: "PVC data deletion is destructive and irreversible; requires human confirmation"
-    commands:
-      - "kubectl delete pvc kali-root -n kali-system"
-      - "kubectl delete namespace kali-system"
-    verify:
-      - "kubectl get namespace kali-system  # Should return not found"
-    status: done
-
-  - id: auth-agent-machine-user
-    layer: auth
-    app: authentik
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "After Task 10 Step 2 — Agent auth blueprint deployed"
-    why_manual: "Machine user credentials and client secret must be set via Authentik admin UI"
-    commands:
-      - "In Authentik Admin UI: Directory > Users > Create Service Account"
-      - "Username: claude-agent, Create group: No"
-      - "In Authentik Admin UI: Directory > Users > claude-agent > Groups > Add to root-admins"
-      - "In Authentik Admin UI: Providers > Kubernetes Agent Access > Edit > set Client Secret"
-      - "Generate client secret: openssl rand -base64 32 | tr -d '\n' | head -c 32"
-      - Save the client_id (k8s-agent) and client_secret for .env_agent
-    verify:
-      - "In Authentik Admin UI: Directory > Users shows claude-agent service account"
-      - "In Authentik Admin UI: Directory > Users > claude-agent shows root-admins membership"
-    status: done
-
-  - id: auth-akadmin-group
-    layer: auth
-    app: authentik
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "After Task 5 Step 6 — Authentik initial setup complete"
-    why_manual: "Bootstrap user assignment cannot be done via blueprint (user doesn't exist until first login)"
-    commands:
-      - "In Authentik Admin UI: Directory > Users > akadmin > Groups > Add to root-admins"
-    verify:
-      - "In Authentik Admin UI: Directory > Users > akadmin shows root-admins group membership"
-    status: done
-
-  - id: auth-argocd-oidc-client-secret
-    layer: auth
-    app: authentik
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "After Task 6 Step 4 — Blueprint has created the ArgoCD provider"
-    why_manual: "Client secret cannot be set via blueprint (secret value must not be in Git)"
-    commands:
-      - "In Authentik Admin UI: Applications > Providers > ArgoCD > Edit > set Client Secret from SOPS secret value"
-    verify:
-      - "In Authentik Admin UI: Providers > ArgoCD shows client_secret is set (not empty)"
-    status: done
-
-  - id: auth-argocd-oidc-secret
-    layer: auth
-    app: argocd
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "Before Task 6 Step 3 — ArgoCD needs the OIDC secret before OIDC is enabled"
-    why_manual: "SOPS-encrypted secret applied out-of-band"
-    commands:
-      - "sops --decrypt secrets/authentik/argocd-oidc-secret.yaml | kubectl apply -f -"
-    verify:
-      - kubectl get secret argocd-oidc-secret -n argocd
-    status: done
-
-  - id: auth-authentik-bootstrap-secrets
-    layer: auth
-    app: authentik
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "Before Task 3 — secrets must exist before Authentik pods start"
-    why_manual: "SOPS-encrypted secrets cannot be applied via ArgoCD (SOPS + ServerSideApply don't mix)"
-    commands:
-      - kubectl apply -f apps/root/templates/ns-authentik.yaml
-      - "sops --decrypt secrets/authentik/authentik-secrets.yaml | kubectl apply -f -"
-    verify:
-      - "kubectl get secret authentik-secrets -n authentik -o jsonpath='{.data.secret_key}' | base64 -d | head -c 5 && echo '...'"
-    status: done
-
-  - id: auth-grafana-oidc-client-secret
-    layer: auth
-    app: authentik
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "After Task 7 Step 5 — Blueprint has created the Grafana provider"
-    why_manual: "Client secret cannot be set via blueprint"
-    commands:
-      - "In Authentik Admin UI: Applications > Providers > Grafana > Edit > set Client Secret"
-    verify:
-      - "Navigate to https://grafana.frank.derio.net, click 'Sign in with Authentik', login as akadmin"
-    status: done
-
-  - id: auth-grafana-oidc-secret
-    layer: auth
-    app: grafana
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "Before Task 7 Step 4 — Grafana needs OIDC secret"
-    why_manual: "SOPS-encrypted secret applied out-of-band"
-    commands:
-      - "sops --decrypt secrets/authentik/grafana-oidc-secret.yaml | kubectl apply -f -"
-    verify:
-      - kubectl get secret grafana-oidc-secret -n monitoring
-    status: done
-
-  - id: auth-infisical-oidc-config
-    layer: auth
-    app: infisical
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "After Task 8 Step 2 — Blueprint has created the Infisical provider"
-    why_manual: "Infisical OIDC configuration is done via admin UI, not Helm values"
-    commands:
-      - "Decrypt client secret: sops --decrypt secrets/authentik/infisical-oidc-secret.yaml"
-      - "In Authentik Admin UI: Providers > Infisical > Edit > set Client Secret"
-      - "In Infisical Admin UI: Organization Settings > Security > SSO > Configure OIDC"
-      - "Set Issuer URL: https://auth.frank.derio.net/application/o/infisical/"
-      - "Set Client ID: infisical"
-      - "Set Client Secret: (same value as in Authentik)"
-    verify:
-      - "Navigate to https://infisical.frank.derio.net, see 'Sign in with SSO' option"
-    status: n/a
-    notes: "Infisical OIDC SSO requires Pro plan — blocked on free tier"
-
-  - id: auth-talos-oidc-patch
-    layer: auth
-    app: n/a
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "After Task 10 — Authentik agent provider exists"
-    why_manual: "Talos machine config patches are applied via omnictl"
-    commands:
-      - "omnictl apply -f patches/phase13-auth/omni-configpatch.yaml"
-    verify:
-      - "talosctl -n 192.168.55.21 get staticpod kube-apiserver -o yaml | grep oidc"
-    status: done
-    notes: "Applied as ConfigPatch 150-auth-oidc-apiserver via omnictl. Verified on all 3 control planes via staticpod resource."
-
-  - id: auth-traefik-authentik-route
-    layer: auth
-    app: authentik
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "After Task 5 Step 4 — LB service has external IP"
-    why_manual: "Traefik config on raspi-omni is outside cluster management"
-    commands:
-      - "Add authentik entry to Traefik config on raspi-omni: cilium_ip 192.168.55.211, port 80, url auth.frank.derio.net"
-      - Restart Traefik on raspi-omni
-    verify:
-      - "curl -s https://auth.frank.derio.net/if/flow/initial-setup/ | grep -i authentik"
-    status: done
-
-  - id: auth-traefik-forward-auth
-    layer: auth
-    app: authentik
-    plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
-    when: "After Task 9 Step 3 — Proxy providers created in Authentik"
-    why_manual: "Traefik config on raspi-omni is outside cluster management"
-    commands:
-      - "Configure Traefik forwardAuth middleware pointing to https://auth.frank.derio.net/outpost.goauthentik.io/auth/traefik"
-      - "Apply forwardAuth middleware to Longhorn, Hubble, Sympozium routes"
-      - Restart Traefik on raspi-omni
-    verify:
-      - "Navigate to https://longhorn.frank.derio.net — redirects to Authentik login"
-      - "After login, Longhorn UI loads normally"
-      - "Repeat for https://hubble.frank.derio.net and https://sympozium.frank.derio.net"
-    status: done
-    notes: "User applied Traefik changes via Ansible before implementation started"
-
-  - id: deploy-install-kubectl-plugin
-    layer: deploy
-    app: argo-rollouts
-    plan: docs/superpowers/specs/2026-03-25--deploy--argo-rollouts-design.md
-    when: "After controller is deployed — before operating any rollouts"
-    why_manual: "CLI plugin is a local developer tool, not a cluster resource"
-    commands:
-      - "curl -LO https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-darwin-amd64"
-      - "chmod +x kubectl-argo-rollouts-darwin-amd64 && sudo mv kubectl-argo-rollouts-darwin-amd64 /usr/local/bin/kubectl-argo-rollouts"
-    verify:
-      - "kubectl argo rollouts version"
-    status: done
-
-  - id: orch-build-paperclip-image
-    layer: orch
-    app: paperclip
-    plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
-    when: "Before deploying paperclip — image must exist in GHCR"
-    why_manual: "Upstream repo has no published images; building requires local Docker and GHCR auth"
-    commands:
-      - "git clone https://github.com/paperclipai/paperclip.git /tmp/paperclip && cd /tmp/paperclip && git checkout v0.3.1"
-      - "docker build -t ghcr.io/derio-net/paperclip:v0.3.1 ."
-      - "echo $GHCR_PAT | docker login ghcr.io -u derio-net --password-stdin"
-      - "docker push ghcr.io/derio-net/paperclip:v0.3.1"
-    verify:
-      - "docker pull ghcr.io/derio-net/paperclip:v0.3.1"
-    status: done
-
-  - id: orch-create-infisical-secrets
-    layer: orch
-    app: paperclip
-    plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
-    when: "Before deploying paperclip — ExternalSecrets need source data"
-    why_manual: "Secrets must be created in Infisical UI/CLI — cannot be declared in git"
-    commands:
-      - "Create LiteLLM virtual key for Paperclip in LiteLLM admin UI, store as PAPERCLIP_LITELLM_KEY in Infisical"
-      - "Generate random string: openssl rand -base64 32 — store as PAPERCLIP_AUTH_SECRET in Infisical"
-      - "Create GitHub PAT with read:packages scope, store as GHCR_PAT in Infisical (if not already present)"
-    verify:
-      - infisical secrets get PAPERCLIP_LITELLM_KEY
-      - infisical secrets get PAPERCLIP_AUTH_SECRET
-      - kubectl get externalsecret -n paperclip-system
-    status: done
-
-  - id: orch-traefik-paperclip-route
-    layer: orch
-    app: paperclip
-    plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
-    when: "After Paperclip deployment is healthy — add Traefik route on raspi-omni"
-    why_manual: "Traefik runs outside K8s on raspi-omni, managed via Ansible"
-    commands:
-      - "Add paperclip entry to Traefik Ansible vars: host paperclip.frank.derio.net, backend 192.168.55.212:3100"
-      - Run Ansible playbook to apply Traefik config on raspi-omni
-    verify:
-      - "curl -sk https://paperclip.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)"
-    status: pending
-
-  - id: media-comfyui-model-download
-    layer: media
-    app: comfyui
-    plan: docs/superpowers/plans/2026-03-14--media--comfyui-gpu-switcher.md
-    when: "After Task 15 - ComfyUI first confirmed running"
-    why_manual: "Model files must be downloaded interactively into the PVC; cannot be declarative"
-    commands:
-      - "# Activate ComfyUI via GPU Switcher UI at http://192.168.55.214:8080"
-      - "# Wait for ComfyUI pod to be Running"
-      - "# Open ComfyUI Manager at http://192.168.55.213:8188 -> Manager -> Install Models"
-      - "# Install LTX-2.3 video model (~5GB)"
-      - "# Optionally install Flux/SDXL image model and audio models"
-    verify:
-      - kubectl exec -n comfyui deploy/comfyui -- ls -la /opt/ComfyUI/models/checkpoints/
-      - "# Verify models appear in ComfyUI Web UI model dropdown"
-    status: pending
-
-  - id: media-traefik-comfyui-route
-    layer: media
-    app: comfyui
-    plan: docs/superpowers/plans/2026-03-14--media--comfyui-gpu-switcher.md
-    when: "After ComfyUI deployment is healthy — add Traefik route on raspi-omni"
-    why_manual: "Traefik runs outside K8s on raspi-omni, managed via Ansible"
-    commands:
-      - "Add comfyui entry to Traefik Ansible vars: host comfyui.frank.derio.net, backend 192.168.55.213:8188"
-      - "Add gpu-switcher entry to Traefik Ansible vars: host gpu.frank.derio.net, backend 192.168.55.214:8080"
-      - Run Ansible playbook to apply Traefik config on raspi-omni
-    verify:
-      - "curl -sk https://comfyui.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)"
-      - "curl -sk https://gpu.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)"
-    status: pending
-
-  - id: infer-infisical-secrets
-    layer: infer
-    app: litellm
-    plan: docs/superpowers/plans/2026-03-09--infer--ollama-litellm.md
-    when: "Before Task 5 — secrets must exist in Infisical before ExternalSecret can sync"
-    why_manual: "API keys are user credentials — must be entered via Infisical UI"
-    commands:
-      - "Open Infisical UI at http://192.168.55.204"
-      - Navigate to frank-cluster project → prod environment
-      - "Add secret: Key=OPENROUTER_API_KEY, Value=<your OpenRouter API key from https://openrouter.ai/settings/keys>"
-      - "Add secret: Key=LITELLM_MASTER_KEY, Value=<generate with: openssl rand -hex 32>"
-    verify:
-      - Secrets visible in Infisical UI under frank-cluster/prod
-    status: pending
-
-  - id: edge-hop-argocd-bootstrap
-    layer: edge
-    app: argocd (hop)
-    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
-    when: "After Task 3 — Hop root chart is committed and hop-1 is Ready"
-    why_manual: "ArgoCD must be Helm-installed before it can manage itself"
-    commands:
-      - "export KUBECONFIG=<HOP_KUBECONFIG>"
-      - kubectl create namespace argocd
-      - "helm repo add argo https://argoproj.github.io/argo-helm"
-      - helm install argocd argo/argo-cd --version 9.4.6 --namespace argocd -f clusters/hop/apps/argocd/values.yaml
-      - |
-        kubectl apply -f - <<'EOF'
-        apiVersion: argoproj.io/v1alpha1
-        kind: Application
-        metadata:
-          name: root
-          namespace: argocd
-        spec:
-          project: default
-          source:
-            repoURL: https://github.com/derio-net/frank.git
-            targetRevision: main
-            path: clusters/hop/apps/root
-          destination:
-            server: https://kubernetes.default.svc
-            namespace: argocd
-          syncPolicy:
-            automated:
-              prune: false
-              selfHeal: true
-        EOF
-    verify:
-      - "kubectl -n argocd get pods  # all pods Running"
-      - "kubectl -n argocd get app root  # should show Synced/Healthy"
-      - "# Note: root app initially uses project:default (AppProject hop-infrastructure doesn't exist yet). After first sync creates the AppProject, update: argocd app set root --project hop-infrastructure"
-    status: pending
-
-  - id: edge-hop-caddy-cloudflare-secret
-    layer: edge
-    app: caddy
-    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
-    when: "Before Caddy deployment — needs Cloudflare API token"
-    why_manual: "SOPS-encrypted secret applied out-of-band"
-    commands:
-      - |
-        cat <<'EOF' > /tmp/caddy-cloudflare.yaml
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: caddy-cloudflare
-          namespace: caddy-system
-        type: Opaque
-        stringData:
-          api-token: "<CLOUDFLARE_API_TOKEN_WITH_DNS_EDIT>"
-        EOF
-      - "sops --encrypt --age <AGE_PUBLIC_KEY> /tmp/caddy-cloudflare.yaml > secrets/hop/caddy-cloudflare.yaml"
-      - "sops --decrypt secrets/hop/caddy-cloudflare.yaml | kubectl --kubeconfig <HOP_KUBECONFIG> apply -f -"
-      - rm /tmp/caddy-cloudflare.yaml
-    verify:
-      - "kubectl --kubeconfig <HOP_KUBECONFIG> -n caddy-system get secret caddy-cloudflare"
-    status: pending
-
-  - id: edge-hop-dns-records
-    layer: edge
-    app: hop-infrastructure
-    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
-    when: "After hop-1 has a public IP"
-    why_manual: "Cloudflare DNS changes via UI or API — depends on user's Cloudflare setup"
-    commands:
-      - "Create A record: *.hop.derio.net → <HETZNER_PUBLIC_IP> (DNS only, no proxy)"
-      - "Create A record: blog.derio.net → <HETZNER_PUBLIC_IP> (DNS only, no proxy)"
-      - "Create A record: www.derio.net → <HETZNER_PUBLIC_IP> (DNS only, no proxy)"
-    verify:
-      - "dig +short *.hop.derio.net  # should return Hetzner IP"
-      - "dig +short blog.derio.net  # should return Hetzner IP"
-      - "dig +short www.derio.net  # should return Hetzner IP"
-    status: done
-
-  - id: edge-hop-headscale-first-client
-    layer: edge
-    app: headscale
-    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
-    when: "After all Hop services are verified running"
-    why_manual: "Requires interactive Tailscale client setup on a personal device"
-    commands:
-      - "kubectl --kubeconfig <HOP_KUBECONFIG> -n headscale-system exec -it deploy/headscale -- headscale users create default"
-      - "kubectl --kubeconfig <HOP_KUBECONFIG> -n headscale-system exec -it deploy/headscale -- headscale preauthkeys create --user default --reusable --expiration 24h"
-      - "# On client device: tailscale up --login-server https://headscale.hop.derio.net --authkey <PREAUTH_KEY>"
-    verify:
-      - "kubectl --kubeconfig <HOP_KUBECONFIG> -n headscale-system exec -it deploy/headscale -- headscale nodes list"
-    status: pending
-
-  - id: edge-hop-hetzner-provision
-    layer: edge
-    app: hop-infrastructure
-    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
-    when: "After Task 1 — Packer template is committed"
-    why_manual: "Requires Hetzner API token, Omni dashboard image download, and cluster allocation"
-    commands:
-      - Download Talos Hetzner image from Omni dashboard (Infrastructure → Download Installation Media → Hetzner Cloud)
-      - "packer build -var 'hcloud_token=<TOKEN>' -var 'talos_image_path=<PATH_TO_DOWNLOADED_IMAGE>' clusters/hop/packer/"
-      - hcloud volume create --name hop-data --size 10 --location fsn1
-      - "hcloud server create --name hop-1 --type cx22 --location fsn1 --image <SNAPSHOT_ID> --volume hop-data"
-      - "In Omni dashboard: allocate the new machine to a cluster named 'hop' as control-plane + worker"
-      - hcloud firewall create --name hop-fw
-      - "hcloud firewall add-rule hop-fw --direction in --protocol tcp --port 80 --source-ips 0.0.0.0/0 --source-ips ::/0"
-      - "hcloud firewall add-rule hop-fw --direction in --protocol tcp --port 443 --source-ips 0.0.0.0/0 --source-ips ::/0"
-      - "hcloud firewall add-rule hop-fw --direction in --protocol udp --port 3478 --source-ips 0.0.0.0/0 --source-ips ::/0"
-      - hcloud firewall apply-to-resource hop-fw --type server --server hop-1
-    verify:
-      - "omnictl get machines  # should show hop-1 registered"
-      - "omnictl get clusters  # should show 'hop' cluster"
-      - "kubectl --kubeconfig <HOP_KUBECONFIG> get nodes  # should show hop-1 Ready"
-      - "hcloud volume list  # should show hop-data attached to hop-1"
-    status: done
-
-  - id: edge-hop-secrets-bootstrap
-    layer: edge
-    app: hop-infrastructure
-    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
-    when: "Before deploying Headscale and Caddy"
-    why_manual: "SOPS-encrypted secrets must be applied before the workloads start"
-    commands:
-      - mkdir -p secrets/hop
-      - |
-        # Caddy Cloudflare API token (for ACME DNS challenge)
-        cat <<'EOF' > /tmp/caddy-cloudflare.yaml
-        apiVersion: v1
-        kind: Secret
-        metadata:
-          name: caddy-cloudflare
-          namespace: caddy-system
-        type: Opaque
-        stringData:
-          api-token: "<CLOUDFLARE_API_TOKEN>"
-        EOF
-        sops --encrypt --age <AGE_PUBLIC_KEY> /tmp/caddy-cloudflare.yaml > secrets/hop/caddy-cloudflare.yaml
-        sops --decrypt secrets/hop/caddy-cloudflare.yaml | kubectl --kubeconfig <HOP_KUBECONFIG> apply -f -
-        rm /tmp/caddy-cloudflare.yaml
-    verify:
-      - "kubectl --kubeconfig <HOP_KUBECONFIG> -n caddy-system get secret caddy-cloudflare"
-    status: pending
-
-  - id: edge-hop-volume-mount-patch
-    layer: edge
-    app: hop-infrastructure
-    plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
-    when: "After hop-1 is registered in Omni and hop-data volume is attached"
-    why_manual: "Requires Omni machine config patch with actual Hetzner Volume device ID"
-    commands:
-      - |
-        # First, format the volume (one-time via Talos machine config disk partition)
-        # Then mount it using kubelet extraMounts so pods can access it
-        cat <<'EOF' > /tmp/hop-volume-patch.yaml
-        machine:
-          disks:
-            - device: /dev/disk/by-id/scsi-0HC_Volume_<VOLUME_ID>
-              partitions:
-                - mountpoint: /var/mnt/hop-data
-                  size: 0
-          kubelet:
-            extraMounts:
-              - destination: /var/mnt/hop-data
-                type: bind
-                source: /var/mnt/hop-data
-                options: ["bind", "rshared", "rw"]
-        EOF
-      - "talosctl apply-config --config-patch @/tmp/hop-volume-patch.yaml  # applied via talosctl, not omnictl"
-    verify:
-      - "talosctl --nodes <HOP_IP> read /proc/mounts | grep hop-data"
-    status: done
-
-  - id: edge-tag-subnet-routers
-    layer: edge
-    app: headscale
-    plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
-    when: After ConfigMap deploy and Headscale restart
-    why_manual: Node tagging is an imperative Headscale CLI operation; cannot be declared in config
-    commands:
-      - source .env_hop
-      - kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
-      - kubectl -n headscale-system exec deploy/headscale -- headscale nodes tag --identifier <RASPI_D_ID> --tags tag:subnet-router
-      - kubectl -n headscale-system exec deploy/headscale -- headscale nodes tag --identifier <RASPI_E_ID> --tags tag:subnet-router
-    verify:
-      - "kubectl -n headscale-system exec deploy/headscale -- headscale nodes list  # Both nodes should show tag:subnet-router"
-    status: done
-
-  - id: edge-configure-raspi-d
-    layer: edge
-    app: headscale
-    plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
-    when: After Headscale ConfigMap deploy
-    why_manual: Raspberry Pis are standalone devices outside the cluster; OS and Tailscale config is imperative
-    commands:
-      - sudo sysctl -w net.ipv4.ip_forward=1
-      - echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
-      - sudo tailscale up --login-server=https://headscale.hop.derio.net --advertise-exit-node --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24 --advertise-tags=tag:subnet-router --accept-dns=false --hostname=$(hostname) --authkey $HEADSCALE_PREAUTH_KEY
-    verify:
-      - "cat /proc/sys/net/ipv4/ip_forward  # Should return 1"
-      - "tailscale status  # Should show connected with tag:subnet-router"
-    status: done
-
-  - id: edge-configure-raspi-e
-    layer: edge
-    app: headscale
-    plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
-    when: After Headscale ConfigMap deploy
-    why_manual: Raspberry Pis are standalone devices outside the cluster; OS and Tailscale config is imperative
-    commands:
-      - sudo sysctl -w net.ipv4.ip_forward=1
-      - echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
-      - sudo tailscale up --login-server=https://headscale.hop.derio.net --advertise-exit-node --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24 --advertise-tags=tag:subnet-router --accept-dns=false --hostname=$(hostname) --authkey $HEADSCALE_PREAUTH_KEY
-    verify:
-      - "cat /proc/sys/net/ipv4/ip_forward  # Should return 1"
-      - "tailscale status  # Should show connected with tag:subnet-router"
-    status: done
+- id: agents-create-sympozium-llm-key
+  layer: agents
+  app: sympozium-extras
+  plan: docs/superpowers/plans/2026-03-09--agents--sympozium.md
+  when: Before pushing — ExternalSecret needs the Infisical source
+  why_manual: Infisical secret creation requires UI/API interaction outside ArgoCD
+  commands:
+  - 'Generate a LiteLLM virtual key: curl -X POST http://192.168.55.206:4000/key/generate -H ''Authorization: Bearer <MASTER_KEY>''
+    -H ''Content-Type: application/json'' -d ''{"key_alias": "sympozium"}'''
+  - Copy the generated key from the response
+  - 'In Infisical UI (192.168.55.204:8080), project frank-cluster-iwpg, environment prod: create secret SYMPOZIUM_LITELLM_KEY
+    with the generated key value'
+  verify:
+  - kubectl get externalsecret sympozium-llm-key -n sympozium-system — should show SecretSynced (after push and sync)
+  status: done
+- id: agents-telegram-bot-setup
+  layer: agents
+  app: sympozium-extras
+  plan: docs/superpowers/plans/2026-03-09--agents--sympozium.md
+  when: When ready to enable Telegram channel — not required for initial deploy
+  why_manual: Telegram BotFather interaction is manual, token must be stored in Infisical
+  commands:
+  - 'Create bot via Telegram BotFather: /newbot, follow prompts'
+  - Store bot token in Infisical under path /sympozium/TELEGRAM_BOT_TOKEN
+  - Enable Telegram channel in SympoziumInstance manifest and push
+  verify:
+  - kubectl get pods -n sympozium-system -l app=sympozium-telegram — should be Running
+  status: pending
+- id: n8n-01-sops-secret
+  layer: agents
+  app: n8n-01
+  plan: docs/superpowers/specs/2026-03-29--agents--n8n-01-design.md
+  when: Before first ArgoCD sync
+  why_manual: Bootstrap secret must exist before n8n-01-postgresql starts; SOPS secrets applied out-of-band
+  commands:
+  - sops --decrypt secrets/n8n-01/n8n-01-secrets.yaml | kubectl apply -f -
+  verify:
+  - kubectl -n n8n-01 get secret n8n-01-secrets -o jsonpath='{.data.password}' | base64 -d
+  status: done
+- id: secure-agent-pod-bootstrap-secrets
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/superpowers/plans/2026-03-30--agents--secure-agent-pod.md
+  when: Before first ArgoCD sync
+  why_manual: Bootstrap secrets must exist before ESO can sync; SOPS decryption requires manual key access
+  commands:
+  - sops --decrypt secrets/secure-agent-pod/agent-secrets-tier2.yaml | kubectl apply -f -
+  - sops --decrypt secrets/secure-agent-pod/agent-configs.yaml | kubectl apply -f -
+  verify:
+  - kubectl get secret agent-secrets-tier2 -n secure-agent-pod
+  - kubectl get secret agent-configs -n secure-agent-pod
+  status: done
+- id: secure-agent-pod-infisical-setup
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/superpowers/plans/2026-03-30--agents--secure-agent-pod.md
+  when: Before first ArgoCD sync (after bootstrap secrets)
+  why_manual: Infisical project/secret creation requires Infisical UI; ESO universal auth token must be provisioned
+  commands:
+  - Navigate to Infisical → project → verify ANTHROPIC_API_KEY exists
+  - kubectl get externalsecret agent-secrets-infisical -n secure-agent-pod
+  verify:
+  - 'kubectl get externalsecret agent-secrets-infisical -n secure-agent-pod -o jsonpath=''{.status.conditions[0].status}''  #
+    Should return True'
+  status: done
+- id: secure-agent-pod-kali-cleanup
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/superpowers/plans/2026-03-30--agents--secure-agent-pod.md
+  when: After Kali manifests removed and ArgoCD synced
+  why_manual: PVC data deletion is destructive and irreversible; requires human confirmation
+  commands:
+  - kubectl delete pvc kali-root -n kali-system
+  - kubectl delete namespace kali-system
+  verify:
+  - 'kubectl get namespace kali-system  # Should return not found'
+  status: done
+- id: auth-agent-machine-user
+  layer: auth
+  app: authentik
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: After Task 10 Step 2 — Agent auth blueprint deployed
+  why_manual: Machine user credentials and client secret must be set via Authentik admin UI
+  commands:
+  - 'In Authentik Admin UI: Directory > Users > Create Service Account'
+  - 'Username: claude-agent, Create group: No'
+  - 'In Authentik Admin UI: Directory > Users > claude-agent > Groups > Add to root-admins'
+  - 'In Authentik Admin UI: Providers > Kubernetes Agent Access > Edit > set Client Secret'
+  - |-
+    Generate client secret: openssl rand -base64 32 | tr -d '
+    ' | head -c 32
+  - Save the client_id (k8s-agent) and client_secret for .env_agent
+  verify:
+  - 'In Authentik Admin UI: Directory > Users shows claude-agent service account'
+  - 'In Authentik Admin UI: Directory > Users > claude-agent shows root-admins membership'
+  status: done
+- id: auth-akadmin-group
+  layer: auth
+  app: authentik
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: After Task 5 Step 6 — Authentik initial setup complete
+  why_manual: Bootstrap user assignment cannot be done via blueprint (user doesn't exist until first login)
+  commands:
+  - 'In Authentik Admin UI: Directory > Users > akadmin > Groups > Add to root-admins'
+  verify:
+  - 'In Authentik Admin UI: Directory > Users > akadmin shows root-admins group membership'
+  status: done
+- id: auth-argocd-oidc-client-secret
+  layer: auth
+  app: authentik
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: After Task 6 Step 4 — Blueprint has created the ArgoCD provider
+  why_manual: Client secret cannot be set via blueprint (secret value must not be in Git)
+  commands:
+  - 'In Authentik Admin UI: Applications > Providers > ArgoCD > Edit > set Client Secret from SOPS secret value'
+  verify:
+  - 'In Authentik Admin UI: Providers > ArgoCD shows client_secret is set (not empty)'
+  status: done
+- id: auth-argocd-oidc-secret
+  layer: auth
+  app: argocd
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: Before Task 6 Step 3 — ArgoCD needs the OIDC secret before OIDC is enabled
+  why_manual: SOPS-encrypted secret applied out-of-band
+  commands:
+  - sops --decrypt secrets/authentik/argocd-oidc-secret.yaml | kubectl apply -f -
+  verify:
+  - kubectl get secret argocd-oidc-secret -n argocd
+  status: done
+- id: auth-authentik-bootstrap-secrets
+  layer: auth
+  app: authentik
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: Before Task 3 — secrets must exist before Authentik pods start
+  why_manual: SOPS-encrypted secrets cannot be applied via ArgoCD (SOPS + ServerSideApply don't mix)
+  commands:
+  - kubectl apply -f apps/root/templates/ns-authentik.yaml
+  - sops --decrypt secrets/authentik/authentik-secrets.yaml | kubectl apply -f -
+  verify:
+  - kubectl get secret authentik-secrets -n authentik -o jsonpath='{.data.secret_key}' | base64 -d | head -c 5 && echo '...'
+  status: done
+- id: auth-grafana-oidc-client-secret
+  layer: auth
+  app: authentik
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: After Task 7 Step 5 — Blueprint has created the Grafana provider
+  why_manual: Client secret cannot be set via blueprint
+  commands:
+  - 'In Authentik Admin UI: Applications > Providers > Grafana > Edit > set Client Secret'
+  verify:
+  - Navigate to https://grafana.frank.derio.net, click 'Sign in with Authentik', login as akadmin
+  status: done
+- id: auth-grafana-oidc-secret
+  layer: auth
+  app: grafana
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: Before Task 7 Step 4 — Grafana needs OIDC secret
+  why_manual: SOPS-encrypted secret applied out-of-band
+  commands:
+  - sops --decrypt secrets/authentik/grafana-oidc-secret.yaml | kubectl apply -f -
+  verify:
+  - kubectl get secret grafana-oidc-secret -n monitoring
+  status: done
+- id: auth-infisical-oidc-config
+  layer: auth
+  app: infisical
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: After Task 8 Step 2 — Blueprint has created the Infisical provider
+  why_manual: Infisical OIDC configuration is done via admin UI, not Helm values
+  commands:
+  - 'Decrypt client secret: sops --decrypt secrets/authentik/infisical-oidc-secret.yaml'
+  - 'In Authentik Admin UI: Providers > Infisical > Edit > set Client Secret'
+  - 'In Infisical Admin UI: Organization Settings > Security > SSO > Configure OIDC'
+  - 'Set Issuer URL: https://auth.frank.derio.net/application/o/infisical/'
+  - 'Set Client ID: infisical'
+  - 'Set Client Secret: (same value as in Authentik)'
+  verify:
+  - Navigate to https://infisical.frank.derio.net, see 'Sign in with SSO' option
+  status: n/a
+  notes: Infisical OIDC SSO requires Pro plan — blocked on free tier
+- id: auth-talos-oidc-patch
+  layer: auth
+  app: n/a
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: After Task 10 — Authentik agent provider exists
+  why_manual: Talos machine config patches are applied via omnictl
+  commands:
+  - omnictl apply -f patches/phase13-auth/omni-configpatch.yaml
+  verify:
+  - talosctl -n 192.168.55.21 get staticpod kube-apiserver -o yaml | grep oidc
+  status: done
+  notes: Applied as ConfigPatch 150-auth-oidc-apiserver via omnictl. Verified on all 3 control planes via staticpod resource.
+- id: auth-traefik-authentik-route
+  layer: auth
+  app: authentik
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: After Task 5 Step 4 — LB service has external IP
+  why_manual: Traefik config on raspi-omni is outside cluster management
+  commands:
+  - 'Add authentik entry to Traefik config on raspi-omni: cilium_ip 192.168.55.211, port 80, url auth.frank.derio.net'
+  - Restart Traefik on raspi-omni
+  verify:
+  - curl -s https://auth.frank.derio.net/if/flow/initial-setup/ | grep -i authentik
+  status: done
+- id: auth-traefik-forward-auth
+  layer: auth
+  app: authentik
+  plan: docs/superpowers/plans/2026-03-11--auth--authentik.md
+  when: After Task 9 Step 3 — Proxy providers created in Authentik
+  why_manual: Traefik config on raspi-omni is outside cluster management
+  commands:
+  - Configure Traefik forwardAuth middleware pointing to https://auth.frank.derio.net/outpost.goauthentik.io/auth/traefik
+  - Apply forwardAuth middleware to Longhorn, Hubble, Sympozium routes
+  - Restart Traefik on raspi-omni
+  verify:
+  - Navigate to https://longhorn.frank.derio.net — redirects to Authentik login
+  - After login, Longhorn UI loads normally
+  - Repeat for https://hubble.frank.derio.net and https://sympozium.frank.derio.net
+  status: done
+  notes: User applied Traefik changes via Ansible before implementation started
+- id: backup-r2-sops-secret
+  layer: backup
+  app: longhorn
+  plan: docs/superpowers/plans/2026-03-08--backup--longhorn-r2.md
+  when: After Task 2 — after SOPS-encrypting the R2 secret
+  why_manual: SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted
+    secrets must live outside ArgoCD-managed paths and be applied out-of-band
+  commands:
+  - sops --decrypt secrets/longhorn/r2-secret.yaml | kubectl apply -f -
+  verify:
+  - kubectl get secret longhorn-r2-secret -n longhorn-system
+  status: done
+- id: cicd-authentik-gitea-oidc
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: Before Gitea deploy — OIDC provider must exist in Authentik
+  why_manual: Authentik provider/application creation requires API token
+  commands:
+  - 'Run: bash scripts/tmp/setup-authentik-cicd-oidc.sh (creates both Gitea and Zot providers+apps)'
+  - Store printed GITEA_OIDC_CLIENT_SECRET in Infisical
+  verify:
+  - 'curl -H ''Authorization: Bearer $AK_TOKEN'' http://192.168.55.211:9000/api/v3/providers/oauth2/ | jq ''.results[].name''
+    — includes Gitea'
+  - Infisical → GITEA_OIDC_CLIENT_SECRET exists
+  status: pending
+- id: cicd-authentik-zot-oidc
+  layer: cicd
+  app: zot
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: Before Zot deploy — OIDC provider must exist in Authentik
+  why_manual: Authentik provider/application creation requires API token
+  commands:
+  - 'Run: bash scripts/tmp/setup-authentik-cicd-oidc.sh (creates both Gitea and Zot providers+apps)'
+  - Store printed ZOT_OIDC_CLIENT_SECRET in Infisical
+  verify:
+  - 'curl -H ''Authorization: Bearer $AK_TOKEN'' http://192.168.55.211:9000/api/v3/providers/oauth2/ | jq ''.results[].name''
+    — includes Zot'
+  - Infisical → ZOT_OIDC_CLIENT_SECRET exists
+  status: pending
+- id: cicd-cosign-keypair
+  layer: cicd
+  app: tekton
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: Before Pipeline Stage C
+  why_manual: Key generation must be done securely, then stored in Infisical
+  commands:
+  - COSIGN_PASSWORD='' cosign generate-key-pair (empty password — the Task uses COSIGN_PASSWORD='')
+  - Store cosign.key (private) in Infisical as COSIGN_KEY
+  - Store cosign.pub (public) in repo at apps/tekton/cosign.pub
+  verify:
+  - Infisical → COSIGN_KEY exists
+  - cosign.pub committed to repo
+  status: pending
+- id: cicd-gitea-mirror-test-repo
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: After Gitea is deployed
+  why_manual: Mirror creation is a one-time Gitea API/UI operation
+  commands:
+  - Gitea UI → + → New Migration → GitHub → URL of test repo → check 'Mirror' → interval 10m
+  - 'Or via API: POST /api/v1/repos/migrate with mirror=true'
+  verify:
+  - Gitea → repo shows 'Mirror' badge, last synced within 10 minutes
+  status: pending
+- id: cicd-gitea-service-account
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: After Gitea is deployed and Authentik OIDC works
+  why_manual: Service account and API token must be created via Gitea UI/API
+  commands:
+  - 'Gitea UI → Site Administration → User Accounts → Create (username: tekton-bot, email: tekton@frank.local)'
+  - 'Gitea UI → tekton-bot → Settings → Applications → Generate Token (name: tekton-ci, scopes: repo, issue)'
+  - Store token in Infisical as GITEA_API_TOKEN
+  verify:
+  - 'curl -H ''Authorization: token <TOKEN>'' http://192.168.55.209:3000/api/v1/user → returns tekton-bot'
+  - Infisical → GITEA_API_TOKEN exists
+  status: pending
+- id: cicd-gitea-webhook
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: After Tekton Triggers are deployed and EventListener is running
+  why_manual: Webhook creation is per-repo configuration in Gitea
+  commands:
+  - Gitea → test repo → Settings → Webhooks → Add Webhook → Gitea
+  - 'URL: http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080'
+  - 'Secret: (value from Infisical GITEA_WEBHOOK_SECRET)'
+  - 'Events: Push, Pull Request'
+  verify:
+  - Gitea → Webhooks → test delivery → returns 2xx from EventListener
+  status: pending
+- id: cicd-infisical-gitea-secrets
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: Before Gitea deploy
+  why_manual: Infisical secret creation requires UI/API interaction
+  commands:
+  - 'Create in Infisical: GITEA_ADMIN_PASSWORD (generate strong password)'
+  - 'Create in Infisical: GITHUB_MIRROR_TOKEN (GitHub PAT with repo read scope)'
+  verify:
+  - Infisical → GITEA_ADMIN_PASSWORD exists
+  - Infisical → GITHUB_MIRROR_TOKEN exists
+  status: pending
+- id: cicd-infisical-webhook-secret
+  layer: cicd
+  app: tekton
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: Before wiring Tekton Triggers
+  why_manual: Infisical secret creation requires UI/API interaction
+  commands:
+  - 'Create in Infisical: GITEA_WEBHOOK_SECRET (generate random string)'
+  verify:
+  - Infisical → GITEA_WEBHOOK_SECRET exists
+  status: pending
+- id: cicd-infisical-zot-secrets
+  layer: cicd
+  app: zot
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: Before Zot deploy
+  why_manual: Infisical secret creation requires UI/API interaction
+  commands:
+  - 'Create in Infisical: ZOT_PUSH_PASSWORD (generate strong password)'
+  verify:
+  - Infisical → ZOT_PUSH_PASSWORD exists
+  status: pending
+- id: cicd-pc1-role-label
+  layer: cicd
+  app: longhorn
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: Before any CI/CD workload deployment
+  why_manual: Omni config patch requires UI or omnictl interaction
+  commands:
+  - 'Apply Omni machine config patch for pc-1: nodeLabels: role=cicd'
+  verify:
+  - kubectl get node pc-1 --show-labels | grep role=cicd
+  status: pending
+- id: cicd-talos-containerd-mirror
+  layer: cicd
+  app: zot
+  plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+  when: After Zot is deployed and verified
+  why_manual: Omni config patch requires UI or omnictl interaction; triggers node reboot
+  commands:
+  - Apply Omni cluster-wide config patch with containerd mirror for 192.168.55.210:5000 (with or without insecureSkipVerify
+    depending on cert-manager IP SAN support)
+  - Verify nodes reboot and come back Ready
+  verify:
+  - talosctl -n 192.168.55.21 get machineconfig -o yaml | grep 192.168.55.210
+  - kubectl get nodes — all nodes Ready
+  - crictl pull 192.168.55.210:5000/test/alpine:latest (on any node)
+  status: pending
+- id: deploy-install-kubectl-plugin
+  layer: deploy
+  app: argo-rollouts
+  plan: docs/superpowers/specs/2026-03-25--deploy--argo-rollouts-design.md
+  when: After controller is deployed — before operating any rollouts
+  why_manual: CLI plugin is a local developer tool, not a cluster resource
+  commands:
+  - curl -LO https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-darwin-amd64
+  - chmod +x kubectl-argo-rollouts-darwin-amd64 && sudo mv kubectl-argo-rollouts-darwin-amd64 /usr/local/bin/kubectl-argo-rollouts
+  verify:
+  - kubectl argo rollouts version
+  status: done
+- id: edge-configure-raspi-d
+  layer: edge
+  app: headscale
+  plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
+  when: After Headscale ConfigMap deploy
+  why_manual: Raspberry Pis are standalone devices outside the cluster; OS and Tailscale config is imperative
+  commands:
+  - sudo sysctl -w net.ipv4.ip_forward=1
+  - echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
+  - sudo tailscale up --login-server=https://headscale.hop.derio.net --advertise-exit-node --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24
+    --advertise-tags=tag:subnet-router --accept-dns=false --hostname=$(hostname) --authkey $HEADSCALE_PREAUTH_KEY
+  verify:
+  - 'cat /proc/sys/net/ipv4/ip_forward  # Should return 1'
+  - 'tailscale status  # Should show connected with tag:subnet-router'
+  status: done
+- id: edge-configure-raspi-e
+  layer: edge
+  app: headscale
+  plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
+  when: After Headscale ConfigMap deploy
+  why_manual: Raspberry Pis are standalone devices outside the cluster; OS and Tailscale config is imperative
+  commands:
+  - sudo sysctl -w net.ipv4.ip_forward=1
+  - echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
+  - sudo tailscale up --login-server=https://headscale.hop.derio.net --advertise-exit-node --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24
+    --advertise-tags=tag:subnet-router --accept-dns=false --hostname=$(hostname) --authkey $HEADSCALE_PREAUTH_KEY
+  verify:
+  - 'cat /proc/sys/net/ipv4/ip_forward  # Should return 1'
+  - 'tailscale status  # Should show connected with tag:subnet-router'
+  status: done
+- id: edge-hop-argocd-bootstrap
+  layer: edge
+  app: argocd (hop)
+  plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
+  when: After Task 3 — Hop root chart is committed and hop-1 is Ready
+  why_manual: ArgoCD must be Helm-installed before it can manage itself
+  commands:
+  - export KUBECONFIG=<HOP_KUBECONFIG>
+  - kubectl create namespace argocd
+  - helm repo add argo https://argoproj.github.io/argo-helm
+  - helm install argocd argo/argo-cd --version 9.4.6 --namespace argocd -f clusters/hop/apps/argocd/values.yaml
+  - |
+    kubectl apply -f - <<'EOF'
+    apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: root
+      namespace: argocd
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/derio-net/frank.git
+        targetRevision: main
+        path: clusters/hop/apps/root
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+    EOF
+  verify:
+  - 'kubectl -n argocd get pods  # all pods Running'
+  - 'kubectl -n argocd get app root  # should show Synced/Healthy'
+  - '# Note: root app initially uses project:default (AppProject hop-infrastructure doesn''t exist yet). After first sync
+    creates the AppProject, update: argocd app set root --project hop-infrastructure'
+  status: pending
+- id: edge-hop-caddy-cloudflare-secret
+  layer: edge
+  app: caddy
+  plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
+  when: Before Caddy deployment — needs Cloudflare API token
+  why_manual: SOPS-encrypted secret applied out-of-band
+  commands:
+  - |
+    cat <<'EOF' > /tmp/caddy-cloudflare.yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: caddy-cloudflare
+      namespace: caddy-system
+    type: Opaque
+    stringData:
+      api-token: "<CLOUDFLARE_API_TOKEN_WITH_DNS_EDIT>"
+    EOF
+  - sops --encrypt --age <AGE_PUBLIC_KEY> /tmp/caddy-cloudflare.yaml > secrets/hop/caddy-cloudflare.yaml
+  - sops --decrypt secrets/hop/caddy-cloudflare.yaml | kubectl --kubeconfig <HOP_KUBECONFIG> apply -f -
+  - rm /tmp/caddy-cloudflare.yaml
+  verify:
+  - kubectl --kubeconfig <HOP_KUBECONFIG> -n caddy-system get secret caddy-cloudflare
+  status: pending
+- id: edge-hop-dns-records
+  layer: edge
+  app: hop-infrastructure
+  plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
+  when: After hop-1 has a public IP
+  why_manual: Cloudflare DNS changes via UI or API — depends on user's Cloudflare setup
+  commands:
+  - 'Create A record: *.hop.derio.net → <HETZNER_PUBLIC_IP> (DNS only, no proxy)'
+  - 'Create A record: blog.derio.net → <HETZNER_PUBLIC_IP> (DNS only, no proxy)'
+  - 'Create A record: www.derio.net → <HETZNER_PUBLIC_IP> (DNS only, no proxy)'
+  verify:
+  - 'dig +short *.hop.derio.net  # should return Hetzner IP'
+  - 'dig +short blog.derio.net  # should return Hetzner IP'
+  - 'dig +short www.derio.net  # should return Hetzner IP'
+  status: done
+- id: edge-hop-headscale-first-client
+  layer: edge
+  app: headscale
+  plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
+  when: After all Hop services are verified running
+  why_manual: Requires interactive Tailscale client setup on a personal device
+  commands:
+  - kubectl --kubeconfig <HOP_KUBECONFIG> -n headscale-system exec -it deploy/headscale -- headscale users create default
+  - kubectl --kubeconfig <HOP_KUBECONFIG> -n headscale-system exec -it deploy/headscale -- headscale preauthkeys create --user
+    default --reusable --expiration 24h
+  - '# On client device: tailscale up --login-server https://headscale.hop.derio.net --authkey <PREAUTH_KEY>'
+  verify:
+  - kubectl --kubeconfig <HOP_KUBECONFIG> -n headscale-system exec -it deploy/headscale -- headscale nodes list
+  status: pending
+- id: edge-hop-hetzner-provision
+  layer: edge
+  app: hop-infrastructure
+  plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
+  when: After Task 1 — Packer template is committed
+  why_manual: Requires Hetzner API token, Omni dashboard image download, and cluster allocation
+  commands:
+  - Download Talos Hetzner image from Omni dashboard (Infrastructure → Download Installation Media → Hetzner Cloud)
+  - packer build -var 'hcloud_token=<TOKEN>' -var 'talos_image_path=<PATH_TO_DOWNLOADED_IMAGE>' clusters/hop/packer/
+  - hcloud volume create --name hop-data --size 10 --location fsn1
+  - hcloud server create --name hop-1 --type cx22 --location fsn1 --image <SNAPSHOT_ID> --volume hop-data
+  - 'In Omni dashboard: allocate the new machine to a cluster named ''hop'' as control-plane + worker'
+  - hcloud firewall create --name hop-fw
+  - hcloud firewall add-rule hop-fw --direction in --protocol tcp --port 80 --source-ips 0.0.0.0/0 --source-ips ::/0
+  - hcloud firewall add-rule hop-fw --direction in --protocol tcp --port 443 --source-ips 0.0.0.0/0 --source-ips ::/0
+  - hcloud firewall add-rule hop-fw --direction in --protocol udp --port 3478 --source-ips 0.0.0.0/0 --source-ips ::/0
+  - hcloud firewall apply-to-resource hop-fw --type server --server hop-1
+  verify:
+  - 'omnictl get machines  # should show hop-1 registered'
+  - 'omnictl get clusters  # should show ''hop'' cluster'
+  - 'kubectl --kubeconfig <HOP_KUBECONFIG> get nodes  # should show hop-1 Ready'
+  - 'hcloud volume list  # should show hop-data attached to hop-1'
+  status: done
+- id: edge-hop-secrets-bootstrap
+  layer: edge
+  app: hop-infrastructure
+  plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
+  when: Before deploying Headscale and Caddy
+  why_manual: SOPS-encrypted secrets must be applied before the workloads start
+  commands:
+  - mkdir -p secrets/hop
+  - |
+    # Caddy Cloudflare API token (for ACME DNS challenge)
+    cat <<'EOF' > /tmp/caddy-cloudflare.yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: caddy-cloudflare
+      namespace: caddy-system
+    type: Opaque
+    stringData:
+      api-token: "<CLOUDFLARE_API_TOKEN>"
+    EOF
+    sops --encrypt --age <AGE_PUBLIC_KEY> /tmp/caddy-cloudflare.yaml > secrets/hop/caddy-cloudflare.yaml
+    sops --decrypt secrets/hop/caddy-cloudflare.yaml | kubectl --kubeconfig <HOP_KUBECONFIG> apply -f -
+    rm /tmp/caddy-cloudflare.yaml
+  verify:
+  - kubectl --kubeconfig <HOP_KUBECONFIG> -n caddy-system get secret caddy-cloudflare
+  status: pending
+- id: edge-hop-volume-mount-patch
+  layer: edge
+  app: hop-infrastructure
+  plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md
+  when: After hop-1 is registered in Omni and hop-data volume is attached
+  why_manual: Requires Omni machine config patch with actual Hetzner Volume device ID
+  commands:
+  - |
+    # First, format the volume (one-time via Talos machine config disk partition)
+    # Then mount it using kubelet extraMounts so pods can access it
+    cat <<'EOF' > /tmp/hop-volume-patch.yaml
+    machine:
+      disks:
+        - device: /dev/disk/by-id/scsi-0HC_Volume_<VOLUME_ID>
+          partitions:
+            - mountpoint: /var/mnt/hop-data
+              size: 0
+      kubelet:
+        extraMounts:
+          - destination: /var/mnt/hop-data
+            type: bind
+            source: /var/mnt/hop-data
+            options: ["bind", "rshared", "rw"]
+    EOF
+  - 'talosctl apply-config --config-patch @/tmp/hop-volume-patch.yaml  # applied via talosctl, not omnictl'
+  verify:
+  - talosctl --nodes <HOP_IP> read /proc/mounts | grep hop-data
+  status: done
+- id: edge-tag-subnet-routers
+  layer: edge
+  app: headscale
+  plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
+  when: After ConfigMap deploy and Headscale restart
+  why_manual: Node tagging is an imperative Headscale CLI operation; cannot be declared in config
+  commands:
+  - source .env_hop
+  - kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
+  - kubectl -n headscale-system exec deploy/headscale -- headscale nodes tag --identifier <RASPI_D_ID> --tags tag:subnet-router
+  - kubectl -n headscale-system exec deploy/headscale -- headscale nodes tag --identifier <RASPI_E_ID> --tags tag:subnet-router
+  verify:
+  - 'kubectl -n headscale-system exec deploy/headscale -- headscale nodes list  # Both nodes should show tag:subnet-router'
+  status: done
+- id: gitops-argocd-bootstrap
+  layer: gitops
+  app: bootstrap
+  plan: null
+  when: Initial cluster setup — before any ArgoCD apps exist
+  why_manual: ArgoCD must be installed before it can manage itself; chicken-and-egg bootstrap
+  commands:
+  - helm repo add argo https://argoproj.github.io/argo-helm
+  - helm repo update
+  - helm install argocd argo/argo-cd -n argocd --create-namespace --version 9.4.6
+  - kubectl apply -f apps/root/ -n argocd
+  verify:
+  - kubectl get pods -n argocd
+  - argocd app list --port-forward --port-forward-namespace argocd
+  status: done
+- id: gpu-bios-f3-to-f6
+  layer: gpu
+  app: gpu-operator
+  plan: docs/superpowers/plans/2026-03-09--gpu--pcie-link-speed-fix.md
+  when: After Task 1 — USB drive prepared with F6 and F3 BIOS files
+  why_manual: BIOS update requires physical access to the machine and Q-Flash interaction — cannot be done remotely or declaratively
+  commands:
+  - Power on gpu-1, press DEL during POST to enter BIOS setup
+  - Save & Exit → Save Profiles → export to USB as z790-eagle-f3-backup.cmo
+  - Press F8 to launch Q-Flash, select Z790EAGLEAX.F6 from USB, confirm flash
+  - Wait for board to reboot automatically, re-enter BIOS setup (DEL on POST)
+  - Verify BIOS version shows F6 in the top-right corner of the BIOS screen
+  - Save & Exit → Save Profiles → export to USB as z790-eagle-f6-defaults.cmo
+  - ⚠️  Settings → Miscellaneous → Secure Boot → confirm DISABLED (F6 enables it by default)
+  verify:
+  - BIOS version shown as F6 in BIOS setup header
+  - Secure Boot shows Disabled
+  status: pending
+- id: gpu-pcie-gen4
+  layer: gpu
+  app: gpu-operator
+  plan: docs/superpowers/plans/2026-03-09--gpu--pcie-link-speed-fix.md
+  when: After Task 2 — BIOS F6 confirmed, Secure Boot confirmed disabled
+  why_manual: PCIe slot speed is a BIOS setting — no Talos patch or kernel parameter equivalent exists for this board/driver
+    combination
+  commands:
+  - Settings → IO Ports → Above 4G Decoding → Enabled
+  - Settings → IO Ports → Re-Size BAR Support → Enabled
+  - Settings → IO Ports → PEG/PCIe Slot Configuration → Set x16 slot from Auto → Gen 4
+  - Boot → CSM Support → Disabled
+  - Press F10 to save and exit
+  - Allow gpu-1 to boot into Talos
+  verify:
+  - talosctl -n 192.168.55.31 dmesg | grep '0000:01:00.0' | grep 'GT/s'
+  - Output should show 16.0 GT/s (not 2.5 GT/s)
+  status: pending
+- id: infer-infisical-secrets
+  layer: infer
+  app: litellm
+  plan: docs/superpowers/plans/2026-03-09--infer--ollama-litellm.md
+  when: Before Task 5 — secrets must exist in Infisical before ExternalSecret can sync
+  why_manual: API keys are user credentials — must be entered via Infisical UI
+  commands:
+  - Open Infisical UI at http://192.168.55.204
+  - Navigate to frank-cluster project → prod environment
+  - 'Add secret: Key=OPENROUTER_API_KEY, Value=<your OpenRouter API key from https://openrouter.ai/settings/keys>'
+  - 'Add secret: Key=LITELLM_MASTER_KEY, Value=<generate with: openssl rand -hex 32>'
+  verify:
+  - Secrets visible in Infisical UI under frank-cluster/prod
+  status: pending
+- id: media-comfyui-model-download
+  layer: media
+  app: comfyui
+  plan: docs/superpowers/plans/2026-03-14--media--comfyui-gpu-switcher.md
+  when: After Task 15 - ComfyUI first confirmed running
+  why_manual: Model files must be downloaded interactively into the PVC; cannot be declarative
+  commands:
+  - '# Activate ComfyUI via GPU Switcher UI at http://192.168.55.214:8080'
+  - '# Wait for ComfyUI pod to be Running'
+  - '# Open ComfyUI Manager at http://192.168.55.213:8188 -> Manager -> Install Models'
+  - '# Install LTX-2.3 video model (~5GB)'
+  - '# Optionally install Flux/SDXL image model and audio models'
+  verify:
+  - kubectl exec -n comfyui deploy/comfyui -- ls -la /opt/ComfyUI/models/checkpoints/
+  - '# Verify models appear in ComfyUI Web UI model dropdown'
+  status: pending
+- id: media-traefik-comfyui-route
+  layer: media
+  app: comfyui
+  plan: docs/superpowers/plans/2026-03-14--media--comfyui-gpu-switcher.md
+  when: After ComfyUI deployment is healthy — add Traefik route on raspi-omni
+  why_manual: Traefik runs outside K8s on raspi-omni, managed via Ansible
+  commands:
+  - 'Add comfyui entry to Traefik Ansible vars: host comfyui.frank.derio.net, backend 192.168.55.213:8188'
+  - 'Add gpu-switcher entry to Traefik Ansible vars: host gpu.frank.derio.net, backend 192.168.55.214:8080'
+  - Run Ansible playbook to apply Traefik config on raspi-omni
+  verify:
+  - curl -sk https://comfyui.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)
+  - curl -sk https://gpu.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)
+  status: pending
+- id: net-authentik-cluster-proxy-provider
+  layer: net
+  app: authentik
+  plan: 2026-03-29--net--in-cluster-ingress
+  when: Before testing forward-auth services
+  why_manual: Authentik provider/app creation requires API or UI interaction
+  commands:
+  - Create Proxy Provider in Authentik (forward-auth mode)
+  - 'External host: https://*.cluster.derio.net'
+  - 'Note: redirect_uris must be list of objects [{matching_mode: strict, url: ...}]'
+  - 'Note: signing_key UUID — query an existing provider to find it'
+  - Add the provider to the embedded outpost
+  verify:
+  - curl -k https://longhorn.cluster.derio.net → redirects to Authentik login
+  - After login → Longhorn UI loads
+  status: pending
+- id: net-pihole-cluster-wildcard
+  layer: net
+  app: traefik
+  plan: 2026-03-29--net--in-cluster-ingress
+  when: Before testing IngressRoutes
+  why_manual: Pi-hole DNS is managed via web UI, not declarative
+  commands:
+  - Pi-hole Admin → Local DNS → DNS Records
+  - 'Add: *.cluster.derio.net → 192.168.55.220'
+  - Repeat on both Pi-hole instances
+  verify:
+  - nslookup master.cluster.derio.net
+  - nslookup grafana.cluster.derio.net
+  status: pending
+- id: net-traefik-cloudflare-secret
+  layer: net
+  app: traefik
+  plan: 2026-03-29--net--in-cluster-ingress
+  when: Before Traefik deployment
+  why_manual: Bootstrap secret must exist before Traefik starts ACME challenge
+  commands:
+  - |
+    cat <<EOF > secrets/traefik-cloudflare-credentials.yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: traefik-cloudflare-credentials
+      namespace: traefik-system
+    type: Opaque
+    stringData:
+      api-token: "<CF_DNS_API_TOKEN value from .env_hop>"
+    EOF
+  - sops --encrypt --in-place secrets/traefik-cloudflare-credentials.yaml
+  - kubectl create namespace traefik-system || true
+  - sops --decrypt secrets/traefik-cloudflare-credentials.yaml | kubectl apply -f -
+  verify:
+  - kubectl get secret traefik-cloudflare-credentials -n traefik-system
+  status: pending
+- id: grafana-alert-labels-github-issue
+  layer: obs
+  app: health-bridge
+  plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+  when: After health-bridge is deployed and webhook configured
+  why_manual: Grafana alert rules are API-provisioned
+  commands:
+  - List current alert rules to get UIDs
+  - 'For each rule (exercise-reminder-stale, session-manager-stale, audit-digest-stale, agent-pod-not-running): GET full rule,
+    add github_issue label, PUT back'
+  - 'Mapping: exercise-reminder-stale→willikins#11, session-manager-stale→willikins#13, audit-digest-stale→willikins#12, agent-pod-not-running→frank#8'
+  verify:
+  - 'curl -s -u admin:$GRAFANA_PASS $GRAFANA_URL/api/v1/provisioning/alert-rules | jq ''.[] | {title, github_issue: .labels.github_issue}'''
+  status: done
+- id: grafana-health-bridge-webhook
+  layer: obs
+  app: health-bridge
+  plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+  when: After health-bridge pod is running
+  why_manual: Grafana provisioning is API-only (not GitOps)
+  commands:
+  - Create webhook contact point 'Health Bridge Webhook' via Grafana API
+  - 'URL: http://health-bridge.monitoring.svc.cluster.local:8080/webhook'
+  - 'Auth: Bearer token from HEALTH_BRIDGE_WEBHOOK_SECRET'
+  verify:
+  - curl -s -u admin:$GRAFANA_PASS $GRAFANA_URL/api/v1/provisioning/contact-points | jq '.[].name' | grep 'Health Bridge'
+  status: done
+- id: grafana-notification-policy-webhook
+  layer: obs
+  app: health-bridge
+  plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+  when: After webhook contact point is created
+  why_manual: Grafana notification policy is API-only
+  commands:
+  - 'Add route to notification policy: receiver=''Health Bridge Webhook'', matcher=grafana_folder=''Feature Health'''
+  - Ensure existing Telegram routes have continue:true so alerts reach both
+  verify:
+  - curl -s -u admin:$GRAFANA_PASS $GRAFANA_URL/api/v1/provisioning/policies | jq '.routes[] | select(.receiver == "Health
+    Bridge Webhook")'
+  status: done
+- id: health-bridge-webhook-secret
+  layer: obs
+  app: health-bridge
+  plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+  when: Before deploying K8s manifests
+  why_manual: Infisical secret creation is UI-only
+  commands:
+  - 'Generate webhook secret: openssl rand -hex 32'
+  - 'Create in Infisical UI: HEALTH_BRIDGE_WEBHOOK_SECRET and HEALTH_BRIDGE_GITHUB_TOKEN'
+  verify:
+  - 'kubectl get externalsecret -n monitoring health-bridge-secrets -o jsonpath=''{.status.conditions[0].status}'' # Should
+    return True'
+  status: done
+- id: obs-grafana-victorialogs-migration
+  layer: obs
+  app: victoria-metrics
+  plan: docs/superpowers/plans/2026-03-08--repo--declarative-drift-remediation.md
+  when: After Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap
+  why_manual: The live API-added datasource must be deleted via Grafana UI before the provisioned one activates; Grafana does
+    not auto-replace API datasources with provisioned ones of the same name
+  commands:
+  - Open Grafana at http://192.168.55.203
+  - Navigate to Connections → Data sources
+  - Find 'VictoriaLogs' (the API-added one, editable) and click Delete datasource
+  - kubectl -n monitoring rollout restart deployment victoria-metrics-grafana
+  verify:
+  - kubectl -n monitoring logs -l app.kubernetes.io/name=grafana | grep -i victorialogs
+  - Open Grafana → Connections → Data sources — VictoriaLogs should appear as provisioned (non-editable)
+  - Click Test on VictoriaLogs — expect green success
+  status: done
+  notes: Grafana automatically adopted the API-added datasource when it found a provisioning config with the same name on
+    pod restart — no manual UI deletion was needed. Datasource now readOnly=True (confirmed via API).
+- id: orch-build-paperclip-image
+  layer: orch
+  app: paperclip
+  plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
+  when: Before deploying paperclip — image must exist in GHCR
+  why_manual: Upstream repo has no published images; building requires local Docker and GHCR auth
+  commands:
+  - git clone https://github.com/paperclipai/paperclip.git /tmp/paperclip && cd /tmp/paperclip && git checkout v0.3.1
+  - docker build -t ghcr.io/derio-net/paperclip:v0.3.1 .
+  - echo $GHCR_PAT | docker login ghcr.io -u derio-net --password-stdin
+  - docker push ghcr.io/derio-net/paperclip:v0.3.1
+  verify:
+  - docker pull ghcr.io/derio-net/paperclip:v0.3.1
+  status: done
+- id: orch-create-infisical-secrets
+  layer: orch
+  app: paperclip
+  plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
+  when: Before deploying paperclip — ExternalSecrets need source data
+  why_manual: Secrets must be created in Infisical UI/CLI — cannot be declared in git
+  commands:
+  - Create LiteLLM virtual key for Paperclip in LiteLLM admin UI, store as PAPERCLIP_LITELLM_KEY in Infisical
+  - 'Generate random string: openssl rand -base64 32 — store as PAPERCLIP_AUTH_SECRET in Infisical'
+  - Create GitHub PAT with read:packages scope, store as GHCR_PAT in Infisical (if not already present)
+  verify:
+  - infisical secrets get PAPERCLIP_LITELLM_KEY
+  - infisical secrets get PAPERCLIP_AUTH_SECRET
+  - kubectl get externalsecret -n paperclip-system
+  status: done
+- id: orch-traefik-paperclip-route
+  layer: orch
+  app: paperclip
+  plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
+  when: After Paperclip deployment is healthy — add Traefik route on raspi-omni
+  why_manual: Traefik runs outside K8s on raspi-omni, managed via Ansible
+  commands:
+  - 'Add paperclip entry to Traefik Ansible vars: host paperclip.frank.derio.net, backend 192.168.55.212:3100'
+  - Run Ansible playbook to apply Traefik config on raspi-omni
+  verify:
+  - curl -sk https://paperclip.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)
+  status: pending
+- id: arc-github-app-secret
+  layer: repo
+  app: arc-runners
+  plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md
+  when: After arc-controller and arc-runners apps are synced by ArgoCD, before runner pod reaches Running state
+  why_manual: GitHub App credentials are a bootstrap secret. The runner cannot register without it, and SOPS+ArgoCD don't
+    mix per repo convention.
+  commands:
+  - |
+    # Create the Secret manifest
+    kubectl create secret generic arc-github-app-secret \
+      --namespace arc-system \
+      --from-literal=github_app_id=<APP_ID> \
+      --from-literal=github_app_installation_id=<INSTALLATION_ID> \
+      --from-literal=github_app_private_key="$(cat path/to/private-key.pem)" \
+      --dry-run=client -o yaml > /tmp/arc-secret.yaml
+    # Encrypt with SOPS (use the same age key as other secrets/)
+    sops --encrypt /tmp/arc-secret.yaml > secrets/arc/github-app-secret.yaml
+    rm /tmp/arc-secret.yaml
+    # Apply to cluster
+    sops --decrypt secrets/arc/github-app-secret.yaml | kubectl apply -f -
+  verify:
+  - kubectl get secret arc-github-app-secret -n arc-system
+  - kubectl get pods -n arc-system
+  - kubectl get runners -n arc-system
+  status: pending
+- id: github-branch-protection-smoke-test
+  layer: repo
+  app: renovate
+  plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md
+  when: After smoke-test.yaml workflow exists on main branch and has run at least once successfully
+  why_manual: Branch protection rules must be configured via GitHub UI or API. The smoke-test/readiness check must be a required
+    status check so Renovate's automerge only fires after tests pass.
+  commands:
+  - |
+    # Via GitHub CLI — sets branch protection on main requiring smoke-test/readiness
+    gh api repos/:owner/:repo/branches/main/protection \
+      --method PUT \
+      --field required_status_checks='{"strict":false,"checks":[{"context":"smoke-test/readiness"}]}' \
+      --field enforce_admins=false \
+      --field required_pull_request_reviews=null \
+      --field restrictions=null
+  verify:
+  - gh api repos/:owner/:repo/branches/main/protection --jq '.required_status_checks.checks'
+  status: pending
+- id: secrets-eso-credentials-secret
+  layer: secrets
+  app: external-secrets
+  plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
+  when: Task 7 — after SOPS-encrypting eso-credentials.yaml with Client ID and Secret from Infisical UI
+  why_manual: SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed
+    paths and be applied out-of-band
+  commands:
+  - source .env
+  - sops --decrypt secrets/infisical/eso-credentials.yaml | kubectl apply -f -
+  verify:
+  - kubectl get secret infisical-credentials -n external-secrets
+  status: done
+- id: secrets-infisical-bootstrap-secrets
+  layer: secrets
+  app: infisical
+  plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
+  when: Task 4 — after SOPS-encrypting infisical-secrets.yaml and infisical-db-uri.yaml
+  why_manual: SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed
+    paths and be applied out-of-band
+  commands:
+  - source .env
+  - sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -
+  - sops --decrypt secrets/infisical/infisical-db-uri.yaml | kubectl apply -f -
+  verify:
+  - kubectl get secret infisical-secrets -n infisical
+  - kubectl get secret infisical-db-uri -n infisical
+  status: done
+- id: secrets-infisical-project-slug
+  layer: secrets
+  app: infisical-extras
+  plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
+  when: After ClusterSecretStore deployed and reports 'Project with slug not found'
+  why_manual: Infisical auto-generates a slug that differs from the project name; no API endpoint accessible to eso-cluster-reader
+    (Viewer) returns workspace list — slug must be read from Infisical UI
+  commands:
+  - Open Infisical UI → frank-cluster project → Project Settings → General → copy Project Slug
+  - 'Update apps/infisical/manifests/cluster-secret-store.yaml: secretsScope.projectSlug: <slug>'
+  - git add apps/infisical/manifests/cluster-secret-store.yaml
+  - '{''git commit -m "fix(infisical)'': ''set correct project slug in ClusterSecretStore"''}'
+  - git push
+  verify:
+  - kubectl get clustersecretstore infisical -o jsonpath='{.status.conditions[0].message}'
+  - 'Expected: Valid — store validated'
+  status: done
+  notes: Project slug is 'frank-cluster-iwpg' (auto-generated by Infisical v0.151.0; differs from project name 'frank-cluster').
+    Workspace list endpoint /api/v1/workspace returns empty array for Viewer-scoped identity.
+- id: secrets-infisical-secrets-redis-update
+  layer: secrets
+  app: infisical
+  plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
+  when: After discovering Redis chart bug — after REDIS_URL added to infisical-secrets.yaml via sops --set
+  why_manual: SOPS metadata is rejected by ArgoCD ServerSideApply schema validation; re-apply required after adding REDIS_URL
+    because the chart builds REDIS_URL from redis.auth.password (plain value) rather than existingSecret, so the correct URL
+    must come from infisical-secrets envFrom
+  commands:
+  - source .env
+  - sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -
+  verify:
+  - kubectl get secret infisical-secrets -n infisical -o jsonpath='{.data.REDIS_URL}' | base64 -d
+  status: done
+  notes: 'REDIS_URL value: redis://default:<password>@redis-master:6379 — password matches redis.auth.existingSecretPasswordKey
+    in infisical-redis chart'
+- id: secrets-infisical-ui-setup
+  layer: secrets
+  app: infisical
+  plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
+  when: Task 5 complete — Infisical pod Running and UI reachable at http://192.168.55.204
+  why_manual: Initial admin account, project creation, and Machine Identity setup have no CLI equivalent in self-hosted Infisical
+  commands:
+  - Open http://192.168.55.204 → Sign Up → create admin account
+  - 'Create project: frank-cluster'
+  - Verify prod environment exists (Settings → Environments)
+  - 'Organization Settings → Machine Identities → Create Identity: eso-cluster-reader, Universal Auth'
+  - Click Add Client Secret → copy Client ID and Client Secret (shown once)
+  - frank-cluster project → Access Control → add eso-cluster-reader with Viewer role
+  verify:
+  - Machine Identity eso-cluster-reader exists in Organization Settings
+  - eso-cluster-reader has Viewer access to frank-cluster project
+  status: done
+  notes: 'UI paths differ from docs in v0.151.0: Organization Access → Identities (not Organization Settings → Machine Identities).
+    Client Secret found under the identity''s Authentication tab.'
+- id: secrets-redis-statefulset-cleanup
+  layer: secrets
+  app: infisical-redis
+  plan: docs/superpowers/plans/2026-03-08--secrets--infisical-eso.md
+  when: After creating infisical-redis ArgoCD app — when infisical pod reports EPERM connecting to Redis
+  why_manual: ArgoCD prune:false leaves orphaned StatefulSets; the old redis-master StatefulSet (created by bundled infisical
+    chart, label instance:infisical) conflicts with the NetworkPolicy from infisical-redis app (selects instance:infisical-redis)
+    — must delete manually to allow correct StatefulSet to be recreated
+  commands:
+  - kubectl delete statefulset redis-master -n infisical
+  verify:
+  - kubectl get pods -n infisical
+  - 'Wait for redis-master-0 to restart with correct labels: kubectl get pod redis-master-0 -n infisical --show-labels'
+  status: done
+  notes: selfHeal:true in infisical-redis app recreated the StatefulSet immediately with correct labels (instance:infisical-redis)

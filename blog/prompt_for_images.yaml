@@ -496,6 +496,27 @@ images:
       screen shows a table with UP indicators in green. Blue and amber
       lighting accents, dark server room atmosphere.
 
+  - key: post-24
+    output: blog/content/building/24-in-cluster-ingress/cover.png
+    description: "In-Cluster Ingress — Frank directing traffic through a glowing gateway"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at a grand
+      illuminated gateway arch made of intertwined ethernet cables and
+      circuit boards, glowing electric blue and teal. He wears a traffic
+      controller's vest over his server-rack torso and holds a glowing
+      baton in one hand, directing streams of tiny service icons (a flame,
+      an octopus, a bull, a lock, a brain, a robot) through the gateway.
+      Each service icon passes through a translucent TLS shield layer
+      (showing a padlock and "*.cluster.derio.net" text) as it enters.
+      Above the gateway, a wildcard certificate unfurls like a banner —
+      a golden scroll with "Let's Encrypt" seal and stars for the wildcard.
+      On one side of the gateway, an Authentik shield checkpoint scans
+      some service icons (green badge = pass), while others walk through
+      a VIP lane unchecked. Below the gateway, a small glowing dashboard
+      screen shows a Homepage-style grid of service cards with green
+      status dots. Frank grins confidently, orchestrating the flow.
+      Dark server room with blue, teal, and gold lighting accents.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -732,6 +753,25 @@ images:
       tool racks, server parts, and a wall-mounted network diagram with green
       and red connection lines. Dark server room with blue and steel-gray
       lighting accents.
+
+  - key: ops-17-ingress
+    output: blog/content/operating/17-ingress/cover.png
+    description: "Operating on In-Cluster Ingress — Frank maintaining a traffic gateway"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at an
+      operations desk facing a large gateway archway made of ethernet
+      cables and circuit boards. The gateway glows steady blue-green,
+      indicating healthy status. His left hand holds a wrench, tightening
+      a bolt on the gateway frame. His right hand rests on a terminal
+      keyboard showing IngressRoute YAML configuration. A clipboard on the
+      desk shows a checklist: "TLS cert ✓", "forward-auth ✓", "health
+      pings ✓". A small Let's Encrypt padlock icon hangs from the top of
+      the gateway. A Homepage-style dashboard tablet leans against the desk
+      showing green dots next to service names. An Authentik shield badge
+      sits on the desk next to a coffee mug. Green skin, messy black hair,
+      black eyes with white pupils, RJ45 neck bolts sparking blue
+      electricity. Calm operational mood. Dark server room with blue-green
+      and teal lighting accents.
 
   - key: post-23
     output: blog/content/building/23-health-bridge/cover.png
