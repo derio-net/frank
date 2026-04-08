@@ -799,29 +799,9 @@ curl -sI https://argocd.cluster.derio.net 2>&1 | head -20
 
 Expected: HTTP 200 or 302 (ArgoCD login redirect), valid TLS certificate for `*.cluster.derio.net`.
 
-- [ ] **Step 8: Create Authentik Proxy Provider**
+- [x] **Step 8: Create Authentik Proxy Provider** *(handled declaratively via blueprint)*
 
-```yaml
-# manual-operation
-id: net-authentik-cluster-proxy-provider
-layer: net
-app: authentik
-plan: 2026-03-29--net--in-cluster-ingress
-when: Before testing forward-auth services
-why_manual: Authentik provider/app creation requires API or UI interaction
-commands:
-  - "Create Proxy Provider in Authentik (forward-auth mode)"
-  - "External host: https://*.cluster.derio.net"
-  - "Note: redirect_uris must be list of objects [{matching_mode: strict, url: ...}]"
-  - "Note: signing_key UUID — query an existing provider to find it"
-  - "Add the provider to the embedded outpost"
-verify:
-  - "curl -k https://longhorn.cluster.derio.net → redirects to Authentik login"
-  - "After login → Longhorn UI loads"
-status: pending
-```
-
-Prompt user to create the Authentik provider. Verify forward-auth works.
+Implemented as `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml` — 8 `forward_single` proxy providers for `*.cluster.derio.net` forward-auth services. ArgoCD syncs the ConfigMap to Authentik via the blueprint controller. The manual operation is superseded.
 
 - [ ] **Step 9: Test a forward-auth route**
 
