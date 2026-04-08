@@ -19,3 +19,20 @@ Copy an existing template from `apps/root/templates/` and adapt. Key decisions:
 When adding a new outward-facing service with an IngressRoute:
 1. Add the service to `apps/homepage/manifests/configmap-services.yaml` (icon, category, description, URL)
 2. Add the IngressRoute to `apps/traefik/manifests/ingressroutes.yaml`
+3. If the service uses Authentik forward-auth (`authentik-forwardauth` middleware):
+   a. Add a proxy provider entry to `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml` (follow existing pattern: `forward_single` mode, include `invalidation_flow`)
+   b. Register the ConfigMap in `apps/authentik/values.yaml` → `blueprints.configMaps` (already done for the cluster blueprint)
+   c. **Manual step (outpost assignment):** After the blueprint is applied, add the new provider to the embedded outpost via Django ORM:
+      ```bash
+      kubectl exec -n authentik deploy/authentik-server -- python -c "
+      import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
+      import django; django.setup()
+      from authentik.providers.proxy.models import ProxyProvider
+      from authentik.outposts.models import Outpost
+      outpost = Outpost.objects.get(name='authentik Embedded Outpost')
+      provider = ProxyProvider.objects.get(name='<PROVIDER_NAME>')
+      outpost.providers.add(provider)
+      print(f'Added {provider.name} to {outpost.name}')
+      "
+      ```
+      This is required because Authentik blueprints cannot manage outpost provider lists without replacing existing assignments.
