@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerting-notification-policy
+  namespace: monitoring
+data:
+  notification-policy.yaml: |
+    apiVersion: 1
+    policies:
+      - orgId: 1
+        receiver: "Telegram - Willikins"
+        group_wait: 30s
+        group_interval: 3m
+        repeat_interval: 3m
+        routes:
+          - receiver: "Telegram - Willikins"
+            matchers:
+              - severity=critical
+            continue: true
+          - receiver: "Telegram - Willikins"
+            matchers:
+              - severity=warning
+            continue: true
+          - receiver: "Health Bridge Webhook"
+            matchers:
+              - grafana_folder=Feature Health
+            continue: false

@@ -41,8 +41,39 @@ grafana:
       subPath: victorialogs-datasource.yaml
       configMap: grafana-victorialogs-datasource
       readOnly: true
-  # Authentik OIDC SSO (Phase 13)
-  envFromSecret: grafana-oidc-secret
+    # --- Alerting provisioning (rules, contact points, notification policy) ---
+    - name: alerting-rules
+      mountPath: /etc/grafana/provisioning/alerting/alert-rules.yaml
+      subPath: alert-rules.yaml
+      configMap: grafana-alerting-rules
+      readOnly: true
+    - name: alerting-contact-points
+      mountPath: /etc/grafana/provisioning/alerting/contact-points.yaml
+      subPath: contact-points.yaml
+      configMap: grafana-alerting-contact-points
+      readOnly: true
+    - name: alerting-notification-policy
+      mountPath: /etc/grafana/provisioning/alerting/notification-policy.yaml
+      subPath: notification-policy.yaml
+      configMap: grafana-alerting-notification-policy
+      readOnly: true
+    # --- Dashboard provisioning (provider config + JSON) ---
+    - name: dashboard-provider
+      mountPath: /etc/grafana/provisioning/dashboards/feature-health-provider.yaml
+      subPath: feature-health-provider.yaml
+      configMap: grafana-alerting-dashboard
+      readOnly: true
+    - name: dashboard-json
+      mountPath: /var/lib/grafana/dashboards/feature-health/feature-health.json
+      subPath: feature-health.json
+      configMap: grafana-alerting-dashboard
+      readOnly: true
+  # Authentik OIDC SSO (Phase 13) + Alerting secrets (Telegram, Health Bridge)
+  envFromSecrets:
+    - name: grafana-oidc-secret
+      optional: false
+    - name: grafana-alerting-secrets
+      optional: true
   grafana.ini:
     server:
       root_url: https://grafana.frank.derio.net
