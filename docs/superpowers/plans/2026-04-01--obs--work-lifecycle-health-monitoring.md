@@ -377,9 +377,9 @@ Created via Grafana provisioning API. Contact point uid: `efi04e0201jb4f`.
 | Setting | Value |
 |---------|-------|
 | Name | Telegram - Willikins |
-| Bot | `@agent_zero_cc_bot` (id: [REDACTED]) |
+| Bot | `@agent_zero_cc_bot` |
 | Bot Token | `FRANK_C2_TELEGRAM_BOT_TOKEN` (Infisical prod) |
-| Chat ID | `FRANK_C2_TELEGRAM_CHAT_ID` = [REDACTED] (Infisical prod) |
+| Chat ID | `FRANK_C2_TELEGRAM_CHAT_ID` (Infisical prod) |
 | Parse Mode | Markdown |
 
 - [x] **Step 2: Test notification**

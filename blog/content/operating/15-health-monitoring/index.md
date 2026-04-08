@@ -113,9 +113,9 @@ curl -sk -u "$GRAFANA_AUTH" -X PUT \
 | Setting | Value |
 |---------|-------|
 | Contact point UID | `efi04e0201jb4f` |
-| Bot | `@agent_zero_cc_bot` (id: [REDACTED]) |
+| Bot | `@agent_zero_cc_bot` |
 | Token secret | `FRANK_C2_TELEGRAM_BOT_TOKEN` (Infisical) |
-| Chat ID | `FRANK_C2_TELEGRAM_CHAT_ID` = [REDACTED] (Infisical) |
+| Chat ID | `FRANK_C2_TELEGRAM_CHAT_ID` (Infisical) |
 
 ```bash
 # Update contact point (e.g., after bot token rotation)
