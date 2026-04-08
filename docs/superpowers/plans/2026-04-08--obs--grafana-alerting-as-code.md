@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-08--obs--grafana-alerting-as-code-design.md`
 
+**Status:** Deployed
+
 ---
 
 ## File Structure
@@ -1383,3 +1385,15 @@ git commit -m "docs(obs): add grafana file-provisioning gotcha"
 | 12 | Update gotchas | Docs |
 
 **Tasks 1–7** are pure code (can be parallelized by subagents). **Tasks 8–10** require cluster access and must be sequential. **Tasks 11–12** are docs updates that can run in parallel after migration.
+
+---
+
+## Deployment Deviations
+
+1. **Chatid type coercion** (Task 8): Grafana's provisioning env var substitution coerces numeric values to integers during YAML-to-JSON transformation. Double-quoted `"$VAR"` does NOT fix it. Fix: YAML block scalar `chatid: |\n  $VAR`. See [grafana/grafana#69950](https://github.com/grafana/grafana/issues/69950). Added to `frank-gotchas.md`.
+
+2. **Provenance conflict** (Task 9): Grafana refused to start with "cannot change provenance from 'api' to 'file'" because API-provisioned resources (with matching UIDs) already existed in the database. The plan assumed REST API deletion would work, but Grafana was crashing before the API was reachable. Fix: scaled down Grafana, mounted PVC in a debug pod with sqlite3, deleted records from `provenance_type`, `alert_rule`, `alert_configuration`, `alert_instance` tables, then scaled back up. Added to `frank-gotchas.md`.
+
+3. **Helm admin password regeneration** (Task 10): ArgoCD re-rendered the Helm chart on sync, regenerating the admin password Secret. But the PVC-backed database retained the old password hash. Fix: `grafana cli admin reset-admin-password "$NEW_PASS"` inside the pod. Added to `frank-gotchas.md`.
+
+4. **RWO PVC deadlock** (Task 8): Multiple ReplicaSets with DESIRED=1 competed for the same RWO PVC during ArgoCD syncs. Fix: manually scaled down old ReplicaSets. Existing gotcha already covers this pattern.
