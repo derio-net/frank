@@ -461,7 +461,7 @@ images:
       blocks the entrance to each belt. Dark server room with blue and
       orange lightning accents.
 
-  - key: post-21
+  - key: building-21-secure-agent-pod
     output: blog/content/building/21-secure-agent-pod/cover.png
     description: "Secure Agent Pod — Frank in a hardened vault operating a locked-down workstation"
     prompt: >-
@@ -496,7 +496,25 @@ images:
       screen shows a table with UP indicators in green. Blue and amber
       lighting accents, dark server room atmosphere.
 
-  - key: post-24
+  - key: building-23-health-bridge
+    output: blog/content/building/23-health-bridge/cover.png
+    description: "Health Bridge — Frank routing alert signals from monitoring to project boards"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing between two large
+      floating holographic screens. The left screen shows a Grafana-style
+      dashboard with red and amber alert indicators pulsing. The right screen
+      shows a GitHub-style project board with cards in columns labeled
+      "healthy", "degraded", "dead". Glowing signal lines arc from the alert
+      indicators on the left screen, through Frank's outstretched hands, and
+      land on the project board cards on the right — physically moving a card
+      from "healthy" to "degraded" as it arrives. Frank stands confidently in
+      the middle, conducting the signals like an orchestra conductor. A small
+      webhook icon (a curved arrow) glows on his chest. At his feet, a tiny
+      Telegram paper airplane icon flies off to the side. Green skin, messy
+      black hair, black eyes with white pupils, RJ45 neck bolts sparking blue
+      electricity. Dark server room with amber and blue lighting accents.
+
+  - key: building-24-in-cluster-ingress
     output: blog/content/building/24-in-cluster-ingress/cover.png
     description: "In-Cluster Ingress — Frank directing traffic through a glowing gateway"
     prompt: >-
@@ -717,23 +735,6 @@ images:
       "instances: n8n-01 ✓, n8n-02 pending". Dark server room with blue and
       orange lighting accents.
 
-  - key: ops-15-health-monitoring
-    output: blog/content/operating/15-health-monitoring/cover.png
-    description: "Operating on Health Monitoring — Frank tuning heartbeat monitors"
-    prompt: >-
-      Frank the server-hardware Frankenstein monster sitting at a wide
-      operations console with multiple screens. The central screen shows
-      a Grafana-style dashboard with green UP indicators and one amber
-      warning. His left hand adjusts a dial on a heartbeat monitor panel
-      — a rack-mounted device with ECG-style traces scrolling across a
-      small screen. His right hand holds a wrench, tightening a bolt on
-      a small Pushgateway box sitting on the console. A smartphone lies
-      on the desk showing a Telegram notification with a green circle
-      emoji. Behind him, a wall of server racks with status LEDs. On the
-      console surface: a clipboard with a checklist, a coffee mug with
-      a heartbeat symbol, and scattered ethernet cables. Calm operational
-      mood. Dark server room with blue and green lighting accents.
-
   - key: ops-14-secure-agent-pod
     output: blog/content/operating/14-secure-agent-pod/cover.png
     description: "Operating on Secure Agent Pod — Frank maintaining a layered security orb"
@@ -754,6 +755,39 @@ images:
       and red connection lines. Dark server room with blue and steel-gray
       lighting accents.
 
+  - key: ops-15-health-monitoring
+    output: blog/content/operating/15-health-monitoring/cover.png
+    description: "Operating on Health Monitoring — Frank tuning heartbeat monitors"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at a wide
+      operations console with multiple screens. The central screen shows
+      a Grafana-style dashboard with green UP indicators and one amber
+      warning. His left hand adjusts a dial on a heartbeat monitor panel
+      — a rack-mounted device with ECG-style traces scrolling across a
+      small screen. His right hand holds a wrench, tightening a bolt on
+      a small Pushgateway box sitting on the console. A smartphone lies
+      on the desk showing a Telegram notification with a green circle
+      emoji. Behind him, a wall of server racks with status LEDs. On the
+      console surface: a clipboard with a checklist, a coffee mug with
+      a heartbeat symbol, and scattered ethernet cables. Calm operational
+      mood. Dark server room with blue and green lighting accents.
+
+  - key: ops-16-health-bridge
+    output: blog/content/operating/16-health-bridge/cover.png
+    description: "Operating on Health Bridge — Frank at a console managing alert-to-issue routing"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at an operations
+      console with a split-screen monitor. The left half shows a terminal with
+      curl commands and JSON responses. The right half shows a simplified
+      GitHub issue with a lifecycle state badge changing from "degraded" to
+      "healthy" with a green glow. His left hand types on a keyboard while
+      his right hand holds a small wrench, adjusting a webhook connector box
+      mounted on the desk — a small box with an input cable (labeled "alerts")
+      and an output cable (labeled "GitHub"). A clipboard on the desk shows
+      a checklist with items ticked off. A small Grafana logo glows on a
+      sticker on the monitor bezel. Dark server room with blue and green
+      lighting accents.
+
   - key: ops-17-ingress
     output: blog/content/operating/17-ingress/cover.png
     description: "Operating on In-Cluster Ingress — Frank maintaining a traffic gateway"
@@ -772,37 +806,3 @@ images:
       black eyes with white pupils, RJ45 neck bolts sparking blue
       electricity. Calm operational mood. Dark server room with blue-green
       and teal lighting accents.
-
-  - key: post-23
-    output: blog/content/building/23-health-bridge/cover.png
-    description: "Health Bridge — Frank routing alert signals from monitoring to project boards"
-    prompt: >-
-      Frank the server-hardware Frankenstein monster standing between two large
-      floating holographic screens. The left screen shows a Grafana-style
-      dashboard with red and amber alert indicators pulsing. The right screen
-      shows a GitHub-style project board with cards in columns labeled
-      "healthy", "degraded", "dead". Glowing signal lines arc from the alert
-      indicators on the left screen, through Frank's outstretched hands, and
-      land on the project board cards on the right — physically moving a card
-      from "healthy" to "degraded" as it arrives. Frank stands confidently in
-      the middle, conducting the signals like an orchestra conductor. A small
-      webhook icon (a curved arrow) glows on his chest. At his feet, a tiny
-      Telegram paper airplane icon flies off to the side. Green skin, messy
-      black hair, black eyes with white pupils, RJ45 neck bolts sparking blue
-      electricity. Dark server room with amber and blue lighting accents.
-
-  - key: ops-16-health-bridge
-    output: blog/content/operating/16-health-bridge/cover.png
-    description: "Operating on Health Bridge — Frank at a console managing alert-to-issue routing"
-    prompt: >-
-      Frank the server-hardware Frankenstein monster sitting at an operations
-      console with a split-screen monitor. The left half shows a terminal with
-      curl commands and JSON responses. The right half shows a simplified
-      GitHub issue with a lifecycle state badge changing from "degraded" to
-      "healthy" with a green glow. His left hand types on a keyboard while
-      his right hand holds a small wrench, adjusting a webhook connector box
-      mounted on the desk — a small box with an input cable (labeled "alerts")
-      and an output cable (labeled "GitHub"). A clipboard on the desk shows
-      a checklist with items ticked off. A small Grafana logo glows on a
-      sticker on the monitor bezel. Dark server room with blue and green
-      lighting accents.
