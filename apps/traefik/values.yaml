@@ -51,7 +51,9 @@ certificatesResolvers:
       storage: /data/acme.json
       dnsChallenge:
         provider: cloudflare
-        disablePropagationCheck: true
+        propagation:
+          disableChecks: true
+          delayBeforeChecks: 60
 
 # Persist ACME cert data on Longhorn
 persistence:
