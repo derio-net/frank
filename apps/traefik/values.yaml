@@ -3,11 +3,12 @@
 
 deployment:
   replicas: 1
-  # Fix PVC permissions — Longhorn creates root-owned volumes,
-  # Traefik runs as uid 65532 (nonroot). fsGroup makes K8s chown volumes.
-  podSecurityContext:
-    fsGroup: 65532
-    fsGroupChangePolicy: "OnRootMismatch"
+
+# Fix PVC permissions — Longhorn creates root-owned volumes,
+# Traefik runs as uid 65532 (nonroot). fsGroup makes K8s chown volumes.
+podSecurityContext:
+  fsGroup: 65532
+  fsGroupChangePolicy: "OnRootMismatch"
 
 # RWO PVC requires Recreate strategy (see frank-gotchas.md)
 updateStrategy:
