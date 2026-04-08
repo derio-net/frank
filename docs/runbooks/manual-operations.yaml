@@ -838,6 +838,43 @@ operations:
   status: done
   notes: Grafana automatically adopted the API-added datasource when it found a provisioning config with the same name on
     pod restart — no manual UI deletion was needed. Datasource now readOnly=True (confirmed via API).
+- id: obs-grafana-alerting-delete-api-provisioned
+  layer: obs
+  app: grafana-alerting
+  plan: docs/superpowers/plans/2026-04-08--obs--grafana-alerting-as-code.md
+  when: After Task 8 verification confirms file-provisioned resources work
+  why_manual: API-provisioned Grafana resources can only be deleted via REST API calls
+  commands:
+  - Scale down Grafana, use sqlite3 debug pod to DELETE FROM provenance_type, alert_rule, alert_configuration,
+    alert_instance — clears API provenance so file-provisioned resources can take over
+  - Scale Grafana back up — file provisioning recreates everything from ConfigMaps
+  verify:
+  - 'curl -u "$GRAFANA_AUTH" ".../api/v1/provisioning/alert-rules" — all 5 rules with provenance=file'
+  - 'curl -u "$GRAFANA_AUTH" ".../api/v1/provisioning/contact-points" — 2 file-provisioned + 1 default email'
+  status: done
+  notes: Cleared via direct SQLite database access instead of REST API (Grafana was crashing due to provenance
+    conflict). Scaled down Deployment, mounted PVC in debug pod, deleted all alerting provenance/rule/config records,
+    scaled back up. File provisioning recreated everything cleanly.
+- id: obs-grafana-alerting-e2e-verification
+  layer: obs
+  app: grafana-alerting
+  plan: docs/superpowers/plans/2026-04-08--obs--grafana-alerting-as-code.md
+  when: After Task 9 migration completes
+  why_manual: Requires inspecting Grafana API and verifying file-provisioned resources survive pod restarts
+  commands:
+  - 'Verify alert rules: 5 rules, all provenance=file'
+  - 'Verify contact points: Telegram + Health Bridge, both provenance=file'
+  - 'Verify notification policy: 3 routes, provenance=file'
+  - 'Verify dashboard: Feature Health in feature-health folder, 4 panels, provisioned=true'
+  - 'PVC loss simulation: delete pod, wait for Ready, re-verify all resources'
+  verify:
+  - All 5 rules present with provenance=file after pod restart
+  - Both contact points present with provenance=file
+  - Notification policy has 3 routes
+  - Dashboard in feature-health folder with 4 panels
+  status: done
+  notes: All verification passed including PVC loss simulation. Pod restart confirmed all file-provisioned
+    resources survive. Test alert (Step 5) skipped as optional.
 - id: orch-build-paperclip-image
   layer: orch
   app: paperclip

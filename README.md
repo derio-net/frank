@@ -75,6 +75,7 @@ frank/
 │   ├── victoria-metrics/values.yaml + manifests/  # Metrics, alerting, Grafana
 │   ├── blackbox-exporter/manifests/               # HTTP endpoint probes (Feature Health)
 │   ├── pushgateway/manifests/                     # Heartbeat metric ingestion from cron jobs
+│   ├── grafana-alerting/manifests/                  # File-provisioned alerting (rules, contacts, policy, dashboard)
 │   ├── health-bridge/manifests/                   # Grafana alert → GitHub lifecycle bridge
 │   ├── fluent-bit/values.yaml                     # Log shipping
 │   ├── external-secrets/values.yaml              # ESO operator
@@ -228,6 +229,7 @@ argocd app list
 | n8n-01-postgresql | n8n-01 | Bitnami PostgreSQL 14.1.10 for n8n-01 |
 | blackbox-exporter | monitoring | HTTP endpoint probes for feature health (VMProbe → VictoriaMetrics) |
 | pushgateway | monitoring | Heartbeat metric ingestion from Willikins cron jobs (VMServiceScrape) |
+| grafana-alerting | monitoring | File-provisioned alerting: 5 rules, 2 contact points, notification policy, Feature Health dashboard |
 | health-bridge | monitoring | Grafana webhook → GitHub Project lifecycle updates (ghcr.io/derio-net/health-bridge:v0.1.0) |
 | traefik | traefik-system | In-cluster ingress controller (192.168.55.220), ACME wildcard TLS for `*.cluster.derio.net` |
 | traefik-extras | traefik-system | Middleware CRDs (security headers, IP allowlist, Authentik forward-auth) + 16 IngressRoutes |
