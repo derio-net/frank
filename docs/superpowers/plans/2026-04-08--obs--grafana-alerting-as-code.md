@@ -37,7 +37,7 @@ apps/victoria-metrics/
 **Files:**
 - Create: `apps/root/templates/grafana-alerting.yaml`
 
-- [ ] **Step 1: Create the Application CR**
+- [x] **Step 1: Create the Application CR**
 
 Follow the raw-manifests pattern from `apps/root/templates/health-bridge.yaml`. The only differences: app name and path.
 
@@ -74,7 +74,7 @@ spec:
         - /data
 ```
 
-- [ ] **Step 2: Verify YAML syntax**
+- [x] **Step 2: Verify YAML syntax**
 
 ```bash
 cd /var/tmp/vibe-kanban/worktrees/097c-read/frank
@@ -83,7 +83,7 @@ python3 -c "import yaml; yaml.safe_load(open('apps/root/templates/grafana-alerti
 
 Expected: no output (valid YAML after placeholder substitution).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/root/templates/grafana-alerting.yaml
@@ -99,13 +99,13 @@ git commit -m "feat(obs): add grafana-alerting ArgoCD Application CR"
 
 **Context:** Grafana file-based provisioning reads YAML files from `/etc/grafana/provisioning/alerting/` at startup. Alert rules use the Grafana 12.x SSE 3-step format: A (datasource query) → B (reduce with `__expr__`, reducer: last) → C (threshold with `__expr__`). Classic condition format fails with `sse.parseError`. VictoriaMetrics datasource UID: `P4169E866C3094E38`.
 
-- [ ] **Step 1: Create the manifests directory**
+- [x] **Step 1: Create the manifests directory**
 
 ```bash
 mkdir -p apps/grafana-alerting/manifests
 ```
 
-- [ ] **Step 2: Create the alert rules ConfigMap**
+- [x] **Step 2: Create the alert rules ConfigMap**
 
 Five groups — one per rule — because each rule has a different evaluation interval (Grafana evaluates all rules in a group at the group's `interval`). Groups are named by semantic pattern with interval suffix for clarity.
 
@@ -408,7 +408,7 @@ data:
               summary: Secure agent pod is not in Running phase
 ```
 
-- [ ] **Step 3: Validate YAML syntax**
+- [x] **Step 3: Validate YAML syntax**
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('apps/grafana-alerting/manifests/alert-rules-cm.yaml'))"
@@ -416,7 +416,7 @@ python3 -c "import yaml; yaml.safe_load(open('apps/grafana-alerting/manifests/al
 
 Expected: no output (valid YAML).
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
@@ -432,7 +432,7 @@ git commit -m "feat(obs): add grafana alert rules ConfigMap (5 rules, 5 groups)"
 
 **Context:** Grafana resolves `$ENV_VAR` syntax in provisioning files from pod environment variables. The Telegram contact point UID `efi04e0201jb4f` must be preserved — the notification policy references it. The Health Bridge webhook gets a new UID since it wasn't previously provisioned with a stable one.
 
-- [ ] **Step 1: Create the contact points ConfigMap**
+- [x] **Step 1: Create the contact points ConfigMap**
 
 ```yaml
 # apps/grafana-alerting/manifests/contact-points-cm.yaml
@@ -466,13 +466,13 @@ data:
               authorization_credentials: $HEALTH_BRIDGE_WEBHOOK_SECRET
 ```
 
-- [ ] **Step 2: Validate YAML syntax**
+- [x] **Step 2: Validate YAML syntax**
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('apps/grafana-alerting/manifests/contact-points-cm.yaml'))"
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/grafana-alerting/manifests/contact-points-cm.yaml
@@ -488,7 +488,7 @@ git commit -m "feat(obs): add grafana contact points ConfigMap (Telegram + Healt
 
 **Context:** The routing tree sends severity-based alerts to Telegram with `continue: true` so they also match the folder-based route to Health Bridge. The folder matcher `grafana_folder=Feature Health` catches all alerts from the feature-health folder for GitHub lifecycle automation.
 
-- [ ] **Step 1: Create the notification policy ConfigMap**
+- [x] **Step 1: Create the notification policy ConfigMap**
 
 ```yaml
 # apps/grafana-alerting/manifests/notification-policy-cm.yaml
@@ -521,13 +521,13 @@ data:
             continue: false
 ```
 
-- [ ] **Step 2: Validate YAML syntax**
+- [x] **Step 2: Validate YAML syntax**
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('apps/grafana-alerting/manifests/notification-policy-cm.yaml'))"
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/grafana-alerting/manifests/notification-policy-cm.yaml
@@ -543,7 +543,7 @@ git commit -m "feat(obs): add grafana notification policy ConfigMap (severity ro
 
 **Context:** Grafana's contact point provisioning uses `$ENV_VAR` syntax. The 3 required env vars (`FRANK_C2_TELEGRAM_BOT_TOKEN`, `FRANK_C2_TELEGRAM_CHAT_ID`, `HEALTH_BRIDGE_WEBHOOK_SECRET`) must be available in the Grafana pod environment. This ExternalSecret pulls them from Infisical into a K8s Secret that Grafana references via `envFromSecrets`. Pattern matches `apps/health-bridge/manifests/externalsecret.yaml`.
 
-- [ ] **Step 1: Create the ExternalSecret**
+- [x] **Step 1: Create the ExternalSecret**
 
 ```yaml
 # apps/grafana-alerting/manifests/externalsecret.yaml
@@ -572,13 +572,13 @@ spec:
         key: HEALTH_BRIDGE_WEBHOOK_SECRET
 ```
 
-- [ ] **Step 2: Validate YAML syntax**
+- [x] **Step 2: Validate YAML syntax**
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('apps/grafana-alerting/manifests/externalsecret.yaml'))"
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/grafana-alerting/manifests/externalsecret.yaml
@@ -604,7 +604,7 @@ The dashboard UID `fh-overview` is preserved from the existing API-provisioned v
 
 **Table panel gotcha:** Prometheus instant queries require `"format": "table"` on targets. Use `filterFieldsByName` transform (not `labelsToFields` with `mode: rows`).
 
-- [ ] **Step 1: Create the dashboard ConfigMap**
+- [x] **Step 1: Create the dashboard ConfigMap**
 
 The ConfigMap has two keys:
 - `feature-health-provider.yaml` — provider config (mounted to `/etc/grafana/provisioning/dashboards/`)
@@ -797,7 +797,7 @@ data:
 
 **Note:** The dashboard JSON may need fine-tuning after first deployment (panel sizing, field mappings, threshold colors). Use the scratch-dashboard workflow described in the spec: open the provisioned dashboard → "Save as" scratch copy → edit in UI → export JSON → update ConfigMap → commit → delete scratch.
 
-- [ ] **Step 2: Validate YAML syntax**
+- [x] **Step 2: Validate YAML syntax**
 
 ```bash
 python3 -c "
@@ -811,7 +811,7 @@ print('YAML and embedded JSON both valid')
 
 Expected: `YAML and embedded JSON both valid`
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add apps/grafana-alerting/manifests/dashboard-cm.yaml
@@ -827,7 +827,7 @@ git commit -m "feat(obs): add Feature Health dashboard ConfigMap (provider + JSO
 
 **Context:** The Grafana subchart in victoria-metrics-k8s-stack supports `extraConfigmapMounts` (list of volume mounts from ConfigMaps) and `envFromSecrets` (list of Secrets to inject as env vars). The existing `extraConfigmapMounts` has 1 entry (VictoriaLogs datasource). The existing `envFromSecret` (singular) references `grafana-oidc-secret`. We switch to `envFromSecrets` (plural, list format) to support multiple secrets.
 
-- [ ] **Step 1: Add extraConfigmapMounts entries**
+- [x] **Step 1: Add extraConfigmapMounts entries**
 
 In `apps/victoria-metrics/values.yaml`, append 5 mount entries to the existing `extraConfigmapMounts` list (3 alerting files + 2 dashboard files from the 4 ConfigMaps):
 
@@ -867,7 +867,7 @@ In `apps/victoria-metrics/values.yaml`, append 5 mount entries to the existing `
       readOnly: true
 ```
 
-- [ ] **Step 2: Switch envFromSecret to envFromSecrets**
+- [x] **Step 2: Switch envFromSecret to envFromSecrets**
 
 Replace the singular `envFromSecret` with the plural `envFromSecrets` list format to support both the existing OIDC secret and the new alerting secrets:
 
@@ -884,7 +884,7 @@ Replace the singular `envFromSecret` with the plural `envFromSecrets` list forma
 
 `optional: true` on the alerting secrets prevents Grafana from failing to start if the ExternalSecret hasn't synced yet (first-boot race condition). The OIDC secret is `optional: false` because Grafana OIDC login breaks without it.
 
-- [ ] **Step 3: Verify the complete values file**
+- [x] **Step 3: Verify the complete values file**
 
 The full `grafana:` section in `apps/victoria-metrics/values.yaml` should now look like:
 
@@ -952,13 +952,13 @@ grafana:
       allow_assign_grafana_admin: true
 ```
 
-- [ ] **Step 4: Validate YAML syntax**
+- [x] **Step 4: Validate YAML syntax**
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('apps/victoria-metrics/values.yaml'))"
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/victoria-metrics/values.yaml
@@ -1289,7 +1289,7 @@ Temporarily lower the `exercise-reminder-stale` threshold to 60s to trigger a te
 
 **Context:** The operating post currently documents API-provisioned management commands (GET/PUT/DELETE via curl). After migration, alert rules are read-only in the UI (file-provisioned). Update the post to reflect the new management workflow.
 
-- [ ] **Step 1: Add a "File-Provisioned Alerting" section**
+- [x] **Step 1: Add a "File-Provisioned Alerting" section**
 
 Add after the "Grafana Alert Management" section in `blog/content/operating/15-health-monitoring/index.md`:
 
@@ -1326,7 +1326,7 @@ File-provisioned rules are **read-only in the UI**. To modify:
 6. Delete the scratch dashboard
 ```
 
-- [ ] **Step 2: Mark API commands as historical**
+- [x] **Step 2: Mark API commands as historical**
 
 Add a note at the top of the existing "Grafana Alert Management" section:
 
@@ -1334,7 +1334,7 @@ Add a note at the top of the existing "Grafana Alert Management" section:
 > **Historical:** The curl commands below were used when alerts were API-provisioned. Since April 2026, alerting is file-provisioned via ConfigMaps. See [File-Provisioned Alerting](#file-provisioned-alerting-as-code) above. These commands still work for **reading** alert state but not for modifying rules.
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add blog/content/operating/15-health-monitoring/index.md
@@ -1348,7 +1348,7 @@ git commit -m "docs(obs): update health monitoring ops post for file-provisioned
 **Files:**
 - Modify: `.claude/rules/frank-gotchas.md`
 
-- [ ] **Step 1: Add provisioning gotcha**
+- [x] **Step 1: Add provisioning gotcha**
 
 Append to `.claude/rules/frank-gotchas.md`:
 
@@ -1356,7 +1356,7 @@ Append to `.claude/rules/frank-gotchas.md`:
 - Grafana alerting (rules, contact points, notification policy) and the Feature Health dashboard are file-provisioned via ConfigMaps in `apps/grafana-alerting/manifests/`. They are read-only in the UI. Edit the ConfigMap YAML, commit, push, then restart the Grafana pod (`kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana`) — provisioning files are read at boot, not watched
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add .claude/rules/frank-gotchas.md
