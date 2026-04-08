@@ -10,76 +10,76 @@ data:
             icon: argo-cd
             href: https://argocd.cluster.derio.net
             description: GitOps continuous delivery for Kubernetes
-            ping: http://argocd-server.argocd:80
+            ping: argocd-server.argocd
         - Longhorn:
             icon: longhorn
             href: https://longhorn.cluster.derio.net
             description: Distributed block storage for Kubernetes
-            ping: http://longhorn-frontend.longhorn-system:80
+            ping: longhorn-frontend.longhorn-system
         - Hubble:
             icon: cilium
             href: https://hubble.cluster.derio.net
             description: Cilium network observability
-            ping: http://hubble-ui.kube-system:80
+            ping: hubble-ui.kube-system
         - Grafana:
             icon: grafana
             href: https://grafana.cluster.derio.net
             description: Metrics dashboards and observability
-            ping: http://victoria-metrics-grafana.monitoring:80
+            ping: victoria-metrics-grafana.monitoring
         - Infisical:
             icon: infisical
             href: https://infisical.cluster.derio.net
             description: Secrets management platform
-            ping: http://infisical-infisical-standalone-infisical.infisical:8080
+            ping: infisical-infisical-standalone-infisical.infisical
         - Authentik:
             icon: authentik
             href: https://auth.cluster.derio.net
             description: Identity provider and SSO
-            ping: http://authentik-server.authentik:80
+            ping: authentik-server.authentik
     - CI/CD:
         - Gitea:
             icon: gitea
             href: https://gitea.cluster.derio.net
             description: Git hosting and code review
-            ping: http://gitea-http.gitea:3000
+            ping: gitea-http.gitea
         - Zot:
             icon: mdi-package-variant-closed
             href: https://zot.cluster.derio.net
             description: OCI container image registry
-            ping: http://zot.zot:5000/v2/
+            ping: zot.zot
         - Tekton:
             icon: si-tekton
             href: https://tekton.cluster.derio.net
             description: Cloud-native CI/CD pipelines
-            ping: http://tekton-dashboard.tekton-pipelines:9097
+            ping: tekton-dashboard.tekton-pipelines
     - Development:
         - LiteLLM:
             icon: mdi-robot
             href: https://litellm.cluster.derio.net
             description: LLM proxy and gateway
-            ping: http://litellm.litellm:4000
+            ping: litellm.litellm
         - Sympozium:
             icon: element
             href: https://sympozium.cluster.derio.net
             description: Matrix chat client
-            ping: http://sympozium-apiserver.sympozium-system:8080
+            ping: sympozium-apiserver.sympozium-system
         - n8n:
             icon: n8n
             href: https://n8n.cluster.derio.net
             description: Workflow automation platform
-            ping: http://n8n-01.n8n-01:5678
+            ping: n8n-01.n8n-01
         - Paperclip:
             icon: mdi-paperclip
             href: https://paperclip.cluster.derio.net
             description: AI agent orchestrator
-            ping: http://paperclip-lb.paperclip-system:3100
+            ping: paperclip-lb.paperclip-system
         - ComfyUI:
             icon: mdi-alpha-c-box-outline
             href: https://comfyui.cluster.derio.net
             description: Visual editor for diffusion model pipelines
-            ping: http://comfyui.comfyui:8188
+            ping: comfyui.comfyui
         - GPU Switcher:
             icon: mdi-expansion-card
             href: https://gpu.cluster.derio.net
             description: Dashboard for managing GPU time-sharing
-            ping: http://gpu-switcher.gpu-switcher:8080
+            ping: gpu-switcher.gpu-switcher
