@@ -55,7 +55,40 @@ echo "willikins_heartbeat_last_success_timestamp $(date +%s)" | \
 curl -s -X DELETE http://localhost:9091/metrics/job/test_job
 ```
 
+## File-Provisioned Alerting (as-code)
+
+As of April 2026, all Grafana alerting configuration is file-provisioned via ConfigMaps in `apps/grafana-alerting/manifests/`:
+
+| ConfigMap | Provisioning Path | Contents |
+|-----------|-------------------|----------|
+| `grafana-alerting-rules` | `/etc/grafana/provisioning/alerting/alert-rules.yaml` | 5 alert rules in 5 groups |
+| `grafana-alerting-contact-points` | `/etc/grafana/provisioning/alerting/contact-points.yaml` | Telegram + Health Bridge webhook |
+| `grafana-alerting-notification-policy` | `/etc/grafana/provisioning/alerting/notification-policy.yaml` | Severity-based routing tree |
+| `grafana-alerting-dashboard` | `/etc/grafana/provisioning/dashboards/` + `/var/lib/grafana/dashboards/feature-health/` | Feature Health dashboard |
+
+### Editing Alert Rules
+
+File-provisioned rules are **read-only in the UI**. To modify:
+
+1. Edit the ConfigMap YAML in `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
+2. Commit and push — ArgoCD syncs the ConfigMap
+3. Restart Grafana pod to reload provisioning files:
+   ```bash
+   kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+   ```
+
+### Editing the Dashboard
+
+1. Open the provisioned dashboard in Grafana UI, click "Save as" to create a scratch copy
+2. Edit the scratch copy freely in the UI
+3. Export the final JSON (Share → Export → Save to file)
+4. Replace the `feature-health.json` content in `apps/grafana-alerting/manifests/dashboard-cm.yaml`
+5. Commit, push, restart Grafana pod
+6. Delete the scratch dashboard
+
 ## Grafana Alert Management
+
+> **Historical:** The curl commands below were used when alerts were API-provisioned. Since April 2026, alerting is file-provisioned via ConfigMaps. See [File-Provisioned Alerting](#file-provisioned-alerting-as-code) above. These commands still work for **reading** alert state but not for modifying rules.
 
 ```bash
 GRAFANA_AUTH="admin:$(kubectl get secret -n monitoring victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
