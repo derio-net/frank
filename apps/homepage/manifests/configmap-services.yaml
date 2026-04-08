@@ -48,7 +48,7 @@ data:
             description: OCI container image registry
             ping: http://zot.zot:5000/v2/
         - Tekton:
-            icon: tekton
+            icon: si-tekton
             href: https://tekton.cluster.derio.net
             description: Cloud-native CI/CD pipelines
             ping: http://tekton-dashboard.tekton-pipelines:9097
