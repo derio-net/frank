@@ -14,7 +14,7 @@ data:
             type: telegram
             settings:
               bottoken: $FRANK_C2_TELEGRAM_BOT_TOKEN
-              chatid: $FRANK_C2_TELEGRAM_CHAT_ID
+              chatid: "$FRANK_C2_TELEGRAM_CHAT_ID"
               parse_mode: Markdown
       - orgId: 1
         name: "Health Bridge Webhook"
