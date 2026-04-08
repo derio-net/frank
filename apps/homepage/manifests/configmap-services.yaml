@@ -10,44 +10,76 @@ data:
             icon: argo-cd
             href: https://argocd.cluster.derio.net
             description: GitOps continuous delivery for Kubernetes
+            ping: https://argocd.cluster.derio.net
         - Longhorn:
             icon: longhorn
             href: https://longhorn.cluster.derio.net
             description: Distributed block storage for Kubernetes
+            ping: https://longhorn.cluster.derio.net
         - Hubble:
             icon: cilium
             href: https://hubble.cluster.derio.net
             description: Cilium network observability
+            ping: https://hubble.cluster.derio.net
         - Grafana:
             icon: grafana
             href: https://grafana.cluster.derio.net
             description: Metrics dashboards and observability
+            ping: https://grafana.cluster.derio.net
         - Infisical:
             icon: infisical
             href: https://infisical.cluster.derio.net
             description: Secrets management platform
+            ping: https://infisical.cluster.derio.net
         - Authentik:
             icon: authentik
             href: https://auth.cluster.derio.net
             description: Identity provider and SSO
+            ping: https://auth.cluster.derio.net
+    - CI/CD:
+        - Gitea:
+            icon: gitea
+            href: https://gitea.cluster.derio.net
+            description: Git hosting and code review
+            ping: https://gitea.cluster.derio.net
+        - Zot:
+            icon: mdi-package-variant-closed
+            href: https://zot.cluster.derio.net
+            description: OCI container image registry
+            ping: https://zot.cluster.derio.net
+        - Tekton:
+            icon: tekton
+            href: https://tekton.cluster.derio.net
+            description: Cloud-native CI/CD pipelines
+            ping: https://tekton.cluster.derio.net
     - Development:
         - LiteLLM:
             icon: mdi-robot
             href: https://litellm.cluster.derio.net
             description: LLM proxy and gateway
+            ping: https://litellm.cluster.derio.net
         - Sympozium:
             icon: element
             href: https://sympozium.cluster.derio.net
             description: Matrix chat client
+            ping: https://sympozium.cluster.derio.net
+        - n8n:
+            icon: n8n
+            href: https://n8n.cluster.derio.net
+            description: Workflow automation platform
+            ping: https://n8n.cluster.derio.net
         - Paperclip:
             icon: mdi-paperclip
             href: https://paperclip.cluster.derio.net
             description: AI agent orchestrator
+            ping: https://paperclip.cluster.derio.net
         - ComfyUI:
             icon: mdi-alpha-c-box-outline
             href: https://comfyui.cluster.derio.net
             description: Visual editor for diffusion model pipelines
+            ping: https://comfyui.cluster.derio.net
         - GPU Switcher:
             icon: mdi-expansion-card
             href: https://gpu.cluster.derio.net
             description: Dashboard for managing GPU time-sharing
+            ping: https://gpu.cluster.derio.net
