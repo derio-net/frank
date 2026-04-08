@@ -754,6 +754,25 @@ images:
       and red connection lines. Dark server room with blue and steel-gray
       lighting accents.
 
+  - key: ops-17-ingress
+    output: blog/content/operating/17-ingress/cover.png
+    description: "Operating on In-Cluster Ingress — Frank maintaining a traffic gateway"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster sitting at an
+      operations desk facing a large gateway archway made of ethernet
+      cables and circuit boards. The gateway glows steady blue-green,
+      indicating healthy status. His left hand holds a wrench, tightening
+      a bolt on the gateway frame. His right hand rests on a terminal
+      keyboard showing IngressRoute YAML configuration. A clipboard on the
+      desk shows a checklist: "TLS cert ✓", "forward-auth ✓", "health
+      pings ✓". A small Let's Encrypt padlock icon hangs from the top of
+      the gateway. A Homepage-style dashboard tablet leans against the desk
+      showing green dots next to service names. An Authentik shield badge
+      sits on the desk next to a coffee mug. Green skin, messy black hair,
+      black eyes with white pupils, RJ45 neck bolts sparking blue
+      electricity. Calm operational mood. Dark server room with blue-green
+      and teal lighting accents.
+
   - key: post-23
     output: blog/content/building/23-health-bridge/cover.png
     description: "Health Bridge — Frank routing alert signals from monitoring to project boards"

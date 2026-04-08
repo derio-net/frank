@@ -113,3 +113,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 14. [Operating on Secure Agent Pod]({{< relref "/operating/14-secure-agent-pod" >}})
 15. [Operating on Health Monitoring]({{< relref "/operating/15-health-monitoring" >}})
 16. [Operating on Health Bridge]({{< relref "/operating/16-health-bridge" >}})
+17. [Operating on In-Cluster Ingress]({{< relref "/operating/17-ingress" >}})
