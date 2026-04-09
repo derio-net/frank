@@ -45,7 +45,7 @@ talosctl -n 192.168.55.21 get extensions
 
 ---
 
-## Task 1: Fix mini node labels (amd-igpu → intel-igpu)
+### Task 1: Fix mini node labels (amd-igpu → intel-igpu)
 
 **Files:**
 - Modify: `patches/phase01-node-config/03-labels-mini-1.yaml`
@@ -93,7 +93,7 @@ git commit -m "fix(mini): update iGPU labels from AMD to Intel Arc"
 
 ---
 
-## Task 2: Create Omni ExtensionsConfiguration patches for i915
+### Task 2: Create Omni ExtensionsConfiguration patches for i915
 
 **Files:**
 - Delete: `patches/phase05-mini-config/mini-extensions.yml` (wrong format — Talos Image Factory schematic, not Omni resource)
@@ -183,7 +183,7 @@ git commit -m "feat(mini): add Omni i915+intel-ucode extension patches for mini-
 
 ---
 
-## Task 3: Apply extensions (triggers rolling reboot of mini nodes)
+### Task 3: Apply extensions (triggers rolling reboot of mini nodes)
 
 **Files:** None (cluster operations only)
 
@@ -252,7 +252,7 @@ talosctl -n 192.168.55.23 ls /dev/dri
 
 ---
 
-## Task 4: Create and apply CDI containerd patch
+### Task 4: Create and apply CDI containerd patch
 
 **Files:**
 - Create: `patches/phase05-mini-config/05-mini-cdi-containerd.yaml`
@@ -312,7 +312,7 @@ git commit -m "feat(mini): enable CDI containerd support for Intel GPU Device Pl
 
 ---
 
-## Task 5: Create phase05 README
+### Task 5: Create phase05 README
 
 **Files:**
 - Create: `patches/phase05-mini-config/README.md`
@@ -384,7 +384,7 @@ git commit -m "docs(mini): add phase05 README for Intel iGPU stack"
 
 ---
 
-## Task 6: ArgoCD — Intel GPU Resource Driver (DRA)
+### Task 6: ArgoCD — Intel GPU Resource Driver (DRA)
 
 **Files:**
 - Create: `apps/intel-gpu-driver/values.yaml`
@@ -463,7 +463,7 @@ argocd app get intel-gpu-driver
 
 ---
 
-## Task 7: Verify end-to-end
+### Task 7: Verify end-to-end
 
 **Files:** None (verification only)
 

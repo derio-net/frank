@@ -12,7 +12,7 @@
 
 ---
 
-## Task 1: Create monitoring namespace
+### Task 1: Create monitoring namespace
 
 **Files:**
 - Create: `apps/root/templates/ns-monitoring.yaml`
@@ -46,7 +46,7 @@ git commit -m "feat(monitoring): add monitoring namespace"
 
 ---
 
-## Task 2: Add victoria-metrics ArgoCD Application
+### Task 2: Add victoria-metrics ArgoCD Application
 
 **Files:**
 - Create: `apps/victoria-metrics/values.yaml`
@@ -167,7 +167,7 @@ git commit -m "feat(monitoring): add victoria-metrics-k8s-stack ArgoCD app"
 
 ---
 
-## Task 3: Deploy victoria-metrics and verify
+### Task 3: Deploy victoria-metrics and verify
 
 **Step 1: Push and watch rollout**
 
@@ -215,7 +215,7 @@ Expected: 7 pods — one per node (mini-1/2/3, gpu-1, pc-1, raspi-1/2).
 
 ---
 
-## Task 4: Add victoria-logs ArgoCD Application
+### Task 4: Add victoria-logs ArgoCD Application
 
 **Files:**
 - Create: `apps/victoria-logs/values.yaml`
@@ -290,7 +290,7 @@ git commit -m "feat(monitoring): add victoria-logs-single ArgoCD app"
 
 ---
 
-## Task 5: Deploy victoria-logs and verify
+### Task 5: Deploy victoria-logs and verify
 
 **Step 1: Push and sync**
 
@@ -324,7 +324,7 @@ Expected: PVC for victoria-logs shows `Bound` on Longhorn.
 
 ---
 
-## Task 6: Add fluent-bit ArgoCD Application
+### Task 6: Add fluent-bit ArgoCD Application
 
 **Files:**
 - Create: `apps/fluent-bit/values.yaml`
@@ -439,7 +439,7 @@ git commit -m "feat(monitoring): add fluent-bit ArgoCD app"
 
 ---
 
-## Task 7: Deploy fluent-bit and verify log flow
+### Task 7: Deploy fluent-bit and verify log flow
 
 **Step 1: Push and sync**
 
@@ -475,7 +475,7 @@ Kill the port-forward: `kill %1`
 
 ---
 
-## Task 8: Verify VictoriaLogs datasource in Grafana
+### Task 8: Verify VictoriaLogs datasource in Grafana
 
 **Step 1: Open Grafana and check plugin**
 
@@ -514,7 +514,7 @@ Expected: log lines from the ArgoCD namespace.
 
 ---
 
-## Task 9: Verify pre-built dashboards
+### Task 9: Verify pre-built dashboards
 
 **Step 1: Check bundled dashboards**
 
@@ -572,7 +572,7 @@ The chart manages datasource provisioning via its own ConfigMap (`victoria-metri
 
 ---
 
-## Task 10: Final commit and push
+### Task 10: Final commit and push
 
 **Step 1: Verify all apps healthy**
 
@@ -600,7 +600,7 @@ Confirm GitHub Actions / ArgoCD remains green.
 
 ---
 
-## Task 11: Blog post — `07-observability`
+### Task 11: Blog post — `07-observability`
 
 **Files:**
 - Create: `blog/content/posts/07-observability/index.md`

@@ -52,7 +52,7 @@
 
 ---
 
-## Task 1: Create Go Project and Repository
+### Task 1: Create Go Project and Repository
 
 **Files:**
 - Create: `go.mod`
@@ -157,7 +157,7 @@ git commit -m "feat: initial project structure with main entry point"
 
 ---
 
-## Task 2: Implement Core Bridge Logic
+### Task 2: Implement Core Bridge Logic
 
 **Files:**
 - Create: `bridge.go`
@@ -365,7 +365,7 @@ git commit -m "feat: implement core bridge logic — webhook handler, alert mapp
 
 ---
 
-## Task 3: Implement GitHub GraphQL Client
+### Task 3: Implement GitHub GraphQL Client
 
 **Files:**
 - Create: `github.go`
@@ -739,7 +739,7 @@ git commit -m "feat: implement GitHub GraphQL client — project metadata, lifec
 
 ---
 
-## Task 4: Write Tests
+### Task 4: Write Tests
 
 **Files:**
 - Create: `bridge_test.go`
@@ -914,7 +914,7 @@ git commit -m "test: add unit tests for issue ref parsing, alert mapping, webhoo
 
 ---
 
-## Task 5: Create Dockerfile
+### Task 5: Create Dockerfile
 
 **Files:**
 - Create: `Dockerfile`
@@ -1031,7 +1031,7 @@ Expected: Shows `["v0.1.0", "latest"]`.
 
 ---
 
-## Task 6: Store Secrets in Infisical
+### Task 6: Store Secrets in Infisical
 
 **Files:**
 - No file changes — Infisical UI operations
@@ -1070,7 +1070,7 @@ Note: The `HEALTH_BRIDGE_GITHUB_TOKEN` needs these GitHub PAT scopes:
 
 ---
 
-## Task 7: Create Kubernetes Manifests in Frank Repo
+### Task 7: Create Kubernetes Manifests in Frank Repo
 
 **Working directory:** `derio-net/frank` (not the health-bridge repo)
 
@@ -1221,7 +1221,7 @@ git commit -m "feat(obs): add health-bridge K8s manifests — deployment, secret
 
 ---
 
-## Task 8: Create ArgoCD Application CR
+### Task 8: Create ArgoCD Application CR
 
 **Files:**
 - Create: `apps/root/templates/health-bridge.yaml`
@@ -1288,7 +1288,7 @@ Expected: Pod running, logs show "health-bridge listening on :8080" and "Loaded 
 
 ---
 
-## Task 9: Configure Grafana Webhook Contact Point
+### Task 9: Configure Grafana Webhook Contact Point
 
 **Files:**
 - No file changes — Grafana API operations
@@ -1398,7 +1398,7 @@ status: pending
 
 ---
 
-## Task 10: Add `github_issue` Labels to Alert Rules
+### Task 10: Add `github_issue` Labels to Alert Rules
 
 **Files:**
 - No file changes — Grafana API operations
@@ -1466,7 +1466,7 @@ Note: The `endpoint-down` alert covers multiple targets. The bridge will need to
 
 ---
 
-## Task 11: End-to-End Verification
+### Task 11: End-to-End Verification
 
 - [ ] **Step 1: Check bridge pod is healthy**
 

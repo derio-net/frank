@@ -37,7 +37,7 @@ Expected: the `<NAS-BACKUP-SHARE>` export is listed.
 
 ---
 
-## Task 1: Create the NAS (NFS) BackupTarget manifest
+### Task 1: Create the NAS (NFS) BackupTarget manifest
 
 **Files:**
 - Create: `apps/longhorn/manifests/backup-target-nas.yaml`
@@ -69,7 +69,7 @@ Expected: the NFS URL is filled in with real values (no `<...>` placeholders).
 
 ---
 
-## Task 2: Create the R2 credentials Secret (plaintext then SOPS-encrypt)
+### Task 2: Create the R2 credentials Secret (plaintext then SOPS-encrypt)
 
 **Files:**
 - Create: `apps/longhorn/manifests/r2-secret.yaml`
@@ -127,7 +127,7 @@ kubectl get cm -n argocd argocd-cm -o yaml | grep -i ksops
 
 ---
 
-## Task 3: Create the R2 BackupTarget manifest
+### Task 3: Create the R2 BackupTarget manifest
 
 **Files:**
 - Create: `apps/longhorn/manifests/backup-target-r2.yaml`
@@ -159,7 +159,7 @@ Expected: real bucket name, no placeholders.
 
 ---
 
-## Task 4: Create the daily recurring job (NAS)
+### Task 4: Create the daily recurring job (NAS)
 
 **Files:**
 - Create: `apps/longhorn/manifests/recurring-job-daily.yaml`
@@ -205,7 +205,7 @@ Expected: non-empty output describing the `backupTargetName` field. If this fiel
 
 ---
 
-## Task 5: Create the weekly recurring job (R2)
+### Task 5: Create the weekly recurring job (R2)
 
 **Files:**
 - Create: `apps/longhorn/manifests/recurring-job-weekly.yaml`
@@ -241,7 +241,7 @@ cat apps/longhorn/manifests/recurring-job-weekly.yaml
 
 ---
 
-## Task 6: Add `ignoreDifferences` to the longhorn-extras Application
+### Task 6: Add `ignoreDifferences` to the longhorn-extras Application
 
 This prevents ArgoCD from flagging the SOPS-encrypted Secret as OutOfSync (its on-disk representation in git differs from the decrypted on-cluster representation).
 
@@ -322,7 +322,7 @@ Expected: `ignoreDifferences` and `syncOptions` blocks are present.
 
 ---
 
-## Task 7: Commit and push
+### Task 7: Commit and push
 
 **Step 1: Stage all new/modified files**
 
@@ -372,7 +372,7 @@ argocd app wait root --health --sync --port-forward --port-forward-namespace arg
 
 ---
 
-## Task 8: Verify backup targets in Longhorn UI
+### Task 8: Verify backup targets in Longhorn UI
 
 **Step 1: Open Longhorn UI**
 
@@ -410,7 +410,7 @@ In Longhorn UI → **Backup** → select the backup → **Restore** → restore 
 
 ---
 
-## Task 9: Write the blog post
+### Task 9: Write the blog post
 
 **Files:**
 - Create: `blog/content/posts/08-backup/index.md`

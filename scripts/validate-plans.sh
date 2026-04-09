@@ -41,6 +41,11 @@ validate_file() {
   if ! echo "$header" | grep -q '\*\*Status:\*\*'; then
     ERRORS+=("$base: missing **Status:** line in header")
   fi
+
+  # Check task headers use ### (h3), not ## (h2)
+  if grep -q '^## Task [0-9]' "$f"; then
+    ERRORS+=("$base: uses '## Task' — should be '### Task'")
+  fi
 }
 
 # Determine which files to validate

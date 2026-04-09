@@ -18,7 +18,7 @@ See: `docs/superpowers/specs/2026-03-07--secrets--infisical-eso-design.md`
 
 ---
 
-## Task 1: Discover Chart Versions
+### Task 1: Discover Chart Versions
 
 **Files:** None (research only)
 
@@ -50,7 +50,7 @@ Expected: Confirm field names for `kubeSecretRef` (or equivalent), `service.type
 
 ---
 
-## Task 2: Deploy ESO (External Secrets Operator)
+### Task 2: Deploy ESO (External Secrets Operator)
 
 **Files:**
 - Create: `apps/root/templates/ns-external-secrets.yaml`
@@ -147,7 +147,7 @@ git commit -m "feat(secrets): add ESO namespace and Application"
 
 ---
 
-## Task 3: Deploy Infisical
+### Task 3: Deploy Infisical
 
 **Files:**
 - Create: `apps/root/templates/ns-infisical.yaml`
@@ -273,7 +273,7 @@ git commit -m "feat(secrets): add Infisical namespace and Application"
 
 ---
 
-## Task 4: Create Infisical Bootstrap Secret (SOPS)
+### Task 4: Create Infisical Bootstrap Secret (SOPS)
 
 The Infisical server and its PostgreSQL subchart both need credentials before they can start. These credentials must exist in the cluster before ArgoCD deploys Infisical. Apply manually, then ArgoCD ignores the Secret's data field.
 
@@ -379,7 +379,7 @@ git commit -m "feat(secrets): add SOPS-encrypted Infisical bootstrap secret"
 
 ---
 
-## Task 5: Push and Verify ESO + Infisical Deploy
+### Task 5: Push and Verify ESO + Infisical Deploy
 
 **Step 1: Push to git**
 
@@ -440,7 +440,7 @@ Expected: JSON response with `"status": "ok"` or similar health indicator.
 
 ---
 
-## Task 6: Infisical UI Setup (Manual)
+### Task 6: Infisical UI Setup (Manual)
 
 ```yaml
 # manual-operation
@@ -506,7 +506,7 @@ In the `frank-cluster` project:
 
 ---
 
-## Task 7: Create and Apply ESO Credentials Secret (SOPS)
+### Task 7: Create and Apply ESO Credentials Secret (SOPS)
 
 **Files:**
 - Create: `secrets/infisical/eso-credentials.yaml`
@@ -580,7 +580,7 @@ git commit -m "feat(secrets): add SOPS-encrypted ESO credentials secret"
 
 ---
 
-## Task 8: Create ClusterSecretStore and infisical-extras App
+### Task 8: Create ClusterSecretStore and infisical-extras App
 
 **Files:**
 - Create: `apps/infisical/manifests/cluster-secret-store.yaml`
@@ -663,7 +663,7 @@ git commit -m "feat(secrets): add ClusterSecretStore and infisical-extras Applic
 
 ---
 
-## Task 9: Push and Verify ClusterSecretStore
+### Task 9: Push and Verify ClusterSecretStore
 
 **Step 1: Push to git**
 
@@ -707,7 +707,7 @@ Common issues: wrong `hostAPI` URL, credentials secret not in correct namespace,
 
 ---
 
-## Task 10: Demo ExternalSecret Smoke Test
+### Task 10: Demo ExternalSecret Smoke Test
 
 Verify the full pipeline: Infisical → ESO → K8s Secret.
 
@@ -774,7 +774,7 @@ kubectl delete namespace secrets-test
 
 ---
 
-## Task 11: Write Blog Post
+### Task 11: Write Blog Post
 
 **Files:**
 - Create: `blog/content/posts/09-secrets/index.md`

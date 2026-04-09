@@ -21,7 +21,7 @@
 
 ---
 
-## Task 1: StorageClass and Node Labels
+### Task 1: StorageClass and Node Labels
 
 **Files:**
 - Create: `apps/longhorn/manifests/storageclass-longhorn-cicd.yaml`
@@ -89,7 +89,7 @@ kubectl get node pc-1 --show-labels | grep role=cicd
 
 ---
 
-## Task 2: Gitea Deployment
+### Task 2: Gitea Deployment
 
 **Files:**
 - Create: `apps/gitea/values.yaml`
@@ -373,7 +373,7 @@ If OIDC fails, check:
 
 ---
 
-## Task 3: Gitea Post-Deploy Configuration
+### Task 3: Gitea Post-Deploy Configuration
 
 - [ ] **Step 1: Create service account and API token**
 
@@ -424,7 +424,7 @@ rm -rf /tmp/test-clone
 
 ---
 
-## Task 4: Tekton Core Deployment
+### Task 4: Tekton Core Deployment
 
 **Files:**
 - Create: `apps/tekton/vendor/pipelines/release.yaml` (vendored)
@@ -643,7 +643,7 @@ If `tkn` CLI is not installed: `brew install tektoncd-cli` (or download from Git
 
 ---
 
-## Task 5: Tekton Triggers Deployment
+### Task 5: Tekton Triggers Deployment
 
 **Files:**
 - Create: `apps/tekton/vendor/triggers/release.yaml` (vendored)
@@ -990,7 +990,7 @@ If no PipelineRun is created, debug:
 
 ---
 
-## Task 6: Zot Registry Deployment
+### Task 6: Zot Registry Deployment
 
 **Files:**
 - Create: `apps/zot/values.yaml`
@@ -1276,7 +1276,7 @@ status: pending
 
 ---
 
-## Task 7: Pipeline Stage A — Clone, Test, Report Status
+### Task 7: Pipeline Stage A — Clone, Test, Report Status
 
 **Files:**
 - Create: `apps/tekton/tasks/git-clone.yaml` (vendored from Tekton catalog)
@@ -1512,7 +1512,7 @@ curl -s -H "Authorization: token <GITEA_API_TOKEN>" \
 
 ---
 
-## Task 8: Pipeline Stage B — Build Image and Push to Zot
+### Task 8: Pipeline Stage B — Build Image and Push to Zot
 
 **Files:**
 - Create: `apps/tekton/tasks/build-push.yaml`
@@ -1696,7 +1696,7 @@ curl -sk https://192.168.55.210:5000/v2/_catalog
 
 ---
 
-## Task 9: Pipeline Stage C — Cosign Image Signing
+### Task 9: Pipeline Stage C — Cosign Image Signing
 
 **Files:**
 - Create: `apps/tekton/tasks/cosign-sign.yaml`

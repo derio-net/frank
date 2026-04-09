@@ -12,7 +12,7 @@
 
 ---
 
-## Task 1: Fix `longhorn` Application CR — remove ad-hoc finalizers
+### Task 1: Fix `longhorn` Application CR — remove ad-hoc finalizers
 
 **Files:**
 - Modify: `apps/root/templates/longhorn.yaml`
@@ -59,7 +59,7 @@ git commit -m "fix(longhorn): document correct finalizer — ad-hoc extras will 
 
 ---
 
-## Task 2: Fix `longhorn-extras` Application CR — `ignoreDifferences` and `prune`
+### Task 2: Fix `longhorn-extras` Application CR — `ignoreDifferences` and `prune`
 
 **Files:**
 - Modify: `apps/root/templates/longhorn-extras.yaml`
@@ -122,7 +122,7 @@ git commit -m "fix(longhorn-extras): ensure ignoreDifferences and prune match cl
 
 ---
 
-## Task 3: Fix `gpu-operator` Application CR — remove ad-hoc finalizers, add `prune: false`
+### Task 3: Fix `gpu-operator` Application CR — remove ad-hoc finalizers, add `prune: false`
 
 **Files:**
 - Modify: `apps/root/templates/gpu-operator.yaml`
@@ -165,7 +165,7 @@ git commit -m "fix(gpu-operator): add prune: false to syncPolicy — ad-hoc post
 
 ---
 
-## Task 4: Make Grafana VictoriaLogs datasource declarative
+### Task 4: Make Grafana VictoriaLogs datasource declarative
 
 **Files:**
 - Create: `apps/victoria-metrics/manifests/grafana-victorialogs-ds.yaml`
@@ -275,7 +275,7 @@ The manually-added datasource (id: 3) must be removed from Grafana so the provis
 
 ---
 
-## Task 5: Document the Grafana datasource migration as a manual operation
+### Task 5: Document the Grafana datasource migration as a manual operation
 
 This task adds the `# manual-operation` YAML block to this plan and to the observability plan, then populates the central runbook.
 
@@ -338,7 +338,7 @@ git commit -m "docs(plans): add manual-operation YAML blocks to drift remediatio
 
 ---
 
-## Task 6: Create `docs/runbooks/manual-operations.yaml`
+### Task 6: Create `docs/runbooks/manual-operations.yaml`
 
 **Files:**
 - Create: `docs/runbooks/manual-operations.yaml`
@@ -420,7 +420,7 @@ git commit -m "feat(runbooks): add central manual-operations registry with phase
 
 ---
 
-## Task 7: Create the `/sync-runbook` skill
+### Task 7: Create the `/sync-runbook` skill
 
 **Files:**
 - Create: `.claude/skills/sync-runbook.md`
@@ -521,7 +521,7 @@ git commit -m "feat(skills): add sync-runbook skill for maintaining manual-opera
 
 ---
 
-## Task 8: Update CLAUDE.md — add `/sync-runbook` to layer workflow and document the manual-op format
+### Task 8: Update CLAUDE.md — add `/sync-runbook` to layer workflow and document the manual-op format
 
 **Files:**
 - Modify: `CLAUDE.md`
@@ -596,7 +596,7 @@ git commit -m "docs(claude-md): add sync-runbook to phase workflow and document 
 
 ---
 
-## Task 9: Push and verify root app syncs clean
+### Task 9: Push and verify root app syncs clean
 
 **Step 1: Push all commits**
 

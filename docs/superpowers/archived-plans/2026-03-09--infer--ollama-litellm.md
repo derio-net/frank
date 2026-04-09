@@ -15,7 +15,7 @@
 
 ---
 
-## Task 1: Create Ollama ArgoCD app
+### Task 1: Create Ollama ArgoCD app
 
 **Files:**
 - Create: `apps/ollama/values.yaml`
@@ -133,7 +133,7 @@ git commit -m "feat(ollama): add ArgoCD app for local LLM inference on gpu-1"
 
 ---
 
-## Task 2: Create LiteLLM ExternalSecret manifests
+### Task 2: Create LiteLLM ExternalSecret manifests
 
 **Files:**
 - Create: `apps/litellm/manifests/external-secret.yaml`
@@ -175,7 +175,7 @@ git commit -m "feat(litellm): add ExternalSecret for OpenRouter and master key"
 
 ---
 
-## Task 3: Create LiteLLM ArgoCD apps
+### Task 3: Create LiteLLM ArgoCD apps
 
 **Files:**
 - Create: `apps/litellm/values.yaml`
@@ -386,7 +386,7 @@ git commit -m "feat(litellm): add ArgoCD app for LLM inference gateway"
 
 ---
 
-## Task 4: Add secrets to Infisical
+### Task 4: Add secrets to Infisical
 
 ```yaml
 # manual-operation
@@ -408,7 +408,7 @@ status: pending
 
 ---
 
-## Task 5: Push and deploy Ollama
+### Task 5: Push and deploy Ollama
 
 **Files:** None (cluster operations only)
 
@@ -469,7 +469,7 @@ kubectl describe node gpu-1 | grep -A5 "Allocated resources"
 
 ---
 
-## Task 6: Deploy and verify LiteLLM
+### Task 6: Deploy and verify LiteLLM
 
 **Files:** None (cluster operations only)
 
@@ -528,7 +528,7 @@ curl http://192.168.55.206:4000/health
 
 ---
 
-## Task 7: End-to-end smoke test
+### Task 7: End-to-end smoke test
 
 **Files:** None (verification only)
 
@@ -591,7 +591,7 @@ argocd app list --port-forward --port-forward-namespace argocd | grep -E "ollama
 
 ---
 
-## Task 8: Update CLAUDE.md
+### Task 8: Update CLAUDE.md
 
 **Files:**
 - Modify: `CLAUDE.md`

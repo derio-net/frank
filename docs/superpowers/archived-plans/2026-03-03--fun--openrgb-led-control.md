@@ -15,7 +15,7 @@
 
 ---
 
-## Task 1: Create the Talos I2C Patch
+### Task 1: Create the Talos I2C Patch
 
 **Files:**
 - Create: `patches/phase4-gpu/05-gpu1-i2c-modules.yaml`
@@ -54,7 +54,7 @@ git commit -m "feat(gpu-1): add I2C kernel modules patch for OpenRGB LED control
 
 ---
 
-## Task 2: Apply the Talos Patch and Reboot gpu-1
+### Task 2: Apply the Talos Patch and Reboot gpu-1
 
 **Files:** None (cluster operations only)
 
@@ -90,7 +90,7 @@ If no `/dev/i2c-*` devices appear, check `talosctl -n 192.168.55.31 dmesg | grep
 
 ---
 
-## Task 3: Run OpenRGB Discovery Pod
+### Task 3: Run OpenRGB Discovery Pod
 
 **Files:** None (one-shot pod, not committed)
 
@@ -138,7 +138,7 @@ Device 1: ...
 
 ---
 
-## Task 4: Create ArgoCD Application Templates
+### Task 4: Create ArgoCD Application Templates
 
 **Files:**
 - Create: `apps/root/templates/ns-openrgb.yaml`
@@ -196,7 +196,7 @@ git commit -m "feat(argocd): add OpenRGB Application template and namespace"
 
 ---
 
-## Task 5: Create OpenRGB Manifests
+### Task 5: Create OpenRGB Manifests
 
 **Files:**
 - Create: `apps/openrgb/manifests/configmap.yaml`
@@ -307,7 +307,7 @@ git commit -m "feat(openrgb): add DaemonSet and ConfigMap for LED control on gpu
 
 ---
 
-## Task 6: Push and Verify ArgoCD Sync
+### Task 6: Push and Verify ArgoCD Sync
 
 **Files:** None (cluster operations only)
 
@@ -355,7 +355,7 @@ Look at the machine — the fans should now display the configured color.
 
 ---
 
-## Task 7: Update Layer 4 README
+### Task 7: Update Layer 4 README
 
 **Files:**
 - Modify: `patches/phase4-gpu/README.md`

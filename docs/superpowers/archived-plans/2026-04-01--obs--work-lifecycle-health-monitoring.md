@@ -42,7 +42,7 @@
 
 ---
 
-## Task 1: Deploy Blackbox Exporter
+### Task 1: Deploy Blackbox Exporter
 
 - [x] **Step 1: Create Blackbox Exporter ConfigMap**
 
@@ -209,7 +209,7 @@ git commit -m "feat: deploy blackbox-exporter for feature health probes"
 
 ---
 
-## Task 2: Deploy Pushgateway
+### Task 2: Deploy Pushgateway
 
 - [x] **Step 1: Create Pushgateway Deployment + Service**
 
@@ -340,7 +340,7 @@ git commit -m "feat: deploy pushgateway for heartbeat metrics from cron jobs"
 
 ---
 
-## Task 3: Verify kube-state-metrics
+### Task 3: Verify kube-state-metrics
 
 - [x] **Step 1: Check if kube-state-metrics is deployed**
 
@@ -370,7 +370,7 @@ Expected: Returns pod phase data for the agent pod.
 
 ---
 
-## Task 4: Configure Grafana Telegram Contact Point
+### Task 4: Configure Grafana Telegram Contact Point
 
 - [x] **Step 1: Create Telegram contact point**
 
@@ -399,7 +399,7 @@ Route 2: severity=warning → Telegram - Willikins (continue: false)
 
 ---
 
-## Task 5: Create Grafana Alert Rules
+### Task 5: Create Grafana Alert Rules
 
 All rules created via Grafana provisioning API using 3-step SSE format (see Deviations).
 Folder: "Feature Health" (uid: `feature-health`).
@@ -432,7 +432,7 @@ All 5 rules evaluating correctly. Telegram notifications confirmed delivered for
 
 ---
 
-## Task 6: Create Grafana Feature Health Dashboard
+### Task 6: Create Grafana Feature Health Dashboard
 
 Dashboard uid: `fh-overview`, folder: `feature-health`.
 URL: https://grafana.frank.derio.net/d/fh-overview/feature-health
@@ -452,7 +452,7 @@ All 4 panels populated and verified with live data.
 
 ---
 
-## Task 7: End-to-End Verification
+### Task 7: End-to-End Verification
 
 - [x] **Step 1: Trigger exercise cron and verify heartbeat**
 
