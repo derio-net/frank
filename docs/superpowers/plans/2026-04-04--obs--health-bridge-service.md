@@ -8,7 +8,7 @@
 
 **Tech Stack:** Go 1.22+, GitHub GraphQL API, Grafana webhooks, Docker (distroless base), Kubernetes raw manifests, ArgoCD
 
-**Status:** **Deployed** (2026-04-04) — All 11 tasks complete. health-bridge v0.1.0 running in monitoring namespace. E2E verified: firing→degraded→resolved→healthy round-trip on willikins#11.
+**Status:** Deployed (2026-04-04) — All 11 tasks complete. health-bridge v0.1.0 running in monitoring namespace. E2E verified: firing→degraded→resolved→healthy round-trip on willikins#11.
 
 **Spec:** `willikins/docs/superpowers/specs/2026-04-01-work-lifecycle-tracking-design.md` (Milestone 3)
 

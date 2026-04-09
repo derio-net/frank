@@ -1,6 +1,9 @@
 # OpenRGB IT5701 On-Demand Control Investigation
 
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
 **Date:** 2026-03-09 (updated 2026-03-10)
+**Spec:** `docs/superpowers/specs/2026-03-09--fun--openrgb-server-regression-fix-design.md`
 **Status:** Closed
 
 **Outcome:** Root cause confirmed — IT5701 V3.5.14.0 firmware write lock set by BIOS; requires USB traffic capture on Windows to find unlock sequence.

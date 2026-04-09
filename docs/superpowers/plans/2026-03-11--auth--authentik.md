@@ -8,7 +8,7 @@
 
 **Tech Stack:** Authentik 2026.2.1 Helm chart, PostgreSQL 17 (bundled subchart), Cilium L2 LoadBalancer (192.168.55.211), SOPS/age secrets, Authentik blueprints (YAML).
 
-**Design doc:** `docs/superpowers/specs/2026-03-11-unified-auth-design.md`
+**Spec:** `docs/superpowers/specs/2026-03-11--auth--authentik-design.md`
 **Status:** Deployed
 
 ---

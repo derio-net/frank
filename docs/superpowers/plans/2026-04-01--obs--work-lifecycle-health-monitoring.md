@@ -1,5 +1,7 @@
 # Work Lifecycle Tracking — M2: Health Monitoring Infrastructure (Frank)
 
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
 **Status:** Deployed
 
 **Goal:** Deploy Prometheus Blackbox Exporter and Pushgateway on Frank, configure Grafana dashboards and alerting, so deployed features are monitored and silent failures trigger Telegram alerts.

@@ -8,8 +8,8 @@
 
 **Tech Stack:** ArgoCD, Helm, Longhorn, Cilium L2, Infisical + ExternalSecrets, Tekton Pipelines/Triggers/Dashboard, Gitea, Zot, cosign, cert-manager
 
-**Design doc:** `docs/superpowers/specs/2026-03-29--cicd--platform-design.md`
-**Status:** Deployed (pending: Infisical secrets, Gitea post-deploy config, webhook wiring, cosign keypair, containerd mirror patch)
+**Spec:** `docs/superpowers/specs/2026-03-29--cicd--platform-design.md`
+**Status:** semi-Deployed (pending: Infisical secrets, Gitea post-deploy config, webhook wiring, cosign keypair, containerd mirror patch)
 
 ---
 
