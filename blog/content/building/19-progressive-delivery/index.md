@@ -169,6 +169,9 @@ ignoreDifferences:
       - /spec/replicas
 ```
 
+<!-- MEDIA: screenshot | Argo Rollouts dashboard during canary | kubectl argo rollouts dashboard, capture during active rollout -->
+<!-- {{</* screenshot src="rollouts-dashboard.png" caption="Argo Rollouts dashboard showing canary progression" */>}} -->
+
 ## Phase 3: Sympozium Blue-Green
 
 ### Why Sympozium

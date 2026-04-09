@@ -98,3 +98,6 @@ nginx   1/1     Running   0          10s
 On the host cluster, the nginx pod appears in the `vcluster-experiments` namespace with a mangled name — the syncer translates between virtual and host namespaces. The pod is scheduled normally by the host's kubelet.
 
 Adding the next vCluster is two files and a `git push`.
+
+<!-- MEDIA: asciinema | vCluster create and kubeconfig switch | helm install, vcluster connect, kubectl get nodes -->
+<!-- {{</* asciinema src="vcluster-lifecycle.cast" rows="24" */>}} -->

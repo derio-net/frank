@@ -51,6 +51,9 @@ Four ArgoCD Applications make up the observability layer:
 
 **Note:** `vmalert` and `alertmanager` are disabled in this layer. Alerting is planned for Layer 9 after the alert rules have been properly tuned. Running alertmanager without tuned rules just produces noise.
 
+<!-- MEDIA: screenshot | VictoriaMetrics VMUI query interface showing a PromQL query result | Navigate to VMSingle VMUI at http://<vmsingle-svc>:8429/vmui and run a sample query -->
+<!-- {{</* screenshot src="vmui-query.png" caption="VictoriaMetrics VMUI query interface" */>}} -->
+
 ## ArgoCD Deployment
 
 Three Application CRs live in `apps/root/templates/`. All three follow the same dual-source pattern: the upstream Helm chart from the VictoriaMetrics or Fluent chart repositories, plus this Git repo as the values reference.
@@ -322,6 +325,9 @@ The full pipeline is three stages:
 
 `Retry_Limit False` means Fluent Bit will retry indefinitely on failure. This is appropriate for a homelab — we would rather have Fluent Bit buffering logs and retrying than dropping them silently when VictoriaLogs restarts for maintenance.
 
+<!-- MEDIA: screenshot | Grafana Explore tab querying VictoriaLogs with log results visible | Open Grafana at http://192.168.55.203, go to Explore, select VictoriaLogs datasource, run a query -->
+<!-- {{</* screenshot src="grafana-log-explorer.png" caption="Grafana log explorer with VictoriaLogs datasource" */>}} -->
+
 ---
 
 ## Gotcha 3: additionalDataSources Does Not Work
@@ -389,6 +395,9 @@ With all three Applications healthy, the cluster has full observability:
 - **Kubernetes / Networking** — pod-to-pod traffic, DNS query rates, connection counts.
 - **VMAgent** — internal metrics for the scraping engine: targets scraped, samples/sec, queue depth.
 
+<!-- MEDIA: screenshot | Grafana Node Exporter Full dashboard showing CPU, memory, and disk metrics for cluster nodes | Open Grafana at http://192.168.55.203, navigate to Dashboards > Node Exporter Full -->
+<!-- {{</* screenshot src="grafana-node-metrics.png" caption="Grafana node metrics dashboard" */>}} -->
+
 **VictoriaLogs** is queryable via Grafana's Explore tab using LogQL-like syntax. Useful starting queries:
 
 ```text
@@ -405,6 +414,9 @@ With all three Applications healthy, the cluster has full observability:
 **node-exporter** is running on all six nodes (the Raspberry Pis count — raspi-1 and raspi-2 each contribute their ARM metrics to the same dashboards).
 
 **What is not yet visible:** alerting. VMAlert and Alertmanager are disabled pending alert rule tuning. That is Layer 9.
+
+<!-- MEDIA: asciinema | kubectl top nodes showing CPU and memory usage across all cluster nodes | kubectl top nodes -->
+<!-- {{</* asciinema src="kubectl-top-nodes.cast" rows="20" */>}} -->
 
 ## References
 

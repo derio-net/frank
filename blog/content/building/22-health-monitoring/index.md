@@ -99,6 +99,9 @@ spec:
 
 The `probe_group: feature_health` label lets Grafana alert rules and dashboard panels filter to just these probes.
 
+<!-- MEDIA: asciinema | Blackbox exporter probe status check showing endpoint health | kubectl -n monitoring port-forward svc/blackbox-exporter 9115:9115 & curl -s 'http://localhost:9115/probe?target=http://n8n-01.n8n-01.svc.cluster.local:5678&module=http_2xx' | grep probe_success -->
+<!-- {{</* asciinema src="blackbox-probe-status.cast" rows="20" */>}} -->
+
 ## Deploying Pushgateway
 
 Pushgateway accepts pushed metrics over HTTP and holds them until VictoriaMetrics scrapes. Cron scripts call it after each successful run:
@@ -111,6 +114,9 @@ echo "willikins_heartbeat_last_success_timestamp $(date +%s)" | \
 ```
 
 The VMServiceScrape uses `honorLabels: true` — this preserves the `job` label from the pushed metric rather than overwriting it with the scrape job name. Without this, every heartbeat metric would have `job="pushgateway"` and you couldn't tell which cron it came from.
+
+<!-- MEDIA: asciinema | Pushgateway heartbeat check showing last success timestamps | curl -s http://pushgateway.monitoring.svc.cluster.local:9091/metrics | grep willikins_heartbeat -->
+<!-- {{</* asciinema src="pushgateway-heartbeat.cast" rows="20" */>}} -->
 
 ## Grafana Alert Rules
 
@@ -152,7 +158,13 @@ Routes:
 
 One operational gotcha: if a contact point is re-provisioned (e.g., bot token updated), Grafana's alertmanager still considers previously-fired alerts as "already notified" for the default 4-hour repeat interval. The fix is to restart the Grafana pod to reset the internal notification dedup state.
 
+<!-- MEDIA: screenshot | Telegram alert notification from Grafana showing a firing alert | Trigger a test alert or capture a real firing alert in the Telegram chat with @agent_zero_cc_bot -->
+<!-- {{</* screenshot src="telegram-alert.png" caption="Telegram alert notification from Grafana" */>}} -->
+
 ## The Feature Health Dashboard
+
+<!-- MEDIA: screenshot | Grafana Feature Health dashboard showing all four panels | Navigate to http://192.168.55.203/d/fh-overview/feature-health and capture the full dashboard -->
+<!-- {{</* screenshot src="grafana-feature-health.png" caption="Grafana Feature Health dashboard" */>}} -->
 
 The dashboard at `/d/fh-overview/feature-health` has four panels:
 

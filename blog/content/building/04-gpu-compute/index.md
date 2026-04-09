@@ -170,6 +170,9 @@ Sync Policy:    Automated
 
 This is the kind of thing that does not show up in architecture diagrams. A connection that was making just enough contact to power the fans but not enough to establish PCIe signaling — fixed by a firm reseat. The software stack was ready and waiting; the hardware just needed to catch up.
 
+<!-- MEDIA: asciinema | nvidia-smi output showing RTX 5070 | ssh gpu-1, run nvidia-smi -->
+<!-- {{</* asciinema src="nvidia-smi.cast" rows="24" */>}} -->
+
 ## Part 2: Intel Arc iGPU via DRA (Layer 5)
 
 The three mini nodes (`mini-1`, `mini-2`, `mini-3`) each have an Intel Core Ultra with an integrated Intel Arc GPU. These are not powerhouse GPUs — they share system RAM instead of having dedicated VRAM, which makes them unsuitable for LLM inference (where memory bandwidth is the bottleneck). Where they shine is media and vision workloads: hardware video transcode via Quick Sync, object detection and computer vision via OpenVINO, and OpenCL compute. More importantly, they gave us a reason to implement DRA — the replacement for the Kubernetes device plugin model.

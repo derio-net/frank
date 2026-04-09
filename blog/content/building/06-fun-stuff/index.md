@@ -58,6 +58,9 @@ kubectl run openrgb-discovery --rm -it --restart=Never \
 
 This revealed one device — `Z790 EAGLE AX (IT5701-GIGABYTE)` at device index 0 — with three zones (D_LED1 Bottom, D_LED2 Top, Motherboard), eight LEDs total, and a handful of modes: Direct, Static, Breathing, Blinking, Color Cycle, and Flashing. Enough to work with.
 
+<!-- MEDIA: photo | Case LEDs controlled by Kubernetes | Photograph the mini cases with LEDs lit in different colors -->
+<!-- {{</* screenshot src="led-cases.jpg" caption="Mini cases with LEDs controlled via OpenRGB DaemonSet" */>}} -->
+
 ## The OpenRGB DaemonSet
 
 The deployment is a DaemonSet pinned to gpu-1. The architecture is a single container: it

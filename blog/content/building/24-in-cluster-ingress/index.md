@@ -71,6 +71,9 @@ The `disableChecks: true` skips local DNS propagation verification (blocked by r
 
 The cert is stored in `acme.json` on a small 128Mi Longhorn PV. Since the PV is RWO, Traefik runs with `strategy: Recreate` — no rolling updates, but that's fine for a single-replica edge proxy.
 
+<!-- MEDIA: asciinema | Certificate status check showing wildcard TLS cert from Let's Encrypt | kubectl -n traefik-system get certificates -o wide && kubectl -n traefik-system exec deploy/traefik -- cat /data/acme.json | jq '.cloudflare.Certificates[].domain' -->
+<!-- {{</* asciinema src="cert-status.cast" rows="20" */>}} -->
+
 ### PVC Permissions Gotcha
 
 Longhorn creates root-owned volumes, but Traefik runs as uid 65532 (nonroot). Without `fsGroup`, the ACME resolver fails silently with `permission denied` on `/data/acme.json` — Traefik logs it as "ACME resolve is skipped from the resolvers list" and every IngressRoute complains about a "nonexistent certificate resolver":
@@ -119,6 +122,12 @@ Services split into two tiers:
 
 Backend services are referenced via Kubernetes DNS (`service.namespace:port`), not Cilium L2 IPs. Traffic stays cluster-internal via Cilium eBPF routing.
 
+<!-- MEDIA: asciinema | IngressRoute listing showing all configured routes | kubectl get ingressroutes -n traefik-system -o wide -->
+<!-- {{</* asciinema src="ingressroute-list.cast" rows="20" */>}} -->
+
+<!-- MEDIA: screenshot | Traefik dashboard showing routers, services, and middleware chains | Navigate to the Traefik dashboard and capture the routers overview page -->
+<!-- {{</* screenshot src="traefik-dashboard.png" caption="Traefik dashboard showing configured routers" */>}} -->
+
 ## Authentik Blueprints
 
 The proxy providers for `*.cluster.derio.net` are managed declaratively via an Authentik blueprint ConfigMap (`blueprints-cluster-proxy-providers.yaml`). Each service gets a `forward_single` proxy provider entry:
@@ -151,6 +160,9 @@ A gethomepage.dev instance at `master.cluster.derio.net` provides the cluster la
 Health checks use `siteMonitor` (HTTP HEAD/GET to internal ClusterIP URLs), not `ping` (ICMP) — Kubernetes ClusterIP addresses don't respond to ICMP from inside the cluster.
 
 Custom bookmarks link to the Lab landing page, Omni, and Renovate.
+
+<!-- MEDIA: screenshot | Homepage dashboard showing all cluster services organized by category | Navigate to https://master.cluster.derio.net and capture the full dashboard view -->
+<!-- {{</* screenshot src="homepage-dashboard.png" caption="Homepage dashboard at master.cluster.derio.net" */>}} -->
 
 ## Gotchas
 
