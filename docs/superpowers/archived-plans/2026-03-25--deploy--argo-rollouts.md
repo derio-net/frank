@@ -663,7 +663,7 @@ git commit -m "fix(deploy): <describe what needed fixing>"
 
 Kubernetes does not allow changing the `kind` of an existing resource. ArgoCD `prune: false` means the old Deployment won't be auto-deleted. The safe sequence:
 
-- [ ] **Step 1: Scale Deployment to 0 first (avoids traffic gap)**
+- [-] **Step 1: Scale Deployment to 0 first (avoids traffic gap)** *(skipped — Phase 3 reverted, RWO PVC incompatible with Argo Rollouts)*
 
 ```bash
 source .env
@@ -672,7 +672,7 @@ kubectl get pods -n paperclip-system
 # Wait until all paperclip pods are gone (Terminating → gone)
 ```
 
-- [ ] **Step 2: Delete the Deployment object**
+- [-] **Step 2: Delete the Deployment object** *(skipped — Phase 3 reverted)*
 
 ```bash
 kubectl delete deployment paperclip -n paperclip-system
@@ -692,7 +692,7 @@ kubectl get deployment paperclip -n paperclip-system
 
 Copy the full Deployment spec. Change `apiVersion`, `kind`, remove `spec.strategy` (Rollout has its own strategy field), add the Argo Rollouts strategy block.
 
-- [ ] **Step 1: Create rollout.yaml from deployment.yaml spec**
+- [-] **Step 1: Create rollout.yaml from deployment.yaml spec** *(skipped — Phase 3 reverted)*
 
 ```yaml
 # Argo Rollouts Recreate for Paperclip AI Orchestrator
@@ -781,7 +781,7 @@ spec:
     recreate: {}
 ```
 
-- [ ] **Step 2: Remove deployment.yaml and commit rollout.yaml**
+- [-] **Step 2: Remove deployment.yaml and commit rollout.yaml** *(skipped — Phase 3 reverted)*
 
 ```bash
 git rm apps/paperclip/manifests/deployment.yaml
@@ -793,7 +793,7 @@ git commit -m "feat(deploy): replace paperclip Deployment with Recreate Rollout 
 
 ### Task 13: Deploy and verify Phase 3
 
-- [ ] **Step 1: Push and sync**
+- [-] **Step 1: Push and sync** *(skipped — Phase 3 reverted)*
 
 ```bash
 git push
@@ -801,21 +801,21 @@ source .env
 argocd app sync paperclip --port-forward --port-forward-namespace argocd
 ```
 
-- [ ] **Step 2: Verify Rollout is healthy**
+- [-] **Step 2: Verify Rollout is healthy** *(skipped — Phase 3 reverted)*
 
 ```bash
 kubectl argo rollouts get rollout paperclip -n paperclip-system
 # Expected: Strategy: Recreate, Phase: Healthy, 1 pod running
 ```
 
-- [ ] **Step 3: Verify Paperclip is accessible**
+- [-] **Step 3: Verify Paperclip is accessible** *(skipped — Phase 3 reverted)*
 
 ```bash
 curl -s http://192.168.55.212:3100/
 # Expected: HTML response (Paperclip web UI)
 ```
 
-- [ ] **Step 4: Test rollout and rollback**
+- [-] **Step 4: Test rollout and rollback** *(skipped — Phase 3 reverted)*
 
 ```bash
 # Trigger a rollout by bumping the image tag
