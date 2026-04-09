@@ -116,3 +116,95 @@
     }
 }
 </style>
+
+{{- if .HasShortcode "asciinema" }}
+<link rel="stylesheet" href="https://unpkg.com/asciinema-player@3.9.0/dist/bundle/asciinema-player.css" />
+<script src="https://unpkg.com/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>
+{{- end }}
+
+{{- /* Media styles for screenshots, asciinema, and YouTube embeds */ -}}
+<style>
+/* Screenshot shortcode */
+.screenshot {
+    margin: 1.5rem 0;
+    text-align: center;
+}
+
+.screenshot a {
+    display: block;
+    line-height: 0;
+}
+
+.screenshot img {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    cursor: zoom-in;
+    transition: box-shadow 0.2s ease;
+}
+
+.screenshot img:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.screenshot figcaption {
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+    font-style: italic;
+    color: var(--secondary);
+}
+
+/* Asciinema player container */
+.asciinema-container {
+    margin: 1.5rem 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Polish existing inline images in post content */
+.post-content img:not([src*="cover.png"]) {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Responsive YouTube embeds */
+.youtube-container {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    margin: 1.5rem 0;
+    border-radius: var(--radius);
+}
+
+.youtube-container iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+/* Dark mode adjustments */
+body.dark .screenshot img {
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark .screenshot img:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+body.dark .asciinema-container {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark .post-content img:not([src*="cover.png"]) {
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+</style>
