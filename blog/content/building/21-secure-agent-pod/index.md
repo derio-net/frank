@@ -216,6 +216,9 @@ The full verification checklist:
 | VibeKanban UI | `http://192.168.55.218:8081` | HTTP 200 |
 | SSH access | `ssh claude@192.168.55.215` | Login works |
 
+<!-- MEDIA: asciinema | SSH into secure agent pod | ssh -p 22 claude@192.168.55.215, show environment -->
+<!-- {{</* asciinema src="ssh-agent-pod.cast" rows="24" */>}} -->
+
 ## Gotchas
 
 - **PVC mounts hide image contents.** Anything the Dockerfile places under the PVC mount path (`/home/claude`) becomes invisible. Put config templates in `/opt/` and seed them via the entrypoint.

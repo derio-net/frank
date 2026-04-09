@@ -28,6 +28,9 @@ The media generation stack is healthy when:
 
 The fastest way to check the current state: open `http://192.168.55.214:8080` in a browser. The dashboard shows which workload owns the GPU and the pod status of each.
 
+<!-- MEDIA: screenshot | GPU Switcher current allocation state | Navigate to 192.168.55.214:8080, dark mode -->
+<!-- {{</* screenshot src="gpu-switcher-state.png" caption="GPU Switcher showing current workload allocation" */>}} -->
+
 ### From the Command Line
 
 ```bash

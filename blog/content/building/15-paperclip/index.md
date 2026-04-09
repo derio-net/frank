@@ -167,6 +167,9 @@ DB Backup       enabled (every 60m, keep 30d)
 
 Database migrations applied on first start. Automatic PostgreSQL backups to `/paperclip/instances/default/data/backups` every hour.
 
+<!-- MEDIA: screenshot | Paperclip orchestrator web UI | Navigate to 192.168.55.212:3100, show agent overview, dark mode -->
+<!-- {{</* screenshot src="paperclip-ui.png" caption="Paperclip orchestrator showing active agents" */>}} -->
+
 ## What's Next
 
 Paperclip and Sympozium now coexist on the same cluster, sharing the same LiteLLM gateway. The practical comparison will play out over the next few layers as I try to automate the same workflows through both and see which abstraction fits better.

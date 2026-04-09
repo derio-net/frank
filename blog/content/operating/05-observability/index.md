@@ -37,6 +37,9 @@ Open `http://192.168.55.203` in a browser. The stack ships with pre-built dashbo
 
 These dashboards are provisioned by the Helm chart and survive Grafana pod restarts.
 
+<!-- MEDIA: screenshot | Grafana dashboards overview | Navigate to 192.168.55.203, show dashboard list, dark mode -->
+<!-- {{</* screenshot src="grafana-dashboards.png" caption="Grafana dashboard list showing available views" */>}} -->
+
 ### Querying Metrics with MetricsQL
 
 For ad-hoc metric exploration, port-forward to VMSingle and use its built-in UI:

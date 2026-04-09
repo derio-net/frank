@@ -111,6 +111,9 @@ metadata:
         omni.sidero.dev/cluster-machine: ce4d0d52-6c10-bdc9-746c-88aedd67681b
 ```
 
+<!-- MEDIA: asciinema | talosctl health output showing all 7 nodes passing checks | talosctl health --nodes 192.168.55.21 -->
+<!-- {{</* asciinema src="talosctl-health.cast" rows="20" */>}} -->
+
 ## Layer 2: Cilium CNI
 
 Talos ships with Flannel as the default CNI. Flannel works, but it is a minimal overlay network -- no network policy enforcement, no built-in observability, and no native LoadBalancer implementation. For a homelab that needs to expose services on the local network and wants visibility into pod-to-pod traffic, Cilium is a significant upgrade.
@@ -211,6 +214,9 @@ spec:
 ```
 
 The IP pool reserves `192.168.55.200-254` on the home subnet for LoadBalancer services. The L2 announcement policy tells Cilium to respond to ARP requests for those IPs on any Ethernet interface matching the regex patterns -- this covers both `eth0` (Raspberry Pis) and `enp`-style names (the x86 machines). Any service of type `LoadBalancer` automatically gets an IP from this pool and becomes reachable from the local network.
+
+<!-- MEDIA: asciinema | cilium status showing eBPF kube-proxy replacement and Hubble enabled | cilium status -->
+<!-- {{</* asciinema src="cilium-status.cast" rows="20" */>}} -->
 
 ### Gotchas
 

@@ -79,6 +79,9 @@ global:
 
 This is set via `global.env` so it applies to both the server and worker deployments.
 
+<!-- MEDIA: screenshot | Authentik login page with branded Frank cluster login form | Navigate to https://auth.frank.derio.net or http://192.168.55.211:9000 -->
+<!-- {{</* screenshot src="authentik-login.png" caption="Authentik login page" */>}} -->
+
 ### Pattern 3: Agent Auth (Kubernetes OIDC)
 
 The kube-apiserver itself can validate Authentik-issued tokens. A Talos machine config patch adds OIDC flags to the apiserver:
@@ -129,6 +132,9 @@ server:
 
 The bootstrap password creates an initial `akadmin` user on first boot. After SSO is working, this account becomes a break-glass fallback.
 
+<!-- MEDIA: screenshot | Authentik admin dashboard showing providers, applications, and outpost status | Log in as akadmin at http://192.168.55.211:9000/if/admin/ -->
+<!-- {{</* screenshot src="authentik-admin.png" caption="Authentik admin dashboard" */>}} -->
+
 ## Blueprints: Declarative in Theory (and Eventually in Practice)
 
 Authentik supports YAML blueprints for defining providers, applications, and groups. The plan was to mount them as ConfigMaps and let Authentik auto-discover them.
@@ -149,6 +155,9 @@ After several attempts, the initial approach shifted to the Authentik REST API. 
 - `blueprints-agent-auth.yaml` — k8s-agent OAuth2 provider for OIDC-backed kubectl
 
 Layer 13 is now fully declarative. If Authentik's database is lost, all providers, applications, and group mappings are recreated from blueprints on startup.
+
+<!-- MEDIA: screenshot | Authentik provider configuration showing OIDC and proxy providers | Navigate to Admin > Applications > Providers in the Authentik admin UI -->
+<!-- {{</* screenshot src="authentik-provider-config.png" caption="Provider configuration in Authentik admin" */>}} -->
 
 ## ArgoCD: Self-Management
 

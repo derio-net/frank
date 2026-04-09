@@ -97,6 +97,9 @@ talosctl bootstrap -n <HOP_IP>
 
 **What we learned:** Omni's value is lifecycle management at scale — rolling upgrades, config sync across nodes. For a single-node cluster that rarely changes, `talosctl` is simpler. The tradeoff is manual upgrades and no dashboard, but that's acceptable for an edge node. Hop's talosconfig lives at `clusters/hop/talosconfig/` (gitignored — it contains client certificates).
 
+<!-- MEDIA: asciinema | talosctl health check on Hop cluster showing node status | source .env_hop && talosctl -n $HOP_IP health -->
+<!-- {{</* asciinema src="hop-talosctl-health.cast" rows="20" */>}} -->
+
 ### Deviation #2: CX23, Not CX22
 
 Trivial but worth noting: Hetzner renamed CX22 to CX23. Same specs (2 vCPU, 4GB, 40GB), same price. The Packer variables and documentation were updated.
@@ -221,6 +224,9 @@ dns:
 Mesh clients use Headscale as their DNS resolver (configured automatically by Tailscale). They resolve `headplane.hop.derio.net` → `100.64.0.4` (Tailscale IP). Public clients use Cloudflare DNS and resolve the same domain to the Hetzner public IP — where Caddy returns 403.
 
 No per-client configuration, no `/etc/hosts` hacks, no conditional forwarders. Just Headscale doing what it already does.
+
+<!-- MEDIA: screenshot | Headplane dashboard showing mesh nodes at headplane.hop.derio.net | Navigate to headplane.hop.derio.net/admin/ via mesh and capture the node list view -->
+<!-- {{</* screenshot src="headplane-dashboard.png" caption="Headplane dashboard showing mesh nodes" */>}} -->
 
 ## The Headplane Saga
 
@@ -360,6 +366,9 @@ The fix is two layers of path handling:
 
 **What we learned:** `baseURL` in Hugo is for link generation, not for output directory structure. If you need a subpath, handle it at the reverse proxy layer.
 
+<!-- MEDIA: screenshot | Blog as served from the Hop cluster at blog.derio.net/frank | Navigate to https://blog.derio.net/frank in a browser and capture the landing page -->
+<!-- {{</* screenshot src="blog-from-hop.png" caption="Blog served from Hop cluster at blog.derio.net/frank" */>}} -->
+
 ## Deviation #7: Control Plane Scheduling
 
 Talos applies a `NoSchedule` taint to control-plane nodes by default. On a 7-node cluster, that's fine — workloads run on workers. On a single-node cluster, nothing can schedule.
@@ -407,6 +416,9 @@ Hop gives the homelab a public presence:
 - **Public blog** at `blog.derio.net/frank`, served from a container rebuilt on every push.
 - **Private services** (Headplane, landing page) accessible only from the mesh, enforced at Caddy's `remote_ip` check.
 - **Full GitOps** — all workloads managed by ArgoCD, same pattern as Frank.
+
+<!-- MEDIA: asciinema | kubectl get nodes on Hop cluster showing single-node topology | source .env_hop && kubectl get nodes -o wide -->
+<!-- {{</* asciinema src="hop-kubectl-nodes.cast" rows="20" */>}} -->
 
 ## Post-Deploy Fixes (Day 3)
 

@@ -52,6 +52,9 @@ Two ArgoCD apps share the `n8n-01` namespace:
 | `n8n-01` | Raw manifests | Deployment, Service (LB), PVC |
 | `n8n-01-postgresql` | Bitnami Helm chart | Standalone PostgreSQL with Longhorn storage |
 
+<!-- MEDIA: screenshot | n8n workflow editor canvas showing the visual node editor | Navigate to http://192.168.55.216:5678 and capture the workflow editor view -->
+<!-- {{</* screenshot src="n8n-editor.png" caption="n8n workflow editor canvas at 192.168.55.216:5678" */>}} -->
+
 ## Authentication: The OIDC Detour
 
 The original plan was to wire n8n up with Authentik OIDC — the same pattern used for Grafana, ArgoCD, and Infisical. Then I discovered that n8n Community Edition gates OIDC behind its enterprise license.
@@ -114,6 +117,9 @@ After ArgoCD syncs and the SOPS secret is applied:
 - **n8n-01-postgresql** provides the backing database in the same namespace
 - **10Gi PVC** preserves binary data, file uploads, and custom nodes across restarts
 - **Prometheus metrics** feed into the existing VictoriaMetrics → Grafana pipeline
+
+<!-- MEDIA: screenshot | n8n execution history showing completed workflow runs | Navigate to http://192.168.55.216:5678 and open the Executions tab to capture execution history -->
+<!-- {{</* screenshot src="n8n-execution-history.png" caption="n8n execution history" */>}} -->
 
 ## Adding More Instances
 

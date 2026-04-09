@@ -48,6 +48,9 @@ omni/omni/populate_scripts.bash
 # Git worktrees
 .worktrees/
 
+# Superpowers brainstorm sessions
+.superpowers/
+
 # Hugo
 blog/public/
 blog/resources/_gen/

@@ -76,6 +76,9 @@ Five components run in the `sympozium-system` namespace:
 
 **API Server** serves the REST API and embeds the web dashboard.
 
+<!-- MEDIA: screenshot | Sympozium web dashboard showing agent status and recent runs | Open browser to http://192.168.55.207:8080 -->
+<!-- {{</* screenshot src="sympozium-dashboard.png" caption="Sympozium web dashboard" */>}} -->
+
 ## PersonaPacks: Agent Bundles
 
 Rather than configuring agents one by one, Sympozium uses PersonaPacks — CRDs that bundle a persona's identity, policy, skills, and schedule into a single resource. When a PersonaPack is applied, the controller stamps out the individual SympoziumInstances, schedules, and configuration.
@@ -90,6 +93,9 @@ Three PersonaPacks are deployed:
 | `incident-responder` | default-policy | On-demand | Event-triggered diagnostics |
 
 The SRE agent runs every hour via a SympoziumSchedule. It uses the `k8s-ops` SkillPack to interact with the Kubernetes API — listing nodes, checking pod health, reading logs. The `sre-watchdog` persona also uses the `llmfit` SkillPack for hardware-aware model placement recommendations.
+
+<!-- MEDIA: screenshot | Agent run detail view showing lifecycle states (Pending, Running, Completed) | Open Sympozium dashboard, click on a recent AgentRun to see its detail view -->
+<!-- {{</* screenshot src="agent-run-detail.png" caption="Agent run detail view showing lifecycle states" */>}} -->
 
 ### DevOps Essentials
 
@@ -114,6 +120,9 @@ The Sympozium chart ships with a built-in `developer-team` PersonaPack — a 2-p
 | `docs-writer` | 2h | Documentation drift detection, changelog updates |
 
 We deploy a customised version in `sympozium-extras` rather than using the chart default — this adds `authRefs` (LiteLLM credentials), `policyRef`, `model: qwen3.5`, and homelab-appropriate schedule intervals (the built-in default is 5 minutes for all agents, which would saturate the RTX 5070).
+
+<!-- MEDIA: asciinema | Creating an AgentRun and watching it transition through lifecycle states | kubectl apply -f agentrun-example.yaml && kubectl get agentrun -n sympozium-system -w -->
+<!-- {{</* asciinema src="agentrun-lifecycle.cast" rows="20" */>}} -->
 
 ## Policy Enforcement
 

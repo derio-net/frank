@@ -1,0 +1,15 @@
+{{- $src := .Get "src" -}}
+{{- $caption := .Get "caption" -}}
+{{- $alt := .Get "alt" | default $caption | default $src -}}
+{{- $width := .Get "width" -}}
+{{- $img := .Page.Resources.GetMatch $src -}}
+{{- $url := $src -}}
+{{- with $img }}{{ $url = .RelPermalink }}{{ end -}}
+<figure class="screenshot"{{ with $width }} style="max-width: {{ . }}"{{ end }}>
+  <a href="{{ $url }}" target="_blank">
+    <img src="{{ $url }}" alt="{{ $alt }}" loading="lazy" />
+  </a>
+  {{- with $caption }}
+  <figcaption>{{ . }}</figcaption>
+  {{- end }}
+</figure>

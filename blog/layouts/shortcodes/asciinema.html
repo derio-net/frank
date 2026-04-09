@@ -1,0 +1,25 @@
+{{- $src := .Get "src" -}}
+{{- $cols := .Get "cols" | default "120" -}}
+{{- $rows := .Get "rows" | default "30" -}}
+{{- $speed := .Get "speed" | default "1" -}}
+{{- $idleTimeLimit := .Get "idle-time-limit" | default "2" -}}
+{{- $poster := .Get "poster" | default "npt:0:3" -}}
+{{- $id := printf "asciinema-%d" .Ordinal -}}
+{{- $res := .Page.Resources.GetMatch $src -}}
+{{- $url := $src -}}
+{{- with $res }}{{ $url = .RelPermalink }}{{ end -}}
+<div id="{{ $id }}" class="asciinema-container"></div>
+<script>
+(function() {
+  var theme = document.documentElement.dataset.theme === 'light' ? 'solarized-light' : 'asciinema';
+  AsciinemaPlayer.create('{{ $url }}', document.getElementById('{{ $id }}'), {
+    cols: {{ $cols }},
+    rows: {{ $rows }},
+    speed: {{ $speed }},
+    idleTimeLimit: {{ $idleTimeLimit }},
+    poster: '{{ $poster }}',
+    theme: theme,
+    fit: 'width'
+  });
+})();
+</script>

@@ -66,6 +66,9 @@ Key decisions:
 - **Starts at 0 replicas** — Ollama is the default active workload. ComfyUI only starts when explicitly switched via the GPU Switcher.
 - **Node affinity** to gpu-1 — the only node with a discrete GPU.
 
+<!-- MEDIA: screenshot | ComfyUI node editor showing a text-to-video workflow with LTX-2.3 | Open browser to http://192.168.55.213:8188 after activating ComfyUI via GPU Switcher -->
+<!-- {{</* screenshot src="comfyui-editor.png" caption="ComfyUI node editor with workflow" */>}} -->
+
 ## GPU Switcher
 
 The GPU Switcher is a custom Go web application that provides a dashboard for managing GPU time-sharing. It runs as a lightweight pod (50m CPU, 32Mi memory) on any amd64 node — it doesn't need a GPU itself.
@@ -81,6 +84,9 @@ WORKLOADS=ollama:ollama:ollama,comfyui:comfyui:comfyui
 Format: `name:namespace:deployment` — so `ollama:ollama:ollama` means "the workload called `ollama` is the Deployment named `ollama` in the `ollama` namespace".
 
 On each status check, it queries the Kubernetes API for each Deployment's replica count and pod status. The dashboard shows which workload currently owns the GPU. Activating a workload scales it to 1 replica and scales all others to 0.
+
+<!-- MEDIA: screenshot | GPU Switcher web dashboard showing Ollama active and ComfyUI inactive | Open browser to http://192.168.55.214:8080 -->
+<!-- {{</* screenshot src="gpu-switcher-ui.png" caption="GPU Switcher web UI" */>}} -->
 
 ### The ArgoCD Problem
 
@@ -98,6 +104,9 @@ spec:
 ```
 
 This tells ArgoCD to ignore replica count differences — the GPU Switcher is the authority for that field, not Git.
+
+<!-- MEDIA: asciinema | GPU Switcher toggling between Ollama and ComfyUI via the web API | curl -X POST http://192.168.55.214:8080/api/activate/comfyui && sleep 5 && curl http://192.168.55.214:8080/api/status -->
+<!-- {{</* asciinema src="gpu-switcher-toggle.cast" rows="20" */>}} -->
 
 ### RBAC
 
@@ -121,6 +130,9 @@ rules:
 ```
 
 A ClusterRole (not a namespaced Role) because it patches Deployments in both the `ollama` and `comfyui` namespaces.
+
+<!-- MEDIA: asciinema | Checking GPU allocation status across workloads | curl http://192.168.55.214:8080/api/status | jq -->
+<!-- {{</* asciinema src="gpu-allocation-status.cast" rows="20" */>}} -->
 
 ### Building the Image
 

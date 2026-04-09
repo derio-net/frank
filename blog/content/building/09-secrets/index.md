@@ -87,6 +87,9 @@ Bootstrap secrets — the PostgreSQL password, Redis password, and Infisical app
 
 ## Connecting ESO to Infisical
 
+<!-- MEDIA: screenshot | Infisical secrets dashboard | Navigate to 192.168.55.204, show project secrets list, dark mode -->
+<!-- {{</* screenshot src="infisical-dashboard.png" caption="Infisical dashboard showing cluster secrets" */>}} -->
+
 ESO authenticates to Infisical using a [Machine Identity](https://infisical.com/docs/documentation/platform/identities/universal-auth) with Universal Auth. This is the Infisical equivalent of a service account: create an identity, generate a Client ID + Client Secret pair, grant the identity Viewer access to the project.
 
 The credentials are stored as a SOPS-encrypted Secret in `secrets/infisical/eso-credentials.yaml`, applied out-of-band to the `external-secrets` namespace.

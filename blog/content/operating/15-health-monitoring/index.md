@@ -38,6 +38,9 @@ curl -sk -u "$GRAFANA_AUTH" "https://grafana.frank.derio.net/api/datasources/pro
   --data-urlencode 'query=probe_success{probe_group="feature_health"}'
 ```
 
+<!-- MEDIA: screenshot | Grafana Feature Health dashboard | Navigate to 192.168.55.203, Feature Health dashboard, dark mode -->
+<!-- {{</* screenshot src="feature-health-dashboard.png" caption="Feature Health dashboard showing probe and heartbeat status" */>}} -->
+
 ## Checking Heartbeat Metrics
 
 ```bash
