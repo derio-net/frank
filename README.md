@@ -139,10 +139,14 @@ frank/
 │   ├── content/operating/      # 16 companion operations guides
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
-│   ├── plans/                 # Architecture and implementation plans
+│   └── superpowers/
+│       ├── plans/             # Active implementation plans
+│       ├── archived-plans/    # Completed/deployed plans
+│       ├── specs/             # Design specifications
 │   └── runbooks/              # Manual operations registry
 ├── omni/                      # Omni-specific configs
-└── scripts/                   # Utility scripts
+├── scripts/                   # Utility scripts (plan-status.sh, validate-plans.sh)
+└── .githooks/                 # Git hooks (plan header validation)
 ```
 
 ## Environment Setup

@@ -9,6 +9,7 @@
 **Tech Stack:** Hugo shortcodes, asciinema-player 3.9.0 (CDN), PaperMod CSS variables
 
 **Spec:** `docs/superpowers/specs/2026-04-09--repo--blog-media-infrastructure-design.md`
+**Status:** Not Started
 
 ---
 
