@@ -17,30 +17,8 @@
 **Files:**
 - Create: `blog/layouts/shortcodes/screenshot.html`
 
-- [ ] **Step 1: Create the shortcode**
-
-```html
-{{- $src := .Get "src" -}}
-{{- $caption := .Get "caption" -}}
-{{- $alt := .Get "alt" | default $caption | default $src -}}
-{{- $width := .Get "width" -}}
-{{- $img := .Page.Resources.GetMatch $src -}}
-<figure class="screenshot"{{ with $width }} style="max-width: {{ . }}"{{ end }}>
-  <a href="{{ ($img | default (dict "RelPermalink" $src)).RelPermalink }}" target="_blank">
-    <img src="{{ ($img | default (dict "RelPermalink" $src)).RelPermalink }}" alt="{{ $alt }}" loading="lazy" />
-  </a>
-  {{- with $caption }}
-  <figcaption>{{ . }}</figcaption>
-  {{- end }}
-</figure>
-```
-
-- [ ] **Step 2: Commit**
-
-```bash
-git add blog/layouts/shortcodes/screenshot.html
-git commit -m "feat(repo): add screenshot Hugo shortcode"
-```
+- [x] **Step 1: Create the shortcode**
+- [x] **Step 2: Commit** *(combined into single infrastructure commit)*
 
 ---
 
@@ -83,12 +61,7 @@ git commit -m "feat(repo): add screenshot Hugo shortcode"
 </script>
 ```
 
-- [ ] **Step 2: Commit**
-
-```bash
-git add blog/layouts/shortcodes/asciinema.html
-git commit -m "feat(repo): add asciinema Hugo shortcode"
-```
+- [x] **Step 2: Commit** *(combined into single infrastructure commit)*
 
 ---
 
@@ -97,7 +70,7 @@ git commit -m "feat(repo): add asciinema Hugo shortcode"
 **Files:**
 - Modify: `blog/layouts/partials/extend_head.html`
 
-- [ ] **Step 1: Append conditional asciinema assets + media CSS after the closing `</style>` tag**
+- [x] **Step 1: Append conditional asciinema assets + media CSS after the closing `</style>` tag**
 
 After the existing `</style>` on line 118, add:
 
@@ -195,7 +168,7 @@ body.dark .post-content img:not([src*="cover.png"]) {
 </style>
 ```
 
-- [ ] **Step 2: Verify Hugo builds without errors**
+- [-] **Step 2: Verify Hugo builds without errors** *(hugo not available in container — verified template syntax manually)*
 
 ```bash
 cd blog && hugo --minify 2>&1 | tail -5
@@ -203,12 +176,7 @@ cd blog && hugo --minify 2>&1 | tail -5
 
 Expected: Build succeeds, no template errors.
 
-- [ ] **Step 3: Commit**
-
-```bash
-git add blog/layouts/partials/extend_head.html
-git commit -m "feat(repo): add media CSS and conditional asciinema loading"
-```
+- [x] **Step 3: Commit** *(combined into single infrastructure commit)*
 
 ---
 
@@ -217,7 +185,7 @@ git commit -m "feat(repo): add media CSS and conditional asciinema loading"
 **Files:**
 - Create: `blog/MEDIA-GUIDE.md`
 
-- [ ] **Step 1: Write the guide**
+- [x] **Step 1: Write the guide**
 
 Content should cover:
 - asciinema: install (`pip install asciinema`), record (`asciinema rec --cols 120 --rows 30 --idle-time-limit 2 output.cast`), trim, save to page bundle
@@ -227,12 +195,7 @@ Content should cover:
 - Quick reference: copy-paste shortcode examples for each type
 - Placeholder format explanation
 
-- [ ] **Step 2: Commit**
-
-```bash
-git add blog/MEDIA-GUIDE.md
-git commit -m "docs(repo): add blog media capture guide"
-```
+- [x] **Step 2: Commit** *(combined into single infrastructure commit)*
 
 ---
 
@@ -269,14 +232,9 @@ For each post, read it, identify the best insertion points (after the paragraph 
 | 22-health-monitoring | 2 screenshots + 2 CLI animations |
 | 24-in-cluster-ingress | 2 screenshots + 2 CLI animations |
 
-- [ ] **Step 1: Insert placeholders into all 9 high-priority posts**
-- [ ] **Step 2: Verify Hugo builds clean** (`cd blog && hugo --minify 2>&1 | tail -5`)
-- [ ] **Step 3: Commit**
-
-```bash
-git add blog/content/building/
-git commit -m "feat(repo): add media placeholders to 9 high-priority building posts"
-```
+- [x] **Step 1: Insert placeholders into all 9 high-priority posts**
+- [-] **Step 2: Verify Hugo builds clean** *(hugo not available in container)*
+- [x] **Step 3: Commit** *(combined into single placeholders commit)*
 
 ---
 
@@ -298,14 +256,9 @@ git commit -m "feat(repo): add media placeholders to 9 high-priority building po
 - `blog/content/operating/15-health-monitoring/index.md` (screenshot)
 - `blog/content/operating/17-ingress/index.md` (screenshot)
 
-- [ ] **Step 1: Insert placeholders into all 14 medium/operating posts** (1-2 per post)
-- [ ] **Step 2: Verify Hugo builds clean**
-- [ ] **Step 3: Commit**
-
-```bash
-git add blog/content/
-git commit -m "feat(repo): add media placeholders to medium-priority and operating posts"
-```
+- [x] **Step 1: Insert placeholders into all 14 medium/operating posts** (1-2 per post)
+- [-] **Step 2: Verify Hugo builds clean** *(hugo not available in container)*
+- [x] **Step 3: Commit** *(combined into single placeholders commit)*
 
 ---
 
@@ -314,7 +267,7 @@ git commit -m "feat(repo): add media placeholders to medium-priority and operati
 **Files:**
 - Create: `.claude/skills/media/SKILL.md`
 
-- [ ] **Step 1: Create the skill file**
+- [x] **Step 1: Create the skill file**
 
 The skill should:
 - Be user-invocable with optional `post` argument
@@ -327,36 +280,15 @@ The skill should:
 
 Follow the pattern from `.claude/skills/blog-post/SKILL.md` for YAML frontmatter format.
 
-- [ ] **Step 2: Commit**
-
-```bash
-git add .claude/skills/media/
-git commit -m "feat(repo): add /media skill for guided blog media capture"
-```
+- [x] **Step 2: Commit** *(combined into single infrastructure commit)*
 
 ---
 
 ### Task 8: Verify and push
 
-- [ ] **Step 1: Run Hugo build to verify no regressions**
-
-```bash
-cd blog && hugo --minify 2>&1 | tail -10
-```
-
-- [ ] **Step 2: Verify placeholders are invisible in output**
-
-```bash
-cd blog && hugo --minify && grep -r "MEDIA:" public/ | head -5
-```
-
-Expected: no matches (HTML comments stripped or invisible).
-
-- [ ] **Step 3: Push all commits**
-
-```bash
-git push -u origin claude/add-blog-media-834wl
-```
+- [-] **Step 1: Run Hugo build to verify no regressions** *(hugo not available in container — verify on next local build)*
+- [-] **Step 2: Verify placeholders are invisible in output** *(deferred to local build)*
+- [x] **Step 3: Push all commits**
 
 ---
 
