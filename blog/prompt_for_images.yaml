@@ -806,3 +806,22 @@ images:
       black eyes with white pupils, RJ45 neck bolts sparking blue
       electricity. Calm operational mood. Dark server room with blue-green
       and teal lighting accents.
+
+  - key: ops-18-paperclip
+    output: blog/content/operating/18-paperclip/cover.png
+    description: "Operating on Paperclip — Frank managing an AI agent org chart"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at an
+      operations desk, holding a large clipboard with an organizational
+      chart drawn on it. The org chart shows interconnected boxes with
+      tiny AI agent icons inside — some glowing green (healthy), with
+      connecting lines between them showing delegation chains. His other
+      hand adjusts a dial labeled "budget" on a control panel. A
+      PostgreSQL elephant logo sits on the desk next to a coffee mug.
+      Behind him, a server rack shows a single glowing pod with a
+      "Recreate" label and a ReadWriteOnce padlock icon on the storage
+      drive. A small LiteLLM gateway icon floats nearby with traffic
+      arrows flowing through it. Green skin, messy black hair, black
+      eyes with white pupils, RJ45 neck bolts sparking faint blue
+      electricity. Calm operational mood — routine agent management.
+      Dark server room with warm amber and blue lighting accents.
