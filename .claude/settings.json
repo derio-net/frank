@@ -15,6 +15,23 @@
           }
         ]
       }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/hooks/plan-validate-check.sh",
+            "statusMessage": "Validating plan header..."
+          },
+          {
+            "type": "command",
+            "command": "bash scripts/hooks/plan-archive-check.sh",
+            "statusMessage": "Checking plan archive status..."
+          }
+        ]
+      }
     ]
   }
 }
