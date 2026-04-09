@@ -1,6 +1,6 @@
 # Work Lifecycle Tracking — M3: Health Bridge Service (Frank)
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Deploy a standalone service on Frank that receives Grafana webhook alerts and automatically updates GitHub Issue lifecycle states on the "Derio Ops" project board.
 
@@ -59,7 +59,7 @@
 - Create: `main.go`
 - Create: `README.md`
 
-- [ ] **Step 1: Create the repository on GitHub**
+- [x] **Step 1: Create the repository on GitHub**
 
 ```bash
 gh repo create derio-net/health-bridge --private --description "Grafana webhook → GitHub Project lifecycle state bridge"
@@ -67,7 +67,7 @@ gh repo clone derio-net/health-bridge
 cd health-bridge
 ```
 
-- [ ] **Step 2: Initialize Go module**
+- [x] **Step 2: Initialize Go module**
 
 ```bash
 go mod init github.com/derio-net/health-bridge
@@ -75,7 +75,7 @@ go mod init github.com/derio-net/health-bridge
 
 Expected: `go.mod` created with module path.
 
-- [ ] **Step 3: Write `main.go`**
+- [x] **Step 3: Write `main.go`**
 
 Create `main.go`:
 
@@ -148,7 +148,7 @@ func envOrDefaultInt(key string, fallback int) int {
 }
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add go.mod main.go
@@ -162,7 +162,7 @@ git commit -m "feat: initial project structure with main entry point"
 **Files:**
 - Create: `bridge.go`
 
-- [ ] **Step 1: Write `bridge.go`**
+- [x] **Step 1: Write `bridge.go`**
 
 Create `bridge.go`:
 
@@ -356,7 +356,7 @@ func FormatComment(alert Alert, newState string) string {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add bridge.go
@@ -370,7 +370,7 @@ git commit -m "feat: implement core bridge logic — webhook handler, alert mapp
 **Files:**
 - Create: `github.go`
 
-- [ ] **Step 1: Write `github.go`**
+- [x] **Step 1: Write `github.go`**
 
 Create `github.go`:
 
@@ -730,7 +730,7 @@ func mapKeys(m map[string]string) []string {
 }
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add github.go
@@ -745,7 +745,7 @@ git commit -m "feat: implement GitHub GraphQL client — project metadata, lifec
 - Create: `bridge_test.go`
 - Create: `github_test.go`
 
-- [ ] **Step 1: Write `bridge_test.go`**
+- [x] **Step 1: Write `bridge_test.go`**
 
 Create `bridge_test.go`:
 
@@ -897,7 +897,7 @@ func TestWebhookHandler_ValidPayload(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Run tests**
+- [x] **Step 2: Run tests**
 
 ```bash
 go test -v ./...
@@ -905,7 +905,7 @@ go test -v ./...
 
 Expected: All tests pass.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add bridge_test.go
@@ -920,7 +920,7 @@ git commit -m "test: add unit tests for issue ref parsing, alert mapping, webhoo
 - Create: `Dockerfile`
 - Create: `.github/workflows/release.yaml`
 
-- [ ] **Step 1: Write `Dockerfile`**
+- [x] **Step 1: Write `Dockerfile`**
 
 Create `Dockerfile`:
 
@@ -945,7 +945,7 @@ EXPOSE 8080
 ENTRYPOINT ["/health-bridge"]
 ```
 
-- [ ] **Step 2: Build locally and verify image size**
+- [x] **Step 2: Build locally and verify image size**
 
 ```bash
 docker build -t health-bridge:test .
@@ -954,7 +954,7 @@ docker images health-bridge:test --format "{{.Size}}"
 
 Expected: Image size < 15MB. The distroless static base is ~2MB + Go binary ~10MB.
 
-- [ ] **Step 3: Write GitHub Actions workflow for GHCR publish**
+- [x] **Step 3: Write GitHub Actions workflow for GHCR publish**
 
 Create `.github/workflows/release.yaml`:
 
@@ -1004,14 +1004,14 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add Dockerfile .github/workflows/release.yaml
 git commit -m "feat: add Dockerfile (distroless) and GitHub Actions release workflow"
 ```
 
-- [ ] **Step 5: Tag and push to trigger first build**
+- [x] **Step 5: Tag and push to trigger first build**
 
 ```bash
 git push origin main
@@ -1021,7 +1021,7 @@ git push origin v0.1.0
 
 Expected: GitHub Actions workflow runs, builds image, pushes to `ghcr.io/derio-net/health-bridge:v0.1.0`.
 
-- [ ] **Step 6: Verify GHCR image exists**
+- [x] **Step 6: Verify GHCR image exists**
 
 ```bash
 gh api /orgs/derio-net/packages/container/health-bridge/versions --jq '.[0].metadata.container.tags'
@@ -1038,7 +1038,7 @@ Expected: Shows `["v0.1.0", "latest"]`.
 
 This is a manual operation (Infisical has no CLI for secret creation).
 
-- [ ] **Step 1: Create HEALTH_BRIDGE_WEBHOOK_SECRET in Infisical**
+- [x] **Step 1: Create HEALTH_BRIDGE_WEBHOOK_SECRET in Infisical**
 
 ```yaml
 # manual-operation
@@ -1080,7 +1080,7 @@ Note: The `HEALTH_BRIDGE_GITHUB_TOKEN` needs these GitHub PAT scopes:
 - Create: `apps/health-bridge/manifests/externalsecret.yaml`
 - Create: `apps/health-bridge/manifests/vmservicescrape.yaml`
 
-- [ ] **Step 1: Create ExternalSecret for health-bridge credentials**
+- [x] **Step 1: Create ExternalSecret for health-bridge credentials**
 
 Create `apps/health-bridge/manifests/externalsecret.yaml`:
 
@@ -1107,7 +1107,7 @@ spec:
         key: HEALTH_BRIDGE_WEBHOOK_SECRET
 ```
 
-- [ ] **Step 2: Create ConfigMap for non-secret config**
+- [x] **Step 2: Create ConfigMap for non-secret config**
 
 Create `apps/health-bridge/manifests/configmap.yaml`:
 
@@ -1123,7 +1123,7 @@ data:
   PORT: "8080"
 ```
 
-- [ ] **Step 3: Create Deployment + Service**
+- [x] **Step 3: Create Deployment + Service**
 
 Create `apps/health-bridge/manifests/deployment.yaml`:
 
@@ -1191,7 +1191,7 @@ spec:
       targetPort: 8080
 ```
 
-- [ ] **Step 4: Create VMServiceScrape for self-monitoring**
+- [x] **Step 4: Create VMServiceScrape for self-monitoring**
 
 Create `apps/health-bridge/manifests/vmservicescrape.yaml`:
 
@@ -1212,7 +1212,7 @@ spec:
 
 Note: The Go service doesn't expose `/metrics` yet. This is forward-looking — add Prometheus metrics (e.g., `health_bridge_alerts_processed_total`) in a future iteration. For now, the VMServiceScrape is harmless (scrape will 404, VictoriaMetrics ignores it).
 
-- [ ] **Step 5: Commit in frank repo**
+- [x] **Step 5: Commit in frank repo**
 
 ```bash
 git add apps/health-bridge/
@@ -1226,7 +1226,7 @@ git commit -m "feat(obs): add health-bridge K8s manifests — deployment, secret
 **Files:**
 - Create: `apps/root/templates/health-bridge.yaml`
 
-- [ ] **Step 1: Create ArgoCD Application**
+- [x] **Step 1: Create ArgoCD Application**
 
 Create `apps/root/templates/health-bridge.yaml`:
 
@@ -1262,14 +1262,14 @@ spec:
         - /data
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/root/templates/health-bridge.yaml
 git commit -m "feat(obs): add health-bridge ArgoCD Application CR"
 ```
 
-- [ ] **Step 3: Push and verify ArgoCD sync**
+- [x] **Step 3: Push and verify ArgoCD sync**
 
 ```bash
 git push origin main
@@ -1293,7 +1293,7 @@ Expected: Pod running, logs show "health-bridge listening on :8080" and "Loaded 
 **Files:**
 - No file changes — Grafana API operations
 
-- [ ] **Step 1: Create webhook contact point in Grafana**
+- [x] **Step 1: Create webhook contact point in Grafana**
 
 ```yaml
 # manual-operation
@@ -1336,7 +1336,7 @@ verify:
 status: pending
 ```
 
-- [ ] **Step 2: Update notification policy to route to webhook**
+- [x] **Step 2: Update notification policy to route to webhook**
 
 ```yaml
 # manual-operation
@@ -1405,7 +1405,7 @@ status: pending
 
 The existing alert rules from M2 need `github_issue` labels so the bridge can map alerts to Issues.
 
-- [ ] **Step 1: Update existing alert rules with `github_issue` labels**
+- [x] **Step 1: Update existing alert rules with `github_issue` labels**
 
 ```yaml
 # manual-operation
@@ -1468,7 +1468,7 @@ Note: The `endpoint-down` alert covers multiple targets. The bridge will need to
 
 ### Task 11: End-to-End Verification
 
-- [ ] **Step 1: Check bridge pod is healthy**
+- [x] **Step 1: Check bridge pod is healthy**
 
 ```bash
 source .env
@@ -1478,7 +1478,7 @@ kubectl logs -n monitoring -l app=health-bridge --tail=5
 
 Expected: Pod running, logs show startup message with project metadata loaded.
 
-- [ ] **Step 2: Send a test webhook directly to the bridge**
+- [x] **Step 2: Send a test webhook directly to the bridge**
 
 From the secure-agent-pod or via port-forward:
 
@@ -1520,7 +1520,7 @@ gh issue view 11 --repo derio-net/willikins --json projectItems,comments | jq .
 
 Expected: Issue lifecycle state changed to `degraded`, new comment with alert details.
 
-- [ ] **Step 3: Send a resolved alert to restore state**
+- [x] **Step 3: Send a resolved alert to restore state**
 
 ```bash
 kubectl port-forward -n monitoring svc/health-bridge 8080:8080 &
@@ -1551,7 +1551,7 @@ kill %1
 
 Expected: Issue lifecycle state changed back to `healthy`.
 
-- [ ] **Step 4: Trigger a real Grafana alert and verify bridge receives it**
+- [x] **Step 4: Trigger a real Grafana alert and verify bridge receives it**
 
 Temporarily lower the exercise-reminder-stale threshold (as done in M2 testing):
 
@@ -1564,7 +1564,7 @@ kubectl logs -n monitoring -l app=health-bridge --tail=20 -f
 
 Expected: Bridge logs show "Processed: willikins#11 → dead" (or degraded, depending on severity). Issue on GitHub Project board reflects the new state.
 
-- [ ] **Step 5: Add self-monitoring probe (dogfooding)**
+- [x] **Step 5: Add self-monitoring probe (dogfooding)**
 
 The bridge itself must be monitored by the same Grafana stack. Add its healthz endpoint to the Blackbox Exporter VMProbe.
 
