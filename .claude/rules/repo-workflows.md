@@ -22,3 +22,12 @@ When a deployed layer needs a bugfix or unplanned extension:
 5. **Update gotchas** — If the fix reveals a non-obvious pattern, add it to `.claude/rules/frank-gotchas.md` or `.claude/rules/hop-gotchas.md`
 
 Use the layer code in commit messages: `fix(gpu): <description>` or `feat(edge): <description>`.
+
+## Plan Management Scripts
+
+- `scripts/plan-status.sh` — list all plans with Spec/Archived/Status columns
+- `scripts/plan-status.sh --open` — show only in-progress plans with open tasks/steps tree
+- `scripts/plan-status.sh --archive` — move Complete/Deployed/Closed plans to `archived-plans/`
+- `scripts/validate-plans.sh [files...]` — validate plan headers (filename, Spec, Status, Task heading level)
+
+Validation is enforced by `.githooks/pre-commit` and Claude Code PostToolUse hooks (`scripts/hooks/`).

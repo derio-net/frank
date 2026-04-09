@@ -108,7 +108,9 @@ for f in "${SORTED[@]}"; do
 
   if $SHOW_OPEN; then
     # Print plan header
+    rel_path="${f#"$REPO_ROOT/"}"
     printf "\n\033[1m%s\033[0m  %s  [%s]\n" "$layer" "$details" "$status"
+    printf "\033[2m%s\033[0m\n" "$rel_path"
 
     # Collect tasks with their open steps
     declare -a task_names=()
