@@ -42,7 +42,7 @@ mapfile -t SORTED < <(for f in "${ALL_FILES[@]}"; do echo "$(basename "$f")|$f";
 WARNINGS=()
 
 printf "%-10s %-12s %-40s %-6s %-10s %s\n" "Layer" "Date" "Details" "Spec" "Archived" "Status"
-printf "%-10s %-12s %-40s %-6s %-10s %s\n" "─────" "────" "───────" "────" "────────" "──────"
+printf "%s\n" "────────── ──────────── ──────────────────────────────────────── ────── ────────── ──────"
 
 for f in "${SORTED[@]}"; do
   base="$(basename "$f" .md)"
@@ -78,8 +78,9 @@ for f in "${SORTED[@]}"; do
 
   # Extract Status from first 20 lines
   status=$(head -20 "$f" | sed -n 's/.*\*\*Status:\*\* \(.*\)/\1/p' | head -1)
-  if [ ${#status} -gt 30 ]; then
-    status="${status:0:27}..."
+  # Strip inline comments: "Deployed (some detail)" → "Deployed (...)"
+  if [[ "$status" == *" ("* ]]; then
+    status="${status%% (*} (...)"
   fi
   [ -z "$status" ] && status="(missing)"
 
