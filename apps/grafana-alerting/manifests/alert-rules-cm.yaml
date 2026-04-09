@@ -175,6 +175,116 @@ data:
             annotations:
               summary: Audit digest cron heartbeat is stale (>26h since last success)
 
+      # --- Heartbeat-stale: VK Issue Bridge (eval every 2m) ---
+      - orgId: 1
+        name: heartbeat-stale-2m
+        folder: feature-health
+        interval: 2m
+        rules:
+          - uid: vk-bridge-stale
+            title: VK Issue Bridge Stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'time() - willikins_heartbeat_last_success_timestamp{job="vk_issue_bridge"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params:
+                          - 600
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: VK Issue Bridge has not pushed a heartbeat in over 10 minutes — supercronic may be down or the bridge is failing
+
+      # --- VK Issue Bridge failures (eval every 5m) ---
+      - orgId: 1
+        name: vk-bridge-failures
+        folder: feature-health
+        interval: 5m
+        rules:
+          - uid: vk-bridge-failures
+            title: VK Issue Bridge Failures
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'increase(willikins_vk_bridge_failure_total[15m])'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings:
+                    mode: dropNN
+              - refId: C
+                relativeTimeRange:
+                  from: 900
+                  to: 0
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator:
+                        type: gt
+                        params:
+                          - 0
+            noDataState: OK
+            execErrState: Error
+            for: 0m
+            labels:
+              severity: warning
+            annotations:
+              summary: "VK Issue Bridge reported failures in the last 15 minutes — see logs at /home/claude/.willikins-agent/vk-bridge.log"
+
       # --- Endpoint-down (eval every 1m) ---
       - orgId: 1
         name: endpoint-down
