@@ -29,6 +29,11 @@
             "type": "command",
             "command": "bash scripts/hooks/plan-archive-check.sh",
             "statusMessage": "Checking plan archive status..."
+          },
+          {
+            "type": "command",
+            "command": "bash scripts/hooks/plan-checklist-check.sh",
+            "statusMessage": "Checking post-deploy checklist..."
           }
         ]
       }
