@@ -169,14 +169,14 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Infisical | http://192.168.55.204:8080 | 192.168.55.204 |
 | LiteLLM Gateway | http://192.168.55.206:4000 | 192.168.55.206 |
 | Sympozium Web UI | http://192.168.55.207:8080 | 192.168.55.207 |
+| Gitea | http://192.168.55.209:3000 | 192.168.55.209 |
+| Zot OCI Registry | https://192.168.55.210:5000 | 192.168.55.210 |
 | Authentik | http://192.168.55.211:9000 | 192.168.55.211 |
 | Paperclip | http://192.168.55.212:3100 | 192.168.55.212 |
 | ComfyUI | http://192.168.55.213:8188 | 192.168.55.213 |
 | GPU Switcher | http://192.168.55.214:8080 | 192.168.55.214 |
 | Secure Agent Pod (SSH) | ssh claude@192.168.55.215 | 192.168.55.215 |
 | n8n-01 | http://192.168.55.216:5678 | 192.168.55.216 |
-| Gitea | http://192.168.55.209:3000 | 192.168.55.209 |
-| Zot OCI Registry | https://192.168.55.210:5000 | 192.168.55.210 |
 | Tekton Dashboard | http://192.168.55.217:9097 | 192.168.55.217 |
 | Secure Agent Pod (VibeKanban) | http://192.168.55.218:8081 | 192.168.55.218 |
 | Traefik Ingress | https://*.cluster.derio.net | 192.168.55.220 |
