@@ -63,6 +63,9 @@
 .layer-auth { border-left-color: var(--rm-accent-4); }
 .layer-auth .layer-num { background: var(--rm-accent-4); }
 
+.layer-cicd { border-left-color: var(--rm-accent-2); }
+.layer-cicd .layer-num { background: var(--rm-accent-2); }
+
 .layer-upcoming {
   border-left-style: dashed;
   opacity: 0.55;
@@ -557,6 +560,24 @@
         <span class="tag">traefik</span>
         <span class="tag">acme</span>
         <span class="tag">192.168.55.220</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="roadmap-layer">
+    <div class="roadmap-card layer-cicd">
+      <div class="layer-title"><span class="layer-num">25</span> CI/CD Platform</div>
+      <div class="sub-items">
+        <span class="sub-item">Gitea (GitHub mirror forge)</span>
+        <span class="sub-item">Tekton Pipelines + Triggers</span>
+        <span class="sub-item">Zot OCI registry (cosign signed)</span>
+        <span class="sub-item">Webhook-driven CI on pc-1</span>
+      </div>
+      <div class="tags">
+        <span class="tag">gitea</span>
+        <span class="tag">tekton</span>
+        <span class="tag">zot</span>
+        <span class="tag">192.168.55.209</span>
       </div>
     </div>
   </div>
