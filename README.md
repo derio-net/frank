@@ -54,6 +54,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Workflow Automation | n8n | Per-user instances on gpu-1, Authentik forward-auth, dedicated PostgreSQL, Prometheus metrics |
 | Secure Agent Pod | Kali Linux + VibeKanban | Hardened non-root coding agent workstation on gpu-1, Cilium egress controls, ESO secrets, SSH + VibeKanban UI |
 | In-Cluster Ingress | Traefik v3 | Wildcard TLS (`*.cluster.derio.net`) via ACME + Cloudflare DNS-01, Authentik forward-auth, raspi edge nodes |
+| CI/CD Platform | Gitea + Tekton + Zot | Self-hosted git forge (GitHub mirror), K8s-native pipelines, OCI registry with cosign signing — all on pc-1 |
 | Cluster Dashboard | gethomepage.dev | Service catalog at `master.cluster.derio.net` with HTTP health indicators and custom bookmarks |
 
 ## Repository Structure
@@ -90,6 +91,8 @@ frank/
 │   ├── authentik/values.yaml + manifests/       # Authentik IdP + blueprints
 │   ├── authentik-extras/manifests/              # K8s RBAC bindings for OIDC groups
 │   ├── vclusters/                               # Per-vCluster Helm values
+│   │   ├── template/values.yaml                 # Base config (SQLite, policies, sync)
+│   │   └── experiments/values.yaml              # First sandbox instance
 │   ├── paperclip-db/values.yaml                 # Bitnami PostgreSQL for Paperclip
 │   ├── paperclip/manifests/                     # Paperclip Deployment, ExternalSecrets, PVC, LB Service
 │   ├── comfyui/manifests/                       # ComfyUI diffusion model server (time-shared GPU)
@@ -100,9 +103,15 @@ frank/
 │   ├── n8n-01-postgresql/values.yaml           # Bitnami PostgreSQL for n8n-01
 │   ├── secure-agent-pod/manifests/             # Secure coding agent pod (gpu-1, SSH + VibeKanban)
 │   ├── traefik/values.yaml + manifests/        # Traefik ingress (192.168.55.220), middlewares, IngressRoutes
-│   └── homepage/manifests/                     # gethomepage.dev dashboard (master.cluster.derio.net)
-│       ├── template/values.yaml                 # Base config (SQLite, policies, sync)
-│       └── experiments/values.yaml              # First sandbox instance
+│   ├── homepage/manifests/                     # gethomepage.dev dashboard (master.cluster.derio.net)
+│   ├── gitea/values.yaml + manifests/          # Gitea git forge (192.168.55.209), GitHub mirrors, Authentik OIDC
+│   ├── zot/values.yaml + manifests/            # Zot OCI registry (192.168.55.210), cert-manager TLS, cosign
+│   └── tekton/                                 # Tekton CI/CD platform on pc-1
+│       ├── vendor/                             # Vendored releases (Pipelines, Triggers, Dashboard)
+│       ├── tasks/                              # CI Tasks (git-clone, run-tests, build-push, cosign-sign, gitea-status)
+│       ├── pipelines/                          # gitea-ci Pipeline (clone → test → build → sign → report)
+│       ├── triggers/                           # EventListener, TriggerBinding, TriggerTemplate for Gitea webhooks
+│       └── manifests/                          # ExternalSecrets, RBAC, Dashboard LB Service
 ├── clusters/
 │   └── hop/                   # Hop edge cluster (Hetzner CX23, standalone talosctl)
 │       ├── apps/              # Hop ArgoCD App-of-Apps
@@ -160,12 +169,15 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Infisical | http://192.168.55.204:8080 | 192.168.55.204 |
 | LiteLLM Gateway | http://192.168.55.206:4000 | 192.168.55.206 |
 | Sympozium Web UI | http://192.168.55.207:8080 | 192.168.55.207 |
+| Gitea | http://192.168.55.209:3000 | 192.168.55.209 |
+| Zot OCI Registry | https://192.168.55.210:5000 | 192.168.55.210 |
 | Authentik | http://192.168.55.211:9000 | 192.168.55.211 |
 | Paperclip | http://192.168.55.212:3100 | 192.168.55.212 |
 | ComfyUI | http://192.168.55.213:8188 | 192.168.55.213 |
 | GPU Switcher | http://192.168.55.214:8080 | 192.168.55.214 |
 | Secure Agent Pod (SSH) | ssh claude@192.168.55.215 | 192.168.55.215 |
 | n8n-01 | http://192.168.55.216:5678 | 192.168.55.216 |
+| Tekton Dashboard | http://192.168.55.217:9097 | 192.168.55.217 |
 | Secure Agent Pod (VibeKanban) | http://192.168.55.218:8081 | 192.168.55.218 |
 | Traefik Ingress | https://*.cluster.derio.net | 192.168.55.220 |
 | Homepage Dashboard | https://master.cluster.derio.net | (via Traefik) |
@@ -234,6 +246,15 @@ argocd app list
 | traefik | traefik-system | In-cluster ingress controller (192.168.55.220), ACME wildcard TLS for `*.cluster.derio.net` |
 | traefik-extras | traefik-system | Middleware CRDs (security headers, IP allowlist, Authentik forward-auth) + 16 IngressRoutes |
 | homepage | homepage | Cluster dashboard at `master.cluster.derio.net`, HTTP health indicators, service catalog |
+| gitea | gitea | Git forge with GitHub pull-mirror (192.168.55.209:3000), Authentik OIDC SSO |
+| gitea-extras | gitea | ExternalSecret for admin password, OIDC client secret, GitHub mirror token |
+| zot | zot | OCI container/artifact registry (192.168.55.210:5000), self-signed TLS via cert-manager |
+| zot-extras | zot | Certificate, ClusterIssuer, ExternalSecret for push password and OIDC |
+| tekton-pipelines | tekton-pipelines | Tekton Pipelines controller + webhook (vendored release) |
+| tekton-triggers | tekton-pipelines | Tekton Triggers controller + interceptors (vendored release) |
+| tekton-dashboard | tekton-pipelines | Tekton Dashboard (192.168.55.217:9097, vendored release) |
+| tekton-extras | tekton-pipelines | CI Tasks, gitea-ci Pipeline, Gitea EventListener, ExternalSecrets, RBAC |
+| longhorn-cicd | longhorn-system | Single-replica StorageClass for CI/CD workloads on pc-1 |
 
 ### Hop Cluster Applications
 
