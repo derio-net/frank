@@ -18,6 +18,7 @@
 ---
 
 ## Phase 0: Infrastructure Harmonization [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/35 -->
 
 Create the profile, delete vendored skills, update scripts and rules. This phase prepares Frank for Phase-structured plans.
 
@@ -399,6 +400,7 @@ inline blog/README references."
 ---
 
 ## Phase 1: Active Plan Conversion [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/36 -->
 
 Convert the 4 active plans from flat Task format to Phase > Task > Step format. Preserve all existing checkbox state and content.
 
