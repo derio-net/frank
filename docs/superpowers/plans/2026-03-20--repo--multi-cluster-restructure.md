@@ -1,6 +1,8 @@
 # Multi-Cluster Monorepo Restructure — Implementation Plan
 
-> **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For VK agents:** Use vk-execute to implement assigned phases.
+> **For local execution:** Use subagent-driven-development or executing-plans.
+> **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Goal:** Restructure the frank-cluster repo from a single-cluster layout (`apps/`, `patches/` at root) to a multi-cluster monorepo (`clusters/frank/apps/`, `clusters/frank/patches/`), matching the existing `clusters/hop/` structure.
 
@@ -27,7 +29,7 @@ This is a **high-blast-radius refactor** — it touches every ArgoCD Application
 
 ---
 
-## Chunk 1: Restructure
+## Phase 0: Restructure [agentic]
 
 ### Task 1: Move directories and update all path references
 
@@ -139,7 +141,7 @@ git commit -m "fix: correct remaining path references after repo restructure"
 
 ---
 
-## Chunk 2: Update References
+## Phase 1: Update References [agentic]
 
 ### Task 2: Update documentation and CI
 
