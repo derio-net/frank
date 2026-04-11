@@ -1,0 +1,43 @@
+plan:
+  filename: "YYYY-MM-DD--{layer}--{details}.md"
+  layers: docs/layers.yaml
+  save_to: docs/superpowers/plans/
+
+header:
+  required:
+    - Spec
+    - Status
+  status_values:
+    - Not Started
+    - In Progress
+    - Deployed
+    - Complete
+    - Closed
+
+manual_operations:
+  enabled: true
+  runbook: docs/runbooks/manual-operations.yaml
+  sync_skill: sync-runbook
+
+post_deploy:
+  name: "Post-Deploy Checklist"
+  type: manual
+  steps:
+    - "Write building blog post — Use /blog-post skill"
+    - "Write operating blog post — Use /blog-post skill"
+    - "Update README — Run /update-readme"
+    - "Sync runbook — Run /sync-runbook if plan has manual-operation blocks"
+    - "Update plan status to Deployed/Complete"
+  skip_when:
+    - "fix/extension plans"
+    - "meta/repo layer"
+    - "investigation/audit plans"
+
+dispatch:
+  target: github-issues
+  owner: derio-net
+  project_board: "Derio Ops"
+  default_repo: derio-net/frank
+  labels:
+    agentic: vk-ready
+    manual: manual
