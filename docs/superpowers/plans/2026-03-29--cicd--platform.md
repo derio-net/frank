@@ -1,6 +1,8 @@
 # CI/CD Platform Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
+> **For VK agents:** Use vk-execute to implement assigned phases.
+> **For local execution:** Use subagent-driven-development or executing-plans.
+> **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Goal:** Deploy a K8s-native CI/CD platform — Gitea (git forge mirroring GitHub), Tekton (pipeline engine), Zot (OCI registry) with cosign signing — all on pc-1.
 
@@ -9,7 +11,7 @@
 **Tech Stack:** ArgoCD, Helm, Longhorn, Cilium L2, Infisical + ExternalSecrets, Tekton Pipelines/Triggers/Dashboard, Gitea, Zot, cosign, cert-manager
 
 **Spec:** `docs/superpowers/specs/2026-03-29--cicd--platform-design.md`
-**Status:** semi-Deployed (pending: Infisical secrets, Gitea post-deploy config, webhook wiring, cosign keypair, containerd mirror patch)
+**Status:** In Progress (pending: Infisical secrets, Gitea post-deploy config, webhook wiring, cosign keypair, containerd mirror patch)
 
 ---
 
@@ -20,6 +22,8 @@
 - IPs `.209`, `.210`, `.217` are unallocated (verified 2026-03-29)
 
 ---
+
+## Phase 0: Infrastructure Prerequisites [agentic]
 
 ### Task 1: StorageClass and Node Labels
 
@@ -88,6 +92,8 @@ kubectl get node pc-1 --show-labels | grep role=cicd
 ```
 
 ---
+
+## Phase 1: Gitea Deployment [agentic]
 
 ### Task 2: Gitea Deployment
 
@@ -373,6 +379,8 @@ If OIDC fails, check:
 
 ---
 
+## Phase 2: Gitea Post-Deploy Configuration [manual]
+
 ### Task 3: Gitea Post-Deploy Configuration
 
 - [ ] **Step 1: Create service account and API token**
@@ -423,6 +431,8 @@ rm -rf /tmp/test-clone
 ```
 
 ---
+
+## Phase 3: Tekton Core & Triggers [agentic]
 
 ### Task 4: Tekton Core Deployment
 
@@ -990,6 +1000,8 @@ If no PipelineRun is created, debug:
 
 ---
 
+## Phase 4: Zot Registry [agentic]
+
 ### Task 6: Zot Registry Deployment
 
 **Files:**
@@ -1275,6 +1287,8 @@ status: pending
 ```
 
 ---
+
+## Phase 5: CI Pipeline [agentic]
 
 ### Task 7: Pipeline Stage A — Clone, Test, Report Status
 
