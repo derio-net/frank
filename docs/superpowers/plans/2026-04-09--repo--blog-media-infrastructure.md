@@ -1,6 +1,8 @@
 # Blog Media Infrastructure Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For VK agents:** Use vk-execute to implement assigned phases.
+> **For local execution:** Use subagent-driven-development or executing-plans.
+> **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Goal:** Add media embedding infrastructure (asciinema player, screenshot shortcode, CSS) to the Hugo blog and insert media placeholders into ~23 posts.
 
@@ -12,6 +14,8 @@
 **Status:** Not Started
 
 ---
+
+## Phase 0: Media Infrastructure [agentic]
 
 ### Task 1: Create `screenshot` shortcode
 
@@ -284,6 +288,8 @@ Follow the pattern from `.claude/skills/blog-post/SKILL.md` for YAML frontmatter
 - [x] **Step 2: Commit** *(combined into single infrastructure commit)*
 
 ---
+
+## Phase 1: Verification [manual]
 
 ### Task 8: Verify and push
 
