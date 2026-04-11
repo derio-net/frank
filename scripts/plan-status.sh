@@ -115,13 +115,22 @@ for f in "${SORTED[@]}"; do
     # Collect tasks with their open steps
     declare -a task_names=()
     declare -a task_steps=()  # pipe-separated step lists per task
+    current_phase=""
     current_task=""
     current_idx=-1
 
     while IFS= read -r line; do
+      # Phase header: ## Phase N: Name [type]
+      if [[ "$line" =~ ^##\ Phase\ [0-9]+:\ (.+)\ \[(manual|agentic)\]$ ]]; then
+        current_phase="${BASH_REMATCH[1]}"
+      fi
+
       # Task header: ### Task N: Name
       if [[ "$line" =~ ^###\ Task\ [0-9]+:\ (.+)$ ]]; then
         current_task="${BASH_REMATCH[1]}"
+        if [ -n "$current_phase" ]; then
+          current_task="$current_phase / $current_task"
+        fi
         current_idx=$(( ${#task_names[@]} ))
         task_names+=("$current_task")
         task_steps+=("")
@@ -130,7 +139,6 @@ for f in "${SORTED[@]}"; do
       # Open checkbox: - [ ] **...**
       if [[ "$line" =~ ^-\ \[\ \]\ \*\*(.+)\*\*$ ]]; then
         step_name="${BASH_REMATCH[1]}"
-        # Strip "Step N: " prefix if present
         step_name="${step_name#Step [0-9]: }"
         step_name="${step_name#Step [0-9][0-9]: }"
         if [ "$current_idx" -ge 0 ]; then

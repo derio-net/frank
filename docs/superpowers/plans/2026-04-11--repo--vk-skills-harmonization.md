@@ -5,7 +5,7 @@
 > **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Spec:** `willikins/docs/superpowers/specs/2026-04-10-vk-skills-harmonization-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **Goal:** Harmonize Frank's plan infrastructure with the canonical vk-plan model — create the plan profile, delete vendored superpowers skills, replace local scripts with thin wrappers around the canonical validator, and convert the 4 active plans to the Phase > Task > Step format.
 
@@ -27,7 +27,7 @@ Create the profile, delete vendored skills, update scripts and rules. This phase
 **Files:**
 - Create: `docs/superpowers/plan-config.yaml`
 
-- [ ] **Step 1: Write the Frank profile**
+- [x] **Step 1: Write the Frank profile**
 
 ```yaml
 plan:
@@ -77,13 +77,13 @@ dispatch:
 
 **Note:** No `structure:` section — Phase/Task/Step markers are invariants hardcoded in vk-plan and vk-execute. `dispatch.owner` is required for vk-dispatch and vk-progress to reach GitHub without hardcoded org names.
 
-- [ ] **Step 2: Verify YAML**
+- [x] **Step 2: Verify YAML**
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('docs/superpowers/plan-config.yaml'))" && echo "Valid YAML"
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit** *(completed out-of-band in commit b8d2bdd)*
 
 ```bash
 git add docs/superpowers/plan-config.yaml
@@ -96,36 +96,40 @@ post-deploy checklist, Derio Ops dispatch config."
 ### Task 2: Delete vendored superpowers skills
 
 **Files:**
-- Delete: 19 skill directories under `.claude/skills/` (keep `gitnexus/`)
+- Delete: 14 superpowers skill directories under `.claude/skills/`
+- Keep: `gitnexus/`, `blog-post/`, `deploy-app/`, `media/`, `sync-runbook/`, `update-readme/` (Frank-specific)
 
-- [ ] **Step 1: Delete all vendored superpowers skill directories**
+> **Deviation:** The original plan listed 19 directories assuming all non-gitnexus skills were from superpowers. In fact only 14 are superpowers skills (cross-referenced against the plugin cache at `~/.claude/plugins/cache/claude-plugins-official/superpowers/`). The 5 Frank-specific skills (`blog-post`, `deploy-app`, `media`, `sync-runbook`, `update-readme`) were deleted in error and restored in a follow-up commit.
+
+- [x] **Step 1: Delete superpowers skill directories**
 
 ```bash
-for dir in brainstorming blog-post deploy-app dispatching-parallel-agents \
-  executing-plans finishing-a-development-branch media receiving-code-review \
-  requesting-code-review subagent-driven-development sync-runbook \
-  systematic-debugging test-driven-development update-readme \
+for dir in brainstorming dispatching-parallel-agents \
+  executing-plans finishing-a-development-branch receiving-code-review \
+  requesting-code-review subagent-driven-development \
+  systematic-debugging test-driven-development \
   using-git-worktrees using-superpowers verification-before-completion \
   writing-plans writing-skills; do
   rm -rf ".claude/skills/$dir"
 done
 ```
 
-- [ ] **Step 2: Verify only gitnexus remains**
+- [x] **Step 2: Verify Frank-specific skills remain**
 
 ```bash
 ls .claude/skills/
-# Expected: only gitnexus/
+# Expected: blog-post/ deploy-app/ gitnexus/ media/ sync-runbook/ update-readme/
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add -A .claude/skills/
 git commit -m "chore: delete vendored superpowers skills
 
-Skills are now installed at user level via plugins. Only gitnexus
-(Frank-specific) remains in the repo."
+Skills are now installed at user level via plugins. Frank-specific
+skills (blog-post, deploy-app, gitnexus, media, sync-runbook,
+update-readme) remain in the repo."
 ```
 
 ### Task 3: Delete sync-superpowers.sh
@@ -133,13 +137,13 @@ Skills are now installed at user level via plugins. Only gitnexus
 **Files:**
 - Delete: `scripts/sync-superpowers.sh`
 
-- [ ] **Step 1: Delete the script**
+- [x] **Step 1: Delete the script**
 
 ```bash
 rm scripts/sync-superpowers.sh
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add scripts/sync-superpowers.sh
@@ -153,7 +157,7 @@ No longer needed — skills installed at user level via plugins, not vendored."
 **Files:**
 - Modify: `scripts/validate-plans.sh`
 
-- [ ] **Step 1: Replace with thin wrapper**
+- [x] **Step 1: Replace with thin wrapper**
 
 ```bash
 #!/usr/bin/env bash
@@ -192,13 +196,13 @@ if [ ${#ERRORS[@]} -gt 0 ]; then
 fi
 ```
 
-- [ ] **Step 2: Verify syntax**
+- [x] **Step 2: Verify syntax**
 
 ```bash
 bash -n scripts/validate-plans.sh && echo "Syntax OK"
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add scripts/validate-plans.sh
@@ -213,7 +217,7 @@ Falls back to minimal local validation if plugin not installed."
 **Files:**
 - Modify: `scripts/plan-status.sh`
 
-- [ ] **Step 1: Update the --open loop to recognize Phase headers**
+- [x] **Step 1: Update the --open loop to recognize Phase headers**
 
 In the `--open` section of `scripts/plan-status.sh`, locate the block starting at `# Collect tasks with their open steps` and extend it to detect `## Phase N:` headers. Replace the inner parsing loop (the `while IFS= read -r line; do` block) with:
 
@@ -255,14 +259,14 @@ In the `--open` section of `scripts/plan-status.sh`, locate the block starting a
     done < "$f"
 ```
 
-- [ ] **Step 2: Test against a phased plan**
+- [x] **Step 2: Test against a phased plan**
 
 ```bash
 ./scripts/plan-status.sh --open
 # Should display tasks grouped under phases (phase name prepended to task name)
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add scripts/plan-status.sh
@@ -279,7 +283,7 @@ the plan uses the Phase > Task > Step hierarchy."
 - Modify: `.claude/rules/repo-principles.md`
 - Modify: `.claude/rules/plan-post-deploy-checklist.md`
 
-- [ ] **Step 1: Update repo-workflows.md**
+- [x] **Step 1: Update repo-workflows.md**
 
 Locate the Standard Layer Workflow steps 2-3 in `.claude/rules/repo-workflows.md`. Replace:
 
@@ -307,7 +311,7 @@ With:
 - `scripts/validate-plans.sh [files...]` — validate plan headers (delegates to canonical validator from superpowers-for-vk plugin)
 ```
 
-- [ ] **Step 2: Update repo-principles.md**
+- [x] **Step 2: Update repo-principles.md**
 
 Delete the entire "### Superpowers plugin skills (vendored)" section (from `### Superpowers plugin skills (vendored)` through the closing `Check for updates periodically...` line). Replace with:
 
@@ -319,7 +323,7 @@ Skills are installed at user level via the `superpowers` and `superpowers-for-vk
 Plan behavior is driven by the profile at `docs/superpowers/plan-config.yaml`.
 ```
 
-- [ ] **Step 3: Update plan-post-deploy-checklist.md**
+- [x] **Step 3: Update plan-post-deploy-checklist.md**
 
 Prepend this note at the very top of the file:
 
@@ -330,7 +334,7 @@ Prepend this note at the very top of the file:
 
 ```
 
-- [ ] **Step 4: Verify changes**
+- [x] **Step 4: Verify changes**
 
 ```bash
 grep -q "vk-plan" .claude/rules/repo-workflows.md && echo "OK: workflows"
@@ -341,7 +345,7 @@ grep -q "vk-plan auto-appends" .claude/rules/plan-post-deploy-checklist.md && ec
 grep -r "sync-superpowers" .claude/rules/ && echo "FAIL: stale refs" || echo "OK: no stale refs"
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add .claude/rules/repo-workflows.md .claude/rules/repo-principles.md .claude/rules/plan-post-deploy-checklist.md
@@ -357,7 +361,7 @@ git commit -m "docs: update rules for vk-plan canonical skill
 **Files:**
 - Modify: `scripts/hooks/plan-checklist-check.sh`
 
-- [ ] **Step 1: Extend the detection for Phase-based plans**
+- [x] **Step 1: Extend the detection for Phase-based plans**
 
 In `scripts/hooks/plan-checklist-check.sh`, locate the final check:
 
@@ -381,13 +385,13 @@ elif ! grep -q 'blog.*post\|/blog-post\|Post-Deploy' "$FILE_PATH"; then
 fi
 ```
 
-- [ ] **Step 2: Verify syntax**
+- [x] **Step 2: Verify syntax**
 
 ```bash
 bash -n scripts/hooks/plan-checklist-check.sh && echo "Syntax OK"
 ```
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add scripts/hooks/plan-checklist-check.sh

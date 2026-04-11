@@ -1,3 +1,7 @@
+> **Note:** vk-plan auto-appends a Post-Deploy Checklist phase from
+> `docs/superpowers/plan-config.yaml` (`post_deploy` section). This rule
+> documents the checklist content for reference and for manual plan creation.
+
 ## Post-Deploy Checklist for Plans
 
 When creating a plan for a **standard layer** (new deployment, not a fix/extension/meta task), include a final task:
