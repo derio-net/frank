@@ -1,6 +1,8 @@
 # Safe Update Automation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For VK agents:** Use vk-execute to implement assigned phases.
+> **For local execution:** Use subagent-driven-development or executing-plans.
+> **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Goal:** Automate Helm chart update detection + pre-merge smoke testing (ArgoCD layer) and Talos/Kubernetes version tracking (Omni layer) for the Frank cluster.
 
@@ -36,7 +38,7 @@ renovate.json                          # Renovate config (regex manager, package
 
 ---
 
-## Chunk 1: ARC Self-Hosted Runner
+## Phase 0: ARC Self-Hosted Runner [agentic]
 
 ARC v2 uses two charts: `gha-runner-scale-set-controller` (cluster-scoped, sync-wave -1) and `gha-runner-scale-set` (namespaced runner pool). The runner needs a GitHub App installed on the repo and its credentials as a Kubernetes Secret before it can register.
 
@@ -318,6 +320,8 @@ git commit -m "feat(repo): add ARC runner set ArgoCD app with smoke-test RBAC"
 
 ---
 
+## Phase 1: ARC Bootstrap Secret [manual]
+
 ### Task 3: Bootstrap Secret (Manual Operation)
 
 The GitHub App credentials must exist as a Kubernetes Secret before the runner pod can register. This is a SOPS-encrypted bootstrap secret applied out-of-band.
@@ -388,7 +392,7 @@ kubectl get pod -n arc-system -o wide | grep runner
 
 ---
 
-## Chunk 2: Version Tracking
+## Phase 2: Version Tracking [agentic]
 
 ### Task 4: Create versions.yaml
 
@@ -577,7 +581,7 @@ git commit -m "feat(repo): add Talos/K8s version check workflow"
 
 ---
 
-## Chunk 3: Renovate Configuration
+## Phase 3: Renovate & Smoke Testing [agentic]
 
 ### Task 6: Renovate Configuration
 
@@ -726,8 +730,6 @@ status: pending
 Run the `gh api` command above (after Task 8 is complete and the workflow has run). Replace `:owner/:repo` with your actual values.
 
 ---
-
-## Chunk 4: Smoke Test Workflow
 
 ### Task 8: Smoke Test GitHub Actions Workflow
 
@@ -955,7 +957,7 @@ Once the workflow has run at least once successfully and `smoke-test/readiness` 
 
 ---
 
-## Chunk 5: Wire Up and Verify End-to-End
+## Phase 4: Branch Protection & End-to-End Verification [manual]
 
 ### Task 9: Verify Renovate Onboarding
 
