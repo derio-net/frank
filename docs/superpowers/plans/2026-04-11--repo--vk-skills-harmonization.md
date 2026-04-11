@@ -96,26 +96,29 @@ post-deploy checklist, Derio Ops dispatch config."
 ### Task 2: Delete vendored superpowers skills
 
 **Files:**
-- Delete: 19 skill directories under `.claude/skills/` (keep `gitnexus/`)
+- Delete: 14 superpowers skill directories under `.claude/skills/`
+- Keep: `gitnexus/`, `blog-post/`, `deploy-app/`, `media/`, `sync-runbook/`, `update-readme/` (Frank-specific)
 
-- [x] **Step 1: Delete all vendored superpowers skill directories**
+> **Deviation:** The original plan listed 19 directories assuming all non-gitnexus skills were from superpowers. In fact only 14 are superpowers skills (cross-referenced against the plugin cache at `~/.claude/plugins/cache/claude-plugins-official/superpowers/`). The 5 Frank-specific skills (`blog-post`, `deploy-app`, `media`, `sync-runbook`, `update-readme`) were deleted in error and restored in a follow-up commit.
+
+- [x] **Step 1: Delete superpowers skill directories**
 
 ```bash
-for dir in brainstorming blog-post deploy-app dispatching-parallel-agents \
-  executing-plans finishing-a-development-branch media receiving-code-review \
-  requesting-code-review subagent-driven-development sync-runbook \
-  systematic-debugging test-driven-development update-readme \
+for dir in brainstorming dispatching-parallel-agents \
+  executing-plans finishing-a-development-branch receiving-code-review \
+  requesting-code-review subagent-driven-development \
+  systematic-debugging test-driven-development \
   using-git-worktrees using-superpowers verification-before-completion \
   writing-plans writing-skills; do
   rm -rf ".claude/skills/$dir"
 done
 ```
 
-- [x] **Step 2: Verify only gitnexus remains**
+- [x] **Step 2: Verify Frank-specific skills remain**
 
 ```bash
 ls .claude/skills/
-# Expected: only gitnexus/
+# Expected: blog-post/ deploy-app/ gitnexus/ media/ sync-runbook/ update-readme/
 ```
 
 - [x] **Step 3: Commit**
@@ -124,8 +127,9 @@ ls .claude/skills/
 git add -A .claude/skills/
 git commit -m "chore: delete vendored superpowers skills
 
-Skills are now installed at user level via plugins. Only gitnexus
-(Frank-specific) remains in the repo."
+Skills are now installed at user level via plugins. Frank-specific
+skills (blog-post, deploy-app, gitnexus, media, sync-runbook,
+update-readme) remain in the repo."
 ```
 
 ### Task 3: Delete sync-superpowers.sh
