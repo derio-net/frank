@@ -409,14 +409,14 @@ Convert the 4 active plans from flat Task format to Phase > Task > Step format. 
 **Files:**
 - Modify: `docs/superpowers/plans/2026-03-20--repo--multi-cluster-restructure.md`
 
-- [ ] **Step 1: Read the current plan**
+- [x] **Step 1: Read the current plan**
 
 Read the full plan file. Identify the existing `### Task N:` sections and their natural phase boundaries. For a monorepo restructure, typical phases:
 - Phase 0: Pre-flight [manual] — disable auto-sync, take inventory (if present)
 - Phase 1: Restructure [agentic] — the bulk of the work
 - Phase 2: Post-restructure verification [agentic or manual]
 
-- [ ] **Step 2: Update the banner**
+- [x] **Step 2: Update the banner**
 
 Replace the existing "For agentic workers" banner with:
 
@@ -426,7 +426,7 @@ Replace the existing "For agentic workers" banner with:
 > **For dispatch:** Use vk-dispatch to create Issues from this plan.
 ```
 
-- [ ] **Step 3: Insert Phase headers**
+- [x] **Step 3: Insert Phase headers**
 
 Group existing `### Task N:` sections under `## Phase N: <name> [<type>]` headers. Rules:
 - Preserve all existing `### Task N:` headers and their content unchanged
@@ -434,13 +434,13 @@ Group existing `### Task N:` sections under `## Phase N: <name> [<type>]` header
 - Add `[manual]` or `[agentic]` tag to each new Phase header
 - Tasks must be h3 (`###`) — do NOT convert to h4
 
-- [ ] **Step 4: Validate**
+- [x] **Step 4: Validate**
 
 ```bash
 scripts/validate-plans.sh docs/superpowers/plans/2026-03-20--repo--multi-cluster-restructure.md && echo "PASS"
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-03-20--repo--multi-cluster-restructure.md
@@ -455,21 +455,21 @@ checkbox state and content. Updates banner to reference vk-execute."
 **Files:**
 - Modify: `docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md`
 
-- [ ] **Step 1: Read the current plan**
+- [x] **Step 1: Read the current plan**
 
 Read the full plan. This plan has three pipeline tracks (Renovate, Talos version tracking, ARC v2). These map naturally to phases.
 
-- [ ] **Step 2: Apply the conversion procedure**
+- [x] **Step 2: Apply the conversion procedure**
 
 Same procedure as Task 1: update banner, wrap existing `### Task N:` sections under `## Phase N:` headers with appropriate phase names and types. Natural phase split: one phase per pipeline track. Preserve all checkbox state.
 
-- [ ] **Step 3: Validate**
+- [x] **Step 3: Validate**
 
 ```bash
 scripts/validate-plans.sh docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md && echo "PASS"
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md
@@ -484,21 +484,21 @@ ARC v2). Preserves all checkbox state and content."
 **Files:**
 - Modify: `docs/superpowers/plans/2026-03-29--cicd--platform.md`
 
-- [ ] **Step 1: Read the current plan**
+- [x] **Step 1: Read the current plan**
 
 Read the full plan. This is a multi-component deployment (Gitea, Tekton, Zot). Status is `semi-Deployed` with pending items — **preserve the status value exactly**.
 
-- [ ] **Step 2: Apply the conversion procedure**
+- [x] **Step 2: Apply the conversion procedure**
 
 Same procedure. Natural phase split: one phase per component (or one phase for base infrastructure + one per component). The `semi-Deployed` status may fail validation against the profile's `status_values` — if so, update to `In Progress` with a note in the header explaining the pending items, or leave as `semi-Deployed` and add a `status_values` entry in the profile. **Preferred:** change to `In Progress` since `semi-Deployed` isn't in the profile.
 
-- [ ] **Step 3: Validate**
+- [x] **Step 3: Validate**
 
 ```bash
 scripts/validate-plans.sh docs/superpowers/plans/2026-03-29--cicd--platform.md && echo "PASS"
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-03-29--cicd--platform.md
@@ -514,23 +514,23 @@ not in profile status_values)."
 **Files:**
 - Modify: `docs/superpowers/plans/2026-04-09--repo--blog-media-infrastructure.md`
 
-- [ ] **Step 1: Read the current plan**
+- [x] **Step 1: Read the current plan**
 
 Read the full plan. This is a straightforward implementation plan — likely a single agentic phase with a post-deploy manual phase.
 
-- [ ] **Step 2: Apply the conversion procedure**
+- [x] **Step 2: Apply the conversion procedure**
 
 Same procedure. Likely split:
 - Phase 0: Implementation [agentic] — all existing tasks
 - Phase 1: Post-Deploy Checklist [manual] — if the plan already has one, preserve it
 
-- [ ] **Step 3: Validate**
+- [x] **Step 3: Validate**
 
 ```bash
 scripts/validate-plans.sh docs/superpowers/plans/2026-04-09--repo--blog-media-infrastructure.md && echo "PASS"
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/superpowers/plans/2026-04-09--repo--blog-media-infrastructure.md
