@@ -3,8 +3,8 @@
 Every layer follows this sequence:
 
 1. **Brainstorm** — `/brainstorming` to explore requirements, refine scope, and design the approach via Socratic dialogue
-2. **Plan** — `/writing-plans` to produce a step-by-step implementation plan. The layer code is chosen at this step (see `docs/layers.yaml` for the registry)
-3. **Execute** — `/executing-plans` to implement the plan with review checkpoints
+2. **Plan** — `/vk-plan` to produce a phase-structured implementation plan. The layer code is chosen at this step (see `docs/layers.yaml` for the registry). Plan behavior is driven by `docs/superpowers/plan-config.yaml`
+3. **Execute** — vk-plan offers three execution paths: VK dispatch, subagent-driven, or inline execution
 4. **Deploy** — Implement the ArgoCD app (values, Application CR, manifests)
 5. **Blog** — Use the `/blog-post` skill to write the Hugo post. After creating the post, update `blog/content/building/00-overview/index.md` (Series Index + Capability Map) and `blog/layouts/shortcodes/cluster-roadmap.html` (add new roadmap layer)
 6. **Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status in `README.md`
@@ -28,6 +28,6 @@ Use the layer code in commit messages: `fix(gpu): <description>` or `feat(edge):
 - `scripts/plan-status.sh` — list all plans with Spec/Archived/Status columns
 - `scripts/plan-status.sh --open` — show only in-progress plans with open tasks/steps tree
 - `scripts/plan-status.sh --archive` — move Complete/Deployed/Closed plans to `archived-plans/`
-- `scripts/validate-plans.sh [files...]` — validate plan headers (filename, Spec, Status, Task heading level)
+- `scripts/validate-plans.sh [files...]` — validate plan headers (delegates to canonical validator from superpowers-for-vk plugin)
 
 Validation is enforced by `.githooks/pre-commit` and Claude Code PostToolUse hooks (`scripts/hooks/`).
