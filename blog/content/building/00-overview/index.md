@@ -118,3 +118,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 16. [Operating on Health Bridge]({{< relref "/operating/16-health-bridge" >}})
 17. [Operating on In-Cluster Ingress]({{< relref "/operating/17-ingress" >}})
 18. [Operating on Paperclip]({{< relref "/operating/18-paperclip" >}})
+19. [Git Credentials Without a Shell]({{< relref "/operating/19-git-credentials-without-a-shell" >}})

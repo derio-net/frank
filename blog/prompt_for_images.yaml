@@ -825,3 +825,24 @@ images:
       eyes with white pupils, RJ45 neck bolts sparking faint blue
       electricity. Calm operational mood — routine agent management.
       Dark server room with warm amber and blue lighting accents.
+
+  - key: ops-19-git-credentials-without-a-shell
+    output: blog/content/operating/19-git-credentials-without-a-shell/cover.png
+    description: "Git Credentials Without a Shell — Frank pulling a token directly from PID 1's environment"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing in a dim
+      server room, holding a glowing translucent cable labeled
+      "/proc/1/environ" that snakes out of a large server cabinet marked
+      "PID 1". From the end of the cable, a small glowing blue token
+      card labeled "GITHUB_TOKEN" emerges into his hand. He's handing
+      the token directly to a tiny floating git logo icon. In the
+      background, a separate broken chain of small labeled boxes —
+      "sshd", "bash", "VS Code", "git" — sits dark and disconnected,
+      with a red X marking the gap between them, showing the usual
+      env-var path that doesn't work. A small clipboard on a nearby
+      desk shows a checklist: "env var leak ✗", "on disk ✗",
+      "works in VS Code ✓". Green skin, messy black hair, black eyes
+      with white pupils, RJ45 neck bolts sparking faint blue
+      electricity. Problem-solver mood — quietly confident, routing
+      around a broken pipeline. Dark server room with cool blue and
+      teal lighting accents.
