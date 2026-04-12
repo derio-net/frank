@@ -48,14 +48,11 @@ spec:
             - name: ssh
               containerPort: 2222  # Non-root sshd; Service maps 22→2222
               protocol: TCP
-            - name: vk-http
-              containerPort: 8081  # VibeKanban local mode UI
-              protocol: TCP
           env:
             - name: PORT
-              value: "8081"
+              value: "19081"  # Entrypoint auto-spawns VK on this port (unused); sidecar serves on 8081
             - name: HOST
-              value: "0.0.0.0"
+              value: "127.0.0.1"  # Bind to loopback only — sidecar is the real server
             - name: VK_SHARED_API_BASE
               value: "https://vk.cluster.derio.net"
           envFrom:
@@ -97,3 +94,48 @@ spec:
               port: ssh
             initialDelaySeconds: 30
             periodSeconds: 60
+        - name: vk-server
+          image: ghcr.io/derio-net/vibe-kanban:edccfb1
+          ports:
+            - name: vk-http
+              containerPort: 8081
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8081"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: VK_SHARED_API_BASE
+              value: "https://vk.cluster.derio.net"
+          envFrom:
+            - secretRef:
+                name: agent-secrets-tier2
+                optional: true
+          volumeMounts:
+            - name: agent-home
+              mountPath: /home/claude
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 500m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 30
