@@ -17,8 +17,8 @@ spec:
             - sh
             - -c
             - |
-              until pg_isready -h postgres-vk -U vibekanban; do sleep 2; done
-              PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres-vk -U vibekanban -d vibekanban -c "
+              until pg_isready -h postgres-vk -U remote; do sleep 2; done
+              PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres-vk -U remote -d remote -c "
                 DO \$\$
                 BEGIN
                   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'electric') THEN
@@ -26,7 +26,7 @@ spec:
                   END IF;
                 END
                 \$\$;
-                GRANT ALL ON DATABASE vibekanban TO electric;
+                GRANT ALL ON DATABASE remote TO electric;
                 GRANT ALL ON SCHEMA public TO electric;
                 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO electric;
               "

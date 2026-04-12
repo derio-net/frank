@@ -45,7 +45,7 @@ spec:
                   name: vk-remote-secrets
                   key: POSTGRES_PASSWORD
             - name: SERVER_DATABASE_URL
-              value: "postgresql://vibekanban:$(POSTGRES_PASSWORD)@postgres-vk:5432/vibekanban?sslmode=disable"
+              value: "postgresql://remote:$(POSTGRES_PASSWORD)@postgres-vk:5432/remote?sslmode=disable"
           resources:
             requests:
               cpu: 100m
