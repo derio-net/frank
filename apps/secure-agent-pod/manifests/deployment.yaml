@@ -57,7 +57,7 @@ spec:
             - name: HOST
               value: "0.0.0.0"
             - name: VK_SHARED_API_BASE
-              value: "http://vk-remote.agents.svc.cluster.local:8081"
+              value: "https://vk.cluster.derio.net"
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1

@@ -393,7 +393,6 @@ spec:
       middlewares:
         - name: ip-allowlist
         - name: security-headers
-        - name: authentik-forwardauth
       services:
         - name: vk-remote
           namespace: agents
