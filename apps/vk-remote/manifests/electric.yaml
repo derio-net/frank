@@ -25,7 +25,7 @@ spec:
                   name: vk-remote-secrets
                   key: ELECTRIC_ROLE_PASSWORD
             - name: DATABASE_URL
-              value: "postgresql://electric:$(ELECTRIC_ROLE_PASSWORD)@postgres-vk:5432/vibekanban?sslmode=disable"
+              value: "postgresql://electric:$(ELECTRIC_ROLE_PASSWORD)@postgres-vk:5432/remote?sslmode=disable"
           resources:
             requests:
               cpu: 50m
