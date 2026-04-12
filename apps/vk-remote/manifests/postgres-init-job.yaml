@@ -1,0 +1,44 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-vk-init-electric
+  namespace: agents
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: postgres:16-alpine
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h postgres-vk -U vibekanban; do sleep 2; done
+              PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres-vk -U vibekanban -d vibekanban -c "
+                DO \$\$
+                BEGIN
+                  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'electric') THEN
+                    CREATE ROLE electric WITH LOGIN PASSWORD '$ELECTRIC_PASSWORD' REPLICATION;
+                  END IF;
+                END
+                \$\$;
+                GRANT ALL ON DATABASE vibekanban TO electric;
+                GRANT ALL ON SCHEMA public TO electric;
+                ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO electric;
+              "
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vk-remote-secrets
+                  key: POSTGRES_PASSWORD
+            - name: ELECTRIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vk-remote-secrets
+                  key: ELECTRIC_ROLE_PASSWORD
+  backoffLimit: 5

@@ -378,3 +378,27 @@ spec:
     certResolver: cloudflare
     domains:
       - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: vk-remote
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`vk.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: vk-remote
+          namespace: agents
+          port: 8081
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
