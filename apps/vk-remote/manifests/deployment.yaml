@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: vk-remote
-          image: ghcr.io/derio-net/vk-remote:latest
+          image: ghcr.io/derio-net/vk-remote:edccfb1
           ports:
             - containerPort: 8081
           env:
