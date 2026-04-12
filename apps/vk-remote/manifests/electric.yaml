@@ -19,6 +19,8 @@ spec:
           ports:
             - containerPort: 3000
           env:
+            - name: ELECTRIC_INSECURE
+              value: "true"
             - name: ELECTRIC_ROLE_PASSWORD
               valueFrom:
                 secretKeyRef:
