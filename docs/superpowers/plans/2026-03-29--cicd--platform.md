@@ -24,6 +24,7 @@
 ---
 
 ## Phase 0: Infrastructure Prerequisites [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/40 -->
 
 ### Task 1: StorageClass and Node Labels
 
@@ -94,6 +95,7 @@ kubectl get node pc-1 --show-labels | grep role=cicd
 ---
 
 ## Phase 1: Gitea Deployment [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/41 -->
 
 ### Task 2: Gitea Deployment
 
@@ -433,6 +435,7 @@ rm -rf /tmp/test-clone
 ---
 
 ## Phase 3: Tekton Core & Triggers [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/42 -->
 
 ### Task 4: Tekton Core Deployment
 
@@ -1001,6 +1004,7 @@ If no PipelineRun is created, debug:
 ---
 
 ## Phase 4: Zot Registry [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/43 -->
 
 ### Task 6: Zot Registry Deployment
 
@@ -1289,6 +1293,7 @@ status: pending
 ---
 
 ## Phase 5: CI Pipeline [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/44 -->
 
 ### Task 7: Pipeline Stage A — Clone, Test, Report Status
 
