@@ -21,6 +21,8 @@ spec:
           env:
             - name: ELECTRIC_INSECURE
               value: "true"
+            - name: ELECTRIC_PORT
+              value: "3000"
             - name: ELECTRIC_ROLE_PASSWORD
               valueFrom:
                 secretKeyRef:

@@ -25,6 +25,8 @@ spec:
               value: "0.0.0.0"
             - name: NODE_ENV
               value: "production"
+            - name: SERVER_PUBLIC_BASE_URL
+              value: "https://vk.cluster.derio.net"
             - name: ELECTRIC_URL
               value: "http://electric:3000"
             - name: SELF_HOST_LOCAL_AUTH_EMAIL
