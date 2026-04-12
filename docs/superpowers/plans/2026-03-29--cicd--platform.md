@@ -382,6 +382,7 @@ If OIDC fails, check:
 ---
 
 ## Phase 2: Gitea Post-Deploy Configuration [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/45 -->
 
 ### Task 3: Gitea Post-Deploy Configuration
 
