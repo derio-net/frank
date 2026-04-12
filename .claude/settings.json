@@ -1,15 +1,4 @@
 {
-  "extraKnownMarketplaces": {
-    "derio-net": {
-      "source": {
-        "source": "github",
-        "repo": "derio-net/superpowers-for-vk"
-      }
-    }
-  },
-  "enabledPlugins": {
-    "superpowers-for-vk@derio-net": true
-  },
   "permissions": {
     "allow": [
       "Bash(git push:*)"
