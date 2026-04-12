@@ -95,7 +95,7 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 60
         - name: vk-server
-          image: ghcr.io/derio-net/vibe-kanban:edccfb1
+          image: ghcr.io/derio-net/vibe-kanban:9e774f6
           ports:
             - name: vk-http
               containerPort: 8081
