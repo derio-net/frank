@@ -5,7 +5,7 @@
 > **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Spec:** `willikins/docs/superpowers/specs/2026-04-10-vk-skills-harmonization-design.md`
-**Status:** In Progress
+**Status:** Complete
 
 **Goal:** Harmonize Frank's plan infrastructure with the canonical vk-plan model — create the plan profile, delete vendored superpowers skills, replace local scripts with thin wrappers around the canonical validator, and convert the 4 active plans to the Phase > Task > Step format.
 
@@ -546,4 +546,4 @@ the existing post-deploy checklist as a manual phase."
 
 ---
 
-*Last progress sync: —*
+*Last progress sync: 2026-04-12T00:00:00Z*
