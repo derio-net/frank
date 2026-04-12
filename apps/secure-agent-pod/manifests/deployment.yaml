@@ -101,6 +101,8 @@ spec:
               containerPort: 8081
               protocol: TCP
           env:
+            - name: HOME
+              value: "/home/claude"
             - name: PORT
               value: "8081"
             - name: HOST
