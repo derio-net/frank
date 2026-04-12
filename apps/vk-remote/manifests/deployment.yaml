@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vk-remote
+  namespace: agents
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vk-remote
+  template:
+    metadata:
+      labels:
+        app: vk-remote
+    spec:
+      containers:
+        - name: vk-remote
+          image: ghcr.io/derio-net/vk-remote:edccfb1
+          ports:
+            - containerPort: 8081
+          env:
+            - name: PORT
+              value: "8081"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: NODE_ENV
+              value: "production"
+            - name: ELECTRIC_URL
+              value: "http://electric:3000"
+            - name: SELF_HOST_LOCAL_AUTH_EMAIL
+              value: "admin@localhost"
+            - name: VIBEKANBAN_REMOTE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: vk-remote-secrets
+                  key: VIBEKANBAN_REMOTE_JWT_SECRET
+            - name: SELF_HOST_LOCAL_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vk-remote-secrets
+                  key: SELF_HOST_LOCAL_AUTH_PASSWORD
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vk-remote-secrets
+                  key: POSTGRES_PASSWORD
+            - name: SERVER_DATABASE_URL
+              value: "postgresql://vibekanban:$(POSTGRES_PASSWORD)@postgres-vk:5432/vibekanban?sslmode=disable"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vk-remote
+  namespace: agents
+spec:
+  selector:
+    app: vk-remote
+  ports:
+    - port: 8081
+      targetPort: 8081

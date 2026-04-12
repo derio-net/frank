@@ -280,3 +280,25 @@ data:
           name: Tekton Dashboard (cluster)
           provider: !KeyOf provider-tekton-cluster
           meta_launch_url: https://tekton.cluster.derio.net
+
+        # VK Remote (cluster) proxy provider
+        - model: authentik_providers_proxy.proxyprovider
+          state: present
+          identifiers:
+            name: VK Remote (cluster)
+          id: provider-vk-remote-cluster
+          attrs:
+            authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+            authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+            invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+            mode: forward_single
+            external_host: https://vk.cluster.derio.net
+
+        - model: authentik_core.application
+          state: present
+          identifiers:
+            slug: vk-remote-cluster
+          attrs:
+            name: VK Remote (cluster)
+            provider: !KeyOf provider-vk-remote-cluster
+            meta_launch_url: https://vk.cluster.derio.net

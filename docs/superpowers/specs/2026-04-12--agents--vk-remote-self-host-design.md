@@ -137,6 +137,12 @@ No data migration needed. The old cloud projects/issues are lost (cloud is dying
 4. Bridge creates a VK card from a `vk-ready` GitHub Issue
 5. MCP tools (`list_issues`, `create_issue`, `update_issue`) work from secure-agent-pod
 
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| VK Remote Self-Host | `derio-net/frank` | `docs/superpowers/plans/2026-04-12--agents--vk-remote-self-host.md` | Not Started | — |
+
 ## What Stays Unchanged
 
 - VK local binary (workspaces, sessions, agent spawning) — untouched
