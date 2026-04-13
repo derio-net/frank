@@ -1745,7 +1745,7 @@ curl -sk https://192.168.55.210:5000/v2/_catalog
 - Create: `apps/tekton/manifests/externalsecret-cosign.yaml`
 - Modify: `apps/tekton/pipelines/gitea-ci.yaml`
 
-- [ ] **Step 1: Generate cosign key pair and store in Infisical**
+- [x] **Step 1: Generate cosign key pair and store in Infisical**
 
 ```yaml
 # manual-operation
