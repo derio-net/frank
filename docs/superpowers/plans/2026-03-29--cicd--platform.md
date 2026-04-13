@@ -381,55 +381,104 @@ If OIDC fails, check:
 
 ---
 
-## Phase 2: Gitea Post-Deploy Configuration [manual]
+## Phase 2: Gitea Post-Deploy Configuration [agentic]
 <!-- Tracking: https://github.com/derio-net/frank/issues/45 -->
 
-### Task 3: Gitea Post-Deploy Configuration
+> **Prerequisite:** Gitea is deployed, reachable at `http://192.168.55.209:3000`, and an admin API token is stored in Infisical as `GITEA_ADMIN_TOKEN`.
 
-- [ ] **Step 1: Create service account and API token**
+### Task 3: Create tekton-bot service account
 
-```yaml
-# manual-operation
-id: cicd-gitea-service-account
-layer: cicd
-app: gitea
-plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
-when: "After Gitea is deployed and Authentik OIDC works"
-why_manual: "Service account and API token must be created via Gitea UI/API"
-commands:
-  - "Gitea UI → Site Administration → User Accounts → Create (username: tekton-bot, email: tekton@frank.local)"
-  - "Gitea UI → tekton-bot → Settings → Applications → Generate Token (name: tekton-ci, scopes: repo, issue)"
-  - "Store token in Infisical as GITEA_API_TOKEN"
-verify:
-  - "curl -H 'Authorization: token <TOKEN>' http://192.168.55.209:3000/api/v1/user → returns tekton-bot"
-  - "Infisical → GITEA_API_TOKEN exists"
-status: pending
-```
+**Files:** None (API-only operations)
 
-- [ ] **Step 2: Mirror test repo from GitHub**
-
-```yaml
-# manual-operation
-id: cicd-gitea-mirror-test-repo
-layer: cicd
-app: gitea
-plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
-when: "After Gitea is deployed"
-why_manual: "Mirror creation is a one-time Gitea API/UI operation"
-commands:
-  - "Gitea UI → + → New Migration → GitHub → URL of test repo → check 'Mirror' → interval 10m"
-  - "Or via API: POST /api/v1/repos/migrate with mirror=true"
-verify:
-  - "Gitea → repo shows 'Mirror' badge, last synced within 10 minutes"
-status: pending
-```
-
-- [ ] **Step 3: Verify SSH clone works**
+- [ ] **Step 1: Retrieve admin token from Infisical**
 
 ```bash
-# From a machine that can reach pc-1
-GIT_SSH_COMMAND="ssh -p 2222" git clone git@192.168.55.209:<owner>/<test-repo>.git /tmp/test-clone
-# Expect: successful clone
+GITEA_URL="http://192.168.55.209:3000"
+ADMIN_TOKEN=$(infisical secrets get GITEA_ADMIN_TOKEN --plain 2>/dev/null)
+# Verify: non-empty string
+test -n "$ADMIN_TOKEN" || { echo "FAIL: GITEA_ADMIN_TOKEN not found in Infisical"; exit 1; }
+```
+
+- [ ] **Step 2: Create tekton-bot user via API**
+
+```bash
+curl -sf -X POST "$GITEA_URL/api/v1/admin/users" \
+  -H "Authorization: token $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "tekton-bot",
+    "email": "tekton@frank.local",
+    "password": "'"$(openssl rand -base64 32)"'",
+    "must_change_password": false,
+    "visibility": "private"
+  }'
+# Expect: 201 Created with username=tekton-bot
+```
+
+- [ ] **Step 3: Generate API token for tekton-bot**
+
+```bash
+TEKTON_TOKEN=$(curl -sf -X POST "$GITEA_URL/api/v1/users/tekton-bot/tokens" \
+  -H "Authorization: token $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "tekton-ci", "scopes": ["write:repository", "write:issue"]}' \
+  | jq -r '.sha1')
+test -n "$TEKTON_TOKEN" || { echo "FAIL: token creation failed"; exit 1; }
+```
+
+- [ ] **Step 4: Store tekton-bot token in Infisical**
+
+```bash
+infisical secrets set GITEA_API_TOKEN="$TEKTON_TOKEN"
+# Verify round-trip
+VERIFY=$(infisical secrets get GITEA_API_TOKEN --plain)
+test "$VERIFY" = "$TEKTON_TOKEN" || { echo "FAIL: Infisical round-trip mismatch"; exit 1; }
+```
+
+- [ ] **Step 5: Verify tekton-bot can authenticate**
+
+```bash
+curl -sf -H "Authorization: token $TEKTON_TOKEN" "$GITEA_URL/api/v1/user" | jq '.login'
+# Expect: "tekton-bot"
+```
+
+### Task 4: Mirror test repo from GitHub
+
+- [ ] **Step 6: Create mirror via Gitea migration API**
+
+```bash
+curl -sf -X POST "$GITEA_URL/api/v1/repos/migrate" \
+  -H "Authorization: token $ADMIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clone_addr": "https://github.com/derio-net/frank.git",
+    "repo_name": "frank",
+    "repo_owner": "tekton-bot",
+    "service": "github",
+    "mirror": true,
+    "mirror_interval": "10m"
+  }'
+# Expect: 201 Created
+```
+
+- [ ] **Step 7: Verify mirror synced**
+
+```bash
+# Wait for initial sync
+sleep 15
+curl -sf -H "Authorization: token $TEKTON_TOKEN" \
+  "$GITEA_URL/api/v1/repos/tekton-bot/frank" | jq '{mirror: .mirror, updated_at: .updated_at}'
+# Expect: mirror=true, updated_at within last minute
+```
+
+### Task 5: Verify SSH clone
+
+- [ ] **Step 8: Clone via SSH and confirm**
+
+```bash
+GIT_SSH_COMMAND="ssh -p 2222 -o StrictHostKeyChecking=no" \
+  git clone git@192.168.55.209:tekton-bot/frank.git /tmp/test-clone
+test -d /tmp/test-clone/.git || { echo "FAIL: SSH clone failed"; exit 1; }
 rm -rf /tmp/test-clone
 ```
 
@@ -1688,7 +1737,7 @@ git add apps/tekton/tasks/build-push.yaml apps/tekton/manifests/externalsecret-z
 git commit -m "feat(cicd): add Stage B — Kaniko image build and push to Zot"
 ```
 
-- [ ] **Step 5: Push and verify**
+- [x] **Step 5: Push and verify**
 
 ```bash
 git push
@@ -1861,7 +1910,7 @@ git add apps/tekton/tasks/cosign-sign.yaml apps/tekton/manifests/externalsecret-
 git commit -m "feat(cicd): add Stage C — cosign image signing after push to Zot"
 ```
 
-- [ ] **Step 6: Push and verify**
+- [x] **Step 6: Push and verify**
 
 ```bash
 git push
@@ -1871,6 +1920,13 @@ cosign verify --key apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecu
   192.168.55.210:5000/test/myapp:latest
 # Expect: Verified OK (or similar success message)
 ```
+
+> **Deviation (2026-04-13):** Multiple fixes needed for build+sign pipeline:
+>
+> 1. **PodSecurity `restricted` blocks Kaniko** — Vendored Tekton release sets `enforce: restricted` on the namespace. Patched vendored `release.yaml` to use `baseline`. The standalone namespace override in `tekton-extras` was overwritten by the `tekton-pipelines` app on every sync.
+> 2. **Kaniko auth: `.dockerconfigjson` vs `config.json`** — Kaniko reads `$DOCKER_CONFIG/config.json` but `kubernetes.io/dockerconfigjson` Secrets mount as `.dockerconfigjson`. Added duplicate `config.json` key to the ExternalSecret template.
+> 3. **Cosign image `bitnami/cosign:2.4.1` doesn't exist** — Switched to `gcr.io/projectsigstore/cosign:v2.4.1` (distroless, official).
+> 4. **Cosign needs registry credentials** — Sign task pushes the `.sig` artifact to Zot. Mounted `zot-push-creds` Secret at `/docker` and set `DOCKER_CONFIG=/docker`.
 
 ---
 
