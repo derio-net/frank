@@ -1,0 +1,18 @@
+## Configure containerd to trust the local Zot OCI registry
+## Cluster-wide — all nodes can pull images from 192.168.55.210:5000
+## Uses insecureSkipVerify to avoid cert rotation issues (self-signed cert)
+## Does NOT require a node reboot — containerd picks up registry config changes
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 110-cluster-zot-registry
+    labels:
+        omni.sidero.dev/cluster: frank
+spec:
+    data: |
+        machine:
+            registries:
+                config:
+                    192.168.55.210:5000:
+                        tls:
+                            insecureSkipVerify: true
