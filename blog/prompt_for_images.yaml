@@ -539,21 +539,18 @@ images:
     output: blog/content/building/25-vk-relay/cover.png
     description: "VK Relay — Frank bridging two screens with a glowing WebSocket tunnel"
     prompt: >-
-      Frank the server-hardware Frankenstein monster standing between two
-      floating screens in a dark server room. Match the reference image
-      face exactly — green skin, messy black hair, black eyes with white
-      pupils, stitch scars, RJ45 bolt connectors on his neck, small simple
-      round chibi face. His left hand touches a large monitor showing a
-      polished web dashboard (the remote UI). His right hand reaches toward
-      a smaller rugged terminal screen embedded in a fortified server rack
-      labeled "secure-agent-pod" with a padlock. Between the two screens,
-      a brilliant electric-blue tunnel of intertwined WebSocket cable swirls
-      spirals through the air, carrying tiny glowing data packets (code
-      diffs, file icons, terminal snippets). A small relay antenna sits on
-      Frank's shoulder, pulsing with concentric signal rings. At the
-      tunnel's midpoint, a translucent JWT token badge floats as an
-      authentication checkpoint. Dark background with electric blue and
-      orange lighting accents.
+      Frank the server-hardware Frankenstein monster in a dark server room,
+      looking at a large floating monitor on his left that shows a polished
+      web dashboard. Match the reference image face exactly — green skin,
+      messy black hair, black eyes with white pupils, stitch scars, RJ45
+      bolt connectors on his neck, small simple round chibi face. One hand
+      points at the dashboard, the other hand is casually in his pocket.
+      From the dashboard screen, brilliant electric-blue WebSocket cable
+      swirls spiral across the scene to a smaller rugged terminal screen
+      on the right, embedded in a fortified server rack labeled
+      "secure-agent-pod" with a padlock. The swirls carry tiny glowing
+      data packets. Dark background with electric blue and orange lighting
+      accents. Simple composition, clean layout.
 
   # --- Operating Series Covers ------------------------------------------------
 
