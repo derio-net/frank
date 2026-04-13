@@ -5,7 +5,7 @@
 > **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Spec:** `docs/superpowers/specs/2026-04-13--agents--vk-relay-self-host-design.md`
-**Status:** In Progress
+**Status:** Deployed
 
 **Goal:** Deploy the VK relay server as a sidecar in the vk-remote pod and configure the secure-agent-pod to connect to it, enabling the remote web UI to proxy API calls to the local VK server.
 **Architecture:** Add relay sidecar to vk-remote deployment (same image, different entrypoint), split IngressRoute for relay paths, add `VK_SHARED_RELAY_API_BASE` to secure-agent-pod.
@@ -18,7 +18,7 @@
 | File | Action | Responsibility |
 |------|--------|----------------|
 | `apps/vk-remote/manifests/deployment.yaml` | Modify | Add relay sidecar container |
-| `apps/vk-remote/manifests/service.yaml` | Create | Service with both ports (8081 + 8082) |
+| `apps/vk-remote/manifests/deployment.yaml` | Modify | Add relay port to Service (Deployment + Service in same file) |
 | `apps/traefik/manifests/ingressroutes.yaml` | Modify | Split VK route for relay paths |
 | `apps/secure-agent-pod/manifests/deployment.yaml` | Modify | Add VK_SHARED_RELAY_API_BASE env var |
 
