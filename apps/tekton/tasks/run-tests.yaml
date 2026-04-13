@@ -15,11 +15,20 @@ spec:
       description: "The git repo"
   steps:
     - name: test
-      image: alpine:3
+      image: alpine:3.20
       workingDir: $(workspaces.source.path)
-      script: |
-        #!/bin/sh
-        set -e
-        echo "Running tests..."
-        $(params.test-command)
-        echo "Tests passed."
+      env:
+        - name: TEST_CMD
+          value: $(params.test-command)
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
+      command: ["/bin/sh", "-e", "-c"]
+      args:
+        - |
+          echo "Running tests..."
+          eval "$TEST_CMD"
+          echo "Tests passed."

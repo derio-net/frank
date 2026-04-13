@@ -8,10 +8,16 @@ spec:
   params:
     - name: image
       type: string
-      description: "Full image reference to sign"
+      description: "Full image reference to sign (preferably with digest)"
   steps:
     - name: sign
-      image: bitnami/cosign:latest
+      image: bitnami/cosign:2.4.1
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          memory: 512Mi
       env:
         - name: COSIGN_PASSWORD
           value: ""

@@ -27,23 +27,44 @@ spec:
       default: "http://gitea-http.gitea.svc.cluster.local:3000"
   steps:
     - name: report
-      image: alpine:3
+      image: curlimages/curl:8.7.1
       env:
         - name: GITEA_TOKEN
           valueFrom:
             secretKeyRef:
               name: gitea-api-token
               key: token
-      script: |
-        #!/bin/sh
-        apk add --no-cache curl
-        STATUS_URL="$(params.gitea-url)/api/v1/repos/$(params.repo-full-name)/statuses/$(params.revision)"
-        curl -s -X POST "$STATUS_URL" \
-          -H "Authorization: token $GITEA_TOKEN" \
-          -H "Content-Type: application/json" \
-          -d "{
-            \"state\": \"$(params.state)\",
-            \"description\": \"$(params.description)\",
-            \"context\": \"$(params.context)\"
-          }"
-        echo "Reported status '$(params.state)' for $(params.revision)"
+        - name: REPO_FULL_NAME
+          value: $(params.repo-full-name)
+        - name: REVISION
+          value: $(params.revision)
+        - name: STATE
+          value: $(params.state)
+        - name: DESCRIPTION
+          value: $(params.description)
+        - name: CONTEXT
+          value: $(params.context)
+        - name: GITEA_URL
+          value: $(params.gitea-url)
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+      command: ["/bin/sh", "-e", "-c"]
+      args:
+        - |
+          STATUS_URL="${GITEA_URL}/api/v1/repos/${REPO_FULL_NAME}/statuses/${REVISION}"
+          # Escape values for safe JSON embedding
+          json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+          S=$(json_escape "$STATE")
+          D=$(json_escape "$DESCRIPTION")
+          C=$(json_escape "$CONTEXT")
+          PAYLOAD="{\"state\":\"${S}\",\"description\":\"${D}\",\"context\":\"${C}\"}"
+          HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$STATUS_URL" \
+            -H "Authorization: token $GITEA_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+          echo "Reported status '${STATE}' for ${REVISION} (HTTP ${HTTP_CODE})"
+          [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]
