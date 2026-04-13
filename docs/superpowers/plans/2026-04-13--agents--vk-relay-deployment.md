@@ -204,7 +204,7 @@ git push origin main
 
 ---
 
-## Phase 1: Deploy & Verify [manual]
+## Phase 1: Deploy & Verify [agentic]
 <!-- Tracking: https://github.com/derio-net/frank/issues/51 -->
 
 ### Task 1: Verify ArgoCD sync
@@ -277,7 +277,7 @@ The port-forward is no longer needed — the relay handles all communication goi
 
 ---
 
-## Phase 2: Post-Deploy Checklist [manual]
+## Phase 2: Post-Deploy Checklist [agentic]
 <!-- Tracking: https://github.com/derio-net/frank/issues/52 -->
 
 - [ ] **Step 1: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
