@@ -1279,7 +1279,7 @@ curl -sk https://192.168.55.210:5000/v2/_catalog
 # Expect: {"repositories":["test/alpine"]}
 ```
 
-- [ ] **Step 11: Apply containerd mirror Talos patch**
+- [x] **Step 11: Apply containerd mirror Talos patch**
 
 ```yaml
 # manual-operation
@@ -1290,11 +1290,13 @@ plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
 when: "After Zot is deployed and verified"
 why_manual: "Omni config patch requires UI or omnictl interaction; triggers node reboot"
 commands:
-  - "Apply Omni cluster-wide config patch with containerd mirror for 192.168.55.210:5000 (with or without insecureSkipVerify depending on cert-manager IP SAN support)"
-  - "Verify nodes reboot and come back Ready"
+  - "omnictl apply -f patches/phase06-cicd/06-cluster-zot-registry.yaml"
+  - "Verify nodes come back Ready"
 verify:
   - "talosctl -n 192.168.55.21 get machineconfig -o yaml | grep 192.168.55.210"
   - "kubectl get nodes — all nodes Ready"
+  - "kubectl run test --image=192.168.55.210:5000/... — pull succeeds (TLS trusted)"
+status: done
   - "crictl pull 192.168.55.210:5000/test/alpine:latest (on any node)"
 status: pending
 ```
