@@ -11,7 +11,7 @@
 **Tech Stack:** ArgoCD, Helm, Longhorn, Cilium L2, Infisical + ExternalSecrets, Tekton Pipelines/Triggers/Dashboard, Gitea, Zot, cosign, cert-manager
 
 **Spec:** `docs/superpowers/specs/2026-03-29--cicd--platform-design.md`
-**Status:** In Progress (pending: Infisical secrets, Gitea post-deploy config, webhook wiring, cosign keypair, containerd mirror patch)
+**Status:** In Progress (Phases 0-5 complete — pending: Phase 6 post-deploy checklist)
 
 ---
 
@@ -1927,6 +1927,18 @@ cosign verify --key apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecu
 > 2. **Kaniko auth: `.dockerconfigjson` vs `config.json`** — Kaniko reads `$DOCKER_CONFIG/config.json` but `kubernetes.io/dockerconfigjson` Secrets mount as `.dockerconfigjson`. Added duplicate `config.json` key to the ExternalSecret template.
 > 3. **Cosign image `bitnami/cosign:2.4.1` doesn't exist** — Switched to `gcr.io/projectsigstore/cosign:v2.4.1` (distroless, official).
 > 4. **Cosign needs registry credentials** — Sign task pushes the `.sig` artifact to Zot. Mounted `zot-push-creds` Secret at `/docker` and set `DOCKER_CONFIG=/docker`.
+
+---
+
+## Phase 6: Post-Deploy Checklist [manual]
+
+### Task 10: Post-Deploy Checklist
+
+- [ ] **Step 1: Write building blog post** — Use `/blog-post` skill. Cover the full CI/CD layer: Gitea, Tekton, Zot, cosign. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
+- [ ] **Step 2: Write operating blog post** — Use `/blog-post` skill for the companion operating guide (health checks, pipeline debugging, registry maintenance, cosign verification). Update operating series index in `blog/content/building/00-overview/index.md`
+- [ ] **Step 3: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
+- [ ] **Step 4: Sync runbook** — Run `/sync-runbook` (this plan has 11 manual-operation blocks)
+- [ ] **Step 5: Update plan status** — Set `**Status:**` to `Deployed`
 
 ---
 
