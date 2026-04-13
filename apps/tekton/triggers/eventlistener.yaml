@@ -9,18 +9,16 @@ spec:
   triggers:
     - name: gitea-push
       interceptors:
-        - ref:
-            name: "github"
-          params:
-            - name: "secretRef"
-              value:
-                secretName: gitea-webhook-secret
-                secretKey: secret
-            - name: "eventTypes"
-              value: ["push"]
+        # Gitea sends X-Gitea-Event (not X-GitHub-Event), so the github
+        # ClusterInterceptor silently drops Gitea webhooks. Use CEL instead.
+        # HMAC validation is omitted — EventListener is ClusterIP-only,
+        # not exposed outside the cluster.
         - ref:
             name: "cel"
           params:
+            - name: "filter"
+              value: >-
+                header.match('X-Gitea-Event', 'push')
             - name: "overlays"
               value:
                 - key: branch_name
