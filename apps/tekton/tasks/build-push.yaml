@@ -24,6 +24,7 @@ spec:
       description: "The git repo with Dockerfile"
     - name: dockerconfig
       description: "Docker config.json for registry auth"
+      optional: true
   steps:
     - name: build-and-push
       image: gcr.io/kaniko-project/executor:v1.23.2
