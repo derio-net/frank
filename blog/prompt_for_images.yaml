@@ -866,3 +866,21 @@ images:
       electricity. Problem-solver mood — quietly confident, routing
       around a broken pipeline. Dark server room with cool blue and
       teal lighting accents.
+
+  - key: ops-20-vk-relay
+    output: blog/content/operating/20-vk-relay/cover.png
+    description: "Operating on VK Relay — Frank monitoring relay tunnel status on a dashboard"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster seated at an operations
+      desk in a dark server room, facing a wide monitoring screen. The screen
+      shows a relay status dashboard with a glowing green WebSocket tunnel
+      icon connecting two endpoints labeled "browser" and "agent-pod".
+      Status indicators show: connection UP (green dot), latency bar,
+      active sessions count. His left hand rests on the desk near a small
+      terminal showing log output scrolling past. His right hand adjusts a
+      dial labeled "relay-server:8082". On the desk, a small pairing card
+      with a 6-digit code glows faintly. In the background, server racks
+      with blinking LEDs and ethernet cables. Green skin, messy black hair,
+      black eyes with white pupils, RJ45 neck bolts sparking faint blue
+      electricity. Calm operational mood — routine monitoring. Dark server
+      room with blue and teal lighting accents.

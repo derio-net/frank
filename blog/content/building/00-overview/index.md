@@ -121,3 +121,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 17. [Operating on In-Cluster Ingress]({{< relref "/operating/17-ingress" >}})
 18. [Operating on Paperclip]({{< relref "/operating/18-paperclip" >}})
 19. [Git Credentials Without a Shell]({{< relref "/operating/19-git-credentials-without-a-shell" >}})
+20. [Operating on VK Relay]({{< relref "/operating/20-vk-relay" >}})
