@@ -1930,7 +1930,8 @@ cosign verify --key apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecu
 
 ---
 
-## Phase 6: Post-Deploy Checklist [manual]
+## Phase 6: Post-Deploy Checklist [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/60 -->
 
 ### Task 10: Post-Deploy Checklist
 
