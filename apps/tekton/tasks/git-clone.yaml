@@ -62,6 +62,9 @@ spec:
         #!/bin/sh
         set -eu
 
+        # Workspace may be owned by root (PVC); safe.directory avoids "dubious ownership" error
+        git config --global --add safe.directory '*'
+
         CHECKOUT_DIR="$(workspaces.output.path)/$(params.subdirectory)"
 
         if [ "$(params.deleteExisting)" = "true" ] && [ -d "${CHECKOUT_DIR}" ]; then
