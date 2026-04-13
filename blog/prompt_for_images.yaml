@@ -571,6 +571,25 @@ images:
       urgent mood — racing against time. Dark server room with orange and
       blue lighting accents.
 
+  - key: building-27-cicd-platform
+    output: blog/content/building/27-cicd-platform/cover.png
+    description: "CI/CD Platform — Frank operating a multi-stage assembly line from git to signed container images"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing in a dark
+      factory-style server room, operating a glowing conveyor belt assembly
+      line. On the left, a monitor labeled "Gitea" shows a git repository
+      tree. The conveyor belt carries small glowing cubes (representing
+      code commits) through three stations: a blue testing chamber labeled
+      "Tekton", a green container-stamping press labeled "Zot" that wraps
+      cubes into container shapes, and a final orange signing station with
+      a wax-seal stamp labeled "cosign" pressing a glowing checkmark onto
+      each container. Frank watches the line with one hand on a lever and
+      a satisfied expression. Finished signed containers stack neatly on
+      a shelf at the right. Green skin, messy black hair, black eyes with
+      white pupils, RJ45 neck bolts sparking blue electricity. Dark
+      industrial background with blue, green, and orange lighting accents.
+      Clean composition, left-to-right flow.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -919,3 +938,22 @@ images:
       black eyes with white pupils, RJ45 neck bolts sparking faint blue
       electricity. Calm operational mood — routine monitoring. Dark server
       room with blue and teal lighting accents.
+
+  - key: ops-22-cicd-platform
+    output: blog/content/operating/22-cicd-platform/cover.png
+    description: "Operating on CI/CD Platform — Frank monitoring pipeline and registry status"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster seated at a wide
+      operations console in a dark server room, facing three side-by-side
+      monitoring screens. The left screen shows a git repository tree
+      labeled "Gitea" with green sync indicators. The center screen shows
+      a pipeline waterfall diagram labeled "Tekton" with stages clone,
+      test, build, sign — all showing green checkmarks. The right screen
+      shows a container registry catalog labeled "Zot" with stacked
+      container images, each bearing a small cosign seal stamp. His hands
+      rest on the console keyboard, expression calm and watchful. A small
+      terminal below shows scrolling log output. In the background, server
+      racks with blinking LEDs. Green skin, messy black hair, black eyes
+      with white pupils, RJ45 neck bolts sparking faint blue electricity.
+      Calm operational mood — routine CI/CD monitoring. Dark server room
+      with blue, green, and orange lighting accents.
