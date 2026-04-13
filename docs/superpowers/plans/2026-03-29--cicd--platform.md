@@ -967,7 +967,7 @@ kubectl get svc -n tekton-pipelines | grep el-gitea-listener
 # Expect: el-gitea-listener ClusterIP on port 8080
 ```
 
-- [ ] **Step 12: Configure Gitea webhook**
+- [x] **Step 12: Configure Gitea webhook**
 
 ```yaml
 # manual-operation
@@ -984,10 +984,14 @@ commands:
   - "Events: Push, Pull Request"
 verify:
   - "Gitea → Webhooks → test delivery → returns 2xx from EventListener"
-status: pending
+status: done
 ```
 
-- [ ] **Step 13: Test webhook triggers a PipelineRun**
+> **Deviation (2026-04-13):** Webhook created via Gitea API (not UI). Two fixes were needed:
+> 1. EventListener interceptor changed from `github` to `cel` — Gitea sends `X-Gitea-Event` header, not `X-GitHub-Event`, so the GitHub ClusterInterceptor silently dropped all Gitea webhooks.
+> 2. Added `webhook.ALLOWED_HOST_LIST: "*.svc.cluster.local"` to Gitea config — default allowlist blocks outgoing webhook delivery to in-cluster services.
+
+- [x] **Step 13: Test webhook triggers a PipelineRun**
 
 Push a commit to the test repo (or use Gitea's "test delivery" button):
 

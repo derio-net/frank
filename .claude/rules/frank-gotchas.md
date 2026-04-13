@@ -47,3 +47,6 @@
 - Supercronic watches `~/.crontab` and auto-reloads on file change — no restart needed after updating crontab content
 - Zot Helm chart v0.1.0 is too minimal — no support for `mountConfig`, `mountSecret`, `persistence`, or `externalSecrets`. Use v0.1.60+ for TLS, htpasswd auth, and persistent storage
 - Zot htpasswd hash in `values.yaml` must be regenerated if `ZOT_PUSH_PASSWORD` changes in Infisical — the bcrypt hash and plaintext password are not kept in sync automatically
+- Gitea default `webhook.ALLOWED_HOST_LIST` blocks outgoing webhooks to in-cluster services — add `*.svc.cluster.local` to allow delivery to Tekton EventListeners and other cluster-local endpoints
+- Tekton `github` ClusterInterceptor silently drops Gitea webhooks — Gitea sends `X-Gitea-Event` header, not `X-GitHub-Event`. Use `cel` interceptor with `header.match('X-Gitea-Event', 'push')` instead
+- Helm charts with `strategy` values that include `rollingUpdate` defaults cannot be overridden to `Recreate` via ServerSideApply in a single sync — SSA validates before merging, so the existing `rollingUpdate` field causes rejection. Workaround: patch the live Deployment strategy first, then let ArgoCD sync
