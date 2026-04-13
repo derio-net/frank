@@ -207,9 +207,11 @@ git push origin main
 ## Phase 1: Deploy & Verify [agentic]
 <!-- Tracking: https://github.com/derio-net/frank/issues/51 -->
 
+> **Deployment Deviation:** Phase 0 used image tag `edccfb1` which predates the relay-server binary addition to the Dockerfile. The relay-server sidecar entered CrashLoopBackOff (`/usr/local/bin/relay-server: no such file or directory`). Fixed by updating both container image tags to `1cce857` (which includes both `remote` and `relay-server` binaries). Fix merged via PR #54.
+
 ### Task 1: Verify ArgoCD sync
 
-- [ ] **Step 1: Check vk-remote pod has two containers**
+- [x] **Step 1: Check vk-remote pod has two containers**
 
 ```bash
 kubectl -n agents get pods -l app=vk-remote -o jsonpath='{.items[0].spec.containers[*].name}'
@@ -217,7 +219,7 @@ kubectl -n agents get pods -l app=vk-remote -o jsonpath='{.items[0].spec.contain
 
 Expected: `vk-remote relay-server`
 
-- [ ] **Step 2: Check relay-server container is running**
+- [x] **Step 2: Check relay-server container is running**
 
 ```bash
 kubectl -n agents logs deploy/vk-remote -c relay-server --tail=10
@@ -225,7 +227,7 @@ kubectl -n agents logs deploy/vk-remote -c relay-server --tail=10
 
 Expected: `Relay server listening on 0.0.0.0:8082`
 
-- [ ] **Step 3: Verify relay endpoint is reachable through Traefik**
+- [x] **Step 3: Verify relay endpoint is reachable through Traefik**
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}" https://vk.cluster.derio.net/v1/relay/connect
@@ -235,7 +237,7 @@ Expected: 401 (Unauthorized — no token, but endpoint exists and routes correct
 
 ### Task 2: Verify local server connects to relay
 
-- [ ] **Step 1: Check secure-agent-pod logs for relay registration**
+- [x] **Step 1: Check secure-agent-pod logs for relay registration**
 
 ```bash
 kubectl -n secure-agent-pod logs deploy/secure-agent-pod -c kali --tail=50 | grep -i relay
@@ -243,35 +245,39 @@ kubectl -n secure-agent-pod logs deploy/secure-agent-pod -c kali --tail=50 | gre
 
 Expected: Log line indicating relay client connected or host registered.
 
-- [ ] **Step 2: Verify host appears in VK remote UI**
+> **Deviation:** No relay-specific log lines in container logs. Verified via database instead: `SELECT * FROM hosts` shows host `Kali Linux host (npm_user_9988d304903d3e10)` with status `online`, last_seen `2026-04-13 17:16:23`. Host registration happens via the shared PostgreSQL database, not relay WebSocket logs.
+
+- [x] **Step 2: Verify host appears in VK remote UI**
 
 Open `https://vk.cluster.derio.net` in the browser. The local host should appear (possibly as "unpaired").
 
+> **Deviation:** Verified via database query (`SELECT * FROM hosts`) — host exists with status `online`. Browser verification deferred to operator.
+
 ### Task 3: Pair browser with local server (one-time)
 
-- [ ] **Step 1: Port-forward to the local VK server**
+- [-] **Step 1: Port-forward to the local VK server** *(manual — requires operator browser access)*
 
 ```bash
 kubectl -n secure-agent-pod port-forward deploy/secure-agent-pod 8081:8081
 ```
 
-- [ ] **Step 2: Generate pairing code**
+- [-] **Step 2: Generate pairing code** *(manual — requires operator browser access)*
 
 Open `http://localhost:8081` in the browser. Go to Settings → Relay Settings → "Generate pairing code". Note the 6-digit code.
 
-- [ ] **Step 3: Enter code in remote UI**
+- [-] **Step 3: Enter code in remote UI** *(manual — requires operator browser access)*
 
 Open `https://vk.cluster.derio.net`. Go to Settings → "Pair host". Enter the 6-digit code.
 
 Expected: Pairing completes, host status changes to "online".
 
-- [ ] **Step 4: Verify workspace repos are visible**
+- [-] **Step 4: Verify workspace repos are visible** *(manual — requires operator browser access)*
 
 Click into an active workspace in the remote UI.
 
 Expected: Repos, sessions, and workspace details are now visible (proxied via relay from the local server).
 
-- [ ] **Step 5: Stop the port-forward**
+- [-] **Step 5: Stop the port-forward** *(manual — requires operator browser access)*
 
 The port-forward is no longer needed — the relay handles all communication going forward.
 
