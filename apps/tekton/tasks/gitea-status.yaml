@@ -46,6 +46,13 @@ spec:
           value: $(params.context)
         - name: GITEA_URL
           value: $(params.gitea-url)
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
       computeResources:
         requests:
           cpu: 50m

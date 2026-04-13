@@ -12,6 +12,13 @@ spec:
   steps:
     - name: sign
       image: bitnami/cosign:2.4.1
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
       computeResources:
         requests:
           cpu: 100m

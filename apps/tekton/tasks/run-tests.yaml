@@ -17,6 +17,13 @@ spec:
     - name: test
       image: alpine:3.20
       workingDir: $(workspaces.source.path)
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
       env:
         - name: TEST_CMD
           value: $(params.test-command)
