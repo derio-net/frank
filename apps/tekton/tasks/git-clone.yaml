@@ -44,7 +44,7 @@ spec:
   steps:
     - name: clone
       image: alpine/git:2.47.2
-      resources:
+      computeResources:
         requests:
           cpu: 100m
           memory: 256Mi

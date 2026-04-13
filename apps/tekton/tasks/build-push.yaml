@@ -27,7 +27,7 @@ spec:
   steps:
     - name: build-and-push
       image: gcr.io/kaniko-project/executor:v1.23.2
-      resources:
+      computeResources:
         requests:
           cpu: 500m
           memory: 512Mi

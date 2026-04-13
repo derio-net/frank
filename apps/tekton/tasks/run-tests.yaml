@@ -20,7 +20,7 @@ spec:
       env:
         - name: TEST_CMD
           value: $(params.test-command)
-      resources:
+      computeResources:
         requests:
           cpu: 100m
           memory: 128Mi

@@ -46,7 +46,7 @@ spec:
           value: $(params.context)
         - name: GITEA_URL
           value: $(params.gitea-url)
-      resources:
+      computeResources:
         requests:
           cpu: 50m
           memory: 64Mi

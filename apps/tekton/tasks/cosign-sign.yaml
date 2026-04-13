@@ -12,7 +12,7 @@ spec:
   steps:
     - name: sign
       image: bitnami/cosign:2.4.1
-      resources:
+      computeResources:
         requests:
           cpu: 100m
           memory: 128Mi
