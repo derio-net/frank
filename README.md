@@ -133,6 +133,7 @@ frank/
 │   ├── phase03-longhorn/      # iSCSI tools, extra disks
 │   ├── phase04-gpu/           # NVIDIA extensions + GPU taint
 │   ├── phase05-mini-config/   # Intel i915 + iGPU DRA extensions
+│   ├── phase06-cicd/          # Containerd registry mirror for Zot
 │   └── phase13-auth/          # kube-apiserver OIDC flags for Authentik
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
