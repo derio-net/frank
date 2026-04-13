@@ -218,3 +218,9 @@ The agent records asciinema sessions itself when asked:
 - No regressions on existing pages (covers, banners, cluster-roadmap)
 - HTML comment placeholders don't render visibly
 - `/media` skill successfully guides through one placeholder and inserts media
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Blog Media Infrastructure Implementation Plan |  | `docs/superpowers/plans/2026-04-09--repo--blog-media-infrastructure.md` | In Progress | — |

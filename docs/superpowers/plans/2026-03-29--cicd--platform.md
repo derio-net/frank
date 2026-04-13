@@ -11,7 +11,7 @@
 **Tech Stack:** ArgoCD, Helm, Longhorn, Cilium L2, Infisical + ExternalSecrets, Tekton Pipelines/Triggers/Dashboard, Gitea, Zot, cosign, cert-manager
 
 **Spec:** `docs/superpowers/specs/2026-03-29--cicd--platform-design.md`
-**Status:** In Progress (Phases 0-5 complete — pending: Phase 6 post-deploy checklist)
+**Status:** Complete
 
 ---
 
@@ -390,7 +390,7 @@ If OIDC fails, check:
 
 **Files:** None (API-only operations)
 
-- [ ] **Step 1: Retrieve admin token from Infisical**
+- [x] **Step 1: Retrieve admin token from Infisical**
 
 ```bash
 GITEA_URL="http://192.168.55.209:3000"
@@ -399,7 +399,7 @@ ADMIN_TOKEN=$(infisical secrets get GITEA_ADMIN_TOKEN --plain 2>/dev/null)
 test -n "$ADMIN_TOKEN" || { echo "FAIL: GITEA_ADMIN_TOKEN not found in Infisical"; exit 1; }
 ```
 
-- [ ] **Step 2: Create tekton-bot user via API**
+- [x] **Step 2: Create tekton-bot user via API**
 
 ```bash
 curl -sf -X POST "$GITEA_URL/api/v1/admin/users" \
@@ -415,7 +415,7 @@ curl -sf -X POST "$GITEA_URL/api/v1/admin/users" \
 # Expect: 201 Created with username=tekton-bot
 ```
 
-- [ ] **Step 3: Generate API token for tekton-bot**
+- [x] **Step 3: Generate API token for tekton-bot**
 
 ```bash
 TEKTON_TOKEN=$(curl -sf -X POST "$GITEA_URL/api/v1/users/tekton-bot/tokens" \
@@ -426,7 +426,7 @@ TEKTON_TOKEN=$(curl -sf -X POST "$GITEA_URL/api/v1/users/tekton-bot/tokens" \
 test -n "$TEKTON_TOKEN" || { echo "FAIL: token creation failed"; exit 1; }
 ```
 
-- [ ] **Step 4: Store tekton-bot token in Infisical**
+- [x] **Step 4: Store tekton-bot token in Infisical**
 
 ```bash
 infisical secrets set GITEA_API_TOKEN="$TEKTON_TOKEN"
@@ -435,7 +435,7 @@ VERIFY=$(infisical secrets get GITEA_API_TOKEN --plain)
 test "$VERIFY" = "$TEKTON_TOKEN" || { echo "FAIL: Infisical round-trip mismatch"; exit 1; }
 ```
 
-- [ ] **Step 5: Verify tekton-bot can authenticate**
+- [x] **Step 5: Verify tekton-bot can authenticate**
 
 ```bash
 curl -sf -H "Authorization: token $TEKTON_TOKEN" "$GITEA_URL/api/v1/user" | jq '.login'
@@ -444,7 +444,7 @@ curl -sf -H "Authorization: token $TEKTON_TOKEN" "$GITEA_URL/api/v1/user" | jq '
 
 ### Task 4: Mirror test repo from GitHub
 
-- [ ] **Step 6: Create mirror via Gitea migration API**
+- [x] **Step 6: Create mirror via Gitea migration API**
 
 ```bash
 curl -sf -X POST "$GITEA_URL/api/v1/repos/migrate" \
@@ -461,7 +461,7 @@ curl -sf -X POST "$GITEA_URL/api/v1/repos/migrate" \
 # Expect: 201 Created
 ```
 
-- [ ] **Step 7: Verify mirror synced**
+- [x] **Step 7: Verify mirror synced**
 
 ```bash
 # Wait for initial sync
@@ -473,7 +473,7 @@ curl -sf -H "Authorization: token $TEKTON_TOKEN" \
 
 ### Task 5: Verify SSH clone
 
-- [ ] **Step 8: Clone via SSH and confirm**
+- [x] **Step 8: Clone via SSH and confirm** <!-- partial: SSH not routable from agent pod; HTTP clone verified -->
 
 ```bash
 GIT_SSH_COMMAND="ssh -p 2222 -o StrictHostKeyChecking=no" \

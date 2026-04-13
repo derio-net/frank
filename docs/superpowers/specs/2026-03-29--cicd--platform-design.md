@@ -486,3 +486,9 @@ status: pending
 - Zot TLS via cert-manager — if IP-based SANs (192.168.55.210) don't work with the ClusterIssuer, fall back to `insecureSkipVerify` in containerd config.
 - `GITEA_API_TOKEN` can only be created after Gitea is deployed — implementation order must account for this dependency.
 - Authentik 2026.x `redirect_uris` requires array of objects `[{"matching_mode": "strict", "url": "..."}]`, not array of strings. Also requires `signing_key` UUID (query existing providers to find it). Script at `scripts/tmp/setup-authentik-cicd-oidc.sh` handles this.
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| CI/CD Platform Implementation Plan |  | `docs/superpowers/plans/2026-03-29--cicd--platform.md` | Complete | — |

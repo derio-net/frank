@@ -5,7 +5,7 @@
 > **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Spec:** `docs/superpowers/specs/2026-04-12--agents--vk-remote-self-host-design.md`
-**Status:** In Progress
+**Status:** Complete
 
 **Goal:** Deploy VK's remote crate as a self-hosted Kubernetes service on Frank, replacing the dying VK cloud backend.
 **Architecture:** PostgreSQL 16 (dedicated, WAL logical) → vk-remote (Rust/Axum API) → ElectricSQL (real-time sync). Secure-agent-pod connects via in-cluster DNS. Operator accesses via Traefik IngressRoute with Authentik forward-auth.
