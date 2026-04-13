@@ -1261,7 +1261,7 @@ curl -sk https://192.168.55.210:5000/v2/
 >
 > **Future cleanup:** The `zot-secrets` ExternalSecret in the `zot` namespace fetches `ZOT_PUSH_PASSWORD` and `ZOT_OIDC_CLIENT_SECRET` from Infisical but neither key is mounted into the Zot pod. The push password is only consumed by Tekton's `zot-push-creds` ExternalSecret in `tekton-pipelines`. Consider removing `zot-secrets` or repurposing it if OIDC is implemented.
 
-- [ ] **Step 10: Test image push/pull**
+- [x] **Step 10: Test image push/pull**
 
 ```bash
 # Tag and push a test image
