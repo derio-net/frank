@@ -119,7 +119,7 @@ These tables are NOT auto-migrated by the relay server — it expects them to ex
 
 ## Implementation Plans
 
-| Plan | Repo | Status |
-|------|------|--------|
-| VK Relay Deployment | frank | Not Started |
-| VK Relay Binary + Migration | vibe-kanban | Not Started |
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| VK Relay Deployment | `derio-net/frank` | `docs/superpowers/plans/2026-04-13--agents--vk-relay-deployment.md` | Not Started | VK Relay Binary |
+| VK Relay Binary | `derio-net/vibe-kanban` | `docs/superpowers/plans/2026-04-13-vk-relay-binary.md` | Not Started | — |

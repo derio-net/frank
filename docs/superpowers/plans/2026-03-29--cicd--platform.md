@@ -68,7 +68,7 @@ kubectl get storageclass longhorn-cicd
 # Expect: longhorn-cicd listed with provisioner driver.longhorn.io
 ```
 
-- [ ] **Step 4: Add role=cicd label to pc-1 via Omni**
+- [x] **Step 4: Add role=cicd label to pc-1 via Omni**
 
 ```yaml
 # manual-operation
@@ -82,14 +82,14 @@ commands:
   - "Apply Omni machine config patch for pc-1: nodeLabels: role=cicd"
 verify:
   - "kubectl get node pc-1 --show-labels | grep role=cicd"
-status: pending
+status: done
 ```
 
 Verify:
 
 ```bash
 kubectl get node pc-1 --show-labels | grep role=cicd
-# Expect: role=cicd in the label list
+# Expect: role=cicd in the label list — verified 2026-04-13
 ```
 
 ---
