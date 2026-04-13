@@ -28,6 +28,8 @@ spec:
       env:
         - name: COSIGN_PASSWORD
           value: ""
+        - name: DOCKER_CONFIG
+          value: /docker
       command: ["cosign"]
       args:
         - "sign"
@@ -40,7 +42,13 @@ spec:
         - name: cosign-key
           mountPath: /cosign
           readOnly: true
+        - name: docker-config
+          mountPath: /docker
+          readOnly: true
   volumes:
     - name: cosign-key
       secret:
         secretName: cosign-key
+    - name: docker-config
+      secret:
+        secretName: zot-push-creds
