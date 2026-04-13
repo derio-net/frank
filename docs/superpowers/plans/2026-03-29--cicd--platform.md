@@ -11,7 +11,7 @@
 **Tech Stack:** ArgoCD, Helm, Longhorn, Cilium L2, Infisical + ExternalSecrets, Tekton Pipelines/Triggers/Dashboard, Gitea, Zot, cosign, cert-manager
 
 **Spec:** `docs/superpowers/specs/2026-03-29--cicd--platform-design.md`
-**Status:** In Progress (Phases 0-5 complete — pending: Phase 6 post-deploy checklist)
+**Status:** Deployed
 
 ---
 
@@ -1935,11 +1935,11 @@ cosign verify --key apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecu
 
 ### Task 10: Post-Deploy Checklist
 
-- [ ] **Step 1: Write building blog post** — Use `/blog-post` skill. Cover the full CI/CD layer: Gitea, Tekton, Zot, cosign. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
-- [ ] **Step 2: Write operating blog post** — Use `/blog-post` skill for the companion operating guide (health checks, pipeline debugging, registry maintenance, cosign verification). Update operating series index in `blog/content/building/00-overview/index.md`
-- [ ] **Step 3: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
-- [ ] **Step 4: Sync runbook** — Run `/sync-runbook` (this plan has 11 manual-operation blocks)
-- [ ] **Step 5: Update plan status** — Set `**Status:**` to `Deployed`
+- [x] **Step 1: Write building blog post** — Use `/blog-post` skill. Cover the full CI/CD layer: Gitea, Tekton, Zot, cosign. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
+- [x] **Step 2: Write operating blog post** — Use `/blog-post` skill for the companion operating guide (health checks, pipeline debugging, registry maintenance, cosign verification). Update operating series index in `blog/content/building/00-overview/index.md`
+- [x] **Step 3: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
+- [x] **Step 4: Sync runbook** — Run `/sync-runbook` (this plan has 11 manual-operation blocks)
+- [x] **Step 5: Update plan status** — Set `**Status:**` to `Deployed`
 
 ---
 

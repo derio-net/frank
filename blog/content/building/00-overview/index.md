@@ -97,6 +97,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 24. [In-Cluster Ingress — Traefik, Wildcard TLS, and a Homepage Dashboard]({{< relref "/building/24-in-cluster-ingress" >}})
 25. [VK Relay — Tunneling the Browser to a Local Agent Server]({{< relref "/building/25-vk-relay" >}})
 26. [VK Remote — Self-Hosting the Kanban Backend Before the Cloud Dies]({{< relref "/building/26-vk-remote-self-host" >}})
+27. [CI/CD Platform — Gitea, Tekton, Zot, and Cosign]({{< relref "/building/27-cicd-platform" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
@@ -125,3 +126,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 19. [Git Credentials Without a Shell]({{< relref "/operating/19-git-credentials-without-a-shell" >}})
 20. [Operating on VK Relay]({{< relref "/operating/20-vk-relay" >}})
 21. [Operating on VK Remote]({{< relref "/operating/21-vk-remote" >}})
+22. [Operating on CI/CD Platform]({{< relref "/operating/22-cicd-platform" >}})
