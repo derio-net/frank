@@ -45,6 +45,7 @@
 - Grafana Helm chart regenerates admin password Secret on re-render — PVC-backed database retains old password. Fix: `grafana cli admin reset-admin-password "$NEW_PASS"` inside the pod after re-deployment
 - VictoriaMetrics Helm chart `genCA` regenerates webhook caBundle on every render — must add `ignoreDifferences` on `ValidatingWebhookConfiguration` `.webhooks[].clientConfig.caBundle` in the ArgoCD Application to prevent ArgoCD from overwriting the operator-managed cert
 - Supercronic watches `~/.crontab` and auto-reloads on file change — no restart needed after updating crontab content
+- Sidecar containers with `runAsUser` overriding the image's default UID need explicit `HOME` env var — the binary resolves HOME from `/etc/passwd` which points to the image-baked user's home dir (not writable under the overridden UID)
 - Zot Helm chart v0.1.0 is too minimal — no support for `mountConfig`, `mountSecret`, `persistence`, or `externalSecrets`. Use v0.1.60+ for TLS, htpasswd auth, and persistent storage
 - Zot htpasswd hash in `values.yaml` must be regenerated if `ZOT_PUSH_PASSWORD` changes in Infisical — the bcrypt hash and plaintext password are not kept in sync automatically
 - Gitea default `webhook.ALLOWED_HOST_LIST` blocks outgoing webhooks to in-cluster services — add `*.svc.cluster.local` to allow delivery to Tekton EventListeners and other cluster-local endpoints
