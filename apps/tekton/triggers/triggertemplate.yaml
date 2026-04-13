@@ -28,6 +28,10 @@ spec:
             value: $(tt.params.repo-full-name)
           - name: branch
             value: $(tt.params.branch)
+        taskRunTemplate:
+          podTemplate:
+            securityContext:
+              fsGroup: 65534
         workspaces:
           - name: shared-workspace
             volumeClaimTemplate:
