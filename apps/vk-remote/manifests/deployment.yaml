@@ -83,15 +83,18 @@ spec:
             limits:
               cpu: 200m
               memory: 128Mi
+          startupProbe:
+            tcpSocket:
+              port: 8082
+            failureThreshold: 10
+            periodSeconds: 3
           readinessProbe:
             tcpSocket:
               port: 8082
-            initialDelaySeconds: 5
             periodSeconds: 15
           livenessProbe:
             tcpSocket:
               port: 8082
-            initialDelaySeconds: 10
             periodSeconds: 30
 ---
 apiVersion: v1
