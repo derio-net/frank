@@ -5,7 +5,7 @@
 > **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Spec:** `docs/superpowers/specs/2026-04-13--agents--vk-relay-self-host-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **Goal:** Deploy the VK relay server as a sidecar in the vk-remote pod and configure the secure-agent-pod to connect to it, enabling the remote web UI to proxy API calls to the local VK server.
 **Architecture:** Add relay sidecar to vk-remote deployment (same image, different entrypoint), split IngressRoute for relay paths, add `VK_SHARED_RELAY_API_BASE` to secure-agent-pod.
@@ -32,7 +32,7 @@
 **Files:**
 - Modify: `apps/vk-remote/manifests/deployment.yaml`
 
-- [ ] **Step 1: Add relay-server container**
+- [x] **Step 1: Add relay-server container**
 
 Add a second container to the pod spec, after the existing `vk-remote` container:
 
@@ -79,7 +79,7 @@ Add a second container to the pod spec, after the existing `vk-remote` container
 
 Use the same image tag as the vk-remote container. Replace `<IMAGE_SHA>` with the SHA from the vibe-kanban plan's Phase 0 Task 3.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/vk-remote/manifests/deployment.yaml
@@ -91,7 +91,7 @@ git commit -m "feat(agents): add relay-server sidecar to vk-remote pod"
 **Files:**
 - Modify: `apps/vk-remote/manifests/deployment.yaml` (the Service is in the same file)
 
-- [ ] **Step 1: Add relay port to the existing Service**
+- [x] **Step 1: Add relay port to the existing Service**
 
 The Service definition is at the bottom of `deployment.yaml`. Add port 8082:
 
@@ -113,7 +113,7 @@ spec:
       targetPort: 8082
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/vk-remote/manifests/deployment.yaml
@@ -125,7 +125,7 @@ git commit -m "feat(agents): add relay port to vk-remote service"
 **Files:**
 - Modify: `apps/traefik/manifests/ingressroutes.yaml`
 
-- [ ] **Step 1: Replace the existing vk-remote IngressRoute with two rules**
+- [x] **Step 1: Replace the existing vk-remote IngressRoute with two rules**
 
 Find the existing VK IngressRoute block:
 
@@ -166,7 +166,7 @@ Replace with two rules:
 
 The relay rule must come first — Traefik evaluates rules in order and the more specific PathPrefix match needs priority.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/traefik/manifests/ingressroutes.yaml
@@ -178,7 +178,7 @@ git commit -m "feat(agents): split vk IngressRoute for relay paths"
 **Files:**
 - Modify: `apps/secure-agent-pod/manifests/deployment.yaml`
 
-- [ ] **Step 1: Add the env var**
+- [x] **Step 1: Add the env var**
 
 In the kali container's `env` section, after `VK_SHARED_API_BASE`, add:
 
@@ -187,7 +187,7 @@ In the kali container's `env` section, after `VK_SHARED_API_BASE`, add:
               value: "https://vk.cluster.derio.net"
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add apps/secure-agent-pod/manifests/deployment.yaml
@@ -196,7 +196,7 @@ git commit -m "feat(agents): add VK_SHARED_RELAY_API_BASE for relay connection"
 
 ### Task 5: Commit all and push
 
-- [ ] **Step 1: Push to trigger ArgoCD sync**
+- [x] **Step 1: Push to trigger ArgoCD sync**
 
 ```bash
 git push origin main

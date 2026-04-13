@@ -388,6 +388,15 @@ spec:
   entryPoints:
     - websecure
   routes:
+    - match: Host(`vk.cluster.derio.net`) && PathPrefix(`/v1/relay`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+      services:
+        - name: vk-remote
+          namespace: agents
+          port: 8082
     - match: Host(`vk.cluster.derio.net`)
       kind: Rule
       middlewares:
