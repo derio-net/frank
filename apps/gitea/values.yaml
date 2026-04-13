@@ -44,6 +44,9 @@ gitea:
       ENABLED: true
       DEFAULT_INTERVAL: 10m
 
+    webhook:
+      ALLOWED_HOST_LIST: "*.svc.cluster.local"
+
   oauth:
     - name: authentik
       provider: openidConnect
