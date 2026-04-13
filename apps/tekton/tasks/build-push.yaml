@@ -16,6 +16,9 @@ spec:
     - name: context
       type: string
       default: "."
+  results:
+    - name: IMAGE_DIGEST
+      description: "Digest of the built image (e.g., sha256:abc123)"
   workspaces:
     - name: source
       description: "The git repo with Dockerfile"
@@ -23,11 +26,18 @@ spec:
       description: "Docker config.json for registry auth"
   steps:
     - name: build-and-push
-      image: gcr.io/kaniko-project/executor:latest
+      image: gcr.io/kaniko-project/executor:v1.23.2
+      resources:
+        requests:
+          cpu: 500m
+          memory: 512Mi
+        limits:
+          memory: 4Gi
       args:
         - "--dockerfile=$(params.dockerfile)"
         - "--context=$(workspaces.source.path)/$(params.context)"
         - "--destination=$(params.image)"
+        - "--digest-file=$(results.IMAGE_DIGEST.path)"
         - "--skip-tls-verify"
       env:
         - name: DOCKER_CONFIG

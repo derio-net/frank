@@ -1,5 +1,5 @@
 # Main CI pipeline triggered by Gitea webhooks
-# Stage A: clone → test → report status
+# Stages: clone → test → build/push → cosign sign → report status
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -65,6 +65,8 @@ spec:
           workspace: shared-workspace
         - name: dockerconfig
           workspace: docker-credentials
+    # Sign by digest (not tag) to prevent TOCTOU — the digest is captured
+    # by Kaniko's --digest-file during the build-push step
     - name: sign
       runAfter: ["build-push"]
       when:
@@ -75,7 +77,7 @@ spec:
         name: cosign-sign
       params:
         - name: image
-          value: $(params.image)
+          value: "$(params.image)@$(tasks.build-push.results.IMAGE_DIGEST)"
   finally:
     - name: report-success
       when:
