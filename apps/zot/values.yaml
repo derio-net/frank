@@ -2,6 +2,10 @@
 # Exposed at 192.168.55.210:5000 (HTTPS)
 # Runs on pc-1 with Longhorn-CICD storage (single replica)
 
+# Pin image to chart's default appVersion for visibility
+image:
+  tag: "v2.1.1"
+
 service:
   type: LoadBalancer
   port: 5000
@@ -12,13 +16,22 @@ service:
 httpGet:
   scheme: HTTPS
 
+# Uncomment if probes fail with 401 after enabling htpasswd auth.
+# Value is base64 of "tekton-push:<password>" (echo -n "tekton-push:pass" | base64)
+# authHeader: "<base64-encoded>"
+
 # Mount config.json from chart-managed ConfigMap at /etc/zot
 mountConfig: true
 
 configFiles:
   config.json: |-
     {
-      "storage": { "rootDirectory": "/var/lib/registry" },
+      "storage": {
+        "rootDirectory": "/var/lib/registry",
+        "dedupe": true,
+        "gc": true,
+        "gcDelay": "24h"
+      },
       "http": {
         "address": "0.0.0.0",
         "port": "5000",
