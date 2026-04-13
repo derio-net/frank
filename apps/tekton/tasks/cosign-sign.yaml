@@ -11,7 +11,7 @@ spec:
       description: "Full image reference to sign (preferably with digest)"
   steps:
     - name: sign
-      image: bitnami/cosign:2.4.1
+      image: gcr.io/projectsigstore/cosign:v2.4.1
       securityContext:
         allowPrivilegeEscalation: false
         runAsNonRoot: true
