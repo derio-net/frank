@@ -60,8 +60,6 @@ spec:
               value: "https://vk.cluster.derio.net"
             - name: VK_SHARED_RELAY_API_BASE
               value: "https://vk.cluster.derio.net"
-            - name: RUST_LOG
-              value: "info,relay_registration=debug,relay_tunnel_core=debug,relay_hosts=debug,relay_control=debug"
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1
