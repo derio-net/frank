@@ -541,17 +541,18 @@ images:
     prompt: >-
       Frank the server-hardware Frankenstein monster standing confidently
       in a dark server room, arms folded across his server-rack torso with
-      blinking LEDs. He has NO nose — flat face with green skin, messy black
-      hair, black eyes with white pupils, stitch scars, and RJ45 bolt
-      connectors on his neck. Behind him, two floating screens are connected
-      by a brilliant electric-blue tunnel of intertwined WebSocket streams
-      spiraling through the air, carrying tiny glowing data packets. The
-      left screen shows a polished web dashboard (the remote UI). The right
-      screen is embedded in a fortified server rack labeled "secure-agent-pod"
-      with a padlock. A small relay antenna sits on Frank's shoulder,
-      pulsing with concentric signal rings. At the tunnel's midpoint,
-      a translucent JWT token badge floats as an authentication checkpoint.
-      Dark background with electric blue and orange lighting accents.
+      blinking LEDs. Match the reference image face exactly — green skin,
+      messy black hair, black eyes with white pupils, stitch scars, RJ45
+      bolt connectors on his neck, small simple round face. Behind him,
+      two floating screens are connected by a brilliant electric-blue tunnel
+      of intertwined WebSocket streams spiraling through the air, carrying
+      tiny glowing data packets. The left screen shows a polished web
+      dashboard. The right screen is embedded in a fortified server rack
+      labeled "secure-agent-pod" with a padlock. A small relay antenna
+      sits on Frank's shoulder, pulsing with concentric signal rings. At
+      the tunnel's midpoint, a translucent JWT token badge floats as an
+      authentication checkpoint. Dark background with electric blue and
+      orange lighting accents.
 
   # --- Operating Series Covers ------------------------------------------------
 
