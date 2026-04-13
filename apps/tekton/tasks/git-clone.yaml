@@ -58,6 +58,9 @@ spec:
           drop: ["ALL"]
         seccompProfile:
           type: RuntimeDefault
+      env:
+        - name: HOME
+          value: /tekton/home
       script: |
         #!/bin/sh
         set -eu
