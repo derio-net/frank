@@ -19,7 +19,7 @@ metadata:
   labels:
     app.kubernetes.io/instance: default
     app.kubernetes.io/part-of: tekton-pipelines
-    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce: baseline
 
 ---
 # Copyright 2020-2022 The Tekton Authors
@@ -25563,7 +25563,7 @@ metadata:
     app.kubernetes.io/component: resolvers
     app.kubernetes.io/instance: default
     app.kubernetes.io/part-of: tekton-pipelines
-    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce: baseline
 
 ---
 # Copyright 2022 The Tekton Authors
