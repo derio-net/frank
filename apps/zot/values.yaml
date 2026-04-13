@@ -8,10 +8,71 @@ service:
   annotations:
     lbipam.cilium.io/ips: "192.168.55.210"
 
-persistence:
-  enabled: true
+# TLS enabled — probes must use HTTPS
+httpGet:
+  scheme: HTTPS
+
+# Mount config.json from chart-managed ConfigMap at /etc/zot
+mountConfig: true
+
+configFiles:
+  config.json: |-
+    {
+      "storage": { "rootDirectory": "/var/lib/registry" },
+      "http": {
+        "address": "0.0.0.0",
+        "port": "5000",
+        "tls": {
+          "cert": "/secrets/tls/tls.crt",
+          "key": "/secrets/tls/tls.key"
+        },
+        "auth": {
+          "htpasswd": { "path": "/secret/htpasswd" }
+        },
+        "accessControl": {
+          "repositories": {
+            "**": {
+              "policies": [
+                {
+                  "users": ["tekton-push"],
+                  "actions": ["read", "create", "update"]
+                }
+              ],
+              "anonymousPolicy": ["read"],
+              "defaultPolicy": ["read"]
+            }
+          },
+          "adminPolicy": {
+            "users": ["tekton-push"],
+            "actions": ["read", "create", "update", "delete"]
+          }
+        }
+      },
+      "log": { "level": "info" }
+    }
+
+# Mount TLS cert from cert-manager Secret
+externalSecrets:
+  - secretName: zot-tls
+    mountPath: /secrets/tls
+
+# Mount htpasswd from chart-managed Secret at /secret
+mountSecret: true
+secretFiles:
+  htpasswd: |-
+    tekton-push:$2b$05$WpJc.HqAEf0d0/wiAJ7SCeCO2YdEgDeA/ERvDbq6/8pCafLM57Xfe
+
+# Persistent storage for registry blobs
+persistence: true
+pvc:
+  create: true
+  accessMode: ReadWriteOnce
+  storage: 50Gi
   storageClassName: longhorn-cicd
-  size: 50Gi
+
+# RWO PVC + single replica: must use Recreate to avoid mount deadlock
+strategy:
+  type: Recreate
 
 nodeSelector:
   kubernetes.io/hostname: pc-1
