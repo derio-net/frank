@@ -84,11 +84,8 @@ pvc:
   storageClassName: longhorn-cicd
 
 # RWO PVC + single replica: must use Recreate to avoid mount deadlock
-# rollingUpdate must be explicitly null — chart defaults include it, and K8s
-# rejects rollingUpdate when strategy type is Recreate
 strategy:
   type: Recreate
-  rollingUpdate: null
 
 nodeSelector:
   kubernetes.io/hostname: pc-1
