@@ -255,29 +255,31 @@ Open `https://vk.cluster.derio.net` in the browser. The local host should appear
 
 ### Task 3: Pair browser with local server (one-time)
 
-- [-] **Step 1: Port-forward to the local VK server** *(manual — requires operator browser access)*
+- [x] **Step 1: Port-forward to the local VK server**
 
 ```bash
 kubectl -n secure-agent-pod port-forward deploy/secure-agent-pod 8081:8081
 ```
 
-- [-] **Step 2: Generate pairing code** *(manual — requires operator browser access)*
+- [x] **Step 2: Generate pairing code**
 
 Open `http://localhost:8081` in the browser. Go to Settings → Relay Settings → "Generate pairing code". Note the 6-digit code.
 
-- [-] **Step 3: Enter code in remote UI** *(manual — requires operator browser access)*
+- [x] **Step 3: Enter code in remote UI**
 
 Open `https://vk.cluster.derio.net`. Go to Settings → "Pair host". Enter the 6-digit code.
 
 Expected: Pairing completes, host status changes to "online".
 
-- [-] **Step 4: Verify workspace repos are visible** *(manual — requires operator browser access)*
+> **Note:** The enrollment code is one-time-use. If the SPAKE2 exchange fails (e.g., relay tunnel not connected), generate a fresh code before retrying.
+
+- [x] **Step 4: Verify workspace repos are visible**
 
 Click into an active workspace in the remote UI.
 
 Expected: Repos, sessions, and workspace details are now visible (proxied via relay from the local server).
 
-- [-] **Step 5: Stop the port-forward** *(manual — requires operator browser access)*
+- [x] **Step 5: Stop the port-forward**
 
 The port-forward is no longer needed — the relay handles all communication going forward.
 
