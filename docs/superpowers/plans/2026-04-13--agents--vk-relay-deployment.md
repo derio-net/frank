@@ -25,6 +25,7 @@
 ---
 
 ## Phase 0: Manifests [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/50 -->
 
 ### Task 1: Add relay sidecar to vk-remote deployment
 
@@ -204,6 +205,7 @@ git push origin main
 ---
 
 ## Phase 1: Deploy & Verify [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/51 -->
 
 ### Task 1: Verify ArgoCD sync
 
@@ -276,6 +278,7 @@ The port-forward is no longer needed — the relay handles all communication goi
 ---
 
 ## Phase 2: Post-Deploy Checklist [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/52 -->
 
 - [ ] **Step 1: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
 - [ ] **Step 2: Write operating blog post** — Use `/blog-post` skill for the companion operating guide. Update operating series index in `blog/content/building/00-overview/index.md`
