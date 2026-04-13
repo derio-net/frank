@@ -552,6 +552,25 @@ images:
       data packets. Dark background with electric blue and orange lighting
       accents. Simple composition, clean layout.
 
+  - key: building-26-vk-remote-self-host
+    output: blog/content/building/26-vk-remote-self-host/cover.png
+    description: "VK Remote Self-Host — Frank unplugging from a dying cloud and wiring up his own kanban server"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster in a dark server room,
+      dramatically unplugging a glowing ethernet cable from a crumbling cloud
+      icon above him — the cloud is cracking apart with red warning sparks
+      and a "30 DAYS" countdown timer on it. With his other hand, he's
+      plugging the same cable into a freshly assembled server stack on a
+      desk beside him. The server stack has three labeled tiers: a blue
+      PostgreSQL elephant on the bottom, a green lightning-bolt ElectricSQL
+      icon in the middle, and an orange Rust gear logo on top with "8081"
+      glowing on a small port indicator. A kanban board floats behind the
+      server showing columns labeled "Backlog", "In Progress", "Done" with
+      tiny cards. Green skin, messy black hair, black eyes with white
+      pupils, RJ45 neck bolts sparking blue electricity. Determined,
+      urgent mood — racing against time. Dark server room with orange and
+      blue lighting accents.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -863,6 +882,25 @@ images:
       electricity. Problem-solver mood — quietly confident, routing
       around a broken pipeline. Dark server room with cool blue and
       teal lighting accents.
+
+  - key: ops-21-vk-remote
+    output: blog/content/operating/21-vk-remote/cover.png
+    description: "Operating on VK Remote — Frank monitoring three stacked service components at an operations desk"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster at an operations desk
+      in a dark server room, monitoring a stack of three miniature server
+      components arranged vertically on the desk. Bottom tier: a blue
+      PostgreSQL elephant icon with a small "WAL" label and green health
+      light. Middle tier: a green ElectricSQL lightning bolt with a
+      replication stream animation (tiny data packets flowing upward).
+      Top tier: an orange Rust gear with "8081" on it and a healthy
+      heartbeat line. His left hand holds a terminal showing log output.
+      His right hand types at a keyboard. A small browser window floats
+      nearby showing a kanban board with cards in columns. Green skin,
+      messy black hair, black eyes with white pupils, RJ45 neck bolts
+      sparking faint blue electricity. Calm operational mood — routine
+      stack monitoring. Dark server room with blue and amber lighting
+      accents.
 
   - key: ops-20-vk-relay
     output: blog/content/operating/20-vk-relay/cover.png
