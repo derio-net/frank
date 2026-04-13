@@ -61,3 +61,9 @@ If ArgoCD fails to reconcile after the move, `git revert` the restructure commit
 ## Atomicity
 
 The git move and Application CR path updates must be in a single commit. ArgoCD will see the new paths atomically on the next sync. Disable auto-sync before the commit, push, then manually trigger sync to verify before re-enabling auto-sync.
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Multi-Cluster Monorepo Restructure — Implementation Plan |  | `docs/superpowers/plans/2026-03-20--repo--multi-cluster-restructure.md` | Not Started | — |

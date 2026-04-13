@@ -11,7 +11,7 @@
 **Tech Stack:** ArgoCD, Helm, Longhorn, Cilium L2, Infisical + ExternalSecrets, Tekton Pipelines/Triggers/Dashboard, Gitea, Zot, cosign, cert-manager
 
 **Spec:** `docs/superpowers/specs/2026-03-29--cicd--platform-design.md`
-**Status:** Complete
+**Status:** In Progress (Phases 0-5 complete — pending: Phase 6 post-deploy checklist)
 
 ---
 

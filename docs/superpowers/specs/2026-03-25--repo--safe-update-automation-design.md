@@ -228,3 +228,9 @@ versions.yaml                    # Declarative Talos + K8s version targets
 
 - The smoke test is a **pre-merge gate only**. Once Argo Rollouts is deployed, canary analysis provides a **post-merge gate** for stateful apps. The two layers are complementary and do not conflict.
 - `versions.yaml` is git-tracked but not consumed programmatically by Omni. Omni remains the authoritative source of cluster state; this file provides the human-reviewable audit trail.
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Safe Update Automation Implementation Plan |  | `docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md` | Not Started | — |
