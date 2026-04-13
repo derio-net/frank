@@ -5,7 +5,7 @@
 > **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Spec:** `docs/superpowers/specs/2026-04-13--agents--vk-relay-self-host-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **Goal:** Deploy the VK relay server as a sidecar in the vk-remote pod and configure the secure-agent-pod to connect to it, enabling the remote web UI to proxy API calls to the local VK server.
 **Architecture:** Add relay sidecar to vk-remote deployment (same image, different entrypoint), split IngressRoute for relay paths, add `VK_SHARED_RELAY_API_BASE` to secure-agent-pod.
