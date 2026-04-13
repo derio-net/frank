@@ -1522,7 +1522,7 @@ kubectl get pipeline -n tekton-pipelines
 # Expect: gitea-ci
 ```
 
-- [ ] **Step 7: Test the full webhook → pipeline → status flow**
+- [x] **Step 7: Test the full webhook → pipeline → status flow**
 
 Push a commit to the test repo in Gitea (or trigger via mirror sync), then:
 
