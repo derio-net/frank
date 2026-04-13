@@ -1540,6 +1540,18 @@ curl -s -H "Authorization: token <GITEA_API_TOKEN>" \
 # Expect: "success"
 ```
 
+> **Deviation (2026-04-13):** Multiple fixes required to get the pipeline running in production. PR #48 was code-review-only (dry-run), and real deployment surfaced several Tekton v1 + PodSecurity issues:
+>
+> 1. **`resources` → `computeResources`** — Tekton v1 Task CRD uses `computeResources` for step limits. The `resources` field silently fails schema validation, causing ArgoCD `ComparisonError` that blocked all tekton-extras syncs.
+> 2. **`build-push` dockerconfig workspace not optional** — Pipeline declares `docker-credentials` as optional, but the task workspace was required. Tekton validates upfront and rejects all PipelineRuns.
+> 3. **`fsGroup` missing from PipelineRun pod template** — PVC workspace mounts as root, but git-clone runs as UID 65534. Added `taskRunTemplate.podTemplate.securityContext.fsGroup: 65534` to TriggerTemplate.
+> 4. **`safe.directory` for git** — After fsGroup fix, git still rejected workspace with "dubious ownership". Added `git config --global --add safe.directory '*'`.
+> 5. **HOME=/ read-only** — `git config --global` writes to `$HOME/.gitconfig`. UID 65534 has HOME=/ which is read-only. Set `HOME=/tekton/home` env var.
+> 6. **PodSecurity contexts missing** — `gitea-status`, `run-tests`, and `cosign-sign` tasks had no `securityContext`, causing PodSecurity "restricted" violations. Added `runAsNonRoot`, `capabilities.drop`, `seccompProfile`.
+> 7. **`runAsUser` needed for root-default images** — `alpine:3.20` defaults to root, `curlimages/curl` uses non-numeric user. Both need explicit `runAsUser` for PodSecurity compliance.
+> 8. **`$(tasks.status)` = "Completed" not "Succeeded"** — When tasks are skipped via `when` clauses (build-push/sign), Tekton reports `"Completed"`. Pipeline `finally` block now accepts both values.
+> 9. **Gitea API token** — `GITEA_API_TOKEN` was missing from Infisical. Created via Gitea API (`tekton-ci` token, `write:repository` scope), stored in Infisical.
+
 ---
 
 ### Task 8: Pipeline Stage B — Build Image and Push to Zot
