@@ -47,6 +47,11 @@ The relay container uses the same `ghcr.io/derio-net/vk-remote` image as the mai
         secretKeyRef:
           name: vk-remote-secrets
           key: VIBEKANBAN_REMOTE_JWT_SECRET
+    - name: POSTGRES_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: vk-remote-secrets
+          key: POSTGRES_PASSWORD
     - name: SERVER_DATABASE_URL
       value: "postgresql://remote:$(POSTGRES_PASSWORD)@postgres-vk:5432/remote?sslmode=disable"
   resources:
