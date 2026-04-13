@@ -38,11 +38,35 @@ renovate.json                          # Renovate config (regex manager, package
 
 ---
 
-## Phase 0: ARC Self-Hosted Runner [agentic]
+## Phase 0: GitHub App Prerequisites [manual]
+
+Install the two GitHub Apps required by later phases before any agentic work begins.
+
+### Task 1: Install ARC GitHub App
+
+- [ ] **Step 1: Create and install the ARC GitHub App**
+
+Follow the [Actions Runner Controller GitHub App setup](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners-with-actions-runner-controller/authenticating-to-the-github-api). Create a GitHub App with the required permissions and install it on your GitHub account/repo. Note the following values — they are needed in Phase 2:
+
+- App ID
+- Installation ID
+- Private key (PEM file)
+
+### Task 2: Install Renovate GitHub App
+
+- [ ] **Step 1: Install Renovate and grant repo access**
+
+Install Renovate as a GitHub App from [https://github.com/apps/renovate](https://github.com/apps/renovate) and grant it access to this repo. Renovate will read `renovate.json` (created in Phase 4) on first run.
+
+---
+
+## Phase 1: ARC Self-Hosted Runner [agentic]
+
+## Dependencies
+
+Blocked by Phase 0.
 
 ARC v2 uses two charts: `gha-runner-scale-set-controller` (cluster-scoped, sync-wave -1) and `gha-runner-scale-set` (namespaced runner pool). The runner needs a GitHub App installed on the repo and its credentials as a Kubernetes Secret before it can register.
-
-**Before starting:** Install the ARC GitHub App on your GitHub account/repo. From the [Actions Runner Controller GitHub App setup](https://docs.github.com/en/actions/hosting-your-own-runners/managing-self-hosted-runners-with-actions-runner-controller/authenticating-to-the-github-api), create a GitHub App with the required permissions and note: App ID, Installation ID, and private key (PEM).
 
 ### Task 1: ARC Controller ArgoCD App
 
@@ -320,7 +344,11 @@ git commit -m "feat(repo): add ARC runner set ArgoCD app with smoke-test RBAC"
 
 ---
 
-## Phase 1: ARC Bootstrap Secret [manual]
+## Phase 2: ARC Bootstrap Secret [manual]
+
+## Dependencies
+
+Blocked by Phase 1.
 
 ### Task 3: Bootstrap Secret (Manual Operation)
 
@@ -392,7 +420,11 @@ kubectl get pod -n arc-system -o wide | grep runner
 
 ---
 
-## Phase 2: Version Tracking [agentic]
+## Phase 3: Version Tracking [agentic]
+
+## Dependencies
+
+Blocked by Phase 2.
 
 ### Task 4: Create versions.yaml
 
@@ -581,11 +613,13 @@ git commit -m "feat(repo): add Talos/K8s version check workflow"
 
 ---
 
-## Phase 3: Renovate & Smoke Testing [agentic]
+## Phase 4: Renovate & Smoke Testing [agentic]
+
+## Dependencies
+
+Blocked by Phase 0 and Phase 3.
 
 ### Task 6: Renovate Configuration
-
-Install Renovate as a GitHub App from [https://github.com/apps/renovate](https://github.com/apps/renovate) and grant it access to this repo. Renovate will read `renovate.json` on first run.
 
 **Files:**
 - Create: `renovate.json`
@@ -700,38 +734,7 @@ git commit -m "feat(repo): add Renovate config for automated chart version PRs"
 
 ---
 
-### Task 7: GitHub Branch Protection (Manual Operation)
-
-```yaml
-# manual-operation
-id: github-branch-protection-smoke-test
-layer: repo
-app: renovate
-plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md
-when: "After smoke-test.yaml workflow exists on main branch and has run at least once successfully"
-why_manual: "Branch protection rules must be configured via GitHub UI or API. The smoke-test/readiness check must be a required status check so Renovate's automerge only fires after tests pass."
-commands:
-  - |
-    # Via GitHub CLI — sets branch protection on main requiring smoke-test/readiness
-    gh api repos/:owner/:repo/branches/main/protection \
-      --method PUT \
-      --field required_status_checks='{"strict":false,"checks":[{"context":"smoke-test/readiness"}]}' \
-      --field enforce_admins=false \
-      --field required_pull_request_reviews=null \
-      --field restrictions=null
-verify:
-  - gh api repos/:owner/:repo/branches/main/protection --jq '.required_status_checks.checks'
-  # Expected: [{"context":"smoke-test/readiness","app_id":null}]
-status: pending
-```
-
-- [ ] **Step 1: Apply branch protection after smoke-test workflow is live**
-
-Run the `gh api` command above (after Task 8 is complete and the workflow has run). Replace `:owner/:repo` with your actual values.
-
----
-
-### Task 8: Smoke Test GitHub Actions Workflow
+### Task 7: Smoke Test GitHub Actions Workflow
 
 This is the pre-merge gate. It triggers on PRs that change Application CR templates, skips CRD-heavy apps, installs the chart into an ephemeral namespace, and reports readiness.
 
@@ -951,13 +954,42 @@ Create a test PR that bumps a chart version manually (e.g., increment `cert-mana
 
 Then test with a stateless app: create a PR bumping a grafana version to confirm full pipeline runs.
 
-- [ ] **Step 4: Apply branch protection (Task 7)**
-
-Once the workflow has run at least once successfully and `smoke-test/readiness` appears in GitHub's known status check list, run the branch protection command from Task 7.
-
 ---
 
-## Phase 4: Branch Protection & End-to-End Verification [manual]
+## Phase 5: Branch Protection & End-to-End Verification [manual]
+
+## Dependencies
+
+Blocked by Phase 4.
+
+### Task 8: GitHub Branch Protection (Manual Operation)
+
+```yaml
+# manual-operation
+id: github-branch-protection-smoke-test
+layer: repo
+app: renovate
+plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md
+when: "After smoke-test.yaml workflow exists on main branch and has run at least once successfully"
+why_manual: "Branch protection rules must be configured via GitHub UI or API. The smoke-test/readiness check must be a required status check so Renovate's automerge only fires after tests pass."
+commands:
+  - |
+    # Via GitHub CLI — sets branch protection on main requiring smoke-test/readiness
+    gh api repos/:owner/:repo/branches/main/protection \
+      --method PUT \
+      --field required_status_checks='{"strict":false,"checks":[{"context":"smoke-test/readiness"}]}' \
+      --field enforce_admins=false \
+      --field required_pull_request_reviews=null \
+      --field restrictions=null
+verify:
+  - gh api repos/:owner/:repo/branches/main/protection --jq '.required_status_checks.checks'
+  # Expected: [{"context":"smoke-test/readiness","app_id":null}]
+status: pending
+```
+
+- [ ] **Step 1: Apply branch protection after smoke-test workflow is live**
+
+Run the `gh api` command above (after Task 7 is complete and the workflow has run). Replace `:owner/:repo` with your actual values.
 
 ### Task 9: Verify Renovate Onboarding
 

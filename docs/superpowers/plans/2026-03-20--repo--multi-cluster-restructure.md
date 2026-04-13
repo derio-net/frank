@@ -29,23 +29,16 @@ This is a **high-blast-radius refactor** — it touches every ArgoCD Application
 
 ---
 
-## Phase 0: Restructure [agentic]
+## Phase 0: File Restructure [agentic]
 
-### Task 1: Move directories and update all path references
+### Task 1: Move directories and update all file-level path references
 
 **Files:**
 - Move: `apps/` → `clusters/frank/apps/`
 - Move: `patches/` → `clusters/frank/patches/`
 - Modify: All 41+ Application CR templates in `clusters/frank/apps/root/templates/`
 
-- [ ] **Step 1: Disable Frank ArgoCD auto-sync**
-
-```bash
-source .env
-argocd app set root --sync-policy none --port-forward --port-forward-namespace argocd
-```
-
-- [ ] **Step 2: Move directories**
+- [ ] **Step 1: Move directories**
 
 ```bash
 mkdir -p clusters/frank
@@ -53,7 +46,7 @@ git mv apps clusters/frank/apps
 git mv patches clusters/frank/patches
 ```
 
-- [ ] **Step 3: Update all Application CR template paths**
+- [ ] **Step 2: Update all Application CR template paths**
 
 Every template in `clusters/frank/apps/root/templates/` that references `apps/<app>/values.yaml` or `apps/<app>/manifests` needs the path prefixed with `clusters/frank/`.
 
@@ -84,15 +77,7 @@ grep -r 'apps/' clusters/frank/apps/root/templates/ | grep -v 'clusters/frank/ap
 
 Expected: No output (all paths updated).
 
-- [ ] **Step 4: Update Frank root app in ArgoCD**
-
-The root Application's source path changes from `apps/root` to `clusters/frank/apps/root`:
-
-```bash
-argocd app set root --source-path clusters/frank/apps/root --port-forward --port-forward-namespace argocd
-```
-
-- [ ] **Step 5: Update Omni config patch paths**
+- [ ] **Step 3: Update Omni config patch paths**
 
 ```bash
 # List current patches
@@ -105,14 +90,39 @@ omnictl get configpatches
 # omnictl apply -f /tmp/patch.yaml
 ```
 
-- [ ] **Step 6: Commit the restructure as a single atomic commit**
+- [ ] **Step 4: Commit the restructure as a single atomic commit**
 
 ```bash
 git add -A
 git commit -m "refactor: restructure repo to multi-cluster monorepo (apps/ → clusters/frank/apps/)"
 ```
 
-- [ ] **Step 7: Push and verify Frank ArgoCD sync**
+---
+
+## Phase 1: ArgoCD Sync [manual]
+
+## Dependencies
+
+Blocked by Phase 0.
+
+### Task 1: Disable auto-sync, update ArgoCD root app, push, sync, verify, re-enable
+
+- [ ] **Step 1: Disable Frank ArgoCD auto-sync**
+
+```bash
+source .env
+argocd app set root --sync-policy none --port-forward --port-forward-namespace argocd
+```
+
+- [ ] **Step 2: Update Frank root app in ArgoCD**
+
+The root Application's source path changes from `apps/root` to `clusters/frank/apps/root`:
+
+```bash
+argocd app set root --source-path clusters/frank/apps/root --port-forward --port-forward-namespace argocd
+```
+
+- [ ] **Step 3: Push and verify Frank ArgoCD sync**
 
 ```bash
 git push
@@ -124,13 +134,13 @@ argocd app list --port-forward --port-forward-namespace argocd
 
 Expected: All apps `Synced` and `Healthy`.
 
-- [ ] **Step 8: Re-enable auto-sync**
+- [ ] **Step 4: Re-enable auto-sync**
 
 ```bash
 argocd app set root --sync-policy automated --self-heal --port-forward --port-forward-namespace argocd
 ```
 
-- [ ] **Step 9: Commit any fixups**
+- [ ] **Step 5: Commit any fixups**
 
 If any paths were missed, fix them and commit:
 
@@ -141,9 +151,13 @@ git commit -m "fix: correct remaining path references after repo restructure"
 
 ---
 
-## Phase 1: Update References [agentic]
+## Phase 2: Update References [agentic]
 
-### Task 2: Update documentation and CI
+## Dependencies
+
+Blocked by Phase 1.
+
+### Task 1: Update documentation and CI
 
 **Files:**
 - Modify: `CLAUDE.md`
