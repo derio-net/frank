@@ -535,6 +535,26 @@ images:
       status dots. Frank grins confidently, orchestrating the flow.
       Dark server room with blue, teal, and gold lighting accents.
 
+  - key: building-25-vk-relay
+    output: blog/content/building/25-vk-relay/cover.png
+    description: "VK Relay — Frank bridging two screens with a glowing WebSocket tunnel"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing between two
+      floating screens in a dark server room. His left hand touches a large
+      monitor showing a polished web dashboard (the remote UI), while his
+      right hand reaches toward a smaller rugged terminal screen embedded
+      in a fortified server rack (the local agent). Between the two screens,
+      a brilliant electric-blue tunnel of intertwined WebSocket streams
+      and yamux multiplexed channels spirals through the air, carrying tiny
+      glowing data packets (code diffs, file icons, terminal snippets).
+      Frank wears his server-rack torso with blinking LEDs and looks pleased
+      as data flows both ways through the tunnel. A small relay antenna
+      sits on his shoulder, pulsing with concentric signal rings. At the
+      tunnel's midpoint, a translucent JWT token badge and an Ed25519 key
+      icon float as authentication checkpoints. The fortified rack has a
+      padlock and "secure-agent-pod" label. Dark background with electric
+      blue and orange lighting accents.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
