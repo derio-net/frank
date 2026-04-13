@@ -81,9 +81,11 @@ spec:
   finally:
     - name: report-success
       when:
+        # "Completed" = all tasks succeeded or were skipped via when clauses
+        # "Succeeded" = all tasks ran and succeeded (no skips)
         - input: $(tasks.status)
           operator: in
-          values: ["Succeeded"]
+          values: ["Succeeded", "Completed"]
       taskRef:
         name: gitea-status
       params:
@@ -99,7 +101,7 @@ spec:
       when:
         - input: $(tasks.status)
           operator: notin
-          values: ["Succeeded"]
+          values: ["Succeeded", "Completed"]
       taskRef:
         name: gitea-status
       params:
