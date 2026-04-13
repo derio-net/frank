@@ -622,7 +622,7 @@ curl -s http://192.168.55.217:9097
 # Expect: Tekton Dashboard HTML
 ```
 
-- [ ] **Step 9: Run a manual hello-world PipelineRun**
+- [x] **Step 9: Run a manual hello-world PipelineRun**
 
 ```bash
 cat <<'EOF' | kubectl apply -f -
@@ -667,7 +667,7 @@ If `tkn` CLI is not installed: `brew install tektoncd-cli` (or download from Git
 - Create: `apps/tekton/manifests/externalsecret-webhook.yaml`
 - Create: `apps/root/templates/tekton-triggers.yaml`
 
-- [ ] **Step 1: Create Infisical webhook secret**
+- [x] **Step 1: Create Infisical webhook secret**
 
 ```yaml
 # manual-operation
