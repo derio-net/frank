@@ -5,7 +5,7 @@
 > **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Spec:** `docs/superpowers/specs/2026-04-12--agents--vk-remote-self-host-design.md`
-**Status:** Complete
+**Status:** In Progress (Phases 0-2 complete — pending: Phase 3 post-deploy checklist)
 
 **Goal:** Deploy VK's remote crate as a self-hosted Kubernetes service on Frank, replacing the dying VK cloud backend.
 **Architecture:** PostgreSQL 16 (dedicated, WAL logical) → vk-remote (Rust/Axum API) → ElectricSQL (real-time sync). Secure-agent-pod connects via in-cluster DNS. Operator accesses via Traefik IngressRoute with Authentik forward-auth.
@@ -18,6 +18,7 @@
 ---
 
 ## Phase 0: Fork & CI [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/61 -->
 
 This phase sets up the VK fork and container image build pipeline. Must be completed before Phase 1 can reference the GHCR image.
 
@@ -97,6 +98,7 @@ In Infisical (`frank-cluster-iwpg` project, `prod` environment), create:
 ---
 
 ## Phase 1: ArgoCD Manifests [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/62 -->
 
 All manifests for deploying vk-remote, PostgreSQL, and ElectricSQL on Frank. Single ArgoCD Application using raw manifests pattern.
 
@@ -592,6 +594,7 @@ git commit -m "feat(agents): add vk-remote self-hosted deployment manifests"
 ---
 
 ## Phase 2: Deploy & Configure [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/63 -->
 
 After Phase 1 is merged and ArgoCD syncs, perform these manual steps.
 
@@ -709,7 +712,8 @@ print(f'Added {provider.name} to {outpost.name}')
 
 ---
 
-## Phase 3: Post-Deploy Checklist [manual]
+## Phase 3: Post-Deploy Checklist [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/64 -->
 
 - [ ] **Step 1: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
 - [ ] **Step 2: Write operating blog post** — Use `/blog-post` skill for the companion operating guide. Update operating series index in `blog/content/building/00-overview/index.md`
