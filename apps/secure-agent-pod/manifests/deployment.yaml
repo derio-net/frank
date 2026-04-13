@@ -58,6 +58,8 @@ spec:
               value: "0.0.0.0"
             - name: VK_SHARED_API_BASE
               value: "https://vk.cluster.derio.net"
+            - name: VK_SHARED_RELAY_API_BASE
+              value: "https://vk.cluster.derio.net"
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1
