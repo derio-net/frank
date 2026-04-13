@@ -200,3 +200,9 @@ Pure client-side implementation using localStorage:
 - Sidebar label cleanup (cosmetic, post-migration polish)
 - Media placeholder population (separate ongoing effort per existing plan)
 - Content changes to post bodies (only frontmatter changes)
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Blog Hextra Migration Implementation Plan |  | `docs/superpowers/plans/2026-04-13--repo--blog-hextra-migration.md` | Not Started | — |
