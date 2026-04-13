@@ -53,6 +53,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Progressive Delivery | Argo Rollouts | Canary (LiteLLM + Cilium traffic split + VictoriaMetrics analysis), blue-green (Sympozium + HTTP healthcheck) |
 | Workflow Automation | n8n | Per-user instances on gpu-1, Authentik forward-auth, dedicated PostgreSQL, Prometheus metrics |
 | Secure Agent Pod | Kali Linux + VibeKanban | Hardened non-root coding agent workstation on gpu-1, Cilium egress controls, ESO secrets, SSH + VibeKanban UI |
+| VK Relay | VK Relay Server (sidecar) | WebSocket relay tunneling browser API calls to local VK agent server via yamux multiplexing, SPAKE2 pairing |
 | In-Cluster Ingress | Traefik v3 | Wildcard TLS (`*.cluster.derio.net`) via ACME + Cloudflare DNS-01, Authentik forward-auth, raspi edge nodes |
 | CI/CD Platform | Gitea + Tekton + Zot | Self-hosted git forge (GitHub mirror), K8s-native pipelines, OCI registry with cosign signing — all on pc-1 |
 | Cluster Dashboard | gethomepage.dev | Service catalog at `master.cluster.derio.net` with HTTP health indicators and custom bookmarks |
@@ -102,6 +103,7 @@ frank/
 │   ├── n8n-01/manifests/                       # n8n workflow automation (gpu-1, 192.168.55.216)
 │   ├── n8n-01-postgresql/values.yaml           # Bitnami PostgreSQL for n8n-01
 │   ├── secure-agent-pod/manifests/             # Secure coding agent pod (gpu-1, SSH + VibeKanban)
+│   ├── vk-remote/manifests/                   # VK remote web UI + relay sidecar (agents namespace)
 │   ├── traefik/values.yaml + manifests/        # Traefik ingress (192.168.55.220), middlewares, IngressRoutes
 │   ├── homepage/manifests/                     # gethomepage.dev dashboard (master.cluster.derio.net)
 │   ├── gitea/values.yaml + manifests/          # Gitea git forge (192.168.55.209), GitHub mirrors, Authentik OIDC
@@ -135,8 +137,8 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/building/       # 24 posts documenting the build
-│   ├── content/operating/      # 16 companion operations guides
+│   ├── content/building/       # 25 posts documenting the build
+│   ├── content/operating/      # 20 companion operations guides
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
 │   └── superpowers/
@@ -239,6 +241,7 @@ argocd app list
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
 | secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1 (SSH :22, VibeKanban :8081), non-root, Cilium egress, ESO secrets |
+| vk-remote | agents | VK remote web UI + relay sidecar (vk.cluster.derio.net), WebSocket tunnel to local agent server |
 | argo-rollouts | argo-rollouts | Progressive delivery controller + Cilium traffic router plugin |
 | argo-rollouts-extras | argo-rollouts | Cilium plugin ConfigMap + supplemental RBAC for CiliumEnvoyConfig |
 | n8n-01 | n8n-01 | n8n workflow automation on gpu-1 (192.168.55.216:5678), Authentik forward-auth |

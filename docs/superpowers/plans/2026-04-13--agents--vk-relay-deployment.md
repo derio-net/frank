@@ -288,8 +288,8 @@ The port-forward is no longer needed — the relay handles all communication goi
 ## Phase 2: Post-Deploy Checklist [agentic]
 <!-- Tracking: https://github.com/derio-net/frank/issues/52 -->
 
-- [ ] **Step 1: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
-- [ ] **Step 2: Write operating blog post** — Use `/blog-post` skill for the companion operating guide. Update operating series index in `blog/content/building/00-overview/index.md`
-- [ ] **Step 3: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
-- [ ] **Step 4: Sync runbook** — Run `/sync-runbook` if the plan contains any `# manual-operation` blocks
-- [ ] **Step 5: Update plan status** — Set `**Status:**` to `Deployed`
+- [x] **Step 1: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
+- [x] **Step 2: Write operating blog post** — Use `/blog-post` skill for the companion operating guide. Update operating series index in `blog/content/building/00-overview/index.md`
+- [x] **Step 3: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
+- [-] **Step 4: Sync runbook** — Run `/sync-runbook` if the plan contains any `# manual-operation` blocks *(skipped — no manual-operation blocks in plan)*
+- [x] **Step 5: Update plan status** — Set `**Status:**` to `Deployed`

@@ -53,6 +53,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Blackbox Exporter + Pushgateway** | Feature-level health monitoring — HTTP endpoint probes, cron heartbeat ingestion, Grafana alerting to Telegram |
 | **Health Bridge** | Grafana alert → GitHub Project lifecycle state bridge — automatic degraded/dead/healthy transitions, issue comments, bug issue creation |
 | **Traefik (in-cluster)** | In-cluster ingress controller, wildcard TLS (`*.cluster.derio.net`), ACME via Cloudflare DNS-01, Authentik forward-auth for 12 services (`192.168.55.220`) |
+| **VK Relay** | WebSocket relay sidecar tunneling browser API calls to local VK agent server via yamux multiplexing, SPAKE2 pairing, Ed25519 request signing |
 | **gethomepage.dev** | Cluster dashboard at `master.cluster.derio.net` — service catalog with HTTP health indicators, custom bookmarks |
 | **Gitea** | Self-hosted git forge with GitHub pull-mirror, Authentik OIDC SSO (`192.168.55.209`) |
 | **Tekton** | K8s-native CI/CD pipelines — webhook-driven clone, test, build, sign, report status on pc-1 |
@@ -93,6 +94,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 22. [Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts]({{< relref "/building/22-health-monitoring" >}})
 23. [Health Bridge — Closing the Loop from Grafana Alerts to GitHub Issues]({{< relref "/building/23-health-bridge" >}})
 24. [In-Cluster Ingress — Traefik, Wildcard TLS, and a Homepage Dashboard]({{< relref "/building/24-in-cluster-ingress" >}})
+25. [VK Relay — Tunneling the Browser to a Local Agent Server]({{< relref "/building/25-vk-relay" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
@@ -119,3 +121,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 17. [Operating on In-Cluster Ingress]({{< relref "/operating/17-ingress" >}})
 18. [Operating on Paperclip]({{< relref "/operating/18-paperclip" >}})
 19. [Git Credentials Without a Shell]({{< relref "/operating/19-git-credentials-without-a-shell" >}})
+20. [Operating on VK Relay]({{< relref "/operating/20-vk-relay" >}})
