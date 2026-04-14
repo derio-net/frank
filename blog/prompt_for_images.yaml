@@ -41,23 +41,49 @@ reference_guidance: >-
 images:
   # --- Site Banners & Icons ---------------------------------------------------
 
+  - key: banner-landing
+    output: blog/static/images/banner-landing.png
+    description: Landing-page top banner — Frank being assembled mid-air, no text (1200x200, 6:1 ratio)
+    prompt: >-
+      An ultra-wide horizontal strip banner — exactly 1200 pixels wide by 200
+      pixels tall (6:1 aspect ratio). Frank the server-hardware Frankenstein
+      monster floats weightless in the center of the frame, arms and legs
+      spread wide in a Vitruvian pose, suspended mid-assembly. Server parts
+      stream toward him from all four edges — from the left: RAM sticks,
+      PCIe cards, ethernet cables; from the right: NVMe SSDs, heatsinks, GPU
+      fans; from above: a rack-mount chassis, motherboards, power supplies;
+      from below: Raspberry Pis, NUC mini-PCs, cooling fans — all trailing
+      motion streaks of electric blue light toward Frank's body, snapping
+      into place as his torso, shoulders, and limbs. His face is calm and
+      focused, mouth slightly open in awe. Green skin, messy black hair,
+      black eyes with white pupils, stitches, RJ45 neck bolts crackling with
+      blue electricity. Background: deep dark void with faint green PCB
+      traces receding into the distance, blue lightning arcs between the
+      incoming parts. ABSOLUTELY NO TEXT anywhere in the image — pure
+      illustration only, no words, no title, no labels. Composition fades at
+      both edges into darkness. The image MUST be extremely wide and short,
+      like a letterbox strip — 1200x200 pixels, 6:1 ratio.
+
   - key: banner-hero
     output: blog/static/images/banner-hero.png
-    description: Landing page hero banner (1200x630)
+    description: Building-Frank card cover — triumphant, anthropomorphic Frank (1200x630)
     prompt: >-
-      A wide cinematic banner. The character from the reference image — Frank
-      the server-hardware Frankenstein monster — stands triumphantly atop a pile
-      of Raspberry Pis and NUC mini-PCs, one fist on his hip, the other raised
-      holding a glowing Kubernetes wheel logo. Keep his design exactly as shown
-      in the reference: green skin, messy black hair, black eyes, stitched face,
-      rack-mount server torso with blinking LEDs, shoulders are CPU heatsinks
-      with spinning fans, arms are bundles of ethernet cables and PCIe risers,
-      legs are stacked NVMe SSDs. Neck bolts are RJ45 connectors crackling with
-      blue electricity. Behind him, a dark server room fades into a starfield,
-      with a faint circuit-board pattern on the floor. Blue electric sparks arc
-      from his neck bolts and between hardware joints. Output dimensions exactly
-      1200x630 pixels. Wide cinematic aspect ratio, 1200 pixels wide by 630
-      pixels tall.
+      A wide cinematic banner. Frank the server-hardware Frankenstein monster
+      stands triumphantly atop a small mound of Raspberry Pis and NUC
+      mini-PCs, arms raised overhead in a victory pose, one fist clenched,
+      the other holding aloft a glowing Kubernetes wheel logo. This is a more
+      anthropomorphic, confident Frank — his body shapes are rounder and more
+      organic than blocky: shoulders are CPU heatsinks softened into muscular
+      deltoids, arms are bundles of ethernet cables and PCIe risers that flex
+      like tendons, legs are stacks of NVMe SSDs with curvature at the knees,
+      and his torso is a rack-mount server chassis whose edges soften into a
+      chest-and-abs silhouette. Green skin, messy black hair, expressive
+      confident smile, black eyes with white pupils, stitches, RJ45 neck
+      bolts crackling blue electricity. Behind him, a dark server room fades
+      into a starfield, with a faint circuit-board pattern on the floor.
+      Blue electric sparks arc from his neck bolts and between hardware
+      joints. Output dimensions exactly 1200x630 pixels. Wide cinematic
+      aspect ratio, 1200 pixels wide by 630 pixels tall.
 
   - key: banner-thin
     output: blog/static/images/banner-thin.png
@@ -79,26 +105,28 @@ images:
 
   - key: banner-operating
     output: blog/static/images/banner-operating.png
-    description: Landing page operating banner (1200x630)
+    description: Operating-on-Frank card cover — Frank wincing as gadgets poke him (1200x630)
     prompt: >-
-      Frank the
-      server-hardware Frankenstein monster lies on his back on a surgical
-      operating table on the left third of the image, about 60% the strip
-      height. We can see all of his body.
-      His chest cavity is open, revealing circuit boards, drives, and
-      glowing cables inside. Multiple robotic arms (mounted to the ceiling or
-      the table frame) reach into his chest — one arm solders a circuit trace,
-      another swaps a miniature SSD, a third reconnects a glowing cable. Frank
-      is conscious and focused but relaxed, guiding the arms with a small handheld
-      controller. Green skin, messy black hair, black eyes, RJ45 neck bolts
-      sparking blue electricity. Center-right: the title "Operating on Frank"
-      in bold chunky retro-tech lettering, glowing electric blue with subtle
-      circuit-trace underlines (matching the "Building Frank" thin banner
-      style). Background: dark circuit-board surface with faint green PCB
-      traces and sparse blue lightning arcs. Bottom edge: tiny decorative icons
-      — a wrench, a stethoscope, a terminal prompt, a heartbeat monitor.
-      Output dimensions exactly 1200x630 pixels. Wide cinematic aspect ratio,
-      1200 pixels wide by 630 pixels tall.
+      A wide cinematic banner. Frank the server-hardware Frankenstein monster
+      lies flat on his back on a workbench/operating table that fills the
+      lower half of the frame, arms and legs relaxed but slightly splayed.
+      His face is scrunched in mild annoyance — brow furrowed, one eye
+      squinted closed, mouth pulled to one side in a wince — as a cluster of
+      tools and gadgets poke him from all angles: a screwdriver probes an
+      open access panel on his chest, a multimeter's test probes press
+      against his bicep, a soldering iron hovers near his forearm, a USB
+      cable dangles into an RJ45 neck bolt, a stethoscope presses on his
+      shoulder, a Raspberry Pi with exposed GPIO pins prods his thigh. The
+      mood is "annoyed but tolerating it" — not pain, just the daily grind
+      of being maintained. More anthropomorphic build: rounded shoulders
+      (CPU heatsinks), muscular arm-cable bundles, contoured rack-chassis
+      torso with an open access panel, NVMe-stack legs. Green skin, messy
+      black hair, black eyes with white pupils, stitches, RJ45 neck bolts
+      sparking blue electricity. Background: dark workshop bench with
+      scattered schematic printouts and glowing terminal screens, faint
+      green PCB traces on the walls and sparse blue lightning arcs. No text
+      in the image. Output dimensions exactly 1200x630 pixels. Wide
+      cinematic aspect ratio, 1200 pixels wide by 630 pixels tall.
 
   - key: banner-operating-thin
     output: blog/static/images/banner-operating-thin.png

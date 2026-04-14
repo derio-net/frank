@@ -83,3 +83,66 @@
 :is(html.dark) .read-marker {
   color: #40c057;
 }
+
+/* === Landing-page series cards (Building / Operating) === */
+.frank-series-cards {
+  margin-bottom: 1.5rem;
+  width: 90%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.frank-series-cards .hextra-cards {
+  --hextra-cards-grid-cols: 1 !important;
+  width: 100%;
+}
+
+.frank-series-cards .hextra-card {
+  width: 100%;
+  height: auto;
+}
+
+.frank-series-cards .hextra-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.frank-series-cards .hextra-card-image {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  flex-shrink: 0;
+}
+
+.frank-series-cards .hextra-card-icon {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  padding-top: 1.25rem !important;
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+}
+
+.frank-series-cards .hextra-card-subtitle {
+  font-size: 1.05rem !important;
+  line-height: 1.6 !important;
+  padding-left: 1.5rem !important;
+  padding-right: 1.5rem !important;
+  padding-bottom: 1.25rem !important;
+  -webkit-line-clamp: unset !important;
+}
+
+/* === Section hero banner (building / operating list pages) === */
+.frank-section-banner {
+  width: 100%;
+  border-radius: 1rem;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.frank-section-banner img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
