@@ -22,7 +22,7 @@ Remove PaperMod, install Hextra as a Hugo module, rewrite config, create landing
 
 ### Task 1: Remove PaperMod submodule
 
-- [ ] **Step 1: Deinit the submodule**
+- [x] **Step 1: Deinit the submodule**
 
   ```bash
   cd /path/to/frank
@@ -36,7 +36,7 @@ Remove PaperMod, install Hextra as a Hugo module, rewrite config, create landing
   cat .gitmodules  # should be empty or file not found
   ```
 
-- [ ] **Step 2: Remove leftover themes directory**
+- [x] **Step 2: Remove leftover themes directory**
 
   ```bash
   rm -rf blog/themes/
@@ -98,7 +98,7 @@ Remove PaperMod, install Hextra as a Hugo module, rewrite config, create landing
     home = ["HTML", "RSS", "JSON"]
   ```
 
-- [ ] **Step 3: Fetch the Hextra module**
+- [x] **Step 3: Fetch the Hextra module**
 
   ```bash
   cd blog
