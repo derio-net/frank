@@ -495,7 +495,7 @@ Implement the localStorage-based read-tracking feature.
 
 ### Task 1: Implement read tracker JavaScript
 
-- [ ] **Step 1: Create read-tracker.js**
+- [x] **Step 1: Create read-tracker.js**
 
   Create `blog/assets/js/read-tracker.js`:
 
@@ -569,7 +569,7 @@ Implement the localStorage-based read-tracking feature.
 
 ### Task 2: Wire up the read tracker
 
-- [ ] **Step 1: Add JS loading to custom head partial**
+- [x] **Step 1: Add JS loading to custom head partial**
 
   Append to `blog/layouts/partials/custom/head.html` (after the asciinema block):
 
@@ -578,7 +578,7 @@ Implement the localStorage-based read-tracking feature.
   <script src="{{ $readTracker.RelPermalink }}" defer></script>
   ```
 
-- [ ] **Step 2: Add reset link to custom footer partial**
+- [x] **Step 2: Add reset link to custom footer partial**
 
   Create `blog/layouts/partials/custom/footer.html`:
 
@@ -595,7 +595,7 @@ Implement the localStorage-based read-tracking feature.
   </script>
   ```
 
-- [ ] **Step 3: Verify read tracking works**
+- [x] **Step 3: Verify read tracking works**
 
   ```bash
   cd blog && hugo server --buildDrafts
