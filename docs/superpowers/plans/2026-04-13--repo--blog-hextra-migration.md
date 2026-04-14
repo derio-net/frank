@@ -625,7 +625,7 @@ Update build pipeline, remove old PaperMod layouts, verify production build.
 
 ### Task 1: Update Dockerfile
 
-- [ ] **Step 1: Add Hugo module fetch to Dockerfile**
+- [x] **Step 1: Add Hugo module fetch to Dockerfile**
 
   Update `blog/Dockerfile`:
 
@@ -646,7 +646,7 @@ Update build pipeline, remove old PaperMod layouts, verify production build.
 
   **Fallback:** If `ghcr.io/gohugoio/hugo:v0.157.0` lacks Go for modules, switch to the extended image tag or add a Go install step.
 
-- [ ] **Step 2: Update GitHub Actions workflow for Hugo modules**
+- [x] **Step 2: Update GitHub Actions workflow for Hugo modules**
 
   Update `.github/workflows/deploy-blog.yml`:
   - Remove `submodules: recursive` from both checkout steps (PaperMod submodule is gone)
@@ -677,7 +677,7 @@ Update build pipeline, remove old PaperMod layouts, verify production build.
 
 ### Task 3: Full build verification
 
-- [ ] **Step 1: Production build test**
+- [-] **Step 1: Production build test** *(structural verification only — Hugo not available in agent environment; CI will validate)*
 
   ```bash
   cd blog && hugo --minify
@@ -689,7 +689,7 @@ Update build pipeline, remove old PaperMod layouts, verify production build.
   - `public/docs/building/01-introduction/index.html` exists
   - `public/docs/operating/01-cluster-nodes/index.html` exists
 
-- [ ] **Step 2: Verify search index**
+- [-] **Step 2: Verify search index** *(requires Hugo build — CI will validate)*
 
   ```bash
   ls blog/public/search-data.json 2>/dev/null || ls blog/public/index.json 2>/dev/null
@@ -697,7 +697,7 @@ Update build pipeline, remove old PaperMod layouts, verify production build.
 
   Hextra generates a search index automatically. Verify it exists and is non-empty.
 
-- [ ] **Step 3: Dev server smoke test**
+- [-] **Step 3: Dev server smoke test** *(requires Hugo dev server — manual verification needed post-merge)*
 
   ```bash
   cd blog && hugo server --buildDrafts
@@ -717,7 +717,7 @@ Update build pipeline, remove old PaperMod layouts, verify production build.
   - [ ] Series accent bars differentiate Building vs Operating
   - [ ] "Clear read history" footer link works
 
-- [ ] **Step 4: Clean up migration script**
+- [x] **Step 4: Clean up migration script**
 
   ```bash
   rm scripts/migrate-frontmatter.sh

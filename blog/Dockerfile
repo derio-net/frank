@@ -1,7 +1,9 @@
 # Stage 1: Build Hugo site
-FROM ghcr.io/gohugoio/hugo:v0.157.0 AS builder
+# Extended image includes Go (for Hugo modules) and SCSS support
+FROM ghcr.io/gohugoio/hugo:v0.157.0-extended AS builder
 WORKDIR /src
 COPY . .
+RUN hugo mod get
 RUN hugo --minify --baseURL https://blog.derio.net/frank
 
 # Stage 2: Serve with Caddy
