@@ -11,7 +11,7 @@
 <div id="{{ $id }}" class="asciinema-container"></div>
 <script>
 (function() {
-  var theme = document.documentElement.dataset.theme === 'light' ? 'solarized-light' : 'asciinema';
+  var theme = document.documentElement.classList.contains('dark') ? 'asciinema' : 'solarized-light';
   AsciinemaPlayer.create('{{ $url }}', document.getElementById('{{ $id }}'), {
     cols: {{ $cols }},
     rows: {{ $rows }},
