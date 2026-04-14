@@ -139,8 +139,8 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/building/       # 27 posts documenting the build
-│   ├── content/operating/      # 22 companion operations guides
+│   ├── content/docs/building/       # 27 posts documenting the build
+│   ├── content/docs/operating/      # 22 companion operations guides
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
 │   └── superpowers/

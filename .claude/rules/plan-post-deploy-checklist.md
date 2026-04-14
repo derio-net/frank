@@ -8,8 +8,8 @@ When creating a plan for a **standard layer** (new deployment, not a fix/extensi
 
 ### Task N: Post-Deploy Checklist
 
-- [ ] **Step 1: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
-- [ ] **Step 2: Write operating blog post** — Use `/blog-post` skill for the companion operating guide. Update operating series index in `blog/content/building/00-overview/index.md`
+- [ ] **Step 1: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/docs/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
+- [ ] **Step 2: Write operating blog post** — Use `/blog-post` skill for the companion operating guide. Update operating series index in `blog/content/docs/building/00-overview/index.md`
 - [ ] **Step 3: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
 - [ ] **Step 4: Sync runbook** — Run `/sync-runbook` if the plan contains any `# manual-operation` blocks
 - [ ] **Step 5: Update plan status** — Set `**Status:**` to `Deployed` (cluster workload) or `Complete` (repo/meta work)
