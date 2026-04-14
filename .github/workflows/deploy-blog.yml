@@ -7,6 +7,11 @@ on:
       - "blog/**"
   workflow_dispatch:
 
+# Hextra migration freeze: keep old blog live until all 5 phases land.
+# Remove this env block to re-enable deployments.
+env:
+  BLOG_DEPLOY_FROZEN: "true"
+
 concurrency:
   group: "blog-deploy"
   cancel-in-progress: false
@@ -14,6 +19,7 @@ concurrency:
 jobs:
   # Keep GitHub Pages deployment during transition
   build-pages:
+    if: env.BLOG_DEPLOY_FROZEN != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,6 +45,7 @@ jobs:
           path: blog/public
 
   deploy-pages:
+    if: env.BLOG_DEPLOY_FROZEN != 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -54,6 +61,7 @@ jobs:
 
   # Build container image for Hop and update deployment manifest
   build-container:
+    if: env.BLOG_DEPLOY_FROZEN != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
