@@ -16,6 +16,7 @@
 ---
 
 ## Phase 1: Theme Swap Foundation [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/68 -->
 
 Remove PaperMod, install Hextra as a Hugo module, rewrite config, create landing page. The blog will be in a broken state during this phase until content migration in Phase 2.
 
@@ -177,6 +178,7 @@ Remove PaperMod, install Hextra as a Hugo module, rewrite config, create landing
 ---
 
 ## Phase 2: Content Migration [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/69 -->
 
 Move both series under `content/docs/`, update section indexes, and migrate frontmatter across all 48 posts.
 
@@ -295,6 +297,7 @@ Move both series under `content/docs/`, update section indexes, and migrate fron
 ---
 
 ## Phase 3: Custom Features [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/70 -->
 
 Port shortcodes, add cover image support, add series accent bars, and consolidate custom CSS.
 
@@ -486,6 +489,7 @@ Port shortcodes, add cover image support, add series accent bars, and consolidat
 ---
 
 ## Phase 4: Read Tracking [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/71 -->
 
 Implement the localStorage-based read-tracking feature.
 
@@ -615,6 +619,7 @@ Implement the localStorage-based read-tracking feature.
 ---
 
 ## Phase 5: CI/CD & Cleanup [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/72 -->
 
 Update build pipeline, remove old PaperMod layouts, verify production build.
 
