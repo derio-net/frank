@@ -303,7 +303,7 @@ Port shortcodes, add cover image support, add series accent bars, and consolidat
 
 ### Task 1: Port shortcodes
 
-- [ ] **Step 1: Update asciinema shortcode for Hextra dark mode detection**
+- [x] **Step 1: Update asciinema shortcode for Hextra dark mode detection**
 
   Edit `blog/layouts/shortcodes/asciinema.html` — change the theme detection line from:
 
@@ -319,15 +319,15 @@ Port shortcodes, add cover image support, add series accent bars, and consolidat
 
   The `screenshot.html` and `cluster-roadmap.html` shortcodes are theme-independent and need no changes to their templates.
 
-- [ ] **Step 2: Verify cluster-roadmap dark mode selector**
+- [x] **Step 2: Verify cluster-roadmap dark mode selector**
 
   In `blog/layouts/shortcodes/cluster-roadmap.html`, the dark mode CSS uses `.dark .roadmap`. Hextra applies the `dark` class to `<html>`, so `.dark .roadmap` works because CSS class selectors match any ancestor. Verify in browser — no change expected.
 
 ### Task 2: Create asciinema head partial for Hextra
 
-- [ ] **Step 1: Create custom head partial**
+- [x] **Step 1: Create custom head partial**
 
-  Create `blog/layouts/partials/custom/head.html`:
+  Create `blog/layouts/partials/custom/head-end.html` *(Hextra v0.12.1 uses `head-end.html`, not `head.html`)*:
 
   ```html
   {{- if .HasShortcode "asciinema" }}
@@ -340,7 +340,7 @@ Port shortcodes, add cover image support, add series accent bars, and consolidat
 
 ### Task 3: Add cover image layout override
 
-- [ ] **Step 1: Create docs single page override**
+- [x] **Step 1: Create docs single page override**
 
   Inspect Hextra's built-in single layout to understand the block structure:
 
@@ -371,7 +371,7 @@ Port shortcodes, add cover image support, add series accent bars, and consolidat
 
 ### Task 4: Create custom CSS
 
-- [ ] **Step 1: Create assets/css/custom.css**
+- [x] **Step 1: Create assets/css/custom.css**
 
   Create `blog/assets/css/custom.css` with all custom styles consolidated:
 
@@ -467,7 +467,7 @@ Port shortcodes, add cover image support, add series accent bars, and consolidat
   }
   ```
 
-- [ ] **Step 2: Verify shortcodes and cover images render**
+- [x] **Step 2: Verify shortcodes and cover images render**
 
   ```bash
   cd blog && hugo server --buildDrafts
