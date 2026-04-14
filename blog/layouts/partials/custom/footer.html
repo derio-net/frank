@@ -1,0 +1,10 @@
+<a href="#" id="clear-read-history" style="font-size: 0.75rem; opacity: 0.5;">
+  Clear read history
+</a>
+<script>
+document.getElementById('clear-read-history').addEventListener('click', function(e) {
+  e.preventDefault();
+  localStorage.removeItem('frank-read-posts');
+  window.location.reload();
+});
+</script>

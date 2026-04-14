@@ -2,3 +2,5 @@
 <link rel="stylesheet" href="https://unpkg.com/asciinema-player@3.9.0/dist/bundle/asciinema-player.css" />
 <script src="https://unpkg.com/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>
 {{- end }}
+{{ $readTracker := resources.Get "js/read-tracker.js" | minify | fingerprint }}
+<script src="{{ $readTracker.RelPermalink }}" defer></script>
