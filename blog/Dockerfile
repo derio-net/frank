@@ -2,6 +2,7 @@
 FROM ghcr.io/gohugoio/hugo:v0.157.0 AS builder
 WORKDIR /src
 COPY . .
+RUN hugo mod get
 RUN hugo --minify --baseURL https://blog.derio.net/frank
 
 # Stage 2: Serve with Caddy

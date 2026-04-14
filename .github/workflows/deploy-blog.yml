@@ -7,11 +7,6 @@ on:
       - "blog/**"
   workflow_dispatch:
 
-# Hextra migration freeze: keep old blog live until all 5 phases land.
-# Remove this env block to re-enable deployments.
-env:
-  BLOG_DEPLOY_FROZEN: "true"
-
 concurrency:
   group: "blog-deploy"
   cancel-in-progress: false
@@ -19,15 +14,12 @@ concurrency:
 jobs:
   # Keep GitHub Pages deployment during transition
   build-pages:
-    if: env.BLOG_DEPLOY_FROZEN != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Setup Hugo
         uses: peaceiris/actions-hugo@75d2e84710de30f6ff7268e08f310b60ef14033f # v3.0.0
@@ -37,7 +29,9 @@ jobs:
 
       - name: Build
         working-directory: blog
-        run: hugo --minify
+        run: |
+          hugo mod get
+          hugo --minify
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
@@ -45,7 +39,6 @@ jobs:
           path: blog/public
 
   deploy-pages:
-    if: env.BLOG_DEPLOY_FROZEN != 'true'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -61,7 +54,6 @@ jobs:
 
   # Build container image for Hop and update deployment manifest
   build-container:
-    if: env.BLOG_DEPLOY_FROZEN != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -69,8 +61,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
