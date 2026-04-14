@@ -27,7 +27,6 @@ title = "Frank, the Talos Cluster"
     codeFences = true
     lineNos = false
     style = "monokai"
-    noClasses = false
 
 [outputs]
   home = ["HTML", "RSS", "JSON"]

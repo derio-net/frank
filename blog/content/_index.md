@@ -36,8 +36,7 @@ layout: hextra-home
   >}}
   {{< hextra/feature-card
     title="Search"
-    subtitle="Full-text search across all posts"
-    link="docs/building/"
+    subtitle="Full-text search across all posts — press Ctrl+K"
     icon="search"
   >}}
 {{< /hextra/feature-grid >}}

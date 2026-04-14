@@ -5,7 +5,7 @@
 > **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Spec:** `docs/superpowers/specs/2026-04-13--repo--blog-hextra-migration-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **Goal:** Migrate the Frank blog from PaperMod to Hextra theme, gaining sidebar navigation, built-in search, and a modern documentation aesthetic, plus a client-side read-tracking feature.
 **Architecture:** In-place swap in `blog/` directory. PaperMod git submodule replaced by Hextra Hugo module. Content moved under `content/docs/` for sidebar navigation. Custom shortcodes ported. New read-tracking JS via localStorage.
@@ -49,7 +49,7 @@ Remove PaperMod, install Hextra as a Hugo module, rewrite config, create landing
 
 ### Task 2: Initialize Hugo modules and import Hextra
 
-- [ ] **Step 1: Initialize Hugo module in blog directory**
+- [x] **Step 1: Initialize Hugo module in blog directory**
 
   ```bash
   cd blog
@@ -61,7 +61,7 @@ Remove PaperMod, install Hextra as a Hugo module, rewrite config, create landing
   module github.com/derio-net/frank/blog
   ```
 
-- [ ] **Step 2: Rewrite hugo.toml for Hextra**
+- [x] **Step 2: Rewrite hugo.toml for Hextra**
 
   Replace the entire `blog/hugo.toml` with:
 
@@ -110,7 +110,7 @@ Remove PaperMod, install Hextra as a Hugo module, rewrite config, create landing
 
 ### Task 3: Create landing page
 
-- [ ] **Step 1: Create root _index.md with Hextra landing layout**
+- [x] **Step 1: Create root _index.md with Hextra landing layout**
 
   Create `blog/content/_index.md`:
 
@@ -161,7 +161,7 @@ Remove PaperMod, install Hextra as a Hugo module, rewrite config, create landing
   </div>
   ```
 
-- [ ] **Step 2: Verify Hugo starts (will show empty docs)**
+- [x] **Step 2: Verify Hugo starts (will show empty docs)**
 
   ```bash
   cd blog
@@ -646,9 +646,16 @@ Update build pipeline, remove old PaperMod layouts, verify production build.
 
   **Fallback:** If `ghcr.io/gohugoio/hugo:v0.157.0` lacks Go for modules, switch to the extended image tag or add a Go install step.
 
+- [ ] **Step 2: Update GitHub Actions workflow for Hugo modules**
+
+  Update `.github/workflows/deploy-blog.yml`:
+  - Remove `submodules: recursive` from both checkout steps (PaperMod submodule is gone)
+  - Add `hugo mod get` step before `hugo --minify` in the `build-pages` job
+  - Remove the `BLOG_DEPLOY_FROZEN` env block and `if:` conditions (re-enable deployments)
+
 ### Task 2: Remove old PaperMod layout overrides
 
-- [ ] **Step 1: Delete PaperMod-specific layout files**
+- [-] **Step 1: Delete PaperMod-specific layout files** *(completed in Phase 1 — old layouts referenced PaperMod partials and broke the Hextra build)*
 
   ```bash
   rm blog/layouts/partials/header.html
