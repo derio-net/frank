@@ -1,10 +1,10 @@
 ## Blog Post Pattern
 
-Posts use Hugo page bundles with PaperMod theme:
+Posts use Hugo page bundles with Hextra theme:
 
 ```
-blog/content/building/NN-slug/   # "Building Frank" posts
-blog/content/operating/NN-slug/  # "Operating on Frank" posts
+blog/content/docs/building/NN-slug/   # "Building Frank" posts
+blog/content/docs/operating/NN-slug/  # "Operating on Frank" posts
   index.md       # Post content
   cover.png      # Cover image
   *.png          # Inline images
@@ -19,10 +19,6 @@ draft: false
 tags: ["tag1", "tag2"]
 summary: "One-sentence summary for cards"
 weight: <NN>    # Sort order matches post number
-cover:
-  image: cover.png
-  alt: "Descriptive alt text"
-  relative: true
 ---
 ```
 

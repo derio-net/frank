@@ -36,7 +36,7 @@ Create a new Hugo blog post for the Frank cluster documentation series.
 Create directory and index file:
 
 ```
-blog/content/$ARGUMENTS.series/$ARGUMENTS.number-$ARGUMENTS.slug/index.md
+blog/content/docs/$ARGUMENTS.series/$ARGUMENTS.number-$ARGUMENTS.slug/index.md
 ```
 
 ### 2. Frontmatter
@@ -51,10 +51,6 @@ draft: false
 tags: [<relevant tags>]
 summary: "<one-sentence summary for post cards>"
 weight: <$ARGUMENTS.number + 1>
-cover:
-  image: cover.png
-  alt: "<descriptive alt text>"
-  relative: true
 ---
 ```
 
@@ -89,18 +85,18 @@ Typical structure:
 
 Each series has its own **00-overview** post — a living document updated after every new post.
 
-**For `building` series posts** — update `blog/content/building/00-overview/index.md`:
+**For `building` series posts** — update `blog/content/docs/building/00-overview/index.md`:
 
 1. **Series Index** — append the new post as a numbered list item with a Hugo relref link (under the "Series Index" heading).
 2. **Technology → Capability Map** — add a row for any new technology introduced in this post (tool name in bold, capabilities in the second column).
 3. **`blog/layouts/shortcodes/cluster-roadmap.html`** — add a new `roadmap-layer` div for the new layer/capability. Use the existing colour classes (`layer-hw`, `layer-net`, etc.) or add a new `layer-*` class with its own `--rm-accent-N` colour variable (add to both light and dark mode sections). Use `layer-upcoming` for layers that are planned but not yet deployed (dashed border, muted opacity). Layer codes are defined in `docs/layers.yaml`.
 
-**For `operating` series posts** — update `blog/content/operating/00-overview/index.md`:
+**For `operating` series posts** — update `blog/content/docs/operating/00-overview/index.md`:
 
 1. **Series Index** — append the new post as a numbered list item with a Hugo relref link.
 2. No roadmap or capability map — the operating series is a companion reference, not a build narrative.
 
-**For both**: also update the cross-reference index in `blog/content/building/00-overview/index.md` under "Operating on Frank — Series Index" when adding a new operating post.
+**For both**: also update the cross-reference index in `blog/content/docs/building/00-overview/index.md` under "Operating on Frank — Series Index" when adding a new operating post.
 
 ### 6. Companion Operating Post
 
@@ -123,7 +119,7 @@ After creating the post, start the Hugo dev server to preview:
 
 - Tags should be lowercase, descriptive (check existing posts for reuse)
 - Summary should be one sentence, compelling, under 150 chars
-- Don't include the title as H1 in content (PaperMod renders it from frontmatter)
+- Don't include the title as H1 in content (Hextra renders it from frontmatter)
 - Code blocks should use language identifiers (```yaml, ```bash, etc.)
 - Reference the specific cluster nodes by name when relevant (mini-1, gpu-1, etc.)
 - End with a References section linking to relevant docs

@@ -144,7 +144,7 @@ images:
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
-    output: blog/content/building/00-overview/cover.png
+    output: blog/content/docs/building/00-overview/cover.png
     description: "Overview & Roadmap — Frank assembling himself"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing at a workbench
@@ -159,7 +159,7 @@ images:
       background.
 
   - key: building-01-introduction
-    output: blog/content/building/01-introduction/cover.png
+    output: blog/content/docs/building/01-introduction/cover.png
     description: "Introduction — Why build a homelab (rejecting the cloud)"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting at a cozy desk,
@@ -172,7 +172,7 @@ images:
       server rack shelves in background.
 
   - key: building-02-foundation
-    output: blog/content/building/02-foundation/cover.png
+    output: blog/content/docs/building/02-foundation/cover.png
     description: "Foundation — Talos immutable OS, Cilium eBPF networking"
     prompt: >-
       Frank the server-hardware Frankenstein monster laying the foundation
@@ -186,7 +186,7 @@ images:
       setting with scaffolding and a "No SSH" warning sign.
 
   - key: building-03-storage
-    output: blog/content/building/03-storage/cover.png
+    output: blog/content/docs/building/03-storage/cover.png
     description: "Storage — Longhorn distributed storage with 3 replicas"
     prompt: >-
       Frank the server-hardware Frankenstein monster riding a longhorn bull
@@ -198,7 +198,7 @@ images:
       setting with server racks as fence posts, sunset sky.
 
   - key: building-04-gpu-compute
-    output: blog/content/building/04-gpu-compute/cover.png
+    output: blog/content/docs/building/04-gpu-compute/cover.png
     description: "GPU Compute — RTX 5070 drama + Intel Arc iGPU"
     prompt: >-
       Frank the server-hardware Frankenstein monster with two mismatched
@@ -211,7 +211,7 @@ images:
       Feature Discovery" label floats. Dark server room background.
 
   - key: building-05-gitops
-    output: blog/content/building/05-gitops/cover.png
+    output: blog/content/docs/building/05-gitops/cover.png
     description: "GitOps — ArgoCD App-of-Apps orchestra"
     prompt: >-
       Frank the server-hardware Frankenstein monster conducting an orchestra.
@@ -224,7 +224,7 @@ images:
       center. Concert hall setting with dark curtains and spotlights.
 
   - key: building-06-fun-stuff
-    output: blog/content/building/06-fun-stuff/cover.png
+    output: blog/content/docs/building/06-fun-stuff/cover.png
     description: "Fun Stuff — GitOps-managed RGB LEDs on case hardware"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing in front of a
@@ -238,7 +238,7 @@ images:
       reflections.
 
   - key: building-07-observability
-    output: blog/content/building/07-observability/cover.png
+    output: blog/content/docs/building/07-observability/cover.png
     description: "Observability — VictoriaMetrics + Grafana + Fluent Bit"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting at a curved
@@ -253,7 +253,7 @@ images:
       line running along the bottom edge.
 
   - key: building-08-backup
-    output: blog/content/building/08-backup/cover.png
+    output: blog/content/docs/building/08-backup/cover.png
     description: "Backup — Longhorn daily/weekly to Cloudflare R2"
     prompt: >-
       Frank the server-hardware Frankenstein monster carefully pouring
@@ -266,7 +266,7 @@ images:
       "Daily" and "Weekly" backup schedules circled. Dark server room.
 
   - key: building-09-secrets
-    output: blog/content/building/09-secrets/cover.png
+    output: blog/content/docs/building/09-secrets/cover.png
     description: "Secrets — Infisical vault + External Secrets Operator"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing before a
@@ -280,7 +280,7 @@ images:
       labeled "PostgreSQL", "Redis", "Infisical". Dark server room.
 
   - key: building-10-local-inference
-    output: blog/content/building/10-local-inference/cover.png
+    output: blog/content/docs/building/10-local-inference/cover.png
     description: "Local Inference — Ollama + LiteLLM gateway + OpenRouter"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing at a grand
@@ -296,7 +296,7 @@ images:
       purple lightning.
 
   - key: building-11-agentic-control-plane
-    output: blog/content/building/11-agentic-control-plane/cover.png
+    output: blog/content/docs/building/11-agentic-control-plane/cover.png
     description: "Sympozium — Kubernetes-native agentic control plane"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing in a command
@@ -311,7 +311,7 @@ images:
       robots and tower. Dark server room with blue and orange lightning.
 
   - key: building-12-gpu-talos-fix
-    output: blog/content/building/12-gpu-talos-fix/cover.png
+    output: blog/content/docs/building/12-gpu-talos-fix/cover.png
     description: "GPU Talos Fix — debugging containerd, validation markers"
     prompt: >-
       Frank the server-hardware Frankenstein monster crouching inside a
@@ -326,7 +326,7 @@ images:
       corner. Dark server room with electric blue and green sparks.
 
   - key: building-13-unified-auth
-    output: blog/content/building/13-unified-auth/cover.png
+    output: blog/content/docs/building/13-unified-auth/cover.png
     description: "Unified Auth — Authentik SSO for the entire cluster"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing in front of
@@ -343,7 +343,7 @@ images:
       Dark server room with blue and gold lightning accents.
 
   - key: building-14-multi-tenancy
-    output: blog/content/building/14-multi-tenancy/cover.png
+    output: blog/content/docs/building/14-multi-tenancy/cover.png
     description: "Multi-tenancy — vCluster disposable sandbox clusters"
     prompt: >-
       Frank the server-hardware Frankenstein monster holding a snow globe in
@@ -360,7 +360,7 @@ images:
       teal lighting accents.
 
   - key: building-15-paperclip
-    output: blog/content/building/15-paperclip/cover.png
+    output: blog/content/docs/building/15-paperclip/cover.png
     description: "Paperclip — AI agent orchestrator with virtual companies and org charts"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting at the head of a
@@ -377,7 +377,7 @@ images:
       boardroom lighting overlay, blue electric accents from Frank's neck bolts.
 
   - key: building-16-media-generation
-    output: blog/content/building/16-media-generation/cover.png
+    output: blog/content/docs/building/16-media-generation/cover.png
     description: "Media Generation — Frank juggling video frames and audio waves between ComfyUI and Ollama"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing at a glowing
@@ -394,7 +394,7 @@ images:
       lighting accents.
 
   - key: building-17-public-edge
-    output: blog/content/building/17-public-edge/cover.png
+    output: blog/content/docs/building/17-public-edge/cover.png
     description: "Public Edge — Frank hopping through a glowing Tailscale portal into a cloud datacenter"
     prompt: >-
       Frank the server-hardware Frankenstein monster mid-leap through a huge
@@ -413,7 +413,7 @@ images:
       primary light source, electric blue and teal accents.
 
   - key: building-18-persistent-agent
-    output: blog/content/building/18-persistent-agent/cover.png
+    output: blog/content/docs/building/18-persistent-agent/cover.png
     description: "Persistent Agent — Frank at an always-on workstation terminal"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting at a glowing
@@ -429,7 +429,7 @@ images:
       human steps away. Dark background, electric blue and green accents.
 
   - key: building-19-progressive-delivery
-    output: blog/content/building/19-progressive-delivery/cover.png
+    output: blog/content/docs/building/19-progressive-delivery/cover.png
     description: "Progressive Delivery — Frank at a traffic control tower directing canary and blue-green lanes"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing at a traffic
@@ -446,7 +446,7 @@ images:
       Dark server room with blue, green, and yellow lighting accents.
 
   - key: building-20-workflow-automation
-    output: blog/content/building/20-workflow-automation/cover.png
+    output: blog/content/docs/building/20-workflow-automation/cover.png
     description: "Workflow Automation — Frank orchestrating n8n conveyor belt pipelines"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing at a massive
@@ -462,7 +462,7 @@ images:
       orange lightning accents.
 
   - key: building-21-secure-agent-pod
-    output: blog/content/building/21-secure-agent-pod/cover.png
+    output: blog/content/docs/building/21-secure-agent-pod/cover.png
     description: "Secure Agent Pod — Frank in a hardened vault operating a locked-down workstation"
     prompt: >-
       Frank the server-hardware Frankenstein monster inside a reinforced steel
@@ -479,7 +479,7 @@ images:
       with blue lightning accents and steel textures.
 
   - key: building-22-health-monitoring
-    output: blog/content/building/22-health-monitoring/cover.png
+    output: blog/content/docs/building/22-health-monitoring/cover.png
     description: "Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing in a dark
@@ -497,7 +497,7 @@ images:
       lighting accents, dark server room atmosphere.
 
   - key: building-23-health-bridge
-    output: blog/content/building/23-health-bridge/cover.png
+    output: blog/content/docs/building/23-health-bridge/cover.png
     description: "Health Bridge — Frank routing alert signals from monitoring to project boards"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing between two large
@@ -515,7 +515,7 @@ images:
       electricity. Dark server room with amber and blue lighting accents.
 
   - key: building-24-in-cluster-ingress
-    output: blog/content/building/24-in-cluster-ingress/cover.png
+    output: blog/content/docs/building/24-in-cluster-ingress/cover.png
     description: "In-Cluster Ingress — Frank directing traffic through a glowing gateway"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing at a grand
@@ -536,7 +536,7 @@ images:
       Dark server room with blue, teal, and gold lighting accents.
 
   - key: building-25-vk-relay
-    output: blog/content/building/25-vk-relay/cover.png
+    output: blog/content/docs/building/25-vk-relay/cover.png
     description: "VK Relay — Frank bridging two screens with a glowing WebSocket tunnel"
     prompt: >-
       Frank the server-hardware Frankenstein monster in a dark server room,
@@ -553,7 +553,7 @@ images:
       accents. Simple composition, clean layout.
 
   - key: building-26-vk-remote-self-host
-    output: blog/content/building/26-vk-remote-self-host/cover.png
+    output: blog/content/docs/building/26-vk-remote-self-host/cover.png
     description: "VK Remote Self-Host — Frank unplugging from a dying cloud and wiring up his own kanban server"
     prompt: >-
       Frank the server-hardware Frankenstein monster in a dark server room,
@@ -572,7 +572,7 @@ images:
       blue lighting accents.
 
   - key: building-27-cicd-platform
-    output: blog/content/building/27-cicd-platform/cover.png
+    output: blog/content/docs/building/27-cicd-platform/cover.png
     description: "CI/CD Platform — Frank operating a multi-stage assembly line from git to signed container images"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing in a dark
@@ -593,7 +593,7 @@ images:
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
-    output: blog/content/operating/01-cluster-nodes/cover.png
+    output: blog/content/docs/operating/01-cluster-nodes/cover.png
     description: "Operating on Cluster & Nodes — Frank checking vital signs"
     prompt: >-
       Frank the server-hardware Frankenstein monster lying on a surgical table
@@ -610,7 +610,7 @@ images:
       and green accent lighting.
 
   - key: ops-02-storage-backups
-    output: blog/content/operating/02-storage-backups/cover.png
+    output: blog/content/docs/operating/02-storage-backups/cover.png
     description: "Operating on Storage & Backups — Frank maintaining his storage drives"
     prompt: >-
       Frank the server-hardware Frankenstein monster lying on a surgical table.
@@ -625,7 +625,7 @@ images:
       room with blue and orange lighting.
 
   - key: ops-03-gitops
-    output: blog/content/operating/03-gitops/cover.png
+    output: blog/content/docs/operating/03-gitops/cover.png
     description: "Operating on GitOps — Frank managing his application orchestra"
     prompt: >-
       Frank the server-hardware Frankenstein monster lying on a surgical table
@@ -638,7 +638,7 @@ images:
       above each app box. Dark server room with blue and orange lighting.
 
   - key: ops-04-gpu-compute
-    output: blog/content/operating/04-gpu-compute/cover.png
+    output: blog/content/docs/operating/04-gpu-compute/cover.png
     description: "Operating on GPU Compute — Frank servicing his GPU arms"
     prompt: >-
       Frank the server-hardware Frankenstein monster on a surgical table. His
@@ -651,7 +651,7 @@ images:
       server room with green and blue electric sparks.
 
   - key: ops-05-observability
-    output: blog/content/operating/05-observability/cover.png
+    output: blog/content/docs/operating/05-observability/cover.png
     description: "Operating on Observability — Frank at his command center"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting in a large
@@ -667,7 +667,7 @@ images:
       blue and purple monitoring glow.
 
   - key: ops-06-secrets
-    output: blog/content/operating/06-secrets/cover.png
+    output: blog/content/docs/operating/06-secrets/cover.png
     description: "Operating on Secrets — Frank cracking a safe with a blowtorch"
     prompt: >-
       Frank the server-hardware Frankenstein monster crouching in front of a
@@ -684,7 +684,7 @@ images:
       blue and gold lighting.
 
   - key: ops-07-inference
-    output: blog/content/operating/07-inference/cover.png
+    output: blog/content/docs/operating/07-inference/cover.png
     description: "Operating on Local Inference — Frank holding his own head open"
     prompt: >-
       Frank the server-hardware Frankenstein monster lying on a surgical
@@ -700,7 +700,7 @@ images:
       brain. Dark server room with purple and blue neural network lighting.
 
   - key: ops-08-auth
-    output: blog/content/operating/08-auth/cover.png
+    output: blog/content/docs/operating/08-auth/cover.png
     description: "Operating on Authentication — Frank installing security systems"
     prompt: >-
       Frank the server-hardware Frankenstein monster on a surgical table.
@@ -713,7 +713,7 @@ images:
       red X. Dark server room with blue and gold lighting accents.
 
   - key: ops-09-multi-tenancy
-    output: blog/content/operating/09-multi-tenancy/cover.png
+    output: blog/content/docs/operating/09-multi-tenancy/cover.png
     description: "Operating on Multi-tenancy — Frank juggling vCluster snow globes"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing upright,
@@ -729,7 +729,7 @@ images:
       server room with blue and teal lighting.
 
   - key: ops-10-media-generation
-    output: blog/content/operating/10-media-generation/cover.png
+    output: blog/content/docs/operating/10-media-generation/cover.png
     description: "Operating on Media Generation — Frank at a control panel managing GPU workloads"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing at a large
@@ -744,7 +744,7 @@ images:
       blue and purple lighting accents.
 
   - key: ops-11-public-edge
-    output: blog/content/operating/11-public-edge/cover.png
+    output: blog/content/docs/operating/11-public-edge/cover.png
     description: "Operating on Hop — Frank monitoring a miniature portal-connected cloud server"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting at a desk with a
@@ -760,7 +760,7 @@ images:
       accents.
 
   - key: ops-12-progressive-delivery
-    output: blog/content/operating/12-progressive-delivery/cover.png
+    output: blog/content/docs/operating/12-progressive-delivery/cover.png
     description: "Operating on Progressive Delivery — Frank at a control panel managing canary and blue-green rollouts"
     prompt: >-
       Frank the server-hardware Frankenstein monster lying on a surgical table.
@@ -776,7 +776,7 @@ images:
       Dark server room with blue, green, and yellow lighting accents.
 
   - key: ops-13-workflow-automation
-    output: blog/content/operating/13-workflow-automation/cover.png
+    output: blog/content/docs/operating/13-workflow-automation/cover.png
     description: "Operating on Workflow Automation — Frank maintaining n8n workflow internals"
     prompt: >-
       Frank the server-hardware Frankenstein monster lying on a surgical table.
@@ -791,7 +791,7 @@ images:
       orange lighting accents.
 
   - key: ops-14-secure-agent-pod
-    output: blog/content/operating/14-secure-agent-pod/cover.png
+    output: blog/content/docs/operating/14-secure-agent-pod/cover.png
     description: "Operating on Secure Agent Pod — Frank maintaining a layered security orb"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting in a workshop
@@ -811,7 +811,7 @@ images:
       lighting accents.
 
   - key: ops-15-health-monitoring
-    output: blog/content/operating/15-health-monitoring/cover.png
+    output: blog/content/docs/operating/15-health-monitoring/cover.png
     description: "Operating on Health Monitoring — Frank tuning heartbeat monitors"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting at a wide
@@ -828,7 +828,7 @@ images:
       mood. Dark server room with blue and green lighting accents.
 
   - key: ops-16-health-bridge
-    output: blog/content/operating/16-health-bridge/cover.png
+    output: blog/content/docs/operating/16-health-bridge/cover.png
     description: "Operating on Health Bridge — Frank at a console managing alert-to-issue routing"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting at an operations
@@ -844,7 +844,7 @@ images:
       lighting accents.
 
   - key: ops-17-ingress
-    output: blog/content/operating/17-ingress/cover.png
+    output: blog/content/docs/operating/17-ingress/cover.png
     description: "Operating on In-Cluster Ingress — Frank maintaining a traffic gateway"
     prompt: >-
       Frank the server-hardware Frankenstein monster sitting at an
@@ -863,7 +863,7 @@ images:
       and teal lighting accents.
 
   - key: ops-18-paperclip
-    output: blog/content/operating/18-paperclip/cover.png
+    output: blog/content/docs/operating/18-paperclip/cover.png
     description: "Operating on Paperclip — Frank managing an AI agent org chart"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing at an
@@ -882,7 +882,7 @@ images:
       Dark server room with warm amber and blue lighting accents.
 
   - key: ops-19-git-credentials-without-a-shell
-    output: blog/content/operating/19-git-credentials-without-a-shell/cover.png
+    output: blog/content/docs/operating/19-git-credentials-without-a-shell/cover.png
     description: "Git Credentials Without a Shell — Frank pulling a token directly from PID 1's environment"
     prompt: >-
       Frank the server-hardware Frankenstein monster standing in a dim
@@ -903,7 +903,7 @@ images:
       teal lighting accents.
 
   - key: ops-21-vk-remote
-    output: blog/content/operating/21-vk-remote/cover.png
+    output: blog/content/docs/operating/21-vk-remote/cover.png
     description: "Operating on VK Remote — Frank monitoring three stacked service components at an operations desk"
     prompt: >-
       Frank the server-hardware Frankenstein monster at an operations desk
@@ -922,7 +922,7 @@ images:
       accents.
 
   - key: ops-20-vk-relay
-    output: blog/content/operating/20-vk-relay/cover.png
+    output: blog/content/docs/operating/20-vk-relay/cover.png
     description: "Operating on VK Relay — Frank monitoring relay tunnel status on a dashboard"
     prompt: >-
       Frank the server-hardware Frankenstein monster seated at an operations
@@ -940,7 +940,7 @@ images:
       room with blue and teal lighting accents.
 
   - key: ops-22-cicd-platform
-    output: blog/content/operating/22-cicd-platform/cover.png
+    output: blog/content/docs/operating/22-cicd-platform/cover.png
     description: "Operating on CI/CD Platform — Frank monitoring pipeline and registry status"
     prompt: >-
       Frank the server-hardware Frankenstein monster seated at a wide

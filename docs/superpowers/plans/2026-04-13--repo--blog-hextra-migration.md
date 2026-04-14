@@ -184,7 +184,7 @@ Move both series under `content/docs/`, update section indexes, and migrate fron
 
 ### Task 1: Move content directories
 
-- [ ] **Step 1: Create docs parent and move series**
+- [x] **Step 1: Create docs parent and move series**
 
   ```bash
   cd blog
@@ -193,7 +193,7 @@ Move both series under `content/docs/`, update section indexes, and migrate fron
   mv content/operating content/docs/operating
   ```
 
-- [ ] **Step 2: Update Building section index**
+- [x] **Step 2: Update Building section index**
 
   Rewrite `blog/content/docs/building/_index.md`:
 
@@ -208,7 +208,7 @@ Move both series under `content/docs/`, update section indexes, and migrate fron
   A tutorial series on building an AI-hybrid Kubernetes homelab from scratch.
   ```
 
-- [ ] **Step 3: Update Operating section index**
+- [x] **Step 3: Update Operating section index**
 
   Rewrite `blog/content/docs/operating/_index.md`:
 
@@ -225,7 +225,7 @@ Move both series under `content/docs/`, update section indexes, and migrate fron
 
 ### Task 2: Migrate frontmatter across all posts
 
-- [ ] **Step 1: Write a frontmatter migration script**
+- [x] **Step 1: Write a frontmatter migration script**
 
   Create `scripts/migrate-frontmatter.sh`:
 
@@ -250,7 +250,7 @@ Move both series under `content/docs/`, update section indexes, and migrate fron
   echo "Done. Processed $(find blog/content/docs -name 'index.md' | wc -l) files."
   ```
 
-- [ ] **Step 2: Run the migration script**
+- [x] **Step 2: Run the migration script**
 
   ```bash
   chmod +x scripts/migrate-frontmatter.sh
@@ -274,7 +274,7 @@ Move both series under `content/docs/`, update section indexes, and migrate fron
   ---
   ```
 
-- [ ] **Step 3: Verify sidebar renders both series**
+- [-] **Step 3: Verify sidebar renders both series** *(skipped — Hugo not available in this environment; requires manual verification)*
 
   ```bash
   cd blog && hugo server --buildDrafts
