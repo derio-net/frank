@@ -1,6 +1,6 @@
 # Stage 1: Build Hugo site
-# Extended image includes Go (for Hugo modules) and SCSS support
-FROM ghcr.io/gohugoio/hugo:v0.157.0-extended AS builder
+# Hugo Docker image includes Go (for modules) and extended features by default
+FROM ghcr.io/gohugoio/hugo:v0.157.0 AS builder
 WORKDIR /src
 COPY . .
 RUN hugo mod get
