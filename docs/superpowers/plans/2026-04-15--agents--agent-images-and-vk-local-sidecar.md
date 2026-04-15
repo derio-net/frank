@@ -65,7 +65,7 @@ commands:
   - cd agent-images && git checkout -b main && printf '# agent-images\n' > README.md && git add README.md && git commit -m "chore: initial commit" && git push -u origin main
 verify:
   - gh repo view derio-net/agent-images --json name,visibility | jq -e '.name == "agent-images" and .visibility == "PUBLIC"'
-status: pending
+status: done
 ```
 
 - [ ] **Step 1: Verify the repo exists and is cloneable.**
