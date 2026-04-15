@@ -276,6 +276,7 @@ Rollback at any step: revert the frank PR. The old npm-based kali image is still
 - **vk-local as a sidecar in the existing pod, not a separate Deployment.** RWO PVC, single-filesystem view constraint. A separate pod would require RWX PVC + larger redesign; out of scope for v1.
 - **Fork binary shipped via `vibe-kanban-build` artifact image, not a GitHub Release.** `COPY --from` is the idiomatic Docker cross-build primitive; stays in GHCR auth domain; no tarball download step.
 - **Bumper PRs are reviewable, not auto-merged.** Opt-in auto-merge label comes after the workflow has been trusted for a few cycles.
+- **One coalesced PR per fork SHA.** The bumper waits for both the `vk-remote` build (from the fork) and the `agent-images` rebuild to complete, then opens a single PR bumping all affected images (vk-remote, vk-local, kali) keyed on the fork SHA. Rationale: atomic review, atomic rollback, impossible to land a half-updated state.
 
 ## Out of scope (v2 candidates)
 
@@ -290,7 +291,6 @@ Rollback at any step: revert the frank PR. The old npm-based kali image is still
 - **VK database path stability:** the current npm-based VK writes SQLite to `~/.local/share/vibe-kanban/db.sqlite`. Confirm the `server` binary from the fork uses the same default path, or provide a config override. If path differs, a one-time migration step is needed during cutover.
 - **Resource limits for the vk-local sidecar:** today's VK child process is implicitly capped by the kali container's 32Gi memory limit. Split out explicit requests/limits for vk-local — probably 500m CPU / 2Gi memory, to be measured.
 - **Readiness probe for vk-local:** does the fork's `server` expose an HTTP `/health` endpoint, or do we TCP-probe 8081? Resolve before writing the deployment manifest.
-- **Bumper PR coalescing:** when a fork commit fires two dispatches (one from the fork to trigger agent-images, one from agent-images to trigger frank), do we want one coalesced PR bumping vk-remote + vk-local + kali, or two PRs? A single coalesced PR is cleaner but requires the bumper to wait for both SHAs. Two PRs are simpler to implement but could interleave with other pushes. Lean toward a single coalesced PR keyed on the fork SHA; confirm in the plan.
 
 ## Success criteria
 
