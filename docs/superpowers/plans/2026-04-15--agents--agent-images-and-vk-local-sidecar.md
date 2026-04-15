@@ -937,9 +937,9 @@ Phase 3 complete when a fork push reliably produces a reviewable frank PR withou
 
 **Issue:** The `vibe-kanban-build` artifact image is published to GHCR from the private `derio-net/vibe-kanban` repo, so it inherits private visibility. The `agent-images` CI uses `GITHUB_TOKEN` scoped to its own repo, which cannot pull cross-repo private packages. Result: `vk-local` build fails with `403 Forbidden` when pulling `ghcr.io/derio-net/vibe-kanban-build:latest`.
 
-**Fix required (manual):** Make the `vibe-kanban-build` package public via GitHub Settings → Packages → vibe-kanban-build → Danger Zone → Change visibility → Public. Alternatively, add a PAT with `read:packages` scope as `GHCR_READ_TOKEN` secret in `derio-net/agent-images` and use it for Docker login.
+**Fix applied (manual):** Made `vibe-kanban-build` package public via GitHub Settings. Re-triggered agent-images CI — `vk-local` now builds and publishes successfully.
 
-**Impact:** All Phase 1 code changes (Dockerfiles, CI workflows) are correct and committed. Once visibility is fixed, re-triggering the agent-images CI will produce a working `vk-local` image.
+**Impact:** Resolved. `vk-local:325b23e` published to GHCR.
 
 ### Phase 1 Deviation: Server Dockerfile build deps
 
