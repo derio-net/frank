@@ -1,0 +1,90 @@
+name: Bump agent image SHAs
+
+on:
+  repository_dispatch:
+    types: [agent-images-bumped]
+  workflow_dispatch:
+    inputs:
+      agent_images_sha:
+        description: agent-images commit SHA to bump to
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: read
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve SHAs
+        id: shas
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DISPATCH_SHA: ${{ github.event.client_payload.agent_images_sha }}
+          INPUT_SHA: ${{ inputs.agent_images_sha }}
+        run: |
+          AI_SHA="${DISPATCH_SHA:-$INPUT_SHA}"
+          if ! [[ "$AI_SHA" =~ ^[a-f0-9]{7,40}$ ]]; then
+            echo "::error::Invalid agent_images_sha: must be 7-40 hex chars"
+            exit 1
+          fi
+
+          # vk-remote: resolve latest tag from GHCR (7-char short SHA from metadata-action)
+          VKR_SHA=$(gh api /orgs/derio-net/packages/container/vk-remote/versions \
+            --jq '.[0].metadata.container.tags[] | select(. != "latest")' 2>/dev/null || true)
+
+          echo "ai_sha=$AI_SHA"   >> "$GITHUB_OUTPUT"
+          echo "vkr_sha=$VKR_SHA" >> "$GITHUB_OUTPUT"
+          echo "Resolved: AI_SHA=$AI_SHA VKR_SHA=$VKR_SHA"
+
+      - name: Update manifests
+        env:
+          AI_SHA: ${{ steps.shas.outputs.ai_sha }}
+          VKR_SHA: ${{ steps.shas.outputs.vkr_sha }}
+        run: |
+          sed -i "s|ghcr.io/derio-net/secure-agent-kali:[a-f0-9]\+|ghcr.io/derio-net/secure-agent-kali:$AI_SHA|g" \
+            apps/secure-agent-pod/manifests/deployment.yaml
+          sed -i "s|ghcr.io/derio-net/vk-local:[a-f0-9]\+|ghcr.io/derio-net/vk-local:$AI_SHA|g" \
+            apps/secure-agent-pod/manifests/deployment.yaml
+
+          if [ -n "$VKR_SHA" ]; then
+            sed -i "s|ghcr.io/derio-net/vk-remote:[a-f0-9]\+|ghcr.io/derio-net/vk-remote:$VKR_SHA|g" \
+              apps/vk-remote/manifests/deployment.yaml
+          else
+            echo "::warning::Could not resolve vk-remote SHA — skipping vk-remote bump"
+          fi
+
+      - name: Open PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          AI_SHA: ${{ steps.shas.outputs.ai_sha }}
+          VKR_SHA: ${{ steps.shas.outputs.vkr_sha }}
+        run: |
+          git config user.name  "clawdia-bumper[bot]"
+          git config user.email "clawdia-bumper[bot]@users.noreply.github.com"
+
+          BRANCH="bump/agent-images-${AI_SHA:0:7}"
+          git checkout -b "$BRANCH"
+
+          if git diff --quiet; then
+            echo "No changes to bump."
+            exit 0
+          fi
+
+          git add apps/
+          BODY="agent-images: \`$AI_SHA\`"
+          if [ -n "$VKR_SHA" ]; then
+            git commit -m "chore(agents): bump agent-images to ${AI_SHA:0:7}, vk-remote to ${VKR_SHA:0:7}"
+            BODY="$BODY"$'\n'"vk-remote: \`$VKR_SHA\`"
+          else
+            git commit -m "chore(agents): bump agent-images to ${AI_SHA:0:7}"
+          fi
+
+          git push origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --title "chore(agents): bump agent-images + vk-remote" \
+            --body "$BODY"
