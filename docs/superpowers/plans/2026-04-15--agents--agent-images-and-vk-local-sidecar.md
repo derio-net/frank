@@ -1,7 +1,7 @@
 # Agent Images & vk-local Sidecar — Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-04-15--agents--agent-images-and-vk-local-sidecar-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **Goal:** Replace the in-process VibeKanban (npm-installed, baked into `secure-agent-kali`) with a shared-volume sidecar built from the fork, and move the Kali Dockerfile into a new multi-image repo (`derio-net/agent-images`) that also produces a common `agent-base` image for future pods. Add a lockstep bumper in frank that opens a single PR whenever fork or base SHAs move.
 
@@ -69,7 +69,7 @@ verify:
 status: done
 ```
 
-- [ ] **Step 1: Verify the repo exists and is cloneable.**
+- [x] **Step 1: Verify the repo exists and is cloneable.**
 
 ```bash
 gh repo view derio-net/agent-images
@@ -81,7 +81,7 @@ ls ~/repos/agent-images/README.md
 **Files:**
 - Create: `base/Dockerfile`
 
-- [ ] **Step 1: Write the base Dockerfile at `agent-images/base/Dockerfile`.**
+- [x] **Step 1: Write the base Dockerfile at `agent-images/base/Dockerfile`.**
 
 ```dockerfile
 # BEGIN base/Dockerfile
@@ -135,7 +135,7 @@ CMD ["bash"]
 # END base/Dockerfile
 ```
 
-- [ ] **Step 2: Smoke-test locally.**
+- [-] **Step 2: Smoke-test locally.** *(skipped — no docker daemon available in agent pod; CI build validates)*
 
 ```bash
 cd ~/repos/agent-images
@@ -149,7 +149,7 @@ docker run --rm agent-base:dev bash -c 'id && claude --version && gh --version &
 **Files:**
 - Create: `.github/workflows/build.yaml`
 
-- [ ] **Step 1: Write the workflow at `agent-images/.github/workflows/build.yaml`.**
+- [x] **Step 1: Write the workflow at `agent-images/.github/workflows/build.yaml`.**
 
 ```yaml
 # BEGIN .github/workflows/build.yaml
@@ -237,7 +237,7 @@ jobs:
 # END .github/workflows/build.yaml
 ```
 
-- [ ] **Step 2: Configure `DISPATCH_PAT` secret.**
+- [-] **Step 2: Configure `DISPATCH_PAT` secret.** *(deferred — manual operation, dispatch-frank job will fail gracefully until PAT is configured)*
 
 ```yaml
 # manual-operation
@@ -262,7 +262,7 @@ status: pending
 - Create: `kali/assets/sshd_config`
 - Create: `kali/assets/crontab.txt`
 
-- [ ] **Step 1: Copy runtime assets from the existing `secure-agent-kali` repo.**
+- [x] **Step 1: Copy runtime assets from the existing `secure-agent-kali` repo.**
 
 ```bash
 cd ~/repos/agent-images
@@ -277,7 +277,7 @@ cat /tmp/kali-inventory.txt
 # Expect: small file list — reconcile anything unexpected into kali/assets/
 ```
 
-- [ ] **Step 2: Write `kali/Dockerfile`.**
+- [x] **Step 2: Write `kali/Dockerfile`.**
 
 ```dockerfile
 # BEGIN kali/Dockerfile
@@ -329,7 +329,7 @@ ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]
 # END kali/Dockerfile
 ```
 
-- [ ] **Step 3: Strip VibeKanban from the entrypoint.**
+- [x] **Step 3: Strip VibeKanban from the entrypoint.**
 
 Remove any line matching `vibe-kanban`, `vibekanban`, or port 8081 from `kali/entrypoint.sh`. The sshd+supercronic bootstrap remains.
 
@@ -339,7 +339,7 @@ grep -ni 'vibe\|8081' kali/entrypoint.sh
 # Expected after edit: no matches
 ```
 
-- [ ] **Step 4: Commit and push.**
+- [x] **Step 4: Commit and push.**
 
 ```bash
 cd ~/repos/agent-images
@@ -348,7 +348,7 @@ git commit -m "feat: initial agent-base and secure-agent-kali images (VK strippe
 git push
 ```
 
-- [ ] **Step 5: Verify CI green and images published.**
+- [x] **Step 5: Verify CI green and images published.** *(agent-base pushed to GHCR; secure-agent-kali BUILD succeeded but PUSH failed — GHCR package is still linked to old `secure-agent-kali` repo. Manual fix: org owner must add `agent-images` repo to the package's linked repositories, then re-run CI)*
 
 ```bash
 gh run watch --repo derio-net/agent-images
@@ -358,7 +358,7 @@ gh api /users/derio-net/packages/container/secure-agent-kali/versions --jq '.[0]
 
 ### Task 5: Validate kali image parity
 
-- [ ] **Step 1: Boot the new image locally and check tool surface.**
+- [-] **Step 1: Boot the new image locally and check tool surface.** *(deferred — kali image not yet pushed to GHCR; will validate after package permissions are fixed)*
 
 ```bash
 SHA=$(gh api /repos/derio-net/agent-images/commits/main --jq '.sha')
@@ -371,7 +371,7 @@ docker run --rm ghcr.io/derio-net/secure-agent-kali:$SHA bash -c '
 # Expected: uid=1000(claude), every tool resolves, no MISSING output
 ```
 
-- [ ] **Step 2: Confirm no VibeKanban residue.**
+- [-] **Step 2: Confirm no VibeKanban residue.** *(deferred — same as T5.S1)*
 
 ```bash
 docker run --rm ghcr.io/derio-net/secure-agent-kali:$SHA bash -c '
