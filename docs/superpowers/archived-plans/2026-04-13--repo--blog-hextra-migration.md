@@ -5,7 +5,7 @@
 > **For dispatch:** Use vk-dispatch to create Issues from this plan.
 
 **Spec:** `docs/superpowers/specs/2026-04-13--repo--blog-hextra-migration-design.md`
-**Status:** In Progress
+**Status:** Complete
 
 **Goal:** Migrate the Frank blog from PaperMod to Hextra theme, gaining sidebar navigation, built-in search, and a modern documentation aesthetic, plus a client-side read-tracking feature.
 **Architecture:** In-place swap in `blog/` directory. PaperMod git submodule replaced by Hextra Hugo module. Content moved under `content/docs/` for sidebar navigation. Custom shortcodes ported. New read-tracking JS via localStorage.

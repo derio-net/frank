@@ -11,7 +11,7 @@
 **Tech Stack:** Hugo shortcodes, asciinema-player 3.9.0 (CDN), PaperMod CSS variables
 
 **Spec:** `docs/superpowers/specs/2026-04-09--repo--blog-media-infrastructure-design.md`
-**Status:** In Progress
+**Status:** Complete
 
 ---
 
@@ -32,7 +32,7 @@
 **Files:**
 - Create: `blog/layouts/shortcodes/asciinema.html`
 
-- [ ] **Step 1: Create the shortcode**
+- [x] **Step 1: Create the shortcode** *(already created in prior session)*
 
 ```html
 {{- $src := .Get "src" -}}
