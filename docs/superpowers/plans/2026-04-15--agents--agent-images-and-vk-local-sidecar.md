@@ -46,6 +46,7 @@ repository_dispatch─────┘           repository_dispatch────�
 ---
 
 ## Phase 0: Bootstrap `agent-images` repo with base + kali [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/79 -->
 
 **Target repo:** `derio-net/agent-images` (new)
 **Outcome:** Both images build green in CI and publish to GHCR. `secure-agent-kali` image is functionally identical to today's live image. Nothing deployed yet.
@@ -385,6 +386,7 @@ Phase 0 complete when both lines above print `(good)`.
 ---
 
 ## Phase 1: VK fork artifact + `vk-local` image [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/80 -->
 
 **Target repos:** `derio-net/vibe-kanban` + `derio-net/agent-images`
 **Outcome:** Fork publishes a `vibe-kanban-build` artifact image; `agent-images` builds `vk-local` consuming it. No deployment change.
@@ -572,6 +574,7 @@ Phase 1 complete when `vk-local:<sha>` exists in GHCR and boots locally.
 ---
 
 ## Phase 2: Sidecar deployment + kali cutover [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/81 -->
 
 **Target repo:** `derio-net/frank`
 **Outcome:** `secure-agent-pod` runs two containers sharing `/home/claude`; kali no longer installs or starts VibeKanban. **Two bounce gates.**
@@ -790,6 +793,7 @@ Phase 2 complete.
 ---
 
 ## Phase 3: Lockstep bumper workflow [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/82 -->
 
 **Target repo:** `derio-net/frank`
 **Outcome:** A fork push results in a single coalesced PR bumping `vk-remote`, `vk-local`, and `secure-agent-kali`. First cycle is a dry run.
