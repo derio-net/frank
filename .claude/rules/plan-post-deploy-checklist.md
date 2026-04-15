@@ -8,14 +8,19 @@ When creating a plan for a **standard layer** (new deployment, not a fix/extensi
 
 ### Task N: Post-Deploy Checklist
 
-- [ ] **Step 1: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/docs/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
-- [ ] **Step 2: Write operating blog post** — Use `/blog-post` skill for the companion operating guide. Update operating series index in `blog/content/docs/building/00-overview/index.md`
-- [ ] **Step 3: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
-- [ ] **Step 4: Sync runbook** — Run `/sync-runbook` if the plan contains any `# manual-operation` blocks
-- [ ] **Step 5: Update plan status** — Set `**Status:**` to `Deployed` (cluster workload) or `Complete` (repo/meta work)
+- [ ] **Step 1: Expose externally (if user-facing)** — For any new service reachable by humans from outside the cluster (e.g. `vk.cluster.derio.net`):
+  - Add a Traefik IngressRoute in `apps/traefik/manifests/ingressroutes.yaml` (with `authentik-forwardauth` middleware if SSO is required — see `frank-argocd.md` for the full forward-auth wiring, including the manual outpost-provider assignment)
+  - Add a tile to the homepage dashboard at `master.cluster.derio.net` via `apps/homepage/manifests/configmap-services.yaml` (icon, category, description, URL)
+  - Document the exposure (domain, auth mode, any manual steps) in the plan's deployment section and in the building blog post
+- [ ] **Step 2: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/docs/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
+- [ ] **Step 3: Write operating blog post** — Use `/blog-post` skill for the companion operating guide. Update operating series index in `blog/content/docs/building/00-overview/index.md`
+- [ ] **Step 4: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
+- [ ] **Step 5: Sync runbook** — Run `/sync-runbook` if the plan contains any `# manual-operation` blocks
+- [ ] **Step 6: Update plan status** — Set `**Status:**` to `Deployed` (cluster workload) or `Complete` (repo/meta work)
 
 **When to skip steps:**
 - Fix/extension plans: skip blog posts (update the existing layer's posts instead). Add gotchas to `.claude/rules/frank-gotchas.md` or `hop-gotchas.md` if applicable.
+- Internal-only services (no public/mesh domain, no homepage tile): skip Step 1.
 - Meta/repo plans (`repo` layer): skip blog posts and README unless the change is user-visible.
 - Investigation/audit plans: skip all — these are diagnostic, not deployments.
 
