@@ -299,3 +299,9 @@ Rollback at any step: revert the frank PR. The old npm-based kali image is still
 - `secure-agent-kali` image contains no VibeKanban binary, no npm install of `vibe-kanban`, no `vibe-kanban &` in entrypoint.
 - Adding a new agent pod (e.g., hermes) consists of adding one Dockerfile to `agent-images/hermes/`, not inventing a new image pipeline.
 - Adding a new tool needed by two+ pods requires editing exactly one Dockerfile (the base).
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Agent Images & vk-local Sidecar — Implementation Plan |  | `docs/superpowers/plans/2026-04-15--agents--agent-images-and-vk-local-sidecar.md` | Not Started | — |

@@ -23,6 +23,7 @@ post_deploy:
   name: "Post-Deploy Checklist"
   type: manual
   steps:
+    - "Expose externally (if user-facing) — add Traefik IngressRoute in apps/traefik/manifests/ingressroutes.yaml (with authentik-forwardauth if SSO required), add tile to homepage dashboard (master.cluster.derio.net) via apps/homepage/manifests/configmap-services.yaml, document domain+auth in plan and building blog post"
     - "Write building blog post — Use /blog-post skill"
     - "Write operating blog post — Use /blog-post skill"
     - "Update README — Run /update-readme"
@@ -32,6 +33,7 @@ post_deploy:
     - "fix/extension plans"
     - "meta/repo layer"
     - "investigation/audit plans"
+    - "internal-only services (skip external-exposure step only)"
 
 dispatch:
   target: github-issues
