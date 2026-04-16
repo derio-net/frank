@@ -1,9 +1,12 @@
 # Argo Rollouts — progressive delivery controller
 # Layer 18 (deploy)
-# Cilium traffic router plugin loaded via argo-rollouts-extras manifests
 
 controller:
   replicas: 1
+  # Cilium traffic router plugin — downloaded on controller startup
+  trafficRouterPlugins:
+    - name: "argoproj-labs/cilium"
+      location: "https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-cilium/releases/download/v0.4.1/rollouts-plugin-trafficrouter-cilium-linux-amd64"
 
 # Dashboard UI is out of scope — kubectl plugin is sufficient
 dashboard:

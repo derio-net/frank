@@ -29,3 +29,16 @@ spec:
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+  # CRDs from the argo-rollouts chart carry labels/annotations rendered by the chart
+  # that the cluster-side CRDs don't match (rendered with a newer chart's default
+  # label set vs. the CRDs from when they were first applied). Apply/serverside-apply
+  # succeeds each sync but the three-way diff immediately flags them again. Ignoring
+  # metadata fields keeps the schema in sync while silencing the noise.
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /metadata/labels
+        - /metadata/annotations
+        - /spec/preserveUnknownFields
