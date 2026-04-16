@@ -7,4 +7,5 @@ dependencies = [
     "google-genai",
     "pillow",
     "pyyaml",
+    "ruamel.yaml",
 ]
