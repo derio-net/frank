@@ -20,3 +20,13 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  # Same CRD metadata drift pattern as tekton-pipelines — vendored release.yaml
+  # vs live labels/annotations (tracking-id, last-applied-configuration).
+  ignoreDifferences:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      jsonPointers:
+        - /metadata/labels
+        - /metadata/annotations
+        - /spec/preserveUnknownFields
