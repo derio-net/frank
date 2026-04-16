@@ -51,6 +51,9 @@ omni/omni/populate_scripts.bash
 # Superpowers brainstorm sessions
 .superpowers/
 
+# Claude Code scheduled-task runtime lock (transient)
+.claude/scheduled_tasks.lock
+
 # Hugo
 blog/public/
 blog/resources/_gen/

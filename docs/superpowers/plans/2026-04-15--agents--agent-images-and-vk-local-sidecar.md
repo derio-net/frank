@@ -571,6 +571,24 @@ Record the path (e.g. `/v1/health` or `/health`); used in Phase 2 readiness prob
 
 Phase 1 complete when `vk-local:<sha>` exists in GHCR and boots locally.
 
+### Dispatch chain verification (2026-04-16)
+
+End-to-end test triggered by `gh workflow run build-remote.yml --repo derio-net/vibe-kanban` on SHA `5bd749c`:
+
+| Repo | Run | Trigger | Result |
+|------|-----|---------|--------|
+| vibe-kanban | [24526352128](https://github.com/derio-net/vibe-kanban/actions/runs/24526352128) | `workflow_dispatch` | ✅ `build`, `build-server-artifact`, `dispatch-agent-images` all success |
+| agent-images | [24526386291](https://github.com/derio-net/agent-images/actions/runs/24526386291) | `repository_dispatch` (from vibe-kanban) | ✅ `build-base`, `vk-local`, `secure-agent-kali`, `dispatch-frank` all success |
+| frank | — | `repository_dispatch` (from agent-images) | ⏳ No listener yet — bumper workflow is Phase 3 scope |
+
+Confirmed images published to GHCR:
+- `ghcr.io/derio-net/vibe-kanban-build:5bd749cc982b24cf4daf9c4ee024cb2e50c3f037`
+- `ghcr.io/derio-net/vk-local:325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b`
+- `ghcr.io/derio-net/secure-agent-kali:325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b`
+- `ghcr.io/derio-net/agent-base:325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b`
+
+All Phase 1 deliverables verified. Phase 2 can proceed.
+
 ---
 
 ## Phase 2: Sidecar deployment + kali cutover [agentic]
@@ -937,9 +955,9 @@ Phase 3 complete when a fork push reliably produces a reviewable frank PR withou
 
 **Issue:** The `vibe-kanban-build` artifact image is published to GHCR from the private `derio-net/vibe-kanban` repo, so it inherits private visibility. The `agent-images` CI uses `GITHUB_TOKEN` scoped to its own repo, which cannot pull cross-repo private packages. Result: `vk-local` build fails with `403 Forbidden` when pulling `ghcr.io/derio-net/vibe-kanban-build:latest`.
 
-**Fix required (manual):** Make the `vibe-kanban-build` package public via GitHub Settings → Packages → vibe-kanban-build → Danger Zone → Change visibility → Public. Alternatively, add a PAT with `read:packages` scope as `GHCR_READ_TOKEN` secret in `derio-net/agent-images` and use it for Docker login.
+**Fix applied (manual):** Made `vibe-kanban-build` package public via GitHub Settings. Re-triggered agent-images CI — `vk-local` now builds and publishes successfully.
 
-**Impact:** All Phase 1 code changes (Dockerfiles, CI workflows) are correct and committed. Once visibility is fixed, re-triggering the agent-images CI will produce a working `vk-local` image.
+**Impact:** Resolved. `vk-local:325b23e` published to GHCR.
 
 ### Phase 1 Deviation: Server Dockerfile build deps
 
