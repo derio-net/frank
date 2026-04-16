@@ -29,8 +29,7 @@ spec:
       - CreateNamespace=false
       - RespectIgnoreDifferences=true
   ignoreDifferences:
-    - group: ""
-      kind: Secret
+    - kind: Secret
       name: authentik-secrets
       namespace: authentik
       jsonPointers:

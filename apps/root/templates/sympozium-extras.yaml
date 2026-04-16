@@ -22,7 +22,6 @@ spec:
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
   ignoreDifferences:
-    - group: ""
-      kind: Service
+    - kind: Service
       jsonPointers:
         - /spec/selector
