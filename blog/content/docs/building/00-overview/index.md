@@ -123,3 +123,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 20. [Operating on VK Relay]({{< relref "/docs/operating/20-vk-relay" >}})
 21. [Operating on VK Remote]({{< relref "/docs/operating/21-vk-remote" >}})
 22. [Operating on CI/CD Platform]({{< relref "/docs/operating/22-cicd-platform" >}})
+23. [Operating on ArgoCD Drift]({{< relref "/docs/operating/23-argocd-drift-detective" >}})

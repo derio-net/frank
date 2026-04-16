@@ -985,3 +985,25 @@ images:
       with white pupils, RJ45 neck bolts sparking faint blue electricity.
       Calm operational mood — routine CI/CD monitoring. Dark server room
       with blue, green, and orange lighting accents.
+
+  - key: ops-23-argocd-drift-detective
+    output: blog/content/docs/operating/23-argocd-drift-detective/cover.png
+    description: "Operating on ArgoCD Drift — Frank as a detective pinning up drift evidence"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster in a detective pose,
+      standing in a dimly lit server room in front of a large corkboard
+      investigation wall. The wall is covered in small ArgoCD application
+      cards pinned up with red string connecting them — each card shows an
+      "OutOfSync" banner and a snippet of YAML with highlighted mismatches
+      between "git" and "live" columns. He holds a glowing magnifying glass
+      in his right hand, focused on one central card labelled
+      "argo-rollouts" that has a flashing red sticker reading "21 DAYS
+      CRASHLOOP" underneath the OutOfSync badge. His other hand holds a
+      small notebook with tally marks for seven drift classes. Expression
+      is focused concentration — brow furrowed, slight frown, eyes sharp.
+      In the background, server racks with blinking LEDs and faint holographic
+      kubectl terminal output. Green skin, messy black hair, black eyes with
+      white pupils, RJ45 neck bolts sparking faint blue electricity. Dark
+      server room with cool blue lighting and warm amber accents from the
+      corkboard pins and magnifying glass glow. Detective-noir mood, cartoon
+      illustration style.
