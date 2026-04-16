@@ -653,7 +653,7 @@ Append to `spec.template.spec.containers` (do NOT modify the kali container yet)
 
 Replace `<PHASE_1_SHA>` with the agent-images SHA from Phase 1 Task 2 Step 3. Confirm the `/v1/health` path from Phase 1 Task 3 Step 2.
 
-- [ ] **Step 3: Commit + push the branch; open PR. Do NOT merge.**
+- [x] **Step 3: Commit + push the branch; open PR. Do NOT merge.** *(opened as PR [#86](https://github.com/derio-net/frank/pull/86) on branch `vk/d112-ffe-37-gh-81` — the VK-worktree branch — instead of a fresh `feat/vk-local-sidecar`)*
 
 ```bash
 cd ~/repos/frank
@@ -664,7 +664,7 @@ git push -u origin feat/vk-local-sidecar
 gh pr create --title "feat(agents): add vk-local sidecar" --body "Spec: docs/superpowers/specs/2026-04-15--agents--agent-images-and-vk-local-sidecar-design.md" --base main
 ```
 
-- [ ] **Step 4: [bounce-gate] Pre-bounce checklist.**
+- [x] **Step 4: [bounce-gate] Pre-bounce checklist.**
 
 Run the protocol from the top of this plan. Confirmations:
 1. `git status` clean in `frank`, `agent-images`, `vibe-kanban`.
