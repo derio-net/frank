@@ -27,6 +27,7 @@ spec:
     syncOptions:
       - ServerSideApply=true
       - CreateNamespace=false
+      - RespectIgnoreDifferences=true
   ignoreDifferences:
     - kind: Secret
       name: infisical-secrets
@@ -38,3 +39,11 @@ spec:
       namespace: infisical
       jsonPointers:
         - /data
+    # Infisical chart stamps an updatedAt timestamp on the Deployment pod
+    # template on every render, causing permanent drift.
+    - group: apps
+      kind: Deployment
+      name: infisical-infisical-standalone-infisical
+      namespace: infisical
+      jsonPointers:
+        - /spec/template/metadata/annotations/updatedAt

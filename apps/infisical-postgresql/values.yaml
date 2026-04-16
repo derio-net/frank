@@ -21,3 +21,8 @@ primary:
   persistence:
     size: 5Gi
     storageClass: longhorn
+  # Single-replica standalone Postgres — PDB provides no protection with a
+  # single pod, and the chart-rendered PDB (maxUnavailable: "") diverges
+  # from the Kubernetes-defaulted live state, causing permanent drift.
+  pdb:
+    create: false

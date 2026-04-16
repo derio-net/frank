@@ -34,3 +34,13 @@ spec:
     - kind: Secret
       jsonPointers:
         - /data
+    # vCluster chart injects a vClusterConfigHash annotation on the
+    # StatefulSet pod template that rotates whenever the vcluster
+    # configuration changes. ArgoCD and the chart compute the hash
+    # against slightly different inputs so it oscillates.
+    - group: apps
+      kind: StatefulSet
+      name: experiments
+      namespace: vcluster-experiments
+      jsonPointers:
+        - /spec/template/metadata/annotations/vClusterConfigHash

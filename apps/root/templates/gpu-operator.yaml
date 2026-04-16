@@ -31,3 +31,15 @@ spec:
     syncOptions:
       - CreateNamespace=false
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  # The GPU Operator webhook defaults dozens of ClusterPolicy sub-fields that
+  # we intentionally leave unset in values.yaml (driver off, toolkit off,
+  # CDI off — Talos handles the driver stack). Fighting the webhook field
+  # by field isn't worth it; ignoring the entire /spec keeps the chart's
+  # intended config in place without churning on operator-added defaults.
+  ignoreDifferences:
+    - group: nvidia.com
+      kind: ClusterPolicy
+      name: cluster-policy
+      jsonPointers:
+        - /spec

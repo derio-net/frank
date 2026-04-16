@@ -38,3 +38,15 @@ spec:
       kind: ValidatingWebhookConfiguration
       jqPathExpressions:
         - .webhooks[].clientConfig.caBundle
+    # Grafana chart adds checksum/* annotations to the pod template that
+    # rotate whenever the chart re-renders its child ConfigMap/Secret
+    # objects. ArgoCD and Helm compute these checksums against slightly
+    # different inputs, so the annotations oscillate forever.
+    - group: apps
+      kind: Deployment
+      name: victoria-metrics-grafana
+      namespace: monitoring
+      jsonPointers:
+        - /spec/template/metadata/annotations/checksum~1config
+        - /spec/template/metadata/annotations/checksum~1sc-dashboard-provider-config
+        - /spec/template/metadata/annotations/checksum~1secret
