@@ -34,13 +34,16 @@ spec:
     - kind: Secret
       jsonPointers:
         - /data
-    # vCluster chart injects a vClusterConfigHash annotation on the
-    # StatefulSet pod template that rotates whenever the vcluster
-    # configuration changes. ArgoCD and the chart compute the hash
-    # against slightly different inputs so it oscillates.
+    # vCluster chart injects a vClusterConfigHash annotation and omits
+    # several StatefulSet fields that Kubernetes defaults (whenScaled,
+    # revisionHistoryLimit, updateStrategy). Ignoring those keeps the
+    # essential spec in sync without fighting defaulted fields.
     - group: apps
       kind: StatefulSet
       name: experiments
       namespace: vcluster-experiments
       jsonPointers:
         - /spec/template/metadata/annotations/vClusterConfigHash
+        - /spec/persistentVolumeClaimRetentionPolicy/whenScaled
+        - /spec/revisionHistoryLimit
+        - /spec/updateStrategy
