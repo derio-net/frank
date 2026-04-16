@@ -17,6 +17,7 @@ operating blog post documenting each class, how to diagnose, and how to fix.
 | End of Phase 1 | 19 | Class E (Namespace), F (ad-hoc Job/PR), B (prune:false normalization) + bonus: group:"" normalization resolved |
 | End of Phase 2 | 10 | Class A: pinned 4 ES CRD defaults across 16 manifests → 9 apps moved to Synced |
 | Phase 3 Task 1 (argo-rollouts) | 10 | CRD adoption blocked by chart/live label diff. Added narrow ignoreDifferences on CRD metadata. **Unmasked real bug:** 21-day argo-rollouts controller crashloop from a bogus Cilium trafficRouterPlugin URL (the plugin was never published). Removed plugin config, controller Running again. |
+| End of Phase 3 (Tekton adoption) | 7 | Same CRD metadata ignoreDifferences pattern applied to tekton-pipelines and tekton-dashboard. tekton-extras stays OOS on Task/Pipeline/EventListener despite kubectl apply --dry-run showing no diff — a known ArgoCD-Tekton SSA comparison quirk (syncResult reports Synced, comparison immediately re-flags). Investigating in Phase 5 or accepting as residual. |
 
 ---
 
