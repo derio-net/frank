@@ -3,10 +3,11 @@
 
 controller:
   replicas: 1
-  # Cilium traffic router plugin — downloaded on controller startup
-  trafficRouterPlugins:
-    - name: "argoproj-labs/cilium"
-      location: "https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-cilium/releases/download/v0.4.1/rollouts-plugin-trafficrouter-cilium-linux-amd64"
+  # Note: the Cilium traffic router plugin referenced in the original extras
+  # ConfigMap points to a release URL that 404s — the plugin was never
+  # published on GitHub. The controller crash-looped for 21 days because of
+  # this. Leaving plugin config unset until a real Cilium traffic router
+  # plugin exists. Canary/blueGreen on Deployments still work without it.
 
 # Dashboard UI is out of scope — kubectl plugin is sufficient
 dashboard:
