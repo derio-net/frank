@@ -18,7 +18,7 @@ This plan **cannot** run uninterrupted by a single VK agent session. Phase 2 bou
 2. `git rev-parse HEAD` equals `git rev-parse @{u}` (local matches remote).
 3. Repeat (1)+(2) for any sibling repo touched this phase (`agent-images`, `vibe-kanban`).
 4. Update plan checkboxes for every completed step this phase; commit+push.
-5. Write a breadcrumb in `docs/superpowers/plans/RESUMING.md`: next step number, current expected state, how to verify the bounce worked.
+5. Write a breadcrumb in `docs/superpowers/RESUMING.md`: next step number, current expected state, how to verify the bounce worked.
 6. Stop. A human (or another-host session) performs the merge.
 
 **After the bounce** — the resumer MUST:
@@ -550,7 +550,7 @@ gh api /users/derio-net/packages/container/vk-local/versions --jq '.[0].name'
 
 ### Task 3: Smoke-test vk-local
 
-- [ ] **Step 1: Boot locally, check it serves.**
+- [-] **Step 1: Boot locally, check it serves.** *(skipped — no docker daemon in agent pod; replaced by dispatch chain verification below, which confirmed `vk-local:325b23e` built and published successfully)*
 
 ```bash
 SHA=$(gh api /repos/derio-net/agent-images/commits/main --jq '.sha')
@@ -602,7 +602,7 @@ All Phase 1 deliverables verified. Phase 2 can proceed.
 **Files:**
 - Modify: `apps/secure-agent-pod/manifests/deployment.yaml`
 
-- [ ] **Step 1: Measure the current VK child-process footprint.**
+- [x] **Step 1: Measure the current VK child-process footprint.** *(node VK process: PID 52, RSS 521232 KB (≈509 MiB), 0.0% CPU. Native binary child idle. Plan's 200m CPU / 512Mi request / 2Gi limit sizing retained — headroom matches actual usage.)*
 
 ```bash
 kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- \
@@ -611,7 +611,7 @@ kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- \
 
 Record RSS (KB) and CPU% — use to size the sidecar's requests/limits (typical: 200m CPU, 512Mi req, 2Gi limit).
 
-- [ ] **Step 2: Add the sidecar container to `deployment.yaml`.**
+- [x] **Step 2: Add the sidecar container to `deployment.yaml`.** *(image `vk-local:325b23e`; health probe path `/api/health` per Phase 1 Deviation; no `containerPort` name clash with kali's `vk-http` — sidecar relies on pod network namespace sharing)*
 
 Append to `spec.template.spec.containers` (do NOT modify the kali container yet):
 
@@ -653,7 +653,7 @@ Append to `spec.template.spec.containers` (do NOT modify the kali container yet)
 
 Replace `<PHASE_1_SHA>` with the agent-images SHA from Phase 1 Task 2 Step 3. Confirm the `/v1/health` path from Phase 1 Task 3 Step 2.
 
-- [ ] **Step 3: Commit + push the branch; open PR. Do NOT merge.**
+- [x] **Step 3: Commit + push the branch; open PR. Do NOT merge.** *(opened as PR [#86](https://github.com/derio-net/frank/pull/86) on branch `vk/d112-ffe-37-gh-81` — the VK-worktree branch — instead of a fresh `feat/vk-local-sidecar`)*
 
 ```bash
 cd ~/repos/frank
@@ -664,13 +664,13 @@ git push -u origin feat/vk-local-sidecar
 gh pr create --title "feat(agents): add vk-local sidecar" --body "Spec: docs/superpowers/specs/2026-04-15--agents--agent-images-and-vk-local-sidecar-design.md" --base main
 ```
 
-- [ ] **Step 4: [bounce-gate] Pre-bounce checklist.**
+- [x] **Step 4: [bounce-gate] Pre-bounce checklist.**
 
 Run the protocol from the top of this plan. Confirmations:
 1. `git status` clean in `frank`, `agent-images`, `vibe-kanban`.
 2. HEAD == `@{u}` in all three.
 3. Plan checkboxes updated for all completed work; committed+pushed.
-4. Write `docs/superpowers/plans/RESUMING.md`:
+4. Write `docs/superpowers/RESUMING.md`:
 
 ```markdown
 # RESUMING — Phase 2 Task A
@@ -996,4 +996,16 @@ Phase 3 complete when a fork push reliably produces a reviewable frank PR withou
 **Impact:** Dry-run and full dispatch chain verification must be performed after the PR merges to main. The workflow logic is verified by code review.
 
 ---
+
+## Phase 4: Post-Deploy Checklist [manual]
+
+Performed after all agentic phases merge. No tracking issue — added post-dispatch.
+
+- [-] **Step 1: Expose externally (if user-facing)** *(skipped — `vk.cluster.derio.net` Traefik IngressRoute + homepage tile already exist from the earlier VK deployment; sidecar cutover is transparent to external consumers)*
+- [ ] **Step 2: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/docs/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`. Topic: splitting VK into a sidecar + multi-image agent-images repo.
+- [-] **Step 3: Write operating blog post** *(skipped — no net-new day-to-day operations; the existing VibeKanban operating post covers usage. Troubleshooting notes on sidecar go into the building post.)*
+- [ ] **Step 4: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
+- [ ] **Step 5: Sync runbook** — Run `/sync-runbook` (plan contains multiple `# manual-operation` blocks)
+- [ ] **Step 6: Update plan status** — Set `**Status:**` to `Deployed`
+
 <!-- post_deploy:appended -->
