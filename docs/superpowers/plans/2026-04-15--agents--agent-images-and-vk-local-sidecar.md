@@ -571,6 +571,24 @@ Record the path (e.g. `/v1/health` or `/health`); used in Phase 2 readiness prob
 
 Phase 1 complete when `vk-local:<sha>` exists in GHCR and boots locally.
 
+### Dispatch chain verification (2026-04-16)
+
+End-to-end test triggered by `gh workflow run build-remote.yml --repo derio-net/vibe-kanban` on SHA `5bd749c`:
+
+| Repo | Run | Trigger | Result |
+|------|-----|---------|--------|
+| vibe-kanban | [24526352128](https://github.com/derio-net/vibe-kanban/actions/runs/24526352128) | `workflow_dispatch` | ✅ `build`, `build-server-artifact`, `dispatch-agent-images` all success |
+| agent-images | [24526386291](https://github.com/derio-net/agent-images/actions/runs/24526386291) | `repository_dispatch` (from vibe-kanban) | ✅ `build-base`, `vk-local`, `secure-agent-kali`, `dispatch-frank` all success |
+| frank | — | `repository_dispatch` (from agent-images) | ⏳ No listener yet — bumper workflow is Phase 3 scope |
+
+Confirmed images published to GHCR:
+- `ghcr.io/derio-net/vibe-kanban-build:5bd749cc982b24cf4daf9c4ee024cb2e50c3f037`
+- `ghcr.io/derio-net/vk-local:325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b`
+- `ghcr.io/derio-net/secure-agent-kali:325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b`
+- `ghcr.io/derio-net/agent-base:325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b`
+
+All Phase 1 deliverables verified. Phase 2 can proceed.
+
 ---
 
 ## Phase 2: Sidecar deployment + kali cutover [agentic]
