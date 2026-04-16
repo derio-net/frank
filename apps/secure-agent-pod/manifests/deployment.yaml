@@ -99,3 +99,49 @@ spec:
               port: ssh
             initialDelaySeconds: 30
             periodSeconds: 60
+        - name: vk-local
+          image: ghcr.io/derio-net/vk-local:325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b
+          env:
+            - name: PORT
+              value: "8081"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: VK_SHARED_API_BASE
+              value: "https://vk.cluster.derio.net"
+            - name: VK_SHARED_RELAY_API_BASE
+              value: "https://vk.cluster.derio.net"
+          envFrom:
+            - secretRef:
+                name: agent-secrets-tier1
+                optional: true
+            - secretRef:
+                name: agent-secrets-tier2
+                optional: true
+          volumeMounts:
+            - name: agent-home
+              mountPath: /home/claude
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "200m"
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8081
+            initialDelaySeconds: 30
+            periodSeconds: 30
