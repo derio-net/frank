@@ -18,6 +18,19 @@ operating blog post documenting each class, how to diagnose, and how to fix.
 | End of Phase 2 | 10 | Class A: pinned 4 ES CRD defaults across 16 manifests → 9 apps moved to Synced |
 | Phase 3 Task 1 (argo-rollouts) | 10 | CRD adoption blocked by chart/live label diff. Added narrow ignoreDifferences on CRD metadata. **Unmasked real bug:** 21-day argo-rollouts controller crashloop from a bogus Cilium trafficRouterPlugin URL (the plugin was never published). Removed plugin config, controller Running again. |
 | End of Phase 3 (Tekton adoption) | 7 | Same CRD metadata ignoreDifferences pattern applied to tekton-pipelines and tekton-dashboard. tekton-extras stays OOS on Task/Pipeline/EventListener despite kubectl apply --dry-run showing no diff — a known ArgoCD-Tekton SSA comparison quirk (syncResult reports Synced, comparison immediately re-flags). Investigating in Phase 5 or accepting as residual. |
+| End of Phase 4 (subchart orphans) | 6 (transient) | Deleted 7 gitea redis-cluster orphans + 11 infisical nginx/mongo/redis orphan configs. Gitea and infisical apps Synced immediately; infisical's remaining Deployment drift carried forward to Phase 5. |
+| **End of Phase 5 (render drift)** | **2** | Per-resource investigation + narrow ignoreDifferences: victoria-metrics (Grafana checksum annotations + deleted kubeControllerManager orphans), gpu-operator (wholesale /spec ignore — NVIDIA webhook defaults dozens of fields), vcluster-experiments (StatefulSet config hash + defaulted fields), infisical (updatedAt annotation), infisical-postgresql (disabled PDB entirely — standalone single-replica doesn't need it). |
+
+## Residuals (2 apps — Synced/Healthy functionally, drift reports only)
+
+| App | Cause | Disposition |
+|-----|-------|-------------|
+| `tekton-extras` | ArgoCD reports Task/Pipeline/EventListener OutOfSync even though `kubectl apply --dry-run=server` shows no delta and syncResult reports Synced. Probable ArgoCD-Tekton SSA comparison quirk with hook-phase tracking. | Accept. Investigate separately. |
+| `vcluster-experiments` | StatefulSet keeps flagging as OutOfSync despite narrow ignoreDifferences on every field I could identify as drifted (vClusterConfigHash, whenScaled, revisionHistoryLimit, updateStrategy). | Accept. Chart render likely normalizes a spec sub-field I haven't pinpointed. |
+
+**Baseline 20 → Final 2 OutOfSync apps (90% reduction).**
+All 20 originally-drifting apps are now Healthy. The two residuals are
+reporting-only; no workload is actually degraded.
 
 ---
 
