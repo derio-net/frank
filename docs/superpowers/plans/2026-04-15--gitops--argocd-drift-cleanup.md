@@ -2,7 +2,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-04-15--gitops--argocd-drift-cleanup-design.md`
 
-**Status:** In Progress
+**Status:** Complete
 
 **Goal:** Eliminate chronic OutOfSync state across 20 ArgoCD apps on Frank by
 systematically resolving 7 distinct drift classes, progressing from zero-risk
