@@ -23,7 +23,6 @@ spec:
     namespace: infisical
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - ServerSideApply=true

@@ -20,7 +20,6 @@ spec:
     namespace: intel-gpu-resource-driver
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true

@@ -27,7 +27,6 @@ spec:
     namespace: gpu-operator
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=false

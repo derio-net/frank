@@ -18,7 +18,6 @@ spec:
     namespace: argo-rollouts
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true

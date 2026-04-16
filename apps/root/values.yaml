@@ -5,3 +5,9 @@ targetRevision: main
 # Cluster destination
 destination:
   server: https://kubernetes.default.svc
+
+# Note: Application templates do NOT set automated.prune explicitly — the
+# schema default (false) is our project-wide convention (manual pruning only,
+# see .claude/rules/frank-argocd.md). ArgoCD normalizes explicit `prune: false`
+# to absent, which caused permanent drift on the root Application until we
+# dropped the line from the templates.

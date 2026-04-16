@@ -16,7 +16,6 @@ spec:
     namespace: authentik
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - ServerSideApply=true

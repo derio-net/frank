@@ -23,7 +23,6 @@ spec:
     namespace: paperclip-system
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - ServerSideApply=true

@@ -16,7 +16,6 @@ spec:
     namespace: gpu-switcher
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=false

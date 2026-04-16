@@ -16,7 +16,6 @@ spec:
     namespace: comfyui
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=false

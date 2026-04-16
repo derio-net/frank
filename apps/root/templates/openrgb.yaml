@@ -16,5 +16,4 @@ spec:
     namespace: openrgb
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true

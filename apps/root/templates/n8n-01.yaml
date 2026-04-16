@@ -16,7 +16,6 @@ spec:
     namespace: n8n-01
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=false

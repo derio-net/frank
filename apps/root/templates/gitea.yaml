@@ -23,7 +23,6 @@ spec:
     namespace: gitea
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true

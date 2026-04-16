@@ -16,7 +16,6 @@ spec:
     namespace: litellm
   syncPolicy:
     automated:
-      prune: false
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
