@@ -750,7 +750,7 @@ git diff apps/secure-agent-pod/manifests/deployment.yaml
 # Expected: exactly one hash changed on the kali image line
 ```
 
-- [ ] **Step 3: Commit, push, open PR — do NOT merge.**
+- [x] **Step 3: Commit, push, open PR — do NOT merge.** *(PR [#104](https://github.com/derio-net/frank/pull/104) on branch `chore/kali-cutover`; two commits — plan docs + manifest bump)*
 
 ```bash
 git checkout -b chore/kali-cutover
@@ -760,7 +760,7 @@ git push -u origin chore/kali-cutover
 gh pr create --title "chore(agents): kali cutover (VK stripped)" --body "Final Phase 2 step — removes VK from kali image." --base main
 ```
 
-- [ ] **Step 4: [bounce-gate] Pre-bounce checklist.**
+- [x] **Step 4: [bounce-gate] Pre-bounce checklist.** *(2026-04-17: frank/agent-images/vibe-kanban all clean, HEAD == @{u}; RESUMING.md updated with Task B breadcrumb; awaiting user merge)*
 
 Follow the protocol. `RESUMING.md` update:
 
