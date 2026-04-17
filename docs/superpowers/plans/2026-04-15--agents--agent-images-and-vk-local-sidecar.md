@@ -795,9 +795,9 @@ verify:
 status: pending
 ```
 
-- [ ] **Step 5: [after-bounce] Reconnect.**
+- [x] **Step 5: [after-bounce] Reconnect.** *(resumed 2026-04-17 from operator workstation after PR #104 merge)*
 
-- [ ] **Step 6: Verify cutover.**
+- [x] **Step 6: Verify cutover.** *(2026-04-17: pod 2/2 Running 0 restarts; `which vibe-kanban` → not found in kali; `pgrep vibe-kanban` → no matches; `curl http://192.168.55.218:8081/api/health` → 200; shared volume identical in both containers)*
 
 ```bash
 kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- sh -c 'command -v vibe-kanban; pgrep -a vibe-kanban || echo NO_PROCESS'
