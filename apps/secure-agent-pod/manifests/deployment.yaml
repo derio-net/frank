@@ -48,18 +48,11 @@ spec:
             - name: ssh
               containerPort: 2222  # Non-root sshd; Service maps 22→2222
               protocol: TCP
-            - name: vk-http
-              containerPort: 8081
-              protocol: TCP
           env:
             - name: PORT
-              value: "8081"
+              value: "18081"  # Deflect in-process VK to unused port; sidecar owns 8081
             - name: HOST
-              value: "0.0.0.0"
-            - name: VK_SHARED_API_BASE
-              value: "https://vk.cluster.derio.net"
-            - name: VK_SHARED_RELAY_API_BASE
-              value: "https://vk.cluster.derio.net"
+              value: "127.0.0.1"  # Bind only to loopback — not externally reachable
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1
@@ -101,6 +94,10 @@ spec:
             periodSeconds: 60
         - name: vk-local
           image: ghcr.io/derio-net/vk-local:325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b
+          ports:
+            - name: vk-http
+              containerPort: 8081
+              protocol: TCP
           env:
             - name: PORT
               value: "8081"
