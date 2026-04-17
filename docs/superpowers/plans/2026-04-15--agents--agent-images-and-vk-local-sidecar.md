@@ -896,7 +896,7 @@ git push
 
 ### Task 2: Dry-run the bumper
 
-- [-] **Step 1: Trigger manually with the current agent-images SHA.** *(deferred — `workflow_dispatch` requires workflow on default branch; must run after PR merge)*
+- [x] **Step 1: Trigger manually with the current agent-images SHA.** *(2026-04-17 post-merge of PR #85; run [24586433455](https://github.com/derio-net/frank/actions/runs/24586433455) — SHA resolution + manifest update succeeded, `gh pr create` step failed on Actions permissions — see deviation below)*
 
 ```bash
 AI_SHA=$(gh api /repos/derio-net/agent-images/commits/main --jq '.sha')
@@ -904,7 +904,7 @@ gh workflow run agent-images-bump.yaml --repo derio-net/frank -f agent_images_sh
 gh run watch --repo derio-net/frank
 ```
 
-- [-] **Step 2: Inspect the generated PR.** *(deferred — depends on Step 1)*
+- [x] **Step 2: Inspect the generated PR.** *(PR [#105](https://github.com/derio-net/frank/pull/105) created manually from the workflow-pushed `bump/agent-images-325b23e` branch; diff touched only `apps/vk-remote/manifests/deployment.yaml` — both vk-remote refs bumped `1cce857` → `5bd749c`. kali + vk-local already at current agent-images SHA, so no diff there — expected behavior after Phase 2 cutover.)*
 
 ```bash
 gh pr list --repo derio-net/frank --search "in:title bump agent-images" --json number,title,files
@@ -914,7 +914,7 @@ gh pr view <PR_NUMBER> --repo derio-net/frank
 #   apps/vk-remote/manifests/deployment.yaml
 ```
 
-- [-] **Step 3: Close without merging (dry-run only).** *(deferred — depends on Step 1)*
+- [x] **Step 3: Close without merging (dry-run only).** *(PR #105 closed, branch deleted. Workflow logic validated end-to-end.)*
 
 ```bash
 gh pr close <PR_NUMBER> --repo derio-net/frank --comment "Dry-run — workflow validated, SHAs were already current"
@@ -1002,6 +1002,35 @@ Phase 3 complete when a fork push reliably produces a reviewable frank PR withou
 **Issue:** Tasks 2 and 3 require `workflow_dispatch` triggering, which only works when the workflow exists on the default branch (main). The workflow is on a feature branch pending PR merge.
 
 **Impact:** Dry-run and full dispatch chain verification must be performed after the PR merges to main. The workflow logic is verified by code review.
+
+**Resolved (2026-04-17):** PR #85 merged; Task 2 dry-run run successfully triggered.
+
+### Phase 3 Deviation: Actions-created PRs blocked by repo setting
+
+**Issue:** The bumper workflow's final step (`gh pr create`) failed with `GitHub Actions is not permitted to create or approve pull requests (createPullRequest)`. The branch is pushed successfully, but no PR is opened automatically. This is a GitHub repo/org setting, not a workflow bug.
+
+**Workaround applied (Task 2 only):** Created PR #105 manually from the pushed branch to complete the dry-run; immediately closed.
+
+**Fix options (for Task 3 / future auto-dispatched runs):**
+1. **Preferred:** Enable `Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests` on `derio-net/frank` (or at the org level).
+2. Alternative: swap `secrets.GITHUB_TOKEN` for a PAT/GitHub App token with `pull_requests: write`.
+
+Task 3 (full dispatch chain test) is blocked until one of these is applied **and** `DISPATCH_PAT` is configured in `derio-net/vibe-kanban` and `derio-net/agent-images`.
+
+```yaml
+# manual-operation
+id: frank-actions-create-pr-permission
+layer: agents
+app: frank-repo
+plan: 2026-04-15--agents--agent-images-and-vk-local-sidecar
+when: before Phase 3 Task 3
+why_manual: GitHub repo/org settings cannot be toggled from within a workflow
+commands:
+  - gh api -X PUT repos/derio-net/frank/actions/permissions/workflow -f default_workflow_permissions=write -F can_approve_pull_request_reviews=true
+verify:
+  - gh api repos/derio-net/frank/actions/permissions/workflow --jq '.can_approve_pull_request_reviews'  # expect true
+status: pending
+```
 
 ---
 
