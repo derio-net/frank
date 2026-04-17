@@ -98,6 +98,16 @@ jobs:
           # Only commit if the file actually changed
           git diff --cached --quiet && echo "No changes to commit" && exit 0
           git commit -m "ci(blog): update image to ${IMAGE_SHA:0:7}"
-          git push
+          # Retry with rebase on push rejection (concurrent workflows racing to push to main)
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              exit 0
+            fi
+            echo "Push rejected (attempt $attempt/5) — rebasing onto latest main and retrying..."
+            git pull --rebase origin main
+            sleep $((attempt * 2))
+          done
+          echo "::error::Failed to push manifest update after 5 attempts"
+          exit 1
         env:
           IMAGE_SHA: ${{ github.sha }}
