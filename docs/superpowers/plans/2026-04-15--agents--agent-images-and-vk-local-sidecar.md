@@ -703,9 +703,9 @@ verify:
 status: pending
 ```
 
-- [ ] **Step 5: [after-bounce] Reconnect from another host.**
+- [x] **Step 5: [after-bounce] Reconnect from another host.** *(resumed 2026-04-17; pod bounced cleanly after commit 79cf7d0 applied the port-collision workaround)*
 
-- [ ] **Step 6: Verify sidecar + shared volume.**
+- [x] **Step 6: Verify sidecar + shared volume.** *(both containers list identical `/home/claude/repos` contents: agent-images, content-factory, derio-profile, frank, kid-laptops, repos.code-workspace, secure-agent-kali, superpowers-for-vk, vibe-kanban, willikins)*
 
 ```bash
 kubectl -n secure-agent-pod get pod -l app=secure-agent-pod
@@ -715,7 +715,7 @@ kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali     -- ls /home
 # Expected: same directory listing in both containers
 ```
 
-- [ ] **Step 7: Verify external VK endpoint.**
+- [x] **Step 7: Verify external VK endpoint.** *(`curl http://192.168.55.218:8081/api/health` returns 200 — note path is `/api/health` per Phase 1 Deviation, not `/v1/health`)*
 
 ```bash
 curl -sSf -o /dev/null -w "%{http_code}\n" http://192.168.55.218:8081/v1/health
@@ -731,7 +731,7 @@ Task A complete.
 - Verify: `agent-images/kali/entrypoint.sh` (ditto)
 - Modify: `apps/secure-agent-pod/manifests/deployment.yaml` (bump kali SHA)
 
-- [ ] **Step 1: Confirm Phase 0 removed VK from kali.**
+- [x] **Step 1: Confirm Phase 0 removed VK from kali.** *(verified: `grep -c 'vibe\|8081'` returns 0 for both `kali/Dockerfile` and `kali/entrypoint.sh`)*
 
 ```bash
 grep -c 'vibe' ~/repos/agent-images/kali/Dockerfile
@@ -739,7 +739,7 @@ grep -c 'vibe' ~/repos/agent-images/kali/entrypoint.sh
 # Expected: 0 from both. If nonzero, remove remaining refs, commit+push, wait for CI.
 ```
 
-- [ ] **Step 2: Bump kali image SHA in frank.**
+- [x] **Step 2: Bump kali image SHA in frank.** *(bumped `869ebc6` → `325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b` on branch `chore/kali-cutover`; diff is exactly one line; `kubectl --dry-run=server apply` accepted)*
 
 ```bash
 LATEST_KALI_SHA=$(gh api /repos/derio-net/agent-images/commits/main --jq '.sha')
@@ -750,7 +750,7 @@ git diff apps/secure-agent-pod/manifests/deployment.yaml
 # Expected: exactly one hash changed on the kali image line
 ```
 
-- [ ] **Step 3: Commit, push, open PR — do NOT merge.**
+- [x] **Step 3: Commit, push, open PR — do NOT merge.** *(PR [#104](https://github.com/derio-net/frank/pull/104) on branch `chore/kali-cutover`; two commits — plan docs + manifest bump)*
 
 ```bash
 git checkout -b chore/kali-cutover
@@ -760,7 +760,7 @@ git push -u origin chore/kali-cutover
 gh pr create --title "chore(agents): kali cutover (VK stripped)" --body "Final Phase 2 step — removes VK from kali image." --base main
 ```
 
-- [ ] **Step 4: [bounce-gate] Pre-bounce checklist.**
+- [x] **Step 4: [bounce-gate] Pre-bounce checklist.** *(2026-04-17: frank/agent-images/vibe-kanban all clean, HEAD == @{u}; RESUMING.md updated with Task B breadcrumb; awaiting user merge)*
 
 Follow the protocol. `RESUMING.md` update:
 
@@ -988,6 +988,14 @@ Phase 3 complete when a fork push reliably produces a reviewable frank PR withou
 **Fix applied:** Resolve vk-remote SHA from GHCR package tags via `/orgs/derio-net/packages/container/vk-remote/versions` API. This works because the package is accessible within the org with `packages: read` permission. Falls back gracefully (skips vk-remote bump with a warning) if resolution fails.
 
 **Impact:** The vk-remote tags from GHCR are 7-char short SHAs (from `docker/metadata-action type=sha,prefix=`), matching the current deployment format. No functional difference.
+
+### Phase 2 Deviation: Port 8081 bind race — kali won
+
+**Issue:** The plan (Step 2, Task A) assumed the lighter vk-local sidecar would win the 8081 bind race and kali's in-process VK would fail to bind (non-fatal). In practice, kali's npm-installed VK won the race on every pod restart because it boots earlier than the sidecar's readiness probe succeeds. Result: vk-local CrashLoopBackOff (246 restarts in ~20h, bind address-already-in-use).
+
+**Fix applied (commit 79cf7d0):** Deflect kali's in-process VK to `PORT=18081` on `HOST=127.0.0.1` via env vars on the kali container, and move the `name: vk-http` port declaration from kali to the sidecar so the Service routes to the sidecar. This makes the outcome deterministic rather than race-dependent.
+
+**Impact:** Resolved. Pod stable at 2/2 Ready. The `PORT=18081`/`HOST=127.0.0.1` env vars on kali become dead config once Task B bumps kali to the VK-stripped image — deliberately left in place to keep the Task B diff minimal (a separate chore can strip them later).
 
 ### Phase 3 Deviation: Dry-run and dispatch chain verification deferred
 

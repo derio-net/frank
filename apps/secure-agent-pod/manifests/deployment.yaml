@@ -43,7 +43,7 @@ spec:
             defaultMode: 0400
       containers:
         - name: kali
-          image: ghcr.io/derio-net/secure-agent-kali:869ebc6
+          image: ghcr.io/derio-net/secure-agent-kali:325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b
           ports:
             - name: ssh
               containerPort: 2222  # Non-root sshd; Service maps 22→2222
