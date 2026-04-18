@@ -304,4 +304,4 @@ Rollback at any step: revert the frank PR. The old npm-based kali image is still
 
 | Plan | Repo | File | Status | Depends on |
 |------|------|------|--------|------------|
-| Agent Images & vk-local Sidecar — Implementation Plan |  | `docs/superpowers/plans/2026-04-15--agents--agent-images-and-vk-local-sidecar.md` | Not Started | — |
+| Agent Images & vk-local Sidecar — Implementation Plan |  | `docs/superpowers/archived-plans/2026-04-15--agents--agent-images-and-vk-local-sidecar.md` | Complete | — |

@@ -620,23 +620,41 @@ images:
 
   - key: building-28-agent-images-sidecar
     output: blog/content/docs/building/28-agent-images-sidecar/cover.png
-    description: "Agent Images & VK-Local Sidecar — Frank swapping a bloated container for two neat stackable cubes sharing a volume"
+    description: "Agent Images & VK-Local Sidecar — Frank has just cracked a tall stone monolith in two, revealing a neat vk-local crate nested inside"
     prompt: >-
-      Frank the server-hardware Frankenstein monster standing at a
-      workbench in a dim server room, disassembling a single large
-      container labeled "secure-agent-pod (monolith)" with a pry bar.
-      To his right, two smaller matching containers — a green one
-      labeled "kali" and a blue one labeled "vk-local" — sit side by
-      side on a shared glowing teal circular platform labeled
-      "/home/claude" (representing the shared PVC). A small floating
-      diagram above shows three cubes labeled "agent-base",
-      "secure-agent-kali", "vk-local" connected by arrows, suggesting
-      the shared-base inheritance pattern. Frank has a focused
-      problem-solving expression. Green skin, messy black hair,
-      black eyes with white pupils, RJ45 neck bolts sparking blue
+      Dramatic scene: a tall rectangular grey-stone obelisk/monolith
+      (about Frank's height and a half), weathered and ancient-looking
+      with etched circuit-board patterns faintly glowing on its face,
+      has just been cleanly split vertically into two halves that are
+      falling apart — the two stone halves leaning away from each
+      other at slight angles like a cracked egg. Between the two
+      halves, in the newly-exposed interior cavity, a single clean
+      glowing blue crate labeled "vk-local" sits perfectly nested
+      inside, as if it had always been the core of the monolith. The
+      monolith's front face (split down the middle) reads
+      "secure-agent-pod (monolith)" in carved stone letters. Glowing
+      blue cracks of energy radiate from the split, with small stone
+      chips and dust falling.
+      Frank the server-hardware Frankenstein monster stands on the
+      LEFT side of the scene, in three-quarter profile turned toward
+      the monolith (not the viewer), holding a large steel sledgehammer
+      with the head still resting near the split in the stone as if he
+      has just finished the blow. His expression is focused and
+      satisfied, mouth closed in a neutral line (NO visible fangs or
+      teeth — keep the mouth shut). Muscles tensed from the swing.
+      On the RIGHT side of the scene, slightly behind/beside the
+      revealed vk-local crate, a raised glowing teal circular platform
+      labeled "/home/claude" holds a second neat green crate labeled
+      "kali" — paired with vk-local as shared siblings on the platform.
+      Above the platform, a small floating diagram shows three boxes
+      labeled "agent-base", "secure-agent-kali", "vk-local" connected
+      by downward arrows showing shared-base inheritance.
+      Frank: green skin, messy black hair, black eyes with white
+      pupils, closed mouth NO FANGS, RJ45 neck bolts sparking blue
       electricity. Dark server-room background with teal, green, and
-      blue lighting accents. Clean composition, centered on Frank
-      and the two neat cubes.
+      blue lighting accents. Left-to-right flow: Frank + cracked stone
+      monolith (revealing vk-local) on left → neat ordered platform on
+      right. Cinematic lighting, the moment of discovery.
 
   # --- Operating Series Covers ------------------------------------------------
 
