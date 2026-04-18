@@ -618,6 +618,26 @@ images:
       industrial background with blue, green, and orange lighting accents.
       Clean composition, left-to-right flow.
 
+  - key: building-28-agent-images-sidecar
+    output: blog/content/docs/building/28-agent-images-sidecar/cover.png
+    description: "Agent Images & VK-Local Sidecar — Frank swapping a bloated container for two neat stackable cubes sharing a volume"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at a
+      workbench in a dim server room, disassembling a single large
+      container labeled "secure-agent-pod (monolith)" with a pry bar.
+      To his right, two smaller matching containers — a green one
+      labeled "kali" and a blue one labeled "vk-local" — sit side by
+      side on a shared glowing teal circular platform labeled
+      "/home/claude" (representing the shared PVC). A small floating
+      diagram above shows three cubes labeled "agent-base",
+      "secure-agent-kali", "vk-local" connected by arrows, suggesting
+      the shared-base inheritance pattern. Frank has a focused
+      problem-solving expression. Green skin, messy black hair,
+      black eyes with white pupils, RJ45 neck bolts sparking blue
+      electricity. Dark server-room background with teal, green, and
+      blue lighting accents. Clean composition, centered on Frank
+      and the two neat cubes.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes

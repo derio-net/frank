@@ -1037,9 +1037,9 @@ status: done
 Performed after all agentic phases merge. No tracking issue — added post-dispatch.
 
 - [-] **Step 1: Expose externally (if user-facing)** *(skipped — `vk.cluster.derio.net` Traefik IngressRoute + homepage tile already exist from the earlier VK deployment; sidecar cutover is transparent to external consumers)*
-- [ ] **Step 2: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/docs/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`. Topic: splitting VK into a sidecar + multi-image agent-images repo.
+- [x] **Step 2: Write building blog post** *(2026-04-18: post 28 at `blog/content/docs/building/28-agent-images-sidecar/`; cover generated via Gemini; series index + cluster roadmap updated)*
 - [-] **Step 3: Write operating blog post** *(skipped — no net-new day-to-day operations; the existing VibeKanban operating post covers usage. Troubleshooting notes on sidecar go into the building post.)*
-- [ ] **Step 4: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
+- [x] **Step 4: Update README** *(2026-04-18 commit `13b2428`: Technology Stack row split kali+VK into two rows — kali (sidecar VK) and new agent-images entry; Current Status row for secure-agent-pod updated to reflect 2-container pod with shared PVC)*
 - [x] **Step 5: Sync runbook** *(2026-04-18 commit `80eabbf`: +6 new entries, 49 updated; also fixed malformed YAML in `agent-images-repo-create` block)*
 - [x] **Step 6: Update plan status** *(2026-04-18: set to Deployed after verifying UI fix — `curl http://192.168.55.218:8081/` returns real Vite-built HTML; `<title>Vibe Kanban</title>` confirmed)*
 

@@ -55,6 +55,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Gitea** | Self-hosted git forge with GitHub pull-mirror, Authentik OIDC SSO (`192.168.55.209`) |
 | **Tekton** | K8s-native CI/CD pipelines — webhook-driven clone, test, build, sign, report status on pc-1 |
 | **Zot** | OCI container/artifact registry with cert-manager TLS and cosign image signing (`192.168.55.210`) |
+| **agent-images** | Shared base image + per-pod children repo — `agent-base` toolchain + `secure-agent-kali` / `vk-local` children, matrix CI, cross-repo `repository_dispatch`, lockstep bumper PR |
 
 ## Cluster State
 
@@ -94,6 +95,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 25. [VK Relay — Tunneling the Browser to a Local Agent Server]({{< relref "/docs/building/25-vk-relay" >}})
 26. [VK Remote — Self-Hosting the Kanban Backend Before the Cloud Dies]({{< relref "/docs/building/26-vk-remote-self-host" >}})
 27. [CI/CD Platform — Gitea, Tekton, Zot, and Cosign]({{< relref "/docs/building/27-cicd-platform" >}})
+28. [Agent Images and the VK-Local Sidecar — Unbaking VibeKanban]({{< relref "/docs/building/28-agent-images-sidecar" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
