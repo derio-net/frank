@@ -1,8 +1,10 @@
 # Stage 1: Build Hugo site
-# Hugo Docker image includes Go (for modules) and extended features by default
+# Hugo Docker image includes Go (for modules) and extended features by default.
+# --chown=hugo:hugo: the image runs as the non-root `hugo` user, so COPY must
+# land files owned by that user or `hugo mod get` can't update go.mod.
 FROM ghcr.io/gohugoio/hugo:v0.157.0 AS builder
 WORKDIR /src
-COPY . .
+COPY --chown=hugo:hugo . .
 RUN hugo mod get
 RUN hugo --minify --baseURL https://blog.derio.net/frank
 

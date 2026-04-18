@@ -7,7 +7,7 @@ summary: "Splitting VibeKanban out of the Kali agent pod into a shared-volume si
 weight: 29
 ---
 
-The `secure-agent-pod` started its life as a single container: Kali Linux, a non-root `claude` user, sshd, kubectl, and a globally `npm install`-ed VibeKanban baked straight into the image (layer 21, [Secure Agent Pod]({{< relref "building/21-secure-agent-pod" >}})). That worked. It also meant every VibeKanban bugfix required rebuilding a 1.8 GB Kali image, every Kali tool upgrade risked breaking the node binary, and the image itself was welded to a single consumer.
+The `secure-agent-pod` started its life as a single container: Kali Linux, a non-root `claude` user, sshd, kubectl, and a globally `npm install`-ed VibeKanban baked straight into the image (layer 21, [Secure Agent Pod]({{< relref "/docs/building/21-secure-agent-pod" >}})). That worked. It also meant every VibeKanban bugfix required rebuilding a 1.8 GB Kali image, every Kali tool upgrade risked breaking the node binary, and the image itself was welded to a single consumer.
 
 This post unbakes all of it.
 
@@ -304,5 +304,5 @@ The frontend-embed gotcha also generalised into a `.claude/rules/frank-gotchas.m
 - `agent-images` repo — [github.com/derio-net/agent-images](https://github.com/derio-net/agent-images)
 - VibeKanban fork (Dockerfile fix in PR #6) — [github.com/derio-net/vibe-kanban](https://github.com/derio-net/vibe-kanban)
 - Plan and deviation log — `docs/superpowers/plans/2026-04-15--agents--agent-images-and-vk-local-sidecar.md`
-- Prior art, same layer — [Secure Agent Pod]({{< relref "building/21-secure-agent-pod" >}}), [VK Remote Self-Host]({{< relref "building/26-vk-remote-self-host" >}})
+- Prior art, same layer — [Secure Agent Pod]({{< relref "/docs/building/21-secure-agent-pod" >}}), [VK Remote Self-Host]({{< relref "/docs/building/26-vk-remote-self-host" >}})
 - `rust-embed` — [github.com/pyrossh/rust-embed](https://github.com/pyrossh/rust-embed)

@@ -67,13 +67,27 @@ jobs:
           git config user.name  "clawdia-bumper[bot]"
           git config user.email "clawdia-bumper[bot]@users.noreply.github.com"
 
+          # Include both SHAs so a new VKR_SHA with unchanged AI_SHA (or vice
+          # versa) produces a distinct branch — avoids collisions with the
+          # merged-but-not-deleted branches from earlier dispatches.
           BRANCH="bump/agent-images-${AI_SHA:0:7}"
-          git checkout -b "$BRANCH"
+          if [ -n "$VKR_SHA" ]; then
+            BRANCH="${BRANCH}-vkr-${VKR_SHA:0:7}"
+          fi
 
           if git diff --quiet; then
             echo "No changes to bump."
             exit 0
           fi
+
+          # If a PR is already open for this exact SHA pair, nothing to do.
+          OPEN_PR=$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$OPEN_PR" ]; then
+            echo "Open PR #$OPEN_PR already covers $BRANCH — skipping."
+            exit 0
+          fi
+
+          git checkout -b "$BRANCH"
 
           git add apps/
           BODY="agent-images: \`$AI_SHA\`"
