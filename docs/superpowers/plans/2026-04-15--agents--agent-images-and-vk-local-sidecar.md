@@ -62,10 +62,10 @@ plan: 2026-04-15--agents--agent-images-and-vk-local-sidecar
 when: before Phase 0 Task 2
 why_manual: repo creation requires GitHub org-owner auth, not available to the VK agent
 commands:
-  - gh repo create derio-net/agent-images --public --description "Shared base image and per-pod child images for secure agent pods on Frank" --clone
-  - cd agent-images && git checkout -b main && printf '# agent-images\n' > README.md && git add README.md && git commit -m "chore: initial commit" && git push -u origin main
+  - 'gh repo create derio-net/agent-images --public --description "Shared base image and per-pod child images for secure agent pods on Frank" --clone'
+  - 'cd agent-images && git checkout -b main && printf ''# agent-images\n'' > README.md && git add README.md && git commit -m "chore: initial commit" && git push -u origin main'
 verify:
-  - gh repo view derio-net/agent-images --json name,visibility | jq -e '.name == "agent-images" and .visibility == "PUBLIC"'
+  - 'gh repo view derio-net/agent-images --json name,visibility | jq -e ''.name == "agent-images" and .visibility == "PUBLIC"'''
 status: done
 ```
 
@@ -1026,10 +1026,11 @@ plan: 2026-04-15--agents--agent-images-and-vk-local-sidecar
 when: before Phase 3 Task 3
 why_manual: GitHub repo/org settings cannot be toggled from within a workflow
 commands:
-  - gh api -X PUT repos/derio-net/frank/actions/permissions/workflow -f default_workflow_permissions=write -F can_approve_pull_request_reviews=true
+  - gh api -X PUT orgs/derio-net/actions/permissions/workflow -F default_workflow_permissions=read -F can_approve_pull_request_reviews=true
+  - gh api -X PUT repos/derio-net/frank/actions/permissions/workflow -F default_workflow_permissions=read -F can_approve_pull_request_reviews=true
 verify:
   - gh api repos/derio-net/frank/actions/permissions/workflow --jq '.can_approve_pull_request_reviews'  # expect true
-status: pending
+status: done
 ```
 
 ---
