@@ -1,7 +1,7 @@
 # Agent Images & vk-local Sidecar — Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-04-15--agents--agent-images-and-vk-local-sidecar-design.md`
-**Status:** In Progress
+**Status:** Deployed
 
 **Goal:** Replace the in-process VibeKanban (npm-installed, baked into `secure-agent-kali`) with a shared-volume sidecar built from the fork, and move the Kali Dockerfile into a new multi-image repo (`derio-net/agent-images`) that also produces a common `agent-base` image for future pods. Add a lockstep bumper in frank that opens a single PR whenever fork or base SHAs move.
 
@@ -1040,7 +1040,7 @@ Performed after all agentic phases merge. No tracking issue — added post-dispa
 - [ ] **Step 2: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/docs/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`. Topic: splitting VK into a sidecar + multi-image agent-images repo.
 - [-] **Step 3: Write operating blog post** *(skipped — no net-new day-to-day operations; the existing VibeKanban operating post covers usage. Troubleshooting notes on sidecar go into the building post.)*
 - [ ] **Step 4: Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
-- [ ] **Step 5: Sync runbook** — Run `/sync-runbook` (plan contains multiple `# manual-operation` blocks)
-- [ ] **Step 6: Update plan status** — Set `**Status:**` to `Deployed`
+- [x] **Step 5: Sync runbook** *(2026-04-18 commit `80eabbf`: +6 new entries, 49 updated; also fixed malformed YAML in `agent-images-repo-create` block)*
+- [x] **Step 6: Update plan status** *(2026-04-18: set to Deployed after verifying UI fix — `curl http://192.168.55.218:8081/` returns real Vite-built HTML; `<title>Vibe Kanban</title>` confirmed)*
 
 <!-- post_deploy:appended -->

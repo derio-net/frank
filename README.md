@@ -52,7 +52,8 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Edge Ingress | Caddy | Automatic TLS (Cloudflare DNS challenge), public/mesh routing on Hop |
 | Progressive Delivery | Argo Rollouts | Canary (LiteLLM + Cilium traffic split + VictoriaMetrics analysis), blue-green (Sympozium + HTTP healthcheck) |
 | Workflow Automation | n8n | Per-user instances on gpu-1, Authentik forward-auth, dedicated PostgreSQL, Prometheus metrics |
-| Secure Agent Pod | Kali Linux + VibeKanban | Hardened non-root coding agent workstation on gpu-1, Cilium egress controls, ESO secrets, SSH + VibeKanban UI |
+| Secure Agent Pod | Kali Linux (sidecar: VibeKanban) | Hardened non-root coding agent workstation on gpu-1; two-container pod (kali + vk-local) sharing `/home/claude` PVC; Cilium egress, ESO secrets, SSH + VibeKanban UI |
+| Agent Images | `derio-net/agent-images` (shared base) | Multi-image repo: `agent-base` (debian:bookworm + common toolchain) → children `secure-agent-kali`, `vk-local`; matrix CI + cross-repo `repository_dispatch` → frank lockstep bumper |
 | VK Remote (self-hosted) | PostgreSQL 16 + ElectricSQL + Rust/Axum | Self-hosted VibeKanban kanban API server, local JWT auth, Authentik SSO via Traefik |
 | VK Relay | VK Relay Server (sidecar) | WebSocket relay tunneling browser API calls to local VK agent server via yamux multiplexing, SPAKE2 pairing |
 | In-Cluster Ingress | Traefik v3 | Wildcard TLS (`*.cluster.derio.net`) via ACME + Cloudflare DNS-01, Authentik forward-auth, raspi edge nodes |
@@ -243,7 +244,7 @@ argocd app list
 | paperclip | paperclip-system | Paperclip v0.3.1 AI agent orchestrator (192.168.55.212:3100) |
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
-| secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1 (SSH :22, VibeKanban :8081), non-root, Cilium egress, ESO secrets |
+| secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1: 2-container pod (kali + vk-local sidecar) sharing `/home/claude` PVC, SSH :22, VibeKanban :8081, non-root, Cilium egress, ESO secrets |
 | vk-remote | agents | Self-hosted VK kanban API (PG 16 + ElectricSQL + Rust/Axum) + relay sidecar (vk.cluster.derio.net), Authentik SSO |
 | argo-rollouts | argo-rollouts | Progressive delivery controller + Cilium traffic router plugin |
 | argo-rollouts-extras | argo-rollouts | Cilium plugin ConfigMap + supplemental RBAC for CiliumEnvoyConfig |
