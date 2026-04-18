@@ -924,24 +924,9 @@ If SHAs were NOT already current and the PR would move production, treat the mer
 
 ### Task 3: Verify the full dispatch chain
 
-- [-] **Step 1: Push a trivial change to the fork.** *(deferred — requires bumper on main + DISPATCH_PAT configured in all repos)*
+- [x] **Step 1: Push a trivial change to the fork.** *(2026-04-18: vibe-kanban PR #6 `fix/server-embed-local-web-dist` — the frontend-embed fix — triggered via `workflow_dispatch` on the feature branch; later agent-images README update pushed to main as SHA `95e364f`)*
 
-```bash
-cd ~/repos/vibe-kanban
-echo "" >> README.md
-git add README.md
-git commit -m "test: trigger full dispatch chain"
-git push
-```
-
-- [-] **Step 2: Follow the chain.** *(deferred — depends on Step 1)*
-
-```bash
-gh run watch --repo derio-net/vibe-kanban   # builds + dispatches
-gh run watch --repo derio-net/agent-images  # rebuilds vk-local + dispatches
-gh run watch --repo derio-net/frank         # bumper opens PR
-gh pr list --repo derio-net/frank --search "in:title bump"
-```
+- [x] **Step 2: Follow the chain.** *(2026-04-18: full chain verified end-to-end — vibe-kanban run [24597591042](https://github.com/derio-net/vibe-kanban/actions/runs/24597591042) → agent-images run [24598258993](https://github.com/derio-net/agent-images/actions/runs/24598258993) → frank bumper run [24598275621](https://github.com/derio-net/frank/actions/runs/24598275621) → PR [#107](https://github.com/derio-net/frank/pull/107) auto-opened bumping all three images — secure-agent-kali + vk-local → `95e364f`, vk-remote → `91f09db`)*
 
 Expected end state: a fresh PR in frank bumping SHAs. If the PR is the first "real" one, merging it is a bounce-gate.
 
@@ -974,6 +959,16 @@ Phase 3 complete when a fork push reliably produces a reviewable frank PR withou
 ### Phase 1 Deviation: Health endpoint path
 
 **Issue:** Plan assumed `/v1/health` for readiness probes. Actual server routes: health is at `/api/health` (nested under `/api` router). Relay signature middleware passes through non-relay requests, so `/api/health` is accessible for K8s probes.
+
+### Phase 1 Deviation: Frontend not embedded in server artifact (post-deploy)
+
+**Issue:** After Phase 2 cutover, `https://vk.cluster.derio.net/` served a placeholder page reading **"Please build @vibe/local-web first"** instead of the VK UI. API routes (`/api/health`) worked fine.
+
+**Root cause:** The server crate (`crates/server/src/routes/frontend.rs`) uses `rust-embed` on `../../packages/local-web/dist/`. When that directory is missing at compile time, `crates/server/build.rs` auto-generates a placeholder `index.html` and embeds it. The artifact Dockerfile (`crates/server/Dockerfile`) did only `cargo build --release --package server` — it never built the frontend with pnpm, so every `vibe-kanban-build` image shipped with the placeholder baked in.
+
+**Fix applied (2026-04-18, vibe-kanban PR #6):** Added a `node:24-alpine` `fe-builder` stage to `crates/server/Dockerfile` that runs `pnpm install --frozen-lockfile` + `pnpm -C packages/local-web build`, then `COPY --from=fe-builder /app/packages/local-web/dist packages/local-web/dist` before the `cargo build`. Mirrors the top-level `Dockerfile`'s multi-stage pattern.
+
+**Impact:** New `vibe-kanban-build` image ships the real UI. `vk-local` rebuild required in agent-images, then bump in frank.
 
 ### Phase 3 Deviation: Workflow file extension
 
@@ -1015,7 +1010,9 @@ Phase 3 complete when a fork push reliably produces a reviewable frank PR withou
 1. **Preferred:** Enable `Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests` on `derio-net/frank` (or at the org level).
 2. Alternative: swap `secrets.GITHUB_TOKEN` for a PAT/GitHub App token with `pull_requests: write`.
 
-Task 3 (full dispatch chain test) is blocked until one of these is applied **and** `DISPATCH_PAT` is configured in `derio-net/vibe-kanban` and `derio-net/agent-images`.
+**Resolved (2026-04-18):** Option 1 applied at org level (`gh api -X PUT orgs/derio-net/actions/permissions/workflow -F can_approve_pull_request_reviews=true`) and repo level. `can_approve_pull_request_reviews: true` confirmed on both scopes.
+
+**DISPATCH_PAT status (2026-04-18):** Verified configured in both `derio-net/vibe-kanban` and `derio-net/agent-images` (secrets set 2026-04-15 during repo bootstrap). Earlier plan notes stating these were pending were stale. The cross-repo dispatch chain now functions end-to-end.
 
 ```yaml
 # manual-operation
