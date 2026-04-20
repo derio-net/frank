@@ -2140,10 +2140,10 @@ Blocked by Phase 7.
 This is an **extension** of the existing Observability layer (Layer 8), not a new layer — per `.claude/rules/plan-post-deploy-checklist.md`, fix/extension plans skip blog + README steps and instead update the existing Layer's posts.
 
 - [-] **Step 1: Expose externally (if user-facing)** *(skipped — no new user-facing surface; the board itself is already accessible)*
-- [ ] **Step 2: Update Building #23 Health Bridge blog post** — add a section "Pass 3: Wiring the Layer trackers" covering the per-Layer rule pattern, severity mapping, and Bridge label-format caveat. This replaces the otherwise-required new-post step.
-- [ ] **Step 3: Update Operating #16 Health Bridge blog post** — add operational notes: how to smoke-test via webhook, how to check Lifecycle state via `gh api graphql`, how to reload alert rules after editing the ConfigMap.
+- [x] **Step 2: Update Building #23 Health Bridge blog post** — add a section "Pass 3: Wiring the Layer trackers" covering the per-Layer rule pattern, severity mapping, and Bridge label-format caveat. This replaces the otherwise-required new-post step.
+- [x] **Step 3: Update Operating #16 Health Bridge blog post** — add operational notes: how to smoke-test via webhook, how to check Lifecycle state via `gh api graphql`, how to reload alert rules after editing the ConfigMap.
 - [-] **Step 4: Update README** *(skipped — no new service, no new IP, no structural change)*
-- [ ] **Step 5: Sync runbook** — run `/sync-runbook` only if any new `# manual-operation` blocks were added. (This plan adds none — Grafana provisioning is code-driven end-to-end.)
+- [-] **Step 5: Sync runbook** — run `/sync-runbook` only if any new `# manual-operation` blocks were added. (This plan adds none — Grafana provisioning is code-driven end-to-end.)
 - [x] **Step 6: Update plan status** — edit this file's header to `**Status:** Deployed`.
 
 ---

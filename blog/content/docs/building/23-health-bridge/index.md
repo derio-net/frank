@@ -181,6 +181,84 @@ The `endpoint-down` alert covers multiple targets but currently has no `github_i
 
 This completes M3 of the Work Lifecycle Tracking design. M1 set up the GitHub Projects board and lifecycle field. M2 added the monitoring probes and alerts. M3 closes the loop — monitoring signals now flow automatically into project state.
 
+## Pass 3: Wiring the Layer trackers (2026-04-20)
+
+Sixteen days later, I came back with a question the first pass had ducked: what if the *whole cluster* — every architectural Layer, not just the agent crons — had a Grafana rule driving its Lifecycle tile on the board?
+
+The "Derio Ops" project had 20 Layer tracker Issues sitting there with manually-set `healthy` statuses, quietly lying. The Bridge already existed; it was just starved of rules that targeted them.
+
+### Three concrete decisions
+
+**One alert rule per Layer, living as code.** The rules live in `apps/grafana-alerting/manifests/alert-rules-cm.yaml` — file-provisioned, read on boot, reloaded by deleting the Grafana pod. No click-ops. Each rule follows the Grafana 12.x three-step `A → B → C` SSE format (data-source query → reduce → threshold) with `labels.github_issue: "frank-ops#<LAYER>"` attached.
+
+**Severity maps to lifecycle:**
+- `firing + warning` → `degraded`
+- `firing + critical` → `dead`
+- `resolved` → `healthy`
+
+Critical gets reserved for the load-bearing layers — losing them means you lose the feedback loop itself. Observability, OS/HA, GitOps, Authentik (because forward-auth gates everything), and Traefik (because ingress gates everything external).
+
+**Multi-instance per rule.** This was the biggest upgrade. The first instinct was to write "is this Layer up?" as a single aggregated scalar per rule. Two problems with that:
+
+1. Telegram notifications become useless — *"Layer 3 is degraded"* tells the operator nothing actionable.
+2. The GitHub comment added by the Bridge is equally empty.
+
+The fix is to let `refId A` return a labeled series — one sample per pod/node/volume — and let the reducer preserve those labels through to the annotation template:
+
+```yaml
+expr: 'kube_pod_status_ready{namespace="kube-system",pod=~"cilium-.*",condition="true"}'
+# ...
+annotations:
+  summary: "L3 Cilium: pod {{ $labels.pod }} NotReady"
+```
+
+When two cilium pods fail simultaneously, Grafana fires two alert instances. The notification policy groups them; the Bridge's existing `lastState` dedup collapses them into a single Lifecycle transition with the first instance's annotation as the comment. Best of both worlds: Telegram shows both failing pods in one bundled message; the board gets one clean transition.
+
+For the Observability layer itself — which has to alert on *its own absence* — two signals needed normalising into a single series (pod readiness for anything in `monitoring`, plus the Bridge's self-probe). That's what `label_replace` is for:
+
+```yaml
+expr: |
+  label_replace(
+    kube_pod_status_ready{namespace="monitoring",condition="true"},
+    "component", "pod/$1", "pod", "(.+)"
+  )
+  or
+  label_replace(
+    probe_success{instance="http://health-bridge.monitoring.svc.cluster.local:8080/healthz"},
+    "component", "probe/health-bridge-healthz", "", ""
+  )
+annotations:
+  summary: "L8 Observability: {{ $labels.component }} failing"
+```
+
+### The label-format caveat
+
+The Bridge's `ParseIssueRef` splits on `#` and treats the left half as the bare repo name, then passes that to a GraphQL `repository(owner, name)` query. The `owner` is pinned to `derio-net` via env var. So labels have to be `repo#number` — not `org/repo#number`. Pass 1 of the board restoration (16 days earlier) had written the tracker Issue bodies with `derio-net/frank#<N>` in the docs section, which was technically misleading; in practice the rules and the Bridge only ever saw the short form.
+
+### Relocating the trackers
+
+One pre-requisite came out of nowhere mid-way through. Every Bridge webhook call optionally writes a comment to the tracker Issue and, on `dead` transitions, creates a new `bug`-labelled Issue in the same repo. The board was org-private, but `derio-net/frank` (where the trackers lived) was **public**. That meant every flap would leak cluster-state signal — *"Authentik is dead"* — to the public web.
+
+Fix: a new private repo `derio-net/frank-ops`, with the 20 trackers transferred into it. Opportunistic cleanup: transferred in Layer-number order so `frank-ops#<N>` == Layer N for every non-gap N (with closed placeholder Issues burning the dropped slots — Layers 7, 20, 21, 22, 23). GitHub auto-updated the board's item references on transfer; zero manual fixup needed.
+
+### What didn't survive first contact with reality
+
+Several plan rules targeted metrics that aren't being scraped (yet):
+
+- `longhorn_volume_robustness` — fell back to `longhorn-manager` pod readiness for Layer 4.
+- `argocd_app_info` — fell back to any `argocd-*` pod readiness for Layer 6.
+- `longhorn_backup_target_*` — substituted `kube_cronjob_status_last_successful_time` (a proxy that catches "the backup job isn't running" but not "the backup target is unreachable") for Layer 9.
+
+Those are documented as follow-ups on the trackers themselves — missing `ServiceMonitor`s that, once added, will let the rules speak the truer signal.
+
+A few cosmetic surprises too: Sympozium runs `developer-team-*` scheduled-task Job pods that naturally end in `Completed/NotReady`, so the Layer 12 pod regex needed tightening to the control-plane components only. vCluster control planes use StatefulSet naming (`experiments-0`) not the `vcluster-.*` prefix I'd guessed. And one of the pre-existing notification-policy matchers was broken (`grafana_folder=Feature Health` with a space and no quotes — the actual folder title is `feature-health`), which meant new Layer alerts wouldn't have reached the Bridge via the routing path at all until it was fixed.
+
+### The payoff
+
+The Derio Ops board now self-updates. Every layer's tile shows its real, current health — driven by a rule that names the specific failing pod or node or endpoint. A cilium-agent pod flapping on `mini-2` produces a Telegram message with *"L3 Cilium: pod cilium-94msf NotReady"* and a GitHub comment that points at `kubectl -n kube-system describe pod cilium-94msf`. The Layer 3 tile on the board goes `degraded` for the duration, then `healthy` again when the pod recovers.
+
+Zero manual triage. And because the board finally reflects reality, it's useful again — which was the original point.
+
 ## References
 
 - [Grafana Webhook Contact Point](https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/#webhook)

@@ -224,3 +224,87 @@ git push origin v0.2.0
 # Change: image: ghcr.io/derio-net/health-bridge:v0.2.0
 # Commit and push — ArgoCD syncs automatically
 ```
+
+## Layer trackers (Pass 3)
+
+As of 2026-04-20, the 20 Layer tracker Issues on the Derio Ops board were relocated from the public `derio-net/frank` to the private `derio-net/frank-ops` repo, with Issue numbers aligned 1:1 to Layer numbers (so `frank-ops#13` is Layer 13 Authentik). Each Layer has one Grafana alert rule with `github_issue: "frank-ops#<LAYER>"` driving its Lifecycle field automatically.
+
+### Smoke-testing a Layer via direct webhook
+
+The direct-Bridge test bypasses Grafana's rule evaluation, which is handy for verifying the Bridge + GitHub path without waiting for a real metric to dip:
+
+```bash
+export WEBHOOK_SECRET=$(kubectl get secret -n monitoring health-bridge-secrets \
+  -o jsonpath='{.data.WEBHOOK_SECRET}' | base64 -d)
+kubectl port-forward -n monitoring svc/health-bridge 8080:8080 &
+
+# Fire a critical alert at Layer 13 (Authentik)
+curl -s -X POST http://localhost:8080/webhook \
+  -H "Authorization: Bearer $WEBHOOK_SECRET" -H "Content-Type: application/json" \
+  -d '{"status":"firing","alerts":[{
+    "status":"firing",
+    "labels":{"alertname":"smoke","severity":"critical","github_issue":"frank-ops#13"},
+    "annotations":{"summary":"Smoke test"},
+    "startsAt":"2026-04-20T00:00:00Z"
+  }]}'
+# Response: {"processed": 1, "total": 1}
+```
+
+### Checking a Layer's current Lifecycle state
+
+```bash
+gh api graphql -f query='
+{
+  repository(owner:"derio-net", name:"frank-ops") {
+    issue(number:13) {
+      projectItems(first:5) {
+        nodes {
+          fieldValueByName(name:"Lifecycle") {
+            ... on ProjectV2ItemFieldSingleSelectValue { name }
+          }
+        }
+      }
+    }
+  }
+}' --jq '.data.repository.issue.projectItems.nodes[].fieldValueByName.name'
+# → healthy  (or degraded, dead, etc.)
+```
+
+### Reloading rules after editing the ConfigMap
+
+Grafana's provisioning files are read at boot, not watched. After editing `apps/grafana-alerting/manifests/alert-rules-cm.yaml`:
+
+```bash
+git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
+git commit -m "feat(obs): ..."
+git push origin main
+
+# Wait for ArgoCD to sync the ConfigMap
+kubectl annotate application -n argocd grafana-alerting \
+  argocd.argoproj.io/refresh=hard --overwrite
+
+# Restart Grafana to pick up the new ConfigMap
+kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+```
+
+Two gotchas learned the hard way:
+
+1. **RWO PVC + RollingUpdate deadlock.** Grafana's PVC is `ReadWriteOnce`. When the Deployment rolls due to a ConfigMap checksum change, the new pod can't mount the volume while the old pod holds it. If the rollout hangs, scale the Deployment to 0 briefly to force a detach, then back up. A more durable fix (switch `strategy.type` to `Recreate`) is tracked as a follow-up.
+2. **Listen for `parseError` in the new pod's logs** before trusting that a rule change took effect:
+   ```bash
+   kubectl logs -n monitoring -l app.kubernetes.io/name=grafana --tail=200 | grep -iE 'parseError|provisioning.*error'
+   ```
+
+### Verifying a rule is loaded via the Grafana API
+
+```bash
+GRAFANA_POD=$(kubectl get pods -n monitoring -l app.kubernetes.io/name=grafana \
+  -o jsonpath='{.items[0].metadata.name}')
+ADMIN_PASS=$(kubectl get secret -n monitoring victoria-metrics-grafana \
+  -o jsonpath='{.data.admin-password}' | base64 -d)
+
+kubectl exec -n monitoring "$GRAFANA_POD" -c grafana -- \
+  curl -s -u admin:"$ADMIN_PASS" \
+  http://localhost:3000/api/v1/provisioning/alert-rules/layer-13-auth-down \
+  | jq '{uid, title, labels, annotations}'
+```
