@@ -302,16 +302,11 @@ VK GONE
 
 $ kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c vk-local -- ls /home/claude/repos
 agent-images
-content-factory
-derio-profile
 frank
-frank-ops
-hum
-kid-laptops
-repos.code-workspace
 superpowers-for-vk
 vibe-kanban
 willikins
+...           # other private/personal repos omitted
 ```
 
 Both containers see the same repos directory. The kali container no longer has the VK binary. The sidecar serves the real React app. The shared volume is the interface; the pod is the runtime; the Dockerfiles live in a repo that has one job.

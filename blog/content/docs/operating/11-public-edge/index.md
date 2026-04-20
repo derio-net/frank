@@ -206,11 +206,11 @@ ID | Name | Username | Email | Created
 $ kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
 
 ID | Hostname       | Name           | MachineKey | NodeKey | User    | IP addresses                  | Ephemeral | Last seen           | Expiration | Connected | Expired
-1  | MacBook Pro    | macbookpro     | [VaJfJ]    | [/4g4n] | default | 100.64.0.1, fd7a:115c:a1e0::1 | false     | 2026-04-20 16:51:26 | N/A        | online    | no     
-3  | hop-1          | hop-1          | [ltc3h]    | [lad4p] | default | 100.64.0.4, fd7a:115c:a1e0::4 | false     | 2026-03-22 09:24:20 | N/A        | online    | no     
-4  | raspi-vlan10-D | raspi-vlan10-d | [lbTVr]    | [MSTnR] | default | 100.64.0.2, fd7a:115c:a1e0::2 | false     | 2026-04-20 11:50:08 | N/A        | online    | no     
-5  | raspi-vlan10-E | raspi-vlan10-e | [K/b2D]    | [nKQBK] | default | 100.64.0.3, fd7a:115c:a1e0::3 | false     | 2026-04-20 11:27:28 | N/A        | online    | no     
-6  | Pixel 8 Pro    | pixel8pro      | [Q/YmY]    | [CRZk+] | default | 100.64.0.7, fd7a:115c:a1e0::7 | false     | 2026-04-20 17:21:30 | N/A        | online    | no     
+1  | laptop         | laptop         | [……]       | [……]    | default | 100.64.0.1, fd7a:115c:a1e0::1 | false     | <redacted>          | N/A        | online    | no     
+3  | hop-1          | hop-1          | [……]       | [……]    | default | 100.64.0.4, fd7a:115c:a1e0::4 | false     | <redacted>          | N/A        | online    | no     
+4  | raspi-vlan10-D | raspi-vlan10-d | [……]       | [……]    | default | 100.64.0.2, fd7a:115c:a1e0::2 | false     | <redacted>          | N/A        | online    | no     
+5  | raspi-vlan10-E | raspi-vlan10-e | [……]       | [……]    | default | 100.64.0.3, fd7a:115c:a1e0::3 | false     | <redacted>          | N/A        | online    | no     
+6  | phone          | phone          | [……]       | [……]    | default | 100.64.0.7, fd7a:115c:a1e0::7 | false     | <redacted>          | N/A        | online    | no     
 
 $ kubectl -n headscale-system exec deploy/headscale -- headscale routes list
 
