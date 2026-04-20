@@ -457,7 +457,7 @@ Group rules by consumer so future edits stay tidy. Existing rules (heartbeats, e
 **Files:**
 - Modify: `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
 
-- [ ] **Step 1: Add section banner comments at the top of each group**
+- [x] **Step 1: Add section banner comments at the top of each group**
 
 Open `apps/grafana-alerting/manifests/alert-rules-cm.yaml`. Insert a banner immediately after `groups:` and before the first `- orgId:`:
 
@@ -487,7 +487,7 @@ Add a second banner before Layer rules (which get inserted in later phases):
       # (Layer rules appended below as each phase completes.)
 ```
 
-- [ ] **Step 2: Commit, push, restart Grafana to reload provisioning**
+- [x] **Step 2: Commit, push, restart Grafana to reload provisioning**
 
 ```bash
 git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
@@ -505,7 +505,7 @@ Expected: Grafana pod restarts cleanly. Alert rules reload without syntax errors
 
 **Files:** none (read-only verification)
 
-- [ ] **Step 1: Check folder-name casing matches the route matcher**
+- [x] **Step 1: Check folder-name casing matches the route matcher**
 
 The notification-policy matcher is `grafana_folder=Feature Health`, but the rule file writes `folder: feature-health`. Grafana internally uses the folder's display name ("Feature Health"), not the provisioning key. Verify by tailing Grafana logs when an alert fires:
 
@@ -515,7 +515,7 @@ kubectl logs -n monitoring -l app.kubernetes.io/name=grafana --tail=200 | grep -
 
 Expected: At least one `... routed to ... Health Bridge Webhook ...` line from the Task 2 smoke test. If absent, the matcher needs to be adjusted to `grafana_folder=feature-health` in `apps/grafana-alerting/manifests/notification-policy-cm.yaml`.
 
-- [ ] **Step 2: If the matcher was wrong, fix and redeploy**
+- [x] **Step 2: If the matcher was wrong, fix and redeploy**
 
 ```bash
 # Edit apps/grafana-alerting/manifests/notification-policy-cm.yaml:
