@@ -1,7 +1,7 @@
 # Derio Ops Pass 3 — Grafana Wiring — Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-04-16--platform--derio-ops-layers-restoration-design.md`
-**Status:** Deployed
+**Status:** Complete
 
 > **Execution: subagent-driven-development throughout.** No VK dispatch.
 >
