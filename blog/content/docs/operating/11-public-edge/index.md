@@ -63,8 +63,33 @@ talosctl -n $HOP_IP health
 
 This validates etcd, API server, kubelet, and node readiness. Since there's no HA, any failure here means the entire cluster is down.
 
-<!-- MEDIA: asciinema | Hop cluster health check from a Frank-adjacent shell | source .env_hop && export TALOSCONFIG=$(pwd)/clusters/hop/talosconfig/talosconfig && talosctl -n $HOP_IP health && kubectl get nodes -o wide -->
-<!-- {{</* asciinema src="hop-health.cast" */>}} -->
+```console
+$ talosctl -n $HOP_IP health 2>&1 | head -20
+discovered nodes: ["91.99.8.121"]
+waiting for etcd to be healthy: ...
+waiting for etcd to be healthy: OK
+waiting for etcd members to be consistent across nodes: ...
+waiting for etcd members to be consistent across nodes: OK
+waiting for etcd members to be control plane nodes: ...
+waiting for etcd members to be control plane nodes: OK
+waiting for apid to be ready: ...
+waiting for apid to be ready: OK
+waiting for all nodes memory sizes: ...
+waiting for all nodes memory sizes: OK
+waiting for all nodes disk sizes: ...
+waiting for all nodes disk sizes: OK
+waiting for no diagnostics: ...
+waiting for no diagnostics: OK
+waiting for kubelet to be healthy: ...
+waiting for kubelet to be healthy: OK
+waiting for all nodes to finish boot sequence: ...
+waiting for all nodes to finish boot sequence: OK
+waiting for all k8s nodes to report: ...
+
+$ kubectl get nodes -o wide
+NAME    STATUS   ROLES           AGE   VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE          KERNEL-VERSION   CONTAINER-RUNTIME
+hop-1   Ready    control-plane   32d   v1.34.1   91.99.8.121   <none>        Talos (v1.12.5)   6.18.15-talos    containerd://2.1.6
+```
 
 ```bash
 kubectl get nodes -o wide
@@ -172,8 +197,36 @@ tailscale ping <another-mesh-node>
 
 The new node gets a `100.64.0.x` address from Headscale's IP pool. MagicDNS automatically makes it reachable by name (e.g., `device-name.mesh.hop.derio.net`).
 
-<!-- MEDIA: asciinema | Headscale mesh membership: users, nodes, and routes | source .env_hop && kubectl -n headscale-system exec deploy/headscale -- headscale users list && kubectl -n headscale-system exec deploy/headscale -- headscale nodes list && kubectl -n headscale-system exec deploy/headscale -- headscale routes list -->
-<!-- {{</* asciinema src="headscale-mesh-state.cast" */>}} -->
+```console
+$ kubectl -n headscale-system exec deploy/headscale -- headscale users list
+
+ID | Name | Username | Email | Created            
+1  |      | default  |       | 2026-03-18 22:32:51
+
+$ kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
+
+ID | Hostname       | Name           | MachineKey | NodeKey | User    | IP addresses                  | Ephemeral | Last seen           | Expiration | Connected | Expired
+1  | MacBook Pro    | macbookpro     | [VaJfJ]    | [/4g4n] | default | 100.64.0.1, fd7a:115c:a1e0::1 | false     | 2026-04-20 16:51:26 | N/A        | online    | no     
+3  | hop-1          | hop-1          | [ltc3h]    | [lad4p] | default | 100.64.0.4, fd7a:115c:a1e0::4 | false     | 2026-03-22 09:24:20 | N/A        | online    | no     
+4  | raspi-vlan10-D | raspi-vlan10-d | [lbTVr]    | [MSTnR] | default | 100.64.0.2, fd7a:115c:a1e0::2 | false     | 2026-04-20 11:50:08 | N/A        | online    | no     
+5  | raspi-vlan10-E | raspi-vlan10-e | [K/b2D]    | [nKQBK] | default | 100.64.0.3, fd7a:115c:a1e0::3 | false     | 2026-04-20 11:27:28 | N/A        | online    | no     
+6  | Pixel 8 Pro    | pixel8pro      | [Q/YmY]    | [CRZk+] | default | 100.64.0.7, fd7a:115c:a1e0::7 | false     | 2026-04-20 17:21:30 | N/A        | online    | no     
+
+$ kubectl -n headscale-system exec deploy/headscale -- headscale routes list
+
+ID | Node           | Prefix          | Advertised | Enabled | Primary
+1  | raspi-vlan10-d | ::/0            | true       | true    | -      
+2  | raspi-vlan10-d | 0.0.0.0/0       | true       | true    | -      
+3  | raspi-vlan10-e | 0.0.0.0/0       | true       | true    | -      
+4  | raspi-vlan10-e | ::/0            | true       | true    | -      
+5  | raspi-vlan10-e | 192.168.10.0/24 | true       | true    | false  
+6  | raspi-vlan10-e | 192.168.50.0/24 | true       | true    | false  
+7  | raspi-vlan10-e | 192.168.55.0/24 | true       | true    | false  
+8  | raspi-vlan10-d | 192.168.10.0/24 | true       | true    | true   
+9  | raspi-vlan10-d | 192.168.50.0/24 | true       | true    | true   
+10 | raspi-vlan10-d | 192.168.55.0/24 | true       | true    | true   
+
+```
 
 **Removing a node:**
 

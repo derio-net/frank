@@ -67,8 +67,14 @@ The `disableChecks: true` skips local DNS propagation verification (blocked by r
 
 The cert is stored in `acme.json` on a small 128Mi Longhorn PV. Since the PV is RWO, Traefik runs with `strategy: Recreate` — no rolling updates, but that's fine for a single-replica edge proxy.
 
-<!-- MEDIA: asciinema | Certificate status check showing wildcard TLS cert from Let's Encrypt | kubectl -n traefik-system get certificates -o wide && kubectl -n traefik-system exec deploy/traefik -- cat /data/acme.json | jq '.cloudflare.Certificates[].domain' -->
-<!-- {{</* asciinema src="cert-status.cast" rows="20" */>}} -->
+```console
+$ kubectl -n traefik-system exec deploy/traefik -- cat /data/acme.json 2>/dev/null | jq -r ".cloudflare.Certificates[].domain.main"
+*.cluster.derio.net
+
+$ kubectl -n traefik-system exec deploy/traefik -- cat /data/acme.json 2>/dev/null | jq -r ".cloudflare.Certificates[0].certificate" | base64 -d | openssl x509 -noout -dates
+notBefore=Apr  8 05:28:35 2026 GMT
+notAfter=Jul  7 05:28:34 2026 GMT
+```
 
 ### PVC Permissions Gotcha
 

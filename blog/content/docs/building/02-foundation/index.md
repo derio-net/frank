@@ -107,8 +107,28 @@ metadata:
         omni.sidero.dev/cluster-machine: ce4d0d52-6c10-bdc9-746c-88aedd67681b
 ```
 
-<!-- MEDIA: asciinema | talosctl health output showing all 7 nodes passing checks | talosctl health --nodes 192.168.55.21 -->
-<!-- {{</* asciinema src="talosctl-health.cast" rows="20" */>}} -->
+```console
+$ talosctl health --nodes 192.168.55.21 2>&1 | head -25
+discovered nodes: ["192.168.55.31" "192.168.55.71" "192.168.55.41" "192.168.55.42" "192.168.55.21" "192.168.55.22" "192.168.55.23"]
+waiting for etcd to be healthy: ...
+waiting for etcd to be healthy: OK
+waiting for etcd members to be consistent across nodes: ...
+waiting for etcd members to be consistent across nodes: OK
+waiting for etcd members to be control plane nodes: ...
+waiting for etcd members to be control plane nodes: OK
+waiting for apid to be ready: ...
+waiting for apid to be ready: OK
+waiting for all nodes memory sizes: ...
+waiting for all nodes memory sizes: OK
+waiting for all nodes disk sizes: ...
+waiting for all nodes disk sizes: OK
+waiting for no diagnostics: ...
+waiting for no diagnostics: OK
+waiting for kubelet to be healthy: ...
+waiting for kubelet to be healthy: OK
+waiting for all nodes to finish boot sequence: ...
+waiting for all nodes to finish boot sequence: OK
+```
 
 ## Layer 2: Cilium CNI
 
@@ -211,8 +231,34 @@ spec:
 
 The IP pool reserves `192.168.55.200-254` on the home subnet for LoadBalancer services. The L2 announcement policy tells Cilium to respond to ARP requests for those IPs on any Ethernet interface matching the regex patterns -- this covers both `eth0` (Raspberry Pis) and `enp`-style names (the x86 machines). Any service of type `LoadBalancer` automatically gets an IP from this pool and becomes reachable from the local network.
 
-<!-- MEDIA: asciinema | cilium status showing eBPF kube-proxy replacement and Hubble enabled | cilium status -->
-<!-- {{</* asciinema src="cilium-status.cast" rows="20" */>}} -->
+```console
+$ cilium status --wait=false 2>&1 | head -25
+    /¯¯\
+ /¯¯\__/¯¯\    Cilium:             OK
+ \__/¯¯\__/    Operator:           OK
+ /¯¯\__/¯¯\    Envoy DaemonSet:    OK
+ \__/¯¯\__/    Hubble Relay:       OK
+    \__/       ClusterMesh:        disabled
+
+DaemonSet              cilium                   Desired: 7, Ready: 7/7, Available: 7/7
+DaemonSet              cilium-envoy             Desired: 7, Ready: 7/7, Available: 7/7
+Deployment             cilium-operator          Desired: 2, Ready: 2/2, Available: 2/2
+Deployment             hubble-relay             Desired: 1, Ready: 1/1, Available: 1/1
+Deployment             hubble-ui                Desired: 1, Ready: 1/1, Available: 1/1
+Containers:            cilium                   Running: 7
+                       cilium-envoy             Running: 7
+                       cilium-operator          Running: 2
+                       clustermesh-apiserver    
+                       hubble-relay             Running: 1
+                       hubble-ui                Running: 1
+Cluster Pods:          135/135 managed by Cilium
+Helm chart version:    1.17.0
+Image versions         cilium             quay.io/cilium/cilium:v1.17.0@sha256:51f21bdd003c3975b5aaaf41bd21aee23cc08f44efaa27effc91c621bc9d8b1d: 7
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.31.5-1737535524-fe8efeb16a7d233bffd05af9ea53599340d3f18e@sha256:57a3aa6355a3223da360395e3a109802867ff635cb852aa0afe03ec7bf04e545: 7
+                       cilium-operator    quay.io/cilium/operator-generic:v1.17.0@sha256:1ce5a5a287166fc70b6a5ced3990aaa442496242d1d4930b5a3125e44cccdca8: 2
+                       hubble-relay       quay.io/cilium/hubble-relay:v1.17.0@sha256:022c084588caad91108ac73e04340709926ea7fe12af95f57fcb794b68472e05: 1
+                       hubble-ui          quay.io/cilium/hubble-ui-backend:v0.13.1@sha256:0e0eed917653441fded4e7cdb096b7be6a3bddded5a2dd10812a27b1fc6ed95b: 1
+```
 
 ### Gotchas
 
