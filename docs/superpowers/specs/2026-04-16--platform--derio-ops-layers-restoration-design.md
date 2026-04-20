@@ -92,3 +92,9 @@ The "Health-check basis" section in each Layer Issue body documents the intended
 - [Work Lifecycle Tracking design (willikins)](../../../../willikins/docs/superpowers/specs/2026-04-01-work-lifecycle-tracking-design.md) — original lifecycle state machine
 - [Health Bridge app](../../../apps/health-bridge) — the bridge exists; needs Grafana alert rules to drive it
 - [Derio Ops board](https://github.com/orgs/derio-net/projects/1)
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Derio Ops Pass 3 — Grafana Wiring — Implementation Plan |  | `docs/superpowers/plans/2026-04-16--platform--derio-ops-pass3-grafana-wiring.md` | Not Started | — |

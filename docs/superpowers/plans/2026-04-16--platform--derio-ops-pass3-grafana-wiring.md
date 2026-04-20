@@ -36,3 +36,9 @@ Each Layer's intended probe is documented in its own Issue body's "Health-check 
 - Re-litigating the Layer set or lifecycle field options (decided in spec).
 - Bridge code changes (assume current behaviour; file separately if a gap is found).
 - New blackbox/Pushgateway deployments (assume what's in `apps/` is current).
+
+---
+
+### Task 1: Draft this plan
+
+- [ ] **Step 1: Resolve the open questions above with a Frank agent and replace this stub task with real phases/tasks.**
