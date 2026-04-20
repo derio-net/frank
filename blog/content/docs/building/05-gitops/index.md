@@ -242,8 +242,7 @@ The adoption sequence was:
 
 ![ArgoCD UI showing the Cilium application resource tree with sync status](argocd-ui.png)
 
-<!-- MEDIA: asciinema | ArgoCD app sync showing resource tree | argocd app sync root --port-forward --port-forward-namespace argocd -->
-<!-- {{</* asciinema src="argocd-sync.cast" rows="24" */>}} -->
+{{< asciinema src="argocd-sync-root.cast" cols="158" rows="65" >}}
 
 The entire process took under five minutes and required zero pod restarts. Cilium agents kept routing packets, Longhorn kept serving volumes, and ArgoCD quietly attached its tracking annotations in the background.
 

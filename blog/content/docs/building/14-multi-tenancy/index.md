@@ -95,5 +95,20 @@ On the host cluster, the nginx pod appears in the `vcluster-experiments` namespa
 
 Adding the next vCluster is two files and a `git push`.
 
-<!-- MEDIA: asciinema | vCluster create and kubeconfig switch | helm install, vcluster connect, kubectl get nodes -->
-<!-- {{</* asciinema src="vcluster-lifecycle.cast" rows="24" */>}} -->
+```console
+$ vcluster list
+  
+       NAME     |      NAMESPACE       | STATUS  | VERSION | CONNECTED | AGE  
+  --------------+----------------------+---------+---------+-----------+------
+    experiments | vcluster-experiments | Running | 0.32.1  |           | 39d  
+  
+
+$ kubectl get pods -n vcluster-experiments -o wide
+NAME                                                   READY   STATUS    RESTARTS   AGE   IP             NODE     NOMINATED NODE   READINESS GATES
+coredns-79cf5f4c56-9592v-x-kube-system-x-experiments   1/1     Running   0          29d   10.244.13.30   mini-2   <none>           <none>
+experiments-0                                          1/1     Running   0          29d   10.244.8.85    mini-3   <none>           <none>
+
+$ kubectl get statefulset -n vcluster-experiments
+NAME          READY   AGE
+experiments   1/1     39d
+```

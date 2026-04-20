@@ -117,8 +117,7 @@ The Sympozium chart ships with a built-in `developer-team` PersonaPack — a 2-p
 
 We deploy a customised version in `sympozium-extras` rather than using the chart default — this adds `authRefs` (LiteLLM credentials), `policyRef`, `model: qwen3.5`, and homelab-appropriate schedule intervals (the built-in default is 5 minutes for all agents, which would saturate the RTX 5070).
 
-<!-- MEDIA: asciinema | Creating an AgentRun and watching it transition through lifecycle states | kubectl apply -f agentrun-example.yaml && kubectl get agentrun -n sympozium-system -w -->
-<!-- {{</* asciinema src="agentrun-lifecycle.cast" rows="20" */>}} -->
+{{< asciinema src="agentrun-lifecycle.cast" cols="160" rows="35" >}}
 
 ## Policy Enforcement
 

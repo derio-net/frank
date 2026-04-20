@@ -312,4 +312,3 @@ kubectl exec -n monitoring "$GRAFANA_POD" -c grafana -- \
   | jq '{uid, title, labels, annotations}'
 ```
 
-<!-- MEDIA: console | Round-trip bridge smoke test: fire a warning, confirm processed, send resolved | source .env && WEBHOOK_SECRET=$(kubectl get secret -n monitoring health-bridge-secrets -o jsonpath='{.data.WEBHOOK_SECRET}' | base64 -d) && kubectl -n monitoring port-forward svc/health-bridge 8080:8080 & sleep 2 && curl -s -X POST http://localhost:8080/webhook -H "Authorization: Bearer $WEBHOOK_SECRET" -H "Content-Type: application/json" -d '{"status":"firing","alerts":[{"status":"firing","labels":{"alertname":"smoke","severity":"warning","github_issue":"frank-ops#13"},"annotations":{"summary":"Smoke test"},"startsAt":"2026-04-20T00:00:00Z"}]}' && echo && kill %1 2>/dev/null -->
