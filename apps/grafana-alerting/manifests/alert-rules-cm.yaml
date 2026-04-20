@@ -409,4 +409,65 @@ data:
       # One rule per Layer. Use aggregation to keep the signal single.
       # Added in Pass 3 — see docs/superpowers/specs/2026-04-16--platform--derio-ops-layers-restoration-design.md
       # =====================================================================
-      # (Layer rules appended below as each phase completes.)
+
+      # --- Layer 8 — Observability (frank-ops#8) ---
+      # Per-instance: one alert per failing monitoring pod, plus one if the
+      # health-bridge self-probe fails. Uses label_replace to inject a
+      # `component` label that normalises across both signals for templating.
+      - orgId: 1
+        name: layer-8-observability-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-8-observability-down
+            title: Layer 8 Observability Degraded
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  # Raw readiness values (0=NotReady, 1=Ready) with a
+                  # normalised `component` label for templating. Threshold lt 1
+                  # fires on value==0, per-series.
+                  expr: |
+                    label_replace(
+                      kube_pod_status_ready{namespace="monitoring",condition="true"},
+                      "component", "pod/$1", "pod", "(.+)"
+                    )
+                    or
+                    label_replace(
+                      probe_success{instance="http://health-bridge.monitoring.svc.cluster.local:8080/healthz"},
+                      "component", "probe/health-bridge-healthz", "", ""
+                    )
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings: { mode: dropNN }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: critical
+              github_issue: "frank-ops#8"
+            annotations:
+              summary: "L8 Observability: {{ $labels.component }} failing"
+              runbook: "kubectl get pods -n monitoring; kubectl get probe -n monitoring feature-health-probes -o yaml"
