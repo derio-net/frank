@@ -254,7 +254,9 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'increase(willikins_vk_bridge_failure_total[15m])'
+                  # Preserve `reason` and `issue` labels through the aggregation
+                  # so the annotation template can name the specific failure.
+                  expr: 'sum by (reason, issue) (increase(willikins_vk_bridge_failure_total[15m]))'
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -290,7 +292,8 @@ data:
             labels:
               severity: warning
             annotations:
-              summary: "VK Issue Bridge reported failures in the last 15 minutes — see logs at /home/claude/.willikins-agent/vk-bridge.log"
+              summary: "VK Issue Bridge: {{ $values.B.Value | printf \"%.0f\" }} failure(s) reason={{ $labels.reason }} issue=#{{ $labels.issue }} in last 15m"
+              description: "Check /home/claude/.willikins-agent/vk-bridge.log for the failing payload"
 
       # --- Endpoint-down (eval every 1m) ---
       - orgId: 1
@@ -345,7 +348,7 @@ data:
             labels:
               severity: critical
             annotations:
-              summary: "HTTP endpoint probe failing"
+              summary: "Endpoint probe failing: {{ $labels.instance }}"
 
       # --- Pod-not-running (eval every 1m) ---
       - orgId: 1
@@ -401,7 +404,7 @@ data:
               severity: critical
               github_issue: "frank-ops#18"
             annotations:
-              summary: Secure agent pod is not in Running phase
+              summary: "Secure agent pod {{ $labels.pod }} not in Running phase"
 
       # =====================================================================
       # LAYER TRACKERS (Derio Ops board, derio-net/frank-ops — private)
