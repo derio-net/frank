@@ -411,7 +411,6 @@ With all three Applications healthy, the cluster has full observability:
 
 **What is not yet visible:** alerting. VMAlert and Alertmanager are disabled pending alert rule tuning. That is Layer 9.
 
-<!-- MEDIA: console | Cluster resource utilisation — metrics-server is not deployed on Frank (VictoriaMetrics is the metrics backend), so `kubectl top` will not work. Retarget: PromQL via `vmctl` or a `curl` against vmselect, OR drop this placeholder. -->
 
 ## References
 

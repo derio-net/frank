@@ -95,7 +95,24 @@ spec:
 
 The `probe_group: feature_health` label lets Grafana alert rules and dashboard panels filter to just these probes.
 
-<!-- MEDIA: console | Blackbox exporter probe status check showing endpoint health | kubectl -n monitoring port-forward svc/blackbox-exporter 9115:9115 & curl -s 'http://localhost:9115/probe?target=http://n8n-01.n8n-01.svc.cluster.local:5678&module=http_2xx' | grep probe_success -->
+```console
+$ kubectl -n monitoring exec deploy/blackbox-exporter -- wget -qO- "http://localhost:9115/probe?target=http://n8n-01.n8n-01.svc.cluster.local:5678&module=http_2xx" 2>&1 | grep -E "^probe_" | head -15
+probe_dns_lookup_time_seconds 0.003983567
+probe_duration_seconds 0.008721478
+probe_failed_due_to_regex 0
+probe_http_content_length 15316
+probe_http_duration_seconds{phase="connect"} 0.000614314
+probe_http_duration_seconds{phase="processing"} 0.003136842
+probe_http_duration_seconds{phase="resolve"} 0.003983567
+probe_http_duration_seconds{phase="tls"} 0
+probe_http_duration_seconds{phase="transfer"} 0.000583172
+probe_http_last_modified_timestamp_seconds 1.774818437e+09
+probe_http_redirects 0
+probe_http_ssl 0
+probe_http_status_code 200
+probe_http_uncompressed_body_length 15316
+probe_http_version 1.1
+```
 
 ## Deploying Pushgateway
 
@@ -110,7 +127,15 @@ echo "willikins_heartbeat_last_success_timestamp $(date +%s)" | \
 
 The VMServiceScrape uses `honorLabels: true` — this preserves the `job` label from the pushed metric rather than overwriting it with the scrape job name. Without this, every heartbeat metric would have `job="pushgateway"` and you couldn't tell which cron it came from.
 
-<!-- MEDIA: console | Pushgateway heartbeat check showing last success timestamps | curl -s http://pushgateway.monitoring.svc.cluster.local:9091/metrics | grep willikins_heartbeat -->
+```console
+$ kubectl -n monitoring exec deploy/pushgateway -- wget -qO- http://localhost:9091/metrics 2>&1 | grep willikins_heartbeat | head -20
+# HELP willikins_heartbeat_last_success_timestamp Unix timestamp of last successful run
+# TYPE willikins_heartbeat_last_success_timestamp gauge
+willikins_heartbeat_last_success_timestamp{instance="",job="audit_digest"} 1.7766324e+09
+willikins_heartbeat_last_success_timestamp{instance="",job="session_manager"} 1.776714e+09
+willikins_heartbeat_last_success_timestamp{instance="",job="test_probe"} 1.775328764e+09
+willikins_heartbeat_last_success_timestamp{instance="",job="vk_issue_bridge"} 1.776714006e+09
+```
 
 ## Grafana Alert Rules
 

@@ -101,8 +101,7 @@ spec:
 
 This tells ArgoCD to ignore replica count differences — the GPU Switcher is the authority for that field, not Git.
 
-<!-- MEDIA: asciinema | GPU Switcher toggling between Ollama and ComfyUI via the web API | curl -X POST http://192.168.55.214:8080/api/activate/comfyui && sleep 5 && curl http://192.168.55.214:8080/api/status -->
-<!-- {{</* asciinema src="gpu-switcher-toggle.cast" rows="20" */>}} -->
+{{< asciinema src="gpu-switcher-toggle.cast" cols="80" rows="38" >}}
 
 ### RBAC
 

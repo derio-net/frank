@@ -153,8 +153,7 @@ proxy_config:
 
 LiteLLM resolves `os.environ/OPENROUTER_API_KEY` at runtime from the pod's environment, which is injected by the ExternalSecret.
 
-<!-- MEDIA: asciinema | LiteLLM streaming API call | curl -N http://192.168.55.206/v1/chat/completions with streaming -->
-<!-- {{</* asciinema src="litellm-streaming.cast" rows="20" */>}} -->
+{{< asciinema src="litellm-stream.cast" cols="180" rows="8" >}}
 
 ### Secrets Flow
 
