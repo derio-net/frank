@@ -7,6 +7,13 @@ data:
   alert-rules.yaml: |
     apiVersion: 1
     groups:
+      # =====================================================================
+      # FEATURE-LEVEL ALERTS (bugs in specific willikins crons / endpoints)
+      # Labels: severity + github_issue=willikins#<N>
+      # These fire independently of the Layer trackers below; the Layer
+      # rules aggregate them into a single "is this Layer up" signal.
+      # =====================================================================
+
       # --- Heartbeat-stale: exercise reminder (eval every 5m) ---
       - orgId: 1
         name: heartbeat-stale-5m
@@ -395,3 +402,11 @@ data:
               github_issue: "frank-ops#18"
             annotations:
               summary: Secure agent pod is not in Running phase
+
+      # =====================================================================
+      # LAYER TRACKERS (Derio Ops board, derio-net/frank-ops — private)
+      # Labels: severity + github_issue=frank-ops#<LAYER>
+      # One rule per Layer. Use aggregation to keep the signal single.
+      # Added in Pass 3 — see docs/superpowers/specs/2026-04-16--platform--derio-ops-layers-restoration-design.md
+      # =====================================================================
+      # (Layer rules appended below as each phase completes.)

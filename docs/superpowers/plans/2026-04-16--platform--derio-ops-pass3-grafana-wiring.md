@@ -150,7 +150,7 @@ Pass 1 put the 20 Layer tracker Issues in `derio-net/frank` (public), which mean
 | 24 | `frank` issue 102 | `frank-ops` issue 24 |
 | 25 | `frank` issue 103 | `frank-ops` issue 25 |
 
-- [ ] **Step 1: Create the private repo**
+- [x] **Step 1: Create the private repo**
 
 ```bash
 gh repo create derio-net/frank-ops \
@@ -161,7 +161,7 @@ gh repo create derio-net/frank-ops \
 
 Expected: `✓ Created repository derio-net/frank-ops on GitHub`.
 
-- [ ] **Step 1b: Clone `frank-ops` under `~/repos` so future sessions can work on it locally**
+- [x] **Step 1b: Clone `frank-ops` under `~/repos` so future sessions can work on it locally**
 
 ```bash
 cd ~/repos
@@ -171,7 +171,7 @@ ls -d ~/repos/frank-ops
 
 Expected: `/home/claude/repos/frank-ops` exists. This sits alongside `~/repos/frank`, `~/repos/willikins`, etc. — same convention as the other derio-net repos. Future sessions that need to edit tracker Issue bodies or inspect board history can `cd ~/repos/frank-ops` directly instead of going through `gh`.
 
-- [ ] **Step 2: Transfer Layers 1–6 in order**
+- [x] **Step 2: Transfer Layers 1–6 in order**
 
 Transfers go sequentially because Issue numbers in the new repo increment in transfer order. Verify each transfer assigned the expected number before moving on.
 
@@ -198,7 +198,7 @@ gh issue list --repo "$DST" --state all --json number,title --jq '.[] | "\(.numb
 
 Expected: six Issues numbered 1–6, titles `Layer 1 — Hardware` … `Layer 6 — GitOps`.
 
-- [ ] **Step 3: Burn gap placeholder #7 (Layer 7 dropped)**
+- [x] **Step 3: Burn gap placeholder #7 (Layer 7 dropped)**
 
 ```bash
 NUM=$(gh issue create --repo "$DST" \
@@ -215,7 +215,7 @@ Expected: New Issue created as `frank-ops#7`, then closed with reason `not plann
 
 Note: the `gap` label may not exist in a fresh repo. Either create it first (`gh label create gap --repo "$DST" --description "Placeholder for a dropped/absorbed Layer number"`) or drop the `--label gap` flag.
 
-- [ ] **Step 4: Transfer Layers 8–14 and 15–19 (with Layer-number/Issue-number alignment)**
+- [x] **Step 4: Transfer Layers 8–14 and 15–19 (with Layer-number/Issue-number alignment)**
 
 ```bash
 # Layer 8 → frank-ops#8
@@ -241,7 +241,7 @@ gh issue list --repo "$DST" --state all --json number,title --jq '.[] | "\(.numb
 
 Expected: Issues 8–19 populated with correct Layer titles. If any transfer produced the wrong number, STOP and re-sequence — downstream label wiring depends on this alignment.
 
-- [ ] **Step 5: Burn gap placeholders #20, #21, #22, #23**
+- [x] **Step 5: Burn gap placeholders #20, #21, #22, #23**
 
 ```bash
 for LAYER_NUM in 20 21 22 23; do
@@ -261,14 +261,14 @@ done
 
 Expected: Issues #20, #21, #22, #23 created and closed.
 
-- [ ] **Step 6: Transfer Layers 24 and 25**
+- [x] **Step 6: Transfer Layers 24 and 25**
 
 ```bash
 gh issue transfer 102 --repo "$SRC" "$DST"  # → frank-ops#24
 gh issue transfer 103 --repo "$SRC" "$DST"  # → frank-ops#25
 ```
 
-- [ ] **Step 7: Verify the Derio Ops board auto-updated**
+- [x] **Step 7: Verify the Derio Ops board auto-updated**
 
 GitHub auto-updates project v2 item references when an Issue transfers. Confirm by querying the board:
 
@@ -303,7 +303,7 @@ gh project item-delete --owner derio-net --project 1 --id <item-id>
 gh project item-add --owner derio-net --project 1 --url https://github.com/derio-net/frank-ops/issues/<LAYER>
 ```
 
-- [ ] **Step 8: Update the existing `agent-pod-not-running` rule label**
+- [x] **Step 8: Update the existing `agent-pod-not-running` rule label**
 
 The pre-Pass-3 rule still carries `github_issue: "frank#8"` (the old public-repo reference). Repoint it at `frank-ops#18`.
 
@@ -329,7 +329,7 @@ kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
 kubectl rollout status -n monitoring deploy/grafana --timeout=120s
 ```
 
-- [ ] **Step 9: Update the spec's Layer table**
+- [x] **Step 9: Update the spec's Layer table**
 
 Edit `docs/superpowers/specs/2026-04-16--platform--derio-ops-layers-restoration-design.md` — replace every old-repo issue reference in the table's "Issue" column with the corresponding `frank-ops` number. Do longest-number substitutions first to avoid partial matches (e.g. `frank#103` before `frank#10`).
 
@@ -370,7 +370,7 @@ Prove the updated `agent-pod-not-running` rule still fires through the Bridge an
 
 **Files:** none
 
-- [ ] **Step 1: Port-forward and send a synthetic firing alert targeting `frank-ops#18`**
+- [x] **Step 1: Port-forward and send a synthetic firing alert targeting `frank-ops#18`**
 
 ```bash
 source .env
@@ -397,7 +397,7 @@ echo
 
 Expected: `{"processed": 1, "total": 1}`.
 
-- [ ] **Step 2: Verify Lifecycle field on frank-ops#18 changed to `degraded`**
+- [x] **Step 2: Verify Lifecycle field on frank-ops#18 changed to `degraded`**
 
 ```bash
 gh api graphql -f query='
@@ -418,7 +418,7 @@ gh api graphql -f query='
 
 Expected: `degraded`.
 
-- [ ] **Step 3: Send a resolved alert, verify return to `healthy`**
+- [x] **Step 3: Send a resolved alert, verify return to `healthy`**
 
 ```bash
 curl -s -X POST http://localhost:8080/webhook \
@@ -440,7 +440,7 @@ kill $PF_PID
 
 Re-run the GraphQL query from Step 2. Expected: `healthy`.
 
-- [ ] **Step 4: If either transition failed, stop the plan and root-cause**
+- [-] **Step 4: If either transition failed, stop the plan and root-cause** *(skipped — both transitions succeeded on first try)*
 
 If Lifecycle didn't transition: check Bridge logs (`kubectl logs -n monitoring -l app=health-bridge --tail=50`). Common failures:
 - `issue X is not on project Y` — transfer didn't carry the Issue's board-item association (re-add manually via `gh project item-add`).
