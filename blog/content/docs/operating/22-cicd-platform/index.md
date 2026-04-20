@@ -30,6 +30,9 @@ kubectl get externalsecret -n zot
 
 Healthy state: all pods Running on pc-1, all ArgoCD apps Synced/Healthy, all ExternalSecrets SecretSynced.
 
+<!-- MEDIA: asciinema | CI/CD platform baseline across three namespaces | source .env && kubectl get pods -n gitea -o wide && echo '---tekton---' && kubectl get pods -n tekton-pipelines -o wide && echo '---zot---' && kubectl get pods -n zot -o wide -->
+<!-- {{</* asciinema src="cicd-baseline-pods.cast" */>}} -->
+
 ## Gitea Operations
 
 ### Mirror Sync Status
@@ -142,6 +145,9 @@ kubectl run test-curl --rm -it --image=curlimages/curl -- \
 Access at `http://192.168.55.217:9097` or `https://tekton.cluster.derio.net` (Authentik forward-auth).
 
 The dashboard is read-only — it shows PipelineRuns, TaskRuns, and logs. Useful for non-CLI users or quick visual debugging.
+
+<!-- MEDIA: screenshot | Tekton Dashboard PipelineRun history with a successful gitea-ci run open | Navigate to http://192.168.55.217:9097 (or via Authentik at tekton.cluster.derio.net), open a recent gitea-ci PipelineRun, capture the DAG view with all steps green -->
+<!-- {{</* screenshot src="tekton-pipelinerun-history.png" caption="Tekton Dashboard: recent PipelineRuns with a successful gitea-ci run expanded" */>}} -->
 
 ### Common Tekton Issues
 

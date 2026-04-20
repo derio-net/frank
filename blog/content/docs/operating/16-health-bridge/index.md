@@ -229,6 +229,9 @@ git push origin v0.2.0
 
 As of 2026-04-20, the 20 Layer tracker Issues on the Derio Ops board were relocated from the public `derio-net/frank` to the private `derio-net/frank-ops` repo, with Issue numbers aligned 1:1 to Layer numbers (so `frank-ops#13` is Layer 13 Authentik). Each Layer has one Grafana alert rule with `github_issue: "frank-ops#<LAYER>"` driving its Lifecycle field automatically.
 
+<!-- MEDIA: screenshot | Derio Ops board showing all 20 Layer trackers with their Lifecycle tiles | Open the private derio-net/frank-ops board, filter to the Lifecycle view, capture the full grid of Layer tracker tiles -->
+<!-- {{</* screenshot src="derio-ops-layer-grid.png" caption="Derio Ops board: every Layer tracker showing its current Lifecycle state driven by Grafana rules" */>}} -->
+
 ### Smoke-testing a Layer via direct webhook
 
 The direct-Bridge test bypasses Grafana's rule evaluation, which is handy for verifying the Bridge + GitHub path without waiting for a real metric to dip:
@@ -308,3 +311,6 @@ kubectl exec -n monitoring "$GRAFANA_POD" -c grafana -- \
   http://localhost:3000/api/v1/provisioning/alert-rules/layer-13-auth-down \
   | jq '{uid, title, labels, annotations}'
 ```
+
+<!-- MEDIA: asciinema | Round-trip bridge smoke test: fire a warning, confirm processed, send resolved | source .env && WEBHOOK_SECRET=$(kubectl get secret -n monitoring health-bridge-secrets -o jsonpath='{.data.WEBHOOK_SECRET}' | base64 -d) && kubectl -n monitoring port-forward svc/health-bridge 8080:8080 & sleep 2 && curl -s -X POST http://localhost:8080/webhook -H "Authorization: Bearer $WEBHOOK_SECRET" -H "Content-Type: application/json" -d '{"status":"firing","alerts":[{"status":"firing","labels":{"alertname":"smoke","severity":"warning","github_issue":"frank-ops#13"},"annotations":{"summary":"Smoke test"},"startsAt":"2026-04-20T00:00:00Z"}]}' && echo && kill %1 2>/dev/null -->
+<!-- {{</* asciinema src="health-bridge-webhook-smoke.cast" */>}} -->

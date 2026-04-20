@@ -31,6 +31,9 @@ kubectl -n agents get pods -o wide
 kubectl -n agents get pods -l 'app in (postgres-vk, electric, vk-remote)'
 ```
 
+<!-- MEDIA: asciinema | All three VK Remote components (postgres, electric, vk-remote) running | source .env && kubectl -n agents get pods -o wide -->
+<!-- {{</* asciinema src="vk-remote-three-pods.cast" */>}} -->
+
 ### PostgreSQL
 
 ```bash
@@ -42,6 +45,9 @@ kubectl -n agents exec deploy/postgres-vk -- \
 # Check replication slots (ElectricSQL creates one)
 kubectl -n agents exec deploy/postgres-vk -- \
   psql -U vibekanban -d vibekanban -c "SELECT slot_name, active FROM pg_replication_slots;"
+
+<!-- MEDIA: asciinema | PostgreSQL WAL level + active ElectricSQL replication slot | source .env && kubectl -n agents exec deploy/postgres-vk -- psql -U vibekanban -d vibekanban -c "SHOW wal_level;" && kubectl -n agents exec deploy/postgres-vk -- psql -U vibekanban -d vibekanban -c "SELECT slot_name, active FROM pg_replication_slots;" -->
+<!-- {{</* asciinema src="vk-remote-pg-wal-slots.cast" */>}} -->
 
 # Check the electric role exists
 kubectl -n agents exec deploy/postgres-vk -- \

@@ -122,6 +122,9 @@ SELF_HOST_LOCAL_AUTH_PASSWORD=<from Infisical>
 
 POST to `/v1/auth/local/login` returns JWT tokens. The secure-agent-pod's bridge authenticates this way. Browser access goes through Authentik forward-auth at the Traefik layer — the VK remote server itself doesn't know or care about SSO.
 
+<!-- MEDIA: asciinema | All three self-hosted VK components running | source .env && kubectl get pods -n agents -o wide -->
+<!-- {{</* asciinema src="vk-remote-pods.cast" */>}} -->
+
 ## Secrets via Infisical
 
 Four secrets in Infisical, pulled by External Secrets Operator:
@@ -191,6 +194,9 @@ The VK binary, MCP server, bridge, and all 33 MCP tools work unchanged. They all
 ## Domain Deviation
 
 The spec originally called for `vk.frank.derio.net`, but Frank's Traefik wildcard cert covers `*.cluster.derio.net`. Using `vk.cluster.derio.net` avoids provisioning a new certificate. Pragmatism over naming purity.
+
+<!-- MEDIA: screenshot | Self-hosted VK kanban board running on vk.cluster.derio.net | Navigate to https://vk.cluster.derio.net after Authentik login, capture the project board view with at least one issue in each lifecycle column, dark mode preferred -->
+<!-- {{</* screenshot src="vk-remote-board.png" caption="Self-hosted VK board rendering issues from the local PostgreSQL + ElectricSQL backend" */>}} -->
 
 ## Gotchas
 

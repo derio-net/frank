@@ -145,6 +145,9 @@ weekly-r2   ["default"]   backup   0 3 * * 0   4        1
 
 `daily-nas` and `weekly-r2` are deliberately kept with their original names — they describe intent, not just current routing. When NAS support lands in Longhorn 1.13, the default target switches back to NAS and a second named R2 target handles the weekly offsite job (once `backupTargetName` also lands).
 
+<!-- MEDIA: asciinema | Live view of BackupTargets and RecurringJobs | source .env && kubectl get backuptargets -n longhorn-system && kubectl get recurringjobs -n longhorn-system -->
+<!-- {{</* asciinema src="longhorn-backup-targets.cast" */>}} -->
+
 ## Cloudflare R2: Why It Works Here
 
 R2's free tier includes 10 GB storage and 1 million Class A operations per month. The cluster's actual data footprint — VictoriaMetrics time-series, Grafana config, a handful of application PVCs — is a few gigabytes. Monthly cost: zero.
@@ -179,6 +182,9 @@ The practical recovery story:
 | Node failure | Longhorn replicas absorb it, no restore needed | 0 |
 | Full cluster loss | ArgoCD re-applies resources, restore PVCs from R2 | ~30–60 min |
 | NAS + cluster simultaneous loss | Restore from weekly R2 backup (≤7 day RPO) | ~60 min |
+
+<!-- MEDIA: screenshot | Longhorn UI Backup page listing recent R2 backups | Navigate to http://192.168.55.201/#/backup, dark mode preferred -->
+<!-- {{</* screenshot src="longhorn-backups-list.png" caption="Longhorn UI Backup page showing daily R2 snapshots with retention" */>}} -->
 
 ## References
 

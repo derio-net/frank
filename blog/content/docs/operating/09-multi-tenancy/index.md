@@ -28,6 +28,9 @@ kubectl get pods -A -l app=vcluster
 argocd app list --port-forward --port-forward-namespace argocd | grep vcluster
 ```
 
+<!-- MEDIA: asciinema | vCluster inventory: CLI list plus host-cluster StatefulSets | source .env && vcluster list && echo '---' && kubectl get statefulset -A -l app=vcluster -->
+<!-- {{</* asciinema src="vcluster-inventory.cast" */>}} -->
+
 ### Connect to a Virtual Cluster
 
 ```bash

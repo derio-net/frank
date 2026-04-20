@@ -175,6 +175,9 @@ Response: `{"processed": 1, "total": 1}`. Issue #11 on the Derio Ops board moves
 
 Sending a resolved alert moves it back to `healthy`. Round-trip verified.
 
+<!-- MEDIA: screenshot | Derio Ops project board showing a Layer tile transitioning from healthy to degraded | Open the private derio-net/frank-ops project board, trigger or observe an alert firing on a Layer, capture the Lifecycle column showing the transition -->
+<!-- {{</* screenshot src="ops-board-lifecycle-transition.png" caption="Derio Ops board: a Layer tracker moving healthy → degraded in response to a Grafana alert" */>}} -->
+
 ## What's Next
 
 The `endpoint-down` alert covers multiple targets but currently has no `github_issue` label — per-endpoint mapping to individual Issues is future work. Adding Prometheus metrics to the bridge itself (`health_bridge_alerts_processed_total`, `health_bridge_github_errors_total`) would enable dashboards on bridge throughput and error rates.
@@ -258,6 +261,9 @@ A few cosmetic surprises too: Sympozium runs `developer-team-*` scheduled-task J
 The Derio Ops board now self-updates. Every layer's tile shows its real, current health — driven by a rule that names the specific failing pod or node or endpoint. A cilium-agent pod flapping on `mini-2` produces a Telegram message with *"L3 Cilium: pod cilium-94msf NotReady"* and a GitHub comment that points at `kubectl -n kube-system describe pod cilium-94msf`. The Layer 3 tile on the board goes `degraded` for the duration, then `healthy` again when the pod recovers.
 
 Zero manual triage. And because the board finally reflects reality, it's useful again — which was the original point.
+
+<!-- MEDIA: screenshot | Telegram alert from @agent_zero_cc_bot showing a per-pod labelled Layer failure | Screenshot a real alert message in the Telegram chat showing a message like "L3 Cilium: pod cilium-94msf NotReady" with severity tag -->
+<!-- {{</* screenshot src="telegram-per-pod-layer-alert.png" caption="Telegram notification from the Bridge: per-pod label makes the alert actionable" */>}} -->
 
 ## References
 
