@@ -43,7 +43,7 @@ spec:
             defaultMode: 0400
       containers:
         - name: kali
-          image: ghcr.io/derio-net/secure-agent-kali:b3b0899cf88259fc97a9cabe29775ad0851ed2ab
+          image: ghcr.io/derio-net/secure-agent-kali:cceeaf52f02a9fdee9e6f3d0df962ae9686ea040
           ports:
             - name: ssh
               containerPort: 2222  # Non-root sshd; Service maps 22→2222
@@ -93,7 +93,7 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 60
         - name: vk-local
-          image: ghcr.io/derio-net/vk-local:b3b0899cf88259fc97a9cabe29775ad0851ed2ab
+          image: ghcr.io/derio-net/vk-local:cceeaf52f02a9fdee9e6f3d0df962ae9686ea040
           ports:
             - name: vk-http
               containerPort: 8081
