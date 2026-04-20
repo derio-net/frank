@@ -531,3 +531,272 @@ data:
             annotations:
               summary: "Layer 18 (Persistent Agent) — {{ $labels.job }} cron heartbeat stale. See willikins#11/#12/#13 for per-cron triage."
               runbook: "kubectl logs -n secure-agent-pod -l app=secure-agent-pod --tail=50 | grep -i {{ $labels.job }}"
+
+      # --- Layer 1 — Hardware & Nodes (frank-ops#1) ---
+      # Per-node: one alert instance per NotReady node.
+      - orgId: 1
+        name: layer-1-hardware-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-1-hardware-down
+            title: Layer 1 Hardware Node NotReady
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  # status="false" series are 1 when node is NotReady, 0 otherwise.
+                  expr: 'kube_node_status_condition{condition="Ready",status="false"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#1"
+            annotations:
+              summary: "L1 Hardware: node {{ $labels.node }} NotReady"
+              runbook: "kubectl describe node {{ $labels.node }}; talosctl -n {{ $labels.node }} health"
+
+      # --- Layer 2 — OS & Bootstrap (frank-ops#2) ---
+      # Per control-plane node only — HA lost = critical.
+      - orgId: 1
+        name: layer-2-os-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-2-os-down
+            title: Layer 2 OS Control-Plane NotReady
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: |
+                    kube_node_status_condition{condition="Ready",status="false"}
+                    * on(node) group_left kube_node_role{role="control-plane"}
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 2m
+            labels:
+              severity: critical
+              github_issue: "frank-ops#2"
+            annotations:
+              summary: "L2 OS: control-plane node {{ $labels.node }} NotReady — HA at risk"
+              runbook: "talosctl -n {{ $labels.node }} health; talosctl -n {{ $labels.node }} dmesg | tail -50"
+
+      # --- Layer 3 — Networking / Cilium (frank-ops#3) ---
+      # Per-pod alert when any cilium-agent, cilium-envoy, or cilium-operator pod is NotReady.
+      - orgId: 1
+        name: layer-3-networking-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-3-networking-down
+            title: Layer 3 Cilium Agent Down
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'kube_pod_status_ready{namespace="kube-system",pod=~"cilium-.*",condition="true"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#3"
+            annotations:
+              summary: "L3 Cilium: pod {{ $labels.pod }} NotReady"
+              runbook: "kubectl -n kube-system describe pod {{ $labels.pod }}; kubectl -n kube-system logs {{ $labels.pod }} --tail=50"
+
+      # --- Layer 4 — Storage / Longhorn (frank-ops#4) ---
+      # DEFERRED: the original plan used longhorn_volume_robustness for per-volume
+      # degraded/faulted detection, but Longhorn native metrics aren't scraped yet.
+      # Fallback: alert when any longhorn-manager pod is NotReady (control-plane signal).
+      # Follow-up: enable Longhorn ServiceMonitor/VMServiceScrape to restore the
+      # original volume-level rule.
+      - orgId: 1
+        name: layer-4-storage-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-4-storage-down
+            title: Layer 4 Longhorn Manager NotReady
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'kube_pod_status_ready{namespace="longhorn-system",pod=~"longhorn-manager-.*",condition="true"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#4"
+            annotations:
+              summary: "L4 Longhorn: manager pod {{ $labels.pod }} NotReady — storage control-plane degraded"
+              runbook: "kubectl -n longhorn-system describe pod {{ $labels.pod }}; kubectl -n longhorn-system get volumes"
+
+      # --- Layer 5 — GPU Compute (frank-ops#5) ---
+      # Per-pod: fires for each NotReady GPU-operator or Intel-DRA-driver pod.
+      - orgId: 1
+        name: layer-5-gpu-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-5-gpu-down
+            title: Layer 5 GPU Operator NotReady
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'kube_pod_status_ready{namespace=~"gpu-operator|intel-gpu-resource-driver",condition="true"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#5"
+            annotations:
+              summary: "L5 GPU: {{ $labels.namespace }}/{{ $labels.pod }} NotReady"
+              runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
+
+      # --- Layer 6 — GitOps / ArgoCD (frank-ops#6) ---
+      # DEFERRED: original plan included an "app unhealthy" sub-rule using
+      # argocd_app_info, but ArgoCD app metrics aren't scraped yet.
+      # Follow-up: add argocd metrics ServiceMonitor/VMServiceScrape to
+      # restore per-app health signal.
+      # For now, alert on any NotReady argocd-* pod (server + controller).
+      - orgId: 1
+        name: layer-6-gitops-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-6-gitops-down
+            title: Layer 6 ArgoCD Pod Down
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'kube_pod_status_ready{namespace="argocd",condition="true"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: critical
+              github_issue: "frank-ops#6"
+            annotations:
+              summary: "L6 ArgoCD: pod {{ $labels.pod }} NotReady — cluster GitOps impaired"
+              runbook: "kubectl -n argocd describe pod {{ $labels.pod }}; kubectl -n argocd logs {{ $labels.pod }} --tail=50"
