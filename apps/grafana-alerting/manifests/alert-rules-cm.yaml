@@ -392,6 +392,6 @@ data:
             for: 5m
             labels:
               severity: critical
-              github_issue: "frank#8"
+              github_issue: "frank-ops#18"
             annotations:
               summary: Secure agent pod is not in Running phase
