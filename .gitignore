@@ -62,3 +62,4 @@ blog/.hugo_build.lock
 .env_hop
 clusters/hop/talosconfig/
 .gitnexus
+frank-cluster.code-workspace
