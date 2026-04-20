@@ -1,0 +1,3 @@
+{"version":2,"width":120,"height":30,"timestamp":1776702768,"idle_time_limit":2.0,"command":"bash -c \"source .env && kubectl exec -n ollama deploy/ollama -- ollama ps\"","env":{"SHELL":"/bin/zsh"}}
+[0.577566, "o", "NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL             \r\nqwen3.5:9b    6488c96fa5fa    8.6 GB    100% GPU     4096       24 hours from now    \r\n"]
+[0.583983, "x", "0"]

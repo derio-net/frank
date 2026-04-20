@@ -32,8 +32,7 @@ kubectl get volumes.longhorn.io -n longhorn-system
 
 A healthy volume shows `State: attached` (if in use) or `State: detached` (if idle), with `Robustness: healthy`. Anything showing `degraded` or `faulted` needs attention — jump to the Debugging section.
 
-<!-- MEDIA: asciinema | Live volume health inventory | source .env && kubectl get volumes.longhorn.io -n longhorn-system -->
-<!-- {{</* asciinema src="longhorn-volumes-list.cast" */>}} -->
+{{< asciinema src="longhorn-volumes-list.cast" >}}
 
 For more detail on a specific volume:
 

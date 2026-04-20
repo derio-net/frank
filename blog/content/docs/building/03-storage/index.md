@@ -250,8 +250,7 @@ spec:
 
 The `strict-local` data locality combined with the `gpu-local` disk selector ensures this volume lands on one of gpu-1's 4TB SSDs, right next to the GPU that will process its contents.
 
-<!-- MEDIA: asciinema | Both StorageClasses visible after Longhorn install | source .env && kubectl get storageclass -->
-<!-- {{</* asciinema src="longhorn-storageclasses.cast" */>}} -->
+{{< asciinema src="longhorn-storageclasses.cast" >}}
 
 ## What We Have Now
 

@@ -31,27 +31,25 @@ kubectl -n agents get pods -o wide
 kubectl -n agents get pods -l 'app in (postgres-vk, electric, vk-remote)'
 ```
 
-<!-- MEDIA: asciinema | All three VK Remote components (postgres, electric, vk-remote) running | source .env && kubectl -n agents get pods -o wide -->
-<!-- {{</* asciinema src="vk-remote-three-pods.cast" */>}} -->
+{{< asciinema src="vk-remote-three-pods.cast" >}}
 
 ### PostgreSQL
 
 ```bash
 # Check PG is running and WAL level
 kubectl -n agents exec deploy/postgres-vk -- \
-  psql -U vibekanban -d vibekanban -c "SHOW wal_level;"
+  psql -U remote -d remote -c "SHOW wal_level;"
 # Expected: logical
 
 # Check replication slots (ElectricSQL creates one)
 kubectl -n agents exec deploy/postgres-vk -- \
-  psql -U vibekanban -d vibekanban -c "SELECT slot_name, active FROM pg_replication_slots;"
+  psql -U remote -d remote -c "SELECT slot_name, active FROM pg_replication_slots;"
 
-<!-- MEDIA: asciinema | PostgreSQL WAL level + active ElectricSQL replication slot | source .env && kubectl -n agents exec deploy/postgres-vk -- psql -U vibekanban -d vibekanban -c "SHOW wal_level;" && kubectl -n agents exec deploy/postgres-vk -- psql -U vibekanban -d vibekanban -c "SELECT slot_name, active FROM pg_replication_slots;" -->
-<!-- {{</* asciinema src="vk-remote-pg-wal-slots.cast" */>}} -->
+{{< asciinema src="vk-remote-pg-wal-slots.cast" >}}
 
 # Check the electric role exists
 kubectl -n agents exec deploy/postgres-vk -- \
-  psql -U vibekanban -d vibekanban -c "SELECT rolname FROM pg_roles WHERE rolname = 'electric';"
+  psql -U remote -d remote -c "SELECT rolname FROM pg_roles WHERE rolname = 'electric';"
 ```
 
 ### ElectricSQL
@@ -162,7 +160,7 @@ kubectl -n agents logs deploy/electric --tail=30
 ```
 
 If you see connection errors:
-1. Verify the `electric` PG role exists: `kubectl -n agents exec deploy/postgres-vk -- psql -U vibekanban -d vibekanban -c "SELECT rolname FROM pg_roles WHERE rolname = 'electric';"`
+1. Verify the `electric` PG role exists: `kubectl -n agents exec deploy/postgres-vk -- psql -U remote -d remote -c "SELECT rolname FROM pg_roles WHERE rolname = 'electric';"`
 2. If the role is missing, delete and re-trigger the init job: `kubectl -n agents delete job postgres-vk-init-electric` then sync ArgoCD
 3. Restart ElectricSQL: `kubectl -n agents rollout restart deploy/electric`
 

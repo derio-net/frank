@@ -88,9 +88,9 @@ containers:
       - "max_wal_senders=5"
     env:
       - name: POSTGRES_DB
-        value: vibekanban
+        value: remote
       - name: POSTGRES_USER
-        value: vibekanban
+        value: remote
       - name: POSTGRES_PASSWORD
         valueFrom:
           secretKeyRef:
@@ -109,7 +109,7 @@ annotations:
   argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 ```
 
-The Job waits for PG to be ready, then creates the `electric` role with `LOGIN` and `REPLICATION` privileges plus full grants on the `vibekanban` database.
+The Job waits for PG to be ready, then creates the `electric` role with `LOGIN` and `REPLICATION` privileges plus full grants on the `remote` database.
 
 ## Auth: Local Only
 
@@ -122,8 +122,7 @@ SELF_HOST_LOCAL_AUTH_PASSWORD=<from Infisical>
 
 POST to `/v1/auth/local/login` returns JWT tokens. The secure-agent-pod's bridge authenticates this way. Browser access goes through Authentik forward-auth at the Traefik layer — the VK remote server itself doesn't know or care about SSO.
 
-<!-- MEDIA: asciinema | All three self-hosted VK components running | source .env && kubectl get pods -n agents -o wide -->
-<!-- {{</* asciinema src="vk-remote-pods.cast" */>}} -->
+{{< asciinema src="vk-remote-pods.cast" >}}
 
 ## Secrets via Infisical
 

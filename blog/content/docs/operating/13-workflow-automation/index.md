@@ -43,8 +43,7 @@ curl -s -o /dev/null -w "%{http_code}" http://192.168.55.216:5678/healthz
 curl -s http://192.168.55.216:5678/metrics | head -10
 ```
 
-<!-- MEDIA: asciinema | n8n instance health: pods, LB IP, healthz, metrics sample | source .env && kubectl -n n8n-01 get pods && kubectl -n n8n-01 get svc n8n-01 && curl -s -o /dev/null -w "healthz:%{http_code}\n" http://192.168.55.216:5678/healthz -->
-<!-- {{</* asciinema src="n8n-01-health.cast" */>}} -->
+{{< asciinema src="n8n-01-health.cast" >}}
 
 ### ArgoCD Sync Status
 

@@ -1,0 +1,8 @@
+{"version":2,"width":120,"height":30,"timestamp":1776702766,"idle_time_limit":2.0,"command":"bash -c \"source .env && kubectl -n n8n-01 get pods && kubectl -n n8n-01 get svc n8n-01 && curl -s -o /dev/null -w \"healthz:%{http_code}\\n\" http://192.168.55.216:5678/healthz\"","env":{"SHELL":"/bin/zsh"}}
+[0.395915, "o", "NAME                     READY   STATUS    RESTARTS   AGE\r\nn8n-01-ddb7c789c-xv8mr   1/1     Running   0          21d\r\nn8n-01-postgresql-0      1/1     Running   0          21d\r\n"]
+[0.819462, "o", "NAME     TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)          AGE\r\n"]
+[0.819483, "o", "n8n-01   LoadBalancer   10.102.108.93   "]
+[0.819496, "o", "192.168.55.216   5678:32466/TCP   21d"]
+[0.819501, "o", "\r\n"]
+[0.871423, "o", "healthz:200n"]
+[0.872958, "x", "0"]

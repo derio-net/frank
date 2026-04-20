@@ -1,0 +1,4 @@
+{"version":2,"width":120,"height":30,"timestamp":1776703093,"idle_time_limit":2.0,"command":"/tmp/rec-vk-pg-slots-v2.sh","env":{"SHELL":"/bin/zsh"}}
+[1.166451, "o", " wal_level \r\n-----------\r\n logical\r\n(1 row)\r\n\r\n"]
+[1.65157, "o", "       slot_name       | active \r\n-----------------------+--------\r\n electric_slot_default | t\r\n(1 row)\r\n\r\n"]
+[1.657215, "x", "0"]

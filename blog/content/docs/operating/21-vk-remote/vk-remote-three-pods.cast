@@ -1,0 +1,9 @@
+{"version":2,"width":120,"height":30,"timestamp":1776702667,"idle_time_limit":2.0,"command":"bash -c \"source .env && kubectl get pods -n agents -o wide\"","env":{"SHELL":"/bin/zsh"}}
+[0.439328, "o", "NAME                              READY   STATUS      RESTARTS   AGE   IP              NODE     NOMINATED NODE   READINESS GATES\r\nelectric-6c5f6487d7-prswg         1/1     Running     0          8d    10.244.12.187   mini-1   <none>           <none>\r\npostgres-vk-557b4b6b7-9xvwq       1/1     "]
+[0.439393, "o", "Running     0          8d    10.244.13.229   mini-2   <none>           <none>"]
+[0.439628, "o", "\r\npostgres-vk-init-electric-pgqzp   0/1     Completed   0          21h   "]
+[0.439685, "o", "10.244.12.96    mini-1   <none>           <none>\r\nvk-remote-7949d8bb66-vpgpx        2/2     Running     0"]
+[0.439699, "o", "          21h   10.244.13.68    mini-2   <none>        "]
+[0.439705, "o", "   <none>"]
+[0.439711, "o", "\r\n"]
+[0.447088, "x", "0"]

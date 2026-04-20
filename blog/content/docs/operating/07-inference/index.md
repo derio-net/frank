@@ -44,8 +44,7 @@ curl -s http://192.168.55.206:4000/v1/models | jq '.data[].id'
 kubectl logs -n litellm deploy/litellm --tail=50
 ```
 
-<!-- MEDIA: asciinema | LiteLLM gateway health and model catalog | curl -s http://192.168.55.206:4000/health | jq && echo '---' && curl -s http://192.168.55.206:4000/v1/models | jq '.data[].id' -->
-<!-- {{</* asciinema src="litellm-health-models.cast" */>}} -->
+{{< asciinema src="litellm-health-models.cast" >}}
 
 ### GPU Memory
 

@@ -145,8 +145,7 @@ weekly-r2   ["default"]   backup   0 3 * * 0   4        1
 
 `daily-nas` and `weekly-r2` are deliberately kept with their original names — they describe intent, not just current routing. When NAS support lands in Longhorn 1.13, the default target switches back to NAS and a second named R2 target handles the weekly offsite job (once `backupTargetName` also lands).
 
-<!-- MEDIA: asciinema | Live view of BackupTargets and RecurringJobs | source .env && kubectl get backuptargets -n longhorn-system && kubectl get recurringjobs -n longhorn-system -->
-<!-- {{</* asciinema src="longhorn-backup-targets.cast" */>}} -->
+{{< asciinema src="longhorn-backup-targets.cast" >}}
 
 ## Cloudflare R2: Why It Works Here
 

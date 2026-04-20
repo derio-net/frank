@@ -1,0 +1,5 @@
+{"version":2,"width":120,"height":30,"timestamp":1776702836,"idle_time_limit":2.0,"command":"/tmp/vk-relay-rec.sh","env":{"SHELL":"/bin/zsh"}}
+[0.897134, "o", "NAME                         READY   STATUS    RESTARTS   AGE   IP             NODE     NOMINATED NODE   READINESS GATES\r\nvk-remote-7949d8bb66-vpgpx   2/2     Running   0          21h   10.244.13.68   mini-2   <none>           <none>\r\n"]
+[0.901632, "o", "---\r\n"]
+[1.165046, "o", "relay status: 401\r\n"]
+[1.170718, "x", "0"]

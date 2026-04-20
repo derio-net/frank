@@ -30,8 +30,7 @@ kubectl get externalsecret -n zot
 
 Healthy state: all pods Running on pc-1, all ArgoCD apps Synced/Healthy, all ExternalSecrets SecretSynced.
 
-<!-- MEDIA: asciinema | CI/CD platform baseline across three namespaces | source .env && kubectl get pods -n gitea -o wide && echo '---tekton---' && kubectl get pods -n tekton-pipelines -o wide && echo '---zot---' && kubectl get pods -n zot -o wide -->
-<!-- {{</* asciinema src="cicd-baseline-pods.cast" */>}} -->
+{{< asciinema src="cicd-baseline-pods.cast" >}}
 
 ## Gitea Operations
 

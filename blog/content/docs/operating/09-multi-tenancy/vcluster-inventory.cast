@@ -1,0 +1,9 @@
+{"version":2,"width":120,"height":30,"timestamp":1776702659,"idle_time_limit":2.0,"command":"bash -c \"source .env && vcluster list && echo --- && kubectl get statefulset -A -l app=vcluster\"","env":{"SHELL":"/bin/zsh"}}
+[5.201687, "o", "  \r\n"]
+[5.201725, "o", "    \u001b[32m   NAME    \u001b[0m | \u001b[32m     NAMESPACE      \u001b[0m | \u001b[32mSTATUS \u001b[0m | \u001b[32mVERSION\u001b[0m | \u001b[32mCONNECTED\u001b[0m | \u001b[32mAGE\u001b[0m  \r\n"]
+[5.201796, "o", "  --------------+----------------------+---------+---------+-----------+------\r\n"]
+[5.201953, "o", "    experiments | vcluster-experiments | Running | 0.32.1  |           | 39d  \r\n  \r\n"]
+[5.836028, "o", "---\r\n"]
+[6.2901, "o", "NAMESPACE              NAME          READY   AGE\r\nvcluster-experiments   experiments"]
+[6.290115, "o", "   1/1     39d\r\n"]
+[6.307931, "x", "0"]
