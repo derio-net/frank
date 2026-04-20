@@ -56,6 +56,12 @@ Added to `apps/longhorn/manifests/`:
 
 No new UI — Longhorn UI already at `192.168.55.201`. Backup status, snapshots, and restore operations are all managed from there.
 
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Backup Implementation Plan |  | `docs/superpowers/archived-plans/2026-03-08--backup--longhorn-r2.md` | Deployed | — |
+
 ## Blog Post
 
 **Title:** "Backup: Longhorn to NAS and Cloudflare R2"

@@ -68,6 +68,12 @@ Infisical's own database credentials and initial admin token are bootstrapped vi
 | Infisical UI | `192.168.55.204` | Cilium L2 LoadBalancer |
 | ESO | ClusterIP only | Internal operator |
 
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Secrets Management Implementation Plan |  | `docs/superpowers/archived-plans/2026-03-08--secrets--infisical-eso.md` | Deployed | — |
+
 ## Blog Post
 
 **Title:** "Secrets Management: Self-Hosting Infisical with External Secrets Operator"

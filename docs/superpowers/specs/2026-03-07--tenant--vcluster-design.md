@@ -66,6 +66,12 @@ vClusters use Longhorn-backed PVCs for their virtual etcd state. Default: 5Gi pe
 
 No persistent UI. vCluster access is kubeconfig-based (`vcluster connect`). Each vCluster's LoadBalancer services get IPs from the shared Cilium L2 pool (192.168.55.200–254).
 
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Multi-tenancy — vCluster Implementation Plan |  | `docs/superpowers/archived-plans/2026-03-11--tenant--vcluster.md` | Deployed | — |
+
 ## Blog Post
 
 **Title:** "Multi-tenancy: Disposable Kubernetes Clusters with vCluster"
