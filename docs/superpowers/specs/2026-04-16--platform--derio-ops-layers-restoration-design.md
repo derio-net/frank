@@ -1,7 +1,7 @@
 # Derio Ops Board — Layers Restoration
 
 *Date: 2026-04-16*
-*Status: Pass 1 + Pass 2 complete. Pass 3 pending.*
+*Status: Pass 1 + Pass 2 + Pass 3 complete (2026-04-20).*
 
 ## Problem
 
@@ -61,7 +61,7 @@ These are real Issues but **not Layer trackers**, so they live in their respecti
 - Skill-level bugs (e.g. `willikins#15` Newsdesk timeout) — bugs of features that run *on* a Layer, not Layers themselves.
 - Sub-feature bugs of Layer 18 (`willikins#11/12/13/18/32` — exercise reminder, audit digest, session manager) — referenced in Layer 18's body's "Known issues" section. The Layer 18 lifecycle reflects pod health; sub-feature regressions are tracked by the linked willikins Issues.
 
-## Pass 3 — Grafana wiring (not yet executed)
+## Pass 3 — Grafana wiring (executed 2026-04-20)
 
 For each Layer Issue, create one Grafana alert rule labelled `github_issue=frank-ops#<layer>`. The Health Bridge (`apps/health-bridge`) already exists and is responsible for translating alert state → Issue lifecycle:
 
