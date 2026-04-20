@@ -212,7 +212,14 @@ The full verification checklist:
 | VibeKanban UI | `http://192.168.55.218:8081` | HTTP 200 |
 | SSH access | `ssh claude@192.168.55.215` | Login works |
 
-<!-- MEDIA: console | SSH into secure agent pod | ssh -p 22 claude@192.168.55.215, show environment -->
+```console
+$ ssh -o StrictHostKeyChecking=no claude@192.168.55.215 'id && uname -srm && whoami && uptime'
+uid=1000(claude) gid=1000(claude) groups=1000(claude),100(users)
+Linux 6.18.18-talos x86_64
+claude
+ 19:40:47 up 29 days,  1:58,  0 users,  load average: 1.40, 1.30, 1.25
+
+```
 
 ## Gotchas
 

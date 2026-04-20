@@ -38,7 +38,44 @@ argocd app list --port-forward --port-forward-namespace argocd
 
 This shows every application, its sync status (`Synced`, `OutOfSync`), health status (`Healthy`, `Degraded`, `Progressing`), and the target revision.
 
-<!-- MEDIA: console | ArgoCD app list showing every application managed by the root | source .env && argocd app list --port-forward --port-forward-namespace argocd -->
+```console
+$ kubectl get application -n argocd -o wide 2>&1 | head -35
+NAME                   SYNC STATUS   HEALTH STATUS   REVISION                                   PROJECT
+argo-rollouts          Synced        Healthy                                                    infrastructure
+argo-rollouts-extras   Synced        Healthy         fe5f5900e397c6bda7158e9add7a7853007535d7   infrastructure
+argocd                 Synced        Healthy                                                    infrastructure
+authentik              Synced        Healthy                                                    infrastructure
+authentik-extras       Synced        Healthy         42c7a8b8349c99cb1c2b29a6547c860396a06af5   infrastructure
+blackbox-exporter      Synced        Healthy         fe5f5900e397c6bda7158e9add7a7853007535d7   infrastructure
+cert-manager           Synced        Healthy                                                    infrastructure
+cilium                 Synced        Healthy                                                    infrastructure
+cilium-config          Synced        Healthy         42c7a8b8349c99cb1c2b29a6547c860396a06af5   infrastructure
+comfyui                Synced        Healthy         42c7a8b8349c99cb1c2b29a6547c860396a06af5   infrastructure
+external-secrets       Synced        Healthy                                                    infrastructure
+fluent-bit             Synced        Healthy                                                    infrastructure
+gitea                  Synced        Progressing                                                infrastructure
+gitea-extras           Synced        Healthy         fe5f5900e397c6bda7158e9add7a7853007535d7   infrastructure
+gpu-operator           Synced        Healthy                                                    infrastructure
+gpu-operator-extras    Synced        Healthy         fe5f5900e397c6bda7158e9add7a7853007535d7   infrastructure
+gpu-switcher           Synced        Healthy         fe5f5900e397c6bda7158e9add7a7853007535d7   infrastructure
+grafana-alerting       Synced        Healthy         fe5f5900e397c6bda7158e9add7a7853007535d7   infrastructure
+health-bridge          Synced        Healthy         fe5f5900e397c6bda7158e9add7a7853007535d7   infrastructure
+homepage               Synced        Healthy         fe5f5900e397c6bda7158e9add7a7853007535d7   infrastructure
+infisical              Synced        Healthy                                                    infrastructure
+infisical-extras       Synced        Healthy         42c7a8b8349c99cb1c2b29a6547c860396a06af5   infrastructure
+infisical-postgresql   Synced        Healthy                                                    infrastructure
+infisical-redis        Synced        Healthy                                                    infrastructure
+intel-gpu-driver       Synced        Healthy                                                    infrastructure
+litellm                Synced        Healthy                                                    infrastructure
+litellm-extras         Synced        Progressing     42c7a8b8349c99cb1c2b29a6547c860396a06af5   infrastructure
+longhorn               Synced        Healthy                                                    infrastructure
+longhorn-extras        Synced        Healthy         42c7a8b8349c99cb1c2b29a6547c860396a06af5   infrastructure
+n8n-01                 Synced        Healthy         fe5f5900e397c6bda7158e9add7a7853007535d7   infrastructure
+n8n-01-postgresql      Synced        Healthy                                                    infrastructure
+ollama                 Synced        Healthy                                                    infrastructure
+openrgb                Synced        Healthy         42c7a8b8349c99cb1c2b29a6547c860396a06af5   infrastructure
+paperclip              Synced        Healthy         fe5f5900e397c6bda7158e9add7a7853007535d7   infrastructure
+```
 
 ### Inspect a Single Application
 

@@ -334,7 +334,17 @@ cosign verify --key apps/tekton/cosign.pub \
   192.168.55.210:5000/test/myapp:latest
 ```
 
-<!-- MEDIA: console | Verifying a cosign signature against Zot | cosign verify --key apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecure-registry 192.168.55.210:5000/test/hello:latest -->
+```console
+$ cosign verify --key /Users/derio/Docs/projects/DERIO_NET/frank/apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecure-registry 192.168.55.210:5000/test/ci-hello:v3 2>&1 | head -20
+WARNING: Skipping tlog verification is an insecure practice that lacks transparency and auditability verification for the signature.
+
+Verification for 192.168.55.210:5000/test/ci-hello:v3 --
+The following checks were performed on each of these signatures:
+  - The cosign claims were validated
+  - The signatures were verified against the specified public key
+
+[{"critical":{"identity":{"docker-reference":"192.168.55.210:5000/test/ci-hello"},"image":{"docker-manifest-digest":"sha256:e63bfc1c8d77ab62d5e12d13f0018ac77b85f01d15742e22215823752b678234"},"type":"cosign container image signature"},"optional":null}]
+```
 
 ## Gotchas and Lessons
 
