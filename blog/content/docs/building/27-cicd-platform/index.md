@@ -334,8 +334,7 @@ cosign verify --key apps/tekton/cosign.pub \
   192.168.55.210:5000/test/myapp:latest
 ```
 
-<!-- MEDIA: asciinema | Verifying a cosign signature against Zot | cosign verify --key apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecure-registry 192.168.55.210:5000/test/hello:latest -->
-<!-- {{</* asciinema src="cosign-verify.cast" */>}} -->
+<!-- MEDIA: console | Verifying a cosign signature against Zot | cosign verify --key apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecure-registry 192.168.55.210:5000/test/hello:latest -->
 
 ## Gotchas and Lessons
 

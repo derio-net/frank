@@ -38,8 +38,7 @@ argocd app list --port-forward --port-forward-namespace argocd
 
 This shows every application, its sync status (`Synced`, `OutOfSync`), health status (`Healthy`, `Degraded`, `Progressing`), and the target revision.
 
-<!-- MEDIA: asciinema | ArgoCD app list showing every application managed by the root | source .env && argocd app list --port-forward --port-forward-namespace argocd -->
-<!-- {{</* asciinema src="argocd-app-list.cast" */>}} -->
+<!-- MEDIA: console | ArgoCD app list showing every application managed by the root | source .env && argocd app list --port-forward --port-forward-namespace argocd -->
 
 ### Inspect a Single Application
 

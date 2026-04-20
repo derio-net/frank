@@ -95,8 +95,11 @@ talosctl -n 192.168.55.31 mounts | grep longhorn
 
 You should see both `/var/mnt/longhorn-sda` and `/var/mnt/longhorn-sdb` listed as mounted filesystems. Later, when configuring Longhorn, you will point the gpu-1 node at these paths and tag them for GPU-local workloads.
 
-<!-- MEDIA: asciinema | Verify gpu-1 extra-disk mounts after Talos reboot | source .env && talosctl -n 192.168.55.31 mounts | grep longhorn -->
-<!-- {{</* asciinema src="gpu1-longhorn-mounts.cast" */>}} -->
+```console
+$ talosctl -n 192.168.55.31 mounts 2>&1 | grep "/var/mnt/longhorn-s"
+192.168.55.31   /dev/sda1                                                3998.83    112.11     3886.72         2.80%          /var/mnt/longhorn-sda
+192.168.55.31   /dev/sdb1                                                3998.83    163.48     3835.36         4.09%          /var/mnt/longhorn-sdb
+```
 
 ## Installing Longhorn
 
@@ -250,8 +253,14 @@ spec:
 
 The `strict-local` data locality combined with the `gpu-local` disk selector ensures this volume lands on one of gpu-1's 4TB SSDs, right next to the GPU that will process its contents.
 
-<!-- MEDIA: asciinema | Both StorageClasses visible after Longhorn install | source .env && kubectl get storageclass -->
-<!-- {{</* asciinema src="longhorn-storageclasses.cast" */>}} -->
+```console
+$ kubectl get storageclass
+NAME                 PROVISIONER          RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+longhorn (default)   driver.longhorn.io   Delete          Immediate           true                   48d
+longhorn-cicd        driver.longhorn.io   Delete          Immediate           true                   22d
+longhorn-gpu-local   driver.longhorn.io   Delete          Immediate           true                   48d
+longhorn-static      driver.longhorn.io   Delete          Immediate           true                   48d
+```
 
 ## What We Have Now
 

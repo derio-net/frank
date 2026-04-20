@@ -166,8 +166,22 @@ Sync Policy:    Automated
 
 This is the kind of thing that does not show up in architecture diagrams. A connection that was making just enough contact to power the fans but not enough to establish PCIe signaling — fixed by a firm reseat. The software stack was ready and waiting; the hardware just needed to catch up.
 
-<!-- MEDIA: asciinema | nvidia-smi output showing RTX 5070 | ssh gpu-1, run nvidia-smi -->
-<!-- {{</* asciinema src="nvidia-smi.cast" rows="24" */>}} -->
+```console
+$ POD=$(kubectl get pod -n gpu-operator -l app=nvidia-dcgm-exporter -o jsonpath="{.items[0].metadata.name}"); kubectl exec -n gpu-operator "$POD" -c nvidia-dcgm-exporter -- nvidia-smi
+Mon Apr 20 17:23:30 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.211.01             Driver Version: 570.211.01     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 5070 Ti     Off |   00000000:01:00.0 Off |                  N/A |
+|  0%   33C    P8             19W /  300W |    7956MiB /  16303MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
+```
 
 ## Part 2: Intel Arc iGPU via DRA (Layer 5)
 

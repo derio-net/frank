@@ -55,8 +55,20 @@ claude      33  /home/claude/.vibe-kanban/bin/.../vibe-kanban
 
 If any process is missing, the pod will restart via `wait -n` — check restart count.
 
-<!-- MEDIA: asciinema | Live process tree inside the secure-agent-pod kali container | source .env && kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- ps aux -->
-<!-- {{</* asciinema src="secure-agent-pod-ps.cast" */>}} -->
+```console
+$ kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- ps -eo pid,user,etime,cmd | head -12
+    PID USER         ELAPSED CMD
+      1 claude       06:51:00 /usr/bin/tini -- /entrypoint.sh
+      7 claude       06:51:00 /bin/bash /entrypoint.sh
+     61 claude       06:51:00 sshd: /usr/sbin/sshd -f /opt/sshd_config -D [listener]
+     62 claude       06:51:00 supercronic /home/claude/.crontab
+     87 claude       06:50:55 claude remote-control --name willikins
+    114 claude       06:50:52 /home/claude/.local/share/claude/versions/2.1.114 --print ...
+    139 claude       06:50:52 npm exec @upstash/context7-mcp
+    140 claude       06:50:52 npm exec @playwright/mcp@latest
+    500 claude       06:50:52 /home/claude/.vscode-server/.../server/out/server-main.js ...
+# ... +30 more child processes (mcp servers, vscode workers, editor terminals)
+```
 
 ### Services and Networking
 

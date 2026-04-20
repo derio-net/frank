@@ -32,8 +32,31 @@ kubectl get volumes.longhorn.io -n longhorn-system
 
 A healthy volume shows `State: attached` (if in use) or `State: detached` (if idle), with `Robustness: healthy`. Anything showing `degraded` or `faulted` needs attention — jump to the Debugging section.
 
-<!-- MEDIA: asciinema | Live volume health inventory | source .env && kubectl get volumes.longhorn.io -n longhorn-system -->
-<!-- {{</* asciinema src="longhorn-volumes-list.cast" */>}} -->
+```console
+$ kubectl get volumes.longhorn.io -n longhorn-system
+NAME                                       DATA ENGINE   STATE      ROBUSTNESS   SCHEDULED   SIZE           NODE      AGE
+pvc-0ea5fae9-9f12-488e-83e8-a69e4b533b50   v1            attached   healthy                  32212254720    gpu-1     42d
+pvc-1211b9cd-8062-43ca-8fa9-93ec43c36c35   v1            attached   healthy                  1073741824     mini-2    8d
+pvc-184f9b50-5d7f-400d-865b-4bb587dcf859   v1            attached   healthy                  8589934592     mini-2    39d
+pvc-1929c98e-6a59-4eec-8c41-353833f43dec   v1            attached   healthy                  5368709120     mini-2    37d
+pvc-1b0925db-fc13-4a8f-99da-2a09265ada47   v1            detached   unknown                  10737418240              35d
+pvc-1ded449d-e2bc-4e38-b7c9-c5d5ee264294   v1            attached   healthy                  2147483648     mini-3    37d
+pvc-26d07ae3-35c9-406f-b963-01894b9db240   v1            attached   healthy                  21474836480    mini-3    43d
+pvc-40c7a93f-5a74-49f0-8dc6-ff900348879a   v1            attached   healthy                  10737418240    gpu-1     21d
+pvc-4b1121bb-2285-42ec-8a8d-49cc96978ae1   v1            attached   healthy                  5368709120     mini-1    42d
+pvc-61ea0ef7-097a-4362-8727-19db3475a07c   v1            attached   healthy                  53687091200    gpu-1     20d
+pvc-64409163-fd82-49d1-bdfd-6a2a97f339c6   v1            attached   healthy                  1073741824     mini-3    43d
+pvc-6555d86e-52c3-4d36-9f3d-498053f0525c   v1            attached   healthy                  2147483648     mini-1    42d
+pvc-6ff35220-82b3-478e-849d-f3dd9e0f29af   v1            attached   healthy                  1073741824     gpu-1     41d
+pvc-82bfe595-d342-41c4-9f68-7346b2317a6d   v1            attached   healthy                  53687091200    pc-1      7d8h
+pvc-9cfe443a-e7e9-4894-a169-943b361124a5   v1            attached   healthy                  21474836480    gpu-1     43d
+pvc-b17ad456-1c3b-45dc-a6c9-18df39a4dab6   v1            attached   healthy                  134217728      raspi-1   12d
+pvc-c1d1b3b5-4e57-4488-a921-40814dac625a   v1            attached   healthy                  10737418240    pc-1      22d
+pvc-c700abbe-9114-47b8-ac5b-2f408f6055ec   v1            detached   unknown                  107374182400             36d
+pvc-cd8722f8-2077-41d5-86eb-a62c6437dd3f   v1            attached   healthy                  5368709120     mini-3    21d
+pvc-de4ab602-205f-41d5-8f13-1d2982109b92   v1            attached   healthy                  5368709120     mini-2    42d
+pvc-f083c9f7-8cbe-4cb7-89d0-7455c59a6f50   v1            attached   healthy                  5368709120     mini-3    39d
+```
 
 For more detail on a specific volume:
 

@@ -93,8 +93,24 @@ talosctl bootstrap -n <HOP_IP>
 
 **What we learned:** Omni's value is lifecycle management at scale — rolling upgrades, config sync across nodes. For a single-node cluster that rarely changes, `talosctl` is simpler. The tradeoff is manual upgrades and no dashboard, but that's acceptable for an edge node. Hop's talosconfig lives at `clusters/hop/talosconfig/` (gitignored — it contains client certificates).
 
-<!-- MEDIA: asciinema | talosctl health check on Hop cluster showing node status | source .env_hop && talosctl -n $HOP_IP health -->
-<!-- {{</* asciinema src="hop-talosctl-health.cast" rows="20" */>}} -->
+```console
+$ talosctl -n $HOP_IP health 2>&1 | head -15
+discovered nodes: ["91.99.8.121"]
+waiting for etcd to be healthy: ...
+waiting for etcd to be healthy: OK
+waiting for etcd members to be consistent across nodes: ...
+waiting for etcd members to be consistent across nodes: OK
+waiting for etcd members to be control plane nodes: ...
+waiting for etcd members to be control plane nodes: OK
+waiting for apid to be ready: ...
+waiting for apid to be ready: OK
+waiting for all nodes memory sizes: ...
+waiting for all nodes memory sizes: OK
+waiting for all nodes disk sizes: ...
+waiting for all nodes disk sizes: OK
+waiting for no diagnostics: ...
+waiting for no diagnostics: OK
+```
 
 ### Deviation #2: CX23, Not CX22
 
@@ -413,8 +429,11 @@ Hop gives the homelab a public presence:
 - **Private services** (Headplane, landing page) accessible only from the mesh, enforced at Caddy's `remote_ip` check.
 - **Full GitOps** — all workloads managed by ArgoCD, same pattern as Frank.
 
-<!-- MEDIA: asciinema | kubectl get nodes on Hop cluster showing single-node topology | source .env_hop && kubectl get nodes -o wide -->
-<!-- {{</* asciinema src="hop-kubectl-nodes.cast" rows="20" */>}} -->
+```console
+$ kubectl get nodes -o wide
+NAME    STATUS   ROLES           AGE   VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE          KERNEL-VERSION   CONTAINER-RUNTIME
+hop-1   Ready    control-plane   32d   v1.34.1   91.99.8.121   <none>        Talos (v1.12.5)   6.18.15-talos    containerd://2.1.6
+```
 
 ## Post-Deploy Fixes (Day 3)
 

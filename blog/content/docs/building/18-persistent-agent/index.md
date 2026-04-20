@@ -124,5 +124,4 @@ After ArgoCD syncs:
 
 Connect with `ssh root@192.168.55.215` from any machine on the `192.168.55.x` network. For remote access outside the LAN, the Headscale mesh from [Layer 17]({{< relref "/docs/building/17-public-edge" >}}) routes traffic through the Hop edge cluster.
 
-<!-- MEDIA: asciinema | SSHing into the Kali workstation over LAN | ssh -o StrictHostKeyChecking=no root@192.168.55.215 'uname -a && claude --version 2>/dev/null || echo "claude not yet installed"' -->
-<!-- {{</* asciinema src="kali-ssh-session.cast" */>}} -->
+<!-- MEDIA: console | SSHing into the Kali workstation over LAN | ssh -o StrictHostKeyChecking=no root@192.168.55.215 'uname -a && claude --version 2>/dev/null || echo "claude not yet installed"' -->

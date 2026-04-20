@@ -127,8 +127,25 @@ rules:
 
 A ClusterRole (not a namespaced Role) because it patches Deployments in both the `ollama` and `comfyui` namespaces.
 
-<!-- MEDIA: asciinema | Checking GPU allocation status across workloads | curl http://192.168.55.214:8080/api/status | jq -->
-<!-- {{</* asciinema src="gpu-allocation-status.cast" rows="20" */>}} -->
+```console
+$ curl -s http://192.168.55.214:8080/api/status | jq
+[
+  {
+    "name": "ollama",
+    "namespace": "ollama",
+    "replicas": 1,
+    "readyReplicas": 1,
+    "podPhase": "Running"
+  },
+  {
+    "name": "comfyui",
+    "namespace": "comfyui",
+    "replicas": 0,
+    "readyReplicas": 0,
+    "podPhase": "None"
+  }
+]
+```
 
 ### Building the Image
 

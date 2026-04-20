@@ -95,8 +95,7 @@ spec:
 
 The `probe_group: feature_health` label lets Grafana alert rules and dashboard panels filter to just these probes.
 
-<!-- MEDIA: asciinema | Blackbox exporter probe status check showing endpoint health | kubectl -n monitoring port-forward svc/blackbox-exporter 9115:9115 & curl -s 'http://localhost:9115/probe?target=http://n8n-01.n8n-01.svc.cluster.local:5678&module=http_2xx' | grep probe_success -->
-<!-- {{</* asciinema src="blackbox-probe-status.cast" rows="20" */>}} -->
+<!-- MEDIA: console | Blackbox exporter probe status check showing endpoint health | kubectl -n monitoring port-forward svc/blackbox-exporter 9115:9115 & curl -s 'http://localhost:9115/probe?target=http://n8n-01.n8n-01.svc.cluster.local:5678&module=http_2xx' | grep probe_success -->
 
 ## Deploying Pushgateway
 
@@ -111,8 +110,7 @@ echo "willikins_heartbeat_last_success_timestamp $(date +%s)" | \
 
 The VMServiceScrape uses `honorLabels: true` — this preserves the `job` label from the pushed metric rather than overwriting it with the scrape job name. Without this, every heartbeat metric would have `job="pushgateway"` and you couldn't tell which cron it came from.
 
-<!-- MEDIA: asciinema | Pushgateway heartbeat check showing last success timestamps | curl -s http://pushgateway.monitoring.svc.cluster.local:9091/metrics | grep willikins_heartbeat -->
-<!-- {{</* asciinema src="pushgateway-heartbeat.cast" rows="20" */>}} -->
+<!-- MEDIA: console | Pushgateway heartbeat check showing last success timestamps | curl -s http://pushgateway.monitoring.svc.cluster.local:9091/metrics | grep willikins_heartbeat -->
 
 ## Grafana Alert Rules
 

@@ -31,8 +31,26 @@ kubectl get externalsecrets -A
 
 Every `ExternalSecret` should show `STATUS: SecretSynced` and `READY: True`. If any show `SecretSyncedError` or `False`, something is broken between ESO and Infisical.
 
-<!-- MEDIA: asciinema | Cluster-wide ExternalSecret sync status | source .env && kubectl get externalsecrets -A -->
-<!-- {{</* asciinema src="externalsecrets-status.cast" */>}} -->
+```console
+$ kubectl get externalsecrets -A
+NAMESPACE          NAME                       STORETYPE            STORE       REFRESH INTERVAL   STATUS         READY
+agents             vk-remote-secrets          ClusterSecretStore   infisical   5m                 SecretSynced   True
+gitea              gitea-secrets              ClusterSecretStore   infisical   5m                 SecretSynced   True
+litellm            litellm-api-keys           ClusterSecretStore   infisical   5m                 SecretSynced   True
+monitoring         grafana-alerting-secrets   ClusterSecretStore   infisical   5m                 SecretSynced   True
+monitoring         health-bridge-secrets      ClusterSecretStore   infisical   5m                 SecretSynced   True
+paperclip-system   paperclip-anthropic        ClusterSecretStore   infisical   5m                 SecretSynced   True
+paperclip-system   paperclip-auth             ClusterSecretStore   infisical   5m                 SecretSynced   True
+paperclip-system   paperclip-ghcr             ClusterSecretStore   infisical   5m                 SecretSynced   True
+paperclip-system   paperclip-llm-key          ClusterSecretStore   infisical   5m                 SecretSynced   True
+secure-agent-pod   agent-secrets-tier2        ClusterSecretStore   infisical   5m                 SecretSynced   True
+sympozium-system   sympozium-llm-key          ClusterSecretStore   infisical   5m                 SecretSynced   True
+tekton-pipelines   cosign-key                 ClusterSecretStore   infisical   5m                 SecretSynced   True
+tekton-pipelines   gitea-api-token            ClusterSecretStore   infisical   5m                 SecretSynced   True
+tekton-pipelines   gitea-webhook-secret       ClusterSecretStore   infisical   5m                 SecretSynced   True
+tekton-pipelines   zot-push-creds             ClusterSecretStore   infisical   5m                 SecretSynced   True
+zot                zot-secrets                ClusterSecretStore   infisical   5m                 SecretSynced   True
+```
 
 To inspect a specific ExternalSecret in detail:
 

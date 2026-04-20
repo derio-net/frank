@@ -30,8 +30,26 @@ kubectl get externalsecret -n zot
 
 Healthy state: all pods Running on pc-1, all ArgoCD apps Synced/Healthy, all ExternalSecrets SecretSynced.
 
-<!-- MEDIA: asciinema | CI/CD platform baseline across three namespaces | source .env && kubectl get pods -n gitea -o wide && echo '---tekton---' && kubectl get pods -n tekton-pipelines -o wide && echo '---zot---' && kubectl get pods -n zot -o wide -->
-<!-- {{</* asciinema src="cicd-baseline-pods.cast" */>}} -->
+```console
+$ kubectl get pods -n gitea -o wide
+NAME                     READY   STATUS    RESTARTS   AGE     IP            NODE   NOMINATED NODE   READINESS GATES
+gitea-6d7d457c49-t5hsj   1/1     Running   0          7h40m   10.244.7.57   pc-1   <none>           <none>
+
+$ kubectl get pods -n tekton-pipelines -o wide
+NAME                                                 READY   STATUS    RESTARTS        AGE     IP              NODE     NOMINATED NODE   READINESS GATES
+el-gitea-listener-7d85fd8b75-8w9z6                   1/1     Running   3 (7h41m ago)   7d7h    10.244.7.226    pc-1     <none>           <none>
+tekton-dashboard-774bff7cc-92cmn                     1/1     Running   0               22d     10.244.8.175    mini-3   <none>           <none>
+tekton-events-controller-5cbc777ccd-7gvq7            1/1     Running   0               22d     10.244.8.144    mini-3   <none>           <none>
+tekton-pipelines-controller-7496c46798-kgphw         1/1     Running   0               7d10h   10.244.12.233   mini-1   <none>           <none>
+tekton-pipelines-webhook-75cd84877-tgctj             1/1     Running   0               22d     10.244.12.139   mini-1   <none>           <none>
+tekton-triggers-controller-66fd74568d-m8zsv          1/1     Running   0               22d     10.244.8.254    mini-3   <none>           <none>
+tekton-triggers-core-interceptors-66456f8cf6-blt4s   1/1     Running   0               22d     10.244.8.181    mini-3   <none>           <none>
+tekton-triggers-webhook-55c8dd895f-j95ft             1/1     Running   0               22d     10.244.8.187    mini-3   <none>           <none>
+
+$ kubectl get pods -n zot -o wide
+NAME                   READY   STATUS    RESTARTS   AGE     IP             NODE   NOMINATED NODE   READINESS GATES
+zot-68c79b95f9-6vbhh   1/1     Running   0          7h41m   10.244.7.202   pc-1   <none>           <none>
+```
 
 ## Gitea Operations
 
