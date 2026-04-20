@@ -826,7 +826,7 @@ Foundation layers have strong coverage from kube-state-metrics and existing dash
 
 **Files:** Modify `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
 
-- [ ] **Step 1: Append rule — any node NotReady**
+- [x] **Step 1: Append rule — any node NotReady**
 
 ```yaml
       # --- Layer 1 — Hardware & Nodes (frank-ops#1) ---
@@ -882,7 +882,7 @@ Foundation layers have strong coverage from kube-state-metrics and existing dash
 
 ### Task 2: Layer 2 — OS & Bootstrap (frank-ops#2)
 
-- [ ] **Step 1: Append rule — control-plane node NotReady = critical**
+- [x] **Step 1: Append rule — control-plane node NotReady = critical**
 
 ```yaml
       # --- Layer 2 — OS & Bootstrap (frank-ops#2) ---
@@ -939,7 +939,7 @@ Foundation layers have strong coverage from kube-state-metrics and existing dash
 
 ### Task 3: Layer 3 — Networking / Cilium (frank-ops#3)
 
-- [ ] **Step 1: Append rule — Cilium agent down on any node**
+- [x] **Step 1: Append rule — Cilium agent down on any node**
 
 ```yaml
       # --- Layer 3 — Networking / Cilium (frank-ops#3) ---
@@ -993,7 +993,7 @@ Foundation layers have strong coverage from kube-state-metrics and existing dash
 
 ### Task 4: Layer 4 — Storage / Longhorn (frank-ops#4)
 
-- [ ] **Step 1: Append rule — degraded Longhorn volumes**
+- [x] **Step 1: Append rule — degraded Longhorn volumes**
 
 ```yaml
       # --- Layer 4 — Storage / Longhorn (frank-ops#4) ---
@@ -1048,7 +1048,7 @@ Foundation layers have strong coverage from kube-state-metrics and existing dash
 
 ### Task 5: Layer 5 — GPU Compute (frank-ops#5)
 
-- [ ] **Step 1: Append rule — any GPU operator pod NotReady**
+- [x] **Step 1: Append rule — any GPU operator pod NotReady**
 
 ```yaml
       # --- Layer 5 — GPU Compute (frank-ops#5) ---
@@ -1105,7 +1105,7 @@ Note: the `intel-gpu-resource-driver` namespace name may differ — verify with 
 
 ### Task 6: Layer 6 — GitOps / ArgoCD (frank-ops#6)
 
-- [ ] **Step 1: Append rule — ArgoCD server unreachable OR apps OutOfSync**
+- [x] **Step 1: Append rule — ArgoCD server unreachable OR apps OutOfSync**
 
 ```yaml
       # --- Layer 6 — GitOps / ArgoCD (frank-ops#6) ---
@@ -1205,7 +1205,7 @@ Note: the `intel-gpu-resource-driver` namespace name may differ — verify with 
 
 ### Task 7: Deploy + verify Phase 3 rules
 
-- [ ] **Step 1: Commit + push all six new rules together**
+- [x] **Step 1: Commit + push all six new rules together**
 
 ```bash
 git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
@@ -1215,7 +1215,7 @@ kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
 kubectl rollout status -n monitoring deploy/grafana --timeout=120s
 ```
 
-- [ ] **Step 2: Smoke-test each rule via webhook** (6 quick calls — use `severity=warning` for 1,3,4,5 and `severity=critical` for 2,6)
+- [x] **Step 2: Smoke-test each rule via webhook** (6 quick calls — use `severity=warning` for 1,3,4,5 and `severity=critical` for 2,6)
 
 Script it (layer number = issue number in `frank-ops`):
 
@@ -1229,7 +1229,7 @@ for TUPLE in "1:warning" "2:critical" "3:warning" "4:warning" "5:warning" "6:cri
 done
 ```
 
-- [ ] **Step 3: Verify all six Lifecycle transitions, then resolve** (loop)
+- [x] **Step 3: Verify all six Lifecycle transitions, then resolve** (loop)
 
 ```bash
 for LAYER in 1 2 3 4 5 6; do
@@ -1261,7 +1261,7 @@ Blocked by Phase 0. Independent of Phases 1–3.
 
 **Files:** Modify `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
 
-- [ ] **Step 1: Append rule — last successful Longhorn backup older than 48h**
+- [x] **Step 1: Append rule — last successful Longhorn backup older than 48h**
 
 ```yaml
       # --- Layer 9 — Backup & DR (frank-ops#9) ---
@@ -1316,7 +1316,7 @@ Note: `longhorn_backup_target_last_available_time` may not exist — if `curl` q
 
 ### Task 2: Layer 10 — Secrets (frank-ops#10)
 
-- [ ] **Step 1: Append rule — Infisical pod down OR ESO reconciliation failures**
+- [x] **Step 1: Append rule — Infisical pod down OR ESO reconciliation failures**
 
 ```yaml
       # --- Layer 10 — Secrets (frank-ops#10) ---
@@ -1370,7 +1370,7 @@ Note: `longhorn_backup_target_last_available_time` may not exist — if `curl` q
 
 ### Task 3: Layer 11 — Local Inference (frank-ops#11)
 
-- [ ] **Step 1: Append rule — Ollama or LiteLLM down**
+- [x] **Step 1: Append rule — Ollama or LiteLLM down**
 
 ```yaml
       # --- Layer 11 — Local Inference (frank-ops#11) ---
@@ -1424,7 +1424,7 @@ Note: `longhorn_backup_target_last_available_time` may not exist — if `curl` q
 
 ### Task 4: Layer 12 — Agentic Control Plane / Sympozium (frank-ops#12)
 
-- [ ] **Step 1: Append rule — Sympozium pod NotReady**
+- [x] **Step 1: Append rule — Sympozium pod NotReady**
 
 ```yaml
       # --- Layer 12 — Agentic Control Plane (frank-ops#12) ---
@@ -1478,7 +1478,7 @@ Note: `longhorn_backup_target_last_available_time` may not exist — if `curl` q
 
 ### Task 5: Layer 13 — Unified Auth / Authentik (frank-ops#13)
 
-- [ ] **Step 1: Append rule — Authentik server or worker NotReady**
+- [x] **Step 1: Append rule — Authentik server or worker NotReady**
 
 ```yaml
       # --- Layer 13 — Unified Auth / Authentik (frank-ops#13) ---
@@ -1534,7 +1534,7 @@ Authentik is `critical` because losing it breaks forward-auth for every SSO-prot
 
 ### Task 6: Layer 14 — Multi-tenancy / vCluster (frank-ops#14)
 
-- [ ] **Step 1: Append rule — any vCluster pod NotReady**
+- [x] **Step 1: Append rule — any vCluster pod NotReady**
 
 ```yaml
       # --- Layer 14 — Multi-tenancy / vCluster (frank-ops#14) ---
@@ -1588,7 +1588,7 @@ Authentik is `critical` because losing it breaks forward-auth for every SSO-prot
 
 ### Task 7: Deploy + verify Phase 4 rules
 
-- [ ] **Step 1: Commit + push**
+- [x] **Step 1: Commit + push**
 
 ```bash
 git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
@@ -1598,7 +1598,7 @@ kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
 kubectl rollout status -n monitoring deploy/grafana --timeout=120s
 ```
 
-- [ ] **Step 2: Smoke-test the six new rules** (same loop pattern as Phase 3 Task 7 with issues 94-99, severities warning/warning/warning/warning/critical/warning)
+- [x] **Step 2: Smoke-test the six new rules** (same loop pattern as Phase 3 Task 7 with issues 94-99, severities warning/warning/warning/warning/critical/warning)
 
 ---
 
@@ -1622,7 +1622,7 @@ A rule that fires constantly because a Layer is legitimately blocked would make 
 
 ### Task 1: Layer 15 — Agentic Workflows (frank-ops#15)
 
-- [ ] **Step 1: Append rule — n8n or VK pod NotReady**
+- [x] **Step 1: Append rule — n8n or VK pod NotReady**
 
 ```yaml
       # --- Layer 15 — Agentic Workflows (frank-ops#15) ---
@@ -1677,7 +1677,7 @@ A rule that fires constantly because a Layer is legitimately blocked would make 
 
 ### Task 2: Layer 16 — Media Generation (frank-ops#16) — placeholder
 
-- [ ] **Step 1: Insert only a DEFERRED-work comment block** (no rule yet — Layer is blocked by design)
+- [x] **Step 1: Insert only a DEFERRED-work comment block** (no rule yet — Layer is blocked by design)
 
 ```yaml
       # --- Layer 16 — Media Generation (frank-ops#16) ---
@@ -1690,13 +1690,13 @@ A rule that fires constantly because a Layer is legitimately blocked would make 
       # manually (left at `blocked`).
 ```
 
-- [ ] **Step 2: Document the manual-management deviation**
+- [x] **Step 2: Document the manual-management deviation**
 
 Add a sub-heading in this plan's "Deployment Deviations" section after this phase executes, confirming that `frank-ops#16` is left at manual `blocked` state.
 
 ### Task 3: Layer 17 — Public Edge / Hop (frank-ops#17)
 
-- [ ] **Step 1: Append rule — blog blackbox probe failing OR Headscale peer count abnormal**
+- [x] **Step 1: Append rule — blog blackbox probe failing OR Headscale peer count abnormal**
 
 ```yaml
       # --- Layer 17 — Public Edge / Hop (frank-ops#17) ---
@@ -1756,7 +1756,7 @@ Note: `probe_success{instance="https://blog.derio.net"}` relies on blog.derio.ne
 
 ### Task 4: Deploy + verify Phase 5 rules
 
-- [ ] **Step 1: Commit + push**
+- [x] **Step 1: Commit + push**
 
 ```bash
 git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
@@ -1766,7 +1766,7 @@ kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
 kubectl rollout status -n monitoring deploy/grafana --timeout=120s
 ```
 
-- [ ] **Step 2: Smoke-test Layer 15 and 17** (webhook loop with frank-ops#15 warning, frank-ops#17 critical)
+- [x] **Step 2: Smoke-test Layer 15 and 17** (webhook loop with frank-ops#15 warning, frank-ops#17 critical)
 
 ---
 
@@ -1780,7 +1780,7 @@ Blocked by Phase 0. Independent of other Layer phases.
 
 **Files:** Modify `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
 
-- [ ] **Step 1: Append rule — argo-rollouts controller pod NotReady**
+- [x] **Step 1: Append rule — argo-rollouts controller pod NotReady**
 
 ```yaml
       # --- Layer 19 — Progressive Delivery / Argo Rollouts (frank-ops#19) ---
@@ -1834,7 +1834,7 @@ Blocked by Phase 0. Independent of other Layer phases.
 
 ### Task 2: Layer 24 — In-Cluster Ingress / Traefik (frank-ops#24)
 
-- [ ] **Step 1: Append rule — Traefik pod NotReady**
+- [x] **Step 1: Append rule — Traefik pod NotReady**
 
 ```yaml
       # --- Layer 24 — In-Cluster Ingress / Traefik (frank-ops#24) ---
@@ -1888,7 +1888,7 @@ Blocked by Phase 0. Independent of other Layer phases.
 
 ### Task 3: Layer 25 — CI/CD Platform (frank-ops#25)
 
-- [ ] **Step 1: Append rule — Gitea, Tekton controller, or Zot down**
+- [x] **Step 1: Append rule — Gitea, Tekton controller, or Zot down**
 
 ```yaml
       # --- Layer 25 — CI/CD / Gitea + Tekton + Zot (frank-ops#25) ---
@@ -1942,7 +1942,7 @@ Blocked by Phase 0. Independent of other Layer phases.
 
 ### Task 4: Deploy + verify Phase 6 rules
 
-- [ ] **Step 1: Commit + push**
+- [x] **Step 1: Commit + push**
 
 ```bash
 git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
@@ -1952,7 +1952,7 @@ kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
 kubectl rollout status -n monitoring deploy/grafana --timeout=120s
 ```
 
-- [ ] **Step 2: Smoke-test** (webhook loop frank-ops#19 warning, frank-ops#24 critical, frank-ops#25 warning)
+- [x] **Step 2: Smoke-test** (webhook loop frank-ops#19 warning, frank-ops#24 critical, frank-ops#25 warning)
 
 ---
 
