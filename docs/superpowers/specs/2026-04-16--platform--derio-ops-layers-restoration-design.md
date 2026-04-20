@@ -23,26 +23,26 @@ Each row on the board corresponds to one numbered Layer from the blog roadmap. L
 
 | # | Name | Issue | Initial state | Notes |
 |---|------|------:|---------------|-------|
-| 1 | Hardware | frank#87 | healthy | 7 nodes, 3 zones |
-| 2 | OS & Bootstrap | frank#88 | healthy | Talos + Omni |
-| 3 | Networking — Cilium | frank#89 | healthy | eBPF, L2 LB, Hubble |
-| 4 | Storage — Longhorn | frank#90 | healthy | 3-replica block storage |
-| 5 | GPU Compute | frank#91 | healthy | NVIDIA + Intel DRA |
-| 6 | GitOps — ArgoCD | frank#92 | healthy | App-of-Apps |
-| 8 | Observability | frank#93 | healthy | Absorbs blog #22 (Health Monitoring) + #23 (Health Bridge) |
-| 9 | Backup | frank#94 | healthy | Longhorn → R2 |
-| 10 | Secrets | frank#95 | healthy | Infisical + ESO |
-| 11 | Local Inference | frank#96 | healthy | Ollama + LiteLLM |
-| 12 | Agentic Control Plane | frank#97 | healthy | Sympozium only — DevOps/Platform Engineering |
-| 13 | Unified Auth | frank#98 | healthy | Authentik |
-| 14 | Multi-tenancy — vCluster | frank#99 | healthy | K8s-in-K8s |
-| 15 | Agentic Workflows | frank#11 (repurposed) | in-progress | n8n + VK + Paperclip + Praison (planned). Repurposed from "Paperclip AI deployment". |
-| 16 | Media Generation | frank#10 (repurposed) | blocked | ComfyUI + GPU Switcher. Pending Traefik route + model downloads. |
-| 17 | Public Edge — Hop | frank#100 | healthy | Hetzner CX23 + Headscale + Caddy. Extended health basis: blackbox blog probe + mesh peer count + cert expiry + Hetzner API |
-| 18 | Persistent Agent | frank#8 (repurposed) | healthy | Absorbs blog #18 + #21 (workstation + hardening). Hosts willikins crons. Known sub-feature degradation tracked in body. |
-| 19 | Progressive Delivery | frank#101 | healthy | Argo Rollouts |
-| 24 | In-Cluster Ingress | frank#102 | healthy | Traefik + Authentik forward-auth |
-| 25 | CI/CD Platform | frank#103 | healthy | Gitea + Tekton + Zot |
+| 1 | Hardware | frank-ops#1 | healthy | 7 nodes, 3 zones |
+| 2 | OS & Bootstrap | frank-ops#2 | healthy | Talos + Omni |
+| 3 | Networking — Cilium | frank-ops#3 | healthy | eBPF, L2 LB, Hubble |
+| 4 | Storage — Longhorn | frank-ops#4 | healthy | 3-replica block storage |
+| 5 | GPU Compute | frank-ops#5 | healthy | NVIDIA + Intel DRA |
+| 6 | GitOps — ArgoCD | frank-ops#6 | healthy | App-of-Apps |
+| 8 | Observability | frank-ops#8 | healthy | Absorbs blog #22 (Health Monitoring) + #23 (Health Bridge) |
+| 9 | Backup | frank-ops#9 | healthy | Longhorn → R2 |
+| 10 | Secrets | frank-ops#10 | healthy | Infisical + ESO |
+| 11 | Local Inference | frank-ops#11 | healthy | Ollama + LiteLLM |
+| 12 | Agentic Control Plane | frank-ops#12 | healthy | Sympozium only — DevOps/Platform Engineering |
+| 13 | Unified Auth | frank-ops#13 | healthy | Authentik |
+| 14 | Multi-tenancy — vCluster | frank-ops#14 | healthy | K8s-in-K8s |
+| 15 | Agentic Workflows | frank-ops#15 (repurposed) | in-progress | n8n + VK + Paperclip + Praison (planned). Repurposed from "Paperclip AI deployment". |
+| 16 | Media Generation | frank-ops#16 (repurposed) | blocked | ComfyUI + GPU Switcher. Pending Traefik route + model downloads. |
+| 17 | Public Edge — Hop | frank-ops#17 | healthy | Hetzner CX23 + Headscale + Caddy. Extended health basis: blackbox blog probe + mesh peer count + cert expiry + Hetzner API |
+| 18 | Persistent Agent | frank-ops#18 (repurposed) | healthy | Absorbs blog #18 + #21 (workstation + hardening). Hosts willikins crons. Known sub-feature degradation tracked in body. |
+| 19 | Progressive Delivery | frank-ops#19 | healthy | Argo Rollouts |
+| 24 | In-Cluster Ingress | frank-ops#24 | healthy | Traefik + Authentik forward-auth |
+| 25 | CI/CD Platform | frank-ops#25 | healthy | Gitea + Tekton + Zot |
 
 Every Issue lives in `derio-net/frank` regardless of which repo the underlying components are deployed from — the board tracks **Frank as a system**, not per-repo work.
 
@@ -63,7 +63,7 @@ These are real Issues but **not Layer trackers**, so they live in their respecti
 
 ## Pass 3 — Grafana wiring (not yet executed)
 
-For each Layer Issue, create one Grafana alert rule labelled `github_issue=derio-net/frank#<number>`. The Health Bridge (`apps/health-bridge`) already exists and is responsible for translating alert state → Issue lifecycle:
+For each Layer Issue, create one Grafana alert rule labelled `github_issue=frank-ops#<layer>`. The Health Bridge (`apps/health-bridge`) already exists and is responsible for translating alert state → Issue lifecycle:
 
 - alert **firing, severity=warning** → `degraded`
 - alert **firing, severity=critical** → `dead`
