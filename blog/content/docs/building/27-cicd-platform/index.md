@@ -136,6 +136,9 @@ curl -sf -X POST "$GITEA_URL/api/v1/repos/migrate" \
 
 A `tekton-bot` service account owns the mirror and has an API token stored in Infisical for pipeline status reporting. The mirror syncs every 10 minutes — fast enough for CI, without hammering GitHub's API.
 
+<!-- MEDIA: screenshot | Gitea repository list showing GitHub pull mirrors | Log in to http://192.168.55.209:3000 as tekton-bot via Authentik SSO, capture the repository list showing the mirror icon on each entry -->
+<!-- {{</* screenshot src="gitea-pull-mirrors.png" caption="Gitea dashboard listing GitHub pull mirrors with their last-sync timestamps" */>}} -->
+
 ## Tekton — Kubernetes-Native Pipelines
 
 Tekton is a K8s-native CI/CD engine — pipelines are CRDs, each step runs in its own container, and workspaces are PVCs. No external CI server, no agents phoning home, no YAML DSL wrapping shell scripts. Just Kubernetes resources.
@@ -219,6 +222,9 @@ spec:
     - name: report-success  # When tasks succeeded/completed
     - name: report-failure  # When tasks failed
 ```
+
+<!-- MEDIA: screenshot | Tekton Dashboard showing a successful PipelineRun with all task stages | Navigate to http://192.168.55.217:9097, open a recent gitea-ci PipelineRun, capture the DAG view with clone/test/build-push/sign/report steps -->
+<!-- {{</* screenshot src="tekton-pipelinerun.png" caption="Tekton Dashboard: a gitea-ci PipelineRun showing all stages completed" */>}} -->
 
 ## Zot — OCI Container Registry
 
@@ -327,6 +333,9 @@ cosign verify --key apps/tekton/cosign.pub \
   --insecure-ignore-tlog --allow-insecure-registry \
   192.168.55.210:5000/test/myapp:latest
 ```
+
+<!-- MEDIA: asciinema | Verifying a cosign signature against Zot | cosign verify --key apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecure-registry 192.168.55.210:5000/test/hello:latest -->
+<!-- {{</* asciinema src="cosign-verify.cast" */>}} -->
 
 ## Gotchas and Lessons
 

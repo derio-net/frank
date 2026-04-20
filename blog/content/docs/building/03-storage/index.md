@@ -95,6 +95,9 @@ talosctl -n 192.168.55.31 mounts | grep longhorn
 
 You should see both `/var/mnt/longhorn-sda` and `/var/mnt/longhorn-sdb` listed as mounted filesystems. Later, when configuring Longhorn, you will point the gpu-1 node at these paths and tag them for GPU-local workloads.
 
+<!-- MEDIA: asciinema | Verify gpu-1 extra-disk mounts after Talos reboot | source .env && talosctl -n 192.168.55.31 mounts | grep longhorn -->
+<!-- {{</* asciinema src="gpu1-longhorn-mounts.cast" */>}} -->
+
 ## Installing Longhorn
 
 With iSCSI available and disks mounted, Longhorn itself goes in via Helm. In Frank, the Talos Cluster, ArgoCD manages the Longhorn Helm release through an Application resource that references the upstream chart and a values file in the Git repo.
@@ -246,6 +249,9 @@ spec:
 ```
 
 The `strict-local` data locality combined with the `gpu-local` disk selector ensures this volume lands on one of gpu-1's 4TB SSDs, right next to the GPU that will process its contents.
+
+<!-- MEDIA: asciinema | Both StorageClasses visible after Longhorn install | source .env && kubectl get storageclass -->
+<!-- {{</* asciinema src="longhorn-storageclasses.cast" */>}} -->
 
 ## What We Have Now
 

@@ -18,6 +18,9 @@ Paperclip is healthy when:
 - All four ExternalSecrets show `SecretSynced`
 - The PVC is `Bound`
 
+<!-- MEDIA: screenshot | Paperclip dashboard showing agent overview and recent runs | Navigate to http://192.168.55.212:3100, log in, capture the main dashboard view with at least one agent visible, dark mode preferred -->
+<!-- {{</* screenshot src="paperclip-dashboard.png" caption="Paperclip dashboard: the control plane's view of registered agents and recent runs" */>}} -->
+
 Quick health check:
 
 ```bash
@@ -26,6 +29,9 @@ kubectl get pods,pvc,externalsecret -n paperclip-system
 ```
 
 Expected output: one paperclip pod, one paperclip-db pod, one 2Gi PVC bound, four ExternalSecrets synced.
+
+<!-- MEDIA: asciinema | Paperclip all-in-one health check | source .env && kubectl get pods,pvc,externalsecret -n paperclip-system -->
+<!-- {{</* asciinema src="paperclip-healthcheck.cast" */>}} -->
 
 ## Observing State
 

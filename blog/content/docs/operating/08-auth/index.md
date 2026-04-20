@@ -13,6 +13,9 @@ This is the operational companion to [Unified Auth — Authentik SSO for the Ent
 
 Authentication is healthy when Authentik at `192.168.55.211:9000` is responding, all OIDC providers show valid status in the admin UI, and users can log into ArgoCD, Grafana, and Infisical via SSO without errors. Forward auth should be passing requests through for Longhorn UI, Hubble UI, and Sympozium.
 
+<!-- MEDIA: screenshot | Authentik admin dashboard showing providers and applications with healthy status | Navigate to http://192.168.55.211:9000/if/admin/, log in as akadmin, capture the Providers list page with all cluster providers visible, dark mode preferred -->
+<!-- {{</* screenshot src="authentik-providers-healthy.png" caption="Authentik admin UI: all cluster OIDC and proxy providers with healthy status" */>}} -->
+
 ## Observing State
 
 ### Authentik Status

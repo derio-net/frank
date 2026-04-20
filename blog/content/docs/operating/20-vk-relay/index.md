@@ -52,6 +52,9 @@ curl -s -o /dev/null -w "%{http_code}" https://vk.cluster.derio.net/v1/relay/con
 
 A `401` means the relay is running and reachable — it's rejecting the request because there's no JWT token. A `404` means the IngressRoute isn't routing correctly. A `502` means the relay container is down.
 
+<!-- MEDIA: asciinema | Relay sidecar health: two containers + auth-gated endpoint | source .env && kubectl -n agents get pods -l app=vk-remote -o jsonpath='{.items[0].spec.containers[*].name}' && echo && echo '---curl---' && curl -s -o /dev/null -w "relay status: %{http_code}\n" https://vk.cluster.derio.net/v1/relay/connect -->
+<!-- {{</* asciinema src="vk-relay-health.cast" */>}} -->
+
 ### Service Ports
 
 ```bash

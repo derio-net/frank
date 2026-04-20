@@ -46,6 +46,9 @@ kubectl -n argocd get applications -o json \
 
 That one pipe gives you the *shape* of the drift: which app has which kind drifting, at which scope. Patterns jump out immediately.
 
+<!-- MEDIA: asciinema | The drift-shape jq pipeline across all ArgoCD apps | source .env && kubectl -n argocd get applications -o json | jq -r '.items[] | .metadata.name as $app | .status.resources[]? | select(.status != "Synced") | "\($app)\t\(.kind)/\(.name)\t\(.namespace // "cluster")"' | sort | head -30 -->
+<!-- {{</* asciinema src="drift-shape-pipeline.cast" */>}} -->
+
 On my cluster the output was dominated by three kinds:
 
 - `ExternalSecret/*` — ten different apps
@@ -354,6 +357,9 @@ This is the argument for taking drift seriously. A healthy ArgoCD install isn't 
 
 Starting point: 20 of 52 apps OutOfSync.
 End state: 2 of 52 OutOfSync. Both Healthy. Both functionally fine.
+
+<!-- MEDIA: screenshot | ArgoCD app list after the drift cleanup — 50/52 Synced | Navigate to https://192.168.55.200, capture the app list view sorted by sync status showing the handful of residual OutOfSync entries alongside the Synced majority, dark mode preferred -->
+<!-- {{</* screenshot src="argocd-post-cleanup-synced.png" caption="ArgoCD app list after the drift cleanup: OutOfSync column becomes a real signal again" */>}} -->
 
 The two residuals:
 

@@ -43,6 +43,9 @@ kubectl argo rollouts get rollout sympozium-apiserver -n sympozium-system
 kubectl argo rollouts get rollout litellm -n litellm --watch
 ```
 
+<!-- MEDIA: asciinema | LiteLLM Rollout status mid-canary | source .env && kubectl argo rollouts get rollout litellm -n litellm -->
+<!-- {{</* asciinema src="litellm-rollout-status.cast" */>}} -->
+
 ### Analysis Results
 
 ```bash
@@ -141,6 +144,9 @@ kubectl port-forward svc/sympozium-apiserver-preview -n sympozium-system 9090:80
 # Promote green to active
 kubectl argo rollouts promote sympozium-apiserver -n sympozium-system
 ```
+
+<!-- MEDIA: screenshot | Argo Rollouts dashboard showing a blue-green switch on Sympozium | Run `kubectl argo rollouts dashboard` and navigate to the sympozium-apiserver rollout during a blue-green promotion, capture the blue/green pair with analysis status -->
+<!-- {{</* screenshot src="sympozium-bluegreen-promote.png" caption="Argo Rollouts dashboard during a Sympozium blue-green promotion" */>}} -->
 
 ### Aborting a Blue-Green
 

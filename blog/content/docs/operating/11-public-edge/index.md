@@ -63,6 +63,9 @@ talosctl -n $HOP_IP health
 
 This validates etcd, API server, kubelet, and node readiness. Since there's no HA, any failure here means the entire cluster is down.
 
+<!-- MEDIA: asciinema | Hop cluster health check from a Frank-adjacent shell | source .env_hop && export TALOSCONFIG=$(pwd)/clusters/hop/talosconfig/talosconfig && talosctl -n $HOP_IP health && kubectl get nodes -o wide -->
+<!-- {{</* asciinema src="hop-health.cast" */>}} -->
+
 ```bash
 kubectl get nodes -o wide
 # hop-1 should be Ready
@@ -168,6 +171,9 @@ tailscale ping <another-mesh-node>
 ```
 
 The new node gets a `100.64.0.x` address from Headscale's IP pool. MagicDNS automatically makes it reachable by name (e.g., `device-name.mesh.hop.derio.net`).
+
+<!-- MEDIA: asciinema | Headscale mesh membership: users, nodes, and routes | source .env_hop && kubectl -n headscale-system exec deploy/headscale -- headscale users list && kubectl -n headscale-system exec deploy/headscale -- headscale nodes list && kubectl -n headscale-system exec deploy/headscale -- headscale routes list -->
+<!-- {{</* asciinema src="headscale-mesh-state.cast" */>}} -->
 
 **Removing a node:**
 
