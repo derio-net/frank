@@ -1,5 +1,0 @@
-{"version":2,"width":200,"height":40,"timestamp":1776704172,"idle_time_limit":2.0,"command":"/tmp/rec-driver.XXXX.sh","env":{"SHELL":"/bin/zsh"}}
-[0.875282, "o", "$ kubectl get pods -n agents -o wide\r\n"]
-[1.326735, "o", "NAME                              READY   STATUS      RESTARTS   AGE   IP              NODE     NOMINATED NODE   READINESS GATES\r\nelectric-6c5f6487d7-prswg         1/1     Running     0          8d    10.244.12.187   mini-1   <none>           <none>\r\npostgres-vk-557b4b6b7-9xvwq       1/1     Running     0          8d    10.244.13.229   mini-2   <none>           <none>\r\npostgres-vk-init-electric-pgqzp   0/1     Completed   0          21h   10.244.12.96    mini-1   <none>           <none>\r\nvk-remote-7949d8bb66-vpgpx        2/2     Running     0          21h   10.244.13.68    mini-2   <none>           <none>\r\n"]
-[1.334987, "o", "\r\n"]
-[1.335709, "x", "0"]

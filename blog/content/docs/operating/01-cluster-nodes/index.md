@@ -13,7 +13,44 @@ This is the operational companion to [Building the Foundation]({{< relref "/docs
 
 A healthy Frank means all seven nodes are `Ready`, every Cilium agent pod is running, and Hubble is collecting flows. If all three of those conditions hold, networking is working and the control plane is stable. That is the baseline you are checking against whenever you run any of the commands below.
 
-{{< asciinema src="cluster-baseline-health.cast" cols="206" rows="37" >}}
+```console
+$ kubectl get nodes -o wide
+NAME      STATUS   ROLES           AGE   VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE          KERNEL-VERSION   CONTAINER-RUNTIME
+gpu-1     Ready    <none>          49d   v1.35.3   192.168.55.31   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
+mini-1    Ready    control-plane   49d   v1.35.3   192.168.55.21   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
+mini-2    Ready    control-plane   49d   v1.35.3   192.168.55.22   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
+mini-3    Ready    control-plane   49d   v1.35.3   192.168.55.23   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
+pc-1      Ready    <none>          49d   v1.35.3   192.168.55.71   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
+raspi-1   Ready    <none>          49d   v1.35.3   192.168.55.41   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
+raspi-2   Ready    <none>          49d   v1.35.3   192.168.55.42   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
+
+$ cilium status --wait=false | head -25
+    /¯¯\
+ /¯¯\__/¯¯\    Cilium:             OK
+ \__/¯¯\__/    Operator:           OK
+ /¯¯\__/¯¯\    Envoy DaemonSet:    OK
+ \__/¯¯\__/    Hubble Relay:       OK
+    \__/       ClusterMesh:        disabled
+
+DaemonSet              cilium                   Desired: 7, Ready: 7/7, Available: 7/7
+DaemonSet              cilium-envoy             Desired: 7, Ready: 7/7, Available: 7/7
+Deployment             cilium-operator          Desired: 2, Ready: 2/2, Available: 2/2
+Deployment             hubble-relay             Desired: 1, Ready: 1/1, Available: 1/1
+Deployment             hubble-ui                Desired: 1, Ready: 1/1, Available: 1/1
+Containers:            cilium                   Running: 7
+                       cilium-envoy             Running: 7
+                       cilium-operator          Running: 2
+                       clustermesh-apiserver    
+                       hubble-relay             Running: 1
+                       hubble-ui                Running: 1
+Cluster Pods:          135/135 managed by Cilium
+Helm chart version:    1.17.0
+Image versions         cilium             quay.io/cilium/cilium:v1.17.0@sha256:51f21bdd003c3975b5aaaf41bd21aee23cc08f44efaa27effc91c621bc9d8b1d: 7
+                       cilium-envoy       quay.io/cilium/cilium-envoy:v1.31.5-1737535524-fe8efeb16a7d233bffd05af9ea53599340d3f18e@sha256:57a3aa6355a3223da360395e3a109802867ff635cb852aa0afe03ec7bf04e545: 7
+                       cilium-operator    quay.io/cilium/operator-generic:v1.17.0@sha256:1ce5a5a287166fc70b6a5ced3990aaa442496242d1d4930b5a3125e44cccdca8: 2
+                       hubble-relay       quay.io/cilium/hubble-relay:v1.17.0@sha256:022c084588caad91108ac73e04340709926ea7fe12af95f57fcb794b68472e05: 1
+                       hubble-ui          quay.io/cilium/hubble-ui-backend:v0.13.1@sha256:0e0eed917653441fded4e7cdb096b7be6a3bddded5a2dd10812a27b1fc6ed95b: 1
+```
 
 ## Observing State
 

@@ -37,7 +37,29 @@ For a quick check of what the node reports as allocatable:
 kubectl describe node gpu-1 | grep -A 10 "Allocated resources"
 ```
 
-{{< asciinema src="gpu1-nvidia-smi.cast" cols="185" rows="22" >}}
+```console
+$ POD=$(kubectl get pod -n gpu-operator -l app=nvidia-dcgm-exporter -o jsonpath='{.items[0].metadata.name}'); kubectl exec -n gpu-operator "$POD" -c nvidia-dcgm-exporter -- nvidia-smi
+Mon Apr 20 16:55:31 2026       
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.211.01             Driver Version: 570.211.01     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|                                         |                        |               MIG M. |
+|=========================================+========================+======================|
+|   0  NVIDIA GeForce RTX 5070 Ti     Off |   00000000:01:00.0 Off |                  N/A |
+|  0%   33C    P8             19W /  300W |    7956MiB /  16303MiB |      0%      Default |
+|                                         |                        |                  N/A |
++-----------------------------------------+------------------------+----------------------+
+                                                                                         
++-----------------------------------------------------------------------------------------+
+| Processes:                                                                              |
+|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+|        ID   ID                                                               Usage      |
+|=========================================================================================|
+|  No running processes found                                                             |
++-----------------------------------------------------------------------------------------+
+```
 
 Look for `nvidia.com/gpu` in the capacity and allocatable fields:
 
@@ -62,7 +84,13 @@ kubectl get resourceslice -o wide
 
 You should see three slices, one per mini node, all with driver `gpu.intel.com`. The DeviceClass should also exist:
 
-{{< asciinema src="intel-dra-resourceslices.cast" cols="80" rows="6" >}}
+```console
+$ kubectl get resourceslice -o wide
+NAME                         NODE     DRIVER          POOL     AGE
+mini-1-gpu.intel.com-wnt98   mini-1   gpu.intel.com   mini-1   28d
+mini-2-gpu.intel.com-ssz5r   mini-2   gpu.intel.com   mini-2   28d
+mini-3-gpu.intel.com-ch2jg   mini-3   gpu.intel.com   mini-3   28d
+```
 
 ```bash
 kubectl get deviceclass gpu.intel.com

@@ -291,7 +291,28 @@ $ curl -sS http://192.168.55.218:8081/ | head -3
   <head>
 ```
 
-{{< asciinema src="agent-images-split-verify.cast" cols="141" rows="20" >}}
+```console
+$ kubectl -n secure-agent-pod get pod -l app=secure-agent-pod -o jsonpath='{range .items[0].spec.containers[*]}{.name}={.image}{"
+"}{end}'
+kali=ghcr.io/derio-net/secure-agent-kali:ef12b21c73d7f162d4f617eb863a8692c78ae31e
+vk-local=ghcr.io/derio-net/vk-local:ef12b21c73d7f162d4f617eb863a8692c78ae31e
+
+$ kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- bash -c 'command -v vibe-kanban || echo VK GONE'
+VK GONE
+
+$ kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c vk-local -- ls /home/claude/repos
+agent-images
+content-factory
+derio-profile
+frank
+frank-ops
+hum
+kid-laptops
+repos.code-workspace
+superpowers-for-vk
+vibe-kanban
+willikins
+```
 
 Both containers see the same repos directory. The kali container no longer has the VK binary. The sidecar serves the real React app. The shared volume is the interface; the pod is the runtime; the Dockerfiles live in a repo that has one job.
 

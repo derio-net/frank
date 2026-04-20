@@ -46,7 +46,25 @@ kubectl -n argocd get applications -o json \
 
 That one pipe gives you the *shape* of the drift: which app has which kind drifting, at which scope. Patterns jump out immediately.
 
-{{< asciinema src="drift-shape-pipeline.cast" cols="89" rows="18" >}}
+```console
+$ kubectl -n argocd get applications -o json | jq -r -f /tmp/drift.jq | sort | head -30
+argocd	Role/argocd-redis-secret-init	argocd
+argocd	RoleBinding/argocd-redis-secret-init	argocd
+argocd	ServiceAccount/argocd-redis-secret-init	argocd
+root	Application/gpu-operator	argocd
+root	Application/sympozium	argocd
+root	Application/victoria-metrics	argocd
+sympozium-extras	PersonaPack/developer-team	default
+sympozium-extras	PersonaPack/devops-essentials	default
+sympozium-extras	PersonaPack/platform-team	default
+tekton-extras	EventListener/gitea-listener	tekton-pipelines
+tekton-extras	Pipeline/gitea-ci	tekton-pipelines
+tekton-extras	Task/build-push	tekton-pipelines
+tekton-extras	Task/cosign-sign	tekton-pipelines
+tekton-extras	Task/git-clone	tekton-pipelines
+vcluster-experiments	StatefulSet/experiments	vcluster-experiments
+vk-remote	Job/postgres-vk-init-electric	agents
+```
 
 On my cluster the output was dominated by three kinds:
 

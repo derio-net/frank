@@ -1,5 +1,0 @@
-{"version":2,"width":200,"height":40,"timestamp":1776704170,"idle_time_limit":2.0,"command":"/tmp/rec-driver.XXXX.sh","env":{"SHELL":"/bin/zsh"}}
-[1.221096, "o", "$ kubectl get ingressroutes -n traefik-system -o wide\r\n"]
-[1.820987, "o", "NAME           AGE\r\nargocd         12d\r\nauthentik      12d\r\ncomfyui        12d\r\ngitea          12d\r\ngpu-switcher   12d\r\ngrafana        12d\r\nhomepage       12d\r\nhubble         12d\r\ninfisical      12d\r\nlitellm        12d\r\nlonghorn       12d\r\nn8n            12d\r\npaperclip      12d\r\nsympozium      12d\r\ntekton         12d\r\nvk-remote      8d\r\nzot            12d\r\n"]
-[1.834173, "o", "\r\n"]
-[1.84314, "x", "0"]

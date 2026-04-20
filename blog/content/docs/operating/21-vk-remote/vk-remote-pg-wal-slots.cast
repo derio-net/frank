@@ -1,8 +1,0 @@
-{"version":2,"width":200,"height":40,"timestamp":1776704155,"idle_time_limit":2.0,"command":"/tmp/rec-driver.XXXX.sh","env":{"SHELL":"/bin/zsh"}}
-[0.8859, "o", "$ kubectl -n agents exec deploy/postgres-vk -- psql -U remote -d remote -c 'SHOW wal_level;'\r\n"]
-[1.657202, "o", " wal_level \r\n-----------\r\n logical\r\n(1 row)\r\n\r\n"]
-[1.666115, "o", "\r\n"]
-[1.666321, "o", "$ kubectl -n agents exec deploy/postgres-vk -- psql -U remote -d remote -c 'SELECT slot_name, active FROM pg_replication_slots;'\r\n"]
-[2.192784, "o", "       slot_name       | active \r\n-----------------------+--------\r\n electric_slot_default | t\r\n(1 row)\r\n\r\n"]
-[2.20183, "o", "\r\n"]
-[2.202894, "x", "0"]

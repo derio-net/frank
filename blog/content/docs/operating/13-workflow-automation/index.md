@@ -43,7 +43,20 @@ curl -s -o /dev/null -w "%{http_code}" http://192.168.55.216:5678/healthz
 curl -s http://192.168.55.216:5678/metrics | head -10
 ```
 
-{{< asciinema src="n8n-01-health.cast" cols="88" rows="12" >}}
+```console
+$ kubectl -n n8n-01 get pods
+NAME                     READY   STATUS    RESTARTS   AGE
+n8n-01-ddb7c789c-xv8mr   1/1     Running   0          21d
+n8n-01-postgresql-0      1/1     Running   0          21d
+
+$ kubectl -n n8n-01 get svc n8n-01
+NAME     TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)          AGE
+n8n-01   LoadBalancer   10.102.108.93   192.168.55.216   5678:32466/TCP   21d
+
+$ curl -s -o /dev/null -w "healthz: %{http_code}
+" http://192.168.55.216:5678/healthz
+healthz: 200
+```
 
 ### ArgoCD Sync Status
 

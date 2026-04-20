@@ -28,7 +28,18 @@ kubectl get pods -A -l app=vcluster
 argocd app list --port-forward --port-forward-namespace argocd | grep vcluster
 ```
 
-{{< asciinema src="vcluster-inventory.cast" cols="80" rows="11" >}}
+```console
+$ vcluster list
+  
+       NAME     |      NAMESPACE       | STATUS  | VERSION | CONNECTED | AGE  
+  --------------+----------------------+---------+---------+-----------+------
+    experiments | vcluster-experiments | Running | 0.32.1  |           | 39d  
+  
+
+$ kubectl get statefulset -A -l app=vcluster
+NAMESPACE              NAME          READY   AGE
+vcluster-experiments   experiments   1/1     39d
+```
 
 ### Connect to a Virtual Cluster
 

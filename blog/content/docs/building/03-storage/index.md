@@ -250,7 +250,14 @@ spec:
 
 The `strict-local` data locality combined with the `gpu-local` disk selector ensures this volume lands on one of gpu-1's 4TB SSDs, right next to the GPU that will process its contents.
 
-{{< asciinema src="longhorn-storageclasses.cast" cols="106" rows="7" >}}
+```console
+$ kubectl get storageclass
+NAME                 PROVISIONER          RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+longhorn (default)   driver.longhorn.io   Delete          Immediate           true                   48d
+longhorn-cicd        driver.longhorn.io   Delete          Immediate           true                   22d
+longhorn-gpu-local   driver.longhorn.io   Delete          Immediate           true                   48d
+longhorn-static      driver.longhorn.io   Delete          Immediate           true                   48d
+```
 
 ## What We Have Now
 

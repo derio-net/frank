@@ -31,7 +31,14 @@ kubectl -n agents get pods -o wide
 kubectl -n agents get pods -l 'app in (postgres-vk, electric, vk-remote)'
 ```
 
-{{< asciinema src="vk-remote-three-pods.cast" cols="130" rows="7" >}}
+```console
+$ kubectl get pods -n agents -o wide
+NAME                              READY   STATUS      RESTARTS   AGE   IP              NODE     NOMINATED NODE   READINESS GATES
+electric-6c5f6487d7-prswg         1/1     Running     0          8d    10.244.12.187   mini-1   <none>           <none>
+postgres-vk-557b4b6b7-9xvwq       1/1     Running     0          8d    10.244.13.229   mini-2   <none>           <none>
+postgres-vk-init-electric-pgqzp   0/1     Completed   0          21h   10.244.12.96    mini-1   <none>           <none>
+vk-remote-7949d8bb66-vpgpx        2/2     Running     0          21h   10.244.13.68    mini-2   <none>           <none>
+```
 
 ### PostgreSQL
 
@@ -46,7 +53,20 @@ kubectl -n agents exec deploy/postgres-vk -- \
   psql -U remote -d remote -c "SELECT slot_name, active FROM pg_replication_slots;"
 ```
 
-{{< asciinema src="vk-remote-pg-wal-slots.cast" cols="130" rows="13" >}}
+```console
+$ kubectl -n agents exec deploy/postgres-vk -- psql -U remote -d remote -c 'SHOW wal_level;'
+ wal_level 
+-----------
+ logical
+(1 row)
+
+
+$ kubectl -n agents exec deploy/postgres-vk -- psql -U remote -d remote -c 'SELECT slot_name, active FROM pg_replication_slots;'
+       slot_name       | active 
+-----------------------+--------
+ electric_slot_default | t
+(1 row)
+```
 
 ```bash
 # Check the electric role exists

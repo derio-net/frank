@@ -55,7 +55,50 @@ claude      33  /home/claude/.vibe-kanban/bin/.../vibe-kanban
 
 If any process is missing, the pod will restart via `wait -n` — check restart count.
 
-{{< asciinema src="secure-agent-pod-ps.cast" cols="447" rows="43" >}}
+```console
+$ kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- ps aux
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+claude         1  0.0  0.0   2580  1660 ?        Ss   10:04   0:00 /usr/bin/tini -- /entrypoint.sh
+claude         7  0.0  0.0   4800  4004 ?        S    10:04   0:00 /bin/bash /entrypoint.sh
+claude        61  0.0  0.0  11728  7824 ?        S    10:04   0:02 sshd: /usr/sbin/sshd -f /opt/sshd_config -D [listener] 0 of 10-100 startups
+claude        62  0.0  0.0 1235728 12888 ?       Sl   10:04   0:01 supercronic /home/claude/.crontab
+claude        87  2.9  0.2 74304156 289264 ?     Sl   10:04  12:07 claude remote-control --name willikins
+claude        90  0.0  0.0      0     0 ?        Z    10:04   0:00 [bash] <defunct>
+claude       114  2.2  0.2 74801300 337700 ?     Sl   10:05   9:16 /home/claude/.local/share/claude/versions/2.1.114 --print --sdk-url https://api.anthropic.com/v1/code/sessions/cse_017vLRL4XN2iH98AYwTRrJP1 --session-id cse_017vLRL4XN2iH98AYwTRrJP1 --input-format stream-json --output-format stream-json --replay-user-messages
+claude       139  0.0  0.0 1331420 82652 ?       Sl   10:05   0:00 npm exec @upstash/context7-mcp
+claude       140  0.0  0.0 1331360 80980 ?       Sl   10:05   0:00 npm exec @playwright/mcp@latest
+claude       233  0.0  0.0   2692  1804 ?        S    10:05   0:00 sh -c playwright-mcp
+claude       234  0.0  0.0 11546244 101744 ?     Sl   10:05   0:00 node /home/claude/.npm/_npx/9833c18b2d85bc59/node_modules/.bin/playwright-mcp
+claude       241  0.0  0.0   2692  1896 ?        S    10:05   0:00 sh -c context7-mcp
+claude       242  0.0  0.0 22080036 86712 ?      Sl   10:05   0:00 node /home/claude/.npm/_npx/eea2bd7412d4593b/node_modules/.bin/context7-mcp
+claude       496  0.0  0.0   2688  1868 ?        S    10:05   0:00 sh /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/bin/code-server --connection-token=remotessh --accept-server-license-terms --start-server --enable-remote-auto-shutdown --socket-path=/tmp/code-e55d48f9-02d8-48a6-bde0-c569cba2545b
+claude       500  0.1  0.1 11857512 135668 ?     Sl   10:05   0:47 /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/node /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/out/server-main.js --connection-token=remotessh --accept-server-license-terms --start-server --enable-remote-auto-shutdown --socket-path=/tmp/code-e55d48f9-02d8-48a6-bde0-c569cba2545b
+claude       522  0.5  0.5 55084784 775564 ?     Sl   10:05   2:18 /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/node --dns-result-order=ipv4first /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/out/bootstrap-fork --type=extensionHost --transformURIs --useHostProxy=false
+claude       534  0.0  0.0 1461952 69704 ?       Sl   10:05   0:05 /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/node /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/out/bootstrap-fork --type=fileWatcher
+claude       547  0.2  0.0 1167188 82896 ?       Sl   10:05   1:03 /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/node /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/out/bootstrap-fork --type=ptyHost --logsPath /home/claude/.vscode-server/data/logs/20260420T100549
+claude       834  0.0  0.0 1056608 97932 ?       Sl   10:05   0:02 /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/node /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/extensions/markdown-language-features/dist/serverWorkerMain --node-ipc --clientProcessId=522
+claude       842  0.0  0.0 1027804 67276 ?       Sl   10:05   0:01 /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/node /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/extensions/json-language-features/server/dist/node/jsonServerMain --node-ipc --clientProcessId=522
+claude      2317  0.0  0.0   4560  4116 pts/0    Ss   10:06   0:00 /bin/bash --init-file /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh
+claude     29115  0.0  0.0  16932 10008 ?        Ss   11:16   0:00 sshd-session: claude [priv]
+claude     29117  0.1  0.0  17812  7724 ?        S    11:16   0:23 sshd-session: claude@notty
+claude     29118  0.0  0.0   4164  3400 ?        Ss   11:16   0:00 -bash
+claude     29122  0.0  0.0   2688  2040 ?        S    11:16   0:00 sh
+claude     29140  0.1  0.0 104044 22456 ?        Sl   11:16   0:27 /home/claude/.vscode-server/code-41dd792b5e652393e7787322889ed5fdc58bd75b command-shell --cli-data-dir /home/claude/.vscode-server/cli --parent-process-id 29122 --on-host=127.0.0.1 --on-port
+claude    123942  3.8  0.3 75020492 441656 pts/0 Sl+  16:24   1:10 claude
+claude    123971  0.0  0.0 1331164 81652 pts/0   Sl+  16:24   0:00 npm exec @upstash/context7-mcp
+claude    124143  0.0  0.0   2688  1800 pts/0    S+   16:24   0:00 sh -c context7-mcp
+claude    124144  0.0  0.0 22080388 85884 pts/0  Sl+  16:24   0:00 node /home/claude/.npm/_npx/eea2bd7412d4593b/node_modules/.bin/context7-mcp
+claude    130927  0.0  0.0   4560  4144 pts/1    Ss   16:36   0:00 /bin/bash --init-file /home/claude/.vscode-server/cli/servers/Stable-41dd792b5e652393e7787322889ed5fdc58bd75b/server/out/vs/workbench/contrib/terminal/common/scripts/shellIntegration-bash.sh
+claude    130990  1.2  0.2 74914732 370680 pts/1 Sl+  16:36   0:14 claude
+claude    131020  0.0  0.0 1332068 81756 pts/1   Sl+  16:36   0:00 npm exec @upstash/context7-mcp
+claude    131026  0.0  0.0 1330936 80600 pts/1   Sl+  16:36   0:00 npm exec @playwright/mcp@latest
+claude    131236  0.0  0.0   2688  1832 pts/1    S+   16:36   0:00 sh -c playwright-mcp
+claude    131237  0.0  0.0 11545984 102492 pts/1 Sl+  16:36   0:00 node /home/claude/.npm/_npx/9833c18b2d85bc59/node_modules/.bin/playwright-mcp
+claude    131243  0.0  0.0   2688  1960 pts/1    S+   16:36   0:00 sh -c context7-mcp
+claude    131244  0.0  0.0 22080376 86764 pts/1  Sl+  16:36   0:00 node /home/claude/.npm/_npx/eea2bd7412d4593b/node_modules/.bin/context7-mcp
+claude    133948  0.0  0.0   2596  1636 ?        S    16:52   0:00 sleep 180
+claude    134228 42.8  0.0   6544  3976 ?        Rs   16:55   0:00 ps aux
+```
 
 ### Services and Networking
 

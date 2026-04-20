@@ -44,7 +44,14 @@ curl -s http://192.168.55.206:4000/v1/models | jq '.data[].id'
 kubectl logs -n litellm deploy/litellm --tail=50
 ```
 
-{{< asciinema src="litellm-health-models.cast" cols="121" rows="7" >}}
+```console
+$ curl -s http://192.168.55.206:4000/health/liveliness
+"I'm alive!"
+$ kubectl -n litellm get pods -o wide
+NAME                       READY   STATUS    RESTARTS   AGE   IP              NODE     NOMINATED NODE   READINESS GATES
+litellm-84d78cd556-rglgl   1/1     Running   0          25d   10.244.8.237    mini-3   <none>           <none>
+litellm-postgresql-0       1/1     Running   0          28d   10.244.12.161   mini-1   <none>           <none>
+```
 
 ### GPU Memory
 

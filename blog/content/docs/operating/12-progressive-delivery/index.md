@@ -43,7 +43,28 @@ kubectl argo rollouts get rollout sympozium-apiserver -n sympozium-system
 kubectl argo rollouts get rollout litellm -n litellm --watch
 ```
 
-{{< asciinema src="litellm-rollout-status.cast" cols="80" rows="21" >}}
+```console
+$ kubectl argo rollouts get rollout litellm -n litellm
+Name:            litellm
+Namespace:       litellm
+Status:          ◌ Progressing
+Message:         waiting for rollout spec update to be observed
+Strategy:        Canary
+  Step:          0/6
+  SetWeight:     20
+  ActualWeight:  0
+Replicas:
+  Desired:       1
+  Current:       0
+  Updated:       0
+  Ready:         0
+  Available:     0
+
+NAME                        KIND        STATUS         AGE  INFO
+⟳ litellm                   Rollout     ◌ Progressing  25d  
+└──# revision:1                                             
+   └──⧉ litellm-79db46b9fc  ReplicaSet  • ScaledDown   25d  canary
+```
 
 ### Analysis Results
 

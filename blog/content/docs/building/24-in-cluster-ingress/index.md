@@ -118,7 +118,27 @@ Services split into two tiers:
 
 Backend services are referenced via Kubernetes DNS (`service.namespace:port`), not Cilium L2 IPs. Traffic stays cluster-internal via Cilium eBPF routing.
 
-{{< asciinema src="ingressroute-list.cast" cols="80" rows="20" >}}
+```console
+$ kubectl get ingressroutes -n traefik-system -o wide
+NAME           AGE
+argocd         12d
+authentik      12d
+comfyui        12d
+gitea          12d
+gpu-switcher   12d
+grafana        12d
+homepage       12d
+hubble         12d
+infisical      12d
+litellm        12d
+longhorn       12d
+n8n            12d
+paperclip      12d
+sympozium      12d
+tekton         12d
+vk-remote      8d
+zot            12d
+```
 
 <!-- MEDIA: screenshot | Traefik dashboard showing routers, services, and middleware chains | Navigate to the Traefik dashboard and capture the routers overview page -->
 <!-- {{</* screenshot src="traefik-dashboard.png" caption="Traefik dashboard showing configured routers" */>}} -->
