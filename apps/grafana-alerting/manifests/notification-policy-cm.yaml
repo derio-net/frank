@@ -23,5 +23,5 @@ data:
             continue: true
           - receiver: "Health Bridge Webhook"
             matchers:
-              - grafana_folder=Feature Health
+              - grafana_folder="feature-health"
             continue: false
