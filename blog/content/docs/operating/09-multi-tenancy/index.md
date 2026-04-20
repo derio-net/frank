@@ -28,7 +28,7 @@ kubectl get pods -A -l app=vcluster
 argocd app list --port-forward --port-forward-namespace argocd | grep vcluster
 ```
 
-{{< asciinema src="vcluster-inventory.cast" >}}
+{{< asciinema src="vcluster-inventory.cast" cols="80" rows="11" >}}
 
 ### Connect to a Virtual Cluster
 

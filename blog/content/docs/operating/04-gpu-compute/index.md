@@ -37,7 +37,7 @@ For a quick check of what the node reports as allocatable:
 kubectl describe node gpu-1 | grep -A 10 "Allocated resources"
 ```
 
-{{< asciinema src="gpu1-nvidia-smi.cast" >}}
+{{< asciinema src="gpu1-nvidia-smi.cast" cols="185" rows="22" >}}
 
 Look for `nvidia.com/gpu` in the capacity and allocatable fields:
 
@@ -62,7 +62,7 @@ kubectl get resourceslice -o wide
 
 You should see three slices, one per mini node, all with driver `gpu.intel.com`. The DeviceClass should also exist:
 
-{{< asciinema src="intel-dra-resourceslices.cast" >}}
+{{< asciinema src="intel-dra-resourceslices.cast" cols="80" rows="6" >}}
 
 ```bash
 kubectl get deviceclass gpu.intel.com

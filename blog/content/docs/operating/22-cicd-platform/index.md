@@ -30,7 +30,7 @@ kubectl get externalsecret -n zot
 
 Healthy state: all pods Running on pc-1, all ArgoCD apps Synced/Healthy, all ExternalSecrets SecretSynced.
 
-{{< asciinema src="cicd-baseline-pods.cast" >}}
+{{< asciinema src="cicd-baseline-pods.cast" cols="154" rows="19" >}}
 
 ## Gitea Operations
 

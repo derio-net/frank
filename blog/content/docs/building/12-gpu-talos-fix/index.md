@@ -204,7 +204,7 @@ NAME          SIZE      PROCESSOR    CONTEXT
 qwen3.5:9b   8.6 GB    100% GPU     4096
 ```
 
-{{< asciinema src="ollama-ps-100pct-gpu.cast" >}}
+{{< asciinema src="ollama-ps-100pct-gpu.cast" cols="87" rows="4" >}}
 
 Full GPU inference on the RTX 5070 Ti. 15.9 GiB VRAM. LiteLLM routes requests to Ollama, Ollama runs models at 100% GPU, responses come back in under 400ms. The full stack — LiteLLM gateway, Ollama inference server, NVIDIA device plugin, containerd nvidia runtime, Talos system extensions — is operational.
 

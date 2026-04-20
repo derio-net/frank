@@ -13,7 +13,7 @@ This is the operational companion to [Building the Foundation]({{< relref "/docs
 
 A healthy Frank means all seven nodes are `Ready`, every Cilium agent pod is running, and Hubble is collecting flows. If all three of those conditions hold, networking is working and the control plane is stable. That is the baseline you are checking against whenever you run any of the commands below.
 
-{{< asciinema src="cluster-baseline-health.cast" >}}
+{{< asciinema src="cluster-baseline-health.cast" cols="206" rows="37" >}}
 
 ## Observing State
 

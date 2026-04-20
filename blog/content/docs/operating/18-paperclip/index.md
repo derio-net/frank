@@ -30,7 +30,7 @@ kubectl get pods,pvc,externalsecret -n paperclip-system
 
 Expected output: one paperclip pod, one paperclip-db pod, one 2Gi PVC bound, four ExternalSecrets synced.
 
-{{< asciinema src="paperclip-healthcheck.cast" >}}
+{{< asciinema src="paperclip-healthcheck.cast" cols="177" rows="15" >}}
 
 ## Observing State
 

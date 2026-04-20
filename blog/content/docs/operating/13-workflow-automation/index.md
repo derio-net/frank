@@ -43,7 +43,7 @@ curl -s -o /dev/null -w "%{http_code}" http://192.168.55.216:5678/healthz
 curl -s http://192.168.55.216:5678/metrics | head -10
 ```
 
-{{< asciinema src="n8n-01-health.cast" >}}
+{{< asciinema src="n8n-01-health.cast" cols="88" rows="12" >}}
 
 ### ArgoCD Sync Status
 

@@ -55,7 +55,7 @@ claude      33  /home/claude/.vibe-kanban/bin/.../vibe-kanban
 
 If any process is missing, the pod will restart via `wait -n` — check restart count.
 
-{{< asciinema src="secure-agent-pod-ps.cast" >}}
+{{< asciinema src="secure-agent-pod-ps.cast" cols="447" rows="43" >}}
 
 ### Services and Networking
 

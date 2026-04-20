@@ -1,3 +1,5 @@
-{"version":2,"width":120,"height":30,"timestamp":1776702768,"idle_time_limit":2.0,"command":"bash -c \"source .env && kubectl exec -n ollama deploy/ollama -- ollama ps\"","env":{"SHELL":"/bin/zsh"}}
-[0.577566, "o", "NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL             \r\nqwen3.5:9b    6488c96fa5fa    8.6 GB    100% GPU     4096       24 hours from now    \r\n"]
-[0.583983, "x", "0"]
+{"version":2,"width":200,"height":40,"timestamp":1776704168,"idle_time_limit":2.0,"command":"/tmp/rec-driver.XXXX.sh","env":{"SHELL":"/bin/zsh"}}
+[1.255886, "o", "$ kubectl exec -n ollama deploy/ollama -- ollama ps\r\n"]
+[1.963933, "o", "NAME          ID              SIZE      PROCESSOR    CONTEXT    UNTIL             \r\nqwen3.5:9b    6488c96fa5fa    8.6 GB    100% GPU     4096       24 hours from now    \r\n"]
+[1.976402, "o", "\r\n"]
+[1.977907, "x", "0"]

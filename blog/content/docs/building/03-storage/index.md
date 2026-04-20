@@ -250,7 +250,7 @@ spec:
 
 The `strict-local` data locality combined with the `gpu-local` disk selector ensures this volume lands on one of gpu-1's 4TB SSDs, right next to the GPU that will process its contents.
 
-{{< asciinema src="longhorn-storageclasses.cast" >}}
+{{< asciinema src="longhorn-storageclasses.cast" cols="106" rows="7" >}}
 
 ## What We Have Now
 

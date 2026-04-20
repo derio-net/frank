@@ -43,7 +43,7 @@ kubectl argo rollouts get rollout sympozium-apiserver -n sympozium-system
 kubectl argo rollouts get rollout litellm -n litellm --watch
 ```
 
-{{< asciinema src="litellm-rollout-status.cast" >}}
+{{< asciinema src="litellm-rollout-status.cast" cols="80" rows="21" >}}
 
 ### Analysis Results
 

@@ -44,7 +44,7 @@ Skip the env var entirely. Read `/proc/1/environ` directly from the credential h
 
 Every git invocation — regardless of how it was spawned, whether it sourced a shell init file, whether the env contains `GITHUB_TOKEN` — reads the kernel's view of PID 1's startup environment and returns the token.
 
-{{< asciinema src="git-credentials-proc1-environ.cast" >}}
+{{< asciinema src="git-credentials-proc1-environ.cast" cols="137" rows="9" >}}
 
 Baked into the image at `/opt/gitconfig`, seeded to `~/.gitconfig` on first boot:
 

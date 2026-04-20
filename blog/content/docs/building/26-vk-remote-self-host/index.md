@@ -122,7 +122,7 @@ SELF_HOST_LOCAL_AUTH_PASSWORD=<from Infisical>
 
 POST to `/v1/auth/local/login` returns JWT tokens. The secure-agent-pod's bridge authenticates this way. Browser access goes through Authentik forward-auth at the Traefik layer — the VK remote server itself doesn't know or care about SSO.
 
-{{< asciinema src="vk-remote-pods.cast" >}}
+{{< asciinema src="vk-remote-pods.cast" cols="130" rows="7" >}}
 
 ## Secrets via Infisical
 

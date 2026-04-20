@@ -118,7 +118,7 @@ Services split into two tiers:
 
 Backend services are referenced via Kubernetes DNS (`service.namespace:port`), not Cilium L2 IPs. Traffic stays cluster-internal via Cilium eBPF routing.
 
-{{< asciinema src="ingressroute-list.cast" rows="20" >}}
+{{< asciinema src="ingressroute-list.cast" cols="80" rows="20" >}}
 
 <!-- MEDIA: screenshot | Traefik dashboard showing routers, services, and middleware chains | Navigate to the Traefik dashboard and capture the routers overview page -->
 <!-- {{</* screenshot src="traefik-dashboard.png" caption="Traefik dashboard showing configured routers" */>}} -->

@@ -46,7 +46,7 @@ kubectl -n argocd get applications -o json \
 
 That one pipe gives you the *shape* of the drift: which app has which kind drifting, at which scope. Patterns jump out immediately.
 
-{{< asciinema src="drift-shape-pipeline.cast" >}}
+{{< asciinema src="drift-shape-pipeline.cast" cols="89" rows="18" >}}
 
 On my cluster the output was dominated by three kinds:
 

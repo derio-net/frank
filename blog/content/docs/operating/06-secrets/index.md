@@ -31,7 +31,7 @@ kubectl get externalsecrets -A
 
 Every `ExternalSecret` should show `STATUS: SecretSynced` and `READY: True`. If any show `SecretSyncedError` or `False`, something is broken between ESO and Infisical.
 
-{{< asciinema src="externalsecrets-status.cast" >}}
+{{< asciinema src="externalsecrets-status.cast" cols="120" rows="19" >}}
 
 To inspect a specific ExternalSecret in detail:
 

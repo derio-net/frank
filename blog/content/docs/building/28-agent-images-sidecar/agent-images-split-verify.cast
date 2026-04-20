@@ -1,7 +1,10 @@
-{"version":2,"width":120,"height":30,"timestamp":1776702997,"idle_time_limit":2.0,"command":"/tmp/rec-agent-split.sh","env":{"SHELL":"/bin/zsh"}}
-[0.959221, "o", "kali=ghcr.io/derio-net/secure-agent-kali:ef12b21c73d7f162d4f617eb863a8692c78ae31e\r\nvk-local=ghcr.io/derio-net/vk-local:ef12b21c73d7f162d4f617eb863a8692c78ae31e\r\n"]
-[0.963324, "o", "---\r\n"]
-[1.479225, "o", "VK GONE\r\n"]
-[1.483706, "o", "---\r\n"]
-[1.989232, "o", "agent-images\r\ncontent-factory\r\nderio-profile\r\nfrank\r\nfrank-ops\r\nhum\r\nkid-laptops\r\nrepos.code-workspace\r\nsuperpowers-for-vk\r\nvibe-kanban\r\nwillikins\r\n"]
-[1.993688, "x", "0"]
+{"version":2,"width":200,"height":40,"timestamp":1776704173,"idle_time_limit":2.0,"command":"/tmp/rec-driver.XXXX.sh","env":{"SHELL":"/bin/zsh"}}
+[0.861213, "o", "$ kubectl -n secure-agent-pod get pod -l app=secure-agent-pod -o jsonpath='{range .items[0].spec.containers[*]}{.name}={.image}{\"\\n\"}{end}'\r\n"]
+[1.399542, "o", "kali=ghcr.io/derio-net/secure-agent-kali:ef12b21c73d7f162d4f617eb863a8692c78ae31e\r\nvk-local=ghcr.io/derio-net/vk-local:ef12b21c73d7f162d4f617eb863a8692c78ae31e\r\n"]
+[1.414112, "o", "\r\n$ kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- bash -c 'command -v vibe-kanban || echo VK GONE'\r\n"]
+[2.285533, "o", "VK GONE\r\n"]
+[2.296262, "o", "\r\n"]
+[2.296388, "o", "$ kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c vk-local -- ls /home/claude/repos\r\n"]
+[3.045355, "o", "agent-images\r\ncontent-factory\r\nderio-profile\r\nfrank\r\nfrank-ops\r\nhum\r\nkid-laptops\r\nrepos.code-workspace\r\nsuperpowers-for-vk\r\nvibe-kanban\r\nwillikins\r\n"]
+[3.055672, "o", "\r\n"]
+[3.056461, "x", "0"]

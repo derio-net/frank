@@ -291,7 +291,7 @@ $ curl -sS http://192.168.55.218:8081/ | head -3
   <head>
 ```
 
-{{< asciinema src="agent-images-split-verify.cast" >}}
+{{< asciinema src="agent-images-split-verify.cast" cols="141" rows="20" >}}
 
 Both containers see the same repos directory. The kali container no longer has the VK binary. The sidecar serves the real React app. The shared volume is the interface; the pod is the runtime; the Dockerfiles live in a repo that has one job.
 
