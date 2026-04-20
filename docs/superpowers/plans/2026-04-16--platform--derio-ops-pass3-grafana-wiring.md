@@ -549,7 +549,7 @@ Layer 8's components: VictoriaMetrics, Grafana, Pushgateway, Blackbox Exporter, 
 **Files:**
 - Modify: `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
 
-- [ ] **Step 1: Append the Layer 8 rule under the LAYER TRACKERS banner**
+- [x] **Step 1: Append the Layer 8 rule under the LAYER TRACKERS banner**
 
 ```yaml
       # --- Layer 8 — Observability (frank-ops#8) ---
@@ -615,7 +615,7 @@ Layer 8's components: VictoriaMetrics, Grafana, Pushgateway, Blackbox Exporter, 
               runbook: "kubectl get pods -n monitoring; kubectl get probe -n monitoring feature-health-probes -o yaml"
 ```
 
-- [ ] **Step 2: Validate PromQL against live VictoriaMetrics before committing**
+- [x] **Step 2: Validate PromQL against live VictoriaMetrics before committing**
 
 ```bash
 source .env
@@ -637,7 +637,7 @@ kill %1
 
 Expected: Each query returns a non-empty `result` array with `value` `[timestamp, "<number>"]`. If `probe_success` is empty, the Bridge-healthz target wasn't scraped yet — wait 60s and retry; if still empty, the VMProbe needs Bridge-pod readiness verified.
 
-- [ ] **Step 3: Commit, push, restart Grafana**
+- [x] **Step 3: Commit, push, restart Grafana**
 
 ```bash
 git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
@@ -647,7 +647,7 @@ kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
 kubectl rollout status -n monitoring deploy/grafana --timeout=120s
 ```
 
-- [ ] **Step 4: Verify the rule loads and evaluates to Normal**
+- [x] **Step 4: Verify the rule loads and evaluates to Normal**
 
 ```bash
 kubectl logs -n monitoring -l app.kubernetes.io/name=grafana --tail=50 | grep -i 'layer-8\|parse error\|provisioning' | head -20
@@ -664,7 +664,7 @@ Expected: Rule exists with `condition: C`, `labels.github_issue: "frank-ops#8"`.
 
 ### Task 2: End-to-end transition test for Layer 8
 
-- [ ] **Step 1: Simulate a firing alert via webhook** (fast path — don't actually break the monitoring stack)
+- [x] **Step 1: Simulate a firing alert via webhook** (fast path — don't actually break the monitoring stack)
 
 ```bash
 kubectl port-forward -n monitoring svc/health-bridge 8080:8080 >/dev/null 2>&1 &
@@ -675,7 +675,7 @@ curl -s -X POST http://localhost:8080/webhook \
 echo
 ```
 
-- [ ] **Step 2: Verify frank-ops#8 → `dead` on the board** (critical severity maps to dead)
+- [x] **Step 2: Verify frank-ops#8 → `dead` on the board** (critical severity maps to dead)
 
 ```bash
 gh api graphql -f query='{repository(owner:"derio-net",name:"frank-ops"){issue(number:8){projectItems(first:5){nodes{fieldValueByName(name:"Lifecycle"){... on ProjectV2ItemFieldSingleSelectValue{name}}}}}}}' \
@@ -684,7 +684,7 @@ gh api graphql -f query='{repository(owner:"derio-net",name:"frank-ops"){issue(n
 
 Expected: `dead`.
 
-- [ ] **Step 3: Resolve and verify return to `healthy`**
+- [x] **Step 3: Resolve and verify return to `healthy`**
 
 ```bash
 curl -s -X POST http://localhost:8080/webhook \
@@ -714,7 +714,7 @@ Layer 18 (frank-ops#18) hosts the willikins crons. The existing `agent-pod-not-r
 **Files:**
 - Modify: `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
 
-- [ ] **Step 1: Append the Layer 18 rule**
+- [x] **Step 1: Append the Layer 18 rule**
 
 ```yaml
       # --- Layer 18 — Persistent Agent (frank-ops#18) ---
@@ -778,7 +778,7 @@ Layer 18 (frank-ops#18) hosts the willikins crons. The existing `agent-pod-not-r
               runbook: "kubectl logs -n secure-agent-pod -l app=secure-agent-pod --tail=50 | grep -i {{ $labels.job }}"
 ```
 
-- [ ] **Step 2: Commit, push, reload Grafana**
+- [x] **Step 2: Commit, push, reload Grafana**
 
 ```bash
 git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
@@ -788,13 +788,13 @@ kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
 kubectl rollout status -n monitoring deploy/grafana --timeout=120s
 ```
 
-- [ ] **Step 3: Smoke-test the Layer 18 rule via webhook** (same pattern as Phase 1 Task 2, with `github_issue=frank-ops#18` and `severity=warning` → expect `degraded`)
+- [x] **Step 3: Smoke-test the Layer 18 rule via webhook** (same pattern as Phase 1 Task 2, with `github_issue=frank-ops#18` and `severity=warning` → expect `degraded`)
 
 ### Task 2: Confirm the Deployed pod rule still co-exists
 
 The existing `agent-pod-not-running` rule also targets `frank-ops#18` with `severity=critical`. If both fire simultaneously (pod down AND heartbeat stale), the more-severe transition wins — i.e. Layer 18 → `dead` (correct).
 
-- [ ] **Step 1: Read both rules, confirm label overlap is intentional**
+- [x] **Step 1: Read both rules, confirm label overlap is intentional**
 
 ```bash
 grep -A 40 'agent-pod-not-running\|layer-18-persistent-agent-degraded' apps/grafana-alerting/manifests/alert-rules-cm.yaml | grep -E 'severity:|github_issue:'
