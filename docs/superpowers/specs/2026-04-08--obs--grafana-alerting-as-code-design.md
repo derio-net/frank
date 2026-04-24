@@ -156,7 +156,10 @@ Move from root level to `feature-health` folder. Grafana's file-based dashboard 
 | Position | Panel | Type | Purpose |
 |----------|-------|------|---------|
 | Top-left | Feature Health Status | stat-style summary | Big-number count of firing alerts in the Feature Health folder, color-coded |
-| Top-right | Cron Job Heartbeats | table | `(time() - willikins_heartbeat_last_success_timestamp) / 60`, columns: job, Minutes Since Last Success. Thresholds: green <60m, yellow <180m, red ≥180m |
+| Top-right (upper) | Cron Job Heartbeats — Sub-hourly | table | `(time() - willikins_heartbeat_last_success_timestamp{job=~"session_manager\|vk_issue_bridge"}) / 60`, columns: job, Minutes Since Last Success. Thresholds: green <60m, yellow <180m, red ≥180m |
+| Top-right (lower) | Cron Job Heartbeats — Daily | table | `(time() - willikins_heartbeat_last_success_timestamp{job="audit_digest"}) / 60`, columns: job, Minutes Since Last Success. Thresholds: green <1500m, yellow <1560m, red ≥1560m (aligned with the `audit-digest-stale` rule threshold of 93600s = 26h) |
+
+> **Retroactive update (2026-04-24):** Originally specified as one panel with uniform 60/180m thresholds. Split into two cadence-bucketed panels because `audit-digest` runs daily (rule threshold 26h = 1560m), so the original thresholds painted it RED for ~21h of every 24h cycle despite its alert being `Normal`. Sub-hourly heartbeats (`session_manager`, `vk_issue_bridge`) keep the original tight thresholds; daily heartbeats get thresholds aligned with the rule. When adding a new cron, place it in the panel that matches its cadence; if a third cadence bucket emerges, add a third panel rather than widening either threshold.
 | Middle | Endpoint Probes | table | `probe_success{probe_group="feature_health"}`, columns: instance, Success (UP/DOWN). 1=UP green, 0=DOWN red |
 | Bottom | Pod Status | table | `kube_pod_status_phase{namespace=~"secure-agent-pod\|n8n-01\|paperclip-system", phase="Running"}`, columns: namespace, pod, phase, Count |
 
