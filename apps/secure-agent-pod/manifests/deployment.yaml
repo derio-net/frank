@@ -51,6 +51,20 @@ spec:
             - name: ssh
               containerPort: 2222  # Non-root sshd; Service maps 22→2222
               protocol: TCP
+            # mosh-server picks a port from this range at session start;
+            # service-mosh.yaml exposes them via a separate LB IP (UDP).
+            - name: mosh-60000
+              containerPort: 60000
+              protocol: UDP
+            - name: mosh-60001
+              containerPort: 60001
+              protocol: UDP
+            - name: mosh-60002
+              containerPort: 60002
+              protocol: UDP
+            - name: mosh-60003
+              containerPort: 60003
+              protocol: UDP
           env:
             - name: PORT
               value: "18081"  # Deflect in-process VK to unused port; sidecar owns 8081

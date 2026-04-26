@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: secure-agent-mosh
+  namespace: secure-agent-pod
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.219"
+spec:
+  type: LoadBalancer
+  selector:
+    app: secure-agent-pod
+  # mosh-server listens on a UDP port from this range, picked at session
+  # start. SSH (TCP/22) bootstraps the mosh handshake on the SSH service IP;
+  # the mosh client then talks directly to mosh-server on this UDP IP.
+  # Client invocation: mosh --ssh="ssh user@<ssh-ip>" \
+  #                         --server="mosh-server new -p 60000:60003" <udp-ip>
+  ports:
+    - name: mosh-60000
+      port: 60000
+      targetPort: 60000
+      protocol: UDP
+    - name: mosh-60001
+      port: 60001
+      targetPort: 60001
+      protocol: UDP
+    - name: mosh-60002
+      port: 60002
+      targetPort: 60002
+      protocol: UDP
+    - name: mosh-60003
+      port: 60003
+      targetPort: 60003
+      protocol: UDP
