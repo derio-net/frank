@@ -1,7 +1,7 @@
 # Secure Agent Pod — tmux + mosh Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-03-30--agents--secure-agent-pod-design.md`
-**Status:** In Progress
+**Status:** Deployed
 
 **Goal:** Add `tmux` (multiplexed shells) and `mosh` (resilient SSH-over-UDP) to the secure-agent-kali image and expose mosh via a separate LoadBalancer Service so an operator can keep persistent shells across roaming/sleep without losing terminal state.
 
