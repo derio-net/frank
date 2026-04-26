@@ -12,22 +12,28 @@ spec:
   # mosh-server listens on a UDP port from this range, picked at session
   # start. SSH (TCP/22) bootstraps the mosh handshake on the SSH service IP;
   # the mosh client then talks directly to mosh-server on this UDP IP.
-  # Client invocation: mosh --ssh="ssh user@<ssh-ip>" \
-  #                         --server="mosh-server new -p 60000:60003" <udp-ip>
+  # Client invocation:
+  #   mosh --ssh="ssh user@<ssh-ip>" \
+  #        --server="mosh-server new -p 60000:60015" <udp-ip>
+  #
+  # 16 ports is enough headroom for normal use; combined with a 1h
+  # MOSH_SERVER_NETWORK_TMOUT (set in deployment.yaml), stuck mosh-server
+  # processes from ungraceful disconnects reap quickly enough that
+  # exhaustion is implausible in practice.
   ports:
-    - name: mosh-60000
-      port: 60000
-      targetPort: 60000
-      protocol: UDP
-    - name: mosh-60001
-      port: 60001
-      targetPort: 60001
-      protocol: UDP
-    - name: mosh-60002
-      port: 60002
-      targetPort: 60002
-      protocol: UDP
-    - name: mosh-60003
-      port: 60003
-      targetPort: 60003
-      protocol: UDP
+    - { name: mosh-60000, port: 60000, targetPort: 60000, protocol: UDP }
+    - { name: mosh-60001, port: 60001, targetPort: 60001, protocol: UDP }
+    - { name: mosh-60002, port: 60002, targetPort: 60002, protocol: UDP }
+    - { name: mosh-60003, port: 60003, targetPort: 60003, protocol: UDP }
+    - { name: mosh-60004, port: 60004, targetPort: 60004, protocol: UDP }
+    - { name: mosh-60005, port: 60005, targetPort: 60005, protocol: UDP }
+    - { name: mosh-60006, port: 60006, targetPort: 60006, protocol: UDP }
+    - { name: mosh-60007, port: 60007, targetPort: 60007, protocol: UDP }
+    - { name: mosh-60008, port: 60008, targetPort: 60008, protocol: UDP }
+    - { name: mosh-60009, port: 60009, targetPort: 60009, protocol: UDP }
+    - { name: mosh-60010, port: 60010, targetPort: 60010, protocol: UDP }
+    - { name: mosh-60011, port: 60011, targetPort: 60011, protocol: UDP }
+    - { name: mosh-60012, port: 60012, targetPort: 60012, protocol: UDP }
+    - { name: mosh-60013, port: 60013, targetPort: 60013, protocol: UDP }
+    - { name: mosh-60014, port: 60014, targetPort: 60014, protocol: UDP }
+    - { name: mosh-60015, port: 60015, targetPort: 60015, protocol: UDP }
