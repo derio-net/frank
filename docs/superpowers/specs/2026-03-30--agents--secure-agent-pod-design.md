@@ -344,3 +344,9 @@ Hook scripts are deployed separately and are not part of the pod spec.
 6. **VibeKanban running:** `kubectl exec <pod> -c kali -- pgrep -f vibe-kanban` → PID exists, `curl -s http://127.0.0.1:8081` → responds
 7. **PVC persists:** Delete pod, wait for restart, verify `/home/claude/repos/` survives
 8. **VibeKanban UI:** Access via Tailscale at `http://<tailscale-ip>:8081`, log in with VibeKanban's built-in local auth
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Secure Agent Pod — tmux + mosh Implementation Plan |  | `docs/superpowers/plans/2026-04-26--agents--secure-pod-tmux-mosh.md` | In Progress | — |
