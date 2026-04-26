@@ -53,23 +53,31 @@ spec:
               protocol: TCP
             # mosh-server picks a port from this range at session start;
             # service-mosh.yaml exposes them via a separate LB IP (UDP).
-            - name: mosh-60000
-              containerPort: 60000
-              protocol: UDP
-            - name: mosh-60001
-              containerPort: 60001
-              protocol: UDP
-            - name: mosh-60002
-              containerPort: 60002
-              protocol: UDP
-            - name: mosh-60003
-              containerPort: 60003
-              protocol: UDP
+            - { name: mosh-60000, containerPort: 60000, protocol: UDP }
+            - { name: mosh-60001, containerPort: 60001, protocol: UDP }
+            - { name: mosh-60002, containerPort: 60002, protocol: UDP }
+            - { name: mosh-60003, containerPort: 60003, protocol: UDP }
+            - { name: mosh-60004, containerPort: 60004, protocol: UDP }
+            - { name: mosh-60005, containerPort: 60005, protocol: UDP }
+            - { name: mosh-60006, containerPort: 60006, protocol: UDP }
+            - { name: mosh-60007, containerPort: 60007, protocol: UDP }
+            - { name: mosh-60008, containerPort: 60008, protocol: UDP }
+            - { name: mosh-60009, containerPort: 60009, protocol: UDP }
+            - { name: mosh-60010, containerPort: 60010, protocol: UDP }
+            - { name: mosh-60011, containerPort: 60011, protocol: UDP }
+            - { name: mosh-60012, containerPort: 60012, protocol: UDP }
+            - { name: mosh-60013, containerPort: 60013, protocol: UDP }
+            - { name: mosh-60014, containerPort: 60014, protocol: UDP }
+            - { name: mosh-60015, containerPort: 60015, protocol: UDP }
           env:
             - name: PORT
               value: "18081"  # Deflect in-process VK to unused port; sidecar owns 8081
             - name: HOST
               value: "127.0.0.1"  # Bind only to loopback — not externally reachable
+            # Mosh default is 168h (7d) — too long for a 16-port range.
+            # 1h reaps stuck servers fast enough to keep ports available.
+            - name: MOSH_SERVER_NETWORK_TMOUT
+              value: "3600"
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1

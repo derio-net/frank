@@ -80,13 +80,13 @@ Append four UDP `containerPort` entries (60000-60003) to the kali container's `p
 
 ### Task 3: Land the manifests on `main`
 
-- [ ] **Step 1: Open a PR for the manifest changes**
+- [x] **Step 1: Open a PR for the manifest changes**  *(PR #125)*
 
 Branch: `feat/agents-mosh-service`. Title: `feat(agents): mosh UDP service + tmux availability`. Body summarises the deviation from the standard layer workflow (fix/extension of layer 12, retroactive plan). The bump PR #124 is independent — they can merge in either order without breakage:
 - Bump-only first: image has mosh installed but no UDP service yet → mosh would fail to reach pod, SSH unaffected.
 - Service-only first: UDP routes to a pod that does not yet have mosh-server → harmless, no listeners on those ports.
 
-- [ ] **Step 2: Operator merges both PRs**
+- [x] **Step 2: Operator merges both PRs**  *(#124 → a1a21b1, #125 → 88a4de7)*
 
 Once both #124 (image bump) and the manifest PR are merged, ArgoCD `secure-agent-pod` Application syncs. Pod is recreated (`strategy: Recreate` due to RWO PVC).
 
@@ -99,7 +99,7 @@ Once both #124 (image bump) and the manifest PR are merged, ArgoCD `secure-agent
 
 ### Task 1: Confirm tools are present
 
-- [ ] **Step 1: `kubectl exec` checks**
+- [x] **Step 1: `kubectl exec` checks**  *(tmux 3.6, mosh 1.4.0, LANG/LC_ALL=C.UTF-8)*
 
 ```bash
 kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- tmux -V
@@ -111,7 +111,7 @@ Expected: `tmux 3.x`, `mosh-server (mosh) 1.4.x`, `C.UTF-8` for both env vars.
 
 ### Task 2: Confirm Cilium L2 LB advertises mosh IP
 
-- [ ] **Step 1: Service status**
+- [x] **Step 1: Service status**  *(EXTERNAL-IP=192.168.55.219, 4×UDP ports allocated)*
 
 ```bash
 kubectl get svc -n secure-agent-pod secure-agent-mosh -o wide
@@ -178,6 +178,53 @@ Once Phases 1-4 are all checked off and verification passed.
 
 ---
 
+## Phase 5: Post-deploy tuning — 16 ports + 1h mosh timeout [agentic]
+**Depends on:** Phase 3
+
+<!-- Tracking: filed during Phase 3 review when the operator asked about the 4-port cap. -->
+
+After verification, the operator surfaced the 4-port-cap edge case: mosh's default `MOSH_SERVER_NETWORK_TMOUT` is 168 hours (7 days), so an ungraceful disconnect leaves a `mosh-server` process squatting its UDP port for a week. With only 4 ports, four bad disconnects in a week could lock new sessions out until the oldest aged out (or someone `kubectl exec ... pkill mosh-server`).
+
+Fix has two independent levers; we apply both:
+
+1. **Lower the timeout** (`MOSH_SERVER_NETWORK_TMOUT=3600` — 1h) so stuck servers reap fast.
+2. **Bump port count** from 4 to 16 to give comfortable headroom even before the timeout reaps.
+
+### Task 1: Expand the Service to 16 ports
+
+- [ ] **Step 1: Edit `apps/secure-agent-pod/manifests/service-mosh.yaml`**
+
+Add ports 60004–60015 in the same flow-style format. Update the comment block to reference `60000:60015` and the timeout-env mitigation.
+
+### Task 2: Add timeout env + matching containerPorts
+
+- [ ] **Step 1: Edit `apps/secure-agent-pod/manifests/deployment.yaml`**
+
+In the kali container: add `MOSH_SERVER_NETWORK_TMOUT=3600` to `env:`, and add containerPort entries 60004–60015 (UDP) to the `ports:` block. Convert all mosh containerPort entries to flow-style for readability.
+
+### Task 3: Land + roll
+
+- [ ] **Step 1: Open PR `feat(agents): mosh tuning — 16 ports + 1h timeout`**
+- [ ] **Step 2: Operator merges; ArgoCD syncs; pod recreates** (env-var change forces a Recreate; expected ~30-60s of unavailability)
+
+### Task 4: Re-verify
+
+- [ ] **Step 1: Confirm new pod has the env var**
+
+```bash
+kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- printenv MOSH_SERVER_NETWORK_TMOUT
+# expect: 3600
+```
+
+- [ ] **Step 2: Confirm Service has 16 UDP ports**
+
+```bash
+kubectl get svc -n secure-agent-pod secure-agent-mosh -o jsonpath='{.spec.ports[*].port}' | tr ' ' '\n' | wc -l
+# expect: 16
+```
+
+---
+
 ## Deployment Deviations
 
 The standard layer workflow (`docs/superpowers/rules/repo-workflows.md`) calls for brainstorm → plan → execute → deploy → blog → README → runbook. This plan deviates as follows:
@@ -186,3 +233,4 @@ The standard layer workflow (`docs/superpowers/rules/repo-workflows.md`) calls f
 2. **Direct push to `agent-images:main` without PR review.** Commit `eb6ae08` was pushed directly; the safety guard flagged this and the operator chose "let it stand". Future tmux/mosh-style image-only changes should go through a PR for traceability.
 3. **No new blog post.** Per the fix/extension rule, the existing operating post (14-secure-agent-pod) is extended in place; the building post (21-secure-agent-pod) gets a passing mention. No standalone post.
 4. **Mosh client UX trade-off.** SSH and mosh-UDP are on separate LB IPs (215 vs 219), so the client invocation needs explicit `--ssh="…"` and `<udp-ip>` arguments. A future iteration could use `lbipam.cilium.io/sharing-key` to put both Services on a single IP, restoring `mosh user@host` ergonomics — but that requires touching `service-ssh.yaml`, which the operator deferred.
+5. **Initial 4-port cap revised post-deploy.** The original plan exposed UDP 60000-60003 (4 ports). During Phase 3 review the operator flagged the 7-day stuck-server window; Phase 5 bumps the range to 60000-60015 (16 ports) and sets `MOSH_SERVER_NETWORK_TMOUT=3600`. Both changes ride a follow-up PR.
