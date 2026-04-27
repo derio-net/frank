@@ -18,6 +18,7 @@
 ---
 
 ## Phase 1: Deploy ArgoCD Notifications + Telegram template [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/132 -->
 **Depends on:** —
 
 <!-- Tracking: Independent of agent-images work; can land in parallel. Must exist before Phase 3's annotations have anything to subscribe to. -->
@@ -152,6 +153,7 @@ kubectl -n argocd annotate app homepage \
 ---
 
 ## Phase 2: Image bump cutover [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/133 -->
 **Depends on:** —
 
 <!-- Tracking: Independent of Phase 1 in the dep graph (notifications are tested with a benign app in Phase 1 Task 6, not via this cutover). Operationally, do Phase 1 first so the controller exists when Phase 3's subscriptions land. -->
@@ -248,6 +250,7 @@ Open a tmux session, split panes, attach `claude` REPL, type a message, observe 
 ---
 
 ## Phase 3: Drop preStop, add notification annotations [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/134 -->
 **Depends on:** Phase 1, Phase 2
 
 <!-- Tracking: Manifest changes that complete the resilience picture. Fans in on Phase 1 (controller must exist) and Phase 2 (pod must already be on the new image so cont-finish.d takes over the shutdown role). -->
@@ -288,6 +291,7 @@ If alert is missing, check `argocd-notifications-controller` logs for delivery e
 ---
 
 ## Phase 4: End-to-end verification [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/135 -->
 **Depends on:** Phase 3
 
 <!-- Tracking: Exercise the full restart resilience story before declaring success. -->
@@ -378,6 +382,7 @@ Even small edge-case findings belong here so the next operator has the context.
 ---
 
 ## Phase 5: Post-deploy documentation [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/136 -->
 **Depends on:** Phase 4
 
 <!-- Tracking: Update existing layer docs (operating + building posts), README, gotchas. Per fix/extension rules, no new blog posts. -->
