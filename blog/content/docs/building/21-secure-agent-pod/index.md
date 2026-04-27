@@ -69,6 +69,7 @@ The Dockerfile installs:
 - **Node.js 22**, **Python 3**, **Bun** (development runtimes)
 - **supercronic** (non-root cron replacement — Go binary)
 - **openssh-server** (for SSH access)
+- **tmux + mosh + locales-all** (persistent shells — added post-deploy; see [operating post]({{< relref "/docs/operating/14-secure-agent-pod" >}}#persistent-shells-with-mosh--tmux))
 - Standard tools: git, curl, wget, jq, vim
 
 What's **not** installed: sudo. If new tools are needed, rebuild the image and redeploy. Intentional friction.
@@ -129,6 +130,7 @@ Seven files in `apps/secure-agent-pod/manifests/`:
 | `deployment.yaml` | Single-container pod, Recreate strategy, gpu-1 affinity |
 | `service-ssh.yaml` | LoadBalancer at `192.168.55.215:22` → 2222 |
 | `service-vibekanban.yaml` | LoadBalancer at `192.168.55.218:8081` |
+| `service-mosh.yaml` | LoadBalancer at `192.168.55.219` UDP/60000-60015 (added post-deploy for mosh) |
 | `cilium-egress.yaml` | CiliumNetworkPolicy egress allowlist (disabled — see Gotchas) |
 | `externalsecret.yaml` | ESO → Infisical (removed — Claude uses Max subscription auth) |
 

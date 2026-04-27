@@ -133,6 +133,103 @@ ssh-keygen -R 192.168.55.215
 ssh claude@192.168.55.215
 ```
 
+## Persistent Shells with mosh + tmux
+
+`mosh` keeps the connection alive across IP changes and laptop suspend; `tmux` keeps the *server-side* shells alive across mosh restarts. Together they make a long-running coding session that doesn't lose its place when you close the lid.
+
+### Why SSH and UDP are on separate IPs
+
+The pod is fronted by **two distinct Cilium L2 LoadBalancer IPs**:
+
+| Service | IP | Protocol | Purpose |
+|---------|-----|----------|---------|
+| `secure-agent-ssh` | `192.168.55.215` | TCP/22 → 2222 | SSH bootstrap + interactive sessions |
+| `secure-agent-mosh` | `192.168.55.219` | UDP/60000-60015 | mosh datagram channel |
+
+Cilium L2 LB IPs are not shared between Services unless you opt in via `lbipam.cilium.io/sharing-key` annotation, and we deliberately did **not** opt in (Deployment Deviation #4 — the operator preferred the explicit two-IP model over editing both Services in lockstep). The cost: the mosh client invocation needs explicit `--ssh=…` plus the UDP positional, instead of the standard `mosh user@host` form.
+
+### Canonical mosh invocation
+
+```bash
+export MOSH_SSH_PROXY='nc 192.168.55.215 22'
+SHELL=/bin/sh mosh --experimental-remote-ip=local \
+  --ssh='ssh -l claude -i ~/.ssh/your_private_key \
+         -o ControlMaster=no -o ControlPath=none -o ControlPersist=no \
+         -o ProxyCommand=$MOSH_SSH_PROXY' \
+  --server='LC_ALL=C.UTF-8 mosh-server new -p 60000:60015' \
+  192.168.55.219 -- \
+  tmux new-session -A -s claude-frank-secure-pod
+```
+
+Every flag here is structurally load-bearing — none of them are "tries until it works." See the [plan appendix]({{< relref "/docs/building/21-secure-agent-pod" >}}) (linked from the building post) for the per-flag rationale; the short version of the most surprising ones:
+
+- **`MOSH_SSH_PROXY` env-var indirection** — `mosh.pl` splits `--ssh=` on whitespace, so a multi-word `ProxyCommand` value has to live in a single token.
+- **`-o ProxyCommand=` not `-o HostName=`** — `HostName=` poisons `ssh -G`, which mosh reads for the UDP target; ProxyCommand is invisible to it.
+- **`--experimental-remote-ip=local`** — `proxy` mode needs ProxyCommand peer info that `nc` doesn't expose; `remote` mode returns the pod's internal `10.244.x.x` cluster IP.
+- **`SHELL=/bin/sh`** — macOS `$SHELL=/bin/zsh`, and zsh doesn't word-split unquoted variable expansions, so `$MOSH_SSH_PROXY` ends up as one literal command name. /bin/sh word-splits.
+- **The `ControlMaster/ControlPath/ControlPersist=no` triple** — OpenSSH 10.2+'s auto-mux discovery ignores `ControlPath=none` for *existing* masters; only all three together force a fresh, unmultiplexed connection.
+
+### Port range
+
+The mosh Service publishes 16 UDP ports (`60000-60015`). The matching `mosh-server new -p 60000:60015` constraint on the server side ensures every spawned server lands on a published port — without it, mosh-server picks uniformly from `60000-61000` and you get a ~1.6% hit rate against the published range.
+
+The 16-port cap is sized for ~16 simultaneous stuck sessions before reuse pressure kicks in (mosh-server defaults to a 7-day idle timeout, but we override it via `MOSH_SERVER_NETWORK_TMOUT=3600` in the deployment env — sessions garbage-collect after 1h of silence).
+
+### tmux on the pod
+
+The pod's home directory is on a PVC, so `~/.tmux.conf` survives pod restarts. The canonical configs (matching the operator's laptop) are committed in `apps/secure-agent-pod/client-setup/pod/`. The starter is just enough to make tmux feel like home:
+
+```bash
+# /home/claude/.tmux.conf — minimum
+set -g default-terminal "tmux-256color"
+set -g mouse on
+set -g history-limit 100000
+set -g status-right "#{?client_prefix,#[bg=red,bold] PREFIX ,}#H:#M"
+
+bind | split-window -h \; select-layout even-horizontal
+bind S split-window -v \; select-layout even-vertical
+bind r source-file ~/.tmux.conf \; display "reloaded"
+```
+
+The `client_prefix` indicator in `status-right` is a critical debugging aid: a red `PREFIX` badge appears the instant `C-b` is pressed and disappears as soon as the next key fires. Without it, "is tmux even seeing my keypress?" becomes guesswork.
+
+For the full config (per-pane bg coloring by cwd, 6-pane grid bindings, the chpwd hook), see `apps/secure-agent-pod/client-setup/`. That directory's README covers both laptop and pod installation.
+
+### Verifying mosh + tmux are present
+
+```bash
+kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- sh -c 'tmux -V; mosh-server --version | head -1; echo "$LANG/$LC_ALL"'
+# Expected:
+#   tmux 3.6
+#   mosh-server (mosh 1.4.0) [build mosh-1.4.0]
+#   C.UTF-8/C.UTF-8
+```
+
+### Re-spawning a stuck mosh session
+
+When the pod restarts (image bump, OOM, in-pod agent error), `mosh-server` dies with the container. The local mosh client can't tell — the WezTerm pane keeps showing the prediction cache and stops responding to input. SSH-based tools (VS Code Remote, `ssh` directly) auto-reconnect because sshd respawns; mosh has no equivalent.
+
+The committed `wezterm.lua` (in `apps/secure-agent-pod/client-setup/laptop/`) binds **`Cmd+Shift+2`** to re-spawn the `frank` workspace: it opens a fresh window with a new mosh invocation and switches to it. The dead window stays visible until you close it (`Cmd+W`), but the new one connects cleanly. **`Cmd+Shift+1`** does the same for the `local` workspace.
+
+```text
+Cmd+1         switch to local workspace
+Cmd+2         switch to frank workspace
+Cmd+Shift+1   re-spawn local workspace (fresh tmux attach)
+Cmd+Shift+2   re-spawn frank workspace (fresh mosh + tmux attach)
+```
+
+If you've quit the dead pane via mosh's `Ctrl-^ .` escape, you don't need to restart WezTerm — just `Cmd+Shift+2`.
+
+### Troubleshooting
+
+If a fresh mosh connect fails, the most diagnostic single artifact is the wezterm log (when launched via the operator's WezTerm wrapper):
+
+```bash
+tail -f /tmp/wezterm-mosh.log
+```
+
+The plan's [Appendix: Client-Side Configuration & Debug Journey](https://github.com/derio-net/frank/blob/main/docs/superpowers/archived-plans/2026-04-26--agents--secure-pod-tmux-mosh.md#appendix-client-side-configuration--debug-journey) walks through the ten distinct failure modes seen during the first end-to-end connect, with the exact error message and structural cause for each. If your symptom looks like one of those, the cause almost certainly is too — the boundaries between OpenSSH, mosh.pl, tmux, the macOS terminal, and zsh don't move quickly.
+
 ## VibeKanban
 
 ### Accessing the UI
