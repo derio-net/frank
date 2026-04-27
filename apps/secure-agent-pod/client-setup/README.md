@@ -55,6 +55,8 @@ After relaunch, WezTerm will spawn two workspaces:
 - **`local`** (CMD+1) — local tmux session `claude-local`.
 - **`frank`** (CMD+2) — mosh session through the pod, dropping into a tmux session `claude-frank-secure-pod`.
 
+When the pod restarts (image bump, OOM, etc.), the `frank` mosh session blackholes — the pane stays visible but stops responding. **`CMD+SHIFT+2`** opens a fresh window in the `frank` workspace with a new mosh attempt and switches to it; close the dead pane with `CMD+W` afterwards. **`CMD+SHIFT+1`** does the same for `local` (rarely needed, but symmetric).
+
 If anything in the mosh handshake fails, the pane stays open at a bare `zsh -f` prompt with the full output tee'd to `/tmp/wezterm-mosh.log`. Read that log for the specific failure mode.
 
 ---

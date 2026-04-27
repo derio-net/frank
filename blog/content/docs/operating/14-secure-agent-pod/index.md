@@ -205,6 +205,21 @@ kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- sh -c 'tmux 
 #   C.UTF-8/C.UTF-8
 ```
 
+### Re-spawning a stuck mosh session
+
+When the pod restarts (image bump, OOM, in-pod agent error), `mosh-server` dies with the container. The local mosh client can't tell — the WezTerm pane keeps showing the prediction cache and stops responding to input. SSH-based tools (VS Code Remote, `ssh` directly) auto-reconnect because sshd respawns; mosh has no equivalent.
+
+The committed `wezterm.lua` (in `apps/secure-agent-pod/client-setup/laptop/`) binds **`Cmd+Shift+2`** to re-spawn the `frank` workspace: it opens a fresh window with a new mosh invocation and switches to it. The dead window stays visible until you close it (`Cmd+W`), but the new one connects cleanly. **`Cmd+Shift+1`** does the same for the `local` workspace.
+
+```text
+Cmd+1         switch to local workspace
+Cmd+2         switch to frank workspace
+Cmd+Shift+1   re-spawn local workspace (fresh tmux attach)
+Cmd+Shift+2   re-spawn frank workspace (fresh mosh + tmux attach)
+```
+
+If you've quit the dead pane via mosh's `Ctrl-^ .` escape, you don't need to restart WezTerm — just `Cmd+Shift+2`.
+
 ### Troubleshooting
 
 If a fresh mosh connect fails, the most diagnostic single artifact is the wezterm log (when launched via the operator's WezTerm wrapper):

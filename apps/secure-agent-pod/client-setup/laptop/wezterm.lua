@@ -33,49 +33,56 @@ local REMOTE_USER            = "claude"
 local REMOTE_KEY             = "~/.ssh/your_private_key"  -- ssh expands ~ for -i; substitute your own path
 local REMOTE_MOSH_PORT_RANGE = "60000:60015"
 local REMOTE_TMUX_SESSION    = "claude-frank-secure-pod"
+local LOCAL_TMUX_SESSION     = "claude-local"
 
 -- Two named workspaces, each launched into a tmux attach-or-create command.
 -- `new-session -A -s NAME` attaches if NAME exists, otherwise creates it.
 config.default_workspace = "local"
 
-wezterm.on('gui-startup', function(cmd)
-  -- Window 1: local tmux
-  local _, local_pane, local_window = wezterm.mux.spawn_window {
+-- spawn_local_workspace: open a window in the `local` workspace running tmux.
+-- Idempotent — `tmux new-session -A` attaches to the existing claude-local
+-- session if one is alive, so re-spawning just gives you another viewport.
+local function spawn_local_workspace()
+  return wezterm.mux.spawn_window {
     workspace = 'local',
-    args = { 'tmux', 'new-session', '-A', '-s', 'claude-local' },
+    args = { 'tmux', 'new-session', '-A', '-s', LOCAL_TMUX_SESSION },
   }
+end
 
-  -- Window 2: remote tmux over mosh.
-  -- The MOSH_SSH_PROXY env var trick: mosh.pl splits --ssh= on whitespace
-  -- (naive split), which would shred a literal `ProxyCommand=nc <ip> 22`
-  -- into separate tokens. Stashing the proxy command in an env var and
-  -- referring to it as $MOSH_SSH_PROXY inside single quotes keeps it as
-  -- one token through zsh and through mosh's split; ssh then expands the
-  -- env var when it execs ProxyCommand via /bin/sh -c.
-  --
-  -- --experimental-remote-ip=local: mosh's default 'proxy' mode reads the
-  -- peer IP from the SSH ProxyCommand (opaque with plain `nc`), and 'remote'
-  -- mode reads $SSH_CONNECTION on the pod (which reports the pod's internal
-  -- 10.244.x.x cluster IP, unreachable from outside). 'local' uses the IP
-  -- the local resolver returned for the positional arg -- i.e. the LB IP.
-  -- LC_ALL=C.UTF-8 prefix on --server: mosh-server refuses to run without a
-  -- UTF-8 locale, and the Kali pod ships with no LANG/LC_* set. Putting the
-  -- assignment in front of the remote command scopes it to mosh-server only,
-  -- and avoids needing AcceptEnv on the pod's sshd.
-  -- ControlMaster=no/ControlPath=none/ControlPersist=no triple is required
-  -- because ~/.ssh/config has `ControlMaster auto` with a 10-min persist
-  -- window. mosh's built-in `-S none -o ControlPath=none` doesn't fully
-  -- suppress this on OpenSSH 10.2+; an existing master gets reused and
-  -- mosh-server's stdout vanishes into the mux channel, so mosh.pl never
-  -- sees `MOSH CONNECT` and dies with "Did not find mosh server startup
-  -- message". Adding all three ssh -o overrides forces a fresh connection.
-  -- SHELL=/bin/sh on the mosh invocation: ssh picks the ProxyCommand shell
-  -- from $SHELL (falling back to /bin/sh). On macOS $SHELL is /bin/zsh, and
-  -- zsh by default does NOT word-split unquoted variable expansions -- so
-  -- `zsh -c '$MOSH_SSH_PROXY'` treats `nc 192.168.55.215 22` as a single
-  -- command name and dies with "command not found". /bin/sh word-splits on
-  -- IFS, which is what we want. The override is scoped to this one mosh
-  -- run; it doesn't leak into the surrounding shell.
+-- spawn_frank_workspace: open a window in the `frank` workspace running mosh
+-- to the secure-agent-pod, attaching/creating the remote tmux session.
+--
+-- The MOSH_SSH_PROXY env var trick: mosh.pl splits --ssh= on whitespace
+-- (naive split), which would shred a literal `ProxyCommand=nc <ip> 22`
+-- into separate tokens. Stashing the proxy command in an env var and
+-- referring to it as $MOSH_SSH_PROXY inside single quotes keeps it as
+-- one token through zsh and through mosh's split; ssh then expands the
+-- env var when it execs ProxyCommand via /bin/sh -c.
+--
+-- --experimental-remote-ip=local: mosh's default 'proxy' mode reads the
+-- peer IP from the SSH ProxyCommand (opaque with plain `nc`), and 'remote'
+-- mode reads $SSH_CONNECTION on the pod (which reports the pod's internal
+-- 10.244.x.x cluster IP, unreachable from outside). 'local' uses the IP
+-- the local resolver returned for the positional arg -- i.e. the LB IP.
+-- LC_ALL=C.UTF-8 prefix on --server: mosh-server refuses to run without a
+-- UTF-8 locale, and the Kali pod ships with no LANG/LC_* set. Putting the
+-- assignment in front of the remote command scopes it to mosh-server only,
+-- and avoids needing AcceptEnv on the pod's sshd.
+-- ControlMaster=no/ControlPath=none/ControlPersist=no triple is required
+-- because ~/.ssh/config has `ControlMaster auto` with a 10-min persist
+-- window. mosh's built-in `-S none -o ControlPath=none` doesn't fully
+-- suppress this on OpenSSH 10.2+; an existing master gets reused and
+-- mosh-server's stdout vanishes into the mux channel, so mosh.pl never
+-- sees `MOSH CONNECT` and dies with "Did not find mosh server startup
+-- message". Adding all three ssh -o overrides forces a fresh connection.
+-- SHELL=/bin/sh on the mosh invocation: ssh picks the ProxyCommand shell
+-- from $SHELL (falling back to /bin/sh). On macOS $SHELL is /bin/zsh, and
+-- zsh by default does NOT word-split unquoted variable expansions -- so
+-- `zsh -c '$MOSH_SSH_PROXY'` treats `nc 192.168.55.215 22` as a single
+-- command name and dies with "command not found". /bin/sh word-splits on
+-- IFS, which is what we want. The override is scoped to this one mosh
+-- run; it doesn't leak into the surrounding shell.
+local function spawn_frank_workspace()
   local mosh_invocation = string.format(
     "export MOSH_SSH_PROXY='nc %s 22'; "
     .. "SHELL=/bin/sh mosh --experimental-remote-ip=local "
@@ -102,10 +109,15 @@ wezterm.on('gui-startup', function(cmd)
     REMOTE_SSH_HOST, REMOTE_UDP_HOST, REMOTE_TMUX_SESSION, REMOTE_MOSH_PORT_RANGE,
     mosh_invocation
   )
-  local _, remote_pane, remote_window = wezterm.mux.spawn_window {
+  return wezterm.mux.spawn_window {
     workspace = 'frank',
     args = { '/bin/zsh', '-l', '-c', remote_cmd },
   }
+end
+
+wezterm.on('gui-startup', function(_)
+  spawn_local_workspace()
+  spawn_frank_workspace()
 end)
 
 -- Drop WezTerm's entire default keytable so nothing competes with tmux for
@@ -124,6 +136,19 @@ config.keys = {
   { key = '1', mods = 'CMD',       action = wezterm.action.SwitchToWorkspace { name = 'local' } },
   { key = '2', mods = 'CMD',       action = wezterm.action.SwitchToWorkspace { name = 'frank' } },
   { key = 's', mods = 'CMD|SHIFT', action = wezterm.action.ShowLauncherArgs { flags = 'WORKSPACES' } },
+
+  -- Workspace re-spawn. CMD+SHIFT+<n> opens a fresh window in workspace <n>
+  -- and switches to it. Useful when a mosh session blackholes after a pod
+  -- restart (image bump, OOM, supercronic SIGHUP) -- the dead window stays
+  -- visible until you close it, but the new one connects cleanly.
+  { key = '1', mods = 'CMD|SHIFT', action = wezterm.action_callback(function(window, pane)
+      spawn_local_workspace()
+      window:perform_action(wezterm.action.SwitchToWorkspace { name = 'local' }, pane)
+    end) },
+  { key = '2', mods = 'CMD|SHIFT', action = wezterm.action_callback(function(window, pane)
+      spawn_frank_workspace()
+      window:perform_action(wezterm.action.SwitchToWorkspace { name = 'frank' }, pane)
+    end) },
 }
 
 return config
