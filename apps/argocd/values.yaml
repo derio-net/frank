@@ -22,6 +22,53 @@ repoServer:
 redis:
   enabled: true
 
+# ArgoCD Notifications subchart — drives bump alerts for agent pods.
+# Telegram creds come from the ExternalSecret defined in
+# apps/argocd-notifications/manifests/externalsecret.yaml (synced by the
+# `argocd-notifications` ArgoCD app), which materialises a Secret named
+# `argocd-notifications-secret` in the argocd namespace. The controller picks
+# it up via $-prefixed references below ($telegram-token, $telegram-chat-id).
+#
+# The CM keys (service.telegram, trigger.*, template.*) cannot be split across
+# a separate Application because the chart already owns argocd-notifications-cm.
+# We therefore feed the config through the chart's notifications.* values.
+notifications:
+  enabled: true
+  # The Helm chart's empty placeholder Secret would race with our ExternalSecret
+  # for ownership of `argocd-notifications-secret`. Let ESO own it.
+  secret:
+    create: false
+  notifiers:
+    service.telegram: |
+      token: $telegram-token
+  triggers:
+    trigger.on-sync-running: |
+      - description: Application is rolling out
+        send:
+          - agent-pod-rolling
+        when: app.status.operationState.phase in ['Running']
+    trigger.on-sync-succeeded: |
+      - description: Application sync completed
+        send:
+          - agent-pod-ready
+        when: app.status.operationState.phase in ['Succeeded']
+  templates:
+    template.agent-pod-rolling: |
+      message: |
+        🔄 *{{.app.metadata.name}}* is rolling out
+        From: `{{.app.status.sync.revision | substr 0 7}}`
+        To:   `{{.app.spec.source.targetRevision | substr 0 7}}`
+        Pods will recreate in ~30s. mosh sessions will need re-spawn (Cmd+Shift+2).
+      telegram:
+        chatIds:
+          - $telegram-chat-id
+    template.agent-pod-ready: |
+      message: |
+        ✅ *{{.app.metadata.name}}* synced — `{{.app.status.sync.revision | substr 0 7}}`
+      telegram:
+        chatIds:
+          - $telegram-chat-id
+
 # Disable dex (using Authentik OIDC instead)
 dex:
   enabled: false
