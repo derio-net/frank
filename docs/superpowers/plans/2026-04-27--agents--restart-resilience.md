@@ -27,7 +27,7 @@ Cluster-side wiring for the bump alert. Two new ArgoCD Applications + ESO secret
 
 ### Task 1: Enable notifications in argocd Helm values
 
-- [ ] **Step 1: Edit `apps/argocd/values.yaml`**
+- [x] **Step 1: Edit `apps/argocd/values.yaml`**
 
 ```yaml
 notifications:
@@ -38,7 +38,16 @@ Verify the chart version supports this; current frank argocd is on argo-cd Helm 
 
 ### Task 2: Create `apps/argocd-notifications/manifests/configmap.yaml`
 
-- [ ] **Step 1: Telegram service + triggers + templates**
+> **Deviation (executed):** The argo-cd Helm chart already owns
+> `argocd-notifications-cm` (created by the `argocd` Application). Having a
+> second ArgoCD app try to manage that same ConfigMap causes ownership /
+> tracking-id conflicts. Instead, the Telegram service, triggers, and templates
+> were moved into `apps/argocd/values.yaml` under `notifications.notifiers /
+> .triggers / .templates`, which the chart merges into the existing CM. The
+> `argocd-notifications` Application still exists, but only manages the
+> ExternalSecret (Task 3).
+
+- [x] **Step 1: Telegram service + triggers + templates**
 
 ```yaml
 apiVersion: v1
@@ -80,7 +89,15 @@ data:
 
 ### Task 3: Create `apps/argocd-notifications/manifests/externalsecret.yaml`
 
-- [ ] **Step 1: Pull Telegram credentials from Infisical via ESO**
+> **Deviation (executed):** Real frank ClusterSecretStore is named `infisical`
+> (not `infisical-clustersecretstore`) and the in-cluster ESO API version is
+> `external-secrets.io/v1` (not `v1beta1`). Used the values that match the
+> existing `apps/grafana-alerting/manifests/externalsecret.yaml`. Also set
+> `notifications.secret.create: false` in `apps/argocd/values.yaml` so the
+> chart's empty placeholder Secret does not race ESO for ownership of
+> `argocd-notifications-secret`.
+
+- [x] **Step 1: Pull Telegram credentials from Infisical via ESO**
 
 ```yaml
 apiVersion: external-secrets.io/v1beta1
@@ -107,7 +124,7 @@ spec:
 
 ### Task 4: Add Application CR to `apps/root/templates/argocd-notifications.yaml`
 
-- [ ] **Step 1: Wire it into the App-of-Apps**
+- [x] **Step 1: Wire it into the App-of-Apps**
 
 Single source pointing at `apps/argocd-notifications/manifests/`, ServerSideApply, prune false, selfHeal true. Match the pattern in existing root templates.
 
