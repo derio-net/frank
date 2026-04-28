@@ -46,7 +46,7 @@ spec:
             defaultMode: 0400
       containers:
         - name: kali
-          image: ghcr.io/derio-net/secure-agent-kali:dc414b4b6c3cd1b8f8ecb27fa515aed6e9f170cf
+          image: ghcr.io/derio-net/secure-agent-kali:67ac381be962fb1b5e06c289675a24a120811c58
           ports:
             - name: ssh
               containerPort: 2222  # Non-root sshd; Service maps 22→2222
@@ -126,7 +126,7 @@ spec:
               exec:
                 command: ["/opt/scripts/shutdown.sh"]
         - name: vk-local
-          image: ghcr.io/derio-net/vk-local:dc414b4b6c3cd1b8f8ecb27fa515aed6e9f170cf
+          image: ghcr.io/derio-net/vk-local:67ac381be962fb1b5e06c289675a24a120811c58
           ports:
             - name: vk-http
               containerPort: 8081
