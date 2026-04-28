@@ -23,5 +23,6 @@ spec:
       - RespectIgnoreDifferences=true
   ignoreDifferences:
     - kind: Secret
+      namespace: argocd
       jsonPointers:
         - /data
