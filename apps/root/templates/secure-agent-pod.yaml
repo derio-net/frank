@@ -3,6 +3,9 @@ kind: Application
 metadata:
   name: secure-agent-pod
   namespace: argocd
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-running.webhook: telegram
+    notifications.argoproj.io/subscribe.on-sync-succeeded.webhook: telegram
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

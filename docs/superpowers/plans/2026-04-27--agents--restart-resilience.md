@@ -313,13 +313,13 @@ Open a tmux session, split panes, attach `claude` REPL, type a message, observe 
 
 ### Task 1: Remove `lifecycle.preStop` from deployment.yaml
 
-- [ ] **Step 1: Edit `apps/secure-agent-pod/manifests/deployment.yaml`**
+- [x] **Step 1: Edit `apps/secure-agent-pod/manifests/deployment.yaml`**
 
 Delete the entire `lifecycle:` block from the kali container spec. cont-finish.d/01-shutdown now handles the same shutdown.sh call, with the bonus that cont-finish.d/02-tmux-save runs after.
 
 ### Task 2: Add notification subscription annotations to the Application CR
 
-- [ ] **Step 1: Edit `apps/root/templates/secure-agent-pod.yaml`**
+- [x] **Step 1: Edit `apps/root/templates/secure-agent-pod.yaml`**
 
 Add to the Application CR's `metadata.annotations`:
 
