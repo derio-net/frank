@@ -16,7 +16,13 @@ data:
               bottoken: $FRANK_C2_TELEGRAM_BOT_TOKEN
               chatid: |
                 $FRANK_C2_TELEGRAM_CHAT_ID
-              parse_mode: Markdown
+              # parse_mode intentionally unset → plain text. Markdown mode
+              # interprets the underscore in labels like `job=session_manager`
+              # as italic delimiters and silently strips the underscores,
+              # which has caused real triage misdirection (alert renders as
+              # `job=sessionmanager`, runbook templates the wrong grep target).
+              # Plain text loses the **Firing**/**Resolved** bolding from the
+              # default Grafana template — accepted tradeoff: correctness > formatting.
       - orgId: 1
         name: "Health Bridge Webhook"
         receivers:
