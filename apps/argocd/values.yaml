@@ -38,9 +38,19 @@ notifications:
   # for ownership of `argocd-notifications-secret`. Let ESO own it.
   secret:
     create: false
+  # telegramChatId is the numeric Telegram user ID for @DerioUnbound (type: private).
+  # Not sensitive — positive IDs are user IDs, not tokens.
+  # The native service.telegram cannot send to private chats (it routes positive IDs
+  # to NewMessageToChannel("@<id>") which only works for channels/usernames).
+  # We use service.webhook.telegram to call the Bot API directly instead.
+  context:
+    telegramChatId: 2034763022
   notifiers:
-    service.telegram: |
-      token: $telegram-token
+    service.webhook.telegram: |
+      url: https://api.telegram.org/bot$telegram-token/sendMessage
+      headers:
+        - name: Content-Type
+          value: application/json
   triggers:
     trigger.on-sync-running: |
       - description: Application is rolling out
@@ -54,20 +64,25 @@ notifications:
         when: app.status.operationState.phase in ['Succeeded']
   templates:
     template.agent-pod-rolling: |
-      message: |
-        🔄 *{{.app.metadata.name}}* is rolling out
-        From: `{{.app.status.sync.revision | substr 0 7}}`
-        To:   `{{.app.spec.source.targetRevision | substr 0 7}}`
-        Pods will recreate in ~30s. mosh sessions will need re-spawn (Cmd+Shift+2).
-      telegram:
-        chatIds:
-          - $telegram-chat-id
+      webhook:
+        telegram:
+          method: POST
+          body: |
+            {
+              "chat_id": {{.context.telegramChatId}},
+              "text": "🔄 *{{.app.metadata.name}}* is rolling out\nFrom: `{{.app.status.sync.revision | substr 0 7}}`\nTo:   `{{.app.spec.source.targetRevision | substr 0 7}}`\nPods will recreate in ~30s. mosh sessions will need re-spawn (Cmd+Shift+2).",
+              "parse_mode": "Markdown"
+            }
     template.agent-pod-ready: |
-      message: |
-        ✅ *{{.app.metadata.name}}* synced — `{{.app.status.sync.revision | substr 0 7}}`
-      telegram:
-        chatIds:
-          - $telegram-chat-id
+      webhook:
+        telegram:
+          method: POST
+          body: |
+            {
+              "chat_id": {{.context.telegramChatId}},
+              "text": "✅ *{{.app.metadata.name}}* synced — `{{.app.status.sync.revision | substr 0 7}}`",
+              "parse_mode": "Markdown"
+            }
 
 # Disable dex (using Authentik OIDC instead)
 dex:

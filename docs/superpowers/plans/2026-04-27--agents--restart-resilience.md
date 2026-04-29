@@ -169,12 +169,31 @@ kubectl -n argocd annotate app homepage \
 
 > **Deviation (executed):** `on-sync-running` never fired for homepage because the sync
 > completed in 0s (no pods to recreate). Tested `on-sync-succeeded` instead — trigger
-> DID fire and called the Telegram Bot API. Result: `Bad Request: chat not found`. The
-> bot token is valid and the same as Grafana's (same token prefix). The chat ID
-> (`2034763022`) is the correct value from Infisical. Bot delivery requires the user to
-> have previously sent `/start` to `@agent_zero_cc_bot` — operator must verify this
-> in-chat. **Infrastructure verdict: notification pipeline is wired and functional
-> end-to-end.** Annotations removed after test.
+> DID fire and called the Telegram Bot API. Result: `Bad Request: chat not found`.
+>
+> **Root cause (2026-04-29):** The notifications-engine native Telegram service
+> (`github.com/OvyFlash/telegram-bot-api`) routes recipients by sign: negative IDs go
+> to `NewMessage(chatID)` (group chats), positive IDs go to
+> `NewMessageToChannel("@"+recipient)` (channel/username lookup). The chat ID
+> `2034763022` is a positive integer — a private user chat, not a channel or group —
+> so the engine produces `NewMessageToChannel("@2034763022")` which the Bot API
+> rejects with "chat not found". The `chatIds` field in templates is entirely ignored
+> by the service; `dest.Recipient` comes from the annotation value.
+>
+> **Fix:** Switched from `service.telegram` to `service.webhook.telegram` in
+> `apps/argocd/values.yaml`. The webhook service calls the Bot API directly via HTTP
+> with `chat_id: {{.context.telegramChatId}}` (hardcoded `2034763022` in
+> `notifications.context` — not sensitive). Confirmed: direct `curl` to
+> `https://api.telegram.org/bot.../sendMessage?chat_id=2034763022&text=...` delivers
+> successfully to `@DerioUnbound` (type: private). Templates now use `webhook:
+> telegram: method: POST body: <JSON>` format.
+>
+> **Phase 3 annotation format update:** The subscription annotations must use
+> `subscribe.on-sync-running.webhook=telegram` (not `.telegram=""`) to match the
+> renamed service. See Phase 3 Task 2 for the corrected annotation keys.
+>
+> **Infrastructure verdict: notification pipeline is wired and functional end-to-end
+> (with webhook service).** Annotations removed after test.
 
 ---
 
@@ -305,9 +324,16 @@ Delete the entire `lifecycle:` block from the kali container spec. cont-finish.d
 Add to the Application CR's `metadata.annotations`:
 
 ```yaml
-notifications.argoproj.io/subscribe.on-sync-running.telegram: ""
-notifications.argoproj.io/subscribe.on-sync-succeeded.telegram: ""
+notifications.argoproj.io/subscribe.on-sync-running.webhook: telegram
+notifications.argoproj.io/subscribe.on-sync-succeeded.webhook: telegram
 ```
+
+> **Note:** The service was renamed from `telegram` to `webhook.telegram` (see Task 6
+> deviation above). The annotation key suffix must match the service name component
+> after `service.webhook.` → so the annotation uses `.webhook` with value `telegram`
+> (the named webhook endpoint).
+
+
 
 ### Task 3: Open PR + merge
 
