@@ -18,9 +18,8 @@ spec:
         app: secure-agent-pod
     spec:
       serviceAccountName: agent-sa
-      # shutdown.sh waits up to 30s for SIGTERM → bridge:shutdown drain
-      # (so claude deregisters from claude.ai), then SIGKILLs stragglers.
-      # 45s gives margin for preStop start + drain + final pidfile cleanup.
+      # s6 cont-finish.d runs shutdown.sh (bridge:shutdown drain) then saves
+      # the tmux layout. 45s gives cont-finish.d time to complete before SIGKILL.
       terminationGracePeriodSeconds: 45
       nodeSelector:
         kubernetes.io/hostname: gpu-1
@@ -117,14 +116,6 @@ spec:
               port: ssh
             initialDelaySeconds: 30
             periodSeconds: 60
-          # preStop runs shutdown.sh, which signals claude remote-control
-          # so its own bridge:shutdown handler can DELETE the environment
-          # from the Anthropic API (avoids phantom sessions in claude.ai).
-          # Rationale: kali/docs/findings/2026-04-18-remote-control-shutdown.md
-          lifecycle:
-            preStop:
-              exec:
-                command: ["/opt/scripts/shutdown.sh"]
         - name: vk-local
           image: ghcr.io/derio-net/vk-local:efc07ee28e050d30f5404629406dc5ae2f7829dc
           ports:
