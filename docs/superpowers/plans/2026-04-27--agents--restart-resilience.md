@@ -337,7 +337,7 @@ notifications.argoproj.io/subscribe.on-sync-succeeded.webhook: telegram
 
 ### Task 3: Open PR + merge
 
-- [ ] **Step 1: Open PR `feat(agents): drop preStop, subscribe to ArgoCD bump alerts`**
+- [x] **Step 1: Open PR `feat(agents): drop preStop, subscribe to ArgoCD bump alerts`**
 
 - [ ] **Step 2: Merge after CI green**
 
