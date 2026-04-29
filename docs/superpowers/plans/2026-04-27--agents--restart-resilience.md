@@ -130,9 +130,9 @@ Single source pointing at `apps/argocd-notifications/manifests/`, ServerSideAppl
 
 ### Task 5: Push, sync, verify controller starts
 
-- [ ] **Step 1: Push the branch + open PR + merge**
+- [x] **Step 1: Push the branch + open PR + merge**
 
-- [ ] **Step 2: Sync and verify**
+- [x] **Step 2: Sync and verify**
 
 ```bash
 argocd app sync argocd-notifications --port-forward --port-forward-namespace argocd
@@ -141,7 +141,7 @@ kubectl -n argocd get pods -l app.kubernetes.io/name=argocd-notifications-contro
 
 Expected: controller pod runs.
 
-- [ ] **Step 3: Verify the secret resolves**
+- [x] **Step 3: Verify the secret resolves**
 
 ```bash
 kubectl -n argocd get secret argocd-notifications-secret -o jsonpath='{.data}' \
@@ -152,7 +152,7 @@ Expected: `telegram-token: <some bytes>`, `telegram-chat-id: <some bytes>`.
 
 ### Task 6: Test with a benign trigger
 
-- [ ] **Step 1: Annotate any test app temporarily, force a sync, observe Telegram**
+- [x] **Step 1: Annotate any test app temporarily, force a sync, observe Telegram**
 
 ```bash
 kubectl -n argocd annotate app homepage \
@@ -166,6 +166,15 @@ Expected: Telegram message arrives. Remove the annotation:
 kubectl -n argocd annotate app homepage \
     notifications.argoproj.io/subscribe.on-sync-running.telegram- --overwrite
 ```
+
+> **Deviation (executed):** `on-sync-running` never fired for homepage because the sync
+> completed in 0s (no pods to recreate). Tested `on-sync-succeeded` instead — trigger
+> DID fire and called the Telegram Bot API. Result: `Bad Request: chat not found`. The
+> bot token is valid and the same as Grafana's (same token prefix). The chat ID
+> (`2034763022`) is the correct value from Infisical. Bot delivery requires the user to
+> have previously sent `/start` to `@agent_zero_cc_bot` — operator must verify this
+> in-chat. **Infrastructure verdict: notification pipeline is wired and functional
+> end-to-end.** Annotations removed after test.
 
 ---
 
@@ -189,6 +198,17 @@ git log --oneline -10 origin/main | grep -E "agent-init.d|agent-shell-base|migra
 ```
 
 Expected: 4 commits.
+
+> **Status (2026-04-29):** BLOCKED. `derio-net/agent-images` main is at `efc07ee`
+> (fix: disable errexit in bashrc source). Only Phase 1 (`/opt/agent-init.d/`
+> scripts, merged via PR #20) is on main. Phases 2-4 remain open:
+> - Phase 2 (agent-shell-base): issue #17, not yet started
+> - Phase 3 (kali migration to agent-shell-base): issue #18, not yet started
+> - Phase 4 (vk-local wrapper): issue #19, PR #25 open but blocked by Phase 2
+>
+> Do NOT merge any frank bump PRs until agent-images Phases 2-4 land.
+> The current open bump PR in frank (#146, `efc07ee`) carries only bug fixes,
+> not the s6-based image — close it or hold it until the s6 bump supersedes it.
 
 ### Task 2: Merge the accumulated bumper PR in frank
 
