@@ -11,7 +11,6 @@ data:
   PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
   PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
   PAPERCLIP_PUBLIC_URL: "http://192.168.55.212:3100"
-  LITELLM_BASE_URL: "http://litellm.litellm.svc:4000"
   # Opt out of upstream telemetry added in v2026.403.0.
   DO_NOT_TRACK: "1"
   PAPERCLIP_TELEMETRY_DISABLED: "1"
