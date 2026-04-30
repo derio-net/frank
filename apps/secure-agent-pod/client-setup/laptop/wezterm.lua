@@ -133,19 +133,30 @@ config.keys = {
   { key = 'v', mods = 'CMD', action = wezterm.action.PasteFrom 'Clipboard' },
 
   -- Workspace switching.
-  { key = '1', mods = 'CMD',       action = wezterm.action.SwitchToWorkspace { name = 'local' } },
-  { key = '2', mods = 'CMD',       action = wezterm.action.SwitchToWorkspace { name = 'frank' } },
-  { key = 's', mods = 'CMD|SHIFT', action = wezterm.action.ShowLauncherArgs { flags = 'WORKSPACES' } },
+  --
+  -- Why `phys:` prefix on the SHIFT'd bindings: WezTerm's default
+  -- key_map_preference is "Mapped", which matches the *post-layout* key.
+  -- On macOS US layouts, SHIFT is consumed by the OS to produce the shifted
+  -- glyph -- CMD+SHIFT+1 arrives as `!`, CMD+SHIFT+2 as `@`, CMD+SHIFT+s as
+  -- capital `S`. So a literal `key='2', mods='CMD|SHIFT'` never matches
+  -- (no `2` is ever produced while SHIFT is held). `phys:2` binds to the
+  -- physical scancode for the `2` row instead, leaving SHIFT free to be
+  -- a real modifier. The unshifted CMD+1/CMD+2 don't have this problem
+  -- because there's no shifted glyph in play, but we use phys: there too
+  -- for symmetry and for non-US layouts.
+  { key = 'phys:1', mods = 'CMD',       action = wezterm.action.SwitchToWorkspace { name = 'local' } },
+  { key = 'phys:2', mods = 'CMD',       action = wezterm.action.SwitchToWorkspace { name = 'frank' } },
+  { key = 'phys:S', mods = 'CMD|SHIFT', action = wezterm.action.ShowLauncherArgs { flags = 'WORKSPACES' } },
 
   -- Workspace re-spawn. CMD+SHIFT+<n> opens a fresh window in workspace <n>
   -- and switches to it. Useful when a mosh session blackholes after a pod
   -- restart (image bump, OOM, supercronic SIGHUP) -- the dead window stays
   -- visible until you close it, but the new one connects cleanly.
-  { key = '1', mods = 'CMD|SHIFT', action = wezterm.action_callback(function(window, pane)
+  { key = 'phys:1', mods = 'CMD|SHIFT', action = wezterm.action_callback(function(window, pane)
       spawn_local_workspace()
       window:perform_action(wezterm.action.SwitchToWorkspace { name = 'local' }, pane)
     end) },
-  { key = '2', mods = 'CMD|SHIFT', action = wezterm.action_callback(function(window, pane)
+  { key = 'phys:2', mods = 'CMD|SHIFT', action = wezterm.action_callback(function(window, pane)
       spawn_frank_workspace()
       window:perform_action(wezterm.action.SwitchToWorkspace { name = 'frank' }, pane)
     end) },
