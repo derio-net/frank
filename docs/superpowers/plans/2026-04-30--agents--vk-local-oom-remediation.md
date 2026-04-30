@@ -24,7 +24,7 @@ PR [#142](https://github.com/derio-net/frank/pull/142) raised the limit from 2 G
 
 ### Task 1: Confirm live limit and zero post-bump OOMKills
 
-- [ ] **Step 1: Verify live container spec**
+- [x] **Step 1: Verify live container spec**
 
 ```bash
 kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
@@ -32,7 +32,7 @@ kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
 # expect: 8Gi
 ```
 
-- [ ] **Step 2: Read restart count and last-termination reason**
+- [x] **Step 2: Read restart count and last-termination reason**
 
 ```bash
 kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
@@ -41,25 +41,20 @@ kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
 
   Expectation: `restartCount` is whatever it was at PR #142 merge time and has not advanced since. `lastReason` should not be `OOMKilled` for any termination after PR #142's merge timestamp (`d9bc2ea` parent).
 
-- [ ] **Step 3: Inspect kubelet events for OOM since merge**
+- [x] **Step 3: Inspect kubelet events for OOM since merge**
 
 ```bash
 kubectl -n secure-agent-pod get events --sort-by=.lastTimestamp \
   | grep -i 'oom\|killed' || echo "no OOM events found"
 ```
 
-- [ ] **Step 4: Capture pre-cadvisor RSS baseline**
+- [x] **Step 4: Capture pre-cadvisor RSS baseline**
 
-```bash
-kubectl -n secure-agent-pod top pod -l app=secure-agent-pod --containers
-# record the vk-local row in the plan as the Phase 1 baseline reading
-```
-
-  Append the reading to this plan as a Deployment Notes row dated today.
+  `kubectl top` is unavailable (the metrics-server / cadvisor pipeline gap is what Phase 2 addresses). Fallback: read `/sys/fs/cgroup/memory.current` and `memory.stat` directly from the vk-local cgroup. See the Verification Log entry below.
 
 ### Task 2: Document the verification
 
-- [ ] **Step 1:** Add an entry to the `Verification Log (Phase 1)` section at the bottom of this plan with: timestamp, live limit value, current restart count, OOM events found (or none), and the `kubectl top` reading. This becomes the input to Phase 5's soak comparison.
+- [x] **Step 1:** Add an entry to the `Verification Log (Phase 1)` section at the bottom of this plan with: timestamp, live limit value, current restart count, OOM events found (or none), and the `kubectl top` reading. This becomes the input to Phase 5's soak comparison.
 
 ---
 
@@ -409,11 +404,35 @@ This is a fix/extension plan (per the Type at top), so most post-deploy steps ar
 
 ## Deployment Deviations
 
-*(Append findings here as phases execute.)*
+### Phase 1 — `kubectl top` unavailable (2026-04-30)
+
+The plan's Task 1 Step 4 instructed `kubectl top pod -l app=secure-agent-pod --containers`. The Kubernetes metrics API returned `error: Metrics API not available`. This is a confirming symptom of the cadvisor pipeline gap that Phase 2 was created to fix — the same five amd64 nodes (`mini-1/2/3`, `gpu-1`, `pc-1`) whose `container_memory_working_set_bytes` series are missing in VictoriaMetrics also have no flow into metrics-server. `vk-local`'s pod is on `gpu-1`, so `kubectl top` for it is silent end-to-end.
+
+Substituted: read `/sys/fs/cgroup/memory.current` and `memory.stat` directly from the vk-local cgroup via `kubectl exec`. Recorded in the Verification Log below.
 
 ## Verification Log (Phase 1)
 
-*(Filled in by Phase 1 Task 2.)*
+### 2026-04-30 — Initial verification
+
+| Field | Value |
+|-------|-------|
+| Timestamp (UTC) | 2026-04-30 |
+| Pod | `secure-agent-pod-57447df468-x488f` (node `gpu-1`) |
+| Pod startTime | 2026-04-29T22:10:28Z |
+| Container memory limit | `8Gi` ✓ matches PR #142 |
+| `restartCount` | `0` |
+| Last termination reason | _(none — never restarted on this pod)_ |
+| OOM events in namespace | none found via `kubectl get events` |
+| `kubectl top` | unavailable (metrics-server / cadvisor pipeline gap — see Phase 2) |
+| `memory.current` (vk-local cgroup) | 6,183,456,768 B ≈ **5,896 MiB** |
+| `memory.max` (vk-local cgroup) | 8,589,934,592 B = 8 GiB ✓ |
+| `memory.stat anon` | 1,545,146,368 B ≈ 1,473 MiB |
+| `memory.stat file` (page cache) | 4,120,395,776 B ≈ 3,930 MiB |
+| `memory.stat kernel` | 512,790,528 B ≈ 489 MiB |
+
+**Interpretation.** True working set (anon + kernel + non-reclaimable) ≈ 1.96 GiB; the rest is reclaimable file cache (npm cache + git worktree files). At ~73% of the 8 GiB limit but with no restarts since the PR #142 bump, the headroom is functioning as intended. This baseline is the input row Phase 5 compares against after Phase 3 housekeeping and Phase 4's concurrency cap land.
+
+**Note (Step 4 fallback).** The metric the plan originally asked for (`kubectl top`) requires the cadvisor pipeline that Phase 2 fixes. The cgroup-direct reading above is the substitute baseline; once Phase 2 lands, Phase 5 should re-read the same fields plus `container_memory_working_set_bytes` from VictoriaMetrics for a continuous time-series.
 
 ## Soak Log (Phase 5)
 
