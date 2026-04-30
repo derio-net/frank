@@ -12,10 +12,11 @@ This is the operational companion to [Secure Agent Pod — Hardening an AI Codin
 ## What "Healthy" Looks Like
 
 A healthy secure-agent-pod has:
-- One pod running (`1/1 Ready`) on gpu-1
-- Three processes inside: sshd, supercronic, vibe-kanban
+- One pod running (`2/2 Ready`) on gpu-1 — `kali` + `vk-local` sidecar
+- PID 1 in `kali` is `/init` (s6-overlay), supervising sshd and supercronic
 - SSH accessible at `192.168.55.215:22`
-- VibeKanban UI accessible at `192.168.55.218:8081`
+- mosh accessible on UDP `192.168.55.219:60000-60015`
+- VibeKanban UI accessible at `192.168.55.218:8081` (served by the `vk-local` sidecar)
 - All running as UID 1000 (`claude`), no root
 
 ## Observing State
@@ -36,38 +37,36 @@ kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- id
 
 ### Process Health
 
-All three processes should be running inside the container:
+The `kali` container runs s6-overlay as PID 1. Two long-running services are supervised — `sshd` and `supercronic` — and the cron schedule plus user shell sessions spawn additional children (claude session-manager, vk-bridge.py, mosh-server, tmux, etc.). The VibeKanban server itself runs in the **`vk-local` sidecar** container, not in `kali`.
 
 ```bash
-kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- ps aux
+# Service status (the supervised long-runners)
+kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- s6-svstat /run/service/sshd /run/service/supercronic
+# Expected: both `up` with high uptime
+
+# Full process tree
+kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- ps -ef
 ```
 
-Expected output:
+Expected top of the tree (`N`/`M`/`P`/`Q`/`R` are placeholder PIDs that vary per boot):
 
 ```
-USER       PID  COMMAND
-claude       1  /bin/bash /entrypoint.sh
-claude      12  sshd: /usr/sbin/sshd -f /opt/sshd_config -D [listener]
-claude      13  supercronic /home/claude/.crontab
-claude      14  node /usr/bin/vibe-kanban
-claude      33  /home/claude/.vibe-kanban/bin/.../vibe-kanban
+UID   PID  PPID CMD
+1000    1     0 /package/admin/s6-overlay/.../bin/s6-svscan -d4 -- /run/service
+1000    N    1  s6-supervise sshd
+1000    M    N  /usr/sbin/sshd -f /opt/sshd_config -D
+1000    P    1  s6-supervise supercronic
+1000    Q    P  supercronic /home/claude/.crontab
+1000    R    Q  /opt/scripts/session-manager.sh   # spawned by supercronic on schedule
+…        many more shell/mosh/tmux/claude children attached to the user's interactive sessions
 ```
 
-If any process is missing, the pod will restart via `wait -n` — check restart count.
+If a service dies, s6 respawns it within ~1s (per its `services.d/<name>/run` script). Five deaths within 60s trip the crashloop bail (see "Architecture: s6-overlay" below) and the service stays down without taking the pod with it. The K8s readinessProbe (TCP on port 2222) catches the **sshd**-down case — the pod is removed from the LB. Supercronic-down has no probe, so check `s6-svstat` if cron jobs go quiet.
 
-```console
-$ kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- ps -eo pid,user,etime,cmd | head -12
-    PID USER         ELAPSED CMD
-      1 claude       06:51:00 /usr/bin/tini -- /entrypoint.sh
-      7 claude       06:51:00 /bin/bash /entrypoint.sh
-     61 claude       06:51:00 sshd: /usr/sbin/sshd -f /opt/sshd_config -D [listener]
-     62 claude       06:51:00 supercronic /home/claude/.crontab
-     87 claude       06:50:55 claude remote-control --name willikins
-    114 claude       06:50:52 /home/claude/.local/share/claude/versions/2.1.114 --print ...
-    139 claude       06:50:52 npm exec @upstash/context7-mcp
-    140 claude       06:50:52 npm exec @playwright/mcp@latest
-    500 claude       06:50:52 /home/claude/.vscode-server/.../server/out/server-main.js ...
-# ... +30 more child processes (mcp servers, vscode workers, editor terminals)
+The `vk-local` sidecar runs vibe-kanban directly with tini as PID 1; check it with:
+
+```bash
+kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c vk-local -- ps -ef
 ```
 
 ### Services and Networking
@@ -89,6 +88,54 @@ curl -s -o /dev/null -w "%{http_code}" http://192.168.55.218:8081
 ```bash
 argocd app get secure-agent-pod --port-forward --port-forward-namespace argocd
 ```
+
+## Architecture: s6-overlay
+
+The `kali` container is built from `agent-shell-base`, which uses [s6-overlay v3](https://github.com/just-containers/s6-overlay) as PID 1 (`/init`). s6 splits a container's life into three stages, mapped to directories baked into the image:
+
+| Directory | Stage | Purpose |
+|-----------|-------|---------|
+| `/etc/cont-init.d/` | One-shot setup | Runs in lexical order at boot. Blocks until done. SSH host keys, authorized_keys seeding, venv setup. |
+| `/etc/services.d/<name>/` | Long-running | Each subdir is a supervised service. `run` is exec'd; if it exits, s6 respawns it (within the crashloop policy). |
+| `/etc/cont-finish.d/` | Teardown | Runs in lexical order on SIGTERM. `01-shutdown` calls `/opt/scripts/shutdown.sh`; `02-tmux-save` forces a final tmux-continuum save. |
+
+The two supervised services are `sshd` (port 2222) and `supercronic` (cron). `vibe-kanban` is **not** an s6 service in this pod — it lives in the `vk-local` sidecar, which uses tini as PID 1.
+
+### Inspecting and controlling services
+
+```bash
+# Status (up/down + uptime + PID)
+ssh claude@192.168.55.215 's6-svstat /run/service/sshd /run/service/supercronic'
+
+# Restart a service (sends SIGTERM; s6 respawns it)
+ssh claude@192.168.55.215 's6-svc -t /run/service/supercronic'
+
+# Bring a service down on purpose (won't auto-respawn until you bring it back up)
+ssh claude@192.168.55.215 's6-svc -d /run/service/supercronic'
+
+# Bring it back up
+ssh claude@192.168.55.215 's6-svc -u /run/service/supercronic'
+```
+
+### Crashloop bail policy
+
+s6 respawns a dying service immediately. If a service dies **5 times within 60 seconds**, s6 bails out and stops respawning that service. Other services keep running; the pod stays alive.
+
+This catches truly broken services (binary missing, config corrupt) without panicking on transient flaps:
+
+| Failure mode | s6 response | Externally visible? |
+|--------------|-------------|---------------------|
+| One transient flap (e.g., a stray SIGHUP) | Respawn within ~1s | No — pod stays Ready, mosh+tmux uninterrupted |
+| 5 deaths within 60s | Stop respawning that service; leave it down | sshd-down: TCP readinessProbe trips, pod removed from LB. supercronic-down: only `s6-svstat` shows it; cron jobs stop firing |
+| Sustained dying > 60s | Same — counter window slides; service can recover when it stops dying | Same |
+
+To recover from a bail-out, fix the underlying cause and bring the service back with `s6-svc -u /run/service/<name>`.
+
+### Why not just `wait -n`?
+
+The original entrypoint was a single `bash -c '… & … & wait -n'`. That worked, but a single SIGHUP to the in-pod claude session manager could propagate to the whole pgroup, kill supercronic, and through `wait -n` exit the container — taking the SSH session, mosh server, and tmux layout with it. s6's process supervision is signal-isolated per service; a misbehaving cron child can't drag down sshd.
+
+The 23:27 SIGHUP incident on 2026-04-26 (claude session-manager → supercronic → entire container) is what motivated the s6 migration; see the [building post]({{< relref "/docs/building/21-secure-agent-pod" >}}#process-supervision) and the [restart-resilience spec](https://github.com/derio-net/frank/blob/main/docs/superpowers/specs/2026-04-27--agents--restart-resilience-design.md).
 
 ## SSH Access
 
@@ -136,6 +183,8 @@ ssh claude@192.168.55.215
 ## Persistent Shells with mosh + tmux
 
 `mosh` keeps the connection alive across IP changes and laptop suspend; `tmux` keeps the *server-side* shells alive across mosh restarts. Together they make a long-running coding session that doesn't lose its place when you close the lid.
+
+**Layout survives pod restarts.** `agent-shell-base` ships with `tmux-resurrect` and `tmux-continuum` baked in at `/usr/local/share/tmux-plugins/`, with `/etc/skel/.tmux.conf` enabling a 5-minute auto-save and auto-restore on tmux server start. After a mosh re-spawn (Cmd+Shift+2 in WezTerm), the new tmux server attaches to your saved layout — pane structure and cwds restored from the last save (≤5 min before the restart). Running processes are not restored; re-launch them yourself. The pre-stop save in `cont-finish.d/02-tmux-save` forces a final continuum snapshot during graceful shutdown, so an announced bump (image rollout, manual rollout) doesn't cost the work you did in the last 5 minutes — only an unannounced kill (OOM, node loss) falls back to the last 5-minute auto-save.
 
 ### Why SSH and UDP are on separate IPs
 
@@ -260,16 +309,20 @@ Key environment variables (set in the Deployment manifest):
 
 ### Checking VibeKanban Logs
 
+VibeKanban runs in the `vk-local` sidecar — its logs are scoped to that container, not `kali`:
+
 ```bash
-# Full pod logs (includes all three processes)
-kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c kali
+# VibeKanban server logs
+kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c vk-local
 
 # Follow logs
-kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c kali -f
+kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c vk-local -f
 
-# Filter for VibeKanban only
-kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c kali | grep -E "vibe-kanban|server|INFO|WARN|ERROR"
+# Filter
+kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c vk-local | grep -E "server|INFO|WARN|ERROR"
 ```
+
+For sshd / supercronic / cron-spawned agent activity, swap `-c vk-local` for `-c kali`. s6-overlay routes each supervised service's stdout/stderr to its own logger, so `kubectl logs -c kali` shows the merged stream from `/init`, `s6-supervise`, sshd, and supercronic.
 
 ## Secret Management
 
