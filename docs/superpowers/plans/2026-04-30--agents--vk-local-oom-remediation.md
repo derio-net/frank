@@ -151,7 +151,9 @@ kubectl -n monitoring exec vmagent-victoria-metrics-victoria-metrics-k8s-stack-*
 ---
 
 ## Phase 3: Housekeeping — npm cache + worktree prune [agentic]
-**Depends on:** —  *(can land in parallel with Phase 2)*
+**Depends on:** —
+
+*(Can land in parallel with Phase 2.)*
 
 This phase is a pure agent-images change. It targets the ~900 MiB retained npm file-cache and the ~17 MiB/worktree heap residue identified in the memprofile findings. After landing, saturated-idle for `vk-local` should drop from ~1,157 MiB toward ~220 MiB.
 
@@ -218,7 +220,7 @@ container_memory_working_set_bytes{namespace="secure-agent-pod", container="vk-l
 ---
 
 ## Phase 4: Option B1 — `max_concurrent_executions` cap [agentic]
-**Depends on:** Phase 3 (image bumper merged) — see note below
+**Depends on:** Phase 3
 
 Adds a configurable concurrency cap to vibe-kanban (queue, not reject), surfaces it as a Frank env var, and adds a minimal `/metrics` endpoint so the cap is observable in cadvisor + a vmagent scrape.
 
@@ -314,7 +316,7 @@ kubectl -n monitoring exec vmagent-victoria-metrics-victoria-metrics-k8s-stack-*
 ---
 
 ## Phase 5: Soak + dial-back assessment [manual]
-**Depends on:** Phases 1, 2, 3, 4
+**Depends on:** Phase 1, Phase 2, Phase 3, Phase 4
 
 Run a **14-day soak** under normal operator workload. Then make a sized decision about the 8 Gi limit.
 
@@ -354,32 +356,40 @@ max_over_time(vibekanban_queued_executions[1d])
 ---
 
 ## Phase 6: File tracking issues for B2, B3, R [agentic]
-**Depends on:** —  *(can run any time after Phase 4 Task 1 PR is filed)*
+**Depends on:** —
+
+*(Can run any time after Phase 4 Task 1 PR is filed.)*
 
 Three follow-up items deferred from this plan. Filed as GitHub issues so they appear on the Derio Ops board with explicit gating criteria. No implementation here.
 
 ### Task 1: File B2 tracking issue
 
-- [ ] **Step 1:** Open issue in `derio-net/frank` titled `agents: B2 — delegate vk-local child spawn to kali sibling cgroup`.
+- [x] **Step 1:** Open issue in `derio-net/frank` titled `agents: B2 — delegate vk-local child spawn to kali sibling cgroup`.
 
   Body: short summary of the architecture (sibling-container exec relay), the trigger conditions (B1 + housekeeping insufficient: cap=4 still drives ≥2 OOMKills/month, *or* explicit per-session OS-isolation requirement appears), and a link to this plan + the memprofile findings. Label `architecture`, `parked`.
 
+  **Filed:** [#160](https://github.com/derio-net/frank/issues/160).
+
 ### Task 2: File B3 tracking issue
 
-- [ ] **Step 1:** Open issue in `derio-net/frank` titled `agents: B3 — per-task Kubernetes Jobs for vibe-kanban executions`.
+- [x] **Step 1:** Open issue in `derio-net/frank` titled `agents: B3 — per-task Kubernetes Jobs for vibe-kanban executions`.
 
   Body: per-task pod isolation, suitable when sustained concurrency reaches ≥10 sessions or per-task GPU/network policy is needed. Trigger: B1 cap pushed to 8 and queue p99 > 1 sustained for 7 days. Link to this plan. Label `architecture`, `parked`.
 
+  **Filed:** [#161](https://github.com/derio-net/frank/issues/161).
+
 ### Task 3: File the R (regression cross-check) tracking issue
 
-- [ ] **Step 1:** Open issue in `derio-net/frank` titled `agents: investigate 9× OOM-rate escalation on vibe-kanban image dc414b4`.
+- [x] **Step 1:** Open issue in `derio-net/frank` titled `agents: investigate 9× OOM-rate escalation on vibe-kanban image dc414b4`.
 
   Body: cite the memprofile findings — Phase 1 image (`d3bbcd70…`) showed 6 kills/48h; Phase 2 retake on `dc414b4` showed 20 kills/17.4h with similar workload. Possible causes: workload variance, vibe-kanban regression, or measurement-window effect. Action: re-run the Phase 2 synthetic workload against both binaries with the Phase 2 cadvisor pipeline in place. Link to this plan + agent-images PR #21. Label `obs`, `agents`.
+
+  **Filed:** [#162](https://github.com/derio-net/frank/issues/162).
 
 ---
 
 ## Phase 7: Post-Deploy Checklist [manual]
-**Depends on:** Phases 1–6
+**Depends on:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6
 
 This is a fix/extension plan (per the Type at top), so most post-deploy steps are skipped per `repo-workflows.md`.
 
