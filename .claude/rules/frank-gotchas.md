@@ -1,6 +1,11 @@
 ## Frank Cluster Gotchas
 
 - Telegram alerting uses bot `@agent_zero_cc_bot` — token in Infisical as `FRANK_C2_TELEGRAM_BOT_TOKEN`, chat ID as `FRANK_C2_TELEGRAM_CHAT_ID`. Grafana contact point uid: `efi04e0201jb4f`.
+- ArgoCD Notifications named-webhook subscription syntax is counter-intuitive. With `service.webhook.<name>` in `argocd-notifications-cm`, notifications-engine registers the service under the **third dotted segment** (`<name>`), not `webhook`. Subscription annotations must reference the name, not the type:
+  - ✅ `notifications.argoproj.io/subscribe.<trigger>.<name>: ""` (empty value — recipient is implicit in the webhook URL)
+  - ❌ `notifications.argoproj.io/subscribe.<trigger>.webhook: <name>` — produces `notification service 'webhook' is not supported using the configuration in namespace argocd` because no service is registered under the literal name `webhook`. The trigger still fires (logs show `Trigger TRIGGERED`), but delivery silently fails.
+
+  For frank's `service.webhook.telegram` the correct annotation is `subscribe.on-sync-running.telegram: ""`. Successful delivery logs as `Sending notification ... to '{telegram }'` — the trailing space is the empty `Recipient` field in notifications-engine's `Destination{...}.String()` formatter, not a typo or a different bug.
 - Always use `ServerSideApply=true` in ArgoCD sync options (avoids annotation size limits)
 - Ignore Secret data diffs in ArgoCD (`ignoreDifferences` on `/data` jsonPointer)
 - `prune: false` in syncPolicy — manual pruning only to avoid accidental deletion

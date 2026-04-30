@@ -4,8 +4,15 @@ metadata:
   name: secure-agent-pod
   namespace: argocd
   annotations:
-    notifications.argoproj.io/subscribe.on-sync-running.webhook: telegram
-    notifications.argoproj.io/subscribe.on-sync-succeeded.webhook: telegram
+    # The named webhook in argocd-notifications-cm is `service.webhook.telegram`.
+    # notifications-engine treats the third dotted segment as the service NAME
+    # (so the registered service is `telegram`, of type webhook). The annotation
+    # suffix must therefore be `.telegram` — `.webhook` produces
+    # "notification service 'webhook' is not supported" because no service is
+    # registered under that name. Value is empty (recipient is implicit in the
+    # webhook URL).
+    notifications.argoproj.io/subscribe.on-sync-running.telegram: ""
+    notifications.argoproj.io/subscribe.on-sync-succeeded.telegram: ""
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
