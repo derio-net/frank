@@ -52,8 +52,9 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Edge Ingress | Caddy | Automatic TLS (Cloudflare DNS challenge), public/mesh routing on Hop |
 | Progressive Delivery | Argo Rollouts | Canary (LiteLLM + Cilium traffic split + VictoriaMetrics analysis), blue-green (Sympozium + HTTP healthcheck) |
 | Workflow Automation | n8n | Per-user instances on gpu-1, Authentik forward-auth, dedicated PostgreSQL, Prometheus metrics |
-| Secure Agent Pod | Kali Linux (sidecar: VibeKanban) | Hardened non-root coding agent workstation on gpu-1; two-container pod (kali + vk-local) sharing `/home/claude` PVC; Cilium egress, ESO secrets, SSH + VibeKanban UI + mosh/tmux persistent shells (UDP 60000-60015 on a sibling LB IP) |
-| Agent Images | `derio-net/agent-images` (shared base) | Multi-image repo: `agent-base` (debian:bookworm + common toolchain) → children `secure-agent-kali`, `vk-local`; matrix CI + cross-repo `repository_dispatch` → frank lockstep bumper |
+| Secure Agent Pod | Kali Linux (sidecar: VibeKanban) | Hardened non-root coding agent workstation on gpu-1; two-container pod (kali + vk-local) sharing `/home/claude` PVC; **s6-overlay-supervised** sshd + supercronic, **tmux-continuum-restored** layout across restarts; Cilium egress, ESO secrets, SSH + VibeKanban UI + mosh/tmux persistent shells (UDP 60000-60015 on a sibling LB IP) |
+| Agent Images | `derio-net/agent-images` (shared base) | Multi-image repo: `agent-base` (debian:bookworm + common toolchain) → `agent-shell-base` (s6-overlay v3 + sshd + supercronic + tmux/mosh + tmux-resurrect/continuum) → `secure-agent-kali`; sibling `vk-local` from `agent-base`; matrix CI + cross-repo `repository_dispatch` → frank lockstep bumper |
+| ArgoCD Notifications | Native ArgoCD subsystem | Telegram alerts on agent-pod sync events (image bumps, manual rollouts) — operator gets ~30s heads-up before mosh sessions die |
 | VK Remote (self-hosted) | PostgreSQL 16 + ElectricSQL + Rust/Axum | Self-hosted VibeKanban kanban API server, local JWT auth, Authentik SSO via Traefik |
 | VK Relay | VK Relay Server (sidecar) | WebSocket relay tunneling browser API calls to local VK agent server via yamux multiplexing, SPAKE2 pairing |
 | In-Cluster Ingress | Traefik v3 | Wildcard TLS (`*.cluster.derio.net`) via ACME + Cloudflare DNS-01, Authentik forward-auth, raspi edge nodes |
@@ -238,6 +239,7 @@ argocd app list
 | sympozium | sympozium-system | Agentic control plane (controller, apiserver, webhook, NATS, OTel) |
 | sympozium-extras | sympozium-system | PersonaPacks, Policies, ExternalSecret, LB Service, blue-green Rollout + AnalysisTemplate |
 | argocd | argocd | Self-managed via App-of-Apps, OIDC SSO via Authentik |
+| argocd-notifications | argocd | Telegram bump alerts via webhook service (subscribes secure-agent-pod on-sync-running/succeeded) |
 | authentik | authentik | Authentik IdP (192.168.55.211:9000), OIDC providers for ArgoCD, Grafana, Infisical |
 | authentik-extras | authentik | K8s RBAC ClusterRoleBindings mapping Authentik groups to cluster roles |
 | vcluster-experiments | vcluster-experiments | Disposable virtual K8s cluster (SQLite-backed, resource-quoted sandbox) |

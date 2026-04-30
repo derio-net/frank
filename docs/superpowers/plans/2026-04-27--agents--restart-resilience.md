@@ -1,7 +1,7 @@
 # Agent Pod Restart Resilience — Implementation Plan (frank side)
 
 **Spec:** `docs/superpowers/specs/2026-04-27--agents--restart-resilience-design.md`
-**Status:** Not Started
+**Status:** Deployed
 
 **Type:** Fix/extension of the `agents` layer (extends [`2026-04-15--agents--agent-images-and-vk-local-sidecar`](../archived-plans/2026-04-15--agents--agent-images-and-vk-local-sidecar.md) and [`2026-03-30--agents--secure-agent-pod`](../archived-plans/2026-03-30--agents--secure-agent-pod.md)). Per `repo-workflows.md`: same layer code, update existing layer's blog posts (no new posts).
 
@@ -452,35 +452,35 @@ Even small edge-case findings belong here so the next operator has the context.
 
 ### Task 1: Update operating post
 
-- [ ] **Step 1: Add an "Architecture: s6-overlay" section to `blog/content/docs/operating/14-secure-agent-pod/index.md`**
+- [x] **Step 1: Add an "Architecture: s6-overlay" section to `blog/content/docs/operating/14-secure-agent-pod/index.md`**
 
 Cover: PID 1 is `/init`; cont-init.d/services.d/cont-finish.d roles; how to inspect with `s6-svstat /run/service/<name>`; how to restart a service (`s6-svc -t /run/service/<name>` then it auto-respawns); the bail policy.
 
-- [ ] **Step 2: Update the "Persistent shells with mosh + tmux" section**
+- [x] **Step 2: Update the "Persistent shells with mosh + tmux" section**
 
 Add a paragraph about tmux-continuum auto-restore: "After a mosh re-spawn (Cmd+Shift+2), the new tmux server attaches to your saved layout — pane structure and cwds restored from the last save (≤5 min before the restart). Running processes are not restored; re-launch them yourself."
 
-- [ ] **Step 3: Update the "What 'Healthy' Looks Like" process list**
+- [x] **Step 3: Update the "What 'Healthy' Looks Like" process list**
 
 Replace the `wait -n`-era process list with the s6-aware view: PID 1 = `/init`, services seen via `s6-svstat`, plus the supercronic-spawned children (claude session-manager, vk-bridge.py).
 
 ### Task 2: Update building post
 
-- [ ] **Step 1: Update the "Architecture" section in `blog/content/docs/building/21-secure-agent-pod/index.md`**
+- [x] **Step 1: Update the "Architecture" section in `blog/content/docs/building/21-secure-agent-pod/index.md`**
 
 Reflect the three-tier base lineage: agent-base → agent-shell-base → secure-agent-kali. Note that s6-overlay supervises sshd + supercronic independently, that crashloop bail-out is configured, and that kali keeps `claude`/`/home/claude` via build-arg parameterization (with a forward-link to "the rename plan").
 
-- [ ] **Step 2: Update the "Process Supervision" section**
+- [x] **Step 2: Update the "Process Supervision" section**
 
 Replace the `wait -n` description with the s6-overlay model. Explain why this matters (the 23:27 SIGHUP incident). Link to the spec.
 
 ### Task 3: Update README
 
-- [ ] **Step 1: Update Technology Stack row for Secure Agent Pod**
+- [x] **Step 1: Update Technology Stack row for Secure Agent Pod**
 
 Mention s6-overlay-supervised + tmux-continuum-restored in the description.
 
-- [ ] **Step 2: Add ArgoCD Notifications row to Technology Stack**
+- [x] **Step 2: Add ArgoCD Notifications row to Technology Stack**
 
 ```markdown
 | ArgoCD Notifications | Native ArgoCD subsystem | Telegram alerts on agent-pod sync events (image bumps, manual rollouts) — operator gets ~30s heads-up before mosh sessions die |
@@ -488,7 +488,7 @@ Mention s6-overlay-supervised + tmux-continuum-restored in the description.
 
 ### Task 4: Update gotchas
 
-- [ ] **Step 1: Add to `.claude/rules/frank-gotchas.md`**
+- [x] **Step 1: Add to `.claude/rules/frank-gotchas.md`**
 
 ```markdown
 - **s6-overlay v3 in non-root mode requires `S6_KEEP_ENV=1` and `S6_VERBOSITY=2`** — without these, services don't inherit the container env. The `with-contenv` wrapper around cont-init.d / services.d scripts is also required for them to see `$AGENT_HOME`.
@@ -500,13 +500,13 @@ Mention s6-overlay-supervised + tmux-continuum-restored in the description.
 
 ### Task 5: Set plan status
 
-- [ ] **Step 1: Edit `**Status:**` to `Deployed` in this file AND the agent-images-side plan**
+- [x] **Step 1: Edit `**Status:**` to `Deployed` in this file AND the agent-images-side plan**
 
 Both plans flip to `Deployed` once the cluster-side verification passes. The agent-images plan's status reflects "images built and merged"; the frank plan's status reflects "pod is running on the new images with verified resilience."
 
 ### Task 6: Sync runbook
 
-- [ ] **Step 1: Run `/sync-runbook`**
+- [x] **Step 1: Run `/sync-runbook`**
 
 This plan has no `# manual-operation` blocks (all steps documented inline; no SOPS/UI-only operations). Expected: zero diff.
 
