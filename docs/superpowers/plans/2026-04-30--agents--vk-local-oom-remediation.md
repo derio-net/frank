@@ -151,7 +151,9 @@ kubectl -n monitoring exec vmagent-victoria-metrics-victoria-metrics-k8s-stack-*
 ---
 
 ## Phase 3: Housekeeping — npm cache + worktree prune [agentic]
-**Depends on:** —  *(can land in parallel with Phase 2)*
+**Depends on:** —
+
+*(Can land in parallel with Phase 2 — no blocking phase.)*
 
 This phase is a pure agent-images change. It targets the ~900 MiB retained npm file-cache and the ~17 MiB/worktree heap residue identified in the memprofile findings. After landing, saturated-idle for `vk-local` should drop from ~1,157 MiB toward ~220 MiB.
 
@@ -218,7 +220,9 @@ container_memory_working_set_bytes{namespace="secure-agent-pod", container="vk-l
 ---
 
 ## Phase 4: Option B1 — `max_concurrent_executions` cap [agentic]
-**Depends on:** Phase 3 (image bumper merged) — see note below
+**Depends on:** Phase 3
+
+*(Specifically: Phase 3's image-bumper PR must be merged before Phase 4 Task 2 picks up the new SHA. Strictly the Task 1 binary work in agent-images is independent — see note below.)*
 
 Adds a configurable concurrency cap to vibe-kanban (queue, not reject), surfaces it as a Frank env var, and adds a minimal `/metrics` endpoint so the cap is observable in cadvisor + a vmagent scrape.
 
@@ -314,7 +318,7 @@ kubectl -n monitoring exec vmagent-victoria-metrics-victoria-metrics-k8s-stack-*
 ---
 
 ## Phase 5: Soak + dial-back assessment [manual]
-**Depends on:** Phases 1, 2, 3, 4
+**Depends on:** Phase 1, Phase 2, Phase 3, Phase 4
 
 Run a **14-day soak** under normal operator workload. Then make a sized decision about the 8 Gi limit.
 
@@ -354,7 +358,9 @@ max_over_time(vibekanban_queued_executions[1d])
 ---
 
 ## Phase 6: File tracking issues for B2, B3, R [agentic]
-**Depends on:** —  *(can run any time after Phase 4 Task 1 PR is filed)*
+**Depends on:** —
+
+*(Can run any time after Phase 4 Task 1 PR is filed in agent-images.)*
 
 Three follow-up items deferred from this plan. Filed as GitHub issues so they appear on the Derio Ops board with explicit gating criteria. No implementation here.
 
@@ -379,7 +385,7 @@ Three follow-up items deferred from this plan. Filed as GitHub issues so they ap
 ---
 
 ## Phase 7: Post-Deploy Checklist [manual]
-**Depends on:** Phases 1–6
+**Depends on:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6
 
 This is a fix/extension plan (per the Type at top), so most post-deploy steps are skipped per `repo-workflows.md`.
 
