@@ -152,7 +152,7 @@ Seven files in `apps/secure-agent-pod/manifests/`:
 |----------|---------|
 | `serviceaccount.yaml` | Dedicated SA with cluster-admin (auditable identity) |
 | `pvc-agent-home.yaml` | 50Gi Longhorn PVC for `/home/claude` |
-| `deployment.yaml` | Single-container pod, Recreate strategy, gpu-1 affinity |
+| `deployment.yaml` | Two-container pod (`kali` + `vk-local` sidecar) sharing the `agent-home` PVC, Recreate strategy, gpu-1 affinity |
 | `service-ssh.yaml` | LoadBalancer at `192.168.55.215:22` → 2222 |
 | `service-vibekanban.yaml` | LoadBalancer at `192.168.55.218:8081` |
 | `service-mosh.yaml` | LoadBalancer at `192.168.55.219` UDP/60000-60015 (added post-deploy for mosh) |

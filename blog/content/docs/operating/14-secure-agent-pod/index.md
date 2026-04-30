@@ -48,7 +48,7 @@ kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- s6-svstat /r
 kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- ps -ef
 ```
 
-Expected top of the tree:
+Expected top of the tree (`N`/`M`/`P`/`Q`/`R` are placeholder PIDs that vary per boot):
 
 ```
 UID   PID  PPID CMD
@@ -309,16 +309,20 @@ Key environment variables (set in the Deployment manifest):
 
 ### Checking VibeKanban Logs
 
+VibeKanban runs in the `vk-local` sidecar — its logs are scoped to that container, not `kali`:
+
 ```bash
-# Full pod logs (includes all three processes)
-kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c kali
+# VibeKanban server logs
+kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c vk-local
 
 # Follow logs
-kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c kali -f
+kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c vk-local -f
 
-# Filter for VibeKanban only
-kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c kali | grep -E "vibe-kanban|server|INFO|WARN|ERROR"
+# Filter
+kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c vk-local | grep -E "server|INFO|WARN|ERROR"
 ```
+
+For sshd / supercronic / cron-spawned agent activity, swap `-c vk-local` for `-c kali`. s6-overlay routes each supervised service's stdout/stderr to its own logger, so `kubectl logs -c kali` shows the merged stream from `/init`, `s6-supervise`, sshd, and supercronic.
 
 ## Secret Management
 
