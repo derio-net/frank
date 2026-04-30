@@ -24,11 +24,13 @@ spec:
         zone: core
       securityContext:
         fsGroup: 1000
-      imagePullSecrets:
-        - name: paperclip-ghcr
       containers:
         - name: paperclip
-          image: ghcr.io/derio-net/paperclip:v2026.325.0-derio.1
+          # Upstream public image. Pinned by digest-equivalent sha tag.
+          # sha-3494e84 == git tag v2026.428.0 (released 2026-04-28).
+          # Tag scheme is upstream's: only `latest` (master HEAD) and
+          # `sha-<short>` are published — no semver-named image tags.
+          image: ghcr.io/paperclipai/paperclip:sha-3494e84
           ports:
             - name: http
               containerPort: 3100
