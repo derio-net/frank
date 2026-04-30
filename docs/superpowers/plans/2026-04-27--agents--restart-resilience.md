@@ -188,9 +188,15 @@ kubectl -n argocd annotate app homepage \
 > successfully to `@DerioUnbound` (type: private). Templates now use `webhook:
 > telegram: method: POST body: <JSON>` format.
 >
-> **Phase 3 annotation format update:** The subscription annotations must use
-> `subscribe.on-sync-running.webhook=telegram` (not `.telegram=""`) to match the
-> renamed service. See Phase 3 Task 2 for the corrected annotation keys.
+> **Phase 3 annotation format update (superseded — see Phase 4 Task 4):** This
+> deviation originally recommended `subscribe.<trigger>.webhook=telegram`. That was
+> wrong: notifications-engine treats the third dotted segment of
+> `service.webhook.telegram` as the **service name**, so the registered service is
+> `telegram` (of webhook type), not `webhook`. The correct annotation is
+> `subscribe.<trigger>.telegram=""` — which is also the form Phase 1 Task 6's manual
+> `kubectl annotate` test had used (see the `homepage` test commands above). Phase 3
+> regressed to the wrong form when generating the manifest annotations; Phase 4 Task 4
+> fixed it back. Phase 3 Task 2 below now shows the corrected annotations.
 >
 > **Infrastructure verdict: notification pipeline is wired and functional end-to-end
 > (with webhook service).** Annotations removed after test.
@@ -315,14 +321,19 @@ Delete the entire `lifecycle:` block from the kali container spec. cont-finish.d
 Add to the Application CR's `metadata.annotations`:
 
 ```yaml
-notifications.argoproj.io/subscribe.on-sync-running.webhook: telegram
-notifications.argoproj.io/subscribe.on-sync-succeeded.webhook: telegram
+notifications.argoproj.io/subscribe.on-sync-running.telegram: ""
+notifications.argoproj.io/subscribe.on-sync-succeeded.telegram: ""
 ```
 
-> **Note:** The service was renamed from `telegram` to `webhook.telegram` (see Task 6
-> deviation above). The annotation key suffix must match the service name component
-> after `service.webhook.` → so the annotation uses `.webhook` with value `telegram`
-> (the named webhook endpoint).
+> **Correction (executed during Phase 4 — see Phase 4 Task 4 deviation for full
+> story):** Phase 3 originally shipped these annotations as
+> `subscribe.<trigger>.webhook: telegram`. That format silently breaks delivery:
+> notifications-engine treats the third dotted segment of `service.webhook.telegram`
+> as the **service name** (`telegram`), not the type, so the controller rejects
+> the recipient with `notification service 'webhook' is not supported`. The trigger
+> still fires, the message never sends. The block above is the corrected form
+> (`subscribe.<trigger>.<name>: ""`, recipient empty because the webhook URL is
+> self-contained). Fixed in PR #149 / commit `fc1e8f8` (Phase 4).
 
 
 
