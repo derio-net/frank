@@ -909,6 +909,61 @@ operations:
     the paperclip-anthropic ExternalSecret; that ExternalSecret has
     also been deleted, so the Infisical entry is also unused by paperclip
     (other consumers may still reference it — verify before deleting).
+- id: orch-ruflo-authentik-outpost-assign
+  layer: orch
+  app: ruflo
+  plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
+  when: "after Phase 2 ArgoCD sync makes the 'Ruflo (cluster)' proxy provider exist; before browser SSO will work"
+  why_manual: "Authentik blueprints cannot manage outpost provider assignments without replacing existing assignments — must add via Django ORM"
+  commands:
+  - description: "Add Ruflo (cluster) proxy provider to the embedded outpost"
+    command: |
+      kubectl exec -n authentik deploy/authentik-server -- python -c "
+      import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
+      import django; django.setup()
+      from authentik.providers.proxy.models import ProxyProvider
+      from authentik.outposts.models import Outpost
+      outpost = Outpost.objects.get(name='authentik Embedded Outpost')
+      provider = ProxyProvider.objects.get(name='Ruflo (cluster)')
+      outpost.providers.add(provider)
+      print(f'Added {provider.name} to {outpost.name}')
+      "
+  verify:
+  - description: "'Ruflo (cluster)' is now in the embedded outpost's provider list"
+    command: |
+      kubectl exec -n authentik deploy/authentik-server -- python -c "
+      import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
+      import django; django.setup()
+      from authentik.outposts.models import Outpost
+      o = Outpost.objects.get(name='authentik Embedded Outpost')
+      print([p.name for p in o.providers.all()])
+      " | grep -q 'Ruflo (cluster)' && echo OK
+  status: pending
+- id: orch-ruflo-infisical-bootstrap
+  layer: orch
+  app: ruflo
+  plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
+  when: before opening the Phase 2 PR (Infisical entries must exist before ESOs reference them)
+  why_manual: Infisical entries are not reproducible from git; ESO needs the secret to exist before Phase 2 manifests reference it
+  commands:
+  - description: Confirm OPENROUTER_API_KEY is reachable from a ruflo-system path
+    command: |
+      # Either copy the existing entry under /shared, or grant the ruflo-system ServiceAccount
+      # access to the path that hosts it. Check apps/litellm/manifests/external-secret.yaml
+      # for the reference shape.
+  - description: Confirm EMAIL_RESEND_API_KEY is reachable from a ruflo-system path
+    command: |
+      # Same pattern — see apps/paperclip/manifests/external-secret-resend.yaml for reference.
+  - description: Note — RUFLO_DB_PASSWORD is NOT needed
+    command: |
+      # The original plan listed RUFLO_DB_PASSWORD here. The Mongo→Postgres
+      # rewrite (P2.T2 deviation) removed that requirement: the Bitnami
+      # postgresql chart auto-generates the password into the
+      # `ruflo-db-postgresql` Secret on first sync. No Infisical entry needed.
+  verify:
+  - description: Both keys appear in Infisical for the path the ESOs will reference
+    command: infisical secrets list --path /shared | grep -E 'OPENROUTER_API_KEY|EMAIL_RESEND_API_KEY'
+  status: pending
 - id: orch-traefik-paperclip-route
   layer: orch
   app: paperclip

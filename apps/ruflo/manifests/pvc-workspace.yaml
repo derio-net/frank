@@ -1,0 +1,15 @@
+# Shared workspace PVC — mounted in BOTH the ruflo (ruvocal) container and
+# the ruflo-shell sidecar so the shell's `cd /workspace` matches what
+# ruvocal sees. RWO is fine because both mounts are inside the same Pod.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ruflo-workspace
+  namespace: ruflo-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 50Gi

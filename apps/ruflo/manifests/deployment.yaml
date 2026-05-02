@@ -1,0 +1,194 @@
+# Two-container Pod: ruvocal (the multi-agent web UI) + ruflo-shell
+# (the SSH+Mosh maintainer sidecar). Strategy is Recreate because the
+# workspace and shell-home PVCs are RWO and a rolling update would
+# deadlock waiting for the mount to release (see frank-gotchas.md).
+#
+# Image SHAs reference agent-images PR derio-net/agent-images#48
+# (merge SHA 7960ed111ba504c6523ac18e75e033574bff6d63). At the time this
+# manifest was written, that PR's merge had not yet propagated to
+# agent-images main and the images had not been published to GHCR. Phase
+# 1 cleanup must land before this Deployment can reconcile to Healthy.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ruflo
+  namespace: ruflo-system
+  labels:
+    app.kubernetes.io/name: ruflo
+    app.kubernetes.io/component: server
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ruflo
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ruflo
+        app.kubernetes.io/component: server
+    spec:
+      serviceAccountName: ruflo
+      # cont-finish.d (s6 shutdown) saves the shell sidecar's tmux state
+      # and similar housekeeping. 45s mirrors secure-agent-pod's grace.
+      terminationGracePeriodSeconds: 45
+      nodeSelector:
+        zone: core
+      securityContext:
+        fsGroup: 1000
+      # Both containers share PID namespace so the shell sidecar can
+      # observe ruvocal's process tree (useful for debugging).
+      shareProcessNamespace: true
+
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: ruflo-workspace
+        - name: shell-home
+          persistentVolumeClaim:
+            claimName: ruflo-shell-home
+        - name: shell-ssh-keys
+          # SOPS-managed bootstrap secret in secrets/ruflo/. See the README
+          # there for rotation. ESO-via-Infisical was the original plan,
+          # but agent-ssh-keys (the analogous secret on secure-agent-pod)
+          # is SOPS-bootstrap, so ruflo follows the same pattern.
+          secret:
+            secretName: ruflo-shell-ssh-keys
+            optional: true
+            defaultMode: 0400
+        - name: shell-inventory
+          configMap:
+            name: ruflo-shell-inventory
+
+      containers:
+        # ----- ruvocal (the multi-agent web server) ------------------
+        - name: ruflo
+          image: ghcr.io/derio-net/ruflo-server:7960ed111ba504c6523ac18e75e033574bff6d63
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: http, containerPort: 3000, protocol: TCP }
+          env:
+            # LiteLLM gateway URL — passed via env so non-OpenAI code
+            # paths inside ruvocal can reach the same gateway.
+            - name: LITELLM_BASE_URL
+              value: "http://litellm.litellm.svc:4000"
+            # Postgres connection string assembled inline from the
+            # chart-generated password Secret (ruflo-db sub-app).
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ruflo-db-postgresql
+                  key: password
+            - name: DATABASE_URL
+              value: "postgres://ruflo:$(PG_PASSWORD)@ruflo-db-postgresql.ruflo-system.svc:5432/ruflo"
+          envFrom:
+            # OPENAI_API_KEY + OPENAI_BASE_URL (LiteLLM-compatible) +
+            # OPENROUTER_API_KEY all live in this single ESO-produced
+            # Secret. See externalsecret-llm.yaml for the shape.
+            # `optional: true` per frank-gotchas.md: an ESO sync hiccup
+            # would otherwise CreateContainerConfigError instead of
+            # letting ruvocal surface its own missing-key error. Same
+            # rule paperclip follows.
+            - secretRef:
+                name: ruflo-llm
+                optional: true
+            - secretRef:
+                name: ruflo-resend
+                optional: true
+          volumeMounts:
+            - { name: workspace, mountPath: /workspace }
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          # ruvocal doesn't ship a documented healthcheck endpoint; the
+          # SPA root reliably returns 2xx once the Node server is bound.
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          livenessProbe:
+            httpGet: { path: /, port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 60
+
+        # ----- ruflo-shell (interactive maintainer sidecar) ----------
+        - name: ruflo-shell
+          image: ghcr.io/derio-net/ruflo-shell:7960ed111ba504c6523ac18e75e033574bff6d63
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: ssh,         containerPort: 2222,  protocol: TCP }
+            - { name: mosh-60016,  containerPort: 60016, protocol: UDP }
+            - { name: mosh-60017,  containerPort: 60017, protocol: UDP }
+            - { name: mosh-60018,  containerPort: 60018, protocol: UDP }
+            - { name: mosh-60019,  containerPort: 60019, protocol: UDP }
+            - { name: mosh-60020,  containerPort: 60020, protocol: UDP }
+            - { name: mosh-60021,  containerPort: 60021, protocol: UDP }
+            - { name: mosh-60022,  containerPort: 60022, protocol: UDP }
+            - { name: mosh-60023,  containerPort: 60023, protocol: UDP }
+            - { name: mosh-60024,  containerPort: 60024, protocol: UDP }
+            - { name: mosh-60025,  containerPort: 60025, protocol: UDP }
+            - { name: mosh-60026,  containerPort: 60026, protocol: UDP }
+            - { name: mosh-60027,  containerPort: 60027, protocol: UDP }
+            - { name: mosh-60028,  containerPort: 60028, protocol: UDP }
+            - { name: mosh-60029,  containerPort: 60029, protocol: UDP }
+            - { name: mosh-60030,  containerPort: 60030, protocol: UDP }
+            - { name: mosh-60031,  containerPort: 60031, protocol: UDP }
+          env:
+            # Belt-and-suspenders default for LITELLM_BASE_URL: the
+            # `/etc/profile.d/60-ruflo-shell-banner.sh` drop-in (baked
+            # into ruflo-shell at agent-images build time) only fires
+            # for login shells, but `ssh agent@host -- claude …` is a
+            # non-login non-interactive shell that bypasses profile.d.
+            # Setting it on the container env is the single source of
+            # truth that works everywhere. (Plan deviation captured in
+            # P1 Deployment Notes.)
+            - name: LITELLM_BASE_URL
+              value: "http://litellm.litellm.svc:4000"
+            # Consumed by the s6 cont-init.d scripts in ruflo-shell
+            # (agent-images/ruflo-shell/rootfs/etc/cont-init.d/) to set
+            # the user the sshd serves. Default in the image is `agent`;
+            # we set it explicitly so the deployment is the source of
+            # truth if the image default ever changes.
+            - name: RUFLO_SHELL_USER
+              value: "agent"
+            # 1h (vs upstream 168h default) — see service-shell.yaml
+            # for the 16-port-range coupling rationale.
+            - name: MOSH_SERVER_NETWORK_TMOUT
+              value: "3600"
+          envFrom:
+            - secretRef:
+                name: ruflo-shell-alerts
+                optional: true
+          volumeMounts:
+            - { name: shell-home,      mountPath: /home/agent }
+            - { name: workspace,       mountPath: /workspace }
+            - { name: shell-ssh-keys,  mountPath: /etc/ssh-keys, readOnly: true }
+            - { name: shell-inventory, mountPath: /etc/ruflo-shell, readOnly: true }
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          readinessProbe:
+            tcpSocket: { port: ssh }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          livenessProbe:
+            tcpSocket: { port: ssh }
+            initialDelaySeconds: 30
+            periodSeconds: 60

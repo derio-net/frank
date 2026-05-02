@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ruflo
+  namespace: argocd
+  annotations:
+    # Sync-wave 1 — after ruflo-db (default wave 0). ruvocal connects
+    # to its database lazily on first request, but boot health is
+    # cleaner if the DB is up and ready before the workload sync.
+    argocd.argoproj.io/sync-wave: "1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: apps/ruflo/manifests
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: ruflo-system
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers:
+        - /data
