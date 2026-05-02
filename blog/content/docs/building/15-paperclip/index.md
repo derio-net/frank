@@ -32,6 +32,7 @@ paperclip-system
     ├── ExternalSecret     OPENAI_API_KEY + OPENAI_BASE_URL (LiteLLM)
     ├── ExternalSecret     BETTER_AUTH_SECRET
     ├── ExternalSecret     BRAVE_API_KEY (optional, web search)
+    ├── ExternalSecret     RESEND_API_KEY (optional, transactional email)
     ├── PVC                /paperclip data volume — Longhorn 2Gi
     └── Service (LB)       192.168.55.212:3100
 ```
@@ -120,17 +121,18 @@ spec:
 
 ## Secret Management
 
-Three ExternalSecrets sync from Infisical:
+Four ExternalSecrets sync from Infisical:
 
 | Secret | Contains | How Used |
 |--------|----------|----------|
 | `paperclip-llm-key` | `OPENAI_API_KEY` + `OPENAI_BASE_URL` | `envFrom` — routes LLM calls through LiteLLM |
 | `paperclip-auth` | `BETTER_AUTH_SECRET` | `envFrom` — session signing |
 | `paperclip-brave` | `BRAVE_API_KEY` | `envFrom` — Brave Search API key for agent web-search tools (optional) |
+| `paperclip-resend` | `RESEND_API_KEY` | `envFrom` — Resend API key for agent transactional email (optional) |
 
-`paperclip-brave` is marked `optional: true` in the Deployment — the pod starts normally without it. The Brave key is only needed by agents that invoke a web-search tool (e.g. the Brave Search MCP server). Lesson learned: any `secretRef` for a feature that isn't always provisioned should be `optional: true`, otherwise a missing Secret blocks rolling updates entirely (`CreateContainerConfigError` on the new pod, old pod stuck alive). An earlier `paperclip-anthropic` ExternalSecret carrying `ANTHROPIC_API_KEY` for the `claude_local` adapter taught the same lesson the hard way before being retired when Paperclip switched to the upstream public image; a `paperclip-ghcr` `imagePullSecret` (used while we built our own image, see *Building the Container Image* above) was retired at the same time.
+`paperclip-brave` and `paperclip-resend` are both marked `optional: true` in the Deployment — the pod starts normally without them. The Brave key is only needed by agents that invoke a web-search tool (e.g. the Brave Search MCP server); the Resend key is only needed by agents that send transactional email. Lesson learned: any `secretRef` for a feature that isn't always provisioned should be `optional: true`, otherwise a missing Secret blocks rolling updates entirely (`CreateContainerConfigError` on the new pod, old pod stuck alive). An earlier `paperclip-anthropic` ExternalSecret carrying `ANTHROPIC_API_KEY` for the `claude_local` adapter taught the same lesson the hard way before being retired when Paperclip switched to the upstream public image; a `paperclip-ghcr` `imagePullSecret` (used while we built our own image, see *Building the Container Image* above) was retired at the same time.
 
-The Brave key remaps the Infisical entry `BRAVE_SEARCH_KEY_PAPERCLIP` to the standard `BRAVE_API_KEY` env var that the Brave Search MCP server and SDKs expect — the same source-vs-consumer remap pattern the LiteLLM secret uses (`PAPERCLIP_LITELLM_KEY` → `OPENAI_API_KEY`).
+Both feature keys use the same source-vs-consumer remap pattern the LiteLLM secret uses (`PAPERCLIP_LITELLM_KEY` → `OPENAI_API_KEY`): the Brave key remaps `BRAVE_SEARCH_KEY_PAPERCLIP` to the standard `BRAVE_API_KEY` env var the Brave Search MCP server and SDKs expect, and the Resend key remaps `EMAIL_RESEND_API_KEY` to `RESEND_API_KEY` — the standard env var the Resend Node.js SDK and the Resend MCP server look for.
 
 The LiteLLM secret uses the template merge pattern from Sympozium: a single Infisical key (`PAPERCLIP_LITELLM_KEY`) is combined with a static base URL at sync time, so the Deployment just does `envFrom` and gets both variables.
 
