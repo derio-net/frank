@@ -245,7 +245,7 @@ All work in this repo (`derio-net/frank`). One PR, one ArgoCD sync. Adds two Arg
 
 ```yaml
 # manual-operation
-id: ruflo-infisical-bootstrap
+id: orch-ruflo-infisical-bootstrap
 layer: orch
 app: ruflo
 plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
@@ -706,7 +706,7 @@ kubectl -n ruflo-system exec -c ruflo-shell deploy/ruflo -- rm /workspace/.shell
 
 ```yaml
 # manual-operation
-id: ruflo-authentik-outpost-assign
+id: orch-ruflo-authentik-outpost-assign
 layer: orch
 app: ruflo
 plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md

@@ -22,9 +22,11 @@ kubectl create secret generic ruflo-shell-ssh-keys \
   --from-file=authorized_keys=<(cat ~/.ssh/ruflo.pub) \
   --dry-run=client -o yaml > /tmp/ruflo-shell-ssh-keys.yaml
 
-# 3. SOPS-encrypt + commit
-sops --encrypt --age "$(yq '.creation_rules[0].age' .sops.yaml)" \
-  /tmp/ruflo-shell-ssh-keys.yaml > secrets/ruflo/ruflo-shell-ssh-keys.yaml
+# 3. SOPS-encrypt + commit. `sops --encrypt` resolves recipients from
+#    the repo-root .sops.yaml `path_regex` rules — no need to plumb the
+#    age key by hand.
+mv /tmp/ruflo-shell-ssh-keys.yaml secrets/ruflo/ruflo-shell-ssh-keys.yaml
+sops --encrypt --in-place secrets/ruflo/ruflo-shell-ssh-keys.yaml
 git add secrets/ruflo/ruflo-shell-ssh-keys.yaml
 
 # 4. Apply once (subsequent rotations: re-encrypt + re-apply)

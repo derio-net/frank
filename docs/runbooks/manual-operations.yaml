@@ -909,19 +909,7 @@ operations:
     the paperclip-anthropic ExternalSecret; that ExternalSecret has
     also been deleted, so the Infisical entry is also unused by paperclip
     (other consumers may still reference it — verify before deleting).
-- id: orch-traefik-paperclip-route
-  layer: orch
-  app: paperclip
-  plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
-  when: After Paperclip deployment is healthy — add Traefik route on raspi-omni
-  why_manual: Traefik runs outside K8s on raspi-omni, managed via Ansible
-  commands:
-  - 'Add paperclip entry to Traefik Ansible vars: host paperclip.frank.derio.net, backend 192.168.55.212:3100'
-  - Run Ansible playbook to apply Traefik config on raspi-omni
-  verify:
-  - curl -sk https://paperclip.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)
-  status: pending
-- id: ruflo-authentik-outpost-assign
+- id: orch-ruflo-authentik-outpost-assign
   layer: orch
   app: ruflo
   plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
@@ -951,7 +939,7 @@ operations:
       print([p.name for p in o.providers.all()])
       " | grep -q 'Ruflo (cluster)' && echo OK
   status: pending
-- id: ruflo-infisical-bootstrap
+- id: orch-ruflo-infisical-bootstrap
   layer: orch
   app: ruflo
   plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
@@ -975,6 +963,18 @@ operations:
   verify:
   - description: Both keys appear in Infisical for the path the ESOs will reference
     command: infisical secrets list --path /shared | grep -E 'OPENROUTER_API_KEY|EMAIL_RESEND_API_KEY'
+  status: pending
+- id: orch-traefik-paperclip-route
+  layer: orch
+  app: paperclip
+  plan: docs/superpowers/plans/2026-03-14--orch--paperclip.md
+  when: After Paperclip deployment is healthy — add Traefik route on raspi-omni
+  why_manual: Traefik runs outside K8s on raspi-omni, managed via Ansible
+  commands:
+  - 'Add paperclip entry to Traefik Ansible vars: host paperclip.frank.derio.net, backend 192.168.55.212:3100'
+  - Run Ansible playbook to apply Traefik config on raspi-omni
+  verify:
+  - curl -sk https://paperclip.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)
   status: pending
 - id: arc-github-app-secret
   layer: repo

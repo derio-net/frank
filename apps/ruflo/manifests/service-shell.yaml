@@ -2,13 +2,13 @@
 # Mirrors the secure-agent-pod split-IP shape, but consolidated here onto
 # a single LB IP because the mosh UDP range (60016–60031) does not
 # overlap with secure-agent-pod's 60000–60015 — so we don't need
-# `lbipam.cilium.io/sharing-key` to share with another Service. The
-# spec assigns 192.168.55.222 (free at plan time; verify before deploy).
+# `lbipam.cilium.io/sharing-key` to share with another Service.
+# 192.168.55.222 confirmed unused across `apps/` at the time of this PR.
 #
 # mosh-server picks one UDP port from this range at session start.
-# Keep the range tight (16 ports) — combined with
-# MOSH_SERVER_NETWORK_TMOUT=3600 in deployment.yaml, stuck sessions reap
-# fast enough that exhaustion is implausible in practice.
+# 16 ports is enough headroom — see deployment.yaml's
+# `MOSH_SERVER_NETWORK_TMOUT` for why stuck-session reaping closes the
+# loop on exhaustion.
 #
 # Client invocation:
 #   mosh --ssh="ssh agent@192.168.55.222" \

@@ -87,9 +87,13 @@ spec:
             # OPENAI_API_KEY + OPENAI_BASE_URL (LiteLLM-compatible) +
             # OPENROUTER_API_KEY all live in this single ESO-produced
             # Secret. See externalsecret-llm.yaml for the shape.
+            # `optional: true` per frank-gotchas.md: an ESO sync hiccup
+            # would otherwise CreateContainerConfigError instead of
+            # letting ruvocal surface its own missing-key error. Same
+            # rule paperclip follows.
             - secretRef:
                 name: ruflo-llm
-                optional: false
+                optional: true
             - secretRef:
                 name: ruflo-resend
                 optional: true
@@ -137,17 +141,24 @@ spec:
             - { name: mosh-60031,  containerPort: 60031, protocol: UDP }
           env:
             # Belt-and-suspenders default for LITELLM_BASE_URL: the
-            # /etc/profile.d drop-in only fires for login shells, but
-            # `ssh agent@host -- claude …` is a non-login non-interactive
-            # shell that bypasses profile.d. Setting it on the container
-            # env is the single source of truth that works everywhere.
-            # (Plan deviation captured in P1 Deployment Notes.)
+            # `/etc/profile.d/60-ruflo-shell-banner.sh` drop-in (baked
+            # into ruflo-shell at agent-images build time) only fires
+            # for login shells, but `ssh agent@host -- claude …` is a
+            # non-login non-interactive shell that bypasses profile.d.
+            # Setting it on the container env is the single source of
+            # truth that works everywhere. (Plan deviation captured in
+            # P1 Deployment Notes.)
             - name: LITELLM_BASE_URL
               value: "http://litellm.litellm.svc:4000"
+            # Consumed by the s6 cont-init.d scripts in ruflo-shell
+            # (agent-images/ruflo-shell/rootfs/etc/cont-init.d/) to set
+            # the user the sshd serves. Default in the image is `agent`;
+            # we set it explicitly so the deployment is the source of
+            # truth if the image default ever changes.
             - name: RUFLO_SHELL_USER
               value: "agent"
-            # Match secure-agent-pod's mosh tunable: 1h (vs upstream 168h)
-            # so stuck sessions reap before exhausting the 16-port range.
+            # 1h (vs upstream 168h default) — see service-shell.yaml
+            # for the 16-port-range coupling rationale.
             - name: MOSH_SERVER_NETWORK_TMOUT
               value: "3600"
           envFrom:

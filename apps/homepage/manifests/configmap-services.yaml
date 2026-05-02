@@ -91,5 +91,5 @@ data:
         - Ruflo:
             icon: mdi-account-group-outline
             href: https://ruflo.cluster.derio.net
-            description: Ruvocal multi-agent orchestrator (claude-flow rebrand)
+            description: Ruvocal multi-agent orchestrator
             siteMonitor: http://ruflo-web.ruflo-system:80
