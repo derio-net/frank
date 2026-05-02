@@ -26,7 +26,7 @@ This phase ships two new container images. `ruflo-server` is a thin build from t
 
 Before writing anything, confirm the shell-base parent's defaults. The paperclip-shell PR established the canonical lookup pattern; reuse it.
 
-- [ ] **Step 1: Read `agent-shell-base` Dockerfile and rootfs layout**
+- [x] **Step 1: Read `agent-shell-base` Dockerfile and rootfs layout**
 
 ```bash
 gh repo clone derio-net/agent-images /tmp/agent-images && cd /tmp/agent-images
@@ -37,11 +37,11 @@ ls agent-shell-base/rootfs/etc/skel/ 2>/dev/null
 
   Capture: default `AGENT_USER` / `AGENT_HOME` build args, sshd port, MOTD plumbing location, whether `pam_motd` / `motd.dynamic` is wired up. The new `ruflo-shell` image relies on inheriting all of these unchanged.
 
-- [ ] **Step 2: Confirm s6-overlay non-root-mode fixes have landed**
+- [x] **Step 2: Confirm s6-overlay non-root-mode fixes have landed**
 
   Check `agent-shell-base/Dockerfile` for `chown -R ${AGENT_UID}:${AGENT_GID} /run /var/run` (per the gotcha at `frank-gotchas.md` line 91) and the `with-contenv` shebang fix from observations 2469–2474. Both should be present after the paperclip-shell PR campaign. If either is missing, block this phase on the relevant agent-images PR; do not work around locally.
 
-- [ ] **Step 3: Read `paperclip-shell` rootfs to compare against**
+- [x] **Step 3: Read `paperclip-shell` rootfs to compare against**
 
 ```bash
 ls /tmp/agent-images/paperclip-shell/rootfs/usr/local/lib/paperclip-shell/
@@ -52,7 +52,7 @@ cat /tmp/agent-images/paperclip-shell/Dockerfile
 
 ### Task 2: Investigate upstream ruvocal Dockerfile
 
-- [ ] **Step 1: Clone upstream ruvnet/ruflo at HEAD and read the ruvocal Dockerfile**
+- [x] **Step 1: Clone upstream ruvnet/ruflo at HEAD and read the ruvocal Dockerfile**
 
 ```bash
 gh repo clone ruvnet/ruflo /tmp/ruflo && cd /tmp/ruflo
@@ -62,7 +62,7 @@ cat src/ruvocal/Dockerfile
 
   Capture: base image, default `CMD`/`ENTRYPOINT`, exposed port, workspace path, expected env vars (`MONGO_URL` / `MONGODB_URI` / similar), whether `INCLUDE_DB=false` is honored or always installs Mongo.
 
-- [ ] **Step 2: Decide build path** — record the decision in this plan's Deployment Notes:
+- [x] **Step 2: Decide build path** — record the decision in this plan's Deployment Notes:
 
   - **(a) Direct vendor build:** if `src/ruvocal/Dockerfile` cleanly accepts `INCLUDE_DB=false` (no Mongo install steps run), our `ruflo-server/Dockerfile` is just `FROM ruvocal:built ...` or replicates upstream with a pinned base. Cleanest.
   - **(b) Thin wrapper:** if `INCLUDE_DB=false` is broken/unhonored, our Dockerfile copies upstream's `src/ruvocal/` and builds it ourselves, skipping Mongo install layers.
@@ -71,7 +71,7 @@ cat src/ruvocal/Dockerfile
 
 ### Task 3: Add `ruflo-server/` directory
 
-- [ ] **Step 1: Create directory layout**
+- [x] **Step 1: Create directory layout**
 
 ```
 agent-images/ruflo-server/
@@ -79,7 +79,7 @@ agent-images/ruflo-server/
 └── README.md
 ```
 
-- [ ] **Step 2: Write the Dockerfile** (use BEGIN/END markers because the file pins an upstream SHA inline)
+- [x] **Step 2: Write the Dockerfile** (use BEGIN/END markers because the file pins an upstream SHA inline)
 
 ```
 BEGIN ruflo-server/Dockerfile
@@ -111,13 +111,13 @@ END ruflo-server/Dockerfile
 
   This is **option (b) thin-wrapper** as the default — replace with option (a) if Task 2 Step 2 chose differently. Specifically: if upstream's Dockerfile builds cleanly with `INCLUDE_DB=false`, replace the FROM/build steps above with a `FROM` against the upstream-built image plus a thin layer for tini and uid 1000. The exact CMD / EXPOSE / WORKDIR values come from Task 2 Step 1 — substitute the actual values, do not leave the placeholders.
 
-- [ ] **Step 3: Write `ruflo-server/README.md`**
+- [x] **Step 3: Write `ruflo-server/README.md`**
 
   One page: image purpose, the `RUFLO_GIT_REF` build arg, expected runtime env vars (`MONGO_URL`, `OPENROUTER_API_KEY`, `EMAIL_RESEND_API_KEY`, `LITELLM_BASE_URL`), the workspace mount path, link back to this plan and the spec.
 
 ### Task 4: Add `ruflo-shell/` directory (clone of `paperclip-shell` with three diffs)
 
-- [ ] **Step 1: Copy `paperclip-shell/` to `ruflo-shell/` as a starting point**
+- [x] **Step 1: Copy `paperclip-shell/` to `ruflo-shell/` as a starting point**
 
 ```bash
 cd /tmp/agent-images
@@ -133,7 +133,7 @@ mv ruflo-shell/rootfs/usr/local/lib/paperclip-shell ruflo-shell/rootfs/usr/local
 grep -rn paperclip ruflo-shell/   # should return zero matches; ruflo-shell is independent of paperclip
 ```
 
-- [ ] **Step 2: Adjust `ruflo-shell/Dockerfile`** — add `@anthropic-ai/claude-code` to Layer-1 baked-in tools (the operator wants `claude` available immediately from the shell, before the inventory has been populated)
+- [x] **Step 2: Adjust `ruflo-shell/Dockerfile`** — add `@anthropic-ai/claude-code` to Layer-1 baked-in tools (the operator wants `claude` available immediately from the shell, before the inventory has been populated)
 
   Edit `ruflo-shell/Dockerfile` so the `RUN install-base-runtimes.sh` line is followed by:
 
@@ -145,7 +145,7 @@ RUN /usr/local/lib/ruflo-shell/install-base-runtimes.sh \
 
   (Order matters: `install-base-runtimes.sh` brings in mise/rustup/pipx, so npm is already available via the system Node from agent-shell-base. Confirm in Task 1 Step 1 that agent-shell-base provides system `node`/`npm`. If not, the npm-global install fits more cleanly inside `install-base-runtimes.sh` itself.)
 
-- [ ] **Step 3: Adjust `/etc/skel/.bashrc`** to export `LITELLM_BASE_URL` and the operator-facing banner
+- [x] **Step 3: Adjust `/etc/skel/.bashrc`** to export `LITELLM_BASE_URL` and the operator-facing banner
 
 ```
 BEGIN ruflo-shell/rootfs/etc/skel/.bashrc-ruflo
@@ -168,17 +168,17 @@ END ruflo-shell/rootfs/etc/skel/.bashrc-ruflo
 
   Append `[ -f ~/.bashrc-ruflo ] && source ~/.bashrc-ruflo` to the existing `/etc/skel/.bashrc` (do not overwrite — it likely contains tmux/mise/cargo PATH wiring inherited from agent-shell-base or paperclip-shell).
 
-- [ ] **Step 4: Verify `notify-telegram.sh` references `ruflo-shell`** in its alert title and `kubectl logs` hint (the sed in Task 4 Step 1 should have caught this; confirm by reading the file).
+- [x] **Step 4: Verify `notify-telegram.sh` references `ruflo-shell`** in its alert title and `kubectl logs` hint (the sed in Task 4 Step 1 should have caught this; confirm by reading the file).
 
-- [ ] **Step 5: Update `ruflo-shell/README.md`** — same shape as paperclip-shell's README but pointing at this plan and noting the `claude-flow` is *not* baked in (it lives in the inventory, where it can be bumped without rebuilding the image).
+- [x] **Step 5: Update `ruflo-shell/README.md`** — same shape as paperclip-shell's README but pointing at this plan and noting the `claude-flow` is *not* baked in (it lives in the inventory, where it can be bumped without rebuilding the image).
 
 ### Task 5: Add CI matrix entries + smoke tests
 
-- [ ] **Step 1: Add `ruflo-server` to the build matrix** in `.github/workflows/build.yaml` (or whatever the agent-images CI workflow is named) alongside `secure-agent-kali`, `vk-local`, and `paperclip-shell`. Build pushes to `ghcr.io/derio-net/ruflo-server:<sha>`.
+- [x] **Step 1: Add `ruflo-server` to the build matrix** in `.github/workflows/build.yaml` (or whatever the agent-images CI workflow is named) alongside `secure-agent-kali`, `vk-local`, and `paperclip-shell`. Build pushes to `ghcr.io/derio-net/ruflo-server:<sha>`.
 
-- [ ] **Step 2: Add `ruflo-shell` to the same build matrix.** Build pushes to `ghcr.io/derio-net/ruflo-shell:<sha>`.
+- [x] **Step 2: Add `ruflo-shell` to the same build matrix.** Build pushes to `ghcr.io/derio-net/ruflo-shell:<sha>`.
 
-- [ ] **Step 3: Add smoke test for `ruflo-shell`** mirroring paperclip-shell:
+- [x] **Step 3: Add smoke test for `ruflo-shell`** mirroring paperclip-shell:
 
 ```bash
 docker run --rm --user 1000:1000 \
@@ -197,7 +197,7 @@ docker run --rm --user 1000:1000 \
 
   Also assert: `mise --version`, `pipx --version`, `rustup --version`, `claude --version`, `ruflo-shell-reconcile` (with empty inventory mount) all succeed.
 
-- [ ] **Step 4: Add smoke test for `ruflo-server`** — boot the container against a transient mongo and curl the healthcheck:
+- [x] **Step 4: Add smoke test for `ruflo-server`** — boot the container against a transient mongo and curl the healthcheck:
 
 ```bash
 docker network create ruflo-test-net
@@ -221,7 +221,7 @@ docker network rm ruflo-test-net
 
 ### Task 6: Open PR, review, merge
 
-- [ ] **Step 1: Open PR titled `feat: add ruflo-server and ruflo-shell images`** with body linking to this plan. Wait for CI green on both images' smoke tests.
+- [x] **Step 1: Open PR titled `feat: add ruflo-server and ruflo-shell images`** with body linking to this plan. Wait for CI green on both images' smoke tests.
 
 - [ ] **Step 2: Capture both merged image SHAs** — record in this plan's *Deployment Notes* as:
 
@@ -1062,3 +1062,9 @@ Confirms each canonical step happened or was rationally skipped.
 
 | Date | Phase | Note |
 |------|-------|------|
+| 2026-05-02 | P1.T1 | `agent-shell-base` confirmed: defaults `AGENT_USER=agent`, `AGENT_HOME=/home/agent`, UID/GID 1000, sshd port 2222, MOTD via `/etc/profile.d` (UsePAM=no). `chown -R /run /var/run` to agent UID present (line 70). `#!/command/with-contenv bash` shebang convention confirmed in `40-skel`. agent-base already installs `@anthropic-ai/claude-code` globally — ruflo-shell's npm install -g of it is a redundant pin/upgrade, kept to make intent explicit. |
+| 2026-05-02 | P1.T2 | Upstream pinned: `ruvnet/ruflo` SHA `9b169814849b75bdee4b75e7d3d85a0db567802d`. Path correction: Dockerfile is at `ruflo/src/ruvocal/Dockerfile` (one extra `ruflo/` prefix vs the plan). Base `node:24-slim`, builder `node:24`, port `3000` hardcoded in `entrypoint.sh`. `INCLUDE_DB=false` is honored cleanly via multi-stage `local_db_${INCLUDE_DB}` selector. **Major spec deviation: ruvocal now uses PostgreSQL** via `DATABASE_URL` and OpenAI-compatible inference via `OPENAI_BASE_URL` (LiteLLM-compatible). MongoDB env vars are explicitly tagged "Legacy MongoDB vars (unused — kept for reference)" in upstream `.env`. **Phase 2 must replace `apps/ruflo-db/` Mongo plan with Postgres** (e.g., CloudNativePG cluster) and inject `DATABASE_URL` instead of `MONGO_URL`. Phase 1 image build is unaffected. |
+| 2026-05-02 | P1.T2 | **Build path decision: option (b) thin-wrapper.** Our Dockerfile clones upstream at the pinned SHA in a `node:24` `source` stage (uses `git init` + `git fetch --depth 1 <SHA>` to keep the layer tiny), builds in a `node:24` `builder` stage matching upstream, and assembles a `node:24-slim` `runtime` stage that omits the `local_db_true` Mongo install layer. Justification: option (a) (`FROM ruvocal:built`) requires CI to first build upstream's Dockerfile and then ours, harder to express in `docker/build-push-action`. The wrapper is self-contained and pin-stable. |
+| 2026-05-02 | P1 | **Phase 2 TODO from review:** Set `LITELLM_BASE_URL` explicitly on the `ruflo-shell` container's `env:` in `apps/ruflo/manifests/deployment.yaml`. The `/etc/profile.d/60-ruflo-shell-banner.sh` drop-in only exports the var for login shells (sshd `UsePAM=no` skips PAM); non-login non-interactive ssh sessions (e.g., `ssh agent@host -- claude …`) bypass it. Setting it on the container env is the single source of truth that works for all shells. |
+| 2026-05-02 | P1.T4 | `/etc/skel/.bashrc-ruflo` approach replaced with `/etc/profile.d/60-ruflo-shell-banner.sh` to match the existing 40-paths / 50-motd profile.d pattern in paperclip-shell. Same effect (banner + LITELLM_BASE_URL default), idiomatic for sshd UsePAM=no setup. |
+| 2026-05-02 | P1 | PR branch based on `feat/paperclip-shell` (PR derio-net/agent-images#46) so the ruflo-shell rootfs can ship alongside paperclip-shell without merge conflicts on `.github/workflows/build.yaml`. After PR #46 merges, this PR rebases cleanly onto main. |
