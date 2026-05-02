@@ -17,6 +17,7 @@
 ---
 
 ## Phase 1: Build `paperclip-shell` image (agent-images repo) [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/175 -->
 **Depends on:** —
 
 This phase ships a new container image based on `agent-shell-base` that adds Layer-1 runtime managers (`mise`, `rustup`, `pipx`), the `cont-init.d` inventory installer, and the Telegram notify helper. No frank-side changes here.
@@ -287,6 +288,7 @@ docker run --rm --user 1000:1000 \
 ---
 
 ## Phase 2: Frank manifests for sidecar [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/176 -->
 **Depends on:** Phase 1
 
 All work in this repo (`derio-net/frank`). Adds new resources without modifying the existing `paperclip` container spec.
@@ -497,6 +499,7 @@ kubectl -n argocd get application paperclip -o jsonpath='{.status.sync.status} {
 ---
 
 ## Phase 3: First-deploy validation [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/177 -->
 **Depends on:** Phase 2
 
 Confirms the sidecar deploys cleanly, paperclip is unaffected, and the alerting path works end-to-end.
@@ -611,6 +614,7 @@ curl -fsS -o /dev/null -w '%{http_code}\n' http://192.168.55.212:3100/
 ---
 
 ## Phase 4: Populate inventory and verify reconcile [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/178 -->
 **Depends on:** Phase 3
 
 Move from "the wiring works" to "the operator's day-to-day toolset is installed."
@@ -706,6 +710,7 @@ ssh agent@192.168.55.221 -- cargo install fd-find
 ---
 
 ## Phase 5: Documentation [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/179 -->
 **Depends on:** Phase 4
 
 ### Task 1: Update CLAUDE.md rules
@@ -743,6 +748,7 @@ ssh agent@192.168.55.221 -- cargo install fd-find
 ---
 
 ## Phase 6: Post-Deploy Checklist [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/180 -->
 **Depends on:** Phase 5
 
 This is a fix/extension plan, so most post-deploy steps are absorbed into Phase 5. This phase explicitly confirms the per-step disposition rather than skipping silently.
