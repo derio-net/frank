@@ -157,7 +157,9 @@ This phase is a pure agent-images change. It targets the ~900 MiB retained npm f
 
 ### Task 1: Decide cron host
 
-- [ ] **Step 1:** Inspect `kali`'s supercronic crontab and the PVC mount layout. The default placement is `kali`'s supercronic crontab, since it already runs scheduled work and shares the agent-home PVC with `vk-local`. Confirm by reading the kali Dockerfile / `crontab` content in agent-images.
+- [x] **Step 1:** Inspect `kali`'s supercronic crontab and the PVC mount layout. The default placement is `kali`'s supercronic crontab, since it already runs scheduled work and shares the agent-home PVC with `vk-local`. Confirm by reading the kali Dockerfile / `crontab` content in agent-images.
+
+  *Confirmed:* `kali/config-templates/crontab.txt` is seeded to `$AGENT_HOME/.crontab` via `etc/cont-init.d/50-seed-config`, supercronic is supervised by s6 (`agent-shell-base/etc/services.d/supercronic/run`), and both containers share the `agent-home` PVC mounted at `/home/claude`. No CronJob fallback needed.
 
   If supercronic is unavailable in `kali` for any reason, fall back to a Kubernetes `CronJob` in `apps/secure-agent-pod/manifests/cronjob-housekeeping.yaml` mounting the same PVC.
 
@@ -165,34 +167,11 @@ This phase is a pure agent-images change. It targets the ~900 MiB retained npm f
 
 This work happens in [`derio-net/agent-images`](https://github.com/derio-net/agent-images), not this repo. Open a PR there with the following two cron entries.
 
-- [ ] **Step 1: npm cache prune cron**
+- [x] **Step 1: npm cache prune cron** — shipped as [`kali/scripts/npm-cache-prune.sh`](https://github.com/derio-net/agent-images/blob/agents/vk-local-housekeeping-crons/kali/scripts/npm-cache-prune.sh). Crontab line: `0 4 * * 0 /opt/scripts/npm-cache-prune.sh >> __AGENT_HOME__/.willikins-agent/npm-cache-prune.log 2>&1`.
 
-  Weekly (`0 4 * * 0` — Sunday 04:00 UTC). Command:
+- [x] **Step 2: Worktree prune cron** — shipped as [`kali/scripts/worktree-prune.sh`](https://github.com/derio-net/agent-images/blob/agents/vk-local-housekeeping-crons/kali/scripts/worktree-prune.sh). Iterates `$AGENT_HOME/repos/*/.git` (the canonical repo root on Frank — vibe-kanban worktrees under `/var/tmp/vibe-kanban/worktrees/` link back via gitdir files). Crontab line: `30 4 * * * /opt/scripts/worktree-prune.sh >> __AGENT_HOME__/.willikins-agent/worktree-prune.log 2>&1`.
 
-```sh
-# Remove tarballs older than 7 days. `npm cache verify` reaps stale entries
-# and reports size. Do not blow away the entire cache; that would re-pay
-# download cost on every active session.
-find /home/claude/.npm/_cacache -type f -atime +7 -delete 2>/dev/null
-HOME=/home/claude npm cache verify >/var/log/agent/npm-cache-verify.log 2>&1
-```
-
-- [ ] **Step 2: Worktree prune cron**
-
-  Daily (`30 4 * * *` — 04:30 UTC). Command:
-
-```sh
-# vibe-kanban creates worktrees under ~/vibe-kanban/worktrees/. Each tracked
-# repo (project_dir under the workspace) has its own worktree set. Prune
-# administrative metadata for already-deleted worktrees.
-for repo in $(find /home/claude/vibe-kanban/repos -maxdepth 2 -type d -name '.git' -prune); do
-  git --git-dir="$repo" worktree prune -v
-done >/var/log/agent/worktree-prune.log 2>&1
-```
-
-> **Note:** The exact path `~/vibe-kanban/repos` is a placeholder — confirm the actual workspace root from vibe-kanban's config before merging. The path is whatever `--workspace-root` resolves to at runtime; `find` falls through gracefully if it doesn't exist.
-
-- [ ] **Step 3: Open PR in agent-images** with both cron entries plus a brief reference back to this plan and to [`agent-images:kali/docs/findings/2026-04-22-vk-local-memory-profile.md`](https://github.com/derio-net/agent-images/blob/main/kali/docs/findings/2026-04-22-vk-local-memory-profile.md).
+- [x] **Step 3: Open PR in agent-images** — [`derio-net/agent-images#34`](https://github.com/derio-net/agent-images/pull/34).
 
 ### Task 3: Image-bumper picks up the new SHA
 
@@ -204,7 +183,8 @@ done >/var/log/agent/worktree-prune.log 2>&1
 
 ```bash
 kubectl -n secure-agent-pod exec -c kali deploy/secure-agent-pod -- \
-  ls -la /var/log/agent/npm-cache-verify.log /var/log/agent/worktree-prune.log
+  ls -la /home/claude/.willikins-agent/npm-cache-prune.log \
+         /home/claude/.willikins-agent/worktree-prune.log
 ```
 
 - [ ] **Step 2 (verify metric — depends on Phase 2):** Once Phase 2 is complete, query
@@ -409,6 +389,15 @@ This is a fix/extension plan (per the Type at top), so most post-deploy steps ar
 The plan's Task 1 Step 4 instructed `kubectl top pod -l app=secure-agent-pod --containers`. The Kubernetes metrics API returned `error: Metrics API not available`. This is a confirming symptom of the cadvisor pipeline gap that Phase 2 was created to fix — the same five amd64 nodes (`mini-1/2/3`, `gpu-1`, `pc-1`) whose `container_memory_working_set_bytes` series are missing in VictoriaMetrics also have no flow into metrics-server. `vk-local`'s pod is on `gpu-1`, so `kubectl top` for it is silent end-to-end.
 
 Substituted: read `/sys/fs/cgroup/memory.current` and `memory.stat` directly from the vk-local cgroup via `kubectl exec`. Recorded in the Verification Log below.
+
+### Phase 3 — path corrections (2026-04-30)
+
+The plan's example commands used placeholder paths; the agent-images PR (`#34`) and follow-up PR (`#47`) ship the verified-on-Frank versions:
+
+- Worktree iteration root: plan said `/home/claude/vibe-kanban/repos` (placeholder). Actual canonical repo root is `$AGENT_HOME/repos/*/.git`. Vibe-kanban worktrees live under `/var/tmp/vibe-kanban/worktrees/` (tmpfs, wiped on pod restart) and link back via `.git` gitdir files.
+- Log destination: plan said `/var/log/agent/`. Actual log dir is `$AGENT_HOME/.willikins-agent/` (matches existing cron entries; `/var/log/agent` does not exist in the kali image).
+- Both crons use `__AGENT_HOME__` placeholder, substituted by `cont-init.d/50-seed-config` on first boot. Existing PVs (e.g. `secure-agent-pod`) keep the older crontab — same gotcha as the `~/.tmux.conf` seed pattern documented in `frank-gotchas.md`. Two new lines must be appended to the live `~/.crontab` once via `kubectl exec`; supercronic auto-reloads, no pod restart required.
+- Hardening added in #47 after code review: `flock` single-instance guard on both crons, atime/noatime probe with mtime fallback in npm-cache-prune, propagation of `npm cache verify` exit codes, and per-repo failure tracking in worktree-prune.
 
 ## Verification Log (Phase 1)
 
