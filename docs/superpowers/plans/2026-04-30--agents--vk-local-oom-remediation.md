@@ -347,21 +347,27 @@ Three follow-up items deferred from this plan. Filed as GitHub issues so they ap
 
 ### Task 1: File B2 tracking issue
 
-- [ ] **Step 1:** Open issue in `derio-net/frank` titled `agents: B2 — delegate vk-local child spawn to kali sibling cgroup`.
+- [x] **Step 1:** Open issue in `derio-net/frank` titled `agents: B2 — delegate vk-local child spawn to kali sibling cgroup`.
 
   Body: short summary of the architecture (sibling-container exec relay), the trigger conditions (B1 + housekeeping insufficient: cap=4 still drives ≥2 OOMKills/month, *or* explicit per-session OS-isolation requirement appears), and a link to this plan + the memprofile findings. Label `architecture`, `parked`.
 
+  **Filed:** [#160](https://github.com/derio-net/frank/issues/160).
+
 ### Task 2: File B3 tracking issue
 
-- [ ] **Step 1:** Open issue in `derio-net/frank` titled `agents: B3 — per-task Kubernetes Jobs for vibe-kanban executions`.
+- [x] **Step 1:** Open issue in `derio-net/frank` titled `agents: B3 — per-task Kubernetes Jobs for vibe-kanban executions`.
 
   Body: per-task pod isolation, suitable when sustained concurrency reaches ≥10 sessions or per-task GPU/network policy is needed. Trigger: B1 cap pushed to 8 and queue p99 > 1 sustained for 7 days. Link to this plan. Label `architecture`, `parked`.
 
+  **Filed:** [#161](https://github.com/derio-net/frank/issues/161).
+
 ### Task 3: File the R (regression cross-check) tracking issue
 
-- [ ] **Step 1:** Open issue in `derio-net/frank` titled `agents: investigate 9× OOM-rate escalation on vibe-kanban image dc414b4`.
+- [x] **Step 1:** Open issue in `derio-net/frank` titled `agents: investigate 9× OOM-rate escalation on vibe-kanban image dc414b4`.
 
   Body: cite the memprofile findings — Phase 1 image (`d3bbcd70…`) showed 6 kills/48h; Phase 2 retake on `dc414b4` showed 20 kills/17.4h with similar workload. Possible causes: workload variance, vibe-kanban regression, or measurement-window effect. Action: re-run the Phase 2 synthetic workload against both binaries with the Phase 2 cadvisor pipeline in place. Link to this plan + agent-images PR #21. Label `obs`, `agents`.
+
+  **Filed:** [#162](https://github.com/derio-net/frank/issues/162).
 
 ---
 
