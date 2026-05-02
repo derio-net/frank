@@ -302,3 +302,25 @@ data:
             name: VK Remote (cluster)
             provider: !KeyOf provider-vk-remote-cluster
             meta_launch_url: https://vk.cluster.derio.net
+
+      # Ruflo (cluster) proxy provider
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: Ruflo (cluster)
+        id: provider-ruflo-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://ruflo.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: ruflo-cluster
+        attrs:
+          name: Ruflo (cluster)
+          provider: !KeyOf provider-ruflo-cluster
+          meta_launch_url: https://ruflo.cluster.derio.net

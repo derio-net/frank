@@ -1,0 +1,45 @@
+# SSH + Mosh LoadBalancer for the ruflo-shell sidecar.
+# Mirrors the secure-agent-pod split-IP shape, but consolidated here onto
+# a single LB IP because the mosh UDP range (60016–60031) does not
+# overlap with secure-agent-pod's 60000–60015 — so we don't need
+# `lbipam.cilium.io/sharing-key` to share with another Service. The
+# spec assigns 192.168.55.222 (free at plan time; verify before deploy).
+#
+# mosh-server picks one UDP port from this range at session start.
+# Keep the range tight (16 ports) — combined with
+# MOSH_SERVER_NETWORK_TMOUT=3600 in deployment.yaml, stuck sessions reap
+# fast enough that exhaustion is implausible in practice.
+#
+# Client invocation:
+#   mosh --ssh="ssh agent@192.168.55.222" \
+#        --server="mosh-server new -p 60016:60031" 192.168.55.222
+apiVersion: v1
+kind: Service
+metadata:
+  name: ruflo-shell
+  namespace: ruflo-system
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.222"
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/name: ruflo
+    app.kubernetes.io/component: server
+  ports:
+    - { name: ssh,         port: 22,    targetPort: 2222,  protocol: TCP }
+    - { name: mosh-60016,  port: 60016, targetPort: 60016, protocol: UDP }
+    - { name: mosh-60017,  port: 60017, targetPort: 60017, protocol: UDP }
+    - { name: mosh-60018,  port: 60018, targetPort: 60018, protocol: UDP }
+    - { name: mosh-60019,  port: 60019, targetPort: 60019, protocol: UDP }
+    - { name: mosh-60020,  port: 60020, targetPort: 60020, protocol: UDP }
+    - { name: mosh-60021,  port: 60021, targetPort: 60021, protocol: UDP }
+    - { name: mosh-60022,  port: 60022, targetPort: 60022, protocol: UDP }
+    - { name: mosh-60023,  port: 60023, targetPort: 60023, protocol: UDP }
+    - { name: mosh-60024,  port: 60024, targetPort: 60024, protocol: UDP }
+    - { name: mosh-60025,  port: 60025, targetPort: 60025, protocol: UDP }
+    - { name: mosh-60026,  port: 60026, targetPort: 60026, protocol: UDP }
+    - { name: mosh-60027,  port: 60027, targetPort: 60027, protocol: UDP }
+    - { name: mosh-60028,  port: 60028, targetPort: 60028, protocol: UDP }
+    - { name: mosh-60029,  port: 60029, targetPort: 60029, protocol: UDP }
+    - { name: mosh-60030,  port: 60030, targetPort: 60030, protocol: UDP }
+    - { name: mosh-60031,  port: 60031, targetPort: 60031, protocol: UDP }

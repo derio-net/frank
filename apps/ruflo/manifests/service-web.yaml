@@ -1,0 +1,19 @@
+# ClusterIP fronting the ruvocal web UI on port 3000.
+# Traefik IngressRoute (apps/traefik/manifests/ingressroutes.yaml) targets
+# this Service to expose https://ruflo.cluster.derio.net behind
+# Authentik forward-auth.
+apiVersion: v1
+kind: Service
+metadata:
+  name: ruflo-web
+  namespace: ruflo-system
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ruflo
+    app.kubernetes.io/component: server
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+      protocol: TCP

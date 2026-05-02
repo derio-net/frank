@@ -88,3 +88,8 @@ data:
             href: https://vk.cluster.derio.net
             description: VibeKanban self-hosted kanban board
             siteMonitor: http://vk-remote.agents:8081
+        - Ruflo:
+            icon: mdi-account-group-outline
+            href: https://ruflo.cluster.derio.net
+            description: Ruvocal multi-agent orchestrator (claude-flow rebrand)
+            siteMonitor: http://ruflo-web.ruflo-system:80

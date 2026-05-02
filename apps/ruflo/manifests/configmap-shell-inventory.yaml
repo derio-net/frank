@@ -1,0 +1,25 @@
+# Layer-2 inventory for the ruflo-shell sidecar.
+# `cont-init.d` reconciles this against installed tools at boot, then
+# again whenever the file changes (supercronic watch).
+#
+# Phase 4 of the orch--ruflo-pod plan populates these arrays with the
+# ruflo-flavored toolchain. For the initial deploy we ship empty arrays
+# so the reconcile is a no-op and the pod boots cleanly.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ruflo-shell-inventory
+  namespace: ruflo-system
+data:
+  inventory.yaml: |
+    # Layer-2 declarations — installed at boot via cont-init.d.
+    # See docs/superpowers/specs/2026-05-02--orch--ruflo-pod-design.md
+    mise: []
+    npm-global: []
+    pipx: []
+    cargo: []
+    removed:
+      mise: []
+      npm-global: []
+      pipx: []
+      cargo: []

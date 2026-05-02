@@ -1,0 +1,15 @@
+# Persistent home dir for the ruflo-shell sidecar (UID 1000).
+# Mirrors secure-agent-pod's agent-home PVC pattern — keeps installed
+# tools, dotfiles, tmux state, mise/pipx caches across pod restarts.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ruflo-shell-home
+  namespace: ruflo-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi
