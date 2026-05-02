@@ -10,4 +10,9 @@ spec:
   podMetricsEndpoints:
     - port: vk-http
       path: /metrics
+      # Explicit `http` documents that the listener is plain HTTP on :8081.
+      # If the pod ever moves behind TLS termination, drop this line and add
+      # tlsConfig — without an explicit scheme the operator silently keeps
+      # scraping http and the series goes empty.
+      scheme: http
       interval: 30s
