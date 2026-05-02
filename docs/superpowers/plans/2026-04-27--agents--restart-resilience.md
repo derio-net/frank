@@ -524,9 +524,19 @@ s6-overlay-suexec: fatal: child failed with exit code 100
 
 **Why CI didn't catch it:** the smoke test added in `agent-images` PR #40 (`smoke-test-vk-local`) only exercises vk-local — which has no s6 supervisor — and uses `--entrypoint /bin/sh` to bypass `/init`. The kali path therefore never ran under K8s-equivalent constraints in CI; the missing chown surfaced only on live deploy.
 
-**Fix:** `agent-images` PR #41 (`fix(agent-shell-base): chown /run for s6-overlay non-root preinit`):
+**Fix (three sequential PRs in `agent-images`, each unmasked by the previous one):**
 
-- `agent-shell-base/Dockerfile`: `chown -R ${AGENT_UID}:${AGENT_GID} /run /var/run` (covers `/run` itself and all subdirectories).
-- `.github/workflows/build.yaml`: add `smoke-test-secure-agent-kali` job that boots `/init` under `--user 1000:1000 --cap-drop=ALL --security-opt=no-new-privileges` and waits for `s6-svstat /run/service/sshd` to report `up`. Regression test for this exact failure mode.
+1. **PR #41 — `fix(agent-shell-base): chown /run for s6-overlay non-root preinit`** — addresses the root cause above.
+   - `agent-shell-base/Dockerfile`: `chown -R ${AGENT_UID}:${AGENT_GID} /run /var/run` (covers `/run` itself and all subdirectories).
+   - `.github/workflows/build.yaml`: add `smoke-test-secure-agent-kali` job that boots `/init` under `--user 1000:1000 --cap-drop=ALL --security-opt=no-new-privileges` and waits for `s6-svstat /run/service/sshd` to report `up`.
 
-**Outcome:** Cluster left in `CrashLoopBackOff` while waiting for the proper image-side fix (operator chose this over a rollback). After PR #41 merges, the bumper opens a new chore PR in frank; once that syncs, the kali container returns to `Running`. Gotcha appended to `.claude/rules/frank-gotchas.md` covering the s6-overlay non-root `/run` chown requirement and the CI securityContext gap.
+2. **PR #42 — `fix(agent-shell-base): with-contenv shebang must be /command/with-contenv`** — uncovered immediately by #41's new smoke test. Every cont-init.d / cont-finish.d / services.d script used `#!/usr/bin/with-contenv bash`, but s6-overlay v3 only installs `with-contenv` under `/command/` (not `/usr/bin/`), so all 12 supervised scripts exited 127 on the interpreter, dragging legacy-cont-init to "unable to start" and a fatal `rc.init: stopping the container`. Latent since the Phase 3 migration; masked by #41's preinit failure. Fixed all 12 files to `#!/command/with-contenv bash`.
+
+3. **PR #43 — `fix(ci): smoke-test must call s6-svstat by full /command/ path`** — uncovered after #42 made the supervisor actually start. The smoke test's `docker exec kali-smoke s6-svstat …` was failing silently with ENOENT (`/command/` not on agent-base PATH; `2>/dev/null` suppressed the error), so the 30s loop never matched even though sshd and supercronic were healthy. Switched to `/command/s6-svstat` so the regression net actually closes.
+
+**Outcome:** Cluster recovered when `frank` PR #168 (auto-bumper to `c804fab75ba1a4f71fe8b597f3d6e9d08d862e43`) synced. New pod `secure-agent-pod-56874b8f5d-*`, 0 restarts; `s6-svstat` reports `sshd: up` and `supercronic: up`. Gotchas appended to `.claude/rules/frank-gotchas.md` covering both the `/run` chown requirement and the `with-contenv` shebang path. **Resolved.**
+
+**Lessons recorded for future s6-overlay-style migrations:**
+- A new image lineage with a new init system (s6-overlay vs. tini) MUST get its own end-to-end smoke test exercising `/init` under K8s-equivalent securityContext (`--cap-drop=ALL --security-opt=no-new-privileges`) before being promoted by an auto-bumper. The vk-local-only smoke test predating Phase 3 was structurally unable to catch any kali-side regression.
+- Latent bugs stack. The `/run` chown failure masked the shebang failure, which masked the smoke-test-path failure. Each fix unblocked the next. Plan for two-to-three iterations when reviving an image chain that's been broken for a while.
+- `2>/dev/null` in smoke tests should be used surgically. Suppressing all stderr around a probe converts a "command not found" into a successful "wait longer" — exactly the wrong behavior.
