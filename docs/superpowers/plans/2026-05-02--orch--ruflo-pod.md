@@ -17,6 +17,7 @@
 ---
 
 ## Phase 1: Build `ruflo-server` and `ruflo-shell` images (agent-images repo) [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/182 -->
 **Depends on:** —
 
 This phase ships two new container images. `ruflo-server` is a thin build from the upstream ruvocal Dockerfile. `ruflo-shell` is a near-clone of the just-shipped `paperclip-shell` image — same `agent-shell-base` lineage, same inventory installer pattern, different Layer-1 baked tools and slightly different rootfs metadata. Both ship in one PR with one CI run.
@@ -235,6 +236,7 @@ ghcr.io/derio-net/ruflo-shell:<sha>
 ---
 
 ## Phase 2: Frank manifests for ruflo + ruflo-db [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/183 -->
 **Depends on:** Phase 1
 
 All work in this repo (`derio-net/frank`). One PR, one ArgoCD sync. Adds two ArgoCD apps (`ruflo-db` synced first, then `ruflo`), ingress, Authentik blueprint, and homepage tile.
@@ -650,6 +652,7 @@ kubectl -n argocd get application ruflo    -o jsonpath='{.status.sync.status} {.
 ---
 
 ## Phase 3: First-deploy validation [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/184 -->
 **Depends on:** Phase 2
 
 Confirms ruflo-db is healthy, both ruflo containers come up, the Authentik wiring is complete (after the manual outpost step), SSH/Mosh work from the laptop, and the Telegram alert path fires on induced failure.
@@ -865,6 +868,7 @@ kubectl -n ruflo-system exec -c ruflo deploy/ruflo -- bash -c 'curl -fsS -o /dev
 ---
 
 ## Phase 4: Populate inventory and verify reconcile [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/185 -->
 **Depends on:** Phase 3
 
 Move from "the wiring works" to "the operator's day-to-day toolset is installed." `claude-flow` is the headliner — that's the actual reason this pod exists.
@@ -970,6 +974,7 @@ ssh agent@192.168.55.222 -- cargo install fd-find
 ---
 
 ## Phase 5: Documentation [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/186 -->
 **Depends on:** Phase 4
 
 This is a **new layer** (sibling to Paperclip in `orch`), so it gets new building + operating blog posts and a roadmap update — not appendices to existing posts.
@@ -1037,6 +1042,7 @@ This is a **new layer** (sibling to Paperclip in `orch`), so it gets new buildin
 ---
 
 ## Phase 6: Post-Deploy Checklist [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/187 -->
 **Depends on:** Phase 5
 
 Confirms each canonical step happened or was rationally skipped.
