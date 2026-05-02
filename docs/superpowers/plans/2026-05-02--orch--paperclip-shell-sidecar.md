@@ -26,7 +26,7 @@ This phase ships a new container image based on `agent-shell-base` that adds Lay
 
 Before writing the Dockerfile, confirm the parent image's defaults so we don't override unnecessarily.
 
-- [ ] **Step 1: Read agent-shell-base Dockerfile and rootfs layout**
+- [x] **Step 1: Read agent-shell-base Dockerfile and rootfs layout**
 
 ```bash
 gh repo clone derio-net/agent-images /tmp/agent-images && cd /tmp/agent-images
@@ -37,13 +37,13 @@ ls agent-shell-base/rootfs/etc/skel/ 2>/dev/null
 
   Capture: default `AGENT_USER` / `AGENT_HOME` build args, sshd port, where MOTD plumbing lives, whether PAM `motd.dynamic` is wired up. The new image relies on inheriting all of these unchanged.
 
-- [ ] **Step 2: Confirm the s6-overlay non-root-mode fix has landed**
+- [x] **Step 2: Confirm the s6-overlay non-root-mode fix has landed**
 
   Check `agent-shell-base/Dockerfile` for `chown -R ${AGENT_UID}:${AGENT_GID} /run /var/run` (per gotcha line 91) and the `with-contenv` shebang fix (observation 2469-2472). If either is still in flight, block this phase on the relevant agent-images PR; do not work around it locally.
 
 ### Task 2: Add `paperclip-shell/` directory
 
-- [ ] **Step 1: Create directory layout**
+- [x] **Step 1: Create directory layout**
 
 ```
 agent-images/paperclip-shell/
@@ -58,7 +58,7 @@ agent-images/paperclip-shell/
         └── lib.sh                          # shared helpers (logging, motd write)
 ```
 
-- [ ] **Step 2: Write the Dockerfile** (use BEGIN/END markers because the file embeds shell scripts)
+- [x] **Step 2: Write the Dockerfile** (use BEGIN/END markers because the file embeds shell scripts)
 
 ```
 BEGIN paperclip-shell/Dockerfile
@@ -83,7 +83,7 @@ USER ${AGENT_USER}
 END paperclip-shell/Dockerfile
 ```
 
-- [ ] **Step 3: Write `install-base-runtimes.sh`** — installs the *managers* (slow-changing, image-baked)
+- [x] **Step 3: Write `install-base-runtimes.sh`** — installs the *managers* (slow-changing, image-baked)
 
 ```
 BEGIN paperclip-shell/rootfs/usr/local/lib/paperclip-shell/install-base-runtimes.sh
@@ -107,7 +107,7 @@ rm -rf /var/lib/apt/lists/*
 END paperclip-shell/rootfs/usr/local/lib/paperclip-shell/install-base-runtimes.sh
 ```
 
-- [ ] **Step 4: Write `install-inventory.sh`** — the heart of Layer 2; idempotent, fail-open, fires Telegram on failure
+- [x] **Step 4: Write `install-inventory.sh`** — the heart of Layer 2; idempotent, fail-open, fires Telegram on failure
 
 ```
 BEGIN paperclip-shell/rootfs/usr/local/lib/paperclip-shell/install-inventory.sh
@@ -213,7 +213,7 @@ exit 0  # always succeed — fail-open
 END paperclip-shell/rootfs/usr/local/lib/paperclip-shell/install-inventory.sh
 ```
 
-- [ ] **Step 5: Write `notify-telegram.sh`** — token + chat_id from env (mounted Secret); fail-silent if env missing
+- [x] **Step 5: Write `notify-telegram.sh`** — token + chat_id from env (mounted Secret); fail-silent if env missing
 
 ```
 BEGIN paperclip-shell/rootfs/usr/local/lib/paperclip-shell/notify-telegram.sh
@@ -239,7 +239,7 @@ curl -fsS --max-time 10 \
 END paperclip-shell/rootfs/usr/local/lib/paperclip-shell/notify-telegram.sh
 ```
 
-- [ ] **Step 6: Write `cont-init.d/40-shell-inventory`** — the s6 hook
+- [x] **Step 6: Write `cont-init.d/40-shell-inventory`** — the s6 hook
 
 ```
 BEGIN paperclip-shell/rootfs/etc/cont-init.d/40-shell-inventory
@@ -248,19 +248,19 @@ exec /usr/local/lib/paperclip-shell/install-inventory.sh
 END paperclip-shell/rootfs/etc/cont-init.d/40-shell-inventory
 ```
 
-- [ ] **Step 7: Add MOTD drop-in plumbing**
+- [x] **Step 7: Add MOTD drop-in plumbing**
 
   If `agent-shell-base` already wires `pam_motd` with `motd.dynamic`, drop a script that prints `/var/lib/paperclip-shell/last-reconcile.motd`. If not, add `/etc/update-motd.d/50-paperclip-shell` and ensure sshd is configured to print dynamic motd. Verify with the parent image's existing motd plumbing identified in Task 1, Step 1.
 
-- [ ] **Step 8: Write `paperclip-shell/README.md`**
+- [x] **Step 8: Write `paperclip-shell/README.md`**
 
   One-page summary: image purpose, build args, where the inventory ConfigMap lands, how to invoke `paperclip-shell-reconcile`, link back to this plan.
 
 ### Task 3: Add CI matrix entry + smoke test
 
-- [ ] **Step 1: Add `paperclip-shell` to the build matrix** in `.github/workflows/build.yaml` (or whatever the agent-images CI workflow is named) alongside `secure-agent-kali` and `vk-local`. Build pushes to `ghcr.io/derio-net/paperclip-shell:<sha>`.
+- [x] **Step 1: Add `paperclip-shell` to the build matrix** in `.github/workflows/build.yaml` (or whatever the agent-images CI workflow is named) alongside `secure-agent-kali` and `vk-local`. Build pushes to `ghcr.io/derio-net/paperclip-shell:<sha>`.
 
-- [ ] **Step 2: Add smoke test** mirroring secure-agent-kali, running `/init` under the same restricted security context Kubernetes will use:
+- [x] **Step 2: Add smoke test** mirroring secure-agent-kali, running `/init` under the same restricted security context Kubernetes will use:
 
 ```bash
 docker run --rm --user 1000:1000 \
@@ -281,7 +281,7 @@ docker run --rm --user 1000:1000 \
 
 ### Task 4: Open PR, review, merge
 
-- [ ] **Step 1: Open PR titled `feat: add paperclip-shell image`** with body linking to this plan. Wait for CI green.
+- [x] **Step 1: Open PR titled `feat: add paperclip-shell image`** with body linking to this plan. Wait for CI green.
 
 - [ ] **Step 2: Capture the merged commit SHA** — record in this plan's *Deployment Notes* as `agent-images SHA: <sha>` and corresponding tag `ghcr.io/derio-net/paperclip-shell:<sha>`. Phase 2 references this SHA.
 
@@ -768,3 +768,11 @@ This is a fix/extension plan, so most post-deploy steps are absorbed into Phase 
 
 | Date | Phase | Note |
 |------|-------|------|
+| 2026-05-02 | Phase 1 | `derio-net/agent-images` PR opened: https://github.com/derio-net/agent-images/pull/46 — adds `paperclip-shell/` directory, CI matrix entry, and smoke test. P1.T4.S2 (capturing the merged SHA + GHCR tag for Phase 2 to consume) deferred until that PR merges. |
+| 2026-05-02 | Phase 1 | Investigation findings: agent-shell-base defaults are `AGENT_USER=agent` / `AGENT_HOME=/home/agent` / UID,GID=1000 (inherited unchanged). The `/run` ownership fix and `with-contenv` shebang fix have already landed in `agent-shell-base/Dockerfile` (lines 69–70 and `/command/with-contenv` shebangs respectively), so no upstream blocker. |
+| 2026-05-02 | Phase 1 | Deviation from plan: sshd in `agent-shell-base` is configured with `UsePAM no` (sshd_config L7), so PAM `motd.dynamic` is not available. Implemented MOTD via `/etc/profile.d/50-paperclip-shell-motd.sh` instead — fires for both interactive ssh and `kubectl exec -it ... bash -l`. |
+| 2026-05-02 | Phase 1 | Deviation from plan: added `/etc/profile.d/40-paperclip-shell-paths.sh` (not in original plan) to wire mise shims, `~/.cargo/bin`, and `~/.local/bin` into the operator's PATH. The installer also prepends these dirs at reconcile-time so `npm`/`cargo` from a mise-installed runtime resolve correctly inside `cont-init.d` boot context. |
+| 2026-05-02 | Phase 1 | Deviation from plan: `install-base-runtimes.sh` was extended with the apt build deps (`build-essential`, `pkg-config`, `libssl-dev`, `python3`, `python3-yaml`, `pipx`, `jq`) needed by the runtime managers and by `install-inventory.sh`'s YAML parsing. Original plan implicitly assumed these were already in the parent image; they aren't. The system Python is the load-bearing one for inventory parsing — at `cont-init.d` boot time mise shims are not yet on PATH for the script's own environment, and parsing must keep working before any mise-managed runtimes land on the PV. |
+| 2026-05-02 | Phase 1 | Deviation from plan: `install-inventory.sh` uses `mise where "$tool"` rather than the plan's `mise ls "$tool" \| grep`. `mise where` returns 0 when a matching version family is installed (incl. when the operator did `mise install python@3.12.4` interactively and the inventory says `python@3.12`); `mise ls` would require parsing. Cleaner idempotency + closer to mise's intended public API. |
+| 2026-05-02 | Phase 1 | Deviation from plan: investigation evidence was that `agent-shell-base` ships **no** `/etc/profile.d/` additions and **no** PAM motd configuration today (`sshd_config` L7 sets `UsePAM no`; `etc/skel/` only contains `.tmux.conf`). `paperclip-shell` is the first image in this lineage to add either, so there is no inherited motd convention to reuse — the `/etc/profile.d/50-paperclip-shell-motd.sh` decision is the new convention for now. |
+| 2026-05-02 | Phase 1 | Post-review corrections (commit `64e5a42`, agent-images PR #46): pre-create `/var/log/cont-init.d` and `/var/lib/paperclip-shell` owned by AGENT_UID at image-build time (without this the installer's `tee` + MOTD write fail silently under K8s `cap-drop=ALL` / `runAsUser: 1000`); drop dead `RUSTUP_HOME=/usr/local/lib/rustup` in favour of per-user `~/.rustup` initialisation; harden `run()` rc capture; switch `cargo install --list` parsing to a whitespace-strip pipeline; drop trailing blank line in Telegram body via `printf` instead of HEREDOC. |
