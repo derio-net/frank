@@ -40,11 +40,11 @@ NAME                                                   STATUS   VOLUME          
 persistentvolumeclaim/data-paperclip-db-postgresql-0   Bound    pvc-1929c98e-6a59-4eec-8c41-353833f43dec   5Gi        RWO            longhorn       <unset>                 37d
 persistentvolumeclaim/paperclip-data                   Bound    pvc-1ded449d-e2bc-4e38-b7c9-c5d5ee264294   2Gi        RWO            longhorn       <unset>                 37d
 
-NAME                                                     STORETYPE            STORE       REFRESH INTERVAL   STATUS         READY
-externalsecret.external-secrets.io/paperclip-anthropic   ClusterSecretStore   infisical   5m                 SecretSynced   True
-externalsecret.external-secrets.io/paperclip-auth        ClusterSecretStore   infisical   5m                 SecretSynced   True
-externalsecret.external-secrets.io/paperclip-ghcr        ClusterSecretStore   infisical   5m                 SecretSynced   True
-externalsecret.external-secrets.io/paperclip-llm-key     ClusterSecretStore   infisical   5m                 SecretSynced   True
+NAME                                                   STORETYPE            STORE       REFRESH INTERVAL   STATUS         READY
+externalsecret.external-secrets.io/paperclip-auth      ClusterSecretStore   infisical   5m                 SecretSynced   True
+externalsecret.external-secrets.io/paperclip-brave     ClusterSecretStore   infisical   5m                 SecretSynced   True
+externalsecret.external-secrets.io/paperclip-llm-key   ClusterSecretStore   infisical   5m                 SecretSynced   True
+externalsecret.external-secrets.io/paperclip-resend    ClusterSecretStore   infisical   5m                 SecretSynced   True
 ```
 
 ## Observing State
@@ -94,8 +94,10 @@ kubectl describe externalsecret paperclip-llm-key -n paperclip-system
 Four ExternalSecrets exist:
 - `paperclip-llm-key` — OPENAI_API_KEY and OPENAI_BASE_URL (points to LiteLLM)
 - `paperclip-auth` — BETTER_AUTH_SECRET for session signing
-- `paperclip-anthropic` — ANTHROPIC_API_KEY (optional, marked `optional: true`)
-- `paperclip-ghcr` — Image pull credentials for ghcr.io
+- `paperclip-brave` — BRAVE_API_KEY for agent web-search tools (optional, marked `optional: true`); sourced from Infisical key `BRAVE_SEARCH_KEY_PAPERCLIP` and remapped to the standard `BRAVE_API_KEY` env var
+- `paperclip-resend` — RESEND_API_KEY for agent transactional email (optional, marked `optional: true`); sourced from Infisical key `EMAIL_RESEND_API_KEY` and remapped to the standard `RESEND_API_KEY` env var the Resend SDK and MCP server expect
+
+Earlier deployments included `paperclip-anthropic` (`ANTHROPIC_API_KEY` for the `claude_local` adapter) and `paperclip-ghcr` (`.dockerconfigjson` for pulling our custom image from GHCR). Both were retired when Paperclip switched to the upstream public image and stopped using the `claude_local` adapter — see the building-side post for the full history.
 
 ## Common Operations
 
@@ -115,16 +117,16 @@ Expect a brief gap (10-30s) where Paperclip is unavailable while the old pod ter
 
 ### Updating the Image
 
-Paperclip uses a custom-built image pushed to GHCR. To deploy a new version:
+Paperclip runs the upstream public image. Upstream only publishes `latest` (master HEAD) and `sha-<short>` tags — no semver image tags — so we pin a specific `sha-<short>` build that maps to a known git tag. To deploy a new version:
 
 ```bash
-# Update the image tag
-kubectl set image deployment/paperclip \
-  paperclip=ghcr.io/derio-net/paperclip:v2026.325.0-derio.2 \
-  -n paperclip-system
+# Update the image tag (preferred: edit the manifest and let ArgoCD sync)
+# apps/paperclip/manifests/deployment.yaml → image: ghcr.io/paperclipai/paperclip:sha-<short>
 
-# Or edit the manifest and let ArgoCD sync
-# apps/paperclip/manifests/deployment.yaml → image tag
+# Imperative alternative (will drift from Git until the manifest catches up):
+kubectl set image deployment/paperclip \
+  paperclip=ghcr.io/paperclipai/paperclip:sha-<short> \
+  -n paperclip-system
 ```
 
 ### Database Backup and Restore
@@ -197,10 +199,10 @@ kubectl get ciliumpoolipaddress -A | grep 192.168.55.212
 
 - **PostgreSQL image uses GCR mirror.** Bitnami no longer serves named tags on Docker Hub. The chart uses `mirror.gcr.io/bitnamilegacy/*` images. If the mirror goes down, you'll need to find another source for the `14.1.10-debian-11-r16` tag.
 
-- **Optional Anthropic secret.** `paperclip-anthropic` ExternalSecret is marked `optional: true`. If the key doesn't exist in Infisical, the pod starts fine without it — Paperclip falls back to LiteLLM for all model access.
+- **Optional feature secrets.** `paperclip-brave` (Brave Search) and `paperclip-resend` (Resend transactional email) are both marked `optional: true` on their `secretRef` entries. If `BRAVE_SEARCH_KEY_PAPERCLIP` or `EMAIL_RESEND_API_KEY` doesn't exist in Infisical, the pod starts fine without that key — agents that don't invoke the corresponding tool are unaffected. The same `optional: true` pattern previously protected the now-retired `paperclip-anthropic` secret from blocking rollouts when its Infisical entry was missing; new optional feature secrets should follow the same convention.
 
 ## References
 
-- [Paperclip GitHub](https://github.com/derio-net/paperclip) — Source repository
+- [Paperclip GitHub](https://github.com/paperclipai/paperclip) — Upstream source repository
 - [Building Post: Paperclip]({{< relref "/docs/building/15-paperclip" >}}) — Architecture and deployment walkthrough
 - [Operating on Progressive Delivery]({{< relref "/docs/operating/12-progressive-delivery" >}}) — Context on why Paperclip isn't a Rollout

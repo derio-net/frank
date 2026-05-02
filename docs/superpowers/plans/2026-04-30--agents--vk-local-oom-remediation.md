@@ -17,13 +17,14 @@
 ---
 
 ## Phase 1: Verify Option A in production [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/152 -->
 **Depends on:** —
 
 PR [#142](https://github.com/derio-net/frank/pull/142) raised the limit from 2 Gi to 8 Gi. This phase confirms the live deployment carries the new value, captures a baseline restart count, and starts the 30-day no-OOMKill clock that the success criterion depends on.
 
 ### Task 1: Confirm live limit and zero post-bump OOMKills
 
-- [ ] **Step 1: Verify live container spec**
+- [x] **Step 1: Verify live container spec**
 
 ```bash
 kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
@@ -31,7 +32,7 @@ kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
 # expect: 8Gi
 ```
 
-- [ ] **Step 2: Read restart count and last-termination reason**
+- [x] **Step 2: Read restart count and last-termination reason**
 
 ```bash
 kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
@@ -40,29 +41,25 @@ kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
 
   Expectation: `restartCount` is whatever it was at PR #142 merge time and has not advanced since. `lastReason` should not be `OOMKilled` for any termination after PR #142's merge timestamp (`d9bc2ea` parent).
 
-- [ ] **Step 3: Inspect kubelet events for OOM since merge**
+- [x] **Step 3: Inspect kubelet events for OOM since merge**
 
 ```bash
 kubectl -n secure-agent-pod get events --sort-by=.lastTimestamp \
   | grep -i 'oom\|killed' || echo "no OOM events found"
 ```
 
-- [ ] **Step 4: Capture pre-cadvisor RSS baseline**
+- [x] **Step 4: Capture pre-cadvisor RSS baseline**
 
-```bash
-kubectl -n secure-agent-pod top pod -l app=secure-agent-pod --containers
-# record the vk-local row in the plan as the Phase 1 baseline reading
-```
-
-  Append the reading to this plan as a Deployment Notes row dated today.
+  `kubectl top` is unavailable (the metrics-server / cadvisor pipeline gap is what Phase 2 addresses). Fallback: read `/sys/fs/cgroup/memory.current` and `memory.stat` directly from the vk-local cgroup. See the Verification Log entry below.
 
 ### Task 2: Document the verification
 
-- [ ] **Step 1:** Add an entry to the `Verification Log (Phase 1)` section at the bottom of this plan with: timestamp, live limit value, current restart count, OOM events found (or none), and the `kubectl top` reading. This becomes the input to Phase 5's soak comparison.
+- [x] **Step 1:** Add an entry to the `Verification Log (Phase 1)` section at the bottom of this plan with: timestamp, live limit value, current restart count, OOM events found (or none), and the `kubectl top` reading. This becomes the input to Phase 5's soak comparison.
 
 ---
 
 ## Phase 2: Fix cadvisor metric pipeline for 5 nodes [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/153 -->
 **Depends on:** Phase 1
 
 The cadvisor `VMNodeScrape` reports all 7 nodes' targets healthy in vmagent, but `container_memory_working_set_bytes` series only persist for `raspi-1` and `raspi-2`. `count(scrape_samples_scraped{metrics_path="/metrics/cadvisor"}) by (node)` confirms the gap: 5 nodes (`mini-1`, `mini-2`, `mini-3`, `gpu-1`, `pc-1`) emit no samples through to vmsingle. Without this fix, Phase 5 cannot quantify the effect of housekeeping or B1.
@@ -151,9 +148,10 @@ kubectl -n monitoring exec vmagent-victoria-metrics-victoria-metrics-k8s-stack-*
 ---
 
 ## Phase 3: Housekeeping — npm cache + worktree prune [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/154 -->
 **Depends on:** —
 
-*(Can land in parallel with Phase 2.)*
+*(Can land in parallel with Phase 2 — no blocking phase.)*
 
 This phase is a pure agent-images change. It targets the ~900 MiB retained npm file-cache and the ~17 MiB/worktree heap residue identified in the memprofile findings. After landing, saturated-idle for `vk-local` should drop from ~1,157 MiB toward ~220 MiB.
 
@@ -200,9 +198,10 @@ container_memory_working_set_bytes{namespace="secure-agent-pod", container="vk-l
 ---
 
 ## Phase 4: Option B1 — `max_concurrent_executions` cap [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/155 -->
 **Depends on:** Phase 3
 
-*(Listed sequentially after the image-bumper merge — see note below.)*
+*(Specifically: Phase 3's image-bumper PR must be merged before Phase 4 Task 2 picks up the new SHA. Strictly the Task 1 binary work in agent-images is independent — see note below.)*
 
 Adds a configurable concurrency cap to vibe-kanban (queue, not reject), surfaces it as a Frank env var, and adds a minimal `/metrics` endpoint so the cap is observable in cadvisor + a vmagent scrape.
 
@@ -298,6 +297,7 @@ kubectl -n monitoring exec vmagent-victoria-metrics-victoria-metrics-k8s-stack-*
 ---
 
 ## Phase 5: Soak + dial-back assessment [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/156 -->
 **Depends on:** Phase 1, Phase 2, Phase 3, Phase 4
 
 Run a **14-day soak** under normal operator workload. Then make a sized decision about the 8 Gi limit.
@@ -338,9 +338,10 @@ max_over_time(vibekanban_queued_executions[1d])
 ---
 
 ## Phase 6: File tracking issues for B2, B3, R [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/157 -->
 **Depends on:** —
 
-*(Can run any time after Phase 4 Task 1 PR is filed.)*
+*(Can run any time after Phase 4 Task 1 PR is filed in agent-images.)*
 
 Three follow-up items deferred from this plan. Filed as GitHub issues so they appear on the Derio Ops board with explicit gating criteria. No implementation here.
 
@@ -365,6 +366,7 @@ Three follow-up items deferred from this plan. Filed as GitHub issues so they ap
 ---
 
 ## Phase 7: Post-Deploy Checklist [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/158 -->
 **Depends on:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6
 
 This is a fix/extension plan (per the Type at top), so most post-deploy steps are skipped per `repo-workflows.md`.
@@ -382,17 +384,44 @@ This is a fix/extension plan (per the Type at top), so most post-deploy steps ar
 
 ## Deployment Deviations
 
+### Phase 1 — `kubectl top` unavailable (2026-04-30)
+
+The plan's Task 1 Step 4 instructed `kubectl top pod -l app=secure-agent-pod --containers`. The Kubernetes metrics API returned `error: Metrics API not available`. This is a confirming symptom of the cadvisor pipeline gap that Phase 2 was created to fix — the same five amd64 nodes (`mini-1/2/3`, `gpu-1`, `pc-1`) whose `container_memory_working_set_bytes` series are missing in VictoriaMetrics also have no flow into metrics-server. `vk-local`'s pod is on `gpu-1`, so `kubectl top` for it is silent end-to-end.
+
+Substituted: read `/sys/fs/cgroup/memory.current` and `memory.stat` directly from the vk-local cgroup via `kubectl exec`. Recorded in the Verification Log below.
+
 ### Phase 3 — path corrections (2026-04-30)
 
-The plan's example commands used placeholder paths; the agent-images PR (`#34`) ships the verified-on-Frank versions:
+The plan's example commands used placeholder paths; the agent-images PR (`#34`) and follow-up PR (`#47`) ship the verified-on-Frank versions:
 
 - Worktree iteration root: plan said `/home/claude/vibe-kanban/repos` (placeholder). Actual canonical repo root is `$AGENT_HOME/repos/*/.git`. Vibe-kanban worktrees live under `/var/tmp/vibe-kanban/worktrees/` (tmpfs, wiped on pod restart) and link back via `.git` gitdir files.
 - Log destination: plan said `/var/log/agent/`. Actual log dir is `$AGENT_HOME/.willikins-agent/` (matches existing cron entries; `/var/log/agent` does not exist in the kali image).
 - Both crons use `__AGENT_HOME__` placeholder, substituted by `cont-init.d/50-seed-config` on first boot. Existing PVs (e.g. `secure-agent-pod`) keep the older crontab — same gotcha as the `~/.tmux.conf` seed pattern documented in `frank-gotchas.md`. Two new lines must be appended to the live `~/.crontab` once via `kubectl exec`; supercronic auto-reloads, no pod restart required.
+- Hardening added in #47 after code review: `flock` single-instance guard on both crons, atime/noatime probe with mtime fallback in npm-cache-prune, propagation of `npm cache verify` exit codes, and per-repo failure tracking in worktree-prune.
 
 ## Verification Log (Phase 1)
 
-*(Filled in by Phase 1 Task 2.)*
+### 2026-04-30 — Initial verification
+
+| Field | Value |
+|-------|-------|
+| Timestamp (UTC) | 2026-04-30 |
+| Pod | `secure-agent-pod-57447df468-x488f` (node `gpu-1`) |
+| Pod startTime | 2026-04-29T22:10:28Z |
+| Container memory limit | `8Gi` ✓ matches PR #142 |
+| `restartCount` | `0` |
+| Last termination reason | _(none — never restarted on this pod)_ |
+| OOM events in namespace | none found via `kubectl get events` |
+| `kubectl top` | unavailable (metrics-server / cadvisor pipeline gap — see Phase 2) |
+| `memory.current` (vk-local cgroup) | 6,183,456,768 B ≈ **5,896 MiB** |
+| `memory.max` (vk-local cgroup) | 8,589,934,592 B = 8 GiB ✓ |
+| `memory.stat anon` | 1,545,146,368 B ≈ 1,473 MiB |
+| `memory.stat file` (page cache) | 4,120,395,776 B ≈ 3,930 MiB |
+| `memory.stat kernel` | 512,790,528 B ≈ 489 MiB |
+
+**Interpretation.** True working set (anon + kernel + non-reclaimable) ≈ 1.96 GiB; the rest is reclaimable file cache (npm cache + git worktree files). At ~73% of the 8 GiB limit but with no restarts since the PR #142 bump, the headroom is functioning as intended. This baseline is the input row Phase 5 compares against after Phase 3 housekeeping and Phase 4's concurrency cap land.
+
+**Note (Step 4 fallback).** The metric the plan originally asked for (`kubectl top`) requires the cadvisor pipeline that Phase 2 fixes. The cgroup-direct reading above is the substitute baseline; once Phase 2 lands, Phase 5 should re-read the same fields plus `container_memory_working_set_bytes` from VictoriaMetrics for a continuous time-series.
 
 ## Soak Log (Phase 5)
 
