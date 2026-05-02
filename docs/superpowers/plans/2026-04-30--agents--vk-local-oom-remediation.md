@@ -185,7 +185,8 @@ This work happens in [`derio-net/agent-images`](https://github.com/derio-net/age
 
 ```bash
 kubectl -n secure-agent-pod exec -c kali deploy/secure-agent-pod -- \
-  ls -la /var/log/agent/npm-cache-verify.log /var/log/agent/worktree-prune.log
+  ls -la /home/claude/.willikins-agent/npm-cache-prune.log \
+         /home/claude/.willikins-agent/worktree-prune.log
 ```
 
 - [ ] **Step 2 (verify metric — depends on Phase 2):** Once Phase 2 is complete, query
