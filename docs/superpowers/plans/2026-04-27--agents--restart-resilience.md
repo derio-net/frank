@@ -504,3 +504,29 @@ Per spec — repeated here for plan-level clarity:
 - Telegram alerts on s6 crashloop bail-out — bolt-on if real ops show value
 - Service dependencies (s6-rc) for credential-mount-ready ordering — when it's needed
 - CRIU process checkpointing — not viable
+
+---
+
+## Post-deploy deviations
+
+### 2026-05-02 — kali `CrashLoopBackOff` after auto-bumper PR #166
+
+**Symptom:** Auto-bumper PR #166 (`chore(agents): bump agent-images to 3fdae2b, vk-remote to a66206c`) merged at ~07:31 GMT+2; ArgoCD auto-synced; the `kali` container went into `CrashLoopBackOff` while `vk-local` continued running. Pod logs:
+
+```
+/package/admin/s6-overlay/libexec/preinit: info: container permissions: uid=1000 (claude), euid=1000, gid=1000 (claude), egid=1000
+/package/admin/s6-overlay/libexec/preinit: info: /run permissions: uid=0 (root), gid=0 (root), perms=oxorgxgruxuwur
+/package/admin/s6-overlay/libexec/preinit: fatal: /run belongs to uid 0 instead of 1000 and we're lacking the privileges to fix it.
+s6-overlay-suexec: fatal: child failed with exit code 100
+```
+
+**Root cause (image-side):** `agent-shell-base/Dockerfile` chowned only the *subdirectories* it explicitly created under `/run` (`/run/service`, `/run/s6`, `/run/s6-rc`, `/run/sshd`, `/var/run/s6`, `/var/run/sshd`), leaving `/run` itself root-owned. s6-overlay v3 preinit needs to write entries directly under `/run` (e.g. `/run/s6-linux-init-container-results`, `/run/s6/container_environment`); under the secure-agent-pod's securityContext (`allowPrivilegeEscalation: false` + `capabilities.drop=["ALL"]`) `s6-overlay-suexec` cannot self-elevate to chown it, so preinit bails.
+
+**Why CI didn't catch it:** the smoke test added in `agent-images` PR #40 (`smoke-test-vk-local`) only exercises vk-local — which has no s6 supervisor — and uses `--entrypoint /bin/sh` to bypass `/init`. The kali path therefore never ran under K8s-equivalent constraints in CI; the missing chown surfaced only on live deploy.
+
+**Fix:** `agent-images` PR #41 (`fix(agent-shell-base): chown /run for s6-overlay non-root preinit`):
+
+- `agent-shell-base/Dockerfile`: `chown -R ${AGENT_UID}:${AGENT_GID} /run /var/run` (covers `/run` itself and all subdirectories).
+- `.github/workflows/build.yaml`: add `smoke-test-secure-agent-kali` job that boots `/init` under `--user 1000:1000 --cap-drop=ALL --security-opt=no-new-privileges` and waits for `s6-svstat /run/service/sshd` to report `up`. Regression test for this exact failure mode.
+
+**Outcome:** Cluster left in `CrashLoopBackOff` while waiting for the proper image-side fix (operator chose this over a rollback). After PR #41 merges, the bumper opens a new chore PR in frank; once that syncs, the kali container returns to `Running`. Gotcha appended to `.claude/rules/frank-gotchas.md` covering the s6-overlay non-root `/run` chown requirement and the CI securityContext gap.
