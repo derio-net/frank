@@ -1,0 +1,13 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: vk-local
+  namespace: secure-agent-pod
+spec:
+  selector:
+    matchLabels:
+      app: secure-agent-pod
+  podMetricsEndpoints:
+    - port: vk-http
+      path: /metrics
+      interval: 30s

@@ -131,6 +131,16 @@ spec:
               value: "https://vk.cluster.derio.net"
             - name: VK_SHARED_RELAY_API_BASE
               value: "https://vk.cluster.derio.net"
+            # Cap concurrent executor spawns at 4 (Phase 4 / Option B1 of
+            # docs/superpowers/plans/2026-04-30--agents--vk-local-oom-remediation.md).
+            # Worst-case live cgroup: ~220 MiB saturated-idle + 4 × 480 MiB ≈
+            # 2,140 MiB, so the 8 Gi limit becomes a deep safety net rather
+            # than a load-bearing kill condition. Spawns past the cap queue,
+            # they don't error — see `vibekanban_queued_executions` at /metrics.
+            # No-op until the vk-local image carries the cap code (see
+            # derio-net/vibe-kanban PR #7).
+            - name: VK_MAX_CONCURRENT_EXECUTIONS
+              value: "4"
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1

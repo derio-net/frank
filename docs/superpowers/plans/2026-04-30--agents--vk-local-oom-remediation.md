@@ -211,19 +211,19 @@ Adds a configurable concurrency cap to vibe-kanban (queue, not reject), surfaces
 
 This work happens in [`derio-net/agent-images`](https://github.com/derio-net/agent-images). The PR there should reference this plan.
 
-- [ ] **Step 1: Bump config schema v8 → v9**
+- [x] **Step 1: Bump config schema v8 → v9**
 
   Add `max_concurrent_executions: Option<usize>` to the binary's config struct. Default: `None` (current unbounded behavior — backwards-compatible for non-Frank users of the fork). Run the existing migration test suite to confirm v8 configs load cleanly on v9.
 
-- [ ] **Step 2: Add env-var fallback**
+- [x] **Step 2: Add env-var fallback**
 
   At process startup, after config load, if `VK_MAX_CONCURRENT_EXECUTIONS` is set in the environment, parse and use it (overriding any config-file value). This avoids needing a config-file mount on Frank.
 
-- [ ] **Step 3: Wrap executor spawn in a counting semaphore**
+- [x] **Step 3: Wrap executor spawn in a counting semaphore**
 
   In the executor's spawn path (whatever module hosts the `claude` / `npm` / `node` fork logic — locate via `grep -rn 'tokio::process\|Command::new' src/`), acquire a permit from a `tokio::sync::Semaphore` sized to the cap. Permits are released on child exit. When all permits are taken, the next spawn awaits in the queue — do not error.
 
-- [ ] **Step 4: Add structured queue logs**
+- [x] **Step 4: Add structured queue logs**
 
   On every spawn that has to wait, emit a structured log line:
 
@@ -233,7 +233,7 @@ This work happens in [`derio-net/agent-images`](https://github.com/derio-net/age
 
   This is the cap's primary observability surface until Step 5 ships.
 
-- [ ] **Step 5: Add `/metrics` endpoint**
+- [x] **Step 5: Add `/metrics` endpoint**
 
   Expose three Prometheus gauges on the existing 8081 listener:
   - `vibekanban_active_executions`
@@ -242,13 +242,13 @@ This work happens in [`derio-net/agent-images`](https://github.com/derio-net/age
 
   Path: `/metrics`. Use the existing axum/hyper router (whichever vibe-kanban already uses). No labels yet.
 
-- [ ] **Step 6: Open PR in agent-images.** Tests must cover: missing field / `null` (treated as `None`, no cap, current behavior), `cap=1` (serialization round-trip), and `cap=N` with N+1 concurrent spawns (queueing — the (N+1)th must wait until one permit is released, not error). `cap=0` should be rejected at config-load with a clear error (degenerate "never spawn anything"). Reviewer should verify the v8→v9 migration works on a recorded v8 config.
+- [x] **Step 6: Open PR in agent-images.** Tests must cover: missing field / `null` (treated as `None`, no cap, current behavior), `cap=1` (serialization round-trip), and `cap=N` with N+1 concurrent spawns (queueing — the (N+1)th must wait until one permit is released, not error). `cap=0` should be rejected at config-load with a clear error (degenerate "never spawn anything"). Reviewer should verify the v8→v9 migration works on a recorded v8 config.
 
 ### Task 2: Surface the env var on Frank
 
 > **Depends on:** Task 1 PR merged in agent-images, image-bumper PR merged in this repo.
 
-- [ ] **Step 1: Edit `apps/secure-agent-pod/manifests/deployment.yaml`**
+- [x] **Step 1: Edit `apps/secure-agent-pod/manifests/deployment.yaml`**
 
   In the `vk-local` container's `env:` block, add:
 
@@ -259,7 +259,7 @@ This work happens in [`derio-net/agent-images`](https://github.com/derio-net/age
 
   Cap rationale (per spec): saturated-idle ~220 MiB + 4 × 480 MiB = ~2,140 MiB worst-case live cgroup. Fits in 3 Gi with margin; the unchanged 8 Gi limit becomes a deep safety net.
 
-- [ ] **Step 2: Add a `VMPodScrape` for the new endpoint**
+- [x] **Step 2: Add a `VMPodScrape` for the new endpoint**
 
   Create `apps/secure-agent-pod/manifests/vmpodscrape.yaml`:
 
