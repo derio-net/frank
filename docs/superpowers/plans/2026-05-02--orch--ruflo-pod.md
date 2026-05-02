@@ -221,7 +221,7 @@ docker network rm ruflo-test-net
 
 ### Task 6: Open PR, review, merge
 
-- [ ] **Step 1: Open PR titled `feat: add ruflo-server and ruflo-shell images`** with body linking to this plan. Wait for CI green on both images' smoke tests.
+- [x] **Step 1: Open PR titled `feat: add ruflo-server and ruflo-shell images`** with body linking to this plan. Wait for CI green on both images' smoke tests.
 
 - [ ] **Step 2: Capture both merged image SHAs** — record in this plan's *Deployment Notes* as:
 
