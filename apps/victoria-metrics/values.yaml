@@ -20,6 +20,31 @@ vmsingle:
         requests:
           storage: 20Gi
 
+# Kubelet scrape (cadvisor + resources + probes + kubelet) — drop high-cardinality
+# node-meta labels. The chart's default relabelConfigs labelmap every
+# `__meta_kubernetes_node_label_*` onto every metric. On Frank's amd64 nodes
+# (NFD CPU features, Talos extensions, NVIDIA driver labels) this puts each
+# series at 60–135 labels, exceeding VictoriaMetrics' default
+# -maxLabelsPerTimeseries=40, so vmsingle silently drops them — that is the
+# cause of the cadvisor metric gap on the 5 amd64 nodes (mini-1/2/3, gpu-1,
+# pc-1). raspi nodes carry ~33 labels and pass under the limit. Adding a
+# labeldrop after the chart's default keeps the useful node labels (tier,
+# zone, kubernetes_io_arch, node, instance, accelerator, igpu) and trims the
+# pure metadata noise.
+kubelet:
+  vmScrape:
+    spec:
+      metricRelabelConfigs:
+        - action: labeldrop
+          regex: (uid)
+        - action: labeldrop
+          regex: (id|name)
+        - action: drop
+          source_labels: [__name__]
+          regex: (rest_client_request_duration_seconds_bucket|rest_client_request_duration_seconds_sum|rest_client_request_duration_seconds_count)
+        - action: labeldrop
+          regex: (feature_node_kubernetes_io_.*|extensions_talos_dev_.*|nvidia_com_.*|beta_kubernetes_io_.*)
+
 # Grafana — exposed via Cilium L2 LoadBalancer
 grafana:
   enabled: true
@@ -67,6 +92,17 @@ grafana:
       mountPath: /var/lib/grafana/dashboards/feature-health/feature-health.json
       subPath: feature-health.json
       configMap: grafana-alerting-dashboard
+      readOnly: true
+    # secure-agent-pod operating dashboard (Phase 5 soak readings)
+    - name: sap-dashboard-provider
+      mountPath: /etc/grafana/provisioning/dashboards/secure-agent-pod-provider.yaml
+      subPath: secure-agent-pod-provider.yaml
+      configMap: grafana-secure-agent-pod-dashboard
+      readOnly: true
+    - name: sap-dashboard-json
+      mountPath: /var/lib/grafana/dashboards/secure-agent-pod/secure-agent-pod.json
+      subPath: secure-agent-pod.json
+      configMap: grafana-secure-agent-pod-dashboard
       readOnly: true
   # Authentik OIDC SSO (Phase 13) + Alerting secrets (Telegram, Health Bridge)
   envFromSecrets:

@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-secure-agent-pod-dashboard
+  namespace: monitoring
+data:
+  secure-agent-pod-provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: secure-agent-pod
+        folder: secure-agent-pod
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/secure-agent-pod
+  secure-agent-pod.json: |
+    {
+      "uid": "sap-operating",
+      "title": "Secure Agent Pod — Operating",
+      "tags": ["secure-agent-pod", "operating"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "refresh": "30s",
+      "time": { "from": "now-24h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "title": "vk-local working-set RSS",
+          "type": "timeseries",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 0 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "container_memory_working_set_bytes{namespace=\"secure-agent-pod\", container=\"vk-local\"}",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "bytes",
+              "custom": {
+                "drawStyle": "line",
+                "lineWidth": 1,
+                "fillOpacity": 10,
+                "showPoints": "never"
+              },
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 3221225472 },
+                  { "color": "red", "value": 6442450944 }
+                ]
+              }
+            }
+          },
+          "options": {
+            "tooltip": { "mode": "multi" },
+            "legend": { "displayMode": "table", "placement": "right", "calcs": ["last", "max", "mean"] }
+          }
+        },
+        {
+          "id": 2,
+          "title": "vk-local restart count (cumulative)",
+          "type": "stat",
+          "gridPos": { "h": 6, "w": 12, "x": 0, "y": 10 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "kube_pod_container_status_restarts_total{namespace=\"secure-agent-pod\", container=\"vk-local\"}",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 1 },
+                  { "color": "red", "value": 5 }
+                ]
+              }
+            }
+          },
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }
+          }
+        },
+        {
+          "id": 3,
+          "title": "vk-local last terminated reason",
+          "type": "table",
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 10 },
+          "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+          "targets": [
+            {
+              "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+              "expr": "kube_pod_container_status_last_terminated_reason{namespace=\"secure-agent-pod\", container=\"vk-local\"} == 1",
+              "instant": true,
+              "format": "table",
+              "refId": "A"
+            }
+          ],
+          "transformations": [
+            {
+              "id": "filterFieldsByName",
+              "options": { "include": { "names": ["pod", "reason", "Value"] } }
+            }
+          ]
+        }
+      ]
+    }
