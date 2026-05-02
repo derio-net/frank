@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: blog
-          image: ghcr.io/derio-net/blog:2c4c4b7eb20ce62860edc8465574872dc4762d1a  # updated by CI — do not pin manually
+          image: ghcr.io/derio-net/blog:c018f2bb461670748beb4fbdaa909bd5cd2d2b2f  # updated by CI — do not pin manually
           ports:
             - name: http
               containerPort: 8080

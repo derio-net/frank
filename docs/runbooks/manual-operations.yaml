@@ -877,6 +877,11 @@ operations:
   verify:
   - docker pull ghcr.io/derio-net/paperclip:v0.3.1
   status: done
+  notes: |
+    OBSOLETE as of 2026-04-30. Paperclip now runs from the upstream public
+    image (ghcr.io/paperclipai/paperclip:sha-<short>); the derio fork is
+    no longer built or deployed. Kept as a historical record of how the
+    fork image was originally produced. Do not run.
 - id: orch-create-infisical-secrets
   layer: orch
   app: paperclip
@@ -892,6 +897,18 @@ operations:
   - infisical secrets get PAPERCLIP_AUTH_SECRET
   - kubectl get externalsecret -n paperclip-system
   status: done
+  notes: |
+    PARTIALLY OBSOLETE as of 2026-04-30. PAPERCLIP_LITELLM_KEY and
+    PAPERCLIP_AUTH_SECRET are still required (paperclip-llm-key and
+    paperclip-auth ExternalSecrets remain in use). The GHCR_PAT line
+    is obsolete — paperclip now runs from the upstream public image,
+    no pull credentials needed; the paperclip-ghcr ExternalSecret/Secret
+    have been deleted from the cluster. The GHCR_PAT entry in Infisical
+    has no remaining consumer in this repo and can be removed.
+    A separate (untracked) ANTHROPIC_API_KEY entry was added later for
+    the paperclip-anthropic ExternalSecret; that ExternalSecret has
+    also been deleted, so the Infisical entry is also unused by paperclip
+    (other consumers may still reference it — verify before deleting).
 - id: orch-traefik-paperclip-route
   layer: orch
   app: paperclip
