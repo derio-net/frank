@@ -45,6 +45,9 @@ spec:
             - secretRef:
                 name: paperclip-brave
                 optional: true
+            - secretRef:
+                name: paperclip-resend
+                optional: true
           env:
             - name: PG_PASSWORD
               valueFrom:

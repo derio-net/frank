@@ -15,7 +15,7 @@ Paperclip is healthy when:
 - The paperclip pod is `1/1 Running` in the `paperclip-system` namespace
 - The web UI responds at `http://192.168.55.212:3100`
 - PostgreSQL is `1/1 Running` with the metrics sidecar
-- All three ExternalSecrets show `SecretSynced`
+- All four ExternalSecrets show `SecretSynced`
 - The PVC is `Bound`
 
 <!-- MEDIA: screenshot | Paperclip dashboard showing agent overview and recent runs | Navigate to http://192.168.55.212:3100, log in, capture the main dashboard view with at least one agent visible, dark mode preferred -->
@@ -28,7 +28,7 @@ Quick health check:
 kubectl get pods,pvc,externalsecret -n paperclip-system
 ```
 
-Expected output: one paperclip pod, one paperclip-db pod, one 2Gi PVC bound, three ExternalSecrets synced.
+Expected output: one paperclip pod, one paperclip-db pod, one 2Gi PVC bound, four ExternalSecrets synced.
 
 ```console
 $ kubectl get pods,pvc,externalsecret -n paperclip-system
@@ -44,6 +44,7 @@ NAME                                                   STORETYPE            STOR
 externalsecret.external-secrets.io/paperclip-auth      ClusterSecretStore   infisical   5m                 SecretSynced   True
 externalsecret.external-secrets.io/paperclip-brave     ClusterSecretStore   infisical   5m                 SecretSynced   True
 externalsecret.external-secrets.io/paperclip-llm-key   ClusterSecretStore   infisical   5m                 SecretSynced   True
+externalsecret.external-secrets.io/paperclip-resend    ClusterSecretStore   infisical   5m                 SecretSynced   True
 ```
 
 ## Observing State
@@ -90,10 +91,11 @@ kubectl get externalsecret -n paperclip-system
 kubectl describe externalsecret paperclip-llm-key -n paperclip-system
 ```
 
-Three ExternalSecrets exist:
+Four ExternalSecrets exist:
 - `paperclip-llm-key` — OPENAI_API_KEY and OPENAI_BASE_URL (points to LiteLLM)
 - `paperclip-auth` — BETTER_AUTH_SECRET for session signing
 - `paperclip-brave` — BRAVE_API_KEY for agent web-search tools (optional, marked `optional: true`); sourced from Infisical key `BRAVE_SEARCH_KEY_PAPERCLIP` and remapped to the standard `BRAVE_API_KEY` env var
+- `paperclip-resend` — RESEND_API_KEY for agent transactional email (optional, marked `optional: true`); sourced from Infisical key `EMAIL_RESEND_API_KEY` and remapped to the standard `RESEND_API_KEY` env var the Resend SDK and MCP server expect
 
 Earlier deployments included `paperclip-anthropic` (`ANTHROPIC_API_KEY` for the `claude_local` adapter) and `paperclip-ghcr` (`.dockerconfigjson` for pulling our custom image from GHCR). Both were retired when Paperclip switched to the upstream public image and stopped using the `claude_local` adapter — see the building-side post for the full history.
 
@@ -197,7 +199,7 @@ kubectl get ciliumpoolipaddress -A | grep 192.168.55.212
 
 - **PostgreSQL image uses GCR mirror.** Bitnami no longer serves named tags on Docker Hub. The chart uses `mirror.gcr.io/bitnamilegacy/*` images. If the mirror goes down, you'll need to find another source for the `14.1.10-debian-11-r16` tag.
 
-- **Optional Brave Search secret.** `paperclip-brave` ExternalSecret is marked `optional: true`. If `BRAVE_SEARCH_KEY_PAPERCLIP` doesn't exist in Infisical, the pod starts fine without it — agents that don't invoke a web-search tool are unaffected. The same `optional: true` pattern previously protected the now-retired `paperclip-anthropic` secret from blocking rollouts when its Infisical entry was missing.
+- **Optional feature secrets.** `paperclip-brave` (Brave Search) and `paperclip-resend` (Resend transactional email) are both marked `optional: true` on their `secretRef` entries. If `BRAVE_SEARCH_KEY_PAPERCLIP` or `EMAIL_RESEND_API_KEY` doesn't exist in Infisical, the pod starts fine without that key — agents that don't invoke the corresponding tool are unaffected. The same `optional: true` pattern previously protected the now-retired `paperclip-anthropic` secret from blocking rollouts when its Infisical entry was missing; new optional feature secrets should follow the same convention.
 
 ## References
 
