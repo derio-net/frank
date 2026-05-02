@@ -66,7 +66,7 @@ The cadvisor `VMNodeScrape` reports all 7 nodes' targets healthy in vmagent, but
 
 ### Task 1: Investigate root cause
 
-- [ ] **Step 1: Read vmagent scrape stats for cadvisor targets**
+- [x] **Step 1: Read vmagent scrape stats for cadvisor targets**
 
 ```bash
 VMAGENT=$(kubectl -n monitoring get pod -l app.kubernetes.io/name=vmagent -o jsonpath='{.items[0].metadata.name}')
@@ -81,7 +81,7 @@ for t in (x for x in d if x.get('labels',{}).get('metrics_path')=='/metrics/cadv
 
   Note the per-node `lastSamplesScraped`. If amd64 nodes return non-zero here but vmsingle has no series for them, the loss is in the relabel/ingestion pipeline (case 1 below). If they return zero here, cadvisor itself is silent on those nodes (case 2).
 
-- [ ] **Step 2: Test the relabel-rule hypothesis (case 1)**
+- [x] **Step 2: Test the relabel-rule hypothesis (case 1)**
 
   The `VMNodeScrape` for cadvisor includes:
 
@@ -95,7 +95,7 @@ metricRelabelConfigs:
 
   The second rule drops any label matching `id` or `name`. Some cadvisor metric variants legacy-mirror their identifiers in those exact label names. Test by temporarily commenting out the second rule on a non-prod scrape (or via a dedicated test `VMNodeScrape` selecting only `gpu-1`) and re-querying for amd64 series after one scrape interval.
 
-- [ ] **Step 3: Test cardinality / disk-usage limits (case 2)**
+- [x] **Step 3: Test cardinality / disk-usage limits (case 2)**
 
 ```bash
 kubectl -n monitoring logs deploy/vmagent-victoria-metrics-victoria-metrics-k8s-stack -c vmagent \
@@ -104,7 +104,7 @@ kubectl -n monitoring logs deploy/vmagent-victoria-metrics-victoria-metrics-k8s-
 
   Look for messages mentioning `gpu-1` / `mini-1` / `pc-1` instances, dropped samples, or per-target rate limits.
 
-- [ ] **Step 4: Test cadvisor endpoint directly on an affected node**
+- [x] **Step 4: Test cadvisor endpoint directly on an affected node**
 
 ```bash
 kubectl -n monitoring run cadvisor-test-$$ --rm -i --restart=Never \
@@ -121,7 +121,7 @@ kubectl -n monitoring run cadvisor-test-$$ --rm -i --restart=Never \
 
 Pick exactly one of the three sub-steps below depending on which case Task 1 confirmed; then run the verify and Grafana steps.
 
-- [ ] **Step 1: Apply the case-specific fix.** One of:
+- [x] **Step 1: Apply the case-specific fix.** One of:
   - **Case 1 (relabel rule):** Edit `apps/victoria-metrics/values.yaml` to override the cadvisor `VMNodeScrape` `metricRelabelConfigs`, removing the `(id|name)` labeldrop. Commit, ArgoCD syncs, wait one scrape interval (30 s), re-query.
   - **Case 2 (vmagent limit):** Edit `apps/victoria-metrics/values.yaml` to bump the relevant `vmagent.spec.extraArgs` flag (`promscrape.maxScrapeSize`, `remoteWrite.maxBlockSize`, etc., depending on the log message). Commit, ArgoCD sync, observe vmagent logs for resumed ingest.
   - **Case 3 (vmsingle limit):** Bump retention or per-tenant series limit in `vmsingle.spec` in the same values file. Commit, ArgoCD sync.
@@ -135,7 +135,7 @@ kubectl -n monitoring exec vmagent-victoria-metrics-victoria-metrics-k8s-stack-*
 
   All 7 nodes must appear with non-zero counts.
 
-- [ ] **Step 3 (Grafana panel):** Add a `vk-local working-set RSS` panel to the existing operating dashboard. Query: `container_memory_working_set_bytes{namespace="secure-agent-pod", container="vk-local"}`. Pin to the secure-agent-pod operating folder so Phase 5's soak readings have a UI.
+- [x] **Step 3 (Grafana panel):** Add a `vk-local working-set RSS` panel to the existing operating dashboard. Query: `container_memory_working_set_bytes{namespace="secure-agent-pod", container="vk-local"}`. Pin to the secure-agent-pod operating folder so Phase 5's soak readings have a UI.
 
 ### Task 3: 24h soak
 
@@ -143,7 +143,7 @@ kubectl -n monitoring exec vmagent-victoria-metrics-victoria-metrics-k8s-stack-*
 
 ### Task 4: Fallback if root cause cannot be isolated
 
-- [ ] **Step 1:** If after one working day the cause is still unknown, file a tracking issue in `derio-net/frank` titled `obs: cadvisor scrape data gap on amd64 nodes` with the investigation log so far. Mark Phase 2 as `Closed (deferred)` in this plan and continue with Phase 3 — the housekeeping work does not depend on Phase 2's outcome, only Phase 5's evaluation does.
+- [-] **Step 1:** *(skipped — root cause was isolated in Task 1, see Deployment Deviations below).* If after one working day the cause is still unknown, file a tracking issue in `derio-net/frank` titled `obs: cadvisor scrape data gap on amd64 nodes` with the investigation log so far. Mark Phase 2 as `Closed (deferred)` in this plan and continue with Phase 3 — the housekeeping work does not depend on Phase 2's outcome, only Phase 5's evaluation does.
 
 ---
 
@@ -403,6 +403,19 @@ This is a fix/extension plan (per the Type at top), so most post-deploy steps ar
 ---
 
 ## Deployment Deviations
+
+### Phase 2 — cadvisor gap root cause was *not* the `(id|name)` labeldrop (2026-05-02)
+
+The plan's Case 1 hypothesis (the cadvisor `VMNodeScrape`'s `(id|name)` labeldrop dropping data on amd64) was wrong. Investigation showed:
+
+- **Task 1 / Step 1** — vmagent reports all 7 cadvisor targets healthy with non-zero `lastSamplesScraped`. amd64 nodes scrape *more* samples than raspi (gpu-1=7575, mini-1=13658, raspi-1=3245). So the loss is downstream of vmagent's parser, not at the target.
+- **Task 1 / Step 3** — vmsingle logs are full of `timeserieslimits/timeseries_limits.go:72 ignoring series with N labels for {…}; either reduce the number of labels for this metric or increase -maxLabelsPerTimeseries=40 cmd-line flag value`, where N is 60–135 for amd64 series (containing all NFD `feature_node_kubernetes_io_*`, Talos `extensions_talos_dev_*`, NVIDIA `nvidia_com_*`, and `beta_kubernetes_io_*` labels propagated by the chart's default `labelmap __meta_kubernetes_node_label_(.+)` rule). raspi series carry ~33 labels and pass under VictoriaMetrics' default `-maxLabelsPerTimeseries=40`, which is why only the 2 raspi nodes were ever visible.
+
+This is not the canonical Case 1, 2, or 3 the plan enumerates — closest is Case 1 (a relabel-rule fix) but with a different rule than the plan suggested. **Fix applied:** added a 4th `metricRelabelConfigs` `labeldrop` rule under `kubelet.vmScrape.spec` in `apps/victoria-metrics/values.yaml` that strips `feature_node_kubernetes_io_.*|extensions_talos_dev_.*|nvidia_com_.*|beta_kubernetes_io_.*` before metrics are remoteWritten to vmsingle. The chart's default labelmap is preserved, so useful node labels (`tier`, `zone`, `kubernetes_io_arch`, `node`, `instance`, `accelerator`, `igpu`) still attach. The override applies to all four kubelet-derived scrapes (cadvisor, resources, probes, kubelet itself) since the chart's `kubelet.vmScrape.spec` is shared — intentional, the same root cause was visible for `/metrics/resource` series in vmsingle's drop logs.
+
+For Phase 5 soak visibility, a new **Secure Agent Pod — Operating** Grafana dashboard was added (`apps/grafana-alerting/manifests/secure-agent-pod-dashboard-cm.yaml`, mounted via `apps/victoria-metrics/values.yaml`'s `extraConfigmapMounts`). It pins three panels in a new `secure-agent-pod` folder: vk-local working-set RSS time series (with 3 GiB / 6 GiB thresholds matching the 8 GiB cgroup limit), a cumulative-restart stat panel, and a last-terminated-reason table. Verification (Task 2 Step 2) and 24 h soak (Task 3 Step 1) happen post-merge once ArgoCD syncs and the dashboard provisions. To be appended to the Verification Log on completion.
+
+**Operational gotcha for `frank-gotchas.md`** (apply during Phase 7): VictoriaMetrics' default `-maxLabelsPerTimeseries=40` silently drops entire series (logs at `timeserieslimits/timeseries_limits.go:72` only, no impact on vmagent target health). Frank's amd64 nodes (NFD CPU features + Talos extension labels + NVIDIA driver labels) produce 60–135 labels per series when the kubelet `VMNodeScrape` chart default `labelmap __meta_kubernetes_node_label_(.+)` runs, so they always exceed the threshold. Counter-fix: drop high-cardinality node-meta labels in `metricRelabelConfigs` rather than bumping `-maxLabelsPerTimeseries`. Bumping the limit just kicks the cardinality bomb downstream into vmsingle storage.
 
 ### Phase 1 — `kubectl top` unavailable (2026-04-30)
 
