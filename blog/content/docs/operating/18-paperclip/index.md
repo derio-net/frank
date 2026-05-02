@@ -28,7 +28,7 @@ Quick health check:
 kubectl get pods,pvc,externalsecret -n paperclip-system
 ```
 
-Expected output: one paperclip pod, one paperclip-db pod, one 2Gi PVC bound, four ExternalSecrets synced.
+Expected output: one paperclip pod, one paperclip-db pod, one 2Gi PVC bound, five ExternalSecrets synced.
 
 ```console
 $ kubectl get pods,pvc,externalsecret -n paperclip-system
@@ -43,6 +43,7 @@ persistentvolumeclaim/paperclip-data                   Bound    pvc-1ded449d-e2b
 NAME                                                     STORETYPE            STORE       REFRESH INTERVAL   STATUS         READY
 externalsecret.external-secrets.io/paperclip-anthropic   ClusterSecretStore   infisical   5m                 SecretSynced   True
 externalsecret.external-secrets.io/paperclip-auth        ClusterSecretStore   infisical   5m                 SecretSynced   True
+externalsecret.external-secrets.io/paperclip-brave       ClusterSecretStore   infisical   5m                 SecretSynced   True
 externalsecret.external-secrets.io/paperclip-ghcr        ClusterSecretStore   infisical   5m                 SecretSynced   True
 externalsecret.external-secrets.io/paperclip-llm-key     ClusterSecretStore   infisical   5m                 SecretSynced   True
 ```
@@ -91,10 +92,11 @@ kubectl get externalsecret -n paperclip-system
 kubectl describe externalsecret paperclip-llm-key -n paperclip-system
 ```
 
-Four ExternalSecrets exist:
+Five ExternalSecrets exist:
 - `paperclip-llm-key` — OPENAI_API_KEY and OPENAI_BASE_URL (points to LiteLLM)
 - `paperclip-auth` — BETTER_AUTH_SECRET for session signing
 - `paperclip-anthropic` — ANTHROPIC_API_KEY (optional, marked `optional: true`)
+- `paperclip-brave` — BRAVE_API_KEY for agent web-search tools (optional, marked `optional: true`); sourced from Infisical key `BRAVE_SEARCH_KEY_PAPERCLIP` (typo preserved upstream) and remapped to the standard `BRAVE_API_KEY` env var
 - `paperclip-ghcr` — Image pull credentials for ghcr.io
 
 ## Common Operations

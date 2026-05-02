@@ -32,6 +32,7 @@ paperclip-system
     ├── ExternalSecret     OPENAI_API_KEY + OPENAI_BASE_URL (LiteLLM)
     ├── ExternalSecret     BETTER_AUTH_SECRET
     ├── ExternalSecret     GHCR imagePullSecret
+    ├── ExternalSecret     BRAVE_API_KEY (optional, web search)
     ├── PVC                /paperclip data volume — Longhorn 2Gi
     └── Service (LB)       192.168.55.212:3100
 ```
@@ -118,7 +119,7 @@ spec:
 
 ## Secret Management
 
-Four ExternalSecrets sync from Infisical:
+Five ExternalSecrets sync from Infisical:
 
 | Secret | Contains | How Used |
 |--------|----------|----------|
@@ -126,8 +127,11 @@ Four ExternalSecrets sync from Infisical:
 | `paperclip-auth` | `BETTER_AUTH_SECRET` | `envFrom` — session signing |
 | `paperclip-ghcr` | `.dockerconfigjson` | `imagePullSecrets` — GHCR auth |
 | `paperclip-anthropic` | `ANTHROPIC_API_KEY` | `envFrom` — direct Anthropic access via `claude_local` adapter (optional) |
+| `paperclip-brave` | `BRAVE_API_KEY` | `envFrom` — Brave Search API key for agent web-search tools (optional) |
 
-The `paperclip-anthropic` secret is marked `optional: true` in the Deployment — the pod starts normally without it. The `claude_local` adapter only needs it if you want to bypass LiteLLM and call Anthropic directly. Lesson learned: any `secretRef` for a feature that isn't always provisioned should be `optional: true`, otherwise a missing Secret blocks rolling updates entirely (`CreateContainerConfigError` on the new pod, old pod stuck alive).
+`paperclip-anthropic` and `paperclip-brave` are both marked `optional: true` in the Deployment — the pod starts normally without them. The `claude_local` adapter only needs Anthropic if you want to bypass LiteLLM; the Brave key is only needed by agents that invoke a web-search tool (e.g. the Brave Search MCP server). Lesson learned: any `secretRef` for a feature that isn't always provisioned should be `optional: true`, otherwise a missing Secret blocks rolling updates entirely (`CreateContainerConfigError` on the new pod, old pod stuck alive).
+
+The Brave key remaps the Infisical entry `BRAVE_SEARCH_KEY_PAPERCLIP` to the standard `BRAVE_API_KEY` env var that the Brave Search MCP server and SDKs expect — the same source-vs-consumer remap pattern the LiteLLM secret uses (`PAPERCLIP_LITELLM_KEY` → `OPENAI_API_KEY`).
 
 The LiteLLM secret uses the template merge pattern from Sympozium: a single Infisical key (`PAPERCLIP_LITELLM_KEY`) is combined with a static base URL at sync time, so the Deployment just does `envFrom` and gets both variables.
 
