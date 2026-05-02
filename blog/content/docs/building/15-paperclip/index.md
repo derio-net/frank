@@ -28,10 +28,9 @@ paperclip-system
 ├── paperclip-db          (ArgoCD app, wave 0)
 │   └── Bitnami PostgreSQL 14.1.10 — Longhorn 5Gi
 └── paperclip             (ArgoCD app, wave 1)
-    ├── Deployment         ghcr.io/derio-net/paperclip:v0.3.1
+    ├── Deployment         ghcr.io/paperclipai/paperclip:sha-3494e84  (upstream)
     ├── ExternalSecret     OPENAI_API_KEY + OPENAI_BASE_URL (LiteLLM)
     ├── ExternalSecret     BETTER_AUTH_SECRET
-    ├── ExternalSecret     GHCR imagePullSecret
     ├── ExternalSecret     BRAVE_API_KEY (optional, web search)
     ├── PVC                /paperclip data volume — Longhorn 2Gi
     └── Service (LB)       192.168.55.212:3100
@@ -40,6 +39,8 @@ paperclip-system
 Two ArgoCD apps, ordered by sync-wave. The database deploys first (wave 0); the application follows (wave 1) once PostgreSQL is healthy. Agents route through the existing LiteLLM gateway — same `OPENAI_BASE_URL` pattern as Sympozium.
 
 ## Building the Container Image
+
+> **Historical, since v2026.428.0.** Paperclip now ships an upstream public image at `ghcr.io/paperclipai/paperclip` and we run that directly — no GHCR fork, no `paperclip-ghcr` `imagePullSecret`. The build/push workflow below describes how this layer worked while we maintained the `derio-net` fork; it's preserved for context on why the original architecture had a GHCR pull secret in it.
 
 Paperclip's Dockerfile is straightforward Node.js — `pnpm install`, `pnpm build`, `USER node`. But the image is not small. It installs Claude Code, Codex, and opencode-ai globally as part of the agent tooling. The final image sits around 2GB.
 
@@ -119,17 +120,15 @@ spec:
 
 ## Secret Management
 
-Five ExternalSecrets sync from Infisical:
+Three ExternalSecrets sync from Infisical:
 
 | Secret | Contains | How Used |
 |--------|----------|----------|
 | `paperclip-llm-key` | `OPENAI_API_KEY` + `OPENAI_BASE_URL` | `envFrom` — routes LLM calls through LiteLLM |
 | `paperclip-auth` | `BETTER_AUTH_SECRET` | `envFrom` — session signing |
-| `paperclip-ghcr` | `.dockerconfigjson` | `imagePullSecrets` — GHCR auth |
-| `paperclip-anthropic` | `ANTHROPIC_API_KEY` | `envFrom` — direct Anthropic access via `claude_local` adapter (optional) |
 | `paperclip-brave` | `BRAVE_API_KEY` | `envFrom` — Brave Search API key for agent web-search tools (optional) |
 
-`paperclip-anthropic` and `paperclip-brave` are both marked `optional: true` in the Deployment — the pod starts normally without them. The `claude_local` adapter only needs Anthropic if you want to bypass LiteLLM; the Brave key is only needed by agents that invoke a web-search tool (e.g. the Brave Search MCP server). Lesson learned: any `secretRef` for a feature that isn't always provisioned should be `optional: true`, otherwise a missing Secret blocks rolling updates entirely (`CreateContainerConfigError` on the new pod, old pod stuck alive).
+`paperclip-brave` is marked `optional: true` in the Deployment — the pod starts normally without it. The Brave key is only needed by agents that invoke a web-search tool (e.g. the Brave Search MCP server). Lesson learned: any `secretRef` for a feature that isn't always provisioned should be `optional: true`, otherwise a missing Secret blocks rolling updates entirely (`CreateContainerConfigError` on the new pod, old pod stuck alive). An earlier `paperclip-anthropic` ExternalSecret carrying `ANTHROPIC_API_KEY` for the `claude_local` adapter taught the same lesson the hard way before being retired when Paperclip switched to the upstream public image; a `paperclip-ghcr` `imagePullSecret` (used while we built our own image, see *Building the Container Image* above) was retired at the same time.
 
 The Brave key remaps the Infisical entry `BRAVE_SEARCH_KEY_PAPERCLIP` to the standard `BRAVE_API_KEY` env var that the Brave Search MCP server and SDKs expect — the same source-vs-consumer remap pattern the LiteLLM secret uses (`PAPERCLIP_LITELLM_KEY` → `OPENAI_API_KEY`).
 
