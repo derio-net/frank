@@ -1,0 +1,15 @@
+# Persistent home dir for the paperclip-shell sidecar (UID 1000).
+# Mirrors secure-agent-pod's agent-home PVC pattern — keeps installed
+# tools, dotfiles, tmux state, mise/pipx caches across pod restarts.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: paperclip-shell-home
+  namespace: paperclip-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi

@@ -1,0 +1,16 @@
+# Append to ~/.ssh/config (or include from a modular ~/.ssh/config.d/).
+# Substitute the IdentityFile path for the private key whose public half
+# is mounted into the paperclip-shell container via the
+# paperclip-shell-ssh-keys Secret (see secrets/paperclip/README.md
+# for rotation).
+
+Host paperclip
+    HostName 192.168.55.221
+    Port 22
+    User agent
+    IdentityFile ~/.ssh/<your_private_key>
+    # The container's SSH host key is regenerated per-pod-restart-without-PVC.
+    # We bind to the home PVC, so it's stable across restarts; on the rare
+    # PVC-rebuild event you may need to clear the old known_hosts entry.
+    UserKnownHostsFile ~/.ssh/known_hosts
+    StrictHostKeyChecking accept-new

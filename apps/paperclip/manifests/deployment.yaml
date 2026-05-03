@@ -20,10 +20,22 @@ spec:
         app.kubernetes.io/name: paperclip
         app.kubernetes.io/component: server
     spec:
+      # cont-finish.d (s6 shutdown) saves the shell sidecar's tmux state
+      # and similar housekeeping. Mirrors secure-agent-pod / ruflo grace.
+      terminationGracePeriodSeconds: 45
       nodeSelector:
         zone: core
       securityContext:
         fsGroup: 1000
+      # NOTE: `shareProcessNamespace: true` was in the original Phase 2 plan
+      # so the shell sidecar could `ps -ef` paperclip's tree, but it's
+      # incompatible with the agent-shell-base s6-overlay v3 init under
+      # `runAsNonRoot`: `s6-overlay-suexec: fatal: can only run as pid 1`.
+      # With the shared namespace the second container's entrypoint is not
+      # pid 1, so s6 bails before any service starts. Same trade-off ruflo
+      # made (see PR #196): we forgo the cross-container `ps` for a working
+      # sshd; the shell still gets full visibility into `/paperclip` (the
+      # actual debugging surface) via the shared PVC.
       containers:
         - name: paperclip
           # Upstream public image. Pinned by digest-equivalent sha tag.
@@ -78,7 +90,99 @@ spec:
               port: http
             initialDelaySeconds: 30
             periodSeconds: 15
+
+        # ----- paperclip-shell (interactive maintainer sidecar) ------
+        # Operator's SSH+Mosh entry point. Independent home PVC keeps
+        # mise/cargo/pipx state across pod restarts. The cont-init.d
+        # inventory installer reconciles the operator's declared toolset
+        # against the home PVC at boot. Image SHA pinned to agent-images
+        # main HEAD (8af0d08) — see plan Deployment Notes.
+        - name: paperclip-shell
+          image: ghcr.io/derio-net/paperclip-shell:8af0d0800905487dfdb1716218d64bc1f915aecc
+          imagePullPolicy: IfNotPresent
+          ports:
+            - { name: ssh,         containerPort: 2222,  protocol: TCP }
+            - { name: mosh-60000,  containerPort: 60000, protocol: UDP }
+            - { name: mosh-60001,  containerPort: 60001, protocol: UDP }
+            - { name: mosh-60002,  containerPort: 60002, protocol: UDP }
+            - { name: mosh-60003,  containerPort: 60003, protocol: UDP }
+            - { name: mosh-60004,  containerPort: 60004, protocol: UDP }
+            - { name: mosh-60005,  containerPort: 60005, protocol: UDP }
+            - { name: mosh-60006,  containerPort: 60006, protocol: UDP }
+            - { name: mosh-60007,  containerPort: 60007, protocol: UDP }
+            - { name: mosh-60008,  containerPort: 60008, protocol: UDP }
+            - { name: mosh-60009,  containerPort: 60009, protocol: UDP }
+            - { name: mosh-60010,  containerPort: 60010, protocol: UDP }
+            - { name: mosh-60011,  containerPort: 60011, protocol: UDP }
+            - { name: mosh-60012,  containerPort: 60012, protocol: UDP }
+            - { name: mosh-60013,  containerPort: 60013, protocol: UDP }
+            - { name: mosh-60014,  containerPort: 60014, protocol: UDP }
+            - { name: mosh-60015,  containerPort: 60015, protocol: UDP }
+          env:
+            # Consumed by the s6 cont-init.d scripts in paperclip-shell
+            # (agent-images/paperclip-shell/rootfs/etc/cont-init.d/) to
+            # set the user the sshd serves. Default in the image is
+            # `agent`; we set it explicitly so the deployment is the
+            # source of truth if the image default ever changes.
+            - name: PAPERCLIP_SHELL_USER
+              value: "agent"
+            # 1h (vs upstream 168h default) — see service-shell.yaml
+            # for the 16-port-range coupling rationale.
+            - name: MOSH_SERVER_NETWORK_TMOUT
+              value: "3600"
+          envFrom:
+            # Telegram bot creds for notify-telegram.sh. `optional: true`
+            # per frank-gotchas.md: an ESO sync hiccup would otherwise
+            # CreateContainerConfigError instead of letting the shell
+            # boot without alerts. The notify helper is fail-silent if
+            # the env vars are missing.
+            - secretRef:
+                name: paperclip-shell-alerts
+                optional: true
+          volumeMounts:
+            - { name: shell-home,      mountPath: /home/agent }
+            - { name: data,            mountPath: /paperclip }
+            - { name: shell-ssh-keys,  mountPath: /etc/ssh-keys, readOnly: true }
+            - { name: shell-inventory, mountPath: /etc/paperclip-shell, readOnly: true }
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          readinessProbe:
+            tcpSocket: { port: ssh }
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          livenessProbe:
+            tcpSocket: { port: ssh }
+            initialDelaySeconds: 30
+            periodSeconds: 60
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: paperclip-data
+        - name: shell-home
+          persistentVolumeClaim:
+            claimName: paperclip-shell-home
+        - name: shell-ssh-keys
+          # SOPS-managed bootstrap secret in secrets/paperclip/. See the
+          # README there for rotation. ESO-via-Infisical was the original
+          # plan, but agent-ssh-keys (the analogous secret on
+          # secure-agent-pod) and ruflo-shell-ssh-keys are SOPS-bootstrap,
+          # so paperclip follows the same pattern.
+          secret:
+            secretName: paperclip-shell-ssh-keys
+            optional: true
+            defaultMode: 0400
+        - name: shell-inventory
+          configMap:
+            name: paperclip-shell-inventory

@@ -283,7 +283,7 @@ docker run --rm --user 1000:1000 \
 
 - [x] **Step 1: Open PR titled `feat: add paperclip-shell image`** with body linking to this plan. Wait for CI green.
 
-- [ ] **Step 2: Capture the merged commit SHA** — record in this plan's *Deployment Notes* as `agent-images SHA: <sha>` and corresponding tag `ghcr.io/derio-net/paperclip-shell:<sha>`. Phase 2 references this SHA.
+- [x] **Step 2: Capture the merged commit SHA** — record in this plan's *Deployment Notes* as `agent-images SHA: <sha>` and corresponding tag `ghcr.io/derio-net/paperclip-shell:<sha>`. Phase 2 references this SHA.
 
 ---
 
@@ -295,7 +295,7 @@ All work in this repo (`derio-net/frank`). Adds new resources without modifying 
 
 ### Task 1: Add `paperclip-shell-home` PVC
 
-- [ ] **Step 1: Create `apps/paperclip/manifests/pvc-shell-home.yaml`**
+- [x] **Step 1: Create `apps/paperclip/manifests/pvc-shell-home.yaml`**
 
 ```
 BEGIN apps/paperclip/manifests/pvc-shell-home.yaml
@@ -315,7 +315,7 @@ END apps/paperclip/manifests/pvc-shell-home.yaml
 
 ### Task 2: Add the inventory ConfigMap (initially empty)
 
-- [ ] **Step 1: Create `apps/paperclip/manifests/configmap-shell-inventory.yaml`**
+- [x] **Step 1: Create `apps/paperclip/manifests/configmap-shell-inventory.yaml`**
 
   Start with empty arrays — Phase 4 populates them. This proves the installer is wired up and idempotent before any tools are declared:
 
@@ -344,7 +344,7 @@ END apps/paperclip/manifests/configmap-shell-inventory.yaml
 
 ### Task 3: Add ExternalSecrets
 
-- [ ] **Step 1: Read existing `agent-ssh-keys` ESO definition** to mirror its shape
+- [x] **Step 1: Read existing `agent-ssh-keys` ESO definition** to mirror its shape
 
 ```bash
 ls apps/secure-agent-pod/manifests/ | grep -i 'externalsecret\|ssh-key'
@@ -353,7 +353,7 @@ cat apps/secure-agent-pod/manifests/externalsecret-github-token.yaml | head -40 
 
   Capture: `secretStoreRef`, Infisical project / path, the exact `dataFrom` or `data:` shape that produces `agent-ssh-keys`.
 
-- [ ] **Step 2: Audit existing Telegram-credentials wiring**
+- [x] **Step 2: Audit existing Telegram-credentials wiring**
 
 ```bash
 grep -rE 'FRANK_C2_TELEGRAM_BOT_TOKEN|FRANK_C2_TELEGRAM_CHAT_ID' apps/ secrets/ 2>/dev/null
@@ -361,13 +361,13 @@ grep -rE 'FRANK_C2_TELEGRAM_BOT_TOKEN|FRANK_C2_TELEGRAM_CHAT_ID' apps/ secrets/ 
 
   Decision: if a Secret containing both values already exists in another namespace, replicate the ESO (one ESO per namespace, same Infisical source). If not, create one specifically for `paperclip-system`.
 
-- [ ] **Step 3: Create `apps/paperclip/manifests/externalsecret-shell-ssh-keys.yaml`** mirroring the discovered shape; produces Secret `paperclip-shell-ssh-keys` from the same Infisical entries as `agent-ssh-keys`.
+- [x] **Step 3: Create `apps/paperclip/manifests/externalsecret-shell-ssh-keys.yaml`** mirroring the discovered shape; produces Secret `paperclip-shell-ssh-keys` from the same Infisical entries as `agent-ssh-keys`.
 
-- [ ] **Step 4: Create `apps/paperclip/manifests/externalsecret-shell-alerts.yaml`** producing Secret `paperclip-shell-alerts` with `FRANK_C2_TELEGRAM_BOT_TOKEN` + `FRANK_C2_TELEGRAM_CHAT_ID`.
+- [x] **Step 4: Create `apps/paperclip/manifests/externalsecret-shell-alerts.yaml`** producing Secret `paperclip-shell-alerts` with `FRANK_C2_TELEGRAM_BOT_TOKEN` + `FRANK_C2_TELEGRAM_CHAT_ID`.
 
 ### Task 4: Add the LoadBalancer Service
 
-- [ ] **Step 1: Confirm `192.168.55.221` is free**
+- [x] **Step 1: Confirm `192.168.55.221` is free**
 
 ```bash
 kubectl get svc -A -o jsonpath='{range .items[*]}{.status.loadBalancer.ingress[0].ip}{"\n"}{end}' \
@@ -375,7 +375,7 @@ kubectl get svc -A -o jsonpath='{range .items[*]}{.status.loadBalancer.ingress[0
   || echo "192.168.55.221 is free"
 ```
 
-- [ ] **Step 2: Create `apps/paperclip/manifests/service-shell.yaml`**
+- [x] **Step 2: Create `apps/paperclip/manifests/service-shell.yaml`**
 
 ```
 BEGIN apps/paperclip/manifests/service-shell.yaml
@@ -414,7 +414,7 @@ END apps/paperclip/manifests/service-shell.yaml
 
 ### Task 5: Update `deployment.yaml` to add the sidecar
 
-- [ ] **Step 1: Investigate the upstream paperclip container's UID**
+- [x] **Step 1: Investigate the upstream paperclip container's UID**
 
 ```bash
 docker run --rm --entrypoint id ghcr.io/paperclipai/paperclip:sha-3494e84
@@ -423,7 +423,7 @@ docker run --rm --entrypoint id ghcr.io/paperclipai/paperclip:sha-3494e84
 
   If the value is not `1000`, decide between option (a) `initContainer` chowning `/paperclip` to `fsGroup: 1000`, or (b) overriding `paperclip` container's `securityContext.runAsUser: 1000`. Document the decision inline in this plan's *Deployment Notes* section.
 
-- [ ] **Step 2: Edit `apps/paperclip/manifests/deployment.yaml`** — add `shareProcessNamespace: true` at pod-spec level, add the sidecar container, add the new volumes. Use `Edit` (not `Write`) on the existing file.
+- [x] **Step 2: Edit `apps/paperclip/manifests/deployment.yaml`** — add `shareProcessNamespace: true` at pod-spec level, add the sidecar container, add the new volumes. Use `Edit` (not `Write`) on the existing file.
 
   Sidecar container fragment:
 
@@ -479,7 +479,7 @@ docker run --rm --entrypoint id ghcr.io/paperclipai/paperclip:sha-3494e84
 
 ### Task 6: Add operator client-setup files
 
-- [ ] **Step 1: Create `apps/paperclip/client-setup/laptop/`** mirroring `apps/secure-agent-pod/client-setup/laptop/`:
+- [x] **Step 1: Create `apps/paperclip/client-setup/laptop/`** mirroring `apps/secure-agent-pod/client-setup/laptop/`:
 
   - `ssh-config.snippet` — `Host paperclip-shell` block with `HostName 192.168.55.221`, `Port 22`, `User agent`, `IdentityFile ~/.ssh/<your_key>`.
   - `mosh-wrapper.sh` — invokes `mosh --server="mosh-server new -p 60000:60015" agent@192.168.55.221`.
@@ -776,3 +776,9 @@ This is a fix/extension plan, so most post-deploy steps are absorbed into Phase 
 | 2026-05-02 | Phase 1 | Deviation from plan: `install-inventory.sh` uses `mise where "$tool"` rather than the plan's `mise ls "$tool" \| grep`. `mise where` returns 0 when a matching version family is installed (incl. when the operator did `mise install python@3.12.4` interactively and the inventory says `python@3.12`); `mise ls` would require parsing. Cleaner idempotency + closer to mise's intended public API. |
 | 2026-05-02 | Phase 1 | Deviation from plan: investigation evidence was that `agent-shell-base` ships **no** `/etc/profile.d/` additions and **no** PAM motd configuration today (`sshd_config` L7 sets `UsePAM no`; `etc/skel/` only contains `.tmux.conf`). `paperclip-shell` is the first image in this lineage to add either, so there is no inherited motd convention to reuse — the `/etc/profile.d/50-paperclip-shell-motd.sh` decision is the new convention for now. |
 | 2026-05-02 | Phase 1 | Post-review corrections (commit `64e5a42`, agent-images PR #46): pre-create `/var/log/cont-init.d` and `/var/lib/paperclip-shell` owned by AGENT_UID at image-build time (without this the installer's `tee` + MOTD write fail silently under K8s `cap-drop=ALL` / `runAsUser: 1000`); drop dead `RUSTUP_HOME=/usr/local/lib/rustup` in favour of per-user `~/.rustup` initialisation; harden `run()` rc capture; switch `cargo install --list` parsing to a whitespace-strip pipeline; drop trailing blank line in Telegram body via `printf` instead of HEREDOC. |
+| 2026-05-03 | Phase 1 | P1.T4.S2 — agent-images PR #46 merged (merge commit `146b7a6`); current `main` HEAD is `8af0d0800905487dfdb1716218d64bc1f915aecc` (also tagged `latest`). Phase 2 pins `ghcr.io/derio-net/paperclip-shell:8af0d0800905487dfdb1716218d64bc1f915aecc`. |
+| 2026-05-03 | Phase 2 | Deviation from plan: dropped `shareProcessNamespace: true` from the Pod spec. The plan assumed it would let the shell sidecar `ps -ef` paperclip's tree, but it's incompatible with `agent-shell-base` s6-overlay v3 init under `runAsNonRoot` (`s6-overlay-suexec: fatal: can only run as pid 1`). Sibling `ruflo` discovered the same in PR #196 — paperclip-shell follows that resolution. The shell still has full visibility into `/paperclip` (the actual debugging surface) via the shared PVC. |
+| 2026-05-03 | Phase 2 | Deviation from plan: P2.T3 SSH-keys ESO rewritten as a SOPS-bootstrap Secret in `secrets/paperclip/` (mirrors `secrets/ruflo/` and `secrets/secure-agent-pod/`). The plan's premise — that `agent-ssh-keys` is ESO-managed and we should mirror it — turned out to be wrong: `agent-ssh-keys` is a manually-applied SOPS Secret with no ExternalSecret backing it. Following the existing convention rather than introducing a one-off Infisical entry just for this Secret. The Telegram-alerts Secret (`paperclip-shell-alerts`) remains a real ESO since the `FRANK_C2_TELEGRAM_*` Infisical entries are already used by `grafana-alerting` and `ruflo-shell-alerts`. |
+| 2026-05-03 | Phase 2 | Deviation from plan: kept the existing `data` volume name on the Deployment (reused by both the upstream paperclip container and the sidecar at `/paperclip`) rather than renaming to `paperclip-data`. Volume name in pod spec is purely an alias for the PVC `paperclip-data`; renaming would have churned the upstream container's mount unnecessarily. |
+| 2026-05-03 | Phase 2 | Deviation from plan: P2.T5.S1 paperclip-container UID investigation skipped at write-time. The pod already sets `fsGroup: 1000` (pre-existing), so the shared `/paperclip` PVC is group-writable by group 1000, and the sidecar's `runAsUser: 1000` falls within that group. No initContainer chown needed; no override of the upstream paperclip container. Phase 3 will validate this empirically (Phase 3 Task 1 Step 3). |
+| 2026-05-03 | Phase 2 | Added `terminationGracePeriodSeconds: 45` to the Pod spec to give the shell sidecar's `cont-finish.d` (s6 shutdown) hooks time to drain tmux state, mirroring `ruflo`. |
