@@ -15,10 +15,26 @@ data:
   inventory.yaml: |
     # Layer-2 declarations — installed at boot via cont-init.d.
     # See docs/superpowers/specs/2026-05-02--orch--paperclip-shell-sidecar-design.md
-    mise: []
-    npm-global: []
-    pipx: []
-    cargo: []
+    #
+    # Phase 4 initial operator toolset. Order matters at install time:
+    #   - mise installs runtimes first (node, python, rust)
+    #   - npm-global needs node on PATH (via mise shims)
+    #   - cargo section needs rust on PATH (via mise shims)
+    # The reconcile script prepends mise shims to PATH on each run, so a
+    # cold boot with this whole inventory installs in a single pass.
+    mise:
+      - python@3.12
+      - node@20
+      - rust@stable
+    npm-global:
+      - "@anthropic-ai/claude-code"
+      - "@openai/codex"
+    pipx:
+      - black
+      - ruff
+    cargo:
+      - ripgrep
+      - eza
     removed:
       mise: []
       npm-global: []
