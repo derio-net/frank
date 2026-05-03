@@ -748,25 +748,37 @@ Confirms ruflo-db is healthy, both ruflo containers come up, the Authentik wirin
 
 ### Task 1: ruflo-db health
 
-- [ ] **Step 1: Mongo pod Ready, PVC bound**
+> *Plan deviation (recorded in Deployment Notes): at the pinned upstream SHA ruvocal uses a file-based RVF JSON store at `/app/db/`, not the Postgres database the plan originally assumed. The `ruflo-db` (Postgres) sub-app stays parked. The checks below were rewritten to match the actual data path; both ran green during Phase 3 validation 2026-05-03.*
+
+- [x] **Step 1: ruvocal data PVC Bound, mount writable to UID 1000** *(was: "Mongo pod Ready, PVC bound" — Postgres sub-app is parked, the actual data store lives in the `ruflo-data` PVC)*
 
 ```bash
-kubectl -n ruflo-system get pod -l app.kubernetes.io/name=mongodb \
-  -o jsonpath='{range .items[*]}{.metadata.name}: {.status.phase} ready={.status.containerStatuses[0].ready}{"\n"}{end}'
-kubectl -n ruflo-system get pvc
+kubectl -n ruflo-system get pvc ruflo-data
+# expect: STATUS=Bound, CAPACITY=5Gi, ACCESS MODES=RWO, STORAGECLASS=longhorn
+
+kubectl -n ruflo-system exec deploy/ruflo -c ruflo -- ls -la /app/db
+# expect: directory mounted, owned by UID 1000 (`user:user`); contains
+# ruvocal.rvf.json after the first request that mutates state (and the
+# ext4 lost+found dir from longhorn — harmless)
+
+kubectl -n ruflo-system exec deploy/ruflo -c ruflo -- df -h /app/db
+# expect: filesystem starts with /dev/longhorn/ (proves the volume mount,
+# not the container overlay)
 ```
 
-- [ ] **Step 2: ruvocal can connect** — verify by reading the ruvocal container's logs once Phase 3 Task 2 confirms ruflo is up:
+  Verified 2026-05-03: `ruflo-data Bound pvc-f2cbc01b-…-75bec47336dc 5Gi RWO longhorn`; `/app/db` mounted from `/dev/longhorn/pvc-f2cbc01b-…` (4.9G avail); `ruvocal.rvf.json` created at first boot, owned `user:user`.
+
+- [x] **Step 2: ruvocal can read+write the RVF store** *(was: "ruvocal can connect" against Mongo — that path is dead)*
 
 ```bash
-kubectl -n ruflo-system logs deploy/ruflo -c ruflo | grep -iE 'mongo|connect|ready|listen' | head -20
+kubectl -n ruflo-system logs deploy/ruflo -c ruflo | grep -iE 'rvf|database|listening' | head -10
 ```
 
-  Expect a successful mongo connection log line and a "listening on 3000" or equivalent.
+  Expect on a fresh PVC: `[RVF] No existing database … starting fresh` then `Listening on http://0.0.0.0:3000`. Expect on subsequent boots: `[RVF] Loaded N collections from /app/db/ruvocal.rvf.json` (N grows with operator activity). Verified 2026-05-03: first boot → `starting fresh`; after `kubectl rollout restart deploy/ruflo` → `Loaded 7 collections`. State persists across pod restarts.
 
 ### Task 2: ruflo pod-level health
 
-- [ ] **Step 1: Both containers Ready**
+- [x] **Step 1: Both containers Ready** *(verified 2026-05-03 — `ruflo: ready=true restarts=0`, `ruflo-shell: ready=true restarts=0` after the #200 rollout)*
 
 ```bash
 kubectl -n ruflo-system get pod -l app.kubernetes.io/name=ruflo \
@@ -774,7 +786,7 @@ kubectl -n ruflo-system get pod -l app.kubernetes.io/name=ruflo \
 # expect both 'ruflo' and 'ruflo-shell' with ready=true
 ```
 
-- [ ] **Step 2: Confirm shareProcessNamespace works**
+- [-] **Step 2: Confirm shareProcessNamespace works** *(skipped — incompatible with agent-shell-base s6 init, removed in #196; see Deployment Notes deviation)*
 
 ```bash
 kubectl -n ruflo-system exec -c ruflo-shell deploy/ruflo -- ps -ef | grep -E 'node|sshd' | head -10
@@ -1046,7 +1058,12 @@ ssh agent@192.168.55.222 -- bash -lc '
 
   Confirm MOTD on this fresh login reads `installed=0 already=N removed=0 failed=0` — proves the installer ran on boot and committed no work.
 
-- [ ] **Step 3: Confirm ruvocal Mongo state survived** — open the web UI, the previously-created hive(s)/runs (if any) should still be there.
+- [ ] **Step 3: Confirm ruvocal RVF state survived** *(was: "Mongo state survived" — ruvocal at the pinned SHA writes to `/app/db/ruvocal.rvf.json`, persisted via the `ruflo-data` PVC added in Phase 3)* — open the web UI, the previously-created hive(s)/runs (if any) should still be there. Cross-check from the shell:
+
+```bash
+ssh agent@192.168.55.222 -- 'kubectl -n ruflo-system logs deploy/ruflo -c ruflo --tail=20 | grep RVF'
+# expect: [RVF] Loaded N collections from /app/db/ruvocal.rvf.json  (N matches the count from before the restart)
+```
 
 ### Task 4: Interactive install drift test
 
@@ -1172,3 +1189,4 @@ Confirms each canonical step happened or was rationally skipped.
 | 2026-05-03 | P3 | **Open follow-up: supercronic crashloops on a fresh `ruflo-shell-home` PVC.** agent-shell-base's `services.d/supercronic/run` does `exec supercronic ${AGENT_HOME}/.crontab`; on a fresh PVC `~/.crontab` doesn't exist, supercronic exits 1, s6 restarts it, etc. paperclip-shell will hit this too once its sidecar deploys. Fix belongs in `agent-shell-base` (touch `~/.crontab` in `cont-init.d` if missing, or have supercronic skip when crontab is absent). Not blocking ruflo Phase 3 — sshd is independent. **Fixed in derio-net/agent-images#54** (supercronic's `run` script now `touch`es the crontab if missing — keeps the existing on-the-fly reload behaviour when the operator writes real entries). |
 | 2026-05-03 | P3 | **Plan deviation: ruvocal uses a file-based RVF JSON store at `/app/db/`, not Postgres.** Surfaced during Phase 3 validation when the just-started pod logged `[RuVocal] Database: /app/db/ruvocal.rvf.json` and `[RVF] No existing database at /app/db/ruvocal.rvf.json, starting fresh`. The Phase 1 Deployment Notes (P1.T2) had said "ruvocal now uses PostgreSQL via DATABASE_URL"; that was right about the migration direction (away from Mongo) but wrong about the destination — at the pinned SHA, the migration target is RVF (a local JSON store), not Postgres. `DATABASE_URL` is being silently ignored. **Fix landed:** new `apps/ruflo/manifests/pvc-data.yaml` (5Gi, RWO, longhorn) mounted at `/app/db` so hive/run/conversation state survives pod restarts. The `ruflo-db` Bitnami postgresql sub-app stays for now — kept around in case a future re-vendor of upstream switches back to Postgres; size 20Gi for that hypothetical future. Phase 4 Task 3 Step 3 ("Confirm ruvocal Mongo state survived") becomes "Confirm ruvocal RVF state survived" — same intent, different file. |
 | 2026-05-03 | P3 | **Pre-existing bug surfaced during P3.T3 readiness check, fixed in passing:** `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml` had 8-space indentation on the VK Remote (cluster) block (lines 284–304) vs the rest of the file's 6-space — the YAML failed to parse with `expected <block end>, but found '-'`. The Authentik worker had been logging this on every blueprint discovery cycle since 2026-04-12, silently blocking all proxy-provider blueprint applies for three weeks (paperclip's earlier providers exist only because they were applied *before* the malformed VK Remote block landed). Fixed indentation; blueprint applied cleanly; the manual outpost-provider assignment for ruflo (Phase 3 Task 3) ran after that. |
+| 2026-05-03 | P3 | **Test plan from #200 executed.** After ArgoCD synced commit `e49be9c…` and the new ReplicaSet `ruflo-84f55cfdb8` reached `2/2 Ready` in ~54s: (1) `ruflo-data` PVC Bound, 5Gi, longhorn — ✅; (2) `/app/db` mounted from `/dev/longhorn/pvc-f2cbc01b-…` (4.9G avail), owned `user:user`, `ruvocal.rvf.json` (709B) created on first boot — ✅; (3) **persistence proven via rollout-restart** — fresh PVC pod logged `[RVF] No existing database … starting fresh`; after `kubectl rollout restart deploy/ruflo`, the new pod logged `[RVF] Loaded 7 collections from /app/db/ruvocal.rvf.json` and a marker file (`/app/db/.persist-test`) survived the restart — ✅; (4) supercronic still `down (exitcode 1)` because ruflo-shell is on pre-fix SHA `8af0d08…`; agent-images#54 merged → auto-bump opened **derio-net/frank#201** (`8af0d08… → 257790c…`); flips to `up` once #201 merges — ⏸ gated on operator action; (5) runbook `orch-ruflo-*` entries — `authentik-outpost-assign: done`, `litellm-virtual-key: done`, `shell-ssh-keys-bootstrap: done`, `infisical-bootstrap: pending` (`RUFLO_DB_PASSWORD` substep obsolete per P2.T2 deviation) — ✅. Phase 3 Task 1 + Task 2 Step 1 marked checked; Task 2 Step 2 was already obsolete (shareProcessNamespace removed in #196). Browser SSO (Task 4 Step 2) and SSH/Mosh/MOTD/Telegram (Tasks 5–7, now unblocked by #195 SSH-keys bootstrap) still pending operator validation. |
