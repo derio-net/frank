@@ -656,6 +656,31 @@ images:
       monolith (revealing vk-local) on left → neat ordered platform on
       right. Cinematic lighting, the moment of discovery.
 
+  - key: building-29-ruflo
+    output: blog/content/docs/building/29-ruflo/cover.png
+    description: "Ruflo — chaotic swarm orchestrator next to Paperclip's org chart"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing in the middle
+      of a busy beehive-control-room, conducting a swarm. To his RIGHT, a
+      large hexagonal honeycomb wall is alive with dozens of tiny glowing
+      cyan robot-bees zigzagging between cells in chaotic but purposeful
+      paths — no chain of command, just emergent flow. Each bee carries a
+      tiny scroll labeled with a task ("refactor", "test", "ship",
+      "review"); some bees collide and split into two. A small banner over
+      the swarm reads "claude-flow / ruvocal". To his LEFT, a much smaller
+      and quieter inset shows a neat corporate org-chart on a clipboard
+      labeled "paperclip" — Frank glances at it sideways with a wry, "yeah
+      that's the OTHER one" expression. Frank holds a conductor's baton in
+      one hand and a glowing terminal-window readout in the other showing
+      "summary: installed=7 already=0 removed=0 failed=0". Above his head,
+      a single thick glowing pipe labeled "LiteLLM" runs from the swarm
+      into a kill-switch box on the wall — every bee's flight path passes
+      through that pipe. Frank: green skin, messy black hair, black eyes
+      with white pupils, mouth in a slight crooked grin (closed, NO fangs),
+      RJ45 neck bolts sparking blue. Server-room background with cyan and
+      amber accent lighting (amber from the honeycomb glow). Cinematic,
+      slightly chaotic, swarm-vs-hierarchy contrast.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -1045,3 +1070,27 @@ images:
       server room with cool blue lighting and warm amber accents from the
       corkboard pins and magnifying glass glow. Detective-noir mood, cartoon
       illustration style.
+
+
+  - key: ops-24-ruflo
+    output: blog/content/docs/operating/24-ruflo/cover.png
+    description: "Operating on Ruflo — Frank pruning a hexagonal beehive of agent tasks at the operations console"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster standing at an
+      operations console in front of a tall hexagonal honeycomb wall
+      teeming with tiny glowing cyan robot-bees. He holds an open
+      "inventory.yaml" scroll in one hand showing a clean YAML list
+      (mise / npm-global / pipx / cargo) and a pair of pruning shears in
+      the other, snipping a single bee labeled "fd-find" out of the
+      swarm with a wry expression — gardener trimming the hive. On the
+      console screens: left screen shows a green MOTD line "✓ ruflo-shell:
+      7 installed, 0 already present, 0 removed", center screen shows a
+      live SSH terminal at "agent@ruflo" with a "claude-flow status"
+      output, right screen shows a small Telegram alert popup ("install
+      failed: claude-flow@alpha rc=243"). A glowing blue pipe labelled
+      "LiteLLM" runs along the top of the wall, with every bee's flight
+      path passing through it once. Frank: green skin, messy black hair,
+      black eyes with white pupils, mouth in a calm slight smile (closed,
+      NO fangs), RJ45 neck bolts sparking faint blue electricity. Operational
+      mood — routine pruning, not chaos. Server-room background with cyan
+      and amber accent lighting.

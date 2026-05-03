@@ -1,7 +1,7 @@
 # Ruflo Pod Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-05-02--orch--ruflo-pod-design.md`
-**Status:** Not Started
+**Status:** Deployed
 
 **Type:** New layer in the `orch` capability domain (sibling to Paperclip). Per `repo-workflows.md`: standard layer workflow, includes NEW building/operating blog posts and a new homepage tile.
 
@@ -1062,14 +1062,14 @@ This is a **new layer** (sibling to Paperclip in `orch`), so it gets new buildin
 
 ### Task 1: Update CLAUDE.md rules
 
-- [ ] **Step 1: Update `.claude/rules/frank-infrastructure.md`** Frank Cluster Services table
+- [x] **Step 1: Update `.claude/rules/frank-infrastructure.md`** Frank Cluster Services table
 
 ```
 | Ruflo Web UI            | (via Traefik)  | IngressRoute (ruflo.cluster.derio.net)             |
 | Ruflo Shell (SSH+Mosh)  | 192.168.55.222 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60016-60031/Mosh) |
 ```
 
-- [ ] **Step 2: Add gotchas to `.claude/rules/frank-gotchas.md`** — only patterns that actually surfaced during Phases 1–4. Possible candidates (verify each was actually hit):
+- [x] **Step 2: Add gotchas to `.claude/rules/frank-gotchas.md`** — only patterns that actually surfaced during Phases 1–4. Possible candidates (verify each was actually hit):
   - ruvocal's exact `MONGO_URL` env-var name and any quirks getting `INCLUDE_DB=false` to behave
   - Workspace-path mismatch handling between containers, if encountered
   - Traefik subpath/headers handling for ruvocal SPA, if needed
@@ -1077,24 +1077,24 @@ This is a **new layer** (sibling to Paperclip in `orch`), so it gets new buildin
 
 ### Task 2: Write the building blog post
 
-- [ ] **Step 1: Run `/blog-post`** to scaffold `blog/content/docs/building/<NN>-ruflo/index.md`. Choose `<NN>` so it follows the most recently published `building/` post in numeric order.
+- [x] **Step 1: Run `/blog-post`** to scaffold `blog/content/docs/building/<NN>-ruflo/index.md`. Choose `<NN>` so it follows the most recently published `building/` post in numeric order.
 
-- [ ] **Step 2: Write the post.** Suggested narrative:
+- [x] **Step 2: Write the post.** Suggested narrative:
   - The why: Paperclip is structured org-chart orchestration; ruflo is the chaotic-swarm counterpoint. Frank's "let competing paradigms decide via the work" continues.
   - The shape: hybrid pod (ruvocal + shell sidecar), separate Mongo sub-app, single LoadBalancer for SSH+Mosh, Traefik+Authentik for the web UI.
   - The reuse: shell sidecar is the second instance of the agent-shell-base + inventory-ConfigMap pattern; what changed and what stayed identical.
   - The principle: zero direct frontier-LLM keys in the pod; LiteLLM gateway as the kill switch; OpenRouter as the deliberate escape hatch.
   - The gotchas (whatever surfaced).
 
-- [ ] **Step 3: Update series index** `blog/content/docs/building/00-overview/index.md` — add ruflo to the Series Index and Capability Map.
+- [x] **Step 3: Update series index** `blog/content/docs/building/00-overview/index.md` — add ruflo to the Series Index and Capability Map.
 
-- [ ] **Step 4: Update roadmap shortcode** `blog/layouts/shortcodes/cluster-roadmap.html` — add the new layer entry.
+- [x] **Step 4: Update roadmap shortcode** `blog/layouts/shortcodes/cluster-roadmap.html` — add the new layer entry.
 
 ### Task 3: Write the operating blog post
 
-- [ ] **Step 1: Run `/blog-post`** to scaffold `blog/content/docs/operating/<NN>-ruflo/index.md`.
+- [x] **Step 1: Run `/blog-post`** to scaffold `blog/content/docs/operating/<NN>-ruflo/index.md`.
 
-- [ ] **Step 2: Write the post.** Sections:
+- [x] **Step 2: Write the post.** Sections:
   - Connecting (laptop `~/.ssh/config` snippet, mosh wrapper, accessing the web UI)
   - Adding/removing tools (ConfigMap edit flow vs interactive `mise install` / `cargo install`)
   - Reading the install log / interpreting the Telegram alert
@@ -1103,22 +1103,22 @@ This is a **new layer** (sibling to Paperclip in `orch`), so it gets new buildin
   - Backup and recovery (Longhorn snapshot policy on the three PVCs; how to restore)
   - Rough swarm-run cookbook: a worked example of running an actual `claude-flow orchestrate` against the running ruvocal — minimum pieces an operator needs
 
-- [ ] **Step 3: Update operating series index** in `blog/content/docs/building/00-overview/index.md`.
+- [x] **Step 3: Update operating series index** in `blog/content/docs/building/00-overview/index.md`.
 
 ### Task 4: Run `/update-readme`
 
-- [ ] **Step 1:** Run the skill. Verify:
+- [x] **Step 1:** Run the skill. Verify:
   - Service Access table includes `192.168.55.222` and `ruflo.cluster.derio.net`.
   - Repository Structure section reflects the new `apps/ruflo/` and `apps/ruflo-db/` directories.
   - Current Status reflects the new layer.
 
 ### Task 5: Sync runbook
 
-- [ ] **Step 1: Run `/sync-runbook`.** This plan introduces two manual-operation blocks (Infisical bootstrap in Phase 2 Task 1, Authentik outpost assignment in Phase 3 Task 3). The skill picks them up and merges into `docs/runbooks/manual-operations.yaml`.
+- [x] **Step 1: Run `/sync-runbook`.** This plan introduces two manual-operation blocks (Infisical bootstrap in Phase 2 Task 1, Authentik outpost assignment in Phase 3 Task 3). The skill picks them up and merges into `docs/runbooks/manual-operations.yaml`.
 
 ### Task 6: Update plan status
 
-- [ ] **Step 1:** Set `**Status:** Deployed` at the top of this plan.
+- [x] **Step 1:** Set `**Status:** Deployed` at the top of this plan.
 
 ---
 

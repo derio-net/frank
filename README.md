@@ -44,6 +44,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
 | Multi-tenancy | vCluster | Virtual K8s clusters inside Frank — disposable sandboxes via ArgoCD |
 | Agent Orchestrator | Paperclip | Company-model AI agents — org charts, budgets, delegation chains routing through LiteLLM |
+| Swarm Orchestrator | Ruflo (claude-flow + ruvocal) | Hybrid pod (ruvocal SSR + agent-shell-base sidecar), zero direct frontier-LLM keys, SSH+Mosh shell on `192.168.55.222`, web UI at `ruflo.cluster.derio.net` |
 | Media Generation | ComfyUI | Diffusion models (LTX-2.3 video, SDXL image, Stable Audio) on gpu-1, time-shared with Ollama |
 | GPU Switching | GPU Switcher | Custom Go dashboard for one-click GPU time-sharing between Ollama and ComfyUI |
 | Certificate Management | cert-manager | Automated TLS certificate lifecycle for webhooks and internal services |
@@ -99,6 +100,8 @@ frank/
 │   │   └── experiments/values.yaml              # First sandbox instance
 │   ├── paperclip-db/values.yaml                 # Bitnami PostgreSQL for Paperclip
 │   ├── paperclip/manifests/                     # Paperclip Deployment, ExternalSecrets, PVC, LB Service
+│   ├── ruflo-db/values.yaml                     # Bitnami PostgreSQL (parked) for ruflo
+│   ├── ruflo/manifests/                         # Ruflo hybrid pod: ruvocal SSR + ruflo-shell sidecar, ConfigMap inventory, three PVCs, Traefik route
 │   ├── comfyui/manifests/                       # ComfyUI diffusion model server (time-shared GPU)
 │   ├── argo-rollouts/values.yaml               # Argo Rollouts controller
 │   ├── argo-rollouts-extras/manifests/          # Cilium plugin config + RBAC
@@ -141,8 +144,8 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (PaperMod theme)
 │   ├── hugo.toml
-│   ├── content/docs/building/       # 27 posts documenting the build
-│   ├── content/docs/operating/      # 22 companion operations guides
+│   ├── content/docs/building/       # 29 posts documenting the build
+│   ├── content/docs/operating/      # 24 companion operations guides
 │   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
 ├── docs/
 │   └── superpowers/
@@ -191,6 +194,8 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Secure Agent Pod (VibeKanban) | http://192.168.55.218:8081 | 192.168.55.218 |
 | Secure Agent Pod (Mosh) | mosh + tmux persistent sessions — see [operating post](blog/content/docs/operating/14-secure-agent-pod/index.md#persistent-shells-with-mosh--tmux) | 192.168.55.219 |
 | Traefik Ingress | https://*.cluster.derio.net | 192.168.55.220 |
+| Ruflo Web UI | https://ruflo.cluster.derio.net | (via Traefik) |
+| Ruflo Shell (SSH+Mosh) | ssh agent@192.168.55.222 — mosh UDP 60016-60031 | 192.168.55.222 |
 | VK Remote | https://vk.cluster.derio.net | (via Traefik) |
 | Homepage Dashboard | https://master.cluster.derio.net | (via Traefik) |
 
@@ -245,6 +250,8 @@ argocd app list
 | vcluster-experiments | vcluster-experiments | Disposable virtual K8s cluster (SQLite-backed, resource-quoted sandbox) |
 | paperclip-db | paperclip-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 5Gi |
 | paperclip | paperclip-system | Paperclip v0.3.1 AI agent orchestrator (192.168.55.212:3100) |
+| ruflo-db | ruflo-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 20Gi — parked (ruvocal at pinned SHA uses RVF JSON store, not Postgres) |
+| ruflo | ruflo-system | Hybrid pod: ruvocal SSR (`ghcr.io/derio-net/ruflo-server`) + agent-shell-base sidecar (`ghcr.io/derio-net/ruflo-shell`), 3 PVCs, web UI at `ruflo.cluster.derio.net`, SSH+Mosh on 192.168.55.222 |
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
 | secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1: 2-container pod (kali + vk-local sidecar) sharing `/home/claude` PVC, SSH :22, VibeKanban :8081, non-root, Cilium egress, ESO secrets |
