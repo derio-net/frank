@@ -5,18 +5,25 @@
 # Anchor: 2026-05-03 = Soak Day 1 (already filled by gh#156 PR #205).
 # Window: Days 2–14 = 2026-05-04 → 2026-05-16 inclusive.
 #
-# Behavior:
-#  - While the soak branch (vk/4bac-ffe-118-gh-156) exists on origin AND
-#    today is within the soak window: append the Day-N row to the Soak
-#    Log table in the plan and push to the soak branch.
-#  - After Day 14 (or before Day 2): no-op + log "out of window".
-#  - Once the soak branch is gone on origin (PR #205 merged or branch
-#    deleted): one open `vk-ready` GitHub issue is the cleanup nag —
-#    the first fire creates it; every subsequent fire adds a one-line
-#    comment dated today. The issue stays open until the operator
-#    deletes the cron line and the script (and closes the issue).
+# Behavior — purely date-driven:
+#  - Pre-window (today < 2026-05-04): no-op, log "pre-window".
+#  - In-window (Days 2–14, 2026-05-04 → 2026-05-16): append the Day-N row
+#    to the Soak Log table on a follow-up branch
+#    (vk/phase-5-soak-data-collection) branched off origin/main, push,
+#    and open a PR if none is open. Subsequent fires append commits to
+#    the same branch and same PR.
+#  - Post-window (today > 2026-05-16): switch to cleanup-nag mode. One
+#    open `vk-ready` GitHub issue is the nag — first fire creates it;
+#    every subsequent fire adds a one-line comment dated today. The
+#    issue stays open until the operator deletes the cron line and the
+#    script (and closes the issue).
 #
-# REMOVE after PR #205 merges and the cleanup-reminder issue is opened:
+# Note: branch existence is no longer the cleanup trigger. PR #205 merged
+# on Day 1 (2026-05-03) and the original branch is gone, but the soak
+# itself runs Days 2–14. The script targets a fresh branch off main for
+# data collection so the original PR's lifecycle is decoupled.
+#
+# REMOVE after Day 14 (2026-05-16) and once the cleanup-nag issue is open:
 #   1. rm "$HOME/.willikins-agent/phase5-soak-daily.sh"
 #   2. delete the matching line in "$HOME/.crontab" (grep phase5-soak-daily)
 #   3. close the "cleanup: remove Phase 5 soak …" issue on derio-net/frank
@@ -28,7 +35,8 @@ set -o pipefail
 # explicit error checks inside the helpers below, not `set -u`/`set -e`.
 
 REPO_SLUG="derio-net/frank"
-SOAK_BRANCH="${SOAK_BRANCH_OVERRIDE:-vk/4bac-ffe-118-gh-156}"
+SOAK_BRANCH="${SOAK_BRANCH_OVERRIDE:-vk/phase-5-soak-data-collection}"
+BASE_BRANCH="main"
 PLAN_PATH="docs/superpowers/plans/2026-04-30--agents--vk-local-oom-remediation.md"
 CLONE_DIR="$HOME/.willikins-agent/phase5-soak-clone"
 LOG="$HOME/.willikins-agent/phase5-soak.log"
@@ -44,18 +52,12 @@ log() { echo "[$(ts_iso)] $*" >> "$LOG"; }
 
 mkdir -p "$(dirname "$LOG")"
 
-# --- Branch presence check on origin ----------------------------------------
+# --- Repo helpers -----------------------------------------------------------
 ensure_clone() {
   if [[ ! -d "$CLONE_DIR/.git" ]]; then
     log "cloning $REPO_SLUG into $CLONE_DIR"
     git clone --quiet "https://github.com/${REPO_SLUG}.git" "$CLONE_DIR"
   fi
-}
-
-branch_exists_on_origin() {
-  ensure_clone
-  ( cd "$CLONE_DIR" && git fetch --quiet --prune origin )
-  ( cd "$CLONE_DIR" && git ls-remote --heads origin "$SOAK_BRANCH" | grep -q "$SOAK_BRANCH" )
 }
 
 # --- Cleanup-reminder mode: one open issue, comments after that -------------
@@ -97,9 +99,8 @@ nag_for_cleanup() {
 open, the script will add a one-line comment dated each day it fires.**
 
 The Phase 5 vk-local OOM soak script is still firing on the secure-agent-pod
-even though the soak branch \`${SOAK_BRANCH}\` no longer exists on origin
-(PR #205 has been merged, or the branch was deleted). The script's job is
-done; it is now just nagging.
+even though the soak window has closed (Day 14 was 2026-05-16). The
+script's job is done; it is now just nagging.
 
 To make it stop, on the secure-agent-pod (PVC home \`/home/claude\`):
 
@@ -116,10 +117,10 @@ To make it stop, on the secure-agent-pod (PVC home \`/home/claude\`):
    \`\`\`
 3. Close this issue.
 
-If the soak data needs another day or two of follow-up rather than a full
-cleanup, re-create the soak branch on origin instead of removing the
-script — the script will resume soak mode automatically on its next fire,
-and the daily comments here will stop.
+If the soak window needs to be extended for a few extra days, edit
+\`SOAK_LAST\` in the script (and the cron line is fine as-is) — the
+script will resume soak mode automatically on its next fire, and the
+daily comments here will stop.
 
 ---
 
@@ -227,11 +228,18 @@ PY
   )
   log "Day $day row: $row"
 
-  # Apply to plan on the soak branch in the dedicated clone
+  # Apply to plan on the soak branch in the dedicated clone. If the soak
+  # branch doesn't exist on origin yet (first fire post-merge), branch off
+  # the latest base branch (main).
   ensure_clone
   cd "$CLONE_DIR"
-  git fetch --quiet origin "$SOAK_BRANCH"
-  git checkout --quiet -B "$SOAK_BRANCH" "origin/$SOAK_BRANCH"
+  git fetch --quiet --prune origin
+  if git ls-remote --heads origin "$SOAK_BRANCH" | grep -q "$SOAK_BRANCH"; then
+    git checkout --quiet -B "$SOAK_BRANCH" "origin/$SOAK_BRANCH"
+  else
+    log "  $SOAK_BRANCH not on origin — branching from origin/$BASE_BRANCH"
+    git checkout --quiet -B "$SOAK_BRANCH" "origin/$BASE_BRANCH"
+  fi
 
   python3 - "$PLAN_PATH" "$day" "$today" "$row" <<'PY'
 import re, sys, pathlib
@@ -270,14 +278,53 @@ PY
     log "  DRY_RUN: would commit + push the following diff:"
     git --no-pager diff -- "$PLAN_PATH" >> "$LOG" 2>&1
     git checkout --quiet -- "$PLAN_PATH"
+  else
+    git add "$PLAN_PATH"
+    git -c user.name="Clawdia" -c user.email="clawdia-ai-assistant@gmail.com" \
+      commit --quiet -m "agents: Phase 5 soak Day $day (gh#156)" \
+      -m "p99 working-set, queue peak, restart count for ${today}. Auto-filled by phase5-soak-daily.sh." >> "$LOG" 2>&1
+    git push --quiet --set-upstream origin "$SOAK_BRANCH" >> "$LOG" 2>&1
+    log "  Day $day pushed to $SOAK_BRANCH"
+  fi
+
+  # Open a PR if none is open against this branch (honors DRY_RUN internally).
+  ensure_soak_pr
+}
+
+ensure_soak_pr() {
+  local existing
+  existing=$(gh pr list --repo "$REPO_SLUG" --state open --head "$SOAK_BRANCH" \
+    --json number --jq '.[].number' 2>>"$LOG" | head -1)
+  if [[ -n "$existing" ]]; then
+    log "  PR #${existing} already open for $SOAK_BRANCH; nothing to do"
     return 0
   fi
-  git add "$PLAN_PATH"
-  git -c user.name="Clawdia" -c user.email="clawdia-ai-assistant@gmail.com" \
-    commit --quiet -m "agents: Phase 5 soak Day $day (gh#156)" \
-    -m "p99 working-set, queue peak, restart count for ${today}. Auto-filled by phase5-soak-daily.sh." >> "$LOG" 2>&1
-  git push --quiet origin "$SOAK_BRANCH" >> "$LOG" 2>&1
-  log "  Day $day pushed to $SOAK_BRANCH"
+  log "  no open PR for $SOAK_BRANCH — opening one"
+  local pr_body
+  pr_body=$(cat <<EOF
+Phase 5 soak data collection (gh#156). Auto-filled by
+\`scripts/phase5-soak-daily.sh\` on the secure-agent-pod each day at
+08:00 UTC for the soak window 2026-05-04 → 2026-05-16 (Days 2–14).
+
+The Soak Log table on \`main\` (from #205) ships 14 placeholder rows;
+this PR replaces \`_tbd_\` cells with actual readings as the days roll.
+Merge when the table is full and the Phase 5 Task 2 decision (a/b/c)
+is documented, OR earlier if you want to mid-cycle review.
+
+Once Day 14 (2026-05-16) has been recorded, the daily script switches
+to cleanup-nag mode automatically — see \`scripts/phase5-soak-daily.sh\`
+header for the manual cleanup steps.
+EOF
+)
+  if [[ -n "${DRY_RUN:-}" ]]; then
+    log "  DRY_RUN: would gh pr create --base $BASE_BRANCH --head $SOAK_BRANCH"
+    return 0
+  fi
+  gh pr create --repo "$REPO_SLUG" \
+    --base "$BASE_BRANCH" --head "$SOAK_BRANCH" \
+    --title "agents: Phase 5 soak data collection (gh#156)" \
+    --body "$pr_body" >> "$LOG" 2>&1 \
+    || log "  gh pr create failed (non-fatal)"
 }
 
 # --- Main -------------------------------------------------------------------
@@ -293,10 +340,11 @@ main() {
     esac
   done
   log "fire: $(date -u +%F\ %T)${OVERRIDE_DATE:+ (override=$OVERRIDE_DATE)}${DRY_RUN:+ (dry-run)}"
-  if branch_exists_on_origin; then
-    soak_today
-  else
+  local today; today="${OVERRIDE_DATE:-$(date -u +%F)}"
+  if [[ "$today" > "$SOAK_LAST" ]]; then
     nag_for_cleanup
+  else
+    soak_today
   fi
 }
 
