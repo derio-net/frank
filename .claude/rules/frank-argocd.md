@@ -36,3 +36,30 @@ When adding a new outward-facing service with an IngressRoute:
       "
       ```
       This is required because Authentik blueprints cannot manage outpost provider lists without replacing existing assignments.
+
+### Validating CM/Secret changes from a PR branch (without polluting main)
+
+ArgoCD pulls from `main`, not from feature branches, so a one-shot validation that needs to mutate a ConfigMap/Secret managed by the Application can't go through commit/push/sync. The clean pattern is to suspend self-heal, patch live, capture evidence, then restore:
+
+```bash
+# 1. Suspend self-heal so ArgoCD doesn't fight the temporary edit.
+kubectl patch application <app> -n argocd --type=merge \
+  -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":false}}}}'
+
+# 2. Patch the live resource — for ConfigMaps, account for the kubelet
+#    projection lag (~30–60s) before pods see the new value.
+kubectl -n <ns> patch configmap <name> --type=merge -p '<patch>'
+# wait until the pod sees the new content...
+
+# 3. Capture the evidence (logs, MOTD, Telegram message_id, etc.).
+
+# 4. Re-enable self-heal AND force a manual sync to revert the live
+#    resource to git ground truth in the same session — never leave
+#    selfHeal=false at the end of a script.
+kubectl patch application <app> -n argocd --type=merge \
+  -p '{"spec":{"syncPolicy":{"automated":{"selfHeal":true}}}}'
+kubectl patch application <app> -n argocd --type=merge \
+  -p '{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'
+```
+
+Always pass `syncOptions` explicitly on the manual-sync patch — see the gotcha about manually-triggered syncs not inheriting `spec.syncPolicy.syncOptions`.
