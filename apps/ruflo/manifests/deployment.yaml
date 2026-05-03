@@ -59,6 +59,12 @@ spec:
         - name: workspace
           persistentVolumeClaim:
             claimName: ruflo-workspace
+        # /app/db is where ruvocal writes its file-based RVF JSON store
+        # (hives, runs, settings, conversations). Without persistence the
+        # state is on overlay fs and is lost on every pod restart.
+        - name: data
+          persistentVolumeClaim:
+            claimName: ruflo-data
         - name: shell-home
           persistentVolumeClaim:
             claimName: ruflo-shell-home
@@ -112,6 +118,9 @@ spec:
                 optional: true
           volumeMounts:
             - { name: workspace, mountPath: /workspace }
+            # ruvocal writes /app/db/ruvocal.rvf.json (and any future
+            # RVF files) on every state mutation. Mount the data PVC there.
+            - { name: data,      mountPath: /app/db   }
           resources:
             requests:
               cpu: 500m

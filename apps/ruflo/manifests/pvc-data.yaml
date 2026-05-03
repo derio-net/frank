@@ -1,0 +1,22 @@
+# ruvocal's persistent state (hives, runs, settings, conversations).
+# At the upstream SHA pinned in Phase 1, ruvocal uses a file-based JSON store
+# at `/app/db/ruvocal.rvf.json` (the "RVF" format), not the Postgres database
+# that the plan's Phase 1 deviation note assumed. The `ruflo-db` Bitnami
+# postgresql sub-app is currently provisioned but unused — kept around in case
+# a future re-vendor of upstream switches to Postgres (the plan's Phase 1.T2
+# deviation row had it the right way but for the wrong file).
+#
+# 5Gi is plenty: each hive+run record is small JSON; 50Gi (matching workspace)
+# would be wasteful. Bump if the operator hits it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ruflo-data
+  namespace: ruflo-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi

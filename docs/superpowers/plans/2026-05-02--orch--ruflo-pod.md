@@ -275,6 +275,53 @@ status: pending
 - [-] **Step 1: Generate `RUFLO_DB_PASSWORD`** (32+ char random) and add to Infisical under the path the `apps/ruflo/manifests/externalsecret-db-credentials.yaml` ESO will reference. <!-- Manual op — operator action before this PR can deploy. Tracked in Deployment Notes. -->
 - [-] **Step 2: Confirm `OPENROUTER_API_KEY` and `EMAIL_RESEND_API_KEY` are accessible from a `ruflo-system`-permitted Infisical path.** If not, copy the entries under `/shared` (the path used by paperclip's ESOs) or extend ServiceAccount access. <!-- Manual op — operator action before this PR can deploy. Tracked in Deployment Notes. -->
 
+### Task 1b: Provision LiteLLM virtual key for ruflo (manual)
+
+Surfaced during Phase 3 first-deploy validation: `apps/ruflo/manifests/externalsecret-llm.yaml` aliases `OPENAI_API_KEY` to `RUFLO_LITELLM_KEY` (a LiteLLM virtual key scoped to ruflo) — same shape paperclip uses with `PAPERCLIP_LITELLM_KEY`. The earlier alias to `OPENROUTER_API_KEY` produced 401s from LiteLLM because LiteLLM authenticates against its own virtual keys, not the upstream provider key.
+
+```yaml
+# manual-operation
+id: orch-ruflo-litellm-virtual-key
+layer: orch
+app: ruflo
+plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
+when: before opening the Phase 3 fix PR that re-points OPENAI_API_KEY at RUFLO_LITELLM_KEY (derio-net/frank#197)
+why_manual: LiteLLM virtual keys are created via the LiteLLM admin API; the master key isn't reproducible from git, and Infisical entries are operator-side
+commands:
+  - description: Create a virtual key in LiteLLM scoped to the ruflo namespace
+    command: |
+      # 1. Pull the LiteLLM master key from the cluster (or from Infisical):
+      MASTER_KEY=$(kubectl -n litellm get secret litellm-api-keys \
+        -o jsonpath='{.data.LITELLM_MASTER_KEY}' | base64 -d)
+
+      # 2. Call /key/generate. Adjust models/metadata as you like; this
+      #    snapshot mirrors paperclip's PAPERCLIP_LITELLM_KEY.
+      kubectl -n litellm exec deploy/litellm -- curl -fsS \
+        -H "Authorization: Bearer $MASTER_KEY" \
+        -H 'Content-Type: application/json' \
+        -X POST http://localhost:4000/key/generate \
+        -d '{"key_alias": "ruflo", "metadata": {"app": "ruflo"}}'
+
+      # 3. The response includes `key`: paste it into Infisical at the path
+      #    apps/ruflo/manifests/externalsecret-llm.yaml reads
+      #    (`/shared` or wherever PAPERCLIP_LITELLM_KEY lives), keyed RUFLO_LITELLM_KEY.
+verify:
+  - description: ESO has synced the new key into the ruflo-llm Secret
+    command: |
+      kubectl -n ruflo-system get secret ruflo-llm \
+        -o jsonpath='{.data.OPENAI_API_KEY}' | base64 -d | head -c 4
+      # expect: "sk-c" or similar — i.e. a LiteLLM virtual key prefix, NOT "sk-or-" (OpenRouter)
+  - description: ruvocal can list models through LiteLLM with the key
+    command: |
+      kubectl -n ruflo-system exec deploy/ruflo -c ruflo -- bash -c '
+        curl -fsS -o /dev/null -w "%{http_code}\n" \
+          -H "Authorization: Bearer $OPENAI_API_KEY" $OPENAI_BASE_URL/models'
+      # expect: 200
+status: done   # provisioned 2026-05-03 by operator; ESO + verify both green
+```
+
+- [x] **Step 1: Provision the virtual key** via the LiteLLM admin API and store the returned secret as `RUFLO_LITELLM_KEY` in Infisical. *(Done 2026-05-03 — confirmed via `OPENAI_API_KEY` prefix `sk-cEqfu9e8…` in the running pod; LiteLLM `/models` returns 200.)*
+
 ### Task 2: Add `apps/ruflo-db/` ArgoCD sub-app
 
 - [x] **Step 1: Read `apps/paperclip-db/` to mirror its shape**
@@ -777,12 +824,12 @@ verify:
       o = Outpost.objects.get(name='authentik Embedded Outpost')
       print([p.name for p in o.providers.all()])
       " | grep -q 'Ruflo (cluster)' && echo OK
-status: pending
+status: done   # ran 2026-05-03; provider list now includes 'Ruflo (cluster)'
 ```
 
-- [ ] **Step 1: Run the Django ORM command** above to add the ruflo proxy provider to the embedded outpost.
+- [x] **Step 1: Run the Django ORM command** above to add the ruflo proxy provider to the embedded outpost. *(Done 2026-05-03 during Phase 3 validation.)*
 
-- [ ] **Step 2: Verify the outpost provider list includes `ruflo`** via the verify command.
+- [x] **Step 2: Verify the outpost provider list includes `ruflo`** via the verify command. *(Confirmed — `Ruflo (cluster)` in the embedded outpost provider list.)*
 
 ### Task 4: Web UI loads through Authentik SSO
 
@@ -1122,5 +1169,6 @@ Confirms each canonical step happened or was rationally skipped.
 | 2026-05-03 | P3 | **Plan deviation: `OPENAI_API_KEY` aliased to `OPENROUTER_API_KEY` in `apps/ruflo/manifests/externalsecret-llm.yaml` doesn't work** — LiteLLM authenticates against its own virtual keys / master key, not the upstream provider key, so model-list calls came back 401 and the SSR-rendered `/` returned 500. Operator manually provisioned `RUFLO_LITELLM_KEY` (a LiteLLM virtual key scoped to ruflo, mirroring `PAPERCLIP_LITELLM_KEY`) in Infisical; ESO updated to read it for `OPENAI_API_KEY`. Same shape paperclip uses. |
 | 2026-05-03 | P3 | **Plan deviation: `shareProcessNamespace: true` is incompatible with agent-shell-base's s6-overlay v3 init** — second container's entrypoint inherits a non-pid-1 process slot, `s6-overlay-suexec: fatal: can only run as pid 1`, sshd never starts. Dropped the share. Cross-container `ps -ef` was the only motivation per the plan; debugging surface is `/workspace` (shared PVC) which still works. Phase 3 plan Task 2 Step 2 ("Confirm shareProcessNamespace works") is obsolete — re-mark as `[-]` skipped during validation. |
 | 2026-05-03 | P3 | **Plan deviation: readiness/liveness probe path `/` is not a process-liveness check** — ruvocal SSR-renders the model list at request time, so a probe against `/` is a full upstream-dependency check (LiteLLM auth, Postgres, etc.). Switched probes to `/api/v2/feature-flags`: same Express stack, no LLM dependency. The plan's comment ("the SPA root reliably returns 2xx once the Node server is bound") is wrong; the comment block in the deployment manifest now records the correct shape. |
-| 2026-05-03 | P3 | **Open follow-up: supercronic crashloops on a fresh `ruflo-shell-home` PVC.** agent-shell-base's `services.d/supercronic/run` does `exec supercronic ${AGENT_HOME}/.crontab`; on a fresh PVC `~/.crontab` doesn't exist, supercronic exits 1, s6 restarts it, etc. paperclip-shell will hit this too once its sidecar deploys. Fix belongs in `agent-shell-base` (touch `~/.crontab` in `cont-init.d` if missing, or have supercronic skip when crontab is absent). Not blocking ruflo Phase 3 — sshd is independent. |
+| 2026-05-03 | P3 | **Open follow-up: supercronic crashloops on a fresh `ruflo-shell-home` PVC.** agent-shell-base's `services.d/supercronic/run` does `exec supercronic ${AGENT_HOME}/.crontab`; on a fresh PVC `~/.crontab` doesn't exist, supercronic exits 1, s6 restarts it, etc. paperclip-shell will hit this too once its sidecar deploys. Fix belongs in `agent-shell-base` (touch `~/.crontab` in `cont-init.d` if missing, or have supercronic skip when crontab is absent). Not blocking ruflo Phase 3 — sshd is independent. **Fixed in derio-net/agent-images#54** (supercronic's `run` script now `touch`es the crontab if missing — keeps the existing on-the-fly reload behaviour when the operator writes real entries). |
+| 2026-05-03 | P3 | **Plan deviation: ruvocal uses a file-based RVF JSON store at `/app/db/`, not Postgres.** Surfaced during Phase 3 validation when the just-started pod logged `[RuVocal] Database: /app/db/ruvocal.rvf.json` and `[RVF] No existing database at /app/db/ruvocal.rvf.json, starting fresh`. The Phase 1 Deployment Notes (P1.T2) had said "ruvocal now uses PostgreSQL via DATABASE_URL"; that was right about the migration direction (away from Mongo) but wrong about the destination — at the pinned SHA, the migration target is RVF (a local JSON store), not Postgres. `DATABASE_URL` is being silently ignored. **Fix landed:** new `apps/ruflo/manifests/pvc-data.yaml` (5Gi, RWO, longhorn) mounted at `/app/db` so hive/run/conversation state survives pod restarts. The `ruflo-db` Bitnami postgresql sub-app stays for now — kept around in case a future re-vendor of upstream switches back to Postgres; size 20Gi for that hypothetical future. Phase 4 Task 3 Step 3 ("Confirm ruvocal Mongo state survived") becomes "Confirm ruvocal RVF state survived" — same intent, different file. |
 | 2026-05-03 | P3 | **Pre-existing bug surfaced during P3.T3 readiness check, fixed in passing:** `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml` had 8-space indentation on the VK Remote (cluster) block (lines 284–304) vs the rest of the file's 6-space — the YAML failed to parse with `expected <block end>, but found '-'`. The Authentik worker had been logging this on every blueprint discovery cycle since 2026-04-12, silently blocking all proxy-provider blueprint applies for three weeks (paperclip's earlier providers exist only because they were applied *before* the malformed VK Remote block landed). Fixed indentation; blueprint applied cleanly; the manual outpost-provider assignment for ruflo (Phase 3 Task 3) ran after that. |
