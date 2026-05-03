@@ -249,7 +249,7 @@ argocd app list
 | authentik-extras | authentik | K8s RBAC ClusterRoleBindings mapping Authentik groups to cluster roles |
 | vcluster-experiments | vcluster-experiments | Disposable virtual K8s cluster (SQLite-backed, resource-quoted sandbox) |
 | paperclip-db | paperclip-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 5Gi |
-| paperclip | paperclip-system | Paperclip v0.3.1 AI agent orchestrator (192.168.55.212:3100) |
+| paperclip | paperclip-system | Paperclip AI agent orchestrator on gpu-1 (192.168.55.212:3100), 12Gi memory limit, defensive nvidia.com/gpu toleration |
 | ruflo-db | ruflo-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 20Gi — parked (ruvocal at pinned SHA uses RVF JSON store, not Postgres) |
 | ruflo | ruflo-system | Hybrid pod: ruvocal SSR (`ghcr.io/derio-net/ruflo-server`) + agent-shell-base sidecar (`ghcr.io/derio-net/ruflo-shell`), 3 PVCs, web UI at `ruflo.cluster.derio.net`, SSH+Mosh on 192.168.55.222 |
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |

@@ -12,11 +12,13 @@ This is the operational companion to [Paperclip — AI Agent Orchestrator]({{< r
 ## What "Healthy" Looks Like
 
 Paperclip is healthy when:
-- The paperclip pod is `1/1 Running` in the `paperclip-system` namespace
+- The paperclip pod is `1/1 Running` on `gpu-1` in the `paperclip-system` namespace
 - The web UI responds at `http://192.168.55.212:3100`
-- PostgreSQL is `1/1 Running` with the metrics sidecar
+- PostgreSQL is `1/1 Running` with the metrics sidecar (PostgreSQL is unconstrained — runs wherever the scheduler puts it)
 - All four ExternalSecrets show `SecretSynced`
 - The PVC is `Bound`
+
+Paperclip is pinned to gpu-1 (`nodeSelector: kubernetes.io/hostname: gpu-1`) with a defensive `nvidia.com/gpu:NoSchedule` toleration. It does not request a GPU — gpu-1 is the cluster's biggest CPU/RAM box (128GB, ~20% requested) and absorbs the 12Gi memory limit without crowding the core-zone control-plane minis. See the building post's *Memory Tuning and the Move to gpu-1* section for the history.
 
 <!-- MEDIA: screenshot | Paperclip dashboard showing agent overview and recent runs | Navigate to http://192.168.55.212:3100, log in, capture the main dashboard view with at least one agent visible, dark mode preferred -->
 <!-- {{</* screenshot src="paperclip-dashboard.png" caption="Paperclip dashboard: the control plane's view of registered agents and recent runs" */>}} -->
@@ -25,10 +27,10 @@ Quick health check:
 
 ```bash
 # All-in-one status
-kubectl get pods,pvc,externalsecret -n paperclip-system
+kubectl get pods,pvc,externalsecret -n paperclip-system -o wide
 ```
 
-Expected output: one paperclip pod, one paperclip-db pod, one 2Gi PVC bound, four ExternalSecrets synced.
+Expected output: one paperclip pod (on `gpu-1`), one paperclip-db pod, one 2Gi PVC bound, four ExternalSecrets synced.
 
 ```console
 $ kubectl get pods,pvc,externalsecret -n paperclip-system
@@ -200,6 +202,10 @@ kubectl get ciliumpoolipaddress -A | grep 192.168.55.212
 - **PostgreSQL image uses GCR mirror.** Bitnami no longer serves named tags on Docker Hub. The chart uses `mirror.gcr.io/bitnamilegacy/*` images. If the mirror goes down, you'll need to find another source for the `14.1.10-debian-11-r16` tag.
 
 - **Optional feature secrets.** `paperclip-brave` (Brave Search) and `paperclip-resend` (Resend transactional email) are both marked `optional: true` on their `secretRef` entries. If `BRAVE_SEARCH_KEY_PAPERCLIP` or `EMAIL_RESEND_API_KEY` doesn't exist in Infisical, the pod starts fine without that key — agents that don't invoke the corresponding tool are unaffected. The same `optional: true` pattern previously protected the now-retired `paperclip-anthropic` secret from blocking rollouts when its Infisical entry was missing; new optional feature secrets should follow the same convention.
+
+- **Pinned to gpu-1, but does not request a GPU.** Paperclip is a CPU/RAM workload that lives on the GPU node because gpu-1 is also the cluster's biggest RAM box. The `nvidia.com/gpu:NoSchedule` toleration is *defensive* — gpu-1's live taint list is empty, but the GPU operator can re-assert the taint during driver re-validation, and a pinned workload without the toleration would be evicted in that window. Mirror the toleration on anything else you pin to gpu-1 (this is the cluster idiom — see `frank-gotchas.md`).
+
+- **Memory limit is 12Gi, not a typo.** Paperclip's real working set under load is meaningfully larger than the 1Gi the original deployment shipped with — see *Memory Tuning and the Move to gpu-1* in the building post for the two-round OOM story. If you see new exit-137 (OOMKilled) crashes, check whether a recent feature added an SDK that eagerly inits at startup before assuming the limit needs another bump.
 
 ## References
 

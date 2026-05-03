@@ -1,7 +1,7 @@
 # Paperclip Shell Sidecar Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-05-02--orch--paperclip-shell-sidecar-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **Type:** Fix/extension of the `orch` layer (extends `2026-03-14--orch--paperclip-design`). Per `repo-workflows.md`: same layer code, retroactively update existing layer's blog posts (no new posts).
 
