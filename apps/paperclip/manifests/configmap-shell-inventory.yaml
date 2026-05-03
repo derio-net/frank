@@ -1,0 +1,26 @@
+# Layer-2 inventory for the paperclip-shell sidecar.
+# `cont-init.d` reconciles this against installed tools at boot, then
+# again whenever the operator runs `paperclip-shell-reconcile`.
+#
+# Phase 4 of the orch--paperclip-shell-sidecar plan populates these
+# arrays with the operator's expected toolset. For the initial deploy
+# we ship empty arrays so the reconcile is a no-op and the pod boots
+# cleanly.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: paperclip-shell-inventory
+  namespace: paperclip-system
+data:
+  inventory.yaml: |
+    # Layer-2 declarations — installed at boot via cont-init.d.
+    # See docs/superpowers/specs/2026-05-02--orch--paperclip-shell-sidecar-design.md
+    mise: []
+    npm-global: []
+    pipx: []
+    cargo: []
+    removed:
+      mise: []
+      npm-global: []
+      pipx: []
+      cargo: []
