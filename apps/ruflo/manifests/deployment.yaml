@@ -46,9 +46,14 @@ spec:
         zone: core
       securityContext:
         fsGroup: 1000
-      # Both containers share PID namespace so the shell sidecar can
-      # observe ruvocal's process tree (useful for debugging).
-      shareProcessNamespace: true
+      # NOTE: `shareProcessNamespace: true` was in the original plan (so the
+      # shell sidecar could `ps -ef` ruvocal's tree), but it's incompatible
+      # with the agent-shell-base s6-overlay v3 init under `runAsNonRoot`:
+      # `s6-overlay-suexec: fatal: can only run as pid 1`. With the shared
+      # namespace the second container's entrypoint is not pid 1, so s6
+      # bails before any service starts. We trade the cross-container `ps`
+      # for a working sshd; the shell still gets full visibility into
+      # `/workspace` (the actual debugging surface) via the shared PVC.
 
       volumes:
         - name: workspace
