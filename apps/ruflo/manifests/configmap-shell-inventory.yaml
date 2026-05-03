@@ -2,9 +2,15 @@
 # `cont-init.d` reconciles this against installed tools at boot, then
 # again whenever the file changes (supercronic watch).
 #
-# Phase 4 of the orch--ruflo-pod plan populates these arrays with the
-# ruflo-flavored toolchain. For the initial deploy we ship empty arrays
-# so the reconcile is a no-op and the pod boots cleanly.
+# Phase 4 (curate initial inventory) populates these with the operator's
+# expected toolset. Refine after a discovery week.
+#
+# `claude-flow@alpha` is upstream's "alpha" npm dist-tag for ruflo's CLI
+# (https://myaiguide.co/repos/ruflo); rename to `ruflo` here if/when
+# upstream republishes under that name. Note: the install-inventory
+# reconciler skips packages that are already present at any version
+# (`npm ls -g <pkg>` check), so pod bounces don't auto-pull new alphas;
+# bump deliberately by removing the entry, reconciling, then re-adding.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -14,10 +20,19 @@ data:
   inventory.yaml: |
     # Layer-2 declarations — installed at boot via cont-init.d.
     # See docs/superpowers/specs/2026-05-02--orch--ruflo-pod-design.md
-    mise: []
-    npm-global: []
-    pipx: []
-    cargo: []
+    mise:
+      - python@3.12
+      - node@20
+      - rust@stable
+    npm-global:
+      - "claude-flow@alpha"
+      - "@openai/codex"
+    pipx:
+      - black
+      - ruff
+    cargo:
+      - ripgrep
+      - eza
     removed:
       mise: []
       npm-global: []
