@@ -51,6 +51,16 @@ jobs:
           sed -i "s|ghcr.io/derio-net/vk-local:[a-f0-9]\+|ghcr.io/derio-net/vk-local:$AI_SHA|g" \
             apps/secure-agent-pod/manifests/deployment.yaml
 
+          # paperclip-shell + ruflo-server + ruflo-shell ride the same agent-images
+          # SHA (CI builds them all from the same commit). Bump them in lockstep
+          # so the orch pods stay in sync with the secure-agent kali sidecar.
+          for f in apps/paperclip/manifests/deployment.yaml apps/ruflo/manifests/deployment.yaml; do
+            [ -f "$f" ] || continue
+            sed -i "s|ghcr.io/derio-net/paperclip-shell:[a-f0-9]\+|ghcr.io/derio-net/paperclip-shell:$AI_SHA|g" "$f"
+            sed -i "s|ghcr.io/derio-net/ruflo-server:[a-f0-9]\+|ghcr.io/derio-net/ruflo-server:$AI_SHA|g" "$f"
+            sed -i "s|ghcr.io/derio-net/ruflo-shell:[a-f0-9]\+|ghcr.io/derio-net/ruflo-shell:$AI_SHA|g" "$f"
+          done
+
           if [ -n "$VKR_SHA" ]; then
             sed -i "s|ghcr.io/derio-net/vk-remote:[a-f0-9]\+|ghcr.io/derio-net/vk-remote:$VKR_SHA|g" \
               apps/vk-remote/manifests/deployment.yaml
