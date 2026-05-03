@@ -119,14 +119,21 @@ spec:
             limits:
               cpu: "4"
               memory: 8Gi
-          # ruvocal doesn't ship a documented healthcheck endpoint; the
-          # SPA root reliably returns 2xx once the Node server is bound.
+          # ruvocal's `/` SSR-loads the model list at request time and
+          # surfaces a 500 if the LLM gateway rejects auth — i.e. it's a
+          # full upstream health check, not just "is the Node server bound".
+          # Use /api/v2/feature-flags as the readiness/liveness target: it's
+          # served by the same Express stack but doesn't depend on
+          # OPENAI_BASE_URL availability, so an LLM-misconfig'd pod still
+          # reports Ready (the right call: the Express server is healthy;
+          # LLM auth is a separate observability concern, surfaced via
+          # the request-level 500s in the app log).
           readinessProbe:
-            httpGet: { path: /, port: http }
+            httpGet: { path: /api/v2/feature-flags, port: http }
             initialDelaySeconds: 15
             periodSeconds: 30
           livenessProbe:
-            httpGet: { path: /, port: http }
+            httpGet: { path: /api/v2/feature-flags, port: http }
             initialDelaySeconds: 60
             periodSeconds: 60
 
