@@ -43,7 +43,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
 | Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
 | Multi-tenancy | vCluster | Virtual K8s clusters inside Frank — disposable sandboxes via ArgoCD |
-| Agent Orchestrator | Paperclip | Company-model AI agents — org charts, budgets, delegation chains routing through LiteLLM |
+| Agent Orchestrator | Paperclip | Company-model AI agents — org charts, budgets, delegation chains routing through LiteLLM, with `paperclip-shell` sidecar (SSH+Mosh on `192.168.55.221`, ConfigMap-driven tool inventory) for 24/7 operator access |
 | Swarm Orchestrator | Ruflo (claude-flow + ruvocal) | Hybrid pod (ruvocal SSR + agent-shell-base sidecar), zero direct frontier-LLM keys, SSH+Mosh shell on `192.168.55.222`, web UI at `ruflo.cluster.derio.net` |
 | Media Generation | ComfyUI | Diffusion models (LTX-2.3 video, SDXL image, Stable Audio) on gpu-1, time-shared with Ollama |
 | GPU Switching | GPU Switcher | Custom Go dashboard for one-click GPU time-sharing between Ollama and ComfyUI |
@@ -99,7 +99,7 @@ frank/
 │   │   ├── template/values.yaml                 # Base config (SQLite, policies, sync)
 │   │   └── experiments/values.yaml              # First sandbox instance
 │   ├── paperclip-db/values.yaml                 # Bitnami PostgreSQL for Paperclip
-│   ├── paperclip/manifests/                     # Paperclip Deployment, ExternalSecrets, PVC, LB Service
+│   ├── paperclip/manifests/                     # Paperclip Deployment + paperclip-shell sidecar, ConfigMap inventory, two PVCs, two LB Services
 │   ├── ruflo-db/values.yaml                     # Bitnami PostgreSQL (parked) for ruflo
 │   ├── ruflo/manifests/                         # Ruflo hybrid pod: ruvocal SSR + ruflo-shell sidecar, ConfigMap inventory, three PVCs, Traefik route
 │   ├── comfyui/manifests/                       # ComfyUI diffusion model server (time-shared GPU)
@@ -194,6 +194,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Secure Agent Pod (VibeKanban) | http://192.168.55.218:8081 | 192.168.55.218 |
 | Secure Agent Pod (Mosh) | mosh + tmux persistent sessions — see [operating post](blog/content/docs/operating/14-secure-agent-pod/index.md#persistent-shells-with-mosh--tmux) | 192.168.55.219 |
 | Traefik Ingress | https://*.cluster.derio.net | 192.168.55.220 |
+| Paperclip Shell (SSH+Mosh) | ssh agent@192.168.55.221 — mosh UDP 60000-60015 | 192.168.55.221 |
 | Ruflo Web UI | https://ruflo.cluster.derio.net | (via Traefik) |
 | Ruflo Shell (SSH+Mosh) | ssh agent@192.168.55.222 — mosh UDP 60016-60031 | 192.168.55.222 |
 | VK Remote | https://vk.cluster.derio.net | (via Traefik) |
@@ -249,7 +250,7 @@ argocd app list
 | authentik-extras | authentik | K8s RBAC ClusterRoleBindings mapping Authentik groups to cluster roles |
 | vcluster-experiments | vcluster-experiments | Disposable virtual K8s cluster (SQLite-backed, resource-quoted sandbox) |
 | paperclip-db | paperclip-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 5Gi |
-| paperclip | paperclip-system | Paperclip AI agent orchestrator on gpu-1 (192.168.55.212:3100), 12Gi memory limit, defensive nvidia.com/gpu toleration |
+| paperclip | paperclip-system | Hybrid pod: Paperclip AI agent orchestrator (192.168.55.212:3100, 12Gi memory limit, defensive nvidia.com/gpu toleration) + paperclip-shell sidecar (`ghcr.io/derio-net/paperclip-shell`), ConfigMap-driven tool inventory, SSH+Mosh on 192.168.55.221 |
 | ruflo-db | ruflo-system | Bitnami PostgreSQL 14.1.10 (GCR mirror), Longhorn 20Gi — parked (ruvocal at pinned SHA uses RVF JSON store, not Postgres) |
 | ruflo | ruflo-system | Hybrid pod: ruvocal SSR (`ghcr.io/derio-net/ruflo-server`) + agent-shell-base sidecar (`ghcr.io/derio-net/ruflo-shell`), 3 PVCs, web UI at `ruflo.cluster.derio.net`, SSH+Mosh on 192.168.55.222 |
 | comfyui | comfyui | ComfyUI diffusion model server (192.168.55.213:8188), replicas managed by GPU Switcher |

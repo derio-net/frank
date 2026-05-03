@@ -206,6 +206,91 @@ Second, the `nvidia.com/gpu:NoSchedule` toleration is *defensive*, not active. g
 
 The lesson generalises: limits inherited from a previous image are not measurements. They are placeholders waiting to be wrong. Paperclip's real working set turned out to be roughly an order of magnitude higher than the inherited 1Gi guess. The cluster will have opinions about resource sizing — best to let it tell you.
 
+## Adding a Side Door: SSH-able Shell Sidecar
+
+After Paperclip had been running for a few weeks the workflow shape stabilised, and the friction with `kubectl exec` got harder to ignore. The expected day-to-day is *24/7 agentic work* — long sessions, persistent tmux state, mosh over a flaky home connection, dotfiles, and the occasional "let me try `eza` for a minute, see if it earns a slot." `kubectl exec` is functional but loses everything on disconnect, has no first-class entry in `~/.ssh/config`, and doesn't survive a laptop sleep.
+
+The instinct was to install sshd into the upstream Paperclip container. We deliberately rejected that. Layer 14 had just stepped *off* the maintenance treadmill of forking `ghcr.io/paperclipai/paperclip` (`b35b781` and `d4060c8`); putting sshd back into a fork would put us right back on. The other instinct — install sshd onto the PV at runtime via Ansible — was rejected for the same reason: the install would silently rot on every upstream rebase.
+
+The answer is a separate sibling container in the same Pod.
+
+### Pod topology
+
+```
+namespace: paperclip-system
+└── Deployment: paperclip   (strategy: Recreate)
+    │   securityContext: { fsGroup: 1000 }
+    │
+    ├── container: paperclip                          (UNCHANGED)
+    │     image: ghcr.io/paperclipai/paperclip:sha-…
+    │     volumeMount: paperclip-data → /paperclip
+    │     port: 3100/TCP                              (LB 192.168.55.212)
+    │
+    └── container: paperclip-shell                    (NEW)
+          image: ghcr.io/derio-net/paperclip-shell:<sha>
+          securityContext: { runAsUser: 1000, drop: [ALL] }
+          volumeMounts:
+            paperclip-shell-home      → /home/agent      (NEW PVC, RWO 20Gi)
+            paperclip-data            → /paperclip       (SHARED RW with paperclip)
+            paperclip-shell-ssh-keys  → /etc/ssh-keys    (SOPS Secret)
+            paperclip-shell-inventory → /etc/paperclip-shell  (ConfigMap)
+          ports:
+            22/TCP                                       (sshd, LB 192.168.55.221)
+            60000-60015/UDP                              (mosh range, same LB IP)
+```
+
+The upstream container is bit-identical to what it was before — same image, same env, same mount, same probe. The shell sidecar runs alongside it, sharing the `paperclip-data` PVC at `/paperclip` (`fsGroup: 1000` makes the PV group-writable so both containers' UID-1000 processes can read and write there) and exposing SSH and Mosh on a separate `LoadBalancer` IP, `192.168.55.221`. The two LB IPs make the layering legible at the routing level: `:212` is the Paperclip API; `:221` is the operator's terminal.
+
+`MixedProtocolLBService` does the heavy lifting. A single Service binds TCP/22 + UDP/60000–60015 on the same EndpointSlice and Cilium 1.17 + Kubernetes 1.35 answer both cleanly, so we don't pay the complexity tax of two Services for one operator-facing IP.
+
+### Three-layer install model
+
+The image alone can't be the answer. A single image bumped on every tool tweak would put us back on the upstream-treadmill problem we were trying to escape. So the shell environment is built in three layers, each declarative at a different cadence:
+
+| Layer | Where | Cadence | Examples |
+|---|---|---|---|
+| 1 — Runtime managers | Image | Slow (image rebuild) | `mise`, `rustup`, `pipx`, sshd, mosh, tmux |
+| 2 — Tool inventory | ConfigMap | Medium (commit + sync) | `python@3.12`, `node@20`, `ripgrep`, `claude-code`, `codex` |
+| 3 — Interactive | Operator | On demand | `cargo install fd-find` over SSH |
+
+Layer 1 is the slow loop. The image — `ghcr.io/derio-net/paperclip-shell` — is a thin extension of `agent-shell-base` (the same image `ruflo-shell` and `secure-agent-kali` derive from). All it adds is the runtime *managers* and a single `cont-init.d` hook.
+
+Layer 2 is the medium loop. `apps/paperclip/manifests/configmap-shell-inventory.yaml` declares the operator's expected toolset as a YAML inventory grouped by manager (`mise`, `npm-global`, `pipx`, `cargo`, plus a `removed:` block for opt-in uninstalls). On every container boot, `cont-init.d/40-shell-inventory` reads the inventory, queries each manager, computes the diff, and converges. Idempotent — re-running with no changes is a sub-second no-op. State lives on `paperclip-shell-home` (the new RWO 20Gi PVC mounted at `/home/agent`), not in the image, so the same image happily serves wildly different toolsets across pods.
+
+Layer 3 is the escape hatch. SSH in, `cargo install fd-find`, decide later whether it earns a slot in the inventory. The binary lands on the PV; it survives pod restarts as a side-effect of PV reuse. The promotion rule is *survival across PV migration*: anything you want re-installed on a fresh PV must be in the inventory ConfigMap. Layer 3 is intentional — a fast feedback loop for "is this tool worth committing to" — not an oversight.
+
+### Fail-open with Telegram alerting
+
+The installer's hardest design question was what to do when something fails. There are two extreme positions and they're both wrong.
+
+The strict position: a `cargo install` failure should fail the container, ArgoCD reports `Degraded`, the Pod restarts, the operator notices and fixes it. Clean GitOps discipline. But this also means a transient `crates.io` 503 takes the operator's terminal offline. SSH was the *whole point* of the layer; it should not depend on every tool successfully installing.
+
+The lax position: log failures to a file, move on, sshd comes up. SSH stays available. But now an inventory entry can silently rot for days. The next time the operator tries to invoke a tool that "should be" there, it isn't, and they have to go figure out why.
+
+We pick fail-open + active alert. The installer continues past failures and writes the per-step exit codes to `/var/log/cont-init.d/40-shell-inventory.log`. sshd comes up regardless. *And* on any non-zero exit, it fires a Telegram message via `@agent_zero_cc_bot` (the same path as Frank's ArgoCD notifications, reusing `FRANK_C2_TELEGRAM_BOT_TOKEN` / `FRANK_C2_TELEGRAM_CHAT_ID` from Infisical). The MOTD on next login also flips to the failure summary (`⚠ paperclip-shell: 1 install(s) failed on last reconcile (npm i -g @openai/codex)`), so a passive `ssh` shows the state without having to read the log.
+
+Three visibility layers, ranked passive → active:
+
+1. `kubectl logs paperclip -c paperclip-shell` — full installer output via `tee`.
+2. MOTD on SSH login — last-reconcile summary line.
+3. Telegram message — within seconds of pod boot.
+
+Layer 3 is the load-bearing one. We don't notice (2) unless we ssh in; we don't notice (1) unless we go looking. (3) interrupts.
+
+Success is signalled too — on clean reconcile, MOTD prints `✓ paperclip-shell: 0 installed, 9 already present, 0 removed @ 2026-05-03T19:10` so a fresh login confirms a recent inventory edit applied. No Telegram noise on success.
+
+### Why not Ansible, why not modify the upstream image
+
+Ansible is built for fleets and idempotent role composition. For one container with a flat list of tools, the playbook + inventory + role ceremony exceeds the problem. A ~50-line bash script reading a YAML inventory does the same job with no new system to learn. The non-root security context is the binding constraint regardless — Ansible cannot make `apt` work in a `cap-drop=ALL` container; that needs root or image rebuild, both of which are explicit decisions, not config-management automation.
+
+Modifying the upstream Paperclip image was rejected for the same reason we ditched the fork: the image bumps unpredictably, pinning sshd into a derivative would put us on the upstream-rebase treadmill, and any UID/entrypoint drift would silently break SSH. The whole point of the sidecar shape is that the operator's environment evolves on its own cadence — the only contract with the upstream container is the shared `/paperclip` mount and `fsGroup: 1000`.
+
+### What this layer taught the cluster
+
+The thing the cluster actually learned here isn't "how to bolt sshd onto a Pod." It's that **the boundary between the workload and the operator's environment can be a Pod boundary inside a single Deployment**. Same scheduling, same lifecycle, same shared volume — but separate images, separate update cadences, separate security postures. `paperclip-shell` and `paperclip` rebuild on different schedules and never see each other's filesystems except through the explicitly shared mount. The shell sidecar is the operator's home; the workload container is the application. Both fit in the same Pod and neither has to know about the other.
+
+`ruflo-shell` had already demonstrated the pattern on a fresh hybrid Pod. `paperclip-shell` proved it retrofits cleanly onto an existing layer without touching the upstream container at all.
+
 ## What's Next
 
 Paperclip and Sympozium now coexist on the same cluster, sharing the same LiteLLM gateway. The practical comparison will play out over the next few layers as I try to automate the same workflows through both and see which abstraction fits better.
