@@ -487,9 +487,9 @@ docker run --rm --entrypoint id ghcr.io/paperclipai/paperclip:sha-3494e84
 
 ### Task 7: Open frank PR
 
-- [ ] **Step 1: Open PR titled `feat(orch): add paperclip-shell sidecar (manifests only)`** with body linking to this plan and the spec. Note the inventory is empty — Phase 4 populates it.
+- [x] **Step 1: Open PR titled `feat(orch): add paperclip-shell sidecar (manifests only)`** with body linking to this plan and the spec. Note the inventory is empty — Phase 4 populates it.
 
-- [ ] **Step 2: Wait for ArgoCD auto-sync after merge**
+- [x] **Step 2: Wait for ArgoCD auto-sync after merge**
 
 ```bash
 kubectl -n argocd get application paperclip -o jsonpath='{.status.sync.status} {.status.health.status}{"\n"}'
@@ -506,7 +506,7 @@ Confirms the sidecar deploys cleanly, paperclip is unaffected, and the alerting 
 
 ### Task 0: Pre-flight (manual, before anything else)
 
-- [ ] **Step 1: Apply the SOPS-encrypted ssh-keys Secret** — without this, sshd is up but rejects every login (the `paperclip-shell-ssh-keys` Secret volume is `optional: true` so the pod *boots*, but `authorized_keys` is empty). See `secrets/paperclip/README.md` for the bootstrap procedure. After applying, verify:
+- [x] **Step 1: Apply the SOPS-encrypted ssh-keys Secret** — without this, sshd is up but rejects every login (the `paperclip-shell-ssh-keys` Secret volume is `optional: true` so the pod *boots*, but `authorized_keys` is empty). See `secrets/paperclip/README.md` for the bootstrap procedure. After applying, verify:
 
 ```bash
 kubectl -n paperclip-system get secret paperclip-shell-ssh-keys -o jsonpath='{.data.authorized_keys}' | base64 -d
@@ -515,7 +515,7 @@ kubectl -n paperclip-system get secret paperclip-shell-ssh-keys -o jsonpath='{.d
 
 ### Task 1: Pod-level health
 
-- [ ] **Step 1: Confirm both containers Ready**
+- [x] **Step 1: Confirm both containers Ready**
 
 ```bash
 kubectl -n paperclip-system get pod -l app.kubernetes.io/name=paperclip \
@@ -525,7 +525,7 @@ kubectl -n paperclip-system get pod -l app.kubernetes.io/name=paperclip \
 
 - [-] **Step 2: ~~Confirm shareProcessNamespace works~~** *(obsolete — Phase 2 dropped `shareProcessNamespace: true` per the agent-shell-base / s6-overlay v3 incompatibility under `runAsNonRoot`; see Deployment Notes 2026-05-03 row. Cross-container `ps` is no longer expected to work; the actual debugging surface is the shared `/paperclip` PVC, validated in Step 3.)*
 
-- [ ] **Step 3: Confirm `/paperclip` is shared and writable from both containers**
+- [x] **Step 3: Confirm `/paperclip` is shared and writable from both containers**
 
 ```bash
 kubectl -n paperclip-system exec -c paperclip-shell deploy/paperclip -- touch /paperclip/.shell-write-test
@@ -537,14 +537,14 @@ kubectl -n paperclip-system exec -c paperclip-shell deploy/paperclip -- rm /pape
 
 ### Task 2: SSH connectivity from operator laptop
 
-- [ ] **Step 1: Service has the LB IP**
+- [x] **Step 1: Service has the LB IP**
 
 ```bash
 kubectl -n paperclip-system get svc paperclip-shell -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
 # expect: 192.168.55.221
 ```
 
-- [ ] **Step 2: SSH connects**
+- [x] **Step 2: SSH connects**
 
 ```bash
 ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/<your-key> agent@192.168.55.221 \
@@ -559,7 +559,7 @@ mosh agent@192.168.55.221 -- echo 'mosh ok'
 # expect 'mosh ok' over UDP without falling back to SSH
 ```
 
-- [ ] **Step 4: tmux session persists across reattach**
+- [x] **Step 4: tmux session persists across reattach**
 
 ```bash
 ssh agent@192.168.55.221 -- tmux new-session -d -s test 'sleep 600'
@@ -570,7 +570,7 @@ ssh agent@192.168.55.221 -- tmux kill-session -t test
 
 ### Task 3: MOTD shows last-reconcile summary
 
-- [ ] **Step 1: Fresh login should print** one of:
+- [x] **Step 1: Fresh login should print** one of:
 
 ```
 ✓ paperclip-shell: 0 installed, 0 already present, 0 removed @ 2026-05-…
@@ -580,7 +580,7 @@ ssh agent@192.168.55.221 -- tmux kill-session -t test
 
 ### Task 4: Telegram alert path (induced failure)
 
-- [ ] **Step 1: Add a known-bad entry to the inventory**
+- [x] **Step 1: Add a known-bad entry to the inventory**
 
   Edit `apps/paperclip/manifests/configmap-shell-inventory.yaml`:
 
@@ -594,21 +594,21 @@ data:
 
   Commit, push, ArgoCD syncs.
 
-- [ ] **Step 2: Run reconcile**
+- [x] **Step 2: Run reconcile**
 
 ```bash
 ssh agent@192.168.55.221 -- paperclip-shell-reconcile
 ```
 
-- [ ] **Step 3: Verify Telegram alert arrived** in the configured chat with format `⚠ paperclip-shell: 1 install(s) failed on boot`.
+- [x] **Step 3: Verify Telegram alert arrived** in the configured chat with format `⚠ paperclip-shell: 1 install(s) failed on boot`.
 
-- [ ] **Step 4: Verify MOTD shows the failure** on next SSH login.
+- [x] **Step 4: Verify MOTD shows the failure** on next SSH login.
 
-- [ ] **Step 5: Revert the inventory change** — remove the bogus entry, commit, push, run reconcile again. MOTD should flip to the success line. No Telegram message expected (no failures, no notification on success).
+- [x] **Step 5: Revert the inventory change** — remove the bogus entry, commit, push, run reconcile again. MOTD should flip to the success line. No Telegram message expected (no failures, no notification on success).
 
 ### Task 5: Confirm paperclip web UI is unaffected
 
-- [ ] **Step 1:**
+- [x] **Step 1:**
 
 ```bash
 curl -fsS -o /dev/null -w '%{http_code}\n' http://192.168.55.212:3100/
@@ -786,3 +786,9 @@ This is a fix/extension plan, so most post-deploy steps are absorbed into Phase 
 | 2026-05-03 | Phase 2 | Deviation from plan: kept the existing `data` volume name on the Deployment (reused by both the upstream paperclip container and the sidecar at `/paperclip`) rather than renaming to `paperclip-data`. Volume name in pod spec is purely an alias for the PVC `paperclip-data`; renaming would have churned the upstream container's mount unnecessarily. |
 | 2026-05-03 | Phase 2 | Deviation from plan: P2.T5.S1 paperclip-container UID investigation skipped at write-time. The pod already sets `fsGroup: 1000` (pre-existing), so the shared `/paperclip` PVC is group-writable by group 1000, and the sidecar's `runAsUser: 1000` falls within that group. No initContainer chown needed; no override of the upstream paperclip container. Phase 3 will validate this empirically (Phase 3 Task 1 Step 3). |
 | 2026-05-03 | Phase 2 | Added `terminationGracePeriodSeconds: 45` to the Pod spec to give the shell sidecar's `cont-finish.d` (s6 shutdown) hooks time to drain tmux state, mirroring `ruflo`. |
+| 2026-05-03 | Phase 3 | P3.T0.S1 — `paperclip-shell-ssh-keys` Secret bootstrapped in-cluster from the existing `secure-agent-pod/agent-ssh-keys` pubkey (`raspi-controller`), per the README's "reuse the one already paired" guidance. **Operator follow-up:** SOPS-encrypt and commit `secrets/paperclip/paperclip-shell-ssh-keys.yaml` so the cluster is reproducible from git. |
+| 2026-05-03 | Phase 3 | P3.T1.S1 — pod restart needed after Secret bootstrap. The `30-authorized-keys` `cont-init.d` script copies `/etc/ssh-keys/authorized_keys` → `/home/agent/.ssh/authorized_keys` once at container boot (guarded `if [ -f ]`). When the pod boots before the Secret exists, the copy is a no-op — sshd then comes up with an empty `authorized_keys` and rejects every login. Resolution for this validation: `kubectl rollout restart deploy/paperclip` after applying the Secret. Documented as an operating gotcha, not a code fix — Secret-first ordering is the operator's responsibility, and the fail-open boot is intentional (`Secret optional: true`). |
+| 2026-05-03 | Phase 3 | P3.T2.S3 — mosh end-to-end UDP test deferred (no mosh client in this validation environment). Server-side validation passes: `mosh-server (mosh 1.4.0)` binary present in the sidecar; `mosh-server new -p 60000:60015` (with `LC_ALL=C.UTF-8`) prints `MOSH CONNECT 60000 <key>` correctly; Service has all 17 ports (TCP/22 + UDP/60000–60015) bound to LB IP `192.168.55.221` with EndpointSlice resolving to the sidecar Pod. End-to-end UDP exchange is a single-line operator check (`mosh agent@192.168.55.221`) and will fall out of normal use. |
+| 2026-05-03 | Phase 3 | P3.T4 — induced-failure test ran via `kubectl patch configmap paperclip-shell-inventory` with `selfHeal` momentarily disabled on the ArgoCD Application, rather than the plan's commit/push/sync flow. Reason: this Phase 3 PR branch is unmerged so ArgoCD wouldn't pick up a branch-only commit; round-tripping a commit to `main` and back just to flip a CM value would have left a noise commit in history. After the failure was captured, `selfHeal` was re-enabled and a manual sync reverted the CM to ground truth — verified clean reconcile + success MOTD afterwards. |
+| 2026-05-03 | Phase 3 | P3.T4 gotcha (operating note): SSH-launched `paperclip-shell-reconcile` does **not** fire Telegram on failure. sshd scrubs container env at login, so `FRANK_C2_TELEGRAM_BOT_TOKEN` / `FRANK_C2_TELEGRAM_CHAT_ID` (provided by `envFrom: secretRef: paperclip-shell-alerts`) are not present in the SSH session — `notify-telegram.sh` exits 0 silently. The boot-time reconcile (`cont-init.d/40-shell-inventory`) and `kubectl exec ... paperclip-shell-reconcile` both inherit PID-1 env and DO fire Telegram. The MOTD failure summary is unaffected (it's written from `last-reconcile.motd` regardless of env). To add to operating docs in Phase 5. |
+| 2026-05-03 | Phase 3 | P3.T4.S3 — Telegram delivery confirmed end-to-end. Direct API POST returned `{"ok":true,"result":{"message_id":942,...}}` to chat `2034763022` (Ioannis @DerioUnbound) via bot `@agent_zero_cc_bot`. The full reconcile-driven path was also exercised via `kubectl exec` with bogus npm package and produced the failure-MOTD `⚠ paperclip-shell: 1 install(s) failed on last reconcile (npm i -g @anthropic-ai/this-package-does-not-exist-XXXX)`. |
