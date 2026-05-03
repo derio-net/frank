@@ -506,11 +506,39 @@ Confirms the sidecar deploys cleanly, paperclip is unaffected, and the alerting 
 
 ### Task 0: Pre-flight (manual, before anything else)
 
-- [x] **Step 1: Apply the SOPS-encrypted ssh-keys Secret** — without this, sshd is up but rejects every login (the `paperclip-shell-ssh-keys` Secret volume is `optional: true` so the pod *boots*, but `authorized_keys` is empty). See `secrets/paperclip/README.md` for the bootstrap procedure. After applying, verify:
+- [ ] **Step 1: Apply the SOPS-encrypted ssh-keys Secret** — without this, sshd is up but rejects every login (the `paperclip-shell-ssh-keys` Secret volume is `optional: true` so the pod *boots*, but `authorized_keys` is empty). See `secrets/paperclip/README.md` for the bootstrap procedure. After applying, verify:
 
 ```bash
 kubectl -n paperclip-system get secret paperclip-shell-ssh-keys -o jsonpath='{.data.authorized_keys}' | base64 -d
 # expect: at least one ssh public key
+```
+
+  *Phase 3 status:* the live `paperclip-shell-ssh-keys` Secret has been bootstrapped in-cluster from `secure-agent-pod/agent-ssh-keys` (operator pubkey `raspi-controller`) so SSH validation could proceed. The reproducible-from-git half — committing `secrets/paperclip/paperclip-shell-ssh-keys.yaml` — is the operator's task, captured below as a manual-operation block. T0.S1 stays unticked until that file lives in the repo.
+
+```yaml
+# manual-operation
+id: paperclip-shell-ssh-keys-sops-bootstrap
+layer: orch
+app: paperclip
+plan: docs/superpowers/plans/2026-05-02--orch--paperclip-shell-sidecar.md
+when: After Phase 3 first-deploy validation, before declaring the layer reproducible from git.
+why_manual: SOPS encryption needs the operator's age key, which is not available to in-cluster agents. Per repo-principles.md the cluster must be reproducible from git, but bootstrap secrets are the documented exception.
+commands: |
+  # On operator laptop with sops + age key + repo cloned:
+  kubectl -n paperclip-system get secret paperclip-shell-ssh-keys -o yaml \
+    | yq 'del(.metadata.annotations,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.uid,.metadata.managedFields,.metadata.labels)' \
+    > secrets/paperclip/paperclip-shell-ssh-keys.yaml
+  sops --encrypt --in-place secrets/paperclip/paperclip-shell-ssh-keys.yaml
+  git add secrets/paperclip/paperclip-shell-ssh-keys.yaml
+  git commit -m "secrets(paperclip): bootstrap paperclip-shell-ssh-keys SOPS secret"
+  # Re-apply from the SOPS file to confirm round-trip is clean:
+  sops --decrypt secrets/paperclip/paperclip-shell-ssh-keys.yaml | kubectl apply -f -
+verify: |
+  git ls-files secrets/paperclip/paperclip-shell-ssh-keys.yaml
+  # expect: secrets/paperclip/paperclip-shell-ssh-keys.yaml
+  sops --decrypt secrets/paperclip/paperclip-shell-ssh-keys.yaml | grep -q "^kind: Secret"
+  # expect: exit 0
+status: pending
 ```
 
 ### Task 1: Pod-level health
@@ -743,7 +771,7 @@ ssh agent@192.168.55.221 -- cargo install fd-find
 
 ### Task 4: Sync runbook (only if any manual-operation blocks were introduced)
 
-- [ ] **Step 1:** Audit this plan for `# manual-operation` blocks — there are none currently. If any were added during implementation (e.g., an out-of-band initContainer chown step), run `/sync-runbook`. Otherwise skip.
+- [ ] **Step 1:** Audit this plan for `# manual-operation` blocks. Phase 3 introduced `paperclip-shell-ssh-keys-sops-bootstrap` (T0.S1) — run `/sync-runbook` to register it in `docs/runbooks/manual-operations.yaml`. Add any further blocks introduced during Phases 3–4 in the same pass.
 
 ### Task 5: Update plan status
 
@@ -792,3 +820,4 @@ This is a fix/extension plan, so most post-deploy steps are absorbed into Phase 
 | 2026-05-03 | Phase 3 | P3.T4 — induced-failure test ran via `kubectl patch configmap paperclip-shell-inventory` with `selfHeal` momentarily disabled on the ArgoCD Application, rather than the plan's commit/push/sync flow. Reason: this Phase 3 PR branch is unmerged so ArgoCD wouldn't pick up a branch-only commit; round-tripping a commit to `main` and back just to flip a CM value would have left a noise commit in history. After the failure was captured, `selfHeal` was re-enabled and a manual sync reverted the CM to ground truth — verified clean reconcile + success MOTD afterwards. |
 | 2026-05-03 | Phase 3 | P3.T4 gotcha (operating note): SSH-launched `paperclip-shell-reconcile` does **not** fire Telegram on failure. sshd scrubs container env at login, so `FRANK_C2_TELEGRAM_BOT_TOKEN` / `FRANK_C2_TELEGRAM_CHAT_ID` (provided by `envFrom: secretRef: paperclip-shell-alerts`) are not present in the SSH session — `notify-telegram.sh` exits 0 silently. The boot-time reconcile (`cont-init.d/40-shell-inventory`) and `kubectl exec ... paperclip-shell-reconcile` both inherit PID-1 env and DO fire Telegram. The MOTD failure summary is unaffected (it's written from `last-reconcile.motd` regardless of env). To add to operating docs in Phase 5. |
 | 2026-05-03 | Phase 3 | P3.T4.S3 — Telegram delivery confirmed end-to-end. Direct API POST returned `{"ok":true,"result":{"message_id":942,...}}` to chat `2034763022` (Ioannis @DerioUnbound) via bot `@agent_zero_cc_bot`. The full reconcile-driven path was also exercised via `kubectl exec` with bogus npm package and produced the failure-MOTD `⚠ paperclip-shell: 1 install(s) failed on last reconcile (npm i -g @anthropic-ai/this-package-does-not-exist-XXXX)`. |
+| 2026-05-03 | Phase 3 | P3.T2 ephemeral key audit trail — to SSH from this in-cluster validation pod (no operator private key available here), an ed25519 keypair was generated under `/tmp/phase3-test-key{,.pub}` inside the `secure-agent-pod` filesystem; the pubkey was appended to `paperclip-shell-ssh-keys`'s `authorized_keys`; SSH/tmux/mosh-server checks ran; then the Secret was reverted to operator-only and `/tmp/phase3-test-key*`, `/tmp/test-pub`, `/tmp/authorized_keys_combined`, `/tmp/known_hosts_phase3`, `/tmp/authorized_keys` all removed. The private key existed only at `/tmp/` inside the in-cluster pod, never on a PVC or the host filesystem; the live `paperclip-shell-ssh-keys` Secret now contains only the operator pubkey (verified `wc -l = 1`). |
