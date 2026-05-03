@@ -14,7 +14,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 |------|----------|------|-------------|-------|
 | A — Management | Raspberry Pi 5 (8GB) | Sidero Omni, Authentik, Traefik | raspi-omni | 192.168.55.1 |
 | B — Core HA | 3x ASUS NUC (Intel Ultra 5, 64GB, 1TB NVMe, Arc iGPU) | Control-plane + worker | mini-1/2/3 | 192.168.55.21-23 |
-| C — AI Compute | Desktop (i9, 128GB, RTX 5070, 2x4TB SSD) | GPU worker | gpu-1 | 192.168.55.31 |
+| C — AI Compute | Desktop (i9, 128GB, RTX 5070 Ti 16GB, 2x4TB SSD) | GPU worker | gpu-1 | 192.168.55.31 |
 | D — Edge | 2x RPi 4 + 1x legacy desktop | General workers | raspi-1/2, pc-1 | 192.168.55.41-42, .71 |
 | E — Public Edge | Hetzner CX23 (2 vCPU, 4GB) | Hop cluster (standalone talosctl) | hop-1 | Hetzner public IP |
 
@@ -38,7 +38,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Backup | Longhorn → Cloudflare R2 | Daily + weekly PVC backup, SOPS-encrypted credentials |
 | Secrets | Infisical + External Secrets Operator | Self-hosted secret store, ExternalSecret → K8s Secret sync |
 | RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID (IT5701 V3.5.14.0 firmware lock under investigation) |
-| Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 (qwen3.5:9b, deepseek-coder:6.7b) |
+| Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 Ti 16GB — multimodal (Gemma 3 12B, Qwen2.5-VL 7B), general (Mistral Small 3.2 24B, Qwen3 14B), code (Qwen2.5-Coder 14B) |
 | API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to Ollama + OpenRouter cloud models |
 | Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
 | Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
