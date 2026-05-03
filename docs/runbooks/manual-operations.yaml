@@ -505,7 +505,27 @@ operations:
   - kubectl create namespace argocd
   - helm repo add argo https://argoproj.github.io/argo-helm
   - helm install argocd argo/argo-cd --version 9.4.6 --namespace argocd -f clusters/hop/apps/argocd/values.yaml
-  - "kubectl apply -f - <<'EOF'\napiVersion: argoproj.io/v1alpha1\nkind: Application\nmetadata:\n  name: root\n  namespace: argocd\nspec:\n  project: default\n  source:\n    repoURL: https://github.com/derio-net/frank.git\n    targetRevision: main\n    path: clusters/hop/apps/root\n  destination:\n    server: https://kubernetes.default.svc\n    namespace: argocd\n  syncPolicy:\n    automated:\n      prune: false\n      selfHeal: true\nEOF\n"
+  - |
+    kubectl apply -f - <<'EOF'
+    apiVersion: argoproj.io/v1alpha1
+    kind: Application
+    metadata:
+      name: root
+      namespace: argocd
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/derio-net/frank.git
+        targetRevision: main
+        path: clusters/hop/apps/root
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: false
+          selfHeal: true
+    EOF
   verify:
   - 'kubectl -n argocd get pods  # all pods Running'
   - 'kubectl -n argocd get app root  # should show Synced/Healthy'
@@ -518,7 +538,17 @@ operations:
   when: Before Caddy deployment — needs Cloudflare API token
   why_manual: SOPS-encrypted secret applied out-of-band
   commands:
-  - "cat <<'EOF' > /tmp/caddy-cloudflare.yaml\napiVersion: v1\nkind: Secret\nmetadata:\n  name: caddy-cloudflare\n  namespace: caddy-system\ntype: Opaque\nstringData:\n  api-token: \"<CLOUDFLARE_API_TOKEN_WITH_DNS_EDIT>\"\nEOF\n"
+  - |
+    cat <<'EOF' > /tmp/caddy-cloudflare.yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: caddy-cloudflare
+      namespace: caddy-system
+    type: Opaque
+    stringData:
+      api-token: "<CLOUDFLARE_API_TOKEN_WITH_DNS_EDIT>"
+    EOF
   - sops --encrypt --age <AGE_PUBLIC_KEY> /tmp/caddy-cloudflare.yaml > secrets/hop/caddy-cloudflare.yaml
   - sops --decrypt secrets/hop/caddy-cloudflare.yaml | kubectl --kubeconfig <HOP_KUBECONFIG> apply -f -
   - rm /tmp/caddy-cloudflare.yaml
@@ -584,7 +614,21 @@ operations:
   why_manual: SOPS-encrypted secrets must be applied before the workloads start
   commands:
   - mkdir -p secrets/hop
-  - "# Caddy Cloudflare API token (for ACME DNS challenge)\ncat <<'EOF' > /tmp/caddy-cloudflare.yaml\napiVersion: v1\nkind: Secret\nmetadata:\n  name: caddy-cloudflare\n  namespace: caddy-system\ntype: Opaque\nstringData:\n  api-token: \"<CLOUDFLARE_API_TOKEN>\"\nEOF\nsops --encrypt --age <AGE_PUBLIC_KEY> /tmp/caddy-cloudflare.yaml > secrets/hop/caddy-cloudflare.yaml\nsops --decrypt secrets/hop/caddy-cloudflare.yaml | kubectl --kubeconfig <HOP_KUBECONFIG> apply -f -\nrm /tmp/caddy-cloudflare.yaml\n"
+  - |
+    # Caddy Cloudflare API token (for ACME DNS challenge)
+    cat <<'EOF' > /tmp/caddy-cloudflare.yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: caddy-cloudflare
+      namespace: caddy-system
+    type: Opaque
+    stringData:
+      api-token: "<CLOUDFLARE_API_TOKEN>"
+    EOF
+    sops --encrypt --age <AGE_PUBLIC_KEY> /tmp/caddy-cloudflare.yaml > secrets/hop/caddy-cloudflare.yaml
+    sops --decrypt secrets/hop/caddy-cloudflare.yaml | kubectl --kubeconfig <HOP_KUBECONFIG> apply -f -
+    rm /tmp/caddy-cloudflare.yaml
   verify:
   - kubectl --kubeconfig <HOP_KUBECONFIG> -n caddy-system get secret caddy-cloudflare
   status: pending
@@ -595,7 +639,23 @@ operations:
   when: After hop-1 is registered in Omni and hop-data volume is attached
   why_manual: Requires Omni machine config patch with actual Hetzner Volume device ID
   commands:
-  - "# First, format the volume (one-time via Talos machine config disk partition)\n# Then mount it using kubelet extraMounts so pods can access it\ncat <<'EOF' > /tmp/hop-volume-patch.yaml\nmachine:\n  disks:\n    - device: /dev/disk/by-id/scsi-0HC_Volume_<VOLUME_ID>\n      partitions:\n        - mountpoint: /var/mnt/hop-data\n          size: 0\n  kubelet:\n    extraMounts:\n      - destination: /var/mnt/hop-data\n        type: bind\n        source: /var/mnt/hop-data\n        options: [\"bind\", \"rshared\", \"rw\"]\nEOF\n"
+  - |
+    # First, format the volume (one-time via Talos machine config disk partition)
+    # Then mount it using kubelet extraMounts so pods can access it
+    cat <<'EOF' > /tmp/hop-volume-patch.yaml
+    machine:
+      disks:
+        - device: /dev/disk/by-id/scsi-0HC_Volume_<VOLUME_ID>
+          partitions:
+            - mountpoint: /var/mnt/hop-data
+              size: 0
+      kubelet:
+        extraMounts:
+          - destination: /var/mnt/hop-data
+            type: bind
+            source: /var/mnt/hop-data
+            options: ["bind", "rshared", "rw"]
+    EOF
   - 'talosctl apply-config --config-patch @/tmp/hop-volume-patch.yaml  # applied via talosctl, not omnictl'
   verify:
   - talosctl --nodes <HOP_IP> read /proc/mounts | grep hop-data
@@ -730,7 +790,17 @@ operations:
   when: Before Traefik deployment
   why_manual: Bootstrap secret must exist before Traefik starts ACME challenge
   commands:
-  - "cat <<EOF > secrets/traefik-cloudflare-credentials.yaml\napiVersion: v1\nkind: Secret\nmetadata:\n  name: traefik-cloudflare-credentials\n  namespace: traefik-system\ntype: Opaque\nstringData:\n  api-token: \"<CF_DNS_API_TOKEN value from .env_hop>\"\nEOF\n"
+  - |
+    cat <<EOF > secrets/traefik-cloudflare-credentials.yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: traefik-cloudflare-credentials
+      namespace: traefik-system
+    type: Opaque
+    stringData:
+      api-token: "<CF_DNS_API_TOKEN value from .env_hop>"
+    EOF
   - sops --encrypt --in-place secrets/traefik-cloudflare-credentials.yaml
   - kubectl create namespace traefik-system || true
   - sops --decrypt secrets/traefik-cloudflare-credentials.yaml | kubectl apply -f -
@@ -745,13 +815,47 @@ operations:
   why_manual: Grafana alert rules are API-provisioned
   commands:
   - description: List current alert rules to get UIDs
-    command: "curl -s \"$GRAFANA_URL/api/v1/provisioning/alert-rules\" \\\n  -H \"Authorization: Bearer $GRAFANA_API_KEY\" | \\\n  jq '.[] | {uid: .uid, title: .title}'\n"
+    command: |
+      curl -s "$GRAFANA_URL/api/v1/provisioning/alert-rules" \
+        -H "Authorization: Bearer $GRAFANA_API_KEY" | \
+        jq '.[] | {uid: .uid, title: .title}'
   - description: Update each rule to add github_issue label
-    command: "# For each rule, GET the full rule, add the label, PUT back.\n# Mapping (from M1 issue table):\n#   exercise-reminder-stale → github_issue=willikins#11\n#   session-manager-stale → github_issue=willikins#13\n#   audit-digest-stale → github_issue=willikins#12\n#   endpoint-down → (per-target, handled by bridge using instance label)\n#   agent-pod-not-running → github_issue=frank#8\n\nfor RULE_UID in exercise-reminder-stale session-manager-stale audit-digest-stale agent-pod-not-running; do\n  RULE=$(curl -s \"$GRAFANA_URL/api/v1/provisioning/alert-rules/$RULE_UID\" \\\n    -H \"Authorization: Bearer $GRAFANA_API_KEY\")\n\n  case $RULE_UID in\n    exercise-reminder-stale) ISSUE=\"willikins#11\" ;;\n    session-manager-stale) ISSUE=\"willikins#13\" ;;\n    audit-digest-stale) ISSUE=\"willikins#12\" ;;\n    agent-pod-not-running) ISSUE=\"frank#8\" ;;\n  esac\n\n  UPDATED=$(echo \"$RULE\" | jq --arg issue \"$ISSUE\" '.labels.github_issue = $issue')\n\n  curl -s -X PUT \"$GRAFANA_URL/api/v1/provisioning/alert-rules/$RULE_UID\"\
-      \ \\\n    -H \"Authorization: Bearer $GRAFANA_API_KEY\" \\\n    -H \"Content-Type: application/json\" \\\n    -H \"X-Disable-Provenance: true\" \\\n    -d \"$UPDATED\"\n\n  echo \"Updated $RULE_UID → github_issue=$ISSUE\"\ndone\n"
+    command: |
+      # For each rule, GET the full rule, add the label, PUT back.
+      # Mapping (from M1 issue table):
+      #   exercise-reminder-stale → github_issue=willikins#11
+      #   session-manager-stale → github_issue=willikins#13
+      #   audit-digest-stale → github_issue=willikins#12
+      #   endpoint-down → (per-target, handled by bridge using instance label)
+      #   agent-pod-not-running → github_issue=frank#8
+
+      for RULE_UID in exercise-reminder-stale session-manager-stale audit-digest-stale agent-pod-not-running; do
+        RULE=$(curl -s "$GRAFANA_URL/api/v1/provisioning/alert-rules/$RULE_UID" \
+          -H "Authorization: Bearer $GRAFANA_API_KEY")
+
+        case $RULE_UID in
+          exercise-reminder-stale) ISSUE="willikins#11" ;;
+          session-manager-stale) ISSUE="willikins#13" ;;
+          audit-digest-stale) ISSUE="willikins#12" ;;
+          agent-pod-not-running) ISSUE="frank#8" ;;
+        esac
+
+        UPDATED=$(echo "$RULE" | jq --arg issue "$ISSUE" '.labels.github_issue = $issue')
+
+        curl -s -X PUT "$GRAFANA_URL/api/v1/provisioning/alert-rules/$RULE_UID" \
+          -H "Authorization: Bearer $GRAFANA_API_KEY" \
+          -H "Content-Type: application/json" \
+          -H "X-Disable-Provenance: true" \
+          -d "$UPDATED"
+
+        echo "Updated $RULE_UID → github_issue=$ISSUE"
+      done
   verify:
   - description: Verify labels on alert rules
-    command: "curl -s \"$GRAFANA_URL/api/v1/provisioning/alert-rules\" \\\n  -H \"Authorization: Bearer $GRAFANA_API_KEY\" | \\\n  jq '.[] | {title: .title, github_issue: .labels.github_issue}'\n"
+    command: |
+      curl -s "$GRAFANA_URL/api/v1/provisioning/alert-rules" \
+        -H "Authorization: Bearer $GRAFANA_API_KEY" | \
+        jq '.[] | {title: .title, github_issue: .labels.github_issue}'
     expected: Each rule shows its github_issue label
   status: done
 - id: grafana-health-bridge-webhook
@@ -762,9 +866,30 @@ operations:
   why_manual: Grafana provisioning is API-only (not GitOps)
   commands:
   - description: Create webhook contact point
-    command: "GRAFANA_URL=\"https://grafana.frank.derio.net\"\nGRAFANA_API_KEY=\"<from Infisical or env>\"\nWEBHOOK_SECRET=\"<same as HEALTH_BRIDGE_WEBHOOK_SECRET in Infisical>\"\n\ncurl -s -X POST \"$GRAFANA_URL/api/v1/provisioning/contact-points\" \\\n  -H \"Authorization: Bearer $GRAFANA_API_KEY\" \\\n  -H \"Content-Type: application/json\" \\\n  -H \"X-Disable-Provenance: true\" \\\n  -d '{\n    \"name\": \"Health Bridge Webhook\",\n    \"type\": \"webhook\",\n    \"settings\": {\n      \"url\": \"http://health-bridge.monitoring.svc.cluster.local:8080/webhook\",\n      \"httpMethod\": \"POST\",\n      \"authorization_scheme\": \"Bearer\",\n      \"authorization_credentials\": \"'\"$WEBHOOK_SECRET\"'\"\n    },\n    \"disableResolveMessage\": false\n  }'\n"
+    command: |
+      GRAFANA_URL="https://grafana.frank.derio.net"
+      GRAFANA_API_KEY="<from Infisical or env>"
+      WEBHOOK_SECRET="<same as HEALTH_BRIDGE_WEBHOOK_SECRET in Infisical>"
+
+      curl -s -X POST "$GRAFANA_URL/api/v1/provisioning/contact-points" \
+        -H "Authorization: Bearer $GRAFANA_API_KEY" \
+        -H "Content-Type: application/json" \
+        -H "X-Disable-Provenance: true" \
+        -d '{
+          "name": "Health Bridge Webhook",
+          "type": "webhook",
+          "settings": {
+            "url": "http://health-bridge.monitoring.svc.cluster.local:8080/webhook",
+            "httpMethod": "POST",
+            "authorization_scheme": "Bearer",
+            "authorization_credentials": "'"$WEBHOOK_SECRET"'"
+          },
+          "disableResolveMessage": false
+        }'
   - description: Verify contact point was created
-    command: "curl -s \"$GRAFANA_URL/api/v1/provisioning/contact-points\" \\\n  -H \"Authorization: Bearer $GRAFANA_API_KEY\" | jq '.[] | select(.name == \"Health Bridge Webhook\")'\n"
+    command: |
+      curl -s "$GRAFANA_URL/api/v1/provisioning/contact-points" \
+        -H "Authorization: Bearer $GRAFANA_API_KEY" | jq '.[] | select(.name == "Health Bridge Webhook")'
   verify:
   - description: Contact point exists
     command: curl -s "$GRAFANA_URL/api/v1/provisioning/contact-points" -H "Authorization:Bearer $GRAFANA_API_KEY" | jq '.[].name' | grep "Health Bridge"
@@ -792,13 +917,10 @@ operations:
   - description: Generate a webhook secret
     command: openssl rand -hex 32
   - description: Create secret in Infisical
-    command: 'Navigate to Infisical UI → derio-net project → prod environment
-
+    command: |
+      Navigate to Infisical UI → derio-net project → prod environment
       Create secret: HEALTH_BRIDGE_WEBHOOK_SECRET = <generated hex string>
-
       Create secret: HEALTH_BRIDGE_GITHUB_TOKEN = <GitHub PAT with project and repo scope>
-
-      '
   verify:
   - description: Verify secrets exist
     command: kubectl get externalsecret -n monitoring health-bridge-secrets -o jsonpath='{.status.conditions[0].status}'
@@ -811,18 +933,41 @@ operations:
   when: After Task 8 verification confirms file-provisioned resources work
   why_manual: API-provisioned Grafana resources can only be deleted via REST API calls
   commands:
-  - "GRAFANA_AUTH=\"admin:$(kubectl get secret -n monitoring victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)\"\n\n# Delete API-provisioned alert rules (only deletes non-file-provisioned copies)\nfor uid in exercise-reminder-stale session-manager-stale audit-digest-stale endpoint-down agent-pod-not-running; do\n  echo \"Deleting API-provisioned rule: $uid\"\n  curl -sk -u \"$GRAFANA_AUTH\" -X DELETE \\\n    \"https://grafana.frank.derio.net/api/v1/provisioning/alert-rules/$uid\" \\\n    -H \"X-Disable-Provenance: true\"\ndone\n\n# Note: File-provisioned rules with the same UID cannot be deleted via API\n# (Grafana returns 400 for file-provisioned resources). If the DELETE returns\n# 400 \"cannot delete provisioned resource\", the API version was already deleted\n# or never existed separately.\n"
-  - '# Delete the API-provisioned notification policy by resetting to default
+  - |
+    GRAFANA_AUTH="admin:$(kubectl get secret -n monitoring victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
 
+    # Delete API-provisioned alert rules (only deletes non-file-provisioned copies)
+    for uid in exercise-reminder-stale session-manager-stale audit-digest-stale endpoint-down agent-pod-not-running; do
+      echo "Deleting API-provisioned rule: $uid"
+      curl -sk -u "$GRAFANA_AUTH" -X DELETE \
+        "https://grafana.frank.derio.net/api/v1/provisioning/alert-rules/$uid" \
+        -H "X-Disable-Provenance: true"
+    done
+
+    # Note: File-provisioned rules with the same UID cannot be deleted via API
+    # (Grafana returns 400 for file-provisioned resources). If the DELETE returns
+    # 400 "cannot delete provisioned resource", the API version was already deleted
+    # or never existed separately.
+  - |
+    # Delete the API-provisioned notification policy by resetting to default
     # File-provisioned policy takes precedence and will be reloaded on next restart
-
     # This step may not be needed if file-provisioning already overrides the API version
-
     echo "Notification policy — file-provisioned version takes precedence, skip manual delete"
-
-    '
-  - "# Delete API-provisioned contact points if they exist as separate objects\n# Check for duplicates first:\ncurl -sk -u \"$GRAFANA_AUTH\" \\\n  \"https://grafana.frank.derio.net/api/v1/provisioning/contact-points\" | \\\n  python3 -c \"import json,sys; cps=json.load(sys.stdin); [print(f'{cp[\\\"uid\\\"]}: {cp[\\\"name\\\"]} (provenance: {cp.get(\\\"provenance\\\",\\\"none\\\")})') for cp in cps]\"\n# Delete any with provenance != file (these are the API-provisioned originals)\n"
-  - "# Delete the old API-provisioned Feature Health dashboard (if it exists at root level)\n# The file-provisioned version lives in the feature-health folder with the same UID\n# Grafana may have already merged them or the old one may have a different internal ID\ncurl -sk -u \"$GRAFANA_AUTH\" \\\n  \"https://grafana.frank.derio.net/api/dashboards/uid/fh-overview\" | python3 -m json.tool\n# If the response shows folderTitle != \"feature-health\", delete the old one:\n# curl -sk -u \"$GRAFANA_AUTH\" -X DELETE \"https://grafana.frank.derio.net/api/dashboards/uid/fh-overview\"\n"
+  - |
+    # Delete API-provisioned contact points if they exist as separate objects
+    # Check for duplicates first:
+    curl -sk -u "$GRAFANA_AUTH" \
+      "https://grafana.frank.derio.net/api/v1/provisioning/contact-points" | \
+      python3 -c "import json,sys; cps=json.load(sys.stdin); [print(f'{cp[\"uid\"]}: {cp[\"name\"]} (provenance: {cp.get(\"provenance\",\"none\")})') for cp in cps]"
+    # Delete any with provenance != file (these are the API-provisioned originals)
+  - |
+    # Delete the old API-provisioned Feature Health dashboard (if it exists at root level)
+    # The file-provisioned version lives in the feature-health folder with the same UID
+    # Grafana may have already merged them or the old one may have a different internal ID
+    curl -sk -u "$GRAFANA_AUTH" \
+      "https://grafana.frank.derio.net/api/dashboards/uid/fh-overview" | python3 -m json.tool
+    # If the response shows folderTitle != "feature-health", delete the old one:
+    # curl -sk -u "$GRAFANA_AUTH" -X DELETE "https://grafana.frank.derio.net/api/dashboards/uid/fh-overview"
   verify:
   - 'curl -sk -u "$GRAFANA_AUTH" "https://grafana.frank.derio.net/api/v1/provisioning/alert-rules" | python3 -c "import json,sys; rules=json.load(sys.stdin); assert all(r.get(\"provenance\")==\"file\" for r in rules), \"Non-file rules still exist\"; print(f\"OK: {len(rules)} rules, all file-provisioned\")"'
   - 'curl -sk -u "$GRAFANA_AUTH" "https://grafana.frank.derio.net/api/v1/provisioning/contact-points" | python3 -c "import json,sys; cps=json.load(sys.stdin); print(f\"Contact points: {len(cps)}\"); [print(f\"  {cp[\"name\"]}: provenance={cp.get(\"provenance\",\"none\")}\") for cp in cps]"'
@@ -913,10 +1058,10 @@ operations:
   layer: orch
   app: ruflo
   plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
-  when: "after Phase 2 ArgoCD sync makes the 'Ruflo (cluster)' proxy provider exist; before browser SSO will work"
-  why_manual: "Authentik blueprints cannot manage outpost provider assignments without replacing existing assignments — must add via Django ORM"
+  when: after Phase 2 ArgoCD sync makes the 'Ruflo (cluster)' proxy provider exist; before browser SSO will work
+  why_manual: Authentik blueprints cannot manage outpost provider assignments without replacing existing assignments — must add via Django ORM
   commands:
-  - description: "Add Ruflo (cluster) proxy provider to the embedded outpost"
+  - description: Add Ruflo (cluster) proxy provider to the embedded outpost
     command: |
       kubectl exec -n authentik deploy/authentik-server -- python -c "
       import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
@@ -929,7 +1074,7 @@ operations:
       print(f'Added {provider.name} to {outpost.name}')
       "
   verify:
-  - description: "'Ruflo (cluster)' is now in the embedded outpost's provider list"
+  - description: '''Ruflo (cluster)'' is now in the embedded outpost''s provider list'
     command: |
       kubectl exec -n authentik deploy/authentik-server -- python -c "
       import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
@@ -943,27 +1088,55 @@ operations:
   layer: orch
   app: ruflo
   plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
-  when: before opening the Phase 2 PR (Infisical entries must exist before ESOs reference them)
+  when: before opening the Phase 2 PR
   why_manual: Infisical entries are not reproducible from git; ESO needs the secret to exist before Phase 2 manifests reference it
   commands:
+  - description: Add RUFLO_DB_PASSWORD to Infisical
+    command: |
+      # Via Infisical UI at https://infisical.derio.net or `infisical secrets set`:
+      # Path:  /shared (or whichever path apps/ruflo/manifests/externalsecret-db-credentials.yaml references)
+      # Key:   RUFLO_DB_PASSWORD
+      # Value: <generated 32+ char random>
   - description: Confirm OPENROUTER_API_KEY is reachable from a ruflo-system path
     command: |
       # Either copy the existing entry under /shared, or grant the ruflo-system ServiceAccount
-      # access to the path that hosts it. Check apps/litellm/manifests/external-secret.yaml
+      # access to the path that hosts it. Check apps/litellm/manifests/externalsecret-*.yaml
       # for the reference shape.
   - description: Confirm EMAIL_RESEND_API_KEY is reachable from a ruflo-system path
     command: |
       # Same pattern — see apps/paperclip/manifests/external-secret-resend.yaml for reference.
-  - description: Note — RUFLO_DB_PASSWORD is NOT needed
-    command: |
-      # The original plan listed RUFLO_DB_PASSWORD here. The Mongo→Postgres
-      # rewrite (P2.T2 deviation) removed that requirement: the Bitnami
-      # postgresql chart auto-generates the password into the
-      # `ruflo-db-postgresql` Secret on first sync. No Infisical entry needed.
   verify:
-  - description: Both keys appear in Infisical for the path the ESOs will reference
-    command: infisical secrets list --path /shared | grep -E 'OPENROUTER_API_KEY|EMAIL_RESEND_API_KEY'
+  - description: All three keys appear in Infisical for the path the ESOs will reference
+    command: infisical secrets list --path /shared | grep -E 'RUFLO_DB_PASSWORD|OPENROUTER_API_KEY|EMAIL_RESEND_API_KEY'
   status: pending
+- id: orch-ruflo-shell-ssh-keys-bootstrap
+  layer: orch
+  app: ruflo
+  plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
+  when: once on first deploy (initial bootstrap), and any time the operator's SSH identity rotates
+  why_manual: 'agent-ssh-keys (the analogous secret on secure-agent-pod) is SOPS-bootstrap, not Infisical-ESO; ruflo follows the same pattern. Operator''s private SSH identity is per-laptop and outside the secret store. The Deployment volume is `optional: true` so the pod boots cleanly even before this op runs — sshd just rejects key-based logins until the Secret exists.'
+  commands:
+  - description: Build the Secret manifest from the operator's chosen public key (Secret data key MUST be `authorized_keys`)
+    command: |
+      kubectl create secret generic ruflo-shell-ssh-keys \
+        --namespace=ruflo-system \
+        --from-file=authorized_keys="$HOME/.ssh/<your_private_key>.pub" \
+        --dry-run=client -o yaml > secrets/ruflo/ruflo-shell-ssh-keys.yaml
+  - description: SOPS-encrypt in place (recipients resolve from repo-root .sops.yaml — no flags needed)
+    command: |
+      sops --encrypt --in-place secrets/ruflo/ruflo-shell-ssh-keys.yaml
+      git add secrets/ruflo/ruflo-shell-ssh-keys.yaml
+  - description: Apply to cluster (decrypts in-memory, never writes plaintext to disk)
+    command: |
+      sops --decrypt secrets/ruflo/ruflo-shell-ssh-keys.yaml | kubectl apply -f -
+  verify:
+  - description: Secret exists in ruflo-system namespace
+    command: kubectl get secret -n ruflo-system ruflo-shell-ssh-keys
+  - description: kubelet has projected the data into the running ruflo-shell container at /etc/ssh-keys/authorized_keys (no pod restart needed — optional-volume rotates on next kubelet resync, ≤90s)
+    command: kubectl exec -n ruflo-system deploy/ruflo -c ruflo-shell -- ls /etc/ssh-keys/authorized_keys
+  - description: Operator can SSH in
+    command: ssh -p 22 -i ~/.ssh/<your_private_key> agent@192.168.55.222 "hostname"
+  status: done
 - id: orch-traefik-paperclip-route
   layer: orch
   app: paperclip
@@ -983,7 +1156,19 @@ operations:
   when: After arc-controller and arc-runners apps are synced by ArgoCD, before runner pod reaches Running state
   why_manual: GitHub App credentials are a bootstrap secret. The runner cannot register without it, and SOPS+ArgoCD don't mix per repo convention.
   commands:
-  - "# Create the Secret manifest\nkubectl create secret generic arc-github-app-secret \\\n  --namespace arc-system \\\n  --from-literal=github_app_id=<APP_ID> \\\n  --from-literal=github_app_installation_id=<INSTALLATION_ID> \\\n  --from-literal=github_app_private_key=\"$(cat path/to/private-key.pem)\" \\\n  --dry-run=client -o yaml > /tmp/arc-secret.yaml\n# Encrypt with SOPS (use the same age key as other secrets/)\nsops --encrypt /tmp/arc-secret.yaml > secrets/arc/github-app-secret.yaml\nrm /tmp/arc-secret.yaml\n# Apply to cluster\nsops --decrypt secrets/arc/github-app-secret.yaml | kubectl apply -f -\n"
+  - |
+    # Create the Secret manifest
+    kubectl create secret generic arc-github-app-secret \
+      --namespace arc-system \
+      --from-literal=github_app_id=<APP_ID> \
+      --from-literal=github_app_installation_id=<INSTALLATION_ID> \
+      --from-literal=github_app_private_key="$(cat path/to/private-key.pem)" \
+      --dry-run=client -o yaml > /tmp/arc-secret.yaml
+    # Encrypt with SOPS (use the same age key as other secrets/)
+    sops --encrypt /tmp/arc-secret.yaml > secrets/arc/github-app-secret.yaml
+    rm /tmp/arc-secret.yaml
+    # Apply to cluster
+    sops --decrypt secrets/arc/github-app-secret.yaml | kubectl apply -f -
   verify:
   - kubectl get secret arc-github-app-secret -n arc-system
   - kubectl get pods -n arc-system
@@ -996,7 +1181,14 @@ operations:
   when: After smoke-test.yaml workflow exists on main branch and has run at least once successfully
   why_manual: Branch protection rules must be configured via GitHub UI or API. The smoke-test/readiness check must be a required status check so Renovate's automerge only fires after tests pass.
   commands:
-  - "# Via GitHub CLI — sets branch protection on main requiring smoke-test/readiness\ngh api repos/:owner/:repo/branches/main/protection \\\n  --method PUT \\\n  --field required_status_checks='{\"strict\":false,\"checks\":[{\"context\":\"smoke-test/readiness\"}]}' \\\n  --field enforce_admins=false \\\n  --field required_pull_request_reviews=null \\\n  --field restrictions=null\n"
+  - |
+    # Via GitHub CLI — sets branch protection on main requiring smoke-test/readiness
+    gh api repos/:owner/:repo/branches/main/protection \
+      --method PUT \
+      --field required_status_checks='{"strict":false,"checks":[{"context":"smoke-test/readiness"}]}' \
+      --field enforce_admins=false \
+      --field required_pull_request_reviews=null \
+      --field restrictions=null
   verify:
   - gh api repos/:owner/:repo/branches/main/protection --jq '.required_status_checks.checks'
   status: pending

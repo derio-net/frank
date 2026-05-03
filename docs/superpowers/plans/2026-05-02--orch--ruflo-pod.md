@@ -397,7 +397,39 @@ ls apps/litellm/manifests/ | grep -i external
 
 - [x] **Step 3: Create `apps/ruflo/manifests/externalsecret-resend.yaml`** producing Secret `ruflo-resend` with key `EMAIL_RESEND_API_KEY` from Infisical. Use the paperclip resend ESO as the literal template.
 
-- [-] **Step 4: Create `apps/ruflo/manifests/externalsecret-shell-ssh-keys.yaml`** producing Secret `ruflo-shell-ssh-keys` from the same Infisical entries that `agent-ssh-keys` uses (shared with secure-agent-pod and paperclip-shell). <!-- Deviated: agent-ssh-keys (the analogous secret on secure-agent-pod) is SOPS-bootstrap, not Infisical-ESO. ruflo-shell-ssh-keys mirrors that pattern — see secrets/ruflo/README.md. Deployment volume marked optional:true so pod boots even before bootstrap. -->
+- [-] **Step 4: Create `apps/ruflo/manifests/externalsecret-shell-ssh-keys.yaml`** producing Secret `ruflo-shell-ssh-keys` from the same Infisical entries that `agent-ssh-keys` uses (shared with secure-agent-pod and paperclip-shell). <!-- Deviated: agent-ssh-keys (the analogous secret on secure-agent-pod) is SOPS-bootstrap, not Infisical-ESO. ruflo-shell-ssh-keys mirrors that pattern — see secrets/ruflo/README.md. Deployment volume marked optional:true so pod boots even before bootstrap. The bootstrap/rotation flow is captured below as a manual-operation block. -->
+
+```yaml
+# manual-operation
+id: orch-ruflo-shell-ssh-keys-bootstrap
+layer: orch
+app: ruflo
+plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
+when: once on first deploy (initial bootstrap), and any time the operator's SSH identity rotates
+why_manual: "agent-ssh-keys (the analogous secret on secure-agent-pod) is SOPS-bootstrap, not Infisical-ESO; ruflo follows the same pattern. Operator's private SSH identity is per-laptop and outside the secret store. The Deployment volume is `optional: true` so the pod boots cleanly even before this op runs — sshd just rejects key-based logins until the Secret exists."
+commands:
+  - description: Build the Secret manifest from the operator's chosen public key (Secret data key MUST be `authorized_keys`)
+    command: |
+      kubectl create secret generic ruflo-shell-ssh-keys \
+        --namespace=ruflo-system \
+        --from-file=authorized_keys="$HOME/.ssh/<your_private_key>.pub" \
+        --dry-run=client -o yaml > secrets/ruflo/ruflo-shell-ssh-keys.yaml
+  - description: SOPS-encrypt in place (recipients resolve from repo-root .sops.yaml — no flags needed)
+    command: |
+      sops --encrypt --in-place secrets/ruflo/ruflo-shell-ssh-keys.yaml
+      git add secrets/ruflo/ruflo-shell-ssh-keys.yaml
+  - description: Apply to cluster (decrypts in-memory, never writes plaintext to disk)
+    command: |
+      sops --decrypt secrets/ruflo/ruflo-shell-ssh-keys.yaml | kubectl apply -f -
+verify:
+  - description: Secret exists in ruflo-system namespace
+    command: kubectl get secret -n ruflo-system ruflo-shell-ssh-keys
+  - description: kubelet has projected the data into the running ruflo-shell container at /etc/ssh-keys/authorized_keys (no pod restart needed — optional-volume rotates on next kubelet resync, ≤90s)
+    command: kubectl exec -n ruflo-system deploy/ruflo -c ruflo-shell -- ls /etc/ssh-keys/authorized_keys
+  - description: Operator can SSH in
+    command: ssh -p 22 -i ~/.ssh/<your_private_key> agent@192.168.55.222 "hostname"
+status: completed
+```
 
 - [x] **Step 5: Create `apps/ruflo/manifests/externalsecret-shell-alerts.yaml`** producing Secret `ruflo-shell-alerts` with `FRANK_C2_TELEGRAM_BOT_TOKEN` and `FRANK_C2_TELEGRAM_CHAT_ID`. Mirror paperclip-shell's equivalent (which Phase 2 of that plan introduces — copy from there if it has merged by the time this phase runs; otherwise create from scratch using the same Infisical source).
 
@@ -726,7 +758,7 @@ commands:
       print(f'Added {provider.name} to {outpost.name}')
       "
 verify:
-  - description: 'Ruflo (cluster)' is now in the embedded outpost's provider list
+  - description: "'Ruflo (cluster)' is now in the embedded outpost's provider list"
     command: |
       kubectl exec -n authentik deploy/authentik-server -- python -c "
       import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
