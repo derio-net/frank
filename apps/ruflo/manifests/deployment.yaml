@@ -3,11 +3,19 @@
 # workspace and shell-home PVCs are RWO and a rolling update would
 # deadlock waiting for the mount to release (see frank-gotchas.md).
 #
-# Image SHAs reference agent-images PR derio-net/agent-images#48
-# (merge SHA 7960ed111ba504c6523ac18e75e033574bff6d63). At the time this
-# manifest was written, that PR's merge had not yet propagated to
-# agent-images main and the images had not been published to GHCR. Phase
-# 1 cleanup must land before this Deployment can reconcile to Healthy.
+# Image SHAs reference agent-images main commit
+# 8af0d0800905487dfdb1716218d64bc1f915aecc (merge of derio-net/agent-images#53,
+# tail of the four-PR fix chain that recovered Phase 1's images:
+#   #50 — re-land of PR #48 (the original Phase 1 squash-merged onto the wrong
+#         branch and never reached main, leaving its images unbuilt)
+#   #51 — fix the COPY paths (upstream tree has src/ruvocal under an extra
+#         leading `ruflo/` dir, not at the repo root)
+#   #52 — sed-patch upstream's ChatWindow.svelte IIFE that vite-plugin-svelte
+#         rejects with js_parse_error
+#   #53 — chown /app to UID 1000 (ruvocal mkdirs /app/db at startup) and
+#         re-introduce paperclip-shell's install -d for /var/log/cont-init.d
+#         + /var/lib/ruflo-shell that ruflo-shell's fork-from-paperclip lost
+# See plan Deployment Notes for the full trace.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -65,7 +73,7 @@ spec:
       containers:
         # ----- ruvocal (the multi-agent web server) ------------------
         - name: ruflo
-          image: ghcr.io/derio-net/ruflo-server:7960ed111ba504c6523ac18e75e033574bff6d63
+          image: ghcr.io/derio-net/ruflo-server:8af0d0800905487dfdb1716218d64bc1f915aecc
           imagePullPolicy: IfNotPresent
           ports:
             - { name: http, containerPort: 3000, protocol: TCP }
@@ -119,7 +127,7 @@ spec:
 
         # ----- ruflo-shell (interactive maintainer sidecar) ----------
         - name: ruflo-shell
-          image: ghcr.io/derio-net/ruflo-shell:7960ed111ba504c6523ac18e75e033574bff6d63
+          image: ghcr.io/derio-net/ruflo-shell:8af0d0800905487dfdb1716218d64bc1f915aecc
           imagePullPolicy: IfNotPresent
           ports:
             - { name: ssh,         containerPort: 2222,  protocol: TCP }

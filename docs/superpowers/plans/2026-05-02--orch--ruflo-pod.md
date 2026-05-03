@@ -223,7 +223,7 @@ docker network rm ruflo-test-net
 
 - [x] **Step 1: Open PR titled `feat: add ruflo-server and ruflo-shell images`** with body linking to this plan. Wait for CI green on both images' smoke tests.
 
-- [ ] **Step 2: Capture both merged image SHAs** — record in this plan's *Deployment Notes* as:
+- [x] **Step 2: Capture both merged image SHAs** — record in this plan's *Deployment Notes* as:
 
 ```
 agent-images SHA: <sha>
@@ -637,9 +637,9 @@ END apps/ruflo/manifests/deployment.yaml
 
 ### Task 12: Open frank PR
 
-- [ ] **Step 1: Open PR titled `feat(orch): add ruflo pod (manifests, ruflo-db sub-app, ingress, Authentik)`** with body linking to this plan and the spec. Note: the inventory ConfigMap is empty — Phase 4 populates it; the Authentik outpost provider assignment is a manual op in Phase 3.
+- [x] **Step 1: Open PR titled `feat(orch): add ruflo pod (manifests, ruflo-db sub-app, ingress, Authentik)`** with body linking to this plan and the spec. Note: the inventory ConfigMap is empty — Phase 4 populates it; the Authentik outpost provider assignment is a manual op in Phase 3.
 
-- [ ] **Step 2: Wait for ArgoCD auto-sync after merge**
+- [x] **Step 2: Wait for ArgoCD auto-sync after merge**
 
 ```bash
 kubectl -n argocd get application ruflo-db -o jsonpath='{.status.sync.status} {.status.health.status}{"\n"}'
@@ -1075,3 +1075,4 @@ Confirms each canonical step happened or was rationally skipped.
 | 2026-05-02 | P2.T7 | **Image SHAs pinned to `7960ed111ba504c6523ac18e75e033574bff6d63`** (agent-images PR #48 merge commit). Image not yet on GHCR — see P1.T6 cleanup row. The Deployment will not reach Healthy until the agent-images cleanup re-merges the work onto `main` and CI rebuilds. |
 | 2026-05-02 | P2.T7 | `LITELLM_BASE_URL=http://litellm.litellm.svc:4000` is set explicitly on **both** the ruflo container and the ruflo-shell container `env:` (per the P1 review TODO). The shell's `/etc/profile.d/60-ruflo-shell-banner.sh` drop-in only fires for login shells; container env covers non-login non-interactive paths (`ssh … -- claude`). |
 | 2026-05-02 | P2.T9 | IngressRoute appended to `apps/traefik/manifests/ingressroutes.yaml`; Authentik proxy provider + application appended to `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml`. The manual outpost-provider assignment (per `frank-argocd.md`) is captured below as a fresh `# manual-operation` block — it must run after the blueprint syncs into Authentik. |
+| 2026-05-03 | P3 | **Phase 1 cleanup landed via four-PR fix chain in `derio-net/agent-images`.** PR #48's squash-merge had `baseRefName=feat/paperclip-shell` (operator opened the PR against the wrong base while paperclip-shell was still in flight) — the merge commit `7960ed1…` landed on that source branch and was never on main. ghcr's `ruflo-server` / `ruflo-shell` packages did not exist. Recovery: PR #50 (re-land of #48 unchanged: `git cherry-pick 7960ed1`) → CI surfaced four latent bugs in the original Phase 1 work → PR #51 (correct upstream COPY paths from `/src/ruflo/src/ruvocal/` to `/src/ruflo/ruflo/src/ruvocal/` — extra leading `ruflo/` dir was already noted as a path quirk in P1.T2 above but the Dockerfile still used the wrong form) → PR #52 (sed-patch upstream's `ChatWindow.svelte` IIFE `let x = $derived<T>(() => {...}())` which vite-plugin-svelte 5.0.3 rejects with `js_parse_error`; converts to `$derived.by<T>(...)`) → PR #53 (chown `/app` to UID 1000 in ruflo-server runtime stage so ruvocal's `Database.init` can mkdir `/app/db` on startup; re-introduce paperclip-shell's `install -d -o ${AGENT_UID}` for `/var/log/cont-init.d` + `/var/lib/ruflo-shell` in ruflo-shell — that line was lost when ruflo-shell forked from paperclip-shell). Final agent-images main SHA: `8af0d0800905487dfdb1716218d64bc1f915aecc`. Frank deployment.yaml SHAs bumped from the orphan `7960ed1…` to this. Comment block at the top of `apps/ruflo/manifests/deployment.yaml` records the chain. |
