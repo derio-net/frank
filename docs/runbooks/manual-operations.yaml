@@ -1129,13 +1129,23 @@ operations:
   - description: Apply to cluster (decrypts in-memory, never writes plaintext to disk)
     command: |
       sops --decrypt secrets/ruflo/ruflo-shell-ssh-keys.yaml | kubectl apply -f -
+  - description: "If the pod is ALREADY RUNNING (initial bootstrap on a live pod, or any subsequent key rotation), re-run the cont-init.d hook by hand. Reason: /etc/cont-init.d/30-authorized-keys only fires at pod boot, and it COPIES (not symlinks) /etc/ssh-keys/authorized_keys into ~agent/.ssh/authorized_keys, so a Secret applied or rotated mid-life never reaches sshd's AuthorizedKeysFile (the default ~/.ssh/authorized_keys). Hand-run is zero-downtime and idempotent. Alternative: kubectl rollout restart deploy/ruflo -n ruflo-system (Recreate strategy → ~30-60s outage)."
+    command: |
+      kubectl exec -n ruflo-system deploy/ruflo -c ruflo-shell -- bash -c '
+        cp /etc/ssh-keys/authorized_keys "${AGENT_HOME:-/home/agent}/.ssh/authorized_keys"
+        chmod 600 "${AGENT_HOME:-/home/agent}/.ssh/authorized_keys"
+      '
   verify:
   - description: Secret exists in ruflo-system namespace
     command: kubectl get secret -n ruflo-system ruflo-shell-ssh-keys
-  - description: kubelet has projected the data into the running ruflo-shell container at /etc/ssh-keys/authorized_keys (no pod restart needed — optional-volume rotates on next kubelet resync, ≤90s)
+  - description: "kubelet has projected the data into the running ruflo-shell container at /etc/ssh-keys/authorized_keys (the projection itself doesn't need a restart — optional-volume rotates on next kubelet resync, ≤90s)"
     command: kubectl exec -n ruflo-system deploy/ruflo -c ruflo-shell -- ls /etc/ssh-keys/authorized_keys
-  - description: Operator can SSH in
-    command: ssh -p 22 -i ~/.ssh/<your_private_key> agent@192.168.55.222 "hostname"
+  - description: ~agent/.ssh/authorized_keys carries the same content (cont-init.d hook either fired at boot or you re-ran it via the exec-copy command above)
+    command: kubectl exec -n ruflo-system deploy/ruflo -c ruflo-shell -- diff /etc/ssh-keys/authorized_keys /home/agent/.ssh/authorized_keys
+  - description: "Operator can SSH in. Note: clear stale host-key entry first if 192.168.55.222 was previously bound to a different pod's host key — StrictHostKeyChecking=accept-new only auto-accepts new hosts, not changed ones."
+    command: |
+      ssh-keygen -R 192.168.55.222 2>/dev/null; ssh-keygen -R "[192.168.55.222]:22" 2>/dev/null
+      ssh -i ~/.ssh/<your_private_key> -o StrictHostKeyChecking=accept-new agent@192.168.55.222 "hostname"
   status: done
 - id: orch-traefik-paperclip-route
   layer: orch
