@@ -23,8 +23,19 @@ spec:
       # cont-finish.d (s6 shutdown) saves the shell sidecar's tmux state
       # and similar housekeeping. Mirrors secure-agent-pod / ruflo grace.
       terminationGracePeriodSeconds: 45
+      # Pinned to gpu-1: the 2Gi limit (bumped from 1Gi in 1306b38) was still
+      # OOM-killing under load, so we move to a 12Gi limit on the node with
+      # 128GB headroom rather than push the control-plane minis (64GB each).
+      # No GPU is requested — gpu-1 is also our biggest CPU/RAM box and is
+      # currently only ~20% requested. The nvidia.com/gpu:NoSchedule
+      # toleration mirrors the cluster's defensive idiom (ollama, n8n,
+      # openrgb, secure-agent-pod) so paperclip survives any future re-assert
+      # of the gpu-only taint.
       nodeSelector:
-        zone: core
+        kubernetes.io/hostname: gpu-1
+      tolerations:
+        - key: nvidia.com/gpu
+          effect: NoSchedule
       securityContext:
         fsGroup: 1000
       # NOTE: `shareProcessNamespace: true` was in the original Phase 2 plan
@@ -79,7 +90,7 @@ spec:
               memory: 512Mi
               cpu: 250m
             limits:
-              memory: 2Gi
+              memory: 12Gi
               cpu: "1"
           readinessProbe:
             tcpSocket:
