@@ -11,7 +11,7 @@
 - Ignore Secret data diffs in ArgoCD (`ignoreDifferences` on `/data` jsonPointer)
 - `prune: false` in syncPolicy — manual pruning only to avoid accidental deletion
 - Intel GPU Resource Driver uses vendored chart with K8s 1.35 DRA patches
-- GPU-1 has a NoSchedule taint — only GPU workloads schedule there
+- gpu-1 has no NoSchedule taint at the moment (`spec.taints: []` on the Node), but the cluster idiom for pinning a workload there is `nodeSelector: kubernetes.io/hostname: gpu-1` plus a defensive `nvidia.com/gpu:NoSchedule` toleration (ollama, n8n, openrgb, secure-agent-pod, paperclip all carry it). The toleration is insurance against the GPU operator re-asserting the taint on driver re-validation; pods without it would be evicted in that window. Keep mirroring the pattern even when the live taint list is empty.
 - SOPS/age encryption for secrets — never commit plaintext secrets
 - Longhorn default replicaCount: 3 (matches 3 control-plane nodes)
 - SOPS + ArgoCD ServerSideApply don't mix — encrypted secrets must live outside ArgoCD-managed paths (see `secrets/` dir) and be applied out-of-band
