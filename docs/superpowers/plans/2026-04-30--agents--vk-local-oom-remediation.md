@@ -444,4 +444,53 @@ The plan's example commands used placeholder paths; the agent-images PR (`#34`) 
 
 ## Soak Log (Phase 5)
 
-*(Filled in by Phase 5 Task 1.)*
+**Soak window:** 2026-05-03 → 2026-05-17 (14 days from Phase 4 Task 2 merge in [`c88b755`](https://github.com/derio-net/frank/commit/c88b755) at 2026-05-03 01:52 +0200; vk-local pod `secure-agent-pod-f89b886c5-48pgn` started 07:49:13 UTC).
+
+Daily readings — `restartCount`, p99 working-set RSS over the prior 24 h, and peak queue depth — are auto-filled by [`scripts/phase5-soak-daily.sh`](../../../scripts/phase5-soak-daily.sh) from a supercronic entry on the secure-agent-pod (`0 8 * * *` UTC, kali sibling container). The script clones this repo into `~/.willikins-agent/phase5-soak-clone`, queries vmsingle for the day's p99 + queue peak, queries `kubectl` for restartCount, replaces the `_tbd_` placeholder for that Day-N row, and pushes to `vk/4bac-ffe-118-gh-156`. Once that branch no longer exists on origin (PR merged or branch deleted), the same script switches modes and creates one `vk-ready` GitHub issue per fire as a cleanup nag — the operator removes the cron line and the script when satisfied with the soak. Phase 4 Task 2 already wired the metrics surface end-to-end (`vibekanban_max_executions=4`, the cadvisor pipeline fix from Phase 2, and the new Grafana panels), so each day is a single read.
+
+| Day | Date (UTC) | `restartCount` | OOMKills since soak start | p99 working-set (24 h) | Peak `vibekanban_queued_executions` (24 h) | Notes |
+|-----|------------|----------------|---------------------------|------------------------|---------------------------------------------|-------|
+| 1 | 2026-05-03 | 0 | 0 | ~2.35 GiB (cadvisor) / ~2.53 GiB (resource), instant 2.09 GiB | 0 (active=2 at sample time, max=4) | Soak start. Phase 4 image `8af0d080` live, env `VK_MAX_CONCURRENT_EXECUTIONS=4` confirmed via `/metrics`. No queue events yet. |
+| 2 | 2026-05-04 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 3 | 2026-05-05 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 4 | 2026-05-06 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 5 | 2026-05-07 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 6 | 2026-05-08 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 7 | 2026-05-09 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 8 | 2026-05-10 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 9 | 2026-05-11 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 10 | 2026-05-12 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 11 | 2026-05-13 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 12 | 2026-05-14 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 13 | 2026-05-15 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 14 | 2026-05-16 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+
+### Day 1 raw query output (2026-05-03)
+
+```
+$ kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
+    -o jsonpath='{range .items[0].status.containerStatuses[?(@.name=="vk-local")]}restartCount={.restartCount}{"\n"}lastReason={.lastState.terminated.reason}{"\n"}{end}'
+restartCount=0
+lastReason=
+
+$ kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
+    -o jsonpath='{.items[0].spec.containers[?(@.name=="vk-local")].resources.limits.memory}'
+8Gi
+
+$ # vibekanban_max_executions / queued / active (via vmsingle, instant)
+vibekanban_max_executions{...,pod="secure-agent-pod-f89b886c5-48pgn"} = 4
+vibekanban_queued_executions{...} = 0
+vibekanban_active_executions{...} = 2
+
+$ # quantile_over_time(0.99, container_memory_working_set_bytes[1d]) — current pod, last 24 h
+cadvisor   = 2_521_899_008  B  ≈ 2.35 GiB
+resource   = 2_723_295_232  B  ≈ 2.54 GiB
+
+$ # current instant
+cadvisor   = 2_244_149_248  B  ≈ 2.09 GiB
+resource   = 2_250_391_552  B  ≈ 2.10 GiB
+```
+
+The "p99 over 24 h" series above includes the brief overlap with the previous pod (`secure-agent-pod-67cddc9d8-xlsz4`, image `3fdae2b7`) and the older `6bc54b47f6-nx82m` (image `3e3e5a2d`) before it; from Day 2 onwards the same query restricted to `pod="secure-agent-pod-f89b886c5-48pgn"` will give a clean Phase-4-image-only number.
+
+> **Decision (Task 2) is blocked until 2026-05-17.** Outcomes (a)/(b)/(c) require the full 14-row table; do not promote this PR's Day 1 reading to a decision rationale on its own.
