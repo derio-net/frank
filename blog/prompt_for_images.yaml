@@ -1089,8 +1089,20 @@ images:
       output, right screen shows a small Telegram alert popup ("install
       failed: claude-flow@alpha rc=243"). A glowing blue pipe labelled
       "LiteLLM" runs along the top of the wall, with every bee's flight
-      path passing through it once. Frank: green skin, messy black hair,
-      black eyes with white pupils, mouth in a calm slight smile (closed,
-      NO fangs), RJ45 neck bolts sparking faint blue electricity. Operational
-      mood — routine pruning, not chaos. Server-room background with cyan
-      and amber accent lighting.
+      path passing through it once.
+      CRITICAL CHARACTER FIDELITY (match the reference image exactly):
+      Frank's face has NO NOSE — absolutely flat between the eyes and
+      mouth, no nostrils, no nose bridge, no nose shadow. Match the
+      reference. His face has VISIBLE STITCHES AND PATCHES — a prominent
+      vertical Frankenstein-stitch scar running down the center of his
+      forehead, an asymmetric patch of slightly darker green skin on one
+      cheek with a small horizontal stitch line, and a second short
+      stitch near the jaw or temple. Skin is uneven cartoon green, not
+      flat. Messy black hair flat-top with jagged outline. Black eyes
+      with white pupils. Mouth: closed, calm slight smile, NO fangs, NO
+      teeth. RJ45-connector neck bolts (two, one each side of the neck)
+      sparking faint blue electricity. Same chibi proportions and same
+      face design as the reference image — use the reference as a strict
+      character sheet, only change pose, expression, scene, and lighting.
+      Operational mood — routine pruning, not chaos. Server-room
+      background with cyan and amber accent lighting.
