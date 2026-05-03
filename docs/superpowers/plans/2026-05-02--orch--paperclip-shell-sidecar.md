@@ -504,6 +504,15 @@ kubectl -n argocd get application paperclip -o jsonpath='{.status.sync.status} {
 
 Confirms the sidecar deploys cleanly, paperclip is unaffected, and the alerting path works end-to-end.
 
+### Task 0: Pre-flight (manual, before anything else)
+
+- [ ] **Step 1: Apply the SOPS-encrypted ssh-keys Secret** — without this, sshd is up but rejects every login (the `paperclip-shell-ssh-keys` Secret volume is `optional: true` so the pod *boots*, but `authorized_keys` is empty). See `secrets/paperclip/README.md` for the bootstrap procedure. After applying, verify:
+
+```bash
+kubectl -n paperclip-system get secret paperclip-shell-ssh-keys -o jsonpath='{.data.authorized_keys}' | base64 -d
+# expect: at least one ssh public key
+```
+
 ### Task 1: Pod-level health
 
 - [ ] **Step 1: Confirm both containers Ready**
@@ -514,12 +523,7 @@ kubectl -n paperclip-system get pod -l app.kubernetes.io/name=paperclip \
 # expect both 'paperclip' and 'paperclip-shell' with ready=true
 ```
 
-- [ ] **Step 2: Confirm shareProcessNamespace works**
-
-```bash
-kubectl -n paperclip-system exec -c paperclip-shell deploy/paperclip -- ps -ef | grep -E 'paperclip|node|sshd'
-# expect to see paperclip's process(es) AND sshd in the output
-```
+- [-] **Step 2: ~~Confirm shareProcessNamespace works~~** *(obsolete — Phase 2 dropped `shareProcessNamespace: true` per the agent-shell-base / s6-overlay v3 incompatibility under `runAsNonRoot`; see Deployment Notes 2026-05-03 row. Cross-container `ps` is no longer expected to work; the actual debugging surface is the shared `/paperclip` PVC, validated in Step 3.)*
 
 - [ ] **Step 3: Confirm `/paperclip` is shared and writable from both containers**
 

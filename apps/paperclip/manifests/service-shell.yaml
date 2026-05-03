@@ -5,11 +5,16 @@
 # any other published Service port range on a different IP.
 #
 # UDP range 60000–60015 matches the secure-agent-pod's mosh range,
-# which is fine: each Service has its own LB IP and each pod its own
-# network namespace, so the per-IP UDP listener does not conflict.
-# (ruflo-shell deliberately picked 60016–60031 to be obviously distinct;
-# paperclip-shell does not need that distinction since the published
-# ports here are the ones from the original Phase 2 plan.)
+# which is fine *only because* each Service has its own LB IP and Cilium
+# DNATs per ingress IP, and each pod has its own network namespace. The
+# per-IP UDP listener does not conflict.
+#
+# Caveat: do not promote any of these mosh ports to `hostPort` later —
+# the moment two pods on the same node both try to bind 60000–60015 on
+# the host network, the overlap with secure-agent-pod becomes a real
+# collision. (ruflo-shell deliberately picked the disjoint range
+# 60016–60031 partly to keep that future option open; paperclip-shell
+# stays on the originally-planned range and accepts the constraint.)
 #
 # 192.168.55.221 confirmed unused across `apps/` and the live cluster.
 #
