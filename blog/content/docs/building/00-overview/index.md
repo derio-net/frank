@@ -56,6 +56,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Tekton** | K8s-native CI/CD pipelines — webhook-driven clone, test, build, sign, report status on pc-1 |
 | **Zot** | OCI container/artifact registry with cert-manager TLS and cosign image signing (`192.168.55.210`) |
 | **agent-images** | Shared base image + per-pod children repo — `agent-base` toolchain + `secure-agent-kali` / `vk-local` children, matrix CI, cross-repo `repository_dispatch`, lockstep bumper PR |
+| **Ruflo (claude-flow + ruvocal)** | Swarm-style AI orchestrator — hybrid pod (ruvocal SSR + agent-shell-base sidecar), LiteLLM-only egress, SSH+Mosh shell on `192.168.55.222`, web UI at `ruflo.cluster.derio.net` |
 
 ## Cluster State
 
@@ -96,6 +97,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 26. [VK Remote — Self-Hosting the Kanban Backend Before the Cloud Dies]({{< relref "/docs/building/26-vk-remote-self-host" >}})
 27. [CI/CD Platform — Gitea, Tekton, Zot, and Cosign]({{< relref "/docs/building/27-cicd-platform" >}})
 28. [Agent Images and the VK-Local Sidecar — Unbaking VibeKanban]({{< relref "/docs/building/28-agent-images-sidecar" >}})
+29. [Ruflo — A Swarm Orchestrator Next to Paperclip]({{< relref "/docs/building/29-ruflo" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
@@ -126,3 +128,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 21. [Operating on VK Remote]({{< relref "/docs/operating/21-vk-remote" >}})
 22. [Operating on CI/CD Platform]({{< relref "/docs/operating/22-cicd-platform" >}})
 23. [Operating on ArgoCD Drift]({{< relref "/docs/operating/23-argocd-drift-detective" >}})
+24. [Operating on Ruflo]({{< relref "/docs/operating/24-ruflo" >}})
