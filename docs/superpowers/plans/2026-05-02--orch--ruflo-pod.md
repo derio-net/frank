@@ -1,7 +1,7 @@
 # Ruflo Pod Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-05-02--orch--ruflo-pod-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **Type:** New layer in the `orch` capability domain (sibling to Paperclip). Per `repo-workflows.md`: standard layer workflow, includes NEW building/operating blog posts and a new homepage tile.
 

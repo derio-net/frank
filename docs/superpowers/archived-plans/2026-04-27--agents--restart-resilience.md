@@ -1,7 +1,7 @@
 # Agent Pod Restart Resilience — Implementation Plan (frank side)
 
 **Spec:** `docs/superpowers/specs/2026-04-27--agents--restart-resilience-design.md`
-**Status:** Deployed
+**Status:** Complete
 
 **Type:** Fix/extension of the `agents` layer (extends [`2026-04-15--agents--agent-images-and-vk-local-sidecar`](../archived-plans/2026-04-15--agents--agent-images-and-vk-local-sidecar.md) and [`2026-03-30--agents--secure-agent-pod`](../archived-plans/2026-03-30--agents--secure-agent-pod.md)). Per `repo-workflows.md`: same layer code, update existing layer's blog posts (no new posts).
 

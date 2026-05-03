@@ -185,3 +185,9 @@ These should be resolved during plan writing or first-task execution; they do no
 - [`derio-net/frank#142`](https://github.com/derio-net/frank/pull/142) — Option A landed (2 Gi → 8 Gi limit bump)
 - [`derio-net/frank#140`](https://github.com/derio-net/frank/issues/140) — this brainstorm tracking issue
 - [`2026-04-15--agents--agent-images-and-vk-local-sidecar-design`](2026-04-15--agents--agent-images-and-vk-local-sidecar-design.md) — sidecar architecture this plan extends
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| vk-local OOMKill Remediation — Implementation Plan |  | `docs/superpowers/plans/2026-04-30--agents--vk-local-oom-remediation.md` | In Progress | — |

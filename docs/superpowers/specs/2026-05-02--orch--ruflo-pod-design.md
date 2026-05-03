@@ -360,4 +360,4 @@ Rollback at any step: revert the frank PR. `ruflo-db`'s PVC remains by default (
 
 | Plan | Repo | File | Status | Depends on |
 |------|------|------|--------|------------|
-| Ruflo Pod Implementation Plan |  | `docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md` | Not Started | — |
+| Ruflo Pod Implementation Plan |  | `docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md` | In Progress | — |

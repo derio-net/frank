@@ -1,7 +1,7 @@
 # vk-local OOMKill Remediation — Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-04-30--agents--vk-local-oom-remediation-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **Type:** Fix/extension of the `agents` layer (extends [`2026-04-15--agents--agent-images-and-vk-local-sidecar`](../archived-plans/2026-04-15--agents--agent-images-and-vk-local-sidecar.md)). Per `repo-workflows.md`: same layer code, retroactively update existing layer's blog posts (no new posts).
 
