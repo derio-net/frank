@@ -171,6 +171,41 @@ Database migrations applied on first start. Automatic PostgreSQL backups to `/pa
 <!-- MEDIA: screenshot | Paperclip orchestrator web UI | Navigate to 192.168.55.212:3100, show agent overview, dark mode -->
 <!-- {{</* screenshot src="paperclip-ui.png" caption="Paperclip orchestrator showing active agents" */>}} -->
 
+## Memory Tuning and the Move to gpu-1
+
+The original Deployment shipped with `requests.memory: 256Mi` and `limits.memory: 1Gi`, scheduling onto any node in the `zone: core` pool — the three control-plane minis. Those numbers were a guess inherited from the fork-era image and never re-validated when we switched to the upstream public build.
+
+The guess was wrong twice.
+
+**Round one: 1Gi → 2Gi.** Six weeks after `GEMINI_API_KEY` was added as an optional envFrom secret, paperclip started CrashLoopBackOff-ing every five minutes with exit 137 (OOMKilled). The container survived about nine seconds after start, dying right after the `reaped orphaned heartbeat runs` log line — far enough into boot that the JVM-style "warm up, then collapse" pattern was unmistakable. The Google AI SDK appears to eagerly init when its env var is present, even if no Gemini-backed agent ever runs. Bumping `requests.memory` to 512Mi and `limits.memory` to 2Gi got the pod through boot.
+
+**Round two: 2Gi → 12Gi, on gpu-1.** Two hours later, OOMKilled again. This time under load, with agent runs actually doing work. Bumping the limit higher on a 64GB mini was possible but uncomfortable — the core-zone minis run the control plane, ArgoCD, Cilium, Longhorn, observability, the registry, Authentik. They have headroom but not the kind that absorbs a 12Gi tenant without complaint.
+
+gpu-1, meanwhile, was sitting at roughly 20% of its 128GB requested. So paperclip moved.
+
+```yaml
+nodeSelector:
+  kubernetes.io/hostname: gpu-1
+tolerations:
+  - key: nvidia.com/gpu
+    effect: NoSchedule
+resources:
+  requests:
+    memory: 512Mi
+    cpu: 250m
+  limits:
+    memory: 12Gi
+    cpu: "1"
+```
+
+Two things to call out about that block.
+
+First, paperclip does not request a GPU. It is a CPU/RAM workload that happens to live on the GPU node — gpu-1 just happens to also be the cluster's biggest CPU/RAM box. The naming is misleading on purpose: gpu-1 is the "anything that needs more than 64GB" node.
+
+Second, the `nvidia.com/gpu:NoSchedule` toleration is *defensive*, not active. gpu-1's live taint list is empty right now; nothing on it requires a toleration to schedule. But the GPU operator periodically re-validates drivers and can re-assert the taint during that window. Any non-GPU workload pinned to gpu-1 without the toleration would be evicted on the spot. The cluster idiom is to mirror the toleration on every gpu-1 tenant — ollama, n8n, openrgb, secure-agent-pod, and now paperclip all carry it. It's insurance, not enforcement.
+
+The lesson generalises: limits inherited from a previous image are not measurements. They are placeholders waiting to be wrong. Paperclip's real working set turned out to be roughly an order of magnitude higher than the inherited 1Gi guess. The cluster will have opinions about resource sizing — best to let it tell you.
+
 ## What's Next
 
 Paperclip and Sympozium now coexist on the same cluster, sharing the same LiteLLM gateway. The practical comparison will play out over the next few layers as I try to automate the same workflows through both and see which abstraction fits better.

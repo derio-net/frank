@@ -805,3 +805,20 @@ git push -u origin claude/deploy-paperclip-orchestrator-2mo3D
 **Fix:** Added `optional: true` to the `paperclip-anthropic` `secretRef` in `apps/paperclip/manifests/deployment.yaml`. The `claude_local` adapter simply won't have a key when the secret is absent — acceptable since LiteLLM is the primary backend.
 
 **Affected task:** Task 9 (Deployment manifest)
+
+### 2026-05-03 — Memory bump 2Gi → 12Gi and pin to gpu-1
+
+**Symptom:** Paperclip pod entered a CrashLoopBackOff with exit 137 (OOMKilled) every ~5 min for 10 hours. The container survived ~9s after start, dying right after the `reaped orphaned heartbeat runs` log line. Started after `f93dc86` exposed `GEMINI_API_KEY` to the container.
+
+**Root cause (round one):** The 1Gi limit was inherited from the fork-era image and was never re-tuned when we switched to the upstream public image (`d4060c8`, `v2026.428.0`). The new optional `paperclip-gemini` `secretRef` likely triggers eager Google AI SDK init at startup, pushing peak resident memory past 1Gi.
+
+**First fix (insufficient):** `1306b38` bumped `requests.memory` to 512Mi and `limits.memory` to 2Gi while we observed real usage. The OOM kills did not stop — actual working set under load was higher than the headroom.
+
+**Root cause (round two):** Even 2Gi was not enough headroom for paperclip's heap once agent runs were active. Pushing the limit higher on a 64GB control-plane mini felt like it was eating into headroom the rest of the core-zone workloads need; gpu-1 (128GB) was sitting at ~20% requested and could absorb a much more generous limit without trade-offs.
+
+**Final fix (`bf0810e`):**
+- `nodeSelector: zone: core` → `nodeSelector: kubernetes.io/hostname: gpu-1` (was scheduling on whichever core-zone mini was free; landed on mini-3 at the time of the failure)
+- Added `nvidia.com/gpu:NoSchedule` toleration — defensive, mirrors the cluster idiom (ollama, n8n, openrgb, secure-agent-pod). gpu-1's taint list is currently empty, but the GPU operator can re-assert the taint during driver re-validation; without the toleration, paperclip would be evicted in that window.
+- `limits.memory` 2Gi → 12Gi. No GPU is requested — paperclip is a CPU/RAM workload that happens to run on the GPU node because it has the most RAM.
+
+**Affected task:** Task 9 (Deployment manifest). Cross-references: `frank-gotchas.md` already lists paperclip among the workloads carrying the defensive gpu toleration.
