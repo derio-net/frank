@@ -207,6 +207,143 @@ kubectl get ciliumpoolipaddress -A | grep 192.168.55.212
 
 - **Memory limit is 12Gi, not a typo.** Paperclip's real working set under load is meaningfully larger than the 1Gi the original deployment shipped with — see *Memory Tuning and the Move to gpu-1* in the building post for the two-round OOM story. If you see new exit-137 (OOMKilled) crashes, check whether a recent feature added an SDK that eagerly inits at startup before assuming the limit needs another bump.
 
+## The Shell Sidecar
+
+The `paperclip` Pod has carried a second container, `paperclip-shell`, since 2026-05-03. It's a sibling sshd/mosh environment with its own LB IP and its own tooling — see *Adding a Side Door* in the [building post]({{< relref "/docs/building/15-paperclip" >}}#adding-a-side-door-ssh-able-shell-sidecar) for the why and the design. This section is the operator's day-to-day reference.
+
+### Connecting via SSH/Mosh
+
+```bash
+# Direct (no config)
+ssh agent@192.168.55.221
+mosh agent@192.168.55.221
+
+# Inside an existing tmux session (auto-restored across pod bounces)
+ssh agent@192.168.55.221 -t tmux new -A -s main
+```
+
+Add a stanza to `~/.ssh/config` on the laptop so `ssh paperclip` is enough:
+
+```
+Host paperclip
+  HostName 192.168.55.221
+  User agent
+  IdentityFile ~/.ssh/<your-key>
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+```
+
+Mosh shares the same LB IP as SSH — TCP/22 + UDP/60000–60015 are bound to the same `MixedProtocolLBService`. No client-side trick needed; if the network supports UDP to the cluster subnet, mosh just works.
+
+The tmux session survives pod bounces because `tmux-resurrect` + `tmux-continuum` are seeded into `~/.tmux.conf` from the image's `/etc/skel/`. Reattach with `tmux a`. State lives on `paperclip-shell-home` (RWO 20Gi PVC at `/home/agent`) — same PV across restarts, so the cargo/npm/pipx/mise binaries already installed on it survive too.
+
+### Adding and Removing Tools
+
+The shell uses a three-layer install model. Pick the right layer for what you're doing:
+
+| You want to... | Edit | Effect |
+|---|---|---|
+| Add a tool permanently (survives PV migration) | `apps/paperclip/manifests/configmap-shell-inventory.yaml`, commit, push | ArgoCD syncs; installed on next pod restart, or run `paperclip-shell-reconcile` immediately |
+| Try a tool quickly | `mise install <x>` / `cargo install <x>` / `pipx install <x>` over SSH | Immediate; persists on PV; drifts from declared state until promoted |
+| Promote an interactive install | Add to ConfigMap, commit | Already installed; declaration just records intent so a fresh PV reproduces it |
+| Remove a tool | Add to the matching `removed:` list in the ConfigMap, commit | Uninstalled on next reconcile |
+
+The inventory is grouped by manager:
+
+```yaml
+mise:
+  - python@3.12
+  - node@20
+  - rust@stable
+npm-global:
+  - "@anthropic-ai/claude-code"
+  - "@openai/codex"
+pipx:
+  - black
+  - ruff
+cargo:
+  - ripgrep
+  - eza
+removed:
+  cargo: []
+  pipx: []
+  npm-global: []
+  mise: []
+```
+
+After editing the ConfigMap, you can either wait for the next pod restart (the boot-time `cont-init.d/40-shell-inventory` hook runs the same installer) or trigger a reconcile on the live pod:
+
+```bash
+# The reliable path: kubectl exec inherits PID-1 env, so Telegram alerts fire on failure.
+kubectl -n paperclip-system exec -c paperclip-shell deploy/paperclip -- paperclip-shell-reconcile
+```
+
+> **Use `kubectl exec`, not `ssh agent@... -- paperclip-shell-reconcile`.** sshd scrubs the container env at login (it doesn't preserve K8s `envFrom` injections), so the SSH-launched reconcile runs with no `FRANK_C2_TELEGRAM_*` and any failure exits 0 silently — the MOTD still updates, but the alert never fires. See `frank-gotchas.md` for the full pattern.
+
+### Reading the Install Log and Interpreting the Alert
+
+Three layers of visibility, in order of effort to consult:
+
+```bash
+# 1. MOTD line — printed on every fresh login, also written on every reconcile.
+ssh paperclip cat /var/lib/paperclip-shell/last-reconcile.motd
+# ✓ paperclip-shell: 8 installed, 1 already present, 0 removed @ 2026-05-03T19:10:42Z
+
+# 2. Full installer log — line-per-step exit codes.
+kubectl -n paperclip-system exec -c paperclip-shell deploy/paperclip -- \
+  cat /var/log/cont-init.d/40-shell-inventory.log
+
+# 3. Telegram alert — fires within seconds when boot-time reconcile or kubectl-exec'd reconcile sees any failure.
+#    Format: ⚠ paperclip-shell: N install(s) failed on last reconcile (<one offender for triage>)
+```
+
+Translating an alert:
+
+- `⚠ paperclip-shell: 1 install(s) failed on last reconcile (cargo install ripgrep)` → check `/var/log/cont-init.d/40-shell-inventory.log` for the underlying error. Common causes: transient `crates.io` 5xx (re-run `paperclip-shell-reconcile`), inventory typo (fix the ConfigMap), or the `mise install` for the runtime that the manager depends on hasn't activated yet (run `mise use -g node@20` etc. — see *the mise activation gap* below).
+- A success MOTD with `installed=0 already=N removed=0 failed=0` means the boot reconcile ran against the live ConfigMap and found everything already on the PV — no work was needed. This is the steady state.
+
+The installer is **fail-open**: a `cargo install` failure does not block sshd. SSH stays available even when an install fails. The Telegram alert is the active channel; the log and MOTD are passive.
+
+#### The mise activation gap
+
+`mise install <runtime>` downloads and stages the runtime under `~/.local/share/mise/installs/`, but **does not activate it**. The mise shim `npm` / `cargo` / `python3` continue to fall through to the system binaries (`/usr/bin/npm`, `/usr/bin/cargo`, `/usr/bin/python3`) until you also write `~/.config/mise/config.toml` with:
+
+```bash
+mise use -g python@3.12 node@20 rust@stable
+```
+
+Until that activation step lands on a fresh PV, the npm-global and cargo sections of the inventory may resolve to the system `npm` / `cargo`, which under `cap-drop=ALL` + `runAsUser: 1000` cannot write to `/usr/lib/node_modules/`. The symptom is `EACCES: permission denied, mkdir '/usr/lib/node_modules/...'` in the installer log on a freshly-provisioned shell. After running `mise use -g <runtime>` once, subsequent reconciles install into mise's user-prefix correctly. (Tracked upstream as `derio-net/agent-images#56` — once the installer activates each runtime automatically the gap closes.)
+
+### When to Bump the Image vs. Add to the Inventory
+
+The decision rule is:
+
+| Question | If yes → | If no → |
+|---|---|---|
+| Does it need root or `apt`? | Bump the image | Inventory |
+| Is it a runtime *manager* (`mise`, `pipx`, `rustup`)? | Bump the image | Inventory |
+| Is it a system binary (sshd, mosh, tmux, locales)? | Bump the image | Inventory |
+| Is it a userspace tool installed via one of the existing managers? | Inventory | Bump the image |
+| Does it need a `cont-init.d` hook to set up? | Bump the image | Inventory |
+
+Bumping the image (slow loop):
+
+```bash
+# Image lives at derio-net/agent-images, paperclip-shell/. After merge:
+# Update apps/paperclip/values.yaml shellImage.tag to the new SHA.
+# ArgoCD syncs; pod bounces; PV survives; new image picks up where the old one left off.
+```
+
+Adding to the inventory (medium loop):
+
+```bash
+# Edit apps/paperclip/manifests/configmap-shell-inventory.yaml.
+# Commit, push, ArgoCD syncs the ConfigMap, kubectl exec ... paperclip-shell-reconcile.
+# No pod bounce required — installs land on the PV during reconcile.
+```
+
+The vast majority of "I want tool X" requests resolve to the inventory. Bumping the image is the right answer when the user is reaching for a *new manager* or for behaviour that needs to run before sshd starts. If you're not sure, default to inventory — promotion to image is always available later, and the inventory loop is faster.
+
 ## References
 
 - [Paperclip GitHub](https://github.com/paperclipai/paperclip) — Upstream source repository

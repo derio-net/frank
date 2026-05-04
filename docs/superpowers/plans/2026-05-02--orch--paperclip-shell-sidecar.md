@@ -1,7 +1,7 @@
 # Paperclip Shell Sidecar Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-05-02--orch--paperclip-shell-sidecar-design.md`
-**Status:** In Progress
+**Status:** Deployed
 
 **Type:** Fix/extension of the `orch` layer (extends `2026-03-14--orch--paperclip-design`). Per `repo-workflows.md`: same layer code, retroactively update existing layer's blog posts (no new posts).
 
@@ -749,7 +749,7 @@ ssh agent@192.168.55.221 -- cargo install fd-find
 
 ### Task 1: Update CLAUDE.md rules
 
-- [ ] **Step 1: Update `.claude/rules/frank-infrastructure.md`**
+- [x] **Step 1: Update `.claude/rules/frank-infrastructure.md`**
 
   Add to the Frank Cluster Services table:
 
@@ -757,27 +757,27 @@ ssh agent@192.168.55.221 -- cargo install fd-find
 | Paperclip Shell (SSH+Mosh) | 192.168.55.221 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60000-60015/Mosh) |
 ```
 
-- [ ] **Step 2: Add gotchas to `.claude/rules/frank-gotchas.md`** — only patterns that actually surfaced during Phase 3/4. Examples:
+- [x] **Step 2: Add gotchas to `.claude/rules/frank-gotchas.md`** — only patterns that actually surfaced during Phase 3/4. Examples:
   - "MixedProtocolLBService working on Cilium 1.17 + K8s 1.35 — single LB IP serves both TCP/22 and UDP/60000-60015 cleanly."
   - Anything else that surfaced.
 
 ### Task 2: Update existing paperclip blog posts (extension, not new posts)
 
-- [ ] **Step 1: Append to `blog/content/docs/building/15-paperclip/index.md`** — section *Adding a side door: SSH-able shell sidecar*. Cover: why (24/7 workflow, install-on-the-fly, kubectl-exec ergonomics); the sidecar topology (use the spec's diagram); three-layer install model (image / inventory / interactive); fail-open with Telegram alerting (the tension and the resolution); why not Ansible / not modifying the upstream image.
+- [x] **Step 1: Append to `blog/content/docs/building/15-paperclip/index.md`** — section *Adding a side door: SSH-able shell sidecar*. Cover: why (24/7 workflow, install-on-the-fly, kubectl-exec ergonomics); the sidecar topology (use the spec's diagram); three-layer install model (image / inventory / interactive); fail-open with Telegram alerting (the tension and the resolution); why not Ansible / not modifying the upstream image.
 
-- [ ] **Step 2: Append to `blog/content/docs/operating/18-paperclip/index.md`** — new sections: *Connecting via SSH/Mosh* (with the laptop `~/.ssh/config` snippet); *Adding/removing tools* (ConfigMap edit flow vs interactive `mise install`); *Reading the install log / interpreting the alert*; *When to bump `paperclip-shell` image vs add to inventory*.
+- [x] **Step 2: Append to `blog/content/docs/operating/18-paperclip/index.md`** — new sections: *Connecting via SSH/Mosh* (with the laptop `~/.ssh/config` snippet); *Adding/removing tools* (ConfigMap edit flow vs interactive `mise install`); *Reading the install log / interpreting the alert*; *When to bump `paperclip-shell` image vs add to inventory*.
 
 ### Task 3: Run `/update-readme`
 
-- [ ] **Step 1:** Run the skill. Verify the Service Access table now includes `192.168.55.221` and the Repository Structure section reflects any new directories under `apps/paperclip/`.
+- [x] **Step 1:** Run the skill. Verify the Service Access table now includes `192.168.55.221` and the Repository Structure section reflects any new directories under `apps/paperclip/`.
 
 ### Task 4: Sync runbook (only if any manual-operation blocks were introduced)
 
-- [ ] **Step 1:** Audit this plan for `# manual-operation` blocks. Phase 3 introduced `paperclip-shell-ssh-keys-sops-bootstrap` (T0.S1) — run `/sync-runbook` to register it in `docs/runbooks/manual-operations.yaml`. Add any further blocks introduced during Phases 3–4 in the same pass.
+- [x] **Step 1:** Audit this plan for `# manual-operation` blocks. Phase 3 introduced `paperclip-shell-ssh-keys-sops-bootstrap` (T0.S1) — run `/sync-runbook` to register it in `docs/runbooks/manual-operations.yaml`. Add any further blocks introduced during Phases 3–4 in the same pass.
 
 ### Task 5: Update plan status
 
-- [ ] **Step 1:** Set `**Status:** Deployed` at the top of this plan.
+- [x] **Step 1:** Set `**Status:** Deployed` at the top of this plan.
 
 ---
 

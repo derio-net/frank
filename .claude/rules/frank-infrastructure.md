@@ -33,6 +33,7 @@
 | Secure Agent Pod (VibeKanban) | 192.168.55.218 | Cilium L2 LoadBalancer (port 8081) |
 | Secure Agent Pod (Mosh) | 192.168.55.219 | Cilium L2 LoadBalancer (UDP 60000-60015) |
 | Traefik Ingress | 192.168.55.220 | Cilium L2 LoadBalancer |
+| Paperclip Shell (SSH+Mosh) | 192.168.55.221 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60000-60015/Mosh) |
 | Ruflo Web UI | (via Traefik) | IngressRoute (ruflo.cluster.derio.net) |
 | Ruflo Shell (SSH+Mosh) | 192.168.55.222 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60016-60031/Mosh) |
 | Homepage | (via Traefik) | IngressRoute (master.cluster.derio.net) |

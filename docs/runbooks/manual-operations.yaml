@@ -1065,6 +1065,23 @@ operations:
   verify:
   - curl -sk https://paperclip.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)
   status: pending
+- id: paperclip-shell-ssh-keys-sops-bootstrap
+  layer: orch
+  app: paperclip
+  plan: docs/superpowers/plans/2026-05-02--orch--paperclip-shell-sidecar.md
+  when: After Phase 3 first-deploy validation, before declaring the layer reproducible from git.
+  why_manual: SOPS encryption needs the operator's age key, which is not available to in-cluster agents. Per repo-principles.md the cluster must be reproducible from git, but bootstrap secrets are the documented exception.
+  commands: "# On operator laptop with sops + age key + repo cloned:\nkubectl -n paperclip-system get secret paperclip-shell-ssh-keys -o yaml \\\n  | yq 'del(.metadata.annotations,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.uid,.metadata.managedFields,.metadata.labels)' \\\n  > secrets/paperclip/paperclip-shell-ssh-keys.yaml\nsops --encrypt --in-place secrets/paperclip/paperclip-shell-ssh-keys.yaml\ngit add secrets/paperclip/paperclip-shell-ssh-keys.yaml\ngit commit -m \"secrets(paperclip): bootstrap paperclip-shell-ssh-keys SOPS secret\"\n# Re-apply from the SOPS file to confirm round-trip is clean:\nsops --decrypt secrets/paperclip/paperclip-shell-ssh-keys.yaml | kubectl apply -f -\n"
+  verify: 'git ls-files secrets/paperclip/paperclip-shell-ssh-keys.yaml
+
+    # expect: secrets/paperclip/paperclip-shell-ssh-keys.yaml
+
+    sops --decrypt secrets/paperclip/paperclip-shell-ssh-keys.yaml | grep -q "^kind: Secret"
+
+    # expect: exit 0
+
+    '
+  status: pending
 - id: arc-github-app-secret
   layer: repo
   app: arc-runners
