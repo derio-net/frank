@@ -1,8 +1,17 @@
 # AnalysisTemplate: LiteLLM error rate via VictoriaMetrics Prometheus API
-# Runs 5 x 1-minute intervals (5 min total) at each canary step
+# Runs 5 x 1-minute intervals (5 min total) at each canary step.
 # Inconclusive handling: NaN results (0 traffic / VM down) match neither success nor
 # failure condition, so Argo Rollouts treats them as inconclusive automatically.
-# inconclusiveLimit: 3 = after 3 inconclusive intervals, abort and hold rollout
+# inconclusiveLimit: 3 = after 3 inconclusive intervals, abort and hold rollout.
+#
+# Scope: this query sums across ALL litellm pods (stable + canary). Without the
+# Cilium L7 traffic split we don't have per-service request labels, so we measure
+# the union. A canary that's 100% broken at 20% weight contributes ~20% of total
+# requests as 5xx, which trips the >=5% failure threshold immediately. A canary
+# that's marginally worse than stable (e.g. 6% errors) only adds ~1.2% to overall
+# error rate — accepted noise for this gateway. Per-pod labelling would let us
+# bucket cleanly; for now, replica-count + whole-deployment error rate is good
+# enough for the homelab.
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:

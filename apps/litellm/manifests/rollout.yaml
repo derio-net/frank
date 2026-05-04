@@ -1,33 +1,41 @@
 # Argo Rollouts canary for LiteLLM Gateway
 #
+# History: this was originally specified with a Cilium traffic-router plugin
+# (rollouts-plugin-trafficrouter-cilium) that turned out to never have been
+# published as a release artifact. The plugin URL 404'd, the controller could
+# not load it, and the Rollout sat stuck at Step 0/6 for 39 days while the
+# Helm-managed Deployment quietly served traffic on its own. We discovered
+# this only when we tried to use the canary for the first time — see
+# building/19-progressive-delivery (Update: 2026-05-04 section) for the full
+# postmortem.
+#
+# Current design: replica-count canary (no traffic routing). The stable and
+# canary ReplicaSets share the chart's Service (litellm @ 192.168.55.206:4000),
+# so kube-proxy/Cilium endpoint selection distributes requests across the
+# union of pods proportional to pod count. With replicas=5, setWeight=20
+# → 1 canary + 4 stable; setWeight=50 → 3 canary + 2 stable.
+#
 # workloadRef: Rollout reads pod template from the Helm chart's Deployment.
-# The Deployment is scaled to 0 — this is expected and correct.
+# The Deployment is scaled to 0 by the controller — this is expected.
 # ArgoCD ignoreDifferences on apps/Deployment/spec.replicas prevents fight.
 #
 # Canary steps:
-#   20% → manual pause (wait for consumers to be active) → 5-min VictoriaMetrics analysis →
-#   50% → manual pause → 5-min analysis →
+#   20% (1/5 pods) → manual pause → 5-min VictoriaMetrics analysis →
+#   50% (3/5 pods) → manual pause → 5-min analysis →
 #   100% (full promotion)
-#
-# Traffic: Cilium plugin creates CiliumEnvoyConfig weighting litellm:litellm-canary.
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
   name: litellm
   namespace: litellm
 spec:
-  replicas: 1
+  replicas: 5
   workloadRef:
     apiVersion: apps/v1
     kind: Deployment
     name: litellm
   strategy:
     canary:
-      stableService: litellm
-      canaryService: litellm-canary
-      trafficRouting:
-        plugins:
-          argoproj-labs/cilium: {}
       steps:
         - setWeight: 20
         - pause: {}
