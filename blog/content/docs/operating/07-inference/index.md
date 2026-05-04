@@ -60,7 +60,7 @@ litellm-postgresql-0       1/1     Running   0          28d   10.244.12.161   mi
 kubectl exec -n ollama deploy/ollama -- nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv
 ```
 
-> Only one model is loaded in VRAM at a time on the RTX 5070 Ti (12 GB). Switching models means the old one gets evicted.
+> Only one model is loaded in VRAM at a time on the RTX 5070 Ti (16 GB GDDR7). Switching models means the old one gets evicted.
 
 ## Routine Operations
 
@@ -68,10 +68,10 @@ kubectl exec -n ollama deploy/ollama -- nvidia-smi --query-gpu=memory.used,memor
 
 ```bash
 # Pull a new model
-kubectl exec -n ollama deploy/ollama -- ollama pull qwen3:8b
+kubectl exec -n ollama deploy/ollama -- ollama pull qwen3:14b
 
 # Remove a model to free disk space
-kubectl exec -n ollama deploy/ollama -- ollama rm deepseek-coder:6.7b
+kubectl exec -n ollama deploy/ollama -- ollama rm qwen2.5-coder:14b-instruct-q6_K
 ```
 
 > Do not use `postStart` hooks for model pulls on Talos — the nvidia-container-runtime exec hooks fail. Always pull via `kubectl exec` after the pod is running.
@@ -79,18 +79,31 @@ kubectl exec -n ollama deploy/ollama -- ollama rm deepseek-coder:6.7b
 ### Test Inference
 
 ```bash
-# Quick test via LiteLLM (routes to Ollama)
+# Quick test via LiteLLM (routes to Ollama via the LiteLLM alias, not the Ollama tag)
 curl -s http://192.168.55.206:4000/v1/chat/completions \
+  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "ollama/qwen3.5:9b",
+    "model": "mistral-small-24b",
     "messages": [{"role": "user", "content": "Hello, one sentence reply."}],
     "max_tokens": 50
   }' | jq '.choices[0].message.content'
 
-# Direct Ollama test (bypassing LiteLLM)
+# Direct Ollama test (bypassing LiteLLM — uses the Ollama tag, not the alias)
 kubectl exec -n ollama deploy/ollama -- curl -s http://localhost:11434/api/generate \
-  -d '{"model": "qwen3.5:9b", "prompt": "Hello", "stream": false}' | jq '.response'
+  -d '{"model": "mistral-small3.2:24b", "prompt": "Hello", "stream": false}' | jq '.response'
+
+# Multimodal test — send an image to gemma-12b
+curl -s http://192.168.55.206:4000/v1/chat/completions \
+  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gemma-12b",
+    "messages": [{"role": "user", "content": [
+      {"type": "text", "text": "Describe this image in one sentence."},
+      {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
+    ]}]
+  }' | jq '.choices[0].message.content'
 ```
 
 ### Check LiteLLM Routing
@@ -121,17 +134,29 @@ kubectl logs -n ollama deploy/ollama --tail=100
 
 ### Out of Memory on GPU
 
-If a model is too large for the 12 GB VRAM:
+If a model is too large for the 16 GB VRAM (e.g., trying to run a 14B at Q8 alongside a vision tower):
 
 ```bash
 # Check current memory usage
 kubectl exec -n ollama deploy/ollama -- nvidia-smi
 
 # Unload current model
-kubectl exec -n ollama deploy/ollama -- ollama stop qwen3.5:9b
+kubectl exec -n ollama deploy/ollama -- ollama stop mistral-small3.2:24b
 
-# Try a smaller quantization
-kubectl exec -n ollama deploy/ollama -- ollama pull qwen3:8b-q4_0
+# Drop to a lower quantization
+kubectl exec -n ollama deploy/ollama -- ollama pull qwen2.5-coder:14b-instruct-q4_K_M
+```
+
+### Reconciling LiteLLM Aliases vs. Ollama Tags
+
+Two name spaces are in play. LiteLLM aliases (`mistral-small-24b`, `gemma-12b`, `qwen-vl-7b`, `qwen-coder-14b`, `qwen-think-14b`) live in `apps/litellm/values.yaml` under `model_list[].model_name` — these are what consumers send. Ollama tags (`mistral-small3.2:24b`, `qwen2.5-coder:14b-instruct-q6_K`, etc.) live under `model_list[].litellm_params.model` — these are what Ollama pulls and runs. If a request returns "model not found", check both: either the alias is wrong on the consumer side, or the underlying Ollama tag was never pulled.
+
+```bash
+# What aliases does LiteLLM advertise?
+curl -s http://192.168.55.206:4000/v1/models -H "Authorization: Bearer $LITELLM_MASTER_KEY" | jq '.data[].id'
+
+# What Ollama tags actually exist on disk?
+kubectl exec -n ollama deploy/ollama -- ollama list
 ```
 
 ### LiteLLM Routing Errors

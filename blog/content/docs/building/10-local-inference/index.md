@@ -3,13 +3,13 @@ title: "Local Inference — Ollama, LiteLLM, and OpenRouter"
 date: 2026-03-09
 draft: false
 tags: ["ollama", "litellm", "openrouter", "llm", "inference", "gpu", "ai"]
-summary: "A unified OpenAI-compatible gateway that routes between a local RTX 5070 running Ollama and free cloud models via OpenRouter — one API for everything."
+summary: "A unified OpenAI-compatible gateway that routes between a local RTX 5070 Ti running Ollama and free cloud models via OpenRouter — one API for everything."
 weight: 11
 ---
 
 The cluster has a GPU. Layer 4 installed the NVIDIA operator. Layer 5 gave the mini nodes their Intel iGPUs. But none of that is useful until something actually runs inference.
 
-Layer 10 wires up a unified LLM gateway. Any tool on the network — agentic frameworks, document processors, coding assistants — talks to one OpenAI-compatible endpoint at `192.168.55.206:4000`. Behind that endpoint, requests route to either a local model on gpu-1's RTX 5070 or a free cloud model via OpenRouter. The consumer never needs to know which.
+Layer 10 wires up a unified LLM gateway. Any tool on the network — agentic frameworks, document processors, coding assistants — talks to one OpenAI-compatible endpoint at `192.168.55.206:4000`. Behind that endpoint, requests route to either a local model on gpu-1's RTX 5070 Ti or a free cloud model via OpenRouter. The consumer never needs to know which.
 
 ## The Architecture
 
@@ -30,12 +30,15 @@ LiteLLM Gateway (192.168.55.206:4000)
     |  virtual keys, spend tracking, rate limits
     |
     |---> Ollama (gpu-1, ClusterIP)
-    |       |-- qwen3.5:9b  (default, kept warm)
-    |       +-- deepseek-coder:6.7b  (on-demand)
+    |       |-- mistral-small3.2:24b   (default, kept warm)
+    |       |-- gemma3:12b             (multimodal — vision general)
+    |       |-- qwen2.5vl:7b-q8_0      (multimodal — OCR/structured)
+    |       |-- qwen2.5-coder:14b q6   (code)
+    |       +-- qwen3:14b              (reasoning, thinking mode)
     |
-    +---> OpenRouter (cloud)
-            +-- qwen3-coder, hermes-405b, gemma-27b,
-                mistral-small, llama-70b, step-flash
+    +---> OpenRouter (cloud, free tier)
+            +-- gemma-31b, nemotron-vl-12b, nemotron-omni-30b,
+                qwen-next-80b, qwen-coder-480b, hermes-405b
 ```
 
 Any consumer that speaks OpenAI's API format works out of the box:
@@ -51,20 +54,31 @@ Ollama alone handles local models well. But the moment you want cloud fallback, 
 
 It also means model migration is invisible to consumers. If a cloud model gets retired or a better local model appears, you update LiteLLM's config. No consumer reconfiguration.
 
-## Local Models: What Fits in 12GB?
+## Local Models: What Fits in 16GB?
 
-The RTX 5070 has 12GB of VRAM. That is the hard constraint. Ollama quantizes models to Q4 by default, which cuts memory roughly in half.
+The RTX 5070 Ti has 16GB of GDDR7. That is the hard constraint. Ollama quantizes models to Q4 by default, which cuts memory roughly in half — but at 16GB there is enough headroom to upgrade specific models to Q6 or Q8 where it matters.
 
-Two models are available:
+Five models in the current lineup, each chosen to fit alongside ~1.5GB of KV cache (and, for vision models, a ~1.4GB vision tower):
 
-| Model | Size (Q4) | Context | Best For |
-|-------|-----------|---------|----------|
-| `qwen3.5:9b` | 6.6 GB | 256K | General-purpose, multimodal, tool calling |
-| `deepseek-coder:6.7b` | ~4 GB | 16K | Code generation and completion |
+| Alias | Tag | Quant | VRAM | Context | Best For |
+|-------|-----|-------|------|---------|----------|
+| `mistral-small-24b` | `mistral-small3.2:24b` | Q4_K_M | ~14 GB | 128K | Default general-purpose, function calling |
+| `gemma-12b` | `gemma3:12b` | Q4_K_M | ~9 GB | 128K | Multimodal — general vision, screenshots, charts |
+| `qwen-vl-7b` | `qwen2.5vl:7b-q8_0` | Q8_0 | ~9 GB | 128K | Multimodal — OCR, tables, scanned docs |
+| `qwen-coder-14b` | `qwen2.5-coder:14b-instruct-q6_K` | Q6_K | ~12 GB | 32K | Code generation and completion |
+| `qwen-think-14b` | `qwen3:14b` | Q4_K_M | ~10 GB | 32K | Reasoning with native thinking mode |
 
-Only one model stays loaded in VRAM at a time (`OLLAMA_MAX_LOADED_MODELS=1`). The default model is kept warm for 24 hours (`OLLAMA_KEEP_ALIVE=24h`). Switching to the other model takes about 5 seconds — Ollama unloads one and loads the other from the Longhorn PVC.
+Only one model stays loaded in VRAM at a time (`OLLAMA_MAX_LOADED_MODELS=1`). The default model is kept warm for 24 hours (`OLLAMA_KEEP_ALIVE=24h`). Switching takes about 5 seconds — Ollama unloads one and loads the other from the Longhorn PVC.
 
-This is a deliberate trade-off. Loading two models simultaneously would leave each with less VRAM for KV cache, reducing effective context length. For a homelab with low concurrency, fast swapping is better than degraded context.
+This is a deliberate trade-off. Loading multiple models simultaneously would leave each with less VRAM for KV cache, reducing effective context length. For a homelab with low concurrency, fast swapping is better than degraded context.
+
+### Why Two Multimodal Models?
+
+`gemma-12b` and `qwen-vl-7b` look redundant on paper — both are vision models that fit in VRAM. They are not. Gemma 3's vision tower was trained on a wide image corpus and excels at "what is in this picture": general visual reasoning, screenshots, photographs. Qwen2.5-VL was specifically trained on structured visual content — tables, charts with dense text, scanned documents — and produces noticeably more accurate OCR. Picking one would force every vision request through a model that is wrong for half the cases.
+
+### Why Q6 for the Coder?
+
+Code is the one place where quantization quality is measurable in production. At Q4_K_M, 14B-class coding models produce more syntax errors and forget API surface details. At Q6_K the model uses ~3GB more VRAM but the error rate drops noticeably. The 16GB budget makes that trade-off available; the 12GB original config didn't.
 
 ### Why Not the Mini iGPUs?
 
@@ -74,16 +88,16 @@ The three mini nodes each have an Intel Arc iGPU. These share system RAM instead
 
 OpenRouter aggregates providers and offers free tiers for many models. The catch: free model availability shifts constantly. Models get promoted, retired, or rate-limited without notice. This is a maintenance concern, not an architectural one.
 
-The current free model roster (as of March 2026):
+The current free model roster (refreshed May 2026 — see "Refresh" below):
 
-| Alias | Model | Context | Strengths | Data Policy |
-|-------|-------|---------|-----------|-------------|
-| `qwen3-coder` | Qwen3 Coder 480B MoE | 262K | Coding, reasoning | Alibaba Cloud; may retain |
-| `hermes-405b` | Hermes 3 (Llama 3.1 405B) | 131K | General purpose, instruction following | Open-weight |
-| `gemma-27b` | Gemma 3 27B | 131K | General purpose, vision | Open-weight |
-| `mistral-small` | Mistral Small 3.1 24B | 128K | Fast, coding | Open-weight |
-| `llama-70b` | Llama 3.3 70B Instruct | 128K | Strong all-rounder | Open-weight |
-| `step-flash` | Step 3.5 Flash 196B MoE | 256K | Reasoning | Prompts retained |
+| Alias | Model | Context | Modalities | Strengths | Data Policy |
+|-------|-------|---------|------------|-----------|-------------|
+| `gemma-31b` | Gemma 4 31B Instruct | 256K | text + image + video | Flagship multimodal, function calling, 140+ langs | Open-weight |
+| `nemotron-vl-12b` | NVIDIA Nemotron Nano 2 VL | 128K | text + image + video | Document intelligence, video understanding | Open-weight |
+| `nemotron-omni-30b` | NVIDIA Nemotron 3 Nano Omni 30B | 256K | text + image + video + audio | Multimodal + reasoning | Open-weight |
+| `qwen-next-80b` | Qwen3 Next 80B A3B Instruct | 262K | text | Strong reasoning, coding, math | Alibaba; may retain |
+| `qwen-coder-480b` | Qwen3 Coder 480B MoE | 262K | text | Frontier coding | Alibaba; may retain |
+| `hermes-405b` | Hermes 3 (Llama 3.1 405B) | 131K | text | Largest open-weight backstop | Open-weight |
 
 The data policy column matters. Some free providers train on prompts. The config comments document this per model so you can make informed choices about what you send where.
 
@@ -103,9 +117,8 @@ ollama:
     type: nvidia
     number: 1
   models:
-    pull:
-      - qwen3.5:9b
-      - deepseek-coder:6.7b
+    pull: []   # pulled on first request via LiteLLM
+    run: []
 
 extraEnv:
   - name: OLLAMA_KEEP_ALIVE
@@ -115,7 +128,7 @@ extraEnv:
 
 persistentVolume:
   enabled: true
-  size: 30Gi
+  size: 200Gi   # 5-model shelf ≈ 55GB at rest, with experimentation room
   storageClass: longhorn
 
 tolerations:
@@ -140,12 +153,12 @@ The model routing config lives in `values.yaml` under `proxy_config.model_list`.
 ```yaml
 proxy_config:
   model_list:
-    - model_name: qwen3.5
+    - model_name: mistral-small-24b
       litellm_params:
-        model: ollama/qwen3.5:9b
+        model: ollama/mistral-small3.2:24b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
-    - model_name: qwen3-coder
+    - model_name: qwen-coder-480b
       litellm_params:
         model: openrouter/qwen/qwen3-coder:free
         api_key: os.environ/OPENROUTER_API_KEY
@@ -201,8 +214,22 @@ During deployment, four of the six originally selected cloud models had already 
 
 LiteLLM has built-in virtual key management. Each consumer gets its own key with optional per-key budgets and rate limits. When multi-tenancy via vCluster arrives in a future layer, tenant isolation is a configuration concern — not an architectural change.
 
+## Refresh — May 2026
+
+The original lineup (`qwen3.5:9b`, `deepseek-coder:6.7b`, plus a six-model OpenRouter shelf) was assembled before the GPU Operator fix landed. Two things changed since:
+
+1. **The card had 16GB all along.** The first version of this post said "12GB" because that is the spec for the non-Ti RTX 5070 — but gpu-1 actually runs the Ti variant with 16GB GDDR7. The 4GB extra unlocked the 24B class at Q4 (Mistral Small 3.2) and let the coder model jump to Q6 quantization.
+2. **The OpenRouter free tier had churned.** Mistral Small 3.1 and Step Flash were no longer free; Qwen3-Next, Nemotron-VL, Nemotron-Omni, and Gemma 4 had appeared. The `/update-openrouter-models` skill confirmed the live list against `/api/v1/models`.
+
+The replacement strategy:
+- Move Mistral Small 24B from cloud to local — the 16GB card can run it.
+- Add two local multimodal models (Gemma 3 12B for general vision, Qwen2.5-VL 7B at Q8 for OCR), removing the old text-only-only constraint.
+- Replace the aging cloud shelf with three multimodal options (Gemma 4 31B, Nemotron-VL, Nemotron-Omni) plus a stronger reasoning option (Qwen3-Next 80B).
+- Drop `deepseek-coder:6.7b` and `omnicoder:9b` in favor of one stronger `qwen2.5-coder:14b` at Q6.
+- Bump the Ollama PVC from 30Gi to 200Gi — the new lineup occupies ~55GB at rest, and disk is no longer scarce.
+
+Aliases changed in this refresh — consumers using the old names (`qwen3.5`, `deepseek-coder`, `mistral-small`, `gemma-27b`, `llama-70b`, `step-flash`) need to update to the new ones (`mistral-small-24b`, `qwen-coder-14b`, `gemma-31b`, etc.). The data-policy comments per model are kept and re-verified against each provider's current terms.
+
 ## What is Next
 
-**Update:** The GPU Operator fix landed. The RTX 5070 Ti is running Ollama at 100% GPU with 15.9 GiB VRAM. Local models are live. See [GPU Containers on Talos — The Validation Fix]({{< relref "/docs/building/12-gpu-talos-fix" >}}) for the full debugging story.
-
-Any consumer on the network can use `192.168.55.206:4000` today — both local GPU models and cloud fallback are operational.
+Any consumer on the network can use `192.168.55.206:4000` today — local GPU models, multimodal vision (local + cloud), and frontier-scale reasoning (cloud) are all operational behind one OpenAI-compatible endpoint.

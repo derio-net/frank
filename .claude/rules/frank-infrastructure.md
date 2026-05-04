@@ -5,7 +5,7 @@
 | mini-1 | 192.168.55.21 | control-plane | Core HA | Intel Ultra 5, 64GB, iGPU |
 | mini-2 | 192.168.55.22 | control-plane | Core HA | Intel Ultra 5, 64GB, iGPU |
 | mini-3 | 192.168.55.23 | control-plane | Core HA | Intel Ultra 5, 64GB, iGPU |
-| gpu-1 | 192.168.55.31 | worker | AI Compute | i9, 128GB, RTX 5070 |
+| gpu-1 | 192.168.55.31 | worker | AI Compute | i9, 128GB, RTX 5070 Ti (16GB GDDR7) |
 | pc-1 | 192.168.55.71 | worker | Edge | 64GB, general purpose |
 | raspi-1 | 192.168.55.41 | worker | Edge | RPi 4, low-power |
 | raspi-2 | 192.168.55.42 | worker | Edge | RPi 4, low-power |

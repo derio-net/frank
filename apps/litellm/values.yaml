@@ -4,7 +4,7 @@
 
 image:
   repository: ghcr.io/berriai/litellm-database
-  tag: "main-v1.82.3-stable"
+  tag: "main-v1.83.14-stable"
   pullPolicy: IfNotPresent
 
 # Master key from ExternalSecret-managed K8s Secret
@@ -20,90 +20,118 @@ envVars:
   STORE_MODEL_IN_DB: "True"
 
 # LiteLLM proxy configuration (rendered as config.yaml)
+#
+# Lineup refresh — 2026-05-03
+# Sized for gpu-1's RTX 5070 Ti (16GB GDDR7). With OLLAMA_MAX_LOADED_MODELS=1,
+# each loaded model can use up to ~14GB after KV cache + multimodal overhead.
+# Local covers default + multimodal + coding + reasoning; cloud covers
+# frontier-scale, video, and 200B+-class reasoning.
 proxy_config:
   model_list:
     # ──────────────────────────────────────────────
-    # LOCAL MODELS (Ollama on gpu-1)
+    # LOCAL MODELS (Ollama on gpu-1, RTX 5070 Ti 16GB)
     # ──────────────────────────────────────────────
 
-    # Qwen 3.5 9B — default general-purpose model
-    # Multimodal (text+image), 256K context, tool calling, thinking mode
-    # Runs fully in VRAM on RTX 5070 (6.6GB Q4)
-    - model_name: qwen3.5
+    # Mistral Small 3.2 24B — default general-purpose, 128K context
+    # Strong all-rounder with function calling. Q4_K_M ≈ 14GB VRAM.
+    # Replaces qwen3.5:9b as default.
+    - model_name: mistral-small-24b
       litellm_params:
-        model: ollama/qwen3.5:9b
+        model: ollama/mistral-small3.2:24b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
-    # DeepSeek Coder 6.7B — code generation and completion
-    # Swapped in on-demand (~5s cold load)
-    - model_name: deepseek-coder
+    # Gemma 3 12B — multimodal (text + image), 128K context
+    # Best practical local vision model — OCR, charts, screenshot analysis.
+    # Q4_K_M ≈ 8GB + ~1.4GB vision tower.
+    - model_name: gemma-12b
       litellm_params:
-        model: ollama/deepseek-coder:6.7b
+        model: ollama/gemma3:12b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
-    # Tesslate OmniCoder-9B
-    # Swapped in on-demand (~5s cold load)
-    - model_name: omnicoder
+    # Qwen2.5-VL 7B (Q8) — multimodal specialist for structured visual content
+    # Tables, scanned docs, charts with dense text. Q8_0 chosen over Q4 for
+    # OCR fidelity at this small parameter count. ≈ 8GB + vision tower.
+    - model_name: qwen-vl-7b
       litellm_params:
-        model: ollama/carstenuhlig/omnicoder-9b
+        model: ollama/qwen2.5vl:7b-q8_0
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+
+    # Qwen2.5-Coder 14B (Q6) — code generation and completion
+    # Q6_K instead of default Q4 — measurably fewer syntax errors at the
+    # cost of ~3GB more VRAM. Replaces both deepseek-coder:6.7b and
+    # carstenuhlig/omnicoder-9b with a single stronger model.
+    - model_name: qwen-coder-14b
+      litellm_params:
+        model: ollama/qwen2.5-coder:14b-instruct-q6_K
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+
+    # Qwen3 14B — reasoning model with native thinking mode, 32K context
+    # Useful when a problem benefits from extended reasoning steps.
+    # Q4_K_M ≈ 9GB VRAM.
+    - model_name: qwen-think-14b
+      litellm_params:
+        model: ollama/qwen3:14b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
     # ──────────────────────────────────────────────
     # CLOUD MODELS — Free tier via OpenRouter
     # Rate limit: 20 req/min, 200 req/day per model
-    # Free model availability shifts — update as needed
+    # Slugs verified live against /api/v1/models on 2026-05-03 — refresh
+    # via /update-openrouter-models when entries start 404'ing.
     # ──────────────────────────────────────────────
 
-    # Qwen3 Coder — 480B MoE (35B active), 262K context
-    # Top-tier coding model, strong reasoning
+    # Gemma 4 31B Instruct — flagship free multimodal, 256K context
+    # Text + image + video input, function calling, 140+ languages.
+    # ✅ Data: Open-weight, served by third-party
+    - model_name: gemma-31b
+      litellm_params:
+        model: openrouter/google/gemma-4-31b-it:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # NVIDIA Nemotron Nano 2 VL — 12B multimodal, 128K context
+    # Video understanding + document intelligence; the smaller, faster
+    # video-capable companion to Gemma 4 31B.
+    # ✅ Data: Open-weight, served by third-party
+    - model_name: nemotron-vl-12b
+      litellm_params:
+        model: openrouter/nvidia/nemotron-nano-12b-v2-vl:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # NVIDIA Nemotron 3 Nano Omni 30B — multimodal + reasoning, 256K context
+    # Accepts text/image/video/audio; reasoning mode. Largest free omni model.
+    # ✅ Data: Open-weight, served by third-party
+    - model_name: nemotron-omni-30b
+      litellm_params:
+        model: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # Qwen3 Next 80B A3B Instruct — top free general/reasoning, 262K context
+    # MoE (3B active), strong on coding + math + general knowledge.
+    # Replaces step-flash slot.
     # ⚠ Data: Alibaba Cloud; prompts may be retained
-    - model_name: qwen3-coder
+    - model_name: qwen-next-80b
+      litellm_params:
+        model: openrouter/qwen/qwen3-next-80b-a3b-instruct:free
+        api_key: os.environ/OPENROUTER_API_KEY
+
+    # Qwen3 Coder — 480B MoE (35B active), 262K context
+    # Frontier free coding model — for cases the local 14B coder isn't enough.
+    # ⚠ Data: Alibaba Cloud; prompts may be retained
+    - model_name: qwen-coder-480b
       litellm_params:
         model: openrouter/qwen/qwen3-coder:free
         api_key: os.environ/OPENROUTER_API_KEY
 
     # Hermes 3 405B — NousResearch fine-tune of Llama 3.1 405B, 131K context
-    # Largest free model, strong general-purpose and instruction following
+    # Largest free open-weight model; backstop for general-purpose at scale.
     # ✅ Data: Open-weight, served by third-party
     - model_name: hermes-405b
       litellm_params:
         model: openrouter/nousresearch/hermes-3-llama-3.1-405b:free
         api_key: os.environ/OPENROUTER_API_KEY
 
-    # Gemma 3 27B — Google's best free open model, 131K context
-    # Good general-purpose, vision capable
-    # ✅ Data: Open-weight, served by third-party
-    - model_name: gemma-27b
-      litellm_params:
-        model: openrouter/google/gemma-3-27b-it:free
-        api_key: os.environ/OPENROUTER_API_KEY
-
-    # Mistral Small 3.1 24B — Mistral's efficient model, 128K context
-    # Fast, good for coding and general tasks
-    # ✅ Data: Open-weight, served by third-party
-    - model_name: mistral-small
-      litellm_params:
-        model: openrouter/mistralai/mistral-small-3.1-24b-instruct:free
-        api_key: os.environ/OPENROUTER_API_KEY
-
-    # Llama 3.3 70B — Meta's general-purpose open model, 128K context
-    # Strong all-rounder
-    # ✅ Data: Open-weight, served by third-party
-    - model_name: llama-70b
-      litellm_params:
-        model: openrouter/meta-llama/llama-3.3-70b-instruct:free
-        api_key: os.environ/OPENROUTER_API_KEY
-
-    # Step 3.5 Flash — StepFun's 196B MoE (11B active), 256K context
-    # Reasoning model, strong general-purpose
-    # ⚠ Data: Training disabled, but prompts retained by StepFun
-    - model_name: step-flash
-      litellm_params:
-        model: openrouter/stepfun/step-3.5-flash:free
-        api_key: os.environ/OPENROUTER_API_KEY
-
   litellm_settings:
-    default_model: qwen3.5
+    default_model: mistral-small-24b
 
   general_settings:
     master_key: os.environ/LITELLM_MASTER_KEY
