@@ -51,7 +51,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Public Edge | Hop (Hetzner CX23) | Single-node Talos cluster — public-facing edge for mesh networking and blog hosting |
 | Mesh Networking | Headscale + Tailscale | WireGuard mesh — remote homelab access, MagicDNS split-DNS |
 | Edge Ingress | Caddy | Automatic TLS (Cloudflare DNS challenge), public/mesh routing on Hop |
-| Progressive Delivery | Argo Rollouts | Canary (LiteLLM + Cilium traffic split + VictoriaMetrics analysis), blue-green (Sympozium + HTTP healthcheck) |
+| Progressive Delivery | Argo Rollouts | Canary (LiteLLM, replica-count weighting, manual pause gating; metric-source replacement spec'd at `docs/superpowers/specs/2026-05-04--deploy--litellm-canary-metric-source-design.md`), blue-green (Sympozium + HTTP healthcheck) |
 | Workflow Automation | n8n | Per-user instances on gpu-1, Authentik forward-auth, dedicated PostgreSQL, Prometheus metrics |
 | Secure Agent Pod | Kali Linux (sidecar: VibeKanban) | Hardened non-root coding agent workstation on gpu-1; two-container pod (kali + vk-local) sharing `/home/claude` PVC; **s6-overlay-supervised** sshd + supercronic, **tmux-continuum-restored** layout across restarts; Cilium egress, ESO secrets, SSH + VibeKanban UI + mosh/tmux persistent shells (UDP 60000-60015 on a sibling LB IP) |
 | Agent Images | `derio-net/agent-images` (shared base) | Multi-image repo: `agent-base` (debian:bookworm + common toolchain) → `agent-shell-base` (s6-overlay v3 + sshd + supercronic + tmux/mosh + tmux-resurrect/continuum) → `secure-agent-kali`; sibling `vk-local` from `agent-base`; matrix CI + cross-repo `repository_dispatch` → frank lockstep bumper |
@@ -103,8 +103,8 @@ frank/
 │   ├── ruflo-db/values.yaml                     # Bitnami PostgreSQL (parked) for ruflo
 │   ├── ruflo/manifests/                         # Ruflo hybrid pod: ruvocal SSR + ruflo-shell sidecar, ConfigMap inventory, three PVCs, Traefik route
 │   ├── comfyui/manifests/                       # ComfyUI diffusion model server (time-shared GPU)
-│   ├── argo-rollouts/values.yaml               # Argo Rollouts controller
-│   ├── argo-rollouts-extras/manifests/          # Cilium plugin config + RBAC
+│   ├── argo-rollouts/values.yaml               # Argo Rollouts controller (no traffic-router plugin — see building/19)
+│   ├── argo-rollouts-extras/manifests/          # Currently empty (cilium RBAC removed 2026-05-04)
 │   ├── gpu-switcher/manifests/ + app/           # GPU Switcher Go app + K8s manifests
 │   ├── n8n-01/manifests/                       # n8n workflow automation (gpu-1, 192.168.55.216)
 │   ├── n8n-01-postgresql/values.yaml           # Bitnami PostgreSQL for n8n-01
@@ -257,8 +257,8 @@ argocd app list
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
 | secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1: 2-container pod (kali + vk-local sidecar) sharing `/home/claude` PVC, SSH :22, VibeKanban :8081, non-root, Cilium egress, ESO secrets |
 | vk-remote | agents | Self-hosted VK kanban API (PG 16 + ElectricSQL + Rust/Axum) + relay sidecar (vk.cluster.derio.net), Authentik SSO |
-| argo-rollouts | argo-rollouts | Progressive delivery controller + Cilium traffic router plugin |
-| argo-rollouts-extras | argo-rollouts | Cilium plugin ConfigMap + supplemental RBAC for CiliumEnvoyConfig |
+| argo-rollouts | argo-rollouts | Progressive delivery controller (no traffic-router plugin; replica-count canary for LiteLLM, blue-green for Sympozium) |
+| argo-rollouts-extras | argo-rollouts | Currently empty — held the broken Cilium plugin config + CiliumEnvoyConfig RBAC, both removed 2026-05-04 |
 | n8n-01 | n8n-01 | n8n workflow automation on gpu-1 (192.168.55.216:5678), Authentik forward-auth |
 | n8n-01-postgresql | n8n-01 | Bitnami PostgreSQL 14.1.10 for n8n-01 |
 | blackbox-exporter | monitoring | HTTP endpoint probes for feature health (VMProbe → VictoriaMetrics) |

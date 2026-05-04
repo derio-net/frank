@@ -11,7 +11,7 @@
 **Tech Stack:** Argo Rollouts Helm chart (argoproj.github.io/argo-helm), Cilium traffic router plugin (argoproj-labs/rollouts-plugin-trafficrouter-cilium), VictoriaMetrics (Prometheus-compatible API), Argo Rollouts CRDs (Rollout, AnalysisTemplate).
 
 **Spec:** `docs/superpowers/specs/2026-03-25--deploy--argo-rollouts-design.md`
-**Status:** Deployed (Phase 3 Paperclip Rollout reverted — runs as plain Deployment)
+**Status:** Deployed with material correction (Phase 3 Paperclip Rollout reverted — runs as plain Deployment; Phase 2 LiteLLM canary migrated from Cilium L7 traffic-router to replica-count canary on 2026-05-04 after 39 days of silent non-execution — see Deployment Deviations)
 
 ---
 
@@ -835,6 +835,122 @@ kubectl argo rollouts get rollout paperclip -n paperclip-system
 ## Deployment Deviations
 
 _Record any surprises here during implementation:_
+
+### 2026-05-04 — LiteLLM canary: migrate from Cilium L7 traffic-router to replica-count canary
+
+**What changed:** Phase 2's `apps/litellm/manifests/rollout.yaml` previously specified `trafficRouting.plugins.argoproj-labs/cilium` plus `stableService` and `canaryService` references, with a companion `apps/litellm/manifests/service-canary.yaml` ClusterIP Service for the L7 split, and supplemental RBAC + plugin-config in `apps/argo-rollouts-extras/manifests/`. All three are now removed. The Rollout is a 5-replica replica-count canary (no traffic routing, no canary Service). Pod-count weighting via the chart's `Service/litellm` selector and standard kube-proxy/Cilium endpoint selection.
+
+**Why:** The `argoproj-labs/cilium` traffic-router plugin was never published as a release artifact. The configured download URL 404'd, the Argo Rollouts controller silently failed to load the plugin on every reconciliation, the litellm Rollout sat at `Step: 0/6, ActualWeight: 0` for 39 days, and the Helm-managed `Deployment/litellm` continued to serve traffic on its own (the controller never invoked `workloadRef`-based scaling because reconciliation aborted before that point). On 2026-04-30 we removed the broken plugin entry from `apps/argo-rollouts/values.yaml` (commit `b3f8623`) to stop the controller's crash-loop, but did not follow through to the litellm Rollout spec — which kept asking for the (now-uninstalled) plugin and continued to fail reconciliation. The breakage was discovered on 2026-05-04 during pre-flight observation for PR #210 (the LiteLLM v1.83.14 + model-list refresh).
+
+**How to apply (going forward):** No published Argo Rollouts traffic-router plugin matches Frank's exposure pattern for LiteLLM (raw Cilium L2 LB at `192.168.55.206` for in-cluster consumers + Traefik IngressRoute for browsers). A Traefik-based traffic-router would only catch the browser slice; the bulk of traffic (in-cluster ClusterIP) would bypass any L7-mediated canary. Replica-count canary works across all paths because it weights at the Service-endpoints layer.
+
+**Files changed:**
+
+- `apps/litellm/manifests/rollout.yaml` — drop `stableService`, `canaryService`, `trafficRouting`; bump `replicas: 1 → 5`
+- `apps/litellm/manifests/analysis-template.yaml` — comment update only (query semantics unchanged; now sums across all litellm pods rather than just the canary slice — accepted limitation)
+- `apps/litellm/manifests/service-canary.yaml` — **removed**
+- `apps/argo-rollouts-extras/manifests/cilium-rbac.yaml` — **removed**, replaced with README explaining the gap
+- `docs/runbooks/litellm-canary-observation.md` — **rewritten from scratch** to describe replica-count canary observability
+- `blog/content/docs/building/19-progressive-delivery/index.md` — added "Update: 2026-05-04 — The Canary That Wasn't" postmortem section
+- `blog/content/docs/operating/12-progressive-delivery/index.md` — replaced misleading "stuck-at-Step-0" sample output (had been documented as the happy path), updated commands, added new troubleshooting subsection
+- `.claude/rules/frank-gotchas.md` — added entry on the workloadRef "leak" failure mode and on declaring features Deployed without end-to-end execution
+
+**Manual cleanup required after PR merge:**
+
+```bash
+# The cluster-scoped resources from the deleted cilium-rbac.yaml are not
+# auto-pruned (cluster-wide prune: false policy). One-off:
+source .env
+kubectl delete clusterrole argo-rollouts-cilium
+kubectl delete clusterrolebinding argo-rollouts-cilium
+```
+
+**Lesson recorded:** A layer is not "Deployed" until its workflow has been triggered, observed end-to-end, and confirmed to match the documented behavior. ArgoCD `Synced/Healthy` proves that *artifacts of the feature* exist in the cluster — it does not prove that the *workflow the artifacts describe* runs when triggered. See building post Update section for the full version.
+
+### 2026-05-04 (continued) — Bug #2: over-broad canary Service selector
+
+**Caught in:** Code review of PR #213 (the Path A migration above).
+
+**What:** The deleted `service-canary.yaml` had a selector of `{app.kubernetes.io/name: litellm, app.kubernetes.io/instance: litellm}` — no template-hash discrimination. The Cilium plugin was supposed to mutate that selector at runtime to add `rollouts-pod-template-hash`, but only when `trafficRouting` was active and the plugin loaded. Since the plugin never loaded, the selector was never mutated. Had the L7 design ever worked, the canary Service would have selected *all* litellm pods (stable + canary), double-counting traffic in both Service paths. Two latent bugs lived inside one Service definition; the PR #213 deletion fixes both at once.
+
+**No further action:** the Service is gone with PR #213.
+
+### 2026-05-04 (continued) — Bug #3: `workloadRef.scaleDown` defaults to `never`
+
+**Filed as:** PR #214.
+
+**What:** After PR #213 landed and the controller could finally take ownership, `Deployment/litellm` did NOT scale to 0 (the workloadRef invariant assumed by the original plan). Live state was 6 pods: 5 from the new Rollout-managed RS plus 1 still on the old Helm-managed RS at `replicas: 1`. Argo Rollouts' `workloadRef.scaleDown` field defaults to `never`; we'd assumed `onsuccess`. Same false memory was in `frank-gotchas.md` line 34 ("Argo Rollouts `workloadRef` scales the referenced Deployment to 0..."), which we updated.
+
+**Files changed (PR #214):**
+
+- `apps/litellm/manifests/rollout.yaml` — added `spec.workloadRef.scaleDown: onsuccess` (one field). Controller scaled `Deployment/litellm` to 0 within seconds of the new spec landing.
+- `.claude/rules/frank-gotchas.md` — added a dedicated gotcha entry naming the `scaleDown: never` default explicitly.
+
+### 2026-05-04 (continued) — Bug #4: AnalysisTemplate query missed 4xx errors
+
+**Filed as:** PR #216. Caught by Terminal #3 (the synthetic-traffic-driver agent).
+
+**What:** Original AnalysisTemplate query was `litellm_request_total{status=~"5.."} / litellm_request_total` — only counting 5xx responses as failures. Terminal #3 drove ~1 req/sec at the LB and hit `mistralai/mistral-small-3.1-24b-instruct:free` (which had silently broken upstream at OpenRouter). Result: 0 success / 114 requests, all 404 + 429. Implication for the AnalysisTemplate: a canary serving 100% 4xx responses would evaluate as `0 / 114 = 0%` error rate, well under our 5% threshold, and be auto-promoted as healthy — a silent green-light on a canary that was completely broken to consumers.
+
+**Files changed (PR #216):**
+
+- `apps/litellm/manifests/analysis-template.yaml` — query changed from `status=~"5.."` to `status!~"2..|3.."` (anything that isn't a 2xx success or 3xx redirect counts as a canary error). Comment updated to explain the change and reference the discovery.
+
+### 2026-05-04 (continued) — Bug #5: AnalysisTemplate references a metric that doesn't exist on this cluster
+
+**Filed as:** PR #217 (drop AnalysisRun steps from canary, switch to pause-only) + design spec for proper fix.
+
+**What:** After PR #216 we tried the canary again. The AnalysisRun fired, then immediately panicked with `reflect: slice index out of range` on every measurement. Probed VictoriaMetrics directly: `series?match[]=litellm_request_total` returned `data: []`. Probed a LiteLLM pod's `:4000/metrics`: HTTP 404. **The metric `litellm_request_total` doesn't exist on this cluster.** The OSS LiteLLM image doesn't expose Prometheus metrics — that's an Enterprise-paid feature. The chart's Service has no metrics port. No ServiceMonitor or VMServiceScrape was ever added. The original AnalysisTemplate from 2026-03-25 was wired to a metric source that **was never present on this cluster.**
+
+The empty result vector caused the Prometheus provider to panic on `result[0]` (no bounds check), the controller treated each panic as `Error`, and after 5 consecutive `Error` measurements at 10s cadence (NOT the configured 1m interval — Errors retry faster), `consecutiveErrorLimit: 4` was exceeded and the canary aborted. **Argo Rollouts fail-closed correctly** — the canary did not promote despite the broken analysis machinery.
+
+Bug #5 is structurally different from bugs 1–4: it's not a fixable typo or a wrong default value, it's a **license/feature-tier mismatch** between what we wired the AnalysisTemplate to and what our LiteLLM image emits. The proper fix requires either:
+
+- Paying for LiteLLM Enterprise (rejected as out-of-scope for a homelab).
+- Building a sidecar exporter that emits the same metric names from LiteLLM's stdout JSON logs (~50 lines of Python; closes the per-RS labels concern at the same time).
+- Using Cilium Hubble L7 stats (`hubble_http_responses_total{destination_workload="litellm"}` carries `destination_pod` natively).
+- Using Argo Rollouts' `web` provider against `/health/readiness` (coarsest option, doesn't catch model-routing regressions).
+
+**Files changed (PR #217):**
+
+- `apps/litellm/manifests/rollout.yaml` — dropped both `analysis: { templates: [litellm-error-rate] }` steps from the Rollout; canary is now setWeight20 → pause → setWeight50 → pause → 100% with **no metric-gating**. Header comment expanded.
+- `apps/litellm/manifests/analysis-template.yaml` — left in place as a scaffold for when Path B lands (deliberately not deleted).
+- `docs/superpowers/specs/2026-05-04--deploy--litellm-canary-metric-source-design.md` — new design spec capturing the three Path B options with trade-off matrix and tentative recommendation.
+
+### 2026-05-04 (continued) — Multi-agent collaboration as a discovery pattern
+
+Bugs #2–#5 were caught by three agents working in parallel during the rehearsal: the rollout-pipeline coordinator (Terminal #1), the data-plane observer (Terminal #2), and the synthetic-traffic driver (Terminal #3). Each saw a different angle of the same canary; the discoveries cross-referenced cleanly across their channels (`docs/agentic-discussion/2026-05-04--litellm-canary/<terminal>.md`, append-only, all agents read all files). Captured contributions:
+
+- **Terminal #2**: caught Bug #2 in code review; measured per-stable-pod request distribution at 152/142/127/139 (σ/μ ≈ 6.7%) confirming the replica-count canary splits cleanly at the kube-proxy layer; corrected the runbook's wrong claim that AnalysisRun cadence on errors is 1m (it's 10s).
+- **Terminal #3**: caught Bug #4 by observing 0/114 success on `mistral-small`; sketched the JSON-log → Prometheus sidecar exporter as the most attractive Path B option; flagged the single-model-probing blind spot (qwen3.5 all-200 would have masked broken upstreams).
+- **Terminal #1**: confirmed Bug #5 by direct probing of VM and pod `/metrics`; coordinated the PR cascade.
+
+**Lesson recorded:** for live operational work where failure modes hide in cross-references between layers, multi-agent collaboration is materially sharper than serialised back-and-forth. The append-only-channel pattern is reusable as-is for future cascades.
+
+### 2026-05-04 (continued) — Updated runbook + cumulative file changes
+
+**Files changed across PRs #213, #214, #215, #216, #217, #218, and the docs PR:**
+
+- `apps/litellm/manifests/rollout.yaml` — replica-count canary, scaleDown:onsuccess, no analysis steps, expanded header comment with full history
+- `apps/litellm/manifests/analysis-template.yaml` — comment-only updates (query orphaned pending Path B)
+- `apps/litellm/manifests/service-canary.yaml` — removed
+- `apps/litellm/values.yaml` — synthetic env-var added (#215) then removed (#218); two end-to-end canary cycles captured
+- `apps/argo-rollouts-extras/manifests/cilium-rbac.yaml` — removed, replaced with README documenting the gap
+- `docs/runbooks/litellm-canary-observation.md` — rewritten to "third draft" reflecting pause-only design, uses real captured outputs
+- `docs/superpowers/specs/2026-05-04--deploy--litellm-canary-metric-source-design.md` — new design spec for Path B
+- `docs/agentic-discussion/2026-05-04--litellm-canary/{terminal-1,terminal-2,terminal-3}.md` — multi-agent collaboration log (timestamped + theme-prefixed so future cascades get their own subdir)
+- `blog/content/docs/building/19-progressive-delivery/index.md` — "Update: 2026-05-04" section greatly expanded; three ArgoCD UI screenshots added
+- `blog/content/docs/operating/12-progressive-delivery/index.md` — replaced fabricated samples with real captures; updated for pause-only canary
+- `.claude/rules/frank-gotchas.md` — six new entries (workloadRef leak, "Deployed" requires testing, scaleDown default, Error-cadence, 4xx-must-count-as-failure, empty-vector panic, LiteLLM is Enterprise-only Prometheus)
+- `README.md` — minor updates to reflect pause-only canary, link to spec
+
+**Manual cleanup performed during the cascade (already executed, listed for record):**
+
+```bash
+kubectl delete service litellm-canary -n litellm
+kubectl delete clusterrole argo-rollouts-cilium
+kubectl delete clusterrolebinding argo-rollouts-cilium
+```
 
 ---
 
