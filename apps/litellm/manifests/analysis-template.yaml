@@ -4,14 +4,23 @@
 # failure condition, so Argo Rollouts treats them as inconclusive automatically.
 # inconclusiveLimit: 3 = after 3 inconclusive intervals, abort and hold rollout.
 #
-# Scope: this query sums across ALL litellm pods (stable + canary). Without the
-# Cilium L7 traffic split we don't have per-service request labels, so we measure
-# the union. A canary that's 100% broken at 20% weight contributes ~20% of total
-# requests as 5xx, which trips the >=5% failure threshold immediately. A canary
-# that's marginally worse than stable (e.g. 6% errors) only adds ~1.2% to overall
-# error rate — accepted noise for this gateway. Per-pod labelling would let us
-# bucket cleanly; for now, replica-count + whole-deployment error rate is good
-# enough for the homelab.
+# Scope: this query sums across ALL litellm pods (stable + canary). Without per-RS
+# label propagation on the metric we don't have per-service request labels, so we
+# measure the union. A canary that's 100% broken at 20% weight contributes ~20%
+# of total requests as errors, which trips the >=5% failure threshold immediately.
+# Per-pod labelling would let us bucket cleanly; for now, replica-count +
+# whole-deployment error rate is good enough for the homelab.
+#
+# Error definition: status!~"2..|3.." catches anything that isn't a 2xx success
+# or a 3xx redirect. Earlier the query was status=~"5.." (5xx only), which had
+# a critical blind spot: a canary serving 100% 4xx responses (e.g. upstream
+# OpenRouter free tier returns 404 "no endpoints found") would evaluate as
+# 0 numerator / N denominator = 0% error → AUTO-PROMOTED while completely
+# broken to consumers. Discovered 2026-05-04 during the first end-to-end
+# canary rehearsal — the synthetic-traffic loop hit a freshly-broken upstream
+# (mistral-small-3.1-24b-instruct:free) and produced 0/114 success with all
+# 4xx, which the 5xx-only query would have green-lit. See building/19
+# postmortem for the full story.
 apiVersion: argoproj.io/v1alpha1
 kind: AnalysisTemplate
 metadata:
@@ -29,6 +38,6 @@ spec:
         prometheus:
           address: "http://vmsingle-victoria-metrics-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428"
           query: |
-            sum(rate(litellm_request_total{status=~"5.."}[5m]))
+            sum(rate(litellm_request_total{status!~"2..|3.."}[5m]))
             /
             sum(rate(litellm_request_total[5m]))
