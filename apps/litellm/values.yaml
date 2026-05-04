@@ -18,6 +18,14 @@ environmentSecrets:
 
 envVars:
   STORE_MODEL_IN_DB: "True"
+  # SYNTHETIC CANARY TRIGGER — to be reverted in immediately-following PR.
+  # This env var has no effect on LiteLLM behavior; its sole purpose is to
+  # mutate the Deployment's pod template so the Argo Rollouts controller
+  # observes a workload-template change and fires its canary steps. The
+  # post-#213/#214 Rollout has never been exercised end-to-end; this is the
+  # rehearsal run that produces the real captured outputs needed by the
+  # progressive-delivery doc rewrite (PR 2). Removed in the next commit.
+  CANARY_REHEARSAL_2026_05_04: "1"
 
 # LiteLLM proxy configuration (rendered as config.yaml)
 proxy_config:
