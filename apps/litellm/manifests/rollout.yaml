@@ -24,9 +24,29 @@
 # prevents ArgoCD from fighting the controller's scale-down.
 #
 # Canary steps:
-#   20% (1/5 pods) → manual pause → 5-min VictoriaMetrics analysis →
-#   50% (3/5 pods) → manual pause → 5-min analysis →
+#   20% (1/5 pods) → manual pause → operator promote →
+#   50% (3/5 pods) → manual pause → operator promote →
 #   100% (full promotion)
+#
+# Metric-gated analysis is currently DISABLED. The original design referenced
+# `litellm_request_total` from VictoriaMetrics, but that metric is part of
+# LiteLLM's Enterprise (paid) Prometheus integration — the OSS image we run
+# does not emit it, and there's no scrape config either. The first end-to-end
+# rehearsal on 2026-05-04 (PR #215) proved this: AnalysisRun panicked with
+# `reflect: slice index out of range` because the query returned an empty
+# vector, controller treated 5 consecutive Errors as abort signal, rollout
+# correctly failed closed.
+#
+# `apps/litellm/manifests/analysis-template.yaml` is left in place as a
+# scaffold but is not referenced from any step here. A real signal source —
+# Cilium Hubble L7 stats, a JSON-log → Prometheus sidecar exporter, or an
+# Argo Rollouts `web` provider against /health/readiness — is brainstormed
+# in `docs/superpowers/specs/2026-05-04--deploy--litellm-canary-metric-source-design.md`.
+# Once one of those lands, re-introduce `analysis: { templates: ... }` between
+# each setWeight and the next manual pause.
+#
+# Until then: gating is fully manual at each pause. Operator is the
+# AnalysisRun.
 apiVersion: argoproj.io/v1alpha1
 kind: Rollout
 metadata:
@@ -44,11 +64,5 @@ spec:
       steps:
         - setWeight: 20
         - pause: {}
-        - analysis:
-            templates:
-              - templateName: litellm-error-rate
         - setWeight: 50
         - pause: {}
-        - analysis:
-            templates:
-              - templateName: litellm-error-rate
