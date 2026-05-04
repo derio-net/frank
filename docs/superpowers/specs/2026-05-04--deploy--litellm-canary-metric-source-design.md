@@ -65,7 +65,7 @@ This spec captures the design space for restoring metric-gated promotion, with t
 
 **Idea:** ~50-line Python sidecar in each LiteLLM pod that tails LiteLLM's JSON access logs from a shared `emptyDir`, parses `request_completed` events, emits `litellm_request_total{model, status, api_user}` as a Prometheus counter on `:9090`. ServiceMonitor scrapes it.
 
-Sketch (from Terminal #3's note in `docs/agentic-discussion/terminal-3.md`):
+Sketch (from Terminal #3's note in `docs/agentic-discussion/2026-05-04--litellm-canary/terminal-3.md`):
 ```python
 import json, sys
 from prometheus_client import Counter, start_http_server
