@@ -16,8 +16,12 @@
 # → 1 canary + 4 stable; setWeight=50 → 3 canary + 2 stable.
 #
 # workloadRef: Rollout reads pod template from the Helm chart's Deployment.
-# The Deployment is scaled to 0 by the controller — this is expected.
-# ArgoCD ignoreDifferences on apps/Deployment/spec.replicas prevents fight.
+# scaleDown: onsuccess — controller scales the Deployment to 0 the moment
+# the Rollout reaches Healthy. Argo Rollouts' default for workloadRef.scaleDown
+# is "never", so without this field the Helm Deployment keeps running its
+# pod alongside the Rollout's pods (5+1 = 6 total). PR #213 left this field
+# off; this PR adds it. ArgoCD ignoreDifferences on apps/Deployment/spec.replicas
+# prevents ArgoCD from fighting the controller's scale-down.
 #
 # Canary steps:
 #   20% (1/5 pods) → manual pause → 5-min VictoriaMetrics analysis →
@@ -34,6 +38,7 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: litellm
+    scaleDown: onsuccess
   strategy:
     canary:
       steps:
