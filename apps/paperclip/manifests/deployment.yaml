@@ -75,6 +75,22 @@ spec:
                 name: paperclip-gemini
                 optional: true
           env:
+            # Paperclip's "Test environment" (and every other agent-CLI
+            # invocation paperclip spawns at runtime) runs in *this*
+            # container, NOT in the paperclip-shell sidecar. The two
+            # containers don't share rootfs and `shareProcessNamespace`
+            # is false (see comment above). The only cross-container
+            # seam is the `paperclip-data` PVC mounted at /paperclip in
+            # both. Operator-installed agent CLIs live on that PVC at
+            # /paperclip/agent-bin/, populated via:
+            #   npm install --prefix /paperclip/agent-bin <pkg>
+            # from paperclip-shell. Suffix (not prefix) so image-baked
+            # binaries at /usr/local/bin still win — paperclip's pinned
+            # codex stays authoritative; we only fill gaps (gemini).
+            # TODO: lift this install from operator-imperative to a
+            # declarative initContainer so PVC wipe regenerates state.
+            - name: PATH
+              value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/paperclip/agent-bin/node_modules/.bin"
             - name: PG_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -155,6 +171,13 @@ spec:
             - { name: data,            mountPath: /paperclip }
             - { name: shell-ssh-keys,  mountPath: /etc/ssh-keys, readOnly: true }
             - { name: shell-inventory, mountPath: /etc/paperclip-shell, readOnly: true }
+            # Single-file subPath mount alongside the image-baked
+            # /etc/profile.d/50-paperclip-shell-motd.sh (reconcile summary).
+            # Prints the paperclip CLI install pattern on interactive login.
+            - name: shell-motd-tips
+              mountPath: /etc/profile.d/60-paperclip-shell-tips.sh
+              subPath: 60-paperclip-shell-tips.sh
+              readOnly: true
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -197,3 +220,7 @@ spec:
         - name: shell-inventory
           configMap:
             name: paperclip-shell-inventory
+        - name: shell-motd-tips
+          configMap:
+            name: paperclip-shell-motd-tips
+            defaultMode: 0644

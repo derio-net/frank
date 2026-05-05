@@ -1,0 +1,38 @@
+# Mounted as /etc/profile.d/60-paperclip-shell-tips.sh in the paperclip-shell
+# sidecar (subPath of a single file). Sourced after the image-baked
+# /etc/profile.d/50-paperclip-shell-motd.sh, so the reconcile summary still
+# prints first; this script appends the paperclip-specific install pattern
+# that operators consistently forget across long gaps. Lives in the frank
+# repo (not the agent-shell-base image) because the recipe references
+# paperclip-only paths (/paperclip/agent-bin/, deployment.yaml's PATH env)
+# that don't generalize to other shell sidecars (ruflo, etc.).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: paperclip-shell-motd-tips
+  namespace: paperclip-system
+  labels:
+    app.kubernetes.io/name: paperclip
+    app.kubernetes.io/component: shell-tips
+data:
+  60-paperclip-shell-tips.sh: |
+    # Mounted from apps/paperclip/manifests/configmap-shell-motd-tips.yaml.
+    # Prints the paperclip CLI install pattern on interactive login. Edit
+    # the source ConfigMap (not this in-pod file) — subPath mounts don't
+    # hot-reload, so changes ship via the next deployment roll.
+    [ -n "$PS1" ] || return 0
+    cat <<'TIPS'
+
+    ─── paperclip CLI install reminder ──────────────────────────────────────
+     Install for the *paperclip server* (Test environment + runtime spawns
+     happen INSIDE the paperclip container, NOT here in paperclip-shell):
+         npm install --prefix /paperclip/agent-bin <pkg>
+     paperclip's PATH is suffixed with /paperclip/agent-bin/node_modules/.bin
+     via apps/paperclip/manifests/deployment.yaml. Image-baked /usr/local/bin
+     binaries still win; the PVC fills gaps (e.g. @google/gemini-cli) only.
+
+     Install for *this shell* (operator SSH use): edit
+     apps/paperclip/manifests/configmap-shell-inventory.yaml (declarative;
+     reconciled by paperclip-shell-reconcile at boot and on demand).
+    ─────────────────────────────────────────────────────────────────────────
+    TIPS
