@@ -14,6 +14,7 @@
 ---
 
 ## Phase 0: Prerequisites — secrets, org, bot account [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/229 -->
 **Depends on:** —
 
 Operator-driven setup. All steps interact with external systems (GitHub, Gitea UI, Infisical). Phases 1 and 2 cannot start until secrets exist in Infisical.
@@ -149,6 +150,7 @@ kubectl --context frank get externalsecret -n tekton-pipelines
 ---
 
 ## Phase 1: Shared github-backup-sync pipeline [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/230 -->
 **Depends on:** Phase 0
 
 Deploys the shared backup-sync mechanism: ExternalSecret + Pipeline + Trigger. Pipeline pushes `main` and tags from any `agentic-stoa/*` repo to its GitHub counterpart on every Gitea push event matching the filter.
@@ -441,6 +443,7 @@ kubectl --context frank logs -n tekton-pipelines deploy/el-gitea-listener --tail
 ---
 
 ## Phase 2: Per-repo CI pipelines [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/231 -->
 **Depends on:** Phase 0
 
 Per-repo CI Pipelines for `hum` (Node) and `content-factory` (Python) plus their Triggers. Independent of Phase 1 — runs in parallel.
@@ -894,6 +897,7 @@ kubectl --context frank logs -n tekton-pipelines deploy/el-gitea-listener --tail
 ---
 
 ## Phase 3: Migration of hum and content-factory [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/232 -->
 **Depends on:** Phase 1, Phase 2
 
 Operator-driven migration. Tasks are per-repo; both repos run in parallel — execute each task for both `hum` and `content-factory` before moving to the next task.
@@ -1246,6 +1250,7 @@ git branch -D test/post-migration
 ---
 
 ## Phase 4: Post-Deploy Checklist [manual]
+<!-- Tracking: https://github.com/derio-net/frank/issues/233 -->
 **Depends on:** Phase 3
 
 Auto-appended checklist, scoped for the fix/extension nature of this plan.
