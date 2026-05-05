@@ -13,8 +13,8 @@ This is the **inverse direction** of how `derio-net/frank` itself uses Gitea. `f
 ## Goals
 
 - Develop, branch, PR, and run CI entirely on Frank for `agentic-stoa` repos
-- GitHub holds a code-only backup (push-mirror), not part of any active workflow
-- Establish a reusable pattern (org + bot account + push-mirror + Tekton pipeline + webhook) for future repos
+- GitHub holds a code-only backup (`main` + tags), not part of any active workflow
+- Establish a reusable pattern (org + bot account + Tekton CI pipeline + Tekton backup-sync pipeline + webhook + branch protection) for future repos
 - Reuse the layer-19 platform — no new infrastructure components
 
 ## Non-Goals
@@ -28,48 +28,57 @@ This is the **inverse direction** of how `derio-net/frank` itself uses Gitea. `f
 ## Architecture
 
 ```
-            ┌───── Frank cluster ───────────────────────────────┐
-            │                                                    │
- dev pushes │   ┌─ agentic-stoa/<repo> on Gitea                  │
-   over SSH ├──►│  (192.168.55.209:2222 via Tailscale)           │
-  (humans + │   │                                                │
-   Paperclip│   │   on push: Gitea webhook                       │
-   agents)  │   │       │                                        │
-            │   │       ▼                                        │
-            │   │  el-gitea-listener.tekton-pipelines.svc:8080   │
-            │   │       │                                        │
-            │   │       ▼                                        │
-            │   │  TriggerBinding → TriggerTemplate              │
-            │   │       │                                        │
-            │   │       ▼                                        │
-            │   │  PipelineRun on pc-1                           │
-            │   │   ├─ git-clone                                 │
-            │   │   ├─ run-tests (per-repo: npm / pytest)        │
-            │   │   └─ gitea-status (commit status → Gitea PR)   │
-            │   │                                                │
-            │   └─ Gitea push-mirror                             │
-            │           │ (real-time, branch-filtered)           │
-            └───────────┼────────────────────────────────────────┘
-                        │
-                        ▼
-              github.com/agentic-stoa/<repo>
-                  (private, code-only backup;
-                   only writer is STOA_GITHUB_MIRROR_TOKEN)
+            ┌───── Frank cluster ────────────────────────────────────┐
+            │                                                        │
+ dev pushes │   agentic-stoa/<repo> on Gitea                         │
+   over SSH ├──►(192.168.55.209:2222 via Tailscale)                  │
+  (humans + │     │                                                  │
+   Paperclip│     │ on push / PR: Gitea webhook                      │
+   agents)  │     ▼                                                  │
+            │   el-gitea-listener.tekton-pipelines.svc:8080          │
+            │     │                                                  │
+            │     ├──► CI Trigger (per-repo)                         │
+            │     │      → PipelineRun on pc-1:                      │
+            │     │         git-clone → run-tests → gitea-status     │
+            │     │      (reports commit status to Gitea PR)         │
+            │     │                                                  │
+            │     └──► github-backup-sync Trigger                    │
+            │            filter: agentic-stoa/* AND                  │
+            │                    (refs/heads/main || refs/tags/*)    │
+            │            → PipelineRun on pc-1:                      │
+            │               git-clone (Gitea) → push main+tags       │
+            │               (uses STOA_GITHUB_MIRROR_TOKEN over HTTPS)│
+            │                            │                           │
+            └────────────────────────────┼───────────────────────────┘
+                                         │
+                                         ▼
+                        github.com/agentic-stoa/<repo>
+                            (private, main + tags only;
+                             nothing else ever reaches GitHub)
 ```
 
 ## Sync Model
 
-**Direction:** Gitea → GitHub, one-way. Nothing pulls from GitHub. PRs and issues live exclusively on Gitea (they are not git refs and don't propagate via push-mirror; that's acceptable since Gitea state is on Longhorn-backed PVC with R2 backup).
+**Direction:** Gitea → GitHub, one-way. Nothing pulls from GitHub. PRs and issues live exclusively on Gitea (they are not git refs and wouldn't propagate via mirror anyway; acceptable since Gitea state is on Longhorn-backed PVC with R2 backup).
 
-**Two-phase mirror configuration per repo:**
+**Why not Gitea's native push-mirror?** Verified against the Gitea changelog and docs (running 1.25.4, latest 1.26.x): Gitea's push-mirror has three limitations that would force compromise:
+- No **branch filter** — pushes all branches or none, no in-between
+- No **SSH/deploy-key auth** — HTTPS PAT only (open feature request)
+- No **org-level config** — must be configured per-repo
 
-1. **Migration phase** — push-mirror configured with **no branch filter**. The one-shot `git push --mirror` (run from a workstation, not from Gitea) carries every branch and tag from GitHub into Gitea. After the initial push, Gitea's push-mirror back to GitHub will keep all branches in sync.
+Since "only `main` reaches GitHub" is a hard requirement, native push-mirror is the wrong tool for steady state. We use it not at all.
 
-2. **Steady-state phase** — once migration is verified, on the GitHub side prune everything except `main` and tags, then on the Gitea side narrow the push-mirror branch filter to `main` only (tags continue to push). All other branches (`vk/*`, `claude/*`, work-in-progress, etc.) remain Gitea-only and never reach GitHub. Phase transition is per-repo and irreversible without redoing migration.
+**Two-phase mechanism:**
 
-**Branch filter mechanism:** Gitea push-mirror supports a branch filter pattern in repo settings (Mirror Settings → Push → Branch filter). Confirmed against Gitea 1.21+. If the running version doesn't support filters cleanly, fall back to a Tekton `finally`-task that force-deletes non-`main` branches on GitHub via the GitHub API after each push — adds a moving part but bounded.
+1. **Migration phase (one-shot, per repo).** Run `git clone --mirror` from a workstation against the existing GitHub repo, then `git push --mirror` to the new empty Gitea repo. This seeds Gitea with every branch and tag GitHub already has — no Gitea-side configuration involved. After verification, prune non-`main` branches on the GitHub side via `gh` CLI.
 
-**What propagates:** code (every commit on `main`), tags. **What doesn't:** issues, PRs, comments, releases, wikis, runner state, webhook deliveries.
+2. **Steady state.** A Tekton **github-backup-sync** pipeline lives in `apps/tekton/pipelines/github-backup-sync.yaml`. A repo-scoped Trigger on `el-gitea-listener` fires it whenever a push event hits `agentic-stoa/<repo>` on `refs/heads/main` or any `refs/tags/*`. The pipeline clones from Gitea, force-pushes `main` + tags to `github.com/agentic-stoa/<repo>` using `STOA_GITHUB_MIRROR_TOKEN` over HTTPS. Other branches (`vk/*`, agent feature branches, etc.) emit Gitea push events but the trigger filters them out, so they never touch GitHub.
+
+This is more declarative than Gitea's UI-configured push-mirror anyway — the sync mechanism lives in this repo as YAML, version-controlled, and the same one pipeline serves every `agentic-stoa/*` repo (parameterized).
+
+**What propagates:** every commit on `main`, all tags. **What doesn't:** other branches, issues, PRs, comments, releases, wikis, webhook deliveries, runner state.
+
+**Tag deletion edge case:** the trigger fires on tag *create* (push to `refs/tags/*`); `git push --tags` only adds. If a tag is deleted in Gitea, GitHub keeps it. Acceptable for backup semantics — tags are append-only in practice. If we ever need delete-propagation, the pipeline can switch to `git push --mirror --prune github main 'refs/tags/*'` (with the trigger filter still gating non-main branches).
 
 ## Org & Auth
 
@@ -77,19 +86,30 @@ This is the **inverse direction** of how `derio-net/frank` itself uses Gitea. `f
 
 **Service account:** `stoa-bot` (Gitea-local user, member of `agentic-stoa` org with **write access** on all repos). Paperclip agents identify as `stoa-bot` for all git operations: cloning, branch creation, commits, push, and PR open/comment via Gitea API. `tekton-bot` retains its existing role of writing commit statuses from inside pipelines (separate concern, separate token).
 
+**Branch protection on `main` (Gitea-side):** Each `agentic-stoa/*` repo gets a branch protection rule on `main`:
+- Direct push to `main` is **blocked** for everyone except the operator's account (used for break-glass).
+- Merge to `main` requires a PR with at least one approving review from the operator. `stoa-bot` cannot self-approve or merge its own PRs.
+- Required status checks: `tekton/ci` (the per-repo pipeline must pass green).
+
+This means `stoa-bot` can push branches and open PRs freely, but landing code on `main` always passes through operator review. Auto-merge-on-green is not enabled in MVP — Gitea supports it as a per-PR opt-in (operator can flip a PR into auto-merge mode); revisit as a default once the loop is proven trustworthy. Role-level permissions (e.g., "agent X can auto-merge to main on these paths") are out of scope.
+
 **Tokens:**
-- `stoa-bot` Gitea API token → Infisical key `STOA_GITEA_TOKEN`. Projected into Paperclip agent envs via ESO ExternalSecret. Scopes: `write:repository`, `write:issue`, `read:organization`. Used for clone, push, PR open, comment.
+- `stoa-bot` Gitea API token → Infisical key `STOA_GITEA_TOKEN`. Projected into Paperclip agent envs via ESO ExternalSecret. Scopes: `write:repository`, `write:issue`, `read:organization`. **TTL: no expiry** (Gitea allows this). Long TTL is acceptable here because the token is scoped to a single bot user with no `admin` rights and revocable instantly via Gitea UI.
 - `tekton-bot` already has `GITEA_API_TOKEN` for status writes — extend its org membership to include `agentic-stoa` (org-write team) so commit statuses can post on `agentic-stoa/*` PRs.
 
 **SSH access for humans:** the operator adds their SSH public key to their personal Gitea account (one-time UI step). Clone URL: `git@gitea.cluster.derio.net:agentic-stoa/<repo>.git` (resolves via mesh DNS over Tailscale to 192.168.55.209:2222 — Gitea's default SSH port). HTTPS clone via `https://gitea.cluster.derio.net/agentic-stoa/<repo>.git` is supported but SSH is preferred (no token rotation).
 
-**GitHub-side credentials:** A single GitHub fine-grained PAT scoped to the `agentic-stoa` org with `Contents: read+write` and `Metadata: read` on the two starting repos (and any future ones — repo selection updated when new repos are added). Stored in Infisical as `STOA_GITHUB_MIRROR_TOKEN`. Configured per-repo in Gitea push-mirror settings (Gitea does not have an org-level mirror credential pool; one entry per repo).
+**GitHub-side credentials:** A single GitHub fine-grained PAT scoped to the `agentic-stoa` org with `Contents: read+write` and `Metadata: read` on every `agentic-stoa/*` repo (selection updated when new repos are added). Stored in Infisical as `STOA_GITHUB_MIRROR_TOKEN`. Used by the Tekton `github-backup-sync` pipeline (mounted via ExternalSecret). **TTL: GitHub fine-grained PATs cap at 1 year** — this is the rotation pain point. MVP accepts annual manual rotation; an automated rotator (Tekton CronJob that uses GitHub's PAT-rotate API and updates the Infisical secret) is captured in Open Items.
 
-## Pipelines (MVP)
+## Pipelines
 
-Each repo gets a Tekton Pipeline + a Pipeline-bound Trigger config. All reuse the existing `el-gitea-listener` EventListener and `gitea-push-binding` TriggerBinding from layer 19 — no new EventListener.
+Two kinds of pipelines run for `agentic-stoa/*` repos. Both reuse the existing `el-gitea-listener` EventListener and `gitea-push-binding` TriggerBinding from layer 19 — no new EventListener.
 
-**Common pipeline shape (3 tasks):**
+### Per-Repo CI Pipeline (MVP)
+
+Fires on every push and PR event for the repo. Reports commit status back to the Gitea PR.
+
+**Shape (3 tasks):**
 1. `git-clone` — Tekton catalog task (vendored already)
 2. `run-tests` — repo-specific (template below)
 3. `gitea-status` — `finally` block, commit status → Gitea PR (existing task, reused as-is)
@@ -106,27 +126,41 @@ Each repo gets a Tekton Pipeline + a Pipeline-bound Trigger config. All reuse th
 - No n8n workflow validation in MVP (would need a JSON schema check; deferred)
 - No deploy.
 
+The repo-scoped Trigger pattern (a `Trigger` resource bound to the existing EventListener that filters on `body.repository.full_name == "agentic-stoa/<repo>"`) lets each repo evolve its CI pipeline independently without touching the shared EventListener.
+
+### Shared `github-backup-sync` Pipeline
+
+One pipeline definition, used by every `agentic-stoa/*` repo. Replaces what Gitea's native push-mirror would have done.
+
+**Trigger filter (CEL):** `body.repository.full_name.startsWith("agentic-stoa/") && (body.ref == "refs/heads/main" || body.ref.startsWith("refs/tags/"))`
+
+**Shape:**
+1. `git-clone` from Gitea (`agentic-stoa/<repo>`, all refs, full history — `--mirror` semantics)
+2. `push-to-github` step: configures a `github` remote at `https://oauth2:${STOA_GITHUB_MIRROR_TOKEN}@github.com/agentic-stoa/<repo>.git`, runs `git push --force github main` followed by `git push github --tags`. Uses `--force` because in rare merge-rebase cases Gitea's `main` may have rewritten history, and the GitHub mirror is downstream-only.
+
+**Why one pipeline, not per-repo:** the only thing that varies between repos is the URL pair (Gitea source, GitHub destination), which can be derived from `body.repository.full_name`. The Trigger params extract repo name; the Pipeline params take it. Adding a new repo means: add a webhook + (no new pipeline manifest needed for the backup side).
+
 **Pipeline files:**
 ```
 apps/tekton/pipelines/
-  hum.yaml             # Pipeline CR + repo-scoped Trigger
-  content-factory.yaml # Pipeline CR + repo-scoped Trigger
+  hum.yaml                   # CI Pipeline + repo-scoped Trigger
+  content-factory.yaml       # CI Pipeline + repo-scoped Trigger
+  github-backup-sync.yaml    # Shared Pipeline + org-scoped Trigger
+  externalsecret-stoa-github-mirror.yaml  # ESO → STOA_GITHUB_MIRROR_TOKEN
 ```
-
-The repo-scoped Trigger pattern (a `Trigger` resource bound to the existing EventListener that filters on `body.repository.full_name == "agentic-stoa/<repo>"`) lets each repo evolve its pipeline independently without touching the shared EventListener.
 
 ## Secrets
 
 | Secret | Source | Type | Used by | When created |
 |---|---|---|---|---|
-| `STOA_GITHUB_MIRROR_TOKEN` | Infisical | GitHub fine-grained PAT (Contents R/W on `agentic-stoa/*`) | Gitea push-mirror | Before push-mirror configuration |
+| `STOA_GITHUB_MIRROR_TOKEN` | Infisical | GitHub fine-grained PAT (Contents R/W on `agentic-stoa/*`) | Tekton `github-backup-sync` pipeline | Before steady-state cutover |
 | `STOA_GITEA_TOKEN` | Infisical | Gitea API token (`stoa-bot`, write scope on `agentic-stoa`) | Paperclip agents (clone, push, PR ops) | After `stoa-bot` user created in Gitea |
 | `GITEA_API_TOKEN` | Infisical (existing) | Gitea API token (`tekton-bot`, write scope) | Tekton `gitea-status` task | Already exists; org membership extended |
 | `GITEA_WEBHOOK_SECRET` | Infisical (existing) | Random string | EventListener CEL interceptor + Gitea webhook | Already exists; reused |
 
-The two new entries (`STOA_GITHUB_MIRROR_TOKEN`, `STOA_GITEA_TOKEN`) get ExternalSecret CRs:
+Both new entries get ExternalSecret CRs:
 - `STOA_GITEA_TOKEN` projected into the Paperclip namespace where agent pods consume it
-- `STOA_GITHUB_MIRROR_TOKEN` is *only* used in the Gitea push-mirror UI — it's not auto-projected into a K8s Secret. Operator pastes it once per repo at config time. (Acceptable: rotation is rare, blast radius is one PAT.)
+- `STOA_GITHUB_MIRROR_TOKEN` projected into `tekton-pipelines` namespace as Secret `stoa-github-mirror`, mounted into the `github-backup-sync` pipeline as a `secretEnv`. Single source of truth, no UI paste.
 
 ## Migration Sequence (per repo, runs for both `hum` and `content-factory` in parallel)
 
@@ -142,7 +176,12 @@ The two new entries (`STOA_GITHUB_MIRROR_TOKEN`, `STOA_GITEA_TOKEN`) get Externa
    - Create fine-grained PAT in GitHub UI (`agentic-stoa` org, both repos selected, `Contents: R/W`)
    - Store in Infisical as `STOA_GITHUB_MIRROR_TOKEN`
 
-3. **Per-repo migration (parallelizable):**
+3. **Shared Tekton infrastructure (one-time):**
+   - Drop `github-backup-sync.yaml` (Pipeline + org-scoped Trigger filtered on `agentic-stoa/*` + main/tags) at `apps/tekton/pipelines/`
+   - Drop `externalsecret-stoa-github-mirror.yaml` projecting `STOA_GITHUB_MIRROR_TOKEN` into `tekton-pipelines` namespace
+   - Commit + push to `frank` repo. ArgoCD `tekton-extras` syncs. Verify Trigger and Secret are healthy in Tekton Dashboard before proceeding.
+
+4. **Per-repo migration (parallelizable):**
 
    a. Create empty repo in Gitea: `agentic-stoa/<repo>` (UI, default branch `main`, no README/license — needs to be empty for the mirror push)
 
@@ -152,63 +191,62 @@ The two new entries (`STOA_GITHUB_MIRROR_TOKEN`, `STOA_GITEA_TOKEN`) get Externa
       cd /tmp/<repo>.git
       git remote set-url --push origin git@gitea.cluster.derio.net:agentic-stoa/<repo>.git
       git push --mirror
+      rm -rf /tmp/<repo>.git
       ```
       Verify in Gitea UI: all branches and tags present.
 
-   c. Configure Gitea push-mirror back to GitHub (UI: repo → Settings → Mirror Settings → Push):
-      - URL: `https://github.com/agentic-stoa/<repo>.git`
-      - Username: `agentic-stoa` (or any string — GitHub PATs ignore username)
-      - Password: `STOA_GITHUB_MIRROR_TOKEN` value
-      - Sync interval: `0` (real-time, push on every commit) — verify Gitea's "sync now" works
-      - Branch filter: empty (everything mirrors during migration phase)
+   c. Drop CI pipeline manifest at `apps/tekton/pipelines/<repo>.yaml` (Pipeline CR + repo-scoped Trigger). Commit + push to `frank` repo. ArgoCD `tekton-extras` syncs.
 
-   d. Smoke test: push a no-op commit on a non-`main` branch in Gitea, verify it appears on GitHub within seconds.
-
-   e. Add Tekton webhook (UI: repo → Settings → Webhooks → Add → Gitea):
+   d. Add Tekton webhook (Gitea UI: repo → Settings → Webhooks → Add → Gitea). One webhook serves both the per-repo CI Trigger and the shared `github-backup-sync` Trigger:
       - URL: `http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080`
       - Secret: `GITEA_WEBHOOK_SECRET` value
       - Events: Push, Pull Request
 
-   f. Drop pipeline manifest at `apps/tekton/pipelines/<repo>.yaml`. Commit + push to `frank` repo. ArgoCD `tekton-extras` syncs.
+   e. Smoke test CI: push a commit to a feature branch in Gitea, confirm Tekton Dashboard shows the per-repo CI PipelineRun and Gitea PR view shows commit status.
 
-   g. Verify pipeline triggers: push a commit to a feature branch in Gitea, watch Tekton Dashboard for PipelineRun. Confirm Gitea PR view shows commit status from `gitea-status` task.
+   f. Smoke test backup: push a commit to `main` (small README touch is fine). Confirm a `github-backup-sync` PipelineRun fires within ~10s and the commit appears on `github.com/agentic-stoa/<repo>`. Confirm a feature-branch push does NOT trigger backup-sync.
 
-   h. Update local working clones:
+   g. Prune non-`main` from GitHub:
+      ```bash
+      gh auth login   # use the operator's GitHub identity, not the mirror PAT
+      for b in $(gh api repos/agentic-stoa/<repo>/branches --jq '.[].name' | grep -v '^main$'); do
+        gh api -X DELETE repos/agentic-stoa/<repo>/git/refs/heads/$b
+      done
+      ```
+
+   h. Enable Gitea branch protection on `main`:
+      - Gitea UI: repo → Settings → Branches → Add Rule
+      - Rule name: `main`
+      - Block direct push: yes (allowlist: operator account only, for break-glass)
+      - Require PR + approving review (count: 1, by operator team)
+      - Required status check: `tekton/ci` (matches the CI pipeline's commit-status context)
+
+   i. Update local working clones:
       ```bash
       cd ~/repos/<repo>
       git remote set-url origin git@gitea.cluster.derio.net:agentic-stoa/<repo>.git
       git fetch origin --prune
       ```
 
-   i. Update Paperclip's repo configs (path TBD during plan phase — depends on Paperclip's repo registration mechanism) to point at Gitea remotes and consume `STOA_GITEA_TOKEN`.
-
-4. **Steady-state cutover (per repo, after both repos pass smoke tests):**
-
-   a. On GitHub side, delete every branch except `main`. Tags retained.
-      ```bash
-      # From a workstation, or via GitHub UI
-      gh api -X DELETE repos/agentic-stoa/<repo>/git/refs/heads/<branch>
-      ```
-
-   b. In Gitea push-mirror settings, edit branch filter: change from empty to `main` (verify Gitea version supports this; fallback noted in Sync Model section).
-
-   c. Smoke test: push a commit to a non-`main` branch in Gitea, verify it does NOT appear on GitHub. Push to `main`, verify it does.
+   j. Update Paperclip's repo configs (path TBD during plan phase — depends on Paperclip's repo registration mechanism) to point at Gitea remotes and consume `STOA_GITEA_TOKEN`.
 
 5. **Documentation:**
-   - Update `apps/homepage/manifests/configmap-services.yaml` Gitea tile description to mention `agentic-stoa` org if it's user-visible (probably not — Gitea tile already exists).
-   - Add entries to `frank-gotchas.md` for any quirks discovered (e.g., push-mirror branch filter behavior).
+   - Update `apps/homepage/manifests/configmap-services.yaml` Gitea tile description if user-visible changes are warranted (probably not — Gitea tile already exists).
+   - Capture in `frank-gotchas.md` any quirks observed during the migration (e.g., webhook delivery oddities, Trigger CEL gotchas).
 
 ## Onboarding a New Repo (Runbook)
 
-Once the migration is done, the steady-state pattern for adding a new repo to `agentic-stoa`:
+Once the migration pattern is in place, adding a new repo to `agentic-stoa` is mostly mechanical:
 
-1. Create empty private repo on GitHub: `agentic-stoa/<new-repo>`
-2. Create empty repo on Gitea: `agentic-stoa/<new-repo>`
-3. Push initial content to Gitea (clone Gitea remote, commit, push)
-4. Configure Gitea push-mirror to GitHub with `main`-only branch filter from day one (skip the migration phase entirely)
-5. Update `STOA_GITHUB_MIRROR_TOKEN` PAT scope on GitHub to include the new repo
-6. Add Tekton webhook + pipeline manifest (follow `hum`/`content-factory` template)
+1. Create empty private repo on GitHub: `agentic-stoa/<new-repo>` (this is what the backup pipeline will push to)
+2. Update `STOA_GITHUB_MIRROR_TOKEN` PAT in GitHub to include the new repo in its `agentic-stoa/*` repo selection
+3. Create empty repo on Gitea: `agentic-stoa/<new-repo>`. Push initial content over SSH (clone Gitea remote, commit, push)
+4. Drop CI pipeline manifest at `apps/tekton/pipelines/<new-repo>.yaml` (copy `hum.yaml` or `content-factory.yaml` as template)
+5. Add Tekton webhook in the Gitea repo (same URL + secret as existing repos)
+6. Enable Gitea branch protection on `main` (same rule shape as existing repos)
 7. (Optional) Add to Paperclip's repo registry
+
+The shared `github-backup-sync` pipeline picks up the new repo automatically — its Trigger filter matches `agentic-stoa/*`. No additional pipeline definition needed for the backup side.
 
 This is documented as a `# manual-operation` block so it lives in `docs/runbooks/manual-operations.yaml` alongside other one-shot procedures.
 
@@ -230,10 +268,12 @@ This is documented as a `# manual-operation` block so it lives in `docs/runbooks
 
 ## Open Items (Deferred)
 
-- **Image build + Zot push** — when a repo first ships a container, extend its pipeline with `build-push` (existing layer-19 task) and image signing.
+- **Image build + Zot push** — when a repo first ships a container, extend its CI pipeline with `build-push` (existing layer-19 task) and image signing.
 - **Pipeline deploy stages** — `content-factory` runs `n8n-deploy.sh` manually today; could become a Tekton stage gated on merge to `main`. Same for `hum` Supabase migrations.
-- **Future-public inversion** — when a repo goes public, flip direction: tear down push-mirror, set up GitHub Actions, configure pull-mirror back into Gitea (matching the `frank` repo pattern). Designed when the first repo actually flips.
-- **Org-wide mirror credential pool** — Gitea v1.22+ may add this; revisit if/when it lands so we don't store the same PAT in N per-repo configs.
+- **Auto-merge on green CI** — Gitea supports per-PR auto-merge; revisit as a default policy once the agentic loop has a track record. Role-level "agent X can auto-merge on these paths" needs Gitea's CODEOWNERS-style permissions and stays out of scope for now.
+- **GitHub PAT auto-rotation** — fine-grained PATs cap at 1 year. Build a Tekton CronJob that uses GitHub's PAT-rotate API (or a small operator) to mint a new PAT before expiry and write it to Infisical. Until then, calendar-driven manual rotation; document the renewal SOP in `docs/runbooks/manual-operations.yaml`.
+- **Switch to SSH-based backup push when Gitea supports it** — Forgejo/Gitea both have open feature requests for SSH-key push-mirror auth. Adopting that would eliminate the PAT-rotation problem entirely. Watch [go-gitea/gitea#18159](https://github.com/go-gitea/gitea/issues/18159). Until then, the Tekton-pipeline approach in this spec is the canonical mechanism.
+- **Future-public inversion** — when a repo goes public, flip direction: disable the backup pipeline, set up GitHub Actions, configure Gitea pull-mirror from GitHub (matching the `frank` repo pattern). Designed when the first repo actually flips.
 - **Gitea SSH host key in agent images** — Paperclip-side agents need `gitea.cluster.derio.net`'s SSH host key in `known_hosts` to clone non-interactively. Bake into agent base image OR distribute via a ConfigMap. Plan-phase decision.
 
 ## Manual Operations
@@ -276,17 +316,18 @@ status: pending
 # manual-operation
 id: stoa-github-mirror-pat
 layer: cicd
-app: gitea
+app: tekton
 plan: docs/superpowers/plans/2026-05-04--cicd--stoa-gitea-primary.md
-when: "Before configuring push-mirror on any repo"
-why_manual: "GitHub PAT generation is a github.com UI operation"
+when: "Before deploying github-backup-sync pipeline; recurs annually"
+why_manual: "GitHub fine-grained PATs are UI-generated and cap at 1y TTL; rotation automation is a deferred Open Item"
 commands:
   - "GitHub Settings → Developer settings → Fine-grained tokens → Generate new"
-  - "Resource owner: agentic-stoa; Repository access: select hum + content-factory (and any future repos)"
+  - "Resource owner: agentic-stoa; Repository access: select all agentic-stoa/* repos"
   - "Permissions: Contents R/W, Metadata R"
+  - "Expiration: 1 year (max). Set a calendar reminder 2 weeks before expiry."
   - "Store in Infisical as STOA_GITHUB_MIRROR_TOKEN"
 verify:
-  - "Infisical → STOA_GITHUB_MIRROR_TOKEN exists"
+  - "Infisical → STOA_GITHUB_MIRROR_TOKEN exists and not expired"
   - "curl -H 'Authorization: token $STOA_GITHUB_MIRROR_TOKEN' https://api.github.com/repos/agentic-stoa/hum | jq .name — returns hum"
 status: pending
 ```
@@ -313,30 +354,11 @@ status: pending
 
 ```yaml
 # manual-operation
-id: stoa-repo-pushmirror-config
-layer: cicd
-app: gitea
-plan: docs/superpowers/plans/2026-05-04--cicd--stoa-gitea-primary.md
-when: "Per repo, after mirror clone is verified"
-why_manual: "Gitea per-repo push-mirror config is UI-only (or one-shot API)"
-commands:
-  - "Gitea UI → repo → Settings → Mirror Settings → Push"
-  - "URL: https://github.com/agentic-stoa/<repo>.git; Username: x; Password: $STOA_GITHUB_MIRROR_TOKEN"
-  - "Sync interval: 0 (real-time); Branch filter: empty (migration phase)"
-  - "Click 'Sync Now' to verify"
-verify:
-  - "Push a no-op commit on a feature branch in Gitea"
-  - "Within 30s, GitHub branch list shows the new commit"
-status: pending
-```
-
-```yaml
-# manual-operation
 id: stoa-repo-webhook
 layer: cicd
 app: gitea
 plan: docs/superpowers/plans/2026-05-04--cicd--stoa-gitea-primary.md
-when: "Per repo, after pipeline manifest is committed to frank"
+when: "Per repo, after CI pipeline manifest is committed to frank"
 why_manual: "Gitea per-repo webhook config is UI-only"
 commands:
   - "Gitea UI → repo → Settings → Webhooks → Add → Gitea"
@@ -345,26 +367,47 @@ commands:
   - "Events: Push, Pull Request"
 verify:
   - "Webhooks list → Test Delivery → returns 2xx"
-  - "Push a commit; Tekton Dashboard shows PipelineRun within 10s"
+  - "Push a feature-branch commit; Tekton Dashboard shows the per-repo CI PipelineRun within 10s"
+  - "Push a commit on main; Tekton Dashboard shows BOTH the CI PipelineRun and a github-backup-sync PipelineRun"
 status: pending
 ```
 
 ```yaml
 # manual-operation
-id: stoa-steady-state-cutover
+id: stoa-prune-github-non-main
 layer: cicd
 app: gitea
 plan: docs/superpowers/plans/2026-05-04--cicd--stoa-gitea-primary.md
-when: "Per repo, after pipeline + push-mirror smoke tests pass"
-why_manual: "GitHub branch deletion + Gitea filter narrowing are one-shot operator decisions"
+when: "Per repo, after backup smoke test confirms main propagates to GitHub"
+why_manual: "One-time deletion of legacy branches on GitHub; operator-owned"
 commands:
-  - "On GitHub side, delete every branch except main (gh CLI or UI). Tags stay."
-  - "  for b in $(gh api repos/agentic-stoa/<repo>/branches --jq '.[].name' | grep -v '^main$'); do gh api -X DELETE repos/agentic-stoa/<repo>/git/refs/heads/$b; done"
-  - "Gitea UI → repo → Settings → Mirror Settings → Push → edit Branch filter to: main"
+  - "gh auth login   # operator's GitHub identity, NOT the mirror PAT"
+  - "for b in $(gh api repos/agentic-stoa/<repo>/branches --jq '.[].name' | grep -v '^main$'); do gh api -X DELETE repos/agentic-stoa/<repo>/git/refs/heads/$b; done"
 verify:
-  - "GitHub branches list: only main"
-  - "Push a commit to a non-main branch in Gitea; GitHub does NOT show the new branch"
-  - "Push a commit to main in Gitea; GitHub main updates within 30s"
+  - "gh api repos/agentic-stoa/<repo>/branches --jq '.[].name' — returns only main"
+  - "Tags retained: gh api repos/agentic-stoa/<repo>/tags — pre-migration tag list intact"
+status: pending
+```
+
+```yaml
+# manual-operation
+id: stoa-gitea-branch-protection
+layer: cicd
+app: gitea
+plan: docs/superpowers/plans/2026-05-04--cicd--stoa-gitea-primary.md
+when: "Per repo, after migration verified and Paperclip can clone"
+why_manual: "Branch protection is UI-configured per-repo; defines operator-only merge policy"
+commands:
+  - "Gitea UI → repo → Settings → Branches → Add Rule"
+  - "Rule name pattern: main"
+  - "Enable: Disable Push (allow only operator account for break-glass)"
+  - "Enable: Require Pull Request to Merge"
+  - "Required approvals: 1 (from operator team)"
+  - "Required status checks: tekton/ci"
+  - "Block on rejected reviews: yes"
+verify:
+  - "As stoa-bot, attempt git push origin main directly → rejected"
+  - "Open a PR from a feature branch → merge button is disabled until CI passes and operator approves"
 status: pending
 ```
 
