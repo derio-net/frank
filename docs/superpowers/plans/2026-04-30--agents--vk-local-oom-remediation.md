@@ -452,7 +452,7 @@ Daily readings — `restartCount`, p99 working-set RSS over the prior 24 h, and 
 |-----|------------|----------------|---------------------------|------------------------|---------------------------------------------|-------|
 | 1 | 2026-05-03 | 0 | 0 | ~2.35 GiB (cadvisor) / ~2.53 GiB (resource), instant 2.09 GiB | 0 (active=2 at sample time, max=4) | Soak start. Phase 4 image `8af0d080` live, env `VK_MAX_CONCURRENT_EXECUTIONS=4` confirmed via `/metrics`. No queue events yet. |
 | 2 | 2026-05-04 | 0 | 0 | 2.95 GiB | 3 | pod=secure-agent-pod-c976f9946-rqdqc |
-| 3 | 2026-05-05 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 3 | 2026-05-05 | 0 | 0 | 0.74 GiB | 0 | pod=secure-agent-pod-c976f9946-rqdqc |
 | 4 | 2026-05-06 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
 | 5 | 2026-05-07 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
 | 6 | 2026-05-08 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
