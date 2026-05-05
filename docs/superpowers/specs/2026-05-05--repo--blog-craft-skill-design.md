@@ -298,3 +298,9 @@ The Frank repo's existing `.claude/skills/blog-post/`, `.claude/skills/media/` c
 - Earlier Frank meta-blog specs (sibling `repo` layer):
   - `2026-03-06--repo--blog-series-design.md`
   - `2026-03-13--repo--operating-blog-series-design.md`
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Blog Craft Skill Package Implementation Plan |  | `docs/superpowers/plans/2026-05-05--repo--blog-craft-skill-package.md` | Not Started | — |
