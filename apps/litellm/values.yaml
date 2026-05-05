@@ -1,6 +1,52 @@
 # LiteLLM — unified LLM inference gateway
 # Routes between local Ollama models and cloud providers via OpenRouter
 # Exposed at 192.168.55.206:4000 as OpenAI-compatible API
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# TODO ON NEXT IMAGE BUMP — fold in the chart-config improvements PR #210
+# discovered we don't have. Don't ship a bump without these:
+#
+# 1. Pod-template `affinity` requiring amd64. PR #210's final promote landed
+#    one of 5 pods on raspi-1 (RPi 4, ARM, low-power) by scheduler tiebreaker
+#    — there's NO config protecting LiteLLM from the slow ARM node, every
+#    prior amd64 placement was luck. T2 documented this in
+#    docs/agentic-discussion/2026-05-04--litellm-canary-for-real/terminal-2.md.
+#    Suggested block (verify cpu/memory numbers from `kubectl top pod` first):
+#
+#      resources:
+#        requests:
+#          cpu: 200m
+#          memory: 512Mi
+#        limits:
+#          memory: 1Gi
+#      affinity:
+#        nodeAffinity:
+#          requiredDuringSchedulingIgnoredDuringExecution:
+#            nodeSelectorTerms:
+#            - matchExpressions:
+#              - key: kubernetes.io/arch
+#                operator: In
+#                values: [amd64]
+#
+# 2. PreSync migration Job pinned to amd64 (separate from the main pod
+#    template — chart may need migrationJob.nodeSelector or equivalent).
+#    PR #220 had to bump v1.83.14-stable → v1.83.14-stable.patch.1 because
+#    the upstream arm64 layer for v1.83.14-stable was broken, and the Job
+#    landed on raspi-1 by default. T2 flagged this in the rehearsal as
+#    optimization (avoid the 4-7 min cold-pull tax on raspi-1); PR #210
+#    promoted it to "would have prevented an entire class of failure mode."
+#
+# 3. qwen-vl-7b's q8_0 quantization is too heavy for the 16GB RTX 5070 Ti
+#    (returns 500 "model requires more system memory" on first request).
+#    Either switch to q4/q5 quantization or replace with a smaller
+#    multimodal model. Not a chart fix per se but a model_list adjustment
+#    that should land alongside any future bump that touches this section.
+#
+# Discovery context: the full PR-#210 cascade postmortem is in
+# blog/content/docs/building/19-progressive-delivery (Update sections) and
+# the multi-agent collaboration log at
+# docs/agentic-discussion/2026-05-04--litellm-canary-for-real/.
+# ─────────────────────────────────────────────────────────────────────────────
 
 image:
   repository: ghcr.io/berriai/litellm-database

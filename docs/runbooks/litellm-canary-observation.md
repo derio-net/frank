@@ -155,6 +155,15 @@ Expected progression (real capture from 2026-05-04 17:53):
 
 **Yes, the mid-state at SetWeight 50 has 6 pods**, not 5. Argo Rollouts' default `maxSurge: 25%` (= 2 with replicas=5) brings up the canary RS *before* scaling stable down. `ActualWeight: 50` is computed as `canary_count / total_count` (3/6 = 50%), not `canary_count / desired_replicas`. This is the property that makes the canary "no traffic loss" — every promote-step's first action is to bring up new pods. The 3rd `setWeight: 50` step only fully realizes as 3+2=5 *after* the operator promotes past this pause.
 
+**Anti-affinity termination pattern across scale-downs.** Documented across 5 scale-downs (PR 1.5/1.6/210, both 20% and 50% boundaries):
+
+- At the **20% scale-down** (5 → 4 stable), the controller terminates a stable pod *NOT* co-located with the canary (preserves spread across nodes).
+- At the **50% scale-down** (4 → 3 stable, mid-promote-to-50), the controller terminates a stable pod *that IS* co-located with the canary (resolves the spread waste that's relatively more expensive at this density).
+
+This isn't a quirky heuristic — it's the kube-scheduler's default anti-affinity scoring re-evaluating the optimal placement at each new total replica count. Same node hosts both a stable and a canary pod for the duration of the 20% pause; that co-tenant pod becomes the termination target at the next promote. Useful predictor when reading `kubectl get pods` mid-canary: **the stable pod sharing a node with the canary is the one that will get evicted next.**
+
+**Pod-survival pattern under repeated canary cycles.** A stable pod can survive multiple consecutive canary cycles if it's never the soft-anti-affinity violator at the moment of scale-down. T2 documented one pod (`8l4qg`) surviving ~12 hours and 5 pause boundaries across PRs 1.6, 1.6-revert, and 210 before finally being terminated at PR #210's 50% scale-down. Worth knowing if you're relying on pod ages as proxies for "freshly promoted state" — they may be older than the most recent canary.
+
 ### Terminal 3 — Synthetic traffic (optional in pause-only mode)
 
 The current pause-only canary doesn't run AnalysisRuns, so there's no NaN-abort risk to defend against. A traffic loop is **not required** to keep the rollout from failing. It IS still useful for:
@@ -163,9 +172,12 @@ The current pause-only canary doesn't run AnalysisRuns, so there's no NaN-abort 
 - Catching obvious regressions (5xx spikes, latency anomalies) the operator can eyeball
 - Confirming Service distribution is hitting both RSes (per-pod log inspection)
 
-If you want it, point at a model that's known-working — **not** `mistral-small`, which is currently broken upstream at OpenRouter:free. Use `qwen3.5` (local Ollama, no upstream dependency):
+If you want it, **probe a single local-Ollama alias whose rejection path on the canary RS is gateway-level (alias-absent in the new model_list), not Ollama-level.** Pick an alias that exists in the *current-stable* model_list and is *removed* in the *canary's* model_list — the stable RS resolves it (200 from VRAM-loaded model), the canary RS rejects it at LiteLLM before ever touching Ollama (4xx from the gateway). The 200/4xx ratio across the loop becomes a clean routing-split signal for free, no thrashing.
 
 ```bash
+# Substitute the alias for whichever one is being REMOVED in this canary's
+# model_list change. For PR #210 the right pick was qwen3.5; for future
+# bumps, look at the diff against current main's apps/litellm/values.yaml.
 while true; do
   curl -s -o /dev/null -w "%{http_code} " \
     -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
@@ -177,7 +189,11 @@ done
 # Ctrl-C when the rollout reaches 100% / Healthy.
 ```
 
-> **Single-model probing has a blind spot.** A traffic loop hitting only one alias can mask a per-route degradation in another. The 2026-05-04 rehearsal hit `mistral-small` first and discovered the OpenRouter `:free` upstream was 100% non-200 — easy to spot at 0/114 success, but if the loop had been on `qwen3.5` (all-200) and only `mistral-small` were broken, the canary's traffic snapshot would have been deceptively green. For higher-confidence rehearsals, rotate through several model classes (default chat, multimodal, coding) — see Path B spec.
+> **DO NOT alternate between two local-Ollama aliases.** This was Terminal #3's failed dual-probe in the PR #210 cascade. Ollama on gpu-1 runs with `OLLAMA_MAX_LOADED_MODELS=1` (16GB RTX 5070 Ti can only hold one model in VRAM at a time). Alternating between two local models forces VRAM swap on every alternation — ~10-30s per swap, well past curl's 8s default timeout — and **the probe becomes its own failure mode**. Multi-model rotation across local aliases is unsafe with `MAX_LOADED_MODELS=1`.
+
+> **Single-model + gateway-level rejection is the safe shape.** The 4xx-path on the canary RS doesn't touch the GPU at all; it's a pure ConfigMap/router decision. Zero VRAM pressure from canary-routed requests. The 200/4xx ratio IS the routing split, exactly. T3's PR #210 final tally on a single-model `qwen3.5` loop: 856 samples / 0 ERRs / clean 80-20 → 50-50 → 0-100 progression across the canary phases — a more reliable signal than any multi-model rotation can be.
+
+> **Multi-model rotation across CLOUD aliases is fine** — those don't share VRAM, they share OpenRouter quota. The hazard is rate-limiting (HTTP 429 once free-tier daily/hourly quota is hit), not VRAM swap. If you want broader bake-test coverage, rotate across cloud aliases instead. Trade-off: `:free` quotas are tight, so a 1 req/sec loop on multiple cloud aliases will exhaust quota in minutes.
 
 If you want to bake-test the canary in isolation (probe only canary pods, not the union), target via pod IP rather than the Service:
 
