@@ -429,8 +429,8 @@ verify:
 status: pending
 ```
 
-## Implementation Plan
+## Implementation Plans
 
-| Plan | File | Status | Depends on |
-|------|------|--------|------------|
-| Stoa Gitea-Primary Implementation Plan | `docs/superpowers/plans/2026-05-04--cicd--stoa-gitea-primary.md` | TBD | layer 19 (deployed) |
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Stoa Org Gitea-Primary Implementation Plan | derio-net/frank | `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary.md` | Not Started | layer 19 (deployed) |
