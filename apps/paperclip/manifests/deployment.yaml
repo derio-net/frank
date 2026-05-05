@@ -50,10 +50,22 @@ spec:
       containers:
         - name: paperclip
           # Upstream public image. Pinned by digest-equivalent sha tag.
-          # sha-3494e84 == git tag v2026.428.0 (released 2026-04-28).
+          # sha-9578dc3 is current main HEAD (also tagged `latest` at the
+          # time of pin, 2026-05-05) — ahead of v2026.428.0 because we
+          # need two parser fixes that landed after the last tagged
+          # release: #5143 (handle Gemini assistant message events in
+          # JSONL parser) and #5273 (handle Gemini CLI v0.38 stream-json
+          # wire format across parser, UI, and CLI formatter). Without
+          # these, the bundled v0.3.1 parser only knows the legacy
+          # `{type:"assistant"}` event shape and misses `hello` in the
+          # `{type:"message",role:"assistant"}` shape that gemini-cli
+          # 0.38+ emits — Test environment reports "did not return
+          # `hello`" even though gemini ran successfully.
           # Tag scheme is upstream's: only `latest` (master HEAD) and
           # `sha-<short>` are published — no semver-named image tags.
-          image: ghcr.io/paperclipai/paperclip:sha-3494e84
+          # Re-pin to a tagged release once one ships that includes
+          # both #5143 and #5273 (next release after v2026.428.0).
+          image: ghcr.io/paperclipai/paperclip:sha-9578dc3
           ports:
             - name: http
               containerPort: 3100
