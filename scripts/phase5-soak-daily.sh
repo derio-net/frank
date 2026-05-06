@@ -228,16 +228,34 @@ PY
   )
   log "Day $day row: $row"
 
-  # Apply to plan on the soak branch in the dedicated clone. If the soak
-  # branch doesn't exist on origin yet (first fire post-merge), branch off
-  # the latest base branch (main).
+  # Apply to plan on the soak branch in the dedicated clone.
+  #
+  # Branch-state decision: an open PR with `--head $SOAK_BRANCH` is the
+  # signal that previous fires' commits are still un-merged and we should
+  # append to that branch. Without an open PR we treat the branch as
+  # post-merge — its commits are already on main (possibly via squash, so
+  # SHAs differ but content is identical) — and we reset it to
+  # origin/main so today's commit lands on a clean base. Without this
+  # reset, a stale branch ref would replay already-merged rows on top of
+  # main and the next push would CONFLICT with itself.
   ensure_clone
   cd "$CLONE_DIR"
   git fetch --quiet --prune origin
-  if git ls-remote --heads origin "$SOAK_BRANCH" | grep -q "$SOAK_BRANCH"; then
+  local has_open_pr
+  has_open_pr=$(gh pr list --repo "$REPO_SLUG" --state open --head "$SOAK_BRANCH" \
+    --json number --jq '.[].number' 2>>"$LOG" | head -1)
+  local branch_on_origin
+  branch_on_origin=$(git ls-remote --heads origin "$SOAK_BRANCH" | head -1)
+
+  if [[ -n "$has_open_pr" && -n "$branch_on_origin" ]]; then
+    log "  open PR #${has_open_pr} for $SOAK_BRANCH — appending to existing branch"
     git checkout --quiet -B "$SOAK_BRANCH" "origin/$SOAK_BRANCH"
   else
-    log "  $SOAK_BRANCH not on origin — branching from origin/$BASE_BRANCH"
+    if [[ -n "$branch_on_origin" && -z "$has_open_pr" ]]; then
+      log "  $SOAK_BRANCH on origin but no open PR — assuming post-merge; resetting to origin/$BASE_BRANCH"
+    else
+      log "  $SOAK_BRANCH not on origin — branching from origin/$BASE_BRANCH"
+    fi
     git checkout --quiet -B "$SOAK_BRANCH" "origin/$BASE_BRANCH"
   fi
 
@@ -283,7 +301,12 @@ PY
     git -c user.name="Clawdia" -c user.email="clawdia-ai-assistant@gmail.com" \
       commit --quiet -m "agents: Phase 5 soak Day $day (gh#156)" \
       -m "p99 working-set, queue peak, restart count for ${today}. Auto-filled by phase5-soak-daily.sh." >> "$LOG" 2>&1
-    git push --quiet --set-upstream origin "$SOAK_BRANCH" >> "$LOG" 2>&1
+    # --force-with-lease is needed for the post-merge case: when we reset
+    # the local branch to origin/main, the local history diverges from the
+    # stale origin ref. The lease check refuses to overwrite if origin has
+    # advanced since our fetch, so this is still safe under concurrent
+    # work (which we don't expect, but cheap insurance).
+    git push --quiet --force-with-lease --set-upstream origin "$SOAK_BRANCH" >> "$LOG" 2>&1
     log "  Day $day pushed to $SOAK_BRANCH"
   fi
 
