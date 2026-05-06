@@ -283,7 +283,7 @@ Replace the stub `skills/bootstrap-blog/SKILL.md` with the real wizard. Test-fir
 
 ### Task 1: Define the smoke test contract
 
-- [ ] **Step 1: Write `tests/smoke-bootstrap.sh`.**
+- [x] **Step 1: Write `tests/smoke-bootstrap.sh`.** *(also extracted `tools/bootstrap-render.sh` so the SKILL.md stays prose-focused; smoke test drives the helper end-to-end. Extended `tools/render-template/main.go` with `--check` and `--get-bool` modes to validate YAML without a Python-yaml dep — system python3 lacks PyYAML.)*
   Drives the skill end-to-end against `/tmp/test-bootstrap-<ts>/` using a canned answer set (the same `answers-frank-like.yaml`). Asserts:
   - `.blog-craft.yaml` exists and parses
   - Every file in the Phase 2 fixture exists in the bootstrapped output
@@ -294,7 +294,7 @@ Replace the stub `skills/bootstrap-blog/SKILL.md` with the real wizard. Test-fir
 
 ### Task 2: Write the SKILL.md
 
-- [ ] **Step 2: SKILL.md frontmatter.**
+- [x] **Step 2: SKILL.md frontmatter.**
   ```yaml
   ---
   name: bootstrap-blog
@@ -311,10 +311,10 @@ Replace the stub `skills/bootstrap-blog/SKILL.md` with the real wizard. Test-fir
   ---
   ```
 
-- [ ] **Step 3: Body — Steps 0 through 6 (data collection).**
+- [x] **Step 3: Body — Steps 0 through 6 (data collection).**
   Write the wizard steps verbatim from the spec's "Wizard Flow: bootstrap-blog" section. Each step is a numbered Markdown subsection. Include exact prompts to show the user, expected reply shape, and validation rules. For Step 3 (series), include the three preset menu and the custom-loop prose with the "tracks" explanation from the spec.
 
-- [ ] **Step 4: Body — Step 7 (render).**
+- [x] **Step 4: Body — Step 7 (render).**
   Document: walk every `*.tmpl` under `<plugin_root>/templates/hugo-hextra/`, render with Go `text/template` using collected answers, write to `<target_dir>` (strip `.tmpl`). Plain files copy verbatim. Compute `project.module_path` from `base_url` (parse host + path, strip trailing slash, e.g. `https://my.com/blog/` → `my.com/blog`). Invoke the renderer:
   ```bash
   go run <plugin_root>/tools/render-template/main.go \
@@ -324,12 +324,12 @@ Replace the stub `skills/bootstrap-blog/SKILL.md` with the real wizard. Test-fir
   ```
   (Renderer was created in Phase 2 Step 14; doubles as runtime.)
 
-- [ ] **Step 5: Body — Steps 8–9 (initial image + verify).**
+- [x] **Step 5: Body — Steps 8–9 (initial image + verify).** *(Step 8 tightened during self-review — replaced shell pseudocode with real instructions, deferred prompt composition to the same base_style+persona+constants+brief+guidance pattern blog-post uses, added explicit user-approval gate.)*
   Document: copy reference image if supplied, run `python <target_dir>/scripts/generate-images.py --only overview-<series-key>` for the first series if `features.series_overview_posts` is true and a reference exists, then port-pick + Hugo smoke test (use `python -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1])"` for the free port).
 
 ### Task 3: Run the smoke test
 
-- [ ] **Step 6: Drive the skill against the smoke fixture.**
+- [x] **Step 6: Drive the skill against the smoke fixture.** *(5/5 assertions pass — file existence, YAML parse, hugo 200 on /test/, re-run refusal.)*
   ```bash
   cd ~/Docs/projects/DERIO_NET/blog-craft
   TS=$(date +%s)
@@ -337,7 +337,7 @@ Replace the stub `skills/bootstrap-blog/SKILL.md` with the real wizard. Test-fir
   ```
   **Expected output:** the script prints `PASS` for each assertion and `ALL OK` at the end. On failure, the script prints which assertion failed and leaves the bootstrapped dir in place for inspection.
 
-- [ ] **Step 7: Commit Phase 3.**
+- [x] **Step 7: Commit Phase 3.** *(committed `0dfa3f8` and self-review fix `991a4c4`; 5 files total; not pushed yet.)*
   ```bash
   git add skills/bootstrap-blog/SKILL.md tests/smoke-bootstrap.sh
   git commit -m "feat(bootstrap-blog): wizard-driven blog scaffolder"
@@ -353,7 +353,7 @@ Port Frank's `blog-post` skill, generalize against `.blog-craft.yaml`. Phase 3's
 
 ### Task 1: Define the smoke test contract
 
-- [ ] **Step 1: Write `tests/smoke-blog-post.sh`.**
+- [x] **Step 1: Write `tests/smoke-blog-post.sh`.** *(uses a cached venv at `/tmp/blog-craft-test-venv` for PyYAML — system python3 lacks it; `BLOG_CRAFT_TEST_MODE=1` writes a 1px PNG via hardcoded bytes in generate-images.py, so Pillow isn't a test dep.)*
   Preconditions: a bootstrapped blog at `/tmp/test-bootstrap-fixture/` (the script invokes `tests/smoke-bootstrap.sh` if missing). Drives the skill with: `series=tutorials`, `number=01`, `slug=hello-world`, `title="Hello World"`, brief="A test image". Mocks the Gemini call (`BLOG_CRAFT_TEST_MODE=1` switch in `scripts/generate-images.py` writes a 1px PNG instead of calling the API). Asserts:
   - `content/docs/tutorials/01-hello-world/index.md` exists with correct frontmatter
   - `prompt_for_images.yaml` has a new entry with `key: tutorials-01`
@@ -362,7 +362,7 @@ Port Frank's `blog-post` skill, generalize against `.blog-craft.yaml`. Phase 3's
 
 ### Task 2: Write the SKILL.md
 
-- [ ] **Step 2: SKILL.md frontmatter.**
+- [x] **Step 2: SKILL.md frontmatter.**
   ```yaml
   ---
   name: blog-post
@@ -385,31 +385,31 @@ Port Frank's `blog-post` skill, generalize against `.blog-craft.yaml`. Phase 3's
   ---
   ```
 
-- [ ] **Step 3: Body — config discovery + validation.**
+- [x] **Step 3: Body — config discovery + validation.**
   Section 1: walk up from CWD looking for `.blog-craft.yaml`. If missing, refuse with: `Not in a blog-craft blog. Run /bootstrap-blog or cd to a blog-craft repo.` Section 2: parse YAML, validate `series` arg is in `series[].key`; if not, list valid keys.
 
-- [ ] **Step 4: Body — page bundle creation.**
+- [x] **Step 4: Body — page bundle creation.** *(extracted to `tools/blog-post-create.sh`; helper does page bundle + prompts entry + image-gen + overview update — SKILL.md stays prose-focused for the conversational layer.)*
   Use the spec's frontmatter shape. Compute `weight = number + 1`. Document the file path: `content/docs/<series>/<NN>-<slug>/index.md`. The body of `index.md` starts with a `<!-- Add content here. Use <!-- MEDIA: ... --> placeholders for screenshots/recordings. -->` comment so authors know the contract.
 
-- [ ] **Step 5: Body — image prompt composition.**
+- [x] **Step 5: Body — image prompt composition.**
   Document the concatenation order verbatim from the spec (base_style + persona + visual_constants + brief + reference_guidance). Show the full composed prompt to the user; require explicit approval before appending to `prompt_for_images.yaml` and running image-gen. On regen request: edit the YAML entry, re-run, repeat.
 
-- [ ] **Step 6: Body — series overview update.**
+- [x] **Step 6: Body — series overview update.** *(idempotent via `tools/insert-before-marker.py` + auto-managed markers in the overview template; insertion order is `<post-number>. [<title>](relref)` under `## Series Index`, then `| <number> | <title> | (TODO) |` under `## Topic / Evolution Map`.)*
   If `features.series_overview_posts` is true, edit `content/docs/<series>/00-overview/index.md`: append a line under `## Series Index` (look for the heading; if missing, create it) of the form `1. [<title>]({{< relref "<NN>-<slug>" >}})`. Append a row under `## Topic / Evolution Map` (create heading if missing) with `| <NN> | <title> | <one-line, prompt user> |`.
 
-- [ ] **Step 7: Body — smoke check.**
+- [x] **Step 7: Body — smoke check.** *(now Step 9 in the SKILL.md — split prior Step 6 into Step 6 (api-key check) + Step 7 (helper run) during self-review, renumbered downstream. Prints preview command, no auto-launch.)*
   Print: `Draft created. Preview with: cd <blog_root> && hugo server --buildDrafts`. Don't auto-launch.
 
 ### Task 3: Run the smoke test
 
-- [ ] **Step 8: Drive the skill against the bootstrapped fixture.**
+- [x] **Step 8: Drive the skill against the bootstrapped fixture.** *(10/10 assertions pass — page bundle, frontmatter title/weight/draft, prompts entry key+body, cover PNG validity, overview index + map updates.)*
   ```bash
   cd ~/Docs/projects/DERIO_NET/blog-craft
   BLOG_CRAFT_TEST_MODE=1 bash tests/smoke-blog-post.sh
   ```
   **Expected:** `PASS` for each assertion and `ALL OK`.
 
-- [ ] **Step 9: Commit Phase 4.**
+- [x] **Step 9: Commit Phase 4.** *(commits `7c041e1` + self-review `eececad`; 7 files total.)*
   ```bash
   git add skills/blog-post/SKILL.md tests/smoke-blog-post.sh
   git commit -m "feat(blog-post): per-post creator with metaphor-driven covers"
@@ -425,7 +425,7 @@ Port Frank's `media` skill verbatim except for the two changes documented in the
 
 ### Task 1: Define the smoke test contract
 
-- [ ] **Step 1: Write `tests/smoke-media.sh`.**
+- [x] **Step 1: Write `tests/smoke-media.sh`.** *(also tests the missing-asset-skip branch and idempotency on re-run; rendered-HTML path correction (`public/docs/...`, no base-path prefix) caught after first run.)*
   Preconditions: bootstrapped blog at `/tmp/test-bootstrap-fixture/` with at least one post containing:
   ```markdown
   <!-- MEDIA: screenshot | A grafana dashboard | Visit https://example.com and screenshot -->
@@ -439,7 +439,7 @@ Port Frank's `media` skill verbatim except for the two changes documented in the
 
 ### Task 2: Write the SKILL.md
 
-- [ ] **Step 2: SKILL.md frontmatter.**
+- [x] **Step 2: SKILL.md frontmatter.**
   ```yaml
   ---
   name: media
@@ -453,28 +453,28 @@ Port Frank's `media` skill verbatim except for the two changes documented in the
   ---
   ```
 
-- [ ] **Step 3: Body — port Frank's workflow.**
+- [x] **Step 3: Body — port Frank's workflow.** *(extracted the textual replacement to `tools/media-fill.py` (~75 lines, pure stdlib). SKILL.md keeps the conversational/capture/optimize layers; helper does the line-pair rewrite. Drops Frank's `source .env` / `source .env_hop` branching per spec.)*
   Copy verbatim from `~/Docs/projects/DERIO_NET/frank/.claude/skills/media/SKILL.md` Steps 1–6 ("Identify Target Post" through "Verify"), with these substitutions:
   - All `blog/content/` → walk up from CWD to find `.blog-craft.yaml`, then `<blog_root>/content/`
   - Drop the entire "Frank cluster: `source .env` / Hop cluster: `source .env_hop`" block under Step 3 ("CLI Animations / Agent-Executed Mode"). Replace with: "Ensure your shell has the env vars your recorded commands depend on. The skill does not source any env files for you."
   - All references to `frank-` paths → relative paths from `<blog_root>`
 
-- [ ] **Step 4: Body — Standards section.**
+- [x] **Step 4: Body — Standards section.** *(self-review fix: corrected the captions-required claim — helper only requires `src=`, caption is recommended but not enforced.)*
   Port verbatim, no changes (file size limits, kebab-case, dark-mode preference, etc. are blog-agnostic).
 
-- [ ] **Step 5: Body — Reference section.**
+- [x] **Step 5: Body — Reference section.** *(paths anchored to `<blog_root>/...`, not Frank's `blog/...`.)*
   Replace Frank-specific paths with template-relative ones: `<blog_root>/MEDIA-GUIDE.md`, `<blog_root>/layouts/shortcodes/screenshot.html`, etc.
 
 ### Task 3: Run the smoke test
 
-- [ ] **Step 6: Drive the skill against the bootstrapped fixture.**
+- [x] **Step 6: Drive the skill against the bootstrapped fixture.** *(7/7 assertions pass — present-asset filled correctly, missing-asset preserved, hugo build succeeds, rendered HTML contains `<figure class="screenshot">`, second run is no-op.)*
   ```bash
   cd ~/Docs/projects/DERIO_NET/blog-craft
   bash tests/smoke-media.sh
   ```
   **Expected:** `PASS` for each assertion and `ALL OK`.
 
-- [ ] **Step 7: Commit Phase 5.**
+- [x] **Step 7: Commit Phase 5.** *(commits `021fbb9` (helper + smoke), `e53c551` (belated SKILL.md — Write tool needed prior Read), `cda3035` (self-review caption fix); 4 files total.)*
   ```bash
   git add skills/media/SKILL.md tests/smoke-media.sh
   git commit -m "feat(media): generalized port of Frank's media skill"
