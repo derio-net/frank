@@ -22,10 +22,11 @@ extraEnv:
 
 persistentVolume:
   enabled: true
-  # 200Gi — sized for the 5-model lineup (~55GB at rest) plus headroom for
-  # experimentation. The 5070 Ti has 16GB VRAM; only one model loads at a
-  # time per OLLAMA_MAX_LOADED_MODELS=1, so disk is the only soft limit on
-  # how many models can cohabit.
+  # 200Gi — sized for the 6-model lineup (~79GB at rest, qwen3.6:35b-a3b
+  # added 2026-05-06 brought it from ~55GB) plus headroom for experimentation.
+  # The 5070 Ti has 16GB VRAM; only one model loads at a time per
+  # OLLAMA_MAX_LOADED_MODELS=1, so disk is the only soft limit on how many
+  # models can cohabit.
   size: 200Gi
   storageClass: longhorn
   accessModes:

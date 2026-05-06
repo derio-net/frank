@@ -68,11 +68,14 @@ envVars:
 
 # LiteLLM proxy configuration (rendered as config.yaml)
 #
-# Lineup refresh — 2026-05-03
+# Lineup refresh — 2026-05-03 (qwen3.6:35b-a3b added 2026-05-06)
 # Sized for gpu-1's RTX 5070 Ti (16GB GDDR7). With OLLAMA_MAX_LOADED_MODELS=1,
-# each loaded model can use up to ~14GB after KV cache + multimodal overhead.
-# Local covers default + multimodal + coding + reasoning; cloud covers
-# frontier-scale, video, and 200B+-class reasoning.
+# only one model loads at a time. Most entries are dense and fully resident
+# in VRAM (≤14GB after KV cache + multimodal overhead); qwen36-a3b is the
+# exception — MoE 35B-A3B that relies on partial CPU offload of inactive
+# experts to gpu-1's 128GB host RAM. Local covers default + multimodal +
+# coding + reasoning + MoE-flagship; cloud covers frontier-scale, video,
+# and 200B+-class reasoning.
 proxy_config:
   model_list:
     # ──────────────────────────────────────────────
@@ -122,6 +125,31 @@ proxy_config:
     - model_name: qwen-think-14b
       litellm_params:
         model: ollama/qwen3:14b
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+
+    # Qwen3.6 35B-A3B — MoE reasoning/general flagship, 256K context
+    # 35B total / 3B active params per token. Q4_K_M ≈ 24GB on disk —
+    # does NOT fit fully in 16GB VRAM. Ollama partially offloads
+    # inactive experts to host RAM (gpu-1 has 128GB). The only local
+    # model in the lineup that relies on partial offload; the dense
+    # 14B/24B siblings remain fully resident.
+    # Measured 2026-05-06 with num_ctx=4096: 41% CPU / 59% GPU split
+    # (~15.3GB host RAM + ~10.7GB VRAM, 95% of the 16GB card),
+    # ~20 tok/s generation, ~126 tok/s prefill. MoE routing keeps
+    # throughput usable since only ~3B active weights are hot per
+    # token — a dense 35B at the same split would be ~5x slower.
+    # Cap num_ctx well below 256K — KV cache at full context would
+    # dwarf the model itself. 8K-16K is the practical ceiling on a
+    # 16GB card; higher contexts force more weights to CPU and the
+    # generation rate drops sharply.
+    # Thinking mode is ON by default (Qwen3.6 family characteristic).
+    # Callers who want terse output should pass "think": false in the
+    # API request body, or include "/no_think" in the prompt — without
+    # this, even trivial questions trigger ~hundreds of reasoning
+    # tokens before the answer.
+    - model_name: qwen36-a3b
+      litellm_params:
+        model: ollama/qwen3.6:35b-a3b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
     # ──────────────────────────────────────────────
