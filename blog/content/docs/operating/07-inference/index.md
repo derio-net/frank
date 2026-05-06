@@ -132,20 +132,30 @@ kubectl describe node gpu-1 | grep -A 5 "nvidia.com/gpu"
 kubectl logs -n ollama deploy/ollama --tail=100
 ```
 
-### Out of Memory on GPU
+### Out of Memory: which kind?
 
-If a model is too large for the 16 GB VRAM (e.g., trying to run a 14B at Q8 alongside a vision tower):
+Ollama emits **two error patterns** that both look like "out of memory" but have different root causes. Mis-identify which one you're hitting and you'll waste a lot of time trying smaller quants when the issue is something else entirely.
+
+**Pattern A — VRAM exhaustion** (real GPU OOM): the model genuinely doesn't fit in the 16 GB on the RTX 5070 Ti, or you're trying to load two models at once. Diagnose with:
 
 ```bash
-# Check current memory usage
-kubectl exec -n ollama deploy/ollama -- nvidia-smi
+kubectl exec -n ollama deploy/ollama -- nvidia-smi --query-gpu=memory.used,memory.free --format=csv
+```
 
-# Unload current model
+If `memory.free` is < 1 GB, you have a real VRAM problem. Fix: stop the current model and pull a smaller quant.
+
+```bash
 kubectl exec -n ollama deploy/ollama -- ollama stop mistral-small3.2:24b
-
-# Drop to a lower quantization
 kubectl exec -n ollama deploy/ollama -- ollama pull qwen2.5-coder:14b-instruct-q4_K_M
 ```
+
+**Pattern B — container cgroup RAM exhaustion** (the misleading one): the error message reads `model requires more system memory (X GiB) than is available (Y MiB)`. "System memory" here means **container RAM**, not VRAM — and `nvidia-smi` will show plenty of VRAM free. With `OLLAMA_KEEP_ALIVE=24h`, page cache from previously-loaded model files pins the container near its `resources.limits.memory` ceiling, leaving no room for new-model load buffers. Diagnose with:
+
+```bash
+kubectl exec -n ollama deploy/ollama -- sh -c 'cat /sys/fs/cgroup/memory.current; echo; cat /sys/fs/cgroup/memory.max'
+```
+
+If `memory.current` is within ~1–2 GiB of `memory.max`, that's the constraint. Fix: bump `resources.limits.memory` in `apps/ollama/values.yaml`. Reducing `num_ctx` via a derived Modelfile will **not** help here — the bottleneck is at-load buffers, not the KV cache, so the error is identical at 32K and 8K context.
 
 ### Reconciling LiteLLM Aliases vs. Ollama Tags
 
