@@ -454,7 +454,7 @@ Daily readings — `restartCount`, p99 working-set RSS over the prior 24 h, and 
 | 2 | 2026-05-04 | 0 | 0 | 2.95 GiB | 3 | pod=secure-agent-pod-c976f9946-rqdqc |
 | 3 | 2026-05-05 | 0 | 0 | 0.74 GiB | 0 | pod=secure-agent-pod-c976f9946-rqdqc |
 | 4 | 2026-05-06 | 0 | 0 | 0.97 GiB | 0 | pod=secure-agent-pod-c976f9946-rqdqc |
-| 5 | 2026-05-07 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+| 5 | 2026-05-07 | 0 | 0 | 1.05 GiB | 0 | pod=secure-agent-pod-5c46cb8f7b-9765c |
 | 6 | 2026-05-08 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
 | 7 | 2026-05-09 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
 | 8 | 2026-05-10 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
