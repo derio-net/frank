@@ -31,7 +31,7 @@ GitHub ──pull mirror──> Gitea (192.168.55.209)
                     Tekton Dashboard (192.168.55.217)
 ```
 
-Every component runs on pc-1 — the legacy desktop with 64GB RAM that previously sat idle in the Edge zone. A dedicated `longhorn-cicd` StorageClass pins PVCs to that node with single-replica storage. Not HA, but CI/CD pipelines are ephemeral — if pc-1 goes down, builds queue until it comes back.
+Every component runs on pc-1 — the legacy desktop with 32GB RAM that previously sat idle in the Edge zone. A dedicated `longhorn-cicd` StorageClass pins PVCs to that node with single-replica storage. Not HA, but CI/CD pipelines are ephemeral — if pc-1 goes down, builds queue until it comes back.
 
 ## Prerequisites
 
