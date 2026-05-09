@@ -1,7 +1,7 @@
 # Stoa Org Gitea-Primary Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-05-04--cicd--stoa-gitea-primary-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **Type:** Fix/extension of the `cicd` layer (extends `2026-03-29--cicd--platform`). Per `repo-workflows.md`: same layer code, no new blog posts (update layer-19 posts only if a meaningfully new operational pattern emerges).
 
@@ -23,7 +23,7 @@ Operator-driven setup. All steps interact with external systems (GitHub, Gitea U
 
 The Phase 3 migration starts with `git clone --mirror` from existing GitHub repos. Anything not on GitHub at that moment is lost.
 
-- [ ] **Step 1: Inspect each local clone for uncommitted work**
+- [x] **Step 1: Inspect each local clone for uncommitted work**
 
 ```bash
 for d in ~/repos/hum ~/repos/content-factory; do
@@ -34,7 +34,7 @@ done
 
   Resolve any uncommitted state: stage + commit, or stash + commit on a WIP branch — operator's call.
 
-- [ ] **Step 2: Push every local branch to GitHub**
+- [x] **Step 2: Push every local branch to GitHub**
 
 ```bash
 for d in ~/repos/hum ~/repos/content-factory; do
@@ -46,7 +46,7 @@ done
 
   Expected: every `vk/*`, `claude/*`, and feature branch lands on GitHub. The mirror clone in Phase 3 will pick them all up.
 
-- [ ] **Step 3: Verify GitHub has every local ref**
+- [x] **Step 3: Verify GitHub has every local ref**
 
 ```bash
 for d in ~/repos/hum ~/repos/content-factory; do
@@ -76,9 +76,9 @@ verify:
 status: pending
 ```
 
-- [ ] **Step 1: Create the org via Gitea UI** (per manual-op block above)
+- [x] **Step 1: Create the org via Gitea UI** (per manual-op block above)
 
-- [ ] **Step 2: Create stoa-bot user**
+- [x] **Step 2: Create stoa-bot user**
 
 ```yaml
 # manual-operation
@@ -92,10 +92,12 @@ commands:
   - "Gitea UI → Site Administration → User Accounts → Create (username: stoa-bot, email: stoa@frank.local)"
   - "Add stoa-bot to agentic-stoa org → Teams → Owners (or a custom Write team)"
   - "Sign in as stoa-bot → Settings → Applications → Generate Token (name: paperclip-agent, scopes: write:repository, write:issue, read:organization, no expiry)"
-  - "Store token value in Infisical as STOA_GITEA_TOKEN"
+  - "In Infisical, create folder /agentic-stoa under the prod env if it does not exist (UI: Secrets → Add Folder), then store the token there as STOA_GITEA_TOKEN. All future stoa-org secrets live under this folder, separate from frank infra secrets at /."
 verify:
-  - "curl -H 'Authorization: token $STOA_GITEA_TOKEN' http://192.168.55.209:3000/api/v1/user | jq .login — returns stoa-bot"
-  - "curl -H 'Authorization: token $STOA_GITEA_TOKEN' http://192.168.55.209:3000/api/v1/user/orgs | jq -r '.[].username' — includes agentic-stoa"
+  - "Infisical UI: /agentic-stoa/STOA_GITEA_TOKEN exists with non-empty value"
+  - "curl -s -o /dev/null -w '%{http_code}\\n' -H 'Authorization: token $STOA_GITEA_TOKEN' http://192.168.55.209:3000/api/v1/orgs/agentic-stoa/members/stoa-bot — returns 204 (stoa-bot is a member of agentic-stoa). 404 means not a member; any 4xx other than 404 means scope mismatch on the token."
+  - "curl -H 'Authorization: token $STOA_GITEA_TOKEN' http://192.168.55.209:3000/api/v1/orgs/agentic-stoa/teams | jq -r '.[].name' — lists the org's teams (Owners, plus any custom). Confirms read:organization scope works."
+  - "Note: /api/v1/user and /api/v1/user/orgs require read:user scope, which is intentionally NOT in the requested token scopes. Use the org-membership probe above for self-membership checks instead."
 status: pending
 ```
 
@@ -115,17 +117,17 @@ commands:
   - "Resource owner: agentic-stoa; Repository access: Only select repositories → hum, content-factory (update when adding repos later)"
   - "Repository permissions: Contents → Read and write; Metadata → Read"
   - "Expiration: 1 year (max). Set a calendar reminder 2 weeks before expiry."
-  - "Store token value in Infisical as STOA_GITHUB_MIRROR_TOKEN"
+  - "Store token value in Infisical under /agentic-stoa as STOA_GITHUB_MIRROR_TOKEN (same folder as STOA_GITEA_TOKEN; create the folder via Secrets → Add Folder if it does not yet exist)."
 verify:
-  - "Infisical → STOA_GITHUB_MIRROR_TOKEN exists and not expired"
+  - "Infisical → /agentic-stoa/STOA_GITHUB_MIRROR_TOKEN exists and not expired"
   - "curl -H 'Authorization: token $STOA_GITHUB_MIRROR_TOKEN' https://api.github.com/repos/agentic-stoa/hum | jq -r .full_name — returns agentic-stoa/hum"
   - "curl -H 'Authorization: token $STOA_GITHUB_MIRROR_TOKEN' https://api.github.com/repos/agentic-stoa/content-factory | jq -r .full_name — returns agentic-stoa/content-factory"
 status: pending
 ```
 
-- [ ] **Step 1: Generate the PAT in GitHub UI** (per manual-op block)
+- [x] **Step 1: Generate the PAT in GitHub UI** (per manual-op block)
 
-- [ ] **Step 2: Verify PAT works**
+- [x] **Step 2: Verify PAT works**
 
 ```bash
 gh api -H "Authorization: token <PASTE_PAT>" repos/agentic-stoa/hum --jq .full_name
@@ -136,11 +138,11 @@ gh api -H "Authorization: token <PASTE_PAT>" repos/agentic-stoa/content-factory 
 
 ### Task 4: Verify all secrets are accessible
 
-- [ ] **Step 1: Confirm Infisical has both new keys**
+- [x] **Step 1: Confirm Infisical has both new keys under /agentic-stoa**
 
-  In the Infisical UI (or via CLI), confirm `STOA_GITEA_TOKEN` and `STOA_GITHUB_MIRROR_TOKEN` are present in the prod environment with non-empty values.
+  In the Infisical UI (or via CLI), confirm `/agentic-stoa/STOA_GITEA_TOKEN` and `/agentic-stoa/STOA_GITHUB_MIRROR_TOKEN` are present in the prod environment with non-empty values. Both must live in the `/agentic-stoa` folder, not at `/` — frank infra secrets stay at `/`, stoa-org secrets stay scoped to their folder.
 
-- [ ] **Step 2: Confirm existing layer-19 secrets still healthy**
+- [x] **Step 2: Confirm existing layer-19 secrets still healthy**
 
 ```bash
 kubectl --context frank get externalsecret -n tekton-pipelines
@@ -186,7 +188,12 @@ spec:
   data:
     - secretKey: token
       remoteRef:
-        key: STOA_GITHUB_MIRROR_TOKEN
+        # Absolute path required: the `infisical` ClusterSecretStore is scoped to
+        # secretsPath: / (frank infra secrets). Stoa-org secrets live under
+        # /agentic-stoa to keep them separated from cluster infra. Per ESO's
+        # Infisical provider, any key outside the store's secretsPath must be
+        # referenced by absolute path.
+        key: /agentic-stoa/STOA_GITHUB_MIRROR_TOKEN
 ```
 
 ### Task 2: github-backup-sync Pipeline manifest

@@ -151,14 +151,16 @@ apps/tekton/pipelines/
 
 ## Secrets
 
-| Secret | Source | Type | Used by | When created |
-|---|---|---|---|---|
-| `STOA_GITHUB_MIRROR_TOKEN` | Infisical | GitHub fine-grained PAT (Contents R/W on `agentic-stoa/*`) | Tekton `github-backup-sync` pipeline | Before steady-state cutover |
-| `STOA_GITEA_TOKEN` | Infisical | Gitea API token (`stoa-bot`, write scope on `agentic-stoa`) | Paperclip agents (clone, push, PR ops) | After `stoa-bot` user created in Gitea |
-| `GITEA_API_TOKEN` | Infisical (existing) | Gitea API token (`tekton-bot`, write scope) | Tekton `gitea-status` task | Already exists; org membership extended |
-| `GITEA_WEBHOOK_SECRET` | Infisical (existing) | Random string | EventListener CEL interceptor + Gitea webhook | Already exists; reused |
+All stoa-org secrets live under the `/agentic-stoa` folder in Infisical (prod env), separated from frank infra secrets which stay at `/`. The shared `infisical` ClusterSecretStore is scoped to `secretsPath: /`, so each `agentic-stoa/*` ExternalSecret references its key by absolute path (`/agentic-stoa/STOA_*`); ESO's Infisical provider supports cross-path lookups when the `key` is an absolute path. Future stoa secrets follow the same convention — never put stoa-scoped material at the root.
 
-Both new entries get ExternalSecret CRs:
+| Secret | Source (Infisical path) | Type | Used by | When created |
+|---|---|---|---|---|
+| `STOA_GITHUB_MIRROR_TOKEN` | Infisical `/agentic-stoa/` | GitHub fine-grained PAT (Contents R/W on `agentic-stoa/*`) | Tekton `github-backup-sync` pipeline | Before steady-state cutover |
+| `STOA_GITEA_TOKEN` | Infisical `/agentic-stoa/` | Gitea API token (`stoa-bot`, write scope on `agentic-stoa`) | Paperclip agents (clone, push, PR ops) | After `stoa-bot` user created in Gitea |
+| `GITEA_API_TOKEN` | Infisical `/` (existing) | Gitea API token (`tekton-bot`, write scope) | Tekton `gitea-status` task | Already exists; org membership extended |
+| `GITEA_WEBHOOK_SECRET` | Infisical `/` (existing) | Random string | EventListener CEL interceptor + Gitea webhook | Already exists; reused |
+
+Both new entries get ExternalSecret CRs (with `remoteRef.key` set to the absolute path, e.g. `/agentic-stoa/STOA_GITHUB_MIRROR_TOKEN`):
 - `STOA_GITEA_TOKEN` projected into the Paperclip namespace where agent pods consume it
 - `STOA_GITHUB_MIRROR_TOKEN` projected into `tekton-pipelines` namespace as Secret `stoa-github-mirror`, mounted into the `github-backup-sync` pipeline as a `secretEnv`. Single source of truth, no UI paste.
 
@@ -169,12 +171,12 @@ Both new entries get ExternalSecret CRs:
 1. **Gitea org + bot setup (one-time, both repos share):**
    - Create `agentic-stoa` org in Gitea (UI)
    - Create `stoa-bot` user in Gitea, add to org with Write team membership (UI)
-   - Generate API token for `stoa-bot`, store in Infisical as `STOA_GITEA_TOKEN`
+   - Generate API token for `stoa-bot`, store in Infisical under `/agentic-stoa/` as `STOA_GITEA_TOKEN` (create the folder via Secrets → Add Folder if absent)
    - Verify `tekton-bot` has org membership with status-write permission
 
 2. **GitHub PAT (one-time):**
    - Create fine-grained PAT in GitHub UI (`agentic-stoa` org, both repos selected, `Contents: R/W`)
-   - Store in Infisical as `STOA_GITHUB_MIRROR_TOKEN`
+   - Store in Infisical under `/agentic-stoa/` as `STOA_GITHUB_MIRROR_TOKEN`
 
 3. **Shared Tekton infrastructure (one-time):**
    - Drop `github-backup-sync.yaml` (Pipeline + org-scoped Trigger filtered on `agentic-stoa/*` + main/tags) at `apps/tekton/pipelines/`
@@ -258,7 +260,7 @@ This is documented as a `# manual-operation` block so it lives in `docs/runbooks
 - If R2 restore is too slow and you need to keep working: clone from GitHub, set Gitea aside, work on a temporary GitHub remote, then reconcile after Gitea is back. Document explicitly so the operator doesn't accidentally enshrine GitHub as primary mid-outage.
 
 **Push-mirror token compromised:**
-- Rotate `STOA_GITHUB_MIRROR_TOKEN` in Infisical, update each repo's push-mirror config in Gitea UI.
+- Rotate `/agentic-stoa/STOA_GITHUB_MIRROR_TOKEN` in Infisical, update each repo's push-mirror config in Gitea UI.
 - GitHub-side: revoke the old PAT in GitHub.
 - No data loss — the mirror is one-way.
 
@@ -271,7 +273,7 @@ This is documented as a `# manual-operation` block so it lives in `docs/runbooks
 - **Image build + Zot push** — when a repo first ships a container, extend its CI pipeline with `build-push` (existing layer-19 task) and image signing.
 - **Pipeline deploy stages** — `content-factory` runs `n8n-deploy.sh` manually today; could become a Tekton stage gated on merge to `main`. Same for `hum` Supabase migrations.
 - **Auto-merge on green CI** — Gitea supports per-PR auto-merge; revisit as a default policy once the agentic loop has a track record. Role-level "agent X can auto-merge on these paths" needs Gitea's CODEOWNERS-style permissions and stays out of scope for now.
-- **GitHub PAT auto-rotation** — fine-grained PATs cap at 1 year. Build a Tekton CronJob that uses GitHub's PAT-rotate API (or a small operator) to mint a new PAT before expiry and write it to Infisical. Until then, calendar-driven manual rotation; document the renewal SOP in `docs/runbooks/manual-operations.yaml`.
+- **GitHub PAT auto-rotation** — fine-grained PATs cap at 1 year. Build a Tekton CronJob that uses GitHub's PAT-rotate API (or a small operator) to mint a new PAT before expiry and write it to `/agentic-stoa/STOA_GITHUB_MIRROR_TOKEN` in Infisical. Until then, calendar-driven manual rotation; document the renewal SOP in `docs/runbooks/manual-operations.yaml`.
 - **Switch to SSH-based backup push when Gitea supports it** — Forgejo/Gitea both have open feature requests for SSH-key push-mirror auth. Adopting that would eliminate the PAT-rotation problem entirely. Watch [go-gitea/gitea#18159](https://github.com/go-gitea/gitea/issues/18159). Until then, the Tekton-pipeline approach in this spec is the canonical mechanism.
 - **Future-public inversion** — when a repo goes public, flip direction: disable the backup pipeline, set up GitHub Actions, configure Gitea pull-mirror from GitHub (matching the `frank` repo pattern). Designed when the first repo actually flips.
 - **Gitea SSH host key in agent images** — Paperclip-side agents need `gitea.cluster.derio.net`'s SSH host key in `known_hosts` to clone non-interactively. Bake into agent base image OR distribute via a ConfigMap. Plan-phase decision.
@@ -306,9 +308,10 @@ commands:
   - "Gitea UI → Site Administration → User Accounts → Create (username: stoa-bot, email: stoa@frank.local)"
   - "Add stoa-bot as member of agentic-stoa org with Write team membership"
   - "stoa-bot account → Settings → Applications → Generate Token (name: paperclip-agent, scopes: write:repository, write:issue, read:organization)"
-  - "Store token in Infisical as STOA_GITEA_TOKEN"
+  - "In Infisical (prod env), create folder /agentic-stoa if absent (Secrets → Add Folder), then store the token there as STOA_GITEA_TOKEN. Stoa-org secrets stay under /agentic-stoa to keep them separated from frank infra secrets at /."
 verify:
-  - "curl -H 'Authorization: token $STOA_GITEA_TOKEN' http://192.168.55.209:3000/api/v1/user — returns stoa-bot"
+  - "Infisical /agentic-stoa/STOA_GITEA_TOKEN exists with non-empty value"
+  - "curl -s -o /dev/null -w '%{http_code}\\n' -H 'Authorization: token $STOA_GITEA_TOKEN' http://192.168.55.209:3000/api/v1/orgs/agentic-stoa/members/stoa-bot — returns 204 (stoa-bot is in agentic-stoa). The /api/v1/user endpoint cannot be used here because the token scopes deliberately omit read:user."
 status: pending
 ```
 
@@ -325,9 +328,9 @@ commands:
   - "Resource owner: agentic-stoa; Repository access: select all agentic-stoa/* repos"
   - "Permissions: Contents R/W, Metadata R"
   - "Expiration: 1 year (max). Set a calendar reminder 2 weeks before expiry."
-  - "Store in Infisical as STOA_GITHUB_MIRROR_TOKEN"
+  - "Store in Infisical under /agentic-stoa as STOA_GITHUB_MIRROR_TOKEN (same folder as STOA_GITEA_TOKEN; create the folder via Secrets → Add Folder if it does not yet exist)."
 verify:
-  - "Infisical → STOA_GITHUB_MIRROR_TOKEN exists and not expired"
+  - "Infisical /agentic-stoa/STOA_GITHUB_MIRROR_TOKEN exists and not expired"
   - "curl -H 'Authorization: token $STOA_GITHUB_MIRROR_TOKEN' https://api.github.com/repos/agentic-stoa/hum | jq .name — returns hum"
 status: pending
 ```
@@ -433,4 +436,4 @@ status: pending
 
 | Plan | Repo | File | Status | Depends on |
 |------|------|------|--------|------------|
-| Stoa Org Gitea-Primary Implementation Plan | derio-net/frank | `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary.md` | Not Started | layer 19 (deployed) |
+| Stoa Org Gitea-Primary Implementation Plan | derio-net/frank | `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary.md` | In Progress | layer 19 (deployed) |
