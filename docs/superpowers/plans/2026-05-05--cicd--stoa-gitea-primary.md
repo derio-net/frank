@@ -404,7 +404,7 @@ spec:
 
 ### Task 4: Commit, sync, and verify backup pipeline is healthy
 
-- [ ] **Step 1: Commit changes**
+- [x] **Step 1: Commit changes**
 
 ```bash
 cd ~/repos/frank
