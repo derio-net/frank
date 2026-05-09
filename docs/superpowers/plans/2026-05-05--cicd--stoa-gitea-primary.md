@@ -911,15 +911,15 @@ Operator-driven migration. Tasks are per-repo; both repos run in parallel — ex
 
 ### Task 1: Create empty Gitea repos
 
-- [ ] **Step 1: Create agentic-stoa/hum on Gitea**
+- [x] **Step 1: Create agentic-stoa/hum on Gitea**
 
   Gitea UI → + → New Repository → Owner: agentic-stoa, Name: hum, Visibility: Private, Initialize: NO (must stay empty for the mirror push). Default branch: `main`.
 
-- [ ] **Step 2: Create agentic-stoa/content-factory on Gitea**
+- [x] **Step 2: Create agentic-stoa/content-factory on Gitea**
 
   Same procedure with name `content-factory`.
 
-- [ ] **Step 3: Verify both empty repos exist**
+- [x] **Step 3: Verify both empty repos exist**
 
 ```bash
 for r in hum content-factory; do
