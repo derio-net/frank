@@ -1,0 +1,112 @@
+# Backup-sync: pushes main and tags from agentic-stoa/* repos in Gitea
+# to their GitHub counterparts. Triggered by Gitea webhooks on main/tag pushes.
+# See spec: docs/superpowers/specs/2026-05-04--cicd--stoa-gitea-primary-design.md
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: github-backup-sync
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+      description: "Repo as owner/repo (e.g., agentic-stoa/hum)"
+    - name: gitea-clone-url
+      type: string
+      description: "Gitea HTTP clone URL"
+  workspaces:
+    - name: shared-workspace
+  tasks:
+    - name: clone-mirror
+      params:
+        - name: gitea-clone-url
+          value: $(params.gitea-clone-url)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      taskSpec:
+        workspaces:
+          - name: source
+        params:
+          - name: gitea-clone-url
+        steps:
+          - name: clone
+            image: alpine/git:2.47.2
+            workingDir: $(workspaces.source.path)
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65534
+              capabilities:
+                drop: ["ALL"]
+              seccompProfile:
+                type: RuntimeDefault
+            env:
+              - name: HOME
+                value: /tekton/home
+              - name: GITEA_URL
+                value: $(params.gitea-clone-url)
+            computeResources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+            script: |
+              #!/bin/sh
+              set -eu
+              git config --global --add safe.directory '*'
+              git clone --mirror "$GITEA_URL" repo.git
+              cd repo.git
+              echo "Refs cloned (first 20):"
+              git for-each-ref --format='%(refname)' refs/heads refs/tags | head -20
+    - name: push-github
+      runAfter: ["clone-mirror"]
+      params:
+        - name: repo-full-name
+          value: $(params.repo-full-name)
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      taskSpec:
+        workspaces:
+          - name: source
+        params:
+          - name: repo-full-name
+        steps:
+          - name: push
+            image: alpine/git:2.47.2
+            workingDir: $(workspaces.source.path)/repo.git
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65534
+              capabilities:
+                drop: ["ALL"]
+              seccompProfile:
+                type: RuntimeDefault
+            env:
+              - name: HOME
+                value: /tekton/home
+              - name: REPO_FULL_NAME
+                value: $(params.repo-full-name)
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: stoa-github-mirror
+                    key: token
+            computeResources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 512Mi
+            script: |
+              #!/bin/sh
+              set -eu
+              git config --global --add safe.directory '*'
+              GITHUB_URL="https://oauth2:${GITHUB_TOKEN}@github.com/${REPO_FULL_NAME}.git"
+              # Force-push main; --tags is additive (tag deletes don't propagate, by design)
+              git push --force "$GITHUB_URL" refs/heads/main:refs/heads/main
+              git push "$GITHUB_URL" --tags
+              echo "Backup-sync OK for ${REPO_FULL_NAME}"

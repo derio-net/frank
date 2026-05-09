@@ -159,7 +159,7 @@ Deploys the shared backup-sync mechanism: ExternalSecret + Pipeline + Trigger. P
 
 ### Task 1: ExternalSecret for STOA_GITHUB_MIRROR_TOKEN
 
-- [ ] **Step 1: Confirm the ClusterSecretStore name**
+- [x] **Step 1: Confirm the ClusterSecretStore name**
 
 ```bash
 kubectl --context frank get externalsecret -n tekton-pipelines gitea-api-token \
@@ -167,7 +167,7 @@ kubectl --context frank get externalsecret -n tekton-pipelines gitea-api-token \
 # Capture the exact ClusterSecretStore name (e.g., infisical-frank). Use it in Step 2.
 ```
 
-- [ ] **Step 2: Create the ExternalSecret manifest**
+- [x] **Step 2: Create the ExternalSecret manifest**
 
   Create `apps/tekton/manifests/externalsecret-stoa-github-mirror.yaml` (substitute `<STORE_NAME>` with the value from Step 1):
 
@@ -198,7 +198,7 @@ spec:
 
 ### Task 2: github-backup-sync Pipeline manifest
 
-- [ ] **Step 1: Create the Pipeline manifest**
+- [x] **Step 1: Create the Pipeline manifest**
 
   Create `apps/tekton/pipelines/github-backup-sync.yaml`:
 
@@ -323,7 +323,7 @@ END_FILE
 
 ### Task 3: Add backup-sync Trigger and TriggerTemplate to gitea-listener
 
-- [ ] **Step 1: Read the current EventListener config**
+- [x] **Step 1: Read the current EventListener config**
 
 ```bash
 sed -n '1,80p' apps/tekton/triggers/eventlistener.yaml
@@ -331,7 +331,7 @@ sed -n '1,80p' apps/tekton/triggers/eventlistener.yaml
 
   Locate the end of the existing `gitea-pipeline-template` resource and the closing of the `triggers:` list in the EventListener.
 
-- [ ] **Step 2: Append the new TriggerTemplate**
+- [x] **Step 2: Append the new TriggerTemplate**
 
   At the bottom of `apps/tekton/triggers/eventlistener.yaml`, append:
 
@@ -377,7 +377,7 @@ spec:
                     storage: 1Gi
 ```
 
-- [ ] **Step 3: Add the new Trigger inside the EventListener spec.triggers list**
+- [x] **Step 3: Add the new Trigger inside the EventListener spec.triggers list**
 
   Inside the EventListener (`metadata.name: gitea-listener`), append a new entry to `spec.triggers` (after the existing `gitea-push` entry):
 
