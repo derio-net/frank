@@ -415,7 +415,7 @@ git commit -m "feat(cicd): add github-backup-sync pipeline for agentic-stoa repo
 git push
 ```
 
-- [ ] **Step 2: Wait for ArgoCD sync and verify resources**
+- [x] **Step 2: Wait for ArgoCD sync and verify resources**
 
 ```bash
 sleep 30
@@ -435,7 +435,7 @@ kubectl --context frank get secret -n tekton-pipelines stoa-github-mirror \
 # Expect: > 50 (a real PAT length); does not print the token itself
 ```
 
-- [ ] **Step 3: Confirm EventListener picked up the new trigger**
+- [x] **Step 3: Confirm EventListener picked up the new trigger**
 
 ```bash
 kubectl --context frank get eventlistener -n tekton-pipelines gitea-listener \
@@ -1286,3 +1286,15 @@ Auto-appended checklist, scoped for the fix/extension nature of this plan.
 - **Token leakage hardening on `push-github`**: instead of inlining `https://oauth2:${GITHUB_TOKEN}@github.com/` into the remote URL (which would surface the token in git's stderr on push failure, persisting in TaskRun logs indefinitely), the credential is plumbed via `git config --global url."https://oauth2:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"`. The push then targets the bare `https://github.com/<repo>.git` and git resolves credentials internally without echoing the token in error paths.
 - **Workspace storage**: bumped from `1Gi` to `5Gi` to leave headroom for `git clone --mirror` on repos with non-trivial blob history. Stoa repos are small today; cheap insurance.
 - **Phase-1/Phase-2 double-firing window**: until Phase 2 Task 5 lands, every push to `agentic-stoa/*` fires *both* the existing `gitea-push` trigger (running `gitea-ci`, which has no required checks defined for these repos and will no-op or fail loudly with no side effects) *and* the new `agentic-stoa-backup` trigger. Acceptable because `gitea-ci` has no destructive steps without an `image` param, and Phase 2 closes the window. Operating note for the reviewer: ignore stray `gitea-ci-*` PipelineRuns labeled with `agentic-stoa/*` repo names during this transition.
+
+### Phase 1 — post-merge verification (2026-05-09, merge commit `2da205b`)
+
+T4.S2 / T4.S3 ran cleanly after the explicit ArgoCD sync trigger landed `2da205b`:
+
+- `Pipeline/github-backup-sync` exists in `tekton-pipelines`.
+- `ExternalSecret/stoa-github-mirror`: `Ready=True`, projected `Secret/stoa-github-mirror` token is 93 bytes (matches a real fine-grained PAT).
+- `EventListener/gitea-listener`: `Ready=True`; `spec.triggers` lists `gitea-push` and `agentic-stoa-backup`. EL pod logs scrubbed for `error|panic|cel` returned nothing.
+
+**Cosmetic OutOfSync drift on tekton-extras** (acceptable, pre-existing): `kubectl get application tekton-extras` shows `OutOfSync Healthy` even after a successful sync (`status.operationState.phase=Succeeded`), because the Tekton API server defaults fields the source manifest doesn't set (empty `metadata: {}`, `spec: null`, `type: string` on bare param entries, alphabetized key order, etc.). This affects every pre-existing Pipeline and Task in `apps/tekton/` (`gitea-ci`, `git-clone`, `build-push`, `cosign-sign`) identically, not just the new `github-backup-sync` — confirmed via `diff` between live and source. Treat `OutOfSync Healthy` on tekton-extras as the steady state for now; the `phase=Succeeded` on the operation is the authoritative "did the manifest land?" signal. Manifests-vs-API normalization is a separate cleanup, not in scope here.
+
+End-to-end smoke (clone → force-push to GitHub → token kept out of stderr) is exercised in **Phase 3 Task 5** when the first real `agentic-stoa/hum` PR merges to `main`.
