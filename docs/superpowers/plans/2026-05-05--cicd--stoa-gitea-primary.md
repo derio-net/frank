@@ -457,7 +457,7 @@ Per-repo CI Pipelines for `hum` (Node) and `content-factory` (Python) plus their
 
 ### Task 1: hum-ci Pipeline
 
-- [ ] **Step 1: Create the Pipeline manifest**
+- [x] **Step 1: Create the Pipeline manifest**
 
   Create `apps/tekton/pipelines/hum-ci.yaml`:
 
@@ -582,7 +582,7 @@ END_FILE
 
 ### Task 2: content-factory-ci Pipeline
 
-- [ ] **Step 1: Create the Pipeline manifest**
+- [x] **Step 1: Create the Pipeline manifest**
 
   Create `apps/tekton/pipelines/content-factory-ci.yaml`:
 
@@ -698,7 +698,7 @@ END_FILE
 
 ### Task 3: Per-repo CI TriggerTemplates
 
-- [ ] **Step 1: Append two new TriggerTemplates to eventlistener.yaml**
+- [x] **Step 1: Append two new TriggerTemplates to eventlistener.yaml**
 
   At the bottom of `apps/tekton/triggers/eventlistener.yaml` (after `agentic-stoa-backup-template` from Phase 1), append:
 
@@ -791,7 +791,7 @@ spec:
 
 ### Task 4: Per-repo CI Triggers
 
-- [ ] **Step 1: Append the two CI Triggers inside spec.triggers**
+- [x] **Step 1: Append the two CI Triggers inside spec.triggers**
 
   In the EventListener's `spec.triggers` list (after `agentic-stoa-backup` from Phase 1), append:
 
@@ -848,7 +848,7 @@ spec:
 
 The existing `gitea-push` trigger has no repo filter, so a push to `agentic-stoa/*` would fire it (running default-`gitea-ci` with echo "no tests"). Adding a negative filter avoids the duplicate run.
 
-- [ ] **Step 1: Add agentic-stoa exclusion to existing trigger filter**
+- [x] **Step 1: Add agentic-stoa exclusion to existing trigger filter**
 
   In `apps/tekton/triggers/eventlistener.yaml`, find the existing `gitea-push` trigger's first CEL filter:
 
