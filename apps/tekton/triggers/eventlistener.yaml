@@ -93,5 +93,8 @@ spec:
                   - ReadWriteOnce
                 storageClassName: longhorn-cicd
                 resources:
+                  # 5Gi headroom for `git clone --mirror` of repos with large
+                  # blob history. agentic-stoa/* repos are small today; revisit
+                  # if a future repo exceeds this.
                   requests:
-                    storage: 1Gi
+                    storage: 5Gi

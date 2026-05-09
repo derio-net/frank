@@ -1,5 +1,8 @@
-# Backup-sync: pushes main and tags from agentic-stoa/* repos in Gitea
-# to their GitHub counterparts. Triggered by Gitea webhooks on main/tag pushes.
+# Backup direction: Gitea (primary, source of truth) -> GitHub (backup).
+# Force-push main is safe by contract; humans/CI never push to GitHub directly.
+# --tags is additive (tag deletes don't propagate, by design).
+# Pushes main and tags from agentic-stoa/* repos in Gitea to their GitHub
+# counterparts. Triggered by Gitea webhooks on main/tag pushes.
 # See spec: docs/superpowers/specs/2026-05-04--cicd--stoa-gitea-primary-design.md
 apiVersion: tekton.dev/v1
 kind: Pipeline
@@ -46,6 +49,8 @@ spec:
                 value: /tekton/home
               - name: GITEA_URL
                 value: $(params.gitea-clone-url)
+            # Higher limit than push-github: --mirror clone materializes every
+            # ref and pack-file in memory before fsck.
             computeResources:
               requests:
                 cpu: 100m
@@ -95,6 +100,8 @@ spec:
                   secretKeyRef:
                     name: stoa-github-mirror
                     key: token
+            # Lower limit than clone-mirror: push touches less working memory
+            # than --mirror clone (which materializes every ref and object).
             computeResources:
               requests:
                 cpu: 100m
@@ -105,7 +112,15 @@ spec:
               #!/bin/sh
               set -eu
               git config --global --add safe.directory '*'
-              GITHUB_URL="https://oauth2:${GITHUB_TOKEN}@github.com/${REPO_FULL_NAME}.git"
+              # Route credentials via `url.insteadOf` so the token never appears
+              # in the remote URL string. If git fails (network blip, GitHub
+              # 5xx, etc.), its stderr quotes the URL it tried to reach — keeping
+              # the token out of that URL keeps it out of TaskRun logs (which
+              # are RBAC-readable across the namespace and persist indefinitely).
+              git config --global \
+                "url.https://oauth2:${GITHUB_TOKEN}@github.com/.insteadOf" \
+                "https://github.com/"
+              GITHUB_URL="https://github.com/${REPO_FULL_NAME}.git"
               # Force-push main; --tags is additive (tag deletes don't propagate, by design)
               git push --force "$GITHUB_URL" refs/heads/main:refs/heads/main
               git push "$GITHUB_URL" --tags
