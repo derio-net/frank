@@ -41,7 +41,10 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               runAsNonRoot: true
-              runAsUser: 1000
+              # Match git-clone (UID 65534) to avoid cross-UID handoff on the
+              # shared RWO PVC. fsGroup (set on the TriggerTemplate's PodTemplate)
+              # also = 65534, so writes by either step are group-readable.
+              runAsUser: 65534
               capabilities:
                 drop: ["ALL"]
               seccompProfile:
@@ -59,14 +62,30 @@ spec:
                 memory: 2Gi
             script: |
               #!/bin/sh
+              # `set -eu` doesn't propagate into && / || chains, so use explicit
+              # if/else around `npm run typecheck` / `npm test` — otherwise a
+              # real type-error or test-failure (exit 1) takes the `|| echo`
+              # branch and the run continues green. `npm pkg get` exits 0 even
+              # for missing keys, returning literal "{}", so check the value.
               set -eu
+              has_script() {
+                [ "$(npm pkg get "scripts.$1" 2>/dev/null)" != "{}" ]
+              }
               run_in() {
                 d="$1"
                 echo "=== $d ==="
                 cd "$d"
                 if [ -f package-lock.json ]; then npm ci; else npm install; fi
-                npm pkg get scripts.typecheck >/dev/null 2>&1 && npm run typecheck || echo "no typecheck script in $d"
-                npm pkg get scripts.test >/dev/null 2>&1 && npm test || echo "no test script in $d"
+                if has_script typecheck; then
+                  npm run typecheck
+                else
+                  echo "no typecheck script in $d"
+                fi
+                if has_script test; then
+                  npm test
+                else
+                  echo "no test script in $d"
+                fi
                 cd - >/dev/null
               }
               run_in .

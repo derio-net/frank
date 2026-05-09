@@ -152,11 +152,13 @@ metadata:
   name: hum-ci-template
   namespace: tekton-pipelines
 spec:
+  # `branch` is supplied by gitea-push-binding but unused here — the hum-ci
+  # Pipeline takes only repo-url/revision/repo-full-name. Tekton silently
+  # accepts the extra binding param; we just don't declare it.
   params:
     - name: repo-url
     - name: revision
     - name: repo-full-name
-    - name: branch
   resourcetemplates:
     - apiVersion: tekton.dev/v1
       kind: PipelineRun
@@ -194,11 +196,11 @@ metadata:
   name: content-factory-ci-template
   namespace: tekton-pipelines
 spec:
+  # `branch` is supplied by gitea-push-binding but unused here — see hum-ci-template.
   params:
     - name: repo-url
     - name: revision
     - name: repo-full-name
-    - name: branch
   resourcetemplates:
     - apiVersion: tekton.dev/v1
       kind: PipelineRun

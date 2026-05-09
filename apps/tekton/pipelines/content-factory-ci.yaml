@@ -41,7 +41,8 @@ spec:
             securityContext:
               allowPrivilegeEscalation: false
               runAsNonRoot: true
-              runAsUser: 1000
+              # Match git-clone (UID 65534) — see UID-alignment note in hum-ci.
+              runAsUser: 65534
               capabilities:
                 drop: ["ALL"]
               seccompProfile:
@@ -51,6 +52,10 @@ spec:
                 value: /tekton/home
               - name: PIP_CACHE_DIR
                 value: /tekton/home/.pip-cache
+              - name: PIP_DISABLE_PIP_VERSION_CHECK
+                value: "1"
+              - name: PYTHONDONTWRITEBYTECODE
+                value: "1"
             computeResources:
               requests:
                 cpu: 500m
@@ -59,12 +64,19 @@ spec:
                 memory: 2Gi
             script: |
               #!/bin/sh
+              # `set -eu` doesn't propagate into && / || chains. Use explicit
+              # `if [ -f X ]; then …; fi` so a missing requirements file is a
+              # no-op (correct) but a `pip install` failure on a present file
+              # still fails the run.
               set -eu
               python -m venv /tekton/home/venv
               . /tekton/home/venv/bin/activate
-              pip install --upgrade pip
-              [ -f requirements.txt ] && pip install -r requirements.txt
-              [ -f requirements-dev.txt ] && pip install -r requirements-dev.txt || true
+              if [ -f requirements.txt ]; then
+                pip install -r requirements.txt
+              fi
+              if [ -f requirements-dev.txt ]; then
+                pip install -r requirements-dev.txt
+              fi
               pytest -v
   finally:
     - name: report-success
