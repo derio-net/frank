@@ -1,0 +1,117 @@
+# CI for agentic-stoa/content-factory: pip install + pytest.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: content-factory-ci
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: repo-url
+      type: string
+    - name: revision
+      type: string
+    - name: repo-full-name
+      type: string
+  workspaces:
+    - name: shared-workspace
+  tasks:
+    - name: clone
+      taskRef:
+        name: git-clone
+      params:
+        - name: url
+          value: $(params.repo-url)
+        - name: revision
+          value: $(params.revision)
+      workspaces:
+        - name: output
+          workspace: shared-workspace
+    - name: test
+      runAfter: ["clone"]
+      workspaces:
+        - name: source
+          workspace: shared-workspace
+      taskSpec:
+        workspaces:
+          - name: source
+        steps:
+          - name: pytest
+            image: python:3.13-slim
+            workingDir: $(workspaces.source.path)
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              # Match git-clone (UID 65534) — see UID-alignment note in hum-ci.
+              runAsUser: 65534
+              capabilities:
+                drop: ["ALL"]
+              seccompProfile:
+                type: RuntimeDefault
+            env:
+              - name: HOME
+                value: /tekton/home
+              - name: PIP_CACHE_DIR
+                value: /tekton/home/.pip-cache
+              - name: PIP_DISABLE_PIP_VERSION_CHECK
+                value: "1"
+              - name: PYTHONDONTWRITEBYTECODE
+                value: "1"
+            computeResources:
+              requests:
+                cpu: 500m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+            script: |
+              #!/bin/sh
+              # `set -eu` doesn't propagate into && / || chains. Use explicit
+              # `if [ -f X ]; then …; fi` so a missing requirements file is a
+              # no-op (correct) but a `pip install` failure on a present file
+              # still fails the run.
+              set -eu
+              python -m venv /tekton/home/venv
+              . /tekton/home/venv/bin/activate
+              if [ -f requirements.txt ]; then
+                pip install -r requirements.txt
+              fi
+              if [ -f requirements-dev.txt ]; then
+                pip install -r requirements-dev.txt
+              fi
+              pytest -v
+  finally:
+    - name: report-success
+      when:
+        - input: $(tasks.status)
+          operator: in
+          values: ["Succeeded", "Completed"]
+      taskRef:
+        name: gitea-status
+      params:
+        - name: repo-full-name
+          value: $(params.repo-full-name)
+        - name: revision
+          value: $(params.revision)
+        - name: state
+          value: "success"
+        - name: description
+          value: "All checks passed"
+        - name: context
+          value: "tekton/ci"
+    - name: report-failure
+      when:
+        - input: $(tasks.status)
+          operator: notin
+          values: ["Succeeded", "Completed"]
+      taskRef:
+        name: gitea-status
+      params:
+        - name: repo-full-name
+          value: $(params.repo-full-name)
+        - name: revision
+          value: $(params.revision)
+        - name: state
+          value: "failure"
+        - name: description
+          value: "CI failed"
+        - name: context
+          value: "tekton/ci"
