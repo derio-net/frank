@@ -473,7 +473,7 @@ curl -sf -H "Authorization: token $TEKTON_TOKEN" \
 
 ### Task 5: Verify SSH clone
 
-- [x] **Step 8: Clone via SSH and confirm** <!-- partial: SSH not routable from agent pod; HTTP clone verified -->
+- [x] **Step 8: Clone via SSH and confirm**
 
 ```bash
 GIT_SSH_COMMAND="ssh -p 2222 -o StrictHostKeyChecking=no" \
@@ -481,6 +481,8 @@ GIT_SSH_COMMAND="ssh -p 2222 -o StrictHostKeyChecking=no" \
 test -d /tmp/test-clone/.git || { echo "FAIL: SSH clone failed"; exit 1; }
 rm -rf /tmp/test-clone
 ```
+
+> **Deviation (2026-05-09):** This step was originally marked partial — SSH was unreachable from the agent pod and HTTP clone alone was verified. Investigation during the stoa-gitea-primary work uncovered the cause: the Gitea Helm chart creates two separate `Service` objects (`gitea-http` port 3000, `gitea-ssh` port 2222), and the chart values requested both share IP `192.168.55.209` via `lbipam.cilium.io/ips`. Cilium L2 IPAM does **not** treat shared `lbipam.cilium.io/ips` annotations as a sharing directive — it gives the IP to whichever Service it sees first and leaves the other `EXTERNAL-IP <pending>` indefinitely. `gitea-http` won the race, `gitea-ssh` never got an IP, and `192.168.55.209:2222` returned "no route to host" from anywhere outside the cluster (including operator workstations) for the entire 41-day life of the layer. In-cluster ClusterIP `gitea-ssh.gitea.svc.cluster.local:2222` was always reachable, which is why CI pipelines (which clone from the in-cluster Service) were unaffected. Fix: add `lbipam.cilium.io/sharing-key: "gitea"` to both Services in `apps/gitea/values.yaml` — this is Cilium's documented mechanism for letting two Service objects share one LB IP when their port sets don't conflict. After the fix, `gitea-ssh` got `192.168.55.209` and Step 8 became actually verifiable from outside the cluster. See `frank-gotchas.md` ("lbipam.cilium.io/ips alone is not a sharing directive") for the broader pattern.
 
 ---
 

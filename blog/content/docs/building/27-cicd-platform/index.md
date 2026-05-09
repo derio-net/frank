@@ -372,6 +372,14 @@ When pipeline tasks are skipped via `when` clauses (like build-push when no Dock
 
 Kaniko reads `$DOCKER_CONFIG/config.json`, but `kubernetes.io/dockerconfigjson` Secrets mount the file as `.dockerconfigjson`. The ExternalSecret template needs to output both keys, or Kaniko silently fails authentication and pushes fail with `401 Unauthorized`.
 
+### `lbipam.cilium.io/ips` Is Not a Sharing Directive *(retroactively added 2026-05-09)*
+
+The Gitea chart splits HTTP and SSH into two separate `Service` objects (`gitea-http` :3000 and `gitea-ssh` :2222). The original values requested both share a single LB IP by annotating each with `lbipam.cilium.io/ips: "192.168.55.209"`. That annotation alone tells Cilium L2 IPAM *which* IP to allocate — it does **not** tell IPAM that two Services intend to share. So IPAM gave the IP to whichever Service it processed first (`gitea-http` won) and left the other in `EXTERNAL-IP <pending>` indefinitely.
+
+Effect: `192.168.55.209:2222` returned "no route to host" from anywhere outside the cluster for the entire 41-day life of the layer. In-cluster pipelines were unaffected because they clone via `gitea-http.gitea.svc.cluster.local:3000`, but operator workstations couldn't `git@gitea.cluster.derio.net:repo.git` at all. The bug stayed latent because nothing in the cluster's hot path used SSH — only humans did, and humans had been quietly using HTTPS instead.
+
+Fix is two lines: add `lbipam.cilium.io/sharing-key: "gitea"` to both Service annotation blocks. That's Cilium's documented mechanism for letting separate Services share an LB IP when their port sets don't conflict. After the change, `gitea-ssh` got `192.168.55.209` and the SSH endpoint actually answered for the first time. The lesson: when the upstream chart splits one logical service into multiple `Service` objects, the only correct way to pin them to a shared IP is the sharing-key annotation. The `ips:` annotation is a request, not a coordination mechanism.
+
 ## What's Running
 
 | Service | IP | Port | Purpose |

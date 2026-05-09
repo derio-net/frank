@@ -63,11 +63,16 @@ service:
     port: 3000
     annotations:
       lbipam.cilium.io/ips: "192.168.55.209"
+      # sharing-key lets gitea-http and gitea-ssh share one LB IP across two
+      # Service objects (chart splits HTTP/SSH). Without it, Cilium IPAM gives
+      # the IP to whichever Service it sees first; the other stays <pending>.
+      lbipam.cilium.io/sharing-key: "gitea"
   ssh:
     type: LoadBalancer
     port: 2222
     annotations:
       lbipam.cilium.io/ips: "192.168.55.209"
+      lbipam.cilium.io/sharing-key: "gitea"
 
 persistence:
   enabled: true
