@@ -63,3 +63,4 @@ blog/.hugo_build.lock
 clusters/hop/talosconfig/
 .gitnexus
 frank-cluster.code-workspace
+blog/themes/
