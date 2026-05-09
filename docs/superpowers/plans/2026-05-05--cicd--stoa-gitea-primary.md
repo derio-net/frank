@@ -869,7 +869,7 @@ The existing `gitea-push` trigger has no repo filter, so a push to `agentic-stoa
 
 ### Task 6: Commit, sync, and verify
 
-- [ ] **Step 1: Commit changes**
+- [x] **Step 1: Commit changes**
 
 ```bash
 cd ~/repos/frank
