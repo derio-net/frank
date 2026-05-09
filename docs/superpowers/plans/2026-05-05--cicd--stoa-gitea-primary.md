@@ -880,7 +880,7 @@ git commit -m "feat(cicd): per-repo CI pipelines for agentic-stoa hum and conten
 git push
 ```
 
-- [ ] **Step 2: Verify resources synced**
+- [x] **Step 2: Verify resources synced**
 
 ```bash
 sleep 30
@@ -895,7 +895,7 @@ kubectl --context frank get eventlistener -n tekton-pipelines gitea-listener \
 # Expect: gitea-push, agentic-stoa-backup, agentic-stoa-hum-ci, agentic-stoa-content-factory-ci
 ```
 
-- [ ] **Step 3: Confirm EventListener pod healthy after re-render**
+- [x] **Step 3: Confirm EventListener pod healthy after re-render**
 
 ```bash
 kubectl --context frank logs -n tekton-pipelines deploy/el-gitea-listener --tail=30 | grep -iE "error|panic|cel" || echo "no errors"
@@ -1298,3 +1298,24 @@ T4.S2 / T4.S3 ran cleanly after the explicit ArgoCD sync trigger landed `2da205b
 **Cosmetic OutOfSync drift on tekton-extras** (acceptable, pre-existing): `kubectl get application tekton-extras` shows `OutOfSync Healthy` even after a successful sync (`status.operationState.phase=Succeeded`), because the Tekton API server defaults fields the source manifest doesn't set (empty `metadata: {}`, `spec: null`, `type: string` on bare param entries, alphabetized key order, etc.). This affects every pre-existing Pipeline and Task in `apps/tekton/` (`gitea-ci`, `git-clone`, `build-push`, `cosign-sign`) identically, not just the new `github-backup-sync` — confirmed via `diff` between live and source. Treat `OutOfSync Healthy` on tekton-extras as the steady state for now; the `phase=Succeeded` on the operation is the authoritative "did the manifest land?" signal. Manifests-vs-API normalization is a separate cleanup, not in scope here.
 
 End-to-end smoke (clone → force-push to GitHub → token kept out of stderr) is exercised in **Phase 3 Task 5** when the first real `agentic-stoa/hum` PR merges to `main`.
+
+### Phase 2 — implementation tweaks (PR #239, 2026-05-09)
+
+Code-review feedback (PR #239 review pass) applied as a follow-up commit on the same PR before merge:
+
+- **UID alignment with `git-clone`**: both `hum-ci` and `content-factory-ci` test steps now run as `runAsUser: 65534` (matching `Task/git-clone`'s UID, which writes the workspace), instead of the original `1000`. The TriggerTemplate `fsGroup: 65534` already matched, but a cross-UID handoff on the RWO PVC still depended on group-write bits being preserved by `git-clone`'s umask — fragile. Aligning the UIDs removes the ambiguity entirely.
+- **Shell pipeline robustness in the Node script**: replaced `&&||` chains around `npm run typecheck` / `npm test` with explicit `if/else` blocks. Inside `&&||` chains `set -eu` does not propagate, so a real `npm run typecheck` failure (exit 1 — the actual case the script exists to catch) would have taken the `|| echo "no typecheck script"` branch and the run would have continued green. Also switched the script-presence check from `npm pkg get … >/dev/null && …` (`npm pkg get` exits 0 even for missing keys, returning literal `"{}"`) to `[ "$(npm pkg get scripts.X)" != "{}" ]`.
+- **Unused `branch` param dropped** from `hum-ci-template` and `content-factory-ci-template`. `gitea-push-binding` still supplies it; Tekton silently accepts the extra binding param.
+- **Python step env**: added `PIP_DISABLE_PIP_VERSION_CHECK=1` and `PYTHONDONTWRITEBYTECODE=1`; dropped `pip install --upgrade pip` (network round-trip on every CI run, no benefit on a pinned `python:3.13-slim` base).
+
+### Phase 2 — post-merge verification (2026-05-09, merge commit `5e5558c`)
+
+T6.S2 / T6.S3 ran cleanly after the explicit ArgoCD sync trigger landed `5e5558c`:
+
+- `Pipeline/hum-ci` and `Pipeline/content-factory-ci` exist in `tekton-pipelines`.
+- `TriggerTemplate` list contains all three expected entries: `agentic-stoa-backup-template` (Phase 1), `hum-ci-template`, `content-factory-ci-template`.
+- `EventListener/gitea-listener`: `Ready=True`; `spec.triggers` lists exactly the four expected entries in order — `gitea-push` (now narrowed with `!body.repository.full_name.startsWith('agentic-stoa/')`), `agentic-stoa-backup`, `agentic-stoa-hum-ci`, `agentic-stoa-content-factory-ci`. Each routes to the correct template ref.
+- `el-gitea-listener` pod: `1/1 Ready`, `RESTARTS=0` (no restart on EL spec change — the controller reloads triggers in-process), no `error|panic|cel` matches in logs since the spec change.
+- ArgoCD `tekton-extras` Application: `phase=Succeeded` on the manual sync to `5e5558c`. Cosmetic `OutOfSync Healthy` drift continues per the same Tekton-defaulting note logged for Phase 1; the operation phase is the authoritative signal that the manifests landed.
+
+End-to-end CI smoke (real Gitea push → CI pipeline runs → `tekton/ci` status posted to Gitea) is exercised in **Phase 3 Task 4** when `agentic-stoa/hum` and `agentic-stoa/content-factory` are imported and a test push lands.
