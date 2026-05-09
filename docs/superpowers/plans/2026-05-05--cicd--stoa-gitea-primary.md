@@ -159,7 +159,7 @@ Deploys the shared backup-sync mechanism: ExternalSecret + Pipeline + Trigger. P
 
 ### Task 1: ExternalSecret for STOA_GITHUB_MIRROR_TOKEN
 
-- [ ] **Step 1: Confirm the ClusterSecretStore name**
+- [x] **Step 1: Confirm the ClusterSecretStore name**
 
 ```bash
 kubectl --context frank get externalsecret -n tekton-pipelines gitea-api-token \
@@ -167,7 +167,7 @@ kubectl --context frank get externalsecret -n tekton-pipelines gitea-api-token \
 # Capture the exact ClusterSecretStore name (e.g., infisical-frank). Use it in Step 2.
 ```
 
-- [ ] **Step 2: Create the ExternalSecret manifest**
+- [x] **Step 2: Create the ExternalSecret manifest**
 
   Create `apps/tekton/manifests/externalsecret-stoa-github-mirror.yaml` (substitute `<STORE_NAME>` with the value from Step 1):
 
@@ -198,7 +198,7 @@ spec:
 
 ### Task 2: github-backup-sync Pipeline manifest
 
-- [ ] **Step 1: Create the Pipeline manifest**
+- [x] **Step 1: Create the Pipeline manifest**
 
   Create `apps/tekton/pipelines/github-backup-sync.yaml`:
 
@@ -323,7 +323,7 @@ END_FILE
 
 ### Task 3: Add backup-sync Trigger and TriggerTemplate to gitea-listener
 
-- [ ] **Step 1: Read the current EventListener config**
+- [x] **Step 1: Read the current EventListener config**
 
 ```bash
 sed -n '1,80p' apps/tekton/triggers/eventlistener.yaml
@@ -331,7 +331,7 @@ sed -n '1,80p' apps/tekton/triggers/eventlistener.yaml
 
   Locate the end of the existing `gitea-pipeline-template` resource and the closing of the `triggers:` list in the EventListener.
 
-- [ ] **Step 2: Append the new TriggerTemplate**
+- [x] **Step 2: Append the new TriggerTemplate**
 
   At the bottom of `apps/tekton/triggers/eventlistener.yaml`, append:
 
@@ -377,7 +377,7 @@ spec:
                     storage: 1Gi
 ```
 
-- [ ] **Step 3: Add the new Trigger inside the EventListener spec.triggers list**
+- [x] **Step 3: Add the new Trigger inside the EventListener spec.triggers list**
 
   Inside the EventListener (`metadata.name: gitea-listener`), append a new entry to `spec.triggers` (after the existing `gitea-push` entry):
 
@@ -404,7 +404,7 @@ spec:
 
 ### Task 4: Commit, sync, and verify backup pipeline is healthy
 
-- [ ] **Step 1: Commit changes**
+- [x] **Step 1: Commit changes**
 
 ```bash
 cd ~/repos/frank
@@ -1279,3 +1279,10 @@ Auto-appended checklist, scoped for the fix/extension nature of this plan.
 ## Deployment Deviations
 
 (Append entries here if the implementation deviates from the spec or this plan during execution.)
+
+### Phase 1 — implementation tweaks (PR #238, 2026-05-09)
+
+- **ExternalSecret apiVersion**: plan body specifies `external-secrets.io/v1beta1`; implementation uses `external-secrets.io/v1` to match the canonical convention used by every other tekton-namespace ExternalSecret in this repo (`externalsecret-gitea-token.yaml`, `externalsecret-cosign.yaml`, etc.). Also added `deletionPolicy: Retain` for symmetry with those siblings.
+- **Token leakage hardening on `push-github`**: instead of inlining `https://oauth2:${GITHUB_TOKEN}@github.com/` into the remote URL (which would surface the token in git's stderr on push failure, persisting in TaskRun logs indefinitely), the credential is plumbed via `git config --global url."https://oauth2:${GITHUB_TOKEN}@github.com/".insteadOf "https://github.com/"`. The push then targets the bare `https://github.com/<repo>.git` and git resolves credentials internally without echoing the token in error paths.
+- **Workspace storage**: bumped from `1Gi` to `5Gi` to leave headroom for `git clone --mirror` on repos with non-trivial blob history. Stoa repos are small today; cheap insurance.
+- **Phase-1/Phase-2 double-firing window**: until Phase 2 Task 5 lands, every push to `agentic-stoa/*` fires *both* the existing `gitea-push` trigger (running `gitea-ci`, which has no required checks defined for these repos and will no-op or fail loudly with no side effects) *and* the new `agentic-stoa-backup` trigger. Acceptable because `gitea-ci` has no destructive steps without an `image` param, and Phase 2 closes the window. Operating note for the reviewer: ignore stray `gitea-ci-*` PipelineRuns labeled with `agentic-stoa/*` repo names during this transition.
