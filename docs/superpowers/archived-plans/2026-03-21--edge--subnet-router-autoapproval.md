@@ -102,8 +102,6 @@ git commit -m "feat(edge): add autoApprovers and split DNS to Headscale config"
 
 ---
 
-> **Deviation (2026-05-09):** This plan documented the *advertising* side end-to-end (raspi-vlan10-d/-e with `--advertise-routes`) but never covered the *consuming* side: each new mesh client must run `tailscale up --accept-routes` (or `tailscale set --accept-routes`) or the kernel won't actually forward LAN-bound traffic through the subnet routers, even with the routes advertised and approved. The verification step `ping 192.168.55.21` (in the design spec) silently fails on a fresh client without `--accept-routes` — symptom is `Network is unreachable`, NOT `no route to host`. The omission stayed latent because the operator's primary client at the time happened to have `accept-routes` enabled by default. Caught when a different operator-laptop tried `git@gitea-ssh.cluster.derio.net:2222` while investigating Phase 3 of the stoa-gitea-primary plan. Fix: blog post `operating/11-public-edge` updated to include `--accept-routes` in the standard client-onboarding `tailscale up` invocation, with the Tailscale health-check line `Some peers are advertising routes but --accept-routes is false` flagged as the canonical diagnostic surface. No code-side change needed.
-
 ### Task 3: Update Operating Blog Post
 
 **Files:**

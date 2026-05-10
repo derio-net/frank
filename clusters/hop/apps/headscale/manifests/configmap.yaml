@@ -61,16 +61,6 @@ data:
         - name: entry.hop.derio.net
           type: A
           value: 100.64.0.4
-        # Frank Gitea SSH endpoint. The public DNS A record for
-        # gitea.cluster.derio.net points at 192.168.55.220 (Traefik LB) for
-        # HTTPS web access; Traefik does not speak SSH. Mesh peers reaching
-        # Gitea over git+ssh need a name that points at 192.168.55.209
-        # (the Gitea LB IP, port 2222). Requires --accept-routes on the
-        # client; the LAN IP is reachable via the raspi-vlan10 subnet
-        # routers (192.168.55.0/24).
-        - name: gitea-ssh.cluster.derio.net
-          type: A
-          value: 192.168.55.209
 
     log:
       level: info

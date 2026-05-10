@@ -944,7 +944,7 @@ why_manual: "git clone --mirror runs from operator workstation, not in-cluster"
 commands:
   - "Run for each repo: hum, content-factory"
   - "git clone --mirror https://github.com/agentic-stoa/<repo>.git /tmp/<repo>.git"
-  - "cd /tmp/<repo>.git && git remote set-url --push origin git@gitea-ssh.cluster.derio.net:agentic-stoa/<repo>.git"
+  - "cd /tmp/<repo>.git && git remote set-url --push origin git@gitea.cluster.derio.net:agentic-stoa/<repo>.git"
   - "git push --mirror"
   - "cd / && rm -rf /tmp/<repo>.git"
 verify:
@@ -955,16 +955,10 @@ status: pending
 
 - [ ] **Step 1: Mirror-clone hum**
 
-**SSH prerequisites (operator workstation, one-time):**
-- Tailscale must accept LAN routes: `sudo tailscale up --accept-routes` (or `sudo tailscale set --accept-routes` on an already-registered client). Health-check signal: `tailscale status` prints `Some peers are advertising routes but --accept-routes is false` when the flag is missing.
-- The hostname `gitea-ssh.cluster.derio.net` (defined in Headscale's `extra_records`) resolves to `192.168.55.209` (the Gitea LB IP) and is what answers SSH on port 2222. Do NOT use `gitea.cluster.derio.net` for SSH — that resolves to Traefik (`192.168.55.220`), which is HTTPS-only.
-- Operator's SSH public key must be registered with a Gitea user that has write access to `agentic-stoa/*` (e.g. an admin account or `stoa-bot`). Use Gitea UI → Settings → SSH/GPG Keys.
-- `~/.ssh/config` Host entry: `Host gitea-ssh.cluster.derio.net` with `Port 2222` and `IdentityFile <key>`.
-
 ```bash
 git clone --mirror https://github.com/agentic-stoa/hum.git /tmp/hum.git
 cd /tmp/hum.git
-git remote set-url --push origin git@gitea-ssh.cluster.derio.net:agentic-stoa/hum.git
+git remote set-url --push origin git@gitea.cluster.derio.net:agentic-stoa/hum.git
 git push --mirror
 cd / && rm -rf /tmp/hum.git
 ```
@@ -1009,7 +1003,7 @@ status: pending
 ```bash
 cd ~/repos/hum
 # Add a temporary remote pointing at Gitea (origin still points at GitHub until Task 8)
-git remote add gitea git@gitea-ssh.cluster.derio.net:agentic-stoa/hum.git 2>/dev/null || true
+git remote add gitea git@gitea.cluster.derio.net:agentic-stoa/hum.git 2>/dev/null || true
 git checkout -b test/ci-smoke
 echo "" >> README.md
 git add README.md && git commit -m "test: ci smoke"
@@ -1039,7 +1033,7 @@ kubectl --context frank logs -n tekton-pipelines $PR -f --all-containers --max-l
 
 ```bash
 cd ~/repos/content-factory
-git remote add gitea git@gitea-ssh.cluster.derio.net:agentic-stoa/content-factory.git 2>/dev/null || true
+git remote add gitea git@gitea.cluster.derio.net:agentic-stoa/content-factory.git 2>/dev/null || true
 git checkout -b test/ci-smoke
 echo "" >> README.md && git add README.md && git commit -m "test: ci smoke"
 git push gitea test/ci-smoke
@@ -1218,11 +1212,11 @@ when: "Per repo, after Phase 3 Tasks 1–7 verified"
 why_manual: "Operator's local clones live outside the cluster"
 commands:
   - "cd ~/repos/<repo>"
-  - "git remote set-url origin git@gitea-ssh.cluster.derio.net:agentic-stoa/<repo>.git"
+  - "git remote set-url origin git@gitea.cluster.derio.net:agentic-stoa/<repo>.git"
   - "git remote remove gitea  # remove the temp remote added in Task 4 if present"
   - "git fetch origin --prune"
 verify:
-  - "git remote -v shows gitea-ssh.cluster.derio.net as origin"
+  - "git remote -v shows gitea.cluster.derio.net as origin"
   - "git pull works"
 status: pending
 ```
@@ -1231,18 +1225,18 @@ status: pending
 
 ```bash
 cd ~/repos/hum
-git remote set-url origin git@gitea-ssh.cluster.derio.net:agentic-stoa/hum.git
+git remote set-url origin git@gitea.cluster.derio.net:agentic-stoa/hum.git
 git remote remove gitea 2>/dev/null || true
 git fetch origin --prune
 git remote -v
-# Expect: origin → gitea-ssh.cluster.derio.net
+# Expect: origin → gitea.cluster.derio.net
 ```
 
 - [ ] **Step 2: Update content-factory clone remote**
 
 ```bash
 cd ~/repos/content-factory
-git remote set-url origin git@gitea-ssh.cluster.derio.net:agentic-stoa/content-factory.git
+git remote set-url origin git@gitea.cluster.derio.net:agentic-stoa/content-factory.git
 git remote remove gitea 2>/dev/null || true
 git fetch origin --prune
 git remote -v

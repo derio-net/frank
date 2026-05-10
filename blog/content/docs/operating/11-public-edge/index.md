@@ -174,28 +174,15 @@ The `--reusable` flag lets you register multiple devices with the same key (usef
 On the device you want to add (macOS, Linux, Windows, iOS, Android — anything that runs Tailscale):
 
 ```bash
-# Linux / macOS — note: --accept-routes is required to reach LAN-only
-# services (Frank cluster nodes on 192.168.55.0/24, home DNS at
-# 192.168.10.11/12, etc.). Without it, the raspi-vlan10-d/-e subnet
-# routers advertise routes but the client kernel won't actually
-# forward packets through them. Symptom: "Network is unreachable"
-# (not "no route to host") when reaching any 192.168.x.x address.
-tailscale up \
-  --login-server https://headscale.hop.derio.net \
-  --accept-routes \
-  --authkey <PREAUTH_KEY>
+# Linux / macOS
+tailscale up --login-server https://headscale.hop.derio.net --authkey <PREAUTH_KEY>
 
 # If Tailscale was previously connected to a different control server, reset first:
 tailscale logout
-tailscale up \
-  --login-server https://headscale.hop.derio.net \
-  --accept-routes \
-  --authkey <PREAUTH_KEY>
+tailscale up --login-server https://headscale.hop.derio.net --authkey <PREAUTH_KEY>
 ```
 
-On mobile devices (iOS/Android), you can set the control server URL in the Tailscale app settings before signing in. Enter `https://headscale.hop.derio.net` as the control server and use the pre-auth key. Toggle "Use Tailscale subnets" (or equivalent) ON — it's the mobile equivalent of `--accept-routes`.
-
-**On an already-registered client without `--accept-routes`:** flip it on without re-registering: `sudo tailscale set --accept-routes` (or `tailscale up` with the existing args plus `--accept-routes`). `tailscale status` will print `Some peers are advertising routes but --accept-routes is false` as a health-check line whenever the flag is missing — that's the canonical signal.
+On mobile devices (iOS/Android), you can set the control server URL in the Tailscale app settings before signing in. Enter `https://headscale.hop.derio.net` as the control server and use the pre-auth key.
 
 **Step 3 — Verify registration:**
 
