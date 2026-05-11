@@ -1168,9 +1168,8 @@ data:
             annotations:
               summary: "L17 Edge: probe {{ $labels.instance }} failing — Hop cluster or Caddy down"
               runbook: "source .env_hop; kubectl -n blog get pods; talosctl -n $HOP_IP health"
-              # DEFERRED (Pass 3+): extend with Headscale peer count + cert expiry + Hetzner API.
+              # DEFERRED (Pass 3+): extend with Headscale peer count + Hetzner API.
               # Headscale: headscale_peer_count from a sidecar scrape (needs exporter).
-              # Cert expiry: probe_ssl_earliest_cert_expiry - time() < 7*86400.
               # Hetzner API: needs hetzner_server_status exporter — file a follow-up.
 
       # --- Layer 19 — Progressive Delivery / Argo Rollouts (frank-ops#19) ---
@@ -1299,3 +1298,86 @@ data:
             annotations:
               summary: "L25 CI/CD: {{ $labels.namespace }}/{{ $labels.pod }} NotReady"
               runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
+
+      # =====================================================================
+      # GLOBAL TLS CERT-EXPIRY
+      # Triggered by 2026-05-11 Omni outage — see
+      # docs/investigations/2026-05-11--omni--cert-expiry-incident.md.
+      # Fires on ANY blackbox probe target with cert <14d (warning) or <7d
+      # (critical) remaining. Wires to telegram via existing severity-based
+      # notification policy.
+      # =====================================================================
+      - orgId: 1
+        name: tls-cert-expiry-1h
+        folder: feature-health
+        interval: 1h
+        rules:
+          - uid: tls-cert-expiring-14d
+            title: TLS cert expiring within 14 days
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'probe_ssl_earliest_cert_expiry - time()'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1209600] }
+            noDataState: OK
+            execErrState: Error
+            for: 1h
+            labels:
+              severity: warning
+            annotations:
+              summary: "TLS cert for {{ $labels.instance }} expires in <14 days ({{ humanizeDuration $value }} remaining)"
+              runbook: "See docs/investigations/2026-05-11--omni--cert-expiry-incident.md for renewal procedure."
+
+          - uid: tls-cert-expiring-7d
+            title: TLS cert expiring within 7 days
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'probe_ssl_earliest_cert_expiry - time()'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [604800] }
+            noDataState: OK
+            execErrState: Error
+            for: 1h
+            labels:
+              severity: critical
+            annotations:
+              summary: "TLS cert for {{ $labels.instance }} expires in <7 days ({{ humanizeDuration $value }} remaining)"
+              runbook: "See docs/investigations/2026-05-11--omni--cert-expiry-incident.md for renewal procedure."
