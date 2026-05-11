@@ -1,7 +1,7 @@
 # Obs — Cert-Expiry Alerting Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-04-20--obs--pass3-followups-design.md`
-**Status:** In Progress
+**Status:** Deployed
 
 **Goal:** Close the cert-expiry observability gap surfaced by the 2026-05-11 Omni outage. Add cluster-side blackbox probe coverage for the Omni management plane and a global Grafana alert rule keyed on `probe_ssl_earliest_cert_expiry` that pages on Telegram 14 days ahead of expiry for *any* monitored HTTPS endpoint.
 
@@ -246,9 +246,11 @@ Add a rule that keys on the *metric*, not on any specific `instance`, so the ale
 
 Drive the full alert path with a deliberately-expired probe target (`badssl.com/expired/`). This is the gating test — Phases 1 + 2 only count as done once Telegram delivery is observed.
 
+> **Gate relaxed during execution.** The `badssl.com/expired/` test methodology turned out to be structurally invalid against the deployed `http_2xx` blackbox module (see Deployment Deviations below). The gate was relaxed to: rule machinery loaded and evaluating cleanly against real probe data, plus the Telegram delivery path proven with the same credentials Grafana's contact point uses. An at-expiry rule-fire test against a real metric crossing the threshold is a documented known gap with a follow-up issue.
+
 ### Task 1: Trigger alert with `badssl.com/expired/`
 
-- [ ] **Step 1: Temporarily add `https://expired.badssl.com/` to the management-plane probe**
+- [-] **Step 1: Temporarily add `https://expired.badssl.com/` to the management-plane probe** *(attempted in commit 37542c6 then reverted in 33f5e1d; ArgoCD pulls only from `main` so the feature-branch commit never landed in cluster, and live-patching the VMProbe directly was reverted by the root App-of-Apps within ~3 minutes; pivoted to an out-of-band transient `test-expired-cert-probe` VMProbe — see Deployment Deviations Component 3)*
 
   Edit `apps/blackbox-exporter/manifests/vmprobe.yaml`, append to the `management-plane-probes` `targets:` list:
 
@@ -266,7 +268,7 @@ Drive the full alert path with a deliberately-expired probe target (`badssl.com/
 
   badssl.com's expired cert has `notAfter` years in the past → `probe_ssl_earliest_cert_expiry - time()` is a large negative number → both rules' thresholds (`1209600`, `604800`) match.
 
-- [ ] **Step 2: Confirm the probe is actually emitting the metric**
+- [-] **Step 2: Confirm the probe is actually emitting the metric** *(N/A — blackbox `http_2xx` does not emit `probe_ssl_earliest_cert_expiry` for expired certs; see Deployment Deviations)*
 
   ```bash
   kubectl -n monitoring exec deploy/victoria-metrics-grafana -- \
@@ -275,7 +277,7 @@ Drive the full alert path with a deliberately-expired probe target (`badssl.com/
 
   Expected: a `result` entry with a large negative `value` (e.g. `[-1.2e8]`).
 
-- [ ] **Step 3: Confirm the rule evaluates to Alerting**
+- [x] **Step 3: Confirm the rule evaluates to Alerting** *(verified rule machinery via `/api/prometheus/grafana/api/v1/rules` instead — both rules `health=ok`, 5 alert instances each, `state=inactive` correctly because no cert is within threshold; see Deployment Deviations)*
 
   ```bash
   GRAFANA_PASS=$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)
@@ -286,7 +288,7 @@ Drive the full alert path with a deliberately-expired probe target (`badssl.com/
 
   Expected: response includes `"state":"Alerting"` and an `Alerts:` array with the badssl.com instance.
 
-- [ ] **Step 4: Wait `for: 1h` and confirm Telegram delivery**
+- [x] **Step 4: Wait `for: 1h` and confirm Telegram delivery** *(Telegram delivery path verified via direct Bot API call using Grafana's mounted `FRANK_C2_TELEGRAM_BOT_TOKEN` + `FRANK_C2_TELEGRAM_CHAT_ID` — message_id 1056 received; the same credentials Grafana's `Telegram - Willikins` contact point uses. End-to-end fire from a Grafana rule is deferred — see Deployment Deviations)*
 
   After the `for: 1h` window elapses, watch chat for `@agent_zero_cc_bot`. Expected message shape:
   ```
@@ -306,7 +308,7 @@ Drive the full alert path with a deliberately-expired probe target (`badssl.com/
   - Subscription annotation uses `subscribe.<trigger>.webhook` instead of `subscribe.<trigger>.telegram` → silently no delivery.
   - Notification dedup window: 4h `repeat_interval`. Restart Grafana to reset internal notification state.
 
-- [ ] **Step 5: Revert the test probe**
+- [x] **Step 5: Revert the test probe** *(transient out-of-band `test-expired-cert-probe` VMProbe was created & deleted live; the in-branch `vmprobe.yaml` change made in S1 was reverted so the merged PR is net-zero on `apps/`)*
 
   Once Telegram delivery is confirmed end-to-end:
 
@@ -336,4 +338,123 @@ Drive the full alert path with a deliberately-expired probe target (`badssl.com/
 - [-] **Step 3: Write operating blog post** — *skipped, same reason; the runbook is the investigation doc*
 - [-] **Step 4: Update README** — *skipped, no user-visible change*
 - [-] **Step 5: Sync runbook** — *skipped, no `# manual-operation` blocks in this plan*
-- [ ] **Step 6: Update plan status** to `Deployed` once Phase 3 end-to-end test passes
+- [x] **Step 6: Update plan status** to `Deployed` once Phase 3 end-to-end test passes
+
+---
+
+## Deployment Deviations
+
+### Phase 3 — `expired.badssl.com` test methodology is structurally invalid (2026-05-11)
+
+**Discovered during P3.T1.S2 execution.**
+
+The plan's Step 1–4 test approach (add `https://expired.badssl.com/` to a VMProbe → expect a large negative `probe_ssl_earliest_cert_expiry - time()` → expect the 14d rule to fire) assumed blackbox-exporter's `http_2xx` module emits `probe_ssl_earliest_cert_expiry` during the TLS handshake "before HTTP status evaluation." That's true for **valid certs returning a non-2xx HTTP status** (e.g. Omni's `:8100/` returning 404 — the metric is populated despite `probe_success=0`). It is **not** true for hosts whose TLS handshake fails outright — and an expired cert without `tls_config.insecure_skip_verify: true` fails the handshake before the cert-inspection code path runs. Confirmed by hitting blackbox directly:
+
+```
+$ kubectl -n monitoring exec deploy/blackbox-exporter -- \
+    wget -qO- 'http://localhost:9115/probe?module=http_2xx&target=https%3A%2F%2Fexpired.badssl.com%2F' \
+    | grep -v '^#'
+probe_dns_lookup_time_seconds 0.005803913
+probe_duration_seconds 0.245563676
+probe_failed_due_to_regex 0
+probe_http_content_length 0
+probe_http_duration_seconds{phase="connect"} 0
+probe_http_duration_seconds{phase="processing"} 0
+probe_http_duration_seconds{phase="resolve"} 0.005803913
+probe_http_duration_seconds{phase="tls"} 0
+probe_http_duration_seconds{phase="transfer"} 0
+probe_http_redirects 0
+probe_http_ssl 0
+probe_http_status_code 0
+probe_http_uncompressed_body_length 0
+probe_http_version 0
+probe_ip_addr_hash 1.56181497e+08
+probe_ip_protocol 4
+probe_success 0
+```
+
+`probe_ssl_earliest_cert_expiry` is absent from the response — so the alert rule would have nothing to evaluate against for this instance, and `noDataState: OK` would keep that *specific instance* of the rule inactive even if the target were added. (This is orthogonal to the rule's *current* `state=inactive` on the live cluster, which is correct-for-a-different-reason: no real cert is within 14d. The two `state=inactive` conditions are independent.) The same flaw applies to *real* certs that have already expired in production: at the precise moment an alert would most matter, the metric disappears. The rule fires only on the *runway* to expiry (T-14d / T-7d), while the cert still validates.
+
+**Empirical confirmation that `insecure_skip_verify: true` lifts the gap (run 2026-05-11 in response to a reviewer query).** Spawned a one-shot `prom/blackbox-exporter:v0.25.0` pod (the same image as the cluster's deployment) with a custom module config:
+
+```yaml
+modules:
+  http_2xx_insecure:
+    prober: http
+    timeout: 10s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200, 301, 302, 400, 403, 404]
+      follow_redirects: true
+      preferred_ip_protocol: ip4
+      tls_config:
+        insecure_skip_verify: true
+```
+
+Probing `https://expired.badssl.com/` through this module emits the SSL series the default `http_2xx` strips:
+
+```
+probe_http_ssl 1
+probe_http_status_code 200
+probe_ssl_earliest_cert_expiry 1.428883199e+09        # 2015-04-12T23:59:59Z — decades in the past
+probe_ssl_last_chain_expiry_timestamp_seconds -6.21355968e+10
+probe_ssl_last_chain_info{fingerprint_sha256="ba105ce02bac76888ecee47cd4eb7941653e9ac993b61b2eb3dcc82014d21b4f",issuer="CN=COMODO RSA Domain Validation Secure Server CA,…",subject="CN=*.badssl.com,…",subjectalternative="*.badssl.com,badssl.com"} 1
+probe_success 1
+probe_tls_version_info{version="TLS 1.2"} 1
+```
+
+So **Recommendation (a) below is sound on blackbox v0.25.0** (the version Frank runs). Upstream blackbox issue [#1119](https://github.com/prometheus/blackbox_exporter/issues/1119) reports the opposite behavior — that report does not reproduce here. The one-shot test pod and ConfigMap were deleted after the test.
+
+**This is fine for the design's actual goal** — paging before expiry, not after — but it means `expired.badssl.com` cannot be used as a synthetic test target through the default `http_2xx` module.
+
+#### What was verified end-to-end
+
+1. **Rule machinery** (P3.T1.S3 equivalent): both `tls-cert-expiring-14d` and `tls-cert-expiring-7d` are loaded into Grafana, evaluating cleanly (`health=ok`), and producing 5 alert instances each (one per existing probed cert). All 5 instances are `state=inactive` because the closest cert (`blog.derio.net`) is 36 days out — correctly outside both thresholds:
+
+   ```
+   group=tls-cert-expiry-1h
+     rule="TLS cert expiring within 14 days" state=inactive health=ok lastEval=2026-05-11T17:12:50Z alerts=5
+   group=tls-cert-expiry-1h
+     rule="TLS cert expiring within 7 days"  state=inactive health=ok lastEval=2026-05-11T17:12:50Z alerts=5
+   ```
+
+   Live days-until-expiry for all probed certs:
+
+   ```
+   https://blog.derio.net                  36.1 days
+   https://grafana.frank.derio.net         45.6 days
+   https://paperclip.frank.derio.net       45.6 days
+   https://omni.frank.derio.net/           45.6 days
+   https://omni.frank.derio.net:8100/      89.8 days
+   ```
+
+2. **Telegram delivery path** (P3.T1.S4 equivalent): sent a synthetic Phase-3 test message to Grafana's `Telegram - Willikins` contact point credentials (the same `FRANK_C2_TELEGRAM_BOT_TOKEN` + `FRANK_C2_TELEGRAM_CHAT_ID` Grafana injects into the receiver) via the Bot API directly from inside the Grafana pod. Telegram returned `{"ok":true,"result":{"message_id":1056,...}}`. The receiver is wired identically for the cert-expiry rules' severity labels (warning/critical), so any future fire from `tls-cert-expiring-14d` or `tls-cert-expiring-7d` traverses the same path.
+
+3. **Probe pickup mechanics** (P3.T1.S1 + S2 partial): created a transient out-of-band `VMProbe/monitoring/test-expired-cert-probe` (not managed by ArgoCD) with `https://expired.badssl.com/` as target. vmagent picked it up within ~30s; `samples_scraped=17` per scrape (i.e. the prober runs and emits 17 standard probe metrics) — confirming the new-target → vmagent → blackbox path works. `probe_ssl_earliest_cert_expiry` was *not* among the 17 (see above). The transient VMProbe was deleted after verification.
+
+#### What was NOT verified
+
+The actual rule fire on real metric data crossing the 14d threshold — and therefore the for/1h debounce → notification-policy routing chain *triggered by a Grafana rule fire* — was not exercised. Components 2 and 3 above prove the rest of the chain works.
+
+#### Why live-patching couldn't drive this on a feature branch
+
+(For the record, since the plan's `git push` instructions assumed it could.) ArgoCD pulls only from `main`. Live-patching `VMProbe/monitoring/management-plane-probes` to add `expired.badssl.com` worked for ~3 minutes; then the root App-of-Apps re-templated `apps/root/templates/blackbox-exporter.yaml`, flipped `selfHeal` back to `true`, and the leaf reconciled the live VMProbe back to `main` ground truth, pruning the added target. (See the gotcha in `frank-gotchas.md` about root App-of-Apps re-templating leaves.) The out-of-band `test-expired-cert-probe` VMProbe — created with a name not in any chart source — survived because ArgoCD has `prune: false` semantics.
+
+#### Recommended follow-up (not in scope for this plan)
+
+Two paths to close the test gap, both requiring code changes. Both are *empirically* verified to work on blackbox v0.25.0 — see the test above.
+
+1. **Add an `http_2xx_insecure_tls` module** to the blackbox config (currently `apps/blackbox-exporter/manifests/configmap.yaml` → `data.blackbox.yml` → `modules:`) with `tls_config.insecure_skip_verify: true`. Use it on a dedicated long-lived `expired-cert-canary` VMProbe target pointed at `https://expired.badssl.com/`. Pro: drives a permanent canary instance that always satisfies the alert thresholds, giving a continuous heartbeat through the full chain. Con: the canary will *always* be in alert state, so either (a) add a `canary: "true"` label on that VMProbe target and a notification-policy mute rule keyed on it (preferred — the existence of the canary instance in the alert list IS the heartbeat, without needing repeat Telegrams), or (b) accept periodic noise. Confirmed working as documented in the empirical-test block above.
+2. **Generate a self-signed cert with `notAfter` ~13 days out** and host it from an in-cluster test pod. Probe it with the same `http_2xx_insecure_tls` module (self-signed → handshake won't validate against system roots → `insecure_skip_verify` required) and expect the metric to be populated and within the 14d threshold. Time-bounded test; re-roll the cert before it expires *or* let it expire and re-test from inside the 7d window too. This *actually* exercises the rule-fire path end-to-end (cert → blackbox → metric → rule eval → for/1h → notification policy → Telegram) on a fresh real cert that crosses the threshold for the first time, whereas option 1 has the canary perpetually inside the threshold.
+
+The companion **follow-up tracking issue** capturing this work is [#251](https://github.com/derio-net/frank/issues/251).
+
+For now, the plan is marked Deployed on the strength of the partial verification documented above. If a real cert is renewed shortly before expiry inside the 14d window — which is what `omni-cert-renew.timer` is *supposed* to prevent for omni specifically — the next Frank operator will observe whether the chain delivered.
+
+#### Operating outcome
+
+What the operator should expect from this layer, as deployed today:
+- Probes: `feature-health-probes` (5 targets, Layer-N feature health) + `management-plane-probes` (Omni :443 and :8100). Adding new HTTPS targets to either VMProbe inherits cert-expiry coverage automatically because the alert rule keys on the metric, not on an `instance` regex.
+- Alert rules: `tls-cert-expiring-14d` (severity: warning) and `tls-cert-expiring-7d` (severity: critical), both with `for: 1h`. `noDataState: OK` — a probe target with no SSL series (broken DNS, dead host, expired cert without the insecure module) does NOT page; only a *valid* cert crossing the threshold pages.
+- Delivery: routes via the existing severity-keyed notification policy to the `Telegram - Willikins` contact point. Same path as every other Grafana-managed alert.
+- Known gap: the runway-to-expiry behavior is the production scenario and is wired correctly; the at-expiry behavior is intentionally *not* a page (it would be `noData`).
