@@ -11,6 +11,17 @@ While deploying those rules, several gaps surfaced where the intended signal cou
 
 This spec collects those follow-ups in one place so they can be scoped + planned together in an upcoming brainstorming session.
 
+## Concrete motivating incident (2026-05-11)
+
+The Let's Encrypt leaf for `omni.frank.derio.net` expired on 2026-05-09 (notAfter `13:52:36 UTC`). The cluster's entire management plane went dark — `kubectl` OIDC discovery, `omnictl` gRPC, and the Omni Web UI all returned 500 because Traefik was rejecting Omni's upstream cert. Detection took ~46 hours and only happened when a `kubectl` call hit the failure path. **A global `probe_ssl_earliest_cert_expiry - time() < 14*86400` rule subscribed to Telegram would have paged at 2026-04-25 (T-14d), well before any expiry.**
+
+Two concrete gaps this incident exposes:
+
+1. `omni.frank.derio.net` is not in any blackbox probe target — `apps/blackbox-exporter/manifests/vmprobe.yaml` only probes the workloads it knows about. Cluster-management-plane endpoints have no probe coverage at all.
+2. The cert-expiry rule scoped in this spec exists as a placeholder *comment* at `apps/grafana-alerting/manifests/alert-rules-cm.yaml:1173`, inside the Layer 18 (Hop) block. Even if implemented in-place, it would only cover Hop's blog probe — not Omni, ArgoCD UI, Authentik, or any other internal-cert-bearing service.
+
+The right shape for the resolved follow-up is therefore *both* widening probe coverage (a probe per external-facing hostname) *and* a global rule keyed on `probe_ssl_earliest_cert_expiry` regardless of which Probe instance produced it. See `docs/investigations/2026-05-11--omni--cert-expiry-incident.md` for the full incident write-up.
+
 ## Candidate follow-ups
 
 ### Missing metrics — Longhorn (affects `frank-ops#4` + `frank-ops#9`)
