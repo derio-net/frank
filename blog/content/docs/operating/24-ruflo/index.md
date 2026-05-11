@@ -54,8 +54,9 @@ ssh ruflo
 Mosh works over a UDP port range allocated on the Service (`60016–60031`). You can wrap it in a shell function or just call it directly:
 
 ```bash
-mosh --ssh="ssh -p 22 agent@192.168.55.222" \
-     --server="mosh-server new -p 60016:60031" 192.168.55.222
+mosh --ssh="ssh -i ~/.ssh/<your-key>" \
+     --server="mosh-server new -p 60016:60031" \
+     agent@192.168.55.222
 ```
 
 Sixteen ports is plenty of headroom; `MOSH_SERVER_NETWORK_TMOUT` reaps stuck sessions so the range doesn't bleed.

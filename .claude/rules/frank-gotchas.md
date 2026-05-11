@@ -1,5 +1,6 @@
 ## Frank Cluster Gotchas
 
+- **mosh `--ssh=CMD` appends the positional `[user@]host` as a separate argv token** — so `mosh --ssh="ssh user@IP" IP` becomes `ssh user@IP IP mosh-server…`, and SSH treats the second `IP` as the remote command: `bash: IP: command not found`. Correct shape: put flags only in `--ssh` and put `user@host` in the positional: `mosh --ssh="ssh -i ~/.ssh/<key>" --server="mosh-server new -p 60000:60015" agent@IP`. The LB-port-range `--server` pin is also mandatory — without it, `mosh-server` roams the full 60000–61000 default range and most ports aren't forwarded by the Service. Use the per-shell wrappers in `apps/*/client-setup/laptop/` to avoid repeating this.
 - Telegram alerting uses bot `@agent_zero_cc_bot` — token in Infisical as `FRANK_C2_TELEGRAM_BOT_TOKEN`, chat ID as `FRANK_C2_TELEGRAM_CHAT_ID`. Grafana contact point uid: `efi04e0201jb4f`.
 - ArgoCD Notifications named-webhook subscription syntax is counter-intuitive. With `service.webhook.<name>` in `argocd-notifications-cm`, notifications-engine registers the service under the **third dotted segment** (`<name>`), not `webhook`. Subscription annotations must reference the name, not the type:
   - ✅ `notifications.argoproj.io/subscribe.<trigger>.<name>: ""` (empty value — recipient is implicit in the webhook URL)

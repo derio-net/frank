@@ -13,6 +13,6 @@
 set -euo pipefail
 exec mosh \
     --server="mosh-server new -p 60016:60031" \
-    --ssh="ssh agent@192.168.55.222" \
+    --ssh="ssh -i ~/.ssh/lab/id_rsa_raspi" \
     "$@" \
-    192.168.55.222
+    agent@192.168.55.222

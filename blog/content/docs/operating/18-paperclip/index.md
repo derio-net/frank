@@ -216,7 +216,9 @@ The `paperclip` Pod has carried a second container, `paperclip-shell`, since 202
 ```bash
 # Direct (no config)
 ssh agent@192.168.55.221
-mosh agent@192.168.55.221
+mosh --ssh="ssh -i ~/.ssh/<your-key>" \
+     --server="mosh-server new -p 60000:60015" \
+     agent@192.168.55.221
 
 # Inside an existing tmux session (auto-restored across pod bounces)
 ssh agent@192.168.55.221 -t tmux new -A -s main
@@ -233,7 +235,7 @@ Host paperclip
   ServerAliveCountMax 3
 ```
 
-Mosh shares the same LB IP as SSH — TCP/22 + UDP/60000–60015 are bound to the same `MixedProtocolLBService`. No client-side trick needed; if the network supports UDP to the cluster subnet, mosh just works.
+Mosh shares the same LB IP as SSH — TCP/22 + UDP/60000–60015 are bound to the same `MixedProtocolLBService`. The `--server` pin is required: without it, `mosh-server` picks from the full default range 60000–61000, and any port outside the 16 published ones won't be forwarded by the LB. Use the `paperclip-mosh` wrapper from `apps/paperclip/client-setup/laptop/` to avoid repeating the flag.
 
 The tmux session survives pod bounces because `tmux-resurrect` + `tmux-continuum` are seeded into `~/.tmux.conf` from the image's `/etc/skel/`. Reattach with `tmux a`. State lives on `paperclip-shell-home` (RWO 20Gi PVC at `/home/agent`) — same PV across restarts, so the cargo/npm/pipx/mise binaries already installed on it survive too.
 

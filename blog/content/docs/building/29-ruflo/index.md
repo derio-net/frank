@@ -239,8 +239,9 @@ Host ruflo
 
 ```bash
 ssh ruflo
-mosh --ssh="ssh -p 22 agent@192.168.55.222" \
-     --server="mosh-server new -p 60016:60031" 192.168.55.222
+mosh --ssh="ssh -i ~/.ssh/<your-key>" \
+     --server="mosh-server new -p 60016:60031" \
+     agent@192.168.55.222
 ```
 
 Authorized keys are SOPS-bootstrapped — not Infisical-projected. The plan first wrote an ExternalSecret reading SSH public keys from Infisical, but the analogous `agent-ssh-keys` Secret on `secure-agent-pod` is SOPS-bootstrap, under `secrets/`. ruflo follows the existing frank pattern: `secrets/ruflo/README.md` documents the create-and-encrypt flow. The Deployment volume is marked `optional: true` — the pod boots whether the bootstrap is in place or not; sshd just rejects key-based logins until the Secret exists.
