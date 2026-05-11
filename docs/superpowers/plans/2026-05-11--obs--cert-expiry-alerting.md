@@ -1,7 +1,7 @@
 # Obs — Cert-Expiry Alerting Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-04-20--obs--pass3-followups-design.md`
-**Status:** Not Started
+**Status:** In Progress
 
 **Goal:** Close the cert-expiry observability gap surfaced by the 2026-05-11 Omni outage. Add cluster-side blackbox probe coverage for the Omni management plane and a global Grafana alert rule keyed on `probe_ssl_earliest_cert_expiry` that pages on Telegram 14 days ahead of expiry for *any* monitored HTTPS endpoint.
 
@@ -31,7 +31,7 @@ Add the Omni Pi endpoints to the cluster's blackbox-exporter probe list as a new
 
 ### Task 1: Extend `apps/blackbox-exporter/manifests/vmprobe.yaml`
 
-- [ ] **Step 1: Append a second `VMProbe` document for management-plane targets**
+- [x] **Step 1: Append a second `VMProbe` document for management-plane targets**
 
   Edit `apps/blackbox-exporter/manifests/vmprobe.yaml`, append (note the `---` separator):
 

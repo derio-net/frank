@@ -17,3 +17,20 @@ spec:
   module: http_2xx
   vmProberSpec:
     url: blackbox-exporter.monitoring.svc:9115
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: management-plane-probes
+  namespace: monitoring
+spec:
+  targets:
+    staticConfig:
+      targets:
+        - https://omni.frank.derio.net/
+        - https://omni.frank.derio.net:8100/
+      labels:
+        probe_group: management_plane
+  module: http_2xx
+  vmProberSpec:
+    url: blackbox-exporter.monitoring.svc:9115
