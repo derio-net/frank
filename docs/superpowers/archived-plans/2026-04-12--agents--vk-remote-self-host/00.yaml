@@ -1,0 +1,26 @@
+schema_version: 2
+phase:
+  number: 0
+  title: Fork & CI
+  tag: manual
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/61
+tasks:
+- number: 1
+  title: Fork the VK repository
+  steps: []
+- number: 2
+  title: Create GitHub Actions workflow for vk-remote image
+  steps: []
+- number: 3
+  title: Verify the Dockerfile and trigger first build
+  steps: []
+- number: 4
+  title: Create Infisical secrets
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

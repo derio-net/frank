@@ -1,0 +1,163 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Gitea Post-Deploy Configuration
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/45
+tasks:
+- number: 3
+  title: Create tekton-bot service account
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Retrieve admin token from Infisical
+
+
+      ```bash
+      GITEA_URL="http://192.168.55.209:3000"
+      ADMIN_TOKEN=$(infisical secrets get GITEA_ADMIN_TOKEN --plain 2>/dev/null)
+      # Verify: non-empty string
+      test -n "$ADMIN_TOKEN" || { echo "FAIL: GITEA_ADMIN_TOKEN not found in Infisical"; exit 1; }
+      ```
+  - id: P2.T3.S2
+    text: |-
+      Create tekton-bot user via API
+
+
+      ```bash
+      curl -sf -X POST "$GITEA_URL/api/v1/admin/users" \
+        -H "Authorization: token $ADMIN_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "username": "tekton-bot",
+          "email": "tekton@frank.local",
+          "password": "'"$(openssl rand -base64 32)"'",
+          "must_change_password": false,
+          "visibility": "private"
+        }'
+      # Expect: 201 Created with username=tekton-bot
+      ```
+  - id: P2.T3.S3
+    text: |-
+      Generate API token for tekton-bot
+
+
+      ```bash
+      TEKTON_TOKEN=$(curl -sf -X POST "$GITEA_URL/api/v1/users/tekton-bot/tokens" \
+        -H "Authorization: token $ADMIN_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"name": "tekton-ci", "scopes": ["write:repository", "write:issue"]}' \
+        | jq -r '.sha1')
+      test -n "$TEKTON_TOKEN" || { echo "FAIL: token creation failed"; exit 1; }
+      ```
+  - id: P2.T3.S4
+    text: |-
+      Store tekton-bot token in Infisical
+
+
+      ```bash
+      infisical secrets set GITEA_API_TOKEN="$TEKTON_TOKEN"
+      # Verify round-trip
+      VERIFY=$(infisical secrets get GITEA_API_TOKEN --plain)
+      test "$VERIFY" = "$TEKTON_TOKEN" || { echo "FAIL: Infisical round-trip mismatch"; exit 1; }
+      ```
+  - id: P2.T3.S5
+    text: |-
+      Verify tekton-bot can authenticate
+
+
+      ```bash
+      curl -sf -H "Authorization: token $TEKTON_TOKEN" "$GITEA_URL/api/v1/user" | jq '.login'
+      # Expect: "tekton-bot"
+      ```
+- number: 4
+  title: Mirror test repo from GitHub
+  steps:
+  - id: P2.T4.S6
+    text: |-
+      Create mirror via Gitea migration API
+
+
+      ```bash
+      curl -sf -X POST "$GITEA_URL/api/v1/repos/migrate" \
+        -H "Authorization: token $ADMIN_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "clone_addr": "https://github.com/derio-net/frank.git",
+          "repo_name": "frank",
+          "repo_owner": "tekton-bot",
+          "service": "github",
+          "mirror": true,
+          "mirror_interval": "10m"
+        }'
+      # Expect: 201 Created
+      ```
+  - id: P2.T4.S7
+    text: |-
+      Verify mirror synced
+
+
+      ```bash
+      # Wait for initial sync
+      sleep 15
+      curl -sf -H "Authorization: token $TEKTON_TOKEN" \
+        "$GITEA_URL/api/v1/repos/tekton-bot/frank" | jq '{mirror: .mirror, updated_at: .updated_at}'
+      # Expect: mirror=true, updated_at within last minute
+      ```
+- number: 5
+  title: Verify SSH clone
+  steps:
+  - id: P2.T5.S8
+    text: |-
+      Clone via SSH and confirm
+
+
+      ```bash
+      GIT_SSH_COMMAND="ssh -p 2222 -o StrictHostKeyChecking=no" \
+        git clone git@192.168.55.209:tekton-bot/frank.git /tmp/test-clone
+      test -d /tmp/test-clone/.git || { echo "FAIL: SSH clone failed"; exit 1; }
+      rm -rf /tmp/test-clone
+      ```
+
+      > **Deviation (2026-05-09):** This step was originally marked partial — SSH was unreachable from the agent pod and HTTP clone alone was verified. Investigation during the stoa-gitea-primary work uncovered the cause: the Gitea Helm chart creates two separate `Service` objects (`gitea-http` port 3000, `gitea-ssh` port 2222), and the chart values requested both share IP `192.168.55.209` via `lbipam.cilium.io/ips`. Cilium L2 IPAM does **not** treat shared `lbipam.cilium.io/ips` annotations as a sharing directive — it gives the IP to whichever Service it sees first and leaves the other `EXTERNAL-IP <pending>` indefinitely. `gitea-http` won the race, `gitea-ssh` never got an IP, and `192.168.55.209:2222` returned "no route to host" from anywhere outside the cluster (including operator workstations) for the entire 41-day life of the layer. In-cluster ClusterIP `gitea-ssh.gitea.svc.cluster.local:2222` was always reachable, which is why CI pipelines (which clone from the in-cluster Service) were unaffected. Fix: add `lbipam.cilium.io/sharing-key: "gitea"` to both Services in `apps/gitea/values.yaml` — this is Cilium's documented mechanism for letting two Service objects share one LB IP when their port sets don't conflict. After the fix, `gitea-ssh` got `192.168.55.209` and Step 8 became actually verifiable from outside the cluster. See `frank-gotchas.md` ("lbipam.cilium.io/ips alone is not a sharing directive") for the broader pattern.
+
+      ---
+state:
+  steps:
+    P2.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T5.S8:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

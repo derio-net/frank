@@ -95,6 +95,6 @@ The "Health-check basis" section in each Layer Issue body documents the intended
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| Derio Ops Pass 3 — Grafana Wiring — Implementation Plan |  | `docs/superpowers/archived-plans/2026-04-16--platform--derio-ops-pass3-grafana-wiring.md` | Complete | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Derio Ops Pass 3 — Grafana Wiring — Implementation Plan |  | `docs/superpowers/archived-plans/2026-04-16--platform--derio-ops-pass3-grafana-wiring/` | — |

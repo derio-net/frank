@@ -203,6 +203,6 @@ Pure client-side implementation using localStorage:
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| Blog Hextra Migration Implementation Plan |  | `docs/superpowers/plans/2026-04-13--repo--blog-hextra-migration.md` | Complete | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Blog Hextra Migration Implementation Plan |  | `docs/superpowers/plans/2026-04-13--repo--blog-hextra-migration.md` | — |

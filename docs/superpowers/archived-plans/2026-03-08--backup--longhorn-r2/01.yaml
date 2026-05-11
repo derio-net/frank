@@ -1,0 +1,41 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Backup Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create the NAS (NFS) BackupTarget manifest
+  steps: []
+- number: 2
+  title: Create the R2 credentials Secret (plaintext then SOPS-encrypt)
+  steps: []
+- number: 3
+  title: Create the R2 BackupTarget manifest
+  steps: []
+- number: 4
+  title: Create the daily recurring job (NAS)
+  steps: []
+- number: 5
+  title: Create the weekly recurring job (R2)
+  steps: []
+- number: 6
+  title: Add `ignoreDifferences` to the longhorn-extras Application
+  steps: []
+- number: 7
+  title: Commit and push
+  steps: []
+- number: 8
+  title: Verify backup targets in Longhorn UI
+  steps: []
+- number: 9
+  title: Write the blog post
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

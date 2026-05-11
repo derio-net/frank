@@ -1,0 +1,59 @@
+schema_version: 2
+phase:
+  number: 1
+  title: ArgoCD Infrastructure — Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Remove Flux CD
+  steps: []
+- number: 2
+  title: Remove Pulumi Artifacts and Deprecate Old Docs
+  steps: []
+- number: 3
+  title: Create apps/ Directory Structure and Move Helm Values
+  steps: []
+- number: 4
+  title: Create ArgoCD Helm Values
+  steps: []
+- number: 5
+  title: Create Root App-of-Apps Chart
+  steps: []
+- number: 6
+  title: Create Cilium Application Template
+  steps: []
+- number: 7
+  title: Create Longhorn Application Templates
+  steps: []
+- number: 8
+  title: Create GPU Operator Application Template
+  steps: []
+- number: 9
+  title: Install ArgoCD via Helm
+  steps: []
+- number: 10
+  title: Configure ArgoCD Repository Access
+  steps: []
+- number: 11
+  title: Push Config to Remote and Apply Root Application
+  steps: []
+- number: 12
+  title: Sync and Verify Cilium Adoption
+  steps: []
+- number: 13
+  title: Sync and Verify Longhorn Adoption
+  steps: []
+- number: 14
+  title: GPU Operator (Deferred — Manual Sync When Ready)
+  steps: []
+- number: 15
+  title: Full Cluster Verification
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,703 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Tekton Core & Triggers
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/42
+tasks:
+- number: 4
+  title: Tekton Core Deployment
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Download and vendor Tekton Pipelines release YAML
+
+
+      ```bash
+      mkdir -p apps/tekton/vendor/pipelines apps/tekton/vendor/triggers apps/tekton/vendor/dashboard
+
+      # Check latest stable versions
+      curl -sL https://api.github.com/repos/tektoncd/pipeline/releases/latest | jq -r '.tag_name'
+      # Note the version (e.g., v0.65.0)
+
+      # Download and vendor
+      TEKTON_PIPELINE_VERSION="v0.65.0"  # Replace with actual latest
+      curl -sL "https://storage.googleapis.com/tekton-releases/pipeline/previous/${TEKTON_PIPELINE_VERSION}/release.yaml" \
+        -o apps/tekton/vendor/pipelines/release.yaml
+
+      # Verify the file is valid YAML and contains expected resources
+      grep -c "^kind:" apps/tekton/vendor/pipelines/release.yaml
+      # Expect: 50+ resources (CRDs, Deployments, Services, etc.)
+      ```
+  - id: P3.T4.S2
+    text: |-
+      Download and vendor Tekton Dashboard release YAML
+
+
+      ```bash
+      TEKTON_DASHBOARD_VERSION=$(curl -sL https://api.github.com/repos/tektoncd/dashboard/releases/latest | jq -r '.tag_name')
+      echo "Dashboard version: $TEKTON_DASHBOARD_VERSION"
+
+      curl -sL "https://storage.googleapis.com/tekton-releases/dashboard/previous/${TEKTON_DASHBOARD_VERSION}/release.yaml" \
+        -o apps/tekton/vendor/dashboard/release.yaml
+
+      grep -c "^kind:" apps/tekton/vendor/dashboard/release.yaml
+      # Expect: 15+ resources
+      ```
+  - id: P3.T4.S3
+    text: |-
+      Create Dashboard LoadBalancer Service
+
+
+      Create `apps/tekton/manifests/dashboard-service.yaml`:
+
+      ```yaml
+      # Tekton Dashboard — exposed on 192.168.55.217:9097
+      # Overrides the ClusterIP service from the vendored release YAML
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: tekton-dashboard-lb
+        namespace: tekton-pipelines
+        annotations:
+          lbipam.cilium.io/ips: "192.168.55.217"
+      spec:
+        type: LoadBalancer
+        selector:
+          app.kubernetes.io/component: dashboard
+          app.kubernetes.io/part-of: tekton-dashboard
+        ports:
+          - name: http
+            port: 9097
+            targetPort: 9097
+            protocol: TCP
+      ```
+
+      Note: Check the vendored Dashboard YAML for the exact label selectors (`app.kubernetes.io/component` and `app.kubernetes.io/part-of`). Adjust `selector` if they differ.
+  - id: P3.T4.S4
+    text: |-
+      Create ArgoCD Application for Tekton Pipelines
+
+
+      Create `apps/root/templates/tekton-pipelines.yaml`:
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: tekton-pipelines
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/tekton/vendor/pipelines
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: tekton-pipelines
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+      ```
+  - id: P3.T4.S5
+    text: |-
+      Create ArgoCD Application for Tekton Dashboard
+
+
+      Create `apps/root/templates/tekton-dashboard.yaml`:
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: tekton-dashboard
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/tekton/vendor/dashboard
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: tekton-pipelines
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+      ```
+  - id: P3.T4.S6
+    text: |-
+      Create ArgoCD Application for Tekton extras (manifests)
+
+
+      Create `apps/root/templates/tekton-extras.yaml`:
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: tekton-extras
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/tekton
+          directory:
+            recurse: true
+            exclude: "vendor/**"
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: tekton-pipelines
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+      ```
+
+      Note: `directory.recurse: true` with `exclude: "vendor/**"` picks up all YAML in `apps/tekton/manifests/`, `apps/tekton/pipelines/`, `apps/tekton/tasks/`, and `apps/tekton/triggers/` while excluding the vendored release YAMLs (those are managed by separate ArgoCD apps).
+  - id: P3.T4.S7
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/tekton/ apps/root/templates/tekton-pipelines.yaml apps/root/templates/tekton-dashboard.yaml apps/root/templates/tekton-extras.yaml
+      git commit -m "feat(cicd): add Tekton Pipelines and Dashboard (vendored release YAMLs)"
+      ```
+  - id: P3.T4.S8
+    text: |-
+      Push and verify
+
+
+      ```bash
+      git push
+      # Wait for ArgoCD sync — this may take a minute due to CRD creation
+      argocd app get tekton-pipelines --port-forward --port-forward-namespace argocd
+      argocd app get tekton-dashboard --port-forward --port-forward-namespace argocd
+      kubectl get pods -n tekton-pipelines
+      # Expect: tekton-pipelines-controller, tekton-pipelines-webhook, tekton-dashboard Running
+      curl -s http://192.168.55.217:9097
+      # Expect: Tekton Dashboard HTML
+      ```
+  - id: P3.T4.S9
+    text: |-
+      Run a manual hello-world PipelineRun
+
+
+      ```bash
+      cat <<'EOF' | kubectl apply -f -
+      apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: hello-world-
+        namespace: tekton-pipelines
+      spec:
+        pipelineSpec:
+          tasks:
+            - name: hello
+              taskSpec:
+                steps:
+                  - name: echo
+                    image: alpine:3
+                    command: ["echo"]
+                    args: ["Hello from Tekton on Frank!"]
+      EOF
+
+      # Watch the PipelineRun
+      kubectl get pipelinerun -n tekton-pipelines -w
+      # Expect: Succeeded after ~30s
+
+      # Check logs
+      tkn pipelinerun logs -n tekton-pipelines --last
+      # Or: kubectl logs -n tekton-pipelines <pod-name> -c step-echo
+      # Expect: "Hello from Tekton on Frank!"
+      ```
+
+      If `tkn` CLI is not installed: `brew install tektoncd-cli` (or download from GitHub releases).
+
+      ---
+- number: 5
+  title: Tekton Triggers Deployment
+  steps:
+  - id: P3.T5.S1
+    text: |-
+      Create Infisical webhook secret
+
+
+      ```yaml
+      # manual-operation
+      id: cicd-infisical-webhook-secret
+      layer: cicd
+      app: tekton
+      plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+      when: "Before wiring Tekton Triggers"
+      why_manual: "Infisical secret creation requires UI/API interaction"
+      commands:
+        - "Create in Infisical: GITEA_WEBHOOK_SECRET (generate random string)"
+      verify:
+        - "Infisical → GITEA_WEBHOOK_SECRET exists"
+      status: pending
+      ```
+  - id: P3.T5.S2
+    text: |-
+      Download and vendor Tekton Triggers release YAML
+
+
+      ```bash
+      TEKTON_TRIGGERS_VERSION=$(curl -sL https://api.github.com/repos/tektoncd/triggers/releases/latest | jq -r '.tag_name')
+      echo "Triggers version: $TEKTON_TRIGGERS_VERSION"
+
+      curl -sL "https://storage.googleapis.com/tekton-releases/triggers/previous/${TEKTON_TRIGGERS_VERSION}/release.yaml" \
+        -o apps/tekton/vendor/triggers/release.yaml
+
+      # Also download the interceptors (required for CEL filtering)
+      curl -sL "https://storage.googleapis.com/tekton-releases/triggers/previous/${TEKTON_TRIGGERS_VERSION}/interceptors.yaml" \
+        -o apps/tekton/vendor/triggers/interceptors.yaml
+
+      grep -c "^kind:" apps/tekton/vendor/triggers/release.yaml
+      # Expect: 15+ resources
+      ```
+  - id: P3.T5.S3
+    text: |-
+      Create ExternalSecret for webhook secret
+
+
+      Create `apps/tekton/manifests/externalsecret-webhook.yaml`:
+
+      ```yaml
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: gitea-webhook-secret
+        namespace: tekton-pipelines
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: gitea-webhook-secret
+          creationPolicy: Owner
+        data:
+          - secretKey: secret
+            remoteRef:
+              key: GITEA_WEBHOOK_SECRET
+      ```
+  - id: P3.T5.S4
+    text: |-
+      Create ExternalSecret for Gitea API token
+
+
+      Create `apps/tekton/manifests/externalsecret-gitea-token.yaml`:
+
+      ```yaml
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: gitea-api-token
+        namespace: tekton-pipelines
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: gitea-api-token
+          creationPolicy: Owner
+        data:
+          - secretKey: token
+            remoteRef:
+              key: GITEA_API_TOKEN
+      ```
+  - id: P3.T5.S5
+    text: |-
+      Create TriggerBinding
+
+
+      Create `apps/tekton/triggers/triggerbinding.yaml`:
+
+      ```yaml
+      # Extracts fields from Gitea webhook payloads
+      apiVersion: triggers.tekton.dev/v1beta1
+      kind: TriggerBinding
+      metadata:
+        name: gitea-push-binding
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: repo-url
+            value: $(body.repository.clone_url)
+          - name: revision
+            value: $(body.after)
+          - name: repo-full-name
+            value: $(body.repository.full_name)
+          - name: branch
+            value: $(extensions.branch_name)
+      ```
+
+      Note: Gitea webhook payload structure should be verified during implementation. The field paths may differ from GitHub's — check `https://gitea.com/gitea/gitea/wiki/Webhook` or inspect a test delivery payload from Gitea.
+  - id: P3.T5.S6
+    text: |-
+      Create TriggerTemplate
+
+
+      Create `apps/tekton/triggers/triggertemplate.yaml`:
+
+      ```yaml
+      # Creates a PipelineRun from Gitea webhook data
+      apiVersion: triggers.tekton.dev/v1beta1
+      kind: TriggerTemplate
+      metadata:
+        name: gitea-pipeline-template
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: repo-url
+          - name: revision
+          - name: repo-full-name
+          - name: branch
+        resourcetemplates:
+          - apiVersion: tekton.dev/v1
+            kind: PipelineRun
+            metadata:
+              generateName: gitea-ci-
+              namespace: tekton-pipelines
+            spec:
+              pipelineRef:
+                name: gitea-ci
+              params:
+                - name: repo-url
+                  value: $(tt.params.repo-url)
+                - name: revision
+                  value: $(tt.params.revision)
+                - name: repo-full-name
+                  value: $(tt.params.repo-full-name)
+                - name: branch
+                  value: $(tt.params.branch)
+              workspaces:
+                - name: shared-workspace
+                  volumeClaimTemplate:
+                    spec:
+                      accessModes:
+                        - ReadWriteOnce
+                      storageClassName: longhorn-cicd
+                      resources:
+                        requests:
+                          storage: 1Gi
+      ```
+  - id: P3.T5.S7
+    text: |-
+      Create EventListener
+
+
+      Create `apps/tekton/triggers/eventlistener.yaml`:
+
+      ```yaml
+      # Receives Gitea webhooks, validates HMAC signature, routes to trigger
+      apiVersion: triggers.tekton.dev/v1beta1
+      kind: EventListener
+      metadata:
+        name: gitea-listener
+        namespace: tekton-pipelines
+      spec:
+        serviceAccountName: tekton-triggers-sa
+        triggers:
+          - name: gitea-push
+            interceptors:
+              - ref:
+                  name: "github"
+                params:
+                  - name: "secretRef"
+                    value:
+                      secretName: gitea-webhook-secret
+                      secretKey: secret
+                  - name: "eventTypes"
+                    value: ["push"]
+              - ref:
+                  name: "cel"
+                params:
+                  - name: "overlays"
+                    value:
+                      - key: branch_name
+                        expression: "body.ref.split('/')[2]"
+              - ref:
+                  name: "cel"
+                params:
+                  - name: "filter"
+                    value: >-
+                      extensions.branch_name != ''
+            bindings:
+              - ref: gitea-push-binding
+            template:
+              ref: gitea-pipeline-template
+        resources:
+          kubernetesResource:
+            spec:
+              template:
+                spec:
+                  nodeSelector:
+                    kubernetes.io/hostname: pc-1
+      ```
+
+      Note: Gitea webhook payloads use the same HMAC-SHA256 signature format as GitHub (`X-Hub-Signature-256` header). The built-in `github` interceptor validates this signature using the `secretRef`. If Gitea uses a different header name (`X-Gitea-Signature`), the `github` interceptor may not work — in that case, fall back to a CEL-based HMAC check or verify that the interceptor handles it. Test with a Gitea webhook delivery during Step 13.
+  - id: P3.T5.S8
+    text: |-
+      Create RBAC for Tekton Triggers
+
+
+      The EventListener needs a ServiceAccount with permissions to create PipelineRuns. Check if the vendored Triggers release YAML already creates a `tekton-triggers-sa` ServiceAccount. If not, create one:
+
+      Create `apps/tekton/manifests/triggers-rbac.yaml`:
+
+      ```yaml
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: tekton-triggers-sa
+        namespace: tekton-pipelines
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: tekton-triggers-binding
+        namespace: tekton-pipelines
+      subjects:
+        - kind: ServiceAccount
+          name: tekton-triggers-sa
+          namespace: tekton-pipelines
+      roleRef:
+        kind: ClusterRole
+        name: tekton-triggers-eventlistener-roles
+        apiGroup: rbac.authorization.k8s.io
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: tekton-triggers-binding
+      subjects:
+        - kind: ServiceAccount
+          name: tekton-triggers-sa
+          namespace: tekton-pipelines
+      roleRef:
+        kind: ClusterRole
+        name: tekton-triggers-eventlistener-clusterroles
+        apiGroup: rbac.authorization.k8s.io
+      ```
+
+      Note: The ClusterRole names (`tekton-triggers-eventlistener-roles`, `tekton-triggers-eventlistener-clusterroles`) come from the vendored Triggers release YAML. Verify they exist: `grep "tekton-triggers-eventlistener" apps/tekton/vendor/triggers/release.yaml`.
+  - id: P3.T5.S9
+    text: |-
+      Create ArgoCD Application for Tekton Triggers
+
+
+      Create `apps/root/templates/tekton-triggers.yaml`:
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: tekton-triggers
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/tekton/vendor/triggers
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: tekton-pipelines
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+      ```
+  - id: P3.T5.S10
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/tekton/ apps/root/templates/tekton-triggers.yaml
+      git commit -m "feat(cicd): add Tekton Triggers with Gitea EventListener"
+      ```
+  - id: P3.T5.S11
+    text: |-
+      Push and verify
+
+
+      ```bash
+      git push
+      argocd app get tekton-triggers --port-forward --port-forward-namespace argocd
+      kubectl get pods -n tekton-pipelines
+      # Expect: tekton-triggers-controller, tekton-triggers-core-interceptors Running
+      kubectl get eventlistener -n tekton-pipelines
+      # Expect: gitea-listener with ADDRESS
+      kubectl get svc -n tekton-pipelines | grep el-gitea-listener
+      # Expect: el-gitea-listener ClusterIP on port 8080
+      ```
+  - id: P3.T5.S12
+    text: |-
+      Configure Gitea webhook
+
+
+      ```yaml
+      # manual-operation
+      id: cicd-gitea-webhook
+      layer: cicd
+      app: gitea
+      plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+      when: "After Tekton Triggers are deployed and EventListener is running"
+      why_manual: "Webhook creation is per-repo configuration in Gitea"
+      commands:
+        - "Gitea → test repo → Settings → Webhooks → Add Webhook → Gitea"
+        - "URL: http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080"
+        - "Secret: (value from Infisical GITEA_WEBHOOK_SECRET)"
+        - "Events: Push, Pull Request"
+      verify:
+        - "Gitea → Webhooks → test delivery → returns 2xx from EventListener"
+      status: done
+      ```
+
+      > **Deviation (2026-04-13):** Webhook created via Gitea API (not UI). Two fixes were needed:
+      > 1. EventListener interceptor changed from `github` to `cel` — Gitea sends `X-Gitea-Event` header, not `X-GitHub-Event`, so the GitHub ClusterInterceptor silently dropped all Gitea webhooks.
+      > 2. Added `webhook.ALLOWED_HOST_LIST: "*.svc.cluster.local"` to Gitea config — default allowlist blocks outgoing webhook delivery to in-cluster services.
+  - id: P3.T5.S13
+    text: |-
+      Test webhook triggers a PipelineRun
+
+
+      Push a commit to the test repo (or use Gitea's "test delivery" button):
+
+      ```bash
+      # After pushing a commit to the mirrored test repo
+      kubectl get pipelinerun -n tekton-pipelines
+      # Expect: a new gitea-ci-XXXXX PipelineRun (it will fail because the gitea-ci Pipeline doesn't exist yet — that's OK)
+      # The point is verifying the EventListener → TriggerBinding → TriggerTemplate chain works
+      ```
+
+      If no PipelineRun is created, debug:
+      - Check EventListener pod logs: `kubectl logs -n tekton-pipelines -l app.kubernetes.io/part-of=tekton-triggers -c tekton-triggers-eventlistener`
+      - Check webhook delivery in Gitea UI → Webhooks → Recent Deliveries
+
+      ---
+state:
+  steps:
+    P3.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S9:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S9:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S10:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S11:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S12:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S13:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

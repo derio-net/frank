@@ -1,0 +1,509 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Subnet Router Auto-Approval + Split DNS Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update Headscale ACL Policy with autoApprovers
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Replace the `acl.yaml` section in the ConfigMap
+
+
+      Replace lines 62-72 of `clusters/hop/apps/headscale/manifests/configmap.yaml` — the `acl.yaml` data key — with:
+
+      ```yaml
+        acl.yaml: |
+          {
+            // Allow all traffic within the mesh for now — tighten later
+            "acls": [
+              {
+                "action": "accept",
+                "src": ["*"],
+                "dst": ["*:*"]
+              }
+            ],
+            "tagOwners": {
+              "tag:subnet-router": ["default"]
+            },
+            "autoApprovers": {
+              "routes": {
+                "192.168.10.0/24": ["tag:subnet-router"],
+                "192.168.50.0/24": ["tag:subnet-router"],
+                "192.168.55.0/24": ["tag:subnet-router"]
+              },
+              "exitNode": ["tag:subnet-router"]
+            }
+          }
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Verify the YAML is valid
+
+
+      Run: `kubectl --dry-run=client -o yaml -f clusters/hop/apps/headscale/manifests/configmap.yaml`
+      Expected: Valid YAML output, no errors.
+
+      ---
+- number: 2
+  title: Add Split DNS Nameservers to Headscale Config
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Add the `split` key under `dns.nameservers`
+
+
+      In the `config.yaml` data key, replace the `dns` section (lines 40-53) with:
+
+      ```yaml
+          dns:
+            base_domain: mesh.hop.derio.net
+            magic_dns: true
+            nameservers:
+              global:
+                - 1.1.1.1
+                - 8.8.8.8
+              split:
+                lab.derio.net:
+                  - 192.168.10.11
+                  - 192.168.10.12
+                frank.derio.net:
+                  - 192.168.10.11
+                  - 192.168.10.12
+            extra_records:
+              - name: headplane.hop.derio.net
+                type: A
+                value: 100.64.0.4
+              - name: entry.hop.derio.net
+                type: A
+                value: 100.64.0.4
+      ```
+  - id: P1.T2.S2
+    text: |-
+      Verify the full ConfigMap is valid
+
+
+      Run: `kubectl --dry-run=client -o yaml -f clusters/hop/apps/headscale/manifests/configmap.yaml`
+      Expected: Valid YAML output, no errors.
+  - id: P1.T2.S3
+    text: |-
+      Commit the ConfigMap changes
+
+
+      ```bash
+      git add clusters/hop/apps/headscale/manifests/configmap.yaml
+      git commit -m "feat(edge): add autoApprovers and split DNS to Headscale config"
+      ```
+
+      ---
+
+      > **Deviation (2026-05-09):** This plan documented the *advertising* side end-to-end (raspi-vlan10-d/-e with `--advertise-routes`) but never covered the *consuming* side: each new mesh client must run `tailscale up --accept-routes` (or `tailscale set --accept-routes`) or the kernel won't actually forward LAN-bound traffic through the subnet routers, even with the routes advertised and approved. The verification step `ping 192.168.55.21` (in the design spec) silently fails on a fresh client without `--accept-routes` — symptom is `Network is unreachable`, NOT `no route to host`. The omission stayed latent because the operator's primary client at the time happened to have `accept-routes` enabled by default. Caught when a different operator-laptop tried `git@gitea-ssh.cluster.derio.net:2222` while investigating Phase 3 of the stoa-gitea-primary plan. Fix: blog post `operating/11-public-edge` updated to include `--accept-routes` in the standard client-onboarding `tailscale up` invocation, with the Tailscale health-check line `Some peers are advertising routes but --accept-routes is false` flagged as the canonical diagnostic surface. No code-side change needed.
+- number: 3
+  title: Update Operating Blog Post
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Rewrite the "Registering an Exit Node" section (line 186)
+
+
+      Replace the existing "Registering an Exit Node" section (lines 186-234) with an updated version that covers the combined subnet router + exit node setup:
+
+      ```markdown
+      ### Registering a Subnet Router / Exit Node
+
+      A subnet router advertises LAN subnets to the mesh, making homelab services reachable from any mesh client. An exit node routes all internet traffic through itself. The Raspberry Pi subnet routers serve both roles.
+
+      **Prerequisites on the device:**
+
+      ```bash
+      # Enable IP forwarding (required for routing — persistent across reboots)
+      sudo sysctl -w net.ipv4.ip_forward=1
+      echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
+      ```
+
+      **Step 1 — Register the device with subnet routes, exit node, and tag:**
+
+      ```bash
+      sudo tailscale up \
+        --login-server=https://headscale.hop.derio.net \
+        --advertise-exit-node \
+        --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24 \
+        --advertise-tags=tag:subnet-router \
+        --accept-dns=false \
+        --hostname=$(hostname) \
+        --authkey $HEADSCALE_PREAUTH_KEY
+      ```
+
+      Key flags:
+      - `--advertise-routes` — exposes these LAN subnets to all mesh clients
+      - `--advertise-exit-node` — offers this node as an exit node for tunneling all traffic
+      - `--advertise-tags=tag:subnet-router` — carries the tag with registration so `autoApprovers` in the ACL policy auto-approves routes immediately
+      - `--accept-dns=false` — prevents MagicDNS from overriding the device's OS-level DNS (the raspis need their local DNS to resolve internal hostnames)
+      - `--authkey` — pre-auth key from `.env_hop` (`HEADSCALE_PREAUTH_KEY`)
+
+      **Step 2 — Tag the node (one-time, for existing nodes without the tag):**
+
+      If the node was registered before `--advertise-tags` was added, apply the tag server-side:
+
+      ```bash
+      source .env_hop
+      kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
+      kubectl -n headscale-system exec deploy/headscale -- \
+        headscale nodes tag --identifier <NODE_ID> --tags tag:subnet-router
+      ```
+
+      Future re-registrations carry the tag automatically via `--advertise-tags`.
+
+      **Step 3 — Verify routes are approved:**
+
+      ```bash
+      kubectl -n headscale-system exec deploy/headscale -- headscale routes list
+      ```
+
+      All routes should show `Enabled: true`. With `autoApprovers` configured, no manual `headscale routes enable` is needed.
+
+      **Step 4 — Use the exit node from another mesh client:**
+
+      ```bash
+      # Connect to the exit node
+      tailscale set --exit-node=<exit-node-hostname>
+
+      # Verify internet traffic routes through the exit node
+      curl ifconfig.me
+      # Should show the exit node's network's public IP
+
+      # Verify LAN access
+      ping 192.168.55.21  # Frank cluster mini-1
+
+      # Disconnect
+      tailscale set --exit-node=
+      ```
+
+      **Gotcha:** `--login-server` must use the **public URL** (`https://headscale.hop.derio.net`), not the Kubernetes-internal service name. The internal name only resolves inside the Hop cluster's pod network.
+
+      **Gotcha:** Without `net.ipv4.ip_forward=1` on the device, exit node connections will appear to work (Tailscale reports connected) but all traffic will black-hole — `ping google.com` hangs silently.
+      ```
+  - id: P1.T3.S2
+    text: |-
+      Add a "Split DNS" section after the new subnet router section
+
+
+      Insert after the rewritten section (before "Adding a Mesh-Only Service"):
+
+      ```markdown
+      ### Split DNS for Internal Domains
+
+      Headscale pushes split DNS configuration to all mesh clients. Queries for internal domains go to the home DNS servers; everything else uses public DNS.
+
+      | Domain | Nameservers | Purpose |
+      |--------|-------------|---------|
+      | `*.lab.derio.net` | 192.168.10.11, 192.168.10.12 | Home lab services |
+      | `*.frank.derio.net` | 192.168.10.11, 192.168.10.12 | Frank cluster services |
+      | Everything else | 1.1.1.1, 8.8.8.8 | Public DNS |
+
+      The home DNS servers (192.168.10.11/12) are on the 192.168.10.0/24 subnet, which is advertised by the subnet routers. Any mesh client can reach them — you don't need to be using an exit node.
+
+      **Verify split DNS from a mesh client:**
+
+      ```bash
+      # Should resolve via home DNS
+      dig litellm.frank.derio.net
+
+      # Should resolve via public DNS
+      dig google.com
+      ```
+
+      **Limitation:** If both Raspberry Pi subnet routers are offline, mesh clients lose both the subnet routes and DNS resolution for `*.lab.derio.net` and `*.frank.derio.net`. This is consistent — the services themselves are also unreachable without the subnet routes.
+
+      To add more internal domains to split DNS, edit the Headscale ConfigMap's `dns.nameservers.split` section and restart Headscale:
+
+      ```bash
+      kubectl -n headscale-system rollout restart deploy/headscale
+      ```
+      ```
+  - id: P1.T3.S3
+    text: |-
+      Verify the blog builds
+
+
+      Run: `cd blog && hugo --minify`
+      Expected: Build succeeds with no errors.
+  - id: P1.T3.S4
+    text: |-
+      Commit the blog update
+
+
+      ```bash
+      git add blog/content/operating/11-public-edge/index.md
+      git commit -m "docs(edge): add subnet router, exit node, and split DNS operations"
+      ```
+
+      ---
+- number: 4
+  title: Deploy and Verify
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Push and let ArgoCD sync
+
+
+      ```bash
+      git push
+      ```
+
+      ArgoCD auto-syncs the ConfigMap changes. Verify sync:
+
+      ```bash
+      source .env_hop
+      argocd app get headscale --port-forward --port-forward-namespace argocd
+      ```
+
+      Expected: `Synced` and `Healthy`.
+  - id: P1.T4.S2
+    text: |-
+      Restart Headscale to pick up config changes
+
+
+      ```bash
+      kubectl -n headscale-system rollout restart deploy/headscale
+      kubectl -n headscale-system rollout status deploy/headscale
+      ```
+
+      Expected: Rollout completes successfully.
+  - id: P1.T4.S3
+    text: |-
+      Verify ACL policy loaded
+
+
+      ```bash
+      kubectl -n headscale-system logs deploy/headscale | grep -i "acl\|policy\|error"
+      ```
+
+      Expected: No policy errors. Look for successful policy load messages.
+  - id: P1.T4.S4
+    text: |-
+      Tag existing raspi nodes (skip if re-registering in Steps 5-6)
+
+
+      If the raspis will be re-registered with `--advertise-tags=tag:subnet-router` in Steps 5-6, this step is redundant — the tag travels with registration. Only needed if deferring raspi re-registration.
+
+      ```bash
+      # Get node IDs
+      kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
+
+      # Tag both nodes
+      kubectl -n headscale-system exec deploy/headscale -- \
+        headscale nodes tag --identifier <RASPI_D_ID> --tags tag:subnet-router
+      kubectl -n headscale-system exec deploy/headscale -- \
+        headscale nodes tag --identifier <RASPI_E_ID> --tags tag:subnet-router
+      ```
+
+      # manual-operation
+      ```yaml
+      id: edge-tag-subnet-routers
+      layer: edge
+      app: headscale
+      plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
+      when: After ConfigMap deploy and Headscale restart
+      why_manual: Node tagging is an imperative Headscale CLI operation; cannot be declared in config
+      commands:
+        - source .env_hop
+        - kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
+        - kubectl -n headscale-system exec deploy/headscale -- headscale nodes tag --identifier <RASPI_D_ID> --tags tag:subnet-router
+        - kubectl -n headscale-system exec deploy/headscale -- headscale nodes tag --identifier <RASPI_E_ID> --tags tag:subnet-router
+      verify:
+        - kubectl -n headscale-system exec deploy/headscale -- headscale nodes list  # Both nodes should show tag:subnet-router
+      status: pending
+      ```
+  - id: P1.T4.S5
+    text: |-
+      Configure raspi-vlan10-D (SSH to device)
+
+
+      ```bash
+      # On raspi-vlan10-D:
+      sudo sysctl -w net.ipv4.ip_forward=1
+      echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
+
+      sudo tailscale up \
+        --login-server=https://headscale.hop.derio.net \
+        --advertise-exit-node \
+        --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24 \
+        --advertise-tags=tag:subnet-router \
+        --accept-dns=false \
+        --hostname=$(hostname) \
+        --authkey $HEADSCALE_PREAUTH_KEY
+      ```
+
+      # manual-operation
+      ```yaml
+      id: edge-configure-raspi-d
+      layer: edge
+      app: headscale
+      plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
+      when: After Headscale ConfigMap deploy
+      why_manual: Raspberry Pis are standalone devices outside the cluster; OS and Tailscale config is imperative
+      commands:
+        - sudo sysctl -w net.ipv4.ip_forward=1
+        - echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
+        - sudo tailscale up --login-server=https://headscale.hop.derio.net --advertise-exit-node --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24 --advertise-tags=tag:subnet-router --accept-dns=false --hostname=$(hostname) --authkey $HEADSCALE_PREAUTH_KEY
+      verify:
+        - cat /proc/sys/net/ipv4/ip_forward  # Should return 1
+        - tailscale status  # Should show connected with tag:subnet-router
+      status: complete
+      ```
+  - id: P1.T4.S6
+    text: |-
+      Configure raspi-vlan10-E (SSH to device)
+
+
+      Same commands as Step 5, on raspi-vlan10-E.
+
+      # manual-operation
+      ```yaml
+      id: edge-configure-raspi-e
+      layer: edge
+      app: headscale
+      plan: docs/superpowers/plans/2026-03-21--edge--subnet-router-autoapproval.md
+      when: After Headscale ConfigMap deploy
+      why_manual: Raspberry Pis are standalone devices outside the cluster; OS and Tailscale config is imperative
+      commands:
+        - sudo sysctl -w net.ipv4.ip_forward=1
+        - echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
+        - sudo tailscale up --login-server=https://headscale.hop.derio.net --advertise-exit-node --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24 --advertise-tags=tag:subnet-router --accept-dns=false --hostname=$(hostname) --authkey $HEADSCALE_PREAUTH_KEY
+      verify:
+        - cat /proc/sys/net/ipv4/ip_forward  # Should return 1
+        - tailscale status  # Should show connected with tag:subnet-router
+      status: complete
+      ```
+  - id: P1.T4.S7
+    text: |-
+      Verify end-to-end from a mesh client (e.g., Mac)
+
+
+      ```bash
+      # Verify split DNS
+      dig litellm.frank.derio.net  # Should resolve via 192.168.10.11
+      dig google.com                # Should resolve via 1.1.1.1
+
+      # Verify subnet routes (without exit node)
+      ping 192.168.55.21  # Should reach Frank mini-1
+
+      # Verify exit node
+      tailscale set --exit-node=raspi-vlan10-d
+      ping google.com         # Should work
+      ping nas.lab.derio.net  # Should resolve and respond
+      tailscale set --exit-node=  # Disconnect
+
+      # Verify routes list
+      source .env_hop
+      kubectl -n headscale-system exec deploy/headscale -- headscale routes list
+      # All routes should show Enabled: true
+      ```
+  - id: P1.T4.S8
+    text: |-
+      Update plan status
+
+
+      Set Status in this plan header to `Deployed`.
+  - id: P1.T4.S9
+    text: |-
+      Sync Hop blog
+
+
+      ```bash
+      source .env_hop
+      kubectl -n blog-system rollout restart deploy/blog
+      ```
+  - id: P1.T4.S10
+    text: |-
+      Sync runbook
+
+
+      Run `/sync-runbook` to sync the three `# manual-operation` blocks to `docs/runbooks/manual-operations.yaml`.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S9:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S10:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

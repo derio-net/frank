@@ -1,0 +1,210 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Zero-risk quick wins
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Remove duplicate namespace ownership (class E)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Locate the duplicate Namespace manifest
+
+
+      Confirmed: `apps/sympozium-extras/manifests/namespace.yaml` sets pod-security
+      privileged labels on `sympozium-system`, which is also rendered by the
+      upstream sympozium chart (`charts/sympozium/templates/namespace.yaml`).
+  - id: P1.T1.S2
+    text: |-
+      Remove the Namespace doc from sympozium-extras
+
+
+      `git rm apps/sympozium-extras/manifests/namespace.yaml`
+  - id: P1.T1.S3
+    text: |-
+      Apply the pod-security labels out-of-band (manual-op)
+
+
+      ```yaml
+      # manual-operation
+      id: sympozium-system-pod-security-labels
+      layer: agents
+      app: sympozium
+      plan: 2026-04-15--gitops--argocd-drift-cleanup.md
+      when: on namespace (re)creation, once only
+      why_manual: upstream sympozium chart renders its own Namespace without a
+        values hook for labels; ArgoCD managedNamespaceMetadata does not override
+        chart-rendered namespaces. Labels are sticky so declarative drift does not
+        reintroduce them once applied.
+      commands:
+        - kubectl label ns sympozium-system pod-security.kubernetes.io/enforce=privileged pod-security.kubernetes.io/audit=privileged pod-security.kubernetes.io/warn=privileged --overwrite
+      verify:
+        - kubectl get ns sympozium-system -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}'  # expects: privileged
+      status: applied 2026-04-16
+      ```
+  - id: P1.T1.S4
+    text: |-
+      Commit and verify
+
+
+      ```bash
+      git add apps/root/templates/sympozium.yaml apps/sympozium-extras/manifests/namespace.yaml
+      git commit -m "fix(gitops): drop duplicate sympozium Namespace (labels applied via manual-op)"
+      git push
+      kubectl -n argocd get application sympozium-extras -o jsonpath='{.status.sync.status}{"\n"}'
+      ```
+
+      Expected: sympozium-extras no longer lists Namespace as OutOfSync (it may
+      still be OutOfSync due to class A ES drift — resolved in Phase 2).
+- number: 2
+  title: Delete terminal Job and PipelineRun (class F)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Re-verify terminal state
+
+
+      ```bash
+      kubectl -n agents get job postgres-vk-init-electric -o jsonpath='{.status.conditions[*].type}={.status.conditions[*].status}{"\n"}'
+      kubectl -n tekton-pipelines get pipelinerun test-build-sign-5qtn4 -o jsonpath='{.status.conditions[0].type}={.status.conditions[0].status}={.status.conditions[0].reason}{"\n"}'
+      ```
+
+      Expected: `Complete=True` and `Succeeded=True=Completed`. **Halt if any condition shows Running.**
+  - id: P1.T2.S2
+    text: |-
+      Dump for rollback
+
+
+      ```bash
+      kubectl -n agents get job postgres-vk-init-electric -o yaml > /tmp/argocd-drift/rollback-job-postgres-vk-init-electric.yaml
+      kubectl -n tekton-pipelines get pipelinerun test-build-sign-5qtn4 -o yaml > /tmp/argocd-drift/rollback-pipelinerun-test-build-sign-5qtn4.yaml
+      ```
+  - id: P1.T2.S3
+    text: |-
+      Delete
+
+
+      ```bash
+      kubectl -n agents delete job postgres-vk-init-electric
+      kubectl -n tekton-pipelines delete pipelinerun test-build-sign-5qtn4
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Verify ad-hoc entries are gone from app status
+
+
+      ```bash
+      kubectl -n argocd get application vk-remote tekton-extras -o json \
+        | jq -r '.status.resources[] | select(.kind=="Job" or .kind=="PipelineRun") | "\(.kind)/\(.name)"'
+      ```
+
+      Expected: no matching rows (both deleted). vk-remote and tekton-extras still have ES/Task drift — resolved later.
+- number: 3
+  title: 'Remove `prune: false` from Application templates (class B)'
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Confirm no explicit `prune: true` overrides
+
+
+      ```bash
+      grep -rE "prune.*true|prune: \"true\"" apps/root/ || echo "Safe to remove prune: false"
+      ```
+  - id: P1.T3.S2
+    text: |-
+      Bulk edit
+
+
+      ```bash
+      for f in apps/root/templates/*.yaml; do
+        sed -i '/^      prune: false$/d' "$f"
+      done
+      grep -l "prune: false" apps/root/templates/*.yaml  # Expected: empty
+      ```
+
+      Add a one-line comment at the top of `apps/root/values.yaml` preserving intent: `# Note: prune defaults to false for all Applications — manual pruning only (see .claude/rules/frank-argocd.md)`
+  - id: P1.T3.S3
+    text: |-
+      Sanity-check one render
+
+
+      ```bash
+      helm template apps/root --values apps/root/values.yaml --show-only templates/argo-rollouts.yaml | grep -A3 "automated:"
+      ```
+
+      Expected: `automated:` contains only `selfHeal: true`; no `prune:` line.
+  - id: P1.T3.S4
+    text: |-
+      Commit and verify
+
+
+        ```bash
+        git add apps/root/
+        git commit -m "fix(gitops): drop explicit prune: false from Application templates (matches schema default)"
+        git push
+        sleep 90
+        kubectl -n argocd get application root -o jsonpath='{.status.sync.status}{"\n"}'
+        kubectl -n argocd get applications -o json \
+          | jq -r '.items[] | select(.status.sync.status != "Synced") | .metadata.name' | wc -l
+        ```
+
+        Expected: root is `Synced`; OutOfSync count drops from 20 → ~18.
+
+      ---
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

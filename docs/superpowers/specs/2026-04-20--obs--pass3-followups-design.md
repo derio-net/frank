@@ -68,6 +68,6 @@ Run `/brainstorming` against this spec to:
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| Obs — Cert-Expiry Alerting Implementation Plan |  | `docs/superpowers/plans/2026-05-11--obs--cert-expiry-alerting.md` | Not Started | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Obs — Cert-Expiry Alerting Implementation Plan |  | `docs/superpowers/plans/2026-05-11--obs--cert-expiry-alerting/` | — |

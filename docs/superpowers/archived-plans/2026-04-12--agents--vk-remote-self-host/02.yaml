@@ -1,0 +1,35 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Deploy & Configure
+  tag: manual
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/63
+tasks:
+- number: 1
+  title: Verify ArgoCD sync
+  steps: []
+- number: 2
+  title: Verify health endpoint
+  steps: []
+- number: 3
+  title: Login and create org/project
+  steps: []
+- number: 4
+  title: Update bridge env vars
+  steps: []
+- number: 5
+  title: Assign Authentik outpost provider
+  steps: []
+- number: 6
+  title: Verify browser access
+  steps: []
+- number: 7
+  title: End-to-end bridge test
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

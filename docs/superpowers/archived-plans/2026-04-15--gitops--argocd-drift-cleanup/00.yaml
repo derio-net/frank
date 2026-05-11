@@ -1,0 +1,64 @@
+schema_version: 2
+phase:
+  number: 0
+  title: Baseline & tooling
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Capture baseline
+  steps:
+  - id: P0.T1.S1
+    text: |-
+      Snapshot OutOfSync state
+
+
+      ```bash
+      mkdir -p /tmp/argocd-drift
+      kubectl -n argocd get applications -o json \
+        | jq -r '.items[] | "\(.metadata.name)\t\(.status.sync.status)\t\(.status.health.status)"' \
+        | sort > /tmp/argocd-drift/baseline-apps.tsv
+
+      kubectl -n argocd get applications -o json \
+        | jq -r '.items[] | .metadata.name as $app | .status.resources[]? | select(.status!="Synced") | "\($app)\t\(.kind)/\(.name)\t\(.namespace // "cluster")\t\(.status)"' \
+        | sort > /tmp/argocd-drift/baseline-resources.tsv
+
+      wc -l /tmp/argocd-drift/baseline-*.tsv
+      ```
+
+      Expected: baseline-apps.tsv has 20 non-Synced entries, baseline-resources.tsv ~70 entries.
+  - id: P0.T1.S2
+    text: |-
+      Confirm argocd CLI access
+
+
+        ```bash
+        command -v argocd || {
+          ARGOCD_VERSION=$(kubectl -n argocd get deploy argocd-server -o jsonpath='{.spec.template.spec.containers[0].image}' | awk -F: '{print $2}')
+          curl -sSL -o /tmp/argocd "https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64"
+          chmod +x /tmp/argocd && sudo mv /tmp/argocd /usr/local/bin/argocd
+        }
+        argocd version --client
+        argocd app list --port-forward --port-forward-namespace argocd | head -5
+        ```
+
+        Expected: argocd CLI prints v3.3.2 client, `app list` succeeds.
+
+        *If port-forward sync fails:* start `kubectl -n argocd port-forward svc/argocd-server 8080:443` in a background shell, then `argocd --server localhost:8080 --insecure login` with admin creds.
+
+      ---
+state:
+  steps:
+    P0.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

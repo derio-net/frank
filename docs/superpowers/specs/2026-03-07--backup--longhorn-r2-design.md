@@ -58,9 +58,9 @@ No new UI — Longhorn UI already at `192.168.55.201`. Backup status, snapshots,
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| Backup Implementation Plan |  | `docs/superpowers/archived-plans/2026-03-08--backup--longhorn-r2.md` | Deployed | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Backup Implementation Plan |  | `docs/superpowers/archived-plans/2026-03-08--backup--longhorn-r2/` | — |
 
 ## Blog Post
 

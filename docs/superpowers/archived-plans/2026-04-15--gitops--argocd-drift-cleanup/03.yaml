@@ -1,0 +1,109 @@
+schema_version: 2
+phase:
+  number: 3
+  title: CRD adoption (class C)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Adopt argo-rollouts CRDs
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Verify helm resource-policy is present (keeps CRDs safe on app deletion)
+
+
+      ```bash
+      for crd in analysisruns.argoproj.io analysistemplates.argoproj.io clusteranalysistemplates.argoproj.io experiments.argoproj.io rollouts.argoproj.io; do
+        echo "$crd: $(kubectl get crd $crd -o jsonpath='{.metadata.annotations.helm\.sh/resource-policy}')"
+      done
+      ```
+
+      Expected: every CRD prints `keep`. **Halt if any is empty.**
+  - id: P3.T1.S2
+    text: |-
+      Annotate
+
+
+      ```bash
+      for crd in analysisruns.argoproj.io analysistemplates.argoproj.io clusteranalysistemplates.argoproj.io experiments.argoproj.io rollouts.argoproj.io; do
+        kubectl annotate crd $crd "argocd.argoproj.io/tracking-id=argo-rollouts:apiextensions.k8s.io/CustomResourceDefinition:/$crd" --overwrite
+      done
+      ```
+  - id: P3.T1.S3
+    text: |-
+      Sync + verify
+
+
+      ```bash
+      argocd app sync argo-rollouts --port-forward --port-forward-namespace argocd
+      sleep 30
+      kubectl -n argocd get application argo-rollouts -o jsonpath='{.status.sync.status}/{.status.health.status}{"\n"}'
+      ```
+
+      Expected: `Synced/Healthy` (was `OutOfSync/Progressing`).
+
+      *Rollback:* `kubectl annotate crd <name> argocd.argoproj.io/tracking-id-`
+- number: 2
+  title: Adopt Tekton pipelines CRDs
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Annotate + sync
+
+
+      ```bash
+      for crd in customruns.tekton.dev pipelineruns.tekton.dev pipelines.tekton.dev stepactions.tekton.dev taskruns.tekton.dev tasks.tekton.dev; do
+        kubectl annotate crd $crd "argocd.argoproj.io/tracking-id=tekton-pipelines:apiextensions.k8s.io/CustomResourceDefinition:/$crd" --overwrite
+      done
+      argocd app sync tekton-pipelines --port-forward --port-forward-namespace argocd
+      sleep 30
+      kubectl -n argocd get application tekton-pipelines -o jsonpath='{.status.sync.status}/{.status.health.status}{"\n"}'
+      ```
+
+      Expected: `Synced/Healthy`.
+- number: 3
+  title: Adopt Tekton Dashboard CRD
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Annotate + sync
+
+
+        ```bash
+        kubectl annotate crd extensions.dashboard.tekton.dev "argocd.argoproj.io/tracking-id=tekton-dashboard:apiextensions.k8s.io/CustomResourceDefinition:/extensions.dashboard.tekton.dev" --overwrite
+        argocd app sync tekton-dashboard --port-forward --port-forward-namespace argocd
+        sleep 30
+        kubectl -n argocd get application tekton-dashboard -o jsonpath='{.status.sync.status}/{.status.health.status}{"\n"}'
+        ```
+
+        Expected: `Synced/Healthy`.
+
+      ---
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,155 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Image bump cutover
+  tag: manual
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/133
+tasks:
+- number: 1
+  title: Confirm Phases 1-4 are merged in agent-images
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Check agent-images main has all four PRs *(skipped — agent-images Phases 2-4 not yet merged; Phase 2 closed with blocker documented)*
+
+
+      ```bash
+      cd ~/Docs/projects/DERIO_NET/agent-images
+      git log --oneline -10 origin/main | grep -E "agent-init.d|agent-shell-base|migrate to agent-shell-base|vk-local.*wrapper"
+      ```
+
+      Expected: 4 commits.
+
+      > **Status (2026-04-29):** BLOCKED. `derio-net/agent-images` main is at `efc07ee`
+      > (fix: disable errexit in bashrc source). Only Phase 1 (`/opt/agent-init.d/`
+      > scripts, merged via PR #20) is on main. Phases 2-4 remain open:
+      > - Phase 2 (agent-shell-base): issue #17, not yet started
+      > - Phase 3 (kali migration to agent-shell-base): issue #18, not yet started
+      > - Phase 4 (vk-local wrapper): issue #19, PR #25 open but blocked by Phase 2
+      >
+      > Do NOT merge any frank bump PRs until agent-images Phases 2-4 land.
+      > The current open bump PR in frank (#146, `efc07ee`) carries only bug fixes,
+      > not the s6-based image — close it or hold it until the s6 bump supersedes it.
+- number: 2
+  title: Merge the accumulated bumper PR in frank
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Identify the bump PR *(skipped — bump PRs closed; s6 image not yet available from agent-images)*
+
+
+      ```bash
+      gh pr list --repo derio-net/frank --label vk-ready --search "bump agent-images"
+      ```
+
+      There may be multiple if Phases 1-4 each fired the bumper. The latest one supersedes earlier ones; close the older ones.
+  - id: P2.T2.S2
+    text: |-
+      Merge the latest bump PR *(skipped — pending agent-images Phases 2-4)*
+
+
+      ```bash
+      gh pr merge <PR_NUMBER> --repo derio-net/frank --squash
+      ```
+- number: 3
+  title: Observe the rollout
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Watch ArgoCD sync + pod recreation *(skipped — s6 image cutover not yet executed)*
+
+
+      ```bash
+      argocd app get secure-agent-pod --port-forward --port-forward-namespace argocd
+      kubectl -n secure-agent-pod get pods -w
+      ```
+
+      Expected: old pod terminates, new pod creates with the new image SHAs (kali + vk-local). Recreate strategy means ~30s of downtime.
+
+      Note: this first cutover happens *without* the agent-pod-specific Telegram alert because Phase 3's subscription annotations haven't been added yet. Phase 1 Task 6's test left no permanent subscription.
+- number: 4
+  title: Re-spawn mosh + verify pod-side state
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      Cmd+Shift+2 in WezTerm *(skipped — s6 image cutover pending)*
+  - id: P2.T4.S2
+    text: |-
+      Verify s6 + services *(skipped — s6 image cutover pending)*
+
+
+      ```bash
+      ssh claude@192.168.55.215 'ps -ef | head -20'
+      # PID 1 should be /init (s6); s6-rc supervisors visible.
+
+      ssh claude@192.168.55.215 's6-svstat /run/service/sshd /run/service/supercronic'
+      # Expected: both up
+
+      ssh claude@192.168.55.215 'tmux -V; mosh-server --version | head -1'
+      # Expected: tmux 3.6, mosh-server 1.4.x
+
+      ssh claude@192.168.55.215 'ls /usr/local/share/tmux-plugins/'
+      # Expected: tmux-resurrect/, tmux-continuum/
+
+      ssh claude@192.168.55.215 'cat ~/.tmux.conf | tail -5'
+      # Should contain `source-file /etc/agent/tmux-resurrect.conf`.
+      # IF MISSING: existing PR #127-deposited ~/.tmux.conf overrode /etc/skel.
+      # Append the line manually once: echo 'source-file /etc/agent/tmux-resurrect.conf' >> ~/.tmux.conf
+      # Then `tmux source ~/.tmux.conf` to load the plugins in the running server.
+      ```
+- number: 5
+  title: Smoke test in-pod resilience
+  steps:
+  - id: P2.T5.S1
+    text: |-
+      Kill supercronic, observe respawn *(skipped — current image uses tini+entrypoint.sh, not s6; pkill of supercronic would kill the container, not respawn it)*
+
+
+      mosh+tmux session uninterrupted (no container restart).
+  - id: P2.T5.S2
+    text: |-
+      Confirm no historical regressions *(skipped — pending s6 image cutover)*
+
+
+      Open a tmux session, split panes, attach `claude` REPL, type a message, observe everything works as before.
+
+      ---
+state:
+  steps:
+    P2.T1.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T4.S2:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T5.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T5.S2:
+      state: '-'
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

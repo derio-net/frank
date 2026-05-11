@@ -1,0 +1,74 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Verify
+  tag: manual
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Confirm tools are present
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      `kubectl exec` checks *(tmux 3.6, mosh 1.4.0, LANG/LC_ALL=C.UTF-8)*
+
+
+      ```bash
+      kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- tmux -V
+      kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- mosh-server --version | head -1
+      kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- printenv LANG LC_ALL
+      ```
+
+      Expected: `tmux 3.x`, `mosh-server (mosh) 1.4.x`, `C.UTF-8` for both env vars.
+- number: 2
+  title: Confirm Cilium L2 LB advertises mosh IP
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Service status *(EXTERNAL-IP=192.168.55.219, 4×UDP ports allocated)*
+
+
+      ```bash
+      kubectl get svc -n secure-agent-pod secure-agent-mosh -o wide
+      # EXTERNAL-IP should be 192.168.55.219
+      kubectl get ciliuml2announcementpolicy -A 2>/dev/null
+      ```
+
+      Expected: `EXTERNAL-IP = 192.168.55.219`, four UDP ports listed.
+- number: 3
+  title: End-to-end mosh from a client
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Connect from a host on the lab LAN
+
+
+      ```bash
+      mosh --ssh="ssh -p 22 user@192.168.55.215" \
+           --server="mosh-server new -p 60000:60003" \
+           192.168.55.219
+      ```
+
+      Verify a tmux session survives a `kill -STOP` / `kill -CONT` of the local mosh client (simulating a sleep/wake). If the connection blackholes, check Cilium L2 announcements include UDP and that the kali container's BPF policy permits inbound UDP on the chosen port (Cilium Network Policy is currently open for ingress on this pod — see `cilium-egress.yaml.disabled`).
+
+      ---
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

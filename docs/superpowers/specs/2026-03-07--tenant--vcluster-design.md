@@ -68,9 +68,9 @@ No persistent UI. vCluster access is kubeconfig-based (`vcluster connect`). Each
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| Multi-tenancy — vCluster Implementation Plan |  | `docs/superpowers/archived-plans/2026-03-11--tenant--vcluster.md` | Deployed | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Multi-tenancy — vCluster Implementation Plan |  | `docs/superpowers/archived-plans/2026-03-11--tenant--vcluster/` | — |
 
 ## Blog Post
 

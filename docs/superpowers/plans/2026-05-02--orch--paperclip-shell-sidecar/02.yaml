@@ -1,0 +1,302 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Frank manifests for sidecar
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/176
+tasks:
+- number: 1
+  title: Add `paperclip-shell-home` PVC
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Create `apps/paperclip/manifests/pvc-shell-home.yaml`
+
+
+      ```
+      BEGIN apps/paperclip/manifests/pvc-shell-home.yaml
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: paperclip-shell-home
+        namespace: paperclip-system
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 20Gi
+      END apps/paperclip/manifests/pvc-shell-home.yaml
+      ```
+- number: 2
+  title: Add the inventory ConfigMap (initially empty)
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Create `apps/paperclip/manifests/configmap-shell-inventory.yaml`
+
+
+        Start with empty arrays — Phase 4 populates them. This proves the installer is wired up and idempotent before any tools are declared:
+
+      ```
+      BEGIN apps/paperclip/manifests/configmap-shell-inventory.yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: paperclip-shell-inventory
+        namespace: paperclip-system
+      data:
+        inventory.yaml: |
+          # Layer-2 declarations — installed at boot via cont-init.d.
+          # See docs/superpowers/specs/2026-05-02--orch--paperclip-shell-sidecar-design.md
+          mise: []
+          npm-global: []
+          pipx: []
+          cargo: []
+          removed:
+            mise: []
+            npm-global: []
+            pipx: []
+            cargo: []
+      END apps/paperclip/manifests/configmap-shell-inventory.yaml
+      ```
+- number: 3
+  title: Add ExternalSecrets
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Read existing `agent-ssh-keys` ESO definition to mirror its shape
+
+
+      ```bash
+      ls apps/secure-agent-pod/manifests/ | grep -i 'externalsecret\|ssh-key'
+      cat apps/secure-agent-pod/manifests/externalsecret-github-token.yaml | head -40  # for ESO scaffold reference
+      ```
+
+        Capture: `secretStoreRef`, Infisical project / path, the exact `dataFrom` or `data:` shape that produces `agent-ssh-keys`.
+  - id: P2.T3.S2
+    text: |-
+      Audit existing Telegram-credentials wiring
+
+
+      ```bash
+      grep -rE 'FRANK_C2_TELEGRAM_BOT_TOKEN|FRANK_C2_TELEGRAM_CHAT_ID' apps/ secrets/ 2>/dev/null
+      ```
+
+        Decision: if a Secret containing both values already exists in another namespace, replicate the ESO (one ESO per namespace, same Infisical source). If not, create one specifically for `paperclip-system`.
+  - id: P2.T3.S3
+    text: |-
+      Create `apps/paperclip/manifests/externalsecret-shell-ssh-keys.yaml` mirroring the discovered shape; produces Secret `paperclip-shell-ssh-keys` from the same Infisical entries as `agent-ssh-keys`.
+  - id: P2.T3.S4
+    text: |-
+      Create `apps/paperclip/manifests/externalsecret-shell-alerts.yaml` producing Secret `paperclip-shell-alerts` with `FRANK_C2_TELEGRAM_BOT_TOKEN` + `FRANK_C2_TELEGRAM_CHAT_ID`.
+- number: 4
+  title: Add the LoadBalancer Service
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      Confirm `192.168.55.221` is free
+
+
+      ```bash
+      kubectl get svc -A -o jsonpath='{range .items[*]}{.status.loadBalancer.ingress[0].ip}{"\n"}{end}' \
+        | sort -u | grep -F 192.168.55.221 \
+        || echo "192.168.55.221 is free"
+      ```
+  - id: P2.T4.S2
+    text: |-
+      Create `apps/paperclip/manifests/service-shell.yaml`
+
+
+      ```
+      BEGIN apps/paperclip/manifests/service-shell.yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: paperclip-shell
+        namespace: paperclip-system
+        annotations:
+          lbipam.cilium.io/ips: 192.168.55.221
+      spec:
+        type: LoadBalancer
+        selector:
+          app.kubernetes.io/name: paperclip
+          app.kubernetes.io/component: server
+        ports:
+          - { name: ssh, port: 22, targetPort: 2222, protocol: TCP }
+          - { name: mosh-60000, port: 60000, protocol: UDP }
+          - { name: mosh-60001, port: 60001, protocol: UDP }
+          - { name: mosh-60002, port: 60002, protocol: UDP }
+          - { name: mosh-60003, port: 60003, protocol: UDP }
+          - { name: mosh-60004, port: 60004, protocol: UDP }
+          - { name: mosh-60005, port: 60005, protocol: UDP }
+          - { name: mosh-60006, port: 60006, protocol: UDP }
+          - { name: mosh-60007, port: 60007, protocol: UDP }
+          - { name: mosh-60008, port: 60008, protocol: UDP }
+          - { name: mosh-60009, port: 60009, protocol: UDP }
+          - { name: mosh-60010, port: 60010, protocol: UDP }
+          - { name: mosh-60011, port: 60011, protocol: UDP }
+          - { name: mosh-60012, port: 60012, protocol: UDP }
+          - { name: mosh-60013, port: 60013, protocol: UDP }
+          - { name: mosh-60014, port: 60014, protocol: UDP }
+          - { name: mosh-60015, port: 60015, protocol: UDP }
+      END apps/paperclip/manifests/service-shell.yaml
+      ```
+- number: 5
+  title: Update `deployment.yaml` to add the sidecar
+  steps:
+  - id: P2.T5.S1
+    text: |-
+      Investigate the upstream paperclip container's UID
+
+
+      ```bash
+      docker run --rm --entrypoint id ghcr.io/paperclipai/paperclip:sha-3494e84
+      # expect uid=1000 or document the actual value
+      ```
+
+        If the value is not `1000`, decide between option (a) `initContainer` chowning `/paperclip` to `fsGroup: 1000`, or (b) overriding `paperclip` container's `securityContext.runAsUser: 1000`. Document the decision inline in this plan's *Deployment Notes* section.
+  - id: P2.T5.S2
+    text: |-
+      Edit `apps/paperclip/manifests/deployment.yaml` — add `shareProcessNamespace: true` at pod-spec level, add the sidecar container, add the new volumes. Use `Edit` (not `Write`) on the existing file.
+
+
+        Sidecar container fragment:
+
+      ```yaml
+      - name: paperclip-shell
+        image: ghcr.io/derio-net/paperclip-shell:<SHA-FROM-PHASE-1>
+        imagePullPolicy: IfNotPresent
+        ports:
+          - { name: ssh, containerPort: 2222, protocol: TCP }
+          - { name: mosh-60000, containerPort: 60000, protocol: UDP }
+          # ... 60001 through 60015 (15 more lines)
+        env:
+          - { name: PAPERCLIP_SHELL_USER, value: agent }
+          - { name: MOSH_SERVER_NETWORK_TMOUT, value: "3600" }
+        envFrom:
+          - secretRef: { name: paperclip-shell-alerts, optional: true }
+        volumeMounts:
+          - { name: shell-home, mountPath: /home/agent }
+          - { name: paperclip-data, mountPath: /paperclip }
+          - { name: shell-ssh-keys, mountPath: /etc/ssh-keys, readOnly: true }
+          - { name: shell-inventory, mountPath: /etc/paperclip-shell, readOnly: true }
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          runAsNonRoot: true
+          allowPrivilegeEscalation: false
+          capabilities: { drop: ["ALL"] }
+        resources:
+          requests: { cpu: 500m, memory: 1Gi }
+          limits:   { cpu: "4", memory: 8Gi }
+        readinessProbe:
+          tcpSocket: { port: 2222 }
+          initialDelaySeconds: 10
+          periodSeconds: 30
+        livenessProbe:
+          tcpSocket: { port: 2222 }
+          initialDelaySeconds: 30
+          periodSeconds: 60
+      ```
+
+        New volume entries (extend the existing `volumes:` array):
+
+      ```yaml
+      - name: shell-home
+        persistentVolumeClaim: { claimName: paperclip-shell-home }
+      - name: shell-ssh-keys
+        secret: { secretName: paperclip-shell-ssh-keys, defaultMode: 0400 }
+      - name: shell-inventory
+        configMap: { name: paperclip-shell-inventory }
+      ```
+
+        At pod-spec level: `shareProcessNamespace: true`.
+- number: 6
+  title: Add operator client-setup files
+  steps:
+  - id: P2.T6.S1
+    text: |-
+      Create `apps/paperclip/client-setup/laptop/` mirroring `apps/secure-agent-pod/client-setup/laptop/`:
+
+
+      - `ssh-config.snippet` — `Host paperclip-shell` block with `HostName 192.168.55.221`, `Port 22`, `User agent`, `IdentityFile ~/.ssh/<your_key>`.
+      - `mosh-wrapper.sh` — invokes `mosh --server="mosh-server new -p 60000:60015" agent@192.168.55.221`.
+      - `README.md` — explains both, points at the secure-agent-pod README where applicable.
+- number: 7
+  title: Open frank PR
+  steps:
+  - id: P2.T7.S1
+    text: |-
+      Open PR titled `feat(orch): add paperclip-shell sidecar (manifests only)` with body linking to this plan and the spec. Note the inventory is empty — Phase 4 populates it.
+  - id: P2.T7.S2
+    text: |-
+      Wait for ArgoCD auto-sync after merge
+
+
+      ```bash
+      kubectl -n argocd get application paperclip -o jsonpath='{.status.sync.status} {.status.health.status}{"\n"}'
+      # expect: Synced Healthy
+      ```
+
+      ---
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T5.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

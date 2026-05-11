@@ -1,0 +1,56 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Blog Series Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Hugo Site
+  steps: []
+- number: 2
+  title: Add PaperMod Theme as Git Submodule
+  steps: []
+- number: 3
+  title: Create Roadmap Shortcode
+  steps: []
+- number: 4
+  title: Create Post 0 — Overview & Roadmap
+  steps: []
+- number: 5
+  title: Create Post 1 — Introduction
+  steps: []
+- number: 6
+  title: Create Post 2 — Building the Foundation
+  steps: []
+- number: 7
+  title: Create Post 3 — Storage
+  steps: []
+- number: 8
+  title: Create Post 4 — GPU Compute
+  steps: []
+- number: 9
+  title: Create Post 5 — GitOps
+  steps: []
+- number: 10
+  title: Create Post 6 — Fun Stuff
+  steps: []
+- number: 11
+  title: GitHub Actions Deployment Workflow
+  steps: []
+- number: 12
+  title: Netlify Fallback Config
+  steps: []
+- number: 13
+  title: Verify Full Build and Local Preview
+  steps: []
+- number: 14
+  title: Update .gitignore
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

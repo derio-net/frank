@@ -1,0 +1,38 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Local Inference Gateway — Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create Ollama ArgoCD app
+  steps: []
+- number: 2
+  title: Create LiteLLM ExternalSecret manifests
+  steps: []
+- number: 3
+  title: Create LiteLLM ArgoCD apps
+  steps: []
+- number: 4
+  title: Add secrets to Infisical
+  steps: []
+- number: 5
+  title: Push and deploy Ollama
+  steps: []
+- number: 6
+  title: Deploy and verify LiteLLM
+  steps: []
+- number: 7
+  title: End-to-end smoke test
+  steps: []
+- number: 8
+  title: Update CLAUDE.md
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

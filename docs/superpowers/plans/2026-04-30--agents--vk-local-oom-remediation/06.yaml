@@ -1,0 +1,23 @@
+schema_version: 2
+phase:
+  number: 6
+  title: File tracking issues for B2, B3, R
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/157
+tasks:
+- number: 1
+  title: File B2 tracking issue
+  steps: []
+- number: 2
+  title: File B3 tracking issue
+  steps: []
+- number: 3
+  title: File the R (regression cross-check) tracking issue
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

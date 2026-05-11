@@ -1,0 +1,78 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Documentation
+  tag: agentic
+  depends_on:
+  - 4
+  tracking_issue: https://github.com/derio-net/frank/issues/179
+tasks:
+- number: 1
+  title: Update CLAUDE.md rules
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Update `.claude/rules/frank-infrastructure.md`
+
+
+        Add to the Frank Cluster Services table:
+
+      ```
+      | Paperclip Shell (SSH+Mosh) | 192.168.55.221 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60000-60015/Mosh) |
+      ```
+  - id: P5.T1.S2
+    text: |-
+      Add gotchas to `.claude/rules/frank-gotchas.md` — only patterns that actually surfaced during Phase 3/4. Examples:
+
+      - "MixedProtocolLBService working on Cilium 1.17 + K8s 1.35 — single LB IP serves both TCP/22 and UDP/60000-60015 cleanly."
+      - Anything else that surfaced.
+- number: 2
+  title: Update existing paperclip blog posts (extension, not new posts)
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Append to `blog/content/docs/building/15-paperclip/index.md` — section *Adding a side door: SSH-able shell sidecar*. Cover: why (24/7 workflow, install-on-the-fly, kubectl-exec ergonomics); the sidecar topology (use the spec's diagram); three-layer install model (image / inventory / interactive); fail-open with Telegram alerting (the tension and the resolution); why not Ansible / not modifying the upstream image.
+  - id: P5.T2.S2
+    text: |-
+      Append to `blog/content/docs/operating/18-paperclip/index.md` — new sections: *Connecting via SSH/Mosh* (with the laptop `~/.ssh/config` snippet); *Adding/removing tools* (ConfigMap edit flow vs interactive `mise install`); *Reading the install log / interpreting the alert*; *When to bump `paperclip-shell` image vs add to inventory*.
+- number: 3
+  title: Run `/update-readme`
+  steps: []
+- number: 4
+  title: Sync runbook (only if any manual-operation blocks were introduced)
+  steps: []
+- number: 5
+  title: Update plan status
+  steps:
+  - id: P5.T5.S1
+    text: |-
+      ** Set ` Status:** Deployed` at the top of this plan.
+
+
+      ---
+state:
+  steps:
+    P5.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

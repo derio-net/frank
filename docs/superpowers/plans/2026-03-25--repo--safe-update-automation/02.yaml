@@ -1,0 +1,78 @@
+schema_version: 2
+phase:
+  number: 2
+  title: ARC Bootstrap Secret
+  tag: manual
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 3
+  title: Bootstrap Secret (Manual Operation)
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Create secrets directory
+
+
+      ```bash
+      mkdir -p secrets/arc
+      ```
+  - id: P2.T3.S2
+    text: |-
+      Apply and encrypt the secret
+
+
+      Follow the commands in the manual-operation block above. Replace `<APP_ID>`, `<INSTALLATION_ID>`, and `path/to/private-key.pem` with your actual GitHub App values.
+  - id: P2.T3.S3
+    text: |-
+      Commit the encrypted secret
+
+
+      ```bash
+      git add secrets/arc/github-app-secret.yaml
+      git commit -m "feat(repo): add SOPS-encrypted ARC GitHub App secret"
+      ```
+  - id: P2.T3.S4
+    text: |-
+      Push and verify runner registers
+
+
+      ```bash
+      git push
+      # Wait for ArgoCD to sync arc-controller (wave -1) then arc-runners (wave 0)
+      source .env
+      kubectl get pods -n arc-system -w
+      # Expected: arc-controller pod Running, frank-cluster-* runner pod Running
+      kubectl get runners -n arc-system
+      # Expected: runner shows as registered
+      ```
+
+      Also verify the runner is pinned to pc-1:
+      ```bash
+      kubectl get pod -n arc-system -o wide | grep runner
+      # EXPECTED: node column shows "pc-1"
+      ```
+
+      ---
+state:
+  steps:
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

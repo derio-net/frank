@@ -1,0 +1,20 @@
+schema_version: 2
+phase:
+  number: 7
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  tracking_issue: https://github.com/derio-net/frank/issues/158
+tasks: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

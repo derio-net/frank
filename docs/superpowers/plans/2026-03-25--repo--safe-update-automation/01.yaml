@@ -1,0 +1,335 @@
+schema_version: 2
+phase:
+  number: 1
+  title: ARC Self-Hosted Runner
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: ARC Controller ArgoCD App
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create controller values
+
+
+      Create `apps/arc-controller/values.yaml`:
+
+      ```yaml
+      # gha-runner-scale-set-controller
+      # Chart: oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+      # Check latest version: helm show chart oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller
+      #
+      # The controller is a cluster-scoped deployment that manages RunnerScaleSet CRDs.
+      # One instance per cluster — all runner sets share this controller.
+
+      replicaCount: 1
+
+      resources:
+        limits:
+          cpu: 500m
+          memory: 128Mi
+        requests:
+          cpu: 100m
+          memory: 64Mi
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Look up the current stable chart version
+
+
+      ```bash
+      helm show chart oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set-controller 2>/dev/null | grep '^version:'
+      ```
+
+      Note the version for use in the Application CR.
+  - id: P1.T1.S3
+    text: |-
+      Create controller Application CR
+
+
+      Create `apps/root/templates/arc-controller.yaml` (substitute the version from step 2):
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: arc-controller
+        namespace: argocd
+        annotations:
+          argocd.argoproj.io/sync-wave: "-1"
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        sources:
+          - repoURL: oci://ghcr.io/actions/actions-runner-controller-charts
+            chart: gha-runner-scale-set-controller
+            targetRevision: "0.10.1"          # update to version from step 2
+            helm:
+              releaseName: arc-controller
+              valueFiles:
+                - $values/apps/arc-controller/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: arc-system
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+      ```
+  - id: P1.T1.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/arc-controller/values.yaml apps/root/templates/arc-controller.yaml
+      git commit -m "feat(repo): add ARC controller ArgoCD app"
+      ```
+
+      ---
+- number: 2
+  title: ARC Runner Set ArgoCD App + RBAC
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create runner set values
+
+
+      Create `apps/arc-runners/values.yaml`:
+
+      ```yaml
+      # gha-runner-scale-set
+      # Chart: oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
+      #
+      # Registers a runner pool labelled "frank-cluster" pinned to pc-1.
+      # The GitHub App credentials are in the arc-github-app-secret Secret (applied out-of-band).
+
+      githubConfigUrl: "https://github.com/<YOUR_GITHUB_ORG_OR_USER>/<YOUR_REPO>"
+      githubConfigSecret: arc-github-app-secret
+
+      minRunners: 1
+      maxRunners: 3
+
+      runnerGroup: "Default"
+
+      template:
+        spec:
+          nodeSelector:
+            kubernetes.io/hostname: pc-1
+          containers:
+            - name: runner
+              image: ghcr.io/actions/actions-runner:latest
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+                limits:
+                  cpu: 2000m
+                  memory: 2Gi
+              env:
+                - name: ACTIONS_RUNNER_CONTAINER_HOOKS
+                  value: /home/runner/k8s/index.js
+                - name: ACTIONS_RUNNER_POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
+                  value: "false"
+          initContainers:
+            - name: init-dind-externals
+              image: ghcr.io/actions/actions-runner:latest
+              command: ["cp", "-r", "-v", "/home/runner/externals/.", "/home/runner/tmpDir/"]
+              volumeMounts:
+                - name: dind-externals
+                  mountPath: /home/runner/tmpDir
+          volumes:
+            - name: dind-externals
+              emptyDir: {}
+      ```
+
+      Replace `<YOUR_GITHUB_ORG_OR_USER>/<YOUR_REPO>` with the actual repo path (e.g. `derio-net/frank-cluster`).
+  - id: P1.T2.S2
+    text: |-
+      Create RBAC manifest
+
+
+      Create `apps/arc-runners/manifests/rbac.yaml`. This grants the runner's ServiceAccount permission to manage ephemeral `smoke-test-*` namespaces and install arbitrary Helm charts within them.
+
+      Note: Kubernetes doesn't support wildcard namespace matching in RoleBindings. The ClusterRole grants namespace-scoped resource access cluster-wide, but the runner will only exercise it within `smoke-test-*` namespaces in practice.
+
+      ```yaml
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: arc-smoke-test-namespace-manager
+      rules:
+        # Namespace lifecycle (smoke-test-* only enforced by convention)
+        - apiGroups: [""]
+          resources: ["namespaces"]
+          verbs: ["create", "delete", "get", "list", "watch"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: arc-smoke-test-workloads
+      rules:
+        # All namespaced resources — needed for arbitrary Helm chart installs
+        - apiGroups: ["*"]
+          resources: ["*"]
+          verbs: ["*"]
+      ---
+      # Bind namespace manager role to the runner ServiceAccount
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: arc-smoke-test-namespace-manager
+      subjects:
+        - kind: ServiceAccount
+          name: frank-cluster-gha-rs-no-permission   # ARC v2 default SA name pattern: <runner-set-name>-no-permission
+          namespace: arc-system
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: arc-smoke-test-namespace-manager
+      ---
+      # Bind workload role — cluster-wide but only exercised in smoke-test-* by convention
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: arc-smoke-test-workloads
+      subjects:
+        - kind: ServiceAccount
+          name: frank-cluster-gha-rs-no-permission
+          namespace: arc-system
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: arc-smoke-test-workloads
+      ```
+
+      **Important:** Verify the actual ServiceAccount name after deploying. ARC v2 names it `<runner-set-release-name>-gha-rs-no-permission`. If you name the Helm release `frank-cluster`, it becomes `frank-cluster-gha-rs-no-permission`. Check with: `kubectl get sa -n arc-system`.
+  - id: P1.T2.S3
+    text: |-
+      Create runner set Application CR
+
+
+      Create `apps/root/templates/arc-runners.yaml` (substitute chart version from Task 1 Step 2):
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: arc-runners
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        sources:
+          - repoURL: oci://ghcr.io/actions/actions-runner-controller-charts
+            chart: gha-runner-scale-set
+            targetRevision: "0.10.1"          # update to version from Task 1 Step 2
+            helm:
+              releaseName: frank-cluster
+              valueFiles:
+                - $values/apps/arc-runners/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: arc-system
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+        # ARC continuously rotates runner registration tokens into Secrets.
+        # Ignore Secret /data diffs to prevent perpetual OutOfSync.
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            namespace: arc-system
+            jsonPointers:
+              - /data
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Add raw manifests Application CR for RBAC
+
+
+      The RBAC lives in `apps/arc-runners/manifests/` and needs its own ArgoCD source or can be added as a second source to the runner set app. Add it as a second Helm source by appending to the `sources` array of `arc-runners.yaml`:
+
+      ```yaml
+          # Raw RBAC manifests
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            path: apps/arc-runners/manifests
+      ```
+
+      Place this as the third entry in `sources` (after the OCI chart source and before the `ref: values` source). The full `sources` list order: OCI chart, RBAC manifests path, values ref.
+  - id: P1.T2.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/arc-runners/ apps/root/templates/arc-runners.yaml
+      git commit -m "feat(repo): add ARC runner set ArgoCD app with smoke-test RBAC"
+      ```
+
+      ---
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

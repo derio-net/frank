@@ -1,0 +1,53 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Image — install tmux + mosh
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Add packages to kali Dockerfile
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Edit `kali/Dockerfile` apt block in agent-images repo
+
+
+      Add `tmux mosh locales-all` to the existing apt-install line, then set `LANG=C.UTF-8` and `LC_ALL=C.UTF-8` env vars (mosh refuses to start without a UTF-8 locale on both ends).
+
+      ```dockerfile
+      # ── sshd + Kali tooling + logrotate (for rotate-logs.sh) + tmux/mosh (persistent shells) ──
+      RUN apt-get update && apt-get install -y --no-install-recommends \
+            openssh-server kali-tools-top10 nmap netcat-traditional logrotate \
+            tmux mosh locales-all \
+          && mkdir -p /run/sshd /var/run/sshd \
+          && rm -rf /var/lib/apt/lists/*
+
+      # mosh requires a UTF-8 locale on both client and server
+      ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Commit + push to main
+
+
+      Commit as `feat(kali): add tmux + mosh for persistent shell sessions`. Push to `derio-net/agent-images:main`. CI publishes `ghcr.io/derio-net/secure-agent-kali:<sha>` and dispatches `agent-images-bumped` to the Frank repo.
+
+      **Result:** commit `eb6ae08`, image tag `ghcr.io/derio-net/secure-agent-kali:eb6ae0871f3e524cadd68a98c3c0b1475d99a4ac`.
+
+      ---
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

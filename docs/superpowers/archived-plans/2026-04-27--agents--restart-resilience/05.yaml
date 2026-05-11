@@ -1,0 +1,191 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Post-deploy documentation
+  tag: agentic
+  depends_on:
+  - 4
+  tracking_issue: https://github.com/derio-net/frank/issues/136
+tasks:
+- number: 1
+  title: Update operating post
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Add an "Architecture: s6-overlay" section to `blog/content/docs/operating/14-secure-agent-pod/index.md`
+
+
+      Cover: PID 1 is `/init`; cont-init.d/services.d/cont-finish.d roles; how to inspect with `s6-svstat /run/service/<name>`; how to restart a service (`s6-svc -t /run/service/<name>` then it auto-respawns); the bail policy.
+  - id: P5.T1.S2
+    text: |-
+      Update the "Persistent shells with mosh + tmux" section
+
+
+      Add a paragraph about tmux-continuum auto-restore: "After a mosh re-spawn (Cmd+Shift+2), the new tmux server attaches to your saved layout — pane structure and cwds restored from the last save (≤5 min before the restart). Running processes are not restored; re-launch them yourself."
+  - id: P5.T1.S3
+    text: |-
+      Update the "What 'Healthy' Looks Like" process list
+
+
+      Replace the `wait -n`-era process list with the s6-aware view: PID 1 = `/init`, services seen via `s6-svstat`, plus the supercronic-spawned children (claude session-manager, vk-bridge.py).
+- number: 2
+  title: Update building post
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Update the "Architecture" section in `blog/content/docs/building/21-secure-agent-pod/index.md`
+
+
+      Reflect the three-tier base lineage: agent-base → agent-shell-base → secure-agent-kali. Note that s6-overlay supervises sshd + supercronic independently, that crashloop bail-out is configured, and that kali keeps `claude`/`/home/claude` via build-arg parameterization (with a forward-link to "the rename plan").
+  - id: P5.T2.S2
+    text: |-
+      Update the "Process Supervision" section
+
+
+      Replace the `wait -n` description with the s6-overlay model. Explain why this matters (the 23:27 SIGHUP incident). Link to the spec.
+- number: 3
+  title: Update README
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Update Technology Stack row for Secure Agent Pod
+
+
+      Mention s6-overlay-supervised + tmux-continuum-restored in the description.
+  - id: P5.T3.S2
+    text: |-
+      Add ArgoCD Notifications row to Technology Stack
+
+
+      ```markdown
+      | ArgoCD Notifications | Native ArgoCD subsystem | Telegram alerts on agent-pod sync events (image bumps, manual rollouts) — operator gets ~30s heads-up before mosh sessions die |
+      ```
+- number: 4
+  title: Update gotchas
+  steps:
+  - id: P5.T4.S1
+    text: |-
+      Add to `.claude/rules/frank-gotchas.md`
+
+
+      ```markdown
+      - **s6-overlay v3 in non-root mode requires `S6_KEEP_ENV=1` and `S6_VERBOSITY=2`** — without these, services don't inherit the container env. The `with-contenv` wrapper around cont-init.d / services.d scripts is also required for them to see `$AGENT_HOME`.
+      - **agent-shell-base parameterizes user via `AGENT_USER` / `AGENT_HOME` build args** (defaults `agent`/`/home/agent`). secure-agent-kali overrides to `claude`/`/home/claude` to preserve PV-resident state. New shell-driven children inherit defaults.
+      - **tmux-continuum auto-restore only fires when tmux server starts fresh** — `tmux source ~/.tmux.conf` in a running server reloads plugins but does not trigger restore. Auto-restore = fresh server start.
+      - **/etc/skel/.tmux.conf only seeds on first boot of a fresh PV** — existing PVs (like secure-agent-kali's) keep their existing ~/.tmux.conf. To pick up the resurrect/continuum line, append `source-file /etc/agent/tmux-resurrect.conf` manually once.
+      - **s6 crashloop bail (5 deaths in 60s) leaves the service down without a Telegram alert** — sshd-down is visible via K8s readinessProbe (pod removed from LB); supercronic-down is only visible in `s6-svstat`. Future enhancement: alert on bail.
+      ```
+- number: 5
+  title: Set plan status
+  steps:
+  - id: P5.T5.S1
+    text: |-
+      Edit ` Status:**` to `Deployed` in this file AND the agent-images-side plan**
+
+
+      Both plans flip to `Deployed` once the cluster-side verification passes. The agent-images plan's status reflects "images built and merged"; the frank plan's status reflects "pod is running on the new images with verified resilience."
+- number: 6
+  title: Sync runbook
+  steps:
+  - id: P5.T6.S1
+    text: |-
+      Run `/sync-runbook`
+
+
+      This plan has no `# manual-operation` blocks (all steps documented inline; no SOPS/UI-only operations). Expected: zero diff.
+
+      ---
+
+      ## Out of scope (deliberately)
+
+      Per spec — repeated here for plan-level clarity:
+
+      - secure-agent-kali rename to `agent`/`/home/agent` — separate plan, scheduled when convenient
+      - Tmux usage inside vk-local — VK-side decision
+      - Per-pod egress profiles for new shell pods — per-pod plans
+      - Generalized `spawn_agent_workspace(name)` in wezterm.lua — when second shell pod arrives
+      - Telegram alerts on s6 crashloop bail-out — bolt-on if real ops show value
+      - Service dependencies (s6-rc) for credential-mount-ready ordering — when it's needed
+      - CRIU process checkpointing — not viable
+
+      ---
+
+      ## Post-deploy deviations
+
+      ### 2026-05-02 — kali `CrashLoopBackOff` after auto-bumper PR #166
+
+      **Symptom:** Auto-bumper PR #166 (`chore(agents): bump agent-images to 3fdae2b, vk-remote to a66206c`) merged at ~07:31 GMT+2; ArgoCD auto-synced; the `kali` container went into `CrashLoopBackOff` while `vk-local` continued running. Pod logs:
+
+      ```
+      /package/admin/s6-overlay/libexec/preinit: info: container permissions: uid=1000 (claude), euid=1000, gid=1000 (claude), egid=1000
+      /package/admin/s6-overlay/libexec/preinit: info: /run permissions: uid=0 (root), gid=0 (root), perms=oxorgxgruxuwur
+      /package/admin/s6-overlay/libexec/preinit: fatal: /run belongs to uid 0 instead of 1000 and we're lacking the privileges to fix it.
+      s6-overlay-suexec: fatal: child failed with exit code 100
+      ```
+
+      **Root cause (image-side):** `agent-shell-base/Dockerfile` chowned only the *subdirectories* it explicitly created under `/run` (`/run/service`, `/run/s6`, `/run/s6-rc`, `/run/sshd`, `/var/run/s6`, `/var/run/sshd`), leaving `/run` itself root-owned. s6-overlay v3 preinit needs to write entries directly under `/run` (e.g. `/run/s6-linux-init-container-results`, `/run/s6/container_environment`); under the secure-agent-pod's securityContext (`allowPrivilegeEscalation: false` + `capabilities.drop=["ALL"]`) `s6-overlay-suexec` cannot self-elevate to chown it, so preinit bails.
+
+      **Why CI didn't catch it:** the smoke test added in `agent-images` PR #40 (`smoke-test-vk-local`) only exercises vk-local — which has no s6 supervisor — and uses `--entrypoint /bin/sh` to bypass `/init`. The kali path therefore never ran under K8s-equivalent constraints in CI; the missing chown surfaced only on live deploy.
+
+      **Fix (three sequential PRs in `agent-images`, each unmasked by the previous one):**
+
+      1. **PR #41 — `fix(agent-shell-base): chown /run for s6-overlay non-root preinit`** — addresses the root cause above.
+         - `agent-shell-base/Dockerfile`: `chown -R ${AGENT_UID}:${AGENT_GID} /run /var/run` (covers `/run` itself and all subdirectories).
+         - `.github/workflows/build.yaml`: add `smoke-test-secure-agent-kali` job that boots `/init` under `--user 1000:1000 --cap-drop=ALL --security-opt=no-new-privileges` and waits for `s6-svstat /run/service/sshd` to report `up`.
+
+      2. **PR #42 — `fix(agent-shell-base): with-contenv shebang must be /command/with-contenv`** — uncovered immediately by #41's new smoke test. Every cont-init.d / cont-finish.d / services.d script used `#!/usr/bin/with-contenv bash`, but s6-overlay v3 only installs `with-contenv` under `/command/` (not `/usr/bin/`), so all 12 supervised scripts exited 127 on the interpreter, dragging legacy-cont-init to "unable to start" and a fatal `rc.init: stopping the container`. Latent since the Phase 3 migration; masked by #41's preinit failure. Fixed all 12 files to `#!/command/with-contenv bash`.
+
+      3. **PR #43 — `fix(ci): smoke-test must call s6-svstat by full /command/ path`** — uncovered after #42 made the supervisor actually start. The smoke test's `docker exec kali-smoke s6-svstat …` was failing silently with ENOENT (`/command/` not on agent-base PATH; `2>/dev/null` suppressed the error), so the 30s loop never matched even though sshd and supercronic were healthy. Switched to `/command/s6-svstat` so the regression net actually closes.
+
+      **Outcome:** Cluster recovered when `frank` PR #168 (auto-bumper to `c804fab75ba1a4f71fe8b597f3d6e9d08d862e43`) synced. New pod `secure-agent-pod-56874b8f5d-*`, 0 restarts; `s6-svstat` reports `sshd: up` and `supercronic: up`. Gotchas appended to `.claude/rules/frank-gotchas.md` covering both the `/run` chown requirement and the `with-contenv` shebang path. **Resolved.**
+
+      **Lessons recorded for future s6-overlay-style migrations:**
+      - A new image lineage with a new init system (s6-overlay vs. tini) MUST get its own end-to-end smoke test exercising `/init` under K8s-equivalent securityContext (`--cap-drop=ALL --security-opt=no-new-privileges`) before being promoted by an auto-bumper. The vk-local-only smoke test predating Phase 3 was structurally unable to catch any kali-side regression.
+      - Latent bugs stack. The `/run` chown failure masked the shebang failure, which masked the smoke-test-path failure. Each fix unblocked the next. Plan for two-to-three iterations when reviving an image chain that's been broken for a while.
+      - `2>/dev/null` in smoke tests should be used surgically. Suppressing all stderr around a probe converts a "command not found" into a successful "wait longer" — exactly the wrong behavior.
+state:
+  steps:
+    P5.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

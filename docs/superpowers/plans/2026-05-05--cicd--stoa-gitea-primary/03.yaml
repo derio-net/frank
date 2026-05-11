@@ -1,0 +1,422 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Migration of hum and content-factory
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: https://github.com/derio-net/frank/issues/232
+tasks:
+- number: 1
+  title: Create empty Gitea repos
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Create agentic-stoa/hum on Gitea
+
+
+      Gitea UI → + → New Repository → Owner: agentic-stoa, Name: hum, Visibility: Private, Initialize: NO (must stay empty for the mirror push). Default branch: `main`.
+  - id: P3.T1.S2
+    text: |-
+      Create agentic-stoa/content-factory on Gitea
+
+
+      Same procedure with name `content-factory`.
+  - id: P3.T1.S3
+    text: |-
+      Verify both empty repos exist
+
+
+      ```bash
+      for r in hum content-factory; do
+        curl -s -H "Authorization: token $STOA_GITEA_TOKEN" \
+          http://192.168.55.209:3000/api/v1/repos/agentic-stoa/$r | jq -r '.full_name + " empty=" + (.empty|tostring)'
+      done
+      # Expect:
+      # agentic-stoa/hum empty=true
+      # agentic-stoa/content-factory empty=true
+      ```
+- number: 2
+  title: Mirror clone GitHub → Gitea
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Mirror-clone hum
+
+
+      **SSH prerequisites (operator workstation, one-time):**
+      - Tailscale must accept LAN routes: `sudo tailscale up --accept-routes` (or `sudo tailscale set --accept-routes` on an already-registered client). Health-check signal: `tailscale status` prints `Some peers are advertising routes but --accept-routes is false` when the flag is missing.
+      - The hostname `gitea-ssh.cluster.derio.net` (defined in Headscale's `extra_records`) resolves to `192.168.55.209` (the Gitea LB IP) and is what answers SSH on port 2222. Do NOT use `gitea.cluster.derio.net` for SSH — that resolves to Traefik (`192.168.55.220`), which is HTTPS-only.
+      - Operator's SSH public key must be registered with a Gitea user that has write access to `agentic-stoa/*` (e.g. an admin account or `stoa-bot`). Use Gitea UI → Settings → SSH/GPG Keys.
+      - `~/.ssh/config` Host entry: `Host gitea-ssh.cluster.derio.net` with `Port 2222` and `IdentityFile <key>`.
+
+      ```bash
+      git clone --mirror https://github.com/agentic-stoa/hum.git /tmp/hum.git
+      cd /tmp/hum.git
+      git remote set-url --push origin git@gitea-ssh.cluster.derio.net:agentic-stoa/hum.git
+      git push --mirror
+      cd / && rm -rf /tmp/hum.git
+      ```
+
+        Expected: many branches and refs pushed, no errors. Verify in Gitea UI: branch count matches GitHub's pre-migration count.
+  - id: P3.T2.S2
+    text: |-
+      Mirror-clone content-factory
+
+
+      Same procedure with `content-factory`.
+- number: 3
+  title: Add Gitea webhook (per repo)
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Add webhook on hum (per manual-op block)
+  - id: P3.T3.S2
+    text: |-
+      Add webhook on content-factory (per manual-op block)
+- number: 4
+  title: Smoke test CI pipelines
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Push a no-op feature-branch commit to hum
+
+
+      ```bash
+      cd ~/repos/hum
+      # Add a temporary remote pointing at Gitea (origin still points at GitHub until Task 8)
+      git remote add gitea git@gitea-ssh.cluster.derio.net:agentic-stoa/hum.git 2>/dev/null || true
+      git checkout -b test/ci-smoke
+      echo "" >> README.md
+      git add README.md && git commit -m "test: ci smoke"
+      git push gitea test/ci-smoke
+      ```
+  - id: P3.T4.S2
+    text: |-
+      Verify hum-ci PipelineRun fired
+
+
+      ```bash
+      sleep 10
+      kubectl --context frank get pipelinerun -n tekton-pipelines --sort-by=.metadata.creationTimestamp \
+        -l tekton.dev/pipeline=hum-ci | tail -3
+      # Expect: a hum-ci-XXXXX PipelineRun in Running or Succeeded state
+
+      PR=$(kubectl --context frank get pipelinerun -n tekton-pipelines -l tekton.dev/pipeline=hum-ci \
+             -o name --sort-by=.metadata.creationTimestamp | tail -1)
+      kubectl --context frank logs -n tekton-pipelines $PR -f --all-containers --max-log-requests 6 2>&1 | tail -40
+      ```
+  - id: P3.T4.S3
+    text: |-
+      Verify Gitea PR view shows commit status
+
+
+      Gitea UI → agentic-stoa/hum → branch test/ci-smoke → most recent commit: should show a status check with context "tekton/ci".
+
+      Open a PR from `test/ci-smoke` to `main`. Leave it open — Task 5 will merge it as the backup-sync smoke test.
+  - id: P3.T4.S4
+    text: |-
+      Repeat Steps 1–3 for content-factory
+
+
+      ```bash
+      cd ~/repos/content-factory
+      git remote add gitea git@gitea-ssh.cluster.derio.net:agentic-stoa/content-factory.git 2>/dev/null || true
+      git checkout -b test/ci-smoke
+      echo "" >> README.md && git add README.md && git commit -m "test: ci smoke"
+      git push gitea test/ci-smoke
+      sleep 10
+      kubectl --context frank get pipelinerun -n tekton-pipelines \
+        -l tekton.dev/pipeline=content-factory-ci --sort-by=.metadata.creationTimestamp | tail -3
+      ```
+
+        Open the PR on Gitea side; leave it open for Task 5.
+- number: 5
+  title: Smoke test backup-sync
+  steps:
+  - id: P3.T5.S1
+    text: |-
+      Merge the test PR on hum (Gitea UI)
+
+
+      Gitea UI → agentic-stoa/hum → Pull Requests → test/ci-smoke → "Merge Pull Request" (squash). Note: branch protection from Phase 3 Task 7 isn't yet enabled, so the merge will succeed without the operator-only gate. We'll verify protection separately.
+
+      This produces a push to `refs/heads/main` and should fire the `agentic-stoa-backup` trigger.
+  - id: P3.T5.S2
+    text: |-
+      Verify backup PipelineRun fired and pushed to GitHub
+
+
+      ```bash
+      sleep 10
+      kubectl --context frank get pipelinerun -n tekton-pipelines \
+        -l tekton.dev/pipeline=github-backup-sync --sort-by=.metadata.creationTimestamp | tail -3
+      # Expect: a stoa-backup-XXXXX PipelineRun in Succeeded state
+
+      PR=$(kubectl --context frank get pipelinerun -n tekton-pipelines -l tekton.dev/pipeline=github-backup-sync \
+             -o name --sort-by=.metadata.creationTimestamp | tail -1)
+      kubectl --context frank logs -n tekton-pipelines $PR --all-containers --max-log-requests 4 2>&1 | tail -20
+      # Expect last line: "Backup-sync OK for agentic-stoa/hum"
+
+      # Confirm GitHub got the new main commit
+      GITEA_HEAD=$(curl -s -H "Authorization: token $STOA_GITEA_TOKEN" \
+        http://192.168.55.209:3000/api/v1/repos/agentic-stoa/hum/branches/main | jq -r .commit.id)
+      GITHUB_HEAD=$(gh api repos/agentic-stoa/hum/branches/main --jq .commit.sha)
+      [ "$GITEA_HEAD" = "$GITHUB_HEAD" ] && echo "✅ in sync ($GITEA_HEAD)" || echo "❌ drift: gitea=$GITEA_HEAD github=$GITHUB_HEAD"
+      ```
+  - id: P3.T5.S3
+    text: |-
+      Confirm a non-main push does NOT trigger backup-sync
+
+
+      ```bash
+      cd ~/repos/hum
+      git checkout test/ci-smoke
+      echo "" >> README.md && git commit -am "test: non-main push should not trigger backup"
+      git push gitea test/ci-smoke
+
+      sleep 15
+      COUNT_BEFORE=$(kubectl --context frank get pipelinerun -n tekton-pipelines \
+        -l tekton.dev/pipeline=github-backup-sync --no-headers | wc -l)
+      sleep 30
+      COUNT_AFTER=$(kubectl --context frank get pipelinerun -n tekton-pipelines \
+        -l tekton.dev/pipeline=github-backup-sync --no-headers | wc -l)
+      [ "$COUNT_BEFORE" = "$COUNT_AFTER" ] && echo "✅ backup did not fire" || echo "❌ unexpected backup PipelineRun"
+      ```
+  - id: P3.T5.S4
+    text: |-
+      Repeat Steps 1–3 for content-factory
+
+
+      Merge the content-factory PR, verify backup ran for it, verify non-main push doesn't trigger.
+- number: 6
+  title: Prune non-main branches from GitHub
+  steps:
+  - id: P3.T6.S1
+    text: |-
+      Authenticate gh CLI as operator
+
+
+      ```bash
+      gh auth status || gh auth login
+      ```
+  - id: P3.T6.S2
+    text: |-
+      Delete non-main branches on hum
+
+
+      ```bash
+      for b in $(gh api repos/agentic-stoa/hum/branches --jq '.[].name' | grep -v '^main$'); do
+        echo "Deleting $b"
+        gh api -X DELETE repos/agentic-stoa/hum/git/refs/heads/$b
+      done
+      gh api repos/agentic-stoa/hum/branches --jq '.[].name'
+      # Expect: only main
+      ```
+  - id: P3.T6.S3
+    text: |-
+      Delete non-main branches on content-factory
+
+
+      ```bash
+      for b in $(gh api repos/agentic-stoa/content-factory/branches --jq '.[].name' | grep -v '^main$'); do
+        echo "Deleting $b"
+        gh api -X DELETE repos/agentic-stoa/content-factory/git/refs/heads/$b
+      done
+      gh api repos/agentic-stoa/content-factory/branches --jq '.[].name'
+      # Expect: only main
+      ```
+  - id: P3.T6.S4
+    text: |-
+      Verify tags retained
+
+
+      ```bash
+      for r in hum content-factory; do
+        GITEA=$(curl -s -H "Authorization: token $STOA_GITEA_TOKEN" \
+          http://192.168.55.209:3000/api/v1/repos/agentic-stoa/$r/tags | jq -r '.[].name' | sort | wc -l)
+        GITHUB=$(gh api repos/agentic-stoa/$r/tags --jq '.[].name' | sort | wc -l)
+        echo "$r: gitea=$GITEA github=$GITHUB"
+      done
+      # Expect: counts match per repo
+      ```
+- number: 7
+  title: Enable Gitea branch protection on main
+  steps:
+  - id: P3.T7.S1
+    text: |-
+      Enable branch protection on hum (per manual-op block)
+  - id: P3.T7.S2
+    text: |-
+      Enable branch protection on content-factory (per manual-op block)
+  - id: P3.T7.S3
+    text: |-
+      Verify protection blocks direct push as stoa-bot
+
+
+      ```bash
+      # In a scratch directory:
+      cd /tmp
+      git clone https://stoa-bot:${STOA_GITEA_TOKEN}@gitea.cluster.derio.net/agentic-stoa/hum.git /tmp/hum-bot-test
+      cd /tmp/hum-bot-test
+      git checkout main
+      echo "" >> README.md
+      git -c user.email=stoa-bot@frank.local -c user.name=stoa-bot commit -am "test: should be rejected"
+      if git push origin main 2>&1 | grep -iE "protected|denied|cannot push"; then
+        echo "✅ direct push to main blocked for stoa-bot"
+      else
+        echo "❌ direct push to main was NOT blocked"
+      fi
+      cd / && rm -rf /tmp/hum-bot-test
+      ```
+- number: 8
+  title: Update local clone remotes
+  steps:
+  - id: P3.T8.S1
+    text: |-
+      Update hum clone remote
+
+
+      ```bash
+      cd ~/repos/hum
+      git remote set-url origin git@gitea-ssh.cluster.derio.net:agentic-stoa/hum.git
+      git remote remove gitea 2>/dev/null || true
+      git fetch origin --prune
+      git remote -v
+      # Expect: origin → gitea-ssh.cluster.derio.net
+      ```
+  - id: P3.T8.S2
+    text: |-
+      Update content-factory clone remote
+
+
+      ```bash
+      cd ~/repos/content-factory
+      git remote set-url origin git@gitea-ssh.cluster.derio.net:agentic-stoa/content-factory.git
+      git remote remove gitea 2>/dev/null || true
+      git fetch origin --prune
+      git remote -v
+      ```
+  - id: P3.T8.S3
+    text: |-
+      Final sanity push
+
+
+      ```bash
+      cd ~/repos/hum
+      git checkout -b test/post-migration
+      echo "" >> README.md && git commit -am "post-migration smoke" && git push origin test/post-migration
+      # Expect: push succeeds; CI fires; PR can be opened against main
+      git checkout main
+      git push origin :test/post-migration  # delete the temporary branch on Gitea
+      git branch -D test/post-migration
+      ```
+
+      ---
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T6.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T6.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T6.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T7.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T7.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T7.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T8.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T8.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T8.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

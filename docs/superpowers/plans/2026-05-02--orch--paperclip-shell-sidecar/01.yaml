@@ -1,0 +1,363 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Build `paperclip-shell` image (agent-images repo)
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/175
+tasks:
+- number: 1
+  title: Investigate base image inheritance
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Read agent-shell-base Dockerfile and rootfs layout
+
+
+      ```bash
+      gh repo clone derio-net/agent-images /tmp/agent-images && cd /tmp/agent-images
+      cat agent-shell-base/Dockerfile
+      ls agent-shell-base/rootfs/etc/cont-init.d/ 2>/dev/null
+      ls agent-shell-base/rootfs/etc/skel/ 2>/dev/null
+      ```
+
+        Capture: default `AGENT_USER` / `AGENT_HOME` build args, sshd port, where MOTD plumbing lives, whether PAM `motd.dynamic` is wired up. The new image relies on inheriting all of these unchanged.
+  - id: P1.T1.S2
+    text: |-
+      Confirm the s6-overlay non-root-mode fix has landed
+
+
+      Check `agent-shell-base/Dockerfile` for `chown -R ${AGENT_UID}:${AGENT_GID} /run /var/run` (per gotcha line 91) and the `with-contenv` shebang fix (observation 2469-2472). If either is still in flight, block this phase on the relevant agent-images PR; do not work around it locally.
+- number: 2
+  title: Add `paperclip-shell/` directory
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create directory layout
+
+
+      ```
+      agent-images/paperclip-shell/
+      ├── Dockerfile
+      ├── README.md
+      └── rootfs/
+          ├── etc/cont-init.d/40-shell-inventory
+          └── usr/local/lib/paperclip-shell/
+              ├── install-base-runtimes.sh
+              ├── install-inventory.sh
+              ├── notify-telegram.sh
+              └── lib.sh                          # shared helpers (logging, motd write)
+      ```
+  - id: P1.T2.S2
+    text: |-
+      Write the Dockerfile (use BEGIN/END markers because the file embeds shell scripts)
+
+
+      ```
+      BEGIN paperclip-shell/Dockerfile
+      ARG AGENT_SHELL_BASE_TAG=latest
+      FROM ghcr.io/derio-net/agent-shell-base:${AGENT_SHELL_BASE_TAG}
+
+      # Inherit AGENT_USER=agent, AGENT_HOME=/home/agent from base — do not override.
+
+      USER root
+      COPY --chown=root:root rootfs/ /
+
+      RUN chmod +x \
+            /etc/cont-init.d/40-shell-inventory \
+            /usr/local/lib/paperclip-shell/install-base-runtimes.sh \
+            /usr/local/lib/paperclip-shell/install-inventory.sh \
+            /usr/local/lib/paperclip-shell/notify-telegram.sh \
+       && /usr/local/lib/paperclip-shell/install-base-runtimes.sh \
+       && ln -sf /usr/local/lib/paperclip-shell/install-inventory.sh \
+                  /usr/local/bin/paperclip-shell-reconcile
+
+      USER ${AGENT_USER}
+      END paperclip-shell/Dockerfile
+      ```
+  - id: P1.T2.S3
+    text: |-
+      Write `install-base-runtimes.sh` — installs the *managers* (slow-changing, image-baked)
+
+
+      ```
+      BEGIN paperclip-shell/rootfs/usr/local/lib/paperclip-shell/install-base-runtimes.sh
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      # mise — asdf-style multi-runtime version manager. Installed system-wide so
+      # all users benefit; per-user state lives under $HOME/.local/share/mise.
+      curl -fsSL https://mise.run | MISE_INSTALL_PATH=/usr/local/bin/mise sh
+
+      # rustup — installed system-wide; toolchains live under $HOME/.rustup on PV.
+      curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs \
+        | sh -s -- -y --default-toolchain none --no-modify-path
+      mv /root/.cargo/bin/rustup /usr/local/bin/rustup
+      rm -rf /root/.cargo /root/.rustup
+
+      # pipx — installed via apt (lightweight wrapper around venv). Per-user state
+      # under $HOME/.local/pipx on PV.
+      apt-get update && apt-get install -y --no-install-recommends pipx
+      rm -rf /var/lib/apt/lists/*
+      END paperclip-shell/rootfs/usr/local/lib/paperclip-shell/install-base-runtimes.sh
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Write `install-inventory.sh` — the heart of Layer 2; idempotent, fail-open, fires Telegram on failure
+
+
+      ```
+      BEGIN paperclip-shell/rootfs/usr/local/lib/paperclip-shell/install-inventory.sh
+      #!/usr/bin/env bash
+      # Layer-2 inventory installer. Idempotent. Fail-open.
+      # Source of truth: /etc/paperclip-shell/inventory.yaml (mounted ConfigMap).
+      set -uo pipefail  # NOT -e — failures are accumulated, not propagated.
+
+      INVENTORY=/etc/paperclip-shell/inventory.yaml
+      LOG=/var/log/cont-init.d/40-shell-inventory.log
+      MOTD_DROPIN=/var/lib/paperclip-shell/last-reconcile.motd
+      NOTIFY=/usr/local/lib/paperclip-shell/notify-telegram.sh
+
+      mkdir -p "$(dirname "$LOG")" "$(dirname "$MOTD_DROPIN")"
+      exec > >(tee -a "$LOG") 2>&1
+
+      echo "=== paperclip-shell-reconcile @ $(date -Iseconds) ==="
+
+      if [[ ! -f "$INVENTORY" ]]; then
+        echo "WARN: $INVENTORY missing; nothing to do"
+        printf '⚠ paperclip-shell: inventory file missing\n' > "$MOTD_DROPIN"
+        exit 0
+      fi
+
+      declare -i installed=0 already=0 removed=0 failed=0
+      declare -a failures=()
+
+      run() {
+        local label="$1"; shift
+        if "$@" >/dev/null 2>&1; then
+          echo "✓ $label"; return 0
+        else
+          echo "✗ $label (rc=$?)"; failures+=("$label"); failed+=1; return 1
+        fi
+      }
+
+      yaml_list() { python3 -c "import yaml; d=yaml.safe_load(open('$INVENTORY'));
+      [print(x) for x in (d.get('$1') or [])]"; }
+      yaml_removed_list() { python3 -c "import yaml; d=yaml.safe_load(open('$INVENTORY'));
+      [print(x) for x in (d.get('removed', {}).get('$1') or [])]"; }
+
+      # --- mise ---
+      while read -r tool; do
+        [[ -z "$tool" ]] && continue
+        if mise ls "$tool" >/dev/null 2>&1; then already+=1; echo "= mise $tool"; continue; fi
+        run "mise install $tool" mise install "$tool" && installed+=1
+      done < <(yaml_list mise)
+
+      while read -r tool; do
+        [[ -z "$tool" ]] && continue
+        run "mise uninstall $tool" mise uninstall "$tool" && removed+=1
+      done < <(yaml_removed_list mise)
+
+      # --- npm-global ---
+      while read -r pkg; do
+        [[ -z "$pkg" ]] && continue
+        if npm ls -g "$pkg" --depth=0 >/dev/null 2>&1; then already+=1; echo "= npm $pkg"; continue; fi
+        run "npm i -g $pkg" npm install -g "$pkg" && installed+=1
+      done < <(yaml_list npm-global)
+
+      while read -r pkg; do
+        [[ -z "$pkg" ]] && continue
+        run "npm rm -g $pkg" npm uninstall -g "$pkg" && removed+=1
+      done < <(yaml_removed_list npm-global)
+
+      # --- pipx ---
+      while read -r pkg; do
+        [[ -z "$pkg" ]] && continue
+        if pipx list --short 2>/dev/null | grep -q "^$pkg "; then already+=1; echo "= pipx $pkg"; continue; fi
+        run "pipx install $pkg" pipx install "$pkg" && installed+=1
+      done < <(yaml_list pipx)
+
+      while read -r pkg; do
+        [[ -z "$pkg" ]] && continue
+        run "pipx uninstall $pkg" pipx uninstall "$pkg" && removed+=1
+      done < <(yaml_removed_list pipx)
+
+      # --- cargo ---
+      while read -r crate; do
+        [[ -z "$crate" ]] && continue
+        if cargo install --list 2>/dev/null | grep -q "^$crate "; then already+=1; echo "= cargo $crate"; continue; fi
+        run "cargo install $crate" cargo install "$crate" && installed+=1
+      done < <(yaml_list cargo)
+
+      while read -r crate; do
+        [[ -z "$crate" ]] && continue
+        run "cargo uninstall $crate" cargo uninstall "$crate" && removed+=1
+      done < <(yaml_removed_list cargo)
+
+      echo "=== summary: installed=$installed already=$already removed=$removed failed=$failed ==="
+
+      if (( failed > 0 )); then
+        printf '⚠ paperclip-shell: %d install(s) failed on last reconcile (%s)\n  See: %s\n' \
+          "$failed" "$(IFS=,; echo "${failures[*]}")" "$LOG" > "$MOTD_DROPIN"
+        "$NOTIFY" "paperclip-shell: $failed install(s) failed on boot" \
+          "$(printf '  %s\n' "${failures[@]}")" || true
+      else
+        printf '✓ paperclip-shell: %d installed, %d already present, %d removed @ %s\n' \
+          "$installed" "$already" "$removed" "$(date -Iseconds)" > "$MOTD_DROPIN"
+      fi
+
+      exit 0  # always succeed — fail-open
+      END paperclip-shell/rootfs/usr/local/lib/paperclip-shell/install-inventory.sh
+      ```
+  - id: P1.T2.S5
+    text: |-
+      Write `notify-telegram.sh` — token + chat_id from env (mounted Secret); fail-silent if env missing
+
+
+      ```
+      BEGIN paperclip-shell/rootfs/usr/local/lib/paperclip-shell/notify-telegram.sh
+      #!/usr/bin/env bash
+      set -uo pipefail
+      TITLE="${1:-paperclip-shell alert}"
+      DETAIL="${2:-}"
+
+      : "${FRANK_C2_TELEGRAM_BOT_TOKEN:=}"
+      : "${FRANK_C2_TELEGRAM_CHAT_ID:=}"
+      [[ -z "$FRANK_C2_TELEGRAM_BOT_TOKEN" || -z "$FRANK_C2_TELEGRAM_CHAT_ID" ]] && exit 0
+
+      POD="${HOSTNAME:-paperclip-shell}"
+      TEXT="${TITLE}
+      ${DETAIL}
+      Pod: ${POD}
+      kubectl logs ${POD} -c paperclip-shell"
+
+      curl -fsS --max-time 10 \
+        -X POST "https://api.telegram.org/bot${FRANK_C2_TELEGRAM_BOT_TOKEN}/sendMessage" \
+        --data-urlencode "chat_id=${FRANK_C2_TELEGRAM_CHAT_ID}" \
+        --data-urlencode "text=${TEXT}" >/dev/null || true
+      END paperclip-shell/rootfs/usr/local/lib/paperclip-shell/notify-telegram.sh
+      ```
+  - id: P1.T2.S6
+    text: |-
+      Write `cont-init.d/40-shell-inventory` — the s6 hook
+
+
+      ```
+      BEGIN paperclip-shell/rootfs/etc/cont-init.d/40-shell-inventory
+      #!/usr/bin/with-contenv bash
+      exec /usr/local/lib/paperclip-shell/install-inventory.sh
+      END paperclip-shell/rootfs/etc/cont-init.d/40-shell-inventory
+      ```
+  - id: P1.T2.S7
+    text: |-
+      Add MOTD drop-in plumbing
+
+
+      If `agent-shell-base` already wires `pam_motd` with `motd.dynamic`, drop a script that prints `/var/lib/paperclip-shell/last-reconcile.motd`. If not, add `/etc/update-motd.d/50-paperclip-shell` and ensure sshd is configured to print dynamic motd. Verify with the parent image's existing motd plumbing identified in Task 1, Step 1.
+  - id: P1.T2.S8
+    text: |-
+      Write `paperclip-shell/README.md`
+
+
+      One-page summary: image purpose, build args, where the inventory ConfigMap lands, how to invoke `paperclip-shell-reconcile`, link back to this plan.
+- number: 3
+  title: Add CI matrix entry + smoke test
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Add `paperclip-shell` to the build matrix in `.github/workflows/build.yaml` (or whatever the agent-images CI workflow is named) alongside `secure-agent-kali` and `vk-local`. Build pushes to `ghcr.io/derio-net/paperclip-shell:<sha>`.
+  - id: P1.T3.S2
+    text: |-
+      Add smoke test mirroring secure-agent-kali, running `/init` under the same restricted security context Kubernetes will use:
+
+
+      ```bash
+      docker run --rm --user 1000:1000 \
+        --cap-drop=ALL \
+        --security-opt=no-new-privileges \
+        ghcr.io/derio-net/paperclip-shell:${{ github.sha }} \
+        bash -c '
+          /init &
+          for i in $(seq 1 30); do
+            if ss -ltn 2>/dev/null | grep -q ":2222"; then echo "sshd up"; exit 0; fi
+            sleep 1
+          done
+          echo "sshd never bound 2222"; exit 1
+        '
+      ```
+
+        Also assert: `mise --version`, `pipx --version`, `rustup --version`, `paperclip-shell-reconcile` (with empty inventory mount) all succeed.
+- number: 4
+  title: Open PR, review, merge
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Open PR titled `feat: add paperclip-shell image` with body linking to this plan. Wait for CI green.
+  - id: P1.T4.S2
+    text: |-
+      Capture the merged commit SHA — record in this plan's *Deployment Notes* as `agent-images SHA: <sha>` and corresponding tag `ghcr.io/derio-net/paperclip-shell:<sha>`. Phase 2 references this SHA.
+
+
+      ---
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

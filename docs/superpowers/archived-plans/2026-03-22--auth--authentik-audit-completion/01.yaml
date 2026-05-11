@@ -1,0 +1,35 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Auth Plan Audit + Missing Implementation
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update confirmed-done manual-op statuses
+  steps: []
+- number: 2
+  title: Change plan Status header
+  steps: []
+- number: 3
+  title: Create Grafana OIDC provider blueprint
+  steps: []
+- number: 4
+  title: Create Infisical OIDC provider blueprint
+  steps: []
+- number: 5
+  title: Create proxy outpost blueprints
+  steps: []
+- number: 6
+  title: Create agent auth blueprint
+  steps: []
+- number: 7
+  title: Sync runbook
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

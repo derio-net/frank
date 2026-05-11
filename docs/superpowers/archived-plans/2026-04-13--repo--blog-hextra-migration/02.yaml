@@ -1,0 +1,166 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Content Migration
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/69
+tasks:
+- number: 1
+  title: Move content directories
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Create docs parent and move series
+
+
+      ```bash
+      cd blog
+      mkdir -p content/docs
+      mv content/building content/docs/building
+      mv content/operating content/docs/operating
+      ```
+  - id: P2.T1.S2
+    text: |-
+      Update Building section index
+
+
+      Rewrite `blog/content/docs/building/_index.md`:
+
+      ```markdown
+      ---
+      title: "Building Frank"
+      weight: 1
+      sidebar:
+        open: true
+      ---
+
+      A tutorial series on building an AI-hybrid Kubernetes homelab from scratch.
+      ```
+  - id: P2.T1.S3
+    text: |-
+      Update Operating section index
+
+
+      Rewrite `blog/content/docs/operating/_index.md`:
+
+      ```markdown
+      ---
+      title: "Operating on Frank"
+      weight: 2
+      sidebar:
+        open: true
+      ---
+
+      Day-to-day commands, health checks, and debugging guides for every component on the cluster.
+      ```
+- number: 2
+  title: Migrate frontmatter across all posts
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Write a frontmatter migration script
+
+
+      Create `scripts/migrate-frontmatter.sh`:
+
+      ```bash
+      #!/usr/bin/env bash
+      # Remove PaperMod-specific 'cover' block from all post frontmatter.
+      # Keeps: title, date, draft, tags, summary, weight
+      # Removes: cover (image, alt, relative)
+      set -euo pipefail
+
+      for f in blog/content/docs/building/*/index.md blog/content/docs/operating/*/index.md; do
+        echo "Processing: $f"
+        # Use awk to remove the cover block (cover: through next non-indented line)
+        awk '
+          /^cover:/ { in_cover=1; next }
+          in_cover && /^  / { next }
+          in_cover && !/^  / { in_cover=0 }
+          !in_cover { print }
+        ' "$f" > "${f}.tmp" && mv "${f}.tmp" "$f"
+      done
+
+      echo "Done. Processed $(find blog/content/docs -name 'index.md' | wc -l) files."
+      ```
+  - id: P2.T2.S2
+    text: |-
+      Run the migration script
+
+
+      ```bash
+      chmod +x scripts/migrate-frontmatter.sh
+      bash scripts/migrate-frontmatter.sh
+      ```
+
+      Verify a sample post no longer has the `cover:` block:
+      ```bash
+      head -12 blog/content/docs/building/01-introduction/index.md
+      ```
+
+      Expected frontmatter:
+      ```yaml
+      ---
+      title: "Why Build a Kubernetes Homelab?"
+      date: 2026-03-06
+      draft: false
+      tags: ["introduction", "architecture"]
+      summary: "The motivation behind Frank..."
+      weight: 2
+      ---
+      ```
+  - id: P2.T2.S3
+    text: |-
+      Verify sidebar renders both series *(skipped — Hugo not available in this environment; requires manual verification)*
+
+
+        ```bash
+        cd blog && hugo server --buildDrafts
+        ```
+
+        Check:
+        - Sidebar shows "Building Frank" with all 26 posts
+        - Sidebar shows "Operating on Frank" with all 20 posts
+        - Posts are ordered by weight
+        - Clicking a post renders its content
+
+        Commit:
+        ```
+        feat(repo): migrate blog content to Hextra docs structure
+
+        Move building/ and operating/ under content/docs/ for sidebar
+        navigation. Remove PaperMod cover blocks from all 48 posts.
+        ```
+
+      ---
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: '-'
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

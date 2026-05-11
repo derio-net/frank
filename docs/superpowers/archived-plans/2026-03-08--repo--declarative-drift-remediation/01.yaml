@@ -1,0 +1,43 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Declarative Drift Remediation Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Fix `longhorn` Application CR — remove ad-hoc finalizers
+  steps: []
+- number: 2
+  title: Fix `longhorn-extras` Application CR — `ignoreDifferences` and `prune`
+  steps: []
+- number: 3
+  title: 'Fix `gpu-operator` Application CR — remove ad-hoc finalizers, add `prune:
+    false`'
+  steps: []
+- number: 4
+  title: Make Grafana VictoriaLogs datasource declarative
+  steps: []
+- number: 5
+  title: Document the Grafana datasource migration as a manual operation
+  steps: []
+- number: 6
+  title: Create `docs/runbooks/manual-operations.yaml`
+  steps: []
+- number: 7
+  title: Create the `/sync-runbook` skill
+  steps: []
+- number: 8
+  title: Update CLAUDE.md — add `/sync-runbook` to layer workflow and document the
+    manual-op format
+  steps: []
+- number: 9
+  title: Push and verify root app syncs clean
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

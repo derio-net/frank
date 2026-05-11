@@ -1,0 +1,167 @@
+schema_version: 2
+phase:
+  number: 5
+  title: CI/CD & Cleanup
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/72
+tasks:
+- number: 1
+  title: Update Dockerfile
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Add Hugo module fetch to Dockerfile
+
+
+      Update `blog/Dockerfile`:
+
+      ```dockerfile
+      # Stage 1: Build Hugo site
+      FROM ghcr.io/gohugoio/hugo:v0.157.0 AS builder
+      WORKDIR /src
+      COPY . .
+      RUN hugo mod get
+      RUN hugo --minify --baseURL https://blog.derio.net/frank
+
+      # Stage 2: Serve with Caddy
+      FROM caddy:2.9-alpine
+      COPY --from=builder /src/public /usr/share/caddy
+      RUN printf ':8080 {\n    handle_path /frank/* {\n        root * /usr/share/caddy\n        file_server\n        header Cache-Control "public, max-age=3600"\n    }\n    handle /frank {\n        redir /frank/ permanent\n    }\n    handle {\n        root * /usr/share/caddy\n        file_server\n        header Cache-Control "public, max-age=3600"\n    }\n}\n' > /etc/caddy/Caddyfile
+      EXPOSE 8080
+      ```
+
+      **Fallback:** If `ghcr.io/gohugoio/hugo:v0.157.0` lacks Go for modules, switch to the extended image tag or add a Go install step.
+  - id: P5.T1.S2
+    text: |-
+      Update GitHub Actions workflow for Hugo modules
+
+
+      Update `.github/workflows/deploy-blog.yml`:
+      - Remove `submodules: recursive` from both checkout steps (PaperMod submodule is gone)
+      - Add `hugo mod get` step before `hugo --minify` in the `build-pages` job
+      - Remove the `BLOG_DEPLOY_FROZEN` env block and `if:` conditions (re-enable deployments)
+- number: 2
+  title: Remove old PaperMod layout overrides
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Delete PaperMod-specific layout files *(completed in Phase 1 — old layouts referenced PaperMod partials and broke the Hextra build)*
+
+
+      ```bash
+      rm blog/layouts/partials/header.html
+      rm blog/layouts/partials/home_info.html
+      rm blog/layouts/partials/extend_head.html
+      rm blog/layouts/partials/post_nav_links.html
+      rm blog/layouts/_default/list.html
+      rm blog/layouts/index.html
+      rmdir blog/layouts/_default/ 2>/dev/null || true
+      ```
+
+      Replacements:
+      - `header.html` (sticky banner) → series accent bars in `custom.css`
+      - `home_info.html` → Hextra landing page
+      - `extend_head.html` → `partials/custom/head.html`
+      - `post_nav_links.html` → Hextra built-in prev/next
+      - `list.html` → Hextra built-in sidebar list
+      - `index.html` → Hextra landing page (`content/_index.md`)
+- number: 3
+  title: Full build verification
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Production build test *(structural verification only — Hugo not available in agent environment; CI will validate)*
+
+
+      ```bash
+      cd blog && hugo --minify
+      ```
+
+      Verify:
+      - Build succeeds with no errors or warnings
+      - `public/` directory generated
+      - `public/docs/building/01-introduction/index.html` exists
+      - `public/docs/operating/01-cluster-nodes/index.html` exists
+  - id: P5.T3.S2
+    text: |-
+      Verify search index *(requires Hugo build — CI will validate)*
+
+
+      ```bash
+      ls blog/public/search-data.json 2>/dev/null || ls blog/public/index.json 2>/dev/null
+      ```
+
+      Hextra generates a search index automatically. Verify it exists and is non-empty.
+  - id: P5.T3.S3
+    text: |-
+      Dev server smoke test *(requires Hugo dev server — manual verification needed post-merge)*
+
+
+      ```bash
+      cd blog && hugo server --buildDrafts
+      ```
+
+      Full checklist:
+      - [ ] Landing page renders with hero and feature cards
+      - [ ] Sidebar shows Building (26 posts) and Operating (20 posts)
+      - [ ] Posts ordered correctly by weight
+      - [ ] Cover images render at top of posts
+      - [ ] Dark/light mode toggle works
+      - [ ] Search (Ctrl+K or search icon) finds content
+      - [ ] Breadcrumbs show correct path
+      - [ ] Table of contents renders on posts
+      - [ ] Code blocks have syntax highlighting and copy buttons
+      - [ ] Read tracker checkmarks appear after visiting posts
+      - [ ] Series accent bars differentiate Building vs Operating
+      - [ ] "Clear read history" footer link works
+  - id: P5.T3.S4
+    text: |-
+      Clean up migration script
+
+
+      ```bash
+      rm scripts/migrate-frontmatter.sh
+      ```
+
+      Commit:
+      ```
+      feat(repo): finalize Hextra migration — CI/CD and cleanup
+
+      Update Dockerfile for Hugo modules. Remove PaperMod layout overrides.
+      Full production build verified.
+      ```
+state:
+  steps:
+    P5.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: '-'
+      ticked_at: null
+      note: null
+    P5.T3.S3:
+      state: '-'
+      ticked_at: null
+      note: null
+    P5.T3.S4:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

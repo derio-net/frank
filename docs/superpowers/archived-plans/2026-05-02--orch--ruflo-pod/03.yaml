@@ -1,0 +1,348 @@
+schema_version: 2
+phase:
+  number: 3
+  title: First-deploy validation
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: https://github.com/derio-net/frank/issues/184
+tasks:
+- number: 1
+  title: ruflo-db health
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      ruvocal data PVC Bound, mount writable to UID 1000 *(was: "Mongo pod Ready, PVC bound" — Postgres sub-app is parked, the actual data store lives in the `ruflo-data` PVC)*
+
+
+      ```bash
+      kubectl -n ruflo-system get pvc ruflo-data
+      # expect: STATUS=Bound, CAPACITY=5Gi, ACCESS MODES=RWO, STORAGECLASS=longhorn
+
+      kubectl -n ruflo-system exec deploy/ruflo -c ruflo -- ls -la /app/db
+      # expect: directory mounted, owned by UID 1000 (`user:user`); contains
+      # ruvocal.rvf.json after the first request that mutates state (and the
+      # ext4 lost+found dir from longhorn — harmless)
+
+      kubectl -n ruflo-system exec deploy/ruflo -c ruflo -- df -h /app/db
+      # expect: filesystem starts with /dev/longhorn/ (proves the volume mount,
+      # not the container overlay)
+      ```
+
+        Verified 2026-05-03: `ruflo-data Bound pvc-f2cbc01b-…-75bec47336dc 5Gi RWO longhorn`; `/app/db` mounted from `/dev/longhorn/pvc-f2cbc01b-…` (4.9G avail); `ruvocal.rvf.json` created at first boot, owned `user:user`.
+  - id: P3.T1.S2
+    text: |-
+      ruvocal can read+write the RVF store *(was: "ruvocal can connect" against Mongo — that path is dead)*
+
+
+      ```bash
+      kubectl -n ruflo-system logs deploy/ruflo -c ruflo | grep -iE 'rvf|database|listening' | head -10
+      ```
+
+        Expect on a fresh PVC: `[RVF] No existing database … starting fresh` then `Listening on http://0.0.0.0:3000`. Expect on subsequent boots: `[RVF] Loaded N collections from /app/db/ruvocal.rvf.json` (N grows with operator activity). Verified 2026-05-03: first boot → `starting fresh`; after `kubectl rollout restart deploy/ruflo` → `Loaded 7 collections`. State persists across pod restarts.
+- number: 2
+  title: ruflo pod-level health
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Both containers Ready *(verified 2026-05-03 — `ruflo: ready=true restarts=0`, `ruflo-shell: ready=true restarts=0` after the #200 rollout)*
+
+
+      ```bash
+      kubectl -n ruflo-system get pod -l app.kubernetes.io/name=ruflo \
+        -o jsonpath='{range .items[0].status.containerStatuses[*]}{.name}: ready={.ready} restarts={.restartCount}{"\n"}{end}'
+      # expect both 'ruflo' and 'ruflo-shell' with ready=true
+      ```
+  - id: P3.T2.S2
+    text: |-
+      Confirm shareProcessNamespace works *(skipped — incompatible with agent-shell-base s6 init, removed in #196; see Deployment Notes deviation)*
+
+
+      ```bash
+      kubectl -n ruflo-system exec -c ruflo-shell deploy/ruflo -- ps -ef | grep -E 'node|sshd' | head -10
+      # expect to see ruvocal's node process AND sshd
+      ```
+  - id: P3.T2.S3
+    text: |-
+      Confirm `/workspace` is shared and writable from both containers
+
+
+      ```bash
+      kubectl -n ruflo-system exec -c ruflo-shell deploy/ruflo -- touch /workspace/.shell-write-test
+      kubectl -n ruflo-system exec -c ruflo        deploy/ruflo -- ls -la /workspace/.shell-write-test
+      kubectl -n ruflo-system exec -c ruflo-shell deploy/ruflo -- rm /workspace/.shell-write-test
+      ```
+
+        If permission denied, escalate to a UID/GID investigation: ruvocal's image (Phase 1 Task 3) was built with `useradd -u 1000`, so `fsGroup: 1000` should make this work. If not, document in Deployment Notes and decide between (a) initContainer chowning `/workspace`, (b) overriding ruvocal's `runAsUser` if upstream supports it.
+- number: 3
+  title: Authentik outpost provider assignment (manual)
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Run the Django ORM command above to add the ruflo proxy provider to the embedded outpost. *(Done 2026-05-03 during Phase 3 validation.)*
+  - id: P3.T3.S2
+    text: |-
+      Verify the outpost provider list includes `ruflo` via the verify command. *(Confirmed — `Ruflo (cluster)` in the embedded outpost provider list.)*
+- number: 4
+  title: Web UI loads through Authentik SSO
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Curl confirms Authentik intercepts unauthenticated requests
+
+
+      ```bash
+      curl -fsS -o /dev/null -w '%{http_code}\n' -L --max-redirs 0 https://ruflo.cluster.derio.net/
+      # expect 302 redirect to authentik (or 401 from forward-auth middleware before redirect)
+      ```
+  - id: P3.T4.S2
+    text: |-
+      Browser SSO and confirm ruvocal UI loads
+
+
+      In a browser on a laptop with Authentik session cookies (or fresh login flow): open `https://ruflo.cluster.derio.net/`. Expect: redirect → Authentik login → redirect back → ruvocal UI renders (dashboard / hive list / blank state).
+
+      If the page loads but assets 404 or the API fails, capture the failing URL and check whether ruvocal expects to be served from `/` or from a subpath. May require `Headers` middleware tweaks in the Traefik IngressRoute.
+- number: 5
+  title: SSH connectivity from operator laptop
+  steps:
+  - id: P3.T5.S1
+    text: |-
+      Service has the LB IP
+
+
+      ```bash
+      kubectl -n ruflo-system get svc ruflo-shell -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      # expect: 192.168.55.222
+      ```
+  - id: P3.T5.S2
+    text: |-
+      SSH connects and lands in /home/agent
+
+
+      ```bash
+      ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/<your_private_key> agent@192.168.55.222 \
+        'whoami; hostname; cat /etc/os-release | head -3; ls -la ~; echo $LITELLM_BASE_URL'
+      # expect: whoami=agent, /home/agent populated from /etc/skel, LITELLM_BASE_URL exported
+      ```
+  - id: P3.T5.S3
+    text: |-
+      `claude` is on PATH (Layer-1 baked-in)
+
+
+      ```bash
+      ssh agent@192.168.55.222 -- 'command -v claude; claude --version'
+      ```
+  - id: P3.T5.S4
+    text: |-
+      `cd /workspace` shows ruvocal's view
+
+
+      ```bash
+      ssh agent@192.168.55.222 -- 'ls -la /workspace'
+      ```
+
+        Should match what `kubectl exec -c ruflo deploy/ruflo -- ls -la /workspace` shows (in Phase 3 Task 2).
+  - id: P3.T5.S5
+    text: |-
+      Mosh connects
+
+
+      ```bash
+      mosh agent@192.168.55.222 -- echo 'mosh ok'
+      # expect 'mosh ok' over UDP
+      ```
+  - id: P3.T5.S6
+    text: |-
+      tmux session persists across reattach
+
+
+      ```bash
+      ssh agent@192.168.55.222 -- tmux new-session -d -s test 'sleep 600'
+      ssh agent@192.168.55.222 -- tmux ls
+      ssh agent@192.168.55.222 -- tmux kill-session -t test
+      ```
+- number: 6
+  title: MOTD shows last-reconcile summary
+  steps:
+  - id: P3.T6.S1
+    text: |-
+      Fresh login banner
+
+
+      SSH in interactively (no `--` command). Expect to see:
+      - The ruflo-shell banner from `/etc/skel/.bashrc-ruflo` (the workspace/home/reconcile reminder).
+      - The MOTD line `✓ ruflo-shell: 0 installed, 0 already present, 0 removed @ 2026-05-…` from the empty-inventory installer.
+
+      If the MOTD line is missing, check whether `agent-shell-base`'s sshd config enables `pam_motd` and the dynamic motd plumbing — log as a follow-up against Phase 1 rather than blocking here.
+- number: 7
+  title: Telegram alert path (induced failure)
+  steps:
+  - id: P3.T7.S1
+    text: |-
+      Add a known-bad entry to the inventory
+
+
+        Edit `apps/ruflo/manifests/configmap-shell-inventory.yaml`:
+
+      ```yaml
+      data:
+        inventory.yaml: |
+          npm-global:
+            - "@anthropic-ai/this-package-does-not-exist-XXXX"
+          # other sections unchanged (still empty)
+      ```
+
+        Commit, push, ArgoCD syncs.
+  - id: P3.T7.S2
+    text: |-
+      Run reconcile
+
+
+      ```bash
+      ssh agent@192.168.55.222 -- ruflo-shell-reconcile
+      ```
+  - id: P3.T7.S3
+    text: |-
+      Verify Telegram alert arrived in the configured chat with format `⚠ ruflo-shell: 1 install(s) failed on boot`.
+  - id: P3.T7.S4
+    text: |-
+      Verify MOTD shows the failure on next SSH login.
+  - id: P3.T7.S5
+    text: |-
+      Revert the inventory change — remove the bogus entry, commit, push, run reconcile again. MOTD should flip to the success line. No Telegram message expected on success.
+- number: 8
+  title: Confirm zero direct frontier-LLM traffic from the pod
+  steps:
+  - id: P3.T8.S1
+    text: |-
+      From inside the ruflo container, confirm there's no `ANTHROPIC_API_KEY`
+
+
+      ```bash
+      kubectl -n ruflo-system exec -c ruflo deploy/ruflo -- env | grep -iE 'anthropic|openai|gemini' || echo "none — good"
+      # expect "none" — only OPENROUTER_API_KEY, EMAIL_RESEND_API_KEY, LITELLM_BASE_URL, MONGO_URL should be present
+      ```
+  - id: P3.T8.S2
+    text: |-
+      Confirm LiteLLM is reachable
+
+
+      ```bash
+      kubectl -n ruflo-system exec -c ruflo deploy/ruflo -- curl -fsS http://litellm.litellm-system:4000/health
+      ```
+  - id: P3.T8.S3
+    text: |-
+      Confirm OpenRouter is reachable (without exposing the key in logs)
+
+
+      ```bash
+      kubectl -n ruflo-system exec -c ruflo deploy/ruflo -- bash -c 'curl -fsS -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $OPENROUTER_API_KEY" https://openrouter.ai/api/v1/models'
+      # expect 200
+      ```
+
+        Egress restriction is intentionally not in scope — wide egress is required for swarm runs. This step confirms the gateway endpoints work, not that everything else is locked down.
+
+      ---
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: '-'
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T7.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T7.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T7.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T7.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T7.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T8.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T8.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T8.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

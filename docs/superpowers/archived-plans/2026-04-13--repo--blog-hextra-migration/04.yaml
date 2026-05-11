@@ -1,0 +1,165 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Read Tracking
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/71
+tasks:
+- number: 1
+  title: Implement read tracker JavaScript
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Create read-tracker.js
+
+
+      Create `blog/assets/js/read-tracker.js`:
+
+      ```javascript
+      (function () {
+        'use strict';
+
+        var STORAGE_KEY = 'frank-read-posts';
+
+        function getReadPosts() {
+          try {
+            return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+          } catch (e) {
+            return [];
+          }
+        }
+
+        function markCurrentAsRead() {
+          var path = window.location.pathname;
+          var readPosts = getReadPosts();
+          if (readPosts.indexOf(path) === -1) {
+            readPosts.push(path);
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(readPosts));
+            } catch (e) {
+              // localStorage full or unavailable — fail silently
+            }
+          }
+        }
+
+        function markSidebarLinks() {
+          var readPosts = getReadPosts();
+          if (readPosts.length === 0) return;
+
+          // Hextra sidebar links — selector must be verified against actual DOM
+          var links = document.querySelectorAll('nav.hextra-sidebar a[href]');
+          links.forEach(function (link) {
+            var href = link.getAttribute('href');
+            // Normalize: ensure trailing slash for comparison
+            var normalizedHref = href.endsWith('/') ? href : href + '/';
+            var isRead = readPosts.some(function (p) {
+              var normalizedP = p.endsWith('/') ? p : p + '/';
+              return normalizedP === normalizedHref;
+            });
+            if (isRead && !link.querySelector('.read-marker')) {
+              var marker = document.createElement('span');
+              marker.className = 'read-marker';
+              marker.textContent = '\u2713'; // checkmark
+              marker.title = 'Read';
+              link.appendChild(marker);
+            }
+          });
+        }
+
+        // Only run on docs pages
+        if (window.location.pathname.indexOf('/docs/') !== -1 ||
+            window.location.pathname.indexOf('/frank/docs/') !== -1) {
+          markCurrentAsRead();
+        }
+
+        // Mark sidebar after DOM is ready
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', markSidebarLinks);
+        } else {
+          markSidebarLinks();
+        }
+      })();
+      ```
+
+      **Selector note:** `nav.hextra-sidebar a[href]` must be verified against Hextra's actual rendered DOM. Inspect the sidebar element in browser DevTools and adjust if needed.
+- number: 2
+  title: Wire up the read tracker
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Add JS loading to custom head partial
+
+
+      Append to `blog/layouts/partials/custom/head.html` (after the asciinema block):
+
+      ```html
+      {{ $readTracker := resources.Get "js/read-tracker.js" | minify | fingerprint }}
+      <script src="{{ $readTracker.RelPermalink }}" defer></script>
+      ```
+  - id: P4.T2.S2
+    text: |-
+      Add reset link to custom footer partial
+
+
+      Create `blog/layouts/partials/custom/footer.html`:
+
+      ```html
+      <a href="#" id="clear-read-history" style="font-size: 0.75rem; opacity: 0.5;">
+        Clear read history
+      </a>
+      <script>
+      document.getElementById('clear-read-history').addEventListener('click', function(e) {
+        e.preventDefault();
+        localStorage.removeItem('frank-read-posts');
+        window.location.reload();
+      });
+      </script>
+      ```
+  - id: P4.T2.S3
+    text: |-
+      Verify read tracking works
+
+
+        ```bash
+        cd blog && hugo server --buildDrafts
+        ```
+
+        Test flow:
+        1. Open the site, navigate to a Building post — no checkmarks yet
+        2. Return to sidebar — the visited post should have a ✓
+        3. Visit several posts — checkmarks accumulate
+        4. Click "Clear read history" in footer — checkmarks disappear
+        5. Verify `frank-read-posts` key in browser DevTools → Application → localStorage
+
+        Commit:
+        ```
+        feat(repo): add read-tracking feature to Hextra blog
+
+        localStorage-based tracking marks visited docs pages with a checkmark
+        in the sidebar. Reset link in footer. No cookies, no server state.
+        ```
+
+      ---
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

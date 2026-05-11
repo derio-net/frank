@@ -1,0 +1,130 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Fix cadvisor metric pipeline for 5 nodes
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/153
+tasks:
+- number: 1
+  title: Investigate root cause
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Read vmagent scrape stats for cadvisor targets
+
+
+      ```bash
+      VMAGENT=$(kubectl -n monitoring get pod -l app.kubernetes.io/name=vmagent -o jsonpath='{.items[0].metadata.name}')
+      kubectl -n monitoring exec deploy/vmsingle-victoria-metrics-victoria-metrics-k8s-stack -- \
+        wget -qO- "http://vmagent-victoria-metrics-victoria-metrics-k8s-stack:8429/api/v1/targets?state=active" \
+        | python3 -c "
+      import json, sys
+      d=json.load(sys.stdin)['data']['activeTargets']
+      for t in (x for x in d if x.get('labels',{}).get('metrics_path')=='/metrics/cadvisor'):
+          print(t['labels'].get('instance'), 'samples=', t.get('lastSamplesScraped'), 'ms=', t.get('lastScrapeDuration'))"
+      ```
+
+        Note the per-node `lastSamplesScraped`. If amd64 nodes return non-zero here but vmsingle has no series for them, the loss is in the relabel/ingestion pipeline (case 1 below). If they return zero here, cadvisor itself is silent on those nodes (case 2).
+  - id: P2.T1.S2
+    text: |-
+      Test the relabel-rule hypothesis (case 1)
+
+
+        The `VMNodeScrape` for cadvisor includes:
+
+      ```yaml
+      metricRelabelConfigs:
+      - action: labeldrop
+        regex: (uid)
+      - action: labeldrop
+        regex: (id|name)
+      ```
+
+        The second rule drops any label matching `id` or `name`. Some cadvisor metric variants legacy-mirror their identifiers in those exact label names. Test by temporarily commenting out the second rule on a non-prod scrape (or via a dedicated test `VMNodeScrape` selecting only `gpu-1`) and re-querying for amd64 series after one scrape interval.
+  - id: P2.T1.S3
+    text: |-
+      Test cardinality / disk-usage limits (case 2)
+
+
+      ```bash
+      kubectl -n monitoring logs deploy/vmagent-victoria-metrics-victoria-metrics-k8s-stack -c vmagent \
+        | grep -iE 'limit|drop|reject|cardinality' | tail -50
+      ```
+
+        Look for messages mentioning `gpu-1` / `mini-1` / `pc-1` instances, dropped samples, or per-target rate limits.
+  - id: P2.T1.S4
+    text: |-
+      Test cadvisor endpoint directly on an affected node
+
+
+      ```bash
+      kubectl -n monitoring run cadvisor-test-$$ --rm -i --restart=Never \
+        --image=curlimages/curl:8.4.0 \
+        --overrides='{"spec":{"nodeSelector":{"kubernetes.io/hostname":"gpu-1"}}}' \
+        -- curl -sk -H "Authorization: Bearer $(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+        https://gpu-1:10250/metrics/cadvisor | grep -c '^container_memory_working_set_bytes' \
+        || echo "scrape returned no samples or auth failed"
+      ```
+
+        Compare to the same probe against `raspi-1`. Confirms whether the kubelet itself emits the series.
+- number: 2
+  title: Apply the fix
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Apply the case-specific fix. One of:
+
+      - **Case 1 (relabel rule):** Edit `apps/victoria-metrics/values.yaml` to override the cadvisor `VMNodeScrape` `metricRelabelConfigs`, removing the `(id|name)` labeldrop. Commit, ArgoCD syncs, wait one scrape interval (30 s), re-query.
+      - **Case 2 (vmagent limit):** Edit `apps/victoria-metrics/values.yaml` to bump the relevant `vmagent.spec.extraArgs` flag (`promscrape.maxScrapeSize`, `remoteWrite.maxBlockSize`, etc., depending on the log message). Commit, ArgoCD sync, observe vmagent logs for resumed ingest.
+      - **Case 3 (vmsingle limit):** Bump retention or per-tenant series limit in `vmsingle.spec` in the same values file. Commit, ArgoCD sync.
+  - id: P2.T2.S2
+    text: |-
+      Verify. Wait 5 minutes, then run:
+
+
+      ```bash
+      kubectl -n monitoring exec vmagent-victoria-metrics-victoria-metrics-k8s-stack-* -c vmagent -- \
+        wget -qO- 'http://vmsingle-victoria-metrics-victoria-metrics-k8s-stack:8428/api/v1/query?query=count(container_memory_working_set_bytes)by(node)'
+      ```
+
+        All 7 nodes must appear with non-zero counts.
+
+      - [x] **Step 3 (Grafana panel):** Add a `vk-local working-set RSS` panel to the existing operating dashboard. Query: `container_memory_working_set_bytes{namespace="secure-agent-pod", container="vk-local"}`. Pin to the secure-agent-pod operating folder so Phase 5's soak readings have a UI.
+- number: 3
+  title: 24h soak
+  steps: []
+- number: 4
+  title: Fallback if root cause cannot be isolated
+  steps: []
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

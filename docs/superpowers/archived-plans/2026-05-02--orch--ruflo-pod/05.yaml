@@ -1,0 +1,138 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Documentation
+  tag: agentic
+  depends_on:
+  - 4
+  tracking_issue: https://github.com/derio-net/frank/issues/186
+tasks:
+- number: 1
+  title: Update CLAUDE.md rules
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Update `.claude/rules/frank-infrastructure.md` Frank Cluster Services table
+
+
+      ```
+      | Ruflo Web UI            | (via Traefik)  | IngressRoute (ruflo.cluster.derio.net)             |
+      | Ruflo Shell (SSH+Mosh)  | 192.168.55.222 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60016-60031/Mosh) |
+      ```
+  - id: P5.T1.S2
+    text: |-
+      Add gotchas to `.claude/rules/frank-gotchas.md` — only patterns that actually surfaced during Phases 1–4. Possible candidates (verify each was actually hit):
+
+      - ruvocal's exact `MONGO_URL` env-var name and any quirks getting `INCLUDE_DB=false` to behave
+      - Workspace-path mismatch handling between containers, if encountered
+      - Traefik subpath/headers handling for ruvocal SPA, if needed
+      - Any UID/GID surprises from the ruvocal container
+- number: 2
+  title: Write the building blog post
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Run `/blog-post` to scaffold `blog/content/docs/building/<NN>-ruflo/index.md`. Choose `<NN>` so it follows the most recently published `building/` post in numeric order.
+  - id: P5.T2.S2
+    text: |-
+      Write the post. Suggested narrative:
+
+      - The why: Paperclip is structured org-chart orchestration; ruflo is the chaotic-swarm counterpoint. Frank's "let competing paradigms decide via the work" continues.
+      - The shape: hybrid pod (ruvocal + shell sidecar), separate Mongo sub-app, single LoadBalancer for SSH+Mosh, Traefik+Authentik for the web UI.
+      - The reuse: shell sidecar is the second instance of the agent-shell-base + inventory-ConfigMap pattern; what changed and what stayed identical.
+      - The principle: zero direct frontier-LLM keys in the pod; LiteLLM gateway as the kill switch; OpenRouter as the deliberate escape hatch.
+      - The gotchas (whatever surfaced).
+  - id: P5.T2.S3
+    text: |-
+      Update series index `blog/content/docs/building/00-overview/index.md` — add ruflo to the Series Index and Capability Map.
+  - id: P5.T2.S4
+    text: |-
+      Update roadmap shortcode `blog/layouts/shortcodes/cluster-roadmap.html` — add the new layer entry.
+- number: 3
+  title: Write the operating blog post
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Run `/blog-post` to scaffold `blog/content/docs/operating/<NN>-ruflo/index.md`.
+  - id: P5.T3.S2
+    text: |-
+      Write the post. Sections:
+
+      - Connecting (laptop `~/.ssh/config` snippet, mosh wrapper, accessing the web UI)
+      - Adding/removing tools (ConfigMap edit flow vs interactive `mise install` / `cargo install`)
+      - Reading the install log / interpreting the Telegram alert
+      - When to bump `ruflo-shell` image vs add to inventory
+      - When to bump `ruflo-server` image (pinning to a new ruvnet/ruflo upstream SHA)
+      - Backup and recovery (Longhorn snapshot policy on the three PVCs; how to restore)
+      - Rough swarm-run cookbook: a worked example of running an actual `claude-flow orchestrate` against the running ruvocal — minimum pieces an operator needs
+  - id: P5.T3.S3
+    text: |-
+      Update operating series index in `blog/content/docs/building/00-overview/index.md`.
+- number: 4
+  title: Run `/update-readme`
+  steps: []
+- number: 5
+  title: Sync runbook
+  steps:
+  - id: P5.T5.S1
+    text: |-
+      Run `/sync-runbook`. This plan introduces two manual-operation blocks (Infisical bootstrap in Phase 2 Task 1, Authentik outpost assignment in Phase 3 Task 3). The skill picks them up and merges into `docs/runbooks/manual-operations.yaml`.
+- number: 6
+  title: Update plan status
+  steps:
+  - id: P5.T6.S1
+    text: |-
+      ** Set ` Status:** Deployed` at the top of this plan.
+
+
+      ---
+state:
+  steps:
+    P5.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

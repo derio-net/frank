@@ -1,0 +1,95 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Post-deploy documentation
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update operating blog post
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add a "Persistent shells with mosh + tmux" section to `blog/content/docs/operating/14-secure-agent-pod/index.md`
+
+
+      Cover: client invocation (the `mosh --ssh="…" --server="…" <udp-ip>` form), why SSH and UDP are on different IPs (separate Service objects, no IP sharing), the 4-port cap, and a starter tmux config snippet.
+- number: 2
+  title: Update building blog post (passing mention)
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      One-line correction in `blog/content/docs/building/21-secure-agent-pod/index.md`
+
+
+      Mention that the apt block now includes `tmux mosh locales-all` and that the deployment has a sibling mosh Service. No deep dive — this is a small extension, not a new layer.
+- number: 3
+  title: Update README service table
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Run `/update-readme`
+
+
+      Adds `192.168.55.219 — Secure Agent Pod (Mosh)` to the Service Access table. Confirm the diff before committing.
+- number: 4
+  title: Sync runbook (only if needed)
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Run `/sync-runbook`
+
+
+      This plan has no `# manual-operation` blocks, so the runbook should be unchanged. Run anyway to confirm zero diff and avoid drift.
+- number: 5
+  title: Update gotchas (if Cilium L2 UDP turned out to be quirky)
+  steps:
+  - id: P4.T5.S1
+    text: |-
+      Append to `.claude/rules/frank-gotchas.md` if applicable <!-- skipped — Cilium L2 UDP worked first try; all 10 documented failure modes were client-side (ssh/mosh/zsh/wezterm/tmux), none cluster-side -->
+
+
+      Only if Phase 3 surfaced something non-obvious (e.g., Cilium L2 UDP needing an explicit announcement-policy update, or mosh-server failing under non-root + capability drop).
+- number: 6
+  title: Set plan status
+  steps:
+  - id: P4.T6.S1
+    text: |-
+      Edit ` Status:**` to `Deployed`**
+
+
+      Once Phases 1-4 are all checked off and verification passed.
+
+      ---
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T5.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P4.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

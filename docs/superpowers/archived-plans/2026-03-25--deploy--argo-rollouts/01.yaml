@@ -1,0 +1,426 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Controller Install
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Register layer and create values file
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Add layer 18 to docs/layers.yaml
+
+
+      Append after the `edge` entry (before `repo`):
+
+      ```yaml
+        - code: deploy
+          number: 18
+          name: Progressive Delivery
+          description: Argo Rollouts, canary and blue-green deployment strategies
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Create apps/argo-rollouts/values.yaml
+
+
+      ```yaml
+      # Argo Rollouts — progressive delivery controller
+      # Layer 18 (deploy)
+      # Cilium traffic router plugin loaded via argo-rollouts-extras manifests
+
+      controller:
+        replicas: 1
+
+      # Dashboard UI is out of scope — kubectl plugin is sufficient
+      dashboard:
+        enabled: false
+
+      notifications:
+        enabled: false
+      ```
+  - id: P1.T1.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add docs/layers.yaml apps/argo-rollouts/values.yaml
+      git commit -m "feat(deploy): scaffold argo-rollouts layer and values"
+      ```
+
+      ---
+- number: 2
+  title: ArgoCD Application CRs
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Find the latest chart version
+
+
+      ```bash
+      helm repo add argo https://argoproj.github.io/argo-helm
+      helm search repo argo/argo-rollouts
+      # Pin targetRevision to the exact version shown — do NOT use "*" or "latest"
+      ```
+  - id: P1.T2.S2
+    text: |-
+      Create apps/root/templates/argo-rollouts.yaml
+
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: argo-rollouts
+        namespace: argocd
+        annotations:
+          argocd.argoproj.io/sync-wave: "1"
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        sources:
+          - repoURL: https://argoproj.github.io/argo-helm
+            chart: argo-rollouts
+            targetRevision: "2.x.x"   # replace with version from Step 1
+            helm:
+              releaseName: argo-rollouts
+              valueFiles:
+                - $values/apps/argo-rollouts/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: argo-rollouts
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+      ```
+  - id: P1.T2.S3
+    text: |-
+      Create apps/root/templates/argo-rollouts-extras.yaml
+
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: argo-rollouts-extras
+        namespace: argocd
+        annotations:
+          argocd.argoproj.io/sync-wave: "2"
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/argo-rollouts-extras/manifests
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: argo-rollouts
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/argo-rollouts.yaml apps/root/templates/argo-rollouts-extras.yaml
+      git commit -m "feat(deploy): add argo-rollouts and argo-rollouts-extras Application CRs"
+      ```
+
+      ---
+- number: 3
+  title: Cilium plugin ConfigMap and RBAC
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Find the latest Cilium plugin release
+
+
+      ```bash
+      # Visit https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-cilium/releases
+      # Pin to the latest release tag — do NOT use "latest" in the URL
+      # Note the version (e.g., v0.4.1)
+      ```
+  - id: P1.T3.S2
+    text: |-
+      Create plugin-config.yaml
+
+
+      Replace `v0.x.y` with the actual release tag:
+
+      ```yaml
+      # ConfigMap read by argo-rollouts controller at startup
+      # Downloads the Cilium traffic router plugin binary on first boot (requires internet access)
+      # Subsequent restarts use the cached binary
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: argo-rollouts-config
+        namespace: argo-rollouts
+      data:
+        trafficRouterPlugins: |-
+          - name: "argoproj-labs/cilium"
+            location: "https://github.com/argoproj-labs/rollouts-plugin-trafficrouter-cilium/releases/download/v0.x.y/rollouts-plugin-trafficrouter-cilium-linux-amd64"
+      ```
+  - id: P1.T3.S3
+    text: |-
+      Create cilium-rbac.yaml
+
+
+      The ServiceAccount name matches the chart's `releaseName: argo-rollouts`.
+
+      ```yaml
+      # Supplemental RBAC: grants argo-rollouts controller access to CiliumEnvoyConfig
+      # Required by the Cilium traffic router plugin — not included in chart defaults
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: argo-rollouts-cilium
+      rules:
+        - apiGroups: ["cilium.io"]
+          resources: ["ciliumenvoyconfigs"]
+          verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: argo-rollouts-cilium
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: argo-rollouts-cilium
+      subjects:
+        - kind: ServiceAccount
+          name: argo-rollouts
+          namespace: argo-rollouts
+      ```
+  - id: P1.T3.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/argo-rollouts-extras/
+      git commit -m "feat(deploy): add Cilium plugin config and RBAC for argo-rollouts"
+      ```
+
+      ---
+- number: 4
+  title: Verify Cilium Envoy is enabled
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Check if Cilium Envoy DaemonSet is running
+
+
+      ```bash
+      source .env
+      kubectl get daemonset -n kube-system | grep -i envoy
+      # If cilium-envoy DaemonSet exists and is fully running → Envoy is already enabled. Skip to Step 4.
+      # If not found → continue to Step 2.
+      ```
+  - id: P1.T4.S2
+    text: |-
+      Check current Cilium values
+
+
+      ```bash
+      cat apps/cilium/values.yaml | grep -A5 -i envoy
+      # Look for envoy.enabled or l7proxy settings
+      ```
+  - id: P1.T4.S3
+    text: |-
+      Enable Envoy if not present
+
+
+      If `cilium-envoy` DaemonSet does not exist, add to `apps/cilium/values.yaml`:
+
+      ```yaml
+      envoy:
+        enabled: true
+      ```
+
+      Then sync Cilium and wait for the DaemonSet to roll out:
+
+      ```bash
+      git add apps/cilium/values.yaml
+      git commit -m "feat(deploy): enable Cilium Envoy proxy for CiliumEnvoyConfig support"
+      git push
+      argocd app sync cilium --port-forward --port-forward-namespace argocd
+      kubectl rollout status daemonset/cilium-envoy -n kube-system
+      ```
+  - id: P1.T4.S4
+    text: |-
+      Verify CiliumEnvoyConfig CRD exists
+
+
+      ```bash
+      kubectl get crd ciliumenvoyconfigs.cilium.io
+      # Expected: the CRD is found (registered by Cilium operator)
+      ```
+
+      ---
+- number: 5
+  title: Deploy Phase 1 and verify
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Push and sync
+
+
+      ```bash
+      git push
+      source .env
+      argocd app sync argo-rollouts --port-forward --port-forward-namespace argocd
+      argocd app sync argo-rollouts-extras --port-forward --port-forward-namespace argocd
+      ```
+  - id: P1.T5.S2
+    text: |-
+      Verify controller is running
+
+
+      ```bash
+      kubectl get pods -n argo-rollouts
+      # Expected: argo-rollouts-<hash> Running 1/1
+      ```
+  - id: P1.T5.S3
+    text: |-
+      Verify Cilium plugin loaded
+
+
+      ```bash
+      kubectl logs -n argo-rollouts -l app.kubernetes.io/name=argo-rollouts | grep -i plugin
+      # Expected: log line confirming plugin "argoproj-labs/cilium" was downloaded/cached
+      ```
+  - id: P1.T5.S4
+    text: |-
+      Verify CiliumEnvoyConfig RBAC
+
+
+      ```bash
+      kubectl auth can-i create ciliumenvoyconfigs \
+        --as=system:serviceaccount:argo-rollouts:argo-rollouts \
+        -n litellm
+      # Expected: yes
+      ```
+  - id: P1.T5.S5
+    text: |-
+      Install kubectl-argo-rollouts CLI plugin locally (manual operation)
+
+
+      ```bash
+      # Check latest release version at https://github.com/argoproj/argo-rollouts/releases
+      curl -LO https://github.com/argoproj/argo-rollouts/releases/latest/download/kubectl-argo-rollouts-darwin-amd64
+      chmod +x kubectl-argo-rollouts-darwin-amd64
+      sudo mv kubectl-argo-rollouts-darwin-amd64 /usr/local/bin/kubectl-argo-rollouts
+      kubectl argo rollouts version
+      # Expected: argo-rollouts: vX.Y.Z
+      ```
+
+      ---
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S5:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

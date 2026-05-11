@@ -231,6 +231,6 @@ versions.yaml                    # Declarative Talos + K8s version targets
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| Safe Update Automation Implementation Plan |  | `docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md` | Not Started | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Safe Update Automation Implementation Plan |  | `docs/superpowers/plans/2026-03-25--repo--safe-update-automation/` | — |

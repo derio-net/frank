@@ -1,0 +1,412 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Core Services (9, 10, 11, 12, 13, 14)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Layer 9 — Backup & DR (frank-ops#9)
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Append rule — last successful Longhorn backup older than 48h
+
+
+      ```yaml
+            # --- Layer 9 — Backup & DR (frank-ops#9) ---
+            - orgId: 1
+              name: layer-9-backup-stale
+              folder: feature-health
+              interval: 5m
+              rules:
+                - uid: layer-9-backup-stale
+                  title: Layer 9 Longhorn Backup Stale
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange: { from: 3600, to: 0 }
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'time() - max(longhorn_backup_actual_size_bytes > 0) by (backup) * 0 + time() - longhorn_backup_target_last_available_time'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange: { from: 3600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings: { mode: dropNN }
+                    - refId: C
+                      relativeTimeRange: { from: 3600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator: { type: gt, params: [172800] }
+                  noDataState: OK
+                  execErrState: Error
+                  for: 30m
+                  labels:
+                    severity: warning
+                    github_issue: "frank-ops#9"
+                  annotations:
+                    summary: "L9 Backup: last Longhorn backup {{ $values.B.Value | humanizeDuration }} ago (>48h threshold)"
+                    runbook: "kubectl -n longhorn-system get backups | tail; kubectl -n longhorn-system get backuptarget"
+      ```
+
+      Note: `longhorn_backup_target_last_available_time` may not exist — if `curl` query returns empty, fall back to `longhorn_backup_state{state="Completed"}` age-of-last. Verify per Phase 1 Task 1 Step 2 pattern before committing.
+- number: 2
+  title: Layer 10 — Secrets (frank-ops#10)
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Append rule — Infisical pod down OR ESO reconciliation failures
+
+
+      ```yaml
+            # --- Layer 10 — Secrets (frank-ops#10) ---
+            # Per-pod: one alert per NotReady Infisical or ESO pod.
+            - orgId: 1
+              name: layer-10-secrets-down
+              folder: feature-health
+              interval: 1m
+              rules:
+                - uid: layer-10-secrets-down
+                  title: Layer 10 Secrets Degraded
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'kube_pod_status_ready{namespace=~"infisical|external-secrets",condition="true"}'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings: { mode: dropNN }
+                    - refId: C
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator: { type: lt, params: [1] }
+                  noDataState: OK
+                  execErrState: Error
+                  for: 5m
+                  labels:
+                    severity: warning
+                    github_issue: "frank-ops#10"
+                  annotations:
+                    summary: "L10 Secrets: {{ $labels.namespace }}/{{ $labels.pod }} NotReady"
+                    runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
+      ```
+- number: 3
+  title: Layer 11 — Local Inference (frank-ops#11)
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Append rule — Ollama or LiteLLM down
+
+
+      ```yaml
+            # --- Layer 11 — Local Inference (frank-ops#11) ---
+            # Per-pod: one alert per NotReady Ollama or LiteLLM pod.
+            - orgId: 1
+              name: layer-11-inference-down
+              folder: feature-health
+              interval: 1m
+              rules:
+                - uid: layer-11-inference-down
+                  title: Layer 11 Local Inference Degraded
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'kube_pod_status_ready{namespace=~"ollama|litellm",condition="true"}'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings: { mode: dropNN }
+                    - refId: C
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator: { type: lt, params: [1] }
+                  noDataState: OK
+                  execErrState: Error
+                  for: 5m
+                  labels:
+                    severity: warning
+                    github_issue: "frank-ops#11"
+                  annotations:
+                    summary: "L11 Inference: {{ $labels.namespace }}/{{ $labels.pod }} NotReady"
+                    runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
+      ```
+- number: 4
+  title: Layer 12 — Agentic Control Plane / Sympozium (frank-ops#12)
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Append rule — Sympozium pod NotReady
+
+
+      ```yaml
+            # --- Layer 12 — Agentic Control Plane (frank-ops#12) ---
+            # Per-pod: one alert per NotReady Sympozium pod.
+            - orgId: 1
+              name: layer-12-agents-down
+              folder: feature-health
+              interval: 1m
+              rules:
+                - uid: layer-12-agents-down
+                  title: Layer 12 Sympozium Down
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'kube_pod_status_ready{namespace="sympozium",condition="true"}'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings: { mode: dropNN }
+                    - refId: C
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator: { type: lt, params: [1] }
+                  noDataState: OK
+                  execErrState: Error
+                  for: 5m
+                  labels:
+                    severity: warning
+                    github_issue: "frank-ops#12"
+                  annotations:
+                    summary: "L12 Sympozium: pod {{ $labels.pod }} NotReady"
+                    runbook: "kubectl -n sympozium describe pod {{ $labels.pod }}"
+      ```
+- number: 5
+  title: Layer 13 — Unified Auth / Authentik (frank-ops#13)
+  steps:
+  - id: P4.T5.S1
+    text: |-
+      Append rule — Authentik server or worker NotReady
+
+
+      ```yaml
+            # --- Layer 13 — Unified Auth / Authentik (frank-ops#13) ---
+            # Per-pod: one alert per NotReady Authentik server/worker pod.
+            - orgId: 1
+              name: layer-13-auth-down
+              folder: feature-health
+              interval: 1m
+              rules:
+                - uid: layer-13-auth-down
+                  title: Layer 13 Authentik Degraded
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'kube_pod_status_ready{namespace="authentik",pod=~"authentik-(server|worker).*",condition="true"}'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings: { mode: dropNN }
+                    - refId: C
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator: { type: lt, params: [1] }
+                  noDataState: OK
+                  execErrState: Error
+                  for: 5m
+                  labels:
+                    severity: critical
+                    github_issue: "frank-ops#13"
+                  annotations:
+                    summary: "L13 Authentik: pod {{ $labels.pod }} NotReady — SSO/forward-auth at risk"
+                    runbook: "kubectl -n authentik describe pod {{ $labels.pod }}; kubectl -n authentik logs {{ $labels.pod }} --tail=50"
+      ```
+
+      Authentik is `critical` because losing it breaks forward-auth for every SSO-protected service.
+- number: 6
+  title: Layer 14 — Multi-tenancy / vCluster (frank-ops#14)
+  steps:
+  - id: P4.T6.S1
+    text: |-
+      Append rule — any vCluster pod NotReady
+
+
+      ```yaml
+            # --- Layer 14 — Multi-tenancy / vCluster (frank-ops#14) ---
+            # Per-vCluster-control-plane-pod: one alert per NotReady vcluster pod.
+            - orgId: 1
+              name: layer-14-vcluster-down
+              folder: feature-health
+              interval: 1m
+              rules:
+                - uid: layer-14-vcluster-down
+                  title: Layer 14 vCluster Degraded
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'kube_pod_status_ready{namespace=~"vcluster-.*",pod=~"vcluster-.*",condition="true"}'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings: { mode: dropNN }
+                    - refId: C
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator: { type: lt, params: [1] }
+                  noDataState: OK
+                  execErrState: Error
+                  for: 10m
+                  labels:
+                    severity: warning
+                    github_issue: "frank-ops#14"
+                  annotations:
+                    summary: "L14 vCluster: {{ $labels.namespace }}/{{ $labels.pod }} NotReady"
+                    runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
+      ```
+- number: 7
+  title: Deploy + verify Phase 4 rules
+  steps:
+  - id: P4.T7.S1
+    text: |-
+      Commit + push
+
+
+      ```bash
+      git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
+      git commit -m "feat(obs): add Layer 9–14 core-service alert rules → frank-ops#9-99"
+      git push origin main
+      kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+      kubectl rollout status -n monitoring deploy/grafana --timeout=120s
+      ```
+  - id: P4.T7.S2
+    text: |-
+      Smoke-test the six new rules (same loop pattern as Phase 3 Task 7 with issues 94-99, severities warning/warning/warning/warning/critical/warning)
+
+
+      ---
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

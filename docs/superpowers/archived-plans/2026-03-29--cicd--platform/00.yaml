@@ -1,0 +1,104 @@
+schema_version: 2
+phase:
+  number: 0
+  title: Infrastructure Prerequisites
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/40
+tasks:
+- number: 1
+  title: StorageClass and Node Labels
+  steps:
+  - id: P0.T1.S1
+    text: |-
+      Create the StorageClass manifest
+
+
+      Create `apps/longhorn/manifests/storageclass-longhorn-cicd.yaml`:
+
+      ```yaml
+      # Longhorn-CICD StorageClass — single replica for pc-1 CI/CD workloads
+      # Used by: Gitea repos, Zot image blobs, Tekton pipeline workspaces
+      apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: longhorn-cicd
+      provisioner: driver.longhorn.io
+      reclaimPolicy: Delete
+      volumeBindingMode: Immediate
+      allowVolumeExpansion: true
+      parameters:
+        numberOfReplicas: "1"
+        dataLocality: best-effort
+        nodeSelector: "kubernetes.io/hostname:pc-1"
+      ```
+  - id: P0.T1.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/longhorn/manifests/storageclass-longhorn-cicd.yaml
+      git commit -m "feat(cicd): add longhorn-cicd StorageClass for single-replica CI/CD PVCs"
+      ```
+  - id: P0.T1.S3
+    text: |-
+      Push and verify StorageClass syncs
+
+
+      ```bash
+      git push
+      # Wait for ArgoCD longhorn-extras to sync
+      kubectl get storageclass longhorn-cicd
+      # Expect: longhorn-cicd listed with provisioner driver.longhorn.io
+      ```
+  - id: P0.T1.S4
+    text: |-
+      Add role=cicd label to pc-1 via Omni
+
+
+      ```yaml
+      # manual-operation
+      id: cicd-pc1-role-label
+      layer: cicd
+      app: longhorn
+      plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+      when: "Before any CI/CD workload deployment"
+      why_manual: "Omni config patch requires UI or omnictl interaction"
+      commands:
+        - "Apply Omni machine config patch for pc-1: nodeLabels: role=cicd"
+      verify:
+        - "kubectl get node pc-1 --show-labels | grep role=cicd"
+      status: done
+      ```
+
+      Verify:
+
+      ```bash
+      kubectl get node pc-1 --show-labels | grep role=cicd
+      # Expect: role=cicd in the label list — verified 2026-04-13
+      ```
+
+      ---
+state:
+  steps:
+    P0.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S4:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

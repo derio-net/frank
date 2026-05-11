@@ -1,0 +1,1524 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Grafana Alerting as Code — Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create the ArgoCD Application CR
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create the Application CR
+
+
+      Follow the raw-manifests pattern from `apps/root/templates/health-bridge.yaml`. The only differences: app name and path.
+
+      ```yaml
+      # apps/root/templates/grafana-alerting.yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: grafana-alerting
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/grafana-alerting/manifests
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: monitoring
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=false
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            jsonPointers:
+              - /data
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Verify YAML syntax
+
+
+      ```bash
+      cd /var/tmp/vibe-kanban/worktrees/097c-read/frank
+      python3 -c "import yaml; yaml.safe_load(open('apps/root/templates/grafana-alerting.yaml').read().replace('{{ .Values.repoURL }}', 'x').replace('{{ .Values.targetRevision }}', 'x').replace('{{ .Values.destination.server }}', 'x'))"
+      ```
+
+      Expected: no output (valid YAML after placeholder substitution).
+  - id: P1.T1.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/grafana-alerting.yaml
+      git commit -m "feat(obs): add grafana-alerting ArgoCD Application CR"
+      ```
+
+      ---
+- number: 2
+  title: Create the Alert Rules ConfigMap
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create the manifests directory
+
+
+      ```bash
+      mkdir -p apps/grafana-alerting/manifests
+      ```
+  - id: P1.T2.S2
+    text: |-
+      Create the alert rules ConfigMap
+
+
+      Five groups — one per rule — because each rule has a different evaluation interval (Grafana evaluates all rules in a group at the group's `interval`). Groups are named by semantic pattern with interval suffix for clarity.
+
+      | Group | Rule | Interval | For |
+      |-------|------|----------|-----|
+      | `heartbeat-stale-5m` | exercise-reminder-stale | 5m | 1m |
+      | `heartbeat-stale-1m` | session-manager-stale | 1m | 5m |
+      | `heartbeat-stale-30m` | audit-digest-stale | 30m | 1h |
+      | `endpoint-down` | endpoint-down | 1m | 5m |
+      | `pod-not-running` | agent-pod-not-running | 1m | 5m |
+
+      ```yaml
+      # apps/grafana-alerting/manifests/alert-rules-cm.yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: grafana-alerting-rules
+        namespace: monitoring
+      data:
+        alert-rules.yaml: |
+          apiVersion: 1
+          groups:
+            # --- Heartbeat-stale: exercise reminder (eval every 5m) ---
+            - orgId: 1
+              name: heartbeat-stale-5m
+              folder: feature-health
+              interval: 5m
+              rules:
+                - uid: exercise-reminder-stale
+                  title: Exercise Reminder Stale
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'time() - willikins_heartbeat_last_success_timestamp{job="exercise_reminder"}'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings:
+                          mode: dropNN
+                    - refId: C
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator:
+                              type: gt
+                              params:
+                                - 10800
+                  noDataState: OK
+                  execErrState: Error
+                  for: 1m
+                  labels:
+                    severity: critical
+                    github_issue: "willikins#11"
+                  annotations:
+                    summary: Exercise reminder cron heartbeat is stale (>3h since last success)
+
+            # --- Heartbeat-stale: session manager (eval every 1m) ---
+            - orgId: 1
+              name: heartbeat-stale-1m
+              folder: feature-health
+              interval: 1m
+              rules:
+                - uid: session-manager-stale
+                  title: Session Manager Stale
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'time() - willikins_heartbeat_last_success_timestamp{job="session_manager"}'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings:
+                          mode: dropNN
+                    - refId: C
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator:
+                              type: gt
+                              params:
+                                - 600
+                  noDataState: OK
+                  execErrState: Error
+                  for: 5m
+                  labels:
+                    severity: critical
+                    github_issue: "willikins#13"
+                  annotations:
+                    summary: Session manager cron heartbeat is stale (>10m since last success)
+
+            # --- Heartbeat-stale: audit digest (eval every 30m) ---
+            - orgId: 1
+              name: heartbeat-stale-30m
+              folder: feature-health
+              interval: 30m
+              rules:
+                - uid: audit-digest-stale
+                  title: Audit Digest Stale
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'time() - willikins_heartbeat_last_success_timestamp{job="audit_digest"}'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings:
+                          mode: dropNN
+                    - refId: C
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator:
+                              type: gt
+                              params:
+                                - 93600
+                  noDataState: OK
+                  execErrState: Error
+                  for: 1h
+                  labels:
+                    severity: warning
+                    github_issue: "willikins#12"
+                  annotations:
+                    summary: Audit digest cron heartbeat is stale (>26h since last success)
+
+            # --- Endpoint-down (eval every 1m) ---
+            - orgId: 1
+              name: endpoint-down
+              folder: feature-health
+              interval: 1m
+              rules:
+                - uid: endpoint-down
+                  title: Endpoint Down
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'probe_success{probe_group="feature_health"}'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings:
+                          mode: dropNN
+                    - refId: C
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator:
+                              type: lt
+                              params:
+                                - 1
+                  noDataState: OK
+                  execErrState: Error
+                  for: 5m
+                  labels:
+                    severity: critical
+                  annotations:
+                    summary: "HTTP endpoint probe failing"
+
+            # --- Pod-not-running (eval every 1m) ---
+            - orgId: 1
+              name: pod-not-running
+              folder: feature-health
+              interval: 1m
+              rules:
+                - uid: agent-pod-not-running
+                  title: Agent Pod Not Running
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'kube_pod_status_phase{namespace="secure-agent-pod", phase="Running"}'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings:
+                          mode: dropNN
+                    - refId: C
+                      relativeTimeRange:
+                        from: 600
+                        to: 0
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator:
+                              type: lt
+                              params:
+                                - 1
+                  noDataState: OK
+                  execErrState: Error
+                  for: 5m
+                  labels:
+                    severity: critical
+                    github_issue: "frank#8"
+                  annotations:
+                    summary: Secure agent pod is not in Running phase
+      ```
+  - id: P1.T2.S3
+    text: |-
+      Validate YAML syntax
+
+
+      ```bash
+      python3 -c "import yaml; yaml.safe_load(open('apps/grafana-alerting/manifests/alert-rules-cm.yaml'))"
+      ```
+
+      Expected: no output (valid YAML).
+  - id: P1.T2.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
+      git commit -m "feat(obs): add grafana alert rules ConfigMap (5 rules, 5 groups)"
+      ```
+
+      ---
+- number: 3
+  title: Create the Contact Points ConfigMap
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Create the contact points ConfigMap
+
+
+      ```yaml
+      # apps/grafana-alerting/manifests/contact-points-cm.yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: grafana-alerting-contact-points
+        namespace: monitoring
+      data:
+        contact-points.yaml: |
+          apiVersion: 1
+          contactPoints:
+            - orgId: 1
+              name: "Telegram - Willikins"
+              receivers:
+                - uid: efi04e0201jb4f
+                  type: telegram
+                  settings:
+                    bottoken: $FRANK_C2_TELEGRAM_BOT_TOKEN
+                    chatid: $FRANK_C2_TELEGRAM_CHAT_ID
+                    parse_mode: Markdown
+            - orgId: 1
+              name: "Health Bridge Webhook"
+              receivers:
+                - uid: health-bridge-webhook
+                  type: webhook
+                  settings:
+                    url: "http://health-bridge.monitoring.svc.cluster.local:8080/webhook"
+                    httpMethod: POST
+                    authorization_scheme: Bearer
+                    authorization_credentials: $HEALTH_BRIDGE_WEBHOOK_SECRET
+      ```
+  - id: P1.T3.S2
+    text: |-
+      Validate YAML syntax
+
+
+      ```bash
+      python3 -c "import yaml; yaml.safe_load(open('apps/grafana-alerting/manifests/contact-points-cm.yaml'))"
+      ```
+  - id: P1.T3.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/grafana-alerting/manifests/contact-points-cm.yaml
+      git commit -m "feat(obs): add grafana contact points ConfigMap (Telegram + Health Bridge)"
+      ```
+
+      ---
+- number: 4
+  title: Create the Notification Policy ConfigMap
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Create the notification policy ConfigMap
+
+
+      ```yaml
+      # apps/grafana-alerting/manifests/notification-policy-cm.yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: grafana-alerting-notification-policy
+        namespace: monitoring
+      data:
+        notification-policy.yaml: |
+          apiVersion: 1
+          policies:
+            - orgId: 1
+              receiver: "Telegram - Willikins"
+              group_wait: 30s
+              group_interval: 3m
+              repeat_interval: 3m
+              routes:
+                - receiver: "Telegram - Willikins"
+                  matchers:
+                    - severity=critical
+                  continue: true
+                - receiver: "Telegram - Willikins"
+                  matchers:
+                    - severity=warning
+                  continue: true
+                - receiver: "Health Bridge Webhook"
+                  matchers:
+                    - grafana_folder=Feature Health
+                  continue: false
+      ```
+  - id: P1.T4.S2
+    text: |-
+      Validate YAML syntax
+
+
+      ```bash
+      python3 -c "import yaml; yaml.safe_load(open('apps/grafana-alerting/manifests/notification-policy-cm.yaml'))"
+      ```
+  - id: P1.T4.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/grafana-alerting/manifests/notification-policy-cm.yaml
+      git commit -m "feat(obs): add grafana notification policy ConfigMap (severity routing)"
+      ```
+
+      ---
+- number: 5
+  title: Create the ExternalSecret for Alerting Env Vars
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Create the ExternalSecret
+
+
+      ```yaml
+      # apps/grafana-alerting/manifests/externalsecret.yaml
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: grafana-alerting-secrets
+        namespace: monitoring
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: grafana-alerting-secrets
+          creationPolicy: Owner
+        data:
+          - secretKey: FRANK_C2_TELEGRAM_BOT_TOKEN
+            remoteRef:
+              key: FRANK_C2_TELEGRAM_BOT_TOKEN
+          - secretKey: FRANK_C2_TELEGRAM_CHAT_ID
+            remoteRef:
+              key: FRANK_C2_TELEGRAM_CHAT_ID
+          - secretKey: HEALTH_BRIDGE_WEBHOOK_SECRET
+            remoteRef:
+              key: HEALTH_BRIDGE_WEBHOOK_SECRET
+      ```
+  - id: P1.T5.S2
+    text: |-
+      Validate YAML syntax
+
+
+      ```bash
+      python3 -c "import yaml; yaml.safe_load(open('apps/grafana-alerting/manifests/externalsecret.yaml'))"
+      ```
+  - id: P1.T5.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/grafana-alerting/manifests/externalsecret.yaml
+      git commit -m "feat(obs): add ExternalSecret for grafana alerting env vars"
+      ```
+
+      ---
+- number: 6
+  title: Create the Dashboard ConfigMap
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Create the dashboard ConfigMap
+
+
+      The ConfigMap has two keys:
+      - `feature-health-provider.yaml` — provider config (mounted to `/etc/grafana/provisioning/dashboards/`)
+      - `feature-health.json` — dashboard JSON (mounted to `/var/lib/grafana/dashboards/feature-health/`)
+
+      ```yaml
+      # apps/grafana-alerting/manifests/dashboard-cm.yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: grafana-alerting-dashboard
+        namespace: monitoring
+      data:
+        feature-health-provider.yaml: |
+          apiVersion: 1
+          providers:
+            - name: feature-health
+              folder: feature-health
+              type: file
+              disableDeletion: true
+              editable: false
+              options:
+                path: /var/lib/grafana/dashboards/feature-health
+        feature-health.json: |
+          {
+            "uid": "fh-overview",
+            "title": "Feature Health",
+            "tags": ["feature-health"],
+            "timezone": "browser",
+            "schemaVersion": 39,
+            "refresh": "30s",
+            "time": { "from": "now-1h", "to": "now" },
+            "panels": [
+              {
+                "id": 1,
+                "title": "Alert Summary",
+                "type": "alertlist",
+                "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+                "options": {
+                  "alertListType": "alertRules",
+                  "folder": { "title": "feature-health" },
+                  "stateFilter": {
+                    "firing": true,
+                    "pending": true,
+                    "noData": true,
+                    "normal": false,
+                    "error": true
+                  },
+                  "viewMode": "list"
+                }
+              },
+              {
+                "id": 2,
+                "title": "Cron Job Heartbeats",
+                "type": "table",
+                "gridPos": { "h": 8, "w": 16, "x": 8, "y": 0 },
+                "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+                "targets": [
+                  {
+                    "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+                    "expr": "(time() - willikins_heartbeat_last_success_timestamp) / 60",
+                    "instant": true,
+                    "format": "table",
+                    "refId": "A"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "custom": {
+                      "align": "auto",
+                      "cellOptions": { "type": "auto" },
+                      "inspect": false
+                    },
+                    "thresholds": {
+                      "mode": "absolute",
+                      "steps": [
+                        { "color": "green", "value": null },
+                        { "color": "yellow", "value": 60 },
+                        { "color": "red", "value": 180 }
+                      ]
+                    }
+                  },
+                  "overrides": [
+                    {
+                      "matcher": { "id": "byName", "options": "Value" },
+                      "properties": [
+                        { "id": "displayName", "value": "Minutes Since Last Success" },
+                        { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+                      ]
+                    }
+                  ]
+                },
+                "transformations": [
+                  {
+                    "id": "filterFieldsByName",
+                    "options": {
+                      "include": { "names": ["job", "Value"] }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": 3,
+                "title": "Endpoint Probes",
+                "type": "table",
+                "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 },
+                "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+                "targets": [
+                  {
+                    "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+                    "expr": "probe_success{probe_group=\"feature_health\"}",
+                    "instant": true,
+                    "format": "table",
+                    "refId": "A"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "custom": {
+                      "align": "auto",
+                      "cellOptions": { "type": "auto" },
+                      "inspect": false
+                    },
+                    "mappings": [
+                      { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+                    ]
+                  },
+                  "overrides": [
+                    {
+                      "matcher": { "id": "byName", "options": "Value" },
+                      "properties": [
+                        { "id": "displayName", "value": "Success" },
+                        { "id": "custom.cellOptions", "value": { "type": "color-background" } }
+                      ]
+                    }
+                  ]
+                },
+                "transformations": [
+                  {
+                    "id": "filterFieldsByName",
+                    "options": {
+                      "include": { "names": ["instance", "Value"] }
+                    }
+                  }
+                ]
+              },
+              {
+                "id": 4,
+                "title": "Pod Status",
+                "type": "table",
+                "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+                "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+                "targets": [
+                  {
+                    "datasource": { "uid": "P4169E866C3094E38", "type": "prometheus" },
+                    "expr": "kube_pod_status_phase{namespace=~\"secure-agent-pod|n8n-01|paperclip-system\", phase=\"Running\"}",
+                    "instant": true,
+                    "format": "table",
+                    "refId": "A"
+                  }
+                ],
+                "fieldConfig": {
+                  "defaults": {
+                    "custom": {
+                      "align": "auto",
+                      "cellOptions": { "type": "auto" },
+                      "inspect": false
+                    }
+                  },
+                  "overrides": []
+                },
+                "transformations": [
+                  {
+                    "id": "filterFieldsByName",
+                    "options": {
+                      "include": { "names": ["namespace", "pod", "phase", "Value"] }
+                    }
+                  },
+                  {
+                    "id": "organize",
+                    "options": {
+                      "renameByName": { "Value": "Count" }
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+      ```
+
+      **Note:** The dashboard JSON may need fine-tuning after first deployment (panel sizing, field mappings, threshold colors). Use the scratch-dashboard workflow described in the spec: open the provisioned dashboard → "Save as" scratch copy → edit in UI → export JSON → update ConfigMap → commit → delete scratch.
+  - id: P1.T6.S2
+    text: |-
+      Validate YAML syntax
+
+
+      ```bash
+      python3 -c "
+      import yaml, json
+      doc = yaml.safe_load(open('apps/grafana-alerting/manifests/dashboard-cm.yaml'))
+      # Verify the embedded JSON is valid
+      json.loads(doc['data']['feature-health.json'])
+      print('YAML and embedded JSON both valid')
+      "
+      ```
+
+      Expected: `YAML and embedded JSON both valid`
+  - id: P1.T6.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/grafana-alerting/manifests/dashboard-cm.yaml
+      git commit -m "feat(obs): add Feature Health dashboard ConfigMap (provider + JSON)"
+      ```
+
+      ---
+- number: 7
+  title: Update victoria-metrics Values (Mounts + Secrets)
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      Add extraConfigmapMounts entries
+
+
+      In `apps/victoria-metrics/values.yaml`, append 5 mount entries to the existing `extraConfigmapMounts` list (3 alerting files + 2 dashboard files from the 4 ConfigMaps):
+
+      ```yaml
+        extraConfigmapMounts:
+          - name: victorialogs-datasource
+            mountPath: /etc/grafana/provisioning/datasources/victorialogs.yaml
+            subPath: victorialogs-datasource.yaml
+            configMap: grafana-victorialogs-datasource
+            readOnly: true
+          # --- Alerting provisioning (rules, contact points, notification policy) ---
+          - name: alerting-rules
+            mountPath: /etc/grafana/provisioning/alerting/alert-rules.yaml
+            subPath: alert-rules.yaml
+            configMap: grafana-alerting-rules
+            readOnly: true
+          - name: alerting-contact-points
+            mountPath: /etc/grafana/provisioning/alerting/contact-points.yaml
+            subPath: contact-points.yaml
+            configMap: grafana-alerting-contact-points
+            readOnly: true
+          - name: alerting-notification-policy
+            mountPath: /etc/grafana/provisioning/alerting/notification-policy.yaml
+            subPath: notification-policy.yaml
+            configMap: grafana-alerting-notification-policy
+            readOnly: true
+          # --- Dashboard provisioning (provider config + JSON) ---
+          - name: dashboard-provider
+            mountPath: /etc/grafana/provisioning/dashboards/feature-health-provider.yaml
+            subPath: feature-health-provider.yaml
+            configMap: grafana-alerting-dashboard
+            readOnly: true
+          - name: dashboard-json
+            mountPath: /var/lib/grafana/dashboards/feature-health/feature-health.json
+            subPath: feature-health.json
+            configMap: grafana-alerting-dashboard
+            readOnly: true
+      ```
+  - id: P1.T7.S2
+    text: |-
+      Switch envFromSecret to envFromSecrets
+
+
+      Replace the singular `envFromSecret` with the plural `envFromSecrets` list format to support both the existing OIDC secret and the new alerting secrets:
+
+      ```yaml
+        # Replace this line:
+        #   envFromSecret: grafana-oidc-secret
+        # With:
+        envFromSecrets:
+          - name: grafana-oidc-secret
+            optional: false
+          - name: grafana-alerting-secrets
+            optional: true
+      ```
+
+      `optional: true` on the alerting secrets prevents Grafana from failing to start if the ExternalSecret hasn't synced yet (first-boot race condition). The OIDC secret is `optional: false` because Grafana OIDC login breaks without it.
+  - id: P1.T7.S3
+    text: |-
+      Verify the complete values file
+
+
+      The full `grafana:` section in `apps/victoria-metrics/values.yaml` should now look like:
+
+      ```yaml
+      grafana:
+        enabled: true
+        service:
+          type: LoadBalancer
+          loadBalancerIP: 192.168.55.203
+        persistence:
+          enabled: true
+          storageClassName: longhorn
+          size: 1Gi
+        plugins:
+          - victoriametrics-logs-datasource
+        extraConfigmapMounts:
+          - name: victorialogs-datasource
+            mountPath: /etc/grafana/provisioning/datasources/victorialogs.yaml
+            subPath: victorialogs-datasource.yaml
+            configMap: grafana-victorialogs-datasource
+            readOnly: true
+          - name: alerting-rules
+            mountPath: /etc/grafana/provisioning/alerting/alert-rules.yaml
+            subPath: alert-rules.yaml
+            configMap: grafana-alerting-rules
+            readOnly: true
+          - name: alerting-contact-points
+            mountPath: /etc/grafana/provisioning/alerting/contact-points.yaml
+            subPath: contact-points.yaml
+            configMap: grafana-alerting-contact-points
+            readOnly: true
+          - name: alerting-notification-policy
+            mountPath: /etc/grafana/provisioning/alerting/notification-policy.yaml
+            subPath: notification-policy.yaml
+            configMap: grafana-alerting-notification-policy
+            readOnly: true
+          - name: dashboard-provider
+            mountPath: /etc/grafana/provisioning/dashboards/feature-health-provider.yaml
+            subPath: feature-health-provider.yaml
+            configMap: grafana-alerting-dashboard
+            readOnly: true
+          - name: dashboard-json
+            mountPath: /var/lib/grafana/dashboards/feature-health/feature-health.json
+            subPath: feature-health.json
+            configMap: grafana-alerting-dashboard
+            readOnly: true
+        envFromSecrets:
+          - name: grafana-oidc-secret
+            optional: false
+          - name: grafana-alerting-secrets
+            optional: true
+        grafana.ini:
+          server:
+            root_url: https://grafana.frank.derio.net
+          auth.generic_oauth:
+            enabled: true
+            name: Authentik
+            client_id: grafana
+            client_secret: ${GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}
+            scopes: openid profile email groups offline_access
+            auth_url: https://auth.frank.derio.net/application/o/authorize/
+            token_url: https://auth.frank.derio.net/application/o/token/
+            api_url: https://auth.frank.derio.net/application/o/userinfo/
+            role_attribute_path: "contains(groups[*], 'root-admins') && 'Admin' || contains(groups[*], 'root-devops') && 'Editor' || 'Viewer'"
+            allow_assign_grafana_admin: true
+      ```
+  - id: P1.T7.S4
+    text: |-
+      Validate YAML syntax
+
+
+      ```bash
+      python3 -c "import yaml; yaml.safe_load(open('apps/victoria-metrics/values.yaml'))"
+      ```
+  - id: P1.T7.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/victoria-metrics/values.yaml
+      git commit -m "feat(obs): wire grafana alerting ConfigMaps + secrets into victoria-metrics values"
+      ```
+
+      ---
+- number: 8
+  title: Deploy and Verify File-Provisioned Resources
+  steps:
+  - id: P1.T8.S1
+    text: |-
+      Push the branch and wait for ArgoCD sync
+
+
+      ```bash
+      git push origin HEAD
+      ```
+
+      Watch for sync in ArgoCD (or use CLI):
+
+      ```bash
+      source .env
+      argocd app list --port-forward --port-forward-namespace argocd | grep -E 'grafana-alerting|victoria-metrics'
+      ```
+
+      Expected: `grafana-alerting` shows `Synced`/`Healthy`. `victoria-metrics` shows `Synced` (may briefly show `Progressing` as Grafana pod restarts).
+  - id: P1.T8.S2
+    text: |-
+      Verify the ExternalSecret synced
+
+
+      ```bash
+      kubectl get externalsecret -n monitoring grafana-alerting-secrets
+      ```
+
+      Expected: `SecretSynced` status. If it shows `SecretSyncedError`, check that the 3 keys exist in Infisical.
+  - id: P1.T8.S3
+    text: |-
+      Verify Grafana pod is running with new mounts
+
+
+      ```bash
+      kubectl get pods -n monitoring -l app.kubernetes.io/name=grafana
+      kubectl describe pod -n monitoring -l app.kubernetes.io/name=grafana | grep -A2 "alerting\|dashboard"
+      ```
+
+      Expected: Pod in `Running` state with the 5 new volume mounts visible.
+  - id: P1.T8.S4
+    text: |-
+      Verify file-provisioned alert rules appear
+
+
+      ```bash
+      GRAFANA_AUTH="admin:$(kubectl get secret -n monitoring victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
+      curl -sk -u "$GRAFANA_AUTH" \
+        "https://grafana.frank.derio.net/api/v1/provisioning/alert-rules" | \
+        python3 -c "import json,sys; rules=json.load(sys.stdin); [print(f'{r[\"uid\"]} (provenance: {r.get(\"provenance\",\"none\")})') for r in rules]"
+      ```
+
+      Expected: Each rule UID appears **twice** — once with `provenance: file` (new) and once with `provenance: none` or `provenance: api` (old). This confirms file-provisioned versions loaded correctly.
+  - id: P1.T8.S5
+    text: |-
+      Verify file-provisioned contact points appear
+
+
+      ```bash
+      curl -sk -u "$GRAFANA_AUTH" \
+        "https://grafana.frank.derio.net/api/v1/provisioning/contact-points" | python3 -m json.tool
+      ```
+
+      Expected: Contact points with `provenance: file` present. Telegram UID `efi04e0201jb4f` appears in file-provisioned version.
+  - id: P1.T8.S6
+    text: |-
+      Verify notification policy
+
+
+      ```bash
+      curl -sk -u "$GRAFANA_AUTH" \
+        "https://grafana.frank.derio.net/api/v1/provisioning/policies" | python3 -m json.tool
+      ```
+
+      Expected: Routing tree with 3 routes (severity=critical, severity=warning, grafana_folder=Feature Health).
+  - id: P1.T8.S7
+    text: |-
+      Verify Feature Health dashboard in feature-health folder
+
+
+      ```bash
+      curl -sk -u "$GRAFANA_AUTH" \
+        "https://grafana.frank.derio.net/api/dashboards/uid/fh-overview" | \
+        python3 -c "import json,sys; d=json.load(sys.stdin); print(f'Title: {d[\"dashboard\"][\"title\"]}, Folder: {d[\"meta\"][\"folderTitle\"]}, Panels: {len(d[\"dashboard\"][\"panels\"])}')"
+      ```
+
+      Expected: `Title: Feature Health, Folder: feature-health, Panels: 4`
+
+      ---
+- number: 9
+  title: Delete API-Provisioned Duplicates (Migration)
+  steps:
+  - id: P1.T9.S1
+    text: |-
+      Set up auth variable
+
+
+      ```bash
+      source .env
+      GRAFANA_AUTH="admin:$(kubectl get secret -n monitoring victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
+      ```
+  - id: P1.T9.S2
+    text: |-
+      Delete API-provisioned alert rules
+
+
+      ```bash
+      for uid in exercise-reminder-stale session-manager-stale audit-digest-stale endpoint-down agent-pod-not-running; do
+        echo "Deleting API-provisioned rule: $uid"
+        HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" -u "$GRAFANA_AUTH" -X DELETE \
+          "https://grafana.frank.derio.net/api/v1/provisioning/alert-rules/$uid" \
+          -H "X-Disable-Provenance: true")
+        echo "  HTTP $HTTP_CODE"
+      done
+      ```
+
+      Expected: `HTTP 204` (deleted) or `HTTP 400` (already file-provisioned, no separate API copy). Both are OK.
+  - id: P1.T9.S3
+    text: |-
+      Check for duplicate contact points and delete API copies
+
+
+      ```bash
+      curl -sk -u "$GRAFANA_AUTH" \
+        "https://grafana.frank.derio.net/api/v1/provisioning/contact-points" | \
+        python3 -c "
+      import json, sys
+      cps = json.load(sys.stdin)
+      for cp in cps:
+          prov = cp.get('provenance', 'none')
+          print(f'{cp[\"uid\"]}: {cp[\"name\"]} (provenance: {prov})')
+          if prov != 'file' and cp['name'] in ['Telegram - Willikins', 'Health Bridge Webhook']:
+              print(f'  → DELETE this one (API-provisioned duplicate)')
+      "
+      ```
+
+      Delete any identified API-provisioned duplicates:
+
+      ```bash
+      # Only run for UIDs identified as API-provisioned duplicates in the output above
+      # curl -sk -u "$GRAFANA_AUTH" -X DELETE \
+      #   "https://grafana.frank.derio.net/api/v1/provisioning/contact-points/<UID>" \
+      #   -H "X-Disable-Provenance: true"
+      ```
+  - id: P1.T9.S4
+    text: |-
+      Restart Grafana pod to flush alertmanager dedup state
+
+
+      Required after contact point changes (gotcha: alertmanager treats previously-fired alerts as "already notified" for the default repeat_interval after re-provisioning).
+
+      ```bash
+      kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+      ```
+
+      Wait for the pod to come back:
+
+      ```bash
+      kubectl wait --for=condition=Ready pod -n monitoring -l app.kubernetes.io/name=grafana --timeout=120s
+      ```
+
+      ---
+- number: 10
+  title: End-to-End Verification
+  steps:
+  - id: P1.T10.S1
+    text: |-
+      Verify all 5 alert rules are file-provisioned
+
+
+      ```bash
+      GRAFANA_AUTH="admin:$(kubectl get secret -n monitoring victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
+      curl -sk -u "$GRAFANA_AUTH" \
+        "https://grafana.frank.derio.net/api/v1/provisioning/alert-rules" | \
+        python3 -c "
+      import json, sys
+      rules = json.load(sys.stdin)
+      expected = {'exercise-reminder-stale', 'session-manager-stale', 'audit-digest-stale', 'endpoint-down', 'agent-pod-not-running'}
+      found = {r['uid'] for r in rules}
+      missing = expected - found
+      extra = found - expected
+      for r in rules:
+          status = '✓' if r.get('provenance') == 'file' else '✗ NOT FILE'
+          print(f'  {status} {r[\"uid\"]} (provenance: {r.get(\"provenance\", \"none\")})')
+      if missing: print(f'MISSING: {missing}')
+      if not missing: print(f'All {len(expected)} expected rules present')
+      "
+      ```
+
+      Expected: All 5 rules present with `provenance: file`.
+  - id: P1.T10.S2
+    text: |-
+      Verify contact points and notification policy
+
+
+      ```bash
+      echo "=== Contact Points ==="
+      curl -sk -u "$GRAFANA_AUTH" \
+        "https://grafana.frank.derio.net/api/v1/provisioning/contact-points" | \
+        python3 -c "import json,sys; [print(f'  {cp[\"name\"]}: provenance={cp.get(\"provenance\",\"none\")}') for cp in json.load(sys.stdin)]"
+
+      echo "=== Notification Policy ==="
+      curl -sk -u "$GRAFANA_AUTH" \
+        "https://grafana.frank.derio.net/api/v1/provisioning/policies" | \
+        python3 -c "
+      import json, sys
+      p = json.load(sys.stdin)
+      print(f'  Root receiver: {p[\"receiver\"]}')
+      print(f'  Routes: {len(p.get(\"routes\", []))}')
+      for r in p.get('routes', []):
+          print(f'    → {r[\"receiver\"]} (matchers: {r.get(\"object_matchers\", r.get(\"matchers\", []))}), continue: {r.get(\"continue\", False)}')
+      "
+      ```
+
+      Expected: 2 contact points (both `provenance: file`), 3 routes in the policy.
+  - id: P1.T10.S3
+    text: |-
+      Verify dashboard
+
+
+      ```bash
+      curl -sk -u "$GRAFANA_AUTH" \
+        "https://grafana.frank.derio.net/api/dashboards/uid/fh-overview" | \
+        python3 -c "
+      import json, sys
+      d = json.load(sys.stdin)
+      meta = d['meta']
+      dash = d['dashboard']
+      print(f'Title: {dash[\"title\"]}')
+      print(f'Folder: {meta[\"folderTitle\"]}')
+      print(f'Provisioned: {meta.get(\"provisioned\", False)}')
+      print(f'Panels: {len(dash[\"panels\"])}')
+      for p in dash['panels']:
+          print(f'  [{p[\"id\"]}] {p[\"title\"]} ({p[\"type\"]})')
+      "
+      ```
+
+      Expected: Title `Feature Health`, Folder `feature-health`, Provisioned `True`, 4 panels.
+  - id: P1.T10.S4
+    text: |-
+      PVC loss simulation — restart Grafana and verify survival
+
+
+      ```bash
+      kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+      kubectl wait --for=condition=Ready pod -n monitoring -l app.kubernetes.io/name=grafana --timeout=120s
+      ```
+
+      Then re-run Steps 1–3 above. All rules, contact points, policy, and dashboard should survive the restart (loaded from ConfigMaps, not PVC).
+  - id: P1.T10.S5
+    text: |-
+      Trigger test alert (optional live verification)
+
+
+      Temporarily lower the `exercise-reminder-stale` threshold to 60s to trigger a test alert:
+
+      1. Edit `apps/grafana-alerting/manifests/alert-rules-cm.yaml` — change `10800` to `60` in the exercise-reminder-stale rule's threshold params
+      2. Commit and push — wait for ArgoCD sync
+      3. Restart Grafana pod to reload provisioning files
+      4. Wait ~5m for the alert to fire (the heartbeat may be >60s stale)
+      5. Verify: Telegram notification arrives, Health Bridge webhook fires
+      6. Restore threshold to `10800`, commit, push, restart Grafana
+
+      ---
+- number: 11
+  title: Update Blog Posts
+  steps:
+  - id: P1.T11.S1
+    text: |-
+      Add a "File-Provisioned Alerting" section
+
+
+      Add after the "Grafana Alert Management" section in `blog/content/operating/15-health-monitoring/index.md`:
+
+      ```markdown
+      ## File-Provisioned Alerting (as-code)
+
+      As of April 2026, all Grafana alerting configuration is file-provisioned via ConfigMaps in `apps/grafana-alerting/manifests/`:
+
+      | ConfigMap | Provisioning Path | Contents |
+      |-----------|-------------------|----------|
+      | `grafana-alerting-rules` | `/etc/grafana/provisioning/alerting/alert-rules.yaml` | 5 alert rules in 3 groups |
+      | `grafana-alerting-contact-points` | `/etc/grafana/provisioning/alerting/contact-points.yaml` | Telegram + Health Bridge webhook |
+      | `grafana-alerting-notification-policy` | `/etc/grafana/provisioning/alerting/notification-policy.yaml` | Severity-based routing tree |
+      | `grafana-alerting-dashboard` | `/etc/grafana/provisioning/dashboards/` + `/var/lib/grafana/dashboards/feature-health/` | Feature Health dashboard |
+
+      ### Editing Alert Rules
+
+      File-provisioned rules are **read-only in the UI**. To modify:
+
+      1. Edit the ConfigMap YAML in `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
+      2. Commit and push — ArgoCD syncs the ConfigMap
+      3. Restart Grafana pod to reload provisioning files:
+         ```bash
+         kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+         ```
+
+      ### Editing the Dashboard
+
+      1. Open the provisioned dashboard in Grafana UI, click "Save as" to create a scratch copy
+      2. Edit the scratch copy freely in the UI
+      3. Export the final JSON (Share → Export → Save to file)
+      4. Replace the `feature-health.json` content in `apps/grafana-alerting/manifests/dashboard-cm.yaml`
+      5. Commit, push, restart Grafana pod
+      6. Delete the scratch dashboard
+      ```
+  - id: P1.T11.S2
+    text: |-
+      Mark API commands as historical
+
+
+      Add a note at the top of the existing "Grafana Alert Management" section:
+
+      ```markdown
+      > **Historical:** The curl commands below were used when alerts were API-provisioned. Since April 2026, alerting is file-provisioned via ConfigMaps. See [File-Provisioned Alerting](#file-provisioned-alerting-as-code) above. These commands still work for **reading** alert state but not for modifying rules.
+      ```
+  - id: P1.T11.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add blog/content/operating/15-health-monitoring/index.md
+      git commit -m "docs(obs): update health monitoring ops post for file-provisioned alerting"
+      ```
+
+      ---
+- number: 12
+  title: Update Gotchas
+  steps:
+  - id: P1.T12.S1
+    text: |-
+      Add provisioning gotcha
+
+
+      Append to `.claude/rules/frank-gotchas.md`:
+
+      ```markdown
+      - Grafana alerting (rules, contact points, notification policy) and the Feature Health dashboard are file-provisioned via ConfigMaps in `apps/grafana-alerting/manifests/`. They are read-only in the UI. Edit the ConfigMap YAML, commit, push, then restart the Grafana pod (`kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana`) — provisioning files are read at boot, not watched
+      ```
+  - id: P1.T12.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add .claude/rules/frank-gotchas.md
+      git commit -m "docs(obs): add grafana file-provisioning gotcha"
+      ```
+
+      ---
+
+      ## Summary
+
+      | Task | What | Type |
+      |------|------|------|
+      | 1 | ArgoCD Application CR | Code |
+      | 2 | Alert rules ConfigMap (5 rules, 5 groups by eval interval) | Code |
+      | 3 | Contact points ConfigMap (Telegram + Health Bridge) | Code |
+      | 4 | Notification policy ConfigMap (routing tree) | Code |
+      | 5 | ExternalSecret for alerting env vars | Code |
+      | 6 | Dashboard ConfigMap (provider + JSON) | Code |
+      | 7 | victoria-metrics values (mounts + secrets) | Code |
+      | 8 | Deploy + verify file-provisioned resources | Cluster ops |
+      | 9 | Delete API-provisioned duplicates | Manual migration |
+      | 10 | End-to-end verification | Manual verification |
+      | 11 | Update blog operating post | Docs |
+      | 12 | Update gotchas | Docs |
+
+      **Tasks 1–7** are pure code (can be parallelized by subagents). **Tasks 8–10** require cluster access and must be sequential. **Tasks 11–12** are docs updates that can run in parallel after migration.
+
+      ---
+
+      ## Deployment Deviations
+
+      1. **Chatid type coercion** (Task 8): Grafana's provisioning env var substitution coerces numeric values to integers during YAML-to-JSON transformation. Double-quoted `"$VAR"` does NOT fix it. Fix: YAML block scalar `chatid: |\n  $VAR`. See [grafana/grafana#69950](https://github.com/grafana/grafana/issues/69950). Added to `frank-gotchas.md`.
+
+      2. **Provenance conflict** (Task 9): Grafana refused to start with "cannot change provenance from 'api' to 'file'" because API-provisioned resources (with matching UIDs) already existed in the database. The plan assumed REST API deletion would work, but Grafana was crashing before the API was reachable. Fix: scaled down Grafana, mounted PVC in a debug pod with sqlite3, deleted records from `provenance_type`, `alert_rule`, `alert_configuration`, `alert_instance` tables, then scaled back up. Added to `frank-gotchas.md`.
+
+      3. **Helm admin password regeneration** (Task 10): ArgoCD re-rendered the Helm chart on sync, regenerating the admin password Secret. But the PVC-backed database retained the old password hash. Fix: `grafana cli admin reset-admin-password "$NEW_PASS"` inside the pod. Added to `frank-gotchas.md`.
+
+      4. **RWO PVC deadlock** (Task 8): Multiple ReplicaSets with DESIRED=1 competed for the same RWO PVC during ArgoCD syncs. Fix: manually scaled down old ReplicaSets. Existing gotcha already covers this pattern.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S5:
+      state: '-'
+      ticked_at: null
+      note: null
+    P1.T11.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

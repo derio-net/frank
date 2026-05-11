@@ -1,0 +1,564 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Phase-to-Layer Naming Convention Rename
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create `docs/layers.yaml`
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Write the layer registry
+
+
+      ```yaml
+      # Layer Registry — Architectural/operational domains for the Frank cluster
+      #
+      # Each layer represents a capability domain. Plans and specs are named:
+      #   <date>--<layer>--<details>[-design].md
+      #
+      # Commit messages use the layer code: fix(gpu): ..., feat(edge): ...
+      #
+      # Layer numbers reflect order of introduction (matches roadmap shortcode).
+      # New layers always get the next number.
+
+      layers:
+        - code: hw
+          number: 1
+          name: Hardware & Nodes
+          description: Physical hardware, node provisioning, zone topology
+
+        - code: os
+          number: 2
+          name: OS & Bootstrap
+          description: Talos Linux, Sidero Omni, machine config lifecycle
+
+        - code: net
+          number: 3
+          name: Networking
+          description: Cilium CNI, eBPF, L2 LoadBalancer, Hubble
+
+        - code: stor
+          number: 4
+          name: Storage
+          description: Longhorn distributed block storage, StorageClasses
+
+        - code: gpu
+          number: 5
+          name: GPU Compute
+          description: NVIDIA GPU Operator, Intel DRA driver, CDI
+
+        - code: gitops
+          number: 6
+          name: GitOps
+          description: ArgoCD App-of-Apps, drift detection, self-healing
+
+        - code: fun
+          number: 7
+          name: Fun Stuff
+          description: OpenRGB LED control, cosmetic/fun workloads
+
+        - code: obs
+          number: 8
+          name: Observability
+          description: VictoriaMetrics, Grafana, Fluent Bit, alerting
+
+        - code: backup
+          number: 9
+          name: Backup & DR
+          description: Longhorn backups to Cloudflare R2, disaster recovery
+
+        - code: secrets
+          number: 10
+          name: Secrets Management
+          description: Infisical vault, External Secrets Operator
+
+        - code: infer
+          number: 11
+          name: Local Inference
+          description: Ollama, LiteLLM gateway, OpenRouter
+
+        - code: agents
+          number: 12
+          name: Agentic Control Plane
+          description: Sympozium, autonomous coding agents
+
+        - code: auth
+          number: 13
+          name: Unified Auth
+          description: Authentik IdP, OIDC, forward-auth proxy
+
+        - code: tenant
+          number: 14
+          name: Multi-tenancy
+          description: vCluster, disposable experiment clusters
+
+        - code: orch
+          number: 15
+          name: AI Agent Orchestrator
+          description: Paperclip org-chart agents, delegation chains
+
+        - code: media
+          number: 16
+          name: Media Generation
+          description: ComfyUI, GPU Switcher, diffusion models
+
+        - code: edge
+          number: 17
+          name: Public Edge
+          description: Hop cluster, Headscale mesh, Caddy, public blog
+
+        - code: repo
+          name: Repository & Tooling
+          description: Blog infrastructure, CI, repo restructuring, meta-tasks
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add docs/layers.yaml
+      git commit -m "feat(repo): add layer registry (docs/layers.yaml)"
+      ```
+- number: 2
+  title: Rename all plan files
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Execute all git mv commands for plans
+
+
+      ```bash
+      cd docs/superpowers/plans
+      git mv 2026-03-02-phase05-argocd-infrastructure.md 2026-03-02--gitops--argocd-infrastructure.md
+      git mv 2026-03-03-phase06-openrgb-led-control.md 2026-03-03--fun--openrgb-led-control.md
+      # ... (all 23 renames)
+      ```
+- number: 3
+  title: Rename all spec files
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Execute all git mv commands for specs
+
+
+      ```bash
+      cd docs/superpowers/specs
+      git mv 2026-03-02-phase05-argocd-infrastructure-design.md 2026-03-02--gitops--argocd-infrastructure-design.md
+      # ... (all 22 renames)
+      ```
+  - id: P1.T3.S2
+    text: |-
+      Commit renames
+
+
+      ```bash
+      git add -A docs/superpowers/plans/ docs/superpowers/specs/
+      git commit -m "refactor(repo): rename plans/specs from phase to layer naming convention"
+      ```
+- number: 4
+  title: Update cross-references inside plans and specs
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Find and replace old filenames with new filenames inside all plan/spec files
+
+
+      Use `grep -r` to find all cross-references, then `sed` to update them. Key patterns:
+      - `Spec:` lines in plan headers pointing to spec files
+      - `Origin:` lines referencing other plans
+      - `plan:` fields in manual-operation YAML blocks inside plans
+  - id: P1.T4.S2
+    text: |-
+      Replace `Phase XX`, `Phase 04`, etc. in plan/spec headers with layer references
+
+
+      In each plan/spec, the header typically has `Phase: XX` or `Phase: 04`. Replace with the layer code, e.g., `Layer: gpu` or `Layer: edge`.
+  - id: P1.T4.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add docs/superpowers/plans/ docs/superpowers/specs/
+      git commit -m "refactor(repo): update cross-references in plans/specs for layer naming"
+      ```
+
+      ---
+
+      ## Chunk 2: Update CLAUDE.md
+- number: 5
+  title: Update CLAUDE.md naming convention and workflows
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Update "Standard Phase Workflow" section
+
+
+      Rename to a workflow section that references layers:
+      - Section title: `## Standard Layer Workflow`
+      - "Every phase follows" → "Every layer follows"
+      - Step 2 (Plan): reference layer code instead of phaseXX
+      - Step 3 (Execute): no phase number assignment needed — layer code is known from brainstorm
+  - id: P1.T5.S2
+    text: |-
+      Update "Phase Fix/Extension Workflow" section
+
+
+      - Section title: `## Layer Fix/Extension Workflow`
+      - "deployed phase" → "deployed layer"
+      - Commit template: `fix(phaseNN):` → `fix(<layer>):` e.g., `fix(gpu):`
+  - id: P1.T5.S3
+    text: |-
+      Update "Plan Naming Convention" section
+
+
+      Replace:
+      ```
+      Plan files follow: `YYYY-MM-DD-phaseNN-<feature-name>[-design].md`
+      - New phases start as phaseXX...
+      - Bugfixes use original phase number...
+      ```
+
+      With:
+      ```
+      Plan files follow: `YYYY-MM-DD--<layer>--<details>[-design].md`
+      - `<layer>` is the short code from `docs/layers.yaml` (e.g., gpu, edge, auth)
+      - Multiple plans on the same layer share the code with different detail suffixes
+      - The `repo` layer is for meta-tasks (blog infra, CI, restructuring)
+      ```
+  - id: P1.T5.S4
+    text: |-
+      Update Architecture tree comments
+
+
+      `patches/` directory comments reference phases — update to note these are legacy names:
+      ```
+      patches/               # Talos machine config patches (legacy phaseNN naming)
+      ```
+  - id: P1.T5.S5
+    text: |-
+      Update Gotchas if any reference phases conceptually
+  - id: P1.T5.S6
+    text: |-
+      Commit
+
+
+      ```bash
+      git add CLAUDE.md
+      git commit -m "docs(repo): update CLAUDE.md for layer naming convention"
+      ```
+
+      ---
+
+      ## Chunk 3: Update Runbook, Skills, README
+- number: 6
+  title: Update `docs/runbooks/manual-operations.yaml`
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Rename `phase` field to `layer` throughout
+
+
+      All entries have `phase: NN` — replace with `layer: NN`.
+  - id: P1.T6.S2
+    text: |-
+      Update operation IDs from `phaseNN-*` to `<layer>-*`
+
+
+      e.g., `phaseXX-hop-argocd-bootstrap` → `edge-hop-argocd-bootstrap`
+  - id: P1.T6.S3
+    text: |-
+      Update `plan:` path references to new filenames
+
+
+      e.g., `plan: docs/superpowers/plans/2026-03-16-phaseXX-hop-public-edge.md` → `plan: docs/superpowers/plans/2026-03-16--edge--hop-public.md`
+  - id: P1.T6.S4
+    text: |-
+      Update any comments referencing phases
+  - id: P1.T6.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add docs/runbooks/manual-operations.yaml
+      git commit -m "refactor(repo): update runbook for layer naming convention"
+      ```
+- number: 7
+  title: Update skills
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      Update blog-post skill
+
+
+      Line 96: "new phase/capability" → "new layer/capability"
+  - id: P1.T7.S2
+    text: |-
+      Update update-readme skill
+
+
+      - Line 3: "after a new phase" → "after new layer work"
+      - Line 10: "after each new phase is deployed" → "after each new layer is deployed"
+      - Line 16: "introduced in the phase" → "introduced in the layer"
+      - Line 18: "for the phase design file" → "for the layer design file"
+      - Lines 47, 51: commit message template `phase NN` → `layer <code> — <summary>`
+  - id: P1.T7.S3
+    text: |-
+      Update sync-runbook skill
+
+
+      - Line 18: "Phase 0 / bootstrap" → "Layer 0 / bootstrap"
+      - Line 28: "by phase ascending" → "by layer ascending"
+      - Lines 52-53, 74-75: schema example `phaseNN-short-name` / `phase: NN` → `<layer>-short-name` / `layer: NN`
+  - id: P1.T7.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add .claude/skills/
+      git commit -m "docs(repo): update skills for layer naming convention"
+      ```
+- number: 8
+  title: Update README.md
+  steps:
+  - id: P1.T8.S1
+    text: |-
+      Update architecture tree comments
+
+
+      The `patches/` section references phase names — add a note about legacy naming:
+      ```
+      patches/               # Talos machine config patches (legacy phaseNN- prefixed dirs)
+      ```
+  - id: P1.T8.S2
+    text: |-
+      Update any narrative references to "phase" → "layer"
+  - id: P1.T8.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add README.md
+      git commit -m "docs(repo): update README for layer naming convention"
+      ```
+
+      ---
+
+      ## Chunk 4: Update Blog Posts
+- number: 9
+  title: Update blog post narrative text
+  steps:
+  - id: P1.T9.S1
+    text: |-
+      Find all "phase"/"Phase" occurrences in blog posts
+
+
+      ```bash
+      grep -rn -i "phase" blog/content/building/*/index.md blog/content/operating/*/index.md
+      ```
+  - id: P1.T9.S2
+    text: |-
+      Update each occurrence contextually
+
+
+      - "Phase N" → "Layer N" (when referring to a capability domain)
+      - "Twelve phases in" → "Twelve layers deep" or similar natural phrasing
+      - "a future phase" → "a future layer"
+      - File path references to `patches/phaseNN-*/` → keep as-is (these are actual directory paths)
+  - id: P1.T9.S3
+    text: |-
+      Update `blog/content/building/00-overview/index.md`
+
+
+      Check the Technology → Capability Map and Series Index for any phase references.
+  - id: P1.T9.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add blog/content/
+      git commit -m "docs(repo): update blog posts for layer naming convention"
+      ```
+
+      ---
+
+      ## Chunk 5: Final Verification
+- number: 10
+  title: Verify no stale phase references remain
+  steps:
+  - id: P1.T10.S1
+    text: |-
+      Grep for stale references
+
+
+      ```bash
+      # Should return only: patches/ directory names (legacy, intentional)
+      grep -rn "phase[0-9]\|phaseXX\|phaseNN" --include="*.md" --include="*.yaml" --include="*.html" .
+      ```
+  - id: P1.T10.S2
+    text: |-
+      Verify all plan/spec cross-references resolve
+
+
+      ```bash
+      # Check that every Spec: and plan: reference in plans actually points to an existing file
+      grep -rh "Spec:\|plan:" docs/superpowers/plans/ | grep -oP '[\w/.-]+\.md' | while read f; do
+        [ -f "$f" ] || echo "BROKEN: $f"
+      done
+      ```
+  - id: P1.T10.S3
+    text: |-
+      Final commit (if any fixups needed)
+
+
+      ```bash
+      git add -A
+      git commit -m "refactor(repo): complete phase-to-layer naming migration"
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S3:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

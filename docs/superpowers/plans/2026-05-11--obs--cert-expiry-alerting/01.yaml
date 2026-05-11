@@ -1,0 +1,87 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Probe targets
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/243
+tasks:
+- number: 1
+  title: Extend `apps/blackbox-exporter/manifests/vmprobe.yaml`
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Append a second `VMProbe` document for management-plane targets
+
+
+      Edit `apps/blackbox-exporter/manifests/vmprobe.yaml`, append (note the `---` separator):
+
+      ````yaml
+      ---
+      apiVersion: operator.victoriametrics.com/v1beta1
+      kind: VMProbe
+      metadata:
+        name: management-plane-probes
+        namespace: monitoring
+      spec:
+        targets:
+          staticConfig:
+            targets:
+              - https://omni.frank.derio.net/
+              - https://omni.frank.derio.net:8100/
+            labels:
+              probe_group: management_plane
+        module: http_2xx
+        vmProberSpec:
+          url: blackbox-exporter.monitoring.svc:9115
+      ````
+
+      Module choice rationale: `http_2xx` will set `probe_success=0` on `:8100/` (Omni returns 404 there), but `probe_ssl_earliest_cert_expiry` is populated regardless — blackbox-exporter emits it during the TLS handshake, before HTTP status evaluation. The Phase 2 alert keys on the SSL metric, not on `probe_success`.
+  - id: P1.T1.S2
+    text: |-
+      Commit + push + verify ArgoCD sync
+
+
+      ```bash
+      git add apps/blackbox-exporter/manifests/vmprobe.yaml
+      git commit -m "feat(obs): add Omni management-plane targets to blackbox probes"
+      git push
+      ```
+
+      Wait for sync:
+
+      ```bash
+      kubectl -n argocd get application blackbox-exporter -o jsonpath='{.status.sync.status}{"\n"}'
+      # Expected: Synced
+      ```
+  - id: P1.T1.S3
+    text: |-
+      Verify the SSL metric appears in VictoriaMetrics
+
+
+        ```bash
+        kubectl -n monitoring exec deploy/victoria-metrics-grafana -- \
+          wget -qO- 'http://vmsingle-victoria-metrics-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428/api/v1/query?query=probe_ssl_earliest_cert_expiry%7Binstance%3D~%22https%3A%2F%2Fomni.frank.derio.net.%2A%22%7D'
+        ```
+
+        Expected: JSON with `status:"success"` and two `result` entries (one per target), each `value: [<now_ts>, "<unix_ts ~90d in future>"]`. If empty, blackbox-exporter hasn't picked up the new VMProbe yet — wait one scrape interval and retry.
+
+      ---
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

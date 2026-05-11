@@ -1,0 +1,26 @@
+schema_version: 2
+phase:
+  number: 1
+  title: OpenRGB Server Regression Fix — Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Fix the DaemonSet
+  steps: []
+- number: 2
+  title: Verify the Fix
+  steps: []
+- number: 3
+  title: Update the OpenRGB Blog Post
+  steps: []
+- number: 4
+  title: Final Verification
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []
