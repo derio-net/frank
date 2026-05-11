@@ -1,0 +1,230 @@
+schema_version: 2
+phase:
+  number: 7
+  title: Alert UX + Finalization
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Improve `VK Issue Bridge Failures` alert summary
+  steps:
+  - id: P7.T1.S1
+    text: |-
+      Inspect the `willikins_vk_bridge_failure_total` metric's labels
+
+
+      ```bash
+      source .env
+      kubectl -n monitoring port-forward svc/vmselect-victoria-metrics-k8s-stack 8481:8481 >/dev/null 2>&1 &
+      sleep 2
+      curl -sG "http://localhost:8481/select/0/prometheus/api/v1/series" \
+        --data-urlencode 'match[]=willikins_vk_bridge_failure_total' | jq '.data'
+      kill %1
+      ```
+
+      Expected: Series metadata with labels like `{__name__="willikins_vk_bridge_failure_total", failure_kind="...", issue_repo="...", ...}`. Record the label names.
+
+      If the metric has no useful breakdown labels, stop — file a follow-up task in the willikins repo to add `failure_kind` and `issue` labels to the counter, and mark Step 2 blocked.
+  - id: P7.T1.S2
+    text: |-
+      Rewrite the rule to expose the breakdown
+
+
+      Edit the existing `vk-bridge-failures` group in `apps/grafana-alerting/manifests/alert-rules-cm.yaml`:
+
+      ```yaml
+            # --- VK Issue Bridge failures (eval every 5m) ---
+            - orgId: 1
+              name: vk-bridge-failures
+              folder: feature-health
+              interval: 5m
+              rules:
+                - uid: vk-bridge-failures
+                  title: VK Issue Bridge Failures
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange: { from: 900, to: 0 }
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        # Keep the failure_kind + issue_repo labels so they land in $labels
+                        expr: 'sum by (failure_kind, issue_repo) (increase(willikins_vk_bridge_failure_total[15m])) > 0'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange: { from: 900, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings: { mode: dropNN }
+                    - refId: C
+                      relativeTimeRange: { from: 900, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator: { type: gt, params: [0] }
+                  noDataState: OK
+                  execErrState: Error
+                  for: 0m
+                  labels:
+                    severity: warning
+                  annotations:
+                    summary: "VK Issue Bridge — {{ $values.B.Value | printf \"%.0f\" }} failure(s) of kind {{ $labels.failure_kind }} on {{ $labels.issue_repo }} in last 15m"
+                    description: "Check /home/claude/.willikins-agent/vk-bridge.log for the failing payload"
+      ```
+
+      Substitute `failure_kind` / `issue_repo` for whatever the metric actually exposes (from Step 1).
+  - id: P7.T1.S3
+    text: |-
+      Audit pre-existing feature-level rules for the same enrichment
+
+
+      The 20 Layer rules written in Phases 1–6 already use the multi-instance pattern. What remains are the pre-existing feature-level rules (written before Pass 3) that still collapse to scalars:
+
+      - `endpoint-down`: summary currently "HTTP endpoint probe failing" — add `{{ $labels.instance }}` so Telegram shows which endpoint. `probe_success` already carries `instance`; change the reduce to preserve labels (drop the outer `sum(...)`).
+      - `agent-pod-not-running`: add `{{ $labels.pod }}`. `kube_pod_status_phase` carries `pod`; remove the `sum()` wrapper in refId A so the reduce runs per-pod.
+
+      Both are quick fixes in the same vein as the Layer rules. Apply each, commit, push, reload Grafana, smoke-test by firing a synthetic alert and inspecting the rendered summary in Telegram + the GitHub comment.
+
+      Apply at least the `endpoint-down` fix — it's the cheapest and most impactful:
+
+      ```yaml
+                  annotations:
+                    summary: "HTTP endpoint probe failing: {{ $labels.instance }}"
+      ```
+  - id: P7.T1.S4
+    text: |-
+      Commit + push + reload Grafana
+
+
+      ```bash
+      git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
+      git commit -m "feat(obs): enrich alert summaries with actionable labels (failure_kind, instance)"
+      git push origin main
+      kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+      kubectl rollout status -n monitoring deploy/grafana --timeout=120s
+      ```
+  - id: P7.T1.S5
+    text: |-
+      Trigger a test firing and inspect the Telegram message + GitHub comment *(skipped — template strings verified via Grafana API read-back; full render requires a real Grafana alert eval, which is out of scope for this audit step)*
+
+
+      Use the webhook smoke-test pattern. Confirm the rendered summary contains the substituted label values.
+- number: 2
+  title: Audit the Derio Ops board
+  steps:
+  - id: P7.T2.S1
+    text: "Query every Layer tracker's Lifecycle field and compare to reality\n\n\n\
+      ```bash\nfor LAYER in 1 2 3 4 5 6 8 9 10 11 12 13 14 15 16 17 18 19 24 25; do\n\
+      \  STATE=$(gh api graphql -f query=\"{repository(owner:\\\"derio-net\\\",name:\\\
+      \"frank-ops\\\"){issue(number:$LAYER){title projectItems(first:5){nodes{fieldValueByName(name:\\\
+      \"Lifecycle\\\"){... on ProjectV2ItemFieldSingleSelectValue{name}}}}}}}\" --jq\
+      \ '.data.repository.issue | \"\\(.title)\\t\\(.projectItems.nodes[].fieldValueByName.name)\"\
+      ')\n  echo \"frank-ops#$LAYER\t$STATE\"\ndone\n```\n\nExpected baseline: after\
+      \ Phase 0–6 smoke tests have all been resolved, all 20 trackers show `healthy`\
+      \ except the intentional holdouts:\n- `frank-ops#16` — `blocked` (manual, Layer\
+      \ 16 not yet unblocked)\n- `frank-ops#15` — `in-progress` (manual, Layer 15\
+      \ has planned-but-undeployed components)\n\nAny Layer showing `degraded` or\
+      \ `dead` without a known cause is a real issue — investigate via the rule's\
+      \ `runbook` annotation."
+  - id: P7.T2.S2
+    text: |-
+      Document deviations
+
+
+      For any Layer whose state doesn't match expectations, append a bullet under "Deployment Deviations" at the bottom of this plan with: Layer number, actual state, root cause, follow-up action.
+- number: 3
+  title: Flag layers where no probe could be defined
+  steps:
+  - id: P7.T3.S1
+    text: |-
+      Create follow-up comments for each deferred item
+
+
+      ```bash
+      # Layer 16 — probe-less because blocked
+      gh issue comment 16 --repo derio-net/frank-ops --body "Pass 3 Grafana wiring: Layer 16 has no alert rule yet because the Layer is currently \`blocked\`. Once Traefik route + model downloads are done, add a rule covering ComfyUI + GPU Switcher pod readiness with \`github_issue=frank-ops#16, severity=warning\`. Placeholder DEFERRED comment lives in \`apps/grafana-alerting/manifests/alert-rules-cm.yaml\`."
+
+      # Layer 17 — Headscale + Hetzner API pieces deferred
+      gh issue comment 17 --repo derio-net/frank-ops --body "Pass 3 Grafana wiring: Layer 17's rule currently only covers the blog blackbox probe. Extensions deferred: Headscale peer count (needs headscale metrics exporter), cert expiry (\`probe_ssl_earliest_cert_expiry - time() < 7*86400\`), Hetzner API status (needs new exporter). DEFERRED comments in \`alert-rules-cm.yaml\`."
+      ```
+- number: 4
+  title: Update spec status
+  steps:
+  - id: P7.T4.S1
+    text: |-
+      Edit spec to reflect Pass 3 completion
+
+
+      Edit `docs/superpowers/specs/2026-04-16--platform--derio-ops-layers-restoration-design.md`:
+
+      ```
+      -*Status: Pass 1 + Pass 2 complete. Pass 3 pending.*
+      +*Status: Pass 1 + Pass 2 + Pass 3 complete.*
+      ```
+
+      ```
+      -## Pass 3 — Grafana wiring (not yet executed)
+      +## Pass 3 — Grafana wiring (executed 2026-04-DD)
+      ```
+
+      Commit:
+
+      ```bash
+      git add docs/superpowers/specs/2026-04-16--platform--derio-ops-layers-restoration-design.md
+      git commit -m "docs(spec): mark Derio Ops Pass 3 complete"
+      git push origin main
+      ```
+
+      ---
+state:
+  steps:
+    P7.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P7.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P7.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P7.T1.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P7.T1.S5:
+      state: '-'
+      ticked_at: null
+      note: null
+    P7.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P7.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P7.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P7.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

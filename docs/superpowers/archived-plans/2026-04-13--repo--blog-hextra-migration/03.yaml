@@ -1,0 +1,241 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Custom Features
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/70
+tasks:
+- number: 1
+  title: Port shortcodes
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Update asciinema shortcode for Hextra dark mode detection
+
+
+      Edit `blog/layouts/shortcodes/asciinema.html` — change the theme detection line from:
+
+      ```javascript
+      var theme = document.documentElement.dataset.theme === 'light' ? 'solarized-light' : 'asciinema';
+      ```
+
+      To:
+
+      ```javascript
+      var theme = document.documentElement.classList.contains('dark') ? 'asciinema' : 'solarized-light';
+      ```
+
+      The `screenshot.html` and `cluster-roadmap.html` shortcodes are theme-independent and need no changes to their templates.
+  - id: P3.T1.S2
+    text: |-
+      Verify cluster-roadmap dark mode selector
+
+
+      In `blog/layouts/shortcodes/cluster-roadmap.html`, the dark mode CSS uses `.dark .roadmap`. Hextra applies the `dark` class to `<html>`, so `.dark .roadmap` works because CSS class selectors match any ancestor. Verify in browser — no change expected.
+- number: 2
+  title: Create asciinema head partial for Hextra
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Create custom head partial
+
+
+      Create `blog/layouts/partials/custom/head-end.html` *(Hextra v0.12.1 uses `head-end.html`, not `head.html`)*:
+
+      ```html
+      {{- if .HasShortcode "asciinema" }}
+      <link rel="stylesheet" href="https://unpkg.com/asciinema-player@3.9.0/dist/bundle/asciinema-player.css" />
+      <script src="https://unpkg.com/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>
+      {{- end }}
+      ```
+
+      This replaces the asciinema loading from `extend_head.html` (PaperMod's hook). Hextra's hook is `partials/custom/head.html`.
+- number: 3
+  title: Add cover image layout override
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Create docs single page override
+
+
+      Inspect Hextra's built-in single layout to understand the block structure:
+
+      ```bash
+      cd blog
+      hugo mod graph
+      # Find the module cache path and inspect:
+      find $(go env GOMODCACHE) -path '*/imfing/hextra*/layouts/docs/single.html' 2>/dev/null | head -1
+      ```
+
+      Create `blog/layouts/docs/single.html` that extends Hextra's layout and injects a cover image before the content. The exact template depends on Hextra's block structure — adapt from what the inspection reveals.
+
+      Starting point (will need adjustment):
+
+      ```html
+      {{ define "main" }}
+      {{ $cover := .Resources.GetMatch "cover.*" }}
+      {{ with $cover }}
+      <div class="post-cover">
+        <img src="{{ .RelPermalink }}" alt="{{ $.Title }}" loading="lazy" />
+      </div>
+      {{ end }}
+      {{ .Content }}
+      {{ end }}
+      ```
+
+      **Iteration note:** This is the step most likely to require trial-and-error. If overriding `single.html` breaks Hextra's sidebar/ToC/breadcrumbs, the fallback approach is to use Hugo's `render hooks` or inject the cover image via JavaScript (similar to how read-tracker works). Test thoroughly.
+- number: 4
+  title: Create custom CSS
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Create assets/css/custom.css
+
+
+      Create `blog/assets/css/custom.css` with all custom styles consolidated:
+
+      ```css
+      /* === Cover images === */
+      .post-cover {
+        margin-bottom: 1.5rem;
+        line-height: 0;
+        border-radius: 0.5rem;
+        overflow: hidden;
+      }
+
+      .post-cover img {
+        width: 100%;
+        max-height: 400px;
+        object-fit: cover;
+        object-position: center;
+        display: block;
+      }
+
+      /* === Series accent bars === */
+      /* Selectors will need adjustment based on Hextra's rendered DOM structure.
+         Inspect the page and find the correct container element. */
+
+      /* === Screenshot shortcode === */
+      .screenshot {
+        margin: 1.5rem 0;
+        text-align: center;
+      }
+
+      .screenshot a {
+        display: block;
+        line-height: 0;
+      }
+
+      .screenshot img {
+        max-width: 100%;
+        height: auto;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        cursor: zoom-in;
+        transition: box-shadow 0.2s ease;
+      }
+
+      .screenshot img:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+      }
+
+      .screenshot figcaption {
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        font-style: italic;
+        color: var(--tw-prose-captions, #6b7280);
+      }
+
+      /* === Asciinema container === */
+      .asciinema-container {
+        margin: 1.5rem 0;
+        border-radius: 0.5rem;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      /* === Dark mode overrides === */
+      :is(html.dark) .screenshot img {
+        border-color: rgba(255, 255, 255, 0.1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+
+      :is(html.dark) .screenshot img:hover {
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      }
+
+      :is(html.dark) .asciinema-container {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+
+      :is(html.dark) .post-cover {
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+
+      /* === Read tracker markers === */
+      .read-marker {
+        margin-left: 0.3em;
+        font-size: 0.75em;
+        color: #198754;
+        opacity: 0.7;
+      }
+
+      :is(html.dark) .read-marker {
+        color: #40c057;
+      }
+      ```
+  - id: P3.T4.S2
+    text: |-
+      Verify shortcodes and cover images render
+
+
+        ```bash
+        cd blog && hugo server --buildDrafts
+        ```
+
+        Check:
+        - Navigate to a post with a cover.png — verify image renders at top
+        - Check accent bar colors differ between Building and Operating
+        - Verify dark/light mode toggle works for all custom styles
+
+        Commit:
+        ```
+        feat(repo): port shortcodes and custom styles to Hextra
+
+        Asciinema dark mode detection updated for Hextra. Cover images via
+        layout override. Series accent bars. All styles in custom.css.
+        ```
+
+      ---
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

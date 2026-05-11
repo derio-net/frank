@@ -1,0 +1,493 @@
+schema_version: 2
+phase:
+  number: 0
+  title: Framework Prep
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Relocate Layer trackers to private `derio-net/frank-ops`
+  steps:
+  - id: P0.T1.S1
+    text: |-
+      Create the private repo
+
+
+      ```bash
+      gh repo create derio-net/frank-ops \
+        --private \
+        --description "Operational state of the Frank cluster — Layer trackers for the Derio Ops board. Code lives in derio-net/frank." \
+        --disable-issues=false
+      ```
+
+      Expected: `✓ Created repository derio-net/frank-ops on GitHub`.
+
+      - [x] **Step 1b: Clone `frank-ops` under `~/repos` so future sessions can work on it locally**
+
+      ```bash
+      cd ~/repos
+      gh repo clone derio-net/frank-ops
+      ls -d ~/repos/frank-ops
+      ```
+
+      Expected: `/home/claude/repos/frank-ops` exists. This sits alongside `~/repos/frank`, `~/repos/willikins`, etc. — same convention as the other derio-net repos. Future sessions that need to edit tracker Issue bodies or inspect board history can `cd ~/repos/frank-ops` directly instead of going through `gh`.
+  - id: P0.T1.S2
+    text: |-
+      Transfer Layers 1–6 in order
+
+
+      Transfers go sequentially because Issue numbers in the new repo increment in transfer order. Verify each transfer assigned the expected number before moving on.
+
+      ```bash
+      SRC=derio-net/frank
+      DST=derio-net/frank-ops
+
+      # Layer 1 → frank-ops#1
+      gh issue transfer 87 --repo "$SRC" "$DST"
+      # Layer 2 → frank-ops#2
+      gh issue transfer 88 --repo "$SRC" "$DST"
+      # Layer 3 → frank-ops#3
+      gh issue transfer 89 --repo "$SRC" "$DST"
+      # Layer 4 → frank-ops#4
+      gh issue transfer 90 --repo "$SRC" "$DST"
+      # Layer 5 → frank-ops#5
+      gh issue transfer 91 --repo "$SRC" "$DST"
+      # Layer 6 → frank-ops#6
+      gh issue transfer 92 --repo "$SRC" "$DST"
+
+      # Sanity: numbers should be 1-6
+      gh issue list --repo "$DST" --state all --json number,title --jq '.[] | "\(.number)\t\(.title)"' | sort -n
+      ```
+
+      Expected: six Issues numbered 1–6, titles `Layer 1 — Hardware` … `Layer 6 — GitOps`.
+  - id: P0.T1.S3
+    text: |-
+      Burn gap placeholder #7 (Layer 7 dropped)
+
+
+      ```bash
+      NUM=$(gh issue create --repo "$DST" \
+        --title "[gap] Layer 7 — Fun Stuff (dropped, not a board tracker)" \
+        --body "This Issue exists solely to preserve the Layer-number → Issue-number 1:1 mapping. Layer 7 (OpenRGB / fun stuff) was dropped from the Derio Ops board per the editorial decision in the spec. See docs/superpowers/specs/2026-04-16--platform--derio-ops-layers-restoration-design.md." \
+        --label gap 2>/dev/null || gh issue create --repo "$DST" \
+        --title "[gap] Layer 7 — Fun Stuff (dropped, not a board tracker)" \
+        --body "This Issue exists solely to preserve the Layer-number → Issue-number 1:1 mapping.")
+      # Extract issue number and close
+      gh issue close "$(echo "$NUM" | grep -oE '[0-9]+$')" --repo "$DST" --reason "not planned"
+      ```
+
+      Expected: New Issue created as `frank-ops#7`, then closed with reason `not planned`.
+
+      Note: the `gap` label may not exist in a fresh repo. Either create it first (`gh label create gap --repo "$DST" --description "Placeholder for a dropped/absorbed Layer number"`) or drop the `--label gap` flag.
+  - id: P0.T1.S4
+    text: |-
+      Transfer Layers 8–14 and 15–19 (with Layer-number/Issue-number alignment)
+
+
+      ```bash
+      # Layer 8 → frank-ops#8
+      gh issue transfer 93 --repo "$SRC" "$DST"
+      # Layers 9–14 → frank-ops#9-14
+      for N in 94 95 96 97 98 99; do
+        gh issue transfer "$N" --repo "$SRC" "$DST"
+      done
+      # Layer 15 → frank-ops#15  (source is frank issue 11 — repurposed from Paperclip)
+      gh issue transfer 11 --repo "$SRC" "$DST"
+      # Layer 16 → frank-ops#16  (source is frank issue 10 — repurposed from Media)
+      gh issue transfer 10 --repo "$SRC" "$DST"
+      # Layer 17 → frank-ops#17
+      gh issue transfer 100 --repo "$SRC" "$DST"
+      # Layer 18 → frank-ops#18  (source is frank issue 8 — repurposed from Persistent Agent)
+      gh issue transfer 8 --repo "$SRC" "$DST"
+      # Layer 19 → frank-ops#19
+      gh issue transfer 101 --repo "$SRC" "$DST"
+
+      # Sanity
+      gh issue list --repo "$DST" --state all --json number,title --jq '.[] | "\(.number)\t\(.title)"' | sort -n | tail -20
+      ```
+
+      Expected: Issues 8–19 populated with correct Layer titles. If any transfer produced the wrong number, STOP and re-sequence — downstream label wiring depends on this alignment.
+  - id: P0.T1.S5
+    text: |-
+      Burn gap placeholders #20, #21, #22, #23
+
+
+      ```bash
+      for LAYER_NUM in 20 21 22 23; do
+        case "$LAYER_NUM" in
+          20) REASON="absorbed into adjacent Layers per editorial rule" ;;
+          21) REASON="merged into Layer 18 (Persistent Agent) — same workstation" ;;
+          22) REASON="absorbed into Layer 8 (Observability) — Health Monitoring" ;;
+          23) REASON="absorbed into Layer 8 (Observability) — Health Bridge" ;;
+        esac
+        NUM=$(gh issue create --repo "$DST" \
+          --title "[gap] Layer $LAYER_NUM — $REASON" \
+          --body "Placeholder to preserve Layer-number → Issue-number 1:1 mapping. See spec." \
+          --json number --jq .number 2>/dev/null)
+        gh issue close "$NUM" --repo "$DST" --reason "not planned"
+      done
+      ```
+
+      Expected: Issues #20, #21, #22, #23 created and closed.
+  - id: P0.T1.S6
+    text: |-
+      Transfer Layers 24 and 25
+
+
+      ```bash
+      gh issue transfer 102 --repo "$SRC" "$DST"  # → frank-ops#24
+      gh issue transfer 103 --repo "$SRC" "$DST"  # → frank-ops#25
+      ```
+  - id: P0.T1.S7
+    text: |-
+      Verify the Derio Ops board auto-updated
+
+
+      GitHub auto-updates project v2 item references when an Issue transfers. Confirm by querying the board:
+
+      ```bash
+      gh api graphql -f query='
+      {
+        organization(login:"derio-net") {
+          projectV2(number:1) {
+            items(first:50) {
+              nodes {
+                content {
+                  ... on Issue {
+                    number
+                    repository { nameWithOwner }
+                    title
+                  }
+                }
+              }
+            }
+          }
+        }
+      }' --jq '.data.organization.projectV2.items.nodes[].content | "\(.repository.nameWithOwner)#\(.number)\t\(.title)"' | sort
+      ```
+
+      Expected: 20 items, all on `derio-net/frank-ops`, numbered 1–6, 8–19, 24–25. No residual items on `derio-net/frank`.
+
+      If any Layer tracker still shows `derio-net/frank#N`, remove it from the board manually and re-add the corresponding `frank-ops` Issue:
+
+      ```bash
+      # Example for one stuck item
+      gh project item-delete --owner derio-net --project 1 --id <item-id>
+      gh project item-add --owner derio-net --project 1 --url https://github.com/derio-net/frank-ops/issues/<LAYER>
+      ```
+  - id: P0.T1.S8
+    text: |-
+      Update the existing `agent-pod-not-running` rule label
+
+
+      The pre-Pass-3 rule still carries `github_issue: "frank#8"` (the old public-repo reference). Repoint it at `frank-ops#18`.
+
+      Open `apps/grafana-alerting/manifests/alert-rules-cm.yaml` and change:
+      ```yaml
+                  labels:
+                    severity: critical
+                    github_issue: "frank#8"
+      ```
+      to:
+      ```yaml
+                  labels:
+                    severity: critical
+                    github_issue: "frank-ops#18"
+      ```
+
+      Commit, push, restart Grafana:
+      ```bash
+      git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
+      git commit -m "chore(obs): repoint agent-pod-not-running rule at frank-ops#18"
+      git push origin main
+      kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+      kubectl rollout status -n monitoring deploy/grafana --timeout=120s
+      ```
+  - id: P0.T1.S9
+    text: |-
+      Update the spec's Layer table
+
+
+      Edit `docs/superpowers/specs/2026-04-16--platform--derio-ops-layers-restoration-design.md` — replace every old-repo issue reference in the table's "Issue" column with the corresponding `frank-ops` number. Do longest-number substitutions first to avoid partial matches (e.g. `frank#103` before `frank#10`).
+
+      ```bash
+      SPEC=docs/superpowers/specs/2026-04-16--platform--derio-ops-layers-restoration-design.md
+      sed -i \
+        -e 's|frank#103|frank-ops#25|g' \
+        -e 's|frank#102|frank-ops#24|g' \
+        -e 's|frank#101|frank-ops#19|g' \
+        -e 's|frank#100|frank-ops#17|g' \
+        -e 's|frank#99|frank-ops#14|g' \
+        -e 's|frank#98|frank-ops#13|g' \
+        -e 's|frank#97|frank-ops#12|g' \
+        -e 's|frank#96|frank-ops#11|g' \
+        -e 's|frank#95|frank-ops#10|g' \
+        -e 's|frank#94|frank-ops#9|g' \
+        -e 's|frank#93|frank-ops#8|g' \
+        -e 's|frank#92|frank-ops#6|g' \
+        -e 's|frank#91|frank-ops#5|g' \
+        -e 's|frank#90|frank-ops#4|g' \
+        -e 's|frank#89|frank-ops#3|g' \
+        -e 's|frank#88|frank-ops#2|g' \
+        -e 's|frank#87|frank-ops#1|g' \
+        -e 's|frank#11\b|frank-ops#15|g' \
+        -e 's|frank#10\b|frank-ops#16|g' \
+        -e 's|frank#8\b|frank-ops#18|g' \
+        "$SPEC"
+      git add "$SPEC"
+      git commit -m "docs(spec): relocate Layer trackers to derio-net/frank-ops (private)"
+      git push origin main
+      ```
+
+      Note: `frank#8`, `#10`, `#11` use word-boundary `\b` to avoid clobbering the longer numbers — but those longer numbers are also substituted earlier in the command (belt-and-braces).
+- number: 2
+  title: Verify the pipeline end-to-end
+  steps:
+  - id: P0.T2.S1
+    text: |-
+      Port-forward and send a synthetic firing alert targeting `frank-ops#18`
+
+
+      ```bash
+      source .env
+      export WEBHOOK_SECRET=$(kubectl get secret -n monitoring health-bridge-secrets -o jsonpath='{.data.WEBHOOK_SECRET}' | base64 -d)
+      kubectl port-forward -n monitoring svc/health-bridge 8080:8080 >/dev/null 2>&1 &
+      PF_PID=$!
+      sleep 2
+
+      curl -s -X POST http://localhost:8080/webhook \
+        -H "Authorization: Bearer $WEBHOOK_SECRET" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "status":"firing",
+          "alerts":[{
+            "status":"firing",
+            "labels":{"alertname":"pass3-smoke","severity":"warning","github_issue":"frank-ops#18"},
+            "annotations":{"summary":"Pass 3 pipeline smoke test"},
+            "startsAt":"2026-04-16T00:00:00Z",
+            "generatorURL":"https://grafana.frank.derio.net"
+          }]
+        }'
+      echo
+      ```
+
+      Expected: `{"processed": 1, "total": 1}`.
+  - id: P0.T2.S2
+    text: |-
+      Verify Lifecycle field on frank-ops#18 changed to `degraded`
+
+
+      ```bash
+      gh api graphql -f query='
+      {
+        repository(owner:"derio-net", name:"frank-ops") {
+          issue(number:18) {
+            projectItems(first:5) {
+              nodes {
+                fieldValueByName(name:"Lifecycle") {
+                  ... on ProjectV2ItemFieldSingleSelectValue { name }
+                }
+              }
+            }
+          }
+        }
+      }' --jq '.data.repository.issue.projectItems.nodes[].fieldValueByName.name'
+      ```
+
+      Expected: `degraded`.
+  - id: P0.T2.S3
+    text: |-
+      Send a resolved alert, verify return to `healthy`
+
+
+      ```bash
+      curl -s -X POST http://localhost:8080/webhook \
+        -H "Authorization: Bearer $WEBHOOK_SECRET" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "status":"resolved",
+          "alerts":[{
+            "status":"resolved",
+            "labels":{"alertname":"pass3-smoke","severity":"warning","github_issue":"frank-ops#18"},
+            "annotations":{"summary":"Pass 3 pipeline smoke test resolved"},
+            "startsAt":"2026-04-16T00:00:00Z",
+            "endsAt":"2026-04-16T00:05:00Z"
+          }]
+        }'
+      echo
+      kill $PF_PID
+      ```
+
+      Re-run the GraphQL query from Step 2. Expected: `healthy`.
+  - id: P0.T2.S4
+    text: |-
+      If either transition failed, stop the plan and root-cause *(skipped — both transitions succeeded on first try)*
+
+
+      If Lifecycle didn't transition: check Bridge logs (`kubectl logs -n monitoring -l app=health-bridge --tail=50`). Common failures:
+      - `issue X is not on project Y` — transfer didn't carry the Issue's board-item association (re-add manually via `gh project item-add`).
+      - `unknown lifecycle state` — project doesn't expose the expected option names.
+      - `401 unauthorized` — `HEALTH_BRIDGE_WEBHOOK_SECRET` mismatch between Grafana contact point and the ExternalSecret.
+      - `404` when querying frank-ops — Bridge's GitHub token needs `repo` scope on the new private repo. Verify the token's scope includes all private repos, not just specific ones.
+
+      Do not proceed to Phase 1 until this smoke test is green.
+- number: 3
+  title: Section-organise the alert-rules ConfigMap
+  steps:
+  - id: P0.T3.S1
+    text: |-
+      Add section banner comments at the top of each group
+
+
+      Open `apps/grafana-alerting/manifests/alert-rules-cm.yaml`. Insert a banner immediately after `groups:` and before the first `- orgId:`:
+
+      ```yaml
+          groups:
+            # =====================================================================
+            # FEATURE-LEVEL ALERTS (bugs in specific willikins crons / endpoints)
+            # Labels: severity + github_issue=willikins#<N>
+            # These fire independently of the Layer trackers below; the Layer
+            # rules aggregate them into a single "is this Layer up" signal.
+            # =====================================================================
+
+            # --- Heartbeat-stale: exercise reminder (eval every 5m) ---
+            - orgId: 1
+              name: heartbeat-stale-5m
+      ```
+
+      Add a second banner before Layer rules (which get inserted in later phases):
+
+      ```yaml
+            # =====================================================================
+            # LAYER TRACKERS (Derio Ops board, derio-net/frank-ops — private)
+            # Labels: severity + github_issue=frank-ops#<LAYER>
+            # One rule per Layer. Use aggregation to keep the signal single.
+            # Added in Pass 3 — see docs/superpowers/specs/2026-04-16--platform--derio-ops-layers-restoration-design.md
+            # =====================================================================
+            # (Layer rules appended below as each phase completes.)
+      ```
+  - id: P0.T3.S2
+    text: |-
+      Commit, push, restart Grafana to reload provisioning
+
+
+      ```bash
+      git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
+      git commit -m "chore(obs): section-organise alert-rules ConfigMap (Pass 3 prep)"
+      git push origin main
+
+      kubectl rollout status -n argocd application/grafana-alerting --timeout=60s || true
+      kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+      kubectl rollout status -n monitoring deploy/grafana --timeout=120s
+      ```
+
+      Expected: Grafana pod restarts cleanly. Alert rules reload without syntax errors (no "sse.parseError" in logs).
+- number: 4
+  title: Confirm notification policy routes Feature Health folder to the Bridge
+  steps:
+  - id: P0.T4.S1
+    text: |-
+      Check folder-name casing matches the route matcher
+
+
+      The notification-policy matcher is `grafana_folder=Feature Health`, but the rule file writes `folder: feature-health`. Grafana internally uses the folder's display name ("Feature Health"), not the provisioning key. Verify by tailing Grafana logs when an alert fires:
+
+      ```bash
+      kubectl logs -n monitoring -l app.kubernetes.io/name=grafana --tail=200 | grep -i 'routed to\|health-bridge-webhook\|Health Bridge'
+      ```
+
+      Expected: At least one `... routed to ... Health Bridge Webhook ...` line from the Task 2 smoke test. If absent, the matcher needs to be adjusted to `grafana_folder=feature-health` in `apps/grafana-alerting/manifests/notification-policy-cm.yaml`.
+  - id: P0.T4.S2
+    text: |-
+      If the matcher was wrong, fix and redeploy
+
+
+      ```bash
+      # Edit apps/grafana-alerting/manifests/notification-policy-cm.yaml:
+      #   matchers: [ "grafana_folder=feature-health" ]
+      # Or alternatively:
+      #   object_matchers: [ ["grafana_folder","=","feature-health"] ]
+      git add apps/grafana-alerting/manifests/notification-policy-cm.yaml
+      git commit -m "fix(obs): match Feature Health folder casing in notification policy"
+      git push origin main
+      kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+      ```
+
+      Re-run Task 2 smoke test to confirm.
+
+      ---
+state:
+  steps:
+    P0.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S9:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S4:
+      state: '-'
+      ticked_at: null
+      note: null
+    P0.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

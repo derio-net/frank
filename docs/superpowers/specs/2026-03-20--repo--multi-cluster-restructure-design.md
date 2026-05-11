@@ -64,6 +64,6 @@ The git move and Application CR path updates must be in a single commit. ArgoCD 
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| Multi-Cluster Monorepo Restructure — Implementation Plan |  | `docs/superpowers/plans/2026-03-20--repo--multi-cluster-restructure.md` | Not Started | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Multi-Cluster Monorepo Restructure — Implementation Plan |  | `docs/superpowers/plans/2026-03-20--repo--multi-cluster-restructure/` | — |

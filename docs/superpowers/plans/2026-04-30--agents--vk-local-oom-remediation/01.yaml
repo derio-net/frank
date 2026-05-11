@@ -1,0 +1,72 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Verify Option A in production
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/152
+tasks:
+- number: 1
+  title: Confirm live limit and zero post-bump OOMKills
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Verify live container spec
+
+
+      ```bash
+      kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
+        -o jsonpath='{.items[0].spec.containers[?(@.name=="vk-local")].resources.limits.memory}'
+      # expect: 8Gi
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Read restart count and last-termination reason
+
+
+      ```bash
+      kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
+        -o jsonpath='{range .items[0].status.containerStatuses[?(@.name=="vk-local")]}restartCount={.restartCount}{"\n"}lastReason={.lastState.terminated.reason}{"\n"}{end}'
+      ```
+
+        Expectation: `restartCount` is whatever it was at PR #142 merge time and has not advanced since. `lastReason` should not be `OOMKilled` for any termination after PR #142's merge timestamp (`d9bc2ea` parent).
+  - id: P1.T1.S3
+    text: |-
+      Inspect kubelet events for OOM since merge
+
+
+      ```bash
+      kubectl -n secure-agent-pod get events --sort-by=.lastTimestamp \
+        | grep -i 'oom\|killed' || echo "no OOM events found"
+      ```
+  - id: P1.T1.S4
+    text: |-
+      Capture pre-cadvisor RSS baseline
+
+
+      `kubectl top` is unavailable (the metrics-server / cadvisor pipeline gap is what Phase 2 addresses). Fallback: read `/sys/fs/cgroup/memory.current` and `memory.stat` directly from the vk-local cgroup. See the Verification Log entry below.
+- number: 2
+  title: Document the verification
+  steps: []
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S4:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

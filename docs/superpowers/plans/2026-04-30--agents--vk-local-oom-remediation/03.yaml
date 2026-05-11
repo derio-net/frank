@@ -1,0 +1,47 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Housekeeping — npm cache + worktree prune
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/154
+tasks:
+- number: 1
+  title: Decide cron host
+  steps: []
+- number: 2
+  title: Implement the crons (agent-images repo)
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      npm cache prune cron — shipped as [`kali/scripts/npm-cache-prune.sh`](https://github.com/derio-net/agent-images/blob/agents/vk-local-housekeeping-crons/kali/scripts/npm-cache-prune.sh). Crontab line: `0 4 * * 0 /opt/scripts/npm-cache-prune.sh >> __AGENT_HOME__/.willikins-agent/npm-cache-prune.log 2>&1`.
+  - id: P3.T2.S2
+    text: |-
+      Worktree prune cron — shipped as [`kali/scripts/worktree-prune.sh`](https://github.com/derio-net/agent-images/blob/agents/vk-local-housekeeping-crons/kali/scripts/worktree-prune.sh). Iterates `$AGENT_HOME/repos/*/.git` (the canonical repo root on Frank — vibe-kanban worktrees under `/var/tmp/vibe-kanban/worktrees/` link back via gitdir files). Crontab line: `30 4 * * * /opt/scripts/worktree-prune.sh >> __AGENT_HOME__/.willikins-agent/worktree-prune.log 2>&1`.
+  - id: P3.T2.S3
+    text: |-
+      Open PR in agent-images — [`derio-net/agent-images#34`](https://github.com/derio-net/agent-images/pull/34).
+- number: 3
+  title: Image-bumper picks up the new SHA
+  steps: []
+- number: 4
+  title: Verify housekeeping is running
+  steps: []
+state:
+  steps:
+    P3.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

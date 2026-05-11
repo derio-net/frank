@@ -1,0 +1,14 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Sidecar deployment + kali cutover
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/81
+tasks: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

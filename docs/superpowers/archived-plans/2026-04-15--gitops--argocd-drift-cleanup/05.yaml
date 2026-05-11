@@ -1,0 +1,151 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Controller/render drift investigation (class G)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: victoria-metrics (grafana Deploy + CM + VMRule + VMServiceScrape)
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Capture per-resource diff
+
+
+      ```bash
+      argocd app diff victoria-metrics --port-forward --port-forward-namespace argocd > /tmp/argocd-drift/diff-victoria-metrics.txt 2>&1
+      less /tmp/argocd-drift/diff-victoria-metrics.txt
+      ```
+
+      For each resource, classify the diff:
+      - **Operator mutation:** live differs because a controller writes → narrow `ignoreDifferences`.
+      - **Chart version skew:** chart changed but cluster not re-rendered → `argocd app sync --force --replace`.
+      - **Values misconfiguration:** rendered value doesn't match what we want → edit `apps/victoria-metrics/values.yaml`.
+
+      Likely suspect: the grafana dashboard ConfigMap is rendered with post-render chart version 0.72.4 but live has 0.72.x content from a prior chart version.
+  - id: P5.T1.S2
+    text: |-
+      Apply narrowest fix
+
+
+      If `ignoreDifferences`, append to `apps/root/templates/victoria-metrics.yaml` with exact pointers derived from Step 1:
+
+      ```yaml
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          name: victoria-metrics-grafana
+          namespace: monitoring
+          jsonPointers:
+            - /spec/template/metadata/annotations/checksum~1config  # actual pointer from diff output
+      ```
+  - id: P5.T1.S3
+    text: |-
+      Sync + verify
+
+
+      ```bash
+      argocd app sync victoria-metrics --port-forward --port-forward-namespace argocd
+      sleep 30
+      kubectl -n argocd get application victoria-metrics -o jsonpath='{.status.sync.status}/{.status.health.status}{"\n"}'
+      ```
+
+      Expected: `Synced/Healthy`.
+- number: 2
+  title: gpu-operator ClusterPolicy
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Diff and classify
+
+
+      ```bash
+      argocd app diff gpu-operator --port-forward --port-forward-namespace argocd > /tmp/argocd-drift/diff-gpu-operator.txt 2>&1
+      ```
+
+      Most likely: gpu-operator webhook defaults fields on the ClusterPolicy (driver.version, toolkit.enabled, etc.) → `ignoreDifferences`.
+  - id: P5.T2.S2
+    text: |-
+      Apply fix and verify
+
+
+      Edit `apps/root/templates/gpu-operator.yaml` to add `ignoreDifferences` for `ClusterPolicy/cluster-policy` with the specific drifting fields. Commit, push, wait 60 s, verify `Synced/Healthy`.
+- number: 3
+  title: vcluster-experiments StatefulSet
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Diff
+
+
+      ```bash
+      argocd app diff vcluster-experiments --port-forward --port-forward-namespace argocd > /tmp/argocd-drift/diff-vcluster-experiments.txt 2>&1
+      ```
+
+      Known: live image is `ghcr.io/loft-sh/vcluster-pro:0.32.1`. Most likely either chart pin needs bump, or image field needs ignoreDifferences.
+  - id: P5.T3.S2
+    text: |-
+      Apply fix and verify `Synced/Healthy`.
+- number: 4
+  title: infisical-postgresql PDB
+  steps:
+  - id: P5.T4.S1
+    text: |-
+      Diff
+
+
+      ```bash
+      argocd app diff infisical-postgresql --port-forward --port-forward-namespace argocd > /tmp/argocd-drift/diff-infisical-postgresql.txt 2>&1
+      ```
+
+      Known: live has `maxUnavailable: 1`. Chart likely renders `minAvailable: 1` — align values in `apps/infisical-postgresql/values.yaml` OR ignoreDifferences.
+  - id: P5.T4.S2
+    text: |-
+      Apply fix and verify `Synced/Healthy`.
+
+
+      ---
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

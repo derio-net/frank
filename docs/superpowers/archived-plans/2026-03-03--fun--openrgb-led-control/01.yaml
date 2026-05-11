@@ -1,0 +1,35 @@
+schema_version: 2
+phase:
+  number: 1
+  title: OpenRGB LED Control — Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create the Talos I2C Patch
+  steps: []
+- number: 2
+  title: Apply the Talos Patch and Reboot gpu-1
+  steps: []
+- number: 3
+  title: Run OpenRGB Discovery Pod
+  steps: []
+- number: 4
+  title: Create ArgoCD Application Templates
+  steps: []
+- number: 5
+  title: Create OpenRGB Manifests
+  steps: []
+- number: 6
+  title: Push and Verify ArgoCD Sync
+  steps: []
+- number: 7
+  title: Update Layer 4 README
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,185 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Subchart orphan cleanup (class D)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gitea redis-cluster orphans
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Dump orphans for rollback
+
+
+      ```bash
+      ORPHANS=(
+        "configmap gitea-redis-cluster-default"
+        "configmap gitea-redis-cluster-scripts"
+        "service gitea-redis-cluster"
+        "service gitea-redis-cluster-headless"
+        "serviceaccount gitea-redis-cluster"
+        "networkpolicy gitea-redis-cluster"
+        "poddisruptionbudget gitea-redis-cluster"
+      )
+      for o in "${ORPHANS[@]}"; do
+        kind=$(echo $o | awk '{print $1}')
+        name=$(echo $o | awk '{print $2}')
+        kubectl -n gitea get $kind $name -o yaml > /tmp/argocd-drift/rollback-gitea-$kind-$name.yaml 2>/dev/null
+      done
+      ls /tmp/argocd-drift/rollback-gitea-*.yaml | wc -l
+      ```
+
+      Expected: 7 files.
+  - id: P4.T1.S2
+    text: |-
+      Confirm services have no endpoints
+
+
+      ```bash
+      kubectl -n gitea get endpoints gitea-redis-cluster gitea-redis-cluster-headless -o json | jq -r '.items[] | "\(.metadata.name): subsets=\(.subsets // [] | length)"'
+      ```
+
+      Expected: `subsets=0` for both. **Halt if non-zero.**
+  - id: P4.T1.S3
+    text: |-
+      Delete with gitea pod health monitoring
+
+
+      ```bash
+      for o in "${ORPHANS[@]}"; do
+        kind=$(echo $o | awk '{print $1}')
+        name=$(echo $o | awk '{print $2}')
+        echo "--- deleting $kind/$name ---"
+        kubectl -n gitea delete $kind $name
+        sleep 10
+        kubectl -n gitea get pods -l app.kubernetes.io/name=gitea -o jsonpath='{.items[*].status.phase}{"\n"}'
+      done
+      ```
+
+      Expected: gitea pod remains `Running` at every step.
+  - id: P4.T1.S4
+    text: |-
+      Verify
+
+
+      ```bash
+      kubectl -n argocd get application gitea -o jsonpath='{.status.sync.status}/{.status.health.status}{"\n"}'
+      ```
+
+      Expected: `Synced/Healthy`.
+
+      *Rollback:* `kubectl apply -f /tmp/argocd-drift/rollback-gitea-*.yaml`
+- number: 2
+  title: Infisical orphans (nginx + mongodb + redis configs)
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Verify only expected pods run
+
+
+      ```bash
+      kubectl -n infisical get pods --no-headers | awk '{print $1}'
+      ```
+
+      Expected: `infisical-*`, `postgresql-0`, `redis-master-0` only. **Halt if any nginx/mongodb pod exists.**
+  - id: P4.T2.S2
+    text: |-
+      Critical check — no Ingress uses the `nginx` ingressclass
+
+
+      ```bash
+      kubectl get ingress -A -o json | jq -r '.items[] | select(.spec.ingressClassName=="nginx") | "\(.metadata.namespace)/\(.metadata.name)"'
+      ```
+
+      Expected: empty. **Halt if any Ingress references the nginx class.**
+  - id: P4.T2.S3
+    text: |-
+      Dump all for rollback
+
+
+      ```bash
+      kubectl get validatingwebhookconfiguration infisical-ingress-nginx-admission -o yaml > /tmp/argocd-drift/rollback-infisical-vwc.yaml
+      kubectl get ingressclass nginx -o yaml > /tmp/argocd-drift/rollback-infisical-ingressclass.yaml
+      kubectl get clusterrole infisical-ingress-nginx -o yaml > /tmp/argocd-drift/rollback-infisical-clusterrole.yaml
+      kubectl get clusterrolebinding infisical-ingress-nginx -o yaml > /tmp/argocd-drift/rollback-infisical-clusterrolebinding.yaml
+      kubectl -n infisical get cm infisical-ingress-nginx-controller mongodb-common-scripts -o yaml > /tmp/argocd-drift/rollback-infisical-cms.yaml
+      kubectl -n infisical get sa infisical-ingress-nginx mongodb redis -o yaml > /tmp/argocd-drift/rollback-infisical-sas.yaml
+      kubectl -n infisical get role,rolebinding infisical-ingress-nginx -o yaml > /tmp/argocd-drift/rollback-infisical-rbac.yaml
+      ```
+  - id: P4.T2.S4
+    text: |-
+      Delete in dependency-safe order
+
+
+      ```bash
+      kubectl -n infisical delete rolebinding infisical-ingress-nginx
+      kubectl -n infisical delete role infisical-ingress-nginx
+      kubectl delete clusterrolebinding infisical-ingress-nginx
+      kubectl delete clusterrole infisical-ingress-nginx
+      kubectl delete validatingwebhookconfiguration infisical-ingress-nginx-admission
+      kubectl delete ingressclass nginx
+      kubectl -n infisical delete cm infisical-ingress-nginx-controller mongodb-common-scripts
+      kubectl -n infisical delete sa infisical-ingress-nginx mongodb redis
+
+      # After each delete, verify infisical pod remains Ready:
+      kubectl -n infisical get pods -l app.kubernetes.io/name=infisical
+      ```
+  - id: P4.T2.S5
+    text: |-
+      Verify
+
+
+        ```bash
+        kubectl -n argocd get application infisical -o jsonpath='{.status.sync.status}/{.status.health.status}{"\n"}'
+        ```
+
+        Expected: `Synced/Healthy`.
+
+        *Rollback:* `kubectl apply -f /tmp/argocd-drift/rollback-infisical-*.yaml`
+
+      ---
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

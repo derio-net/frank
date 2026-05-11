@@ -1,0 +1,365 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Shared github-backup-sync pipeline
+  tag: agentic
+  depends_on:
+  - 0
+  tracking_issue: https://github.com/derio-net/frank/issues/230
+tasks:
+- number: 1
+  title: ExternalSecret for STOA_GITHUB_MIRROR_TOKEN
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Confirm the ClusterSecretStore name
+
+
+      ```bash
+      kubectl --context frank get externalsecret -n tekton-pipelines gitea-api-token \
+        -o jsonpath='{.spec.secretStoreRef.name}{"\n"}{.spec.secretStoreRef.kind}{"\n"}'
+      # Capture the exact ClusterSecretStore name (e.g., infisical-frank). Use it in Step 2.
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Create the ExternalSecret manifest
+
+
+        Create `apps/tekton/manifests/externalsecret-stoa-github-mirror.yaml` (substitute `<STORE_NAME>` with the value from Step 1):
+
+      ```yaml
+      apiVersion: external-secrets.io/v1beta1
+      kind: ExternalSecret
+      metadata:
+        name: stoa-github-mirror
+        namespace: tekton-pipelines
+      spec:
+        refreshInterval: 1h
+        secretStoreRef:
+          name: <STORE_NAME>
+          kind: ClusterSecretStore
+        target:
+          name: stoa-github-mirror
+          creationPolicy: Owner
+        data:
+          - secretKey: token
+            remoteRef:
+              # Absolute path required: the `infisical` ClusterSecretStore is scoped to
+              # secretsPath: / (frank infra secrets). Stoa-org secrets live under
+              # /agentic-stoa to keep them separated from cluster infra. Per ESO's
+              # Infisical provider, any key outside the store's secretsPath must be
+              # referenced by absolute path.
+              key: /agentic-stoa/STOA_GITHUB_MIRROR_TOKEN
+      ```
+- number: 2
+  title: github-backup-sync Pipeline manifest
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create the Pipeline manifest
+
+
+        Create `apps/tekton/pipelines/github-backup-sync.yaml`:
+
+      ```
+      BEGIN_FILE apps/tekton/pipelines/github-backup-sync.yaml
+      # Backup-sync: pushes main and tags from agentic-stoa/* repos in Gitea
+      # to their GitHub counterparts. Triggered by Gitea webhooks on main/tag pushes.
+      # See spec: docs/superpowers/specs/2026-05-04--cicd--stoa-gitea-primary-design.md
+      apiVersion: tekton.dev/v1
+      kind: Pipeline
+      metadata:
+        name: github-backup-sync
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: repo-full-name
+            type: string
+            description: "Repo as owner/repo (e.g., agentic-stoa/hum)"
+          - name: gitea-clone-url
+            type: string
+            description: "Gitea HTTP clone URL"
+        workspaces:
+          - name: shared-workspace
+        tasks:
+          - name: clone-mirror
+            params:
+              - name: gitea-clone-url
+                value: $(params.gitea-clone-url)
+            workspaces:
+              - name: source
+                workspace: shared-workspace
+            taskSpec:
+              workspaces:
+                - name: source
+              params:
+                - name: gitea-clone-url
+              steps:
+                - name: clone
+                  image: alpine/git:2.47.2
+                  workingDir: $(workspaces.source.path)
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    runAsNonRoot: true
+                    runAsUser: 65534
+                    capabilities:
+                      drop: ["ALL"]
+                    seccompProfile:
+                      type: RuntimeDefault
+                  env:
+                    - name: HOME
+                      value: /tekton/home
+                    - name: GITEA_URL
+                      value: $(params.gitea-clone-url)
+                  computeResources:
+                    requests:
+                      cpu: 100m
+                      memory: 256Mi
+                    limits:
+                      memory: 1Gi
+                  script: |
+                    #!/bin/sh
+                    set -eu
+                    git config --global --add safe.directory '*'
+                    git clone --mirror "$GITEA_URL" repo.git
+                    cd repo.git
+                    echo "Refs cloned (first 20):"
+                    git for-each-ref --format='%(refname)' refs/heads refs/tags | head -20
+          - name: push-github
+            runAfter: ["clone-mirror"]
+            params:
+              - name: repo-full-name
+                value: $(params.repo-full-name)
+            workspaces:
+              - name: source
+                workspace: shared-workspace
+            taskSpec:
+              workspaces:
+                - name: source
+              params:
+                - name: repo-full-name
+              steps:
+                - name: push
+                  image: alpine/git:2.47.2
+                  workingDir: $(workspaces.source.path)/repo.git
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    runAsNonRoot: true
+                    runAsUser: 65534
+                    capabilities:
+                      drop: ["ALL"]
+                    seccompProfile:
+                      type: RuntimeDefault
+                  env:
+                    - name: HOME
+                      value: /tekton/home
+                    - name: REPO_FULL_NAME
+                      value: $(params.repo-full-name)
+                    - name: GITHUB_TOKEN
+                      valueFrom:
+                        secretKeyRef:
+                          name: stoa-github-mirror
+                          key: token
+                  computeResources:
+                    requests:
+                      cpu: 100m
+                      memory: 256Mi
+                    limits:
+                      memory: 512Mi
+                  script: |
+                    #!/bin/sh
+                    set -eu
+                    git config --global --add safe.directory '*'
+                    GITHUB_URL="https://oauth2:${GITHUB_TOKEN}@github.com/${REPO_FULL_NAME}.git"
+                    # Force-push main; --tags is additive (tag deletes don't propagate, by design)
+                    git push --force "$GITHUB_URL" refs/heads/main:refs/heads/main
+                    git push "$GITHUB_URL" --tags
+                    echo "Backup-sync OK for ${REPO_FULL_NAME}"
+      END_FILE
+      ```
+
+        Note on inline `taskSpec`: this Pipeline doesn't reuse the catalog `git-clone` Task because backup-sync needs `--mirror` semantics, not the depth-limited `git checkout` that `git-clone` does. The two inline steps stay self-contained inside the Pipeline rather than each being promoted to a top-level Task.
+- number: 3
+  title: Add backup-sync Trigger and TriggerTemplate to gitea-listener
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Read the current EventListener config
+
+
+      ```bash
+      sed -n '1,80p' apps/tekton/triggers/eventlistener.yaml
+      ```
+
+        Locate the end of the existing `gitea-pipeline-template` resource and the closing of the `triggers:` list in the EventListener.
+  - id: P1.T3.S2
+    text: |-
+      Append the new TriggerTemplate
+
+
+        At the bottom of `apps/tekton/triggers/eventlistener.yaml`, append:
+
+      ```yaml
+      ---
+      # Backup-sync: fires only for agentic-stoa/* on main or tag pushes
+      apiVersion: triggers.tekton.dev/v1beta1
+      kind: TriggerTemplate
+      metadata:
+        name: agentic-stoa-backup-template
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: repo-full-name
+          - name: gitea-clone-url
+        resourcetemplates:
+          - apiVersion: tekton.dev/v1
+            kind: PipelineRun
+            metadata:
+              generateName: stoa-backup-
+              namespace: tekton-pipelines
+            spec:
+              pipelineRef:
+                name: github-backup-sync
+              params:
+                - name: repo-full-name
+                  value: $(tt.params.repo-full-name)
+                - name: gitea-clone-url
+                  value: $(tt.params.gitea-clone-url)
+              taskRunTemplate:
+                podTemplate:
+                  securityContext:
+                    fsGroup: 65534
+              workspaces:
+                - name: shared-workspace
+                  volumeClaimTemplate:
+                    spec:
+                      accessModes:
+                        - ReadWriteOnce
+                      storageClassName: longhorn-cicd
+                      resources:
+                        requests:
+                          storage: 1Gi
+      ```
+  - id: P1.T3.S3
+    text: |-
+      Add the new Trigger inside the EventListener spec.triggers list
+
+
+        Inside the EventListener (`metadata.name: gitea-listener`), append a new entry to `spec.triggers` (after the existing `gitea-push` entry):
+
+      ```yaml
+          - name: agentic-stoa-backup
+            interceptors:
+              - ref:
+                  name: "cel"
+                params:
+                  - name: "filter"
+                    value: >-
+                      header.match('X-Gitea-Event', 'push') &&
+                      body.repository.full_name.startsWith('agentic-stoa/') &&
+                      (body.ref == 'refs/heads/main' || body.ref.startsWith('refs/tags/'))
+            bindings:
+              - ref: gitea-push-binding
+              - name: gitea-clone-url
+                value: $(body.repository.clone_url)
+            template:
+              ref: agentic-stoa-backup-template
+      ```
+
+        Note: the existing `gitea-push-binding` doesn't expose a `gitea-clone-url` param, so we add an inline binding.
+- number: 4
+  title: Commit, sync, and verify backup pipeline is healthy
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Commit changes
+
+
+      ```bash
+      cd ~/repos/frank
+      git add apps/tekton/manifests/externalsecret-stoa-github-mirror.yaml \
+              apps/tekton/pipelines/github-backup-sync.yaml \
+              apps/tekton/triggers/eventlistener.yaml
+      git commit -m "feat(cicd): add github-backup-sync pipeline for agentic-stoa repos"
+      git push
+      ```
+  - id: P1.T4.S2
+    text: |-
+      Wait for ArgoCD sync and verify resources
+
+
+      ```bash
+      sleep 30
+      kubectl --context frank get application -n argocd tekton-extras \
+        -o jsonpath='{.status.sync.status}{" "}{.status.health.status}{"\n"}'
+      # Expect: Synced Healthy
+
+      kubectl --context frank get pipeline -n tekton-pipelines github-backup-sync
+      # Expect: returns the resource
+
+      kubectl --context frank get externalsecret -n tekton-pipelines stoa-github-mirror \
+        -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}{"\n"}'
+      # Expect: True
+
+      kubectl --context frank get secret -n tekton-pipelines stoa-github-mirror \
+        -o jsonpath='{.data.token}' | base64 -d | wc -c
+      # Expect: > 50 (a real PAT length); does not print the token itself
+      ```
+  - id: P1.T4.S3
+    text: |-
+      Confirm EventListener picked up the new trigger
+
+
+      ```bash
+      kubectl --context frank get eventlistener -n tekton-pipelines gitea-listener \
+        -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}{"\n"}'
+      # Expect: True
+
+      kubectl --context frank logs -n tekton-pipelines deploy/el-gitea-listener --tail=20 | grep -iE "error|panic|cel" || echo "no errors"
+      ```
+
+        If the EventListener pod restarted (it does on Trigger config changes), give it ~30s and retry. The CEL parser is strict — invalid expressions show up here.
+
+      ---
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

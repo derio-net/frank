@@ -1,0 +1,684 @@
+schema_version: 2
+phase:
+  number: 5
+  title: CI Pipeline
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/44
+tasks:
+- number: 7
+  title: Pipeline Stage A — Clone, Test, Report Status
+  steps:
+  - id: P5.T7.S1
+    text: |-
+      Vendor git-clone Task from Tekton catalog
+
+
+      ```bash
+      curl -sL "https://raw.githubusercontent.com/tektoncd/catalog/main/task/git-clone/0.9/git-clone.yaml" \
+        -o apps/tekton/tasks/git-clone.yaml
+
+      # Verify
+      grep "^kind:" apps/tekton/tasks/git-clone.yaml
+      # Expect: Task
+      ```
+
+      Note: Check the Tekton catalog for the latest version of git-clone. The URL path includes the version number.
+  - id: P5.T7.S2
+    text: |-
+      Create run-tests Task
+
+
+      Create `apps/tekton/tasks/run-tests.yaml`:
+
+      ```yaml
+      # Runs a configurable test command in the cloned workspace
+      apiVersion: tekton.dev/v1
+      kind: Task
+      metadata:
+        name: run-tests
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: test-command
+            type: string
+            default: "echo 'No tests configured'"
+            description: "Command to run for testing"
+        workspaces:
+          - name: source
+            description: "The git repo"
+        steps:
+          - name: test
+            image: alpine:3
+            workingDir: $(workspaces.source.path)
+            script: |
+              #!/bin/sh
+              set -e
+              echo "Running tests..."
+              $(params.test-command)
+              echo "Tests passed."
+      ```
+  - id: P5.T7.S3
+    text: |-
+      Create gitea-status Task
+
+
+      Create `apps/tekton/tasks/gitea-status.yaml`:
+
+      ```yaml
+      # Reports commit status (success/failure) back to Gitea PR
+      # Used in the `finally` block of pipelines
+      apiVersion: tekton.dev/v1
+      kind: Task
+      metadata:
+        name: gitea-status
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: repo-full-name
+            type: string
+            description: "Full repo name (e.g., owner/repo)"
+          - name: revision
+            type: string
+            description: "Git commit SHA"
+          - name: state
+            type: string
+            description: "success, pending, failure, or error"
+          - name: description
+            type: string
+            default: "Tekton CI"
+          - name: context
+            type: string
+            default: "tekton-ci"
+          - name: gitea-url
+            type: string
+            default: "http://gitea-http.gitea.svc.cluster.local:3000"
+        steps:
+          - name: report
+            image: alpine:3
+            env:
+              - name: GITEA_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: gitea-api-token
+                    key: token
+            script: |
+              #!/bin/sh
+              apk add --no-cache curl
+              STATUS_URL="$(params.gitea-url)/api/v1/repos/$(params.repo-full-name)/statuses/$(params.revision)"
+              curl -s -X POST "$STATUS_URL" \
+                -H "Authorization: token $GITEA_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{
+                  \"state\": \"$(params.state)\",
+                  \"description\": \"$(params.description)\",
+                  \"context\": \"$(params.context)\"
+                }"
+              echo "Reported status '$(params.state)' for $(params.revision)"
+      ```
+
+      Note: The Gitea internal service name (`gitea-http.gitea.svc.cluster.local`) depends on the Helm chart's service naming. Verify after Gitea deployment: `kubectl get svc -n gitea`.
+  - id: P5.T7.S4
+    text: |-
+      Create the gitea-ci Pipeline
+
+
+      Create `apps/tekton/pipelines/gitea-ci.yaml`:
+
+      ```yaml
+      # Main CI pipeline triggered by Gitea webhooks
+      # Stage A: clone → test → report status
+      apiVersion: tekton.dev/v1
+      kind: Pipeline
+      metadata:
+        name: gitea-ci
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: repo-url
+            type: string
+          - name: revision
+            type: string
+          - name: repo-full-name
+            type: string
+          - name: branch
+            type: string
+          - name: test-command
+            type: string
+            default: "echo 'No tests configured — pipeline works!'"
+        workspaces:
+          - name: shared-workspace
+        tasks:
+          - name: clone
+            taskRef:
+              name: git-clone
+            params:
+              - name: url
+                value: $(params.repo-url)
+              - name: revision
+                value: $(params.revision)
+            workspaces:
+              - name: output
+                workspace: shared-workspace
+          - name: test
+            runAfter: ["clone"]
+            taskRef:
+              name: run-tests
+            params:
+              - name: test-command
+                value: $(params.test-command)
+            workspaces:
+              - name: source
+                workspace: shared-workspace
+        finally:
+          - name: report-success
+            when:
+              - input: $(tasks.status)
+                operator: in
+                values: ["Succeeded"]
+            taskRef:
+              name: gitea-status
+            params:
+              - name: repo-full-name
+                value: $(params.repo-full-name)
+              - name: revision
+                value: $(params.revision)
+              - name: state
+                value: "success"
+              - name: description
+                value: "All checks passed"
+          - name: report-failure
+            when:
+              - input: $(tasks.status)
+                operator: notin
+                values: ["Succeeded"]
+            taskRef:
+              name: gitea-status
+            params:
+              - name: repo-full-name
+                value: $(params.repo-full-name)
+              - name: revision
+                value: $(params.revision)
+              - name: state
+                value: "failure"
+              - name: description
+                value: "Pipeline failed"
+      ```
+  - id: P5.T7.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/tekton/tasks/ apps/tekton/pipelines/
+      git commit -m "feat(cicd): add Stage A pipeline — clone, test, report status to Gitea"
+      ```
+  - id: P5.T7.S6
+    text: |-
+      Push and verify end-to-end
+
+
+      ```bash
+      git push
+      # Wait for tekton-extras ArgoCD app to sync
+      argocd app get tekton-extras --port-forward --port-forward-namespace argocd
+
+      # Verify Tasks and Pipeline exist
+      kubectl get task -n tekton-pipelines
+      # Expect: git-clone, run-tests, gitea-status
+      kubectl get pipeline -n tekton-pipelines
+      # Expect: gitea-ci
+      ```
+  - id: P5.T7.S7
+    text: |-
+      Test the full webhook → pipeline → status flow
+
+
+      Push a commit to the test repo in Gitea (or trigger via mirror sync), then:
+
+      ```bash
+      kubectl get pipelinerun -n tekton-pipelines -w
+      # Expect: gitea-ci-XXXXX → Running → Succeeded
+
+      # Check logs
+      tkn pipelinerun logs -n tekton-pipelines --last
+      # Expect: "No tests configured — pipeline works!" and "Reported status 'success'"
+
+      # Check Gitea: the commit should show a green check mark
+      curl -s -H "Authorization: token <GITEA_API_TOKEN>" \
+        "http://192.168.55.209:3000/api/v1/repos/<owner>/<repo>/statuses/<sha>" | jq '.[0].state'
+      # Expect: "success"
+      ```
+
+      > **Deviation (2026-04-13):** Multiple fixes required to get the pipeline running in production. PR #48 was code-review-only (dry-run), and real deployment surfaced several Tekton v1 + PodSecurity issues:
+      >
+      > 1. **`resources` → `computeResources`** — Tekton v1 Task CRD uses `computeResources` for step limits. The `resources` field silently fails schema validation, causing ArgoCD `ComparisonError` that blocked all tekton-extras syncs.
+      > 2. **`build-push` dockerconfig workspace not optional** — Pipeline declares `docker-credentials` as optional, but the task workspace was required. Tekton validates upfront and rejects all PipelineRuns.
+      > 3. **`fsGroup` missing from PipelineRun pod template** — PVC workspace mounts as root, but git-clone runs as UID 65534. Added `taskRunTemplate.podTemplate.securityContext.fsGroup: 65534` to TriggerTemplate.
+      > 4. **`safe.directory` for git** — After fsGroup fix, git still rejected workspace with "dubious ownership". Added `git config --global --add safe.directory '*'`.
+      > 5. **HOME=/ read-only** — `git config --global` writes to `$HOME/.gitconfig`. UID 65534 has HOME=/ which is read-only. Set `HOME=/tekton/home` env var.
+      > 6. **PodSecurity contexts missing** — `gitea-status`, `run-tests`, and `cosign-sign` tasks had no `securityContext`, causing PodSecurity "restricted" violations. Added `runAsNonRoot`, `capabilities.drop`, `seccompProfile`.
+      > 7. **`runAsUser` needed for root-default images** — `alpine:3.20` defaults to root, `curlimages/curl` uses non-numeric user. Both need explicit `runAsUser` for PodSecurity compliance.
+      > 8. **`$(tasks.status)` = "Completed" not "Succeeded"** — When tasks are skipped via `when` clauses (build-push/sign), Tekton reports `"Completed"`. Pipeline `finally` block now accepts both values.
+      > 9. **Gitea API token** — `GITEA_API_TOKEN` was missing from Infisical. Created via Gitea API (`tekton-ci` token, `write:repository` scope), stored in Infisical.
+
+      ---
+- number: 8
+  title: Pipeline Stage B — Build Image and Push to Zot
+  steps:
+  - id: P5.T8.S1
+    text: |-
+      Create ExternalSecret for Zot push credentials
+
+
+      Create `apps/tekton/manifests/externalsecret-zot-push.yaml`:
+
+      ```yaml
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: zot-push-creds
+        namespace: tekton-pipelines
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: zot-push-creds
+          creationPolicy: Owner
+          template:
+            type: kubernetes.io/dockerconfigjson
+            data:
+              .dockerconfigjson: |
+                {"auths":{"192.168.55.210:5000":{"username":"tekton-push","password":"{{ .push_password }}"}}}
+        data:
+          - secretKey: push_password
+            remoteRef:
+              key: ZOT_PUSH_PASSWORD
+      ```
+
+      Note: Kaniko uses `kubernetes.io/dockerconfigjson` type secrets for registry auth. The ExternalSecret template renders the push password into the dockerconfig format.
+  - id: P5.T8.S2
+    text: |-
+      Create build-push Task
+
+
+      Create `apps/tekton/tasks/build-push.yaml`:
+
+      ```yaml
+      # Builds a container image and pushes to Zot
+      # Default: Kaniko (no Docker daemon required, Talos-compatible)
+      apiVersion: tekton.dev/v1
+      kind: Task
+      metadata:
+        name: build-push
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: image
+            type: string
+            description: "Full image reference (e.g., 192.168.55.210:5000/myapp:latest)"
+          - name: dockerfile
+            type: string
+            default: "Dockerfile"
+          - name: context
+            type: string
+            default: "."
+        workspaces:
+          - name: source
+            description: "The git repo with Dockerfile"
+          - name: dockerconfig
+            description: "Docker config.json for registry auth"
+        steps:
+          - name: build-and-push
+            image: gcr.io/kaniko-project/executor:latest
+            args:
+              - "--dockerfile=$(params.dockerfile)"
+              - "--context=$(workspaces.source.path)/$(params.context)"
+              - "--destination=$(params.image)"
+              - "--skip-tls-verify"
+            env:
+              - name: DOCKER_CONFIG
+                value: $(workspaces.dockerconfig.path)
+      ```
+
+      Note: The `dockerconfig` workspace is bound to the `zot-push-creds` Secret (type `kubernetes.io/dockerconfigjson`) via the Pipeline's workspace binding. Kaniko reads `$(DOCKER_CONFIG)/config.json` for registry auth. `--skip-tls-verify` handles the self-signed cert — remove if cert-manager cert is trusted.
+  - id: P5.T8.S3
+    text: |-
+      Extend the gitea-ci Pipeline with build-push
+
+
+      Add the build-push task to `apps/tekton/pipelines/gitea-ci.yaml` after the `test` task. Add new params:
+
+      ```yaml
+          # Add to spec.params:
+          - name: image
+            type: string
+            default: ""
+            description: "Image to build and push (empty = skip build)"
+
+          # Add to spec.tasks, after 'test':
+          - name: build-push
+            runAfter: ["test"]
+            when:
+              - input: $(params.image)
+                operator: notin
+                values: [""]
+            taskRef:
+              name: build-push
+            params:
+              - name: image
+                value: $(params.image)
+            workspaces:
+              - name: source
+                workspace: shared-workspace
+              - name: dockerconfig
+                workspace: docker-credentials
+
+          # Add to spec.workspaces (after shared-workspace):
+          - name: docker-credentials
+            optional: true
+            description: "Docker config.json for registry auth (bound to zot-push-creds Secret)"
+      ```
+
+      Note: The `when` clause makes the build step optional — if `image` param is empty, it's skipped. This keeps Stage A pipelines (test-only) working.
+
+      Also update the TriggerTemplate to pass the `docker-credentials` workspace:
+
+      ```yaml
+          # Add to TriggerTemplate resourcetemplates[0].spec.workspaces:
+          - name: docker-credentials
+            secret:
+              secretName: zot-push-creds
+      ```
+  - id: P5.T8.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/tekton/tasks/build-push.yaml apps/tekton/manifests/externalsecret-zot-push.yaml apps/tekton/pipelines/gitea-ci.yaml apps/tekton/triggers/triggertemplate.yaml
+      git commit -m "feat(cicd): add Stage B — Kaniko image build and push to Zot"
+      ```
+  - id: P5.T8.S5
+    text: |-
+      Push and verify
+
+
+      ```bash
+      git push
+      # Create a test repo in Gitea with a Dockerfile, then trigger a pipeline with image param set
+      # Or test manually:
+      cat <<'EOF' | kubectl apply -f -
+      apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: test-build-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef:
+          name: gitea-ci
+        params:
+          - name: repo-url
+            value: "http://gitea-http.gitea.svc.cluster.local:3000/<owner>/<repo>.git"
+          - name: revision
+            value: "main"
+          - name: repo-full-name
+            value: "<owner>/<repo>"
+          - name: branch
+            value: "main"
+          - name: image
+            value: "192.168.55.210:5000/test/myapp:latest"
+        workspaces:
+          - name: shared-workspace
+            volumeClaimTemplate:
+              spec:
+                accessModes: ["ReadWriteOnce"]
+                storageClassName: longhorn-cicd
+                resources:
+                  requests:
+                    storage: 1Gi
+          - name: docker-credentials
+            secret:
+              secretName: zot-push-creds
+      EOF
+
+      kubectl get pipelinerun -n tekton-pipelines -w
+      # Expect: Succeeded
+
+      # Verify image in Zot
+      curl -sk https://192.168.55.210:5000/v2/_catalog
+      # Expect: "test/myapp" in the repositories list
+      ```
+
+      ---
+- number: 9
+  title: Pipeline Stage C — Cosign Image Signing
+  steps:
+  - id: P5.T9.S1
+    text: |-
+      Generate cosign key pair and store in Infisical
+
+
+      ```yaml
+      # manual-operation
+      id: cicd-cosign-keypair
+      layer: cicd
+      app: tekton
+      plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+      when: "Before Pipeline Stage C"
+      why_manual: "Key generation must be done securely, then stored in Infisical"
+      commands:
+        - "COSIGN_PASSWORD='' cosign generate-key-pair (empty password — the Task uses COSIGN_PASSWORD='')"
+        - "Store cosign.key (private) in Infisical as COSIGN_KEY"
+        - "Store cosign.pub (public) in repo at apps/tekton/cosign.pub"
+      verify:
+        - "Infisical → COSIGN_KEY exists"
+        - "cosign.pub committed to repo"
+      status: pending
+      ```
+  - id: P5.T9.S2
+    text: |-
+      Create ExternalSecret for cosign key
+
+
+      Create `apps/tekton/manifests/externalsecret-cosign.yaml`:
+
+      ```yaml
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: cosign-key
+        namespace: tekton-pipelines
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: cosign-key
+          creationPolicy: Owner
+        data:
+          - secretKey: cosign.key
+            remoteRef:
+              key: COSIGN_KEY
+      ```
+  - id: P5.T9.S3
+    text: |-
+      Create cosign-sign Task
+
+
+      Create `apps/tekton/tasks/cosign-sign.yaml`:
+
+      ```yaml
+      # Signs an OCI image with cosign
+      apiVersion: tekton.dev/v1
+      kind: Task
+      metadata:
+        name: cosign-sign
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: image
+            type: string
+            description: "Full image reference to sign (with digest)"
+        steps:
+          - name: sign
+            image: bitnami/cosign:latest
+            env:
+              - name: COSIGN_KEY
+                value: /cosign/cosign.key
+              - name: COSIGN_PASSWORD
+                value: ""
+            command: ["cosign"]
+            args:
+              - "sign"
+              - "--key"
+              - "/cosign/cosign.key"
+              - "--tlog-upload=false"
+              - "--allow-insecure-registry"
+              - "$(params.image)"
+            volumeMounts:
+              - name: cosign-key
+                mountPath: /cosign
+                readOnly: true
+        volumes:
+          - name: cosign-key
+            secret:
+              secretName: cosign-key
+      ```
+
+      Note: `--tlog-upload=false` disables transparency log upload (Rekor) since this is a private registry. `--allow-insecure-registry` handles the self-signed cert. Remove if cert is trusted.
+  - id: P5.T9.S4
+    text: |-
+      Extend gitea-ci Pipeline with cosign-sign
+
+
+      Add to `apps/tekton/pipelines/gitea-ci.yaml`, after `build-push`:
+
+      ```yaml
+          # Add to spec.tasks, after 'build-push':
+          - name: sign
+            runAfter: ["build-push"]
+            when:
+              - input: $(params.image)
+                operator: notin
+                values: [""]
+            taskRef:
+              name: cosign-sign
+            params:
+              - name: image
+                value: $(params.image)
+      ```
+
+      Note: Ideally the cosign-sign task should use the image digest (not tag) for signing. The build-push task should output the digest as a result, and the sign task should consume it. This requires adding a `results` field to the build-push task. Implement this refinement during execution — for now, the tag-based signing works.
+  - id: P5.T9.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/tekton/tasks/cosign-sign.yaml apps/tekton/manifests/externalsecret-cosign.yaml apps/tekton/pipelines/gitea-ci.yaml apps/tekton/cosign.pub
+      git commit -m "feat(cicd): add Stage C — cosign image signing after push to Zot"
+      ```
+  - id: P5.T9.S6
+    text: |-
+      Push and verify
+
+
+      ```bash
+      git push
+      # Trigger a pipeline with image param set (same as Task 8 test)
+      # After pipeline succeeds:
+      cosign verify --key apps/tekton/cosign.pub --insecure-ignore-tlog --allow-insecure-registry \
+        192.168.55.210:5000/test/myapp:latest
+      # Expect: Verified OK (or similar success message)
+      ```
+
+      > **Deviation (2026-04-13):** Multiple fixes needed for build+sign pipeline:
+      >
+      > 1. **PodSecurity `restricted` blocks Kaniko** — Vendored Tekton release sets `enforce: restricted` on the namespace. Patched vendored `release.yaml` to use `baseline`. The standalone namespace override in `tekton-extras` was overwritten by the `tekton-pipelines` app on every sync.
+      > 2. **Kaniko auth: `.dockerconfigjson` vs `config.json`** — Kaniko reads `$DOCKER_CONFIG/config.json` but `kubernetes.io/dockerconfigjson` Secrets mount as `.dockerconfigjson`. Added duplicate `config.json` key to the ExternalSecret template.
+      > 3. **Cosign image `bitnami/cosign:2.4.1` doesn't exist** — Switched to `gcr.io/projectsigstore/cosign:v2.4.1` (distroless, official).
+      > 4. **Cosign needs registry credentials** — Sign task pushes the `.sig` artifact to Zot. Mounted `zot-push-creds` Secret at `/docker` and set `DOCKER_CONFIG=/docker`.
+
+      ---
+state:
+  steps:
+    P5.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T7.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T7.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T7.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T7.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T7.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T8.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T8.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T8.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T8.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T8.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T9.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T9.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T9.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T9.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T9.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T9.S6:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

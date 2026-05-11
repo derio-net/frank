@@ -1,0 +1,86 @@
+schema_version: 2
+phase:
+  number: 7
+  title: Operating blog post
+  tag: manual
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Write operating post
+  steps:
+  - id: P7.T1.S1
+    text: |-
+      Use /blog-post skill
+
+
+      Create `blog/content/docs/operating/<NN>-argocd-drift-detective/index.md`. Structure:
+
+      1. **Opening:** "20 of my ArgoCD apps were permanently OutOfSync. I thought it was one bug. It was seven."
+      2. **Section per drift class (A–G):** symptom → how to diagnose → root cause → fix → risk profile.
+      3. **Key takeaway:** drift is a debugging signal, not a nuisance. A chronic OutOfSync app is a real diff hidden in noise — the Progressing apps were the evidence.
+      4. **Honest postscript:** which classes were genuine ArgoCD quirks vs my own misconfigurations.
+  - id: P7.T1.S2
+    text: |-
+      Generate cover image
+
+
+      Add entry to `blog/prompt_for_images.yaml` in the Operating section. Generate via `.venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only <key>`.
+  - id: P7.T1.S3
+    text: |-
+      Update operating series index
+
+
+        Edit `blog/content/docs/building/00-overview/index.md` to add the new post to the operating series index.
+
+      ---
+
+      ## Post-Deploy Checklist
+  - id: P7.T1.S1
+    text: |-
+      Expose externally *(skipped — no new service, internal audit work)*
+  - id: P7.T1.S2
+    text: |-
+      Building blog post *(skipped — fix/extension on gitops layer)*
+  - id: P7.T1.S3
+    text: |-
+      Operating blog post — covered in Phase 7
+  - id: P7.T1.S4
+    text: |-
+      Update README *(skipped — no service inventory changes)*
+  - id: P7.T1.S5
+    text: |-
+      Sync runbook *(skipped — no manual-operation blocks in this plan)*
+  - id: P7.T1.S6
+    text: |-
+      Update plan status — set `**Status:**` to `Complete`
+state:
+  steps:
+    P7.T1.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P7.T1.S2:
+      state: '-'
+      ticked_at: null
+      note: null
+    P7.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S4:
+      state: '-'
+      ticked_at: null
+      note: null
+    P7.T1.S5:
+      state: '-'
+      ticked_at: null
+      note: null
+    P7.T1.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

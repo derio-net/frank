@@ -1,0 +1,566 @@
+schema_version: 2
+phase:
+  number: 1
+  title: ArgoCD Manifests
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/62
+tasks:
+- number: 1
+  title: Create namespace manifest
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Write the namespace manifest
+
+
+      ```yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: agents
+        labels:
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/audit: baseline
+          pod-security.kubernetes.io/warn: baseline
+      ```
+- number: 2
+  title: Create ExternalSecret for VK Remote secrets
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Write the ExternalSecret
+
+
+      ```yaml
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: vk-remote-secrets
+        namespace: agents
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: vk-remote-secrets
+          creationPolicy: Owner
+          deletionPolicy: Retain
+        data:
+          - secretKey: VIBEKANBAN_REMOTE_JWT_SECRET
+            remoteRef:
+              key: VK_REMOTE_JWT_SECRET
+          - secretKey: SELF_HOST_LOCAL_AUTH_PASSWORD
+            remoteRef:
+              key: VK_REMOTE_LOCAL_AUTH_PASSWORD
+          - secretKey: ELECTRIC_ROLE_PASSWORD
+            remoteRef:
+              key: VK_REMOTE_ELECTRIC_PASSWORD
+          - secretKey: POSTGRES_PASSWORD
+            remoteRef:
+              key: VK_REMOTE_PG_PASSWORD
+      ```
+- number: 3
+  title: Create PostgreSQL StatefulSet
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Write the PVC
+
+
+      ```yaml
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: postgres-vk-data
+        namespace: agents
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 1Gi
+      ```
+  - id: P1.T3.S2
+    text: |-
+      Write the PostgreSQL Deployment
+
+
+      Use Recreate strategy (RWO PVC deadlock — see gotchas).
+
+      ```yaml
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: postgres-vk
+        namespace: agents
+      spec:
+        replicas: 1
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app: postgres-vk
+        template:
+          metadata:
+            labels:
+              app: postgres-vk
+          spec:
+            containers:
+              - name: postgres
+                image: postgres:16-alpine
+                ports:
+                  - containerPort: 5432
+                env:
+                  - name: POSTGRES_DB
+                    value: vibekanban
+                  - name: POSTGRES_USER
+                    value: vibekanban
+                  - name: POSTGRES_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: vk-remote-secrets
+                        key: POSTGRES_PASSWORD
+                args:
+                  - "-c"
+                  - "wal_level=logical"
+                  - "-c"
+                  - "max_replication_slots=5"
+                  - "-c"
+                  - "max_wal_senders=5"
+                volumeMounts:
+                  - name: data
+                    mountPath: /var/lib/postgresql/data
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 256Mi
+                  limits:
+                    cpu: 500m
+                    memory: 512Mi
+            volumes:
+              - name: data
+                persistentVolumeClaim:
+                  claimName: postgres-vk-data
+      ```
+  - id: P1.T3.S3
+    text: |-
+      Write the PostgreSQL Service
+
+
+      ```yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: postgres-vk
+        namespace: agents
+      spec:
+        selector:
+          app: postgres-vk
+        ports:
+          - port: 5432
+            targetPort: 5432
+      ```
+- number: 4
+  title: Create PostgreSQL init Job for ElectricSQL role
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Write the init Job
+
+
+      ```yaml
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: postgres-vk-init-electric
+        namespace: agents
+        annotations:
+          argocd.argoproj.io/hook: PostSync
+          argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+      spec:
+        template:
+          spec:
+            restartPolicy: OnFailure
+            containers:
+              - name: init
+                image: postgres:16-alpine
+                command:
+                  - sh
+                  - -c
+                  - |
+                    until pg_isready -h postgres-vk -U vibekanban; do sleep 2; done
+                    PGPASSWORD="$POSTGRES_PASSWORD" psql -h postgres-vk -U vibekanban -d vibekanban -c "
+                      DO \$\$
+                      BEGIN
+                        IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'electric') THEN
+                          CREATE ROLE electric WITH LOGIN PASSWORD '$ELECTRIC_PASSWORD' REPLICATION;
+                        END IF;
+                      END
+                      \$\$;
+                      GRANT ALL ON DATABASE vibekanban TO electric;
+                      GRANT ALL ON SCHEMA public TO electric;
+                      ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO electric;
+                    "
+                env:
+                  - name: POSTGRES_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: vk-remote-secrets
+                        key: POSTGRES_PASSWORD
+                  - name: ELECTRIC_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: vk-remote-secrets
+                        key: ELECTRIC_ROLE_PASSWORD
+        backoffLimit: 5
+      ```
+- number: 5
+  title: Create ElectricSQL Deployment
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Write the ElectricSQL Deployment and Service
+
+
+      ```yaml
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: electric
+        namespace: agents
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: electric
+        template:
+          metadata:
+            labels:
+              app: electric
+          spec:
+            containers:
+              - name: electric
+                image: electricsql/electric:1.4.13
+                ports:
+                  - containerPort: 3000
+                env:
+                  - name: ELECTRIC_ROLE_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: vk-remote-secrets
+                        key: ELECTRIC_ROLE_PASSWORD
+                  - name: DATABASE_URL
+                    value: "postgresql://electric:$(ELECTRIC_ROLE_PASSWORD)@postgres-vk:5432/vibekanban?sslmode=disable"
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 64Mi
+                  limits:
+                    cpu: 200m
+                    memory: 128Mi
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: electric
+        namespace: agents
+      spec:
+        selector:
+          app: electric
+        ports:
+          - port: 3000
+            targetPort: 3000
+      ```
+- number: 6
+  title: Create vk-remote Deployment
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Write the vk-remote Deployment
+
+
+      Replace `<IMAGE_SHA>` with the SHA from Phase 0, Task 4.
+
+      ```yaml
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: vk-remote
+        namespace: agents
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: vk-remote
+        template:
+          metadata:
+            labels:
+              app: vk-remote
+          spec:
+            containers:
+              - name: vk-remote
+                image: ghcr.io/derio-net/vk-remote:<IMAGE_SHA>
+                ports:
+                  - containerPort: 8081
+                env:
+                  - name: PORT
+                    value: "8081"
+                  - name: HOST
+                    value: "0.0.0.0"
+                  - name: NODE_ENV
+                    value: "production"
+                  - name: ELECTRIC_URL
+                    value: "http://electric:3000"
+                  - name: SELF_HOST_LOCAL_AUTH_EMAIL
+                    value: "admin@localhost"
+                  - name: VIBEKANBAN_REMOTE_JWT_SECRET
+                    valueFrom:
+                      secretKeyRef:
+                        name: vk-remote-secrets
+                        key: VIBEKANBAN_REMOTE_JWT_SECRET
+                  - name: SELF_HOST_LOCAL_AUTH_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: vk-remote-secrets
+                        key: SELF_HOST_LOCAL_AUTH_PASSWORD
+                  - name: POSTGRES_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: vk-remote-secrets
+                        key: POSTGRES_PASSWORD
+                  - name: SERVER_DATABASE_URL
+                    value: "postgresql://vibekanban:$(POSTGRES_PASSWORD)@postgres-vk:5432/vibekanban?sslmode=disable"
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 128Mi
+                  limits:
+                    cpu: 500m
+                    memory: 256Mi
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: vk-remote
+        namespace: agents
+      spec:
+        selector:
+          app: vk-remote
+        ports:
+          - port: 8081
+            targetPort: 8081
+      ```
+- number: 7
+  title: Create ArgoCD Application CR
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      Write the Application template
+
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: vk-remote
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: default
+        source:
+          repoURL: {{ .Values.spec.source.repoURL }}
+          targetRevision: {{ .Values.spec.source.targetRevision }}
+          path: apps/vk-remote/manifests
+        destination:
+          server: {{ .Values.spec.destination.server }}
+          namespace: agents
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=false
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            jsonPointers:
+              - /data
+      ```
+- number: 8
+  title: Add IngressRoute for vk-remote
+  steps:
+  - id: P1.T8.S1
+    text: |-
+      Append the VK Remote IngressRoute
+
+
+      Add to the end of the file:
+
+      ```yaml
+      ---
+      apiVersion: traefik.io/v1alpha1
+      kind: IngressRoute
+      metadata:
+        name: vk-remote
+        namespace: traefik-system
+      spec:
+        entryPoints:
+          - websecure
+        routes:
+          - match: Host(`vk.cluster.derio.net`)
+            kind: Rule
+            middlewares:
+              - name: ip-allowlist
+              - name: security-headers
+              - name: authentik-forwardauth
+            services:
+              - name: vk-remote
+                namespace: agents
+                port: 8081
+        tls:
+          certResolver: cloudflare
+          domains:
+            - main: "*.cluster.derio.net"
+      ```
+- number: 9
+  title: Add Authentik proxy provider for VK Remote
+  steps:
+  - id: P1.T9.S1
+    text: |-
+      Append VK Remote proxy provider and application entries
+
+
+      Add to the entries list in the blueprint:
+
+      ```yaml
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: VK Remote (cluster)
+        id: provider-vk-remote-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://vk.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: vk-remote-cluster
+        attrs:
+          name: VK Remote (cluster)
+          provider: !KeyOf provider-vk-remote-cluster
+          meta_launch_url: https://vk.cluster.derio.net
+      ```
+- number: 10
+  title: Add secure-agent-pod VK_SHARED_API_BASE
+  steps:
+  - id: P1.T10.S1
+    text: |-
+      Add VK_SHARED_API_BASE env var
+
+
+      Add to the container's `env` list:
+
+      ```yaml
+      - name: VK_SHARED_API_BASE
+        value: "http://vk-remote.agents.svc.cluster.local:8081"
+      ```
+- number: 11
+  title: Add homepage entry
+  steps:
+  - id: P1.T11.S1
+    text: |-
+      Add VK Remote to the Development section
+
+
+      ```yaml
+      - VK Remote:
+          icon: kanban
+          href: https://vk.cluster.derio.net
+          description: VibeKanban self-hosted kanban board
+          siteMonitor: http://vk-remote.agents:8081
+      ```
+- number: 12
+  title: Commit all manifests
+  steps:
+  - id: P1.T12.S1
+    text: |-
+      Stage and commit
+
+
+      ```bash
+      git add apps/vk-remote/ apps/root/templates/vk-remote.yaml apps/traefik/manifests/ingressroutes.yaml apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml apps/secure-agent-pod/manifests/deployment.yaml apps/homepage/manifests/configmap-services.yaml
+      git commit -m "feat(agents): add vk-remote self-hosted deployment manifests"
+      ```
+
+      ---
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S1:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

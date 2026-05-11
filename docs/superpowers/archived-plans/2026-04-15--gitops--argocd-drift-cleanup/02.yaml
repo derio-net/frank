@@ -1,0 +1,134 @@
+schema_version: 2
+phase:
+  number: 2
+  title: ExternalSecret default injection (class A)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Add schema-default fields to all 16 ES manifests
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Apply transformation to each manifest
+
+
+      For each `data[].remoteRef` block, add:
+
+      ```yaml
+      conversionStrategy: Default
+      decodingStrategy: None
+      metadataPolicy: None
+      ```
+
+      For each `target:` block, add:
+
+      ```yaml
+      deletionPolicy: Retain
+      ```
+
+      Reference transformation:
+
+      ```yaml
+      # BEFORE
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: paperclip-anthropic
+          creationPolicy: Owner
+        data:
+          - secretKey: ANTHROPIC_API_KEY
+            remoteRef:
+              key: ANTHROPIC_API_KEY
+
+      # AFTER
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: paperclip-anthropic
+          creationPolicy: Owner
+          deletionPolicy: Retain
+        data:
+          - secretKey: ANTHROPIC_API_KEY
+            remoteRef:
+              key: ANTHROPIC_API_KEY
+              conversionStrategy: Default
+              decodingStrategy: None
+              metadataPolicy: None
+      ```
+
+      Apply to all 16 files:
+
+      ```
+      apps/gitea/manifests/externalsecret-gitea.yaml
+      apps/grafana-alerting/manifests/externalsecret.yaml
+      apps/health-bridge/manifests/externalsecret.yaml
+      apps/litellm/manifests/external-secret.yaml
+      apps/paperclip/manifests/external-secret-anthropic.yaml
+      apps/paperclip/manifests/external-secret-auth.yaml
+      apps/paperclip/manifests/external-secret-ghcr.yaml
+      apps/paperclip/manifests/external-secret-llm.yaml
+      apps/secure-agent-pod/manifests/externalsecret-github-token.yaml
+      apps/sympozium-extras/manifests/external-secret.yaml
+      apps/tekton/manifests/externalsecret-cosign.yaml
+      apps/tekton/manifests/externalsecret-gitea-token.yaml
+      apps/tekton/manifests/externalsecret-webhook.yaml
+      apps/tekton/manifests/externalsecret-zot-push.yaml
+      apps/vk-remote/manifests/externalsecret.yaml
+      apps/zot/manifests/externalsecret-zot.yaml
+      ```
+  - id: P2.T1.S2
+    text: |-
+      Spot-check with kubectl diff
+
+
+      ```bash
+      kubectl diff -f apps/paperclip/manifests/external-secret-anthropic.yaml
+      ```
+
+      Expected: empty diff.
+  - id: P2.T1.S3
+    text: |-
+      Commit and verify
+
+
+        ```bash
+        git add apps/
+        git commit -m "fix(gitops): pin ExternalSecret schema-default fields to eliminate CRD-injected drift"
+        git push
+        sleep 120
+        kubectl -n argocd get applications -o json \
+          | jq -r '.items[] | select(.status.sync.status != "Synced") | .metadata.name' | sort > /tmp/argocd-drift/phase2-remaining.txt
+        wc -l /tmp/argocd-drift/phase2-remaining.txt
+        ```
+
+        Expected: ~8 apps remain OutOfSync (down from ~18).
+
+        *Rollback:* `git revert HEAD && git push`.
+
+      ---
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

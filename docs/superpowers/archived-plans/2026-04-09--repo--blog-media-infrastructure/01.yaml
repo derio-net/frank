@@ -1,0 +1,50 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Verification
+  tag: manual
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 8
+  title: Verify and push
+  steps:
+  - id: P1.T8.S1
+    text: |-
+      Run Hugo build to verify no regressions
+  - id: P1.T8.S2
+    text: |-
+      Verify placeholders are invisible in output
+  - id: P1.T8.S3
+    text: |-
+      Push all commits
+
+
+      ---
+
+      ## Verification
+
+      After all tasks complete:
+      1. `cd blog && hugo server --buildDrafts` -- site builds, no errors
+      2. Existing posts with inline images (01, 02, 03, 05) render with polished borders
+      3. HTML comment placeholders don't appear in rendered output
+      4. `/media` skill is available and lists pending placeholders
+      5. Shortcodes are ready for use once actual media files are captured
+state:
+  steps:
+    P1.T8.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S3:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

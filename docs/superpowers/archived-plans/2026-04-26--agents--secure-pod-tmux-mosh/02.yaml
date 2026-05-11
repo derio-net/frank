@@ -1,0 +1,87 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Frank — mosh UDP Service + container ports
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Author the new LoadBalancer Service
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Create `apps/secure-agent-pod/manifests/service-mosh.yaml`
+
+
+      Separate Service object — does not touch `service-ssh.yaml`. UDP 60000-60003 (4 concurrent mosh sessions, well under the default 1001-port range — keeps the Service spec readable without surrendering capacity for a single-user pod). Allocates a dedicated Cilium L2 LB IP (192.168.55.219, next free after 218=vibekanban; 220 is Traefik).
+
+      ```yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: secure-agent-mosh
+        namespace: secure-agent-pod
+        annotations:
+          lbipam.cilium.io/ips: "192.168.55.219"
+      spec:
+        type: LoadBalancer
+        selector:
+          app: secure-agent-pod
+        ports:
+          - { name: mosh-60000, port: 60000, targetPort: 60000, protocol: UDP }
+          - { name: mosh-60001, port: 60001, targetPort: 60001, protocol: UDP }
+          - { name: mosh-60002, port: 60002, targetPort: 60002, protocol: UDP }
+          - { name: mosh-60003, port: 60003, targetPort: 60003, protocol: UDP }
+      ```
+- number: 2
+  title: Add UDP containerPorts to the kali container
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Append UDP ports to `apps/secure-agent-pod/manifests/deployment.yaml`
+
+
+      Append four UDP `containerPort` entries (60000-60003) to the kali container's `ports:` block, alongside the existing `ssh: 2222/TCP`. `containerPort` is informational in K8s — the Service routes by `targetPort` regardless — but the parity with the SSH entry keeps the manifest self-documenting.
+- number: 3
+  title: Land the manifests on `main`
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Open a PR for the manifest changes *(PR #125)*
+
+
+      Branch: `feat/agents-mosh-service`. Title: `feat(agents): mosh UDP service + tmux availability`. Body summarises the deviation from the standard layer workflow (fix/extension of layer 12, retroactive plan). The bump PR #124 is independent — they can merge in either order without breakage:
+      - Bump-only first: image has mosh installed but no UDP service yet → mosh would fail to reach pod, SSH unaffected.
+      - Service-only first: UDP routes to a pod that does not yet have mosh-server → harmless, no listeners on those ports.
+  - id: P2.T3.S2
+    text: |-
+      Operator merges both PRs *(#124 → a1a21b1, #125 → 88a4de7)*
+
+
+      Once both #124 (image bump) and the manifest PR are merged, ArgoCD `secure-agent-pod` Application syncs. Pod is recreated (`strategy: Recreate` due to RWO PVC).
+
+      ---
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

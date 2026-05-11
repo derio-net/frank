@@ -48,7 +48,7 @@ repository_dispatch─────┘           repository_dispatch────�
 ## Phase 0: Bootstrap `agent-images` repo with base + kali [agentic]
 <!-- Tracking: https://github.com/derio-net/frank/issues/79 -->
 
-**Target repo:** `derio-net/agent-images` (new)
+**Target repos:** `derio-net/agent-images` (new)
 **Outcome:** Both images build green in CI and publish to GHCR. `secure-agent-kali` image is functionally identical to today's live image. Nothing deployed yet.
 
 ### Task 1: Create the `agent-images` repo on GitHub

@@ -1,0 +1,153 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Deploy & Verify
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/51
+tasks:
+- number: 1
+  title: Verify ArgoCD sync
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Check vk-remote pod has two containers
+
+
+      ```bash
+      kubectl -n agents get pods -l app=vk-remote -o jsonpath='{.items[0].spec.containers[*].name}'
+      ```
+
+      Expected: `vk-remote relay-server`
+  - id: P1.T1.S2
+    text: |-
+      Check relay-server container is running
+
+
+      ```bash
+      kubectl -n agents logs deploy/vk-remote -c relay-server --tail=10
+      ```
+
+      Expected: `Relay server listening on 0.0.0.0:8082`
+  - id: P1.T1.S3
+    text: |-
+      Verify relay endpoint is reachable through Traefik
+
+
+      ```bash
+      curl -s -o /dev/null -w "%{http_code}" https://vk.cluster.derio.net/v1/relay/connect
+      ```
+
+      Expected: 401 (Unauthorized — no token, but endpoint exists and routes correctly)
+- number: 2
+  title: Verify local server connects to relay
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Check secure-agent-pod logs for relay registration
+
+
+      ```bash
+      kubectl -n secure-agent-pod logs deploy/secure-agent-pod -c kali --tail=50 | grep -i relay
+      ```
+
+      Expected: Log line indicating relay client connected or host registered.
+
+      > **Deviation:** No relay-specific log lines in container logs. Verified via database instead: `SELECT * FROM hosts` shows host `Kali Linux host (npm_user_9988d304903d3e10)` with status `online`, last_seen `2026-04-13 17:16:23`. Host registration happens via the shared PostgreSQL database, not relay WebSocket logs.
+  - id: P1.T2.S2
+    text: |-
+      Verify host appears in VK remote UI
+
+
+      Open `https://vk.cluster.derio.net` in the browser. The local host should appear (possibly as "unpaired").
+
+      > **Deviation:** Verified via database query (`SELECT * FROM hosts`) — host exists with status `online`. Browser verification deferred to operator.
+- number: 3
+  title: Pair browser with local server (one-time)
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Port-forward to the local VK server
+
+
+      ```bash
+      kubectl -n secure-agent-pod port-forward deploy/secure-agent-pod 8081:8081
+      ```
+  - id: P1.T3.S2
+    text: |-
+      Generate pairing code
+
+
+      Open `http://localhost:8081` in the browser. Go to Settings → Relay Settings → "Generate pairing code". Note the 6-digit code.
+  - id: P1.T3.S3
+    text: |-
+      Enter code in remote UI
+
+
+      Open `https://vk.cluster.derio.net`. Go to Settings → "Pair host". Enter the 6-digit code.
+
+      Expected: Pairing completes, host status changes to "online".
+
+      > **Note:** The enrollment code is one-time-use. If the SPAKE2 exchange fails (e.g., relay tunnel not connected), generate a fresh code before retrying.
+  - id: P1.T3.S4
+    text: |-
+      Verify workspace repos are visible
+
+
+      Click into an active workspace in the remote UI.
+
+      Expected: Repos, sessions, and workspace details are now visible (proxied via relay from the local server).
+  - id: P1.T3.S5
+    text: |-
+      Stop the port-forward
+
+
+      The port-forward is no longer needed — the relay handles all communication going forward.
+
+      ---
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S5:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,233 @@
+schema_version: 2
+phase:
+  number: 3
+  title: First-deploy validation
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: https://github.com/derio-net/frank/issues/177
+tasks:
+- number: 0
+  title: Pre-flight (manual, before anything else)
+  steps:
+  - id: P3.T0.S1
+    text: |-
+      Apply the SOPS-encrypted ssh-keys Secret — without this, sshd is up but rejects every login (the `paperclip-shell-ssh-keys` Secret volume is `optional: true` so the pod *boots*, but `authorized_keys` is empty). See `secrets/paperclip/README.md` for the bootstrap procedure. After applying, verify:
+
+
+      ```bash
+      kubectl -n paperclip-system get secret paperclip-shell-ssh-keys -o jsonpath='{.data.authorized_keys}' | base64 -d
+      # expect: at least one ssh public key
+      ```
+
+        *Phase 3 status:* the live `paperclip-shell-ssh-keys` Secret has been bootstrapped in-cluster from `secure-agent-pod/agent-ssh-keys` (operator pubkey `raspi-controller`) so SSH validation could proceed. The reproducible-from-git half — committing `secrets/paperclip/paperclip-shell-ssh-keys.yaml` — is the operator's task, captured below as a manual-operation block. T0.S1 stays unticked until that file lives in the repo.
+
+      ```yaml
+      # manual-operation
+      id: paperclip-shell-ssh-keys-sops-bootstrap
+      layer: orch
+      app: paperclip
+      plan: docs/superpowers/plans/2026-05-02--orch--paperclip-shell-sidecar.md
+      when: After Phase 3 first-deploy validation, before declaring the layer reproducible from git.
+      why_manual: SOPS encryption needs the operator's age key, which is not available to in-cluster agents. Per repo-principles.md the cluster must be reproducible from git, but bootstrap secrets are the documented exception.
+      commands: |
+        # On operator laptop with sops + age key + repo cloned:
+        kubectl -n paperclip-system get secret paperclip-shell-ssh-keys -o yaml \
+          | yq 'del(.metadata.annotations,.metadata.creationTimestamp,.metadata.resourceVersion,.metadata.uid,.metadata.managedFields,.metadata.labels)' \
+          > secrets/paperclip/paperclip-shell-ssh-keys.yaml
+        sops --encrypt --in-place secrets/paperclip/paperclip-shell-ssh-keys.yaml
+        git add secrets/paperclip/paperclip-shell-ssh-keys.yaml
+        git commit -m "secrets(paperclip): bootstrap paperclip-shell-ssh-keys SOPS secret"
+        # Re-apply from the SOPS file to confirm round-trip is clean:
+        sops --decrypt secrets/paperclip/paperclip-shell-ssh-keys.yaml | kubectl apply -f -
+      verify: |
+        git ls-files secrets/paperclip/paperclip-shell-ssh-keys.yaml
+        # expect: secrets/paperclip/paperclip-shell-ssh-keys.yaml
+        sops --decrypt secrets/paperclip/paperclip-shell-ssh-keys.yaml | grep -q "^kind: Secret"
+        # expect: exit 0
+      status: pending
+      ```
+- number: 1
+  title: Pod-level health
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Confirm both containers Ready
+
+
+      ```bash
+      kubectl -n paperclip-system get pod -l app.kubernetes.io/name=paperclip \
+        -o jsonpath='{range .items[0].status.containerStatuses[*]}{.name}: ready={.ready} restarts={.restartCount}{"\n"}{end}'
+      # expect both 'paperclip' and 'paperclip-shell' with ready=true
+      ```
+  - id: P3.T1.S2
+    text: |-
+      ~~Confirm shareProcessNamespace works~~ *(obsolete — Phase 2 dropped `shareProcessNamespace: true` per the agent-shell-base / s6-overlay v3 incompatibility under `runAsNonRoot`; see Deployment Notes 2026-05-03 row. Cross-container `ps` is no longer expected to work; the actual debugging surface is the shared `/paperclip` PVC, validated in Step 3.)*
+  - id: P3.T1.S3
+    text: |-
+      Confirm `/paperclip` is shared and writable from both containers
+
+
+      ```bash
+      kubectl -n paperclip-system exec -c paperclip-shell deploy/paperclip -- touch /paperclip/.shell-write-test
+      kubectl -n paperclip-system exec -c paperclip            deploy/paperclip -- ls -la /paperclip/.shell-write-test
+      kubectl -n paperclip-system exec -c paperclip-shell deploy/paperclip -- rm /paperclip/.shell-write-test
+      ```
+
+        If the write or read fails with permission denied, escalate to the UID/GID investigation captured in Phase 2 Task 5 Step 1.
+- number: 2
+  title: SSH connectivity from operator laptop
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Service has the LB IP
+
+
+      ```bash
+      kubectl -n paperclip-system get svc paperclip-shell -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+      # expect: 192.168.55.221
+      ```
+  - id: P3.T2.S2
+    text: |-
+      SSH connects
+
+
+      ```bash
+      ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/<your-key> agent@192.168.55.221 \
+        'whoami; hostname; cat /etc/os-release | head -3; ls -la ~'
+      # expect: whoami=agent, /home/agent populated from /etc/skel
+      ```
+  - id: P3.T2.S3
+    text: |-
+      Mosh connects
+
+
+      ```bash
+      mosh agent@192.168.55.221 -- echo 'mosh ok'
+      # expect 'mosh ok' over UDP without falling back to SSH
+      ```
+  - id: P3.T2.S4
+    text: |-
+      tmux session persists across reattach
+
+
+      ```bash
+      ssh agent@192.168.55.221 -- tmux new-session -d -s test 'sleep 600'
+      ssh agent@192.168.55.221 -- tmux ls
+      # expect 'test' session listed
+      ssh agent@192.168.55.221 -- tmux kill-session -t test
+      ```
+- number: 3
+  title: MOTD shows last-reconcile summary
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Fresh login should print one of:
+
+
+      ```
+      ✓ paperclip-shell: 0 installed, 0 already present, 0 removed @ 2026-05-…
+      ```
+
+        Verify by SSH-ing in and observing the motd. If the line is missing, the `motd.dynamic` plumbing in `agent-shell-base` may need adjustment — log as a follow-up task in Phase 1 rather than blocking here.
+- number: 4
+  title: Telegram alert path (induced failure)
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Add a known-bad entry to the inventory
+
+
+        Edit `apps/paperclip/manifests/configmap-shell-inventory.yaml`:
+
+      ```yaml
+      data:
+        inventory.yaml: |
+          npm-global:
+            - "@anthropic-ai/this-package-does-not-exist-XXXX"
+          # other sections unchanged
+      ```
+
+        Commit, push, ArgoCD syncs.
+  - id: P3.T4.S2
+    text: |-
+      Run reconcile
+
+
+      ```bash
+      ssh agent@192.168.55.221 -- paperclip-shell-reconcile
+      ```
+  - id: P3.T4.S3
+    text: |-
+      Verify Telegram alert arrived in the configured chat with format `⚠ paperclip-shell: 1 install(s) failed on boot`.
+  - id: P3.T4.S4
+    text: |-
+      Verify MOTD shows the failure on next SSH login.
+  - id: P3.T4.S5
+    text: |-
+      Revert the inventory change — remove the bogus entry, commit, push, run reconcile again. MOTD should flip to the success line. No Telegram message expected (no failures, no notification on success).
+- number: 5
+  title: Confirm paperclip web UI is unaffected
+  steps: []
+state:
+  steps:
+    P3.T0.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: '-'
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S5:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

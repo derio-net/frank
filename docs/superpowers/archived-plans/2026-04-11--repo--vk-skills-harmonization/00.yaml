@@ -1,0 +1,508 @@
+schema_version: 2
+phase:
+  number: 0
+  title: Infrastructure Harmonization
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/35
+tasks:
+- number: 1
+  title: Create plan-config.yaml
+  steps:
+  - id: P0.T1.S1
+    text: |-
+      Write the Frank profile
+
+
+      ```yaml
+      plan:
+        filename: "YYYY-MM-DD--{layer}--{details}.md"
+        layers: docs/layers.yaml
+        save_to: docs/superpowers/plans/
+
+      header:
+        required:
+          - Spec
+          - Status
+        status_values:
+          - Not Started
+          - In Progress
+          - Deployed
+          - Complete
+          - Closed
+
+      manual_operations:
+        enabled: true
+        runbook: docs/runbooks/manual-operations.yaml
+        sync_skill: sync-runbook
+
+      post_deploy:
+        name: "Post-Deploy Checklist"
+        type: manual
+        steps:
+          - "Write building blog post — Use /blog-post skill"
+          - "Write operating blog post — Use /blog-post skill"
+          - "Update README — Run /update-readme"
+          - "Sync runbook — Run /sync-runbook if plan has manual-operation blocks"
+          - "Update plan status to Deployed/Complete"
+        skip_when:
+          - "fix/extension plans"
+          - "meta/repo layer"
+          - "investigation/audit plans"
+
+      dispatch:
+        target: github-issues
+        owner: derio-net
+        project_board: "Derio Ops"
+        default_repo: derio-net/frank
+        labels:
+          agentic: vk-ready
+          manual: manual
+      ```
+
+      **Note:** No `structure:` section — Phase/Task/Step markers are invariants hardcoded in vk-plan and vk-execute. `dispatch.owner` is required for vk-dispatch and vk-progress to reach GitHub without hardcoded org names.
+  - id: P0.T1.S2
+    text: |-
+      Verify YAML
+
+
+      ```bash
+      python3 -c "import yaml; yaml.safe_load(open('docs/superpowers/plan-config.yaml'))" && echo "Valid YAML"
+      ```
+  - id: P0.T1.S3
+    text: |-
+      Commit *(completed out-of-band in commit b8d2bdd)*
+
+
+      ```bash
+      git add docs/superpowers/plan-config.yaml
+      git commit -m "feat: add plan-config.yaml profile for Frank
+
+      Profile-driven plan behavior: Frank filename convention, Spec+Status headers,
+      post-deploy checklist, Derio Ops dispatch config."
+      ```
+- number: 2
+  title: Delete vendored superpowers skills
+  steps:
+  - id: P0.T2.S1
+    text: |-
+      Delete superpowers skill directories
+
+
+      ```bash
+      for dir in brainstorming dispatching-parallel-agents \
+        executing-plans finishing-a-development-branch receiving-code-review \
+        requesting-code-review subagent-driven-development \
+        systematic-debugging test-driven-development \
+        using-git-worktrees using-superpowers verification-before-completion \
+        writing-plans writing-skills; do
+        rm -rf ".claude/skills/$dir"
+      done
+      ```
+  - id: P0.T2.S2
+    text: |-
+      Verify Frank-specific skills remain
+
+
+      ```bash
+      ls .claude/skills/
+      # Expected: blog-post/ deploy-app/ gitnexus/ media/ sync-runbook/ update-readme/
+      ```
+  - id: P0.T2.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add -A .claude/skills/
+      git commit -m "chore: delete vendored superpowers skills
+
+      Skills are now installed at user level via plugins. Frank-specific
+      skills (blog-post, deploy-app, gitnexus, media, sync-runbook,
+      update-readme) remain in the repo."
+      ```
+- number: 3
+  title: Delete sync-superpowers.sh
+  steps:
+  - id: P0.T3.S1
+    text: |-
+      Delete the script
+
+
+      ```bash
+      rm scripts/sync-superpowers.sh
+      ```
+  - id: P0.T3.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add scripts/sync-superpowers.sh
+      git commit -m "chore: delete sync-superpowers.sh
+
+      No longer needed — skills installed at user level via plugins, not vendored."
+      ```
+- number: 4
+  title: Replace validate-plans.sh with thin wrapper
+  steps:
+  - id: P0.T4.S1
+    text: |-
+      Replace with thin wrapper
+
+
+      ```bash
+      #!/usr/bin/env bash
+      # Thin wrapper — delegates to the canonical validator from superpowers-for-vk.
+      # Falls back to minimal local validation if the plugin validator is not found.
+      set -euo pipefail
+
+      PLUGIN_VALIDATOR=""
+      for candidate in \
+        "$HOME/.claude/plugins/cache/derio-net/superpowers-for-vk/"*/scripts/validate-plans.sh \
+        "$HOME/repos/superpowers-for-vk/scripts/validate-plans.sh"; do
+        if [ -x "$candidate" ]; then
+          PLUGIN_VALIDATOR="$candidate"
+          break
+        fi
+      done
+
+      if [ -n "$PLUGIN_VALIDATOR" ]; then
+        exec "$PLUGIN_VALIDATOR" "$@"
+      fi
+
+      echo "WARNING: superpowers-for-vk validator not found — running minimal checks" >&2
+      ERRORS=()
+      for f in "$@"; do
+        [ -f "$f" ] || continue
+        base="$(basename "$f" .md)"
+        header=$(head -20 "$f")
+        if ! echo "$header" | grep -q '\*\*Status:\*\*'; then
+          ERRORS+=("$base: missing **Status:**")
+        fi
+      done
+      if [ ${#ERRORS[@]} -gt 0 ]; then
+        echo "Plan validation failed:" >&2
+        for e in "${ERRORS[@]}"; do echo "  - $e" >&2; done
+        exit 1
+      fi
+      ```
+  - id: P0.T4.S2
+    text: |-
+      Verify syntax
+
+
+      ```bash
+      bash -n scripts/validate-plans.sh && echo "Syntax OK"
+      ```
+  - id: P0.T4.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add scripts/validate-plans.sh
+      git commit -m "refactor: replace validate-plans.sh with thin wrapper
+
+      Delegates to the canonical validator from superpowers-for-vk plugin.
+      Falls back to minimal local validation if plugin not installed."
+      ```
+- number: 5
+  title: Update plan-status.sh for Phase headers
+  steps:
+  - id: P0.T5.S1
+    text: |-
+      Update the --open loop to recognize Phase headers
+
+
+      In the `--open` section of `scripts/plan-status.sh`, locate the block starting at `# Collect tasks with their open steps` and extend it to detect `## Phase N:` headers. Replace the inner parsing loop (the `while IFS= read -r line; do` block) with:
+
+      ```bash
+          current_phase=""
+          current_task=""
+          current_idx=-1
+
+          while IFS= read -r line; do
+            # Phase header: ## Phase N: Name [type]
+            if [[ "$line" =~ ^##\ Phase\ [0-9]+:\ (.+)\ \[(manual|agentic)\]$ ]]; then
+              current_phase="${BASH_REMATCH[1]}"
+            fi
+
+            # Task header: ### Task N: Name
+            if [[ "$line" =~ ^###\ Task\ [0-9]+:\ (.+)$ ]]; then
+              current_task="${BASH_REMATCH[1]}"
+              if [ -n "$current_phase" ]; then
+                current_task="$current_phase / $current_task"
+              fi
+              current_idx=$(( ${#task_names[@]} ))
+              task_names+=("$current_task")
+              task_steps+=("")
+            fi
+
+            # Open checkbox: - [ ] **...**
+            if [[ "$line" =~ ^-\ \[\ \]\ \*\*(.+)\*\*$ ]]; then
+              step_name="${BASH_REMATCH[1]}"
+              step_name="${step_name#Step [0-9]: }"
+              step_name="${step_name#Step [0-9][0-9]: }"
+              if [ "$current_idx" -ge 0 ]; then
+                if [ -n "${task_steps[$current_idx]}" ]; then
+                  task_steps[$current_idx]="${task_steps[$current_idx]}|$step_name"
+                else
+                  task_steps[$current_idx]="$step_name"
+                fi
+              fi
+            fi
+          done < "$f"
+      ```
+  - id: P0.T5.S2
+    text: |-
+      Test against a phased plan
+
+
+      ```bash
+      ./scripts/plan-status.sh --open
+      # Should display tasks grouped under phases (phase name prepended to task name)
+      ```
+  - id: P0.T5.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add scripts/plan-status.sh
+      git commit -m "feat: update plan-status.sh to understand Phase headers
+
+      The --open view now prepends the parent Phase name to each Task when
+      the plan uses the Phase > Task > Step hierarchy."
+      ```
+- number: 6
+  title: Update rules for vk-plan canonical skill
+  steps:
+  - id: P0.T6.S1
+    text: |-
+      Update repo-workflows.md
+
+
+      Locate the Standard Layer Workflow steps 2-3 in `.claude/rules/repo-workflows.md`. Replace:
+
+      ```markdown
+      2. **Plan** — `/writing-plans` to produce a step-by-step implementation plan. The layer code is chosen at this step (see `docs/layers.yaml` for the registry)
+      3. **Execute** — `/executing-plans` to implement the plan with review checkpoints
+      ```
+
+      With:
+
+      ```markdown
+      2. **Plan** — `/vk-plan` to produce a phase-structured implementation plan. The layer code is chosen at this step (see `docs/layers.yaml` for the registry). Plan behavior is driven by `docs/superpowers/plan-config.yaml`
+      3. **Execute** — vk-plan offers three execution paths: VK dispatch, subagent-driven, or inline execution
+      ```
+
+      In the Plan Management Scripts section, replace:
+
+      ```markdown
+      - `scripts/validate-plans.sh [files...]` — validate plan headers (filename, Spec, Status, Task heading level)
+      ```
+
+      With:
+
+      ```markdown
+      - `scripts/validate-plans.sh [files...]` — validate plan headers (delegates to canonical validator from superpowers-for-vk plugin)
+      ```
+  - id: P0.T6.S2
+    text: |-
+      Update repo-principles.md
+
+
+      Delete the entire "### Superpowers plugin skills (vendored)" section (from `### Superpowers plugin skills (vendored)` through the closing `Check for updates periodically...` line). Replace with:
+
+      ```markdown
+      ### Skills
+
+      Skills are installed at user level via the `superpowers` and `superpowers-for-vk` plugins. They are NOT vendored in this repo (only gitnexus skills remain repo-local in `.claude/skills/gitnexus/`).
+
+      Plan behavior is driven by the profile at `docs/superpowers/plan-config.yaml`.
+      ```
+  - id: P0.T6.S3
+    text: |-
+      Update plan-post-deploy-checklist.md
+
+
+      Prepend this note at the very top of the file:
+
+      ```markdown
+      > **Note:** vk-plan auto-appends a Post-Deploy Checklist phase from
+      > `docs/superpowers/plan-config.yaml` (`post_deploy` section). This rule
+      > documents the checklist content for reference and for manual plan creation.
+
+      ```
+  - id: P0.T6.S4
+    text: |-
+      Verify changes
+
+
+      ```bash
+      grep -q "vk-plan" .claude/rules/repo-workflows.md && echo "OK: workflows"
+      grep -q "user level" .claude/rules/repo-principles.md && echo "OK: principles"
+      grep -q "vk-plan auto-appends" .claude/rules/plan-post-deploy-checklist.md && echo "OK: post-deploy"
+
+      # Ensure no references to sync-superpowers.sh remain
+      grep -r "sync-superpowers" .claude/rules/ && echo "FAIL: stale refs" || echo "OK: no stale refs"
+      ```
+  - id: P0.T6.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add .claude/rules/repo-workflows.md .claude/rules/repo-principles.md .claude/rules/plan-post-deploy-checklist.md
+      git commit -m "docs: update rules for vk-plan canonical skill
+
+      - repo-workflows: reference vk-plan instead of writing-plans
+      - repo-principles: remove vendored superpowers section
+      - plan-post-deploy-checklist: note auto-append from profile"
+      ```
+- number: 7
+  title: Update plan-checklist-check hook for Phase format
+  steps:
+  - id: P0.T7.S1
+    text: |-
+      Extend the detection for Phase-based plans
+
+
+      In `scripts/hooks/plan-checklist-check.sh`, locate the final check:
+
+      ```bash
+      if ! grep -q 'blog.*post\|/blog-post\|Post-Deploy' "$FILE_PATH"; then
+        echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"This standard layer plan is missing the Post-Deploy Checklist (blog post, README update, runbook sync). See .claude/rules/plan-post-deploy-checklist.md. Add a final task with these steps.\"}}"
+      fi
+      ```
+
+      Replace with:
+
+      ```bash
+      # Phase-based plans get post-deploy auto-appended by vk-plan via profile
+      if grep -q '^## Phase' "$FILE_PATH"; then
+        # Phase-based plan — check for a post-deploy phase specifically
+        if ! grep -q 'Post-Deploy\|post.deploy' "$FILE_PATH"; then
+          echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"This phase-based plan is missing a Post-Deploy phase. vk-plan should auto-append it from plan-config.yaml. If this is a fix/meta/investigation plan, ignore this warning.\"}}"
+        fi
+      elif ! grep -q 'blog.*post\|/blog-post\|Post-Deploy' "$FILE_PATH"; then
+        echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"This standard layer plan is missing the Post-Deploy Checklist (blog post, README update, runbook sync). See .claude/rules/plan-post-deploy-checklist.md. Add a final task with these steps.\"}}"
+      fi
+      ```
+  - id: P0.T7.S2
+    text: |-
+      Verify syntax
+
+
+      ```bash
+      bash -n scripts/hooks/plan-checklist-check.sh && echo "Syntax OK"
+      ```
+  - id: P0.T7.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add scripts/hooks/plan-checklist-check.sh
+      git commit -m "fix: update plan-checklist-check hook for Phase format
+
+      Phase-based plans check for a Post-Deploy phase header instead of
+      inline blog/README references."
+      ```
+
+      ---
+state:
+  steps:
+    P0.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T5.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T5.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T6.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T6.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T6.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T6.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T7.S3:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

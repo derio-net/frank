@@ -1,0 +1,83 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Update References
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update documentation and CI
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Update CLAUDE.md
+
+
+      Update the Architecture section to reflect the new structure. Update all path references throughout the file.
+  - id: P2.T1.S2
+    text: |-
+      Update blog posts with repo structure references
+
+
+      Search blog posts for references to `apps/` or `patches/` and update them.
+
+      ```bash
+      grep -rn 'apps/' blog/content/ | grep -v 'clusters/frank'
+      grep -rn 'patches/' blog/content/ | grep -v 'clusters/frank'
+      ```
+  - id: P2.T1.S3
+    text: |-
+      Update CI workflows
+
+
+      Check and update any workflow references:
+
+      ```bash
+      grep -rn 'apps/' .github/workflows/
+      grep -rn 'patches/' .github/workflows/
+      ```
+  - id: P2.T1.S4
+    text: |-
+      Update runbooks
+
+
+      ```bash
+      grep -rn 'apps/' docs/runbooks/
+      grep -rn 'patches/' docs/runbooks/
+      ```
+  - id: P2.T1.S5
+    text: |-
+      Commit reference updates
+
+
+      ```bash
+      git add -A
+      git commit -m "docs: update all path references after multi-cluster restructure"
+      ```
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

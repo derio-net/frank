@@ -1,0 +1,105 @@
+schema_version: 2
+phase:
+  number: 4
+  title: End-to-end verification
+  tag: manual
+  depends_on:
+  - 3
+  tracking_issue: https://github.com/derio-net/frank/issues/135
+tasks:
+- number: 1
+  title: Layout persistence across an image bump
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Set up a test layout *(deferred — pending s6 image)*
+  - id: P4.T1.S2
+    text: |-
+      Wait 6 minutes *(deferred — pending s6 image)*
+  - id: P4.T1.S3
+    text: |-
+      Trigger a pod restart *(deferred — pending s6 image)*
+  - id: P4.T1.S4
+    text: |-
+      Re-spawn mosh, observe restoration *(deferred — pending s6 image)*
+- number: 2
+  title: Crashloop bail
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Break supercronic and observe bail-out *(deferred — pending s6 image)*
+  - id: P4.T2.S2
+    text: |-
+      Restore supercronic and recover *(deferred — pending s6 image)*
+- number: 3
+  title: Independent service deaths
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Kill sshd, observe readinessProbe failure + recovery *(deferred — pending s6 image)*
+- number: 4
+  title: Bump alert end-to-end
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Trigger a sync (real or simulated) *(triggered via `kubectl patch app secure-agent-pod` with operation field; sync ran at 11:02:11Z and 11:03:51Z)*
+  - id: P4.T4.S2
+    text: |-
+      Confirm Telegram alert content matches the template *(notification engine logs show successful delivery to recipient `{telegram }`; controller log line `Notification ... already sent` confirms dedup-after-success)*
+- number: 5
+  title: Document learned gotchas
+  steps:
+  - id: P4.T5.S1
+    text: |-
+      For any quirk encountered (s6 non-root edge cases, tmux save timing, ESO refresh latency), append to `.claude/rules/frank-gotchas.md` *(appended ArgoCD Notifications named-webhook annotation gotcha — the `.webhook: <name>` vs `.<name>: ""` confusion that silently broke Phase 3 deliveries)*
+
+
+      Even small edge-case findings belong here so the next operator has the context.
+
+      ---
+state:
+  steps:
+    P4.T1.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: '-'
+      ticked_at: null
+      note: null
+    P4.T1.S3:
+      state: '-'
+      ticked_at: null
+      note: null
+    P4.T1.S4:
+      state: '-'
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: '-'
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -188,6 +188,6 @@ These should be resolved during plan writing or first-task execution; they do no
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| vk-local OOMKill Remediation — Implementation Plan |  | `docs/superpowers/plans/2026-04-30--agents--vk-local-oom-remediation.md` | In Progress | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| vk-local OOMKill Remediation — Implementation Plan |  | `docs/superpowers/plans/2026-04-30--agents--vk-local-oom-remediation/` | — |

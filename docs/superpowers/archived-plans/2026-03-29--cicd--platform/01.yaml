@@ -1,0 +1,347 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Gitea Deployment
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/41
+tasks:
+- number: 2
+  title: Gitea Deployment
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create Infisical secrets and Authentik OIDC provider
+
+
+      ```yaml
+      # manual-operation
+      id: cicd-infisical-gitea-secrets
+      layer: cicd
+      app: gitea
+      plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+      when: "Before Gitea deploy"
+      why_manual: "Infisical secret creation requires UI/API interaction"
+      commands:
+        - "Create in Infisical: GITEA_ADMIN_PASSWORD (generate strong password)"
+        - "Create in Infisical: GITHUB_MIRROR_TOKEN (GitHub PAT with repo read scope)"
+      verify:
+        - "Infisical → GITEA_ADMIN_PASSWORD exists"
+        - "Infisical → GITHUB_MIRROR_TOKEN exists"
+      status: pending
+      ```
+
+      ```yaml
+      # manual-operation
+      id: cicd-authentik-gitea-oidc
+      layer: cicd
+      app: gitea
+      plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+      when: "Before Gitea deploy — OIDC provider must exist in Authentik"
+      why_manual: "Authentik provider/application creation requires API token"
+      commands:
+        - "Run: bash scripts/tmp/setup-authentik-cicd-oidc.sh (creates both Gitea and Zot providers+apps)"
+        - "Store printed GITEA_OIDC_CLIENT_SECRET in Infisical"
+      verify:
+        - "curl -H 'Authorization: Bearer $AK_TOKEN' http://192.168.55.211:9000/api/v3/providers/oauth2/ | jq '.results[].name' — includes Gitea"
+        - "Infisical → GITEA_OIDC_CLIENT_SECRET exists"
+      status: done
+      ```
+  - id: P1.T2.S2
+    text: |-
+      Research Gitea Helm chart
+
+
+      ```bash
+      helm repo add gitea-charts https://dl.gitea.com/charts/
+      helm show values gitea-charts/gitea > /tmp/gitea-defaults.yaml
+      ```
+
+      Review `/tmp/gitea-defaults.yaml` for: `persistence`, `postgresql`, `gitea.config`, `service`, `nodeSelector`, `gitea.admin`, and `gitea.oauth`. Find the exact key paths for OIDC config and admin secret. Also check: `helm search repo gitea-charts/gitea --versions | head -5` to pin the chart version.
+  - id: P1.T2.S3
+    text: |-
+      Create ExternalSecret
+
+
+      Create `apps/gitea/manifests/externalsecret-gitea.yaml`:
+
+      ```yaml
+      # Syncs Gitea secrets from Infisical.
+      # admin-password: bootstrap admin account
+      # oidc-client-secret: Authentik OIDC integration
+      # github-mirror-token: GitHub PAT for pull mirrors
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: gitea-secrets
+        namespace: gitea
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: gitea-secrets
+          creationPolicy: Owner
+        data:
+          - secretKey: admin-password
+            remoteRef:
+              key: GITEA_ADMIN_PASSWORD
+          - secretKey: oidc-client-secret
+            remoteRef:
+              key: GITEA_OIDC_CLIENT_SECRET
+          - secretKey: github-mirror-token
+            remoteRef:
+              key: GITHUB_MIRROR_TOKEN
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Create Helm values
+
+
+      Create `apps/gitea/values.yaml`. Adjust key paths based on Step 2 research. This is the target structure:
+
+      ```yaml
+      # Gitea — self-hosted Git forge, GitHub mirror
+      # Exposed at 192.168.55.209:3000 (HTTP) and :2222 (SSH)
+      # Runs on pc-1 with Longhorn-CICD storage (single replica)
+
+      gitea:
+        admin:
+          existingSecret: gitea-secrets
+          # Keys: admin-password (from ExternalSecret)
+
+        config:
+          server:
+            DOMAIN: 192.168.55.209
+            ROOT_URL: http://192.168.55.209:3000/
+            SSH_DOMAIN: 192.168.55.209
+            SSH_PORT: 2222
+            LFS_START_SERVER: true
+
+          oauth2:
+            ENABLE: true
+
+          openid:
+            ENABLE_OPENID_SIGNIN: true
+
+          service:
+            DISABLE_REGISTRATION: false
+            ALLOW_ONLY_EXTERNAL_REGISTRATION: true
+            SHOW_REGISTRATION_BUTTON: false
+
+          repository:
+            DEFAULT_BRANCH: main
+
+          mirror:
+            ENABLED: true
+            DEFAULT_INTERVAL: 10m
+
+        oauth:
+          - name: authentik
+            provider: openidConnect
+            existingSecret: gitea-secrets
+            # Keys will depend on chart version — research in Step 2
+            # Typically: key (client ID) and secret (client secret)
+            autoDiscoverUrl: "http://192.168.55.211:9000/application/o/gitea/.well-known/openid-configuration"
+            iconUrl: "https://goauthentik.io/img/icon.png"
+            scopes: "openid email profile"
+            groupClaimName: "groups"
+            adminGroup: "authentik Admins"
+
+      service:
+        http:
+          type: LoadBalancer
+          port: 3000
+          annotations:
+            lbipam.cilium.io/ips: "192.168.55.209"
+        ssh:
+          type: LoadBalancer
+          port: 2222
+          annotations:
+            lbipam.cilium.io/ips: "192.168.55.209"
+
+      persistence:
+        enabled: true
+        size: 10Gi
+        storageClass: longhorn-cicd
+        accessModes:
+          - ReadWriteOnce
+
+      strategy:
+        type: Recreate
+
+      # SQLite — no PostgreSQL needed for single-user homelab
+      postgresql:
+        enabled: false
+
+      postgresql-ha:
+        enabled: false
+
+      nodeSelector:
+        kubernetes.io/hostname: pc-1
+      ```
+
+      Note: The `gitea.oauth` section syntax varies between chart versions. Key points to verify in Step 2:
+      - The `existingSecret` key for OAuth may use `key` (client ID) and `secret` (client secret) as subkeys
+      - The client ID is not sensitive — it can be hardcoded in values.yaml if the chart supports separate `key`/`existingSecret` fields. If the chart requires both in the secret, add `GITEA_OIDC_CLIENT_ID` to Infisical and the ExternalSecret
+      - The Authentik auto-discovery URL follows the pattern `http://<authentik-ip>:9000/application/o/<slug>/.well-known/openid-configuration`
+  - id: P1.T2.S5
+    text: |-
+      Create ArgoCD Application CR for Helm chart
+
+
+      Create `apps/root/templates/gitea.yaml`:
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: gitea
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        sources:
+          - repoURL: https://dl.gitea.com/charts/
+            chart: gitea
+            targetRevision: "11.0.0"  # Pin to latest stable — verify in Step 2
+            helm:
+              releaseName: gitea
+              valueFiles:
+                - $values/apps/gitea/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: gitea
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            jsonPointers:
+              - /data
+      ```
+  - id: P1.T2.S6
+    text: |-
+      Create ArgoCD Application CR for extras (manifests)
+
+
+      Create `apps/root/templates/gitea-extras.yaml`:
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: gitea-extras
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/gitea/manifests
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: gitea
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+      ```
+  - id: P1.T2.S7
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/gitea/ apps/root/templates/gitea.yaml apps/root/templates/gitea-extras.yaml
+      git commit -m "feat(cicd): add Gitea git forge with Authentik OIDC"
+      ```
+  - id: P1.T2.S8
+    text: |-
+      Push and verify
+
+
+      ```bash
+      git push
+      # Wait for ArgoCD sync
+      argocd app get gitea --port-forward --port-forward-namespace argocd
+      argocd app get gitea-extras --port-forward --port-forward-namespace argocd
+      kubectl get pods -n gitea
+      # Expect: gitea-0 Running (or gitea-<hash> if Deployment, not StatefulSet)
+      curl -s http://192.168.55.209:3000/api/v1/version
+      # Expect: {"version":"..."}
+      ```
+  - id: P1.T2.S9
+    text: |-
+      Verify Authentik OIDC login
+
+
+      1. Open `http://192.168.55.209:3000` in a browser
+      2. Click "Sign in with authentik" (or similar OIDC button)
+      3. Authenticate via Authentik
+      4. Verify account is auto-created in Gitea
+
+      If OIDC fails, check:
+      - Authentik provider redirect URI matches exactly
+      - Gitea logs: `kubectl logs -n gitea deploy/gitea` (or statefulset)
+      - Auto-discovery URL is reachable from within the Gitea pod: `kubectl exec -n gitea <pod> -- wget -qO- http://192.168.55.211:9000/application/o/gitea/.well-known/openid-configuration`
+
+      ---
+state:
+  steps:
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S9:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

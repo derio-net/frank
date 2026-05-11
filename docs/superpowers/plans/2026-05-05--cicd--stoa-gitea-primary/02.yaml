@@ -1,0 +1,515 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Per-repo CI pipelines
+  tag: agentic
+  depends_on:
+  - 0
+  tracking_issue: https://github.com/derio-net/frank/issues/231
+tasks:
+- number: 1
+  title: hum-ci Pipeline
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Create the Pipeline manifest
+
+
+        Create `apps/tekton/pipelines/hum-ci.yaml`:
+
+      ```
+      BEGIN_FILE apps/tekton/pipelines/hum-ci.yaml
+      # CI for agentic-stoa/hum: npm install + typecheck + test across workspaces.
+      apiVersion: tekton.dev/v1
+      kind: Pipeline
+      metadata:
+        name: hum-ci
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: repo-url
+            type: string
+          - name: revision
+            type: string
+          - name: repo-full-name
+            type: string
+        workspaces:
+          - name: shared-workspace
+        tasks:
+          - name: clone
+            taskRef:
+              name: git-clone
+            params:
+              - name: url
+                value: $(params.repo-url)
+              - name: revision
+                value: $(params.revision)
+            workspaces:
+              - name: output
+                workspace: shared-workspace
+          - name: test
+            runAfter: ["clone"]
+            workspaces:
+              - name: source
+                workspace: shared-workspace
+            taskSpec:
+              workspaces:
+                - name: source
+              steps:
+                - name: npm-test
+                  image: node:22-alpine
+                  workingDir: $(workspaces.source.path)
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    runAsNonRoot: true
+                    runAsUser: 1000
+                    capabilities:
+                      drop: ["ALL"]
+                    seccompProfile:
+                      type: RuntimeDefault
+                  env:
+                    - name: HOME
+                      value: /tekton/home
+                    - name: npm_config_cache
+                      value: /tekton/home/.npm
+                  computeResources:
+                    requests:
+                      cpu: 500m
+                      memory: 1Gi
+                    limits:
+                      memory: 2Gi
+                  script: |
+                    #!/bin/sh
+                    set -eu
+                    run_in() {
+                      d="$1"
+                      echo "=== $d ==="
+                      cd "$d"
+                      if [ -f package-lock.json ]; then npm ci; else npm install; fi
+                      npm pkg get scripts.typecheck >/dev/null 2>&1 && npm run typecheck || echo "no typecheck script in $d"
+                      npm pkg get scripts.test >/dev/null 2>&1 && npm test || echo "no test script in $d"
+                      cd - >/dev/null
+                    }
+                    run_in .
+                    for ws in backend shared; do
+                      [ -f "$ws/package.json" ] && run_in "$ws"
+                    done
+        finally:
+          - name: report-success
+            when:
+              - input: $(tasks.status)
+                operator: in
+                values: ["Succeeded", "Completed"]
+            taskRef:
+              name: gitea-status
+            params:
+              - name: repo-full-name
+                value: $(params.repo-full-name)
+              - name: revision
+                value: $(params.revision)
+              - name: state
+                value: "success"
+              - name: description
+                value: "All checks passed"
+              - name: context
+                value: "tekton/ci"
+          - name: report-failure
+            when:
+              - input: $(tasks.status)
+                operator: notin
+                values: ["Succeeded", "Completed"]
+            taskRef:
+              name: gitea-status
+            params:
+              - name: repo-full-name
+                value: $(params.repo-full-name)
+              - name: revision
+                value: $(params.revision)
+              - name: state
+                value: "failure"
+              - name: description
+                value: "CI failed"
+              - name: context
+                value: "tekton/ci"
+      END_FILE
+      ```
+
+        Note: the `tekton/ci` context name matches the required-status-check pattern referenced by Gitea branch protection in Phase 3 Task 7.
+- number: 2
+  title: content-factory-ci Pipeline
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Create the Pipeline manifest
+
+
+        Create `apps/tekton/pipelines/content-factory-ci.yaml`:
+
+      ```
+      BEGIN_FILE apps/tekton/pipelines/content-factory-ci.yaml
+      # CI for agentic-stoa/content-factory: pip install + pytest.
+      apiVersion: tekton.dev/v1
+      kind: Pipeline
+      metadata:
+        name: content-factory-ci
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: repo-url
+            type: string
+          - name: revision
+            type: string
+          - name: repo-full-name
+            type: string
+        workspaces:
+          - name: shared-workspace
+        tasks:
+          - name: clone
+            taskRef:
+              name: git-clone
+            params:
+              - name: url
+                value: $(params.repo-url)
+              - name: revision
+                value: $(params.revision)
+            workspaces:
+              - name: output
+                workspace: shared-workspace
+          - name: test
+            runAfter: ["clone"]
+            workspaces:
+              - name: source
+                workspace: shared-workspace
+            taskSpec:
+              workspaces:
+                - name: source
+              steps:
+                - name: pytest
+                  image: python:3.13-slim
+                  workingDir: $(workspaces.source.path)
+                  securityContext:
+                    allowPrivilegeEscalation: false
+                    runAsNonRoot: true
+                    runAsUser: 1000
+                    capabilities:
+                      drop: ["ALL"]
+                    seccompProfile:
+                      type: RuntimeDefault
+                  env:
+                    - name: HOME
+                      value: /tekton/home
+                    - name: PIP_CACHE_DIR
+                      value: /tekton/home/.pip-cache
+                  computeResources:
+                    requests:
+                      cpu: 500m
+                      memory: 512Mi
+                    limits:
+                      memory: 2Gi
+                  script: |
+                    #!/bin/sh
+                    set -eu
+                    python -m venv /tekton/home/venv
+                    . /tekton/home/venv/bin/activate
+                    pip install --upgrade pip
+                    [ -f requirements.txt ] && pip install -r requirements.txt
+                    [ -f requirements-dev.txt ] && pip install -r requirements-dev.txt || true
+                    pytest -v
+        finally:
+          - name: report-success
+            when:
+              - input: $(tasks.status)
+                operator: in
+                values: ["Succeeded", "Completed"]
+            taskRef:
+              name: gitea-status
+            params:
+              - name: repo-full-name
+                value: $(params.repo-full-name)
+              - name: revision
+                value: $(params.revision)
+              - name: state
+                value: "success"
+              - name: description
+                value: "All checks passed"
+              - name: context
+                value: "tekton/ci"
+          - name: report-failure
+            when:
+              - input: $(tasks.status)
+                operator: notin
+                values: ["Succeeded", "Completed"]
+            taskRef:
+              name: gitea-status
+            params:
+              - name: repo-full-name
+                value: $(params.repo-full-name)
+              - name: revision
+                value: $(params.revision)
+              - name: state
+                value: "failure"
+              - name: description
+                value: "CI failed"
+              - name: context
+                value: "tekton/ci"
+      END_FILE
+      ```
+- number: 3
+  title: Per-repo CI TriggerTemplates
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Append two new TriggerTemplates to eventlistener.yaml
+
+
+        At the bottom of `apps/tekton/triggers/eventlistener.yaml` (after `agentic-stoa-backup-template` from Phase 1), append:
+
+      ```yaml
+      ---
+      apiVersion: triggers.tekton.dev/v1beta1
+      kind: TriggerTemplate
+      metadata:
+        name: hum-ci-template
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: repo-url
+          - name: revision
+          - name: repo-full-name
+          - name: branch
+        resourcetemplates:
+          - apiVersion: tekton.dev/v1
+            kind: PipelineRun
+            metadata:
+              generateName: hum-ci-
+              namespace: tekton-pipelines
+            spec:
+              pipelineRef:
+                name: hum-ci
+              params:
+                - name: repo-url
+                  value: $(tt.params.repo-url)
+                - name: revision
+                  value: $(tt.params.revision)
+                - name: repo-full-name
+                  value: $(tt.params.repo-full-name)
+              taskRunTemplate:
+                podTemplate:
+                  securityContext:
+                    fsGroup: 65534
+              workspaces:
+                - name: shared-workspace
+                  volumeClaimTemplate:
+                    spec:
+                      accessModes:
+                        - ReadWriteOnce
+                      storageClassName: longhorn-cicd
+                      resources:
+                        requests:
+                          storage: 2Gi
+      ---
+      apiVersion: triggers.tekton.dev/v1beta1
+      kind: TriggerTemplate
+      metadata:
+        name: content-factory-ci-template
+        namespace: tekton-pipelines
+      spec:
+        params:
+          - name: repo-url
+          - name: revision
+          - name: repo-full-name
+          - name: branch
+        resourcetemplates:
+          - apiVersion: tekton.dev/v1
+            kind: PipelineRun
+            metadata:
+              generateName: content-factory-ci-
+              namespace: tekton-pipelines
+            spec:
+              pipelineRef:
+                name: content-factory-ci
+              params:
+                - name: repo-url
+                  value: $(tt.params.repo-url)
+                - name: revision
+                  value: $(tt.params.revision)
+                - name: repo-full-name
+                  value: $(tt.params.repo-full-name)
+              taskRunTemplate:
+                podTemplate:
+                  securityContext:
+                    fsGroup: 65534
+              workspaces:
+                - name: shared-workspace
+                  volumeClaimTemplate:
+                    spec:
+                      accessModes:
+                        - ReadWriteOnce
+                      storageClassName: longhorn-cicd
+                      resources:
+                        requests:
+                          storage: 2Gi
+      ```
+- number: 4
+  title: Per-repo CI Triggers
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      Append the two CI Triggers inside spec.triggers
+
+
+        In the EventListener's `spec.triggers` list (after `agentic-stoa-backup` from Phase 1), append:
+
+      ```yaml
+          - name: agentic-stoa-hum-ci
+            interceptors:
+              - ref:
+                  name: "cel"
+                params:
+                  - name: "filter"
+                    value: >-
+                      header.match('X-Gitea-Event', 'push') &&
+                      body.repository.full_name == 'agentic-stoa/hum'
+                  - name: "overlays"
+                    value:
+                      - key: branch_name
+                        expression: "body.ref.split('/')[2]"
+              - ref:
+                  name: "cel"
+                params:
+                  - name: "filter"
+                    value: >-
+                      extensions.branch_name != ''
+            bindings:
+              - ref: gitea-push-binding
+            template:
+              ref: hum-ci-template
+          - name: agentic-stoa-content-factory-ci
+            interceptors:
+              - ref:
+                  name: "cel"
+                params:
+                  - name: "filter"
+                    value: >-
+                      header.match('X-Gitea-Event', 'push') &&
+                      body.repository.full_name == 'agentic-stoa/content-factory'
+                  - name: "overlays"
+                    value:
+                      - key: branch_name
+                        expression: "body.ref.split('/')[2]"
+              - ref:
+                  name: "cel"
+                params:
+                  - name: "filter"
+                    value: >-
+                      extensions.branch_name != ''
+            bindings:
+              - ref: gitea-push-binding
+            template:
+              ref: content-factory-ci-template
+      ```
+- number: 5
+  title: Scope existing gitea-push trigger to non-stoa repos
+  steps:
+  - id: P2.T5.S1
+    text: |-
+      Add agentic-stoa exclusion to existing trigger filter
+
+
+        In `apps/tekton/triggers/eventlistener.yaml`, find the existing `gitea-push` trigger's first CEL filter:
+
+      ```yaml
+                  - name: "filter"
+                    value: >-
+                      header.match('X-Gitea-Event', 'push')
+      ```
+
+        Replace with:
+
+      ```yaml
+                  - name: "filter"
+                    value: >-
+                      header.match('X-Gitea-Event', 'push') &&
+                      !body.repository.full_name.startsWith('agentic-stoa/')
+      ```
+- number: 6
+  title: Commit, sync, and verify
+  steps:
+  - id: P2.T6.S1
+    text: |-
+      Commit changes
+
+
+      ```bash
+      cd ~/repos/frank
+      git add apps/tekton/pipelines/hum-ci.yaml \
+              apps/tekton/pipelines/content-factory-ci.yaml \
+              apps/tekton/triggers/eventlistener.yaml
+      git commit -m "feat(cicd): per-repo CI pipelines for agentic-stoa hum and content-factory"
+      git push
+      ```
+  - id: P2.T6.S2
+    text: |-
+      Verify resources synced
+
+
+      ```bash
+      sleep 30
+      kubectl --context frank get pipeline -n tekton-pipelines hum-ci content-factory-ci
+      # Expect: both returned
+
+      kubectl --context frank get triggertemplate -n tekton-pipelines | grep -E "hum-ci-template|content-factory-ci-template|agentic-stoa-backup-template"
+      # Expect: 3 templates listed (backup from Phase 1, plus two CI from this phase)
+
+      kubectl --context frank get eventlistener -n tekton-pipelines gitea-listener \
+        -o jsonpath='{range .spec.triggers[*]}{.name}{"\n"}{end}'
+      # Expect: gitea-push, agentic-stoa-backup, agentic-stoa-hum-ci, agentic-stoa-content-factory-ci
+      ```
+  - id: P2.T6.S3
+    text: |-
+      Confirm EventListener pod healthy after re-render
+
+
+      ```bash
+      kubectl --context frank logs -n tekton-pipelines deploy/el-gitea-listener --tail=30 | grep -iE "error|panic|cel" || echo "no errors"
+      ```
+
+      ---
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T6.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T6.S3:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

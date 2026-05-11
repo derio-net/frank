@@ -1,0 +1,161 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Option B1 — `max_concurrent_executions` cap
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: https://github.com/derio-net/frank/issues/155
+tasks:
+- number: 1
+  title: Add the cap to the vibe-kanban fork (agent-images repo)
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Bump config schema v8 → v9
+
+
+      Add `max_concurrent_executions: Option<usize>` to the binary's config struct. Default: `None` (current unbounded behavior — backwards-compatible for non-Frank users of the fork). Run the existing migration test suite to confirm v8 configs load cleanly on v9.
+  - id: P4.T1.S2
+    text: |-
+      Add env-var fallback
+
+
+      At process startup, after config load, if `VK_MAX_CONCURRENT_EXECUTIONS` is set in the environment, parse and use it (overriding any config-file value). This avoids needing a config-file mount on Frank.
+  - id: P4.T1.S3
+    text: |-
+      Wrap executor spawn in a counting semaphore
+
+
+      In the executor's spawn path (whatever module hosts the `claude` / `npm` / `node` fork logic — locate via `grep -rn 'tokio::process\|Command::new' src/`), acquire a permit from a `tokio::sync::Semaphore` sized to the cap. Permits are released on child exit. When all permits are taken, the next spawn awaits in the queue — do not error.
+  - id: P4.T1.S4
+    text: |-
+      Add structured queue logs
+
+
+        On every spawn that has to wait, emit a structured log line:
+
+      ```json
+      {"event":"execution_queued","waiting":N,"max":M,"task_id":"..."}
+      ```
+
+        This is the cap's primary observability surface until Step 5 ships.
+  - id: P4.T1.S5
+    text: |-
+      Add `/metrics` endpoint
+
+
+      Expose three Prometheus gauges on the existing 8081 listener:
+      - `vibekanban_active_executions`
+      - `vibekanban_queued_executions`
+      - `vibekanban_max_executions`
+
+      Path: `/metrics`. Use the existing axum/hyper router (whichever vibe-kanban already uses). No labels yet.
+  - id: P4.T1.S6
+    text: |-
+      Open PR in agent-images. Tests must cover: missing field / `null` (treated as `None`, no cap, current behavior), `cap=1` (serialization round-trip), and `cap=N` with N+1 concurrent spawns (queueing — the (N+1)th must wait until one permit is released, not error). `cap=0` should be rejected at config-load with a clear error (degenerate "never spawn anything"). Reviewer should verify the v8→v9 migration works on a recorded v8 config.
+- number: 2
+  title: Surface the env var on Frank
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Edit `apps/secure-agent-pod/manifests/deployment.yaml`
+
+
+        In the `vk-local` container's `env:` block, add:
+
+      ```yaml
+      - name: VK_MAX_CONCURRENT_EXECUTIONS
+        value: "4"
+      ```
+
+        Cap rationale (per spec): saturated-idle ~220 MiB + 4 × 480 MiB = ~2,140 MiB worst-case live cgroup. Fits in 3 Gi with margin; the unchanged 8 Gi limit becomes a deep safety net.
+  - id: P4.T2.S2
+    text: |-
+      Add a `VMPodScrape` for the new endpoint
+
+
+        Create `apps/secure-agent-pod/manifests/vmpodscrape.yaml`:
+
+      ```yaml
+      apiVersion: operator.victoriametrics.com/v1beta1
+      kind: VMPodScrape
+      metadata:
+        name: vk-local
+        namespace: secure-agent-pod
+      spec:
+        selector:
+          matchLabels:
+            app: secure-agent-pod
+        podMetricsEndpoints:
+          - port: vk-http
+            path: /metrics
+            interval: 30s
+      ```
+
+        Verify the port name `vk-http` matches the Deployment's container port. Commit. ArgoCD syncs.
+  - id: P4.T2.S3
+    text: |-
+      Verify metrics arrive
+
+
+      ```bash
+      kubectl -n monitoring exec vmagent-victoria-metrics-victoria-metrics-k8s-stack-* -c vmagent -- \
+        wget -qO- 'http://vmsingle-victoria-metrics-victoria-metrics-k8s-stack:8428/api/v1/query?query=vibekanban_max_executions'
+      ```
+
+        Expect a single result with value `4`. If empty, debug the VMPodScrape selector / port-name match.
+  - id: P4.T2.S4
+    text: |-
+      Add a Grafana panel for queue depth
+
+
+        Add to the secure-agent-pod operating dashboard: a stat panel `vibekanban_queued_executions` and a time-series of `vibekanban_active_executions` vs `vibekanban_max_executions`.
+
+      ---
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T1.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T1.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T1.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

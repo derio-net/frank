@@ -1,0 +1,57 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Soak + dial-back assessment
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  tracking_issue: https://github.com/derio-net/frank/issues/156
+tasks:
+- number: 1
+  title: Collect soak data
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Daily checks
+
+
+        For 14 days from Phase 4 Task 2 merge:
+
+      ```bash
+      # Restart count (must remain at the Phase 1 baseline)
+      kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
+        -o jsonpath='{.items[0].status.containerStatuses[?(@.name=="vk-local")].restartCount}'
+
+      # Daily p99 working-set
+      # (run in Grafana — or curl vmsingle from inside-cluster)
+      quantile_over_time(0.99, container_memory_working_set_bytes{namespace="secure-agent-pod", container="vk-local"}[1d])
+
+      # Queue depth peak
+      max_over_time(vibekanban_queued_executions[1d])
+      ```
+  - id: P5.T1.S2
+    text: |-
+      Record findings
+
+
+      Append a `## Phase 5 Soak Log` section at the bottom of this plan, one row per day.
+- number: 2
+  title: Decision and follow-up PR
+  steps: []
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

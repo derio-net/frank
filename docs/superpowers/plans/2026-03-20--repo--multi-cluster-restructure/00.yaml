@@ -1,0 +1,102 @@
+schema_version: 2
+phase:
+  number: 0
+  title: File Restructure
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Move directories and update all file-level path references
+  steps:
+  - id: P0.T1.S1
+    text: |-
+      Move directories
+
+
+      ```bash
+      mkdir -p clusters/frank
+      git mv apps clusters/frank/apps
+      git mv patches clusters/frank/patches
+      ```
+  - id: P0.T1.S2
+    text: |-
+      Update all Application CR template paths
+
+
+      Every template in `clusters/frank/apps/root/templates/` that references `apps/<app>/values.yaml` or `apps/<app>/manifests` needs the path prefixed with `clusters/frank/`.
+
+      For Helm-based apps (using `$values` ref):
+      ```
+      $values/apps/<app>/values.yaml  →  $values/clusters/frank/apps/<app>/values.yaml
+      ```
+
+      For raw manifest apps (using `path`):
+      ```
+      path: apps/<app>/manifests  →  path: clusters/frank/apps/<app>/manifests
+      ```
+
+      Update all templates. Use a script:
+
+      ```bash
+      cd clusters/frank/apps/root/templates
+      # Fix $values/ references
+      sed -i '' 's|\$values/apps/|\$values/clusters/frank/apps/|g' *.yaml
+      # Fix path: references
+      sed -i '' 's|path: apps/|path: clusters/frank/apps/|g' *.yaml
+      ```
+
+      Verify with:
+      ```bash
+      grep -r 'apps/' clusters/frank/apps/root/templates/ | grep -v 'clusters/frank/apps/'
+      ```
+
+      Expected: No output (all paths updated).
+  - id: P0.T1.S3
+    text: |-
+      Update Omni config patch paths
+
+
+      ```bash
+      # List current patches
+      omnictl get configpatches
+
+      # For each patch, export, update path references, and re-apply
+      # Example for one patch:
+      # omnictl get configpatch <PATCH_ID> -o yaml > /tmp/patch.yaml
+      # (edit path if needed)
+      # omnictl apply -f /tmp/patch.yaml
+      ```
+  - id: P0.T1.S4
+    text: |-
+      Commit the restructure as a single atomic commit
+
+
+      ```bash
+      git add -A
+      git commit -m "refactor: restructure repo to multi-cluster monorepo (apps/ → clusters/frank/apps/)"
+      ```
+
+      ---
+state:
+  steps:
+    P0.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,415 @@
+schema_version: 2
+phase:
+  number: 2
+  title: LiteLLM Canary
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 6
+  title: Pin image tag and fix ArgoCD ignoreDifferences
+  steps:
+  - id: P2.T6.S1
+    text: |-
+      Find the current LiteLLM stable release
+
+
+      ```bash
+      # Check https://github.com/BerriAI/litellm/releases for the latest tagged release
+      # Use the tag that matches the current container image version, not main-stable
+      ```
+  - id: P2.T6.S2
+    text: |-
+      Pin image tag in apps/litellm/values.yaml
+
+
+      Change:
+
+      ```yaml
+      image:
+        repository: ghcr.io/berriai/litellm-database
+        tag: main-stable
+        pullPolicy: Always
+      ```
+
+      To:
+
+      ```yaml
+      image:
+        repository: ghcr.io/berriai/litellm-database
+        tag: "v1.x.x"    # replace with actual version from Step 1
+        pullPolicy: IfNotPresent
+      ```
+  - id: P2.T6.S3
+    text: |-
+      Add ignoreDifferences for Deployment spec.replicas
+
+
+      In `apps/root/templates/litellm.yaml`, the existing `ignoreDifferences` covers Secrets. Add a second entry for the Deployment. The final `ignoreDifferences` block should read:
+
+      ```yaml
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            jsonPointers:
+              - /data
+          - group: apps
+            kind: Deployment
+            name: litellm
+            namespace: litellm
+            jsonPointers:
+              - /spec/replicas
+      ```
+
+      > **Note:** `group: apps` is required (not `group: ""`). Omitting it causes the rule to not match and ArgoCD continues fighting the Rollout controller.
+  - id: P2.T6.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/litellm/values.yaml apps/root/templates/litellm.yaml
+      git commit -m "feat(deploy): pin litellm tag and suppress spec.replicas ignoreDiff for workloadRef"
+      ```
+
+      ---
+- number: 7
+  title: Discover service names and VictoriaMetrics URL
+  steps:
+  - id: P2.T7.S1
+    text: |-
+      Find the LiteLLM stable service name
+
+
+      ```bash
+      source .env
+      kubectl get svc -n litellm
+      # Note the service name (expected: "litellm") and the exact selector labels it uses
+      kubectl get svc litellm -n litellm -o yaml | grep -A5 selector
+      ```
+  - id: P2.T7.S2
+    text: |-
+      Find LiteLLM pod labels
+
+
+      ```bash
+      kubectl get pods -n litellm --show-labels
+      # Note the exact label key=value pairs — the canary service selector must match these
+      ```
+  - id: P2.T7.S3
+    text: |-
+      Find the VictoriaMetrics service URL
+
+
+      ```bash
+      kubectl get svc -n monitoring | grep -i victoria
+      # Look for the VMSingle server service
+      kubectl run vmtest --image=curlimages/curl --rm -it --restart=Never -- \
+        curl -s "http://<service-name>.monitoring.svc.cluster.local:8428/api/v1/query?query=up"
+      # Expected: {"status":"success",...}
+      # Note the full URL for use in analysis-template.yaml
+      ```
+  - id: P2.T7.S4
+    text: |-
+      Verify LiteLLM exposes metrics
+
+
+      ```bash
+      kubectl exec -n litellm deploy/litellm -- curl -s localhost:4000/metrics 2>/dev/null | grep litellm_request || echo "No metrics endpoint"
+      # If no metrics: LiteLLM may need PROMETHEUS_URL env var or metrics enabled in config
+      # Adjust the PromQL query in the analysis template accordingly
+      ```
+
+      ---
+- number: 8
+  title: LiteLLM canary service and analysis template
+  steps:
+  - id: P2.T8.S1
+    text: |-
+      Create service-canary.yaml
+
+
+      Use the pod labels discovered in Task 7 Step 2. The Rollout controller will manage the selector (adding `rollouts-pod-template-hash`) — set the base labels only here.
+
+      ```yaml
+      # ClusterIP canary service for LiteLLM
+      # Argo Rollouts manages selector to point at canary pods via rollouts-pod-template-hash
+      # The Cilium plugin creates a CiliumEnvoyConfig to split traffic between
+      # this service (canary) and the stable service (litellm, LB 55.206)
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: litellm-canary
+        namespace: litellm
+      spec:
+        type: ClusterIP
+        ports:
+          - name: http
+            port: 4000
+            targetPort: 4000
+            protocol: TCP
+        selector:
+          app: litellm   # verify against Task 7 Step 2 — use the chart's actual pod label
+      ```
+  - id: P2.T8.S2
+    text: |-
+      Create analysis-template.yaml
+
+
+      Replace `<vm-service-url>` with the URL from Task 7 Step 3:
+
+      ```yaml
+      # AnalysisTemplate: LiteLLM error rate via VictoriaMetrics Prometheus API
+      # Runs 5 x 1-minute intervals (5 min total) at each canary step
+      # inconclusiveCondition: NaN result = 0 traffic (sparse homelab) → pause, not abort
+      # inconclusiveLimit: 3 = after 15 min with no traffic, abort and hold rollout
+      apiVersion: argoproj.io/v1alpha1
+      kind: AnalysisTemplate
+      metadata:
+        name: litellm-error-rate
+        namespace: litellm
+      spec:
+        metrics:
+          - name: error-rate
+            interval: 1m
+            count: 5
+            inconclusiveLimit: 3
+            successCondition: "result < 0.05"
+            failureCondition: "result >= 0.05"
+            inconclusiveCondition: "isNaN(result)"
+            provider:
+              prometheus:
+                address: "<vm-service-url>"
+                query: |
+                  sum(rate(litellm_request_total{status=~"5.."}[5m]))
+                  /
+                  sum(rate(litellm_request_total[5m]))
+      ```
+  - id: P2.T8.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/litellm/manifests/service-canary.yaml apps/litellm/manifests/analysis-template.yaml
+      git commit -m "feat(deploy): add litellm canary service and VictoriaMetrics analysis template"
+      ```
+
+      ---
+- number: 9
+  title: LiteLLM Rollout with workloadRef
+  steps:
+  - id: P2.T9.S1
+    text: |-
+      Create rollout.yaml
+
+
+      Use the stable service name confirmed in Task 7 Step 1 (expected: `litellm`):
+
+      ```yaml
+      # Argo Rollouts canary for LiteLLM Gateway
+      #
+      # workloadRef: Rollout reads pod template from the Helm chart's Deployment.
+      # The Deployment is scaled to 0 — this is expected and correct.
+      # ArgoCD ignoreDifferences on apps/Deployment/spec.replicas prevents fight.
+      #
+      # Canary steps:
+      #   20% → manual pause (wait for consumers to be active) → 5-min VictoriaMetrics analysis →
+      #   50% → manual pause → 5-min analysis →
+      #   100% (full promotion)
+      #
+      # Traffic: Cilium plugin creates CiliumEnvoyConfig weighting litellm:litellm-canary.
+      # If L2 LB + CiliumEnvoyConfig is incompatible (uncommon config), fallback:
+      #   change litellm service to ClusterIP + add separate LB service for 55.206 IP.
+      apiVersion: argoproj.io/v1alpha1
+      kind: Rollout
+      metadata:
+        name: litellm
+        namespace: litellm
+      spec:
+        replicas: 1
+        workloadRef:
+          apiVersion: apps/v1
+          kind: Deployment
+          name: litellm
+        strategy:
+          canary:
+            stableService: litellm       # Helm chart service, LoadBalancer 55.206
+            canaryService: litellm-canary  # new ClusterIP service
+            trafficRouting:
+              plugins:
+                argoproj-labs/cilium: {}
+            steps:
+              - setWeight: 20
+              - pause: {}                    # advance: kubectl argo rollouts promote litellm -n litellm
+              - analysis:
+                  templates:
+                    - templateName: litellm-error-rate
+              - setWeight: 50
+              - pause: {}
+              - analysis:
+                  templates:
+                    - templateName: litellm-error-rate
+      ```
+  - id: P2.T9.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/litellm/manifests/rollout.yaml
+      git commit -m "feat(deploy): add litellm Rollout with workloadRef and Cilium canary strategy"
+      ```
+
+      ---
+- number: 10
+  title: Deploy and verify Phase 2
+  steps:
+  - id: P2.T10.S1
+    text: |-
+      Push and sync
+
+
+      ```bash
+      git push
+      source .env
+      argocd app sync litellm --port-forward --port-forward-namespace argocd
+      argocd app sync litellm-extras --port-forward --port-forward-namespace argocd
+      ```
+  - id: P2.T10.S2
+    text: |-
+      Verify Deployment is at 0 and Rollout is healthy
+
+
+      ```bash
+      kubectl get deployment litellm -n litellm
+      # Expected: READY 0/0 (Rollout controller took over)
+      kubectl argo rollouts get rollout litellm -n litellm
+      # Expected: Phase: Healthy, pods running under Rollout
+      ```
+  - id: P2.T10.S3
+    text: |-
+      Verify LiteLLM is still accessible
+
+
+      ```bash
+      curl -s http://192.168.55.206:4000/health
+      # Expected: 200 response
+      ```
+  - id: P2.T10.S4
+    text: |-
+      Trigger a test canary
+
+
+      ```bash
+      # Bump image tag by one patch version to trigger a rollout
+      # Update tag in apps/litellm/values.yaml, commit, push, then:
+      kubectl argo rollouts get rollout litellm -n litellm --watch
+      # Expected: shows 20% canary weight, status: Paused
+
+      # Check CiliumEnvoyConfig was created
+      kubectl get ciliumenvoyconfig -n litellm
+      # Expected: one object created by the Cilium plugin
+
+      # When ready to advance (consumers active):
+      kubectl argo rollouts promote litellm -n litellm
+      # Analysis runs for 5 min — watch with --watch flag
+
+      # Abort if testing (returns to stable)
+      kubectl argo rollouts abort litellm -n litellm
+      ```
+
+      > **If CiliumEnvoyConfig is created but traffic split is not working:**
+      > The L2 LB service may not be intercepted by the Envoy filter. Fallback:
+      > 1. Change `apps/litellm/manifests/` to add a new `Service/litellm-stable` (ClusterIP) and a `Service/litellm-lb` (LoadBalancer) pointing at the ClusterIP
+      > 2. Update `stableService: litellm-stable` in rollout.yaml
+      > 3. Update the LB IP annotation on the new LoadBalancer service
+  - id: P2.T10.S5
+    text: |-
+      Commit any fixes
+
+
+      ```bash
+      git add -p
+      git commit -m "fix(deploy): <describe what needed fixing>"
+      ```
+
+      ---
+state:
+  steps:
+    P2.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T6.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T6.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T6.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T7.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T7.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T8.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T8.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T8.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T9.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T9.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T10.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T10.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T10.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T10.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T10.S5:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -489,6 +489,6 @@ status: pending
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| CI/CD Platform Implementation Plan |  | `docs/superpowers/plans/2026-03-29--cicd--platform.md` | Complete | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| CI/CD Platform Implementation Plan |  | `docs/superpowers/plans/2026-03-29--cicd--platform.md` | — |

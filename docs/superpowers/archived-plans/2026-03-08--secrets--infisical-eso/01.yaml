@@ -1,0 +1,47 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Secrets Management Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Discover Chart Versions
+  steps: []
+- number: 2
+  title: Deploy ESO (External Secrets Operator)
+  steps: []
+- number: 3
+  title: Deploy Infisical
+  steps: []
+- number: 4
+  title: Create Infisical Bootstrap Secret (SOPS)
+  steps: []
+- number: 5
+  title: Push and Verify ESO + Infisical Deploy
+  steps: []
+- number: 6
+  title: Infisical UI Setup (Manual)
+  steps: []
+- number: 7
+  title: Create and Apply ESO Credentials Secret (SOPS)
+  steps: []
+- number: 8
+  title: Create ClusterSecretStore and infisical-extras App
+  steps: []
+- number: 9
+  title: Push and Verify ClusterSecretStore
+  steps: []
+- number: 10
+  title: Demo ExternalSecret Smoke Test
+  steps: []
+- number: 11
+  title: Write Blog Post
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,365 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Zot Registry
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/43
+tasks:
+- number: 6
+  title: Zot Registry Deployment
+  steps:
+  - id: P4.T6.S1
+    text: |-
+      Create Infisical secrets and Authentik OIDC provider
+
+
+      ```yaml
+      # manual-operation
+      id: cicd-infisical-zot-secrets
+      layer: cicd
+      app: zot
+      plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+      when: "Before Zot deploy"
+      why_manual: "Infisical secret creation requires UI/API interaction"
+      commands:
+        - "Create in Infisical: ZOT_PUSH_PASSWORD (generate strong password)"
+      verify:
+        - "Infisical → ZOT_PUSH_PASSWORD exists"
+      status: pending
+      ```
+
+      ```yaml
+      # manual-operation
+      id: cicd-authentik-zot-oidc
+      layer: cicd
+      app: zot
+      plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+      when: "Before Zot deploy — OIDC provider must exist in Authentik"
+      why_manual: "Authentik provider/application creation requires API token"
+      commands:
+        - "Run: bash scripts/tmp/setup-authentik-cicd-oidc.sh (creates both Gitea and Zot providers+apps)"
+        - "Store printed ZOT_OIDC_CLIENT_SECRET in Infisical"
+      verify:
+        - "curl -H 'Authorization: Bearer $AK_TOKEN' http://192.168.55.211:9000/api/v3/providers/oauth2/ | jq '.results[].name' — includes Zot"
+        - "Infisical → ZOT_OIDC_CLIENT_SECRET exists"
+      status: done
+      ```
+  - id: P4.T6.S2
+    text: |-
+      Research Zot Helm chart
+
+
+      ```bash
+      helm repo add zotregistry https://zotregistry.dev/helm-charts/
+      helm show values zotregistry/zot > /tmp/zot-defaults.yaml
+      helm search repo zotregistry/zot --versions | head -5
+      ```
+
+      Review `/tmp/zot-defaults.yaml` for: `persistence`, `service`, `configFiles`, TLS configuration, htpasswd auth, and OIDC settings.
+  - id: P4.T6.S3
+    text: |-
+      Create self-signed ClusterIssuer (if not exists)
+
+
+      Check if a self-signed ClusterIssuer already exists:
+
+      ```bash
+      kubectl get clusterissuer
+      ```
+
+      If none exists, create `apps/zot/manifests/clusterissuer-selfsigned.yaml`:
+
+      ```yaml
+      apiVersion: cert-manager.io/v1
+      kind: ClusterIssuer
+      metadata:
+        name: selfsigned-issuer
+      spec:
+        selfSigned: {}
+      ```
+
+      Note: This may be better placed in `apps/cert-manager/manifests/` if it's a cluster-wide resource. Check if there's an existing cert-manager extras app. If not, place it in `apps/zot/manifests/` for now and move later.
+  - id: P4.T6.S4
+    text: |-
+      Create Certificate for Zot TLS
+
+
+      Create `apps/zot/manifests/certificate.yaml`:
+
+      ```yaml
+      apiVersion: cert-manager.io/v1
+      kind: Certificate
+      metadata:
+        name: zot-tls
+        namespace: zot
+      spec:
+        secretName: zot-tls
+        issuerRef:
+          name: selfsigned-issuer
+          kind: ClusterIssuer
+        ipAddresses:
+          - "192.168.55.210"
+        dnsNames:
+          - "zot.frank.local"
+      ```
+  - id: P4.T6.S5
+    text: |-
+      Create ExternalSecret
+
+
+      Create `apps/zot/manifests/externalsecret-zot.yaml`:
+
+      ```yaml
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: zot-secrets
+        namespace: zot
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: zot-secrets
+          creationPolicy: Owner
+        data:
+          - secretKey: push-password
+            remoteRef:
+              key: ZOT_PUSH_PASSWORD
+          - secretKey: oidc-client-secret
+            remoteRef:
+              key: ZOT_OIDC_CLIENT_SECRET
+      ```
+  - id: P4.T6.S6
+    text: |-
+      Create Helm values
+
+
+      Create `apps/zot/values.yaml`. Adjust based on Step 2 research:
+
+      ```yaml
+      # Zot — OCI container and artifact registry
+      # Exposed at 192.168.55.210:5000 (HTTPS)
+      # Runs on pc-1 with Longhorn-CICD storage
+
+      persistence:
+        enabled: true
+        storageClassName: longhorn-cicd
+        size: 50Gi
+
+      # TLS via cert-manager
+      # Certificate is created in apps/zot/manifests/certificate.yaml
+      # The Zot chart should be configured to use the zot-tls secret
+
+      nodeSelector:
+        kubernetes.io/hostname: pc-1
+      ```
+
+      Note: The exact values structure for Zot depends heavily on the chart version. Key areas to configure from the chart research:
+      - `configFiles.config.json` — Zot's main config (storage, htpasswd, OIDC)
+      - TLS secret reference
+      - Service type and port
+      - The htpasswd file with the push user credential
+
+      The htpasswd entry for the push user must be generated:
+      ```bash
+      htpasswd -nbB tekton-push "$(kubectl get secret zot-secrets -n zot -o jsonpath='{.data.push-password}' | base64 -d)"
+      ```
+
+      This will need to be a ConfigMap or embedded in the Zot config. The exact approach depends on the chart.
+  - id: P4.T6.S7
+    text: |-
+      Create ArgoCD Application CRs
+
+
+      Create `apps/root/templates/zot.yaml`:
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: zot
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        sources:
+          - repoURL: https://zotregistry.dev/helm-charts/
+            chart: zot
+            targetRevision: "0.1.0"  # Pin to latest stable — verify in Step 2
+            helm:
+              releaseName: zot
+              valueFiles:
+                - $values/apps/zot/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: zot
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            jsonPointers:
+              - /data
+      ```
+
+      Create `apps/root/templates/zot-extras.yaml`:
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: zot-extras
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/zot/manifests
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: zot
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+      ```
+  - id: P4.T6.S8
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/zot/ apps/root/templates/zot.yaml apps/root/templates/zot-extras.yaml
+      git commit -m "feat(cicd): add Zot OCI registry with cert-manager TLS"
+      ```
+  - id: P4.T6.S9
+    text: |-
+      Push and verify
+
+
+      ```bash
+      git push
+      argocd app get zot --port-forward --port-forward-namespace argocd
+      argocd app get zot-extras --port-forward --port-forward-namespace argocd
+      kubectl get pods -n zot
+      # Expect: zot-0 (or zot-<hash>) Running
+      kubectl get certificate -n zot
+      # Expect: zot-tls Ready=True
+      curl -sk https://192.168.55.210:5000/v2/
+      # Expect: {} or {"repositories":[]}
+      ```
+
+      > **Deviation (2026-04-13):** Chart v0.1.0 was too minimal — no support for `mountConfig`, `mountSecret`, `persistence`, or `externalSecrets`. Upgraded to v0.1.60 which adds full config, secrets, PVC, and TLS support. Values rewritten with: `configFiles.config.json` (TLS + htpasswd auth + anonymous read + dedupe + GC), `externalSecrets` (cert-manager TLS), `mountSecret` (htpasswd), persistence via `pvc.create: true` with `longhorn-cicd`, and `strategy: Recreate` for RWO safety. Image pinned to v2.1.1 (chart default for 0.1.60). See PR from `vk/5b16-ffe-7-gh-43`.
+      >
+      > **Future cleanup:** The `zot-secrets` ExternalSecret in the `zot` namespace fetches `ZOT_PUSH_PASSWORD` and `ZOT_OIDC_CLIENT_SECRET` from Infisical but neither key is mounted into the Zot pod. The push password is only consumed by Tekton's `zot-push-creds` ExternalSecret in `tekton-pipelines`. Consider removing `zot-secrets` or repurposing it if OIDC is implemented.
+  - id: P4.T6.S10
+    text: |-
+      Test image push/pull
+
+
+      ```bash
+      # Tag and push a test image
+      docker pull alpine:3
+      docker tag alpine:3 192.168.55.210:5000/test/alpine:latest
+      docker push 192.168.55.210:5000/test/alpine:latest
+      # Expect: successful push (may need docker login first with the htpasswd creds)
+
+      # Verify via API
+      curl -sk https://192.168.55.210:5000/v2/_catalog
+      # Expect: {"repositories":["test/alpine"]}
+      ```
+  - id: P4.T6.S11
+    text: |-
+      Apply containerd mirror Talos patch
+
+
+      ```yaml
+      # manual-operation
+      id: cicd-talos-containerd-mirror
+      layer: cicd
+      app: zot
+      plan: docs/superpowers/plans/2026-03-29--cicd--platform.md
+      when: "After Zot is deployed and verified"
+      why_manual: "Omni config patch requires UI or omnictl interaction; triggers node reboot"
+      commands:
+        - "omnictl apply -f patches/phase06-cicd/06-cluster-zot-registry.yaml"
+        - "Verify nodes come back Ready"
+      verify:
+        - "talosctl -n 192.168.55.21 get machineconfig -o yaml | grep 192.168.55.210"
+        - "kubectl get nodes — all nodes Ready"
+        - "kubectl run test --image=192.168.55.210:5000/... — pull succeeds (TLS trusted)"
+      status: done
+        - "crictl pull 192.168.55.210:5000/test/alpine:latest (on any node)"
+      status: pending
+      ```
+
+      ---
+state:
+  steps:
+    P4.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S9:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S10:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T6.S11:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

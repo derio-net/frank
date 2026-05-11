@@ -1,0 +1,663 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Frank manifests for ruflo + ruflo-db
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/183
+tasks:
+- number: 1
+  title: Pre-flight Infisical
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Generate `RUFLO_DB_PASSWORD` (32+ char random) and add to Infisical under the path the `apps/ruflo/manifests/externalsecret-db-credentials.yaml` ESO will reference. <!-- Manual op — operator action before this PR can deploy. Tracked in Deployment Notes. -->
+  - id: P2.T1.S2
+    text: |-
+      Confirm `OPENROUTER_API_KEY` and `EMAIL_RESEND_API_KEY` are accessible from a `ruflo-system`-permitted Infisical path. If not, copy the entries under `/shared` (the path used by paperclip's ESOs) or extend ServiceAccount access. <!-- Manual op — operator action before this PR can deploy. Tracked in Deployment Notes. -->
+
+
+      ### Task 1b: Provision LiteLLM virtual key for ruflo (manual)
+
+      Surfaced during Phase 3 first-deploy validation: `apps/ruflo/manifests/externalsecret-llm.yaml` aliases `OPENAI_API_KEY` to `RUFLO_LITELLM_KEY` (a LiteLLM virtual key scoped to ruflo) — same shape paperclip uses with `PAPERCLIP_LITELLM_KEY`. The earlier alias to `OPENROUTER_API_KEY` produced 401s from LiteLLM because LiteLLM authenticates against its own virtual keys, not the upstream provider key.
+
+      ```yaml
+      # manual-operation
+      id: orch-ruflo-litellm-virtual-key
+      layer: orch
+      app: ruflo
+      plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
+      when: before opening the Phase 3 fix PR that re-points OPENAI_API_KEY at RUFLO_LITELLM_KEY (derio-net/frank#197)
+      why_manual: LiteLLM virtual keys are created via the LiteLLM admin API; the master key isn't reproducible from git, and Infisical entries are operator-side
+      commands:
+        - description: Create a virtual key in LiteLLM scoped to the ruflo namespace
+          command: |
+            # 1. Pull the LiteLLM master key from the cluster (or from Infisical):
+            MASTER_KEY=$(kubectl -n litellm get secret litellm-api-keys \
+              -o jsonpath='{.data.LITELLM_MASTER_KEY}' | base64 -d)
+
+            # 2. Call /key/generate. Adjust models/metadata as you like; this
+            #    snapshot mirrors paperclip's PAPERCLIP_LITELLM_KEY.
+            kubectl -n litellm exec deploy/litellm -- curl -fsS \
+              -H "Authorization: Bearer $MASTER_KEY" \
+              -H 'Content-Type: application/json' \
+              -X POST http://localhost:4000/key/generate \
+              -d '{"key_alias": "ruflo", "metadata": {"app": "ruflo"}}'
+
+            # 3. The response includes `key`: paste it into Infisical at the path
+            #    apps/ruflo/manifests/externalsecret-llm.yaml reads
+            #    (`/shared` or wherever PAPERCLIP_LITELLM_KEY lives), keyed RUFLO_LITELLM_KEY.
+      verify:
+        - description: ESO has synced the new key into the ruflo-llm Secret
+          command: |
+            kubectl -n ruflo-system get secret ruflo-llm \
+              -o jsonpath='{.data.OPENAI_API_KEY}' | base64 -d | head -c 4
+            # expect: "sk-c" or similar — i.e. a LiteLLM virtual key prefix, NOT "sk-or-" (OpenRouter)
+        - description: ruvocal can list models through LiteLLM with the key
+          command: |
+            kubectl -n ruflo-system exec deploy/ruflo -c ruflo -- bash -c '
+              curl -fsS -o /dev/null -w "%{http_code}\n" \
+                -H "Authorization: Bearer $OPENAI_API_KEY" $OPENAI_BASE_URL/models'
+            # expect: 200
+      status: done   # provisioned 2026-05-03 by operator; ESO + verify both green
+      ```
+  - id: P2.T1.S1
+    text: |-
+      Provision the virtual key via the LiteLLM admin API and store the returned secret as `RUFLO_LITELLM_KEY` in Infisical. *(Done 2026-05-03 — confirmed via `OPENAI_API_KEY` prefix `sk-cEqfu9e8…` in the running pod; LiteLLM `/models` returns 200.)*
+- number: 2
+  title: Add `apps/ruflo-db/` ArgoCD sub-app
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Read `apps/paperclip-db/` to mirror its shape
+
+
+      ```bash
+      ls apps/paperclip-db/
+      cat apps/paperclip-db/values.yaml 2>/dev/null
+      cat apps/root/templates/paperclip-db.yaml
+      ```
+
+        Capture: chart name + version, repo source, secret structure, PVC sizing override pattern, sync wave/ordering.
+  - id: P2.T2.S2
+    text: |-
+      Create `apps/ruflo-db/values.yaml` — copy paperclip-db's values, adjust naming (`paperclip` → `ruflo`), set PVC size to `20Gi`, set the secret reference to a new ESO-managed Secret name (`ruflo-db-credentials`).
+  - id: P2.T2.S3
+    text: |-
+      Create `apps/ruflo-db/manifests/externalsecret-db.yaml` — ESO producing `ruflo-db-credentials` Secret in namespace `ruflo-system`, sourcing `RUFLO_DB_PASSWORD` from Infisical. Use `apps/paperclip-db/manifests/external-secret-*.yaml` (or paperclip's equivalent) as the template. Ensure the produced Secret also exposes the full `MONGO_URL` connection string (including the password) so ruvocal can consume it directly via `secretKeyRef`. <!-- Deviated: upstream ruvocal switched MongoDB→PostgreSQL (P1 finding). DB password is chart-generated by Bitnami postgresql Helm chart; no Infisical ESO needed. Deployment reads from auto-generated 'ruflo-db-postgresql' Secret and assembles DATABASE_URL inline (paperclip pattern). -->
+  - id: P2.T2.S4
+    text: |-
+      Create `apps/root/templates/ruflo-db.yaml` — Application CR mirroring `apps/root/templates/paperclip-db.yaml`. Same `syncPolicy`: `ServerSideApply=true`, `prune: false`, `selfHeal: true`. Sync wave should be **before** `ruflo` so Mongo is up when ruvocal connects on first boot.
+- number: 3
+  title: Add `apps/ruflo/` namespace, PVCs, ConfigMap, ServiceAccount
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Create `apps/ruflo/manifests/namespace.yaml`
+
+
+      ```
+      BEGIN apps/ruflo/manifests/namespace.yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: ruflo-system
+        labels:
+          pod-security.kubernetes.io/enforce: baseline
+      END apps/ruflo/manifests/namespace.yaml
+      ```
+  - id: P2.T3.S2
+    text: |-
+      Create `apps/ruflo/manifests/pvc-workspace.yaml`
+
+
+      ```
+      BEGIN apps/ruflo/manifests/pvc-workspace.yaml
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: ruflo-workspace
+        namespace: ruflo-system
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 50Gi
+      END apps/ruflo/manifests/pvc-workspace.yaml
+      ```
+  - id: P2.T3.S3
+    text: |-
+      Create `apps/ruflo/manifests/pvc-shell-home.yaml`
+
+
+      ```
+      BEGIN apps/ruflo/manifests/pvc-shell-home.yaml
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: ruflo-shell-home
+        namespace: ruflo-system
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 20Gi
+      END apps/ruflo/manifests/pvc-shell-home.yaml
+      ```
+  - id: P2.T3.S4
+    text: |-
+      Create `apps/ruflo/manifests/configmap-shell-inventory.yaml` (initially empty arrays, populated in Phase 4)
+
+
+      ```
+      BEGIN apps/ruflo/manifests/configmap-shell-inventory.yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: ruflo-shell-inventory
+        namespace: ruflo-system
+      data:
+        inventory.yaml: |
+          # Layer-2 declarations — installed at boot via cont-init.d.
+          # See docs/superpowers/specs/2026-05-02--orch--ruflo-pod-design.md
+          mise: []
+          npm-global: []
+          pipx: []
+          cargo: []
+          removed:
+            mise: []
+            npm-global: []
+            pipx: []
+            cargo: []
+      END apps/ruflo/manifests/configmap-shell-inventory.yaml
+      ```
+  - id: P2.T3.S5
+    text: |-
+      Create `apps/ruflo/manifests/serviceaccount.yaml` — minimal SA for the pod and for ESO.
+
+
+      ```
+      BEGIN apps/ruflo/manifests/serviceaccount.yaml
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: ruflo
+        namespace: ruflo-system
+      END apps/ruflo/manifests/serviceaccount.yaml
+      ```
+- number: 4
+  title: Add ExternalSecrets
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      Read existing reference ESOs
+
+
+      ```bash
+      cat apps/paperclip/manifests/external-secret-resend.yaml
+      cat apps/secure-agent-pod/manifests/externalsecret-github-token.yaml
+      ls apps/litellm/manifests/ | grep -i external
+      ```
+
+        Capture: `secretStoreRef.name`/`kind`, the Infisical path convention, the `data:` vs `dataFrom:` shape, and how `agent-ssh-keys` is shaped where it currently exists.
+  - id: P2.T4.S2
+    text: |-
+      Create `apps/ruflo/manifests/externalsecret-openrouter.yaml` producing Secret `ruflo-openrouter` with key `OPENROUTER_API_KEY` from Infisical.
+  - id: P2.T4.S3
+    text: |-
+      Create `apps/ruflo/manifests/externalsecret-resend.yaml` producing Secret `ruflo-resend` with key `EMAIL_RESEND_API_KEY` from Infisical. Use the paperclip resend ESO as the literal template.
+  - id: P2.T4.S4
+    text: |-
+      Create `apps/ruflo/manifests/externalsecret-shell-ssh-keys.yaml` producing Secret `ruflo-shell-ssh-keys` from the same Infisical entries that `agent-ssh-keys` uses (shared with secure-agent-pod and paperclip-shell). <!-- Deviated: agent-ssh-keys (the analogous secret on secure-agent-pod) is SOPS-bootstrap, not Infisical-ESO. ruflo-shell-ssh-keys mirrors that pattern — see secrets/ruflo/README.md. Deployment volume marked optional:true so pod boots even before bootstrap. The bootstrap/rotation flow is captured below as a manual-operation block. -->
+
+
+      ```yaml
+      # manual-operation
+      id: orch-ruflo-shell-ssh-keys-bootstrap
+      layer: orch
+      app: ruflo
+      plan: docs/superpowers/plans/2026-05-02--orch--ruflo-pod.md
+      when: once on first deploy (initial bootstrap), and any time the operator's SSH identity rotates
+      why_manual: "agent-ssh-keys (the analogous secret on secure-agent-pod) is SOPS-bootstrap, not Infisical-ESO; ruflo follows the same pattern. Operator's private SSH identity is per-laptop and outside the secret store. The Deployment volume is `optional: true` so the pod boots cleanly even before this op runs — sshd just rejects key-based logins until the Secret exists."
+      commands:
+        - description: Build the Secret manifest from the operator's chosen public key (Secret data key MUST be `authorized_keys`)
+          command: |
+            kubectl create secret generic ruflo-shell-ssh-keys \
+              --namespace=ruflo-system \
+              --from-file=authorized_keys="$HOME/.ssh/<your_private_key>.pub" \
+              --dry-run=client -o yaml > secrets/ruflo/ruflo-shell-ssh-keys.yaml
+        - description: SOPS-encrypt in place (recipients resolve from repo-root .sops.yaml — no flags needed)
+          command: |
+            sops --encrypt --in-place secrets/ruflo/ruflo-shell-ssh-keys.yaml
+            git add secrets/ruflo/ruflo-shell-ssh-keys.yaml
+        - description: Apply to cluster (decrypts in-memory, never writes plaintext to disk)
+          command: |
+            sops --decrypt secrets/ruflo/ruflo-shell-ssh-keys.yaml | kubectl apply -f -
+        - description: "If the pod is ALREADY RUNNING (initial bootstrap on a live pod, or any subsequent key rotation), re-run the cont-init.d hook by hand. Reason: /etc/cont-init.d/30-authorized-keys only fires at pod boot, and it COPIES (not symlinks) /etc/ssh-keys/authorized_keys into ~agent/.ssh/authorized_keys, so a Secret applied or rotated mid-life never reaches sshd's AuthorizedKeysFile (the default ~/.ssh/authorized_keys). Hand-run is zero-downtime and idempotent. Alternative: kubectl rollout restart deploy/ruflo -n ruflo-system (Recreate strategy → ~30-60s outage)."
+          command: |
+            kubectl exec -n ruflo-system deploy/ruflo -c ruflo-shell -- bash -c '
+              cp /etc/ssh-keys/authorized_keys "${AGENT_HOME:-/home/agent}/.ssh/authorized_keys"
+              chmod 600 "${AGENT_HOME:-/home/agent}/.ssh/authorized_keys"
+            '
+      verify:
+        - description: Secret exists in ruflo-system namespace
+          command: kubectl get secret -n ruflo-system ruflo-shell-ssh-keys
+        - description: "kubelet has projected the data into the running ruflo-shell container at /etc/ssh-keys/authorized_keys (the projection itself doesn't need a restart — optional-volume rotates on next kubelet resync, ≤90s)"
+          command: kubectl exec -n ruflo-system deploy/ruflo -c ruflo-shell -- ls /etc/ssh-keys/authorized_keys
+        - description: ~agent/.ssh/authorized_keys carries the same content (cont-init.d hook either fired at boot or you re-ran it via the exec-copy command above)
+          command: kubectl exec -n ruflo-system deploy/ruflo -c ruflo-shell -- diff /etc/ssh-keys/authorized_keys /home/agent/.ssh/authorized_keys
+        - description: "Operator can SSH in. Note: clear stale host-key entry first if 192.168.55.222 was previously bound to a different pod's host key — StrictHostKeyChecking=accept-new only auto-accepts new hosts, not changed ones."
+          command: |
+            ssh-keygen -R 192.168.55.222 2>/dev/null; ssh-keygen -R "[192.168.55.222]:22" 2>/dev/null
+            ssh -i ~/.ssh/<your_private_key> -o StrictHostKeyChecking=accept-new agent@192.168.55.222 "hostname"
+      status: completed
+      ```
+  - id: P2.T4.S5
+    text: |-
+      Create `apps/ruflo/manifests/externalsecret-shell-alerts.yaml` producing Secret `ruflo-shell-alerts` with `FRANK_C2_TELEGRAM_BOT_TOKEN` and `FRANK_C2_TELEGRAM_CHAT_ID`. Mirror paperclip-shell's equivalent (which Phase 2 of that plan introduces — copy from there if it has merged by the time this phase runs; otherwise create from scratch using the same Infisical source).
+- number: 5
+  title: Add the Web UI ClusterIP Service
+  steps:
+  - id: P2.T5.S1
+    text: |-
+      Create `apps/ruflo/manifests/service-web.yaml`
+
+
+      ```
+      BEGIN apps/ruflo/manifests/service-web.yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ruflo-web
+        namespace: ruflo-system
+      spec:
+        type: ClusterIP
+        selector:
+          app.kubernetes.io/name: ruflo
+          app.kubernetes.io/component: server
+        ports:
+          - { name: http, port: 80, targetPort: 3000, protocol: TCP }
+      END apps/ruflo/manifests/service-web.yaml
+      ```
+
+        `targetPort: 3000` is the working assumption from the spec's plan-time investigation. If Task 2 of Phase 1 surfaced a different port from upstream's Dockerfile, substitute that value here and in `deployment.yaml` (Task 7) consistently.
+- number: 6
+  title: Add the Shell SSH+Mosh LoadBalancer Service
+  steps:
+  - id: P2.T6.S1
+    text: |-
+      Confirm `192.168.55.222` is free
+
+
+      ```bash
+      kubectl get svc -A -o jsonpath='{range .items[*]}{.status.loadBalancer.ingress[0].ip}{"\n"}{end}' \
+        | sort -u | grep -F 192.168.55.222 \
+        || echo "192.168.55.222 is free"
+      ```
+
+        If `paperclip-shell` (the in-flight neighbouring plan) has already taken `.222` instead of `.221`, allocate the next free IP and update this plan + the spec accordingly.
+  - id: P2.T6.S2
+    text: |-
+      Create `apps/ruflo/manifests/service-shell.yaml`
+
+
+      ```
+      BEGIN apps/ruflo/manifests/service-shell.yaml
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: ruflo-shell
+        namespace: ruflo-system
+        annotations:
+          lbipam.cilium.io/ips: 192.168.55.222
+      spec:
+        type: LoadBalancer
+        selector:
+          app.kubernetes.io/name: ruflo
+          app.kubernetes.io/component: server
+        ports:
+          - { name: ssh, port: 22, targetPort: 2222, protocol: TCP }
+          - { name: mosh-60016, port: 60016, protocol: UDP }
+          - { name: mosh-60017, port: 60017, protocol: UDP }
+          - { name: mosh-60018, port: 60018, protocol: UDP }
+          - { name: mosh-60019, port: 60019, protocol: UDP }
+          - { name: mosh-60020, port: 60020, protocol: UDP }
+          - { name: mosh-60021, port: 60021, protocol: UDP }
+          - { name: mosh-60022, port: 60022, protocol: UDP }
+          - { name: mosh-60023, port: 60023, protocol: UDP }
+          - { name: mosh-60024, port: 60024, protocol: UDP }
+          - { name: mosh-60025, port: 60025, protocol: UDP }
+          - { name: mosh-60026, port: 60026, protocol: UDP }
+          - { name: mosh-60027, port: 60027, protocol: UDP }
+          - { name: mosh-60028, port: 60028, protocol: UDP }
+          - { name: mosh-60029, port: 60029, protocol: UDP }
+          - { name: mosh-60030, port: 60030, protocol: UDP }
+          - { name: mosh-60031, port: 60031, protocol: UDP }
+      END apps/ruflo/manifests/service-shell.yaml
+      ```
+- number: 7
+  title: Write the Deployment with both containers
+  steps:
+  - id: P2.T7.S1
+    text: |-
+      Investigate the ruvocal container's expected workspace path (informational; locks the volumeMount paths)
+
+
+      From Phase 1 Task 2's Dockerfile read, you already know the workspace path. If it's not `/workspace`, decide between:
+      - **(a)** Mount the workspace PVC at the path ruvocal expects and accept asymmetry between containers (e.g., `/app/workspace` in ruvocal, `/workspace` in ruflo-shell) — confusing for the operator.
+      - **(b)** Override ruvocal's expected path via env var if upstream supports it, mounting at `/workspace` in both. Strongly preferred.
+
+      If neither is possible, document the asymmetric mount in Deployment Notes and update the spec's "shell `cd /workspace` matches ruvocal's view" success criterion.
+  - id: P2.T7.S2
+    text: |-
+      Create `apps/ruflo/manifests/deployment.yaml` with both containers
+
+
+      ```
+      BEGIN apps/ruflo/manifests/deployment.yaml
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: ruflo
+        namespace: ruflo-system
+        labels:
+          app.kubernetes.io/name: ruflo
+          app.kubernetes.io/component: server
+      spec:
+        replicas: 1
+        strategy:
+          type: Recreate
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: ruflo
+            app.kubernetes.io/component: server
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: ruflo
+              app.kubernetes.io/component: server
+          spec:
+            serviceAccountName: ruflo
+            nodeSelector:
+              zone: core
+            securityContext:
+              fsGroup: 1000
+            shareProcessNamespace: true
+            containers:
+              - name: ruflo
+                image: ghcr.io/derio-net/ruflo-server:<SHA-FROM-PHASE-1>
+                imagePullPolicy: IfNotPresent
+                env:
+                  - name: LITELLM_BASE_URL
+                    value: http://litellm.litellm-system:4000
+                  - name: MONGO_URL
+                    valueFrom:
+                      secretKeyRef: { name: ruflo-db-credentials, key: MONGO_URL }
+                envFrom:
+                  - secretRef: { name: ruflo-openrouter, optional: false }
+                  - secretRef: { name: ruflo-resend, optional: false }
+                ports:
+                  - { name: http, containerPort: 3000, protocol: TCP }
+                volumeMounts:
+                  - { name: workspace, mountPath: /workspace }
+                resources:
+                  requests: { cpu: 500m, memory: 1Gi }
+                  limits:   { cpu: "4",  memory: 8Gi }
+                readinessProbe:
+                  httpGet: { path: /, port: 3000 }
+                  initialDelaySeconds: 15
+                  periodSeconds: 30
+                livenessProbe:
+                  httpGet: { path: /, port: 3000 }
+                  initialDelaySeconds: 60
+                  periodSeconds: 60
+              - name: ruflo-shell
+                image: ghcr.io/derio-net/ruflo-shell:<SHA-FROM-PHASE-1>
+                imagePullPolicy: IfNotPresent
+                ports:
+                  - { name: ssh,         containerPort: 2222,  protocol: TCP }
+                  - { name: mosh-60016,  containerPort: 60016, protocol: UDP }
+                  - { name: mosh-60017,  containerPort: 60017, protocol: UDP }
+                  - { name: mosh-60018,  containerPort: 60018, protocol: UDP }
+                  - { name: mosh-60019,  containerPort: 60019, protocol: UDP }
+                  - { name: mosh-60020,  containerPort: 60020, protocol: UDP }
+                  - { name: mosh-60021,  containerPort: 60021, protocol: UDP }
+                  - { name: mosh-60022,  containerPort: 60022, protocol: UDP }
+                  - { name: mosh-60023,  containerPort: 60023, protocol: UDP }
+                  - { name: mosh-60024,  containerPort: 60024, protocol: UDP }
+                  - { name: mosh-60025,  containerPort: 60025, protocol: UDP }
+                  - { name: mosh-60026,  containerPort: 60026, protocol: UDP }
+                  - { name: mosh-60027,  containerPort: 60027, protocol: UDP }
+                  - { name: mosh-60028,  containerPort: 60028, protocol: UDP }
+                  - { name: mosh-60029,  containerPort: 60029, protocol: UDP }
+                  - { name: mosh-60030,  containerPort: 60030, protocol: UDP }
+                  - { name: mosh-60031,  containerPort: 60031, protocol: UDP }
+                env:
+                  - { name: RUFLO_SHELL_USER,         value: agent }
+                  - { name: MOSH_SERVER_NETWORK_TMOUT, value: "3600" }
+                envFrom:
+                  - secretRef: { name: ruflo-shell-alerts, optional: true }
+                volumeMounts:
+                  - { name: shell-home,      mountPath: /home/agent }
+                  - { name: workspace,       mountPath: /workspace }
+                  - { name: shell-ssh-keys,  mountPath: /etc/ssh-keys, readOnly: true }
+                  - { name: shell-inventory, mountPath: /etc/ruflo-shell, readOnly: true }
+                securityContext:
+                  runAsUser: 1000
+                  runAsGroup: 1000
+                  runAsNonRoot: true
+                  allowPrivilegeEscalation: false
+                  capabilities: { drop: ["ALL"] }
+                resources:
+                  requests: { cpu: 500m, memory: 1Gi }
+                  limits:   { cpu: "2",  memory: 4Gi }
+                readinessProbe:
+                  tcpSocket: { port: 2222 }
+                  initialDelaySeconds: 10
+                  periodSeconds: 30
+                livenessProbe:
+                  tcpSocket: { port: 2222 }
+                  initialDelaySeconds: 30
+                  periodSeconds: 60
+            volumes:
+              - name: workspace
+                persistentVolumeClaim: { claimName: ruflo-workspace }
+              - name: shell-home
+                persistentVolumeClaim: { claimName: ruflo-shell-home }
+              - name: shell-ssh-keys
+                secret: { secretName: ruflo-shell-ssh-keys, defaultMode: 0400 }
+              - name: shell-inventory
+                configMap: { name: ruflo-shell-inventory }
+      END apps/ruflo/manifests/deployment.yaml
+      ```
+
+        Substitute `<SHA-FROM-PHASE-1>` with the actual SHA from Phase 1 Task 6. The `MONGO_URL` Secret key is produced by the `ruflo-db` sub-app's ESO (Phase 2 Task 2 Step 3) — confirm the key name matches what that ESO writes.
+- number: 8
+  title: Add Application CRs to `apps/root/templates/`
+  steps:
+  - id: P2.T8.S1
+    text: |-
+      Create `apps/root/templates/ruflo-db.yaml` — Application CR mirroring paperclip-db's; sync wave ordered before ruflo.
+  - id: P2.T8.S2
+    text: |-
+      Create `apps/root/templates/ruflo.yaml` — Application CR mirroring paperclip's. Source path `apps/ruflo/manifests`, destination namespace `ruflo-system`. Include `ServerSideApply=true`, `prune: false`, `selfHeal: true`, and `ignoreDifferences` on Secret `/data` jsonPointer (per the standard pattern in `frank-argocd.md`).
+- number: 9
+  title: Wire web UI to Traefik + Authentik
+  steps:
+  - id: P2.T9.S1
+    text: |-
+      Add IngressRoute to `apps/traefik/manifests/ingressroutes.yaml`
+
+
+      Append a new route for `ruflo.cluster.derio.net` referencing the `authentik-forwardauth` middleware and the `ruflo-web` Service in `ruflo-system`. Use an existing entry (e.g., the n8n-01 or paperclip web IngressRoute) as the literal template.
+  - id: P2.T9.S2
+    text: |-
+      Add proxy provider entry to `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml`
+
+
+      Follow the existing pattern: `forward_single` mode, include `invalidation_flow`, set `redirect_uris` to the list-of-objects shape. Name the provider `Ruflo (cluster)` and reference `https://ruflo.cluster.derio.net`. (The Phase 3 `# manual-operation` block below — `ruflo-authentik-outpost-assign` — wires the provider into the embedded outpost after the blueprint syncs.)
+- number: 10
+  title: Add the homepage tile
+  steps:
+  - id: P2.T10.S1
+    text: |-
+      Edit `apps/homepage/manifests/configmap-services.yaml`
+
+
+      Add a tile for ruflo under the existing "AI Agents" or "Orchestration" category (whichever paperclip lives in — match exactly). Fields: name, icon (look for a relevant Simple Icons / mdi icon; the homepage skill can help if invoked), category, description (one sentence), `href: https://ruflo.cluster.derio.net`.
+- number: 11
+  title: Add operator client-setup files
+  steps:
+  - id: P2.T11.S1
+    text: |-
+      Create `apps/ruflo/client-setup/laptop/` mirroring `apps/paperclip/client-setup/laptop/` (or `apps/secure-agent-pod/client-setup/laptop/`):
+
+
+      - `ssh-config.snippet` — `Host ruflo` block with `HostName 192.168.55.222`, `Port 22`, `User agent`, `IdentityFile ~/.ssh/<your_private_key>`.
+      - `mosh-wrapper.sh` — invokes `mosh --server="mosh-server new -p 60016:60031" agent@192.168.55.222`.
+      - `README.md` — explains both, points at the secure-agent-pod README for shared identity rotation.
+- number: 12
+  title: Open frank PR
+  steps:
+  - id: P2.T12.S1
+    text: |-
+      Open PR titled `feat(orch): add ruflo pod (manifests, ruflo-db sub-app, ingress, Authentik)` with body linking to this plan and the spec. Note: the inventory ConfigMap is empty — Phase 4 populates it; the Authentik outpost provider assignment is a manual op in Phase 3.
+  - id: P2.T12.S2
+    text: |-
+      Wait for ArgoCD auto-sync after merge
+
+
+      ```bash
+      kubectl -n argocd get application ruflo-db -o jsonpath='{.status.sync.status} {.status.health.status}{"\n"}'
+      kubectl -n argocd get application ruflo    -o jsonpath='{.status.sync.status} {.status.health.status}{"\n"}'
+      # expect both: Synced Healthy
+      ```
+
+        If `ruflo` is `OutOfSync` waiting for `ruflo-db`, that's the intended sync ordering — give it a minute, then re-check.
+
+      ---
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S4:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T4.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T6.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T8.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T8.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T9.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T9.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T10.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T11.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T12.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T12.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

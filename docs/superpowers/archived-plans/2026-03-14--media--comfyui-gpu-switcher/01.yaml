@@ -1,0 +1,1613 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Media Generation Stack Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create ComfyUI namespace
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create the namespace manifest
+
+
+      ```yaml
+      # apps/root/templates/ns-comfyui.yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: comfyui
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+          pod-security.kubernetes.io/enforce-version: latest
+          pod-security.kubernetes.io/audit: privileged
+          pod-security.kubernetes.io/warn: privileged
+      ```
+
+      > **Why privileged?** ComfyUI needs GPU access via the NVIDIA runtime, which requires privileged pod-security (same pattern as `ns-gpu-operator.yaml` and `ns-openrgb.yaml`).
+  - id: P1.T1.S2
+    text: |-
+      Verify template renders
+
+
+      Run: `helm template apps/root/ | grep -A6 'name: comfyui'`
+      Expected: The namespace manifest appears in the rendered output.
+  - id: P1.T1.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/ns-comfyui.yaml
+      git commit -m "feat(comfyui): add comfyui namespace"
+      ```
+
+      ---
+- number: 2
+  title: Create ComfyUI PVC for model storage
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create the PVC manifest
+
+
+      ```yaml
+      # apps/comfyui/manifests/pvc.yaml
+      # Persistent storage for ComfyUI models (checkpoints, LoRAs, VAEs)
+      # Sized for video (LTX-2.3 ~5GB), image (Flux/SDXL ~12GB), audio (~4GB) + headroom
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: comfyui-models
+        namespace: comfyui
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 100Gi
+      ```
+  - id: P1.T2.S2
+    text: |-
+      Validate YAML syntax
+
+
+      Run: `kubectl apply --dry-run=client -f apps/comfyui/manifests/pvc.yaml`
+      Expected: `persistentvolumeclaim/comfyui-models created (dry run)`
+  - id: P1.T2.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/comfyui/manifests/pvc.yaml
+      git commit -m "feat(comfyui): add 100Gi Longhorn PVC for model storage"
+      ```
+
+      ---
+- number: 3
+  title: Create ComfyUI Deployment
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Create the Deployment manifest
+
+
+      ```yaml
+      # apps/comfyui/manifests/deployment.yaml
+      # ComfyUI diffusion model server on gpu-1
+      # Starts at 0 replicas — activate via GPU Switcher
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: comfyui
+        namespace: comfyui
+        labels:
+          app.kubernetes.io/name: comfyui
+          app.kubernetes.io/component: server
+      spec:
+        replicas: 0
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: comfyui
+            app.kubernetes.io/component: server
+        strategy:
+          type: Recreate
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: comfyui
+              app.kubernetes.io/component: server
+          spec:
+            nodeSelector:
+              kubernetes.io/hostname: gpu-1
+            tolerations:
+              - key: nvidia.com/gpu
+                operator: Exists
+                effect: NoSchedule
+            terminationGracePeriodSeconds: 30
+            containers:
+              - name: comfyui
+                image: ghcr.io/ai-dock/comfyui:latest-cuda
+                ports:
+                  - name: http
+                    containerPort: 8188
+                    protocol: TCP
+                env:
+                  - name: COMFYUI_FLAGS
+                    value: "--listen 0.0.0.0"
+                  - name: WEB_ENABLE_AUTH
+                    value: "false"
+                resources:
+                  requests:
+                    cpu: 4000m
+                    memory: 16Gi
+                    nvidia.com/gpu: "1"
+                  limits:
+                    memory: 24Gi
+                    nvidia.com/gpu: "1"
+                volumeMounts:
+                  - name: models
+                    mountPath: /opt/ComfyUI/models
+                livenessProbe:
+                  httpGet:
+                    path: /
+                    port: http
+                  initialDelaySeconds: 120
+                  periodSeconds: 10
+                  timeoutSeconds: 5
+                  failureThreshold: 6
+                readinessProbe:
+                  httpGet:
+                    path: /
+                    port: http
+                  initialDelaySeconds: 60
+                  periodSeconds: 5
+                  timeoutSeconds: 3
+                  failureThreshold: 6
+            volumes:
+              - name: models
+                persistentVolumeClaim:
+                  claimName: comfyui-models
+      ```
+
+      > **Key decisions:**
+      > - `replicas: 0` — Ollama is active by default; ComfyUI activates via GPU Switcher
+      > - `strategy: Recreate` — only one GPU pod can exist at a time
+      > - `--listen 0.0.0.0` — required for Kubernetes Service routing
+      > - Models PVC mounted at `/opt/ComfyUI/models` (ai-dock default model path)
+      > - Resource requests mirror Ollama's pattern (4 CPU, 16Gi RAM, 1 GPU)
+      > - **Image tag:** Using `latest-cuda` initially. After first successful deploy, pin to a specific digest or version tag (e.g., `v2-cuda-12.1.1-base-22.04-v0.2.7`) for reproducibility. Add the pinned tag to CLAUDE.md gotchas (similar to Sympozium/LiteLLM pattern).
+  - id: P1.T3.S2
+    text: |-
+      Validate YAML syntax
+
+
+      Run: `kubectl apply --dry-run=client -f apps/comfyui/manifests/deployment.yaml`
+      Expected: `deployment.apps/comfyui created (dry run)`
+  - id: P1.T3.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/comfyui/manifests/deployment.yaml
+      git commit -m "feat(comfyui): add Deployment with GPU scheduling and model PVC"
+      ```
+
+      ---
+- number: 4
+  title: Create ComfyUI Services
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Create ClusterIP Service
+
+
+      ```yaml
+      # apps/comfyui/manifests/service.yaml
+      # ClusterIP Service for internal access (agents call the API here)
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: comfyui
+        namespace: comfyui
+        labels:
+          app.kubernetes.io/name: comfyui
+          app.kubernetes.io/component: server
+      spec:
+        type: ClusterIP
+        selector:
+          app.kubernetes.io/name: comfyui
+          app.kubernetes.io/component: server
+        ports:
+          - name: http
+            port: 8188
+            targetPort: http
+            protocol: TCP
+      ```
+  - id: P1.T4.S2
+    text: |-
+      Create LoadBalancer Service
+
+
+      ```yaml
+      # apps/comfyui/manifests/service-lb.yaml
+      # LoadBalancer Service for browser access to ComfyUI Web UI
+      # Exposed at 192.168.55.213:8188 via Cilium L2 IPAM
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: comfyui-lb
+        namespace: comfyui
+        annotations:
+          lbipam.cilium.io/ips: "192.168.55.213"
+        labels:
+          app.kubernetes.io/name: comfyui
+          app.kubernetes.io/component: server
+      spec:
+        type: LoadBalancer
+        selector:
+          app.kubernetes.io/name: comfyui
+          app.kubernetes.io/component: server
+        ports:
+          - name: http
+            port: 8188
+            targetPort: http
+            protocol: TCP
+      ```
+  - id: P1.T4.S3
+    text: |-
+      Validate both
+
+
+      Run: `kubectl apply --dry-run=client -f apps/comfyui/manifests/service.yaml && kubectl apply --dry-run=client -f apps/comfyui/manifests/service-lb.yaml`
+      Expected: Both created (dry run).
+  - id: P1.T4.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/comfyui/manifests/service.yaml apps/comfyui/manifests/service-lb.yaml
+      git commit -m "feat(comfyui): add ClusterIP and LoadBalancer services"
+      ```
+
+      ---
+- number: 5
+  title: Create ComfyUI ArgoCD Application CR
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Create the Application CR
+
+
+      ```yaml
+      # apps/root/templates/comfyui.yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: comfyui
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/comfyui/manifests
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: comfyui
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=false
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+        ignoreDifferences:
+          - group: apps
+            kind: Deployment
+            name: comfyui
+            jsonPointers:
+              - /spec/replicas
+      ```
+
+      > Follows the raw-manifests pattern (single `source` with `path`) like `gpu-operator-extras`. Namespace pre-created via `ns-comfyui.yaml`. `CreateNamespace=false` because we manage it explicitly.
+      >
+      > **Critical:** `ignoreDifferences` on `/spec/replicas` prevents ArgoCD self-heal from reverting GPU Switcher's scaling changes. Without this, ArgoCD would continuously fight the switcher by resetting replicas to the declared value (0).
+  - id: P1.T5.S2
+    text: |-
+      Verify template renders
+
+
+      Run: `helm template apps/root/ | grep -A20 'name: comfyui' | head -25`
+      Expected: Application CR renders with the correct repoURL and path.
+  - id: P1.T5.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/comfyui.yaml
+      git commit -m "feat(comfyui): add ArgoCD Application CR"
+      ```
+
+      ---
+
+      ### Task 5b: Add ignoreDifferences to existing Ollama Application CR
+
+      **Files:**
+      - Modify: `apps/root/templates/ollama.yaml`
+
+      > **Why:** ArgoCD's `selfHeal: true` will fight GPU Switcher scaling. When the switcher sets Ollama replicas to 0, ArgoCD would revert it back to the declared value. We must tell ArgoCD to ignore replica drift on Ollama too.
+  - id: P1.T5.S1
+    text: |-
+      Add ignoreDifferences to ollama.yaml
+
+
+      Add before the closing of the `spec:` block in `apps/root/templates/ollama.yaml`:
+
+      ```yaml
+        ignoreDifferences:
+          - group: apps
+            kind: Deployment
+            name: ollama
+            jsonPointers:
+              - /spec/replicas
+      ```
+
+      The full file should end with:
+      ```yaml
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+        ignoreDifferences:
+          - group: apps
+            kind: Deployment
+            name: ollama
+            jsonPointers:
+              - /spec/replicas
+      ```
+  - id: P1.T5.S2
+    text: |-
+      Verify template renders
+
+
+      Run: `helm template apps/root/ | grep -A30 'name: ollama' | head -35`
+      Expected: `ignoreDifferences` section appears in the rendered Ollama Application.
+  - id: P1.T5.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/ollama.yaml
+      git commit -m "feat(ollama): add ignoreDifferences for replicas (GPU Switcher support)"
+      ```
+
+      ---
+
+      ## Chunk 2: GPU Switcher Go Application
+- number: 6
+  title: Initialize Go module
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Create directory and initialize Go module
+
+
+      Run:
+      ```bash
+      mkdir -p apps/gpu-switcher/app/static
+      cd apps/gpu-switcher/app && go mod init github.com/derio-net/gpu-switcher
+      ```
+  - id: P1.T6.S2
+    text: |-
+      Add kubernetes client-go dependency
+
+
+      Run:
+      ```bash
+      cd apps/gpu-switcher/app && go get k8s.io/client-go@latest k8s.io/apimachinery@latest k8s.io/api@latest
+      ```
+  - id: P1.T6.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/gpu-switcher/app/go.mod apps/gpu-switcher/app/go.sum
+      git commit -m "feat(gpu-switcher): initialize Go module with client-go"
+      ```
+
+      ---
+- number: 7
+  title: Implement Kubernetes client operations
+  steps:
+  - id: P1.T7.S1
+    text: "Write the failing test first\n\n\nCreate `apps/gpu-switcher/app/k8s_test.go`:\n\
+      \n```go\npackage main\n\nimport (\n\t\"context\"\n\t\"testing\"\n\n\tappsv1\
+      \ \"k8s.io/api/apps/v1\"\n\tcorev1 \"k8s.io/api/core/v1\"\n\tmetav1 \"k8s.io/apimachinery/pkg/apis/meta/v1\"\
+      \n\t\"k8s.io/client-go/kubernetes/fake\"\n)\n\nfunc newTestWorkloads() (*fake.Clientset,\
+      \ []Workload) {\n\tclient := fake.NewSimpleClientset(\n\t\t&appsv1.Deployment{\n\
+      \t\t\tObjectMeta: metav1.ObjectMeta{Name: \"ollama\", Namespace: \"ollama\"\
+      },\n\t\t\tSpec:       appsv1.DeploymentSpec{Replicas: int32Ptr(1)},\n\t\t\t\
+      Status:     appsv1.DeploymentStatus{ReadyReplicas: 1},\n\t\t},\n\t\t&appsv1.Deployment{\n\
+      \t\t\tObjectMeta: metav1.ObjectMeta{Name: \"comfyui\", Namespace: \"comfyui\"\
+      },\n\t\t\tSpec:       appsv1.DeploymentSpec{Replicas: int32Ptr(0)},\n\t\t\t\
+      Status:     appsv1.DeploymentStatus{ReadyReplicas: 0},\n\t\t},\n\t\t&corev1.Pod{\n\
+      \t\t\tObjectMeta: metav1.ObjectMeta{\n\t\t\t\tName: \"ollama-abc123\", Namespace:\
+      \ \"ollama\",\n\t\t\t\tLabels: map[string]string{\"app.kubernetes.io/name\"\
+      : \"ollama\"},\n\t\t\t},\n\t\t\tStatus: corev1.PodStatus{Phase: corev1.PodRunning},\n\
+      \t\t},\n\t)\n\tworkloads := []Workload{\n\t\t{Name: \"ollama\", Namespace: \"\
+      ollama\", DeploymentName: \"ollama\"},\n\t\t{Name: \"comfyui\", Namespace: \"\
+      comfyui\", DeploymentName: \"comfyui\"},\n\t}\n\treturn client, workloads\n\
+      }\n\nfunc int32Ptr(i int32) *int32 { return &i }\n\nfunc TestGetStatus(t *testing.T)\
+      \ {\n\tclient, workloads := newTestWorkloads()\n\tstatuses, err := GetStatus(context.Background(),\
+      \ client, workloads)\n\tif err != nil {\n\t\tt.Fatalf(\"unexpected error: %v\"\
+      , err)\n\t}\n\tif len(statuses) != 2 {\n\t\tt.Fatalf(\"expected 2 statuses,\
+      \ got %d\", len(statuses))\n\t}\n\t// Ollama should be active (replicas=1)\n\
+      \tif statuses[0].Replicas != 1 {\n\t\tt.Errorf(\"expected ollama replicas=1,\
+      \ got %d\", statuses[0].Replicas)\n\t}\n\t// ComfyUI should be inactive (replicas=0)\n\
+      \tif statuses[1].Replicas != 0 {\n\t\tt.Errorf(\"expected comfyui replicas=0,\
+      \ got %d\", statuses[1].Replicas)\n\t}\n}\n\nfunc TestActivateWorkload(t *testing.T)\
+      \ {\n\tclient, workloads := newTestWorkloads()\n\t// Activate comfyui (should\
+      \ scale comfyui to 1, ollama to 0)\n\terr := ActivateWorkload(context.Background(),\
+      \ client, workloads, \"comfyui\")\n\tif err != nil {\n\t\tt.Fatalf(\"unexpected\
+      \ error: %v\", err)\n\t}\n\t// Check comfyui scaled up\n\tdep, _ := client.AppsV1().Deployments(\"\
+      comfyui\").Get(context.Background(), \"comfyui\", metav1.GetOptions{})\n\tif\
+      \ *dep.Spec.Replicas != 1 {\n\t\tt.Errorf(\"expected comfyui replicas=1, got\
+      \ %d\", *dep.Spec.Replicas)\n\t}\n\t// Check ollama scaled down\n\tdep, _ =\
+      \ client.AppsV1().Deployments(\"ollama\").Get(context.Background(), \"ollama\"\
+      , metav1.GetOptions{})\n\tif *dep.Spec.Replicas != 0 {\n\t\tt.Errorf(\"expected\
+      \ ollama replicas=0, got %d\", *dep.Spec.Replicas)\n\t}\n}\n\nfunc TestActivateWorkload_InvalidName(t\
+      \ *testing.T) {\n\tclient, workloads := newTestWorkloads()\n\terr := ActivateWorkload(context.Background(),\
+      \ client, workloads, \"nonexistent\")\n\tif err == nil {\n\t\tt.Fatal(\"expected\
+      \ error for invalid workload name\")\n\t}\n}\n\nfunc TestDeactivateAll(t *testing.T)\
+      \ {\n\tclient, workloads := newTestWorkloads()\n\terr := DeactivateAll(context.Background(),\
+      \ client, workloads)\n\tif err != nil {\n\t\tt.Fatalf(\"unexpected error: %v\"\
+      , err)\n\t}\n\tfor _, w := range workloads {\n\t\tdep, _ := client.AppsV1().Deployments(w.Namespace).Get(context.Background(),\
+      \ w.DeploymentName, metav1.GetOptions{})\n\t\tif *dep.Spec.Replicas != 0 {\n\
+      \t\t\tt.Errorf(\"expected %s replicas=0, got %d\", w.Name, *dep.Spec.Replicas)\n\
+      \t\t}\n\t}\n}\n```"
+  - id: P1.T7.S2
+    text: |-
+      Run test to verify it fails
+
+
+      Run: `cd apps/gpu-switcher/app && go test -v -run TestGetStatus`
+      Expected: FAIL — compilation error (undefined: `Workload`, `GetStatus`, `ActivateWorkload`, `DeactivateAll`). This is expected TDD — the types and functions don't exist yet.
+  - id: P1.T7.S3
+    text: "Implement k8s.go\n\n\nCreate `apps/gpu-switcher/app/k8s.go`:\n\n```go\n\
+      package main\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\n\tmetav1 \"k8s.io/apimachinery/pkg/apis/meta/v1\"\
+      \n\t\"k8s.io/client-go/kubernetes\"\n)\n\n// Workload represents a GPU workload\
+      \ that can be activated/deactivated.\ntype Workload struct {\n\tName       \
+      \    string // Display name (e.g., \"ollama\", \"comfyui\")\n\tNamespace   \
+      \   string // Kubernetes namespace\n\tDeploymentName string // Deployment to\
+      \ scale\n}\n\n// WorkloadStatus is the current state of a workload.\ntype WorkloadStatus\
+      \ struct {\n\tWorkload\n\tReplicas      int32  // Desired replicas\n\tReadyReplicas\
+      \ int32  // Running and ready\n\tPodPhase      string // Phase of first matching\
+      \ pod, or \"None\"\n}\n\n// GetStatus returns the current status of all workloads.\n\
+      func GetStatus(ctx context.Context, client kubernetes.Interface, workloads []Workload)\
+      \ ([]WorkloadStatus, error) {\n\tstatuses := make([]WorkloadStatus, 0, len(workloads))\n\
+      \tfor _, w := range workloads {\n\t\tdep, err := client.AppsV1().Deployments(w.Namespace).Get(ctx,\
+      \ w.DeploymentName, metav1.GetOptions{})\n\t\tif err != nil {\n\t\t\treturn\
+      \ nil, fmt.Errorf(\"get deployment %s/%s: %w\", w.Namespace, w.DeploymentName,\
+      \ err)\n\t\t}\n\t\tvar replicas int32\n\t\tif dep.Spec.Replicas != nil {\n\t\
+      \t\treplicas = *dep.Spec.Replicas\n\t\t}\n\t\tpodPhase := \"None\"\n\t\tpods,\
+      \ err := client.CoreV1().Pods(w.Namespace).List(ctx, metav1.ListOptions{\n\t\
+      \t\tLabelSelector: fmt.Sprintf(\"app.kubernetes.io/name=%s\", w.Name),\n\t\t\
+      \tLimit:         1,\n\t\t})\n\t\tif err == nil && len(pods.Items) > 0 {\n\t\t\
+      \tpodPhase = string(pods.Items[0].Status.Phase)\n\t\t}\n\t\tstatuses = append(statuses,\
+      \ WorkloadStatus{\n\t\t\tWorkload:      w,\n\t\t\tReplicas:      replicas,\n\
+      \t\t\tReadyReplicas: dep.Status.ReadyReplicas,\n\t\t\tPodPhase:      podPhase,\n\
+      \t\t})\n\t}\n\treturn statuses, nil\n}\n\n// ActivateWorkload scales the target\
+      \ workload to 1 and all others to 0.\nfunc ActivateWorkload(ctx context.Context,\
+      \ client kubernetes.Interface, workloads []Workload, name string) error {\n\t\
+      found := false\n\tfor _, w := range workloads {\n\t\tif w.Name == name {\n\t\
+      \t\tfound = true\n\t\t\tbreak\n\t\t}\n\t}\n\tif !found {\n\t\treturn fmt.Errorf(\"\
+      unknown workload: %s\", name)\n\t}\n\tfor _, w := range workloads {\n\t\tvar\
+      \ target int32\n\t\tif w.Name == name {\n\t\t\ttarget = 1\n\t\t}\n\t\tif err\
+      \ := scaleDeployment(ctx, client, w.Namespace, w.DeploymentName, target); err\
+      \ != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\treturn nil\n}\n\n// DeactivateAll\
+      \ scales all workloads to 0.\nfunc DeactivateAll(ctx context.Context, client\
+      \ kubernetes.Interface, workloads []Workload) error {\n\tfor _, w := range workloads\
+      \ {\n\t\tif err := scaleDeployment(ctx, client, w.Namespace, w.DeploymentName,\
+      \ 0); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\treturn nil\n}\n\nfunc scaleDeployment(ctx\
+      \ context.Context, client kubernetes.Interface, namespace, name string, replicas\
+      \ int32) error {\n\tscale, err := client.AppsV1().Deployments(namespace).GetScale(ctx,\
+      \ name, metav1.GetOptions{})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"get\
+      \ scale %s/%s: %w\", namespace, name, err)\n\t}\n\tscale.Spec.Replicas = replicas\n\
+      \t_, err = client.AppsV1().Deployments(namespace).UpdateScale(ctx, name, scale,\
+      \ metav1.UpdateOptions{})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"update\
+      \ scale %s/%s: %w\", namespace, name, err)\n\t}\n\treturn nil\n}\n```"
+  - id: P1.T7.S4
+    text: |-
+      Run tests to verify they pass
+
+
+      Run: `cd apps/gpu-switcher/app && go test -v ./...`
+      Expected: All 4 tests PASS.
+  - id: P1.T7.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/gpu-switcher/app/k8s.go apps/gpu-switcher/app/k8s_test.go
+      git commit -m "feat(gpu-switcher): implement K8s client operations with tests"
+      ```
+
+      ---
+- number: 8
+  title: Implement HTTP server and dashboard UI
+  steps:
+  - id: P1.T8.S1
+    text: |-
+      Create the dashboard HTML
+
+
+      Create `apps/gpu-switcher/app/static/index.html` — a single-page dashboard using safe DOM construction (no innerHTML):
+
+      ```html
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>GPU Switcher - Frank Cluster</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+          .container { max-width: 600px; width: 100%; padding: 2rem; }
+          h1 { font-size: 1.5rem; margin-bottom: 0.5rem; color: #f8fafc; }
+          .subtitle { color: #94a3b8; margin-bottom: 2rem; font-size: 0.875rem; }
+          .card { background: #1e293b; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; border: 1px solid #334155; transition: border-color 0.2s; }
+          .card.active { border-color: #22c55e; }
+          .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+          .card-name { font-size: 1.125rem; font-weight: 600; }
+          .badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+          .badge-active { background: #166534; color: #86efac; }
+          .badge-inactive { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+          .badge-pending { background: #854d0e; color: #fde047; }
+          .meta { display: flex; gap: 1.5rem; color: #94a3b8; font-size: 0.875rem; }
+          .actions { display: flex; gap: 0.75rem; margin-top: 2rem; }
+          button { flex: 1; padding: 0.75rem 1.5rem; border-radius: 8px; border: none; font-size: 0.875rem; font-weight: 600; cursor: pointer; transition: background 0.2s, opacity 0.2s; }
+          button:disabled { opacity: 0.5; cursor: not-allowed; }
+          .btn-ollama { background: #3b82f6; color: white; }
+          .btn-ollama:hover:not(:disabled) { background: #2563eb; }
+          .btn-comfyui { background: #a855f7; color: white; }
+          .btn-comfyui:hover:not(:disabled) { background: #9333ea; }
+          .btn-stop { background: #334155; color: #e2e8f0; }
+          .btn-stop:hover:not(:disabled) { background: #475569; }
+          .error { background: #7f1d1d; color: #fca5a5; padding: 1rem; border-radius: 8px; margin-top: 1rem; display: none; }
+          .loading { opacity: 0.6; pointer-events: none; }
+          .refresh-note { text-align: center; color: #475569; font-size: 0.75rem; margin-top: 1rem; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>GPU Switcher</h1>
+          <p class="subtitle">Frank Cluster - RTX 5070 Ti (16 GB)</p>
+
+          <div id="workloads"></div>
+
+          <div class="actions">
+            <button class="btn-ollama" onclick="activate('ollama')">Activate Ollama</button>
+            <button class="btn-comfyui" onclick="activate('comfyui')">Activate ComfyUI</button>
+            <button class="btn-stop" onclick="deactivateAll()">Stop All</button>
+          </div>
+
+          <div id="error" class="error"></div>
+          <p class="refresh-note">Auto-refreshes every 5 seconds</p>
+        </div>
+
+        <script>
+          function createWorkloadCard(w) {
+            var isActive = w.replicas > 0;
+            var isReady = w.readyReplicas > 0;
+
+            var card = document.createElement('div');
+            card.className = 'card' + (isActive ? ' active' : '');
+
+            var header = document.createElement('div');
+            header.className = 'card-header';
+
+            var nameEl = document.createElement('span');
+            nameEl.className = 'card-name';
+            nameEl.textContent = w.name;
+            header.appendChild(nameEl);
+
+            var badge = document.createElement('span');
+            if (isActive && isReady) {
+              badge.className = 'badge badge-active';
+              badge.textContent = 'Active';
+            } else if (isActive) {
+              badge.className = 'badge badge-pending';
+              badge.textContent = 'Starting';
+            } else {
+              badge.className = 'badge badge-inactive';
+              badge.textContent = 'Inactive';
+            }
+            header.appendChild(badge);
+            card.appendChild(header);
+
+            var meta = document.createElement('div');
+            meta.className = 'meta';
+            var items = [
+              'Replicas: ' + w.replicas,
+              'Ready: ' + w.readyReplicas,
+              'Pod: ' + w.podPhase
+            ];
+            items.forEach(function(text) {
+              var span = document.createElement('span');
+              span.textContent = text;
+              meta.appendChild(span);
+            });
+            card.appendChild(meta);
+
+            return card;
+          }
+
+          function renderWorkloads(workloads) {
+            var container = document.getElementById('workloads');
+            while (container.firstChild) {
+              container.removeChild(container.firstChild);
+            }
+            workloads.forEach(function(w) {
+              container.appendChild(createWorkloadCard(w));
+            });
+          }
+
+          async function fetchStatus() {
+            try {
+              var resp = await fetch('/api/status');
+              if (!resp.ok) throw new Error(await resp.text());
+              var data = await resp.json();
+              renderWorkloads(data);
+              document.getElementById('error').style.display = 'none';
+            } catch (e) {
+              showError(e.message);
+            }
+          }
+
+          async function activate(name) {
+            if (!confirm('Switch GPU to ' + name + '? This will stop the other workload.')) return;
+            document.body.classList.add('loading');
+            try {
+              var resp = await fetch('/api/activate/' + name, { method: 'POST' });
+              if (!resp.ok) throw new Error(await resp.text());
+              await fetchStatus();
+            } catch (e) {
+              showError(e.message);
+            } finally {
+              document.body.classList.remove('loading');
+            }
+          }
+
+          async function deactivateAll() {
+            if (!confirm('Stop all GPU workloads?')) return;
+            document.body.classList.add('loading');
+            try {
+              var resp = await fetch('/api/deactivate', { method: 'POST' });
+              if (!resp.ok) throw new Error(await resp.text());
+              await fetchStatus();
+            } catch (e) {
+              showError(e.message);
+            } finally {
+              document.body.classList.remove('loading');
+            }
+          }
+
+          function showError(msg) {
+            var el = document.getElementById('error');
+            el.textContent = msg;
+            el.style.display = 'block';
+          }
+
+          fetchStatus();
+          setInterval(fetchStatus, 5000);
+        </script>
+      </body>
+      </html>
+      ```
+  - id: P1.T8.S2
+    text: "Create main.go with HTTP server\n\n\nCreate `apps/gpu-switcher/app/main.go`:\n\
+      \n```go\npackage main\n\nimport (\n\t\"context\"\n\t\"embed\"\n\t\"encoding/json\"\
+      \n\t\"fmt\"\n\t\"io/fs\"\n\t\"log\"\n\t\"net/http\"\n\t\"os\"\n\t\"strings\"\
+      \n\t\"time\"\n\n\t\"k8s.io/client-go/kubernetes\"\n\t\"k8s.io/client-go/rest\"\
+      \n)\n\n//go:embed static\nvar staticFiles embed.FS\n\n// workloadStatusJSON\
+      \ is the JSON response for a workload status.\ntype workloadStatusJSON struct\
+      \ {\n\tName          string `json:\"name\"`\n\tNamespace     string `json:\"\
+      namespace\"`\n\tReplicas      int32  `json:\"replicas\"`\n\tReadyReplicas int32\
+      \  `json:\"readyReplicas\"`\n\tPodPhase      string `json:\"podPhase\"`\n}\n\
+      \nfunc main() {\n\tport := os.Getenv(\"PORT\")\n\tif port == \"\" {\n\t\tport\
+      \ = \"8080\"\n\t}\n\n\tclient, err := buildClient()\n\tif err != nil {\n\t\t\
+      log.Fatalf(\"Failed to create Kubernetes client: %v\", err)\n\t}\n\n\tworkloads\
+      \ := parseWorkloads()\n\n\tmux := http.NewServeMux()\n\n\t// Serve static files\
+      \ at root\n\tstaticFS, _ := fs.Sub(staticFiles, \"static\")\n\tmux.Handle(\"\
+      /\", http.FileServer(http.FS(staticFS)))\n\n\t// API: get status of all workloads\n\
+      \tmux.HandleFunc(\"/api/status\", func(w http.ResponseWriter, r *http.Request)\
+      \ {\n\t\tif r.Method != http.MethodGet {\n\t\t\thttp.Error(w, \"method not allowed\"\
+      , http.StatusMethodNotAllowed)\n\t\t\treturn\n\t\t}\n\t\tctx, cancel := context.WithTimeout(r.Context(),\
+      \ 10*time.Second)\n\t\tdefer cancel()\n\t\tstatuses, err := GetStatus(ctx, client,\
+      \ workloads)\n\t\tif err != nil {\n\t\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\n\
+      \t\t\treturn\n\t\t}\n\t\tresp := make([]workloadStatusJSON, len(statuses))\n\
+      \t\tfor i, s := range statuses {\n\t\t\tresp[i] = workloadStatusJSON{\n\t\t\t\
+      \tName:          s.Name,\n\t\t\t\tNamespace:     s.Namespace,\n\t\t\t\tReplicas:\
+      \      s.Replicas,\n\t\t\t\tReadyReplicas: s.ReadyReplicas,\n\t\t\t\tPodPhase:\
+      \      s.PodPhase,\n\t\t\t}\n\t\t}\n\t\tw.Header().Set(\"Content-Type\", \"\
+      application/json\")\n\t\tjson.NewEncoder(w).Encode(resp)\n\t})\n\n\t// API:\
+      \ activate a specific workload\n\tmux.HandleFunc(\"/api/activate/\", func(w\
+      \ http.ResponseWriter, r *http.Request) {\n\t\tif r.Method != http.MethodPost\
+      \ {\n\t\t\thttp.Error(w, \"method not allowed\", http.StatusMethodNotAllowed)\n\
+      \t\t\treturn\n\t\t}\n\t\tname := strings.TrimPrefix(r.URL.Path, \"/api/activate/\"\
+      )\n\t\tif name == \"\" {\n\t\t\thttp.Error(w, \"workload name required\", http.StatusBadRequest)\n\
+      \t\t\treturn\n\t\t}\n\t\tctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)\n\
+      \t\tdefer cancel()\n\t\tif err := ActivateWorkload(ctx, client, workloads, name);\
+      \ err != nil {\n\t\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\n\
+      \t\t\treturn\n\t\t}\n\t\tw.WriteHeader(http.StatusOK)\n\t\tfmt.Fprintf(w, \"\
+      activated %s\", name)\n\t})\n\n\t// API: deactivate all workloads\n\tmux.HandleFunc(\"\
+      /api/deactivate\", func(w http.ResponseWriter, r *http.Request) {\n\t\tif r.Method\
+      \ != http.MethodPost {\n\t\t\thttp.Error(w, \"method not allowed\", http.StatusMethodNotAllowed)\n\
+      \t\t\treturn\n\t\t}\n\t\tctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)\n\
+      \t\tdefer cancel()\n\t\tif err := DeactivateAll(ctx, client, workloads); err\
+      \ != nil {\n\t\t\thttp.Error(w, err.Error(), http.StatusInternalServerError)\n\
+      \t\t\treturn\n\t\t}\n\t\tw.WriteHeader(http.StatusOK)\n\t\tfmt.Fprint(w, \"\
+      all workloads deactivated\")\n\t})\n\n\tlog.Printf(\"GPU Switcher listening\
+      \ on :%s\", port)\n\tlog.Fatal(http.ListenAndServe(\":\"+port, mux))\n}\n\n\
+      // buildClient creates a Kubernetes clientset using in-cluster config.\nfunc\
+      \ buildClient() (kubernetes.Interface, error) {\n\tconfig, err := rest.InClusterConfig()\n\
+      \tif err != nil {\n\t\treturn nil, fmt.Errorf(\"in-cluster config: %w\", err)\n\
+      \t}\n\treturn kubernetes.NewForConfig(config)\n}\n\n// parseWorkloads reads\
+      \ workload definitions from the WORKLOADS env var.\n// Format: \"name:namespace:deployment,name:namespace:deployment,...\"\
+      \n// Default: \"ollama:ollama:ollama,comfyui:comfyui:comfyui\"\nfunc parseWorkloads()\
+      \ []Workload {\n\traw := os.Getenv(\"WORKLOADS\")\n\tif raw == \"\" {\n\t\t\
+      raw = \"ollama:ollama:ollama,comfyui:comfyui:comfyui\"\n\t}\n\tvar workloads\
+      \ []Workload\n\tfor _, entry := range strings.Split(raw, \",\") {\n\t\tparts\
+      \ := strings.SplitN(entry, \":\", 3)\n\t\tif len(parts) != 3 {\n\t\t\tlog.Fatalf(\"\
+      invalid workload entry: %s (expected name:namespace:deployment)\", entry)\n\t\
+      \t}\n\t\tworkloads = append(workloads, Workload{\n\t\t\tName:           parts[0],\n\
+      \t\t\tNamespace:      parts[1],\n\t\t\tDeploymentName: parts[2],\n\t\t})\n\t\
+      }\n\treturn workloads\n}\n```\n\n> **Key decisions:**\n> - Workload definitions\
+      \ via `WORKLOADS` env var — extensible without code changes\n> - In-cluster\
+      \ K8s client (runs as a pod with ServiceAccount)\n> - Embedded static files\
+      \ via `//go:embed` — single binary, no runtime dependencies\n> - 5-second auto-refresh\
+      \ in the UI for live status updates\n> - Confirm dialog before any switching\
+      \ action"
+  - id: P1.T8.S3
+    text: |-
+      Verify it compiles
+
+
+      Run: `cd apps/gpu-switcher/app && go build -o /dev/null .`
+      Expected: Compiles without errors.
+  - id: P1.T8.S4
+    text: |-
+      Run all tests
+
+
+      Run: `cd apps/gpu-switcher/app && go test -v ./...`
+      Expected: All tests PASS.
+  - id: P1.T8.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/gpu-switcher/app/main.go apps/gpu-switcher/app/static/index.html
+      git commit -m "feat(gpu-switcher): add HTTP server and dashboard UI"
+      ```
+
+      ---
+- number: 9
+  title: Create Dockerfile and build image
+  steps:
+  - id: P1.T9.S1
+    text: |-
+      Create multi-stage Dockerfile
+
+
+      ```dockerfile
+      # apps/gpu-switcher/app/Dockerfile
+      FROM golang:1.22-alpine AS builder
+      WORKDIR /build
+      COPY go.mod go.sum ./
+      RUN go mod download
+      COPY . .
+      RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o gpu-switcher .
+
+      FROM gcr.io/distroless/static-debian12:nonroot
+      COPY --from=builder /build/gpu-switcher /gpu-switcher
+      USER nonroot:nonroot
+      EXPOSE 8080
+      ENTRYPOINT ["/gpu-switcher"]
+      ```
+
+      > Uses distroless for minimal attack surface. `nonroot` user for security. Static binary (CGO_ENABLED=0) so no libc needed.
+  - id: P1.T9.S2
+    text: |-
+      Verify Docker and GHCR access
+
+
+      Run:
+      ```bash
+      docker info > /dev/null 2>&1 && echo "Docker OK" || echo "Docker not available"
+      echo $GITHUB_TOKEN | docker login ghcr.io -u derio-net --password-stdin
+      ```
+      Expected: Docker available and GHCR login successful.
+  - id: P1.T9.S3
+    text: |-
+      Build the image for amd64
+
+
+      Run:
+      ```bash
+      cd apps/gpu-switcher/app && docker build --platform linux/amd64 -t ghcr.io/derio-net/gpu-switcher:latest .
+      ```
+      Expected: Image builds successfully.
+
+      > **Why amd64 only?** GPU Switcher runs on non-GPU nodes, but the cluster has ARM nodes (raspi-1/2). We constrain to amd64 via nodeSelector in the Deployment (Task 12) and build only amd64 to keep it simple.
+  - id: P1.T9.S4
+    text: |-
+      Push to GHCR
+
+
+      Run:
+      ```bash
+      docker push ghcr.io/derio-net/gpu-switcher:latest
+      ```
+      Expected: Image pushed to `ghcr.io/derio-net/gpu-switcher:latest`.
+  - id: P1.T9.S4
+    text: |-
+      Tag with a version for reproducibility
+
+
+      Run:
+      ```bash
+      docker tag ghcr.io/derio-net/gpu-switcher:latest ghcr.io/derio-net/gpu-switcher:v0.1.0
+      docker push ghcr.io/derio-net/gpu-switcher:v0.1.0
+      ```
+  - id: P1.T9.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/gpu-switcher/app/Dockerfile
+      git commit -m "feat(gpu-switcher): add multi-stage Dockerfile"
+      ```
+
+      ---
+
+      ## Chunk 3: GPU Switcher ArgoCD Deployment
+
+      > **Prerequisite:** Chunk 2 must be complete — the GPU Switcher container image (`ghcr.io/derio-net/gpu-switcher:v0.1.0`) must be built and pushed to GHCR before these manifests can work. Verify with: `docker manifest inspect ghcr.io/derio-net/gpu-switcher:v0.1.0`
+- number: 10
+  title: Create GPU Switcher namespace
+  steps:
+  - id: P1.T10.S1
+    text: |-
+      Create the namespace manifest
+
+
+      ```yaml
+      # apps/root/templates/ns-gpu-switcher.yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: gpu-switcher
+        labels:
+          pod-security.kubernetes.io/enforce: baseline
+          pod-security.kubernetes.io/enforce-version: latest
+          pod-security.kubernetes.io/audit: baseline
+          pod-security.kubernetes.io/warn: baseline
+      ```
+
+      > **Note:** `baseline` (not `privileged`) — GPU Switcher doesn't need GPU or host access, just K8s API calls.
+  - id: P1.T10.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/ns-gpu-switcher.yaml
+      git commit -m "feat(gpu-switcher): add gpu-switcher namespace"
+      ```
+
+      ---
+- number: 11
+  title: Create RBAC resources
+  steps:
+  - id: P1.T11.S1
+    text: |-
+      Create ServiceAccount
+
+
+      ```yaml
+      # apps/gpu-switcher/manifests/serviceaccount.yaml
+      apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: gpu-switcher
+        namespace: gpu-switcher
+        labels:
+          app.kubernetes.io/name: gpu-switcher
+      ```
+  - id: P1.T11.S2
+    text: |-
+      Create ClusterRole
+
+
+      ```yaml
+      # apps/gpu-switcher/manifests/clusterrole.yaml
+      # Scoped permissions: scale deployments + read pods in GPU workload namespaces
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: gpu-switcher
+        labels:
+          app.kubernetes.io/name: gpu-switcher
+      rules:
+        # Read deployments and their scale subresource
+        - apiGroups: ["apps"]
+          resources: ["deployments"]
+          verbs: ["get"]
+        - apiGroups: ["apps"]
+          resources: ["deployments/scale"]
+          verbs: ["get", "update", "patch"]
+        # Read pods for status display
+        - apiGroups: [""]
+          resources: ["pods"]
+          verbs: ["get", "list"]
+      ```
+
+      > **Why ClusterRole (not Role)?** GPU Switcher needs to access deployments across two namespaces (`ollama` and `comfyui`). A ClusterRole with a ClusterRoleBinding is the cleanest way. The verb set is minimal — no create, delete, or list on deployments.
+  - id: P1.T11.S3
+    text: |-
+      Create ClusterRoleBinding
+
+
+      ```yaml
+      # apps/gpu-switcher/manifests/clusterrolebinding.yaml
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: gpu-switcher
+        labels:
+          app.kubernetes.io/name: gpu-switcher
+      subjects:
+        - kind: ServiceAccount
+          name: gpu-switcher
+          namespace: gpu-switcher
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: gpu-switcher
+      ```
+  - id: P1.T11.S4
+    text: |-
+      Validate all RBAC manifests
+
+
+      Run:
+      ```bash
+      kubectl apply --dry-run=client -f apps/gpu-switcher/manifests/serviceaccount.yaml && \
+      kubectl apply --dry-run=client -f apps/gpu-switcher/manifests/clusterrole.yaml && \
+      kubectl apply --dry-run=client -f apps/gpu-switcher/manifests/clusterrolebinding.yaml
+      ```
+      Expected: All created (dry run).
+  - id: P1.T11.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/gpu-switcher/manifests/serviceaccount.yaml apps/gpu-switcher/manifests/clusterrole.yaml apps/gpu-switcher/manifests/clusterrolebinding.yaml
+      git commit -m "feat(gpu-switcher): add RBAC (ServiceAccount, ClusterRole, ClusterRoleBinding)"
+      ```
+
+      ---
+- number: 12
+  title: Create GPU Switcher Deployment and Service
+  steps:
+  - id: P1.T12.S1
+    text: |-
+      Create the Deployment
+
+
+      ```yaml
+      # apps/gpu-switcher/manifests/deployment.yaml
+      # GPU Switcher dashboard — runs on any node (no GPU needed)
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: gpu-switcher
+        namespace: gpu-switcher
+        labels:
+          app.kubernetes.io/name: gpu-switcher
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: gpu-switcher
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: gpu-switcher
+          spec:
+            serviceAccountName: gpu-switcher
+            containers:
+              - name: gpu-switcher
+                image: ghcr.io/derio-net/gpu-switcher:v0.1.0
+                ports:
+                  - name: http
+                    containerPort: 8080
+                    protocol: TCP
+                env:
+                  - name: WORKLOADS
+                    value: "ollama:ollama:ollama,comfyui:comfyui:comfyui"
+                resources:
+                  requests:
+                    cpu: 50m
+                    memory: 32Mi
+                  limits:
+                    cpu: 200m
+                    memory: 64Mi
+                livenessProbe:
+                  httpGet:
+                    path: /
+                    port: http
+                  initialDelaySeconds: 5
+                  periodSeconds: 30
+                readinessProbe:
+                  httpGet:
+                    path: /
+                    port: http
+                  initialDelaySeconds: 2
+                  periodSeconds: 10
+            # Constrain to amd64 (image is amd64-only; avoids ARM raspi nodes)
+            nodeSelector:
+              kubernetes.io/arch: amd64
+      ```
+  - id: P1.T12.S2
+    text: |-
+      Create the LoadBalancer Service
+
+
+      ```yaml
+      # apps/gpu-switcher/manifests/service.yaml
+      # GPU Switcher dashboard at 192.168.55.214 via Cilium L2 IPAM
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: gpu-switcher
+        namespace: gpu-switcher
+        annotations:
+          lbipam.cilium.io/ips: "192.168.55.214"
+        labels:
+          app.kubernetes.io/name: gpu-switcher
+      spec:
+        type: LoadBalancer
+        selector:
+          app.kubernetes.io/name: gpu-switcher
+        ports:
+          - name: http
+            port: 8080
+            targetPort: http
+            protocol: TCP
+      ```
+  - id: P1.T12.S3
+    text: |-
+      Validate both
+
+
+      Run:
+      ```bash
+      kubectl apply --dry-run=client -f apps/gpu-switcher/manifests/deployment.yaml && \
+      kubectl apply --dry-run=client -f apps/gpu-switcher/manifests/service.yaml
+      ```
+      Expected: Both created (dry run).
+  - id: P1.T12.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/gpu-switcher/manifests/deployment.yaml apps/gpu-switcher/manifests/service.yaml
+      git commit -m "feat(gpu-switcher): add Deployment and LoadBalancer Service"
+      ```
+
+      ---
+- number: 13
+  title: Create GPU Switcher ArgoCD Application CR
+  steps:
+  - id: P1.T13.S1
+    text: |-
+      Create the Application CR
+
+
+      ```yaml
+      # apps/root/templates/gpu-switcher.yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: gpu-switcher
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ .Values.repoURL }}
+          targetRevision: {{ .Values.targetRevision }}
+          path: apps/gpu-switcher/manifests
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: gpu-switcher
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=false
+            - ServerSideApply=true
+      ```
+  - id: P1.T13.S2
+    text: |-
+      Verify template renders
+
+
+      Run: `helm template apps/root/ | grep -A18 'name: gpu-switcher'`
+      Expected: Application CR renders correctly.
+  - id: P1.T13.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/gpu-switcher.yaml
+      git commit -m "feat(gpu-switcher): add ArgoCD Application CR"
+      ```
+
+      ---
+
+      ## Chunk 4: Integration & Manual Verification
+- number: 14
+  title: Push and verify ArgoCD sync
+  steps:
+  - id: P1.T14.S1
+    text: |-
+      Push all commits to main
+
+
+      Run: `git push origin main`
+  - id: P1.T14.S2
+    text: |-
+      Wait for ArgoCD to sync the root app
+
+
+      Run:
+      ```bash
+      argocd app sync root --port-forward --port-forward-namespace argocd
+      ```
+  - id: P1.T14.S3
+    text: |-
+      Verify ComfyUI app is synced and healthy
+
+
+      Run:
+      ```bash
+      argocd app get comfyui --port-forward --port-forward-namespace argocd
+      ```
+      Expected: Status `Synced`, Health `Healthy` (or `Suspended` since replicas=0).
+  - id: P1.T14.S4
+    text: |-
+      Verify GPU Switcher app is synced and running
+
+
+      Run:
+      ```bash
+      argocd app get gpu-switcher --port-forward --port-forward-namespace argocd
+      kubectl get pods -n gpu-switcher
+      ```
+      Expected: GPU Switcher pod is Running.
+  - id: P1.T14.S5
+    text: |-
+      Verify ComfyUI PVC is bound
+
+
+      Run: `kubectl get pvc -n comfyui`
+      Expected: `comfyui-models` PVC is `Bound` (Longhorn provisioned the volume).
+  - id: P1.T14.S6
+    text: |-
+      Verify GPU Switcher is accessible
+
+
+      Run: `curl -s http://192.168.55.214:8080/api/status | jq .`
+      Expected: JSON with two workloads — ollama (replicas=1) and comfyui (replicas=0).
+
+      ---
+- number: 15
+  title: Test GPU switching end-to-end
+  steps:
+  - id: P1.T15.S1
+    text: |-
+      Open GPU Switcher UI in browser
+
+
+      Navigate to `http://192.168.55.214:8080`
+      Expected: Dashboard shows Ollama as Active, ComfyUI as Inactive.
+  - id: P1.T15.S2
+    text: |-
+      Switch to ComfyUI via the dashboard
+
+
+      Click "Activate ComfyUI" and confirm.
+      Expected: Ollama scales down, ComfyUI scales up. UI shows ComfyUI as "Starting" then "Active".
+  - id: P1.T15.S3
+    text: |-
+      Verify ComfyUI is running
+
+
+      Run:
+      ```bash
+      kubectl get pods -n comfyui
+      kubectl get pods -n ollama
+      ```
+      Expected: ComfyUI pod Running in `comfyui`, no pods in `ollama`.
+  - id: P1.T15.S4
+    text: |-
+      Verify ComfyUI Web UI is accessible
+
+
+      Navigate to `http://192.168.55.213:8188`
+      Expected: ComfyUI node-based workflow editor loads.
+  - id: P1.T15.S5
+    text: |-
+      Switch back to Ollama
+
+
+      Click "Activate Ollama" in GPU Switcher and confirm.
+      Expected: ComfyUI scales down, Ollama scales up.
+  - id: P1.T15.S6
+    text: |-
+      Verify Ollama restored
+
+
+      Run:
+      ```bash
+      kubectl get pods -n ollama
+      kubectl exec -n ollama deploy/ollama -- ollama list
+      ```
+      Expected: Ollama pod Running, model list returned.
+  - id: P1.T15.S7
+    text: |-
+      Test "Stop All"
+
+
+      Click "Stop All" in GPU Switcher and confirm.
+      Expected: Both workloads scaled to 0. No GPU pods running.
+
+      ---
+- number: 16
+  title: Download initial models (one-time setup)
+  steps: []
+- number: 17
+  title: Final commit — update CLAUDE.md services table
+  steps:
+  - id: P1.T17.S0
+    text: |-
+      Add Traefik routes on raspi-omni
+
+
+      ComfyUI and GPU Switcher need Traefik routes to be accessible at their `frank.derio.net` subdomains. Traefik runs outside K8s on raspi-omni.
+
+      ```yaml
+      # manual-operation
+      id: media-traefik-comfyui-route
+      layer: media
+      app: comfyui
+      plan: docs/superpowers/plans/2026-03-14--media--comfyui-gpu-switcher.md
+      when: "After ComfyUI deployment is healthy — add Traefik route on raspi-omni"
+      why_manual: "Traefik runs outside K8s on raspi-omni, managed via Ansible"
+      commands:
+        - "Add comfyui entry to Traefik Ansible vars: host comfyui.frank.derio.net, backend 192.168.55.213:8188"
+        - "Add gpu-switcher entry to Traefik Ansible vars: host gpu.frank.derio.net, backend 192.168.55.214:8080"
+        - "Run Ansible playbook to apply Traefik config on raspi-omni"
+      verify:
+        - "curl -sk https://comfyui.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)"
+        - "curl -sk https://gpu.frank.derio.net/ returns 200 (or auth redirect if forward-auth enabled)"
+      status: pending
+      ```
+  - id: P1.T17.S1
+    text: |-
+      Add ComfyUI and GPU Switcher to the Services table in CLAUDE.md
+
+
+      Add after the Paperclip entry:
+
+      ```markdown
+      | ComfyUI | 192.168.55.213 | Cilium L2 LoadBalancer (port 8188) |
+      | GPU Switcher | 192.168.55.214 | Cilium L2 LoadBalancer (port 8080) |
+      ```
+  - id: P1.T17.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add CLAUDE.md
+      git commit -m "docs: add ComfyUI and GPU Switcher to services table"
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T12.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T13.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T13.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T13.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T14.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T14.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T14.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T14.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T14.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T14.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T15.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T15.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T15.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T15.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T15.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T15.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T15.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T17.S0:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T17.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T17.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

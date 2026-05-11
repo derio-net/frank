@@ -1,0 +1,137 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Priority — Layer 18 Persistent Agent
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Add Layer-18 heartbeat-aggregation rule
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Append the Layer 18 rule
+
+
+      ```yaml
+            # --- Layer 18 — Persistent Agent (frank-ops#18) ---
+            # Per-job heartbeat check — fires ONE alert instance per stale cron, all
+            # labelled github_issue=frank-ops#18 so they roll up to the Layer tracker.
+            # Bridge lastState-dedup ensures only one Lifecycle transition per fire-bundle;
+            # the first instance's annotation (with specific job name) lands in the comment.
+            # Pod-level critical failures are covered by agent-pod-not-running
+            # (labels.github_issue=frank-ops#18, severity=critical) — leave that rule intact.
+            - orgId: 1
+              name: layer-18-persistent-agent-degraded
+              folder: feature-health
+              interval: 1m
+              rules:
+                - uid: layer-18-persistent-agent-degraded
+                  title: Layer 18 Persistent Agent Heartbeat Stale
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        # Each clause returns a 0/1 series WITH the source metric's labels
+                        # (notably `job`). `or` stacks them into a multi-dimensional
+                        # series — one element per currently-stale job.
+                        expr: |
+                          (time() - willikins_heartbeat_last_success_timestamp{job="exercise_reminder"} > bool 10800)
+                          or (time() - willikins_heartbeat_last_success_timestamp{job="session_manager"} > bool 600)
+                          or (time() - willikins_heartbeat_last_success_timestamp{job="audit_digest"} > bool 93600)
+                          or (time() - willikins_heartbeat_last_success_timestamp{job="vk_issue_bridge"} > bool 600)
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: B
+                        type: reduce
+                        expression: A
+                        reducer: last
+                        settings: { mode: dropNN }
+                    - refId: C
+                      relativeTimeRange: { from: 600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator: { type: gt, params: [0] }
+                  noDataState: OK
+                  execErrState: Error
+                  for: 5m
+                  labels:
+                    severity: warning
+                    github_issue: "frank-ops#18"
+                  annotations:
+                    summary: "Layer 18 (Persistent Agent) — {{ $labels.job }} cron heartbeat stale. See willikins#11/#12/#13 for per-cron triage."
+                    runbook: "kubectl logs -n secure-agent-pod -l app=secure-agent-pod --tail=50 | grep -i {{ $labels.job }}"
+      ```
+  - id: P2.T1.S2
+    text: |-
+      Commit, push, reload Grafana
+
+
+      ```bash
+      git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
+      git commit -m "feat(obs): add Layer 18 (Persistent Agent) heartbeat-aggregation rule → frank-ops#18"
+      git push origin main
+      kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+      kubectl rollout status -n monitoring deploy/grafana --timeout=120s
+      ```
+  - id: P2.T1.S3
+    text: |-
+      Smoke-test the Layer 18 rule via webhook (same pattern as Phase 1 Task 2, with `github_issue=frank-ops#18` and `severity=warning` → expect `degraded`)
+- number: 2
+  title: Confirm the Deployed pod rule still co-exists
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Read both rules, confirm label overlap is intentional
+
+
+      ```bash
+      grep -A 40 'agent-pod-not-running\|layer-18-persistent-agent-degraded' apps/grafana-alerting/manifests/alert-rules-cm.yaml | grep -E 'severity:|github_issue:'
+      ```
+
+      Expected:
+      ```
+                    severity: critical
+                    github_issue: "frank-ops#18"
+                    severity: warning
+                    github_issue: "frank-ops#18"
+      ```
+
+      This is the intended dual-signal: warning (heartbeat stale) → `degraded`, critical (pod down) → `dead`, resolution of either → `healthy`.
+
+      ---
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

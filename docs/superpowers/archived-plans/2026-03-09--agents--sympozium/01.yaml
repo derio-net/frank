@@ -1,0 +1,53 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Sympozium Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: cert-manager ArgoCD Application
+  steps: []
+- number: 2
+  title: Sympozium Helm ArgoCD Application
+  steps: []
+- number: 3
+  title: sympozium-extras Application CR + ExternalSecret
+  steps: []
+- number: 4
+  title: SympoziumPolicy Manifests
+  steps: []
+- number: 5
+  title: PersonaPack Manifests
+  steps: []
+- number: 6
+  title: Verify Helm Chart Values Against Actual Chart
+  steps: []
+- number: 7
+  title: Manual Operation — Create Infisical Secret
+  steps: []
+- number: 8
+  title: Push and Verify cert-manager Deployment
+  steps: []
+- number: 9
+  title: Verify Sympozium Control Plane Deployment
+  steps: []
+- number: 10
+  title: Verify Web Dashboard and Test Agent Run
+  steps: []
+- number: 11
+  title: Update CLAUDE.md Services Table
+  steps: []
+- number: 12
+  title: Sync Runbook
+  steps: []
+- number: 13
+  title: Final Push and Verification
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

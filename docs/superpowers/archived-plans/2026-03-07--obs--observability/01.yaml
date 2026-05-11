@@ -1,0 +1,47 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Observability Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create monitoring namespace
+  steps: []
+- number: 2
+  title: Add victoria-metrics ArgoCD Application
+  steps: []
+- number: 3
+  title: Deploy victoria-metrics and verify
+  steps: []
+- number: 4
+  title: Add victoria-logs ArgoCD Application
+  steps: []
+- number: 5
+  title: Deploy victoria-logs and verify
+  steps: []
+- number: 6
+  title: Add fluent-bit ArgoCD Application
+  steps: []
+- number: 7
+  title: Deploy fluent-bit and verify log flow
+  steps: []
+- number: 8
+  title: Verify VictoriaLogs datasource in Grafana
+  steps: []
+- number: 9
+  title: Verify pre-built dashboards
+  steps: []
+- number: 10
+  title: Final commit and push
+  steps: []
+- number: 11
+  title: Blog post — `07-observability`
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

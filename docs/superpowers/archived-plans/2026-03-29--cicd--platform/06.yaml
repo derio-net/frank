@@ -1,0 +1,84 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-Deploy Checklist
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/60
+tasks:
+- number: 10
+  title: Post-Deploy Checklist
+  steps:
+  - id: P6.T10.S1
+    text: |-
+      Write building blog post — Use `/blog-post` skill. Cover the full CI/CD layer: Gitea, Tekton, Zot, cosign. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
+  - id: P6.T10.S2
+    text: |-
+      Write operating blog post — Use `/blog-post` skill for the companion operating guide (health checks, pipeline debugging, registry maintenance, cosign verification). Update operating series index in `blog/content/building/00-overview/index.md`
+  - id: P6.T10.S3
+    text: |-
+      Update README — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status
+  - id: P6.T10.S4
+    text: |-
+      Sync runbook — Run `/sync-runbook` (this plan has 11 manual-operation blocks)
+  - id: P6.T10.S5
+    text: |-
+      Update plan status — Set `**Status:**` to `Deployed`
+
+
+      ---
+
+      ## Summary of Manual Operations
+
+      | ID | Layer | When | What |
+      |----|-------|------|------|
+      | `cicd-pc1-role-label` | cicd | Before Task 2 | Add role=cicd label to pc-1 via Omni |
+      | `cicd-infisical-gitea-secrets` | cicd | Before Task 2 | Create Gitea secrets in Infisical |
+      | `cicd-authentik-gitea-oidc` | cicd | Before Task 2 | ~~Create Authentik OIDC provider for Gitea~~ DONE (via script) |
+      | `cicd-gitea-service-account` | cicd | After Task 2 | Create Gitea service account + API token |
+      | `cicd-gitea-mirror-test-repo` | cicd | After Task 2 | Mirror test repo from GitHub |
+      | `cicd-infisical-webhook-secret` | cicd | Before Task 5 | Create webhook secret in Infisical |
+      | `cicd-gitea-webhook` | cicd | After Task 5 | Configure Gitea webhook for test repo |
+      | `cicd-infisical-zot-secrets` | cicd | Before Task 6 | Create Zot secrets in Infisical |
+      | `cicd-authentik-zot-oidc` | cicd | Before Task 6 | ~~Create Authentik OIDC provider for Zot~~ DONE (via script) |
+      | `cicd-talos-containerd-mirror` | cicd | After Task 6 | Apply containerd mirror Talos patch |
+      | `cicd-cosign-keypair` | cicd | Before Task 9 | Generate cosign key pair |
+
+      ---
+
+      ## Open Items for Implementation
+
+      - **Helm chart versions**: All `targetRevision` values are placeholders. Pin to latest stable at implementation time.
+      - **Tekton release versions**: Download latest stable from GitHub releases at implementation time.
+      - **Gitea chart OIDC syntax**: The `gitea.oauth` section varies between chart versions — verify during Step 2 research.
+      - **Gitea internal service name**: Verify `gitea-http.gitea.svc.cluster.local` matches the actual service name after deployment.
+      - **Zot chart config**: The Zot Helm chart structure needs research — TLS, htpasswd, and OIDC config paths will be determined in Task 6 Step 2.
+      - **Webhook secret validation**: The CEL interceptor for HMAC validation of Gitea webhooks may need a `secretRef` — verify against Tekton Triggers docs.
+      - **Cosign digest-based signing**: The initial implementation signs by tag. Refine to use image digest from build-push results.
+      - **cert-manager IP SAN**: Test whether the self-signed ClusterIssuer supports IP addresses in SANs for the Zot TLS cert.
+state:
+  steps:
+    P6.T10.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P6.T10.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P6.T10.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P6.T10.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P6.T10.S5:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

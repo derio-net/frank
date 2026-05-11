@@ -1,0 +1,32 @@
+schema_version: 2
+phase:
+  number: 1
+  title: GPU Operator Talos Validation Fix — Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create the validation markers DaemonSet manifest
+  steps: []
+- number: 2
+  title: Create the gpu-operator-extras ArgoCD Application
+  steps: []
+- number: 3
+  title: Push and verify GPU Operator pods unblock
+  steps: []
+- number: 4
+  title: Verify Ollama schedules and serves models
+  steps: []
+- number: 5
+  title: Update CLAUDE.md and documentation
+  steps: []
+- number: 6
+  title: Final push and verification
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

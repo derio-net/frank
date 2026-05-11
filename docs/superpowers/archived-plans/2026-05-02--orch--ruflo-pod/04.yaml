@@ -1,0 +1,153 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Populate inventory and verify reconcile
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: https://github.com/derio-net/frank/issues/185
+tasks:
+- number: 1
+  title: Curate initial inventory
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Edit `apps/ruflo/manifests/configmap-shell-inventory.yaml` to declare the operator's expected toolset. Suggested starting set (refine after a discovery week):
+
+
+      ```yaml
+      data:
+        inventory.yaml: |
+          mise:
+            - python@3.12
+            - node@20
+            - rust@stable
+          npm-global:
+            - "claude-flow@alpha"
+            - "@openai/codex"
+          pipx:
+            - black
+            - ruff
+          cargo:
+            - ripgrep
+            - eza
+          removed:
+            mise: []
+            npm-global: []
+            pipx: []
+            cargo: []
+      ```
+
+        Commit and push. ArgoCD syncs the ConfigMap.
+
+        *Note on `claude-flow@alpha`:* the upstream package name is the npm tag for ruflo's CLI ([myaiguide.co/repos/ruflo](https://myaiguide.co/repos/ruflo)). Verify the exact package name during Phase 1 Task 2's upstream Dockerfile read — if upstream now publishes under `ruflo` directly, use that name instead.
+- number: 2
+  title: Run reconcile and verify
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      (with workaround — see P4.T2 Deployment Note) `ruflo-shell-reconcile` ran end-to-end (~7 min wallclock, dominated by cargo compile of ripgrep + eza). Final summary on the first run: `installed=7 already=0 removed=0 failed=2`. The 7 ✓: `mise install python@3.12 / node@20 / rust@stable`, `pipx install black / ruff`, `cargo install ripgrep / eza`. The 2 ✗: `npm i -g claude-flow@alpha` and `npm i -g @openai/codex` — both EACCES on `/usr/lib/node_modules/`, see Phase 4 Deployment Notes for the agent-shell-base bug. Workaround applied: `mise use --global node@20 rust@stable python@3.12` + `pip install pyyaml` (in mise's python; the inventory parser uses pyyaml), then npm-globals install cleanly.
+  - id: P4.T2.S2
+    text: |-
+      Verify each manager reports the tool present — verified after the workaround above:
+
+      - `mise ls` → node 20.20.2, python 3.12.13, rust stable ✓
+      - `pipx list --short` → black 26.3.1, ruff 0.15.12 ✓
+      - `cargo install --list` → eza v0.23.4 (eza), ripgrep v15.1.0 (rg) ✓
+      - `npm ls -g --depth=0` (mise active) → @openai/codex@0.128.0, claude-flow@3.6.12 ✓ (corepack + npm are mise's node@20 baked-ins)
+  - id: P4.T2.S3
+    text: |-
+      Confirm `claude-flow` CLI works
+
+      - `claude-flow --version` → `ruflo v3.6.12` (the upstream `claude-flow` npm tag now publishes the rebranded `ruflo` CLI; binary name is still `claude-flow`)
+      - `codex --version` → `codex-cli 0.128.0`
+      - `claude-flow --help` lists primary commands (init/start/status/agent/swarm/memory/task/session/mcp/hooks) and advanced commands (neural/security/performance/embeddings/hive-mind). Canonical health-check for the operating post: `claude-flow --version` (process check) + `claude-flow status` (run-state check; reaches into ruvocal). Recorded in Deployment Notes.
+- number: 3
+  title: Persistence test across pod restart
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Force a pod bounce — `kubectl -n ruflo-system rollout restart deploy/ruflo` + `rollout status` (60s, both containers Ready).
+  - id: P4.T3.S2
+    text: |-
+      Reconnect and verify everything still present
+
+      - `mise ls` → all 3 tools still listed against `~/.config/mise/config.toml` (the global activation survives because the config file lives on the `shell-home` PVC).
+      - `cargo install --list` → eza + ripgrep still present (cargo bins on PVC under `~/.cargo/bin`).
+      - `pipx list --short` → black + ruff still present (pipx data on PVC under `~/.local/pipx/`).
+      - `npm ls -g --depth=0` (mise active) → claude-flow + codex still present (under `~/.local/share/mise/installs/node/20.20.2/lib/`).
+      - `claude-flow --version` / `codex --version` → both functional.
+      - `/workspace` contents unchanged.
+      - MOTD on this fresh boot: `✓ ruflo-shell: 0 installed, 0 already present, 0 removed @ 2026-05-03T08:30:47+00:00` — the installer ran on boot against the (currently-empty-in-the-cluster, see Phase 4 deviations) ConfigMap and committed no work, exactly as expected for a no-op reconcile.
+  - id: P4.T3.S3
+    text: |-
+      Confirm ruvocal RVF state survived *(was: "Mongo state survived" — ruvocal at the pinned SHA writes to `/app/db/ruvocal.rvf.json`, persisted via the `ruflo-data` PVC added in Phase 3 / PR #200)* — *skipped here; the canonical proof was performed in PR #200* (recorded in the P3 Deployment Notes row dated 2026-05-03, "Test plan from #200 executed": fresh PVC pod logged `[RVF] No existing database … starting fresh`, post-restart pod logged `[RVF] Loaded 7 collections`, marker file `/app/db/.persist-test` survived). My Phase 4 bounce ran on the pre-#200 manifests where `/app/db` was overlay fs, so it did not exercise RVF persistence — re-running the same proof here would be redundant. Re-confirmed live during this PR's review that the persisted state is still intact:
+
+
+      ```bash
+      kubectl -n ruflo-system exec -c ruflo deploy/ruflo -- ls -la /app/db/
+      # /app/db/ruvocal.rvf.json (709B, owned user:user) ✓
+      kubectl -n ruflo-system logs deploy/ruflo -c ruflo --tail=200 | grep RVF
+      # [RVF] Loaded 7 collections from /app/db/ruvocal.rvf.json ✓
+      ```
+- number: 4
+  title: Interactive install drift test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Manually install something not in the inventory — `cargo install fd-find` → `Installed package fd-find v10.4.2 (executable fd)` (~60s release build).
+  - id: P4.T4.S2
+    text: |-
+      Confirm it persists across pod bounce — bounced via `rollout restart deploy/ruflo`, post-restart `cargo install --list` shows `fd-find v10.4.2` alongside eza + ripgrep, `fd --version` → `fd 10.4.2`. Layer-3 escape hatch works as specified.
+  - id: P4.T4.S3
+    text: |-
+      Document the drift policy in this plan's *Deployment Notes * — added under P4.T4 (above): drift is intentional during discovery; promote to inventory ConfigMap when you want PV-migration survival, next-operator inheritance, or Telegram-alert coverage on the install. The inventory's `removed:` arrays are the explicit un-install path (vs. just deleting from the declared list, which leaves existing installs in place by design).
+
+
+      ---
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T3.S3:
+      state: '-'
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

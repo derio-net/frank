@@ -1,0 +1,99 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Drop preStop, add notification annotations
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: https://github.com/derio-net/frank/issues/134
+tasks:
+- number: 1
+  title: Remove `lifecycle.preStop` from deployment.yaml
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Edit `apps/secure-agent-pod/manifests/deployment.yaml`
+
+
+      Delete the entire `lifecycle:` block from the kali container spec. cont-finish.d/01-shutdown now handles the same shutdown.sh call, with the bonus that cont-finish.d/02-tmux-save runs after.
+- number: 2
+  title: Add notification subscription annotations to the Application CR
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Edit `apps/root/templates/secure-agent-pod.yaml`
+
+
+      Add to the Application CR's `metadata.annotations`:
+
+      ```yaml
+      notifications.argoproj.io/subscribe.on-sync-running.telegram: ""
+      notifications.argoproj.io/subscribe.on-sync-succeeded.telegram: ""
+      ```
+
+      > **Correction (executed during Phase 4 — see Phase 4 Task 4 deviation for full
+      > story):** Phase 3 originally shipped these annotations as
+      > `subscribe.<trigger>.webhook: telegram`. That format silently breaks delivery:
+      > notifications-engine treats the third dotted segment of `service.webhook.telegram`
+      > as the **service name** (`telegram`), not the type, so the controller rejects
+      > the recipient with `notification service 'webhook' is not supported`. The trigger
+      > still fires, the message never sends. The block above is the corrected form
+      > (`subscribe.<trigger>.<name>: ""`, recipient empty because the webhook URL is
+      > self-contained). Fixed in PR #149 / commit `fc1e8f8` (Phase 4).
+- number: 3
+  title: Open PR + merge
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Open PR `feat(agents): drop preStop, subscribe to ArgoCD bump alerts`
+  - id: P3.T3.S2
+    text: |-
+      Merge after CI green *(merged via PR #148 on 2026-04-29)*
+
+
+      ArgoCD syncs the Application change. Telegram fires (`on-sync-running` then `on-sync-succeeded`) — this is the **second cutover**, the first one with the heads-up. Pod recreates because the deployment.yaml change applies.
+- number: 4
+  title: Re-spawn mosh + verify Telegram fired
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Cmd+Shift+2 *(N/A — pod is still on the pre-s6 image; preStop removal didn't trigger pod recreate by itself, since cont-finish.d isn't there yet either. Verified separately in Phase 4 Task 4 via test-trigger annotation)*
+  - id: P3.T4.S2
+    text: |-
+      Confirm Telegram alert arrived for this sync *(verified separately — see Phase 4 Task 4)*
+
+
+      If alert is missing, check `argocd-notifications-controller` logs for delivery errors. Typical issues: bot token misconfigured (rare), chat ID typo, template parse error.
+
+      ---
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

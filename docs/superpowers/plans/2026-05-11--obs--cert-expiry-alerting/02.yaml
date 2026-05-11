@@ -1,0 +1,189 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Global cert-expiry alert rule
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/244
+tasks:
+- number: 1
+  title: Add rule group to `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Delete the deferred-comment line at L1173
+
+
+      Find:
+
+      ```
+                    # Cert expiry: probe_ssl_earliest_cert_expiry - time() < 7*86400.
+      ```
+
+      Delete only that single line (keep the Headscale and Hetzner deferred comments — they're separate follow-ups).
+  - id: P2.T1.S2
+    text: |-
+      Append a new rule group
+
+
+      At the end of the existing `groups:` list (after the last `- orgId: 1, name: layer-...` block), append:
+
+      ````yaml
+            # =====================================================================
+            # GLOBAL TLS CERT-EXPIRY
+            # Triggered by 2026-05-11 Omni outage — see
+            # docs/investigations/2026-05-11--omni--cert-expiry-incident.md.
+            # Fires on ANY blackbox probe target with cert <14d (warning) or <7d
+            # (critical) remaining. Wires to telegram via existing severity-based
+            # notification policy.
+            # =====================================================================
+            - orgId: 1
+              name: tls-cert-expiry-1h
+              folder: feature-health
+              interval: 1h
+              rules:
+                - uid: tls-cert-expiring-14d
+                  title: TLS cert expiring within 14 days
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange: { from: 3600, to: 0 }
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'probe_ssl_earliest_cert_expiry - time()'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange: { from: 3600, to: 0 }
+                      datasourceUid: __expr__
+                      model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+                    - refId: C
+                      relativeTimeRange: { from: 3600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator: { type: lt, params: [1209600] }
+                  noDataState: OK
+                  execErrState: Error
+                  for: 1h
+                  labels:
+                    severity: warning
+                  annotations:
+                    summary: "TLS cert for {{ $labels.instance }} expires in <14 days ({{ humanizeDuration $value }} remaining)"
+                    runbook: "See docs/investigations/2026-05-11--omni--cert-expiry-incident.md for renewal procedure."
+
+                - uid: tls-cert-expiring-7d
+                  title: TLS cert expiring within 7 days
+                  condition: C
+                  data:
+                    - refId: A
+                      relativeTimeRange: { from: 3600, to: 0 }
+                      datasourceUid: P4169E866C3094E38
+                      model:
+                        refId: A
+                        expr: 'probe_ssl_earliest_cert_expiry - time()'
+                        instant: true
+                        intervalMs: 1000
+                        maxDataPoints: 43200
+                    - refId: B
+                      relativeTimeRange: { from: 3600, to: 0 }
+                      datasourceUid: __expr__
+                      model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+                    - refId: C
+                      relativeTimeRange: { from: 3600, to: 0 }
+                      datasourceUid: __expr__
+                      model:
+                        refId: C
+                        type: threshold
+                        expression: B
+                        conditions:
+                          - evaluator: { type: lt, params: [604800] }
+                  noDataState: OK
+                  execErrState: Error
+                  for: 1h
+                  labels:
+                    severity: critical
+                  annotations:
+                    summary: "TLS cert for {{ $labels.instance }} expires in <7 days ({{ humanizeDuration $value }} remaining)"
+                    runbook: "See docs/investigations/2026-05-11--omni--cert-expiry-incident.md for renewal procedure."
+      ````
+
+      Notes:
+      - `1209600` = 14 × 86400; `604800` = 7 × 86400.
+      - The A→B→C three-step pattern is mandatory (frank-gotchas: "Grafana 12.x SSE alert rules require 3-step A→B→C format").
+      - The Prometheus `datasourceUid: P4169E866C3094E38` matches the existing rules in the same file — copy-paste consistent.
+      - No `github_issue` label here: this is a generalized rule, not tied to one Layer tracker. Add one later if a tracker is wanted.
+  - id: P2.T1.S3
+    text: |-
+      Commit + push + sync + restart Grafana
+
+
+      ```bash
+      git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
+      git commit -m "feat(obs): add global TLS cert-expiry alert rule (14d warn / 7d crit)"
+      git push
+      ```
+
+      Grafana file-provisioning is read at boot, not watched (frank-gotchas) — restart to load:
+
+      ```bash
+      kubectl -n argocd get application grafana-alerting -o jsonpath='{.status.sync.status}{"\n"}'
+      # wait for Synced
+      kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
+      ```
+  - id: P2.T1.S4
+    text: |-
+      Verify rules are loaded
+
+
+        The provisioning API path needs Grafana admin auth, but the chart-managed Secret drifts from the PVC-backed `grafana.db` (frank-gotcha: "Grafana Helm chart regenerates admin password Secret on re-render — PVC-backed database retains old password"), so the documented `wget --user/--password` path returns `401`. Two no-auth alternatives that confirm provisioning without resetting the admin password:
+
+        ```bash
+        # (a) Confirm Grafana parsed the provisioning file with no SSE/parse errors.
+        kubectl -n monitoring logs deploy/victoria-metrics-grafana --tail=400 \
+          | grep -iE 'provisioning.alerting|parseError|sse\.parse'
+        # Expect: "starting to provision alerting" → "finished to provision alerting"
+        # with no parseError / sse.parse lines in between.
+
+        # (b) Confirm both rules made it into grafana.db (sqlite3 isn't in the image —
+        #     grep the raw db for our UIDs instead).
+        kubectl -n monitoring exec deploy/victoria-metrics-grafana -- \
+          sh -c 'strings /var/lib/grafana/grafana.db | grep -E "^tls-cert-expir" | sort -u'
+        # Expect: both `tls-cert-expiring-14d` and `tls-cert-expiring-7d` appear,
+        # each with their full A→B→C JSON inlined (thresholds 1209600 and 604800).
+        ```
+
+        (Note: busybox `wget` inside the Grafana image does not understand
+        `--user`/`--password` flags — basic-auth has to come via an
+        `Authorization: Basic …` header. With the chart-secret password mismatch above
+        that path is moot anyway; the two checks above are the working verification.)
+
+      ---
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T1.S4:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

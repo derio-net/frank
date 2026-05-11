@@ -434,6 +434,6 @@ status: pending
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| Stoa Org Gitea-Primary Implementation Plan | derio-net/frank | `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary.md` | In Progress | layer 19 (deployed) |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Stoa Org Gitea-Primary Implementation Plan | derio-net/frank | `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary/` | layer 19 (deployed) |

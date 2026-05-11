@@ -1,0 +1,271 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Lockstep bumper workflow
+  tag: agentic
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/82
+tasks:
+- number: 1
+  title: Write the bumper workflow
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Write the workflow. *(written as `.yml` for consistency; uses GHCR tag resolution instead of private repo query; adds SHA validation — see Deployment Deviations)*
+
+
+      ```yaml
+      # BEGIN .github/workflows/agent-images-bump.yaml
+      name: Bump agent image SHAs
+
+      on:
+        repository_dispatch:
+          types: [agent-images-bumped]
+        workflow_dispatch:
+          inputs:
+            agent_images_sha:
+              description: agent-images commit SHA to bump to
+              required: true
+
+      permissions:
+        contents: write
+        pull-requests: write
+
+      jobs:
+        bump:
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout@v4
+            - name: Resolve SHAs
+              id: shas
+              env:
+                GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                AI_SHA="${{ github.event.client_payload.agent_images_sha || inputs.agent_images_sha }}"
+                VKR_SHA=$(gh api /repos/derio-net/vibe-kanban/commits/main --jq '.sha')
+                echo "ai_sha=$AI_SHA" >> "$GITHUB_OUTPUT"
+                echo "vkr_sha=$VKR_SHA" >> "$GITHUB_OUTPUT"
+            - name: Update manifests
+              env:
+                AI_SHA: ${{ steps.shas.outputs.ai_sha }}
+                VKR_SHA: ${{ steps.shas.outputs.vkr_sha }}
+              run: |
+                sed -i "s|ghcr.io/derio-net/secure-agent-kali:[a-f0-9]\+|ghcr.io/derio-net/secure-agent-kali:$AI_SHA|g" apps/secure-agent-pod/manifests/deployment.yaml
+                sed -i "s|ghcr.io/derio-net/vk-local:[a-f0-9]\+|ghcr.io/derio-net/vk-local:$AI_SHA|g"                 apps/secure-agent-pod/manifests/deployment.yaml
+                sed -i "s|ghcr.io/derio-net/vk-remote:[a-f0-9]\+|ghcr.io/derio-net/vk-remote:$VKR_SHA|g"              apps/vk-remote/manifests/deployment.yaml
+            - name: Open PR
+              env:
+                GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                AI_SHA: ${{ steps.shas.outputs.ai_sha }}
+                VKR_SHA: ${{ steps.shas.outputs.vkr_sha }}
+              run: |
+                git config user.name  "clawdia-bumper[bot]"
+                git config user.email "clawdia-bumper[bot]@users.noreply.github.com"
+                BRANCH="bump/agent-images-${AI_SHA:0:7}"
+                git checkout -b "$BRANCH"
+                if git diff --quiet; then
+                  echo "No changes to bump."
+                  exit 0
+                fi
+                git add apps/
+                git commit -m "chore(agents): bump agent-images to ${AI_SHA:0:7}, vk-remote to ${VKR_SHA:0:7}"
+                git push origin "$BRANCH"
+                gh pr create --base main --head "$BRANCH" \
+                  --title "chore(agents): bump agent-images + vk-remote" \
+                  --body "agent-images: \`$AI_SHA\`$'\n'vk-remote: \`$VKR_SHA\`"
+      # END .github/workflows/agent-images-bump.yaml
+      ```
+  - id: P3.T1.S2
+    text: |-
+      Commit and push. *(committed as `81ab54b` on `vk/49aa-ffe-39-gh-82`)*
+
+
+      ```bash
+      cd ~/repos/frank
+      git add .github/workflows/agent-images-bump.yaml
+      git commit -m "ci(agents): add bumper workflow for agent-images + vk-remote"
+      git push
+      ```
+- number: 2
+  title: Dry-run the bumper
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Trigger manually with the current agent-images SHA. *(2026-04-17 post-merge of PR #85; run [24586433455](https://github.com/derio-net/frank/actions/runs/24586433455) — SHA resolution + manifest update succeeded, `gh pr create` step failed on Actions permissions — see deviation below)*
+
+
+      ```bash
+      AI_SHA=$(gh api /repos/derio-net/agent-images/commits/main --jq '.sha')
+      gh workflow run agent-images-bump.yaml --repo derio-net/frank -f agent_images_sha=$AI_SHA
+      gh run watch --repo derio-net/frank
+      ```
+  - id: P3.T2.S2
+    text: |-
+      Inspect the generated PR. *(PR [#105](https://github.com/derio-net/frank/pull/105) created manually from the workflow-pushed `bump/agent-images-325b23e` branch; diff touched only `apps/vk-remote/manifests/deployment.yaml` — both vk-remote refs bumped `1cce857` → `5bd749c`. kali + vk-local already at current agent-images SHA, so no diff there — expected behavior after Phase 2 cutover.)*
+
+
+      ```bash
+      gh pr list --repo derio-net/frank --search "in:title bump agent-images" --json number,title,files
+      gh pr view <PR_NUMBER> --repo derio-net/frank
+      # Expected files changed: ONLY
+      #   apps/secure-agent-pod/manifests/deployment.yaml
+      #   apps/vk-remote/manifests/deployment.yaml
+      ```
+  - id: P3.T2.S3
+    text: |-
+      Close without merging (dry-run only). *(PR #105 closed, branch deleted. Workflow logic validated end-to-end.)*
+
+
+      ```bash
+      gh pr close <PR_NUMBER> --repo derio-net/frank --comment "Dry-run — workflow validated, SHAs were already current"
+      ```
+
+      If SHAs were NOT already current and the PR would move production, treat the merge as a bounce-gate and follow the protocol.
+- number: 3
+  title: Verify the full dispatch chain
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Push a trivial change to the fork. *(2026-04-18: vibe-kanban PR #6 `fix/server-embed-local-web-dist` — the frontend-embed fix — triggered via `workflow_dispatch` on the feature branch; later agent-images README update pushed to main as SHA `95e364f`)*
+  - id: P3.T3.S2
+    text: |-
+      Follow the chain. *(2026-04-18: full chain verified end-to-end — vibe-kanban run [24597591042](https://github.com/derio-net/vibe-kanban/actions/runs/24597591042) → agent-images run [24598258993](https://github.com/derio-net/agent-images/actions/runs/24598258993) → frank bumper run [24598275621](https://github.com/derio-net/frank/actions/runs/24598275621) → PR [#107](https://github.com/derio-net/frank/pull/107) auto-opened bumping all three images — secure-agent-kali + vk-local → `95e364f`, vk-remote → `91f09db`)*
+
+
+      Expected end state: a fresh PR in frank bumping SHAs. If the PR is the first "real" one, merging it is a bounce-gate.
+
+      Phase 3 complete when a fork push reliably produces a reviewable frank PR without any manual intervention.
+
+      ---
+
+      ## Deployment Deviations
+
+      ### Phase 1 Deviation: `vibe-kanban-build` GHCR package visibility
+
+      **Issue:** The `vibe-kanban-build` artifact image is published to GHCR from the private `derio-net/vibe-kanban` repo, so it inherits private visibility. The `agent-images` CI uses `GITHUB_TOKEN` scoped to its own repo, which cannot pull cross-repo private packages. Result: `vk-local` build fails with `403 Forbidden` when pulling `ghcr.io/derio-net/vibe-kanban-build:latest`.
+
+      **Fix applied (manual):** Made `vibe-kanban-build` package public via GitHub Settings. Re-triggered agent-images CI — `vk-local` now builds and publishes successfully.
+
+      **Impact:** Resolved. `vk-local:325b23e` published to GHCR.
+
+      ### Phase 1 Deviation: Server Dockerfile build deps
+
+      **Issue:** Plan specified `rust:1.83-bookworm` but the project uses nightly Rust via `rust-toolchain.toml`. Also, `libsqlite3-sys` (via sqlx) requires `clang`/`libclang-dev` for bindgen, which wasn't in the plan's Dockerfile.
+
+      **Fix applied:** Updated to `rust:1.93-slim-bookworm`, added `clang libclang-dev pkg-config libssl-dev` build deps, and copy `rust-toolchain.toml` for nightly toolchain setup.
+
+      ### Phase 1 Deviation: vk-local Dockerfile build stage
+
+      **Issue:** Plan used `COPY --from=ghcr.io/derio-net/vibe-kanban-build:${VK_FORK_SHA}` but Docker doesn't interpolate ARGs in `COPY --from` image references.
+
+      **Fix applied:** Used a named build stage (`FROM ... AS vk-artifact`) and `COPY --from=vk-artifact` instead.
+
+      ### Phase 1 Deviation: Health endpoint path
+
+      **Issue:** Plan assumed `/v1/health` for readiness probes. Actual server routes: health is at `/api/health` (nested under `/api` router). Relay signature middleware passes through non-relay requests, so `/api/health` is accessible for K8s probes.
+
+      ### Phase 1 Deviation: Frontend not embedded in server artifact (post-deploy)
+
+      **Issue:** After Phase 2 cutover, `https://vk.cluster.derio.net/` served a placeholder page reading **"Please build @vibe/local-web first"** instead of the VK UI. API routes (`/api/health`) worked fine.
+
+      **Root cause:** The server crate (`crates/server/src/routes/frontend.rs`) uses `rust-embed` on `../../packages/local-web/dist/`. When that directory is missing at compile time, `crates/server/build.rs` auto-generates a placeholder `index.html` and embeds it. The artifact Dockerfile (`crates/server/Dockerfile`) did only `cargo build --release --package server` — it never built the frontend with pnpm, so every `vibe-kanban-build` image shipped with the placeholder baked in.
+
+      **Fix applied (2026-04-18, vibe-kanban PR #6):** Added a `node:24-alpine` `fe-builder` stage to `crates/server/Dockerfile` that runs `pnpm install --frozen-lockfile` + `pnpm -C packages/local-web build`, then `COPY --from=fe-builder /app/packages/local-web/dist packages/local-web/dist` before the `cargo build`. Mirrors the top-level `Dockerfile`'s multi-stage pattern.
+
+      **Impact:** New `vibe-kanban-build` image ships the real UI. `vk-local` rebuild required in agent-images, then bump in frank.
+
+      ### Phase 3 Deviation: Workflow file extension
+
+      **Issue:** Plan specified `.yaml` extension (`agent-images-bump.yaml`). Existing frank workflows use `.yml`.
+
+      **Fix applied:** Created as `agent-images-bump.yml` for consistency.
+
+      ### Phase 3 Deviation: vk-remote SHA resolution
+
+      **Issue:** Plan's workflow queries `gh api /repos/derio-net/vibe-kanban/commits/main` to resolve the vk-remote SHA. However, `derio-net/vibe-kanban` is private, and `GITHUB_TOKEN` from the frank repo cannot read commits from a private cross-repo.
+
+      **Fix applied:** Resolve vk-remote SHA from GHCR package tags via `/orgs/derio-net/packages/container/vk-remote/versions` API. This works because the package is accessible within the org with `packages: read` permission. Falls back gracefully (skips vk-remote bump with a warning) if resolution fails.
+
+      **Impact:** The vk-remote tags from GHCR are 7-char short SHAs (from `docker/metadata-action type=sha,prefix=`), matching the current deployment format. No functional difference.
+
+      ### Phase 2 Deviation: Port 8081 bind race — kali won
+
+      **Issue:** The plan (Step 2, Task A) assumed the lighter vk-local sidecar would win the 8081 bind race and kali's in-process VK would fail to bind (non-fatal). In practice, kali's npm-installed VK won the race on every pod restart because it boots earlier than the sidecar's readiness probe succeeds. Result: vk-local CrashLoopBackOff (246 restarts in ~20h, bind address-already-in-use).
+
+      **Fix applied (commit 79cf7d0):** Deflect kali's in-process VK to `PORT=18081` on `HOST=127.0.0.1` via env vars on the kali container, and move the `name: vk-http` port declaration from kali to the sidecar so the Service routes to the sidecar. This makes the outcome deterministic rather than race-dependent.
+
+      **Impact:** Resolved. Pod stable at 2/2 Ready. The `PORT=18081`/`HOST=127.0.0.1` env vars on kali become dead config once Task B bumps kali to the VK-stripped image — deliberately left in place to keep the Task B diff minimal (a separate chore can strip them later).
+
+      ### Phase 3 Deviation: Dry-run and dispatch chain verification deferred
+
+      **Issue:** Tasks 2 and 3 require `workflow_dispatch` triggering, which only works when the workflow exists on the default branch (main). The workflow is on a feature branch pending PR merge.
+
+      **Impact:** Dry-run and full dispatch chain verification must be performed after the PR merges to main. The workflow logic is verified by code review.
+
+      **Resolved (2026-04-17):** PR #85 merged; Task 2 dry-run run successfully triggered.
+
+      ### Phase 3 Deviation: Actions-created PRs blocked by repo setting
+
+      **Issue:** The bumper workflow's final step (`gh pr create`) failed with `GitHub Actions is not permitted to create or approve pull requests (createPullRequest)`. The branch is pushed successfully, but no PR is opened automatically. This is a GitHub repo/org setting, not a workflow bug.
+
+      **Workaround applied (Task 2 only):** Created PR #105 manually from the pushed branch to complete the dry-run; immediately closed.
+
+      **Fix options (for Task 3 / future auto-dispatched runs):**
+      1. **Preferred:** Enable `Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests` on `derio-net/frank` (or at the org level).
+      2. Alternative: swap `secrets.GITHUB_TOKEN` for a PAT/GitHub App token with `pull_requests: write`.
+
+      **Resolved (2026-04-18):** Option 1 applied at org level (`gh api -X PUT orgs/derio-net/actions/permissions/workflow -F can_approve_pull_request_reviews=true`) and repo level. `can_approve_pull_request_reviews: true` confirmed on both scopes.
+
+      **DISPATCH_PAT status (2026-04-18):** Verified configured in both `derio-net/vibe-kanban` and `derio-net/agent-images` (secrets set 2026-04-15 during repo bootstrap). Earlier plan notes stating these were pending were stale. The cross-repo dispatch chain now functions end-to-end.
+
+      ```yaml
+      # manual-operation
+      id: frank-actions-create-pr-permission
+      layer: agents
+      app: frank-repo
+      plan: 2026-04-15--agents--agent-images-and-vk-local-sidecar
+      when: before Phase 3 Task 3
+      why_manual: GitHub repo/org settings cannot be toggled from within a workflow
+      commands:
+        - gh api -X PUT orgs/derio-net/actions/permissions/workflow -F default_workflow_permissions=read -F can_approve_pull_request_reviews=true
+        - gh api -X PUT repos/derio-net/frank/actions/permissions/workflow -F default_workflow_permissions=read -F can_approve_pull_request_reviews=true
+      verify:
+        - gh api repos/derio-net/frank/actions/permissions/workflow --jq '.can_approve_pull_request_reviews'  # expect true
+      status: done
+      ```
+
+      ---
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

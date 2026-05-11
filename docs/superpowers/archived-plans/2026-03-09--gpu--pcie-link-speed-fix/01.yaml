@@ -1,0 +1,29 @@
+schema_version: 2
+phase:
+  number: 1
+  title: RTX 5070 PCIe Link Speed Fix Implementation Plan
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Prepare the USB Drive
+  steps: []
+- number: 2
+  title: Backup F3 Settings & Flash to F6
+  steps: []
+- number: 3
+  title: Force PCIe Gen 4
+  steps: []
+- number: 4
+  title: Verify Cluster Health
+  steps: []
+- number: 5
+  title: Sync Runbook
+  steps: []
+state:
+  steps: {}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

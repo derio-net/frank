@@ -1,0 +1,333 @@
+schema_version: 2
+phase:
+  number: 0
+  title: Media Infrastructure
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create `screenshot` shortcode
+  steps:
+  - id: P0.T1.S1
+    text: |-
+      Create the shortcode
+  - id: P0.T1.S2
+    text: |-
+      Commit *(combined into single infrastructure commit)*
+
+
+      ---
+- number: 2
+  title: Create `asciinema` shortcode
+  steps:
+  - id: P0.T2.S1
+    text: |-
+      Create the shortcode *(already created in prior session)*
+
+
+      ```html
+      {{- $src := .Get "src" -}}
+      {{- $cols := .Get "cols" | default "120" -}}
+      {{- $rows := .Get "rows" | default "30" -}}
+      {{- $speed := .Get "speed" | default "1" -}}
+      {{- $idleTimeLimit := .Get "idle-time-limit" | default "2" -}}
+      {{- $poster := .Get "poster" | default "npt:0:3" -}}
+      {{- $id := printf "asciinema-%d" .Ordinal -}}
+      {{- $res := .Page.Resources.GetMatch $src -}}
+      {{- $url := "" -}}
+      {{- if $res -}}
+        {{- $url = $res.RelPermalink -}}
+      {{- else -}}
+        {{- $url = $src -}}
+      {{- end -}}
+      <div id="{{ $id }}" class="asciinema-container"></div>
+      <script>
+      (function() {
+        var theme = document.documentElement.dataset.theme === 'light' ? 'solarized-light' : 'asciinema';
+        AsciinemaPlayer.create('{{ $url }}', document.getElementById('{{ $id }}'), {
+          cols: {{ $cols }},
+          rows: {{ $rows }},
+          speed: {{ $speed }},
+          idleTimeLimit: {{ $idleTimeLimit }},
+          poster: '{{ $poster }}',
+          theme: theme,
+          fit: 'width'
+        });
+      })();
+      </script>
+      ```
+  - id: P0.T2.S2
+    text: |-
+      Commit *(combined into single infrastructure commit)*
+
+
+      ---
+- number: 3
+  title: Add CSS and conditional asset loading to extend_head.html
+  steps:
+  - id: P0.T3.S1
+    text: |-
+      Append conditional asciinema assets + media CSS after the closing `</style>` tag
+
+
+      After the existing `</style>` on line 118, add:
+
+      ```html
+      {{- if .HasShortcode "asciinema" }}
+      <link rel="stylesheet" href="https://unpkg.com/asciinema-player@3.9.0/dist/bundle/asciinema-player.css" />
+      <script src="https://unpkg.com/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>
+      {{- end }}
+
+      {{- /* Media styles for screenshots, asciinema, and YouTube embeds */ -}}
+      <style>
+      /* Screenshot shortcode */
+      .screenshot {
+          margin: 1.5rem 0;
+          text-align: center;
+      }
+
+      .screenshot a {
+          display: block;
+          line-height: 0;
+      }
+
+      .screenshot img {
+          max-width: 100%;
+          height: auto;
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          cursor: zoom-in;
+          transition: box-shadow 0.2s ease;
+      }
+
+      .screenshot img:hover {
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+      }
+
+      .screenshot figcaption {
+          margin-top: 0.5rem;
+          font-size: 0.85rem;
+          font-style: italic;
+          color: var(--secondary);
+      }
+
+      /* Asciinema player container */
+      .asciinema-container {
+          margin: 1.5rem 0;
+          border-radius: var(--radius);
+          overflow: hidden;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Polish existing inline images in post content */
+      .post-content img:not([src*="cover.png"]) {
+          border: 1px solid var(--border);
+          border-radius: var(--radius);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Responsive YouTube embeds */
+      .youtube-container {
+          position: relative;
+          padding-bottom: 56.25%;
+          height: 0;
+          overflow: hidden;
+          margin: 1.5rem 0;
+          border-radius: var(--radius);
+      }
+
+      .youtube-container iframe {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+      }
+
+      /* Dark mode adjustments */
+      body.dark .screenshot img {
+          border-color: rgba(255, 255, 255, 0.1);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+
+      body.dark .screenshot img:hover {
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+      }
+
+      body.dark .asciinema-container {
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+
+      body.dark .post-content img:not([src*="cover.png"]) {
+          border-color: rgba(255, 255, 255, 0.1);
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+      }
+      </style>
+      ```
+  - id: P0.T3.S2
+    text: |-
+      Verify Hugo builds without errors
+
+
+      ```bash
+      cd blog && hugo --minify 2>&1 | tail -5
+      ```
+
+      Expected: Build succeeds, no template errors.
+  - id: P0.T3.S3
+    text: |-
+      Commit *(combined into single infrastructure commit)*
+
+
+      ---
+- number: 4
+  title: Create MEDIA-GUIDE.md
+  steps:
+  - id: P0.T4.S1
+    text: |-
+      Write the guide
+
+
+      Content should cover:
+      - asciinema: install (`pip install asciinema`), record (`asciinema rec --cols 120 --rows 30 --idle-time-limit 2 output.cast`), trim, save to page bundle
+      - Screenshots: dark mode preferred, ~1200px width, PNG, crop to relevant area, compress if >500KB (`pngquant --quality=65-80 file.png`)
+      - Photos: horizontal, well-lit, <1MB, page bundle
+      - YouTube: upload, use `{{</* youtube VIDEO_ID */>}}`
+      - Quick reference: copy-paste shortcode examples for each type
+      - Placeholder format explanation
+  - id: P0.T4.S2
+    text: |-
+      Commit *(combined into single infrastructure commit)*
+
+
+      ---
+- number: 5
+  title: Insert media placeholders into high-priority building posts
+  steps:
+  - id: P0.T5.S1
+    text: |-
+      Insert placeholders into all 9 high-priority posts
+  - id: P0.T5.S2
+    text: |-
+      Verify Hugo builds clean
+  - id: P0.T5.S3
+    text: |-
+      Commit *(combined into single placeholders commit)*
+
+
+      ---
+- number: 6
+  title: Insert media placeholders into medium-priority and operating posts
+  steps:
+  - id: P0.T6.S1
+    text: |-
+      Insert placeholders into all 14 medium/operating posts (1-2 per post)
+  - id: P0.T6.S2
+    text: |-
+      Verify Hugo builds clean
+  - id: P0.T6.S3
+    text: |-
+      Commit *(combined into single placeholders commit)*
+
+
+      ---
+- number: 7
+  title: Create `/media` skill
+  steps:
+  - id: P0.T7.S1
+    text: |-
+      Create the skill file
+
+
+      The skill should:
+      - Be user-invocable with optional `post` argument
+      - Scan for `<!-- MEDIA: ... -->` placeholders in the specified post (or list all posts with remaining placeholders)
+      - Present a checklist of remaining media items
+      - **Guided mode** for screenshots/photos: show capture instructions (URL, dark mode, framing), accept file path, validate (size, format), compress if needed (`pngquant`), insert shortcode, remove placeholder
+      - **Agent-executed mode** for CLI animations: source correct env file, run `asciinema rec` with scripted commands, validate .cast JSON, place in page bundle, insert shortcode
+      - **Standards**: PNG max 500KB, .cast valid JSON, filenames kebab-case, caption required for screenshots
+      - Post-processing: `pngquant`/`optipng` compression, ImageMagick resize/crop, .cast trimming
+
+      Follow the pattern from `.claude/skills/blog-post/SKILL.md` for YAML frontmatter format.
+  - id: P0.T7.S2
+    text: |-
+      Commit *(combined into single infrastructure commit)*
+
+
+      ---
+state:
+  steps:
+    P0.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T5.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T5.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T6.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T6.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

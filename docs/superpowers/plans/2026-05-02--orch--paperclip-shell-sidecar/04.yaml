@@ -1,0 +1,148 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Populate inventory and verify reconcile
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: https://github.com/derio-net/frank/issues/178
+tasks:
+- number: 1
+  title: Curate initial inventory
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Inspect the upstream paperclip image's pre-installed CLIs (informational — sidecar inventory is independent)
+
+
+      ```bash
+      kubectl -n paperclip-system exec -c paperclip deploy/paperclip -- bash -c \
+        'for c in claude codex gh git node python3 npm pipx cargo rustc; do command -v "$c" >/dev/null 2>&1 && echo "$c: $(command -v "$c")"; done'
+      ```
+
+        Anything already present in the paperclip container is *not* relevant to the sidecar's inventory — they live in different filesystems. The inventory is for the *shell sidecar's* environment only.
+  - id: P4.T1.S2
+    text: |-
+      Edit `configmap-shell-inventory.yaml` to declare the operator's expected toolset. Suggested starting set:
+
+
+      ```yaml
+      data:
+        inventory.yaml: |
+          mise:
+            - python@3.12
+            - node@20
+            - rust@stable
+          npm-global:
+            - "@anthropic-ai/claude-code"
+            - "@openai/codex"
+          pipx:
+            - black
+            - ruff
+          cargo:
+            - ripgrep
+            - eza
+      ```
+
+        Commit and push.
+- number: 2
+  title: Run reconcile and verify
+  steps:
+  - id: P4.T2.S2
+    text: |-
+      Verify each manager reports the tool present
+
+
+      ```bash
+      ssh agent@192.168.55.221 -- bash -lc '
+        mise ls
+        npm ls -g --depth=0
+        pipx list --short
+        cargo install --list
+      '
+      ```
+- number: 3
+  title: Persistence test across pod restart
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Force a pod bounce
+
+
+      ```bash
+      kubectl -n paperclip-system rollout restart deploy/paperclip
+      kubectl -n paperclip-system rollout status deploy/paperclip --timeout=120s
+      ```
+  - id: P4.T3.S2
+    text: |-
+      Reconnect and verify everything still present
+
+
+      ```bash
+      ssh agent@192.168.55.221 -- bash -lc '
+        cargo install --list | grep -E "ripgrep|eza"
+        pipx list --short
+        ls ~/.cargo/bin
+      '
+      # expect: tools listed, binaries present on PV
+      ```
+
+        Also confirm the MOTD on this fresh login reads `installed=0 already=N removed=0 failed=0` — proves the installer ran on boot, found everything already present, and committed no work.
+- number: 4
+  title: Interactive install drift test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Manually install something not in the inventory
+
+
+      ```bash
+      ssh agent@192.168.55.221 -- cargo install fd-find
+      ```
+  - id: P4.T4.S2
+    text: |-
+      Confirm it persists across pod bounce (same restart + reconnect flow). Demonstrates Layer-3 escape hatch works.
+  - id: P4.T4.S3
+    text: |-
+      Document the drift policy in this plan's *Deployment Notes*: interactive installs are intentional; promote to inventory if you want survival across PV migrations.
+
+
+      ---
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -347,6 +347,6 @@ Hook scripts are deployed separately and are not part of the pod spec.
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| Secure Agent Pod — tmux + mosh Implementation Plan |  | `docs/superpowers/archived-plans/2026-04-26--agents--secure-pod-tmux-mosh.md` | Deployed | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Secure Agent Pod — tmux + mosh Implementation Plan |  | `docs/superpowers/archived-plans/2026-04-26--agents--secure-pod-tmux-mosh/` | — |

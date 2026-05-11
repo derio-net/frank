@@ -1,0 +1,162 @@
+schema_version: 2
+phase:
+  number: 0
+  title: Prerequisites — secrets, org, bot account
+  tag: manual
+  depends_on: []
+  tracking_issue: https://github.com/derio-net/frank/issues/229
+tasks:
+- number: 1
+  title: Push outstanding local WIP to GitHub
+  steps:
+  - id: P0.T1.S1
+    text: |-
+      Inspect each local clone for uncommitted work
+
+
+      ```bash
+      for d in ~/repos/hum ~/repos/content-factory; do
+        echo "=== $d ==="
+        cd "$d" && git status --short && git stash list
+      done
+      ```
+
+        Resolve any uncommitted state: stage + commit, or stash + commit on a WIP branch — operator's call.
+  - id: P0.T1.S2
+    text: |-
+      Push every local branch to GitHub
+
+
+      ```bash
+      for d in ~/repos/hum ~/repos/content-factory; do
+        cd "$d"
+        git push origin --all
+        git push origin --tags
+      done
+      ```
+
+        Expected: every `vk/*`, `claude/*`, and feature branch lands on GitHub. The mirror clone in Phase 3 will pick them all up.
+  - id: P0.T1.S3
+    text: |-
+      Verify GitHub has every local ref
+
+
+      ```bash
+      for d in ~/repos/hum ~/repos/content-factory; do
+        cd "$d"
+        diff <(git for-each-ref --format='%(refname:short)' refs/heads | sort) \
+             <(git ls-remote --heads origin | awk '{sub("refs/heads/","",$2); print $2}' | sort)
+      done
+      ```
+
+        Empty diff = local and GitHub branches match.
+- number: 2
+  title: Create agentic-stoa Gitea org and stoa-bot service account
+  steps:
+  - id: P0.T2.S1
+    text: |-
+      Create the org via Gitea UI (per manual-op block above)
+  - id: P0.T2.S2
+    text: |-
+      Create stoa-bot user
+
+
+      ```yaml
+      # manual-operation
+      id: stoa-bot-user-create
+      layer: cicd
+      app: gitea
+      plan: docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary.md
+      when: "After agentic-stoa org exists"
+      why_manual: "Gitea user + token creation requires UI/API interaction"
+      commands:
+        - "Gitea UI → Site Administration → User Accounts → Create (username: stoa-bot, email: stoa@frank.local)"
+        - "Add stoa-bot to agentic-stoa org → Teams → Owners (or a custom Write team)"
+        - "Sign in as stoa-bot → Settings → Applications → Generate Token (name: paperclip-agent, scopes: write:repository, write:issue, read:organization, no expiry)"
+        - "In Infisical, create folder /agentic-stoa under the prod env if it does not exist (UI: Secrets → Add Folder), then store the token there as STOA_GITEA_TOKEN. All future stoa-org secrets live under this folder, separate from frank infra secrets at /."
+      verify:
+        - "Infisical UI: /agentic-stoa/STOA_GITEA_TOKEN exists with non-empty value"
+        - "curl -s -o /dev/null -w '%{http_code}\\n' -H 'Authorization: token $STOA_GITEA_TOKEN' http://192.168.55.209:3000/api/v1/orgs/agentic-stoa/members/stoa-bot — returns 204 (stoa-bot is a member of agentic-stoa). 404 means not a member; any 4xx other than 404 means scope mismatch on the token."
+        - "curl -H 'Authorization: token $STOA_GITEA_TOKEN' http://192.168.55.209:3000/api/v1/orgs/agentic-stoa/teams | jq -r '.[].name' — lists the org's teams (Owners, plus any custom). Confirms read:organization scope works."
+        - "Note: /api/v1/user and /api/v1/user/orgs require read:user scope, which is intentionally NOT in the requested token scopes. Use the org-membership probe above for self-membership checks instead."
+      status: pending
+      ```
+- number: 3
+  title: Create GitHub fine-grained PAT
+  steps:
+  - id: P0.T3.S1
+    text: |-
+      Generate the PAT in GitHub UI (per manual-op block)
+  - id: P0.T3.S2
+    text: |-
+      Verify PAT works
+
+
+      ```bash
+      gh api -H "Authorization: token <PASTE_PAT>" repos/agentic-stoa/hum --jq .full_name
+      # Expect: agentic-stoa/hum
+      gh api -H "Authorization: token <PASTE_PAT>" repos/agentic-stoa/content-factory --jq .full_name
+      # Expect: agentic-stoa/content-factory
+      ```
+- number: 4
+  title: Verify all secrets are accessible
+  steps:
+  - id: P0.T4.S1
+    text: |-
+      Confirm Infisical has both new keys under /agentic-stoa
+
+
+      In the Infisical UI (or via CLI), confirm `/agentic-stoa/STOA_GITEA_TOKEN` and `/agentic-stoa/STOA_GITHUB_MIRROR_TOKEN` are present in the prod environment with non-empty values. Both must live in the `/agentic-stoa` folder, not at `/` — frank infra secrets stay at `/`, stoa-org secrets stay scoped to their folder.
+  - id: P0.T4.S2
+    text: |-
+      Confirm existing layer-19 secrets still healthy
+
+
+      ```bash
+      kubectl --context frank get externalsecret -n tekton-pipelines
+      # Expect: gitea-api-token, gitea-webhook-secret, zot-push-creds all SecretSynced=True
+      ```
+
+      ---
+state:
+  steps:
+    P0.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P0.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

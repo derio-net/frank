@@ -1,0 +1,1243 @@
+schema_version: 2
+phase:
+  number: 1
+  title: 'Work Lifecycle Tracking — M3: Health Bridge Service (Frank)'
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create Go Project and Repository
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create the repository on GitHub
+
+
+      ```bash
+      gh repo create derio-net/health-bridge --private --description "Grafana webhook → GitHub Project lifecycle state bridge"
+      gh repo clone derio-net/health-bridge
+      cd health-bridge
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Initialize Go module
+
+
+      ```bash
+      go mod init github.com/derio-net/health-bridge
+      ```
+
+      Expected: `go.mod` created with module path.
+  - id: P1.T1.S3
+    text: "Write `main.go`\n\n\nCreate `main.go`:\n\n```go\npackage main\n\nimport\
+      \ (\n\t\"log\"\n\t\"net/http\"\n\t\"os\"\n\t\"strconv\"\n)\n\nfunc main() {\n\
+      \ttoken := mustEnv(\"GITHUB_TOKEN\")\n\tsecret := mustEnv(\"WEBHOOK_SECRET\"\
+      )\n\torg := envOrDefault(\"GITHUB_ORG\", \"derio-net\")\n\tprojectNum := envOrDefaultInt(\"\
+      PROJECT_NUMBER\", 1)\n\tport := envOrDefault(\"PORT\", \"8080\")\n\n\tbridge,\
+      \ err := NewBridge(token, org, projectNum)\n\tif err != nil {\n\t\tlog.Fatalf(\"\
+      Failed to initialize bridge: %v\", err)\n\t}\n\n\tmux := http.NewServeMux()\n\
+      \tmux.HandleFunc(\"POST /webhook\", bridge.WebhookHandler(secret))\n\tmux.HandleFunc(\"\
+      GET /healthz\", func(w http.ResponseWriter, r *http.Request) {\n\t\tw.WriteHeader(http.StatusOK)\n\
+      \t\tw.Write([]byte(\"ok\"))\n\t})\n\tmux.HandleFunc(\"GET /readyz\", func(w\
+      \ http.ResponseWriter, r *http.Request) {\n\t\tif bridge.Ready() {\n\t\t\tw.WriteHeader(http.StatusOK)\n\
+      \t\t\tw.Write([]byte(\"ready\"))\n\t\t} else {\n\t\t\tw.WriteHeader(http.StatusServiceUnavailable)\n\
+      \t\t\tw.Write([]byte(\"not ready\"))\n\t\t}\n\t})\n\n\tlog.Printf(\"health-bridge\
+      \ listening on :%s (org=%s, project=%d)\", port, org, projectNum)\n\tlog.Fatal(http.ListenAndServe(\"\
+      :\"+port, mux))\n}\n\nfunc mustEnv(key string) string {\n\tval := os.Getenv(key)\n\
+      \tif val == \"\" {\n\t\tlog.Fatalf(\"Required environment variable %s is not\
+      \ set\", key)\n\t}\n\treturn val\n}\n\nfunc envOrDefault(key, fallback string)\
+      \ string {\n\tif val := os.Getenv(key); val != \"\" {\n\t\treturn val\n\t}\n\
+      \treturn fallback\n}\n\nfunc envOrDefaultInt(key string, fallback int) int {\n\
+      \tif val := os.Getenv(key); val != \"\" {\n\t\tn, err := strconv.Atoi(val)\n\
+      \t\tif err != nil {\n\t\t\tlog.Fatalf(\"Environment variable %s must be an integer,\
+      \ got %q\", key, val)\n\t\t}\n\t\treturn n\n\t}\n\treturn fallback\n}\n```"
+  - id: P1.T1.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add go.mod main.go
+      git commit -m "feat: initial project structure with main entry point"
+      ```
+
+      ---
+- number: 2
+  title: Implement Core Bridge Logic
+  steps:
+  - id: P1.T2.S1
+    text: "Write `bridge.go`\n\n\nCreate `bridge.go`:\n\n```go\npackage main\n\nimport\
+      \ (\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"io\"\n\t\"log\"\n\t\"net/http\"\n\t\
+      \"strconv\"\n\t\"strings\"\n)\n\n// Bridge is the core service that processes\
+      \ Grafana alerts and updates GitHub.\ntype Bridge struct {\n\tgithub *GitHubClient\n\
+      }\n\n// GrafanaPayload is the webhook payload sent by Grafana alerting.\ntype\
+      \ GrafanaPayload struct {\n\tStatus string  `json:\"status\"`\n\tAlerts []Alert\
+      \ `json:\"alerts\"`\n}\n\n// Alert is a single alert within a Grafana webhook\
+      \ payload.\ntype Alert struct {\n\tStatus       string            `json:\"status\"\
+      `\n\tLabels       map[string]string `json:\"labels\"`\n\tAnnotations  map[string]string\
+      \ `json:\"annotations\"`\n\tStartsAt     string            `json:\"startsAt\"\
+      `\n\tEndsAt       string            `json:\"endsAt\"`\n\tGeneratorURL string\
+      \            `json:\"generatorURL\"`\n\tFingerprint  string            `json:\"\
+      fingerprint\"`\n}\n\n// NewBridge creates a Bridge and loads GitHub Project\
+      \ metadata.\nfunc NewBridge(token, org string, projectNumber int) (*Bridge,\
+      \ error) {\n\tgh, err := NewGitHubClient(token, org, projectNumber)\n\tif err\
+      \ != nil {\n\t\treturn nil, fmt.Errorf(\"github client init: %w\", err)\n\t\
+      }\n\treturn &Bridge{github: gh}, nil\n}\n\n// Ready returns true if the bridge\
+      \ has loaded project metadata.\nfunc (b *Bridge) Ready() bool {\n\treturn b.github\
+      \ != nil && b.github.projectID != \"\"\n}\n\n// WebhookHandler returns an HTTP\
+      \ handler that validates the webhook secret\n// and processes Grafana alerts.\n\
+      func (b *Bridge) WebhookHandler(secret string) http.HandlerFunc {\n\treturn\
+      \ func(w http.ResponseWriter, r *http.Request) {\n\t\tbody, err := io.ReadAll(r.Body)\n\
+      \t\tif err != nil {\n\t\t\thttp.Error(w, \"read error\", http.StatusBadRequest)\n\
+      \t\t\treturn\n\t\t}\n\t\tdefer r.Body.Close()\n\n\t\t// Validate webhook secret\
+      \ via Authorization header (Bearer token)\n\t\tauthHeader := r.Header.Get(\"\
+      Authorization\")\n\t\tif authHeader != \"Bearer \"+secret {\n\t\t\tlog.Printf(\"\
+      Unauthorized webhook request from %s\", r.RemoteAddr)\n\t\t\thttp.Error(w, \"\
+      unauthorized\", http.StatusUnauthorized)\n\t\t\treturn\n\t\t}\n\n\t\tvar payload\
+      \ GrafanaPayload\n\t\tif err := json.Unmarshal(body, &payload); err != nil {\n\
+      \t\t\tlog.Printf(\"Invalid JSON payload: %v\", err)\n\t\t\thttp.Error(w, \"\
+      invalid JSON\", http.StatusBadRequest)\n\t\t\treturn\n\t\t}\n\n\t\tprocessed\
+      \ := 0\n\t\tfor _, alert := range payload.Alerts {\n\t\t\tif err := b.processAlert(alert);\
+      \ err != nil {\n\t\t\t\tlog.Printf(\"Error processing alert %s: %v\", alert.Labels[\"\
+      alertname\"], err)\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tprocessed++\n\t\t}\n\n\t\
+      \tw.WriteHeader(http.StatusOK)\n\t\tfmt.Fprintf(w, `{\"processed\": %d, \"total\"\
+      : %d}`, processed, len(payload.Alerts))\n\t}\n}\n\nfunc (b *Bridge) processAlert(alert\
+      \ Alert) error {\n\tissueRef := alert.Labels[\"github_issue\"]\n\tif issueRef\
+      \ == \"\" {\n\t\tlog.Printf(\"Alert %s has no github_issue label, skipping\"\
+      , alert.Labels[\"alertname\"])\n\t\treturn nil\n\t}\n\n\trepo, number, err :=\
+      \ ParseIssueRef(issueRef)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"parse\
+      \ issue ref %q: %w\", issueRef, err)\n\t}\n\n\tnewState := MapAlertToState(alert.Status,\
+      \ alert.Labels[\"severity\"])\n\n\t// Update lifecycle state on project board\n\
+      \tif err := b.github.UpdateLifecycleState(repo, number, newState); err != nil\
+      \ {\n\t\treturn fmt.Errorf(\"update lifecycle %s → %s: %w\", issueRef, newState,\
+      \ err)\n\t}\n\n\t// Add comment to issue with alert context\n\tcomment := FormatComment(alert,\
+      \ newState)\n\tif err := b.github.AddIssueComment(repo, number, comment); err\
+      \ != nil {\n\t\tlog.Printf(\"Warning: failed to add comment to %s (state update\
+      \ succeeded): %v\", issueRef, err)\n\t\t// Non-fatal: the state update is the\
+      \ critical action\n\t}\n\n\t// On dead transition, create a bug Issue linked\
+      \ to the feature Issue\n\tif newState == \"dead\" {\n\t\tbugURL, err := b.github.CreateBugIssue(repo,\
+      \ number, alert)\n\t\tif err != nil {\n\t\t\tlog.Printf(\"Warning: failed to\
+      \ create bug issue for %s: %v\", issueRef, err)\n\t\t} else {\n\t\t\tlog.Printf(\"\
+      Created bug issue: %s\", bugURL)\n\t\t}\n\t}\n\n\tlog.Printf(\"Processed: %s\
+      \ → %s (alert: %s, status: %s)\", issueRef, newState, alert.Labels[\"alertname\"\
+      ], alert.Status)\n\treturn nil\n}\n\n// ParseIssueRef parses a \"repo#number\"\
+      \ string into repo name and issue number.\nfunc ParseIssueRef(ref string) (repo\
+      \ string, number int, err error) {\n\tparts := strings.SplitN(ref, \"#\", 2)\n\
+      \tif len(parts) != 2 {\n\t\treturn \"\", 0, fmt.Errorf(\"expected format 'repo#number',\
+      \ got %q\", ref)\n\t}\n\trepo = parts[0]\n\tnumber, err = strconv.Atoi(parts[1])\n\
+      \tif err != nil {\n\t\treturn \"\", 0, fmt.Errorf(\"invalid issue number %q:\
+      \ %w\", parts[1], err)\n\t}\n\tif repo == \"\" || number <= 0 {\n\t\treturn\
+      \ \"\", 0, fmt.Errorf(\"invalid issue ref: repo=%q number=%d\", repo, number)\n\
+      \t}\n\treturn repo, number, nil\n}\n\n// MapAlertToState maps Grafana alert\
+      \ status and severity to a lifecycle state.\nfunc MapAlertToState(alertStatus,\
+      \ severity string) string {\n\tswitch alertStatus {\n\tcase \"resolved\":\n\t\
+      \treturn \"healthy\"\n\tcase \"firing\":\n\t\tswitch severity {\n\t\tcase \"\
+      critical\":\n\t\t\treturn \"dead\"\n\t\tcase \"warning\":\n\t\t\treturn \"degraded\"\
+      \n\t\tdefault:\n\t\t\treturn \"degraded\" // Default firing alerts to degraded\n\
+      \t\t}\n\tdefault:\n\t\treturn \"degraded\" // Unknown status defaults to degraded\n\
+      \t}\n}\n\n// FormatComment creates a markdown comment for a GitHub Issue describing\
+      \ the alert.\nfunc FormatComment(alert Alert, newState string) string {\n\t\
+      var sb strings.Builder\n\tsb.WriteString(fmt.Sprintf(\"## Health Bridge: `%s`\\\
+      n\\n\", newState))\n\tsb.WriteString(fmt.Sprintf(\"**Alert:** %s\\n\", alert.Labels[\"\
+      alertname\"]))\n\tsb.WriteString(fmt.Sprintf(\"**Status:** %s\\n\", alert.Status))\n\
+      \tsb.WriteString(fmt.Sprintf(\"**Severity:** %s\\n\", alert.Labels[\"severity\"\
+      ]))\n\tif summary := alert.Annotations[\"summary\"]; summary != \"\" {\n\t\t\
+      sb.WriteString(fmt.Sprintf(\"**Summary:** %s\\n\", summary))\n\t}\n\tif desc\
+      \ := alert.Annotations[\"description\"]; desc != \"\" {\n\t\tsb.WriteString(fmt.Sprintf(\"\
+      **Description:** %s\\n\", desc))\n\t}\n\tsb.WriteString(fmt.Sprintf(\"**Started:**\
+      \ %s\\n\", alert.StartsAt))\n\tif alert.Status == \"resolved\" && alert.EndsAt\
+      \ != \"\" {\n\t\tsb.WriteString(fmt.Sprintf(\"**Resolved:** %s\\n\", alert.EndsAt))\n\
+      \t}\n\tif alert.GeneratorURL != \"\" {\n\t\tsb.WriteString(fmt.Sprintf(\"\\\
+      n[View in Grafana](%s)\\n\", alert.GeneratorURL))\n\t}\n\tsb.WriteString(\"\\\
+      n---\\n*Automated by health-bridge*\\n\")\n\treturn sb.String()\n}\n```"
+  - id: P1.T2.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add bridge.go
+      git commit -m "feat: implement core bridge logic — webhook handler, alert mapping, comment formatting"
+      ```
+
+      ---
+- number: 3
+  title: Implement GitHub GraphQL Client
+  steps:
+  - id: P1.T3.S1
+    text: "Write `github.go`\n\n\nCreate `github.go`:\n\n```go\npackage main\n\nimport\
+      \ (\n\t\"bytes\"\n\t\"encoding/json\"\n\t\"fmt\"\n\t\"io\"\n\t\"log\"\n\t\"\
+      net/http\"\n\t\"time\"\n)\n\nconst githubGraphQLURL = \"https://api.github.com/graphql\"\
+      \nconst githubRESTURL = \"https://api.github.com\"\n\n// GitHubClient handles\
+      \ GitHub API interactions for project lifecycle management.\ntype GitHubClient\
+      \ struct {\n\ttoken         string\n\torg           string\n\tprojectNumber\
+      \ int\n\tprojectID     string\n\tfieldID       string\n\toptionIDs     map[string]string\
+      \ // lifecycle state name → option ID\n\thttpClient    *http.Client\n}\n\ntype\
+      \ graphQLRequest struct {\n\tQuery     string         `json:\"query\"`\n\tVariables\
+      \ map[string]any `json:\"variables,omitempty\"`\n}\n\ntype graphQLResponse struct\
+      \ {\n\tData   json.RawMessage `json:\"data\"`\n\tErrors []struct {\n\t\tMessage\
+      \ string `json:\"message\"`\n\t} `json:\"errors\"`\n}\n\n// NewGitHubClient\
+      \ creates a client and loads project metadata (project ID, field ID, option\
+      \ IDs).\nfunc NewGitHubClient(token, org string, projectNumber int) (*GitHubClient,\
+      \ error) {\n\tc := &GitHubClient{\n\t\ttoken:         token,\n\t\torg:     \
+      \      org,\n\t\tprojectNumber: projectNumber,\n\t\toptionIDs:     make(map[string]string),\n\
+      \t\thttpClient:    &http.Client{Timeout: 30 * time.Second},\n\t}\n\tif err :=\
+      \ c.loadProjectMetadata(); err != nil {\n\t\treturn nil, err\n\t}\n\treturn\
+      \ c, nil\n}\n\nfunc (c *GitHubClient) loadProjectMetadata() error {\n\tquery\
+      \ := `query($org: String!, $number: Int!) {\n\t\torganization(login: $org) {\n\
+      \t\t\tprojectV2(number: $number) {\n\t\t\t\tid\n\t\t\t\tfield(name: \"Lifecycle\"\
+      ) {\n\t\t\t\t\t... on ProjectV2SingleSelectField {\n\t\t\t\t\t\tid\n\t\t\t\t\
+      \t\toptions {\n\t\t\t\t\t\t\tid\n\t\t\t\t\t\t\tname\n\t\t\t\t\t\t}\n\t\t\t\t\
+      \t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}`\n\n\tvars := map[string]any{\n\t\t\"org\"\
+      :    c.org,\n\t\t\"number\": c.projectNumber,\n\t}\n\n\tresp, err := c.graphQL(query,\
+      \ vars)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"load project metadata: %w\"\
+      , err)\n\t}\n\n\tvar result struct {\n\t\tOrganization struct {\n\t\t\tProjectV2\
+      \ struct {\n\t\t\t\tID    string `json:\"id\"`\n\t\t\t\tField struct {\n\t\t\
+      \t\t\tID      string `json:\"id\"`\n\t\t\t\t\tOptions []struct {\n\t\t\t\t\t\
+      \tID   string `json:\"id\"`\n\t\t\t\t\t\tName string `json:\"name\"`\n\t\t\t\
+      \t\t} `json:\"options\"`\n\t\t\t\t} `json:\"field\"`\n\t\t\t} `json:\"projectV2\"\
+      `\n\t\t} `json:\"organization\"`\n\t}\n\tif err := json.Unmarshal(resp, &result);\
+      \ err != nil {\n\t\treturn fmt.Errorf(\"parse project metadata: %w\", err)\n\
+      \t}\n\n\tproject := result.Organization.ProjectV2\n\tif project.ID == \"\" {\n\
+      \t\treturn fmt.Errorf(\"project #%d not found in org %s\", c.projectNumber,\
+      \ c.org)\n\t}\n\tc.projectID = project.ID\n\n\tif project.Field.ID == \"\" {\n\
+      \t\treturn fmt.Errorf(\"'Lifecycle' field not found on project #%d\", c.projectNumber)\n\
+      \t}\n\tc.fieldID = project.Field.ID\n\n\tfor _, opt := range project.Field.Options\
+      \ {\n\t\tc.optionIDs[opt.Name] = opt.ID\n\t}\n\n\tlog.Printf(\"Loaded project\
+      \ metadata: id=%s, field=%s, %d lifecycle states\",\n\t\tc.projectID, c.fieldID,\
+      \ len(c.optionIDs))\n\treturn nil\n}\n\n// UpdateLifecycleState finds the Issue's\
+      \ project item and updates its Lifecycle field.\nfunc (c *GitHubClient) UpdateLifecycleState(repo\
+      \ string, issueNumber int, newState string) error {\n\toptionID, ok := c.optionIDs[newState]\n\
+      \tif !ok {\n\t\treturn fmt.Errorf(\"unknown lifecycle state %q (available: %v)\"\
+      , newState, mapKeys(c.optionIDs))\n\t}\n\n\t// Step 1: Find the project item\
+      \ ID for this issue\n\titemID, err := c.findProjectItem(repo, issueNumber)\n\
+      \tif err != nil {\n\t\treturn fmt.Errorf(\"find project item for %s#%d: %w\"\
+      , repo, issueNumber, err)\n\t}\n\n\t// Step 2: Update the Lifecycle field\n\t\
+      mutation := `mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId:\
+      \ String!) {\n\t\tupdateProjectV2ItemFieldValue(input: {\n\t\t\tprojectId: $projectId\n\
+      \t\t\titemId: $itemId\n\t\t\tfieldId: $fieldId\n\t\t\tvalue: { singleSelectOptionId:\
+      \ $optionId }\n\t\t}) {\n\t\t\tprojectV2Item { id }\n\t\t}\n\t}`\n\n\tvars :=\
+      \ map[string]any{\n\t\t\"projectId\": c.projectID,\n\t\t\"itemId\":    itemID,\n\
+      \t\t\"fieldId\":   c.fieldID,\n\t\t\"optionId\":  optionID,\n\t}\n\n\tif _,\
+      \ err := c.graphQL(mutation, vars); err != nil {\n\t\treturn fmt.Errorf(\"update\
+      \ lifecycle field: %w\", err)\n\t}\n\n\treturn nil\n}\n\nfunc (c *GitHubClient)\
+      \ findProjectItem(repo string, issueNumber int) (string, error) {\n\tquery :=\
+      \ `query($org: String!, $repo: String!, $number: Int!) {\n\t\trepository(owner:\
+      \ $org, name: $repo) {\n\t\t\tissue(number: $number) {\n\t\t\t\tprojectItems(first:\
+      \ 10) {\n\t\t\t\t\tnodes {\n\t\t\t\t\t\tid\n\t\t\t\t\t\tproject { id }\n\t\t\
+      \t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t}\n\t}`\n\n\tvars := map[string]any{\n\t\t\"\
+      org\":    c.org,\n\t\t\"repo\":   repo,\n\t\t\"number\": issueNumber,\n\t}\n\
+      \n\tresp, err := c.graphQL(query, vars)\n\tif err != nil {\n\t\treturn \"\"\
+      , err\n\t}\n\n\tvar result struct {\n\t\tRepository struct {\n\t\t\tIssue struct\
+      \ {\n\t\t\t\tProjectItems struct {\n\t\t\t\t\tNodes []struct {\n\t\t\t\t\t\t\
+      ID      string `json:\"id\"`\n\t\t\t\t\t\tProject struct {\n\t\t\t\t\t\t\tID\
+      \ string `json:\"id\"`\n\t\t\t\t\t\t} `json:\"project\"`\n\t\t\t\t\t} `json:\"\
+      nodes\"`\n\t\t\t\t} `json:\"projectItems\"`\n\t\t\t} `json:\"issue\"`\n\t\t\
+      } `json:\"repository\"`\n\t}\n\tif err := json.Unmarshal(resp, &result); err\
+      \ != nil {\n\t\treturn \"\", fmt.Errorf(\"parse project items: %w\", err)\n\t\
+      }\n\n\tfor _, item := range result.Repository.Issue.ProjectItems.Nodes {\n\t\
+      \tif item.Project.ID == c.projectID {\n\t\t\treturn item.ID, nil\n\t\t}\n\t\
+      }\n\n\treturn \"\", fmt.Errorf(\"issue %s#%d is not on project %s\", repo, issueNumber,\
+      \ c.projectID)\n}\n\n// CreateBugIssue creates a new bug Issue linked to a feature\
+      \ Issue when it transitions to dead.\nfunc (c *GitHubClient) CreateBugIssue(repo\
+      \ string, featureIssueNumber int, alert Alert) (string, error) {\n\ttitle :=\
+      \ fmt.Sprintf(\"[Bug] %s is dead — %s\", alert.Labels[\"alertname\"], alert.Annotations[\"\
+      summary\"])\n\tbody := fmt.Sprintf(`## Auto-created by health-bridge\n\n**Feature\
+      \ Issue:** %s/%s#%d\n**Alert:** %s\n**Severity:** %s\n**Summary:** %s\n**Started:**\
+      \ %s\n\nThis feature has been marked as **dead** by the health monitoring system.\n\
+      \n[View in Grafana](%s)\n\n---\n*Automated by health-bridge on dead transition*`,\n\
+      \t\tc.org, repo, featureIssueNumber,\n\t\talert.Labels[\"alertname\"],\n\t\t\
+      alert.Labels[\"severity\"],\n\t\talert.Annotations[\"summary\"],\n\t\talert.StartsAt,\n\
+      \t\talert.GeneratorURL,\n\t)\n\n\tpayload, err := json.Marshal(map[string]any{\n\
+      \t\t\"title\":  title,\n\t\t\"body\":   body,\n\t\t\"labels\": []string{\"bug\"\
+      },\n\t})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\n\turl := fmt.Sprintf(\"\
+      %s/repos/%s/%s/issues\", githubRESTURL, c.org, repo)\n\treq, err := http.NewRequest(\"\
+      POST\", url, bytes.NewReader(payload))\n\tif err != nil {\n\t\treturn \"\",\
+      \ err\n\t}\n\treq.Header.Set(\"Authorization\", \"Bearer \"+c.token)\n\treq.Header.Set(\"\
+      Content-Type\", \"application/json\")\n\treq.Header.Set(\"Accept\", \"application/vnd.github+json\"\
+      )\n\n\tresp, err := c.httpClient.Do(req)\n\tif err != nil {\n\t\treturn \"\"\
+      , fmt.Errorf(\"http request: %w\", err)\n\t}\n\tdefer resp.Body.Close()\n\n\t\
+      respBody, _ := io.ReadAll(resp.Body)\n\tif resp.StatusCode != http.StatusCreated\
+      \ {\n\t\treturn \"\", fmt.Errorf(\"github API returned %d: %s\", resp.StatusCode,\
+      \ string(respBody))\n\t}\n\n\tvar result struct {\n\t\tHTMLURL string `json:\"\
+      html_url\"`\n\t}\n\tif err := json.Unmarshal(respBody, &result); err != nil\
+      \ {\n\t\treturn \"\", fmt.Errorf(\"parse response: %w\", err)\n\t}\n\n\treturn\
+      \ result.HTMLURL, nil\n}\n\n// AddIssueComment adds a comment to a GitHub Issue\
+      \ via REST API.\nfunc (c *GitHubClient) AddIssueComment(repo string, issueNumber\
+      \ int, body string) error {\n\turl := fmt.Sprintf(\"%s/repos/%s/%s/issues/%d/comments\"\
+      , githubRESTURL, c.org, repo, issueNumber)\n\n\tpayload, err := json.Marshal(map[string]string{\"\
+      body\": body})\n\tif err != nil {\n\t\treturn err\n\t}\n\n\treq, err := http.NewRequest(\"\
+      POST\", url, bytes.NewReader(payload))\n\tif err != nil {\n\t\treturn err\n\t\
+      }\n\treq.Header.Set(\"Authorization\", \"Bearer \"+c.token)\n\treq.Header.Set(\"\
+      Content-Type\", \"application/json\")\n\treq.Header.Set(\"Accept\", \"application/vnd.github+json\"\
+      )\n\n\tresp, err := c.httpClient.Do(req)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"\
+      http request: %w\", err)\n\t}\n\tdefer resp.Body.Close()\n\n\tif resp.StatusCode\
+      \ != http.StatusCreated {\n\t\trespBody, _ := io.ReadAll(resp.Body)\n\t\treturn\
+      \ fmt.Errorf(\"github API returned %d: %s\", resp.StatusCode, string(respBody))\n\
+      \t}\n\n\treturn nil\n}\n\nfunc (c *GitHubClient) graphQL(query string, variables\
+      \ map[string]any) (json.RawMessage, error) {\n\treqBody := graphQLRequest{Query:\
+      \ query, Variables: variables}\n\tpayload, err := json.Marshal(reqBody)\n\t\
+      if err != nil {\n\t\treturn nil, fmt.Errorf(\"marshal request: %w\", err)\n\t\
+      }\n\n\treq, err := http.NewRequest(\"POST\", githubGraphQLURL, bytes.NewReader(payload))\n\
+      \tif err != nil {\n\t\treturn nil, fmt.Errorf(\"create request: %w\", err)\n\
+      \t}\n\treq.Header.Set(\"Authorization\", \"Bearer \"+c.token)\n\treq.Header.Set(\"\
+      Content-Type\", \"application/json\")\n\n\tresp, err := c.httpClient.Do(req)\n\
+      \tif err != nil {\n\t\treturn nil, fmt.Errorf(\"http request: %w\", err)\n\t\
+      }\n\tdefer resp.Body.Close()\n\n\tbody, err := io.ReadAll(resp.Body)\n\tif err\
+      \ != nil {\n\t\treturn nil, fmt.Errorf(\"read response: %w\", err)\n\t}\n\n\t\
+      if resp.StatusCode != http.StatusOK {\n\t\treturn nil, fmt.Errorf(\"github API\
+      \ returned %d: %s\", resp.StatusCode, string(body))\n\t}\n\n\tvar gqlResp graphQLResponse\n\
+      \tif err := json.Unmarshal(body, &gqlResp); err != nil {\n\t\treturn nil, fmt.Errorf(\"\
+      parse response: %w\", err)\n\t}\n\n\tif len(gqlResp.Errors) > 0 {\n\t\treturn\
+      \ nil, fmt.Errorf(\"graphql errors: %v\", gqlResp.Errors[0].Message)\n\t}\n\n\
+      \treturn gqlResp.Data, nil\n}\n\nfunc mapKeys(m map[string]string) []string\
+      \ {\n\tkeys := make([]string, 0, len(m))\n\tfor k := range m {\n\t\tkeys = append(keys,\
+      \ k)\n\t}\n\treturn keys\n}\n```"
+  - id: P1.T3.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add github.go
+      git commit -m "feat: implement GitHub GraphQL client — project metadata, lifecycle updates, issue comments"
+      ```
+
+      ---
+- number: 4
+  title: Write Tests
+  steps:
+  - id: P1.T4.S1
+    text: "Write `bridge_test.go`\n\n\nCreate `bridge_test.go`:\n\n```go\npackage\
+      \ main\n\nimport (\n\t\"bytes\"\n\t\"encoding/json\"\n\t\"net/http\"\n\t\"net/http/httptest\"\
+      \n\t\"testing\"\n)\n\nfunc TestParseIssueRef(t *testing.T) {\n\ttests := []struct\
+      \ {\n\t\tinput      string\n\t\twantRepo   string\n\t\twantNumber int\n\t\t\
+      wantErr    bool\n\t}{\n\t\t{\"frank#8\", \"frank\", 8, false},\n\t\t{\"willikins#11\"\
+      , \"willikins\", 11, false},\n\t\t{\"content-factory#1\", \"content-factory\"\
+      , 1, false},\n\t\t{\"nohash\", \"\", 0, true},\n\t\t{\"#5\", \"\", 0, true},\n\
+      \t\t{\"repo#0\", \"\", 0, true},\n\t\t{\"repo#abc\", \"\", 0, true},\n\t\t{\"\
+      \", \"\", 0, true},\n\t}\n\n\tfor _, tt := range tests {\n\t\tt.Run(tt.input,\
+      \ func(t *testing.T) {\n\t\t\trepo, number, err := ParseIssueRef(tt.input)\n\
+      \t\t\tif (err != nil) != tt.wantErr {\n\t\t\t\tt.Fatalf(\"ParseIssueRef(%q)\
+      \ error = %v, wantErr %v\", tt.input, err, tt.wantErr)\n\t\t\t}\n\t\t\tif repo\
+      \ != tt.wantRepo {\n\t\t\t\tt.Errorf(\"ParseIssueRef(%q) repo = %q, want %q\"\
+      , tt.input, repo, tt.wantRepo)\n\t\t\t}\n\t\t\tif number != tt.wantNumber {\n\
+      \t\t\t\tt.Errorf(\"ParseIssueRef(%q) number = %d, want %d\", tt.input, number,\
+      \ tt.wantNumber)\n\t\t\t}\n\t\t})\n\t}\n}\n\nfunc TestMapAlertToState(t *testing.T)\
+      \ {\n\ttests := []struct {\n\t\tstatus   string\n\t\tseverity string\n\t\twant\
+      \     string\n\t}{\n\t\t{\"resolved\", \"critical\", \"healthy\"},\n\t\t{\"\
+      resolved\", \"warning\", \"healthy\"},\n\t\t{\"resolved\", \"\", \"healthy\"\
+      },\n\t\t{\"firing\", \"critical\", \"dead\"},\n\t\t{\"firing\", \"warning\"\
+      , \"degraded\"},\n\t\t{\"firing\", \"\", \"degraded\"},\n\t\t{\"unknown\", \"\
+      \", \"degraded\"},\n\t}\n\n\tfor _, tt := range tests {\n\t\tt.Run(tt.status+\"\
+      _\"+tt.severity, func(t *testing.T) {\n\t\t\tgot := MapAlertToState(tt.status,\
+      \ tt.severity)\n\t\t\tif got != tt.want {\n\t\t\t\tt.Errorf(\"MapAlertToState(%q,\
+      \ %q) = %q, want %q\", tt.status, tt.severity, got, tt.want)\n\t\t\t}\n\t\t\
+      })\n\t}\n}\n\nfunc TestFormatComment(t *testing.T) {\n\talert := Alert{\n\t\t\
+      Status:       \"firing\",\n\t\tLabels:       map[string]string{\"alertname\"\
+      : \"exercise-reminder-stale\", \"severity\": \"critical\"},\n\t\tAnnotations:\
+      \  map[string]string{\"summary\": \"Exercise reminder heartbeat stale\"},\n\t\
+      \tStartsAt:     \"2026-04-04T10:00:00Z\",\n\t\tGeneratorURL: \"https://grafana.frank.derio.net/alerting/grafana/exercise-reminder-stale/view\"\
+      ,\n\t}\n\n\tcomment := FormatComment(alert, \"dead\")\n\n\tif !bytes.Contains([]byte(comment),\
+      \ []byte(\"## Health Bridge: `dead`\")) {\n\t\tt.Error(\"Comment should contain\
+      \ the state header\")\n\t}\n\tif !bytes.Contains([]byte(comment), []byte(\"\
+      exercise-reminder-stale\")) {\n\t\tt.Error(\"Comment should contain the alert\
+      \ name\")\n\t}\n\tif !bytes.Contains([]byte(comment), []byte(\"View in Grafana\"\
+      )) {\n\t\tt.Error(\"Comment should contain Grafana link\")\n\t}\n}\n\nfunc TestWebhookHandler_Unauthorized(t\
+      \ *testing.T) {\n\tbridge := &Bridge{github: &GitHubClient{projectID: \"test\"\
+      }}\n\thandler := bridge.WebhookHandler(\"correct-secret\")\n\n\treq := httptest.NewRequest(\"\
+      POST\", \"/webhook\", bytes.NewReader([]byte(\"{}\")))\n\treq.Header.Set(\"\
+      Authorization\", \"Bearer wrong-secret\")\n\tw := httptest.NewRecorder()\n\n\
+      \thandler(w, req)\n\n\tif w.Code != http.StatusUnauthorized {\n\t\tt.Errorf(\"\
+      Expected 401, got %d\", w.Code)\n\t}\n}\n\nfunc TestWebhookHandler_ValidPayload(t\
+      \ *testing.T) {\n\t// Create a mock GitHub API server\n\tmockGH := httptest.NewServer(http.HandlerFunc(func(w\
+      \ http.ResponseWriter, r *http.Request) {\n\t\tw.WriteHeader(http.StatusOK)\n\
+      \t\tjson.NewEncoder(w).Encode(map[string]any{\"data\": map[string]any{}})\n\t\
+      }))\n\tdefer mockGH.Close()\n\n\tbridge := &Bridge{\n\t\tgithub: &GitHubClient{\n\
+      \t\t\tprojectID: \"test-project\",\n\t\t\tfieldID:   \"test-field\",\n\t\t\t\
+      optionIDs: map[string]string{\"healthy\": \"opt-1\", \"dead\": \"opt-2\", \"\
+      degraded\": \"opt-3\"},\n\t\t\thttpClient: mockGH.Client(),\n\t\t},\n\t}\n\n\
+      \t// Payload with no github_issue label — should process without error\n\tpayload\
+      \ := GrafanaPayload{\n\t\tStatus: \"firing\",\n\t\tAlerts: []Alert{\n\t\t\t\
+      {\n\t\t\t\tStatus: \"firing\",\n\t\t\t\tLabels: map[string]string{\"alertname\"\
+      : \"test\", \"severity\": \"warning\"},\n\t\t\t},\n\t\t},\n\t}\n\tbody, _ :=\
+      \ json.Marshal(payload)\n\n\treq := httptest.NewRequest(\"POST\", \"/webhook\"\
+      , bytes.NewReader(body))\n\treq.Header.Set(\"Authorization\", \"Bearer test-secret\"\
+      )\n\tw := httptest.NewRecorder()\n\n\thandler := bridge.WebhookHandler(\"test-secret\"\
+      )\n\thandler(w, req)\n\n\tif w.Code != http.StatusOK {\n\t\tt.Errorf(\"Expected\
+      \ 200, got %d\", w.Code)\n\t}\n}\n```"
+  - id: P1.T4.S2
+    text: |-
+      Run tests
+
+
+      ```bash
+      go test -v ./...
+      ```
+
+      Expected: All tests pass.
+  - id: P1.T4.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add bridge_test.go
+      git commit -m "test: add unit tests for issue ref parsing, alert mapping, webhook handler"
+      ```
+
+      ---
+- number: 5
+  title: Create Dockerfile
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Write `Dockerfile`
+
+
+      Create `Dockerfile`:
+
+      ```dockerfile
+      # Build stage
+      FROM golang:1.22-alpine AS builder
+
+      WORKDIR /app
+      COPY go.mod ./
+      RUN go mod download
+      COPY *.go ./
+      RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /health-bridge .
+
+      # Runtime stage
+      FROM gcr.io/distroless/static-debian12:nonroot
+
+      COPY --from=builder /health-bridge /health-bridge
+
+      USER nonroot:nonroot
+      EXPOSE 8080
+
+      ENTRYPOINT ["/health-bridge"]
+      ```
+  - id: P1.T5.S2
+    text: |-
+      Build locally and verify image size
+
+
+      ```bash
+      docker build -t health-bridge:test .
+      docker images health-bridge:test --format "{{.Size}}"
+      ```
+
+      Expected: Image size < 15MB. The distroless static base is ~2MB + Go binary ~10MB.
+  - id: P1.T5.S3
+    text: |-
+      Write GitHub Actions workflow for GHCR publish
+
+
+      Create `.github/workflows/release.yaml`:
+
+      ```yaml
+      name: Build and Push
+
+      on:
+        push:
+          tags:
+            - 'v*'
+
+      env:
+        REGISTRY: ghcr.io
+        IMAGE_NAME: ${{ github.repository }}
+
+      jobs:
+        build-and-push:
+          runs-on: ubuntu-latest
+          permissions:
+            contents: read
+            packages: write
+
+          steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-go@v5
+              with:
+                go-version: '1.22'
+
+            - name: Run tests
+              run: go test -v ./...
+
+            - name: Log in to GHCR
+              uses: docker/login-action@v3
+              with:
+                registry: ${{ env.REGISTRY }}
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push
+              uses: docker/build-push-action@v6
+              with:
+                context: .
+                push: true
+                tags: |
+                  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+                  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+      ```
+  - id: P1.T5.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add Dockerfile .github/workflows/release.yaml
+      git commit -m "feat: add Dockerfile (distroless) and GitHub Actions release workflow"
+      ```
+  - id: P1.T5.S5
+    text: |-
+      Tag and push to trigger first build
+
+
+      ```bash
+      git push origin main
+      git tag v0.1.0
+      git push origin v0.1.0
+      ```
+
+      Expected: GitHub Actions workflow runs, builds image, pushes to `ghcr.io/derio-net/health-bridge:v0.1.0`.
+  - id: P1.T5.S6
+    text: |-
+      Verify GHCR image exists
+
+
+      ```bash
+      gh api /orgs/derio-net/packages/container/health-bridge/versions --jq '.[0].metadata.container.tags'
+      ```
+
+      Expected: Shows `["v0.1.0", "latest"]`.
+
+      ---
+- number: 6
+  title: Store Secrets in Infisical
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Create HEALTH_BRIDGE_WEBHOOK_SECRET in Infisical
+
+
+      ```yaml
+      # manual-operation
+      id: health-bridge-webhook-secret
+      layer: obs
+      app: health-bridge
+      plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+      when: Before deploying K8s manifests
+      why_manual: Infisical secret creation is UI-only
+      commands:
+        - description: Generate a webhook secret
+          command: openssl rand -hex 32
+        - description: Create secret in Infisical
+          command: |
+            Navigate to Infisical UI → derio-net project → prod environment
+            Create secret: HEALTH_BRIDGE_WEBHOOK_SECRET = <generated hex string>
+            Create secret: HEALTH_BRIDGE_GITHUB_TOKEN = <GitHub PAT with project and repo scope>
+      verify:
+        - description: Verify secrets exist
+          command: kubectl get externalsecret -n monitoring health-bridge-secrets -o jsonpath='{.status.conditions[0].status}'
+          expected: "True"
+      status: pending
+      ```
+
+      Note: The `HEALTH_BRIDGE_GITHUB_TOKEN` needs these GitHub PAT scopes:
+      - `repo` (full control) — for issue comments
+      - `project` (read/write) — for project item updates
+      - `read:org` — for organization project access
+
+      ---
+- number: 7
+  title: Create Kubernetes Manifests in Frank Repo
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      Create ExternalSecret for health-bridge credentials
+
+
+      Create `apps/health-bridge/manifests/externalsecret.yaml`:
+
+      ```yaml
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: health-bridge-secrets
+        namespace: monitoring
+      spec:
+        refreshInterval: 5m
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: health-bridge-secrets
+          creationPolicy: Owner
+        data:
+          - secretKey: GITHUB_TOKEN
+            remoteRef:
+              key: HEALTH_BRIDGE_GITHUB_TOKEN
+          - secretKey: WEBHOOK_SECRET
+            remoteRef:
+              key: HEALTH_BRIDGE_WEBHOOK_SECRET
+      ```
+  - id: P1.T7.S2
+    text: |-
+      Create ConfigMap for non-secret config
+
+
+      Create `apps/health-bridge/manifests/configmap.yaml`:
+
+      ```yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: health-bridge-config
+        namespace: monitoring
+      data:
+        GITHUB_ORG: "derio-net"
+        PROJECT_NUMBER: "1"
+        PORT: "8080"
+      ```
+  - id: P1.T7.S3
+    text: |-
+      Create Deployment + Service
+
+
+      Create `apps/health-bridge/manifests/deployment.yaml`:
+
+      ```yaml
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: health-bridge
+        namespace: monitoring
+        labels:
+          app: health-bridge
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:
+            app: health-bridge
+        template:
+          metadata:
+            labels:
+              app: health-bridge
+          spec:
+            containers:
+              - name: health-bridge
+                image: ghcr.io/derio-net/health-bridge:v0.1.0
+                ports:
+                  - name: http
+                    containerPort: 8080
+                envFrom:
+                  - configMapRef:
+                      name: health-bridge-config
+                  - secretRef:
+                      name: health-bridge-secrets
+                resources:
+                  requests:
+                    cpu: 10m
+                    memory: 16Mi
+                  limits:
+                    memory: 32Mi
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: http
+                  initialDelaySeconds: 5
+                  periodSeconds: 30
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: http
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: health-bridge
+        namespace: monitoring
+        labels:
+          app: health-bridge
+      spec:
+        selector:
+          app: health-bridge
+        ports:
+          - name: http
+            port: 8080
+            targetPort: 8080
+      ```
+  - id: P1.T7.S4
+    text: |-
+      Create VMServiceScrape for self-monitoring
+
+
+      Create `apps/health-bridge/manifests/vmservicescrape.yaml`:
+
+      ```yaml
+      apiVersion: operator.victoriametrics.com/v1beta1
+      kind: VMServiceScrape
+      metadata:
+        name: health-bridge
+        namespace: monitoring
+      spec:
+        selector:
+          matchLabels:
+            app: health-bridge
+        endpoints:
+          - port: http
+            path: /metrics
+      ```
+
+      Note: The Go service doesn't expose `/metrics` yet. This is forward-looking — add Prometheus metrics (e.g., `health_bridge_alerts_processed_total`) in a future iteration. For now, the VMServiceScrape is harmless (scrape will 404, VictoriaMetrics ignores it).
+  - id: P1.T7.S5
+    text: |-
+      Commit in frank repo
+
+
+      ```bash
+      git add apps/health-bridge/
+      git commit -m "feat(obs): add health-bridge K8s manifests — deployment, secrets, config"
+      ```
+
+      ---
+- number: 8
+  title: Create ArgoCD Application CR
+  steps:
+  - id: P1.T8.S1
+    text: |-
+      Create ArgoCD Application
+
+
+      Create `apps/root/templates/health-bridge.yaml`:
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: health-bridge
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          repoURL: {{ "{{ .Values.repoURL }}" }}
+          targetRevision: {{ "{{ .Values.targetRevision }}" }}
+          path: apps/health-bridge/manifests
+        destination:
+          server: {{ "{{ .Values.destination.server }}" }}
+          namespace: monitoring
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=false
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            jsonPointers:
+              - /data
+      ```
+  - id: P1.T8.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/health-bridge.yaml
+      git commit -m "feat(obs): add health-bridge ArgoCD Application CR"
+      ```
+  - id: P1.T8.S3
+    text: |-
+      Push and verify ArgoCD sync
+
+
+      ```bash
+      git push origin main
+      ```
+
+      Wait for ArgoCD to sync (typically < 3 minutes). Verify:
+
+      ```bash
+      source .env
+      argocd app get health-bridge
+      kubectl get pods -n monitoring -l app=health-bridge
+      kubectl logs -n monitoring -l app=health-bridge --tail=20
+      ```
+
+      Expected: Pod running, logs show "health-bridge listening on :8080" and "Loaded project metadata: id=..., field=..., 10 lifecycle states".
+
+      ---
+- number: 9
+  title: Configure Grafana Webhook Contact Point
+  steps:
+  - id: P1.T9.S1
+    text: |-
+      Create webhook contact point in Grafana
+
+
+      ```yaml
+      # manual-operation
+      id: grafana-health-bridge-webhook
+      layer: obs
+      app: health-bridge
+      plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+      when: After health-bridge pod is running
+      why_manual: Grafana provisioning is API-only (not GitOps)
+      commands:
+        - description: Create webhook contact point
+          command: |
+            GRAFANA_URL="https://grafana.frank.derio.net"
+            GRAFANA_API_KEY="<from Infisical or env>"
+            WEBHOOK_SECRET="<same as HEALTH_BRIDGE_WEBHOOK_SECRET in Infisical>"
+
+            curl -s -X POST "$GRAFANA_URL/api/v1/provisioning/contact-points" \
+              -H "Authorization: Bearer $GRAFANA_API_KEY" \
+              -H "Content-Type: application/json" \
+              -H "X-Disable-Provenance: true" \
+              -d '{
+                "name": "Health Bridge Webhook",
+                "type": "webhook",
+                "settings": {
+                  "url": "http://health-bridge.monitoring.svc.cluster.local:8080/webhook",
+                  "httpMethod": "POST",
+                  "authorization_scheme": "Bearer",
+                  "authorization_credentials": "'"$WEBHOOK_SECRET"'"
+                },
+                "disableResolveMessage": false
+              }'
+        - description: Verify contact point was created
+          command: |
+            curl -s "$GRAFANA_URL/api/v1/provisioning/contact-points" \
+              -H "Authorization: Bearer $GRAFANA_API_KEY" | jq '.[] | select(.name == "Health Bridge Webhook")'
+      verify:
+        - description: Contact point exists
+          command: curl -s "$GRAFANA_URL/api/v1/provisioning/contact-points" -H "Authorization:Bearer $GRAFANA_API_KEY" | jq '.[].name' | grep "Health Bridge"
+          expected: "Health Bridge Webhook"
+      status: pending
+      ```
+  - id: P1.T9.S2
+    text: |-
+      Update notification policy to route to webhook
+
+
+      ```yaml
+      # manual-operation
+      id: grafana-notification-policy-webhook
+      layer: obs
+      app: health-bridge
+      plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+      when: After webhook contact point is created
+      why_manual: Grafana notification policy is API-only
+      commands:
+        - description: Get current notification policy tree
+          command: |
+            GRAFANA_URL="https://grafana.frank.derio.net"
+            curl -s "$GRAFANA_URL/api/v1/provisioning/policies" \
+              -H "Authorization: Bearer $GRAFANA_API_KEY" | jq .
+        - description: Update policy to add webhook route alongside existing Telegram routes
+          command: |
+            GRAFANA_URL="https://grafana.frank.derio.net"
+            # Fetch current policy, add a new child route for the webhook.
+            # The existing severity-based Telegram routes have `continue: true` so
+            # alerts also fall through to the next matching route.
+            CURRENT=$(curl -s "$GRAFANA_URL/api/v1/provisioning/policies" \
+              -H "Authorization: Bearer $GRAFANA_API_KEY")
+
+            # Append a new route that catches all Feature Health alerts for the webhook:
+            UPDATED=$(echo "$CURRENT" | jq '.routes += [{
+              "receiver": "Health Bridge Webhook",
+              "object_matchers": [["grafana_folder", "=", "Feature Health"]],
+              "continue": false,
+              "group_wait": "30s",
+              "group_interval": "1m",
+              "repeat_interval": "5m"
+            }]')
+
+            # Also ensure existing Telegram severity routes have continue: true
+            UPDATED=$(echo "$UPDATED" | jq '(.routes[] | select(.receiver == "Telegram - Willikins")) .continue = true')
+
+            curl -s -X PUT "$GRAFANA_URL/api/v1/provisioning/policies" \
+              -H "Authorization: Bearer $GRAFANA_API_KEY" \
+              -H "Content-Type: application/json" \
+              -H "X-Disable-Provenance: true" \
+              -d "$UPDATED"
+      verify:
+        - description: Verify notification policy has webhook route
+          command: |
+            curl -s "$GRAFANA_URL/api/v1/provisioning/policies" \
+              -H "Authorization: Bearer $GRAFANA_API_KEY" | \
+              jq '.routes[] | select(.receiver == "Health Bridge Webhook")'
+          expected: Route object with receiver "Health Bridge Webhook" and grafana_folder matcher
+        - description: Send test notification to webhook contact point
+          command: |
+            curl -s -X POST "http://health-bridge.monitoring.svc.cluster.local:8080/webhook" \
+              -H "Authorization: Bearer $WEBHOOK_SECRET" \
+              -H "Content-Type: application/json" \
+              -d '{"status":"firing","alerts":[{"status":"firing","labels":{"alertname":"test","severity":"warning"},"annotations":{"summary":"notification policy test"},"startsAt":"2026-04-04T00:00:00Z"}]}'
+          expected: '{"processed": 0, "total": 1}' (0 processed because no github_issue label)
+      status: pending
+      ```
+
+      ---
+- number: 10
+  title: Add `github_issue` Labels to Alert Rules
+  steps:
+  - id: P1.T10.S1
+    text: |-
+      Update existing alert rules with `github_issue` labels
+
+
+      ```yaml
+      # manual-operation
+      id: grafana-alert-labels-github-issue
+      layer: obs
+      app: health-bridge
+      plan: docs/superpowers/plans/2026-04-04--obs--health-bridge-service.md
+      when: After health-bridge is deployed and webhook configured
+      why_manual: Grafana alert rules are API-provisioned
+      commands:
+        - description: List current alert rules to get UIDs
+          command: |
+            curl -s "$GRAFANA_URL/api/v1/provisioning/alert-rules" \
+              -H "Authorization: Bearer $GRAFANA_API_KEY" | \
+              jq '.[] | {uid: .uid, title: .title}'
+        - description: Update each rule to add github_issue label
+          command: |
+            # For each rule, GET the full rule, add the label, PUT back.
+            # Mapping (from M1 issue table):
+            #   exercise-reminder-stale → github_issue=willikins#11
+            #   session-manager-stale → github_issue=willikins#13
+            #   audit-digest-stale → github_issue=willikins#12
+            #   endpoint-down → (per-target, handled by bridge using instance label)
+            #   agent-pod-not-running → github_issue=frank#8
+
+            for RULE_UID in exercise-reminder-stale session-manager-stale audit-digest-stale agent-pod-not-running; do
+              RULE=$(curl -s "$GRAFANA_URL/api/v1/provisioning/alert-rules/$RULE_UID" \
+                -H "Authorization: Bearer $GRAFANA_API_KEY")
+
+              case $RULE_UID in
+                exercise-reminder-stale) ISSUE="willikins#11" ;;
+                session-manager-stale) ISSUE="willikins#13" ;;
+                audit-digest-stale) ISSUE="willikins#12" ;;
+                agent-pod-not-running) ISSUE="frank#8" ;;
+              esac
+
+              UPDATED=$(echo "$RULE" | jq --arg issue "$ISSUE" '.labels.github_issue = $issue')
+
+              curl -s -X PUT "$GRAFANA_URL/api/v1/provisioning/alert-rules/$RULE_UID" \
+                -H "Authorization: Bearer $GRAFANA_API_KEY" \
+                -H "Content-Type: application/json" \
+                -H "X-Disable-Provenance: true" \
+                -d "$UPDATED"
+
+              echo "Updated $RULE_UID → github_issue=$ISSUE"
+            done
+      verify:
+        - description: Verify labels on alert rules
+          command: |
+            curl -s "$GRAFANA_URL/api/v1/provisioning/alert-rules" \
+              -H "Authorization: Bearer $GRAFANA_API_KEY" | \
+              jq '.[] | {title: .title, github_issue: .labels.github_issue}'
+          expected: Each rule shows its github_issue label
+      status: pending
+      ```
+
+      Note: The `endpoint-down` alert covers multiple targets. The bridge will need to handle this by mapping the `instance` label to the correct Issue. For the MVP, endpoint-down alerts update a single "infrastructure health" Issue. Refined per-endpoint mapping is future work.
+
+      ---
+- number: 11
+  title: End-to-End Verification
+  steps:
+  - id: P1.T11.S1
+    text: |-
+      Check bridge pod is healthy
+
+
+      ```bash
+      source .env
+      kubectl get pods -n monitoring -l app=health-bridge
+      kubectl logs -n monitoring -l app=health-bridge --tail=5
+      ```
+
+      Expected: Pod running, logs show startup message with project metadata loaded.
+  - id: P1.T11.S2
+    text: |-
+      Send a test webhook directly to the bridge
+
+
+      From the secure-agent-pod or via port-forward:
+
+      ```bash
+      # Port-forward to bridge
+      kubectl port-forward -n monitoring svc/health-bridge 8080:8080 &
+
+      # Send a test alert (use the real webhook secret)
+      WEBHOOK_SECRET="<from Infisical>"
+
+      curl -s -X POST http://localhost:8080/webhook \
+        -H "Authorization: Bearer $WEBHOOK_SECRET" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "status": "firing",
+          "alerts": [{
+            "status": "firing",
+            "labels": {
+              "alertname": "test-bridge",
+              "severity": "warning",
+              "github_issue": "willikins#11"
+            },
+            "annotations": {
+              "summary": "Test alert from health-bridge verification"
+            },
+            "startsAt": "2026-04-04T12:00:00Z",
+            "generatorURL": "https://grafana.frank.derio.net"
+          }]
+        }'
+
+      kill %1
+      ```
+
+      Expected: Response `{"processed": 1, "total": 1}`. Check the GitHub Issue:
+
+      ```bash
+      gh issue view 11 --repo derio-net/willikins --json projectItems,comments | jq .
+      ```
+
+      Expected: Issue lifecycle state changed to `degraded`, new comment with alert details.
+  - id: P1.T11.S3
+    text: |-
+      Send a resolved alert to restore state
+
+
+      ```bash
+      kubectl port-forward -n monitoring svc/health-bridge 8080:8080 &
+
+      curl -s -X POST http://localhost:8080/webhook \
+        -H "Authorization: Bearer $WEBHOOK_SECRET" \
+        -H "Content-Type: application/json" \
+        -d '{
+          "status": "resolved",
+          "alerts": [{
+            "status": "resolved",
+            "labels": {
+              "alertname": "test-bridge",
+              "severity": "warning",
+              "github_issue": "willikins#11"
+            },
+            "annotations": {
+              "summary": "Test alert resolved"
+            },
+            "startsAt": "2026-04-04T12:00:00Z",
+            "endsAt": "2026-04-04T12:05:00Z",
+            "generatorURL": "https://grafana.frank.derio.net"
+          }]
+        }'
+
+      kill %1
+      ```
+
+      Expected: Issue lifecycle state changed back to `healthy`.
+  - id: P1.T11.S4
+    text: |-
+      Trigger a real Grafana alert and verify bridge receives it
+
+
+      Temporarily lower the exercise-reminder-stale threshold (as done in M2 testing):
+
+      ```bash
+      # The exercise cron should already be running. If the heartbeat is stale,
+      # the alert will fire and route through the webhook to the bridge.
+      # Check bridge logs for processing:
+      kubectl logs -n monitoring -l app=health-bridge --tail=20 -f
+      ```
+
+      Expected: Bridge logs show "Processed: willikins#11 → dead" (or degraded, depending on severity). Issue on GitHub Project board reflects the new state.
+  - id: P1.T11.S5
+    text: |-
+      Add self-monitoring probe (dogfooding)
+
+
+      The bridge itself must be monitored by the same Grafana stack. Add its healthz endpoint to the Blackbox Exporter VMProbe.
+
+      Edit `apps/blackbox-exporter/manifests/vmprobe.yaml` — add the health-bridge endpoint to the `targets.staticConfig.targets` list:
+
+      ```yaml
+              - http://health-bridge.monitoring.svc.cluster.local:8080/healthz
+      ```
+
+      Add it under the existing targets (n8n, paperclip, grafana, blog). Keep the same `probe_group: feature_health` label so it's picked up by the existing `endpoint-down` alert rule.
+
+      Commit in the frank repo:
+
+      ```bash
+      git add apps/blackbox-exporter/manifests/vmprobe.yaml
+      git commit -m "feat(obs): add health-bridge self-monitoring probe"
+      git push origin main
+      ```
+
+      Wait for ArgoCD to sync, then verify in Grafana Explore:
+
+      ```
+      probe_success{instance="http://health-bridge.monitoring.svc.cluster.local:8080/healthz"}
+      ```
+
+      Expected: `1` (probe succeeds).
+
+      ---
+
+      ## Deployment Deviations
+
+      Document any deviations from this plan here during execution:
+
+      *(To be filled during implementation)*
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T1.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T5.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T7.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T8.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T9.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T10.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T11.S5:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

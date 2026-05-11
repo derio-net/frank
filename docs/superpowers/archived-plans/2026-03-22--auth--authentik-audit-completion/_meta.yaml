@@ -1,0 +1,6 @@
+schema_version: 2
+plan: 2026-03-22--auth--authentik-audit-completion
+spec: none
+target_repo: derio-net/superpowers-for-vk
+vk_version: '>=1.0.0,<3.0.0'
+created: '2026-03-22'
