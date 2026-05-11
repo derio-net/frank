@@ -92,7 +92,7 @@ Add a rule that keys on the *metric*, not on any specific `instance`, so the ale
 
 ### Task 1: Add rule group to `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
 
-- [ ] **Step 1: Delete the deferred-comment line at L1173**
+- [x] **Step 1: Delete the deferred-comment line at L1173**
 
   Find:
 
@@ -102,7 +102,7 @@ Add a rule that keys on the *metric*, not on any specific `instance`, so the ale
 
   Delete only that single line (keep the Headscale and Hetzner deferred comments — they're separate follow-ups).
 
-- [ ] **Step 2: Append a new rule group**
+- [x] **Step 2: Append a new rule group**
 
   At the end of the existing `groups:` list (after the last `- orgId: 1, name: layer-...` block), append:
 
