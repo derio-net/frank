@@ -31,7 +31,7 @@ Add the Omni Pi endpoints to the cluster's blackbox-exporter probe list as a new
 
 ### Task 1: Extend `apps/blackbox-exporter/manifests/vmprobe.yaml`
 
-- [ ] **Step 1: Append a second `VMProbe` document for management-plane targets**
+- [x] **Step 1: Append a second `VMProbe` document for management-plane targets**
 
   Edit `apps/blackbox-exporter/manifests/vmprobe.yaml`, append (note the `---` separator):
 
