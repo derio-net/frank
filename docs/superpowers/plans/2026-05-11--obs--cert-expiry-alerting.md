@@ -197,7 +197,7 @@ Add a rule that keys on the *metric*, not on any specific `instance`, so the ale
   - The Prometheus `datasourceUid: P4169E866C3094E38` matches the existing rules in the same file — copy-paste consistent.
   - No `github_issue` label here: this is a generalized rule, not tied to one Layer tracker. Add one later if a tracker is wanted.
 
-- [ ] **Step 3: Commit + push + sync + restart Grafana**
+- [x] **Step 3: Commit + push + sync + restart Grafana**
 
   ```bash
   git add apps/grafana-alerting/manifests/alert-rules-cm.yaml
@@ -213,21 +213,29 @@ Add a rule that keys on the *metric*, not on any specific `instance`, so the ale
   kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
   ```
 
-- [ ] **Step 4: Verify rules are loaded**
+- [x] **Step 4: Verify rules are loaded**
+
+  The provisioning API path needs Grafana admin auth, but the chart-managed Secret drifts from the PVC-backed `grafana.db` (frank-gotcha: "Grafana Helm chart regenerates admin password Secret on re-render — PVC-backed database retains old password"), so the documented `wget --user/--password` path returns `401`. Two no-auth alternatives that confirm provisioning without resetting the admin password:
 
   ```bash
-  GRAFANA_PASS=$(kubectl -n monitoring get secret victoria-metrics-grafana -o jsonpath='{.data.admin-password}' | base64 -d)
+  # (a) Confirm Grafana parsed the provisioning file with no SSE/parse errors.
+  kubectl -n monitoring logs deploy/victoria-metrics-grafana --tail=400 \
+    | grep -iE 'provisioning.alerting|parseError|sse\.parse'
+  # Expect: "starting to provision alerting" → "finished to provision alerting"
+  # with no parseError / sse.parse lines in between.
+
+  # (b) Confirm both rules made it into grafana.db (sqlite3 isn't in the image —
+  #     grep the raw db for our UIDs instead).
   kubectl -n monitoring exec deploy/victoria-metrics-grafana -- \
-    wget -qO- --user=admin --password="$GRAFANA_PASS" \
-    'http://localhost:3000/api/v1/provisioning/alert-rules' \
-    | grep -oE '"uid":"tls-cert-expiring-[0-9]+d"'
+    sh -c 'strings /var/lib/grafana/grafana.db | grep -E "^tls-cert-expir" | sort -u'
+  # Expect: both `tls-cert-expiring-14d` and `tls-cert-expiring-7d` appear,
+  # each with their full A→B→C JSON inlined (thresholds 1209600 and 604800).
   ```
 
-  Expected output:
-  ```
-  "uid":"tls-cert-expiring-14d"
-  "uid":"tls-cert-expiring-7d"
-  ```
+  (Note: busybox `wget` inside the Grafana image does not understand
+  `--user`/`--password` flags — basic-auth has to come via an
+  `Authorization: Basic …` header. With the chart-secret password mismatch above
+  that path is moot anyway; the two checks above are the working verification.)
 
 ---
 
