@@ -23,6 +23,7 @@
 ---
 
 ## Phase 1: Probe targets [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/243 -->
 
 **Depends on:** —
 
@@ -83,6 +84,7 @@ Add the Omni Pi endpoints to the cluster's blackbox-exporter probe list as a new
 ---
 
 ## Phase 2: Global cert-expiry alert rule [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/244 -->
 
 **Depends on:** Phase 1
 
@@ -230,6 +232,7 @@ Add a rule that keys on the *metric*, not on any specific `instance`, so the ale
 ---
 
 ## Phase 3: End-to-end verification [agentic]
+<!-- Tracking: https://github.com/derio-net/frank/issues/245 -->
 
 **Depends on:** Phase 2
 
