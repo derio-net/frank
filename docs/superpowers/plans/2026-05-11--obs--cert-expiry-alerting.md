@@ -57,7 +57,7 @@ Add the Omni Pi endpoints to the cluster's blackbox-exporter probe list as a new
 
   Module choice rationale: `http_2xx` will set `probe_success=0` on `:8100/` (Omni returns 404 there), but `probe_ssl_earliest_cert_expiry` is populated regardless — blackbox-exporter emits it during the TLS handshake, before HTTP status evaluation. The Phase 2 alert keys on the SSL metric, not on `probe_success`.
 
-- [ ] **Step 2: Commit + push + verify ArgoCD sync**
+- [x] **Step 2: Commit + push + verify ArgoCD sync**
 
   ```bash
   git add apps/blackbox-exporter/manifests/vmprobe.yaml
@@ -72,7 +72,7 @@ Add the Omni Pi endpoints to the cluster's blackbox-exporter probe list as a new
   # Expected: Synced
   ```
 
-- [ ] **Step 3: Verify the SSL metric appears in VictoriaMetrics**
+- [x] **Step 3: Verify the SSL metric appears in VictoriaMetrics**
 
   ```bash
   kubectl -n monitoring exec deploy/victoria-metrics-grafana -- \
