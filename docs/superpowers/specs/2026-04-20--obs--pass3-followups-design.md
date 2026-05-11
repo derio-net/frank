@@ -65,3 +65,9 @@ Run `/brainstorming` against this spec to:
 - Pass 3 plan: `docs/superpowers/plans/2026-04-16--platform--derio-ops-pass3-grafana-wiring.md` (see Deployment Deviations section)
 - Follow-up comments on the trackers: `frank-ops#4`, `#6`, `#9`, `#16`, `#17`
 - Grafana gotcha: `.claude/rules/frank-gotchas.md` (RWO PVC + RollingUpdate)
+
+## Implementation Plans
+
+| Plan | Repo | File | Status | Depends on |
+|------|------|------|--------|------------|
+| Obs — Cert-Expiry Alerting Implementation Plan |  | `docs/superpowers/plans/2026-05-11--obs--cert-expiry-alerting.md` | Not Started | — |
