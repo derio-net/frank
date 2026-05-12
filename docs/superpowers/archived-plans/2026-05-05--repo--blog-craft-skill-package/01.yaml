@@ -1,0 +1,159 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Repo bootstrap + plugin manifest
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Verify current Claude Code plugin manifest spec
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Query context7 for current plugin manifest schema. *(skipped — context7 returned "Invalid API key"; fell through to Step 2's on-disk verification, which the plan already names as the authoritative source.)*
+
+      Run:
+      ```bash
+      # context7 MCP query — exact tool call from this session:
+      # mcp__context7__resolve-library-id query="claude code plugin manifest"
+      # then mcp__context7__query-docs library-id=<resolved> query="plugin.json schema skills field"
+      ```
+      Capture the canonical field names and required keys. Specifically confirm: (a) the directory must be `.claude-plugin/`, (b) the file must be `plugin.json`, (c) whether `skills:` enumerates files or auto-discovers from `skills/*/SKILL.md`, (d) any required fields beyond `name`, `version`, `description`.
+
+      **Expected output:** A short note pasted as a comment block at the top of `docs/ARCHITECTURE.md` (created in Step 6 below) recording exact schema as of today.
+  - id: P1.T1.S2
+    text: |-
+      Cross-check against an existing plugin in the user's installation.
+
+      ```bash
+      ls ~/.claude/plugins/cache/ | head -5
+      cat ~/.claude/plugins/cache/derio-net/superpowers-for-vk/*/plugin.json 2>/dev/null \
+        || cat ~/.claude/plugins/cache/claude-plugins-official/superpowers/*/plugin.json 2>/dev/null
+      ```
+      Confirm the schema matches what context7 reported. If they diverge, trust the on-disk one (it's what the loader actually parses) and update the note in `docs/ARCHITECTURE.md`.
+- number: 2
+  title: Create the repo on disk and on GitHub
+  steps:
+  - id: P1.T2.S3
+    text: |-
+      Create the directory and initialize git. *(commit identity adjusted from spec default `stoicepicurian@gmail.com` to `clawdia.ai.assistant@gmail.com` per "clawdia is the visible operator/committer in derio-net".)*
+
+      ```bash
+      mkdir -p ~/Docs/projects/DERIO_NET/blog-craft
+      cd ~/Docs/projects/DERIO_NET/blog-craft
+      git init -b main
+      git config user.email "stoicepicurian@gmail.com"
+      git config user.name "Yiannis Dermitzakis"
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Create README, LICENSE, .gitignore.
+
+      - `README.md` — three sections: "What is blog-craft", "Install", "The three skills". One paragraph each. No prose about Frank specifics.
+      - `LICENSE` — MIT, year 2026, holder "Yiannis Dermitzakis".
+      - `.gitignore` — minimal: `.DS_Store`, `*.swp`, `__pycache__/`, `.venv/`, plus a comment noting per-blog gitignore is the bootstrapped blog's concern.
+  - id: P1.T2.S5
+    text: |-
+      Create the GitHub remote. *(needed `env -u GITHUB_TOKEN gh auth switch -u YiannisDermitzakis` first — the active service token `clawdia-ai-assistant` lacks `read:org`. Switched back wired into Phase 6 cleanup.)*
+
+      ```bash
+      gh repo create derio-net/blog-craft --private --source=. --description "Portable teaching-blog scaffolding and authoring skills for Claude Code (Hugo + Hextra)."
+      # Don't push yet — repo is empty.
+      ```
+      **Expected:** `gh repo create` confirms creation; `git remote -v` shows `origin` pointing at `git@github.com:derio-net/blog-craft.git`.
+  - id: P1.T2.S6
+    text: |-
+      Create internal `docs/ARCHITECTURE.md`.
+
+      Single-page doc covering: (a) the plugin/template duality, (b) the `.tmpl` vs verbatim file convention, (c) the wizard → config → skill data flow, (d) the schema note from Steps 1–2. Aim for ~150 lines. Audience: future-you maintaining the repo six months from now.
+- number: 3
+  title: Plugin manifest
+  steps:
+  - id: P1.T3.S7
+    text: |-
+      Write `.claude-plugin/plugin.json`. *(`author` written as object `{name: ...}` not string per actual schema; no `skills` enumeration since the loader auto-discovers.)*
+
+      Use the schema confirmed in Steps 1–2. Skeleton (adjust `skills` field per discovered convention):
+      ```json
+      {
+        "name": "blog-craft",
+        "version": "0.1.0",
+        "description": "Portable teaching-blog scaffolding and authoring skills (Hugo + Hextra).",
+        "author": "Yiannis Dermitzakis"
+      }
+      ```
+      If the schema requires explicit skill enumeration, append a `skills` array; if it auto-discovers from `skills/*/SKILL.md`, omit it. Either way, the three skill directories don't exist yet — this is intentional. The next step verifies the loader handles a manifest pointing at empty skill directories.
+  - id: P1.T3.S8
+    text: |-
+      Create empty skill directories with stub SKILL.md.
+
+      ```bash
+      mkdir -p skills/{bootstrap-blog,blog-post,media}
+      for d in skills/bootstrap-blog skills/blog-post skills/media; do
+        cat > "$d/SKILL.md" <<EOF
+      ---
+      name: $(basename $d)
+      description: Stub — implementation lands in a later phase.
+      user-invocable: false
+      ---
+
+      Not yet implemented.
+      EOF
+      done
+      ```
+      These stubs let the plugin install cleanly without errors. `user-invocable: false` keeps them out of `/` autocomplete until they're real.
+  - id: P1.T3.S9
+    text: |-
+      Commit Phase 1. *(committed `2c06db2`; 8 files, 170 insertions; not pushed yet.)*
+
+        ```bash
+        git add .
+        git status   # confirm only intended files staged
+        git commit -m "feat: bootstrap plugin manifest and stub skills"
+        ```
+        **Expected:** ~10 files committed. No push yet — that lands in Phase 6 after end-to-end smoke test passes.
+
+      ---
+state:
+  steps:
+    P1.T1.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T3.S9:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

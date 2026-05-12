@@ -1,0 +1,119 @@
+schema_version: 2
+phase:
+  number: 5
+  title: media skill
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Define the smoke test contract
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Write `tests/smoke-media.sh`. *(also tests the missing-asset-skip branch and idempotency on re-run; rendered-HTML path correction (`public/docs/...`, no base-path prefix) caught after first run.)*
+
+      Preconditions: bootstrapped blog at `/tmp/test-bootstrap-fixture/` with at least one post containing:
+      ```markdown
+      <!-- MEDIA: screenshot | A grafana dashboard | Visit https://example.com and screenshot -->
+      <!-- {{</* screenshot src="grafana.png" caption="Grafana" */>}} -->
+      ```
+      Pre-seed the post's bundle dir with a `grafana.png` (1px PNG). Drive the skill with arg `post=tutorials/01-hello-world`. Asserts:
+      - The `<!-- MEDIA: ... -->` instruction comment is gone
+      - The shortcode line is uncommented (no `<!-- ` prefix or ` -->` suffix)
+      - `grafana.png` is unchanged (already under 500KB) OR has been compressed (if pngquant ran)
+      - `cd /tmp/test-bootstrap-fixture && hugo --minify` exits 0
+- number: 2
+  title: Write the SKILL.md
+  steps:
+  - id: P5.T2.S2
+    text: |-
+      SKILL.md frontmatter.
+
+      ```yaml
+      ---
+      name: media
+      description: Capture, optimize, and insert media (screenshots, CLI animations, photos) into blog-craft posts. Fills <!-- MEDIA: ... --> placeholders with rendered shortcodes.
+      user-invocable: true
+      disable-model-invocation: false
+      arguments:
+        - name: post
+          description: "Post path relative to content/docs/ (e.g. tutorials/07-monitoring). If omitted, lists all posts with remaining placeholders."
+          required: false
+      ---
+      ```
+  - id: P5.T2.S3
+    text: |-
+      Body — port Frank's workflow. *(extracted the textual replacement to `tools/media-fill.py` (~75 lines, pure stdlib). SKILL.md keeps the conversational/capture/optimize layers; helper does the line-pair rewrite. Drops Frank's `source .env` / `source .env_hop` branching per spec.)*
+
+      Copy verbatim from `~/Docs/projects/DERIO_NET/frank/.claude/skills/media/SKILL.md` Steps 1–6 ("Identify Target Post" through "Verify"), with these substitutions:
+      - All `blog/content/` → walk up from CWD to find `.blog-craft.yaml`, then `<blog_root>/content/`
+      - Drop the entire "Frank cluster: `source .env` / Hop cluster: `source .env_hop`" block under Step 3 ("CLI Animations / Agent-Executed Mode"). Replace with: "Ensure your shell has the env vars your recorded commands depend on. The skill does not source any env files for you."
+      - All references to `frank-` paths → relative paths from `<blog_root>`
+  - id: P5.T2.S4
+    text: |-
+      Body — Standards section. *(self-review fix: corrected the captions-required claim — helper only requires `src=`, caption is recommended but not enforced.)*
+
+      Port verbatim, no changes (file size limits, kebab-case, dark-mode preference, etc. are blog-agnostic).
+  - id: P5.T2.S5
+    text: |-
+      Body — Reference section. *(paths anchored to `<blog_root>/...`, not Frank's `blog/...`.)*
+
+      Replace Frank-specific paths with template-relative ones: `<blog_root>/MEDIA-GUIDE.md`, `<blog_root>/layouts/shortcodes/screenshot.html`, etc.
+- number: 3
+  title: Run the smoke test
+  steps:
+  - id: P5.T3.S6
+    text: |-
+      Drive the skill against the bootstrapped fixture. *(7/7 assertions pass — present-asset filled correctly, missing-asset preserved, hugo build succeeds, rendered HTML contains `<figure class="screenshot">`, second run is no-op.)*
+
+      ```bash
+      cd ~/Docs/projects/DERIO_NET/blog-craft
+      bash tests/smoke-media.sh
+      ```
+      **Expected:** `PASS` for each assertion and `ALL OK`.
+  - id: P5.T3.S7
+    text: |-
+      Commit Phase 5. *(commits `021fbb9` (helper + smoke), `e53c551` (belated SKILL.md — Write tool needed prior Read), `cda3035` (self-review caption fix); 4 files total.)*
+
+        ```bash
+        git add skills/media/SKILL.md tests/smoke-media.sh
+        git commit -m "feat(media): generalized port of Frank's media skill"
+        ```
+
+      ---
+state:
+  steps:
+    P5.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T2.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T3.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T3.S7:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,138 @@
+schema_version: 2
+phase:
+  number: 4
+  title: blog-post skill
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Define the smoke test contract
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Write `tests/smoke-blog-post.sh`. *(uses a cached venv at `/tmp/blog-craft-test-venv` for PyYAML — system python3 lacks it; `BLOG_CRAFT_TEST_MODE=1` writes a 1px PNG via hardcoded bytes in generate-images.py, so Pillow isn't a test dep.)*
+
+      Preconditions: a bootstrapped blog at `/tmp/test-bootstrap-fixture/` (the script invokes `tests/smoke-bootstrap.sh` if missing). Drives the skill with: `series=tutorials`, `number=01`, `slug=hello-world`, `title="Hello World"`, brief="A test image". Mocks the Gemini call (`BLOG_CRAFT_TEST_MODE=1` switch in `scripts/generate-images.py` writes a 1px PNG instead of calling the API). Asserts:
+      - `content/docs/tutorials/01-hello-world/index.md` exists with correct frontmatter
+      - `prompt_for_images.yaml` has a new entry with `key: tutorials-01`
+      - `static/images/tutorials-01-cover.png` exists
+      - `content/docs/tutorials/00-overview/index.md` has a new line referencing post 01
+- number: 2
+  title: Write the SKILL.md
+  steps:
+  - id: P4.T2.S2
+    text: |-
+      SKILL.md frontmatter.
+
+      ```yaml
+      ---
+      name: blog-post
+      description: Create a new Hugo blog post in a blog-craft blog. Generates a cover image from the configured central metaphor and updates the relevant series overview.
+      user-invocable: true
+      disable-model-invocation: false
+      arguments:
+        - name: series
+          description: "Series key — must match a series[].key in .blog-craft.yaml"
+          required: true
+        - name: number
+          description: "Post number (zero-padded, e.g. 07)"
+          required: true
+        - name: slug
+          description: "URL slug (kebab-case)"
+          required: true
+        - name: title
+          description: "Post title"
+          required: true
+      ---
+      ```
+  - id: P4.T2.S3
+    text: |-
+      Body — config discovery + validation.
+
+      Section 1: walk up from CWD looking for `.blog-craft.yaml`. If missing, refuse with: `Not in a blog-craft blog. Run /bootstrap-blog or cd to a blog-craft repo.` Section 2: parse YAML, validate `series` arg is in `series[].key`; if not, list valid keys.
+  - id: P4.T2.S4
+    text: |-
+      Body — page bundle creation. *(extracted to `tools/blog-post-create.sh`; helper does page bundle + prompts entry + image-gen + overview update — SKILL.md stays prose-focused for the conversational layer.)*
+
+      Use the spec's frontmatter shape. Compute `weight = number + 1`. Document the file path: `content/docs/<series>/<NN>-<slug>/index.md`. The body of `index.md` starts with a `<!-- Add content here. Use <!-- MEDIA: ... --> placeholders for screenshots/recordings. -->` comment so authors know the contract.
+  - id: P4.T2.S5
+    text: |-
+      Body — image prompt composition.
+
+      Document the concatenation order verbatim from the spec (base_style + persona + visual_constants + brief + reference_guidance). Show the full composed prompt to the user; require explicit approval before appending to `prompt_for_images.yaml` and running image-gen. On regen request: edit the YAML entry, re-run, repeat.
+  - id: P4.T2.S6
+    text: |-
+      Body — series overview update. *(idempotent via `tools/insert-before-marker.py` + auto-managed markers in the overview template; insertion order is `<post-number>. [<title>](relref)` under `## Series Index`, then `| <number> | <title> | (TODO) |` under `## Topic / Evolution Map`.)*
+
+      If `features.series_overview_posts` is true, edit `content/docs/<series>/00-overview/index.md`: append a line under `## Series Index` (look for the heading; if missing, create it) of the form `1. [<title>]({{< relref "<NN>-<slug>" >}})`. Append a row under `## Topic / Evolution Map` (create heading if missing) with `| <NN> | <title> | <one-line, prompt user> |`.
+  - id: P4.T2.S7
+    text: |-
+      Body — smoke check. *(now Step 9 in the SKILL.md — split prior Step 6 into Step 6 (api-key check) + Step 7 (helper run) during self-review, renumbered downstream. Prints preview command, no auto-launch.)*
+
+      Print: `Draft created. Preview with: cd <blog_root> && hugo server --buildDrafts`. Don't auto-launch.
+- number: 3
+  title: Run the smoke test
+  steps:
+  - id: P4.T3.S8
+    text: |-
+      Drive the skill against the bootstrapped fixture. *(10/10 assertions pass — page bundle, frontmatter title/weight/draft, prompts entry key+body, cover PNG validity, overview index + map updates.)*
+
+      ```bash
+      cd ~/Docs/projects/DERIO_NET/blog-craft
+      BLOG_CRAFT_TEST_MODE=1 bash tests/smoke-blog-post.sh
+      ```
+      **Expected:** `PASS` for each assertion and `ALL OK`.
+  - id: P4.T3.S9
+    text: |-
+      Commit Phase 4. *(commits `7c041e1` + self-review `eececad`; 7 files total.)*
+
+        ```bash
+        git add skills/blog-post/SKILL.md tests/smoke-blog-post.sh
+        git commit -m "feat(blog-post): per-post creator with metaphor-driven covers"
+        ```
+
+      ---
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T3.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T3.S9:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

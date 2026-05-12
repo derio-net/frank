@@ -301,6 +301,6 @@ The Frank repo's existing `.claude/skills/blog-post/`, `.claude/skills/media/` c
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| Blog Craft Skill Package Implementation Plan |  | `docs/superpowers/plans/2026-05-05--repo--blog-craft-skill-package.md` | Not Started | — |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Blog Craft Skill Package Implementation Plan |  | `docs/superpowers/archived-plans/2026-05-05--repo--blog-craft-skill-package/` | — |
