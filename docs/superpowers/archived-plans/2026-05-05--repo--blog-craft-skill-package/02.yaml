@@ -1,0 +1,279 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Hugo + Hextra template (static surface)
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Verify Hextra version and recommended layout
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Query context7 for current Hextra setup. *(skipped via MCP — same Invalid API key error; ctx7 CLI worked once verified Hextra v0.10.0+ recommended pattern. Frank's go.mod was authoritative.)*
+
+      ```bash
+      # mcp__context7__resolve-library-id query="hextra hugo theme"
+      # then mcp__context7__query-docs library-id=<resolved> query="hugo module imports go.mod baseurl"
+      ```
+      Confirm: (a) module path for `hextra` (Frank uses `github.com/imfing/hextra`), (b) recommended `hugo.toml` shape, (c) any new params Frank's older config doesn't have.
+  - id: P2.T1.S2
+    text: |-
+      Copy reference files from Frank for diffing.
+
+      ```bash
+      cd ~/Docs/projects/DERIO_NET/blog-craft
+      mkdir -p /tmp/blog-craft-frank-ref
+      cp -r ~/Docs/projects/DERIO_NET/frank/blog/{hugo.toml,go.mod,go.sum,MEDIA-GUIDE.md} /tmp/blog-craft-frank-ref/
+      cp -r ~/Docs/projects/DERIO_NET/frank/blog/layouts /tmp/blog-craft-frank-ref/layouts
+      cp ~/Docs/projects/DERIO_NET/frank/scripts/generate-all-images.py /tmp/blog-craft-frank-ref/
+      ```
+      Use this dir as the source-of-truth for what to port. Delete after Phase 2.
+- number: 2
+  title: Verbatim files (no templating)
+  steps:
+  - id: P2.T2.S3
+    text: |-
+      Copy `screenshot.html` and `asciinema.html` shortcodes verbatim.
+
+      ```bash
+      mkdir -p templates/hugo-hextra/layouts/shortcodes
+      cp /tmp/blog-craft-frank-ref/layouts/shortcodes/{screenshot,asciinema}.html \
+         templates/hugo-hextra/layouts/shortcodes/
+      ```
+      These shortcodes are blog-agnostic — no Frank-specific assumptions. Verify by reading both files end-to-end and confirming zero hardcoded "frank", "talos", or cluster-specific strings.
+  - id: P2.T2.S4
+    text: |-
+      Stage `roadmap.html` (gated). *(rewrote as a generic minimal skeleton instead of porting Frank's 21KB cluster-roadmap; pointer to Frank's full version left in a comment for users who want richer CSS.)*
+
+      ```bash
+      cp /tmp/blog-craft-frank-ref/layouts/shortcodes/cluster-roadmap.html \
+         templates/hugo-hextra/layouts/shortcodes/roadmap.html
+      ```
+      Read the file. Strip Frank-specific layer codes (the body of the `{{ define "roadmap-layers" }}` block, if such a block exists) — replace with a generic placeholder block the user fills in post-bootstrap. Keep the CSS structure intact. Document at the top: `<!-- Generic roadmap shortcode. Customize the layer entries for your blog. -->`
+- number: 3
+  title: Templated files
+  steps:
+  - id: P2.T3.S5
+    text: |-
+      `templates/hugo-hextra/hugo.toml.tmpl`. *(also added `[security.http]` block — Hugo 0.158+ default blocks Hextra's flexsearch CDN URL containing `@`.)*
+
+      Render fields from wizard answers: `baseURL = "{{ .project.base_url }}"`, `title = "{{ .project.name }}"`, `params.description = "{{ .project.tagline }}"`. Hextra module import block stays static. Use Go `text/template` action syntax; do **not** use Hugo's own `{{ }}` collision-prone syntax — escape any literal `{{` in the template body with `{{"{{"}}` (Frank's `hugo.toml` has none, so no escaping needed unless we add one).
+  - id: P2.T3.S6
+    text: |-
+      `templates/hugo-hextra/go.mod.tmpl`. *(Hextra pinned to v0.12.1 + Go 1.24.2 to match Frank's working blog/go.mod; spec said v0.10.0 / 1.22 — out of date.)*
+
+      ```
+      module {{ .project.module_path }}
+      go 1.22
+      require github.com/imfing/hextra v0.10.0
+      ```
+      `project.module_path` is derived from `base_url`'s host + path during wizard rendering — see Phase 3 Step 5 for the derivation.
+  - id: P2.T3.S7
+    text: |-
+      `templates/hugo-hextra/content/docs/_index.md.tmpl`.
+
+      ```yaml
+      ---
+      title: "{{ .project.name }}"
+      ---
+      {{ .project.tagline }}
+      ```
+      Hextra renders this as the docs root. Series subdirs (created by `bootstrap-blog`'s render step from the `series` list, not by this template) appear as sidebar entries.
+  - id: P2.T3.S8
+    text: |-
+      `templates/hugo-hextra/layouts/partials/extend_head.html.tmpl`. *(actual Hextra path is `layouts/partials/custom/head-end.html` — file kept verbatim, not templated, because the file's body uses literal `{{ }}` Hugo template syntax.)*
+
+      Port from Frank's `blog/layouts/partials/extend_head.html`, keeping only the media-related CSS section. Strip any Frank-specific theming.
+  - id: P2.T3.S9
+    text: |-
+      `templates/hugo-hextra/scripts/generate-images.py.tmpl`. *(also added `BLOG_CRAFT_TEST_MODE=1` switch — writes 1px PNG instead of calling Gemini; needed for Phase 4 smoke tests per the plan's Notes section.)*
+
+      Port from Frank's `scripts/generate-all-images.py`. Substitutions: `{{ .image_gen.api_key_env }}` for the env var name, `{{ .image_gen.model }}` for the model name, `{{ .image_gen.output_dir }}` for the output directory. The `--only <key>` CLI behavior must be preserved verbatim — `blog-post` (Phase 4) depends on it.
+  - id: P2.T3.S10
+    text: |-
+      `templates/hugo-hextra/prompt_for_images.yaml.tmpl`.
+
+      Initial structure:
+      ```yaml
+      base_style: |
+        {{ .metaphor.base_style | indent 2 }}
+      reference_guidance: |
+        {{ .metaphor.reference_guidance | indent 2 }}
+      images:
+        {{ range .series -}}
+        - key: overview-{{ .key }}
+          output: {{ $.image_gen.output_dir }}/overview-{{ .key }}-cover.png
+          description: "Cover for the {{ .title }} series overview"
+          prompt: ""    # filled in by user post-bootstrap
+        {{ end }}
+      ```
+      This seeds one entry per series so the user can immediately edit the prompts and run image-gen.
+  - id: P2.T3.S11
+    text: |-
+      `templates/hugo-hextra/MEDIA-GUIDE.md.tmpl`. *(landed as `MEDIA-GUIDE.md` (no `.tmpl`) — the file contains literal `{{< shortcode >}}` examples that Go templating would corrupt; no per-blog substitutions were needed anyway.)*
+
+      Port from Frank's `blog/MEDIA-GUIDE.md`. Substitute `{{ .project.name }}` for "Frank" in the opening paragraph. Strip the closing "Using the `/media` Skill" section's Frank-specific reference paths (e.g., `blog/layouts/shortcodes/...`) and replace with relative paths from the blog root.
+  - id: P2.T3.S12
+    text: |-
+      `templates/hugo-hextra/.blog-craft.yaml.tmpl`.
+
+      This template renders the full schema from the spec. Use Go `text/template` `range`, `printf`, and conditional blocks to emit valid YAML for arbitrary `series` lists and arbitrary `visual_constants` lists. Include the `# only supported in v1` comment on `provider`. Include the `version: 1` line literally (no template).
+  - id: P2.T3.S13
+    text: |-
+      `templates/hugo-hextra/.gitignore.tmpl` + **`README.md.tmpl`.** *(`.gitignore` landed without `.tmpl` — no per-blog substitutions needed. README simplified to drop Hugo-specific template fns that don't exist in Go text/template; replaced with `.project.base_path` derived in the renderer.)*
+
+      - `.gitignore.tmpl`: `public/`, `resources/`, `.hugo_build.lock`, `.env`, `__pycache__/`, `.venv/`. Plain file, no substitution.
+      - `README.md.tmpl`: opening with `{{ .project.name }}` and `{{ .project.tagline }}`, then sections "How to write a post" (uses `/blog-post`), "Capturing media" (uses `/media`, link to `MEDIA-GUIDE.md`), "Generating images" (uses `scripts/generate-images.py`), "Deploy" (stub: "Choose your own — this template doesn't ship a deploy pipeline").
+- number: 4
+  title: Render test
+  steps:
+  - id: P2.T4.S14
+    text: |-
+      Write a fixture and render harness. *(also added `templates/per-series-always/` and `templates/per-series-overview/` subdirs + `--per-series` mode in the renderer for series-scoped templates that the spec hadn't anticipated. Renderer is `tools/render-template/main.go` (~150 lines, Go stdlib + yaml.v3); harness is `tests/render-template.sh`.)*
+
+      ```bash
+      mkdir -p tests/fixtures
+      cat > tests/fixtures/answers-frank-like.yaml <<'EOF'
+      project:
+        name: "Test Blog"
+        tagline: "A teaching blog"
+        base_url: "https://example.com/test/"
+        module_path: "example.com/test"
+      metaphor:
+        persona: "A test persona"
+        visual_constants: ["constant one", "constant two"]
+        reference_image: "static/images/reference.png"
+        base_style: "test base style"
+        reference_guidance: "test reference guidance"
+      series:
+        - key: tutorials
+          title: "Tutorials"
+          description: "Step-by-step"
+        - key: recipes
+          title: "Recipes"
+          description: "Atomic how-tos"
+      voice: "test voice"
+      image_gen:
+        provider: gemini
+        model: gemini-2.5-flash-image-preview
+        api_key_env: GEMINI_API_KEY
+        output_dir: static/images
+        prompts_file: prompt_for_images.yaml
+      features:
+        roadmap_shortcode: false
+        series_overview_posts: true
+      EOF
+      ```
+      Then write `tools/render-template/main.go` — a thin Go program that loads the YAML, renders every `*.tmpl` under a source dir via `text/template`, writes results to a destination dir (stripping `.tmpl`), and copies non-template files verbatim. ~50 lines. This is **the** runtime renderer — `bootstrap-blog` invokes it in Phase 3 Step 4. Using Go (vs Python) guarantees template semantics match.
+
+      Wrap with `tests/render-template.sh` for the test harness:
+      ```bash
+      #!/bin/bash
+      set -euo pipefail
+      ANSWERS=$1
+      DST=$2
+      go run tools/render-template/main.go --src templates/hugo-hextra/ --dst "$DST" --answers "$ANSWERS"
+      ```
+  - id: P2.T4.S15
+    text: |-
+      Run the harness; check `hugo server` against the output. *(`HTTP 200` on `localhost:1314/test/` after the security override fix; title and description correctly substituted.)*
+
+      ```bash
+      cd ~/Docs/projects/DERIO_NET/blog-craft
+      bash tests/render-template.sh tests/fixtures/answers-frank-like.yaml /tmp/golden-output-frank-like/
+      cd /tmp/golden-output-frank-like/
+      hugo mod init example.com/test 2>&1 || true
+      hugo mod get github.com/imfing/hextra@latest
+      hugo server --port 1314 &
+      HUGO_PID=$!
+      sleep 5
+      curl -sf http://localhost:1314/test/ > /dev/null && echo "OK" || echo "FAIL"
+      kill $HUGO_PID
+      ```
+      **Expected:** `OK`. If `FAIL`, fix templates and re-run.
+  - id: P2.T4.S16
+    text: |-
+      Commit Phase 2. *(committed `33dfda2`; 21 files, 927 insertions; not pushed yet.)*
+
+        ```bash
+        cd ~/Docs/projects/DERIO_NET/blog-craft
+        rm -rf /tmp/blog-craft-frank-ref /tmp/golden-output-frank-like
+        git add templates/ tools/ tests/
+        git status
+        git commit -m "feat: ship Hugo + Hextra blog template + render harness"
+        ```
+
+      ---
+state:
+  steps:
+    P2.T1.S1:
+      state: '-'
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S7:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S8:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S9:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S10:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S11:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S12:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T3.S13:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S14:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S15:
+      state: x
+      ticked_at: null
+      note: null
+    P2.T4.S16:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

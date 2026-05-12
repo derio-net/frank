@@ -1,0 +1,124 @@
+schema_version: 2
+phase:
+  number: 3
+  title: bootstrap-blog skill
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Define the smoke test contract
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Write `tests/smoke-bootstrap.sh`. *(also extracted `tools/bootstrap-render.sh` so the SKILL.md stays prose-focused; smoke test drives the helper end-to-end. Extended `tools/render-template/main.go` with `--check` and `--get-bool` modes to validate YAML without a Python-yaml dep — system python3 lacks PyYAML.)*
+
+      Drives the skill end-to-end against `/tmp/test-bootstrap-<ts>/` using a canned answer set (the same `answers-frank-like.yaml`). Asserts:
+      - `.blog-craft.yaml` exists and parses
+      - Every file in the Phase 2 fixture exists in the bootstrapped output
+      - `hugo server` returns 200 on the chosen port
+      - Re-running the wizard refuses with the expected error message
+
+      The smoke test invokes the renderer directly via `tools/render-template/main.go --answers <yaml>`, bypassing the conversational wizard (the conversational layer's tested by hand in Phase 6). This decouples the static-render correctness from the conversational layer.
+- number: 2
+  title: Write the SKILL.md
+  steps:
+  - id: P3.T2.S2
+    text: |-
+      SKILL.md frontmatter.
+
+      ```yaml
+      ---
+      name: bootstrap-blog
+      description: Bootstrap a new Hugo + Hextra teaching blog with a custom central metaphor and configurable series structure. Use once per new blog repo.
+      user-invocable: true
+      disable-model-invocation: false
+      arguments:
+        - name: target_dir
+          description: "Directory to create the blog in (default: CWD). Refuses if .blog-craft.yaml already exists."
+          required: false
+        - name: answers_file
+          description: "Path to a YAML file with all wizard answers (testing/automation only — skips the conversational flow)."
+          required: false
+      ---
+      ```
+  - id: P3.T2.S3
+    text: |-
+      Body — Steps 0 through 6 (data collection).
+
+      Write the wizard steps verbatim from the spec's "Wizard Flow: bootstrap-blog" section. Each step is a numbered Markdown subsection. Include exact prompts to show the user, expected reply shape, and validation rules. For Step 3 (series), include the three preset menu and the custom-loop prose with the "tracks" explanation from the spec.
+  - id: P3.T2.S4
+    text: |-
+      Body — Step 7 (render).
+
+      Document: walk every `*.tmpl` under `<plugin_root>/templates/hugo-hextra/`, render with Go `text/template` using collected answers, write to `<target_dir>` (strip `.tmpl`). Plain files copy verbatim. Compute `project.module_path` from `base_url` (parse host + path, strip trailing slash, e.g. `https://my.com/blog/` → `my.com/blog`). Invoke the renderer:
+      ```bash
+      go run <plugin_root>/tools/render-template/main.go \
+        --src <plugin_root>/templates/hugo-hextra/ \
+        --dst <target_dir> \
+        --answers /tmp/wizard-answers-<ts>.yaml
+      ```
+      (Renderer was created in Phase 2 Step 14; doubles as runtime.)
+  - id: P3.T2.S5
+    text: |-
+      Body — Steps 8–9 (initial image + verify). *(Step 8 tightened during self-review — replaced shell pseudocode with real instructions, deferred prompt composition to the same base_style+persona+constants+brief+guidance pattern blog-post uses, added explicit user-approval gate.)*
+
+      Document: copy reference image if supplied, run `python <target_dir>/scripts/generate-images.py --only overview-<series-key>` for the first series if `features.series_overview_posts` is true and a reference exists, then port-pick + Hugo smoke test (use `python -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1])"` for the free port).
+- number: 3
+  title: Run the smoke test
+  steps:
+  - id: P3.T3.S6
+    text: |-
+      Drive the skill against the smoke fixture. *(5/5 assertions pass — file existence, YAML parse, hugo 200 on /test/, re-run refusal.)*
+
+      ```bash
+      cd ~/Docs/projects/DERIO_NET/blog-craft
+      TS=$(date +%s)
+      bash tests/smoke-bootstrap.sh tests/fixtures/answers-frank-like.yaml /tmp/test-bootstrap-$TS
+      ```
+      **Expected output:** the script prints `PASS` for each assertion and `ALL OK` at the end. On failure, the script prints which assertion failed and leaves the bootstrapped dir in place for inspection.
+  - id: P3.T3.S7
+    text: |-
+      Commit Phase 3. *(committed `0dfa3f8` and self-review fix `991a4c4`; 5 files total; not pushed yet.)*
+
+        ```bash
+        git add skills/bootstrap-blog/SKILL.md tests/smoke-bootstrap.sh
+        git commit -m "feat(bootstrap-blog): wizard-driven blog scaffolder"
+        ```
+
+      ---
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T2.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: x
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
