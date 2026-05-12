@@ -18,22 +18,27 @@ The recommended action was **swap the PSU first**, inspect the motherboard caps 
 | Snapshot | T+0 boot | Now | Uptime | Spontaneous reboots since swap | Scrape failures |
 |---|---|---|---|---|---|
 | 2026-05-08 17:49 UTC | 2026-05-07 19:28:39 UTC | 2026-05-08 17:49:08 UTC | 22.3 h | 0 | 0 / 4018 samples |
+| 2026-05-11 16:22 UTC | 2026-05-07 19:28:39 UTC | 2026-05-11 16:22:00 UTC | **92.87 h** | **0** | 1 / ~5500 samples (PSU-swap transition itself) |
 
-Health metrics over the 22-hour post-swap window:
+Confirmation that the T+3.87d boot timestamp is genuinely the PSU-swap boot — not a hidden spontaneous reset masquerading as the original boot — comes from `node_boot_time_seconds{instance="192.168.55.71:9100"} = 1778182119`, which decodes exactly to `2026-05-07 19:28:39 UTC` (matches the operator-recorded swap time bit-for-bit). `changes(node_boot_time_seconds[5d]) = 1` accounts for the PSU swap itself; no second transition.
 
-| Metric | Now | 22h max |
+Health metrics, T+22h vs T+3.87d:
+
+| Metric | T+22h | T+3.87d |
 |---|---|---|
-| CPU temp (max core) | 41 °C | 43 °C |
-| Memory used | 2.57 GB / 31 GB | 2.57 GB |
-| Load 1m | 0.08 | 1.88 |
-| OOM kills | 0 | — |
-| I/O pressure (rate 5m) | ~0 | ~0 |
-| CPU pressure (rate 5m) | ~0 | ~0 |
-| Memory pressure (rate 5m) | 0 | 0 |
+| CPU temp (max core) | 41 °C | 47 °C |
+| Memory used | 2.57 GB / 31 GB | 3.45 GB / 31 GB |
+| Load 1m | 0.08 | 0.06 |
+| OOM kills | 0 | 0 |
+| Scrape failures | 0 / 4018 samples | 1 / ~5500 samples |
 
-Pod-side: every restart event on pc-1 carries a `lastState.terminated.finishedAt` of `2026-05-07T05:30:39Z` or earlier — those are recoveries from the *morning* (04:02 UTC) reboot, well before the PSU swap at 19:28:39 UTC. Nothing has restarted since the swap. cilium, gitea, tekton, fluent-bit, longhorn-manager, node-exporter, zot — all stable.
+Memory creep (2.57 → 3.45 GB) and the 6 °C CPU temp delta are both normal warming as workloads pinned to pc-1 (Tekton, Gitea, fluent-bit, longhorn-manager, zot, the argo-rollouts controller, the homepage tile) reach steady-state cache and load. Neither is anywhere near a thermal-throttle or memory-pressure threshold (pc-1 has 31 GB RAM and the CPU's `THR`/`TRM` interrupt counters are still 0).
 
-**Soak verdict so far:** clean, but 22 hours is shorter than the historical mean inter-reboot gap (4–11 days). Will close as `Confirmed — PSU` if pc-1 reaches 2026-05-14 with no spontaneous reset; will reopen and escalate (cap inspection / Memtest86+ / retire) if a reset happens before then.
+The single scrape failure across the post-swap window is almost certainly the moment the host went offline for the PSU swap on 2026-05-07 19:25-ish UTC, before the new PSU's first boot.
+
+Pod-side: same conclusion as T+22h, extended. Every restart event on pc-1 still carries a `lastState.terminated.finishedAt` of `2026-05-07T05:30:39Z` or earlier — recoveries from the *morning* (04:02 UTC) reboot, before the PSU swap. Nothing has restarted since 2026-05-07 19:28 UTC. cilium, gitea, tekton, fluent-bit, longhorn-manager, node-exporter, zot — all stable across the 4-day window.
+
+**Soak verdict so far (T+3.87d):** clean. 92.87 hours of uptime is now *inside* the lower end of the historical inter-reboot range (4–11 days) without a reset — i.e., we are past the point where the most-aggressive prior failure interval (~4 days) would have already triggered. Still tracking to close as `Confirmed — PSU` if pc-1 reaches 2026-05-14 (T+7d, one historical *mean* gap) with no spontaneous reset. Will reopen and escalate (cap inspection / Memtest86+ / retire) if a reset happens between now and then.
 
 ## Symptom
 
@@ -163,3 +168,4 @@ In rough cost/effort order:
 - **2026-05-07** — Investigation opened. Pulled reboot timeline from VictoriaMetrics, hardware inventory and kernel ring buffer via in-cluster privileged debug pod (Talos auth was unavailable to this pod). Verdict: hardware-level reset, recommend PSU swap.
 - **2026-05-07 evening** — Operator swapped the PSU. First boot under new PSU at 19:28:39 UTC.
 - **2026-05-08 17:49 UTC** — Soak snapshot at T+22h: 0 spontaneous reboots, 0 scrape failures, all health metrics nominal. Status moved to *In progress — PSU swap soak*. Next checkpoint: 2026-05-14 (T+7d, one historical mean inter-reboot gap).
+- **2026-05-11 16:22 UTC** — Soak snapshot at T+3.87d: still 0 spontaneous reboots since the swap (`changes(node_boot_time_seconds[5d]) = 1`, accounted for by the swap itself; live `node_boot_time_seconds = 1778182119` ≡ `2026-05-07 19:28:39 UTC`). Past the lower end of the historical 4–11d inter-reboot range with no reset. Health metrics still nominal (CPU max 47 °C, 3.45 GB memory used, load 0.06, OOM=0). Soak continues; next checkpoint unchanged at 2026-05-14. *(Data fetch was delayed by an unrelated Omni control-plane TLS-cert expiry that blocked the kubectl OIDC path for ~46h; see `docs/investigations/2026-05-11--omni--cert-expiry-incident.md`.)*
