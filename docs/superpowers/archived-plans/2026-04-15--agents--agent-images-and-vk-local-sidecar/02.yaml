@@ -232,10 +232,10 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-12T16:39:47+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-12T16:39:54+00:00'
     note: null
     observed_prs: []

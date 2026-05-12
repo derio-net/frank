@@ -554,8 +554,8 @@ state:
       ticked_at: null
       note: null
     P1.T7.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-12T16:40:10+00:00'
       note: null
     P1.T8.S1:
       state: x
@@ -582,6 +582,6 @@ state:
       ticked_at: null
       note: null
   completion:
-    at: null
+    at: '2026-05-12T16:40:12+00:00'
     note: null
     observed_prs: []

@@ -87,8 +87,8 @@ tasks:
 state:
   steps:
     P8.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-12T16:39:11+00:00'
       note: null
   completion:
     at: null

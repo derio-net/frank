@@ -26,10 +26,12 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-12T16:39:49+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-12T16:39:57+00:00'
+    note: Post-Deploy Checklist substeps already done out-of-band on 2026-04-18 —
+      building post 28, README split kali/vk, runbook synced. Wrapper ticked + phase
+      closed retroactively.
     observed_prs: []
