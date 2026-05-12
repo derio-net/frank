@@ -33,7 +33,8 @@ paperclip-system
     ├── ExternalSecret     BETTER_AUTH_SECRET
     ├── ExternalSecret     BRAVE_API_KEY (optional, web search)
     ├── ExternalSecret     RESEND_API_KEY (optional, transactional email)
-    ├── PVC                /paperclip data volume — Longhorn 2Gi
+    ├── PVC /paperclip data volume — Longhorn 10Gi
+
     └── Service (LB)       192.168.55.212:3100
 ```
 

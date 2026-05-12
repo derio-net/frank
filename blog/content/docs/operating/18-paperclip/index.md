@@ -40,7 +40,7 @@ pod/paperclip-db-postgresql-0    2/2     Running   0          28d
 
 NAME                                                   STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
 persistentvolumeclaim/data-paperclip-db-postgresql-0   Bound    pvc-1929c98e-6a59-4eec-8c41-353833f43dec   5Gi        RWO            longhorn       <unset>                 37d
-persistentvolumeclaim/paperclip-data                   Bound    pvc-1ded449d-e2bc-4e38-b7c9-c5d5ee264294   2Gi        RWO            longhorn       <unset>                 37d
+persistentvolumeclaim/paperclip-data                   Bound    pvc-1ded449d-e2bc-4e38-b7c9-c5d5ee264294   10Gi       RWO            longhorn       <unset>                 37d
 
 NAME                                                   STORETYPE            STORE       REFRESH INTERVAL   STATUS         READY
 externalsecret.external-secrets.io/paperclip-auth      ClusterSecretStore   infisical   5m                 SecretSynced   True
