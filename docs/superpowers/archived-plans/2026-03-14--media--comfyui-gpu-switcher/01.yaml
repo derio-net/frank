@@ -1301,7 +1301,30 @@ tasks:
       ---
 - number: 16
   title: Download initial models (one-time setup)
-  steps: []
+  steps:
+  - id: P1.T16.S1
+    text: |-
+      ```yaml
+      # manual-operation
+      id: media-comfyui-model-download
+      layer: media
+      app: comfyui
+      plan: docs/superpowers/plans/2026-03-14--media--comfyui-gpu-switcher.md
+      when: "After Task 15 - ComfyUI first confirmed running"
+      why_manual: "Model files must be downloaded interactively into the PVC; cannot be declarative"
+      commands:
+        - "# Activate ComfyUI via GPU Switcher UI at http://192.168.55.214:8080"
+        - "# Wait for ComfyUI pod to be Running"
+        - "# Open ComfyUI Manager at http://192.168.55.213:8188 -> Manager -> Install Models"
+        - "# Install LTX-2.3 video model (~5GB)"
+        - "# Optionally install Flux/SDXL image model and audio models"
+      verify:
+        - "kubectl exec -n comfyui deploy/comfyui -- ls -la /opt/ComfyUI/models/checkpoints/"
+        - "# Verify models appear in ComfyUI Web UI model dropdown"
+      status: pending
+      ```
+
+      ---
 - number: 17
   title: Final commit — update CLAUDE.md services table
   steps:
@@ -1593,6 +1616,10 @@ state:
       note: null
     P1.T15.S7:
       state: x
+      ticked_at: null
+      note: null
+    P1.T16.S1:
+      state: ' '
       ticked_at: null
       note: null
     P1.T17.S0:

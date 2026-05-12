@@ -122,6 +122,8 @@
 
 ### Task 5: Confirm paperclip web UI is unaffected
 
+- P3.T5.S1: 
+
 ## Phase 4: Populate inventory and verify reconcile
 
 ### Task 1: Curate initial inventory
@@ -131,6 +133,8 @@
 - P4.T1.S2: Edit `configmap-shell-inventory.yaml` to declare the operator's expected toolset. Suggested starting set:
 
 ### Task 2: Run reconcile and verify
+
+- P4.T2.S1: ArgoCD syncs the ConfigMap. Then:
 
 - P4.T2.S2: Verify each manager reports the tool present
 
@@ -164,7 +168,11 @@
 
 ### Task 3: Run `/update-readme`
 
+- P5.T3.S1: Run the skill. Verify the Service Access table now includes `192.168.55.221` and the Repository Structure section reflects any new directories under `apps/paperclip/`.
+
 ### Task 4: Sync runbook (only if any manual-operation blocks were introduced)
+
+- P5.T4.S1: Audit this plan for `# manual-operation` blocks. Phase 3 introduced `paperclip-shell-ssh-keys-sops-bootstrap` (T0.S1) — run `/sync-runbook` to register it in `docs/runbooks/manual-operations.yaml`. Add any further blocks introduced during Phases 3–4 in the same pass.
 
 ### Task 5: Update plan status
 

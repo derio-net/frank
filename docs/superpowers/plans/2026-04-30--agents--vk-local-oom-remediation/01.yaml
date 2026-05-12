@@ -47,7 +47,13 @@ tasks:
       `kubectl top` is unavailable (the metrics-server / cadvisor pipeline gap is what Phase 2 addresses). Fallback: read `/sys/fs/cgroup/memory.current` and `memory.stat` directly from the vk-local cgroup. See the Verification Log entry below.
 - number: 2
   title: Document the verification
-  steps: []
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Add an entry to the `Verification Log (Phase 1)` section at the bottom of this plan with: timestamp, live limit value, current restart count, OOM events found (or none), and the `kubectl top` reading. This becomes the input to Phase 5's soak comparison.
+
+
+      ---
 state:
   steps:
     P1.T1.S1:
@@ -63,6 +69,10 @@ state:
       ticked_at: null
       note: null
     P1.T1.S4:
+      state: x
+      ticked_at: null
+      note: null
+    P1.T2.S1:
       state: x
       ticked_at: null
       note: null

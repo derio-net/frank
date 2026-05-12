@@ -5,9 +5,236 @@ phase:
   tag: agentic
   depends_on: []
   tracking_issue: https://github.com/derio-net/frank/issues/81
-tasks: []
+tasks:
+- number: 1
+  title: (unstructured content)
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Sidecar deployment + kali cutover [agentic]
+      <!-- Tracking: https://github.com/derio-net/frank/issues/81 -->
+
+      **Target repo:** `derio-net/frank`
+      **Outcome:** `secure-agent-pod` runs two containers sharing `/home/claude`; kali no longer installs or starts VibeKanban. **Two bounce gates.**
+
+      ### Task A: Add vk-local sidecar alongside the existing kali
+
+      **Files:**
+      - Modify: `apps/secure-agent-pod/manifests/deployment.yaml`
+
+      - [x] **Step 1: Measure the current VK child-process footprint.** *(node VK process: PID 52, RSS 521232 KB (≈509 MiB), 0.0% CPU. Native binary child idle. Plan's 200m CPU / 512Mi request / 2Gi limit sizing retained — headroom matches actual usage.)*
+
+      ```bash
+      kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- \
+        sh -c 'ps -o pid,rss,pcpu,comm -p $(pgrep -f vibe-kanban || echo 1)'
+      ```
+
+      Record RSS (KB) and CPU% — use to size the sidecar's requests/limits (typical: 200m CPU, 512Mi req, 2Gi limit).
+
+      - [x] **Step 2: Add the sidecar container to `deployment.yaml`.** *(image `vk-local:325b23e`; health probe path `/api/health` per Phase 1 Deviation; no `containerPort` name clash with kali's `vk-http` — sidecar relies on pod network namespace sharing)*
+
+      Append to `spec.template.spec.containers` (do NOT modify the kali container yet):
+
+      ```yaml
+              - name: vk-local
+                image: ghcr.io/derio-net/vk-local:<PHASE_1_SHA>
+                ports:
+                  - name: vk-http
+                    containerPort: 8081
+                    protocol: TCP
+                env:
+                  - { name: PORT, value: "8081" }
+                  - { name: HOST, value: "0.0.0.0" }
+                  - { name: VK_SHARED_API_BASE,       value: "https://vk.cluster.derio.net" }
+                  - { name: VK_SHARED_RELAY_API_BASE, value: "https://vk.cluster.derio.net" }
+                envFrom:
+                  - { secretRef: { name: agent-secrets-tier1, optional: true } }
+                  - { secretRef: { name: agent-secrets-tier2, optional: true } }
+                volumeMounts:
+                  - { name: agent-home, mountPath: /home/claude }
+                securityContext:
+                  runAsUser: 1000
+                  runAsGroup: 1000
+                  runAsNonRoot: true
+                  allowPrivilegeEscalation: false
+                  capabilities: { drop: ["ALL"] }
+                resources:
+                  requests: { cpu: "200m", memory: 512Mi }
+                  limits:   { memory: 2Gi }
+                readinessProbe:
+                  httpGet: { path: /v1/health, port: vk-http }
+                  initialDelaySeconds: 10
+                  periodSeconds: 10
+                livenessProbe:
+                  httpGet: { path: /v1/health, port: vk-http }
+                  initialDelaySeconds: 30
+                  periodSeconds: 30
+      ```
+
+      Replace `<PHASE_1_SHA>` with the agent-images SHA from Phase 1 Task 2 Step 3. Confirm the `/v1/health` path from Phase 1 Task 3 Step 2.
+
+      - [x] **Step 3: Commit + push the branch; open PR. Do NOT merge.** *(opened as PR [#86](https://github.com/derio-net/frank/pull/86) on branch `vk/d112-ffe-37-gh-81` — the VK-worktree branch — instead of a fresh `feat/vk-local-sidecar`)*
+
+      ```bash
+      cd ~/repos/frank
+      git checkout -b feat/vk-local-sidecar
+      git add apps/secure-agent-pod/manifests/deployment.yaml
+      git commit -m "feat(agents): add vk-local sidecar to secure-agent-pod"
+      git push -u origin feat/vk-local-sidecar
+      gh pr create --title "feat(agents): add vk-local sidecar" --body "Spec: docs/superpowers/specs/2026-04-15--agents--agent-images-and-vk-local-sidecar-design.md" --base main
+      ```
+
+      - [x] **Step 4: [bounce-gate] Pre-bounce checklist.**
+
+      Run the protocol from the top of this plan. Confirmations:
+      1. `git status` clean in `frank`, `agent-images`, `vibe-kanban`.
+      2. HEAD == `@{u}` in all three.
+      3. Plan checkboxes updated for all completed work; committed+pushed.
+      4. Write `docs/superpowers/RESUMING.md`:
+
+      ```markdown
+      # RESUMING — Phase 2 Task A
+
+      Bounce trigger: merging frank PR "feat(agents): add vk-local sidecar".
+
+      Expected state after bounce:
+      - Pod has 2/2 ready (kali + vk-local).
+      - Kali's VK npm child process still starts but fails to bind 8081 (sidecar won).
+      - VibeKanban Service traffic lands on the sidecar.
+
+      Next step: Phase 2 Task A Step 6 (verification).
+      ```
+
+      5. STOP. Wait for human/other-host merge.
+
+      ```yaml
+      # manual-operation
+      id: secure-agent-pod-sidecar-merge
+      layer: agents
+      app: secure-agent-pod
+      plan: 2026-04-15--agents--agent-images-and-vk-local-sidecar
+      when: after Phase 2 Task A Step 4
+      why_manual: merging bounces the pod running the VK session executing this plan
+      commands:
+        - gh pr merge <PR_NUMBER> --repo derio-net/frank --squash
+        - argocd app sync secure-agent-pod --port-forward --port-forward-namespace argocd
+      verify:
+        - kubectl -n secure-agent-pod get pod -l app=secure-agent-pod -o jsonpath='{.items[0].status.containerStatuses[*].ready}'  # expect "true true"
+      status: pending
+      ```
+
+      - [x] **Step 5: [after-bounce] Reconnect from another host.** *(resumed 2026-04-17; pod bounced cleanly after commit 79cf7d0 applied the port-collision workaround)*
+
+      - [x] **Step 6: Verify sidecar + shared volume.** *(both containers list identical `/home/claude/repos` contents: agent-images, content-factory, derio-profile, frank, kid-laptops, repos.code-workspace, secure-agent-kali, superpowers-for-vk, vibe-kanban, willikins)*
+
+      ```bash
+      kubectl -n secure-agent-pod get pod -l app=secure-agent-pod
+      kubectl -n secure-agent-pod logs deploy/secure-agent-pod -c vk-local --tail=30
+      kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c vk-local -- ls /home/claude/repos
+      kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali     -- ls /home/claude/repos
+      # Expected: same directory listing in both containers
+      ```
+
+      - [x] **Step 7: Verify external VK endpoint.** *(`curl http://192.168.55.218:8081/api/health` returns 200 — note path is `/api/health` per Phase 1 Deviation, not `/v1/health`)*
+
+      ```bash
+      curl -sSf -o /dev/null -w "%{http_code}\n" http://192.168.55.218:8081/v1/health
+      # Expected: 200
+      ```
+
+      Task A complete.
+
+      ### Task B: Strip VK from kali image and cut over
+
+      **Files:**
+      - Verify: `agent-images/kali/Dockerfile` (already stripped in Phase 0 — re-verify)
+      - Verify: `agent-images/kali/entrypoint.sh` (ditto)
+      - Modify: `apps/secure-agent-pod/manifests/deployment.yaml` (bump kali SHA)
+
+      - [x] **Step 1: Confirm Phase 0 removed VK from kali.** *(verified: `grep -c 'vibe\|8081'` returns 0 for both `kali/Dockerfile` and `kali/entrypoint.sh`)*
+
+      ```bash
+      grep -c 'vibe' ~/repos/agent-images/kali/Dockerfile
+      grep -c 'vibe' ~/repos/agent-images/kali/entrypoint.sh
+      # Expected: 0 from both. If nonzero, remove remaining refs, commit+push, wait for CI.
+      ```
+
+      - [x] **Step 2: Bump kali image SHA in frank.** *(bumped `869ebc6` → `325b23e1ede5d9fc4d626c7f27e7dd2e8c76bb6b` on branch `chore/kali-cutover`; diff is exactly one line; `kubectl --dry-run=server apply` accepted)*
+
+      ```bash
+      LATEST_KALI_SHA=$(gh api /repos/derio-net/agent-images/commits/main --jq '.sha')
+      cd ~/repos/frank
+      sed -i "s|ghcr.io/derio-net/secure-agent-kali:[a-f0-9]\+|ghcr.io/derio-net/secure-agent-kali:$LATEST_KALI_SHA|" \
+        apps/secure-agent-pod/manifests/deployment.yaml
+      git diff apps/secure-agent-pod/manifests/deployment.yaml
+      # Expected: exactly one hash changed on the kali image line
+      ```
+
+      - [x] **Step 3: Commit, push, open PR — do NOT merge.** *(PR [#104](https://github.com/derio-net/frank/pull/104) on branch `chore/kali-cutover`; two commits — plan docs + manifest bump)*
+
+      ```bash
+      git checkout -b chore/kali-cutover
+      git add apps/secure-agent-pod/manifests/deployment.yaml
+      git commit -m "chore(agents): bump secure-agent-kali (VK stripped)"
+      git push -u origin chore/kali-cutover
+      gh pr create --title "chore(agents): kali cutover (VK stripped)" --body "Final Phase 2 step — removes VK from kali image." --base main
+      ```
+
+      - [x] **Step 4: [bounce-gate] Pre-bounce checklist.** *(2026-04-17: frank/agent-images/vibe-kanban all clean, HEAD == @{u}; RESUMING.md updated with Task B breadcrumb; awaiting user merge)*
+
+      Follow the protocol. `RESUMING.md` update:
+
+      ```markdown
+      # RESUMING — Phase 2 Task B
+
+      Bounce trigger: merging frank PR "chore(agents): kali cutover".
+
+      Expected state after bounce:
+      - Pod 2/2 ready.
+      - Kali: no vibe-kanban binary, no 8081 process.
+      - vk-local sidecar: unchanged, still serves 8081.
+
+      Next step: Phase 2 Task B Step 6.
+      ```
+
+      STOP. Wait for merge.
+
+      ```yaml
+      # manual-operation
+      id: secure-agent-pod-kali-cutover
+      layer: agents
+      app: secure-agent-pod
+      plan: 2026-04-15--agents--agent-images-and-vk-local-sidecar
+      when: after Phase 2 Task B Step 4
+      why_manual: merging bounces the pod
+      commands:
+        - gh pr merge <PR_NUMBER> --repo derio-net/frank --squash
+        - argocd app sync secure-agent-pod --port-forward --port-forward-namespace argocd
+      verify:
+        - kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- sh -c 'command -v vibe-kanban || echo MISSING'  # expect MISSING
+      status: pending
+      ```
+
+      - [x] **Step 5: [after-bounce] Reconnect.** *(resumed 2026-04-17 from operator workstation after PR #104 merge)*
+
+      - [x] **Step 6: Verify cutover.** *(2026-04-17: pod 2/2 Running 0 restarts; `which vibe-kanban` → not found in kali; `pgrep vibe-kanban` → no matches; `curl http://192.168.55.218:8081/api/health` → 200; shared volume identical in both containers)*
+
+      ```bash
+      kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- sh -c 'command -v vibe-kanban; pgrep -a vibe-kanban || echo NO_PROCESS'
+      # Expected: (nothing for command -v) + NO_PROCESS
+      curl -sSf -o /dev/null -w "%{http_code}\n" http://192.168.55.218:8081/v1/health
+      # Expected: 200 (sidecar still serving)
+      ```
+
+      Phase 2 complete.
+
+      ---
 state:
-  steps: {}
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null
     note: null

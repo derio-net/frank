@@ -14,6 +14,8 @@
 
 ### Task 2: Document the verification
 
+- P1.T2.S1: Add an entry to the `Verification Log (Phase 1)` section at the bottom of this plan with: timestamp, live limit value, current restart count, OOM events found (or none), and the `kubectl top` reading. This becomes the input to Phase 5's soak comparison.
+
 ## Phase 2: Fix cadvisor metric pipeline for 5 nodes
 
 ### Task 1: Investigate root cause
@@ -34,11 +36,17 @@
 
 ### Task 3: 24h soak
 
+- P2.T3.S1: After 24 h, re-query the count. Series count must be non-zero for all 7 nodes continuously. Document the result in this plan's Deployment Notes section.
+
 ### Task 4: Fallback if root cause cannot be isolated
+
+- P2.T4.S1: *(skipped — root cause was isolated in Task 1, see Deployment Deviations below).* If after one working day the cause is still unknown, file a tracking issue in `derio-net/frank` titled `obs: cadvisor scrape data gap on amd64 nodes` with the investigation log so far. Mark Phase 2 as `Closed (deferred)` in this plan and continue with Phase 3 — the housekeeping work does not depend on Phase 2's outcome, only Phase 5's evaluation does.
 
 ## Phase 3: Housekeeping — npm cache + worktree prune
 
 ### Task 1: Decide cron host
+
+- P3.T1.S1: Inspect `kali`'s supercronic crontab and the PVC mount layout. The default placement is `kali`'s supercronic crontab, since it already runs scheduled work and shares the agent-home PVC with `vk-local`. Confirm by reading the kali Dockerfile / `crontab` content in agent-images.
 
 ### Task 2: Implement the crons (agent-images repo)
 
@@ -50,7 +58,11 @@
 
 ### Task 3: Image-bumper picks up the new SHA
 
+- P3.T3.S1: Once Task 2's PR merges in agent-images, the existing image-bumper workflow opens a PR in this repo updating the image SHA in `apps/secure-agent-pod/manifests/deployment.yaml`. Merge that PR. ArgoCD syncs. The kali container restarts; supercronic loads the new crontab automatically (no extra restart needed — supercronic auto-reloads on file change, see `frank-gotchas.md`).
+
 ### Task 4: Verify housekeeping is running
+
+- P3.T4.S1: After the first weekly window passes (or trigger manually inside the pod for verification: `kubectl -n secure-agent-pod exec -c kali deploy/secure-agent-pod -- supercronic -test /home/claude/.crontab`), inspect the log files:
 
 ## Phase 4: Option B1 — `max_concurrent_executions` cap
 
@@ -88,12 +100,20 @@
 
 ### Task 2: Decision and follow-up PR
 
+- P5.T2.S1: After 14 days, choose one outcome and document the rationale:
+
 ## Phase 6: File tracking issues for B2, B3, R
 
 ### Task 1: File B2 tracking issue
 
+- P6.T1.S1: Open issue in `derio-net/frank` titled `agents: B2 — delegate vk-local child spawn to kali sibling cgroup`.
+
 ### Task 2: File B3 tracking issue
 
+- P6.T2.S1: Open issue in `derio-net/frank` titled `agents: B3 — per-task Kubernetes Jobs for vibe-kanban executions`.
+
 ### Task 3: File the R (regression cross-check) tracking issue
+
+- P6.T3.S1: Open issue in `derio-net/frank` titled `agents: investigate 9× OOM-rate escalation on vibe-kanban image dc414b4`.
 
 ## Phase 7: Post-Deploy Checklist

@@ -5,9 +5,91 @@ phase:
   tag: manual
   depends_on: []
   tracking_issue: null
-tasks: []
+tasks:
+- number: 1
+  title: (unstructured content)
+  steps:
+  - id: P8.T1.S1
+    text: |-
+      Post-Deploy Checklist [manual]
+
+      ### Dependencies
+
+      Blocked by Phase 7.
+
+      This is an **extension** of the existing Observability layer (Layer 8), not a new layer — per `.claude/rules/plan-post-deploy-checklist.md`, fix/extension plans skip blog + README steps and instead update the existing Layer's posts.
+
+      - [-] **Step 1: Expose externally (if user-facing)** *(skipped — no new user-facing surface; the board itself is already accessible)*
+      - [x] **Step 2: Update Building #23 Health Bridge blog post** — add a section "Pass 3: Wiring the Layer trackers" covering the per-Layer rule pattern, severity mapping, and Bridge label-format caveat. This replaces the otherwise-required new-post step.
+      - [x] **Step 3: Update Operating #16 Health Bridge blog post** — add operational notes: how to smoke-test via webhook, how to check Lifecycle state via `gh api graphql`, how to reload alert rules after editing the ConfigMap.
+      - [-] **Step 4: Update README** *(skipped — no new service, no new IP, no structural change)*
+      - [-] **Step 5: Sync runbook** — run `/sync-runbook` only if any new `# manual-operation` blocks were added. (This plan adds none — Grafana provisioning is code-driven end-to-end.)
+      - [x] **Step 6: Update plan status** — edit this file's header to `**Status:** Deployed`.
+
+      ---
+
+      ## Deployment Deviations
+
+      ### 1. Transient GitHub API error mid-gap-placeholder loop (Phase 0 Task 1 Step 5)
+
+      A `unexpected EOF` response from the GitHub API skipped the Layer 22 placeholder creation in the sequential loop, causing Layer 23's content to land at `frank-ops#22`. Caught by post-loop verification; corrected by editing `#22` to Layer 22 content and creating fresh `#23` for Layer 23. No loss of data — final numbering is clean.
+
+      ### 2. Grafana pod restart hit RWO+RollingUpdate deadlock (Phase 0 Task 1 Step 8)
+
+      First Grafana pod restart triggered a Deployment rollout (ConfigMap checksum annotation). New ReplicaSet pod couldn't mount the RWO PVC while the old pod held it. Resolved by scaling the Deployment to force a clean detach/reattach. Underlying fix (switch Grafana Helm values to `strategy: Recreate` per the documented gotcha) is a **follow-up** outside Pass 3 scope.
+
+      ### 3. Notification-policy matcher was broken (Phase 0 Task 4)
+
+      The matcher was `grafana_folder=Feature Health` (title-cased, unquoted) but the actual folder title is `feature-health`. Alerts were never routed via this policy. Fixed to `grafana_folder="feature-health"`. Pre-existing willikins alerts had been routing via a legacy mechanism (per Bridge logs), but new Layer alerts would have silently failed to reach the Bridge without this fix.
+
+      ### 4. Plan rules needed metric-availability adjustments (Phases 3-4)
+
+      Three Layer rules were written in the plan against metrics that aren't currently scraped. Fallbacks applied:
+
+      | Layer | Plan metric | Status | Fallback used | Follow-up |
+      |-------|-------------|--------|---------------|-----------|
+      | 4     | `longhorn_volume_robustness` | not scraped | `kube_pod_status_ready` on `longhorn-manager-*` | Add Longhorn `ServiceMonitor`/`VMServiceScrape` |
+      | 6     | `argocd_app_info{health_status!="Healthy"}` | not scraped | `kube_pod_status_ready` on any `argocd` pod | Add ArgoCD metrics scrape |
+      | 9     | `longhorn_backup_target_last_available_time` | not scraped | `kube_cronjob_status_last_successful_time{cronjob=~"daily-nas\|weekly-r2"}` | Enable Longhorn backup metrics (same scrape as L4) |
+
+      ### 5. Plan rules needed namespace corrections (Phases 4-6)
+
+      Several namespaces in the plan didn't match the actual cluster:
+
+      | Layer | Plan namespace | Actual namespace |
+      |-------|----------------|------------------|
+      | 12    | `sympozium` | `sympozium-system` |
+      | 15    | `vk-remote` | `agents` (VK pods live in the `agents` namespace; also added `paperclip-system` to cover Paperclip which is deployed) |
+      | 24    | `traefik` | `traefik-system` |
+
+      ### 6. Plan rules needed pod regex refinements (Phases 4-5)
+
+      Two rules needed pod-name filtering to exclude Kubernetes Job pods that sit in `Completed`/`NotReady` state and would otherwise spuriously fire alerts:
+
+      - **L12 Sympozium** — restricted to `sympozium-(apiserver|controller-manager|webhook|otel-collector)-.*|nats-.*` to exclude `developer-team-*` scheduled-task Jobs.
+      - **L15 Workflows** — added `pod!~".*-init-.*"` to exclude `postgres-vk-init-electric-*` init Jobs.
+
+      ### 7. L14 vCluster pod naming (Phase 4)
+
+      Plan's regex `namespace=~"vcluster-.*",pod=~"vcluster-.*"` matched zero series. Actual vCluster pods are StatefulSet members with their own name (e.g. `experiments-0` in `vcluster-experiments`). Corrected to `pod=~".*-[0-9]+$"` across `vcluster-.*` namespaces.
+
+      ### 8. Layer 16 remains manually managed (Phase 5)
+
+      As planned. Layer 16 (Media Generation) has no alert rule — the Layer is intentionally `blocked` pending Traefik route + model downloads. Its `Lifecycle` field on the board stays manual at `blocked`. A DEFERRED comment block in `alert-rules-cm.yaml` documents the intended rule shape for when it's unblocked.
+
+      ### 9. Layer 15 `in-progress` semantics overridden by rule output (Phase 5)
+
+      The spec's initial-state table said Layer 15 should show `in-progress` (since Paperclip and Praison are planned but not fully deployed). In practice, the L15 rule reports actual pod health — which is `healthy` when everything's up. The semantic tension between "the layer is still evolving" and "its currently-deployed components are all running" is resolved by reporting the latter. Operator convention going forward: Lifecycle reflects component health, not deployment maturity.
+
+      ### 10. Final board audit (Phase 7 Task 2)
+
+      All 20 Layer trackers audited after Phase 6 completion. 19 `healthy`, 1 `blocked` (`frank-ops#16`, expected). Zero unexpected states. Pass 3 semantics are live and correct.
 state:
-  steps: {}
+  steps:
+    P8.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null
     note: null

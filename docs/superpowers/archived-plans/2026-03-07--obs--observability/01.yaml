@@ -8,39 +8,878 @@ phase:
 tasks:
 - number: 1
   title: Create monitoring namespace
-  steps: []
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create the namespace manifest
+
+
+      ```yaml
+      # apps/root/templates/ns-monitoring.yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: monitoring
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Verify ArgoCD picks it up
+
+
+      ```bash
+      source .env
+      argocd app sync root --port-forward --port-forward-namespace argocd
+      argocd app get root --port-forward --port-forward-namespace argocd
+      ```
+
+      Expected: `root` app shows the new namespace template, no errors.
+  - id: P1.T1.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/ns-monitoring.yaml
+      git commit -m "feat(monitoring): add monitoring namespace"
+      ```
+
+      ---
 - number: 2
   title: Add victoria-metrics ArgoCD Application
-  steps: []
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Check latest chart version
+
+
+      ```bash
+      helm repo add victoria-metrics https://victoriametrics.github.io/helm-charts/
+      helm repo update
+      helm search repo victoria-metrics/victoria-metrics-k8s-stack --versions | head -5
+      ```
+
+      Note the latest version — use it in the Application CR below.
+  - id: P1.T2.S2
+    text: |-
+      Create values file
+
+
+      ```yaml
+      # apps/victoria-metrics/values.yaml
+
+      # Disable alerting — Layer 8+
+      vmalert:
+        enabled: false
+      alertmanager:
+        enabled: false
+
+      # VMSingle — single-node metrics storage
+      vmsingle:
+        spec:
+          retentionPeriod: "1"   # 1 month
+          storage:
+            volumeClaimTemplate:
+              spec:
+                storageClassName: longhorn
+                resources:
+                  requests:
+                    storage: 20Gi
+
+      # Grafana — exposed via Cilium L2 LoadBalancer
+      grafana:
+        enabled: true
+        service:
+          type: LoadBalancer
+          loadBalancerIP: 192.168.55.203
+        persistence:
+          enabled: true
+          storageClassName: longhorn
+          size: 1Gi
+        # Install VictoriaLogs datasource plugin
+        plugins:
+          - victoriametrics-logs-datasource
+        additionalDataSources:
+          - name: VictoriaLogs
+            type: victoriametrics-logs-datasource
+            access: proxy
+            url: http://victoria-logs-victoria-logs-single.monitoring.svc.cluster.local:9428
+            isDefault: false
+      ```
+  - id: P1.T2.S3
+    text: |-
+      Create Application CR
+
+
+      Replace `<VERSION>` with the latest chart version found in Step 1.
+
+      ```yaml
+      # apps/root/templates/victoria-metrics.yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: victoria-metrics
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        sources:
+          - repoURL: https://victoriametrics.github.io/helm-charts/
+            chart: victoria-metrics-k8s-stack
+            targetRevision: "<VERSION>"
+            helm:
+              releaseName: victoria-metrics
+              valueFiles:
+                - $values/apps/victoria-metrics/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: monitoring
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            jsonPointers:
+              - /data
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Sync and verify namespace exists
+
+
+      ```bash
+      argocd app sync root --port-forward --port-forward-namespace argocd
+      kubectl get namespace monitoring
+      ```
+
+      Expected: namespace `monitoring` exists.
+  - id: P1.T2.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/victoria-metrics/values.yaml apps/root/templates/victoria-metrics.yaml
+      git commit -m "feat(monitoring): add victoria-metrics-k8s-stack ArgoCD app"
+      ```
+
+      ---
 - number: 3
   title: Deploy victoria-metrics and verify
-  steps: []
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Push and watch rollout
+
+
+      ```bash
+      git push
+      argocd app sync victoria-metrics --port-forward --port-forward-namespace argocd
+      kubectl -n monitoring get pods -w
+      ```
+
+      Expected: pods for `vmsingle`, `vmagent`, `node-exporter` (one per node), `kube-state-metrics`, `grafana` all reach `Running`.
+  - id: P1.T3.S2
+    text: |-
+      Verify Grafana is reachable
+
+
+      ```bash
+      curl -s http://192.168.55.203/api/health | python3 -m json.tool
+      ```
+
+      Expected: `{"database": "ok", "version": "...", ...}`
+
+      Default credentials: `admin` / `prom-operator` (or check the generated secret):
+
+      ```bash
+      kubectl -n monitoring get secret victoria-metrics-grafana \
+        -o jsonpath='{.data.admin-password}' | base64 -d
+      ```
+  - id: P1.T3.S3
+    text: |-
+      Verify VMSingle is scraping
+
+
+      Open Grafana at `http://192.168.55.203`. Navigate to **Explore → VictoriaMetrics datasource**.
+
+      Run query:
+      ```
+      up
+      ```
+
+      Expected: multiple time series, one per scraped target. Confirm nodes, pods, kube-state-metrics are all present.
+  - id: P1.T3.S4
+    text: |-
+      Verify node-exporter is on all nodes
+
+
+      ```bash
+      kubectl -n monitoring get pods -l app.kubernetes.io/name=node-exporter -o wide
+      ```
+
+      Expected: 7 pods — one per node (mini-1/2/3, gpu-1, pc-1, raspi-1/2).
+
+      ---
 - number: 4
   title: Add victoria-logs ArgoCD Application
-  steps: []
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Check latest chart version
+
+
+      ```bash
+      helm search repo victoria-metrics/victoria-logs-single --versions | head -5
+      ```
+
+      Note the latest version.
+  - id: P1.T4.S2
+    text: |-
+      Create values file
+
+
+      ```yaml
+      # apps/victoria-logs/values.yaml
+      server:
+        retentionPeriod: 14d
+        persistentVolume:
+          enabled: true
+          size: 20Gi
+          storageClass: longhorn
+        service:
+          type: ClusterIP
+          port: 9428
+      ```
+  - id: P1.T4.S3
+    text: |-
+      Create Application CR
+
+
+      Replace `<VERSION>` with the latest chart version.
+
+      ```yaml
+      # apps/root/templates/victoria-logs.yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: victoria-logs
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        sources:
+          - repoURL: https://victoriametrics.github.io/helm-charts/
+            chart: victoria-logs-single
+            targetRevision: "<VERSION>"
+            helm:
+              releaseName: victoria-logs
+              valueFiles:
+                - $values/apps/victoria-logs/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: monitoring
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - ServerSideApply=true
+      ```
+  - id: P1.T4.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/victoria-logs/values.yaml apps/root/templates/victoria-logs.yaml
+      git commit -m "feat(monitoring): add victoria-logs-single ArgoCD app"
+      ```
+
+      ---
 - number: 5
   title: Deploy victoria-logs and verify
-  steps: []
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Push and sync
+
+
+      ```bash
+      git push
+      argocd app sync root --port-forward --port-forward-namespace argocd
+      argocd app sync victoria-logs --port-forward --port-forward-namespace argocd
+      kubectl -n monitoring get pods -l app.kubernetes.io/name=victoria-logs-single -w
+      ```
+
+      Expected: `victoria-logs-victoria-logs-single-*` pod reaches `Running`.
+  - id: P1.T5.S2
+    text: |-
+      Verify VictoriaLogs endpoint
+
+
+      ```bash
+      kubectl -n monitoring port-forward svc/victoria-logs-victoria-logs-single 9428:9428 &
+      curl -s http://localhost:9428/health
+      ```
+
+      Expected: `OK`
+
+      Kill the port-forward: `kill %1`
+  - id: P1.T5.S3
+    text: |-
+      Verify PVC is bound
+
+
+      ```bash
+      kubectl -n monitoring get pvc
+      ```
+
+      Expected: PVC for victoria-logs shows `Bound` on Longhorn.
+
+      ---
 - number: 6
   title: Add fluent-bit ArgoCD Application
-  steps: []
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Check latest chart version
+
+
+      ```bash
+      helm repo add fluent https://fluent.github.io/helm-charts
+      helm repo update
+      helm search repo fluent/fluent-bit --versions | head -5
+      ```
+
+      Note the latest version.
+  - id: P1.T6.S2
+    text: |-
+      Create values file
+
+
+      Fluent Bit ships all pod logs to VictoriaLogs. Needs tolerations to run on control-plane and GPU nodes.
+
+      ```yaml
+      # apps/fluent-bit/values.yaml
+
+      # Tolerate all node types so we collect logs from every node
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+
+      # Pipeline configuration
+      config:
+        inputs: |
+          [INPUT]
+              Name              tail
+              Path              /var/log/containers/*.log
+              multiline.parser  docker, cri
+              Tag               kube.*
+              Mem_Buf_Limit     5MB
+              Skip_Long_Lines   On
+
+        filters: |
+          [FILTER]
+              Name                kubernetes
+              Match               kube.*
+              Kube_URL            https://kubernetes.default.svc:443
+              Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+              Kube_Tag_Prefix     kube.var.log.containers.
+              Merge_Log           On
+              Keep_Log            Off
+              K8S-Logging.Parser  On
+              K8S-Logging.Exclude On
+
+        outputs: |
+          [OUTPUT]
+              Name            http
+              Match           kube.*
+              Host            victoria-logs-victoria-logs-single.monitoring.svc.cluster.local
+              Port            9428
+              URI             /insert/jsonline?_stream_fields=stream,kubernetes_pod_name,kubernetes_namespace_name,kubernetes_container_name&_msg_field=log&_time_field=time
+              Format          json_lines
+              Json_Date_Key   time
+              Json_Date_Format iso8601
+              Retry_Limit     False
+      ```
+  - id: P1.T6.S3
+    text: |-
+      Create Application CR
+
+
+      Replace `<VERSION>` with the latest chart version.
+
+      ```yaml
+      # apps/root/templates/fluent-bit.yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: fluent-bit
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        sources:
+          - repoURL: https://fluent.github.io/helm-charts
+            chart: fluent-bit
+            targetRevision: "<VERSION>"
+            helm:
+              releaseName: fluent-bit
+              valueFiles:
+                - $values/apps/fluent-bit/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: monitoring
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - ServerSideApply=true
+      ```
+  - id: P1.T6.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/fluent-bit/values.yaml apps/root/templates/fluent-bit.yaml
+      git commit -m "feat(monitoring): add fluent-bit ArgoCD app"
+      ```
+
+      ---
 - number: 7
   title: Deploy fluent-bit and verify log flow
-  steps: []
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      Push and sync
+
+
+      ```bash
+      git push
+      argocd app sync root --port-forward --port-forward-namespace argocd
+      argocd app sync fluent-bit --port-forward --port-forward-namespace argocd
+      kubectl -n monitoring get pods -l app.kubernetes.io/name=fluent-bit -o wide
+      ```
+
+      Expected: one Fluent Bit pod per node (7 total), all `Running`.
+  - id: P1.T7.S2
+    text: |-
+      Check Fluent Bit logs for errors
+
+
+      ```bash
+      kubectl -n monitoring logs -l app.kubernetes.io/name=fluent-bit --tail=20
+      ```
+
+      Expected: no HTTP error responses to VictoriaLogs. Lines like `[engine] flush chunk ... succeeded` are good.
+  - id: P1.T7.S3
+    text: |-
+      Verify logs arriving in VictoriaLogs
+
+
+      ```bash
+      kubectl -n monitoring port-forward svc/victoria-logs-victoria-logs-single 9428:9428 &
+      curl -G http://localhost:9428/select/logsql/query \
+        --data-urlencode 'query=*' \
+        --data-urlencode 'limit=5'
+      ```
+
+      Expected: JSON log entries from the cluster.
+
+      Kill the port-forward: `kill %1`
+
+      ---
 - number: 8
   title: Verify VictoriaLogs datasource in Grafana
-  steps: []
+  steps:
+  - id: P1.T8.S1
+    text: |-
+      Open Grafana and check plugin
+
+
+      Navigate to `http://192.168.55.203` → **Administration → Plugins**.
+
+      Search for `VictoriaLogs`. Expected: plugin installed and enabled.
+
+      If plugin is missing, check Grafana pod logs:
+      ```bash
+      kubectl -n monitoring logs -l app.kubernetes.io/name=grafana | grep -i victorialogs
+      ```
+
+      If needed, restart Grafana pod to force plugin install:
+      ```bash
+      kubectl -n monitoring rollout restart deployment victoria-metrics-grafana
+      ```
+  - id: P1.T8.S2
+    text: |-
+      Verify datasource is configured
+
+
+      Navigate to **Connections → Data sources**. Expected: two datasources:
+      - `VictoriaMetrics` (default)
+      - `VictoriaLogs`
+
+      Click **Test** on VictoriaLogs datasource. Expected: green success.
+  - id: P1.T8.S3
+    text: |-
+      Query logs in Explore
+
+
+      Navigate to **Explore → VictoriaLogs datasource**.
+
+      Run query:
+      ```
+      {kubernetes_namespace_name="argocd"}
+      ```
+
+      Expected: log lines from the ArgoCD namespace.
+
+      ---
 - number: 9
   title: Verify pre-built dashboards
-  steps: []
+  steps:
+  - id: P1.T9.S1
+    text: |-
+      Check bundled dashboards
+
+
+      In Grafana, navigate to **Dashboards**. The `victoria-metrics-k8s-stack` chart ships with dashboards for:
+      - Kubernetes cluster overview
+      - Node exporter (per-node stats)
+      - Pod resource usage
+      - VMSingle health
+
+      Expected: dashboards visible and showing data (may take 1-2 minutes for initial data).
+  - id: P1.T9.S2
+    text: |-
+      Verify Longhorn and Cilium metrics appear
+
+
+      In **Explore → VictoriaMetrics**, run:
+
+      ```
+      # Longhorn volumes
+      longhorn_volume_actual_size_bytes
+
+      # Cilium
+      cilium_endpoint_state
+      ```
+
+      Expected: both return data, confirming vmagent is scraping these existing exporters.
+
+      ---
+
+      ## Known Gotchas (discovered during deployment)
+
+      ### 1. Stale ValidatingWebhookConfiguration blocks VMAgent/VMSingle deployment
+
+      **Symptom:** VMAgent and/or VMSingle pods never appear after the operator deploys, despite the CRDs existing. Operator logs show:
+      ```
+      cannot patch finalizers: failed calling webhook "vmagents.operator.victoriametrics.com":
+      tls: failed to verify certificate: x509: certificate signed by unknown authority
+      ```
+
+      **Cause:** A prior failed install left a `ValidatingWebhookConfiguration` with a stale CA bundle. The operator cannot re-register its webhook while the old config exists.
+
+      **Fix:** Delete the stale webhook config and let the operator re-register:
+      ```bash
+      kubectl delete validatingwebhookconfiguration victoria-metrics-victoria-metrics-operator-admission
+      ```
+      The operator will recreate it with the correct CA within ~10 seconds, and VMAgent/VMSingle will appear immediately after.
+
+      **Blog note:** Worth covering — this is a common `victoria-metrics-k8s-stack` first-install pain point.
+
+      ### 2. Fluent Bit ConfigMap hostname vs actual service name
+
+      The `victoria-logs-single` chart appends `-server` to its service name (`victoria-logs-victoria-logs-single-server`), making it longer than expected. The Fluent Bit `Host` must use the full `-server` suffix or DNS resolution fails silently with repeated retry loops.
+
+      ### 3. additionalDataSources not passed through by victoria-metrics-k8s-stack
+
+      The chart manages datasource provisioning via its own ConfigMap (`victoria-metrics-victoria-metrics-k8s-stack-grafana-ds`) and does not forward `grafana.additionalDataSources` from values to the Grafana subchart. The VictoriaLogs datasource must be added via Grafana API or a custom provisioning ConfigMap. See TODO in `apps/victoria-metrics/values.yaml`.
+
+      ---
 - number: 10
   title: Final commit and push
-  steps: []
+  steps:
+  - id: P1.T10.S1
+    text: |-
+      Verify all apps healthy
+
+
+      ```bash
+      argocd app list --port-forward --port-forward-namespace argocd
+      ```
+
+      Expected: `victoria-metrics`, `victoria-logs`, `fluent-bit` all show `Synced` / `Healthy`.
+  - id: P1.T10.S2
+    text: |-
+      Verify all PVCs bound
+
+
+      ```bash
+      kubectl -n monitoring get pvc
+      ```
+
+      Expected: 3 PVCs bound on Longhorn — VMSingle (20Gi), VictoriaLogs (20Gi), Grafana (1Gi).
+  - id: P1.T10.S3
+    text: |-
+      Final commit
+
+
+      ```bash
+      git push
+      ```
+
+      Confirm GitHub Actions / ArgoCD remains green.
+
+      ---
 - number: 11
   title: Blog post — `07-observability`
-  steps: []
+  steps:
+  - id: P1.T11.S1
+    text: |-
+      Create post directory and frontmatter
+
+
+      ```yaml
+      ---
+      title: "Observability — VictoriaMetrics Over Prometheus"
+      date: 2026-MM-DD
+      draft: false
+      tags: ["observability", "victoriametrics", "grafana", "fluent-bit"]
+      summary: "Deploying a resource-efficient observability stack with VictoriaMetrics, VictoriaLogs, and Grafana — a Prometheus alternative that's kinder to RPi nodes."
+      weight: 8
+      cover:
+        image: cover.png
+        alt: "Frank the cluster monster peering into glowing dashboards filled with metrics and log streams"
+        relative: true
+      ---
+      ```
+  - id: P1.T11.S2
+    text: |-
+      Write post sections
+
+
+      Structure:
+      1. Why not Prometheus? (resource comparison table)
+      2. The stack: VictoriaMetrics k8s-stack overview
+      3. Deploying via ArgoCD (show Application CR, values highlights)
+      4. VictoriaLogs + Fluent Bit pipeline
+      5. Grafana datasource configuration (show the plugin trick)
+      6. Screenshots: Grafana dashboards, log exploration, Cilium/Longhorn metrics
+      7. References
+  - id: P1.T11.S3
+    text: |-
+      Generate cover image
+
+
+      Prompt for Gemini/image generator:
+      > "A friendly Frankenstein monster sitting at a desk covered in glowing computer monitors, each showing colorful time-series graphs and log streams. The monster is holding a magnifying glass, studying the metrics with curiosity. Dark server room background with blue LED accents. Digital art, warm lighting."
+  - id: P1.T11.S4
+    text: |-
+      Build and verify
+
+
+      ```bash
+      cd blog && hugo server --buildDrafts
+      ```
+
+      Open `http://localhost:1313` and verify post renders correctly with images.
+  - id: P1.T11.S5
+    text: |-
+      Publish and commit
+
+
+      Set `draft: false` in frontmatter.
+
+      ```bash
+      cd blog && hugo --minify
+      git add blog/content/posts/07-observability/
+      git commit -m "docs(blog): add Phase 7 observability post"
+      git push
+      ```
 state:
-  steps: {}
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T8.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T8.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T8.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T9.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T9.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T10.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T10.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T10.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T11.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T11.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T11.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T11.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T11.S5:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null
     note: null

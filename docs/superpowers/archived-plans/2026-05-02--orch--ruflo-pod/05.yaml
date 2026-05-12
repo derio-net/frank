@@ -70,7 +70,14 @@ tasks:
       Update operating series index in `blog/content/docs/building/00-overview/index.md`.
 - number: 4
   title: Run `/update-readme`
-  steps: []
+  steps:
+  - id: P5.T4.S1
+    text: |-
+      Run the skill. Verify:
+
+      - Service Access table includes `192.168.55.222` and `ruflo.cluster.derio.net`.
+      - Repository Structure section reflects the new `apps/ruflo/` and `apps/ruflo-db/` directories.
+      - Current Status reflects the new layer.
 - number: 5
   title: Sync runbook
   steps:
@@ -121,6 +128,10 @@ state:
       ticked_at: null
       note: null
     P5.T3.S3:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T4.S1:
       state: x
       ticked_at: null
       note: null
