@@ -8,27 +8,162 @@ phase:
 tasks:
 - number: 1
   title: Verify ArgoCD sync
-  steps: []
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      1. `source .env`
+      2. `argocd app get vk-remote --port-forward --port-forward-namespace argocd`
+      3. Confirm all resources are Healthy/Synced
+      4. Check pods: `kubectl -n agents get pods` — expect `postgres-vk`, `electric`, `vk-remote` all Running
+      5. Check init Job completed: `kubectl -n agents get jobs` — `postgres-vk-init-electric` should be Complete
 - number: 2
   title: Verify health endpoint
-  steps: []
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      ```bash
+      kubectl -n agents exec deploy/vk-remote -- wget -qO- http://localhost:8081/v1/health
+      ```
+
+      Expected: 200 OK (or equivalent health response).
 - number: 3
   title: Login and create org/project
-  steps: []
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      1. Get the local auth password:
+         ```bash
+         kubectl -n agents get secret vk-remote-secrets -o jsonpath='{.data.SELF_HOST_LOCAL_AUTH_PASSWORD}' | base64 -d
+         ```
+
+      2. Login via API:
+         ```bash
+         TOKEN=$(curl -s -X POST http://vk-remote.agents.svc:8081/v1/auth/local/login \
+           -H 'Content-Type: application/json' \
+           -d '{"email":"admin@localhost","password":"<PASSWORD>"}' | jq -r '.token')
+         ```
+
+         If running from outside the cluster, port-forward first:
+         ```bash
+         kubectl -n agents port-forward svc/vk-remote 8081:8081
+         # Then use localhost:8081
+         ```
+
+      3. Login creates a personal org automatically. List orgs to get the org ID:
+         ```bash
+         curl -s -H "Authorization: Bearer $TOKEN" http://localhost:8081/v1/organizations | jq
+         ```
+
+      4. Create the "Derio Ops" project:
+         ```bash
+         curl -s -X POST http://localhost:8081/v1/projects \
+           -H "Authorization: Bearer $TOKEN" \
+           -H 'Content-Type: application/json' \
+           -d '{"name":"Derio Ops","organization_id":"<ORG_ID>"}' | jq
+         ```
+
+      5. Record the `org_id` and `project_id` from the responses.
+
+      6. Configure project statuses (if not auto-created):
+         ```bash
+         for status in Backlog Todo "In Progress" "In Review" Done; do
+           curl -s -X POST http://localhost:8081/v1/projects/<PROJECT_ID>/statuses \
+             -H "Authorization: Bearer $TOKEN" \
+             -H 'Content-Type: application/json' \
+             -d "{\"name\":\"$status\"}"
+         done
+         ```
 - number: 4
   title: Update bridge env vars
-  steps: []
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      Add to Infisical (`frank-cluster-iwpg`, `prod`):
+
+      | Key | Value |
+      |-----|-------|
+      | `VK_ORG_ID` | Org ID from Task 3 |
+      | `VK_DERIO_OPS_PROJECT` | Project ID from Task 3 |
+
+      If these are consumed by the secure-agent-pod via ExternalSecret, add them to the appropriate ExternalSecret mapping. Otherwise, update the deployment env vars directly and commit.
 - number: 5
   title: Assign Authentik outpost provider
-  steps: []
+  steps:
+  - id: P2.T5.S1
+    text: |-
+      After the Authentik blueprint syncs the VK Remote proxy provider:
+
+      ```bash
+      kubectl exec -n authentik deploy/authentik-server -- python -c "
+      import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
+      import django; django.setup()
+      from authentik.providers.proxy.models import ProxyProvider
+      from authentik.outposts.models import Outpost
+      outpost = Outpost.objects.get(name='authentik Embedded Outpost')
+      provider = ProxyProvider.objects.get(name='VK Remote (cluster)')
+      outpost.providers.add(provider)
+      print(f'Added {provider.name} to {outpost.name}')
+      "
+      ```
 - number: 6
   title: Verify browser access
-  steps: []
+  steps:
+  - id: P2.T6.S1
+    text: |-
+      1. Open `https://vk.cluster.derio.net` in browser
+      2. Should redirect through Authentik SSO
+      3. After auth, VK Remote UI should load
+      4. Verify the "Derio Ops" project is visible
 - number: 7
   title: End-to-end bridge test
-  steps: []
+  steps:
+  - id: P2.T7.S1
+    text: |-
+      1. SSH into secure-agent-pod
+      2. Verify VK_SHARED_API_BASE is set:
+         ```bash
+         echo $VK_SHARED_API_BASE
+         # Expected: http://vk-remote.agents.svc.cluster.local:8081
+         ```
+      3. Test MCP tools:
+         ```bash
+         vk remote list-organizations
+         vk remote list-projects
+         ```
+      4. Create a test issue via the bridge or MCP and verify it appears in the browser UI
+      5. Delete the test issue
+
+      ---
 state:
-  steps: {}
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T7.S1:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null
     note: null

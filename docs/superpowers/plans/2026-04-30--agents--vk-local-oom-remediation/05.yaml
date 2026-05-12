@@ -40,7 +40,19 @@ tasks:
       Append a `## Phase 5 Soak Log` section at the bottom of this plan, one row per day.
 - number: 2
   title: Decision and follow-up PR
-  steps: []
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      After 14 days, choose one outcome and document the rationale:
+
+
+        - **(a) Keep 8 Gi.** Document p99 RSS + max queue depth in the plan. No code change.
+        - **(b) Dial back to 3 Gi.** Open a PR editing `apps/secure-agent-pod/manifests/deployment.yaml` from `8Gi` to `3Gi`. Cite Phase 5 p99 as evidence.
+        - **(c) Raise the cap.** Open a PR editing the env var value (e.g., 4 → 6). Cite sustained queue depth as evidence.
+
+        Outcome (a), (b), or (c) is permitted; the success criterion is not "the limit must shrink", it is "we know which choice the data supports."
+
+      ---
 state:
   steps:
     P5.T1.S1:
@@ -48,6 +60,10 @@ state:
       ticked_at: null
       note: null
     P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
       state: ' '
       ticked_at: null
       note: null

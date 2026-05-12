@@ -94,10 +94,19 @@ tasks:
       - [x] **Step 3 (Grafana panel):** Add a `vk-local working-set RSS` panel to the existing operating dashboard. Query: `container_memory_working_set_bytes{namespace="secure-agent-pod", container="vk-local"}`. Pin to the secure-agent-pod operating folder so Phase 5's soak readings have a UI.
 - number: 3
   title: 24h soak
-  steps: []
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      After 24 h, re-query the count. Series count must be non-zero for all 7 nodes continuously. Document the result in this plan's Deployment Notes section.
 - number: 4
   title: Fallback if root cause cannot be isolated
-  steps: []
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      *(skipped — root cause was isolated in Task 1, see Deployment Deviations below).* If after one working day the cause is still unknown, file a tracking issue in `derio-net/frank` titled `obs: cadvisor scrape data gap on amd64 nodes` with the investigation log so far. Mark Phase 2 as `Closed (deferred)` in this plan and continue with Phase 3 — the housekeeping work does not depend on Phase 2's outcome, only Phase 5's evaluation does.
+
+
+      ---
 state:
   steps:
     P2.T1.S1:
@@ -122,6 +131,14 @@ state:
       note: null
     P2.T2.S2:
       state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: '-'
       ticked_at: null
       note: null
   completion:

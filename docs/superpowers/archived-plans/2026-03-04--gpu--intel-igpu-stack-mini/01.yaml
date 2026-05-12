@@ -8,27 +8,593 @@ phase:
 tasks:
 - number: 1
   title: Fix mini node labels (amd-igpu → intel-igpu)
-  steps: []
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Update labels in all three files
+
+
+      Change these two fields in each file (same change for all three):
+
+      ```yaml
+              machine:
+                  nodeLabels:
+                      zone: core
+                      tier: standard
+                      accelerator: intel-igpu    # was: amd-igpu
+                      igpu: intel-arc            # was: radeon-780m
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Apply updated labels (no reboot — labels are hot-applied)
+
+
+      ```bash
+      source .env_devops
+      omnictl apply -f patches/phase01-node-config/03-labels-mini-1.yaml
+      omnictl apply -f patches/phase01-node-config/03-labels-mini-2.yaml
+      omnictl apply -f patches/phase01-node-config/03-labels-mini-3.yaml
+      ```
+  - id: P1.T1.S3
+    text: |-
+      Verify labels
+
+
+      ```bash
+      source .env
+      kubectl get nodes -l accelerator=intel-igpu --show-labels
+      # Expected: mini-1, mini-2, mini-3 listed
+      ```
+  - id: P1.T1.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add patches/phase01-node-config/03-labels-mini-1.yaml \
+              patches/phase01-node-config/03-labels-mini-2.yaml \
+              patches/phase01-node-config/03-labels-mini-3.yaml
+      git commit -m "fix(mini): update iGPU labels from AMD to Intel Arc"
+      ```
+
+      ---
 - number: 2
   title: Create Omni ExtensionsConfiguration patches for i915
-  steps: []
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Delete the draft file (wrong format)
+
+
+      ```bash
+      git rm patches/phase05-mini-config/mini-extensions.yml
+      ```
+  - id: P1.T2.S2
+    text: |-
+      Create mini-1 extension patch
+
+
+      `patches/phase05-mini-config/500-mini1-i915-extensions.yaml`:
+      ```yaml
+      ## Add Intel Arc iGPU extensions to mini-1's Talos image schematic
+      ## NOTE: This triggers an image rebuild and reboot of mini-1
+      ## Includes iscsi-tools to prevent overriding the cluster-wide extension config
+      metadata:
+          namespace: default
+          type: ExtensionsConfigurations.omni.sidero.dev
+          id: 500-mini1-i915-extensions
+          labels:
+              omni.sidero.dev/cluster: frank
+              omni.sidero.dev/cluster-machine: ce4d0d52-6c10-bdc9-746c-88aedd67681b
+      spec:
+          extensions:
+              - siderolabs/iscsi-tools
+              - siderolabs/i915
+              - siderolabs/intel-ucode
+      ```
+  - id: P1.T2.S3
+    text: |-
+      Create mini-2 extension patch
+
+
+      `patches/phase05-mini-config/501-mini2-i915-extensions.yaml`:
+      ```yaml
+      ## Add Intel Arc iGPU extensions to mini-2's Talos image schematic
+      ## NOTE: This triggers an image rebuild and reboot of mini-2
+      ## Includes iscsi-tools to prevent overriding the cluster-wide extension config
+      metadata:
+          namespace: default
+          type: ExtensionsConfigurations.omni.sidero.dev
+          id: 501-mini2-i915-extensions
+          labels:
+              omni.sidero.dev/cluster: frank
+              omni.sidero.dev/cluster-machine: 6ea7c1c6-6ba6-b59d-c77a-88aedd676447
+      spec:
+          extensions:
+              - siderolabs/iscsi-tools
+              - siderolabs/i915
+              - siderolabs/intel-ucode
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Create mini-3 extension patch
+
+
+      `patches/phase05-mini-config/502-mini3-i915-extensions.yaml`:
+      ```yaml
+      ## Add Intel Arc iGPU extensions to mini-3's Talos image schematic
+      ## NOTE: This triggers an image rebuild and reboot of mini-3
+      ## Includes iscsi-tools to prevent overriding the cluster-wide extension config
+      metadata:
+          namespace: default
+          type: ExtensionsConfigurations.omni.sidero.dev
+          id: 502-mini3-i915-extensions
+          labels:
+              omni.sidero.dev/cluster: frank
+              omni.sidero.dev/cluster-machine: d1f01c97-d17e-e3ef-12ee-88aedd6768b6
+      spec:
+          extensions:
+              - siderolabs/iscsi-tools
+              - siderolabs/i915
+              - siderolabs/intel-ucode
+      ```
+  - id: P1.T2.S5
+    text: |-
+      Commit
+
+
+      ```bash
+      git add patches/phase05-mini-config/500-mini1-i915-extensions.yaml \
+              patches/phase05-mini-config/501-mini2-i915-extensions.yaml \
+              patches/phase05-mini-config/502-mini3-i915-extensions.yaml
+      git commit -m "feat(mini): add Omni i915+intel-ucode extension patches for mini-{1..3}"
+      ```
+
+      ---
 - number: 3
   title: Apply extensions (triggers rolling reboot of mini nodes)
-  steps: []
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Apply mini-1 and wait for Ready
+
+
+      ```bash
+      source .env_devops
+      omnictl apply -f patches/phase05-mini-config/500-mini1-i915-extensions.yaml
+
+      source .env
+      kubectl get node mini-1 -w
+      # Wait until STATUS = Ready (may take 3–5 minutes for reboot)
+      ```
+  - id: P1.T3.S2
+    text: |-
+      Verify mini-1 extensions loaded
+
+
+      ```bash
+      source .env
+      talosctl -n 192.168.55.21 get extensions
+      # Expected: iscsi-tools, i915, intel-ucode listed
+
+      talosctl -n 192.168.55.21 ls /dev/dri
+      # Expected: card0, renderD128 (or similar)
+      # If /dev/dri is missing: extension not loaded — check talosctl dmesg for errors
+      ```
+  - id: P1.T3.S3
+    text: |-
+      Apply mini-2 and wait for Ready
+
+
+      ```bash
+      source .env_devops
+      omnictl apply -f patches/phase05-mini-config/501-mini2-i915-extensions.yaml
+
+      source .env
+      kubectl get node mini-2 -w
+      # Wait until STATUS = Ready
+      ```
+  - id: P1.T3.S4
+    text: |-
+      Verify mini-2
+
+
+      ```bash
+      source .env
+      talosctl -n 192.168.55.22 get extensions
+      talosctl -n 192.168.55.22 ls /dev/dri
+      ```
+  - id: P1.T3.S5
+    text: |-
+      Apply mini-3 and wait for Ready
+
+
+      ```bash
+      source .env_devops
+      omnictl apply -f patches/phase05-mini-config/502-mini3-i915-extensions.yaml
+
+      source .env
+      kubectl get node mini-3 -w
+      # Wait until STATUS = Ready
+      ```
+  - id: P1.T3.S6
+    text: |-
+      Verify mini-3
+
+
+      ```bash
+      source .env
+      talosctl -n 192.168.55.23 get extensions
+      talosctl -n 192.168.55.23 ls /dev/dri
+      ```
+
+      ---
 - number: 4
   title: Create and apply CDI containerd patch
-  steps: []
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Create the patch file
+
+
+      `patches/phase05-mini-config/05-mini-cdi-containerd.yaml`:
+      ```yaml
+      ## Enable CDI device discovery in containerd for Intel GPU Device Plugin
+      ## Applied cluster-wide (harmless on nodes without Intel GPU)
+      ## Does NOT require a node reboot — containerd restarts automatically
+      metadata:
+          namespace: default
+          type: ConfigPatches.omni.sidero.dev
+          id: 303-cluster-cdi-containerd
+          labels:
+              omni.sidero.dev/cluster: frank
+      spec:
+          data: |
+              machine:
+                  files:
+                      - path: /etc/cri/conf.d/20-customization.part
+                        op: create
+                        content: |
+                            [plugins."io.containerd.cri.v1.runtime"]
+                              cdi_spec_dirs = ["/var/cdi/static", "/var/cdi/dynamic"]
+      ```
+  - id: P1.T4.S2
+    text: |-
+      Apply the patch
+
+
+      ```bash
+      source .env_devops
+      omnictl apply -f patches/phase05-mini-config/05-mini-cdi-containerd.yaml
+      ```
+  - id: P1.T4.S3
+    text: |-
+      Verify containerd restarted (wait ~30s)
+
+
+      ```bash
+      source .env
+      talosctl -n 192.168.55.21 services
+      # Look for containerd — it should show a recent start time
+      # All nodes should come back healthy (no reboot, just service restart)
+      kubectl get nodes
+      # Expected: all 7 nodes still Ready
+      ```
+  - id: P1.T4.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add patches/phase05-mini-config/05-mini-cdi-containerd.yaml
+      git commit -m "feat(mini): enable CDI containerd support for Intel GPU Device Plugin"
+      ```
+
+      ---
 - number: 5
   title: Create phase05 README
-  steps: []
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Commit
+
+
+      ```bash
+      git add patches/phase05-mini-config/README.md
+      git commit -m "docs(mini): add phase05 README for Intel iGPU stack"
+      ```
+
+      ---
 - number: 6
   title: ArgoCD — Intel GPU Resource Driver (DRA)
-  steps: []
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      **Files:**
+      - Create: `apps/intel-gpu-driver/values.yaml`
+      - Create: `apps/root/templates/intel-gpu-driver.yaml`
+
+      These files are already created at the versions below (chart `0.7.0` confirmed via `helm search repo`).
+
+      `apps/intel-gpu-driver/values.yaml`:
+      ```yaml
+      # Intel GPU Resource Driver — DRA driver for mini-{1..3} Intel Arc iGPU
+      # Workloads use ResourceClaim / ResourceClaimTemplate instead of resources.limits
+
+      kubeletPlugin:
+        nodeSelector:
+          accelerator: intel-igpu
+        # Default tolerations already cover control-plane nodes (mini-{1..3} are control-plane)
+
+      # Node Feature Discovery not needed — labels managed via Omni/Talos directly
+      nfd:
+        enabled: false
+      ```
+
+      `apps/root/templates/intel-gpu-driver.yaml`:
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: intel-gpu-driver
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        sources:
+          - repoURL: https://intel.github.io/helm-charts
+            chart: intel-gpu-resource-driver
+            targetRevision: "0.7.0"
+            helm:
+              releaseName: intel-gpu-driver
+              valueFiles:
+                - $values/apps/intel-gpu-driver/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: intel-gpu-resource-driver
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+            - ServerSideApply=true
+      ```
 - number: 7
   title: Verify end-to-end
-  steps: []
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      Check driver pods are running on mini nodes
+
+
+      ```bash
+      source .env
+      kubectl get pods -n intel-gpu-resource-driver -o wide
+      # Expected: 3 kubelet-plugin pods (one per mini node), all Running
+      ```
+  - id: P1.T7.S2
+    text: |-
+      Check ResourceSlices — driver has discovered GPUs
+
+
+      ```bash
+      source .env
+      kubectl get resourceslice -o wide
+      # Expected: one ResourceSlice per mini node, driver=gpu.intel.com
+      # Each slice should list the i915 device for that node
+
+      kubectl get resourceslice -o json | jq '.items[] | {node: .spec.nodeName, devices: [.spec.devices[].name]}'
+      # Expected: mini-1, mini-2, mini-3 each with an intel GPU device
+      ```
+  - id: P1.T7.S3
+    text: |-
+      Check DeviceClass was created
+
+
+      ```bash
+      source .env
+      kubectl get deviceclass
+      # Expected: a DeviceClass named something like gpu.intel.com
+      # This is what ResourceClaims reference to request an Intel GPU
+      ```
+  - id: P1.T7.S4
+    text: |-
+      Smoke test — create a ResourceClaim and a test pod
+
+
+      ```bash
+      source .env
+
+      # Get the exact DeviceClass name first
+      DEVICE_CLASS=$(kubectl get deviceclass -o jsonpath='{.items[0].metadata.name}')
+      echo "DeviceClass: $DEVICE_CLASS"
+
+      kubectl apply -f - <<EOF
+      apiVersion: resource.k8s.io/v1beta1
+      kind: ResourceClaim
+      metadata:
+        name: intel-gpu-test-claim
+        namespace: default
+      spec:
+        devices:
+          requests:
+          - name: gpu
+            deviceClassName: ${DEVICE_CLASS}
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: intel-gpu-test
+        namespace: default
+      spec:
+        nodeSelector:
+          accelerator: intel-igpu
+        resourceClaims:
+        - name: gpu
+          resourceClaimName: intel-gpu-test-claim
+        containers:
+        - name: test
+          image: ubuntu:22.04
+          command: ["sh", "-c", "ls -la /dev/dri && echo GPU OK && sleep 5"]
+          resources:
+            claims:
+            - name: gpu
+        restartPolicy: Never
+      EOF
+
+      kubectl wait pod/intel-gpu-test --for=condition=Succeeded --timeout=60s
+      kubectl logs intel-gpu-test
+      # Expected: lists /dev/dri/card0 and renderD128, prints "GPU OK"
+
+      # Cleanup
+      kubectl delete pod intel-gpu-test
+      kubectl delete resourceclaim intel-gpu-test-claim
+      ```
+  - id: P1.T7.S5
+    text: |-
+      Confirm ResourceClaim allocation shows the bound node
+
+
+      ```bash
+      source .env
+      # During Step 4, while pod is running:
+      kubectl get resourceclaim intel-gpu-test-claim -o json | jq '.status.allocation.devices.results'
+      # Expected: shows the allocated device and node
+      ```
+  - id: P1.T7.S6
+    text: |-
+      (Reference) How workloads will request GPUs going forward
+
+
+      With otwld/ollama-helm and `ollama.gpu.draEnabled: true`, the chart handles ResourceClaimTemplate creation automatically. The pod spec will look like this (the chart generates it):
+
+      ```yaml
+      resourceClaims:
+        - name: gpu
+          resourceClaimTemplateName: ollama-gpu-claim-template
+      containers:
+        - name: ollama
+          resources:
+            claims:
+              - name: gpu
+      ```
+
+      No `resources.limits` with device plugin resource names. The DRA scheduler extension handles placement.
 state:
-  steps: {}
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S6:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null
     note: null

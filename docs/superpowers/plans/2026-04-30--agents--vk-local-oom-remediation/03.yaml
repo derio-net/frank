@@ -8,7 +8,15 @@ phase:
 tasks:
 - number: 1
   title: Decide cron host
-  steps: []
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Inspect `kali`'s supercronic crontab and the PVC mount layout. The default placement is `kali`'s supercronic crontab, since it already runs scheduled work and shares the agent-home PVC with `vk-local`. Confirm by reading the kali Dockerfile / `crontab` content in agent-images.
+
+
+      *Confirmed:* `kali/config-templates/crontab.txt` is seeded to `$AGENT_HOME/.crontab` via `etc/cont-init.d/50-seed-config`, supercronic is supervised by s6 (`agent-shell-base/etc/services.d/supercronic/run`), and both containers share the `agent-home` PVC mounted at `/home/claude`. No CronJob fallback needed.
+
+      If supercronic is unavailable in `kali` for any reason, fall back to a Kubernetes `CronJob` in `apps/secure-agent-pod/manifests/cronjob-housekeeping.yaml` mounting the same PVC.
 - number: 2
   title: Implement the crons (agent-images repo)
   steps:
@@ -23,12 +31,39 @@ tasks:
       Open PR in agent-images — [`derio-net/agent-images#34`](https://github.com/derio-net/agent-images/pull/34).
 - number: 3
   title: Image-bumper picks up the new SHA
-  steps: []
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Once Task 2's PR merges in agent-images, the existing image-bumper workflow opens a PR in this repo updating the image SHA in `apps/secure-agent-pod/manifests/deployment.yaml`. Merge that PR. ArgoCD syncs. The kali container restarts; supercronic loads the new crontab automatically (no extra restart needed — supercronic auto-reloads on file change, see `frank-gotchas.md`).
 - number: 4
   title: Verify housekeeping is running
-  steps: []
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      After the first weekly window passes (or trigger manually inside the pod for verification: `kubectl -n secure-agent-pod exec -c kali deploy/secure-agent-pod -- supercronic -test /home/claude/.crontab`), inspect the log files:
+
+
+      ```bash
+      kubectl -n secure-agent-pod exec -c kali deploy/secure-agent-pod -- \
+        ls -la /home/claude/.willikins-agent/npm-cache-prune.log \
+               /home/claude/.willikins-agent/worktree-prune.log
+      ```
+
+      - [ ] **Step 2 (verify metric — depends on Phase 2):** Once Phase 2 is complete, query
+
+      ```promql
+      container_memory_working_set_bytes{namespace="secure-agent-pod", container="vk-local"} / 1024 / 1024
+      ```
+
+        in Grafana. Median should trend down toward 200–300 MiB once a session-idle period rolls over the prune cron.
+
+      ---
 state:
   steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: null
+      note: null
     P3.T2.S1:
       state: x
       ticked_at: null
@@ -39,6 +74,14 @@ state:
       note: null
     P3.T2.S3:
       state: x
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: ' '
       ticked_at: null
       note: null
   completion:

@@ -168,7 +168,15 @@ tasks:
       Revert the inventory change — remove the bogus entry, commit, push, run reconcile again. MOTD should flip to the success line. No Telegram message expected (no failures, no notification on success).
 - number: 5
   title: Confirm paperclip web UI is unaffected
-  steps: []
+  steps:
+  - id: P3.T5.S1
+    text: |-
+      ```bash
+      curl -fsS -o /dev/null -w '%{http_code}\n' http://192.168.55.212:3100/
+      # expect 200 or 302 — same as before this plan
+      ```
+
+      ---
 state:
   steps:
     P3.T0.S1:
@@ -224,6 +232,10 @@ state:
       ticked_at: null
       note: null
     P3.T4.S5:
+      state: x
+      ticked_at: null
+      note: null
+    P3.T5.S1:
       state: x
       ticked_at: null
       note: null

@@ -412,7 +412,12 @@ tasks:
       ## Chunk 2: Documentation and Design File Update
 - number: 7
   title: Rename design file (COMPLETED — already renamed to layer-based naming)
-  steps: []
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      The design file has been renamed to `docs/superpowers/specs/2026-03-07--tenant--vcluster-design.md` as part of the layer naming convention update.
+
+      ---
 - number: 8
   title: Update CLAUDE.md services table
   steps:
@@ -546,6 +551,10 @@ state:
       note: null
     P1.T6.S6:
       state: x
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: ' '
       ticked_at: null
       note: null
     P1.T8.S1:

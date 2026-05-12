@@ -48,6 +48,18 @@ tasks:
 - number: 2
   title: Run reconcile and verify
   steps:
+  - id: P4.T2.S1
+    text: |-
+      ArgoCD syncs the ConfigMap. Then:
+
+
+      ```bash
+      ssh agent@192.168.55.221 -- paperclip-shell-reconcile
+      ```
+
+        Expect log lines for each tool, ending with `summary: installed=N already=0 removed=0 failed=0`.
+
+        *(exercised out-of-band against the populated inventory; reconcile completed `installed=8 already=1 removed=0 failed=1`. The single failure is `npm i -g @openai/codex`, caused by a script bug uncovered during this phase — tracked as derio-net/agent-images#56; full diagnostic trail in Deployment Notes 2026-05-03 P4.T2 rows. Not blocking — once the agent-images fix lands and `mise use -g node@20` is set on the PV, the npm-global section installs cleanly into mise's user-prefix.)*
   - id: P4.T2.S2
     text: |-
       Verify each manager reports the tool present
@@ -115,6 +127,10 @@ state:
       ticked_at: null
       note: null
     P4.T1.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P4.T2.S1:
       state: x
       ticked_at: null
       note: null

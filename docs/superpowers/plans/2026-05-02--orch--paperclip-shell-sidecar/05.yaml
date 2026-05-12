@@ -37,10 +37,16 @@ tasks:
       Append to `blog/content/docs/operating/18-paperclip/index.md` — new sections: *Connecting via SSH/Mosh* (with the laptop `~/.ssh/config` snippet); *Adding/removing tools* (ConfigMap edit flow vs interactive `mise install`); *Reading the install log / interpreting the alert*; *When to bump `paperclip-shell` image vs add to inventory*.
 - number: 3
   title: Run `/update-readme`
-  steps: []
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Run the skill. Verify the Service Access table now includes `192.168.55.221` and the Repository Structure section reflects any new directories under `apps/paperclip/`.
 - number: 4
   title: Sync runbook (only if any manual-operation blocks were introduced)
-  steps: []
+  steps:
+  - id: P5.T4.S1
+    text: |-
+      Audit this plan for `# manual-operation` blocks. Phase 3 introduced `paperclip-shell-ssh-keys-sops-bootstrap` (T0.S1) — run `/sync-runbook` to register it in `docs/runbooks/manual-operations.yaml`. Add any further blocks introduced during Phases 3–4 in the same pass.
 - number: 5
   title: Update plan status
   steps:
@@ -65,6 +71,14 @@ state:
       ticked_at: null
       note: null
     P5.T2.S2:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: x
+      ticked_at: null
+      note: null
+    P5.T4.S1:
       state: x
       ticked_at: null
       note: null

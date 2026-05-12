@@ -8,35 +8,856 @@ phase:
 tasks:
 - number: 1
   title: Fix `longhorn` Application CR — remove ad-hoc finalizers
-  steps: []
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Verify the current template only has the one correct finalizer
+
+
+      ```bash
+      grep -A3 "finalizers" apps/root/templates/longhorn.yaml
+      ```
+
+      Expected output:
+      ```
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      ```
+
+      If the extra finalizers are already absent (they're not in the git file, they're in the cluster), the file is already correct — no edit needed. The cluster will self-heal after we push Task 2+.
+  - id: P1.T1.S2
+    text: |-
+      Confirm the file is correct as-is
+
+
+      The template already only contains `resources-finalizer.argocd.argoproj.io`. The drift is purely in the cluster's live object. ArgoCD will remove the extra finalizers on next sync. No file change needed.
+  - id: P1.T1.S3
+    text: |-
+      Commit a no-op comment to document the finding
+
+
+      Add a comment to `apps/root/templates/longhorn.yaml` immediately above the finalizers block:
+
+      ```yaml
+        # Only resources-finalizer is valid here. pre-delete-finalizer variants
+        # were added ad-hoc to the cluster and will be removed by ArgoCD on sync.
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      ```
+
+      ```bash
+      git add apps/root/templates/longhorn.yaml
+      git commit -m "fix(longhorn): document correct finalizer — ad-hoc extras will be pruned by ArgoCD"
+      ```
+
+      ---
 - number: 2
   title: Fix `longhorn-extras` Application CR — `ignoreDifferences` and `prune`
-  steps: []
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Verify the current template
+
+
+      ```bash
+      grep -A8 "ignoreDifferences" apps/root/templates/longhorn-extras.yaml
+      ```
+
+      Expected — current file:
+      ```yaml
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            name: longhorn-r2-secret
+            namespace: longhorn-system
+            jsonPointers:
+              - /data
+      ```
+
+      This is already correct. The OutOfSync is because the cluster's live object was patched with a slightly different schema. ArgoCD ServerSideApply will reconcile on next sync.
+  - id: P1.T2.S2
+    text: |-
+      Verify `prune: false` is present
+
+
+      ```bash
+      grep "prune" apps/root/templates/longhorn-extras.yaml
+      ```
+
+      Expected: `      prune: false`
+  - id: P1.T2.S3
+    text: |-
+      If either is missing, add them now
+
+
+      The `ignoreDifferences` block must be exactly:
+      ```yaml
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            name: longhorn-r2-secret
+            namespace: longhorn-system
+            jsonPointers:
+              - /data
+      ```
+
+      And `syncPolicy.automated` must include:
+      ```yaml
+          automated:
+            prune: false
+            selfHeal: true
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/longhorn-extras.yaml
+      git commit -m "fix(longhorn-extras): ensure ignoreDifferences and prune match cluster state"
+      ```
+
+      ---
 - number: 3
   title: 'Fix `gpu-operator` Application CR — remove ad-hoc finalizers, add `prune:
     false`'
-  steps: []
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Add `prune: false` to the gpu-operator template
+
+
+      In `apps/root/templates/gpu-operator.yaml`, the `syncPolicy` block currently reads:
+      ```yaml
+        syncPolicy:
+          automated:
+            selfHeal: true
+      ```
+
+      Change it to:
+      ```yaml
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+      ```
+  - id: P1.T3.S2
+    text: |-
+      Verify no extra finalizers are in the git file
+
+
+      ```bash
+      grep -A5 "finalizers" apps/root/templates/gpu-operator.yaml
+      ```
+
+      Expected: only `resources-finalizer.argocd.argoproj.io`. The cluster-side extras will be removed by ArgoCD on sync.
+  - id: P1.T3.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/root/templates/gpu-operator.yaml
+      git commit -m "fix(gpu-operator): add prune: false to syncPolicy — ad-hoc post-delete finalizers will be pruned by ArgoCD"
+      ```
+
+      ---
 - number: 4
   title: Make Grafana VictoriaLogs datasource declarative
-  steps: []
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Create the provisioning ConfigMap
+
+
+      ```yaml
+      # apps/victoria-metrics/manifests/grafana-victorialogs-ds.yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: grafana-victorialogs-datasource
+        namespace: monitoring
+        labels:
+          grafana_datasource: "1"
+      data:
+        victorialogs-datasource.yaml: |
+          apiVersion: 1
+          datasources:
+            - name: VictoriaLogs
+              type: victoriametrics-logs-datasource
+              access: proxy
+              url: http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428
+              isDefault: false
+              version: 1
+              editable: false
+      ```
+  - id: P1.T4.S2
+    text: |-
+      Mount the ConfigMap into Grafana via values
+
+
+      In `apps/victoria-metrics/values.yaml`, add the following under the `grafana:` key (after the `plugins:` list):
+
+      ```yaml
+        extraConfigmapMounts:
+          - name: victorialogs-datasource
+            mountPath: /etc/grafana/provisioning/datasources/victorialogs.yaml
+            subPath: victorialogs-datasource.yaml
+            configMap: grafana-victorialogs-datasource
+            readOnly: true
+      ```
+
+      Also update the comment block that previously noted the workaround:
+
+      ```yaml
+        # VictoriaLogs datasource is provisioned declaratively via grafana-victorialogs-ds ConfigMap.
+        # extraConfigmapMounts mounts it into /etc/grafana/provisioning/datasources/.
+      ```
+
+      Remove the old NOTE/TODO/Workaround comment lines entirely.
+  - id: P1.T4.S3
+    text: |-
+      Add the ConfigMap to the victoria-metrics ArgoCD app
+
+
+      The `victoria-metrics` ArgoCD Application currently only has the Helm chart source. The ConfigMap needs to be applied separately. Add a second source pointing to the manifests directory:
+
+      In `apps/root/templates/victoria-metrics.yaml`, add a third source entry:
+
+      ```yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            path: apps/victoria-metrics/manifests
+      ```
+
+      The full `sources:` block becomes:
+      ```yaml
+        sources:
+          - repoURL: https://victoriametrics.github.io/helm-charts/
+            chart: victoria-metrics-k8s-stack
+            targetRevision: "0.72.4"
+            helm:
+              releaseName: victoria-metrics
+              valueFiles:
+                - $values/apps/victoria-metrics/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            path: apps/victoria-metrics/manifests
+      ```
+  - id: P1.T4.S4
+    text: |-
+      Commit
+
+
+      ```bash
+      git add apps/victoria-metrics/manifests/grafana-victorialogs-ds.yaml \
+              apps/victoria-metrics/values.yaml \
+              apps/root/templates/victoria-metrics.yaml
+      git commit -m "fix(monitoring): make VictoriaLogs Grafana datasource declarative via provisioning ConfigMap"
+      ```
+  - id: P1.T4.S5
+    text: |-
+      Push and verify ArgoCD picks up the new ConfigMap
+
+
+      ```bash
+      git push
+      argocd app sync victoria-metrics --port-forward --port-forward-namespace argocd
+      kubectl get configmap grafana-victorialogs-datasource -n monitoring
+      ```
+
+      Expected: ConfigMap exists in `monitoring` namespace.
+  - id: P1.T4.S6
+    text: |-
+      Delete the live API-added datasource and verify provisioning takes over
+
+
+      The manually-added datasource (id: 3) must be removed from Grafana so the provisioned one takes effect. This is a one-time migration step — see Task 5 (manual operation).
+
+      ---
 - number: 5
   title: Document the Grafana datasource migration as a manual operation
-  steps: []
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Add manual-operation block to this plan
+
+
+      Append the following fenced block at the end of this file (before the Task 6 heading):
+
+      ````markdown
+      ```yaml
+      # manual-operation
+      id: obs-grafana-victorialogs-migration
+      layer: obs
+      app: victoria-metrics
+      plan: docs/superpowers/plans/2026-03-08--repo--declarative-drift-remediation.md
+      when: "After Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap"
+      why_manual: "The live API-added datasource (id:3) must be deleted via Grafana UI before the provisioned one activates; Grafana does not auto-replace API datasources with provisioned ones of the same name"
+      commands:
+        - "Open Grafana at http://192.168.55.203"
+        - "Navigate to Connections → Data sources"
+        - "Find 'VictoriaLogs' (the API-added one, editable)"
+        - "Click Delete datasource"
+        - "Restart Grafana pod to force provisioning reload: kubectl -n monitoring rollout restart deployment victoria-metrics-grafana"
+      verify:
+        - "kubectl -n monitoring logs -l app.kubernetes.io/name=grafana | grep -i victorialogs"
+        - "Open Grafana → Connections → Data sources — VictoriaLogs should appear as provisioned (non-editable)"
+        - "Click Test on VictoriaLogs — expect green success"
+      status: done
+      notes: "Grafana automatically adopted the API-added datasource on pod restart — no manual UI deletion needed. readOnly=True confirmed via API."
+      ```
+      ````
+  - id: P1.T5.S2
+    text: |-
+      Retroactively add manual-operation block to Backup plan
+
+
+      Append this block to `docs/superpowers/plans/2026-03-08--backup--longhorn-r2.md`:
+
+      ````markdown
+      ```yaml
+      # manual-operation
+      id: backup-r2-sops-secret
+      layer: backup
+      app: longhorn
+      plan: docs/superpowers/plans/2026-03-08--backup--longhorn-r2.md
+      when: "After Task 2 — after SOPS-encrypting the R2 secret"
+      why_manual: "SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
+      commands:
+        - sops --decrypt secrets/longhorn/r2-secret.yaml | kubectl apply -f -
+      verify:
+        - kubectl get secret longhorn-r2-secret -n longhorn-system
+      status: done
+      ```
+      ````
+  - id: P1.T5.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add docs/superpowers/plans/2026-03-08--repo--declarative-drift-remediation.md \
+              docs/superpowers/plans/2026-03-08--backup--longhorn-r2.md
+      git commit -m "docs(plans): add manual-operation YAML blocks to drift remediation and phase 8 plans"
+      ```
+
+      ---
 - number: 6
   title: Create `docs/runbooks/manual-operations.yaml`
-  steps: []
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Create the runbooks directory and the YAML file
+
+
+      ```yaml
+      # docs/runbooks/manual-operations.yaml
+      #
+      # Central registry of all manual operations required across layers.
+      # Each entry corresponds to a # manual-operation block in a plan file.
+      # Maintained by the /sync-runbook skill — run it after editing any plan
+      # that adds or changes manual operations.
+      #
+      # Fields:
+      #   id          — unique identifier, format: phaseNN-short-name
+      #   phase       — phase number (0 = bootstrap, before ArgoCD)
+      #   app         — ArgoCD app name or "bootstrap"
+      #   plan        — relative path to the plan file, or null
+      #   when        — trigger: what must be done first
+      #   why_manual  — reason this cannot be declarative
+      #   commands    — exact steps to execute
+      #   verify      — how to confirm success
+      #   status      — pending | done
+
+      operations:
+        - id: gitops-argocd-bootstrap
+          layer: gitops
+          app: bootstrap
+          plan: null
+          when: "Initial cluster setup — before any ArgoCD apps exist"
+          why_manual: "ArgoCD must be installed before it can manage itself; chicken-and-egg bootstrap"
+          commands:
+            - helm repo add argo https://argoproj.github.io/argo-helm
+            - helm repo update
+            - helm install argocd argo/argo-cd -n argocd --create-namespace --version 9.4.6
+            - kubectl apply -f apps/root/ -n argocd
+          verify:
+            - kubectl get pods -n argocd
+            - argocd app list --port-forward --port-forward-namespace argocd
+          status: done
+
+        - id: backup-r2-sops-secret
+          layer: backup
+          app: longhorn
+          plan: docs/superpowers/plans/2026-03-08--backup--longhorn-r2.md
+          when: "After Task 2 — after SOPS-encrypting the R2 secret"
+          why_manual: "SOPS metadata (.sops key) in Secret YAML is rejected by ArgoCD ServerSideApply schema validation; encrypted secrets must live outside ArgoCD-managed paths and be applied out-of-band"
+          commands:
+            - sops --decrypt secrets/longhorn/r2-secret.yaml | kubectl apply -f -
+          verify:
+            - kubectl get secret longhorn-r2-secret -n longhorn-system
+          status: done
+
+        - id: obs-grafana-victorialogs-migration
+          layer: obs
+          app: victoria-metrics
+          plan: docs/superpowers/plans/2026-03-08--repo--declarative-drift-remediation.md
+          when: "After drift remediation Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap"
+          why_manual: "The live API-added datasource must be deleted via Grafana UI before the provisioned one activates; Grafana does not auto-replace API datasources with provisioned ones of the same name"
+          commands:
+            - "Open Grafana at http://192.168.55.203"
+            - "Navigate to Connections → Data sources"
+            - "Find 'VictoriaLogs' (the API-added one, editable) and click Delete datasource"
+            - kubectl -n monitoring rollout restart deployment victoria-metrics-grafana
+          verify:
+            - kubectl -n monitoring logs -l app.kubernetes.io/name=grafana | grep -i victorialogs
+            - "Open Grafana → Connections → Data sources — VictoriaLogs should appear as provisioned (non-editable)"
+            - "Click Test on VictoriaLogs — expect green success"
+          status: pending
+      ```
+  - id: P1.T6.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add docs/runbooks/manual-operations.yaml
+      git commit -m "feat(runbooks): add central manual-operations registry with phase 0, 7, 8 entries"
+      ```
+
+      ---
 - number: 7
   title: Create the `/sync-runbook` skill
-  steps: []
+  steps:
+  - id: P1.T7.S1
+    text: |-
+      Create the skill file
+
+
+      ```markdown
+      ---
+      name: sync-runbook
+      description: >
+        Sync the central manual-operations runbook from all plan files.
+        Use after writing or editing any plan that contains manual-operation
+        YAML blocks. Scans docs/superpowers/plans/*.md, extracts blocks tagged
+        "# manual-operation", merges into docs/runbooks/manual-operations.yaml
+        (deduplicates by id, preserves status of existing entries), then commits.
+      ---
+
+      # Sync Runbook Skill
+
+      ## When to use
+
+      Invoke `/sync-runbook` after any session that:
+      - Writes a new implementation plan containing `# manual-operation` blocks
+      - Edits an existing plan's manual-operation block (e.g. marking status: done)
+      - Adds a bootstrap step directly to the runbook
+
+      ## Process
+
+      1. **Scan** all `docs/superpowers/plans/*.md` for fenced code blocks tagged `# manual-operation`
+      2. **Parse** each block as YAML — extract all fields
+      3. **Read** existing `docs/runbooks/manual-operations.yaml`
+      4. **Merge** — for each extracted entry:
+         - If `id` already exists in runbook: update all fields EXCEPT `status` (preserve human-set status)
+         - If `id` is new: append the entry
+      5. **Sort** the final list by `layer` ascending, then `id` alphabetically within each layer
+      6. **Rewrite** `docs/runbooks/manual-operations.yaml` with the merged, sorted list (preserve the file header comment)
+      7. **Report** summary: N new entries added, N updated, N total
+      8. **Commit**:
+         ```bash
+         git add docs/runbooks/manual-operations.yaml
+         git commit -m "chore(runbooks): sync manual-operations from plan files"
+         ```
+
+      ## Rules
+
+      - NEVER change `status` of an existing entry — only new entries get `status: pending`
+      - If a block in a plan is malformed YAML, report the file and line, skip the block, continue
+      - If `docs/runbooks/` does not exist, create it before writing
+      - Always add the `plan:` field from the plan filename if the block omits it
+      - Do not touch any other files
+
+      ## Manual-operation block format (in plans)
+
+      Each block in a plan file looks like:
+
+      \`\`\`yaml
+      # manual-operation
+      id: phaseNN-short-name
+      phase: NN
+      app: <argocd-app-name>
+      plan: docs/superpowers/plans/<filename>.md
+      when: "After Task N — <trigger>"
+      why_manual: "<reason>"
+      commands:
+        - <command or instruction>
+      verify:
+        - <command or instruction>
+      status: pending
+      \`\`\`
+
+      ## Runbook file format
+
+      \`\`\`yaml
+      # docs/runbooks/manual-operations.yaml
+      # [header comment block]
+
+      operations:
+        - id: ...
+          phase: ...
+          app: ...
+          plan: ...
+          when: ...
+          why_manual: ...
+          commands:
+            - ...
+          verify:
+            - ...
+          status: ...
+      \`\`\`
+      ```
+  - id: P1.T7.S2
+    text: |-
+      Commit
+
+
+      ```bash
+      git add .claude/skills/sync-runbook.md
+      git commit -m "feat(skills): add sync-runbook skill for maintaining manual-operations runbook"
+      ```
+
+      ---
 - number: 8
   title: Update CLAUDE.md — add `/sync-runbook` to layer workflow and document the
     manual-op format
-  steps: []
+  steps:
+  - id: P1.T8.S1
+    text: |-
+      Add `/sync-runbook` to the Standard Layer Workflow section
+
+
+      Find the workflow section:
+      ```markdown
+      ## Standard Layer Workflow
+
+      Every layer follows this sequence:
+
+      1. **Brainstorm** — `/brainstorming` (Superpowers plugin) to explore requirements, refine scope, and design the approach via Socratic dialogue
+      2. **Deploy** — Implement the ArgoCD app (values, Application CR, manifests)
+      3. **Blog** — Write a Hugo blog post documenting the layer
+      4. **Review** — Verify deployment health and blog accuracy
+      ```
+
+      Replace with:
+      ```markdown
+      ## Standard Layer Workflow
+
+      Every layer follows this sequence:
+
+      1. **Brainstorm** — `/brainstorming` (Superpowers plugin) to explore requirements, refine scope, and design the approach via Socratic dialogue
+      2. **Deploy** — Implement the ArgoCD app (values, Application CR, manifests)
+      3. **Blog** — Write a Hugo blog post documenting the layer
+      4. **Sync runbook** — Run `/sync-runbook` if the layer plan contains any `# manual-operation` blocks
+      5. **Review** — Verify deployment health and blog accuracy
+      ```
+  - id: P1.T8.S2
+    text: |-
+      Add a Manual Operations section to CLAUDE.md
+
+
+      Add the following new section after the `## Gotchas` section:
+
+      ```markdown
+      ## Manual Operations
+
+      Some steps cannot be declarative (SOPS secrets, UI-only config). Every such step must be:
+
+      1. Documented in the relevant plan as a fenced YAML block tagged `# manual-operation`
+      2. Synced to `docs/runbooks/manual-operations.yaml` via `/sync-runbook`
+
+      ### Block format (in plans)
+
+      \`\`\`yaml
+      # manual-operation
+      id: phaseNN-short-name        # unique across all plans
+      phase: NN
+      app: <argocd-app-name>
+      plan: docs/superpowers/plans/<filename>.md
+      when: "After Task N — <trigger description>"
+      why_manual: "<reason this cannot be automated>"
+      commands:
+        - <exact command or UI instruction>
+      verify:
+        - <command or instruction to confirm success>
+      status: pending               # update to: done after execution
+      \`\`\`
+
+      ### Central runbook
+
+      `docs/runbooks/manual-operations.yaml` — single source of truth for all manual ops across all layers. Run `/sync-runbook` to update it from plan files.
+      ```
+  - id: P1.T8.S3
+    text: |-
+      Commit
+
+
+      ```bash
+      git add CLAUDE.md
+      git commit -m "docs(claude-md): add sync-runbook to phase workflow and document manual-operations format"
+      ```
+
+      ---
 - number: 9
   title: Push and verify root app syncs clean
-  steps: []
+  steps:
+  - id: P1.T9.S1
+    text: |-
+      Push all commits
+
+
+      ```bash
+      git push
+      ```
+  - id: P1.T9.S2
+    text: |-
+      Sync root app and check status
+
+
+      ```bash
+      argocd app sync root --port-forward --port-forward-namespace argocd
+      argocd app list --port-forward --port-forward-namespace argocd
+      ```
+
+      Expected: `root` shows `Synced` / `Healthy`. The previously OutOfSync apps (`longhorn`, `longhorn-extras`, `victoria-metrics`) should now show `Synced`.
+  - id: P1.T9.S3
+    text: |-
+      Verify longhorn Application CR finalizers were cleaned up
+
+
+      ```bash
+      kubectl get application longhorn -n argocd -o jsonpath='{.metadata.finalizers}' | python3 -m json.tool
+      ```
+
+      Expected: only `["resources-finalizer.argocd.argoproj.io"]` — no `pre-delete-finalizer` entries.
+  - id: P1.T9.S4
+    text: |-
+      Verify gpu-operator Application CR
+
+
+      ```bash
+      kubectl get application gpu-operator -n argocd -o jsonpath='{.metadata.finalizers}'
+      kubectl get application gpu-operator -n argocd -o jsonpath='{.spec.syncPolicy}'
+      ```
+
+      Expected: only `resources-finalizer.argocd.argoproj.io` in finalizers; `prune: false` in syncPolicy.
+  - id: P1.T9.S5
+    text: |-
+      Verify Grafana provisioning ConfigMap exists
+
+
+      ```bash
+      kubectl get configmap grafana-victorialogs-datasource -n monitoring
+      ```
+
+      Expected: ConfigMap exists.
+  - id: P1.T9.S6
+    text: |-
+      Execute the Grafana datasource migration manual operation
+
+
+      Follow the manual operation `obs-grafana-victorialogs-migration` in `docs/runbooks/manual-operations.yaml`:
+      - Delete the API-added VictoriaLogs datasource in Grafana UI
+      - Restart the Grafana pod
+      - Verify the provisioned datasource appears and tests green
+
+      After completing: update `status: done` in both the plan block and the runbook entry.
+  - id: P1.T9.S7
+    text: |-
+      Sync the runbook
+
+
+      ```bash
+      # invoke /sync-runbook skill
+      ```
+  - id: P1.T9.S8
+    text: |-
+      Final commit if runbook status was updated
+
+
+      ```bash
+      git add docs/runbooks/manual-operations.yaml docs/superpowers/plans/2026-03-08--repo--declarative-drift-remediation.md
+      git commit -m "chore(runbooks): mark Grafana datasource migration as done"
+      git push
+      ```
+
+      ---
+
+      ## Manual Operations
+
+      ```yaml
+      # manual-operation
+      id: obs-grafana-victorialogs-migration
+      layer: obs
+      app: victoria-metrics
+      plan: docs/superpowers/plans/2026-03-08--repo--declarative-drift-remediation.md
+      when: "After Task 4 Step 5 — after ArgoCD has synced the new provisioning ConfigMap"
+      why_manual: "The live API-added datasource must be deleted via Grafana UI before the provisioned one activates; Grafana does not auto-replace API datasources with provisioned ones of the same name"
+      commands:
+        - "Open Grafana at http://192.168.55.203"
+        - "Navigate to Connections → Data sources"
+        - "Find 'VictoriaLogs' (the API-added one, editable) and click Delete datasource"
+        - kubectl -n monitoring rollout restart deployment victoria-metrics-grafana
+      verify:
+        - kubectl -n monitoring logs -l app.kubernetes.io/name=grafana | grep -i victorialogs
+        - "Open Grafana → Connections → Data sources — VictoriaLogs should appear as provisioned (non-editable)"
+        - "Click Test on VictoriaLogs — expect green success"
+      status: done
+      notes: "Grafana automatically adopted the API-added datasource on pod restart — no manual UI deletion needed. readOnly=True confirmed via API."
+      ```
 state:
-  steps: {}
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T7.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T8.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T8.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T8.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T9.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T9.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T9.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T9.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T9.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T9.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T9.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T9.S8:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null
     note: null

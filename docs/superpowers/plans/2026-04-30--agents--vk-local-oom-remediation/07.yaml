@@ -11,9 +11,141 @@ phase:
   - 5
   - 6
   tracking_issue: https://github.com/derio-net/frank/issues/158
-tasks: []
+tasks:
+- number: 1
+  title: (unstructured content)
+  steps:
+  - id: P7.T1.S1
+    text: |-
+      Post-Deploy Checklist [manual]
+      <!-- Tracking: https://github.com/derio-net/frank/issues/158 -->
+      **Depends on:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5, Phase 6
+
+      This is a fix/extension plan (per the Type at top), so most post-deploy steps are skipped per `repo-workflows.md`.
+
+      - [-] **Step 1: Expose externally** — *(skipped — internal change, no new public surface)*
+      - [-] **Step 2: Write building blog post** — *(skipped — fix/extension; update existing layer post instead)*
+      - [-] **Step 3: Write operating blog post** — *(skipped — same)*
+      - [ ] **Step 4: Update existing layer's blog posts** — Add a "Memory remediation" subsection to the existing `2026-04-15--agents--agent-images-and-vk-local-sidecar` building post (root cause + housekeeping + B1 cap). Add operational commands (how to read queue depth, how to flip the cap) to the operating post.
+      - [ ] **Step 5: Update gotchas** — Add to `.claude/rules/frank-gotchas.md`: "vibe-kanban v9 introduces `VK_MAX_CONCURRENT_EXECUTIONS`. The vk-local cgroup limit is sized to the cap — do not raise the cap without re-evaluating the limit. See `2026-04-30--agents--vk-local-oom-remediation`." Plus the cadvisor-gap finding if Phase 2 produced a generalizable rule.
+      - [ ] **Step 6: Update README** — Run `/update-readme` to sync the agents section.
+      - [ ] **Step 7: Sync runbook** — Run `/sync-runbook` if any `# manual-operation` blocks were added to this plan during execution.
+      - [ ] **Step 8: Update plan status** — Set `**Status:**` to `Deployed` once Phase 5 outcome is documented and Phase 6 issues are filed.
+
+      ---
+
+      ## Deployment Deviations
+
+      ### Phase 2 — cadvisor gap root cause was *not* the `(id|name)` labeldrop (2026-05-02)
+
+      The plan's Case 1 hypothesis (the cadvisor `VMNodeScrape`'s `(id|name)` labeldrop dropping data on amd64) was wrong. Investigation showed:
+
+      - **Task 1 / Step 1** — vmagent reports all 7 cadvisor targets healthy with non-zero `lastSamplesScraped`. amd64 nodes scrape *more* samples than raspi (gpu-1=7575, mini-1=13658, raspi-1=3245). So the loss is downstream of vmagent's parser, not at the target.
+      - **Task 1 / Step 3** — vmsingle logs are full of `timeserieslimits/timeseries_limits.go:72 ignoring series with N labels for {…}; either reduce the number of labels for this metric or increase -maxLabelsPerTimeseries=40 cmd-line flag value`, where N is 60–135 for amd64 series (containing all NFD `feature_node_kubernetes_io_*`, Talos `extensions_talos_dev_*`, NVIDIA `nvidia_com_*`, and `beta_kubernetes_io_*` labels propagated by the chart's default `labelmap __meta_kubernetes_node_label_(.+)` rule). raspi series carry ~33 labels and pass under VictoriaMetrics' default `-maxLabelsPerTimeseries=40`, which is why only the 2 raspi nodes were ever visible.
+
+      This is not the canonical Case 1, 2, or 3 the plan enumerates — closest is Case 1 (a relabel-rule fix) but with a different rule than the plan suggested. **Fix applied:** added a 4th `metricRelabelConfigs` `labeldrop` rule under `kubelet.vmScrape.spec` in `apps/victoria-metrics/values.yaml` that strips `feature_node_kubernetes_io_.*|extensions_talos_dev_.*|nvidia_com_.*|beta_kubernetes_io_.*` before metrics are remoteWritten to vmsingle. The chart's default labelmap is preserved, so useful node labels (`tier`, `zone`, `kubernetes_io_arch`, `node`, `instance`, `accelerator`, `igpu`) still attach. The override applies to all four kubelet-derived scrapes (cadvisor, resources, probes, kubelet itself) since the chart's `kubelet.vmScrape.spec` is shared — intentional, the same root cause was visible for `/metrics/resource` series in vmsingle's drop logs.
+
+      For Phase 5 soak visibility, a new **Secure Agent Pod — Operating** Grafana dashboard was added (`apps/grafana-alerting/manifests/secure-agent-pod-dashboard-cm.yaml`, mounted via `apps/victoria-metrics/values.yaml`'s `extraConfigmapMounts`). It pins three panels in a new `secure-agent-pod` folder: vk-local working-set RSS time series (with 3 GiB / 6 GiB thresholds matching the 8 GiB cgroup limit), a cumulative-restart stat panel, and a last-terminated-reason table. Verification (Task 2 Step 2) and 24 h soak (Task 3 Step 1) happen post-merge once ArgoCD syncs and the dashboard provisions. To be appended to the Verification Log on completion.
+
+      **Operational gotcha for `frank-gotchas.md`** (apply during Phase 7): VictoriaMetrics' default `-maxLabelsPerTimeseries=40` silently drops entire series (logs at `timeserieslimits/timeseries_limits.go:72` only, no impact on vmagent target health). Frank's amd64 nodes (NFD CPU features + Talos extension labels + NVIDIA driver labels) produce 60–135 labels per series when the kubelet `VMNodeScrape` chart default `labelmap __meta_kubernetes_node_label_(.+)` runs, so they always exceed the threshold. Counter-fix: drop high-cardinality node-meta labels in `metricRelabelConfigs` rather than bumping `-maxLabelsPerTimeseries`. Bumping the limit just kicks the cardinality bomb downstream into vmsingle storage.
+
+      ### Phase 1 — `kubectl top` unavailable (2026-04-30)
+
+      The plan's Task 1 Step 4 instructed `kubectl top pod -l app=secure-agent-pod --containers`. The Kubernetes metrics API returned `error: Metrics API not available`. This is a confirming symptom of the cadvisor pipeline gap that Phase 2 was created to fix — the same five amd64 nodes (`mini-1/2/3`, `gpu-1`, `pc-1`) whose `container_memory_working_set_bytes` series are missing in VictoriaMetrics also have no flow into metrics-server. `vk-local`'s pod is on `gpu-1`, so `kubectl top` for it is silent end-to-end.
+
+      Substituted: read `/sys/fs/cgroup/memory.current` and `memory.stat` directly from the vk-local cgroup via `kubectl exec`. Recorded in the Verification Log below.
+
+      ### Phase 3 — path corrections (2026-04-30)
+
+      The plan's example commands used placeholder paths; the agent-images PR (`#34`) and follow-up PR (`#47`) ship the verified-on-Frank versions:
+
+      - Worktree iteration root: plan said `/home/claude/vibe-kanban/repos` (placeholder). Actual canonical repo root is `$AGENT_HOME/repos/*/.git`. Vibe-kanban worktrees live under `/var/tmp/vibe-kanban/worktrees/` (tmpfs, wiped on pod restart) and link back via `.git` gitdir files.
+      - Log destination: plan said `/var/log/agent/`. Actual log dir is `$AGENT_HOME/.willikins-agent/` (matches existing cron entries; `/var/log/agent` does not exist in the kali image).
+      - Both crons use `__AGENT_HOME__` placeholder, substituted by `cont-init.d/50-seed-config` on first boot. Existing PVs (e.g. `secure-agent-pod`) keep the older crontab — same gotcha as the `~/.tmux.conf` seed pattern documented in `frank-gotchas.md`. Two new lines must be appended to the live `~/.crontab` once via `kubectl exec`; supercronic auto-reloads, no pod restart required.
+      - Hardening added in #47 after code review: `flock` single-instance guard on both crons, atime/noatime probe with mtime fallback in npm-cache-prune, propagation of `npm cache verify` exit codes, and per-repo failure tracking in worktree-prune.
+
+      ## Verification Log (Phase 1)
+
+      ### 2026-04-30 — Initial verification
+
+      | Field | Value |
+      |-------|-------|
+      | Timestamp (UTC) | 2026-04-30 |
+      | Pod | `secure-agent-pod-57447df468-x488f` (node `gpu-1`) |
+      | Pod startTime | 2026-04-29T22:10:28Z |
+      | Container memory limit | `8Gi` ✓ matches PR #142 |
+      | `restartCount` | `0` |
+      | Last termination reason | _(none — never restarted on this pod)_ |
+      | OOM events in namespace | none found via `kubectl get events` |
+      | `kubectl top` | unavailable (metrics-server / cadvisor pipeline gap — see Phase 2) |
+      | `memory.current` (vk-local cgroup) | 6,183,456,768 B ≈ **5,896 MiB** |
+      | `memory.max` (vk-local cgroup) | 8,589,934,592 B = 8 GiB ✓ |
+      | `memory.stat anon` | 1,545,146,368 B ≈ 1,473 MiB |
+      | `memory.stat file` (page cache) | 4,120,395,776 B ≈ 3,930 MiB |
+      | `memory.stat kernel` | 512,790,528 B ≈ 489 MiB |
+
+      **Interpretation.** True working set (anon + kernel + non-reclaimable) ≈ 1.96 GiB; the rest is reclaimable file cache (npm cache + git worktree files). At ~73% of the 8 GiB limit but with no restarts since the PR #142 bump, the headroom is functioning as intended. This baseline is the input row Phase 5 compares against after Phase 3 housekeeping and Phase 4's concurrency cap land.
+
+      **Note (Step 4 fallback).** The metric the plan originally asked for (`kubectl top`) requires the cadvisor pipeline that Phase 2 fixes. The cgroup-direct reading above is the substitute baseline; once Phase 2 lands, Phase 5 should re-read the same fields plus `container_memory_working_set_bytes` from VictoriaMetrics for a continuous time-series.
+
+      ## Soak Log (Phase 5)
+
+      **Soak window:** 2026-05-03 → 2026-05-17 (14 days from Phase 4 Task 2 merge in [`c88b755`](https://github.com/derio-net/frank/commit/c88b755) at 2026-05-03 01:52 +0200; vk-local pod `secure-agent-pod-f89b886c5-48pgn` started 07:49:13 UTC).
+
+      Daily readings — `restartCount`, p99 working-set RSS over the prior 24 h, and peak queue depth — are auto-filled by [`scripts/phase5-soak-daily.sh`](../../../scripts/phase5-soak-daily.sh) from a supercronic entry on the secure-agent-pod (`0 8 * * *` UTC, kali sibling container). On each fire the script branches `vk/phase-5-soak-data-collection` off the latest `origin/main` (or pulls it if it already exists on origin), queries vmsingle for the day's p99 + queue peak, queries `kubectl` for restartCount, replaces the `_tbd_` placeholder for that Day-N row, pushes to `vk/phase-5-soak-data-collection`, and opens a PR against `main` if none is already open against that branch. Subsequent fires append daily commits to the same branch and the same PR. After Day 14 (2026-05-16) the script switches to cleanup-nag mode: one open `vk-ready` GitHub issue with daily one-line comments until the operator removes the cron line and deletes the script. Phase 4 Task 2 already wired the metrics surface end-to-end (`vibekanban_max_executions=4`, the cadvisor pipeline fix from Phase 2, and the new Grafana panels), so each day is a single read.
+
+      | Day | Date (UTC) | `restartCount` | OOMKills since soak start | p99 working-set (24 h) | Peak `vibekanban_queued_executions` (24 h) | Notes |
+      |-----|------------|----------------|---------------------------|------------------------|---------------------------------------------|-------|
+      | 1 | 2026-05-03 | 0 | 0 | ~2.35 GiB (cadvisor) / ~2.53 GiB (resource), instant 2.09 GiB | 0 (active=2 at sample time, max=4) | Soak start. Phase 4 image `8af0d080` live, env `VK_MAX_CONCURRENT_EXECUTIONS=4` confirmed via `/metrics`. No queue events yet. |
+      | 2 | 2026-05-04 | 0 | 0 | 2.95 GiB | 3 | pod=secure-agent-pod-c976f9946-rqdqc |
+      | 3 | 2026-05-05 | 0 | 0 | 0.74 GiB | 0 | pod=secure-agent-pod-c976f9946-rqdqc |
+      | 4 | 2026-05-06 | 0 | 0 | 0.97 GiB | 0 | pod=secure-agent-pod-c976f9946-rqdqc |
+      | 5 | 2026-05-07 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+      | 6 | 2026-05-08 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+      | 7 | 2026-05-09 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+      | 8 | 2026-05-10 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+      | 9 | 2026-05-11 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+      | 10 | 2026-05-12 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+      | 11 | 2026-05-13 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+      | 12 | 2026-05-14 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+      | 13 | 2026-05-15 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+      | 14 | 2026-05-16 | _tbd_ | _tbd_ | _tbd_ | _tbd_ | _operator entry_ |
+
+      ### Day 1 raw query output (2026-05-03)
+
+      ```
+      $ kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
+          -o jsonpath='{range .items[0].status.containerStatuses[?(@.name=="vk-local")]}restartCount={.restartCount}{"\n"}lastReason={.lastState.terminated.reason}{"\n"}{end}'
+      restartCount=0
+      lastReason=
+
+      $ kubectl -n secure-agent-pod get pod -l app=secure-agent-pod \
+          -o jsonpath='{.items[0].spec.containers[?(@.name=="vk-local")].resources.limits.memory}'
+      8Gi
+
+      $ # vibekanban_max_executions / queued / active (via vmsingle, instant)
+      vibekanban_max_executions{...,pod="secure-agent-pod-f89b886c5-48pgn"} = 4
+      vibekanban_queued_executions{...} = 0
+      vibekanban_active_executions{...} = 2
+
+      $ # quantile_over_time(0.99, container_memory_working_set_bytes[1d]) — current pod, last 24 h
+      cadvisor   = 2_521_899_008  B  ≈ 2.35 GiB
+      resource   = 2_723_295_232  B  ≈ 2.54 GiB
+
+      $ # current instant
+      cadvisor   = 2_244_149_248  B  ≈ 2.09 GiB
+      resource   = 2_250_391_552  B  ≈ 2.10 GiB
+      ```
+
+      The "p99 over 24 h" series above includes the brief overlap with the previous pod (`secure-agent-pod-67cddc9d8-xlsz4`, image `3fdae2b7`) and the older `6bc54b47f6-nx82m` (image `3e3e5a2d`) before it; from Day 2 onwards the same query restricted to `pod="secure-agent-pod-f89b886c5-48pgn"` will give a clean Phase-4-image-only number.
+
+      > **Decision (Task 2) is blocked until 2026-05-17.** Outcomes (a)/(b)/(c) require the full 14-row table; do not promote this PR's Day 1 reading to a decision rationale on its own.
 state:
-  steps: {}
+  steps:
+    P7.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null
     note: null

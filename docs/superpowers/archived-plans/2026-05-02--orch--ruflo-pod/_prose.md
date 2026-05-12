@@ -262,6 +262,8 @@
 
 ### Task 4: Run `/update-readme`
 
+- P5.T4.S1: Run the skill. Verify:
+
 ### Task 5: Sync runbook
 
 - P5.T5.S1: Run `/sync-runbook`. This plan introduces two manual-operation blocks (Infisical bootstrap in Phase 2 Task 1, Authentik outpost assignment in Phase 3 Task 3). The skill picks them up and merges into `docs/runbooks/manual-operations.yaml`.
