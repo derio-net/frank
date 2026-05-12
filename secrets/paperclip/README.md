@@ -21,7 +21,7 @@ ssh-keygen -t ed25519 -f ~/.ssh/paperclip -C "operator@paperclip"
 # 2. Build a Secret manifest
 kubectl create secret generic paperclip-shell-ssh-keys \
   --namespace=paperclip-system \
-  --from-file=authorized_keys=<(cat ~/.ssh/paperclip.pub) \
+  --from-file=authorized_keys=<(cat ~/.ssh/id_rsa_raspi.pub) \
   --dry-run=client -o yaml > /tmp/paperclip-shell-ssh-keys.yaml
 
 # 3. SOPS-encrypt + commit. `sops --encrypt` resolves recipients from
