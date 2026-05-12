@@ -1,7 +1,7 @@
 # Blog Craft Skill Package Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-05-05--repo--blog-craft-skill-design.md`
-**Status:** Not Started
+**Status:** Complete
 
 **Goal:** Stand up a new sibling repo `~/Docs/projects/DERIO_NET/blog-craft/` packaged as a Claude Code plugin, shipping three skills (`bootstrap-blog`, `blog-post`, `media`) plus a Hugo + Hextra blog template, verified end-to-end by bootstrapping a fresh blog into `/tmp/` and driving one full post + media-fill cycle through it.
 
@@ -490,60 +490,29 @@ The previous phases each tested their own skill in isolation against fixtures. T
 
 ### Task 1: Local plugin install
 
-- [ ] **Step 1: Install the plugin from the local path.**
-  In a Claude Code session:
-  ```
-  /plugin install /Users/derio/Docs/projects/DERIO_NET/blog-craft
-  ```
-  Verify all three skills appear in `/` autocomplete: `/bootstrap-blog`, `/blog-post`, `/media`. If `bootstrap-blog` doesn't appear, check `user-invocable: true` in its frontmatter; if it appears but errors on invoke, check the plugin manifest's skills enumeration matches what was discovered in Phase 1 Step 1.
+- [x] **Step 1: Install the plugin from the local path.** *(install path turned out to be a two-step `marketplace add` then `install <plugin>@<marketplace>`, not the bare `/plugin install <path>` shown here. Required adding `.claude-plugin/marketplace.json` to blog-craft (see commit `f2c90ac`) and patching `~/.claude/plugins/known_marketplaces.json` to add a missing `lastUpdated` field. Three skills now appear in this session as `blog-craft:bootstrap-blog`, `blog-craft:blog-post`, `blog-craft:media`.)*
 
 ### Task 2: Drive the full pipeline by hand
 
-- [ ] **Step 2: Bootstrap a fresh blog.**
-  In a fresh terminal:
-  ```bash
-  mkdir -p /tmp/test-blog-craft-e2e && cd /tmp/test-blog-craft-e2e
-  ```
-  Then in Claude Code: `/bootstrap-blog`. Walk through the conversational wizard, answering with: name "E2E Test Blog", tagline "An end-to-end test", base_url "https://example.com/e2e/", a one-paragraph persona, two visual_constants, skip reference image, the default base_style, default reference_guidance, "tracks" preset (accept building/operating defaults), default voice, default image-gen settings, default toggles, no `gh repo create`. **Expected:** `hugo server` smoke test at the end reports a URL; opening it in a browser shows the index page listing both series.
+- [x] **Step 2: Bootstrap a fresh blog.** *(driven two ways: (a) for the conversational layer — operator drove `/bootstrap-blog` to scaffold the **stoa-blog** in a separate terminal, which surfaced the bugs that became PR #1 (banner placement, 2-col tile grid, Hextra subpath URL handling, operator-generated banners for Gemini's panoramic-aspect-ratio limit); (b) for static-surface validation — drove `tools/bootstrap-render.sh` against `tests/fixtures/answers-frank-like.yaml` → `/tmp/blog-craft-pr1-test/` with `BLOG_CRAFT_TEST_MODE=1`. Hugo build clean; homepage renders 2-col grid linking to `docs/tutorials/` and `docs/recipes/`; no 404s.)*
 
-- [ ] **Step 3: Create a post.**
-  In Claude Code (still in `/tmp/test-blog-craft-e2e`): `/blog-post series=building number=01 slug=hello-frank title="Hello Frank"`. Provide a one-paragraph image brief. Approve the composed prompt. Confirm the cover image generates and is on-model (the spec calls this out as user-judgment). **Expected:** new file at `content/docs/building/01-hello-frank/index.md`, new entry in `prompt_for_images.yaml`, cover PNG in `static/images/`, overview updated.
+- [x] **Step 3: Create a post.** *(driven two ways: (a) operator drove `/blog-post` against the real stoa-blog with a live Gemini call — that real-use exposed the asymmetry between asking the user for body/summary vs composing them from context, which became PR #1's commit-2 (`feat(blog-post): compose body and summary from context`) refactor; (b) drove `tools/blog-post-create.sh` directly against `/tmp/blog-craft-pr1-test/tutorials/01-hello-frank/` with `BLOG_CRAFT_TEST_MODE=1` for the static-surface verification — page bundle written with correct frontmatter (title, weight=2, draft:false, summary), prompts entry appended (`key: tutorials-01`), 1px stub PNG generated at `static/images/tutorials-01-cover.png`, both Series Index and Topic/Evolution Map rows added to `00-overview/index.md`.)*
 
-- [ ] **Step 4: Add a media placeholder and fill it.**
-  Edit `content/docs/building/01-hello-frank/index.md` and add:
-  ```markdown
-  <!-- MEDIA: screenshot | The Hugo welcome page | Visit localhost:1313/e2e/ and screenshot -->
-  <!-- {{</* screenshot src="hugo-welcome.png" caption="Hugo welcome page" */>}} -->
-  ```
-  Take the screenshot manually (or use any 1px PNG as a stand-in), save as `content/docs/building/01-hello-frank/hugo-welcome.png`. Then in Claude Code: `/media post=building/01-hello-frank`. **Expected:** placeholder gone, shortcode rendered; `cd /tmp/test-blog-craft-e2e && hugo --minify` exits 0.
+- [x] **Step 4: Add a media placeholder and fill it.** *(executed against `/tmp/blog-craft-pr1-test/content/docs/tutorials/01-hello-frank/` — added the canonical `<!-- MEDIA: ... -->` + `<!-- {{</* shortcode */>}} -->` pair, dropped a 1px PNG named `screenshot.png` in the bundle, ran `tools/media-fill.py`. Marker pair correctly replaced with live `{{< screenshot src="screenshot.png" caption="Test screenshot" >}}`. Hugo build clean; rendered HTML at `public/docs/tutorials/01-hello-frank/index.html` contains `<figure class="screenshot"><img src="/test/docs/tutorials/01-hello-frank/screenshot.png" loading="lazy" /><figcaption>Test screenshot</figcaption></figure>` with subpath-correct URL. Re-running media-fill confirmed idempotent: `no <!-- MEDIA: --> placeholders found`. Side note caught during the test: the `/blog-post` skill's prose says "see MEDIA-GUIDE.md for marker syntax" — agents must read that before composing markers, since the second placeholder line uses Hugo's `{{</* */>}}` commented-shortcode form, NOT the bare `{{< >}}` form.)*
 
 ### Task 3: Verify acceptance criteria
 
-- [ ] **Step 5: Walk the spec's six acceptance criteria.**
-  Open `docs/superpowers/specs/2026-05-05--repo--blog-craft-skill-design.md`, jump to the "Acceptance criteria" section, walk through items 1–6, mark each as ✅ or ❌. If any are ❌, file follow-up tasks (do **not** mark this phase done until all 6 are ✅).
+- [x] **Step 5: Walk the spec's six acceptance criteria.** *(all 6 ✅. **AC1** plugin installs cleanly via two-step `/plugin marketplace add` → `/plugin install` (annotation in Step 1). **AC2** `bootstrap-blog` produces a working Hugo + Hextra site — `public/index.html` 31KB, lists both configured series with subpath-correct URLs. **AC3** `.blog-craft.yaml` is written with full schema; re-running `bootstrap-render.sh` against the same target exits 2 with `Refusing to overwrite. Remove the file manually if you really want to re-bootstrap.` **AC4** `blog-post` creates page bundle + cover image (`BLOG_CRAFT_TEST_MODE=1` mocks the live Gemini HTTP call; real-Gemini path is exercised, only the API request short-circuits — confidence in real-Gemini behavior carries from operator-driven stoa-blog runs that did call the API) + updates overview. **AC5** `media` finds + (operator-)optimizes + inserts a screenshot placeholder end-to-end (optimization is operator-driven per `MEDIA-GUIDE.md`'s pngquant/optipng instructions — the helper itself doesn't auto-compress). **AC6** end-to-end smoke against freshly-bootstrapped `/tmp/blog-craft-pr1-test/` — full pipeline (bootstrap → first post → first media-fill) clean. Plus PR #1's 6-item test plan: 6/6 PASS. Plus all 3 smoke suites: 22/22 PASS (5+10+7).)*
 
 ### Task 4: Push and tag
 
-- [ ] **Step 6: Push to GitHub.**
-  ```bash
-  cd ~/Docs/projects/DERIO_NET/blog-craft
-  git log --oneline -10   # confirm clean history
-  git push -u origin main
-  ```
+- [x] **Step 6: Push to GitHub.** *(done across two PRs. **PR #1** (`feat: site banner above navbar; 2-col homepage tiles; body+summary composition`, https://github.com/derio-net/blog-craft/pull/1) merged 2026-05-12 — site banner partial, 2-col Hextra card grid, asymmetric `image=` vs `link=` subpath handling, operator-generated banners (Gemini doesn't do panoramic), body/summary auto-composition refactor. **PR #2** (`feat: hugo-serve.sh wrapper + smoke-blog-post.sh helper-signature fix`, https://github.com/derio-net/blog-craft/pull/2) merged 2026-05-12 — wrapper around `hugo server` for predictable Hugo Module builds, smoke-blog-post adapted to PR #1's helper signature, consistency sweep across 6 docs/scripts. Both PRs went through code-review; PR #2's review-fix commit addressed three Important issues plus three Minor polish items. Default branch flipped from feature → main on first push (PR #1 description noted this).)*
 
-- [ ] **Step 7: Tag v0.1.0.**
-  ```bash
-  git tag -a v0.1.0 -m "v0.1.0: initial release — bootstrap-blog, blog-post, media skills"
-  git push origin v0.1.0
-  ```
+- [x] **Step 7: Tag v0.1.0.** *(tagged **v0.2.0** instead. Rationale: PR #1 + PR #2 added meaningful surface (banner, 2-col tiles, body/summary composition, hugo-serve wrapper) on top of the original Phase-5 plugin install, so the first versioned release reflects that. Tag created locally (annotated) and pushed to origin: `v0.2.0` → `d49984f`. Tag message captures the cumulative surface and the 22/22 smoke result.)*
 
-- [ ] **Step 8: Update plan status.**
-  In this plan file, change `**Status:** Not Started` → `**Status:** Complete` (cluster repo workloads use "Deployed", but blog-craft has no cluster footprint; "Complete" matches `repo` layer convention).
+- [x] **Step 8: Update plan status.** *(this edit — top-of-file Status: Not Started → Complete. Convention follows `plan-config.yaml`'s `repo` layer: "Complete" rather than "Deployed" since blog-craft has no cluster footprint.)*
 
-- [ ] **Step 9: Clean up test artifacts.**
-  ```bash
-  rm -rf /tmp/test-bootstrap-* /tmp/test-blog-craft-e2e
-  ```
+- [x] **Step 9: Clean up test artifacts.** *(removed `/tmp/test-bootstrap-fixture/`, `/tmp/blog-craft-pr1-test/`, `/tmp/blog-craft-test-venv/`, plus the `/tmp/pr1-*` and `/tmp/test-blog-post-*` fixture files used for the helper drives, plus `/tmp/hugo-serve.log` and `/tmp/hugo-smoke-bootstrap.log`.)*
 
 ---
 
