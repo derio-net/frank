@@ -329,94 +329,94 @@ state:
       ticked_at: null
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:00:55+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:00:57+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:00:58+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:00+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:01+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T4.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:03+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T4.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:05+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T4.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:06+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T5.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:08+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T5.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:09+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T5.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:11+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T5.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:13+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T6.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:14+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T6.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:16+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T6.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:17+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T6.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:19+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T7.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:20+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T7.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:22+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T7.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:23+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T8.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:25+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T8.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:26+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
     P3.T8.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:28+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
   completion:
-    at: null
-    note: null
+    at: '2026-05-13T11:01:31+00:00'
+    note: phase tasks superseded by rework-1; substrate reused, direction inverted
     observed_prs: []

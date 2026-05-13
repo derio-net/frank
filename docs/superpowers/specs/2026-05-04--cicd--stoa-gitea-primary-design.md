@@ -1,14 +1,116 @@
-# CI/CD: Stoa Org Gitea-Primary — Design
+# CI/CD: Stoa Org GitHub-Primary (was Gitea-Primary) — Design
 
-**Date:** 2026-05-04
-**Status:** Design
+**Date:** 2026-05-04 (original design); inverted 2026-05-13
+**Status:** Design — direction inverted; active design is the GitHub-primary sections below
 **Layer:** cicd (19) — extension
 
-## Overview
+> **READ THIS FIRST.** This spec was authored on 2026-05-04 with a Gitea-primary, GitHub-backup direction. On 2026-05-13 the direction was inverted to GitHub-primary, Gitea-as-CI-replica (see `## Architectural Constraint` and `## Direction Inversion` sections immediately below). The original Gitea-primary content is preserved verbatim from `## Goals` onward as historical context for the original design's investigation work (e.g. "Why not Gitea push-mirror"). The **active** architecture, sync model, and pipelines are described in `## Active Architecture (2026-05-13)`, `## Active Sync Model (2026-05-13)`, and `## Active Pipelines (2026-05-13)` further down. Where the active sections supersede an original section, a pointer is left in place.
+
+## Overview (original)
 
 Onboard the `agentic-stoa` org's repos onto Frank's existing CI/CD platform (Gitea + Tekton + Zot from layer 19) with a **Gitea-primary, GitHub-backup** sync model. Two repos in scope today: `hum` and `content-factory`. The pattern is reusable for any future repo in the org.
 
 This is the **inverse direction** of how `derio-net/frank` itself uses Gitea. `frank` is a public infra repo: GitHub-primary, Gitea pull-mirrors as a CI cache. `agentic-stoa/*` repos are private business-side code: Gitea-primary, GitHub push-mirrors as offsite backup. Both directions live on the same Gitea/Tekton stack — only the per-repo mirror configuration differs.
+
+## Architectural Constraint: Paperclip AI requires GitHub-primary
+
+Discovered 2026-05-13 during execution of Phase 3 of the original plan: **Paperclip AI does not support any non-GitHub git remote for repository management.** Agents driven by Paperclip can only open PRs against GitHub repos, comment on GitHub PRs, and read GitHub issues. This invalidates the original design's premise that `agentic-stoa` repos could live Gitea-primary and offer a meaningful workflow to Paperclip-driven agents — those agents would have no UX for the PR cycle they are supposed to drive.
+
+The constraint forces direction inversion: GitHub becomes the source of truth and the PR surface; Gitea becomes a CI replica that runs Tekton on PR-head commits and reports status back to the GitHub PR. The same Gitea/Tekton substrate is reused, but the data flow reverses.
+
+## Direction Inversion (2026-05-13)
+
+The original plan (`docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary/`) drove Phases 0–2 to completion (org + bot + Gitea repos created on Gitea side; per-repo CI Pipeline manifests + the Gitea-listener triggers committed; the github-backup-sync Pipeline shipped). Phase 3 (migration of `hum` + `content-factory`) was partially done — the operator had successfully mirror-pushed `hum`, `content-factory`, and `stoa-blog` from GitHub into Gitea — when the Paperclip constraint surfaced.
+
+After the inversion the mirror-cloned Gitea-side state remains useful: it is now the **initial state of Gitea as a replica**. The substrate (org, bot, repos, CI-pipeline manifests, Gitea-listener Triggers, ESO-loaded GitHub PAT Secret) is largely reusable; the pieces that flow the wrong way (`github-backup-sync` Pipeline, the `agentic-stoa-backup` Trigger and TriggerTemplate, the Phase-3 Gitea branch-protection step) get scrapped.
+
+Active design follows in `## Active Architecture (2026-05-13)` below. The original `## Architecture`, `## Sync Model`, and `### Shared github-backup-sync Pipeline` sections are kept verbatim for context — see `## Original Architecture`, `## Original Sync Model`, and `### Original Shared github-backup-sync Pipeline` (renamed from the un-prefixed forms) further down.
+
+The active implementation lives in the rework plan: `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/`.
+
+## Active Architecture (2026-05-13)
+
+```
+                       github.com/agentic-stoa/<repo>             ◄── source of truth
+                          │                ▲
+                          │ PR webhook     │ POST /repos/.../statuses/<sha>
+                          ▼                │ (github-status task, Commit Status API)
+              ┌───────── Hop ──────────┐   │
+              │ Caddy (public TLS)     │   │
+              │ webhooks.hop.derio.net │   │
+              │ HMAC validates body    │   │
+              │ → Tailscale mesh       │   │
+              └────────────┬───────────┘   │
+                           │               │
+              ┌─────────── Frank cluster ──────────────────────────┐
+              │            │                                       │
+              │            ▼                                       │
+              │   el-github-listener.tekton-pipelines.svc:8080    │
+              │            │                                       │
+              │            ├──► PR-event Trigger (per-repo)        │
+              │            │      → github-pull-sync PipelineRun:  │
+              │            │         git fetch <PR-head> from GH   │
+              │            │         git push refs/pull/N/head     │
+              │            │         into Gitea                    │
+              │            │      → fires the per-repo CI Pipeline │
+              │            │         on the Gitea-replica ref:     │
+              │            │         clone (Gitea) → tests →       │
+              │            │         finally: github-status (GH)   │
+              │            │                  + gitea-status (GH)  │
+              │            │                                       │
+              │            └──► push-to-main Trigger               │
+              │                   → github-pull-sync (main):       │
+              │                      pulls main from GH → Gitea    │
+              │                                                    │
+              └────────────────────────────────────────────────────┘
+
+         Gitea: agentic-stoa/<repo> on 192.168.55.209:2222
+         (replica — only Tekton ever pushes to it; operator
+          and Paperclip never push to Gitea directly)
+```
+
+## Active Sync Model (2026-05-13)
+
+**Direction:** GitHub → Gitea, one-way (replica). Operator and Paperclip push to GitHub only. Tekton pulls into Gitea on (a) GitHub PR webhook events, (b) GitHub `push` to main webhook events. Tekton CI runs on the Gitea-side ref. Status posts back to the GitHub PR via the Commit Status API.
+
+**Webhook ingress.** GitHub webhooks reach Frank via Caddy on Hop:
+- A new Caddy route on Hop listens at `webhooks.hop.derio.net` (Cloudflare DNS A-record → Hop public IP) over HTTPS.
+- Caddy validates the GitHub `X-Hub-Signature-256` HMAC against a shared secret before forwarding (rejects unsigned/wrong-sig at L7 with 403).
+- Validated requests are reverse-proxied over the Tailscale mesh to `el-github-listener.tekton-pipelines.svc.cluster.local:8080` on Frank.
+- Frank's `github-listener` EventListener is internal-only (ClusterIP); never publicly reachable.
+
+**Two pipeline shapes:**
+
+1. **`github-pull-sync`.** Triggered by PR webhook (`pull_request` opened/synchronized) AND by push-to-main webhook. Parameters: `repo`, `ref`, `sha`. Body:
+   - Fetch `<sha>` from GitHub using `STOA_GITHUB_TOKEN` (PAT scope: `repo`).
+   - Push as `refs/pull/<N>/head` (PR case) or `refs/heads/main` (push-to-main case) into Gitea, using `stoa-bot` SSH key.
+   - For the PR case, fire the per-repo CI Pipeline against the new Gitea ref.
+
+2. **Per-repo CI** (`hum-ci`, `content-factory-ci`, `stoa-blog-ci`). Trigger source flips from `gitea-listener` (original) to `github-listener` (rework). Body unchanged in concept (clone → test → build → push artifacts → ...). The `finally` block adds two status posts:
+   - **`github-status`** — `POST repos/agentic-stoa/<repo>/statuses/<sha>` with state `success`/`failure`/`error`/`pending`, context `tekton/ci`, target_url to the Tekton dashboard PipelineRun page. Mandatory; failure of this post fails the pipeline. PAT scope: `repo:status` (a subset of `repo`; the same `STOA_GITHUB_TOKEN` works).
+   - **`gitea-status`** — same payload shape, posted to Gitea. Best-effort; failure does not fail the pipeline. Provides Gitea-side visibility for operators browsing Gitea PRs.
+
+**Anti-drift guarantee for dual-status.** Both posts run inside the pipeline's single `finally` block, sharing one outcome computation. They use the same `context` string (`tekton/ci`) and refer to the same commit SHA (git's content-addressing means GitHub and Gitea hold byte-identical commits for the same content). If one API is transient-down, GitHub's post is the mandatory one — Gitea-side may show a stale state until the next CI run, but GitHub stays correct.
+
+**Why not Gitea built-in mirror (polling)?** PR refs (`refs/pull/N/head`) aren't part of Gitea's mirror set, and polling adds 5+ minutes of latency to PR feedback. Webhook-driven pull-sync is the correct shape for PR-driven CI.
+
+**Tag/branch deletion.** Out-of-scope until a use case appears. Pull-sync only ever creates/updates refs; never deletes.
+
+## Active Pipelines (2026-05-13)
+
+Replaces `## Pipelines` below. The Per-Repo CI Pipeline shape is preserved from the original spec; only the trigger source and the status-post step change. The shared `github-backup-sync` Pipeline is removed (Gitea→GitHub direction is no longer needed); a new shared `github-pull-sync` Pipeline takes its place but flows the opposite direction.
+
+See the rework plan's phase content for manifest-level detail.
+
+## Active Org & Auth (2026-05-13)
+
+Mostly unchanged from original `## Org & Auth`. Key deltas:
+
+- **`stoa-bot` Gitea user**: still exists, still has write access to `agentic-stoa/*` on Gitea. But its push role is now used by Tekton's `github-pull-sync` pipeline pushing INTO Gitea (not by `github-backup-sync` pushing OUT to GitHub). Operator and Paperclip never use `stoa-bot` for git operations now — those go to GitHub via the operator's normal credentials.
+- **`STOA_GITHUB_MIRROR_TOKEN` Infisical key**: the name is now slightly misleading (no longer "mirror to GitHub"). Renaming to `STOA_GITHUB_TOKEN` is a Phase-0 task in the rework. PAT scope tightens — original needed `repo` (write) for backup-push; rework needs `repo` for fetch + `repo:status` for status writes (still satisfied by full `repo` scope; could downgrade later if we split into two PATs).
+- **GitHub webhook secret** (`STOA_GITHUB_WEBHOOK_SECRET`): new Infisical key, shared between GitHub's webhook config and Caddy's HMAC validator on Hop.
+
+## Goals
 
 ## Goals
 
@@ -25,7 +127,9 @@ This is the **inverse direction** of how `derio-net/frank` itself uses Gitea. `f
 - "Future-public" inversion — flipping a repo back to GitHub-primary if it ever goes public is out of scope and will be designed when the first repo flips
 - GitHub-side branch protection — honor system, mirror PAT is the only writer
 
-## Architecture
+## Original Architecture
+
+> **Superseded** by `## Active Architecture (2026-05-13)` above. Kept for context.
 
 ```
             ┌───── Frank cluster ────────────────────────────────────┐
@@ -57,7 +161,9 @@ This is the **inverse direction** of how `derio-net/frank` itself uses Gitea. `f
                              nothing else ever reaches GitHub)
 ```
 
-## Sync Model
+## Original Sync Model
+
+> **Superseded** by `## Active Sync Model (2026-05-13)` above. Kept because the "Why not Gitea native push-mirror" investigation below documents constraints that are still relevant in the active design (Gitea push-mirror is unsuitable in either direction; webhook-driven pipelines are the correct shape).
 
 **Direction:** Gitea → GitHub, one-way. Nothing pulls from GitHub. PRs and issues live exclusively on Gitea (they are not git refs and wouldn't propagate via mirror anyway; acceptable since Gitea state is on Longhorn-backed PVC with R2 backup).
 
@@ -80,7 +186,9 @@ This is more declarative than Gitea's UI-configured push-mirror anyway — the s
 
 **Tag deletion edge case:** the trigger fires on tag *create* (push to `refs/tags/*`); `git push --tags` only adds. If a tag is deleted in Gitea, GitHub keeps it. Acceptable for backup semantics — tags are append-only in practice. If we ever need delete-propagation, the pipeline can switch to `git push --mirror --prune github main 'refs/tags/*'` (with the trigger filter still gating non-main branches).
 
-## Org & Auth
+## Original Org & Auth
+
+> **Superseded in deltas** by `## Active Org & Auth (2026-05-13)` above. The bulk of this section's `agentic-stoa` org and `stoa-bot` user setup remains accurate; only the direction-of-use of those credentials has flipped.
 
 **Gitea org:** Create `agentic-stoa` (matches GitHub org name for symmetry). Owner: the operator's Authentik-mapped Gitea account.
 
@@ -101,7 +209,9 @@ This means `stoa-bot` can push branches and open PRs freely, but landing code on
 
 **GitHub-side credentials:** A single GitHub fine-grained PAT scoped to the `agentic-stoa` org with `Contents: read+write` and `Metadata: read` on every `agentic-stoa/*` repo (selection updated when new repos are added). Stored in Infisical as `STOA_GITHUB_MIRROR_TOKEN`. Used by the Tekton `github-backup-sync` pipeline (mounted via ExternalSecret). **TTL: GitHub fine-grained PATs cap at 1 year** — this is the rotation pain point. MVP accepts annual manual rotation; an automated rotator (Tekton CronJob that uses GitHub's PAT-rotate API and updates the Infisical secret) is captured in Open Items.
 
-## Pipelines
+## Original Pipelines
+
+> **Per-Repo CI** is preserved in concept (CI body unchanged); trigger source flips and a `github-status` step is added in the rework. **Shared github-backup-sync** is scrapped in the rework (direction inverted; see `## Active Pipelines (2026-05-13)` above).
 
 Two kinds of pipelines run for `agentic-stoa/*` repos. Both reuse the existing `el-gitea-listener` EventListener and `gitea-push-binding` TriggerBinding from layer 19 — no new EventListener.
 
@@ -128,7 +238,7 @@ Fires on every push and PR event for the repo. Reports commit status back to the
 
 The repo-scoped Trigger pattern (a `Trigger` resource bound to the existing EventListener that filters on `body.repository.full_name == "agentic-stoa/<repo>"`) lets each repo evolve its CI pipeline independently without touching the shared EventListener.
 
-### Shared `github-backup-sync` Pipeline
+### Original Shared `github-backup-sync` Pipeline (scrapped in rework)
 
 One pipeline definition, used by every `agentic-stoa/*` repo. Replaces what Gitea's native push-mirror would have done.
 
@@ -164,7 +274,9 @@ Both new entries get ExternalSecret CRs (with `remoteRef.key` set to the absolut
 - `STOA_GITEA_TOKEN` projected into the Paperclip namespace where agent pods consume it
 - `STOA_GITHUB_MIRROR_TOKEN` projected into `tekton-pipelines` namespace as Secret `stoa-github-mirror`, mounted into the `github-backup-sync` pipeline as a `secretEnv`. Single source of truth, no UI paste.
 
-## Migration Sequence (per repo, runs for both `hum` and `content-factory` in parallel)
+## Original Migration Sequence (per repo, runs for both `hum` and `content-factory` in parallel)
+
+> **Superseded** by the rework's Phase 6 (GitHub webhook bootstrap) + Phase 7 (end-to-end smoke). Phase 3 of the original plan partially executed this sequence (mirror-clone of `hum`, `content-factory`, `stoa-blog` from GitHub to Gitea), and that mirror-cloned state is now the **initial state of Gitea as a replica** in the rework. The remaining Phase 3 steps (Gitea webhook setup, branch protection on Gitea, etc.) are scrapped.
 
 **Prerequisite (operator):** push all outstanding local work to current GitHub remotes. The migration starts with `git clone --mirror` from GitHub, so anything not on GitHub at that moment is lost.
 
@@ -236,7 +348,9 @@ Both new entries get ExternalSecret CRs (with `remoteRef.key` set to the absolut
    - Update `apps/homepage/manifests/configmap-services.yaml` Gitea tile description if user-visible changes are warranted (probably not — Gitea tile already exists).
    - Capture in `frank-gotchas.md` any quirks observed during the migration (e.g., webhook delivery oddities, Trigger CEL gotchas).
 
-## Onboarding a New Repo (Runbook)
+## Original Onboarding a New Repo (Runbook) — pending rewrite
+
+> **Superseded** by a new runbook to be authored as part of the rework's Phase 6/7 work — the "onboard a new repo" flow under GitHub-primary is materially different (no Gitea-side branch protection, no Gitea-as-PR-surface; instead: register GitHub webhook, ensure Gitea-replica repo exists, optionally seed via mirror-clone).
 
 Once the migration pattern is in place, adding a new repo to `agentic-stoa` is mostly mechanical:
 
@@ -252,7 +366,9 @@ The shared `github-backup-sync` pipeline picks up the new repo automatically —
 
 This is documented as a `# manual-operation` block so it lives in `docs/runbooks/manual-operations.yaml` alongside other one-shot procedures.
 
-## Disaster Recovery
+## Original Disaster Recovery — semantics flip in rework
+
+> **Semantics inverted** by the rework. Original DR assumed Gitea is source of truth and GitHub is offsite backup. In the active design, GitHub is source of truth (managed by GitHub); Gitea-as-replica is recoverable by re-running `github-pull-sync` against each repo, which is essentially what bootstrap does — so the DR plan for Gitea collapses to "re-pull from GitHub." The original section below documents the prior-direction DR assumptions.
 
 **Gitea down (Longhorn volume failure or pc-1 outage):**
 - GitHub holds the latest `main` per repo. Code recovery is intact for `main`; non-`main` branches are lost (acceptable — they're WIP).
@@ -436,4 +552,5 @@ status: pending
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Stoa Org Gitea-Primary Implementation Plan | derio-net/frank | `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary/` | layer 19 (deployed) |
+| Stoa Org Gitea-Primary Implementation Plan | derio-net/frank | `docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary/` | layer 19 (deployed) |
+| Stoa Org Gitea-Primary Implementation Plan — **Rework 1: GitHub-primary** | derio-net/frank | `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/` | parent plan above |

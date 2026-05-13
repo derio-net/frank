@@ -1,5 +1,7 @@
 # Stoa Org Gitea-Primary Implementation Plan
 
+> **SUPERSEDED 2026-05-13.** Direction inverted to GitHub-primary. Active work moved to sibling rework plan: `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/`. See spec sections `## Architectural Constraint: Paperclip AI requires GitHub-primary` and `## Direction Inversion (2026-05-13)` in `docs/superpowers/specs/2026-05-04--cicd--stoa-gitea-primary-design.md` for context. Phases 0–2 of this plan completed and produced substrate (Gitea org, stoa-bot, per-repo CI Pipeline manifests, gitea-listener Triggers, ESO/PAT Secret) reused by the rework. Phase 3 partially executed (mirror-clone of `hum`, `content-factory`, `stoa-blog` — that initial Gitea-side state is now the **initial state of Gitea as a replica** under the active design). Remaining Phase 3 + Phase 4 steps are marked `-` (skipped, with note) below; this plan's status will be `Complete` once that's done.
+
 ## Phase 0: Prerequisites — secrets, org, bot account
 
 ### Task 1: Push outstanding local WIP to GitHub

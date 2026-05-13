@@ -78,10 +78,10 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-13T11:01:29+00:00'
+      note: 'superseded by rework-1: direction inverted to GitHub-primary on 2026-05-13'
   completion:
-    at: null
-    note: null
+    at: '2026-05-13T11:01:32+00:00'
+    note: phase tasks superseded by rework-1; substrate reused, direction inverted
     observed_prs: []
