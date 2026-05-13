@@ -34,52 +34,16 @@ spec:
         - ref: gitea-push-binding
       template:
         ref: gitea-pipeline-template
-    - name: agentic-stoa-hum-ci
-      interceptors:
-        - ref:
-            name: "cel"
-          params:
-            - name: "filter"
-              value: >-
-                header.match('X-Gitea-Event', 'push') &&
-                body.repository.full_name == 'agentic-stoa/hum'
-            - name: "overlays"
-              value:
-                - key: branch_name
-                  expression: "body.ref.split('/')[2]"
-        - ref:
-            name: "cel"
-          params:
-            - name: "filter"
-              value: >-
-                extensions.branch_name != ''
-      bindings:
-        - ref: gitea-push-binding
-      template:
-        ref: hum-ci-template
-    - name: agentic-stoa-content-factory-ci
-      interceptors:
-        - ref:
-            name: "cel"
-          params:
-            - name: "filter"
-              value: >-
-                header.match('X-Gitea-Event', 'push') &&
-                body.repository.full_name == 'agentic-stoa/content-factory'
-            - name: "overlays"
-              value:
-                - key: branch_name
-                  expression: "body.ref.split('/')[2]"
-        - ref:
-            name: "cel"
-          params:
-            - name: "filter"
-              value: >-
-                extensions.branch_name != ''
-      bindings:
-        - ref: gitea-push-binding
-      template:
-        ref: content-factory-ci-template
+    # NOTE 2026-05-13 (rework Phase 4): the per-repo agentic-stoa CI triggers
+    # (agentic-stoa-hum-ci, agentic-stoa-content-factory-ci) moved out of this
+    # gitea-listener to the new github-listener (apps/tekton/triggers/
+    # eventlistener-github.yaml). Their inline TriggerTemplates (hum-ci-
+    # template, content-factory-ci-template) below are also removed —
+    # eventlistener-github.yaml ships replacement github-aware versions
+    # (hum-ci-github-template etc) that map github webhook payload fields
+    # to the new pipeline param shape (github-repo, gitea-repo, sha, ref-to).
+    # Frank's own gitea-push trigger (above, with the !startsWith filter)
+    # stays here unchanged.
   resources:
     kubernetesResource:
       spec:
@@ -87,89 +51,7 @@ spec:
           spec:
             nodeSelector:
               kubernetes.io/hostname: pc-1
----
-apiVersion: triggers.tekton.dev/v1beta1
-kind: TriggerTemplate
-metadata:
-  name: hum-ci-template
-  namespace: tekton-pipelines
-spec:
-  # `branch` is supplied by gitea-push-binding but unused here — the hum-ci
-  # Pipeline takes only repo-url/revision/repo-full-name. Tekton silently
-  # accepts the extra binding param; we just don't declare it.
-  params:
-    - name: repo-url
-    - name: revision
-    - name: repo-full-name
-  resourcetemplates:
-    - apiVersion: tekton.dev/v1
-      kind: PipelineRun
-      metadata:
-        generateName: hum-ci-
-        namespace: tekton-pipelines
-      spec:
-        pipelineRef:
-          name: hum-ci
-        params:
-          - name: repo-url
-            value: $(tt.params.repo-url)
-          - name: revision
-            value: $(tt.params.revision)
-          - name: repo-full-name
-            value: $(tt.params.repo-full-name)
-        taskRunTemplate:
-          podTemplate:
-            securityContext:
-              fsGroup: 65534
-        workspaces:
-          - name: shared-workspace
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                storageClassName: longhorn-cicd
-                resources:
-                  requests:
-                    storage: 2Gi
----
-apiVersion: triggers.tekton.dev/v1beta1
-kind: TriggerTemplate
-metadata:
-  name: content-factory-ci-template
-  namespace: tekton-pipelines
-spec:
-  # `branch` is supplied by gitea-push-binding but unused here — see hum-ci-template.
-  params:
-    - name: repo-url
-    - name: revision
-    - name: repo-full-name
-  resourcetemplates:
-    - apiVersion: tekton.dev/v1
-      kind: PipelineRun
-      metadata:
-        generateName: content-factory-ci-
-        namespace: tekton-pipelines
-      spec:
-        pipelineRef:
-          name: content-factory-ci
-        params:
-          - name: repo-url
-            value: $(tt.params.repo-url)
-          - name: revision
-            value: $(tt.params.revision)
-          - name: repo-full-name
-            value: $(tt.params.repo-full-name)
-        taskRunTemplate:
-          podTemplate:
-            securityContext:
-              fsGroup: 65534
-        workspaces:
-          - name: shared-workspace
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                storageClassName: longhorn-cicd
-                resources:
-                  requests:
-                    storage: 2Gi
+# Per-repo agentic-stoa TriggerTemplates (hum-ci-template, content-factory-ci-
+# template) were removed 2026-05-13 (rework Phase 4); replacement github-aware
+# versions ship in eventlistener-github.yaml. See the NOTE in the gitea-listener
+# triggers block above for context.

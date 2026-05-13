@@ -5,26 +5,109 @@ metadata:
   namespace: tekton-pipelines
 spec:
   serviceAccountName: tekton-triggers-sa
-  # Triggers are populated in Phase 4 (per-repo CI: hum-ci, content-factory-ci,
-  # stoa-blog-ci) and Phase 5 (push-to-main → github-pull-sync) of the
-  # stoa-gitea-primary-rework-1 plan. Phase 2 ships the EventListener with
-  # a single placeholder trigger that filters on a marker header nothing
-  # real sends — Tekton EL schema rejects empty `triggers: []`, so we need
-  # at least one. The LB Service below pins to 192.168.55.223 (matches
-  # Caddy reverse-proxy target from Phase 1) and gives the controller live
-  # pod targets.
   triggers:
-    - name: placeholder-until-phase-4
+    # ──────────────────────────────────────────────────────────────────
+    # Per-repo CI triggers (Phase 4) — fire on PR opened/synchronized/
+    # reopened. Each trigger calls the matching <repo>-ci Pipeline,
+    # which inlines pull-and-push (GitHub→Gitea) + repo-specific test
+    # body + dual-status finally (github + gitea).
+    # ──────────────────────────────────────────────────────────────────
+    - name: agentic-stoa-hum-pr
       interceptors:
-        - name: "cel"
-          ref:
-            name: "cel"
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
           params:
-            - name: "filter"
-              value: "header.match('X-Frank-Placeholder', 'reject')"
-      bindings: []
+            - name: secretRef
+              value:
+                secretName: stoa-github-webhook-secret
+                secretKey: secret
+            - name: eventTypes
+              value: ["pull_request"]
+        - name: cel
+          ref: {name: cel}
+          params:
+            - name: filter
+              value: >-
+                body.repository.full_name == 'agentic-stoa/hum' &&
+                body.action in ['opened', 'synchronize', 'reopened']
+            - name: overlays
+              value:
+                - {key: sha, expression: "body.pull_request.head.sha"}
+                - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
+      bindings:
+        - name: github-repo
+          value: "agentic-stoa/hum"
+        - name: gitea-repo
+          value: "agentic-stoa/hum"
+        - name: sha
+          value: $(extensions.sha)
+        - name: ref-to
+          value: $(extensions.ref_to)
       template:
-        ref: hum-ci-template   # any existing template; will never fire because the cel filter excludes everything
+        ref: hum-ci-github-template
+
+    - name: agentic-stoa-content-factory-pr
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - name: secretRef
+              value:
+                secretName: stoa-github-webhook-secret
+                secretKey: secret
+            - name: eventTypes
+              value: ["pull_request"]
+        - name: cel
+          ref: {name: cel}
+          params:
+            - name: filter
+              value: >-
+                body.repository.full_name == 'agentic-stoa/content-factory' &&
+                body.action in ['opened', 'synchronize', 'reopened']
+            - name: overlays
+              value:
+                - {key: sha, expression: "body.pull_request.head.sha"}
+                - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
+      bindings:
+        - {name: github-repo, value: "agentic-stoa/content-factory"}
+        - {name: gitea-repo,  value: "agentic-stoa/content-factory"}
+        - {name: sha,         value: $(extensions.sha)}
+        - {name: ref-to,      value: $(extensions.ref_to)}
+      template:
+        ref: content-factory-ci-github-template
+
+    - name: agentic-stoa-stoa-blog-pr
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - name: secretRef
+              value:
+                secretName: stoa-github-webhook-secret
+                secretKey: secret
+            - name: eventTypes
+              value: ["pull_request"]
+        - name: cel
+          ref: {name: cel}
+          params:
+            - name: filter
+              value: >-
+                body.repository.full_name == 'agentic-stoa/stoa-blog' &&
+                body.action in ['opened', 'synchronize', 'reopened']
+            - name: overlays
+              value:
+                - {key: sha, expression: "body.pull_request.head.sha"}
+                - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
+      bindings:
+        - {name: github-repo, value: "agentic-stoa/stoa-blog"}
+        - {name: gitea-repo,  value: "agentic-stoa/stoa-blog"}
+        - {name: sha,         value: $(extensions.sha)}
+        - {name: ref-to,      value: $(extensions.ref_to)}
+      template:
+        ref: stoa-blog-ci-github-template
+
+    # Push-to-main triggers populated in Phase 5 (single agentic-stoa-main-sync
+    # trigger that fires github-pull-sync for any of the 3 repos; ref-to=main).
   resources:
     kubernetesResource:
       spec:
@@ -39,15 +122,135 @@ metadata:
   name: el-github-listener-lb
   namespace: tekton-pipelines
   annotations:
-    # Cilium L2 IPAM — pin to 192.168.55.223 (claimed in
-    # .claude/rules/frank-infrastructure.md row "GitHub webhook receiver").
     lbipam.cilium.io/ips: "192.168.55.223"
 spec:
   type: LoadBalancer
   selector:
     eventlistener: github-listener
   ports:
-    - name: http
-      port: 8080
-      targetPort: 8080
-      protocol: TCP
+    - {name: http, port: 8080, targetPort: 8080, protocol: TCP}
+---
+# ────────────────────────────────────────────────────────────────────────
+# TriggerTemplates for the per-repo CI Pipelines (Phase 4).
+# Each scaffolds a PipelineRun with shared-workspace (PVC) + ssh-creds
+# (Secret bound to stoa-bot-ssh-key for the pull-and-push step).
+# ────────────────────────────────────────────────────────────────────────
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: hum-ci-github-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: github-repo
+    - name: gitea-repo
+    - name: sha
+    - name: ref-to
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: hum-ci-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef:
+          name: hum-ci
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo,  value: $(tt.params.gitea-repo)}
+          - {name: sha,         value: $(tt.params.sha)}
+          - {name: ref-to,      value: $(tt.params.ref-to)}
+        taskRunTemplate:
+          podTemplate:
+            securityContext:
+              fsGroup: 65534
+            nodeSelector:
+              kubernetes.io/hostname: pc-1
+        workspaces:
+          - name: shared-workspace
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: longhorn-cicd
+                resources:
+                  requests: {storage: 5Gi}
+          - name: ssh-creds
+            secret:
+              secretName: stoa-bot-ssh-key
+              defaultMode: 0600
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: content-factory-ci-github-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: github-repo
+    - name: gitea-repo
+    - name: sha
+    - name: ref-to
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: content-factory-ci-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef: {name: content-factory-ci}
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo,  value: $(tt.params.gitea-repo)}
+          - {name: sha,         value: $(tt.params.sha)}
+          - {name: ref-to,      value: $(tt.params.ref-to)}
+        taskRunTemplate:
+          podTemplate:
+            securityContext: {fsGroup: 65534}
+            nodeSelector: {kubernetes.io/hostname: pc-1}
+        workspaces:
+          - name: shared-workspace
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: longhorn-cicd
+                resources: {requests: {storage: 5Gi}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: stoa-blog-ci-github-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: github-repo
+    - name: gitea-repo
+    - name: sha
+    - name: ref-to
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: stoa-blog-ci-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef: {name: stoa-blog-ci}
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo,  value: $(tt.params.gitea-repo)}
+          - {name: sha,         value: $(tt.params.sha)}
+          - {name: ref-to,      value: $(tt.params.ref-to)}
+        taskRunTemplate:
+          podTemplate:
+            securityContext: {fsGroup: 65534}
+            nodeSelector: {kubernetes.io/hostname: pc-1}
+        workspaces:
+          - name: shared-workspace
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: longhorn-cicd
+                resources: {requests: {storage: 5Gi}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}

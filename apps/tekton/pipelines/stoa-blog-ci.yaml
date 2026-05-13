@@ -1,11 +1,14 @@
-# CI for agentic-stoa/content-factory: pull from GitHub → push to Gitea →
-# pip install + pytest → dual-status to both GitHub and Gitea.
+# CI for agentic-stoa/stoa-blog: pull from GitHub → push to Gitea → Hugo build
+# smoke check → dual-status to both GitHub and Gitea.
 #
-# Reworked 2026-05-13 — see hum-ci.yaml header for design context.
+# stoa-blog is a Hugo blog (the operator's writing surface). CI here is a
+# minimal smoke — `hugo --minify --quiet` exits 0 if the site builds cleanly.
+# Operator should evolve this body as the blog acquires real CI needs
+# (linkcheck, image optimization, broken-shortcode detection, etc.).
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: content-factory-ci
+  name: stoa-blog-ci
   namespace: tekton-pipelines
 spec:
   params:
@@ -70,7 +73,7 @@ spec:
         - {name: gitea-repo,  value: "$(params.gitea-repo)"}
         - {name: sha,         value: "$(params.sha)"}
         - {name: ref-to,      value: "$(params.ref-to)"}
-    - name: test
+    - name: hugo-build
       runAfter: [pull-and-push]
       workspaces:
         - {name: source, workspace: shared-workspace}
@@ -78,8 +81,10 @@ spec:
         workspaces:
           - {name: source}
         steps:
-          - name: pytest
-            image: python:3.13-slim
+          - name: hugo-build
+            # hugomods/hugo includes Hugo Extended (sass support) — match what
+            # frank's blog deployment uses.
+            image: hugomods/hugo:exts-0.161.0
             workingDir: $(workspaces.source.path)/repo
             securityContext:
               allowPrivilegeEscalation: false
@@ -89,20 +94,18 @@ spec:
               seccompProfile: {type: RuntimeDefault}
             env:
               - {name: HOME, value: /tekton/home}
-              - {name: PIP_CACHE_DIR, value: /tekton/home/.pip-cache}
-              - {name: PIP_DISABLE_PIP_VERSION_CHECK, value: "1"}
-              - {name: PYTHONDONTWRITEBYTECODE, value: "1"}
             computeResources:
               requests: {cpu: 500m, memory: 512Mi}
               limits:   {memory: 2Gi}
             script: |
               #!/bin/sh
               set -eu
-              python -m venv /tekton/home/venv
-              . /tekton/home/venv/bin/activate
-              if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-              if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-              pytest -v
+              # Hextra Hugo Module — fetch deps (uses Go mod cache under HOME)
+              if [ -f go.mod ]; then hugo mod get -u; fi
+              # Build the site; --minify catches more rendering errors than --quiet
+              hugo --minify --quiet
+              # Sanity: at least one page generated
+              [ "$(find public -name '*.html' | wc -l)" -gt 0 ] && echo "OK ($(find public -name '*.html' | wc -l) pages)"
   finally:
     - name: github-status-success
       when: [{input: $(tasks.status), operator: in, values: ["Succeeded", "Completed"]}]
@@ -111,7 +114,7 @@ spec:
         - {name: repo-full-name, value: $(params.github-repo)}
         - {name: revision,       value: $(params.sha)}
         - {name: state,          value: "success"}
-        - {name: description,    value: "All checks passed"}
+        - {name: description,    value: "Hugo build clean"}
         - {name: context,        value: "tekton/ci"}
     - name: github-status-failure
       when: [{input: $(tasks.status), operator: notin, values: ["Succeeded", "Completed"]}]
@@ -120,7 +123,7 @@ spec:
         - {name: repo-full-name, value: $(params.github-repo)}
         - {name: revision,       value: $(params.sha)}
         - {name: state,          value: "failure"}
-        - {name: description,    value: "CI failed"}
+        - {name: description,    value: "Hugo build failed"}
         - {name: context,        value: "tekton/ci"}
     - name: gitea-status-success
       when: [{input: $(tasks.status), operator: in, values: ["Succeeded", "Completed"]}]
@@ -129,7 +132,7 @@ spec:
         - {name: repo-full-name, value: $(params.gitea-repo)}
         - {name: revision,       value: $(params.sha)}
         - {name: state,          value: "success"}
-        - {name: description,    value: "All checks passed"}
+        - {name: description,    value: "Hugo build clean"}
         - {name: context,        value: "tekton/ci"}
     - name: gitea-status-failure
       when: [{input: $(tasks.status), operator: notin, values: ["Succeeded", "Completed"]}]
@@ -138,5 +141,5 @@ spec:
         - {name: repo-full-name, value: $(params.gitea-repo)}
         - {name: revision,       value: $(params.sha)}
         - {name: state,          value: "failure"}
-        - {name: description,    value: "CI failed"}
+        - {name: description,    value: "Hugo build failed"}
         - {name: context,        value: "tekton/ci"}

@@ -1,4 +1,18 @@
-# CI for agentic-stoa/hum: npm install + typecheck + test across workspaces.
+# CI for agentic-stoa/hum: pull from GitHub → push to Gitea → npm install +
+# typecheck + test across workspaces → dual-status to both GitHub and Gitea.
+#
+# Reworked 2026-05-13 to GitHub-primary direction (stoa-gitea-primary-rework-1).
+# Triggered by github-listener on PR events; replaces the previous gitea-
+# listener-driven shape that cloned directly from Gitea.
+#
+# Anti-drift dual-status:
+#   - Both github-status and gitea-status posts run inside this single finally
+#     block (one outcome computation; can't disagree on success/failure).
+#   - Both use the same `tekton/ci` context string.
+#   - Both reference the same SHA (git's content-addressing means GitHub and
+#     Gitea hold byte-identical commits for the same content).
+#   - github-status is mandatory (failure of the post fails the run);
+#     gitea-status is best-effort (failure-tolerant).
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -6,28 +20,85 @@ metadata:
   namespace: tekton-pipelines
 spec:
   params:
-    - name: repo-url
+    - name: github-repo
       type: string
-    - name: revision
+      description: "GitHub repo full name (e.g. agentic-stoa/hum)"
+    - name: gitea-repo
       type: string
-    - name: repo-full-name
+      description: "Gitea repo full name (typically same as github-repo)"
+    - name: sha
       type: string
+      description: "Commit SHA to fetch from GitHub and run CI on"
+    - name: ref-to
+      type: string
+      description: "Destination ref on Gitea (e.g. refs/heads/sync-pr-12 for PR-time runs)"
   workspaces:
     - name: shared-workspace
+    - name: ssh-creds
   tasks:
-    - name: clone
-      taskRef:
-        name: git-clone
-      params:
-        - name: url
-          value: $(params.repo-url)
-        - name: revision
-          value: $(params.revision)
+    - name: pull-and-push
       workspaces:
-        - name: output
+        - name: source
           workspace: shared-workspace
+        - name: ssh
+          workspace: ssh-creds
+      taskSpec:
+        params:
+          - {name: github-repo, type: string}
+          - {name: gitea-repo,  type: string}
+          - {name: sha,         type: string}
+          - {name: ref-to,      type: string}
+        workspaces:
+          - name: source
+          - name: ssh
+            mountPath: /workspace/ssh-creds
+        steps:
+          - name: pull-and-push
+            image: alpine/git:2.47.2
+            computeResources:
+              requests: {cpu: 100m, memory: 128Mi}
+              limits:   {memory: 1Gi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65534
+              capabilities: {drop: ["ALL"]}
+              seccompProfile: {type: RuntimeDefault}
+            env:
+              - name: HOME
+                value: /tekton/home
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef: {name: stoa-github-mirror, key: token}
+            script: |
+              #!/bin/sh
+              set -eu
+              mkdir -p "$HOME/.ssh"
+              cp /workspace/ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
+              chmod 600 "$HOME/.ssh/id_rsa"
+              git config --global --add safe.directory '*'
+
+              cd "$(workspaces.source.path)"
+              # Clone into ./repo — the test task uses this same subdir.
+              git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/$(params.github-repo).git" repo
+              cd repo
+
+              REPO_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $NF}')"
+              ORG_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $1}')"
+              git remote remove gitea 2>/dev/null || true
+              git remote add gitea "ssh://git@192.168.55.209:2222/${ORG_NAME}/${REPO_NAME}.git"
+
+              echo "Pushing $(params.sha) → gitea:$(params.ref-to)"
+              GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR" \
+                git push --force gitea "$(params.sha):$(params.ref-to)"
+              echo "OK"
+      params:
+        - {name: github-repo, value: "$(params.github-repo)"}
+        - {name: gitea-repo,  value: "$(params.gitea-repo)"}
+        - {name: sha,         value: "$(params.sha)"}
+        - {name: ref-to,      value: "$(params.ref-to)"}
     - name: test
-      runAfter: ["clone"]
+      runAfter: [pull-and-push]
       workspaces:
         - name: source
           workspace: shared-workspace
@@ -37,29 +108,23 @@ spec:
         steps:
           - name: npm-test
             image: node:22-alpine
-            workingDir: $(workspaces.source.path)
+            workingDir: $(workspaces.source.path)/repo
             securityContext:
               allowPrivilegeEscalation: false
               runAsNonRoot: true
-              # Match git-clone (UID 65534) to avoid cross-UID handoff on the
-              # shared RWO PVC. fsGroup (set on the TriggerTemplate's PodTemplate)
-              # also = 65534, so writes by either step are group-readable.
+              # Match pull-and-push (UID 65534) to avoid cross-UID handoff on
+              # the shared RWO PVC. fsGroup (set on the TriggerTemplate's
+              # PodTemplate) also = 65534, so writes by either step are
+              # group-readable.
               runAsUser: 65534
-              capabilities:
-                drop: ["ALL"]
-              seccompProfile:
-                type: RuntimeDefault
+              capabilities: {drop: ["ALL"]}
+              seccompProfile: {type: RuntimeDefault}
             env:
-              - name: HOME
-                value: /tekton/home
-              - name: npm_config_cache
-                value: /tekton/home/.npm
+              - {name: HOME, value: /tekton/home}
+              - {name: npm_config_cache, value: /tekton/home/.npm}
             computeResources:
-              requests:
-                cpu: 500m
-                memory: 1Gi
-              limits:
-                memory: 2Gi
+              requests: {cpu: 500m, memory: 1Gi}
+              limits:   {memory: 2Gi}
             script: |
               #!/bin/sh
               # `set -eu` doesn't propagate into && / || chains, so use explicit
@@ -68,24 +133,14 @@ spec:
               # branch and the run continues green. `npm pkg get` exits 0 even
               # for missing keys, returning literal "{}", so check the value.
               set -eu
-              has_script() {
-                [ "$(npm pkg get "scripts.$1" 2>/dev/null)" != "{}" ]
-              }
+              has_script() { [ "$(npm pkg get "scripts.$1" 2>/dev/null)" != "{}" ]; }
               run_in() {
                 d="$1"
                 echo "=== $d ==="
                 cd "$d"
                 if [ -f package-lock.json ]; then npm ci; else npm install; fi
-                if has_script typecheck; then
-                  npm run typecheck
-                else
-                  echo "no typecheck script in $d"
-                fi
-                if has_script test; then
-                  npm test
-                else
-                  echo "no test script in $d"
-                fi
+                if has_script typecheck; then npm run typecheck; else echo "no typecheck script in $d"; fi
+                if has_script test; then npm test; else echo "no test script in $d"; fi
                 cd - >/dev/null
               }
               run_in .
@@ -93,39 +148,54 @@ spec:
                 [ -f "$ws/package.json" ] && run_in "$ws"
               done
   finally:
-    - name: report-success
+    # github-status — MANDATORY post (fails the run if the API call fails).
+    - name: github-status-success
       when:
         - input: $(tasks.status)
           operator: in
           values: ["Succeeded", "Completed"]
-      taskRef:
-        name: gitea-status
+      taskRef: {name: github-status}
       params:
-        - name: repo-full-name
-          value: $(params.repo-full-name)
-        - name: revision
-          value: $(params.revision)
-        - name: state
-          value: "success"
-        - name: description
-          value: "All checks passed"
-        - name: context
-          value: "tekton/ci"
-    - name: report-failure
+        - {name: repo-full-name, value: $(params.github-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "success"}
+        - {name: description,    value: "All checks passed"}
+        - {name: context,        value: "tekton/ci"}
+    - name: github-status-failure
       when:
         - input: $(tasks.status)
           operator: notin
           values: ["Succeeded", "Completed"]
-      taskRef:
-        name: gitea-status
+      taskRef: {name: github-status}
       params:
-        - name: repo-full-name
-          value: $(params.repo-full-name)
-        - name: revision
-          value: $(params.revision)
-        - name: state
-          value: "failure"
-        - name: description
-          value: "CI failed"
-        - name: context
-          value: "tekton/ci"
+        - {name: repo-full-name, value: $(params.github-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "failure"}
+        - {name: description,    value: "CI failed"}
+        - {name: context,        value: "tekton/ci"}
+    # gitea-status — best-effort secondary (provides Gitea-side visibility for
+    # operators browsing the synthetic PR ref or main on Gitea).
+    - name: gitea-status-success
+      when:
+        - input: $(tasks.status)
+          operator: in
+          values: ["Succeeded", "Completed"]
+      taskRef: {name: gitea-status}
+      params:
+        - {name: repo-full-name, value: $(params.gitea-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "success"}
+        - {name: description,    value: "All checks passed"}
+        - {name: context,        value: "tekton/ci"}
+    - name: gitea-status-failure
+      when:
+        - input: $(tasks.status)
+          operator: notin
+          values: ["Succeeded", "Completed"]
+      taskRef: {name: gitea-status}
+      params:
+        - {name: repo-full-name, value: $(params.gitea-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "failure"}
+        - {name: description,    value: "CI failed"}
+        - {name: context,        value: "tekton/ci"}
