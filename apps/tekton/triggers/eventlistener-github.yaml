@@ -4,7 +4,7 @@ metadata:
   name: github-listener
   namespace: tekton-pipelines
 spec:
-  serviceAccountName: tekton-triggers
+  serviceAccountName: tekton-triggers-sa
   # Triggers are populated in Phase 4 (per-repo CI: hum-ci, content-factory-ci,
   # stoa-blog-ci) and Phase 5 (push-to-main → github-pull-sync) of the
   # stoa-gitea-primary-rework-1 plan. Phase 2 ships the EventListener with
