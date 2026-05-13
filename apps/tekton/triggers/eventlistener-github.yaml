@@ -106,8 +106,40 @@ spec:
       template:
         ref: stoa-blog-ci-github-template
 
-    # Push-to-main triggers populated in Phase 5 (single agentic-stoa-main-sync
-    # trigger that fires github-pull-sync for any of the 3 repos; ref-to=main).
+    # ──────────────────────────────────────────────────────────────────
+    # Push-to-main trigger (Phase 5) — single trigger for all 3 repos.
+    # Fires github-pull-sync (just the pull-and-push, no CI) so Gitea's
+    # main branch catches up to GitHub's after a PR is merged.
+    # ──────────────────────────────────────────────────────────────────
+    - name: agentic-stoa-main-sync
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - name: secretRef
+              value:
+                secretName: stoa-github-webhook-secret
+                secretKey: secret
+            - name: eventTypes
+              value: ["push"]
+        - name: cel
+          ref: {name: cel}
+          params:
+            - name: filter
+              value: >-
+                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog']
+                && body.ref == 'refs/heads/main'
+            - name: overlays
+              value:
+                - {key: repo_full_name, expression: "body.repository.full_name"}
+                - {key: sha, expression: "body.after"}
+      bindings:
+        - {name: github-repo, value: $(extensions.repo_full_name)}
+        - {name: gitea-repo,  value: $(extensions.repo_full_name)}
+        - {name: sha,         value: $(extensions.sha)}
+        - {name: ref-to,      value: "refs/heads/main"}
+      template:
+        ref: agentic-stoa-main-sync-template
   resources:
     kubernetesResource:
       spec:
@@ -214,6 +246,44 @@ spec:
                 accessModes: [ReadWriteOnce]
                 storageClassName: longhorn-cicd
                 resources: {requests: {storage: 5Gi}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: agentic-stoa-main-sync-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: github-repo
+    - name: gitea-repo
+    - name: sha
+    - name: ref-to
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: agentic-stoa-main-sync-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef: {name: github-pull-sync}
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo,  value: $(tt.params.gitea-repo)}
+          - {name: sha,         value: $(tt.params.sha)}
+          - {name: ref-to,      value: $(tt.params.ref-to)}
+        taskRunTemplate:
+          podTemplate:
+            securityContext: {fsGroup: 65534}
+            nodeSelector: {kubernetes.io/hostname: pc-1}
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: longhorn-cicd
+                resources: {requests: {storage: 2Gi}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
 ---
