@@ -10,112 +10,177 @@ tasks:
   title: Cloudflare DNS A record for `webhooks.hop.derio.net`
   steps:
   - id: P1.T1.S1
-    text: "Add A record `webhooks.hop.derio.net` \u2192 Hop public IP\n\n\n```yaml\n# manual-operation\nid: webhooks-hop-cloudflare-dns\nlayer: cicd\napp: tekton\nplan: docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1.md\nwhen: Before Caddy on Hop is updated to serve webhooks.hop.derio.net.\nwhy_manual: Cloudflare DNS is operator-only (no IaC integration in this repo for Cloudflare).\ncommands: |\n  # Cloudflare UI: derio.net \u2192 DNS \u2192 Records \u2192 Add\n  # Type: A, Name: webhooks.hop, IPv4: $HOP_IP (from .env_hop), Proxy: DNS only (gray cloud)\n  # OR via flarectl / cloudflare CLI if installed\nverify: |\n  - \"dig +short webhooks.hop.derio.net returns Hop's public IP (no Cloudflare proxy IP)\"\nstatus: pending\n```"
-  - id: P1.T1.S2
-    text: 'Verify resolution
+    text: |-
+      Add A record `webhooks.hop.derio.net` → Hop public IP
 
+
+      ```yaml
+      # manual-operation
+      id: webhooks-hop-cloudflare-dns
+      layer: cicd
+      app: tekton
+      plan: docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1.md
+      when: Before Caddy on Hop is updated to serve webhooks.hop.derio.net.
+      why_manual: Cloudflare DNS is operator-only (no IaC integration in this repo for Cloudflare).
+      commands: |
+        # Cloudflare UI: derio.net → DNS → Records → Add
+        # Type: A, Name: webhooks.hop, IPv4: $HOP_IP (from .env_hop), Proxy: DNS only (gray cloud)
+        # OR via flarectl / cloudflare CLI if installed
+      verify: |
+        - "dig +short webhooks.hop.derio.net returns Hop's public IP (no Cloudflare proxy IP)"
+      status: pending
+      ```
+  - id: P1.T1.S2
+    text: |-
+      Verify resolution
 
 
       ```bash
-
       source .env_hop
-
       dig +short webhooks.hop.derio.net
-
       # Expect: $HOP_IP (the Hetzner public IP)
-
-      ```'
+      ```
 - number: 2
   title: Caddy route on Hop
   steps:
   - id: P1.T2.S1
-    text: "Add the route to Hop's Caddyfile\n\n\nEdit `clusters/hop/apps/caddy/manifests/configmap.yaml` (or wherever Caddy's config lives in the Hop repo path \u2014 check `clusters/hop/apps/caddy/`):\n\n```caddyfile\nwebhooks.hop.derio.net {\n    # Caddy terminates TLS via Cloudflare DNS-01 (matches the existing pattern\n    # for *.hop.derio.net hosts).\n    tls {\n        dns cloudflare {env.CLOUDFLARE_API_TOKEN}\n    }\n\n    # Forward to Frank's github-listener over the Tailscale mesh route.\n    # The Tekton `github` interceptor on the EventListener validates the\n    # X-Hub-Signature-256 HMAC server-side; we don't HMAC-validate at Caddy\n    # because Caddy doesn't have a native HMAC validator and the interceptor\n    # is the canonical Tekton path. (Caddy still terminates TLS + does the\n    # Tailscale-mesh hop, so the public-facing surface is HTTPS-only.)\n    reverse_proxy http://el-github-listener.tekton-pipelines.svc.cluster.local:8080 {\n        # Pass through GitHub's signature/event/delivery headers verbatim.\n        header_up X-Hub-Signature-256 {http.request.header.X-Hub-Signature-256}\n        header_up X-GitHub-Event       {http.request.header.X-GitHub-Event}\n        header_up X-GitHub-Delivery    {http.request.header.X-GitHub-Delivery}\n        header_up X-Hub-Signature      {http.request.header.X-Hub-Signature}\n    }\n}\n```\n\nNote: the in-cluster service DNS (`el-github-listener.tekton-pipelines.svc.cluster.local:8080`) is reachable from Hop because the Tailscale subnet router (`raspi-vlan10` per `hop-infrastructure.md`) advertises Frank's `192.168.55.0/24`. Caddy resolves through Hop's DNS which has Headscale's `extra_records` for `*.cluster.derio.net` \u2014 but the in-cluster service DNS is a different name space; this WILL need either an `extra_records` entry mapping `el-github-listener.tekton-pipelines.svc.cluster.local` to a routable IP OR the Service exposed via a LoadBalancer IP that Caddy can reverse-proxy to. Easier shape: expose the EventListener via Cilium LB and reference `192.168.55.<X>:8080` in Caddy."
-  - id: P1.T2.S2
-    text: "Decide: ClusterIP-via-mesh-DNS vs. LoadBalancer-IP for the EventListener\n\n\nTwo options for how Caddy reaches the Frank-side EventListener:\n\n**(a) Expose el-github-listener as a Cilium L2 LoadBalancer** (e.g. 192.168.55.X) and reverse-proxy Caddy to that IP directly. Pro: simpler DNS (an IP is an IP); con: consumes one more LB IP from Frank's pool.\n\n**(b) Add `el-github-listener.tekton-pipelines.svc.cluster.local` to Headscale's `extra_records`** mapping to a routable in-cluster IP. Pro: no extra LB IP; con: Tailscale `extra_records` is for cluster.derio.net, not svc.cluster.local \u2014 this would be unusual.\n\nDefault: **(a)** \u2014 expose via LoadBalancer. Update Phase 2 Task 1 to set the EventListener's Service type accordingly. Keep this step as a decision-marker."
-  - id: P1.T2.S3
-    text: 'Commit + Hop ArgoCD sync
+    text: |-
+      Add the route to Hop's Caddyfile
 
 
+      Edit `clusters/hop/apps/caddy/manifests/configmap.yaml` (or wherever Caddy's config lives in the Hop repo path — check `clusters/hop/apps/caddy/`):
 
-      ```bash
+      ```caddyfile
+      webhooks.hop.derio.net {
+          # Caddy terminates TLS via Cloudflare DNS-01 (matches the existing pattern
+          # for *.hop.derio.net hosts).
+          tls {
+              dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+          }
 
-      git add clusters/hop/apps/caddy/
-
-      git commit -m ''feat(cicd): add webhooks.hop.derio.net Caddy route for Frank github-listener (rework Phase 1)''
-
-      git push
-
+          # Forward to Frank's github-listener over the Tailscale mesh route.
+          # The Tekton `github` interceptor on the EventListener validates the
+          # X-Hub-Signature-256 HMAC server-side; we don't HMAC-validate at Caddy
+          # because Caddy doesn't have a native HMAC validator and the interceptor
+          # is the canonical Tekton path. (Caddy still terminates TLS + does the
+          # Tailscale-mesh hop, so the public-facing surface is HTTPS-only.)
+          reverse_proxy http://el-github-listener.tekton-pipelines.svc.cluster.local:8080 {
+              # Pass through GitHub's signature/event/delivery headers verbatim.
+              header_up X-Hub-Signature-256 {http.request.header.X-Hub-Signature-256}
+              header_up X-GitHub-Event       {http.request.header.X-GitHub-Event}
+              header_up X-GitHub-Delivery    {http.request.header.X-GitHub-Delivery}
+              header_up X-Hub-Signature      {http.request.header.X-Hub-Signature}
+          }
+      }
       ```
 
+      Note: the in-cluster service DNS (`el-github-listener.tekton-pipelines.svc.cluster.local:8080`) is reachable from Hop because the Tailscale subnet router (`raspi-vlan10` per `hop-infrastructure.md`) advertises Frank's `192.168.55.0/24`. Caddy resolves through Hop's DNS which has Headscale's `extra_records` for `*.cluster.derio.net` — but the in-cluster service DNS is a different name space; this WILL need either an `extra_records` entry mapping `el-github-listener.tekton-pipelines.svc.cluster.local` to a routable IP OR the Service exposed via a LoadBalancer IP that Caddy can reverse-proxy to. Easier shape: expose the EventListener via Cilium LB and reference `192.168.55.<X>:8080` in Caddy.
+  - id: P1.T2.S2
+    text: |-
+      Decide: ClusterIP-via-mesh-DNS vs. LoadBalancer-IP for the EventListener
 
-      Wait for Hop''s ArgoCD to sync. Verify Caddy reload:
+
+      Two options for how Caddy reaches the Frank-side EventListener:
+
+      **(a) Expose el-github-listener as a Cilium L2 LoadBalancer** (e.g. 192.168.55.X) and reverse-proxy Caddy to that IP directly. Pro: simpler DNS (an IP is an IP); con: consumes one more LB IP from Frank's pool.
+
+      **(b) Add `el-github-listener.tekton-pipelines.svc.cluster.local` to Headscale's `extra_records`** mapping to a routable in-cluster IP. Pro: no extra LB IP; con: Tailscale `extra_records` is for cluster.derio.net, not svc.cluster.local — this would be unusual.
+
+      Default: **(a)** — expose via LoadBalancer. Update Phase 2 Task 1 to set the EventListener's Service type accordingly. Keep this step as a decision-marker.
+  - id: P1.T2.S3
+    text: |-
+      Commit + Hop ArgoCD sync
 
 
       ```bash
+      git add clusters/hop/apps/caddy/
+      git commit -m 'feat(cicd): add webhooks.hop.derio.net Caddy route for Frank github-listener (rework Phase 1)'
+      git push
+      ```
 
+      Wait for Hop's ArgoCD to sync. Verify Caddy reload:
+
+      ```bash
       source .env_hop
-
-      kubectl logs -n caddy-system deploy/caddy --tail=20 | grep -iE ''reload|webhook''
-
-      # Expect: a ''reloading config'' line and no errors
-
-      ```'
+      kubectl logs -n caddy-system deploy/caddy --tail=20 | grep -iE 'reload|webhook'
+      # Expect: a 'reloading config' line and no errors
+      ```
 - number: 3
   title: ESO ExternalSecret for `STOA_GITHUB_WEBHOOK_SECRET`
   steps:
   - id: P1.T3.S1
-    text: "Add ESO ExternalSecret to load the webhook secret into Frank\n\n\nCreate `apps/tekton/manifests/externalsecret-github-webhook-secret.yaml` (or extend the existing `externalsecret-webhook.yaml`):\n\n```yaml\napiVersion: external-secrets.io/v1beta1\nkind: ExternalSecret\nmetadata:\n  name: stoa-github-webhook-secret\n  namespace: tekton-pipelines\nspec:\n  refreshInterval: 1h\n  secretStoreRef:\n    name: infisical-cluster\n    kind: ClusterSecretStore\n  target:\n    name: stoa-github-webhook-secret\n    creationPolicy: Owner\n  data:\n    - secretKey: secret\n      remoteRef:\n        key: STOA_GITHUB_WEBHOOK_SECRET\n        # path: /agentic-stoa  (verify path matches existing externalsecret-stoa-github-mirror.yaml's pattern)\n```\n\nThis Secret will be consumed by the github-listener EventListener's `github` interceptor in Phase 2."
-  - id: P1.T3.S2
-    text: 'Commit + sync; verify Secret materialized
+    text: |-
+      Add ESO ExternalSecret to load the webhook secret into Frank
 
+
+      Create `apps/tekton/manifests/externalsecret-github-webhook-secret.yaml` (or extend the existing `externalsecret-webhook.yaml`):
+
+      ```yaml
+      apiVersion: external-secrets.io/v1beta1
+      kind: ExternalSecret
+      metadata:
+        name: stoa-github-webhook-secret
+        namespace: tekton-pipelines
+      spec:
+        refreshInterval: 1h
+        secretStoreRef:
+          name: infisical-cluster
+          kind: ClusterSecretStore
+        target:
+          name: stoa-github-webhook-secret
+          creationPolicy: Owner
+        data:
+          - secretKey: secret
+            remoteRef:
+              key: STOA_GITHUB_WEBHOOK_SECRET
+              # path: /agentic-stoa  (verify path matches existing externalsecret-stoa-github-mirror.yaml's pattern)
+      ```
+
+      This Secret will be consumed by the github-listener EventListener's `github` interceptor in Phase 2.
+  - id: P1.T3.S2
+    text: |-
+      Commit + sync; verify Secret materialized
 
 
       ```bash
-
       git add apps/tekton/manifests/externalsecret-github-webhook-secret.yaml
-
-      git commit -m ''feat(cicd): ExternalSecret for STOA_GITHUB_WEBHOOK_SECRET (rework Phase 1)''
-
+      git commit -m 'feat(cicd): ExternalSecret for STOA_GITHUB_WEBHOOK_SECRET (rework Phase 1)'
       git push
-
       # wait for ArgoCD sync...
-
-      kubectl get secret -n tekton-pipelines stoa-github-webhook-secret -o jsonpath=''{.data.secret}'' | base64 -d | wc -c
-
+      kubectl get secret -n tekton-pipelines stoa-github-webhook-secret -o jsonpath='{.data.secret}' | base64 -d | wc -c
       # Expect: 64 (hex string of 32 bytes)
-
-      ```'
+      ```
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:37:59+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:38:00+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:38:02+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:38:04+00:00'
       note: null
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:38:05+00:00'
       note: null
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:38:07+00:00'
       note: null
     P1.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:38:08+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-13T17:38:10+00:00'
     note: null
     observed_prs: []
