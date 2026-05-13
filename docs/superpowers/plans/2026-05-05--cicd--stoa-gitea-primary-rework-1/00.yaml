@@ -1,0 +1,124 @@
+schema_version: 2
+phase:
+  number: 0
+  title: Decommission scrap items + Infisical secret prep
+  tag: agentic
+  depends_on: []
+tasks:
+- number: 1
+  title: Delete the scrap pipeline + triggers
+  steps:
+  - id: P0.T1.S1
+    text: "Delete `apps/tekton/pipelines/github-backup-sync.yaml`\n\n\nThe Gitea\u2192GitHub backup direction no longer exists. With GitHub as source of truth, syncing Gitea state to GitHub would overwrite truth with replica.\n\n```bash\ngit rm apps/tekton/pipelines/github-backup-sync.yaml\n```\n\nVerify nothing else references the pipeline name `github-backup-sync`:\n\n```bash\nrg -l 'github-backup-sync' apps/ docs/superpowers/\n```\n\nExpect: only the file we just removed (now staged for deletion). Anything in `docs/superpowers/specs/...-design.md` is OK \u2014 it's the historical spec."
+  - id: P0.T1.S2
+    text: "Remove the `agentic-stoa-backup` Trigger from `apps/tekton/triggers/eventlistener.yaml`\n\n\nFind the `- name: agentic-stoa-backup` block under `spec.triggers` in `eventlistener.yaml` and delete it (including all its interceptors + bindings + template ref). Do NOT touch the per-repo CI triggers in this file yet \u2014 those move out in Phase 4."
+  - id: P0.T1.S3
+    text: 'Remove the `agentic-stoa-backup-template` TriggerTemplate from `apps/tekton/triggers/triggertemplate.yaml`
+
+
+
+      Find the TriggerTemplate named `agentic-stoa-backup-template` and delete the whole document (the `---` separator before/after stays consistent).'
+  - id: P0.T1.S4
+    text: 'Commit + ArgoCD sync + verify clean state
+
+
+
+      ```bash
+
+      git add apps/tekton/
+
+      git commit -m ''feat(cicd): scrap github-backup-sync pipeline + agentic-stoa-backup trigger (rework Phase 0)''
+
+      git push origin main
+
+      ```
+
+
+      Wait for ArgoCD to sync the `tekton` Application. Verify:
+
+
+      ```bash
+
+      kubectl get pipeline -n tekton-pipelines github-backup-sync 2>&1   # expect: not found
+
+      kubectl get triggertemplate -n tekton-pipelines agentic-stoa-backup-template 2>&1   # expect: not found
+
+      kubectl get el -n tekton-pipelines gitea-listener -o yaml | grep -c ''agentic-stoa-backup''   # expect: 0
+
+      ```'
+- number: 2
+  title: Verify GitHub PAT scope
+  steps:
+  - id: P0.T2.S1
+    text: "Confirm `STOA_GITHUB_MIRROR_TOKEN` PAT has `repo` scope (read for fetch + write for status)\n\n\nGitHub UI \u2192 Settings \u2192 Developer settings \u2192 Personal access tokens (classic) \u2192 find the PAT used by `STOA_GITHUB_MIRROR_TOKEN`. Verify checkbox: `repo` (full control of private repositories) is checked.\n\nIf scope is narrower (e.g. `public_repo`), regenerate with `repo` scope and rotate the value in Infisical (`/agentic-stoa/STOA_GITHUB_MIRROR_TOKEN`). Wait for ESO to re-sync the cluster Secret (~30s)."
+  - id: P0.T2.S2
+    text: "Smoke-test the PAT can both fetch and write status\n\n\nFrom a workstation with the PAT exported as `$PAT`:\n\n```bash\n# Fetch test (read)\ncurl -sf -H \"Authorization: token $PAT\" https://api.github.com/repos/agentic-stoa/hum | jq -r '.full_name'\n# Expect: agentic-stoa/hum\n\n# Status write test (use any existing commit SHA)\nSHA=$(curl -sf -H \"Authorization: token $PAT\" https://api.github.com/repos/agentic-stoa/hum/branches/main | jq -r '.commit.sha')\ncurl -sf -X POST -H \"Authorization: token $PAT\" \\\n  -H 'Content-Type: application/json' \\\n  https://api.github.com/repos/agentic-stoa/hum/statuses/$SHA \\\n  -d '{\"state\":\"success\",\"context\":\"tekton/ci-precheck\",\"description\":\"PAT scope test\"}' | jq -r '.context'\n# Expect: tekton/ci-precheck (status posted to the existing commit)\n```\n\nIf the second curl returns 403/404, the PAT scope is insufficient \u2014 regenerate with full `repo` scope."
+- number: 3
+  title: Add `STOA_GITHUB_WEBHOOK_SECRET` to Infisical
+  steps:
+  - id: P0.T3.S1
+    text: "Generate a high-entropy secret + add to Infisical\n\n\n```yaml\n# manual-operation\nid: stoa-github-webhook-secret-bootstrap\nlayer: cicd\napp: tekton\nplan: docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1.md\nwhen: After parent plan archived; before Phase 1 (Caddy on Hop) renders the secret in Caddy config.\nwhy_manual: Infisical's UI/CLI is the operator-only control plane for new secret keys. Cluster-side ESO can read but not create.\ncommands: |\n  # Generate the secret\n  SECRET=$(openssl rand -hex 32)\n  echo \"$SECRET\"   # write down or paste into Infisical\n  # In Infisical UI: project /agentic-stoa \u2192 Secrets \u2192 Add \u2192 Key=STOA_GITHUB_WEBHOOK_SECRET, Value=$SECRET\n  # Or via CLI: infisical secrets set STOA_GITHUB_WEBHOOK_SECRET \"$SECRET\" --projectId=<id> --env=prod\nverify: |\n  - \"infisical secrets get STOA_GITHUB_WEBHOOK_SECRET --projectId=<id> --env=prod returns the value\"\n  - \"used identically in GitHub webhook config (Phase 6) and Caddy config (Phase 1)\"\nstatus: pending\n```"
+  - id: P0.T3.S2
+    text: 'Verify ESO can pull the new key (after Phase 1 lands the ExternalSecret)
+
+
+
+      Deferred until Phase 1 Task 3 creates the ESO ExternalSecret consuming this key. Just confirm the Infisical-side write here.
+
+
+      ```bash
+
+      # From a workstation with infisical CLI:
+
+      infisical secrets get STOA_GITHUB_WEBHOOK_SECRET --projectId=<id> --env=prod
+
+      # Expect: the value you set in S1
+
+      ```'
+- number: 4
+  title: "Decision: rename `STOA_GITHUB_MIRROR_TOKEN` \u2192 `STOA_GITHUB_TOKEN`?"
+  steps:
+  - id: P0.T4.S1
+    text: "Decide: rename now, defer, or skip\n\n\nThe Infisical key name `STOA_GITHUB_MIRROR_TOKEN` was named for its original Gitea\u2192GitHub mirror role. With direction inverted, the name is slightly misleading (no longer 'mirror', now 'general GH access for fetch + status write'). Three choices:\n\n- **(a) Rename now** \u2014 add new key `STOA_GITHUB_TOKEN` to Infisical with same value, update the ExternalSecret in `apps/tekton/manifests/externalsecret-stoa-github-mirror.yaml` to project under the new name, delete old key. Adds a small chunk of work to Phase 0; cleanest naming going forward.\n- **(b) Defer to a follow-up** \u2014 leave the name as-is for the rework; rename in a separate small PR after the rework lands. Keeps Phase 0 scope tight.\n- **(c) Skip** \u2014 leave the name; document the inversion in a code comment.\n\nDefault: **(b) defer to follow-up.** Capture as a TODO in the operator's working notes; don't block this phase on a cosmetic rename."
+state:
+  steps:
+    P0.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P0.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

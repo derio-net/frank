@@ -1,0 +1,49 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Bootstrap GitHub webhooks on each of the 3 repos
+  tag: manual
+  depends_on:
+  - 5
+tasks:
+- number: 1
+  title: Add webhook on `agentic-stoa/hum`
+  steps:
+  - id: P6.T1.S1
+    text: "Configure the webhook via GitHub UI\n\n\n```yaml\n# manual-operation\nid: github-webhook-stoa-hum\nlayer: cicd\napp: tekton\nplan: docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1.md\nwhen: After Phase 5 lands the main-sync Trigger; before Phase 7 smoke.\nwhy_manual: GitHub webhook config is per-repo UI work; no IaC for this in our setup.\ncommands: |\n  # GitHub UI: agentic-stoa/hum \u2192 Settings \u2192 Webhooks \u2192 Add webhook\n  # Payload URL:    https://webhooks.hop.derio.net/\n  # Content type:   application/json\n  # Secret:         <value of STOA_GITHUB_WEBHOOK_SECRET from Infisical>\n  # SSL verify:     enabled\n  # Events:         pull_request, push\n  # Active:         yes\nverify: |\n  - \"GitHub UI \u2192 repo Settings \u2192 Webhooks \u2192 Recent Deliveries shows a 200 from the initial 'ping' event\"\n  - \"kubectl logs -n tekton-pipelines deploy/el-github-listener --tail=20 shows a received event\"\nstatus: pending\n```"
+- number: 2
+  title: Same for `agentic-stoa/content-factory`
+  steps:
+  - id: P6.T2.S1
+    text: 'Configure the webhook via GitHub UI
+
+
+
+      Same procedure as P6.T1.S1; substitute `agentic-stoa/content-factory` for the repo.'
+- number: 3
+  title: Same for `agentic-stoa/stoa-blog`
+  steps:
+  - id: P6.T3.S1
+    text: 'Configure the webhook via GitHub UI
+
+
+
+      Same procedure as P6.T1.S1; substitute `agentic-stoa/stoa-blog` for the repo.'
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

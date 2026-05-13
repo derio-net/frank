@@ -1,0 +1,100 @@
+schema_version: 2
+phase:
+  number: 2
+  title: github-listener EventListener in Frank
+  tag: agentic
+  depends_on:
+  - 1
+tasks:
+- number: 1
+  title: Author the EventListener manifest
+  steps:
+  - id: P2.T1.S1
+    text: "Create `apps/tekton/triggers/eventlistener-github.yaml`\n\n\n```yaml\napiVersion: triggers.tekton.dev/v1beta1\nkind: EventListener\nmetadata:\n  name: github-listener\n  namespace: tekton-pipelines\nspec:\n  serviceAccountName: tekton-triggers\n  triggers:\n    # Per-repo CI triggers populated in Phase 4.\n    # Push-to-main-sync trigger populated in Phase 5.\n    # Phase 2 ships the bare EventListener so the Service exists for Phase 1's\n    # Caddy reverse-proxy target to resolve.\n    []\n  resources:\n    kubernetesResource:\n      spec:\n        template:\n          spec:\n            nodeSelector:\n              kubernetes.io/hostname: pc-1\n```\n\nMatching Service (LoadBalancer per Phase 1 T2.S2 decision):\n\n```yaml\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: el-github-listener-lb\n  namespace: tekton-pipelines\n  annotations:\n    lbipam.cilium.io/ips: \"192.168.55.<NEXT_FREE_IP>\"   # claim from frank-infrastructure.md\nspec:\n  type: LoadBalancer\n  selector:\n    eventlistener: github-listener\n  ports:\n    - name: http\n      port: 8080\n      targetPort: 8080\n```\n\n*Pick `<NEXT_FREE_IP>` by checking `frank-infrastructure.md`'s Services table \u2014 last assigned was 192.168.55.222 (Ruflo Shell); 192.168.55.223 looks free.*"
+  - id: P2.T1.S2
+    text: 'Update `frank-infrastructure.md` with the new LB IP
+
+
+
+      Add a row to `Frank Cluster Services` table in `.claude/rules/frank-infrastructure.md`:
+
+
+      ```
+
+      | GitHub webhook receiver (Tekton) | 192.168.55.223 | Cilium L2 LoadBalancer (port 8080) |
+
+      ```'
+  - id: P2.T1.S3
+    text: 'Commit + sync; verify EventListener Ready + Service has LB IP
+
+
+
+      ```bash
+
+      git add apps/tekton/triggers/eventlistener-github.yaml .claude/rules/frank-infrastructure.md
+
+      git commit -m ''feat(cicd): github-listener EventListener (rework Phase 2)''
+
+      git push
+
+      # wait for ArgoCD sync...
+
+      kubectl get el -n tekton-pipelines github-listener   # expect: ADDRESS = http://el-...:8080, AVAILABLE = True
+
+      kubectl get svc -n tekton-pipelines el-github-listener-lb -o wide   # expect: EXTERNAL-IP = 192.168.55.223
+
+      ```'
+- number: 2
+  title: Update Phase 1's Caddy reverse-proxy target to the LB IP
+  steps:
+  - id: P2.T2.S1
+    text: "Adjust Caddy's reverse_proxy URL from svc.cluster.local to the LB IP\n\n\nEdit `clusters/hop/apps/caddy/manifests/configmap.yaml` \u2014 change the reverse_proxy line:\n\n```diff\n- reverse_proxy http://el-github-listener.tekton-pipelines.svc.cluster.local:8080 {\n+ reverse_proxy http://192.168.55.223:8080 {\n```\n\nCommit + Hop ArgoCD sync. (The svc.cluster.local form would have failed because Hop has no in-cluster DNS for Frank.)"
+- number: 3
+  title: Smoke-test reachability end-to-end
+  steps:
+  - id: P2.T3.S1
+    text: "Curl the public webhook URL with an invalid signature; expect rejection\n\n\n```bash\n# From any internet host:\ncurl -i -X POST https://webhooks.hop.derio.net/ \\\n  -H 'X-GitHub-Event: ping' \\\n  -H 'X-Hub-Signature-256: sha256=invalid' \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"zen\":\"smoke test\"}'\n```\n\nExpected: HTTP 4xx (the EventListener has no triggers yet, OR the github interceptor \u2014 added in Phase 4 \u2014 rejects the bad signature). Either way, the path GitHub\u2192Caddy\u2192Tailscale\u2192Frank works."
+  - id: P2.T3.S2
+    text: 'Verify the path inside Caddy logs
+
+
+
+      ```bash
+
+      source .env_hop
+
+      kubectl logs -n caddy-system deploy/caddy --tail=20 | grep webhooks.hop
+
+      # Expect: a log line for the POST to webhooks.hop.derio.net
+
+      ```'
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

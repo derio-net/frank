@@ -1,0 +1,108 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Wire per-repo CI to GitHub triggers + dual-status `finally`
+  tag: agentic
+  depends_on:
+  - 2
+  - 3
+tasks:
+- number: 1
+  title: Rework `hum-ci` and `content-factory-ci` Pipelines
+  steps:
+  - id: P4.T1.S1
+    text: "Edit `apps/tekton/pipelines/hum-ci.yaml` \u2014 add dual-status `finally`\n\n\nAppend a `finally` block to the Pipeline spec:\n\n```yaml\nspec:\n  # ... existing tasks ...\n  finally:\n    - name: github-status\n      taskRef:\n        name: github-status\n      params:\n        - name: repo\n          value: agentic-stoa/hum\n        - name: sha\n          value: $(params.sha)   # propagated from trigger\n        - name: state\n          value: \"$(tasks.status)\"   # NOTE: 'Succeeded' / 'Failed' \u2014 but github-status param expects success/failure/etc; map via a helper task or expression\n        - name: context\n          value: tekton/ci\n        - name: target_url\n          value: \"https://tekton.cluster.derio.net/#/namespaces/tekton-pipelines/pipelineruns/$(context.pipelineRun.name)\"\n        - name: description\n          value: \"hum-ci: $(tasks.status)\"\n    - name: gitea-status\n      taskRef:\n        name: gitea-status   # existing task\n      params:\n        - name: repo\n          value: agentic-stoa/hum\n        - name: sha\n          value: $(params.sha)\n        - name: state\n          value: \"$(tasks.status)\"\n        - name: context\n          value: tekton/ci\n        # gitea-status best-effort \u2014 if it fails, don't fail the pipeline\n      onError: continue\n```\n\nNote on `$(tasks.status)`: it returns `Succeeded`/`Failed`/`Completed` in Tekton 1.x. Need a small mapping step OR use Tekton's `whenExpressions` to drive multiple github-status invocations (one per state). The cleanest shape is a 2-line `param mapping` step. Capture this as a sub-decision when the manifest lands."
+  - id: P4.T1.S2
+    text: 'Same edit for `apps/tekton/pipelines/content-factory-ci.yaml`
+
+
+
+      Mirror the `finally` block; substitute `agentic-stoa/content-factory` for the repo.'
+- number: 2
+  title: Add `stoa-blog-ci` Pipeline (3rd repo)
+  steps:
+  - id: P4.T2.S1
+    text: "Create `apps/tekton/pipelines/stoa-blog-ci.yaml`\n\n\nMirror `hum-ci.yaml`'s shape; substitute `agentic-stoa/stoa-blog` for the repo and adjust any repo-specific CI steps (TBD with operator \u2014 `stoa-blog` may have Hugo build steps similar to Frank's blog)."
+  - id: P4.T2.S2
+    text: "TriggerTemplate for stoa-blog\n\n\nAdd to `apps/tekton/triggers/triggertemplate.yaml`:\n\n```yaml\n---\napiVersion: triggers.tekton.dev/v1beta1\nkind: TriggerTemplate\nmetadata:\n  name: stoa-blog-ci-template\n  namespace: tekton-pipelines\nspec:\n  params:\n    - name: sha\n  resourcetemplates:\n    - apiVersion: tekton.dev/v1\n      kind: PipelineRun\n      metadata:\n        generateName: stoa-blog-ci-\n      spec:\n        pipelineRef:\n          name: stoa-blog-ci\n        params:\n          - name: sha\n            value: $(tt.params.sha)\n        # ... workspaces ...\n```"
+- number: 3
+  title: Add per-repo CI Triggers to `github-listener`
+  steps:
+  - id: P4.T3.S1
+    text: "Add `agentic-stoa-hum-github-ci` Trigger to `eventlistener-github.yaml`\n\n\nEdit `apps/tekton/triggers/eventlistener-github.yaml` \u2014 populate `spec.triggers`:\n\n```yaml\nspec:\n  triggers:\n    - name: agentic-stoa-hum-github-pr\n      interceptors:\n        - ref:\n            name: \"github\"\n            kind: ClusterInterceptor\n          params:\n            - name: \"secretRef\"\n              value:\n                secretName: stoa-github-webhook-secret\n                secretKey: secret\n            - name: \"eventTypes\"\n              value: [\"pull_request\"]\n        - name: \"cel\"\n          ref:\n            name: \"cel\"\n          params:\n            - name: \"filter\"\n              value: \"body.repository.full_name == 'agentic-stoa/hum' && body.action in ['opened', 'synchronize', 'reopened']\"\n            - name: \"overlays\"\n              value:\n                - key: sha\n                  expression: \"body.pull_request.head.sha\"\n                - key: pr_number\n                  expression: \"body.pull_request.number\"\n      bindings:\n        - ref: github-pr-binding   # new TriggerBinding to add\n      template:\n        ref: hum-ci-template   # reuse parent plan's template; adjust to take sha+pr_number params\n```\n\nThe pull-sync needs to fire BEFORE the per-repo CI. Two ways: (a) a separate Trigger that calls github-pull-sync first then the per-repo CI runs because the new Gitea push fires gitea-listener (chained); (b) a single Pipeline that wraps pull-sync + per-repo CI as one PipelineRun. Option (b) is cleaner \u2014 collapse into one Pipeline, e.g. `agentic-stoa-pr-ci` that calls pull-sync + per-repo CI body in sequence."
+  - id: P4.T3.S2
+    text: 'Same Trigger for content-factory + stoa-blog
+
+
+
+      Mirror the trigger spec; substitute repo names. CEL filter: `body.repository.full_name == ''agentic-stoa/content-factory''` etc.'
+- number: 4
+  title: Remove the old per-repo CI Triggers from `gitea-listener`
+  steps:
+  - id: P4.T4.S1
+    text: 'Delete `agentic-stoa-hum-ci` and `agentic-stoa-content-factory-ci` Triggers from `apps/tekton/triggers/eventlistener.yaml`
+
+
+
+      Find and delete the two Trigger blocks under `gitea-listener`''s `spec.triggers`. Keep the `gitea-push` and any non-stoa Triggers in place (gitea-listener still serves Frank''s own Gitea-CI flow).'
+- number: 5
+  title: Commit + sync; verify pipelines + triggers wired correctly
+  steps:
+  - id: P4.T5.S1
+    text: 'Commit + push
+
+
+
+      ```bash
+
+      git add apps/tekton/
+
+      git commit -m ''feat(cicd): wire per-repo CI to github-listener; add stoa-blog-ci; dual-status finally (rework Phase 4)''
+
+      git push
+
+      ```'
+  - id: P4.T5.S2
+    text: "Verify wiring\n\n\n```bash\nkubectl get pipeline -n tekton-pipelines | grep -E 'hum-ci|content-factory-ci|stoa-blog-ci|github-pull-sync'\n# Expect: 4 pipelines\n\nkubectl get el -n tekton-pipelines github-listener -o yaml | grep -c 'agentic-stoa'\n# Expect: \u22653 (per-repo Triggers)\n\nkubectl get el -n tekton-pipelines gitea-listener -o yaml | grep -c 'agentic-stoa'\n# Expect: 0 (all moved to github-listener)\n```"
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

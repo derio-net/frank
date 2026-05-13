@@ -1,0 +1,157 @@
+schema_version: 2
+phase:
+  number: 7
+  title: "End-to-end smoke (PR \u2192 pull \u2192 CI \u2192 status \u2192 merge \u2192 main-sync)"
+  tag: manual
+  depends_on:
+  - 6
+tasks:
+- number: 1
+  title: Open a no-op PR on `hum`; verify the full chain
+  steps:
+  - id: P7.T1.S1
+    text: 'Open a test PR on GitHub
+
+
+
+      From the operator''s local clone of hum:
+
+
+      ```bash
+
+      cd ~/repos/hum
+
+      git checkout -b test/rework-smoke
+
+      git commit --allow-empty -m ''test: rework smoke''
+
+      git push -u origin test/rework-smoke
+
+      gh pr create --title ''test: rework smoke (DELETE ME)'' --body ''no-op verification of GitHub-primary CI chain''
+
+      ```'
+  - id: P7.T1.S2
+    text: "Verify GitHub webhook delivery\n\n\nGitHub UI \u2192 repo Settings \u2192 Webhooks \u2192 most recent delivery: expect HTTP 200 with response body from el-github-listener."
+  - id: P7.T1.S3
+    text: 'Verify Tekton fired the pull-sync + CI
+
+
+
+      ```bash
+
+      kubectl get pipelinerun -n tekton-pipelines --sort-by=.metadata.creationTimestamp | tail -5
+
+      # Expect: a github-pull-sync PR for hum, then a hum-ci PR, both Succeeded
+
+
+      # Inspect logs if either failed:
+
+      kubectl logs -n tekton-pipelines <pipelinerun-pod> --all-containers --max-log-requests 6
+
+      ```'
+  - id: P7.T1.S4
+    text: 'Verify status appears on the GitHub PR
+
+
+
+      GitHub PR view: a `tekton/ci` status check should appear (success). Click it; should link to the Tekton dashboard PipelineRun page.'
+  - id: P7.T1.S5
+    text: "Verify Gitea-side status also appears\n\n\nOpen the Gitea synthetic PR ref:\n\n```bash\n# Gitea UI: agentic-stoa/hum \u2192 branch refs/pull/<N>/head \u2192 most recent commit\n```\n\nA `tekton/ci` status with the same state should appear (best-effort post)."
+- number: 2
+  title: Merge the PR; verify main-sync
+  steps:
+  - id: P7.T2.S1
+    text: 'Merge the test PR via GitHub UI
+
+
+
+      Click ''Merge pull request'' (any merge style). The PR closes; GitHub fires a push event to main.'
+  - id: P7.T2.S2
+    text: 'Verify github-pull-sync fired for main
+
+
+
+      ```bash
+
+      kubectl get pipelinerun -n tekton-pipelines -l tekton.dev/pipeline=github-pull-sync --sort-by=.metadata.creationTimestamp | tail -3
+
+      # Expect: the most recent run is for refs/heads/main, Succeeded
+
+      ```'
+  - id: P7.T2.S3
+    text: "Verify Gitea main HEAD == GitHub main HEAD\n\n\n```bash\nGITHUB_HEAD=$(gh api repos/agentic-stoa/hum/branches/main --jq .commit.sha)\nGITEA_HEAD=$(curl -sf \"http://192.168.55.209:3000/api/v1/repos/agentic-stoa/hum/branches/main\" -H \"Authorization: token $STOA_GITEA_TOKEN\" | jq -r .commit.id)\n[ \"$GITHUB_HEAD\" = \"$GITEA_HEAD\" ] && echo \"\u2705 in sync ($GITHUB_HEAD)\" || echo \"\u274C drift\"\n```"
+  - id: P7.T2.S4
+    text: 'Clean up the test branch on GitHub
+
+
+
+      ```bash
+
+      gh api -X DELETE repos/agentic-stoa/hum/git/refs/heads/test/rework-smoke
+
+      ```'
+- number: 3
+  title: Repeat the smoke for `content-factory` + `stoa-blog`
+  steps:
+  - id: P7.T3.S1
+    text: 'Same flow for content-factory
+
+
+
+      Repeat P7.T1 + P7.T2 against `agentic-stoa/content-factory`.'
+  - id: P7.T3.S2
+    text: 'Same flow for stoa-blog
+
+
+
+      Repeat P7.T1 + P7.T2 against `agentic-stoa/stoa-blog`.'
+state:
+  steps:
+    P7.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
