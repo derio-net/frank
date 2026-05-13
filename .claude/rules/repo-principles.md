@@ -16,6 +16,6 @@
 
 ### Skills
 
-Skills are installed at user level via the `superpowers` and `superpowers-for-vk` plugins. They are NOT vendored in this repo. Frank-specific skills remain repo-local in `.claude/skills/` (gitnexus, blog-post, deploy-app, media, sync-runbook, update-readme).
+Skills are installed at user level via the `superpowers` and `superpowers-for-vk` plugins. They are NOT vendored in this repo. Frank-specific skills remain repo-local in `agents/skills/` (gitnexus, blog-post, deploy-app, media, sync-runbook, update-readme).
 
 Plan behavior is driven by the profile at `docs/superpowers/plan-config.yaml`.
