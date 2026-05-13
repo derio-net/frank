@@ -1,0 +1,97 @@
+# Reports commit status (success/failure/error/pending) back to a GitHub PR
+# via the Commit Status API.
+#
+# Mirrors apps/tekton/tasks/gitea-status.yaml in shape but targets
+# api.github.com and authenticates with the stoa-github-mirror Secret
+# (Infisical-backed PAT, Commit statuses: Read and write scope).
+#
+# Used as the mandatory final step of any pipeline that runs against a
+# GitHub-sourced commit (PR-time CI, main-sync verification). For the
+# anti-drift dual-status guarantee see the rework-1 plan's _prose.md
+# section "Anti-drift dual-status guarantee".
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: github-status
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: repo-full-name
+      type: string
+      description: "Full repo name (e.g., agentic-stoa/hum)"
+    - name: revision
+      type: string
+      description: "Git commit SHA to attach status to"
+    - name: state
+      type: string
+      description: "success, pending, failure, or error"
+    - name: description
+      type: string
+      default: "Tekton CI"
+    - name: context
+      type: string
+      default: "tekton/ci"
+    - name: target-url
+      type: string
+      default: ""
+      description: "URL the status check links to (e.g. Tekton dashboard PipelineRun page)"
+    - name: github-api-url
+      type: string
+      default: "https://api.github.com"
+  steps:
+    - name: report
+      image: curlimages/curl:8.7.1
+      env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: stoa-github-mirror
+              key: token
+        - name: REPO_FULL_NAME
+          value: $(params.repo-full-name)
+        - name: REVISION
+          value: $(params.revision)
+        - name: STATE
+          value: $(params.state)
+        - name: DESCRIPTION
+          value: $(params.description)
+        - name: CONTEXT
+          value: $(params.context)
+        - name: TARGET_URL
+          value: $(params.target-url)
+        - name: GITHUB_API_URL
+          value: $(params.github-api-url)
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        runAsUser: 100
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+      computeResources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+      command: ["/bin/sh", "-e", "-c"]
+      args:
+        - |
+          STATUS_URL="${GITHUB_API_URL}/repos/${REPO_FULL_NAME}/statuses/${REVISION}"
+          # Escape values for safe JSON embedding
+          json_escape() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
+          S=$(json_escape "$STATE")
+          D=$(json_escape "$DESCRIPTION")
+          C=$(json_escape "$CONTEXT")
+          T=$(json_escape "$TARGET_URL")
+          PAYLOAD="{\"state\":\"${S}\",\"description\":\"${D}\",\"context\":\"${C}\",\"target_url\":\"${T}\"}"
+          HTTP_CODE=$(curl -s -o /tmp/resp -w '%{http_code}' -X POST "$STATUS_URL" \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+          echo "Reported status '${STATE}' for ${REVISION} (HTTP ${HTTP_CODE})"
+          cat /tmp/resp
+          echo
+          [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]

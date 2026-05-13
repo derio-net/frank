@@ -1,0 +1,129 @@
+# Pulls a ref from GitHub and pushes it into the matching Gitea-replica repo.
+#
+# Triggered by:
+#   - PR webhook events (Phase 4 — ref-to is a synthetic branch like
+#     refs/heads/sync-pr-<N> so per-repo CI fires on it)
+#   - push-to-main webhook events (Phase 5 — ref-to is refs/heads/main)
+#
+# Idempotent — git push uses --force against the destination ref (the
+# Gitea side is a replica; force-overwrite is the correct semantics).
+#
+# stoa-bot SSH key for the Gitea push lives in the `stoa-bot-ssh-key`
+# Secret (SOPS-bootstrapped per rework Phase 3 T2.S2 manual-op block).
+# Wired in via `ssh-creds` workspace bound by the calling TriggerTemplate.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: github-pull-sync
+  namespace: tekton-pipelines
+spec:
+  description: Fetch a ref from GitHub, push it into the matching Gitea-replica repo.
+  params:
+    - name: github-repo
+      description: "GitHub repo full name (e.g. agentic-stoa/hum)"
+      type: string
+    - name: gitea-repo
+      description: "Gitea repo full name (typically same as github-repo)"
+      type: string
+    - name: sha
+      description: "Commit SHA to fetch from GitHub"
+      type: string
+    - name: ref-to
+      description: "Destination ref on Gitea (e.g. refs/heads/main or refs/heads/sync-pr-12)"
+      type: string
+  workspaces:
+    - name: source
+      description: "Clone target — git-clone fetches into here, then push-to-gitea reads from here"
+    - name: ssh-creds
+      description: "stoa-bot SSH private key for pushing to Gitea (mount stoa-bot-ssh-key Secret here)"
+  tasks:
+    - name: fetch-from-github
+      taskRef:
+        name: git-clone
+      workspaces:
+        - name: output
+          workspace: source
+      params:
+        - name: url
+          value: "https://github.com/$(params.github-repo).git"
+        - name: revision
+          value: "$(params.sha)"
+        - name: depth
+          value: "0"   # full clone — pushing requires full ref history
+        - name: deleteExisting
+          value: "true"
+    - name: push-to-gitea
+      runAfter: [fetch-from-github]
+      workspaces:
+        - name: source
+          workspace: source
+        - name: ssh
+          workspace: ssh-creds
+      taskSpec:
+        params:
+          - name: gitea-repo
+            type: string
+          - name: ref-to
+            type: string
+          - name: sha
+            type: string
+        workspaces:
+          - name: source
+          - name: ssh
+            mountPath: /workspace/ssh-creds
+        steps:
+          - name: push
+            image: alpine/git:2.47.2
+            computeResources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                memory: 256Mi
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65534
+              capabilities:
+                drop: ["ALL"]
+              seccompProfile:
+                type: RuntimeDefault
+            env:
+              - name: HOME
+                value: /tekton/home
+            script: |
+              #!/bin/sh
+              set -eu
+
+              # SSH setup: copy the stoa-bot key from the workspace to ~/.ssh/id_rsa
+              mkdir -p "$HOME/.ssh"
+              cp /workspace/ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
+              chmod 600 "$HOME/.ssh/id_rsa"
+              # Pin Gitea SSH host key (avoids interactive prompt; safe since we control both ends)
+              ssh-keyscan -p 2222 -H 192.168.55.209 >> "$HOME/.ssh/known_hosts" 2>/dev/null
+              chmod 600 "$HOME/.ssh/known_hosts"
+
+              # Workspace may be owned by root (PVC); safe.directory avoids "dubious ownership" error
+              git config --global --add safe.directory '*'
+
+              cd "$(workspaces.source.path)"
+
+              # Extract just the repo name (last path segment) for the Gitea SSH URL
+              REPO_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $NF}')"
+              ORG_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $1}')"
+
+              # Add Gitea remote (idempotent — remove first if it exists)
+              git remote remove gitea 2>/dev/null || true
+              git remote add gitea "ssh://git@192.168.55.209:2222/${ORG_NAME}/${REPO_NAME}.git"
+
+              # Force-push the fetched SHA to the destination ref on Gitea
+              echo "Pushing $(params.sha) → gitea:$(params.ref-to)"
+              git push --force gitea "$(params.sha):$(params.ref-to)"
+              echo "OK"
+      params:
+        - name: gitea-repo
+          value: "$(params.gitea-repo)"
+        - name: ref-to
+          value: "$(params.ref-to)"
+        - name: sha
+          value: "$(params.sha)"
