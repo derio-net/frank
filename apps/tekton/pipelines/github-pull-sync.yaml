@@ -96,8 +96,15 @@ spec:
               mkdir -p "$HOME/.ssh"
               cp /workspace/ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
               chmod 600 "$HOME/.ssh/id_rsa"
-              # Pin Gitea SSH host key (avoids interactive prompt; safe since we control both ends)
-              ssh-keyscan -p 2222 -H 192.168.55.209 >> "$HOME/.ssh/known_hosts" 2>/dev/null
+              # Pin Gitea SSH host key. Unhashed (no -H) so SSH-client lookup
+              # matches the [host]:port form it constructs for non-default-port
+              # hosts. Note: 2026-05-13 we hit "Host key verification failed"
+              # with the -H form because the hashed entry didn't match the
+              # client's [192.168.55.209]:2222 lookup.
+              ssh-keyscan -p 2222 192.168.55.209 > "$HOME/.ssh/known_hosts" 2>/tmp/keyscan.err || \
+                { echo "ssh-keyscan failed:"; cat /tmp/keyscan.err; exit 1; }
+              echo "known_hosts content:"
+              cat "$HOME/.ssh/known_hosts"
               chmod 600 "$HOME/.ssh/known_hosts"
 
               # Workspace may be owned by root (PVC); safe.directory avoids "dubious ownership" error
