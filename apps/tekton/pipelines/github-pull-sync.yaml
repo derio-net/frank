@@ -83,6 +83,11 @@ spec:
             env:
               - name: HOME
                 value: /tekton/home
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: stoa-github-mirror
+                    key: token
             script: |
               #!/bin/sh
               set -eu
@@ -100,9 +105,10 @@ spec:
 
               cd "$(workspaces.source.path)"
 
-              # Full clone of GitHub repo (no --depth flag) so the push has
-              # all parent commits the destination might be missing.
-              git clone "https://github.com/$(params.github-repo).git" repo
+              # Full clone of (private) GitHub repo (no --depth flag) so the
+              # push has all parent commits the destination might be missing.
+              # Auth: x-access-token + PAT in the URL — standard GitHub pattern.
+              git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/$(params.github-repo).git" repo
               cd repo
 
               # Verify the SHA exists locally (the clone gets all branches; the
