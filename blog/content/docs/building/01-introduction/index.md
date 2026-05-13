@@ -48,8 +48,7 @@ The cluster spans 4 zones of heterogeneous hardware:
 - **pc-1** (Legacy desktop, 64GB SSD + 3x HDD) — General purpose worker.
 - **raspi-1, raspi-2** (Raspberry Pi 4, 32GB SD) — Low-power edge nodes.
 
-<!-- MEDIA: photo | Physical homelab hardware setup | Photograph the desk/rack showing minis, gpu-1, Raspberry Pis -->
-<!-- {{</* screenshot src="hardware-setup.jpg" caption="The Frank cluster hardware — three Intel minis, a GPU workstation, and two Raspberry Pis" */>}} -->
+{{< screenshot src="homelab.png" alt="Frank cluster hardware on the desk — three Intel minis stacked, the gpu-1 workstation, and two Raspberry Pis" caption="The Frank cluster hardware — three Intel minis, a GPU workstation, and two Raspberry Pis." >}}
 
 ## Architecture
 
