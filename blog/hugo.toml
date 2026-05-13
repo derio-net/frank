@@ -59,3 +59,10 @@ title = "Frank, the Talos Cluster"
 
 [outputs]
   home = ["HTML", "RSS", "JSON"]
+
+# Hugo 0.158+ default security.http.urls excludes URLs containing "@", which
+# blocks Hextra's flexsearch CDN load (cdn.jsdelivr.net/npm/flexsearch@<ver>).
+# Override removes that exclusion. Drop this block entirely if you disable search.
+[security]
+  [security.http]
+    urls = ['(?i)^https?://[a-z]', '! (?i)localhost']

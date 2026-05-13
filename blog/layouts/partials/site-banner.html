@@ -1,0 +1,19 @@
+{{- $bannerSrc := "" -}}
+{{- if eq .Kind "home" -}}
+  {{- $bannerSrc = "images/banner-landing.png" | relURL -}}
+{{- else -}}
+  {{- with .File -}}
+    {{- $parts := split .Dir "/" -}}
+    {{- if and (ge (len $parts) 2) (eq (index $parts 0) "docs") -}}
+      {{- $track := index $parts 1 -}}
+      {{- if $track -}}
+        {{- $bannerSrc = printf "images/banner-%s.png" $track | relURL -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- if $bannerSrc -}}
+<div class="site-track-banner">
+  <img src="{{ $bannerSrc }}" alt="" />
+</div>
+{{- end -}}

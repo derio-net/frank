@@ -84,65 +84,41 @@
   color: #40c057;
 }
 
-/* === Landing-page series cards (Building / Operating) === */
-.frank-series-cards {
-  margin-bottom: 1.5rem;
-  width: 90%;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.frank-series-cards .hextra-cards {
-  --hextra-cards-grid-cols: 1 !important;
+/* === Site-wide track banner injected by baseof.html — appears above the navbar on the homepage and every track page === */
+.site-track-banner {
   width: 100%;
+  overflow: hidden;
+  line-height: 0;
 }
 
-.frank-series-cards .hextra-card {
+.site-track-banner img {
   width: 100%;
   height: auto;
+  display: block;
 }
 
-.frank-series-cards .hextra-card {
+/* === Homepage track cards — 2 per row, uniform 16:9 tiles === */
+.blog-series-cards {
+  margin-bottom: 1.5rem;
+}
+
+.blog-series-cards .hextra-card {
+  height: auto;
   display: flex;
   flex-direction: column;
 }
 
-.frank-series-cards .hextra-card-image {
+.blog-series-cards .hextra-card-image {
   width: 100%;
   height: auto;
-  object-fit: contain;
-  object-position: center;
+  object-fit: cover;
+  object-position: center top;
   display: block;
-  flex-shrink: 0;
+  aspect-ratio: 16 / 9;
 }
 
-.frank-series-cards .hextra-card-icon {
-  font-size: 1.875rem;
-  line-height: 2.25rem;
-  padding-top: 1.25rem !important;
-  padding-left: 1.5rem !important;
-  padding-right: 1.5rem !important;
-}
-
-.frank-series-cards .hextra-card-subtitle {
-  font-size: 1.05rem !important;
-  line-height: 1.6 !important;
-  padding-left: 1.5rem !important;
-  padding-right: 1.5rem !important;
-  padding-bottom: 1.25rem !important;
+.blog-series-cards .hextra-card-subtitle {
+  font-size: 0.9rem !important;
+  line-height: 1.5 !important;
   -webkit-line-clamp: unset !important;
-}
-
-/* === Section hero banner (building / operating list pages) === */
-.frank-section-banner {
-  width: 100%;
-  border-radius: 1rem;
-  overflow: hidden;
-  margin-bottom: 1.5rem;
-}
-
-.frank-section-banner img {
-  width: 100%;
-  height: auto;
-  display: block;
 }
