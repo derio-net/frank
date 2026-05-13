@@ -50,22 +50,16 @@ spec:
       containers:
         - name: paperclip
           # Upstream public image. Pinned by digest-equivalent sha tag.
-          # sha-9578dc3 is current main HEAD (also tagged `latest` at the
-          # time of pin, 2026-05-05) — ahead of v2026.428.0 because we
-          # need two parser fixes that landed after the last tagged
-          # release: #5143 (handle Gemini assistant message events in
-          # JSONL parser) and #5273 (handle Gemini CLI v0.38 stream-json
-          # wire format across parser, UI, and CLI formatter). Without
-          # these, the bundled v0.3.1 parser only knows the legacy
-          # `{type:"assistant"}` event shape and misses `hello` in the
-          # `{type:"message",role:"assistant"}` shape that gemini-cli
-          # 0.38+ emits — Test environment reports "did not return
-          # `hello`" even though gemini ran successfully.
-          # Tag scheme is upstream's: only `latest` (master HEAD) and
-          # `sha-<short>` are published — no semver-named image tags.
-          # Re-pin to a tagged release once one ships that includes
-          # both #5143 and #5273 (next release after v2026.428.0).
-          image: ghcr.io/paperclipai/paperclip:sha-9578dc3
+          # sha-c445e59 is release v2026.512.0 (2026-05-12) — the first
+          # tagged release after the gemini-cli 0.38 parser fixes
+          # (#5143, #5273) and the bridge for `latest` floats past it.
+          # Tag scheme is upstream's: only `latest` (master HEAD),
+          # `canary`, and `sha-<short>` are published — no semver image
+          # tags. We pin to the sha for traceability: v2026.512.0 →
+          # commit c445e5925628d11bf59d52604b8aa63a6e9aa800.
+          # Manifest digest: sha256:40f1364fae014a50ad32d47a5f6ba8c267a9e8671d8f4f3dfb205f39bc21039b
+          # Bumped from sha-9578dc3 (sha256:16b22f130abc60f845d28b52e0dc94bd3f1e58897d09d3c8497e64e53e67b534).
+          image: ghcr.io/paperclipai/paperclip:sha-c445e59
           ports:
             - name: http
               containerPort: 3100
