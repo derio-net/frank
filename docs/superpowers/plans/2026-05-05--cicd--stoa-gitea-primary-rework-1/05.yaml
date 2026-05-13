@@ -1,7 +1,7 @@
 schema_version: 2
 phase:
   number: 5
-  title: "Main-branch sync pipeline (post-merge GitHub\u2192Gitea)"
+  title: Main-branch sync pipeline (post-merge GitHub→Gitea)
   tag: agentic
   depends_on:
   - 4
@@ -10,50 +10,102 @@ tasks:
   title: Add push-to-main Trigger to `github-listener`
   steps:
   - id: P5.T1.S1
-    text: "Add `agentic-stoa-main-sync` Trigger to `eventlistener-github.yaml`\n\n\n```yaml\n- name: agentic-stoa-main-sync\n  interceptors:\n    - ref:\n        name: \"github\"\n        kind: ClusterInterceptor\n      params:\n        - name: \"secretRef\"\n          value:\n            secretName: stoa-github-webhook-secret\n            secretKey: secret\n        - name: \"eventTypes\"\n          value: [\"push\"]\n    - name: \"cel\"\n      ref:\n        name: \"cel\"\n      params:\n        - name: \"filter\"\n          value: \"body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog'] && body.ref == 'refs/heads/main'\"\n        - name: \"overlays\"\n          value:\n            - key: repo_full_name\n              expression: \"body.repository.full_name\"\n            - key: sha\n              expression: \"body.after\"\n  bindings:\n    - ref: github-push-main-binding\n  template:\n    ref: github-pull-sync-main-template   # new TriggerTemplate\n```"
+    text: |-
+      Add `agentic-stoa-main-sync` Trigger to `eventlistener-github.yaml`
+
+
+      ```yaml
+      - name: agentic-stoa-main-sync
+        interceptors:
+          - ref:
+              name: "github"
+              kind: ClusterInterceptor
+            params:
+              - name: "secretRef"
+                value:
+                  secretName: stoa-github-webhook-secret
+                  secretKey: secret
+              - name: "eventTypes"
+                value: ["push"]
+          - name: "cel"
+            ref:
+              name: "cel"
+            params:
+              - name: "filter"
+                value: "body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog'] && body.ref == 'refs/heads/main'"
+              - name: "overlays"
+                value:
+                  - key: repo_full_name
+                    expression: "body.repository.full_name"
+                  - key: sha
+                    expression: "body.after"
+        bindings:
+          - ref: github-push-main-binding
+        template:
+          ref: github-pull-sync-main-template   # new TriggerTemplate
+      ```
   - id: P5.T1.S2
-    text: "Add the matching TriggerTemplate `github-pull-sync-main-template`\n\n\nAppend to `apps/tekton/triggers/triggertemplate.yaml` \u2014 calls `github-pull-sync` Pipeline with `ref-from = ref-to = refs/heads/main` and the appropriate repo. Mirror the existing per-repo template patterns."
+    text: |-
+      Add the matching TriggerTemplate `github-pull-sync-main-template`
+
+
+      Append to `apps/tekton/triggers/triggertemplate.yaml` — calls `github-pull-sync` Pipeline with `ref-from = ref-to = refs/heads/main` and the appropriate repo. Mirror the existing per-repo template patterns.
 - number: 2
   title: Smoke-test the main-sync trigger
   steps:
   - id: P5.T2.S1
-    text: "Manually invoke the Trigger via curl (with valid HMAC) \u2014 push event to main\n\n\n```bash\nSECRET=$(kubectl get secret -n tekton-pipelines stoa-github-webhook-secret -o jsonpath='{.data.secret}' | base64 -d)\nBODY='{\"ref\":\"refs/heads/main\",\"after\":\"<TEST_SHA>\",\"repository\":{\"full_name\":\"agentic-stoa/hum\"}}'\nSIG=\"sha256=$(echo -n \"$BODY\" | openssl dgst -sha256 -hmac \"$SECRET\" | sed 's/^.* //')\"\ncurl -i -X POST https://webhooks.hop.derio.net/ \\\n  -H 'X-GitHub-Event: push' \\\n  -H \"X-Hub-Signature-256: $SIG\" \\\n  -H 'Content-Type: application/json' \\\n  -d \"$BODY\"\n```\n\nExpect: HTTP 202; PipelineRun for `github-pull-sync` fires. Verify:\n\n```bash\nkubectl get pipelinerun -n tekton-pipelines -l tekton.dev/pipeline=github-pull-sync --sort-by=.metadata.creationTimestamp | tail -3\n```"
+    text: |-
+      Manually invoke the Trigger via curl (with valid HMAC) — push event to main
+
+
+      ```bash
+      SECRET=$(kubectl get secret -n tekton-pipelines stoa-github-webhook-secret -o jsonpath='{.data.secret}' | base64 -d)
+      BODY='{"ref":"refs/heads/main","after":"<TEST_SHA>","repository":{"full_name":"agentic-stoa/hum"}}'
+      SIG="sha256=$(echo -n "$BODY" | openssl dgst -sha256 -hmac "$SECRET" | sed 's/^.* //')"
+      curl -i -X POST https://webhooks.hop.derio.net/ \
+        -H 'X-GitHub-Event: push' \
+        -H "X-Hub-Signature-256: $SIG" \
+        -H 'Content-Type: application/json' \
+        -d "$BODY"
+      ```
+
+      Expect: HTTP 202; PipelineRun for `github-pull-sync` fires. Verify:
+
+      ```bash
+      kubectl get pipelinerun -n tekton-pipelines -l tekton.dev/pipeline=github-pull-sync --sort-by=.metadata.creationTimestamp | tail -3
+      ```
 - number: 3
   title: Commit + push
   steps:
   - id: P5.T3.S1
-    text: 'Commit + push
-
+    text: |-
+      Commit + push
 
 
       ```bash
-
       git add apps/tekton/triggers/
-
-      git commit -m ''feat(cicd): main-sync Trigger for GitHub push events (rework Phase 5)''
-
+      git commit -m 'feat(cicd): main-sync Trigger for GitHub push events (rework Phase 5)'
       git push
-
-      ```'
+      ```
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T18:35:37+00:00'
       note: null
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T18:35:38+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T18:35:40+00:00'
       note: null
     P5.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T18:35:42+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-13T18:35:43+00:00'
     note: null
     observed_prs: []
