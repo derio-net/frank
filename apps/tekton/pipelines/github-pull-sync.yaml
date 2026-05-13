@@ -11,6 +11,12 @@
 # stoa-bot SSH key for the Gitea push lives in the `stoa-bot-ssh-key`
 # Secret (SOPS-bootstrapped per rework Phase 3 T2.S2 manual-op block).
 # Wired in via `ssh-creds` workspace bound by the calling TriggerTemplate.
+#
+# Implementation note: the shared apps/tekton/tasks/git-clone.yaml always
+# passes --depth N to git, which can't express "full clone". For pull-sync
+# we need full history (so the push to Gitea has all parent commits the
+# destination might be missing), so this Pipeline inlines a single
+# fetch+push step instead of using the shared task.
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -33,27 +39,11 @@ spec:
       type: string
   workspaces:
     - name: source
-      description: "Clone target — git-clone fetches into here, then push-to-gitea reads from here"
+      description: "Working dir for the local clone"
     - name: ssh-creds
       description: "stoa-bot SSH private key for pushing to Gitea (mount stoa-bot-ssh-key Secret here)"
   tasks:
-    - name: fetch-from-github
-      taskRef:
-        name: git-clone
-      workspaces:
-        - name: output
-          workspace: source
-      params:
-        - name: url
-          value: "https://github.com/$(params.github-repo).git"
-        - name: revision
-          value: "$(params.sha)"
-        - name: depth
-          value: "0"   # full clone — pushing requires full ref history
-        - name: deleteExisting
-          value: "true"
-    - name: push-to-gitea
-      runAfter: [fetch-from-github]
+    - name: pull-and-push
       workspaces:
         - name: source
           workspace: source
@@ -61,25 +51,27 @@ spec:
           workspace: ssh-creds
       taskSpec:
         params:
+          - name: github-repo
+            type: string
           - name: gitea-repo
             type: string
-          - name: ref-to
-            type: string
           - name: sha
+            type: string
+          - name: ref-to
             type: string
         workspaces:
           - name: source
           - name: ssh
             mountPath: /workspace/ssh-creds
         steps:
-          - name: push
+          - name: pull-from-github-push-to-gitea
             image: alpine/git:2.47.2
             computeResources:
               requests:
                 cpu: 100m
                 memory: 128Mi
               limits:
-                memory: 256Mi
+                memory: 1Gi
             securityContext:
               allowPrivilegeEscalation: false
               runAsNonRoot: true
@@ -108,7 +100,19 @@ spec:
 
               cd "$(workspaces.source.path)"
 
-              # Extract just the repo name (last path segment) for the Gitea SSH URL
+              # Full clone of GitHub repo (no --depth flag) so the push has
+              # all parent commits the destination might be missing.
+              git clone "https://github.com/$(params.github-repo).git" repo
+              cd repo
+
+              # Verify the SHA exists locally (the clone gets all branches; the
+              # SHA is reachable from at least one of them in normal flows).
+              git cat-file -e "$(params.sha)" || {
+                echo "ERROR: SHA $(params.sha) not reachable from default branch — fetching it explicitly"
+                git fetch origin "$(params.sha)"
+              }
+
+              # Extract org / repo name parts for the Gitea SSH URL
               REPO_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $NF}')"
               ORG_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $1}')"
 
@@ -116,14 +120,16 @@ spec:
               git remote remove gitea 2>/dev/null || true
               git remote add gitea "ssh://git@192.168.55.209:2222/${ORG_NAME}/${REPO_NAME}.git"
 
-              # Force-push the fetched SHA to the destination ref on Gitea
+              # Force-push the SHA to the destination ref on Gitea
               echo "Pushing $(params.sha) → gitea:$(params.ref-to)"
               git push --force gitea "$(params.sha):$(params.ref-to)"
               echo "OK"
       params:
+        - name: github-repo
+          value: "$(params.github-repo)"
         - name: gitea-repo
           value: "$(params.gitea-repo)"
-        - name: ref-to
-          value: "$(params.ref-to)"
         - name: sha
           value: "$(params.sha)"
+        - name: ref-to
+          value: "$(params.ref-to)"
