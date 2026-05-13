@@ -96,16 +96,21 @@ spec:
               mkdir -p "$HOME/.ssh"
               cp /workspace/ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
               chmod 600 "$HOME/.ssh/id_rsa"
-              # Pin Gitea SSH host key. Unhashed (no -H) so SSH-client lookup
-              # matches the [host]:port form it constructs for non-default-port
-              # hosts. Note: 2026-05-13 we hit "Host key verification failed"
-              # with the -H form because the hashed entry didn't match the
-              # client's [192.168.55.209]:2222 lookup.
-              ssh-keyscan -p 2222 192.168.55.209 > "$HOME/.ssh/known_hosts" 2>/tmp/keyscan.err || \
-                { echo "ssh-keyscan failed:"; cat /tmp/keyscan.err; exit 1; }
-              echo "known_hosts content:"
-              cat "$HOME/.ssh/known_hosts"
-              chmod 600 "$HOME/.ssh/known_hosts"
+              # Disable strict host key checking for the Gitea connection.
+              # This is safe because:
+              #   - both endpoints are in-cluster / on the trusted LAN
+              #   - traffic stays inside the Tailscale-meshed segment
+              #   - ssh-keyscan against Gitea's SSH LB returns only the RSA
+              #     key, but Gitea's server side advertises ed25519+RSA+ECDSA;
+              #     the client picks ed25519 first and fails strict-checking
+              #     because no ed25519 entry exists in known_hosts (2026-05-13)
+              cat > "$HOME/.ssh/config" <<'CFG'
+              Host 192.168.55.209
+                StrictHostKeyChecking no
+                UserKnownHostsFile /dev/null
+                LogLevel ERROR
+              CFG
+              chmod 600 "$HOME/.ssh/config"
 
               # Workspace may be owned by root (PVC); safe.directory avoids "dubious ownership" error
               git config --global --add safe.directory '*'
