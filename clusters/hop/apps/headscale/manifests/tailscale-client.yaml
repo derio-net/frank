@@ -31,7 +31,12 @@ spec:
             - name: TS_USERSPACE
               value: "false"
             - name: TS_EXTRA_ARGS
-              value: "--login-server=https://headscale.hop.derio.net --hostname=hop-1"
+              # --accept-routes lets Hop receive subnet routes advertised by
+              # raspi-vlan10 in Frank (192.168.55.0/24). Without it, Hop can
+              # ping/reach mesh peers (100.64.0.0/10) but NOT Frank's LAN.
+              # Required for: Caddy on Hop reverse-proxying to Frank LB IPs
+              # (e.g. webhooks.hop.derio.net → 192.168.55.223).
+              value: "--login-server=https://headscale.hop.derio.net --hostname=hop-1 --accept-routes"
             - name: POD_NAME
               valueFrom:
                 fieldRef:
