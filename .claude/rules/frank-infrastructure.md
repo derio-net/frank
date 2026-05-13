@@ -36,4 +36,5 @@
 | Paperclip Shell (SSH+Mosh) | 192.168.55.221 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60000-60015/Mosh) |
 | Ruflo Web UI | (via Traefik) | IngressRoute (ruflo.cluster.derio.net) |
 | Ruflo Shell (SSH+Mosh) | 192.168.55.222 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60016-60031/Mosh) |
+| GitHub webhook receiver (Tekton github-listener) | 192.168.55.223 | Cilium L2 LoadBalancer (port 8080) |
 | Homepage | (via Traefik) | IngressRoute (master.cluster.derio.net) |

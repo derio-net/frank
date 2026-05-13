@@ -54,3 +54,25 @@ data:
     # Note: DERP relay traffic goes through the main headscale.hop.derio.net
     # block above — Headscale handles /derp paths internally. No separate
     # route block needed.
+
+    # --- Webhook ingress (public — GitHub fires from internet) ---
+
+    # GitHub webhook → Tekton github-listener on Frank, via Tailscale mesh.
+    # Caddy terminates public TLS; Tekton's `github` interceptor validates
+    # the X-Hub-Signature-256 HMAC server-side (Caddy does NOT HMAC-validate;
+    # the interceptor is the canonical Tekton path).
+    #
+    # Target IP is Frank's github-listener LB Service at 192.168.55.223
+    # (claimed in .claude/rules/frank-infrastructure.md). The Service itself
+    # is created in Phase 2 of the stoa-gitea-primary-rework-1 plan; until
+    # then this route returns 502, which is expected during the rollout.
+    webhooks.hop.derio.net {
+      reverse_proxy 192.168.55.223:8080 {
+        # Pass through GitHub's signature/event/delivery headers verbatim
+        # so the Tekton interceptor sees them on Frank.
+        header_up X-Hub-Signature-256 {http.request.header.X-Hub-Signature-256}
+        header_up X-GitHub-Event       {http.request.header.X-GitHub-Event}
+        header_up X-GitHub-Delivery    {http.request.header.X-GitHub-Delivery}
+        header_up X-Hub-Signature      {http.request.header.X-Hub-Signature}
+      }
+    }
