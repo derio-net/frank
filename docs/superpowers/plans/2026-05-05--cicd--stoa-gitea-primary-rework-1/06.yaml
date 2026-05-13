@@ -10,40 +10,66 @@ tasks:
   title: Add webhook on `agentic-stoa/hum`
   steps:
   - id: P6.T1.S1
-    text: "Configure the webhook via GitHub UI\n\n\n```yaml\n# manual-operation\nid: github-webhook-stoa-hum\nlayer: cicd\napp: tekton\nplan: docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1.md\nwhen: After Phase 5 lands the main-sync Trigger; before Phase 7 smoke.\nwhy_manual: GitHub webhook config is per-repo UI work; no IaC for this in our setup.\ncommands: |\n  # GitHub UI: agentic-stoa/hum \u2192 Settings \u2192 Webhooks \u2192 Add webhook\n  # Payload URL:    https://webhooks.hop.derio.net/\n  # Content type:   application/json\n  # Secret:         <value of STOA_GITHUB_WEBHOOK_SECRET from Infisical>\n  # SSL verify:     enabled\n  # Events:         pull_request, push\n  # Active:         yes\nverify: |\n  - \"GitHub UI \u2192 repo Settings \u2192 Webhooks \u2192 Recent Deliveries shows a 200 from the initial 'ping' event\"\n  - \"kubectl logs -n tekton-pipelines deploy/el-github-listener --tail=20 shows a received event\"\nstatus: pending\n```"
+    text: |-
+      Configure the webhook via GitHub UI
+
+
+      ```yaml
+      # manual-operation
+      id: github-webhook-stoa-hum
+      layer: cicd
+      app: tekton
+      plan: docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1.md
+      when: After Phase 5 lands the main-sync Trigger; before Phase 7 smoke.
+      why_manual: GitHub webhook config is per-repo UI work; no IaC for this in our setup.
+      commands: |
+        # GitHub UI: agentic-stoa/hum → Settings → Webhooks → Add webhook
+        # Payload URL:    https://webhooks.hop.derio.net/
+        # Content type:   application/json
+        # Secret:         <value of STOA_GITHUB_WEBHOOK_SECRET from Infisical>
+        # SSL verify:     enabled
+        # Events:         pull_request, push
+        # Active:         yes
+      verify: |
+        - "GitHub UI → repo Settings → Webhooks → Recent Deliveries shows a 200 from the initial 'ping' event"
+        - "kubectl logs -n tekton-pipelines deploy/el-github-listener --tail=20 shows a received event"
+      status: pending
+      ```
 - number: 2
   title: Same for `agentic-stoa/content-factory`
   steps:
   - id: P6.T2.S1
-    text: 'Configure the webhook via GitHub UI
+    text: |-
+      Configure the webhook via GitHub UI
 
 
-
-      Same procedure as P6.T1.S1; substitute `agentic-stoa/content-factory` for the repo.'
+      Same procedure as P6.T1.S1; substitute `agentic-stoa/content-factory` for the repo.
 - number: 3
   title: Same for `agentic-stoa/stoa-blog`
   steps:
   - id: P6.T3.S1
-    text: 'Configure the webhook via GitHub UI
+    text: |-
+      Configure the webhook via GitHub UI
 
 
-
-      Same procedure as P6.T1.S1; substitute `agentic-stoa/stoa-blog` for the repo.'
+      Same procedure as P6.T1.S1; substitute `agentic-stoa/stoa-blog` for the repo.
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T18:41:13+00:00'
       note: null
     P6.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T18:41:15+00:00'
       note: null
     P6.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T18:41:16+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-13T18:41:18+00:00'
+    note: All 3 GitHub webhooks configured; ping deliveries return 202 (interceptor
+      accepts HMAC, CEL filters reject non-PR/push events as expected — no PipelineRun
+      fires on ping).
     observed_prs: []
