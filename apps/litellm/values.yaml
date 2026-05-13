@@ -152,6 +152,19 @@ proxy_config:
         model: ollama/qwen3.6:35b-a3b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
+    # Qwen3.6 35B-A3B (no-think) — same backend as qwen36-a3b but with
+    # thinking mode suppressed via extra_body. For consumers (Ruflo, n8n)
+    # that want the model's general intelligence without the reasoning
+    # preamble. Saves ~100-500 tokens per response at the cost of chain-
+    # of-thought quality — fine for chat/agent orchestration, not for
+    # hard math or multi-step planning where thinking earns its keep.
+    - model_name: qwen36-a3b-nothin
+      litellm_params:
+        model: ollama/qwen3.6:35b-a3b
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+        extra_body:
+          think: false
+
     # ──────────────────────────────────────────────
     # CLOUD MODELS — Free tier via OpenRouter
     # Rate limit: 20 req/min, 200 req/day per model
