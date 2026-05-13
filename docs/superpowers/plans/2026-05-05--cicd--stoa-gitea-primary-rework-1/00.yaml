@@ -162,20 +162,20 @@ state:
       ticked_at: '2026-05-13T14:26:58+00:00'
       note: null
     P0.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:31:50+00:00'
       note: null
     P0.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:31:51+00:00'
       note: null
     P0.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:31:53+00:00'
       note: null
     P0.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:31:54+00:00'
       note: null
     P0.T4.S1:
       state: '-'
@@ -183,6 +183,6 @@ state:
       note: 'Decision: defer rename to follow-up. STOA_GITHUB_MIRROR_TOKEN stays as-is
         for this rework. Captured as TODO for post-Phase-8 cleanup.'
   completion:
-    at: null
+    at: '2026-05-13T17:31:56+00:00'
     note: null
     observed_prs: []
