@@ -132,10 +132,20 @@ spec:
               git remote remove gitea 2>/dev/null || true
               git remote add gitea "ssh://git@192.168.55.209:2222/${ORG_NAME}/${REPO_NAME}.git"
 
+              # Pre-flight: verify the SSH key authenticates to Gitea as stoa-bot.
+              # Useful debug when push fails with "Permission denied (publickey)".
+              echo "--- ssh auth pre-flight (whoami via Gitea) ---"
+              ssh -i "$HOME/.ssh/id_rsa" \
+                  -o StrictHostKeyChecking=no \
+                  -o UserKnownHostsFile=/dev/null \
+                  -o LogLevel=ERROR \
+                  -p 2222 git@192.168.55.209 2>&1 | head -3 || echo "(non-zero exit; output above)"
+
               # Force-push the SHA to the destination ref on Gitea.
-              # GIT_SSH_COMMAND disables strict host-key checking (in-cluster, mesh-trusted).
+              # GIT_SSH_COMMAND disables strict host-key checking (in-cluster, mesh-trusted)
+              # and pins the identity file (SSH default-key lookup is finicky as uid 65534).
               echo "Pushing $(params.sha) → gitea:$(params.ref-to)"
-              GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR" \
+              GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR" \
                 git push --force gitea "$(params.sha):$(params.ref-to)"
               echo "OK"
       params:
