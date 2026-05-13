@@ -125,8 +125,10 @@ spec:
         - {name: state,          value: "failure"}
         - {name: description,    value: "Hugo build failed"}
         - {name: context,        value: "tekton/ci"}
+    # gitea-status: best-effort secondary, see hum-ci comment.
     - name: gitea-status-success
       when: [{input: $(tasks.status), operator: in, values: ["Succeeded", "Completed"]}]
+      onError: continue
       taskRef: {name: gitea-status}
       params:
         - {name: repo-full-name, value: $(params.gitea-repo)}
@@ -136,6 +138,7 @@ spec:
         - {name: context,        value: "tekton/ci"}
     - name: gitea-status-failure
       when: [{input: $(tasks.status), operator: notin, values: ["Succeeded", "Completed"]}]
+      onError: continue
       taskRef: {name: gitea-status}
       params:
         - {name: repo-full-name, value: $(params.gitea-repo)}

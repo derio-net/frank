@@ -127,20 +127,21 @@ spec:
               limits:   {memory: 2Gi}
             script: |
               #!/bin/sh
-              # `set -eu` doesn't propagate into && / || chains, so use explicit
-              # if/else around `npm run typecheck` / `npm test` — otherwise a
-              # real type-error or test-failure (exit 1) takes the `|| echo`
-              # branch and the run continues green. `npm pkg get` exits 0 even
-              # for missing keys, returning literal "{}", so check the value.
+              # `set -eu` doesn't propagate into && / || chains. We use
+              # `npm run <script> --if-present`, npm's canonical "run if
+              # defined, succeed silently otherwise" flag. This avoids the
+              # previous `has_script` heuristic which returned true for
+              # entries like `scripts.test: ""` and then crashed on
+              # "Missing script: test" — surfaced in the 2026-05-13 rework
+              # smoke against the @hum/shared workspace.
               set -eu
-              has_script() { [ "$(npm pkg get "scripts.$1" 2>/dev/null)" != "{}" ]; }
               run_in() {
                 d="$1"
                 echo "=== $d ==="
                 cd "$d"
                 if [ -f package-lock.json ]; then npm ci; else npm install; fi
-                if has_script typecheck; then npm run typecheck; else echo "no typecheck script in $d"; fi
-                if has_script test; then npm test; else echo "no test script in $d"; fi
+                npm run typecheck --if-present
+                npm run test --if-present
                 cd - >/dev/null
               }
               run_in .
@@ -173,13 +174,16 @@ spec:
         - {name: state,          value: "failure"}
         - {name: description,    value: "CI failed"}
         - {name: context,        value: "tekton/ci"}
-    # gitea-status — best-effort secondary (provides Gitea-side visibility for
-    # operators browsing the synthetic PR ref or main on Gitea).
+    # gitea-status — best-effort secondary. `onError: continue` means a
+    # failure here (e.g. tekton-bot not yet member of agentic-stoa Gitea
+    # org, or Gitea API transient-down) does NOT fail the overall pipeline.
+    # github-status above is the mandatory one.
     - name: gitea-status-success
       when:
         - input: $(tasks.status)
           operator: in
           values: ["Succeeded", "Completed"]
+      onError: continue
       taskRef: {name: gitea-status}
       params:
         - {name: repo-full-name, value: $(params.gitea-repo)}
@@ -192,6 +196,7 @@ spec:
         - input: $(tasks.status)
           operator: notin
           values: ["Succeeded", "Completed"]
+      onError: continue
       taskRef: {name: gitea-status}
       params:
         - {name: repo-full-name, value: $(params.gitea-repo)}
