@@ -10,55 +10,286 @@ tasks:
   title: Author `github-status` Task
   steps:
   - id: P3.T1.S1
-    text: "Create `apps/tekton/tasks/github-status.yaml`\n\n\n```yaml\napiVersion: tekton.dev/v1\nkind: Task\nmetadata:\n  name: github-status\n  namespace: tekton-pipelines\nspec:\n  description: |\n    POST a commit status to GitHub via repos/<owner>/<repo>/statuses/<sha>.\n    Used as the mandatory final step of any pipeline that runs against a\n    GitHub-sourced commit (PR-time CI, main-sync verification, etc.).\n  params:\n    - name: repo\n      description: \"owner/repo (e.g. agentic-stoa/hum)\"\n      type: string\n    - name: sha\n      description: \"commit SHA to attach status to\"\n      type: string\n    - name: state\n      description: \"pending | success | failure | error\"\n      type: string\n    - name: context\n      description: \"status context label (default: tekton/ci)\"\n      type: string\n      default: \"tekton/ci\"\n    - name: target_url\n      description: \"URL the status check links to (Tekton dashboard PipelineRun)\"\n      type: string\n      default: \"\"\n    - name: description\n      description: \"short status message (\u2264140 chars)\"\n      type: string\n      default: \"\"\n  steps:\n    - name: post-status\n      image: curlimages/curl:8.10.1\n      computeResources:\n        requests:\n          cpu: 10m\n          memory: 16Mi\n        limits:\n          cpu: 100m\n          memory: 64Mi\n      env:\n        - name: GITHUB_TOKEN\n          valueFrom:\n            secretKeyRef:\n              name: stoa-github-mirror   # ESO-loaded; same Secret as parent plan\n              key: token\n      script: |\n        #!/bin/sh\n        set -eu\n        BODY=$(printf '{\"state\":\"%s\",\"context\":\"%s\",\"description\":\"%s\",\"target_url\":\"%s\"}' \\\n          \"$(params.state)\" \"$(params.context)\" \"$(params.description)\" \"$(params.target_url)\")\n        echo \"posting to repos/$(params.repo)/statuses/$(params.sha): $BODY\"\n        HTTP=$(curl -s -o /tmp/resp -w '%{http_code}' \\\n          -X POST \\\n          -H \"Authorization: token $GITHUB_TOKEN\" \\\n          -H 'Accept: application/vnd.github+json' \\\n          -H 'Content-Type: application/json' \\\n          \"https://api.github.com/repos/$(params.repo)/statuses/$(params.sha)\" \\\n          -d \"$BODY\")\n        cat /tmp/resp\n        echo\n        if [ \"$HTTP\" -ge 400 ]; then\n          echo \"ERROR: github status post failed (HTTP $HTTP)\" >&2\n          exit 1\n        fi\n```\n\nNote on the curl image: `runAsNonRoot` per the gotcha in `frank-gotchas.md` \u2014 `curlimages/curl` uses non-numeric user `curl_user`. Add explicit `runAsUser: 100` if Pod security fails, OR use a different image."
+    text: |-
+      Create `apps/tekton/tasks/github-status.yaml`
+
+
+      ```yaml
+      apiVersion: tekton.dev/v1
+      kind: Task
+      metadata:
+        name: github-status
+        namespace: tekton-pipelines
+      spec:
+        description: |
+          POST a commit status to GitHub via repos/<owner>/<repo>/statuses/<sha>.
+          Used as the mandatory final step of any pipeline that runs against a
+          GitHub-sourced commit (PR-time CI, main-sync verification, etc.).
+        params:
+          - name: repo
+            description: "owner/repo (e.g. agentic-stoa/hum)"
+            type: string
+          - name: sha
+            description: "commit SHA to attach status to"
+            type: string
+          - name: state
+            description: "pending | success | failure | error"
+            type: string
+          - name: context
+            description: "status context label (default: tekton/ci)"
+            type: string
+            default: "tekton/ci"
+          - name: target_url
+            description: "URL the status check links to (Tekton dashboard PipelineRun)"
+            type: string
+            default: ""
+          - name: description
+            description: "short status message (≤140 chars)"
+            type: string
+            default: ""
+        steps:
+          - name: post-status
+            image: curlimages/curl:8.10.1
+            computeResources:
+              requests:
+                cpu: 10m
+                memory: 16Mi
+              limits:
+                cpu: 100m
+                memory: 64Mi
+            env:
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: stoa-github-mirror   # ESO-loaded; same Secret as parent plan
+                    key: token
+            script: |
+              #!/bin/sh
+              set -eu
+              BODY=$(printf '{"state":"%s","context":"%s","description":"%s","target_url":"%s"}' \
+                "$(params.state)" "$(params.context)" "$(params.description)" "$(params.target_url)")
+              echo "posting to repos/$(params.repo)/statuses/$(params.sha): $BODY"
+              HTTP=$(curl -s -o /tmp/resp -w '%{http_code}' \
+                -X POST \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                -H 'Accept: application/vnd.github+json' \
+                -H 'Content-Type: application/json' \
+                "https://api.github.com/repos/$(params.repo)/statuses/$(params.sha)" \
+                -d "$BODY")
+              cat /tmp/resp
+              echo
+              if [ "$HTTP" -ge 400 ]; then
+                echo "ERROR: github status post failed (HTTP $HTTP)" >&2
+                exit 1
+              fi
+      ```
+
+      Note on the curl image: `runAsNonRoot` per the gotcha in `frank-gotchas.md` — `curlimages/curl` uses non-numeric user `curl_user`. Add explicit `runAsUser: 100` if Pod security fails, OR use a different image.
   - id: P3.T1.S2
-    text: "Commit + verify Task lands\n\n\n```bash\ngit add apps/tekton/tasks/github-status.yaml\ngit commit -m 'feat(cicd): github-status Task \u2014 POST commit status to GitHub (rework Phase 3)'\ngit push\nkubectl get task -n tekton-pipelines github-status   # expect: present\n```"
+    text: |-
+      Commit + verify Task lands
+
+
+      ```bash
+      git add apps/tekton/tasks/github-status.yaml
+      git commit -m 'feat(cicd): github-status Task — POST commit status to GitHub (rework Phase 3)'
+      git push
+      kubectl get task -n tekton-pipelines github-status   # expect: present
+      ```
 - number: 2
   title: Author `github-pull-sync` Pipeline
   steps:
   - id: P3.T2.S1
-    text: "Create `apps/tekton/pipelines/github-pull-sync.yaml`\n\n\n```yaml\napiVersion: tekton.dev/v1\nkind: Pipeline\nmetadata:\n  name: github-pull-sync\n  namespace: tekton-pipelines\nspec:\n  description: |\n    Pull a ref from GitHub and push it into the matching Gitea-replica repo.\n    Triggered by:\n      - PR webhook events (ref-from = refs/pull/N/head, ref-to = refs/pull/N/head on Gitea side)\n      - push-to-main webhook events (ref-from = refs/heads/main, ref-to = refs/heads/main)\n    Idempotent \u2014 git push is force-with-lease against refs/pull/* on Gitea.\n  params:\n    - name: github-repo   # e.g. agentic-stoa/hum\n      type: string\n    - name: gitea-repo    # e.g. agentic-stoa/hum (same in this rework)\n      type: string\n    - name: ref-from      # e.g. refs/pull/12/head\n      type: string\n    - name: ref-to        # e.g. refs/pull/12/head OR refs/heads/main\n      type: string\n    - name: sha           # the commit SHA to fetch\n      type: string\n  workspaces:\n    - name: source\n      description: clone target dir\n    - name: ssh-creds\n      description: stoa-bot SSH key for pushing into Gitea\n  tasks:\n    - name: fetch-from-github\n      taskRef:\n        name: git-clone\n      workspaces:\n        - name: output\n          workspace: source\n      params:\n        - name: url\n          value: \"https://github.com/$(params.github-repo).git\"\n        - name: revision\n          value: \"$(params.sha)\"\n        - name: refspec\n          value: \"+$(params.ref-from):$(params.ref-from)\"\n        - name: deleteExisting\n          value: \"true\"\n    - name: push-to-gitea\n      runAfter: [fetch-from-github]\n      workspaces:\n        - name: source\n          workspace: source\n        - name: ssh\n          workspace: ssh-creds\n      taskSpec:\n        params:\n          - name: gitea-repo\n          - name: ref-to\n        workspaces:\n          - name: source\n          - name: ssh\n            mountPath: /workspace/ssh\n        steps:\n          - name: push\n            image: alpine/git:2.45.2\n            script: |\n              #!/bin/sh\n              set -eu\n              cd $(workspaces.source.path)\n              mkdir -p ~/.ssh\n              cp $(workspaces.ssh.path)/id_rsa ~/.ssh/id_rsa\n              chmod 600 ~/.ssh/id_rsa\n              ssh-keyscan -p 2222 -H 192.168.55.209 >> ~/.ssh/known_hosts\n              git remote add gitea git@192.168.55.209:agentic-stoa/$(echo $(params.gitea-repo) | cut -d/ -f2).git || true\n              git push --force gitea HEAD:$(params.ref-to)\n      params:\n        - name: gitea-repo\n          value: \"$(params.gitea-repo)\"\n        - name: ref-to\n          value: \"$(params.ref-to)\"\n```\n\nNote: this pipeline assumes `git-clone` Task already exists at `apps/tekton/tasks/git-clone.yaml` (it does \u2014 verified in the parent plan's substrate)."
-  - id: P3.T2.S2
-    text: "Provision `stoa-bot` SSH key for the pull-sync pipeline\n\n\nThe pull-sync pipeline pushes INTO Gitea using `stoa-bot`'s SSH key. We need:\n\n1. Generate an SSH keypair for `stoa-bot` (if not already done in parent plan Phase 0): `ssh-keygen -t ed25519 -f /tmp/stoa-bot-id -C 'tekton-stoa-bot'`\n2. Add the public key to Gitea: UI \u2192 stoa-bot user \u2192 Settings \u2192 SSH/GPG Keys \u2192 Add\n3. Create a Kubernetes Secret holding the private key:\n\n   ```yaml\n   # SOPS-encrypted, lives in secrets/stoa/stoa-bot-ssh-key.yaml\n   apiVersion: v1\n   kind: Secret\n   metadata:\n     name: stoa-bot-ssh-key\n     namespace: tekton-pipelines\n   type: Opaque\n   stringData:\n     id_rsa: <PRIVATE_KEY>\n   ```\n\nApply via the standard SOPS-bootstrap manual-op pattern (operator-side, age key required \u2014 can't be done from in-cluster).\n\nThe pull-sync Pipeline references this Secret as `ssh-creds` workspace via:\n\n```yaml\nworkspaces:\n  - name: ssh-creds\n    secret:\n      secretName: stoa-bot-ssh-key\n```\n\n(Wired up in Phase 4 when the Trigger spec assembles the workspace bindings.)"
-  - id: P3.T2.S3
-    text: 'Commit + verify Pipeline lands
+    text: |-
+      Create `apps/tekton/pipelines/github-pull-sync.yaml`
 
+
+      ```yaml
+      apiVersion: tekton.dev/v1
+      kind: Pipeline
+      metadata:
+        name: github-pull-sync
+        namespace: tekton-pipelines
+      spec:
+        description: |
+          Pull a ref from GitHub and push it into the matching Gitea-replica repo.
+          Triggered by:
+            - PR webhook events (ref-from = refs/pull/N/head, ref-to = refs/pull/N/head on Gitea side)
+            - push-to-main webhook events (ref-from = refs/heads/main, ref-to = refs/heads/main)
+          Idempotent — git push is force-with-lease against refs/pull/* on Gitea.
+        params:
+          - name: github-repo   # e.g. agentic-stoa/hum
+            type: string
+          - name: gitea-repo    # e.g. agentic-stoa/hum (same in this rework)
+            type: string
+          - name: ref-from      # e.g. refs/pull/12/head
+            type: string
+          - name: ref-to        # e.g. refs/pull/12/head OR refs/heads/main
+            type: string
+          - name: sha           # the commit SHA to fetch
+            type: string
+        workspaces:
+          - name: source
+            description: clone target dir
+          - name: ssh-creds
+            description: stoa-bot SSH key for pushing into Gitea
+        tasks:
+          - name: fetch-from-github
+            taskRef:
+              name: git-clone
+            workspaces:
+              - name: output
+                workspace: source
+            params:
+              - name: url
+                value: "https://github.com/$(params.github-repo).git"
+              - name: revision
+                value: "$(params.sha)"
+              - name: refspec
+                value: "+$(params.ref-from):$(params.ref-from)"
+              - name: deleteExisting
+                value: "true"
+          - name: push-to-gitea
+            runAfter: [fetch-from-github]
+            workspaces:
+              - name: source
+                workspace: source
+              - name: ssh
+                workspace: ssh-creds
+            taskSpec:
+              params:
+                - name: gitea-repo
+                - name: ref-to
+              workspaces:
+                - name: source
+                - name: ssh
+                  mountPath: /workspace/ssh
+              steps:
+                - name: push
+                  image: alpine/git:2.45.2
+                  script: |
+                    #!/bin/sh
+                    set -eu
+                    cd $(workspaces.source.path)
+                    mkdir -p ~/.ssh
+                    cp $(workspaces.ssh.path)/id_rsa ~/.ssh/id_rsa
+                    chmod 600 ~/.ssh/id_rsa
+                    ssh-keyscan -p 2222 -H 192.168.55.209 >> ~/.ssh/known_hosts
+                    git remote add gitea git@192.168.55.209:agentic-stoa/$(echo $(params.gitea-repo) | cut -d/ -f2).git || true
+                    git push --force gitea HEAD:$(params.ref-to)
+            params:
+              - name: gitea-repo
+                value: "$(params.gitea-repo)"
+              - name: ref-to
+                value: "$(params.ref-to)"
+      ```
+
+      Note: this pipeline assumes `git-clone` Task already exists at `apps/tekton/tasks/git-clone.yaml` (it does — verified in the parent plan's substrate).
+  - id: P3.T2.S2
+    text: |-
+      Provision `stoa-bot` SSH key for the pull-sync pipeline
+
+
+      The pull-sync pipeline pushes INTO Gitea using `stoa-bot`'s SSH key. We need:
+
+      1. Generate an SSH keypair for `stoa-bot` (if not already done in parent plan Phase 0): `ssh-keygen -t ed25519 -f /tmp/stoa-bot-id -C 'tekton-stoa-bot'`
+      2. Add the public key to Gitea: UI → stoa-bot user → Settings → SSH/GPG Keys → Add
+      3. Create a Kubernetes Secret holding the private key:
+
+         ```yaml
+         # SOPS-encrypted, lives in secrets/stoa/stoa-bot-ssh-key.yaml
+         apiVersion: v1
+         kind: Secret
+         metadata:
+           name: stoa-bot-ssh-key
+           namespace: tekton-pipelines
+         type: Opaque
+         stringData:
+           id_rsa: <PRIVATE_KEY>
+         ```
+
+      Apply via the standard SOPS-bootstrap manual-op pattern (operator-side, age key required — can't be done from in-cluster).
+
+      The pull-sync Pipeline references this Secret as `ssh-creds` workspace via:
+
+      ```yaml
+      workspaces:
+        - name: ssh-creds
+          secret:
+            secretName: stoa-bot-ssh-key
+      ```
+
+      (Wired up in Phase 4 when the Trigger spec assembles the workspace bindings.)
+  - id: P3.T2.S3
+    text: |-
+      Commit + verify Pipeline lands
 
 
       ```bash
-
       git add apps/tekton/pipelines/github-pull-sync.yaml
-
-      git commit -m ''feat(cicd): github-pull-sync Pipeline (rework Phase 3)''
-
+      git commit -m 'feat(cicd): github-pull-sync Pipeline (rework Phase 3)'
       git push
-
       kubectl get pipeline -n tekton-pipelines github-pull-sync   # expect: present
-
-      ```'
+      ```
   - id: P3.T2.S4
-    text: "Manual smoke test: invoke pull-sync with a known SHA\n\n\nTrigger a PipelineRun by hand to verify the pipeline mechanics before wiring triggers in Phase 4:\n\n```bash\nkubectl create -f - <<'EOF'\napiVersion: tekton.dev/v1\nkind: PipelineRun\nmetadata:\n  generateName: github-pull-sync-smoke-\n  namespace: tekton-pipelines\nspec:\n  pipelineRef:\n    name: github-pull-sync\n  params:\n    - name: github-repo\n      value: agentic-stoa/hum\n    - name: gitea-repo\n      value: agentic-stoa/hum\n    - name: ref-from\n      value: refs/heads/main\n    - name: ref-to\n      value: refs/heads/main\n    - name: sha\n      value: <CURRENT_GITHUB_MAIN_SHA>\n  workspaces:\n    - name: source\n      emptyDir: {}\n    - name: ssh-creds\n      secret:\n        secretName: stoa-bot-ssh-key\nEOF\n```\n\nVerify: PipelineRun succeeds, Gitea's main HEAD == GitHub's main HEAD."
+    text: |-
+      Manual smoke test: invoke pull-sync with a known SHA
+
+
+      Trigger a PipelineRun by hand to verify the pipeline mechanics before wiring triggers in Phase 4:
+
+      ```bash
+      kubectl create -f - <<'EOF'
+      apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: github-pull-sync-smoke-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef:
+          name: github-pull-sync
+        params:
+          - name: github-repo
+            value: agentic-stoa/hum
+          - name: gitea-repo
+            value: agentic-stoa/hum
+          - name: ref-from
+            value: refs/heads/main
+          - name: ref-to
+            value: refs/heads/main
+          - name: sha
+            value: <CURRENT_GITHUB_MAIN_SHA>
+        workspaces:
+          - name: source
+            emptyDir: {}
+          - name: ssh-creds
+            secret:
+              secretName: stoa-bot-ssh-key
+      EOF
+      ```
+
+      Verify: PipelineRun succeeds, Gitea's main HEAD == GitHub's main HEAD.
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:54:38+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:54:40+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:54:41+00:00'
       note: null
     P3.T2.S2:
       state: ' '
       ticked_at: null
       note: null
     P3.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T17:54:43+00:00'
       note: null
     P3.T2.S4:
       state: ' '
