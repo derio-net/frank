@@ -1,0 +1,53 @@
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: github-listener
+  namespace: tekton-pipelines
+spec:
+  serviceAccountName: tekton-triggers
+  # Triggers are populated in Phase 4 (per-repo CI: hum-ci, content-factory-ci,
+  # stoa-blog-ci) and Phase 5 (push-to-main → github-pull-sync) of the
+  # stoa-gitea-primary-rework-1 plan. Phase 2 ships the EventListener with
+  # a single placeholder trigger that filters on a marker header nothing
+  # real sends — Tekton EL schema rejects empty `triggers: []`, so we need
+  # at least one. The LB Service below pins to 192.168.55.223 (matches
+  # Caddy reverse-proxy target from Phase 1) and gives the controller live
+  # pod targets.
+  triggers:
+    - name: placeholder-until-phase-4
+      interceptors:
+        - name: "cel"
+          ref:
+            name: "cel"
+          params:
+            - name: "filter"
+              value: "header.match('X-Frank-Placeholder', 'reject')"
+      bindings: []
+      template:
+        ref: hum-ci-template   # any existing template; will never fire because the cel filter excludes everything
+  resources:
+    kubernetesResource:
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              kubernetes.io/hostname: pc-1
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: el-github-listener-lb
+  namespace: tekton-pipelines
+  annotations:
+    # Cilium L2 IPAM — pin to 192.168.55.223 (claimed in
+    # .claude/rules/frank-infrastructure.md row "GitHub webhook receiver").
+    lbipam.cilium.io/ips: "192.168.55.223"
+spec:
+  type: LoadBalancer
+  selector:
+    eventlistener: github-listener
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
