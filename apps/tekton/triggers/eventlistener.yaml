@@ -34,22 +34,6 @@ spec:
         - ref: gitea-push-binding
       template:
         ref: gitea-pipeline-template
-    - name: agentic-stoa-backup
-      interceptors:
-        - ref:
-            name: "cel"
-          params:
-            - name: "filter"
-              value: >-
-                header.match('X-Gitea-Event', 'push') &&
-                body.repository.full_name.startsWith('agentic-stoa/') &&
-                (body.ref == 'refs/heads/main' || body.ref.startsWith('refs/tags/'))
-      bindings:
-        - ref: gitea-push-binding
-        - name: gitea-clone-url
-          value: $(body.repository.clone_url)
-      template:
-        ref: agentic-stoa-backup-template
     - name: agentic-stoa-hum-ci
       interceptors:
         - ref:
@@ -103,48 +87,6 @@ spec:
           spec:
             nodeSelector:
               kubernetes.io/hostname: pc-1
----
-# Backup-sync: fires only for agentic-stoa/* on main or tag pushes
-apiVersion: triggers.tekton.dev/v1beta1
-kind: TriggerTemplate
-metadata:
-  name: agentic-stoa-backup-template
-  namespace: tekton-pipelines
-spec:
-  params:
-    - name: repo-full-name
-    - name: gitea-clone-url
-  resourcetemplates:
-    - apiVersion: tekton.dev/v1
-      kind: PipelineRun
-      metadata:
-        generateName: stoa-backup-
-        namespace: tekton-pipelines
-      spec:
-        pipelineRef:
-          name: github-backup-sync
-        params:
-          - name: repo-full-name
-            value: $(tt.params.repo-full-name)
-          - name: gitea-clone-url
-            value: $(tt.params.gitea-clone-url)
-        taskRunTemplate:
-          podTemplate:
-            securityContext:
-              fsGroup: 65534
-        workspaces:
-          - name: shared-workspace
-            volumeClaimTemplate:
-              spec:
-                accessModes:
-                  - ReadWriteOnce
-                storageClassName: longhorn-cicd
-                resources:
-                  # 5Gi headroom for `git clone --mirror` of repos with large
-                  # blob history. agentic-stoa/* repos are small today; revisit
-                  # if a future repo exceeds this.
-                  requests:
-                    storage: 5Gi
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerTemplate
