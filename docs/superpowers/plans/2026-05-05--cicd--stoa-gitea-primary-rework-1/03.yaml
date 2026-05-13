@@ -284,18 +284,24 @@ state:
       ticked_at: '2026-05-13T17:54:41+00:00'
       note: null
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T18:19:12+00:00'
       note: null
     P3.T2.S3:
       state: x
       ticked_at: '2026-05-13T17:54:43+00:00'
       note: null
     P3.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-13T18:19:14+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-13T18:19:15+00:00'
+    note: 'Deviation: github-pull-sync went through 4 fix iterations during smoke
+      (P3.T2.S4): (1) shared git-clone task can''t do full clone — refactored to inline
+      fetch+push; (2) private repo needed PAT auth in clone URL; (3) ssh-keyscan output
+      didn''t match client lookup form (host-key verification failed); (4) SSH default-key
+      lookup failed for nobody-uid container — explicit -i $HOME/.ssh/id_rsa fixed
+      it. Final pre-flight: ''Hi there, stoa-bot! ... key tekton-stoa-bot''. Push:
+      Everything up-to-date. Verified Gitea main HEAD == GitHub main HEAD.'
     observed_prs: []
