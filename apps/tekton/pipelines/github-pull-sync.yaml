@@ -92,25 +92,19 @@ spec:
               #!/bin/sh
               set -eu
 
-              # SSH setup: copy the stoa-bot key from the workspace to ~/.ssh/id_rsa
-              mkdir -p "$HOME/.ssh"
-              cp /workspace/ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
-              chmod 600 "$HOME/.ssh/id_rsa"
-              # Disable strict host key checking for the Gitea connection.
-              # This is safe because:
+              # SSH setup: copy the stoa-bot key from the workspace to ~/.ssh/id_rsa.
+              # Disable strict host key checking via GIT_SSH_COMMAND env var
+              # (set just before the push call) — avoids ~/.ssh/config heredoc
+              # indentation issues SSH's parser is strict about. Safe because:
               #   - both endpoints are in-cluster / on the trusted LAN
               #   - traffic stays inside the Tailscale-meshed segment
               #   - ssh-keyscan against Gitea's SSH LB returns only the RSA
-              #     key, but Gitea's server side advertises ed25519+RSA+ECDSA;
-              #     the client picks ed25519 first and fails strict-checking
-              #     because no ed25519 entry exists in known_hosts (2026-05-13)
-              cat > "$HOME/.ssh/config" <<'CFG'
-              Host 192.168.55.209
-                StrictHostKeyChecking no
-                UserKnownHostsFile /dev/null
-                LogLevel ERROR
-              CFG
-              chmod 600 "$HOME/.ssh/config"
+              #     key, but the client side advertises ed25519+RSA+ECDSA;
+              #     the client picks ed25519 first and would fail strict
+              #     checking because no ed25519 entry exists in known_hosts.
+              mkdir -p "$HOME/.ssh"
+              cp /workspace/ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
+              chmod 600 "$HOME/.ssh/id_rsa"
 
               # Workspace may be owned by root (PVC); safe.directory avoids "dubious ownership" error
               git config --global --add safe.directory '*'
@@ -138,9 +132,11 @@ spec:
               git remote remove gitea 2>/dev/null || true
               git remote add gitea "ssh://git@192.168.55.209:2222/${ORG_NAME}/${REPO_NAME}.git"
 
-              # Force-push the SHA to the destination ref on Gitea
+              # Force-push the SHA to the destination ref on Gitea.
+              # GIT_SSH_COMMAND disables strict host-key checking (in-cluster, mesh-trusted).
               echo "Pushing $(params.sha) → gitea:$(params.ref-to)"
-              git push --force gitea "$(params.sha):$(params.ref-to)"
+              GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR" \
+                git push --force gitea "$(params.sha):$(params.ref-to)"
               echo "OK"
       params:
         - name: github-repo
