@@ -19,7 +19,7 @@ When a deployed layer needs a bugfix or unplanned extension:
 2. **Fix** — Implement the fix in the original layer's ArgoCD app/manifests (not a new app)
 3. **Update plan** — Add deviation notes inline at the affected task + append to the Deployment Deviations section
 4. **Update blog** — Retroactively update the layer's building/ post (add gotcha or correction) and operating/ post (add new operational commands). Do NOT create a new post unless the fix is substantial enough to warrant its own narrative (e.g., the GPU Talos validation fix)
-5. **Update gotchas** — If the fix reveals a non-obvious pattern, add it to `.claude/rules/frank-gotchas.md` or `.claude/rules/hop-gotchas.md`
+5. **Update gotchas** — If the fix reveals a non-obvious pattern, add a one-liner to `.claude/rules/frank-gotchas.md` (or `hop-gotchas.md`) and the full prose / recovery commands to `docs/runbooks/frank-gotchas-archive.md` under the same section heading. Hot file is auto-loaded into every session; archive is not (read on demand).
 
 Use the layer code in commit messages: `fix(gpu): <description>` or `feat(edge): <description>`.
 
