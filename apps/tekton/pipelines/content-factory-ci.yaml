@@ -98,11 +98,28 @@ spec:
             script: |
               #!/bin/sh
               set -eu
+              # content-factory's tests/test_quality_check_sh.py shells out to
+              # `jq`, which python:3.13-slim doesn't ship. We run as UID 65534
+              # so apt-get isn't an option — drop a static jq binary into
+              # HOME/bin and prepend to PATH. Pinned version so CI is
+              # reproducible. (2026-05-13 rework smoke discovery.)
+              mkdir -p "$HOME/bin"
+              JQ_VERSION=1.7.1
+              JQ_URL="https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-amd64"
+              # python:3.13-slim has wget but not curl; use python's stdlib
+              # urllib via a one-liner — most reliable.
+              python -c "import urllib.request; urllib.request.urlretrieve('$JQ_URL', '$HOME/bin/jq')"
+              chmod +x "$HOME/bin/jq"
+              export PATH="$HOME/bin:$PATH"
+              jq --version
+
               python -m venv /tekton/home/venv
               . /tekton/home/venv/bin/activate
               if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
               if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
-              pytest -v
+              # Run pytest; treat exit 5 (no tests collected) as success
+              # so a repo without tests doesn't fail CI.
+              pytest -v || [ $? -eq 5 ]
   finally:
     - name: github-status-success
       when: [{input: $(tasks.status), operator: in, values: ["Succeeded", "Completed"]}]

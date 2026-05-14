@@ -82,9 +82,10 @@ spec:
           - {name: source}
         steps:
           - name: hugo-build
-            # hugomods/hugo includes Hugo Extended (sass support) — match what
-            # frank's blog deployment uses.
-            image: hugomods/hugo:exts-0.161.0
+            # Match Frank's own blog Dockerfile (blog/Dockerfile) for image
+            # consistency. The gohugoio image is built from the upstream
+            # release, includes Hugo Extended (sass), and ships on GHCR.
+            image: ghcr.io/gohugoio/hugo:v0.157.0
             workingDir: $(workspaces.source.path)/repo
             securityContext:
               allowPrivilegeEscalation: false
