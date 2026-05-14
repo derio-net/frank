@@ -1,8 +1,8 @@
 ## Frank Cluster Gotchas (compact)
 
-One-line reminders only. Full prose, recovery commands, and incident notes for every entry below live in `docs/runbooks/frank-gotchas-archive.md` (NOT auto-loaded — read on demand). When adding a new gotcha: one-liner here, full body in the archive under the same section.
+One-line reminders only. Each section header points at a per-topic file under `docs/runbooks/frank-gotchas/` for full prose, recovery commands, and dated incident notes — agents read those on demand. When adding a new gotcha: one-liner here, full body in the corresponding section file.
 
-### ArgoCD
+### ArgoCD — `docs/runbooks/frank-gotchas/argocd.md`
 - Notifications: subscribe via `subscribe.<trigger>.<service-name>: ""` (the third dotted segment is the service name, not the type).
 - Notifications: native `service.telegram` mis-routes positive chat IDs — use `service.webhook.telegram`.
 - Notifications-cm is owned by the ArgoCD chart — put service/triggers/templates under `notifications.notifiers/.triggers/.templates` in `apps/argocd/values.yaml`; `notifications.secret.create: false`.
@@ -10,21 +10,21 @@ One-line reminders only. Full prose, recovery commands, and incident notes for e
 - Out-of-bounds symlinks anywhere in the repo lock the entire GitOps loop into `ComparisonError` — check after symlink commits: `find . -type l -lname '*../../..*'`.
 - Root App-of-Apps re-templates leaf Application specs on every sync; live spec patches (selfHeal off, branch override) are reverted within the sync window.
 
-### Storage / Secrets / SSA
+### Storage / Secrets / SSA — `docs/runbooks/frank-gotchas/storage-secrets-ssa.md`
 - SOPS-encrypted secrets must NOT be ArgoCD-managed; apply out-of-band from `secrets/`.
 - RWO PVC + RollingUpdate deadlocks; use `strategy: Recreate`. Switching strategy via Helm needs a one-time `kubectl patch` to clear the orphan `rollingUpdate:` block.
 - ESO: empty `data: []` is rejected; delete the ExternalSecret if all keys are removed.
 - `envFrom.secretRef` without `optional: true` blocks rolling updates when the Secret is missing.
 - Always `ServerSideApply=true`; always `prune: false`; always `ignoreDifferences` on Secret `/data`.
 
-### Tekton
+### Tekton — `docs/runbooks/frank-gotchas/tekton.md`
 - v1 Task uses `computeResources` not `resources` — schema validation silently fails the whole app.
 - `$(tasks.status)` returns `"Completed"` (not `"Succeeded"`) when tasks are skipped via `when` — accept both.
 - PVC workspaces mount as root — set `fsGroup` on `taskRunTemplate.podTemplate.securityContext`.
 - `runAsUser: 65534` (nobody) → `HOME=/` (read-only); set `HOME=/tekton/home` env explicitly.
 - Gitea sends `X-Gitea-Event` (not `X-GitHub-Event`) — use `cel` interceptor, not `github`.
 
-### Argo Rollouts
+### Argo Rollouts — `docs/runbooks/frank-gotchas/argo-rollouts.md`
 - Only `canary` / `blueGreen` strategies — stateful + RWO PVC apps stay as plain Deployments.
 - `workloadRef.scaleDown` defaults to `never` — set `onsuccess` explicitly or both Rollout + chart Deployment serve traffic.
 - `workloadRef` scales chart Deployment to 0 — add `ignoreDifferences` on `spec.replicas` (`group: apps`, `kind: Deployment`).
@@ -36,14 +36,14 @@ One-line reminders only. Full prose, recovery commands, and incident notes for e
 - `AnalysisTemplate` has no `inconclusiveCondition` field — NaN auto-treats as inconclusive; cap with `inconclusiveLimit`.
 - LiteLLM Prometheus is Enterprise-only — OSS image emits no `litellm_*` metrics.
 
-### Authentik
+### Authentik — `docs/runbooks/frank-gotchas/authentik.md`
 - Blueprints mount in WORKER pod via `blueprints.configMaps` — register new ConfigMaps there.
 - Blueprints don't assign providers to embedded outpost — manual Django ORM step (see `frank-argocd.md`).
 - Embedded outpost needs `AUTHENTIK_HOST` env or forward-auth redirects use `0.0.0.0:9000`.
 - API uses Bearer token (not basic auth); 2026.x requires `invalidation_flow` + object-shaped `redirect_uris` + `signing_key` UUID.
 - `global.env` applies to both server + worker (avoids duplication).
 
-### Grafana
+### Grafana — `docs/runbooks/frank-gotchas/grafana.md`
 - File-provisioned alerts/dashboards in `apps/grafana-alerting/manifests/` are read-only in UI; edit ConfigMap, push, restart pod (provisioning files are read at boot, not watched).
 - 12.x SSE alert rules need 3-step A→B→C; classic-condition format fails with `sse.parseError`.
 - `kube_pod_status_ready{condition="true"}` false-positives in batch namespaces (Tekton, Jobs); use `kube_deployment_status_replicas_unavailable` instead.
@@ -56,18 +56,18 @@ One-line reminders only. Full prose, recovery commands, and incident notes for e
 - VictoriaMetrics chart `genCA` regenerates webhook caBundle — `ignoreDifferences` on the validating webhook caBundle.
 - `ALERTS{}` does NOT exist in VM for Grafana-managed alerts — use `alertlist` panel type.
 
-### Networking
+### Networking — `docs/runbooks/frank-gotchas/networking.md`
 - Cilium: `lbipam.cilium.io/ips` alone is NOT a sharing directive — separate Services need matching `lbipam.cilium.io/sharing-key`. Always check `kubectl get svc -A | grep pending` after deploying a chart that splits one service into multiple Services on a shared LB IP.
 - Cilium 1.17 FQDN policies need DNS-proxy initialization on the node first; restart the agent if the LRU isn't ready (stale BPF rules also persist after CNP deletion — agent restart clears them).
 - MixedProtocolLBService (TCP + UDP on one Service) works on Cilium 1.17 + K8s 1.35 — no feature gate needed.
 - mosh: flags only in `--ssh="ssh ..."`; `user@host` positional; pin `--server="mosh-server new -p 60000:60015"` to match the Service's port range. Use the per-shell wrappers in `apps/*/client-setup/laptop/`.
 
-### gpu-1 specifics
+### gpu-1 specifics — `docs/runbooks/frank-gotchas/gpu-1.md`
 - `kubectl port-forward` flakes regularly with CNI-netns errors on gpu-1 pods only — use `kubectl get application -n argocd -o wide` for argocd-cli replacements; use `kubectl exec ... wget -qO-` for in-pod metrics.
 - Pin GPU workloads with `nodeSelector: kubernetes.io/hostname: gpu-1` + defensive `nvidia.com/gpu:NoSchedule` toleration (insurance against driver re-validation re-asserting the taint).
 - Ollama "system memory" errors mean container cgroup RAM (not VRAM) — `OLLAMA_KEEP_ALIVE` page cache pins the cgroup near `resources.limits.memory`.
 
-### Agent shells (paperclip-shell, ruflo-shell, secure-agent-kali)
+### Agent shells — `docs/runbooks/frank-gotchas/agent-shells.md`
 - `agent-shell-base` parameterizes user via `AGENT_USER`/`AGENT_HOME` (defaults `agent`/`/home/agent`); kali overrides to `claude`/`/home/claude` to preserve PV state. Don't hardcode `/home/claude` in new init scripts.
 - s6-overlay v3 in non-root mode needs `S6_KEEP_ENV=1`, `S6_VERBOSITY=2`, `with-contenv` shebangs (`#!/command/with-contenv bash` — `/command/`, NOT `/usr/bin/`), and `/run` chown'd to AGENT_UID at image build time.
 - `cont-init.d/30-authorized-keys` only fires at pod boot and COPIES (not symlinks) `/etc/ssh-keys/authorized_keys` — re-run by hand or restart pod after adding/rotating SOPS-managed keys.
@@ -81,17 +81,17 @@ One-line reminders only. Full prose, recovery commands, and incident notes for e
 - Sidecars with `runAsUser` overriding the image default need explicit `HOME` env — the binary resolves HOME from `/etc/passwd` of the image-baked user.
 - Supercronic auto-reloads on `~/.crontab` change — no restart needed.
 
-### Paperclip / Ruflo
+### Paperclip / Ruflo — `docs/runbooks/frank-gotchas/paperclip-ruflo.md`
 - Paperclip's "Test environment" runs in the `paperclip` app container, NOT the `paperclip-shell` sidecar — agent-CLIs installed via the shell PVC are invisible. Wire through the shared `/paperclip` PVC: `npm install --prefix /paperclip/agent-bin <pkg>` from the shell, PATH-suffix on the paperclip container.
 - `paperclip-data` PVC fills up from agent run histories + npm cache. Currently 10Gi — clear cache: `rm -rf /paperclip/.npm/_cacache`.
 - ruvocal stores state in `/app/db/ruvocal.rvf.json` (RVF), NOT Postgres — `DATABASE_URL` is silently ignored at the pinned SHA. Mount a PVC at `/app/db`.
 - ruvocal liveness should probe `/api/v2/feature-flags`, not `/` (SSR `/` reaches into LiteLLM/DB).
 - LiteLLM-fronted apps need a LiteLLM virtual key for `OPENAI_API_KEY` — not the upstream provider key.
 
-### Omni
+### Omni — `docs/runbooks/frank-gotchas/omni.md`
 - TLS cert is NOT renewed by the snap-installed certbot timer (config lives at `/opt/manual_install/certbot/config/`). Use the dedicated systemd unit in `omni/certbot/certbot.md`. Renewal hook MUST `docker restart omni` (no SIGHUP path on v1.5.0).
 
-### Other in-cluster apps
+### Other in-cluster apps — `docs/runbooks/frank-gotchas/other-apps.md`
 - Sympozium chart is Git-sourced (no OCI), service template doesn't take type/annotations (use extras LB), `image.tag` must be overridden.
 - Zot Helm chart v0.1.0 too minimal — use v0.1.60+ for TLS/auth/persistence. htpasswd hash regenerates if `ZOT_PUSH_PASSWORD` rotates.
 - Gitea `webhook.ALLOWED_HOST_LIST` blocks in-cluster delivery — add `*.svc.cluster.local`.
