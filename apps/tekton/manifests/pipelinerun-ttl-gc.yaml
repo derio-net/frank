@@ -68,7 +68,10 @@ spec:
                 runAsUser: 1001
                 capabilities: { drop: ["ALL"] }
                 seccompProfile: { type: RuntimeDefault }
-              computeResources:
+              # Native K8s containers use `resources` (Tekton CRDs use
+              # `computeResources` — see frank-gotchas.md). This is a
+              # CronJob/batch.v1, not a Tekton Task, so plain `resources`.
+              resources:
                 requests: { cpu: 50m, memory: 64Mi }
                 limits:   { memory: 128Mi }
               command: ["/bin/bash", "-eu", "-o", "pipefail", "-c"]
