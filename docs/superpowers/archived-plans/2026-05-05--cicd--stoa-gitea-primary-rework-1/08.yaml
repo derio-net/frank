@@ -1,0 +1,40 @@
+schema_version: 2
+phase:
+  number: 8
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on:
+  - 7
+tasks:
+- number: 1
+  title: Post-Deploy Checklist (extension of layer 19)
+  steps:
+  - id: P8.T1.S1
+    text: |-
+      Post-Deploy Checklist (per .claude/rules/plan-post-deploy-checklist.md)
+
+
+      Per `.claude/rules/plan-post-deploy-checklist.md`, fix/extension plans skip the new-blog-post step and update the existing layer's posts instead.
+
+      - [ ] **Step 1: Expose externally** — *skipped:* webhook ingress at `webhooks.hop.derio.net` is operator infrastructure; not a user-facing service that needs a homepage tile.
+      - [ ] **Step 2: Update Building #19 CI/CD blog post** — add a section 'Direction Inversion: GitHub-primary for agentic-stoa repos' covering: the Paperclip constraint, the Caddy-on-Hop relay, the dual-status anti-drift design.
+      - [ ] **Step 3: Update Operating #14 CI/CD blog post** — add operational notes: how to inspect github-listener events, how to manually re-trigger pull-sync, where to look in Caddy logs when a GitHub webhook fails to deliver.
+      - [ ] **Step 4: Update README** — add `webhooks.hop.derio.net` to Hop Services table; add `el-github-listener-lb` to Frank Services table at 192.168.55.223 (already done in Phase 2 T1 S2).
+      - [ ] **Step 5: Sync runbook** — `/sync-runbook` will pick up the manual-op blocks added across Phases 0/1/6.
+      - [ ] **Step 6: Update plan status** — this phase being complete + all earlier phases complete will compute Status = Complete in vk spec status. Then archive-on-Complete the plan folder per the standard pattern.
+state:
+  steps:
+    P8.T1.S1:
+      state: x
+      ticked_at: '2026-05-14T08:55:58+00:00'
+      note: 'Building #27 + Operating #22 extended with Direction Inversion / GitHub-primary
+        ops sections; README updated with el-github-listener (192.168.55.223) and
+        webhooks.hop.derio.net rows; runbook synced (5 manual-op entries under cicd-
+        prefix).'
+  completion:
+    at: '2026-05-14T08:56:13+00:00'
+    note: 'Post-Deploy Checklist done. Note for any future archaeology: the plan named
+      the existing CI/CD posts as ''Building #19 / Operating #14'' but the actual
+      files were Building #27 / Operating #22 — extensions landed against the actual
+      filenames.'
+    observed_prs: []

@@ -1,0 +1,171 @@
+schema_version: 2
+phase:
+  number: 7
+  title: End-to-end smoke (PR → pull → CI → status → merge → main-sync)
+  tag: manual
+  depends_on:
+  - 6
+tasks:
+- number: 1
+  title: Open a no-op PR on `hum`; verify the full chain
+  steps:
+  - id: P7.T1.S1
+    text: |-
+      Open a test PR on GitHub
+
+
+      From the operator's local clone of hum:
+
+      ```bash
+      cd ~/repos/hum
+      git checkout -b test/rework-smoke
+      git commit --allow-empty -m 'test: rework smoke'
+      git push -u origin test/rework-smoke
+      gh pr create --title 'test: rework smoke (DELETE ME)' --body 'no-op verification of GitHub-primary CI chain'
+      ```
+  - id: P7.T1.S2
+    text: |-
+      Verify GitHub webhook delivery
+
+
+      GitHub UI → repo Settings → Webhooks → most recent delivery: expect HTTP 200 with response body from el-github-listener.
+  - id: P7.T1.S3
+    text: |-
+      Verify Tekton fired the pull-sync + CI
+
+
+      ```bash
+      kubectl get pipelinerun -n tekton-pipelines --sort-by=.metadata.creationTimestamp | tail -5
+      # Expect: a github-pull-sync PR for hum, then a hum-ci PR, both Succeeded
+
+      # Inspect logs if either failed:
+      kubectl logs -n tekton-pipelines <pipelinerun-pod> --all-containers --max-log-requests 6
+      ```
+  - id: P7.T1.S4
+    text: |-
+      Verify status appears on the GitHub PR
+
+
+      GitHub PR view: a `tekton/ci` status check should appear (success). Click it; should link to the Tekton dashboard PipelineRun page.
+  - id: P7.T1.S5
+    text: |-
+      Verify Gitea-side status also appears
+
+
+      Open the Gitea synthetic PR ref:
+
+      ```bash
+      # Gitea UI: agentic-stoa/hum → branch refs/pull/<N>/head → most recent commit
+      ```
+
+      A `tekton/ci` status with the same state should appear (best-effort post).
+- number: 2
+  title: Merge the PR; verify main-sync
+  steps:
+  - id: P7.T2.S1
+    text: |-
+      Merge the test PR via GitHub UI
+
+
+      Click 'Merge pull request' (any merge style). The PR closes; GitHub fires a push event to main.
+  - id: P7.T2.S2
+    text: |-
+      Verify github-pull-sync fired for main
+
+
+      ```bash
+      kubectl get pipelinerun -n tekton-pipelines -l tekton.dev/pipeline=github-pull-sync --sort-by=.metadata.creationTimestamp | tail -3
+      # Expect: the most recent run is for refs/heads/main, Succeeded
+      ```
+  - id: P7.T2.S3
+    text: |-
+      Verify Gitea main HEAD == GitHub main HEAD
+
+
+      ```bash
+      GITHUB_HEAD=$(gh api repos/agentic-stoa/hum/branches/main --jq .commit.sha)
+      GITEA_HEAD=$(curl -sf "http://192.168.55.209:3000/api/v1/repos/agentic-stoa/hum/branches/main" -H "Authorization: token $STOA_GITEA_TOKEN" | jq -r .commit.id)
+      [ "$GITHUB_HEAD" = "$GITEA_HEAD" ] && echo "✅ in sync ($GITHUB_HEAD)" || echo "❌ drift"
+      ```
+  - id: P7.T2.S4
+    text: |-
+      Clean up the test branch on GitHub
+
+
+      ```bash
+      gh api -X DELETE repos/agentic-stoa/hum/git/refs/heads/test/rework-smoke
+      ```
+- number: 3
+  title: Repeat the smoke for `content-factory` + `stoa-blog`
+  steps:
+  - id: P7.T3.S1
+    text: |-
+      Same flow for content-factory
+
+
+      Repeat P7.T1 + P7.T2 against `agentic-stoa/content-factory`.
+  - id: P7.T3.S2
+    text: |-
+      Same flow for stoa-blog
+
+
+      Repeat P7.T1 + P7.T2 against `agentic-stoa/stoa-blog`.
+state:
+  steps:
+    P7.T1.S1:
+      state: x
+      ticked_at: '2026-05-13'
+      note: Test PR opened on agentic-stoa/hum (test/rework-smoke).
+    P7.T1.S2:
+      state: x
+      ticked_at: '2026-05-13'
+      note: GitHub webhook UI showed "Last delivery was successful" (HTTP 200).
+    P7.T1.S3:
+      state: x
+      ticked_at: '2026-05-13'
+      note: github-pull-sync + hum-ci PipelineRuns both Succeeded after iterating
+        through the inline-fetch-push refactor (token-auth URL + GIT_SSH_COMMAND fix
+        for nobody UID).
+    P7.T1.S4:
+      state: x
+      ticked_at: '2026-05-13'
+      note: GitHub Commit Status API returned 201 once PAT was scoped with statuses=write
+        — `tekton/ci` context appears on the PR.
+    P7.T1.S5:
+      state: x
+      ticked_at: '2026-05-13'
+      note: Initially 404 because tekton-bot was not a member of the agentic-stoa
+        Gitea org; operator added membership and best-effort post resumed posting.
+    P7.T2.S1:
+      state: x
+      ticked_at: '2026-05-13'
+      note: Operator merged the test PR via GitHub UI; main-sync trigger fired.
+    P7.T2.S2:
+      state: x
+      ticked_at: '2026-05-13'
+      note: github-pull-sync for refs/heads/main observed Succeeded.
+    P7.T2.S3:
+      state: x
+      ticked_at: '2026-05-13'
+      note: GitHub HEAD == Gitea HEAD verified for hum.
+    P7.T2.S4:
+      state: x
+      ticked_at: '2026-05-13'
+      note: Test branch deleted on GitHub.
+    P7.T3.S1:
+      state: x
+      ticked_at: '2026-05-14'
+      note: 'content-factory smoke: green after jq static-binary install fix (UID
+        65534 cannot apt-get) + pytest exit-5 (no tests) handling.'
+    P7.T3.S2:
+      state: x
+      ticked_at: '2026-05-14'
+      note: 'stoa-blog smoke: green after switching to ghcr.io/gohugoio/hugo:v0.157.0
+        (matches Frank blog Dockerfile) and HUGO_CACHEDIR/GOMODCACHE/GOCACHE under
+        HOME.'
+  completion:
+    at: '2026-05-14T08:55:46+00:00'
+    note: All 3 repos (hum, content-factory, stoa-blog) verified end-to-end on 2026-05-13/14
+      — webhook → Caddy → Tailscale mesh → EventListener → pull-sync → CI → dual-status
+      → main-sync. See per-step notes in 07.yaml for the iteration history.
+    observed_prs: []
