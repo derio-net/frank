@@ -95,6 +95,13 @@ spec:
               seccompProfile: {type: RuntimeDefault}
             env:
               - {name: HOME, value: /tekton/home}
+              # gohugoio/hugo defaults its caches under /cache/* (root-owned;
+              # UID 65534 can't write). Redirect to HOME-rooted paths.
+              # 2026-05-14: surfaced by stoa-blog-ci-hgbpb failing on
+              # 'mkdir /cache/modules: permission denied'.
+              - {name: HUGO_CACHEDIR, value: /tekton/home/.cache/hugo}
+              - {name: GOMODCACHE,    value: /tekton/home/.cache/go/pkg/mod}
+              - {name: GOCACHE,       value: /tekton/home/.cache/go/build}
             computeResources:
               requests: {cpu: 500m, memory: 512Mi}
               limits:   {memory: 2Gi}
@@ -102,7 +109,7 @@ spec:
               #!/bin/sh
               set -eu
               # Hextra Hugo Module — fetch deps (uses Go mod cache under HOME)
-              if [ -f go.mod ]; then hugo mod get -u; fi
+              if [ -f go.mod ]; then hugo mod get; fi
               # Build the site; --minify catches more rendering errors than --quiet
               hugo --minify --quiet
               # Sanity: at least one page generated
