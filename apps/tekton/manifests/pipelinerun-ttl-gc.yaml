@@ -1,0 +1,93 @@
+# Daily GC of completed PipelineRuns (success or failure) older than 7 days.
+#
+# Why: Tekton doesn't TTL PipelineRuns natively. Their task pods stick around
+# for log inspection, which is good for the first hour or so but accumulates
+# over weeks. Aside from being clutter, they trigger false-positive Layer 25
+# alerts (see apps/grafana-alerting/manifests/alert-rules-cm.yaml — the
+# original alert query treated post-completion task pods as a degradation
+# signal; we fixed that query but this TTL is the proper hygiene anyway).
+#
+# Bash + kubectl only — no jq, no python. Lexical ISO-8601 comparison works
+# because the format sorts naturally.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipelinerun-ttl-gc
+  namespace: tekton-pipelines
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pipelinerun-ttl-gc
+  namespace: tekton-pipelines
+rules:
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns"]
+    verbs: ["get", "list", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipelinerun-ttl-gc
+  namespace: tekton-pipelines
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pipelinerun-ttl-gc
+subjects:
+  - kind: ServiceAccount
+    name: pipelinerun-ttl-gc
+    namespace: tekton-pipelines
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: pipelinerun-ttl-gc
+  namespace: tekton-pipelines
+spec:
+  # Daily at 04:30 UTC — quiet hours, well clear of any working-hours runs.
+  schedule: "30 4 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: pipelinerun-ttl-gc
+          restartPolicy: OnFailure
+          nodeSelector:
+            kubernetes.io/hostname: pc-1
+          containers:
+            - name: gc
+              image: bitnami/kubectl:1.35.3
+              securityContext:
+                allowPrivilegeEscalation: false
+                runAsNonRoot: true
+                runAsUser: 1001
+                capabilities: { drop: ["ALL"] }
+                seccompProfile: { type: RuntimeDefault }
+              computeResources:
+                requests: { cpu: 50m, memory: 64Mi }
+                limits:   { memory: 128Mi }
+              command: ["/bin/bash", "-eu", "-o", "pipefail", "-c"]
+              args:
+                - |
+                  AGE_DAYS=7
+                  CUTOFF=$(date -u -d "${AGE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
+                  echo "Deleting PipelineRuns in tekton-pipelines completed before ${CUTOFF}"
+
+                  COUNT=0
+                  kubectl get pipelinerun -n tekton-pipelines \
+                    -o jsonpath='{range .items[?(@.status.completionTime)]}{.metadata.name}{"\t"}{.status.completionTime}{"\n"}{end}' | \
+                  while IFS=$'\t' read -r name ct; do
+                    [ -z "$name" ] && continue
+                    # ISO-8601 sorts lexically — string < works
+                    if [ "$ct" \< "$CUTOFF" ]; then
+                      echo "  deleting $name (completed $ct)"
+                      kubectl delete pipelinerun -n tekton-pipelines "$name" --ignore-not-found
+                      COUNT=$((COUNT + 1))
+                    fi
+                  done
+                  echo "GC complete (note: while-loop COUNT doesn't propagate from subshell — see kubectl output above for actual deletions)"

@@ -137,11 +137,34 @@ kubectl patch pipelinerun -n tekton-pipelines <name> \
 
 ### Clean Up Old PipelineRuns
 
+A daily CronJob (`apps/tekton/manifests/pipelinerun-ttl-gc.yaml`) sweeps PipelineRuns whose `status.completionTime` is older than 7 days. Runs at 04:30 UTC. Inspect:
+
 ```bash
-# Delete PipelineRuns older than 7 days
+# Last GC run
+kubectl get cronjob -n tekton-pipelines pipelinerun-ttl-gc
+kubectl get jobs -n tekton-pipelines -l job-name | grep pipelinerun-ttl-gc | tail -3
+
+# What it would delete now (manual dry-run via the same logic)
+CUTOFF=$(date -u -d "7 days ago" +%Y-%m-%dT%H:%M:%SZ)
 kubectl get pipelinerun -n tekton-pipelines \
-  -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.metadata.creationTimestamp}{"\n"}{end}' \
-  | awk -v cutoff="$(date -d '7 days ago' -u +%Y-%m-%dT%H:%M:%SZ)" '$2 < cutoff {print $1}' \
+  -o jsonpath='{range .items[?(@.status.completionTime)]}{.metadata.name}{"\t"}{.status.completionTime}{"\n"}{end}' \
+  | awk -F'\t' -v c="$CUTOFF" '$2 < c {print $1}'
+```
+
+Force a sweep now (e.g. for a noisy cleanup before a demo):
+
+```bash
+kubectl create job -n tekton-pipelines --from=cronjob/pipelinerun-ttl-gc pipelinerun-ttl-gc-manual-$(date +%s)
+```
+
+**Why TTL matters beyond clutter:** until 2026-05-14 the Layer 25 alert rule used `kube_pod_status_ready{condition="true"}` per-pod, which treated post-completion task pods as a degradation signal — accumulating PipelineRuns silently raised the false-positive rate. The alert query was rewritten to use `kube_deployment_status_replicas_unavailable` (Deployment-scoped, naturally excludes task pods), but the TTL is the proper hygiene either way.
+
+**Manual delete by criterion**, when you want finer control than the CronJob:
+
+```bash
+# All failed PRs older than 1 day
+kubectl get pipelinerun -n tekton-pipelines \
+  -o jsonpath='{range .items[?(@.status.conditions[0].status=="False")]}{.metadata.name}{"\n"}{end}' \
   | xargs -r kubectl delete pipelinerun -n tekton-pipelines
 ```
 

@@ -215,3 +215,22 @@
 - P7.T4.S1: Edit spec to reflect Pass 3 completion
 
 ## Phase 8: Post-Deploy Checklist
+
+## Deployment Deviations
+
+### 2026-05-14 — `layer-25-cicd-down` alert query rewrite
+
+The Layer 25 alert rule shipped in Phase 6 used `kube_pod_status_ready{namespace=~"gitea|tekton-pipelines|zot",condition="true"}` + `reduce.last` + `threshold lt 1`. This false-positive-fired on 2026-05-13 during the `stoa-gitea-primary-rework-1` execution when ~38 leftover Tekton task pods (Completed/Error post-completion, Ready=False by design) accumulated in `tekton-pipelines`. The reduce-last picked one of them and tripped the threshold; the operator received 24+ hours of Telegram alerts with nothing actually wrong on the cluster.
+
+Query rewritten in `apps/grafana-alerting/manifests/alert-rules-cm.yaml`:
+
+```diff
+- expr: 'kube_pod_status_ready{namespace=~"gitea|tekton-pipelines|zot",condition="true"}'
++ expr: 'sum(kube_deployment_status_replicas_unavailable{namespace=~"gitea|tekton-pipelines|zot"})'
+- evaluator: { type: lt, params: [1] }
++ evaluator: { type: gt, params: [0] }
+```
+
+Deployments are the long-running things; task pods aren't owned by Deployments and are naturally excluded. The complementary hygiene piece (TTL GC for old PipelineRuns) ships in the cicd-platform plan's deployment-deviations entry of the same date.
+
+Gotcha entry added to `.claude/rules/frank-gotchas.md` so the pattern doesn't recur.

@@ -1258,6 +1258,14 @@ data:
               runbook: "kubectl -n traefik-system describe pod {{ $labels.pod }}; kubectl -n traefik-system logs {{ $labels.pod }} --tail=50"
 
       # --- Layer 25 — CI/CD / Gitea + Tekton + Zot (frank-ops#25) ---
+      # Query rewrite 2026-05-14: switched from per-pod kube_pod_status_ready
+      # to per-Deployment kube_deployment_status_replicas_unavailable. The pod
+      # query had false-positive firing whenever Tekton task pods (created
+      # from PipelineRuns) sat in Completed/Error post-completion state — they
+      # report Ready=False by design and accumulate in the namespace until a
+      # GC sweep. The Deployment-based query is the actual signal: "is any
+      # long-running cicd Deployment under-replicated?" Task pods aren't owned
+      # by Deployments, so they're naturally excluded.
       - orgId: 1
         name: layer-25-cicd-down
         folder: feature-health
@@ -1272,7 +1280,7 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_pod_status_ready{namespace=~"gitea|tekton-pipelines|zot",condition="true"}'
+                  expr: 'sum(kube_deployment_status_replicas_unavailable{namespace=~"gitea|tekton-pipelines|zot"})'
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1288,7 +1296,7 @@ data:
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: lt, params: [1] }
+                    - evaluator: { type: gt, params: [0] }
             noDataState: OK
             execErrState: Error
             for: 10m
