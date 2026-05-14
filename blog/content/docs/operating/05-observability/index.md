@@ -167,6 +167,12 @@ curl -s 'http://localhost:8429/api/v1/label/__name__/values' | jq '.data[] | sel
 
 ## Debugging
 
+### False positives from `kube_pod_status_ready` in batch namespaces
+
+If a Layer/feature alert fires intermittently for a namespace that runs Tekton, Argo Workflows, or any Job/CronJob, double-check the underlying query. `kube_pod_status_ready{condition="true"}` reports `0` for pods in `Completed` / `Error` state — those are by-design not-Ready post-completion. A namespace with active CI accumulates such pods until the next GC sweep, and a `reduce.last` on the per-pod series can pick one of them and trip the threshold.
+
+Switch the query to `kube_deployment_status_replicas_unavailable{namespace=~"…"}` — Deployments are the long-running things; task pods aren't owned by Deployments so they're naturally excluded. This was the fix for the `layer-25-cicd-down` alert on 2026-05-14 (see `apps/grafana-alerting/manifests/alert-rules-cm.yaml`); the TTL CronJob in `apps/tekton/manifests/pipelinerun-ttl-gc.yaml` is the complementary hygiene piece.
+
 ### Missing Metrics
 
 If a metric you expect is not showing up:

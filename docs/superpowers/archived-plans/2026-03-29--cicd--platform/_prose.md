@@ -180,6 +180,20 @@
 
 ## Phase 6: Post-Deploy Checklist
 
+## Deployment Deviations
+
+### 2026-05-14 — PipelineRun TTL CronJob added (`apps/tekton/manifests/pipelinerun-ttl-gc.yaml`)
+
+Tekton doesn't TTL PipelineRuns natively. Their task pods stay around for log inspection (good for the first hour) but accumulate over weeks. Aside from being clutter, they triggered a false-positive Layer 25 alert on 2026-05-13 (see the corresponding deviation note in `2026-04-16--platform--derio-ops-pass3-grafana-wiring/_prose.md` of the same date for context).
+
+New CronJob `pipelinerun-ttl-gc` in the `tekton-pipelines` namespace, daily at 04:30 UTC, deletes PipelineRuns whose `status.completionTime` is older than 7 days. ServiceAccount + Role limit blast radius to local-namespace `tekton.dev/pipelineruns: get/list/delete` only. Bash + kubectl image (`bitnami/kubectl:1.35.3`), no jq/python deps, lexical ISO-8601 comparison. Ad-hoc invocation:
+
+```bash
+kubectl create job -n tekton-pipelines --from=cronjob/pipelinerun-ttl-gc pipelinerun-ttl-gc-manual-$(date +%s)
+```
+
+Operating post `operating/22-cicd-platform`'s "Clean Up Old PipelineRuns" section updated to point at this CronJob as the canonical mechanism (the manual recipe stays as a backup).
+
 ### Task 10: Post-Deploy Checklist
 
 - P6.T10.S1: Write building blog post — Use `/blog-post` skill. Cover the full CI/CD layer: Gitea, Tekton, Zot, cosign. Update series index in `blog/content/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
