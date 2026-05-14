@@ -315,6 +315,151 @@ curl -s "http://192.168.55.209:3000/api/v1/repos/tekton-bot/frank/statuses/<SHA>
 # Expect: "success"
 ```
 
+## GitHub-primary Repos (agentic-stoa) Operations
+
+The original direction (Gitea-primary, Tekton-on-Gitea-push, status-back-to-Gitea) still describes Frank's own repo. The three repos under `agentic-stoa/*` (`hum`, `content-factory`, `stoa-blog`) run the **inverted direction** — see [Direction Inversion]({{< relref "/docs/building/27-cicd-platform" >}}#direction-inversion-github-primary-for-agentic-stoa-repos-retroactively-added-2026-05-13) in the Building post for the architecture. This section covers the day-to-day operational commands specific to that path.
+
+### The chain at a glance
+
+```
+GitHub webhook → Caddy on Hop (webhooks.hop.derio.net) → Tailscale mesh →
+  el-github-listener (192.168.55.223:8080) → github-pull-sync → <repo>-ci → dual-status
+```
+
+Four moving parts whose health you may want to inspect independently: Caddy's webhook route on Hop, the `el-github-listener` EventListener on Frank, the `github-pull-sync` Pipeline runs, and the per-repo CI Pipelines (`hum-ci`, `content-factory-ci`, `stoa-blog-ci`).
+
+### Inspect github-listener events
+
+The EventListener pod logs every webhook it receives, the interceptor decision, and the resulting PipelineRun creation. Two grep patterns cover most of what you'll want:
+
+```bash
+# Tail the github-listener pod (last 30 events)
+kubectl logs -n tekton-pipelines -l eventlistener=github-listener --tail=30
+
+# Just the trigger-firing decisions (one line per webhook)
+kubectl logs -n tekton-pipelines -l eventlistener=github-listener --tail=200 \
+  | grep -E "Triggered|interceptor|HMAC"
+```
+
+If a delivery shows up in GitHub's webhook UI as `200 OK` but no PipelineRun appears, the EventListener received it but the interceptor or trigger filter rejected it. Look for `interceptor stopped trigger processing` in the logs — usually a missing/wrong `X-GitHub-Event` header (Caddy strips it) or an HMAC mismatch (secret rotation drift between GitHub's webhook config and the `stoa-github-webhook-secret` Secret in Frank).
+
+To check the EventListener service is reachable from inside the cluster:
+
+```bash
+kubectl run el-test --rm -it --image=curlimages/curl --restart=Never -- \
+  curl -s -o /dev/null -w "%{http_code}\n" \
+  http://el-github-listener.tekton-pipelines.svc.cluster.local:8080
+# Expect: 200 (no body posted, but the listener responds 200 on GET)
+```
+
+### Manually re-trigger pull-sync
+
+Use cases: GitHub webhook missed delivery (rare — GitHub retries), a transient pull-sync failure that you want to retry without re-pushing the PR, or you've just rotated `STOA_GITHUB_TOKEN` and want to confirm the auth side still works.
+
+```bash
+# Replay the last delivery from GitHub's webhook UI
+# GitHub repo → Settings → Webhooks → click the webhook → Recent Deliveries → Redeliver
+
+# Or fire pull-sync directly with a known SHA (skips the PR/main inference):
+kubectl create -n tekton-pipelines -f - <<'EOF'
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: github-pull-sync-manual-
+spec:
+  pipelineRef:
+    name: github-pull-sync
+  params:
+    - name: github-repo
+      value: agentic-stoa/hum                    # change me
+    - name: gitea-repo
+      value: agentic-stoa/hum                    # change me
+    - name: ref-from
+      value: refs/heads/main                     # or refs/pull/<N>/head
+    - name: ref-to
+      value: refs/heads/main                     # or refs/pull/<N>/head (mirror exact)
+    - name: sha
+      value: <commit-sha>                        # change me
+  workspaces:
+    - name: shared-workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          storageClassName: longhorn-cicd
+          resources:
+            requests:
+              storage: 1Gi
+    - name: ssh-creds
+      secret:
+        secretName: stoa-bot-ssh-key
+        defaultMode: 0400
+EOF
+```
+
+After it completes, verify Gitea picked up the SHA:
+
+```bash
+GITEA_HEAD=$(curl -sf "http://192.168.55.209:3000/api/v1/repos/agentic-stoa/hum/branches/main" \
+  -H "Authorization: token $STOA_GITEA_TOKEN" | jq -r .commit.id)
+echo "Gitea main: $GITEA_HEAD"
+```
+
+### Inspect Caddy logs on Hop when GitHub webhook delivery fails
+
+If GitHub's UI shows a non-2xx (typically 502 from Caddy or a TLS failure), the issue is upstream of Frank. Three layers to check, in order:
+
+```bash
+# 1. Caddy access log on Hop — was the request even received?
+source .env_hop
+kubectl logs -n caddy-system deploy/caddy --tail=50 \
+  | grep -E "webhooks.hop.derio.net|192.168.55.223"
+
+# 2. From the Caddy pod, is the upstream reachable over the mesh?
+kubectl exec -n caddy-system deploy/caddy -- nc -vz 192.168.55.223 8080
+# Expect: succeeded
+# Failure usually means Tailscale `--accept-routes` regressed — check tailscale-client DaemonSet:
+kubectl logs -n headscale-system ds/tailscale-client --tail=20 | grep -i route
+
+# 3. Is the LB IP actually allocated on Frank?
+source .env
+kubectl get svc -n tekton-pipelines el-github-listener-lb \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}{"\n"}'
+# Expect: 192.168.55.223
+```
+
+If Caddy logs show the request as `502 Bad Gateway`, layer (2) is the failure — Hop can't reach Frank's LB IP through the mesh. The fix is on Hop (Tailscale flags), not Frank.
+
+### Inspect dual-status posts after a CI run
+
+Both posts are visible by API. After `<repo>-ci` completes for a SHA:
+
+```bash
+SHA=<commit-sha>
+REPO=agentic-stoa/hum
+
+# GitHub side (mandatory post)
+gh api repos/$REPO/commits/$SHA/statuses --jq '.[] | select(.context=="tekton/ci") | {state, target_url, updated_at}'
+
+# Gitea side (best-effort post)
+curl -sf "http://192.168.55.209:3000/api/v1/repos/$REPO/statuses/$SHA" \
+  -H "Authorization: token $STOA_GITEA_TOKEN" \
+  | jq '.[] | select(.context=="tekton/ci") | {state, target_url, updated_at}'
+```
+
+If the GitHub side is missing entirely after a CI run, the github-status Task failed and the PipelineRun should be marked failed too (this is the design — `github-status` is mandatory). If the Gitea side is missing while GitHub is present, the gitea-status Task hit `onError: continue` (best-effort) — check `kubectl logs -n tekton-pipelines <pod> -c step-post-status`. The most common cause is `tekton-bot` no longer being a member of the agentic-stoa Gitea org (re-add via Gitea UI → Organization Members).
+
+### Common GitHub-primary issues
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| GitHub webhook UI shows 200 but no PipelineRun | EventListener accepted but interceptor/trigger filter rejected | Check `kubectl logs -l eventlistener=github-listener` for "interceptor stopped" or HMAC mismatch lines |
+| GitHub webhook UI shows 502 Bad Gateway | Hop's Caddy can't reach 192.168.55.223 over mesh | Verify `--accept-routes` on Hop's tailscale-client DaemonSet |
+| Hop's Caddy returns 401 | Caddy validates X-Hub-Signature-256 with a stale secret | Rotate `STOA_GITHUB_WEBHOOK_SECRET` in Infisical to match GitHub's webhook config |
+| github-pull-sync fails on `git fetch` | `STOA_GITHUB_TOKEN` PAT expired or missing `repo` scope | Regenerate PAT with `repo` (gives both fetch read and statuses:write) |
+| github-pull-sync fails on `git push` to Gitea | stoa-bot SSH key rotated; Gitea side has stale fingerprint | Re-add public key in Gitea → stoa-bot → Settings → SSH Keys |
+| github-status Task posts but PR shows no check | PAT missing `Commit statuses: Read and write` (fine-grained PAT) | Add the scope; the `x-accepted-github-permissions: statuses=write` header in the 403 response is the smoking gun |
+| gitea-status posts 404 | tekton-bot isn't a member of `agentic-stoa` org | Add membership via Gitea UI → Organization Members |
+
 ## References
 
 - [Tekton CLI (tkn)](https://tekton.dev/docs/cli/)

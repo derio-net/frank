@@ -197,6 +197,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Paperclip Shell (SSH+Mosh) | ssh agent@192.168.55.221 — mosh UDP 60000-60015 | 192.168.55.221 |
 | Ruflo Web UI | https://ruflo.cluster.derio.net | (via Traefik) |
 | Ruflo Shell (SSH+Mosh) | ssh agent@192.168.55.222 — mosh UDP 60016-60031 | 192.168.55.222 |
+| GitHub webhook receiver (`el-github-listener`) | reached via `webhooks.hop.derio.net` (Caddy on Hop → Tailscale mesh); receives PR + push events for `agentic-stoa/*` | 192.168.55.223 |
 | VK Remote | https://vk.cluster.derio.net | (via Traefik) |
 | Homepage Dashboard | https://master.cluster.derio.net | (via Traefik) |
 
@@ -208,6 +209,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Headplane | headplane.hop.derio.net | Mesh only |
 | Blog | blog.derio.net/frank | Public |
 | Landing | entry.hop.derio.net | Mesh only |
+| GitHub webhooks relay | webhooks.hop.derio.net | Public (forwards to Frank's `el-github-listener` at 192.168.55.223 over the Tailscale mesh; HMAC-validated by both Caddy and the EventListener) |
 
 ArgoCD CLI access:
 

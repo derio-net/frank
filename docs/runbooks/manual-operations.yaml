@@ -440,6 +440,74 @@ operations:
   verify:
   - kubectl get node pc-1 --show-labels | grep role=cicd
   status: pending
+- id: cicd-stoa-github-webhook-content-factory
+  layer: cicd
+  app: tekton
+  plan: docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/06.yaml
+  when: After Phase 5 lands the main-sync Trigger; before Phase 7 smoke.
+  why_manual: GitHub webhook config is per-repo UI work; no IaC for this in our setup.
+  commands:
+  - 'GitHub UI: agentic-stoa/content-factory → Settings → Webhooks → Add webhook'
+  - 'Payload URL:    https://webhooks.hop.derio.net/'
+  - 'Content type:   application/json'
+  - 'Secret:         <value of STOA_GITHUB_WEBHOOK_SECRET from Infisical>'
+  - 'SSL verify:     enabled'
+  - 'Events:         pull_request, push'
+  - 'Active:         yes'
+  verify:
+  - GitHub UI → repo Settings → Webhooks → Recent Deliveries shows a 200 from the initial 'ping' event
+  - kubectl logs -n tekton-pipelines -l eventlistener=github-listener --tail=20 shows a received event
+  status: done
+- id: cicd-stoa-github-webhook-hum
+  layer: cicd
+  app: tekton
+  plan: docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/06.yaml
+  when: After Phase 5 lands the main-sync Trigger; before Phase 7 smoke.
+  why_manual: GitHub webhook config is per-repo UI work; no IaC for this in our setup.
+  commands:
+  - 'GitHub UI: agentic-stoa/hum → Settings → Webhooks → Add webhook'
+  - 'Payload URL:    https://webhooks.hop.derio.net/'
+  - 'Content type:   application/json'
+  - 'Secret:         <value of STOA_GITHUB_WEBHOOK_SECRET from Infisical>'
+  - 'SSL verify:     enabled'
+  - 'Events:         pull_request, push'
+  - 'Active:         yes'
+  verify:
+  - GitHub UI → repo Settings → Webhooks → Recent Deliveries shows a 200 from the initial 'ping' event
+  - kubectl logs -n tekton-pipelines -l eventlistener=github-listener --tail=20 shows a received event
+  status: done
+- id: cicd-stoa-github-webhook-secret-bootstrap
+  layer: cicd
+  app: tekton
+  plan: docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/00.yaml
+  when: After parent plan archived; before Phase 1 (Caddy on Hop) renders the secret in Caddy config.
+  why_manual: Infisical's UI/CLI is the operator-only control plane for new secret keys. Cluster-side ESO can read but not create.
+  commands:
+  - 'SECRET=$(openssl rand -hex 32); echo "$SECRET"'
+  - 'In Infisical UI: project /agentic-stoa → Secrets → Add → Key=STOA_GITHUB_WEBHOOK_SECRET, Value=$SECRET'
+  - 'Or via CLI: infisical secrets set STOA_GITHUB_WEBHOOK_SECRET "$SECRET" --projectId=<id> --env=prod'
+  verify:
+  - infisical secrets get STOA_GITHUB_WEBHOOK_SECRET --projectId=<id> --env=prod returns the value
+  - used identically in GitHub webhook config (Phase 6) and Caddy config (Phase 1)
+  status: done
+- id: cicd-stoa-github-webhook-stoa-blog
+  layer: cicd
+  app: tekton
+  plan: docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/06.yaml
+  when: After Phase 5 lands the main-sync Trigger; before Phase 7 smoke.
+  why_manual: GitHub webhook config is per-repo UI work; no IaC for this in our setup.
+  commands:
+  - 'GitHub UI: agentic-stoa/stoa-blog → Settings → Webhooks → Add webhook'
+  - 'Payload URL:    https://webhooks.hop.derio.net/'
+  - 'Content type:   application/json'
+  - 'Secret:         <value of STOA_GITHUB_WEBHOOK_SECRET from Infisical>'
+  - 'SSL verify:     enabled'
+  - 'Events:         pull_request, push'
+  - 'Active:         yes'
+  verify:
+  - GitHub UI → repo Settings → Webhooks → Recent Deliveries shows a 200 from the initial 'ping' event
+  - kubectl logs -n tekton-pipelines -l eventlistener=github-listener --tail=20 shows a received event
+  status: done
 - id: cicd-talos-containerd-mirror
   layer: cicd
   app: zot
@@ -454,6 +522,18 @@ operations:
   - kubectl get nodes — all nodes Ready
   - kubectl run test --image=192.168.55.210:5000/... — pull succeeds (TLS trusted)
   status: pending
+- id: cicd-webhooks-hop-cloudflare-dns
+  layer: cicd
+  app: caddy (Hop)
+  plan: docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/01.yaml
+  when: Before Caddy on Hop is updated to serve webhooks.hop.derio.net.
+  why_manual: Cloudflare DNS is operator-only (no IaC integration in this repo for Cloudflare).
+  commands:
+  - 'Cloudflare UI: derio.net → DNS → Records → Add'
+  - 'Type: A, Name: webhooks.hop, IPv4: $HOP_IP (from .env_hop), Proxy: DNS only (gray cloud)'
+  verify:
+  - dig +short webhooks.hop.derio.net returns Hop's public IP (no Cloudflare proxy IP)
+  status: done
 - id: deploy-install-kubectl-plugin
   layer: deploy
   app: argo-rollouts

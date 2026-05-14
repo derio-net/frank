@@ -380,6 +380,85 @@ Effect: `192.168.55.209:2222` returned "no route to host" from anywhere outside 
 
 Fix is two lines: add `lbipam.cilium.io/sharing-key: "gitea"` to both Service annotation blocks. That's Cilium's documented mechanism for letting separate Services share an LB IP when their port sets don't conflict. After the change, `gitea-ssh` got `192.168.55.209` and the SSH endpoint actually answered for the first time. The lesson: when the upstream chart splits one logical service into multiple `Service` objects, the only correct way to pin them to a shared IP is the sharing-key annotation. The `ips:` annotation is a request, not a coordination mechanism.
 
+## Direction Inversion: GitHub-primary for agentic-stoa repos *(retroactively added 2026-05-13)*
+
+Everything above describes the original direction: **Gitea is the PR surface** (mirror of GitHub), Tekton webhooks fire on Gitea pushes, status posts go back to Gitea. That works fine when humans (or `git push`) are the only thing opening PRs — Frank itself uses this model for its own repo to this day.
+
+It does **not** work when [Paperclip AI](https://github.com/embedded-cc/paperclip-ai) is opening PRs on the agentic-stoa org's repos. Paperclip's repository-management code paths only speak the GitHub REST API — there is no pluggable backend, no "Gitea provider", no abstraction. The agent literally cannot open a PR on Gitea.
+
+So for the three repos under `agentic-stoa/*` (`hum`, `content-factory`, `stoa-blog`) we inverted the direction. **GitHub becomes the source of truth and the PR surface; Gitea becomes a CI replica.** Same Gitea/Tekton substrate, opposite arrows.
+
+### Architecture (inverted slice)
+
+```
+GitHub (agentic-stoa/*)
+   │
+   ├─ webhook (PR sync, push to main) ──┐
+   │                                    │
+   │                              webhooks.hop.derio.net   ←  Caddy on Hop
+   │                                    │                    (DNS-01 ACME, validates HMAC,
+   │                                    │                     forwards X-Hub-Signature-256)
+   │                                    ▼
+   │                            Tailscale mesh (--accept-routes)
+   │                                    │
+   │                                    ▼
+   │                       el-github-listener (192.168.55.223:8080)
+   │                              │
+   │                              ├─ TriggerTemplate: github-pull-sync
+   │                              │      ↓
+   │                              │   pulls refs/pull/N/head (or refs/heads/main)
+   │                              │   from GitHub, force-pushes to Gitea
+   │                              │      ↓
+   │                              ├─ TriggerTemplate: <repo>-ci
+   │                              │      ↓
+   │                              │   clone (Gitea) → test → finally:
+   │                              │      ├─ github-status (mandatory)  → POST  api.github.com  ──┐
+   │                              │      └─ gitea-status (best-effort) → POST  192.168.55.209    │
+   │                              │                                                              │
+   ▲                                                                                             │
+   └────────────────  tekton/ci status check appears on the PR  ─────────────────────────────────┘
+```
+
+Two webhook events drive the chain:
+
+- **`pull_request` (opened, synchronized, reopened)** → fire pull-sync (carrying the PR head SHA) → fire `<repo>-ci` for that SHA.
+- **`push` to `refs/heads/main`** → fire pull-sync only (no CI run; main is post-merge, already vetted by the PR-time CI).
+
+The `pull_request` event uses the synthetic ref `refs/pull/N/head` that GitHub maintains for every PR — that's the only ref guaranteed to exist for cross-fork PRs and Paperclip's headless workflow. We force-push it to Gitea verbatim; Gitea then has a checkout-able branch named `refs/pull/N/head` (the slash makes it ugly in the UI but the API treats it like any other ref).
+
+### Why a Caddy relay on Hop
+
+GitHub's webhook deliveries originate from the public internet. Frank's EventListener (`el-github-listener`) lives on the LAN at `192.168.55.223:8080` — not reachable from the outside. Three options:
+
+1. **Public-LB the EventListener.** Tempting but wrong: it punctures the LAN-only posture for a single public-traffic source, and the EventListener's HMAC handling would then face the entire internet. Also Frank's home connection has a CGN'd IP — no clean inbound port exposure.
+2. **Cloudflare Tunnel from Frank.** Works but adds a dependency we don't want for one path. We already have public ingress at Hop via Caddy + Cloudflare DNS-01.
+3. **Caddy reverse-proxy on Hop, mesh-forward to Frank.** Reuse the cluster we already have at the public edge; Hop is in the Tailscale mesh; Frank exposes the EventListener on a mesh-routable LB IP.
+
+(3) won. The relay is `webhooks.hop.derio.net` → `reverse_proxy 192.168.55.223:8080` over Tailscale. Caddy is what validates TLS to GitHub (Cloudflare DNS-01 cert) and forwards the GitHub-signed payload verbatim, including `X-Hub-Signature-256`, `X-GitHub-Event`, `X-GitHub-Delivery`. The EventListener's `github` ClusterInterceptor then re-validates the HMAC against the same shared secret. **Two layers checking the same signature is intentional** — Caddy's check rejects garbage at L7 before it hits Tekton's quota, the EventListener's check is the authoritative one.
+
+The one operational gotcha for the relay path: Hop needs `--accept-routes` in its Tailscale args for `192.168.55.0/24` to actually route through the mesh subnet router. We discovered this when Caddy started returning 502 on the new route — `nc 192.168.55.223 8080` from inside the Caddy pod failed, but `tailscale ping <frank-node>` worked. The flag flip was a one-line change to `clusters/hop/apps/headscale/manifests/tailscale-client.yaml`.
+
+### Dual-status anti-drift design
+
+The hardest thing about a CI replica is **keeping the two surfaces from disagreeing about whether a build passed.** If GitHub says green and Gitea says red, every operator looking at Gitea will think the build failed — and any other system reading either commit-status API gets contradictory data. We solved this by making the two posts share a code path:
+
+- Both `github-status` and `gitea-status` Task invocations live in the **single `finally` block** of the per-repo CI Pipeline. Tekton evaluates `$(tasks.status)` once and substitutes that string into both `params: state:` values — there is no way for the two posts to disagree on success/failure.
+- Both posts use the same `context: tekton/ci` label.
+- Both refer to the same git SHA. Git's content-addressing guarantees that the byte-for-byte identical commit GitHub receives at PR open time is the same SHA Gitea receives via `git push --force-with-lease` from pull-sync (the SHA is the hash of the commit, not the location).
+- `github-status` is mandatory — if the GitHub API call fails, the entire PipelineRun is marked failed and a human gets paged. `gitea-status` is best-effort (`onError: continue`) — if Gitea is transient-down, GitHub stays correct and the only consequence is Gitea showing a stale state until the next CI run.
+
+Tradeoff: making both mandatory was tempting (full bidirectional consistency) but Gitea's role here is observability for operators browsing the replica, not a critical-path service. A flake in Gitea's API shouldn't fail an otherwise green build.
+
+### The fourth Pipeline: `github-pull-sync`
+
+The other interesting piece is the pull-sync Pipeline. Two design choices worth flagging:
+
+**Inlined fetch+push, not the catalog `git-clone` Task.** The catalog task does a shallow clone into a workspace — fine for CI, useless for a sync that needs *both* refs (the PR head and the existing Gitea state). And the catalog task doesn't accept `depth: 0` (passes through to `git clone --depth=0` which fails: "depth 0 is not a positive number"). Pull-sync is ~30 lines of bash that fetches the relevant ref from GitHub with token auth and force-pushes to Gitea over SSH.
+
+**Token-auth URL for the GitHub fetch, SSH for the Gitea push.** GitHub: `https://x-access-token:${GITHUB_TOKEN}@github.com/<org>/<repo>.git` — the token-prefix URL is the simplest way to thread the PAT through a non-interactive `git fetch`, and it works regardless of which repo we're syncing (the same token has access to all three under the agentic-stoa org). Gitea: SSH with stoa-bot's key. We tried bidirectional token auth first; Gitea's HTTPS push path goes through extra middleware that occasionally produced spurious 500s, while SSH was rock-stable.
+
+One trap that cost us four fix loops: `GIT_SSH_COMMAND` must point explicitly at `$HOME/.ssh/id_rsa` because the Tekton pod runs as the `nobody` UID (65534), and OpenSSH's default key lookup walks `~/.ssh/id_*` against the pod's `/etc/passwd` HOME for that UID — which is `/`, where there's no readable `~/.ssh`. Setting `GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"` and then explicitly setting `HOME=/tekton/home` (so `$HOME` interpolates to a writable path the workspace volume mounts) made the SSH side work first try every time after.
+
 ## What's Running
 
 | Service | IP | Port | Purpose |
@@ -387,6 +466,7 @@ Fix is two lines: add `lbipam.cilium.io/sharing-key: "gitea"` to both Service an
 | Gitea | 192.168.55.209 | 3000 (HTTP), 2222 (SSH) | Git forge, GitHub mirror |
 | Zot | 192.168.55.210 | 5000 (HTTPS) | OCI container registry |
 | Tekton Dashboard | 192.168.55.217 | 9097 | Pipeline web UI |
+| GitHub webhook receiver (`el-github-listener`) | 192.168.55.223 | 8080 | Receives GitHub webhooks for `agentic-stoa/*` repos via the Caddy relay at `webhooks.hop.derio.net` |
 
 All three are exposed via Cilium L2 LoadBalancer and accessible through Traefik at `gitea.cluster.derio.net`, `zot.cluster.derio.net`, and `tekton.cluster.derio.net` with Authentik forward-auth.
 

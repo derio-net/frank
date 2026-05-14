@@ -26,7 +26,7 @@ After the inversion the mirror-cloned Gitea-side state remains useful: it is now
 
 Active design follows in `## Active Architecture (2026-05-13)` below. The original `## Architecture`, `## Sync Model`, and `### Shared github-backup-sync Pipeline` sections are kept verbatim for context — see `## Original Architecture`, `## Original Sync Model`, and `### Original Shared github-backup-sync Pipeline` (renamed from the un-prefixed forms) further down.
 
-The active implementation lives in the rework plan: `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/`.
+The active implementation landed in the rework plan, now archived: `docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/` (Complete 2026-05-14).
 
 ## Active Architecture (2026-05-13)
 
@@ -553,4 +553,4 @@ status: pending
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
 | Stoa Org Gitea-Primary Implementation Plan | derio-net/frank | `docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary/` | layer 19 (deployed) |
-| Stoa Org Gitea-Primary Implementation Plan — **Rework 1: GitHub-primary** | derio-net/frank | `docs/superpowers/plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/` | parent plan above |
+| Stoa Org Gitea-Primary Implementation Plan — **Rework 1: GitHub-primary** | derio-net/frank | `docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/` | parent plan above |
