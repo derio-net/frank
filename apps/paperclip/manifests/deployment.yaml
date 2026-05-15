@@ -128,7 +128,7 @@ spec:
         # against the home PVC at boot. Image SHA pinned to agent-images
         # main HEAD (8af0d08) — see plan Deployment Notes.
         - name: paperclip-shell
-          image: ghcr.io/derio-net/paperclip-shell:959b040e8636d2a383afee604afdb1ad823b3e85
+          image: ghcr.io/derio-net/paperclip-shell:800638927752ca388255fa5dd977db0d15720052
           imagePullPolicy: IfNotPresent
           ports:
             - { name: ssh,         containerPort: 2222,  protocol: TCP }
