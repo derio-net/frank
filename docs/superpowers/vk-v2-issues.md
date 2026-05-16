@@ -189,6 +189,66 @@ the create command is missing, and spec-index has v2 incompatibilities.
 
 ---
 
+### C5 · `spec-index` writes a `Status` column that breaks `vk spec status` parsing
+
+When `spec-index` writes a row to the spec's `## Implementation Plans` table, it
+generates a 5-column format:
+
+```markdown
+| Plan | Repo | File | Status | Depends on |
+```
+
+The correct format that `vk spec status` can parse is 4 columns (no `Status`):
+
+```markdown
+| Plan | Repo | File | Depends on |
+```
+
+`vk spec status` computes Status dynamically from each plan's `_meta.yaml`. When
+the table has 5 columns, the parser cannot match the `File` column (position 3 vs
+expected position 3 of a 4-column table is fine — but if the parser is
+column-order-sensitive, the extra `Status` column shifts `Depends on` out of
+position). Observed effect: `vk spec status` outputs an empty table with `0/0
+plans complete` even though the plans exist.
+
+**Workaround:** Manually remove the `Status` column from the spec table and
+change paths from `_prose.md` to directory paths (see C6).
+
+**Fix needed:** `spec-index` should write the 4-column format without `Status`.
+
+---
+
+### C6 · `spec-index` writes `_prose.md` file paths instead of plan directory paths
+
+When given `_prose.md` as the path (workaround for C1), `spec-index` records the
+literal `_prose.md` path in the spec table `File` column:
+
+```markdown
+| ... | `docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/_prose.md` | ... |
+```
+
+`vk spec status` expects a **directory** path:
+
+```markdown
+| ... | `docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/` | ... |
+```
+
+It resolves the plan by reading `<File>/_meta.yaml`. Given a `_prose.md` path,
+it attempts to open `_prose.md/_meta.yaml` (invalid — `_prose.md` is a file, not
+a directory), silently fails, and the row disappears from the status output.
+
+Combined with C5, both bugs cause `vk spec status` to show `0/0 plans` even
+though all plan files are correctly written.
+
+**Workaround:** After running `spec-index`, manually:
+1. Remove the `Status` column from the spec table header and divider (C5).
+2. Strip `/_prose.md` from each `File` cell, leaving the directory path (C6).
+
+**Fix needed:** When `spec-index` is operating on a v2 plan, it should record the
+plan directory (parent of `_prose.md`), not the `_prose.md` path itself.
+
+---
+
 ## D — `plan-checklist-check.sh` hook misfires on `_prose.md` files
 
 ### D1 · Layer extraction broken for `_prose.md` — `repo` layer exemption never fires
@@ -316,6 +376,8 @@ fi
 | C2 | `spec-index` needs `**Spec:**` in prose | Medium — silent no-op otherwise | Yes — add header to prose |
 | C3 | `spec-index` leaves Repo column empty | Low — cosmetic, easy manual fix | Yes — edit table manually |
 | C4 | Skill promises auto spec-index via create | High — skill is misleading | N/A — workaround is A1 fix |
+| C5 | `spec-index` writes extra `Status` column — breaks `vk spec status` | High — `vk spec status` shows 0/0 plans | Yes — remove column manually |
+| C6 | `spec-index` writes `_prose.md` path instead of plan dir — breaks `vk spec status` | High — plans invisible to spec status | Yes — strip `/_prose.md` manually |
 | D1 | Hook layer extraction broken for `_prose.md` | Low — false positive warning only | Accept the noise |
 | D2 | Hook Post-Deploy grep case-sensitive | Low — false positive warning only | Accept the noise |
 | E1 | CLI version skew — `install.sh` not re-run | High — agent uses wrong CLI silently | Fixed: re-ran `install.sh` |

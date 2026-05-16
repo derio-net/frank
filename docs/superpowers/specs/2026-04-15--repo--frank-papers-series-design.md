@@ -384,7 +384,7 @@ Phase 0 done → Paper 00 dossier → Paper 00 draft → publish → Phase 1 ope
 
 ## Implementation Plans
 
-| Plan | Repo | File | Status | Depends on |
-|------|------|------|--------|------------|
-| The Frank Papers — Phase 0: Tooling & Scaffolding | derio-net/frank | `docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/_prose.md` | Not Started | — |
-| The Frank Papers — Paper 00: Prologue | derio-net/frank | `docs/superpowers/plans/2026-05-16--repo--frank-papers-paper-00/_prose.md` | Not Started | Phase 0 complete |
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| The Frank Papers — Phase 0: Tooling & Scaffolding | derio-net/frank | `docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/` | — |
+| The Frank Papers — Paper 00: Prologue | derio-net/frank | `docs/superpowers/plans/2026-05-16--repo--frank-papers-paper-00/` | Phase 0 complete |
