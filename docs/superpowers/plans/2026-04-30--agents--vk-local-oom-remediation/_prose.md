@@ -102,6 +102,35 @@
 
 - P5.T2.S1: After 14 days, choose one outcome and document the rationale:
 
+  **Outcome: (b) Dial back to 3 Gi** — `vk-local limits.memory: 8Gi → 3Gi` (PR #264).
+
+---
+
+## Soak Log (Phase 5)
+
+**Soak window:** 2026-05-03 → 2026-05-16 (14 days from Phase 4 Task 2 merge at `c88b755`).
+
+Auto-filled by `scripts/phase5-soak-daily.sh` via supercronic (`0 8 * * *` UTC, kali sibling container).
+
+| Day | Date (UTC) | `restartCount` | OOMKills since soak start | p99 working-set (24 h) | Peak `vibekanban_queued_executions` (24 h) | Notes |
+|-----|------------|----------------|---------------------------|------------------------|---------------------------------------------|-------|
+| 1 | 2026-05-03 | 0 | 0 | ~2.35 GiB (cadvisor) / ~2.53 GiB (resource) | 0 | Soak start. Phase 4 image `8af0d080` live, `VK_MAX_CONCURRENT_EXECUTIONS=4` confirmed. |
+| 2 | 2026-05-04 | 0 | 0 | 2.95 GiB | 3 | pod=secure-agent-pod-c976f9946-rqdqc |
+| 3 | 2026-05-05 | 0 | 0 | 0.74 GiB | 0 | pod=secure-agent-pod-c976f9946-rqdqc |
+| 4 | 2026-05-06 | 0 | 0 | 0.97 GiB | 0 | pod=secure-agent-pod-c976f9946-rqdqc |
+| 5 | 2026-05-07 | 0 | 0 | 1.05 GiB | 0 | pod=secure-agent-pod-5c46cb8f7b-9765c |
+| 6 | 2026-05-08 | 0 | 0 | 0.24 GiB | 0 | pod=secure-agent-pod-5c46cb8f7b-9765c |
+| 7 | 2026-05-09 | 0 | 0 | 0.38 GiB | 0 | pod=secure-agent-pod-5c46cb8f7b-9765c |
+| 8 | 2026-05-10 | 0 | 0 | 1.11 GiB | 0 | pod=secure-agent-pod-5c46cb8f7b-9765c |
+| 9 | 2026-05-11 | 0 | 0 | 0.99 GiB | 0 | pod=secure-agent-pod-5c46cb8f7b-9765c |
+| 10 | 2026-05-12 | 0 | 0 | 1.56 GiB | 0 | pod=secure-agent-pod-5c46cb8f7b-9765c |
+| 11 | 2026-05-13 | 0 | 0 | 1.73 GiB | 0 | pod=secure-agent-pod-5c46cb8f7b-9765c |
+| 12 | 2026-05-14 | 0 | 0 | 1.90 GiB | 0 | pod=secure-agent-pod-5c46cb8f7b-9765c |
+| 13 | 2026-05-15 | 0 | 0 | 1.66 GiB | 0 | pod=secure-agent-pod-fc9585b8b-jn2rx (pod replaced — node eviction, not OOM) |
+| 14 | 2026-05-16 | 0 | 0 | 0.19 GiB | 0 | pod=secure-agent-pod-548744b988-dngfj (pod replaced again) |
+
+**Decision rationale:** 14 days, zero OOMKills, zero container restarts. p99 RSS peaked at 2.95 GiB on Day 2 (the only day with queue depth > 0). All other days 0.19–1.90 GiB. The 8 Gi limit was a conservative post-OOM placeholder; 3 Gi covers the p99 peak with ~5 % headroom. `vk-local limits.memory` dialled back to 3 Gi in PR #264.
+
 ## Phase 6: File tracking issues for B2, B3, R
 
 ### Task 1: File B2 tracking issue
