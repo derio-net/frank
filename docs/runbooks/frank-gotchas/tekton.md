@@ -1,6 +1,6 @@
 # Frank Gotchas — Tekton
 
-Long-form companion to the **Tekton** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **Tekton** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 ## `computeResources`, not `resources`
 

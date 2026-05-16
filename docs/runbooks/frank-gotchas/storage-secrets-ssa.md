@@ -1,6 +1,6 @@
 # Frank Gotchas — Storage / Secrets / SSA
 
-Long-form companion to the **Storage / Secrets / SSA** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **Storage / Secrets / SSA** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 ## `envFrom.secretRef` without `optional: true` blocks rolling updates
 

@@ -1,6 +1,6 @@
 # Frank Gotchas — gpu-1 specifics
 
-Long-form companion to the **gpu-1 specifics** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **gpu-1 specifics** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 ## NoSchedule taint pattern (defensive even when the live taint list is empty)
 

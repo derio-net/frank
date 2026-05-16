@@ -1,0 +1,37 @@
+name: Agent Config
+
+on:
+  pull_request:
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - GEMINI.md
+      - agents/**
+      - .claude/settings.json
+      - .claude/launch.json
+      - scripts/hooks/**
+      - scripts/validate-agent-config.sh
+      - docs/runbooks/**
+      - .github/workflows/agent-config.yml
+  push:
+    branches:
+      - main
+    paths:
+      - AGENTS.md
+      - CLAUDE.md
+      - GEMINI.md
+      - agents/**
+      - .claude/settings.json
+      - .claude/launch.json
+      - scripts/hooks/**
+      - scripts/validate-agent-config.sh
+      - docs/runbooks/**
+      - .github/workflows/agent-config.yml
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate shared agent configuration
+        run: scripts/validate-agent-config.sh

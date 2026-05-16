@@ -1,6 +1,6 @@
 # Frank Gotchas — Agent shells (paperclip-shell, ruflo-shell, secure-agent-kali)
 
-Long-form companion to the **Agent shells** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **Agent shells** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 These all share the `agent-shell-base` image (s6-overlay v3 init, sshd, supercronic, tmux) and inherit the same gotchas.
 
