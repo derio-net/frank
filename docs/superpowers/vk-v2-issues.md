@@ -1,0 +1,260 @@
+# vk v2 — Observed Misfires & Discrepancies
+
+Logged during: writing plans for `2026-04-15--repo--frank-papers-series-design.md`
+Session date: 2026-05-16
+vk version: 1.4.3
+Agent: Claude Sonnet 4.6 via vk-plan skill (superpowers-for-vk 2.1.4)
+
+All issues below were discovered by running the vk CLI against a new v2
+folder-format plan. None of them blocked the work — workarounds are noted
+inline. This list is for ironing out v2.
+
+---
+
+## A — Missing CLI command: `vk plan create`
+
+### A1 · `vk plan create` does not exist in the CLI
+
+**Skill says:**
+```bash
+vk plan create --slug <YYYY-MM-DD-slug> --target-repo <owner/repo> \
+    --spec docs/superpowers/specs/<spec-file>.md \
+    --phases-file <phases.yaml> \
+    --prose-file <prose.md>
+```
+
+**Actual CLI (`vk plan --help`):**
+```
+Commands:
+  format       Print the plan's actual format.
+  new          Generate a new plan file skeleton.
+  self-review  Run automated quality checks on a plan file.
+  spec-index   Update the spec's Implementation Plans table for this plan.
+  rework-add   ...
+  convert      ...
+  rework       ...
+  rework-list  ...
+```
+
+`create` is not a subcommand. `vk plan create` exits with `No such command 'create'`.
+
+**Impact:** The skill's scaffolding step (step 5 of the Procedure) cannot be
+followed. Agent falls back to writing `_meta.yaml`, `_prose.md`, and `NN.yaml`
+files manually via the Write tool.
+
+**Workaround:** Write the plan folder manually. The skill should either be
+updated to use `vk plan new` or `vk plan create` needs to be implemented.
+
+---
+
+### A2 · `vk plan new --save` generates v1 flat markdown, not v2 folder format
+
+**Skill says:** v2 folder format is the standard (`_meta.yaml` + `_prose.md` + `NN.yaml`).
+
+**Actual behavior:** `vk plan new --save <name>` writes a single v1 flat `.md`
+file to `docs/superpowers/plans/<name>.md`. There is no CLI path to scaffold
+a v2 folder.
+
+Observed output of `vk plan new`:
+```
+# 2026 05 16  Repo  Frank Papers Series Implementation Plan
+
+**Spec:** `docs/superpowers/specs/...`
+**Status:** Not Started
+
+**Goal:** [One sentence]
+
+---
+
+## Phase 1: [Name] 
+
+### Task 1: [Component]
+
+- [ ] **Step 1: [Action]**
+```
+
+**Impact:** The CLI and the skill describe different default formats. Every v2
+plan must be scaffolded manually.
+
+**Workaround:** Write files by hand. Long-term: `vk plan new --save` should
+create the folder structure and files, or `vk plan create` (A1) needs implementing.
+
+---
+
+## B — `vk plan self-review` incompatible with v2 folder format
+
+### B1 · Passing the plan directory path throws `IsADirectoryError`
+
+**Skill says:** `vk plan self-review <plan-dir>` (step 7 of Procedure).
+
+**Actual behavior:**
+```
+IsADirectoryError: [Errno 21] Is a directory: '.../plans/2026-05-16--repo--...'
+```
+
+The command calls `plan_path.read_text()` which fails on a directory.
+
+**Workaround:** Pass `_prose.md` as the path instead of the directory.
+
+---
+
+### B2 · `vk plan self-review _prose.md` fails on v2 plans: looks for v1 `**Depends on:**` markers
+
+**Actual behavior after workaround (passing `_prose.md`):**
+```
+Error: Phase 1 has no **Depends on:** line. Run 'vk plan convert ... --add-deps --yes' ...
+```
+
+The self-review reads `_prose.md` and looks for v1-style inline `**Depends on:**`
+annotations on each `## Phase N` heading. v2 plans encode dependencies in
+`phase.depends_on: [N, ...]` inside each `NN.yaml` file. The self-review command
+does not read the YAML files at all.
+
+**Impact:** `vk plan self-review` effectively cannot be used on v2 plans.
+The skill's step 7 is a no-op.
+
+**Workaround:** None available without modifying the plan files. Accepted the
+broken self-review and moved on — the YAML `depends_on` fields are correct.
+
+**Fix needed:** `self-review` should accept a directory and read `NN.yaml` files
+for dependency information, or the `_prose.md` format should not require v1
+markers when `NN.yaml` files are present.
+
+---
+
+## C — `vk plan spec-index` incompatible with v2 folder format
+
+### C1 · Passing the plan directory path throws `IsADirectoryError`
+
+Same root cause as B1: `parse_plan(plan_path)` calls `path.read_text()` on
+whatever path is given. Directory path → `IsADirectoryError`.
+
+**Workaround:** Pass `_prose.md` as the path.
+
+---
+
+### C2 · `spec-index` requires `**Spec:**` header in `_prose.md`
+
+v2 plans store the spec reference in `_meta.yaml` (`spec: docs/...`).
+`spec-index` reads the file it's given as markdown and looks for `**Spec:**`
+in the text. If the header is absent, it prints:
+
+```
+No **Spec:** header in plan. Nothing to update.
+```
+
+and exits 0 (silent no-op).
+
+**Workaround:** Add a redundant `**Spec:** ...` line to `_prose.md`. This
+duplicates information already in `_meta.yaml`.
+
+**Fix needed:** When given a directory (or when `_prose.md` has no `**Spec:**`),
+fall back to reading `spec:` from `_meta.yaml`.
+
+---
+
+### C3 · `spec-index` leaves `Repo` column empty for v2 plans
+
+When spec-index reads `_prose.md` and writes the Implementation Plans table
+row, the `Repo` column is populated from parsing the plan's `target_repo`
+field. That field is in `_meta.yaml`, which `spec-index` does not read when
+given a `_prose.md` path.
+
+**Result:**
+```markdown
+| The Frank Papers — Phase 0 |  | `..._prose.md` | Not Started | — |
+```
+
+The Repo column is blank instead of `derio-net/frank`.
+
+**Workaround:** Manually edit the spec table after running `spec-index --yes`.
+
+**Fix needed:** Same as C2 — spec-index should read `_meta.yaml` when operating
+on a v2 folder plan.
+
+---
+
+### C4 · Skill claims `vk plan create` appends spec table automatically (no separate spec-index step)
+
+The skill says:
+> `vk plan create` ALSO appends a row to the spec's `## Implementation Plans`
+> table — there is no separate spec-index step.
+
+Since `vk plan create` doesn't exist (A1), agents must call `vk plan spec-index`
+separately. When they do, they hit C1–C3 above.
+
+**Impact:** The skill's promised "no separate spec-index step" is doubly broken:
+the create command is missing, and spec-index has v2 incompatibilities.
+
+---
+
+## D — `plan-checklist-check.sh` hook misfires on `_prose.md` files
+
+### D1 · Layer extraction broken for `_prose.md` — `repo` layer exemption never fires
+
+`plan-checklist-check.sh` extracts the layer from the plan's basename:
+```bash
+BASE=$(basename "$FILE_PATH" .md)   # → "_prose" for _prose.md files
+LAYER="${BASE#*--}"                  # → "_prose" (no "--" in "_prose")
+LAYER="${LAYER%%--*}"                # → "_prose"
+case "$LAYER" in
+  repo) exit 0 ;;                    # never matches
+esac
+```
+
+For `_prose.md` files (path like `.../2026-05-16--repo--frank-papers-phase-0/_prose.md`),
+`basename` gives `_prose`, not `repo`. The layer exemption for `repo` (and
+presumably other skip layers like `fix`, `investigation`) never triggers.
+
+The hook then proceeds to check whether the plan has a Post-Deploy phase —
+on every Write/Edit of a `_prose.md`, regardless of layer.
+
+**Fix needed:** When the path ends in `/_prose.md`, extract the layer from the
+parent directory's name instead:
+```bash
+if [[ "$(basename "$FILE_PATH")" == "_prose.md" ]]; then
+  PLAN_DIR=$(basename "$(dirname "$FILE_PATH")")  # e.g. "2026-05-16--repo--..."
+  BASE="$PLAN_DIR"
+fi
+```
+
+---
+
+### D2 · `Post-Deploy` grep is case-sensitive and misses `Post-deploy` (lowercase d)
+
+The hook checks:
+```bash
+if ! grep -q 'Post-Deploy\|post.deploy' "$FILE_PATH"; then
+    echo "...missing Post-Deploy phase..."
+fi
+```
+
+The pattern `Post-Deploy` is case-sensitive. A prose file with
+`## Phase 9: Post-deploy checklist` (lowercase `d`) does not match — the
+warning fires even though a post-deploy phase exists.
+
+The pattern `post.deploy` (BRE: `post` + any char + `deploy`) would catch
+`post-deploy` but only in lowercase. `Post-deploy` (capital P) does not match
+`post.deploy`.
+
+**Fix needed:** Use case-insensitive grep (`grep -qi`) or expand the pattern:
+```bash
+grep -qi 'post.deploy\|post-deploy checklist' "$FILE_PATH"
+```
+
+---
+
+## Summary table
+
+| ID | Area | Severity | Workaround available? |
+|----|------|----------|-----------------------|
+| A1 | `vk plan create` missing | High — blocks skill scaffolding step | Yes — write files manually |
+| A2 | `vk plan new` generates v1 format | High — no CLI path to v2 scaffold | Yes — write files manually |
+| B1 | `self-review` dir → IsADirectoryError | Medium — clear error, easy to avoid | Yes — pass `_prose.md` |
+| B2 | `self-review` fails on v2 prose | High — self-review is unusable for v2 | None |
+| C1 | `spec-index` dir → IsADirectoryError | Medium — clear error, easy to avoid | Yes — pass `_prose.md` |
+| C2 | `spec-index` needs `**Spec:**` in prose | Medium — silent no-op otherwise | Yes — add header to prose |
+| C3 | `spec-index` leaves Repo column empty | Low — cosmetic, easy manual fix | Yes — edit table manually |
+| C4 | Skill promises auto spec-index via create | High — skill is misleading | N/A — workaround is A1 fix |
+| D1 | Hook layer extraction broken for `_prose.md` | Low — false positive warning only | Accept the noise |
+| D2 | Hook Post-Deploy grep case-sensitive | Low — false positive warning only | Accept the noise |
