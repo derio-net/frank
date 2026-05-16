@@ -6,8 +6,15 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || echo "$(cd "$(dirname 
 INPUT=$(cat)
 FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_response.filePath // empty')
 
-# Only care about plan files
+# Only care about legacy flat/phased plan .md files.
+# Skip v2 folder components (_prose.md, _meta.yaml, NN.yaml inside a plan dir).
 case "$FILE_PATH" in
+  *docs/superpowers/plans/*/_prose.md|\
+  *docs/superpowers/plans/*/_meta.yaml|\
+  *docs/superpowers/plans/*/*.yaml|\
+  *docs/superpowers/archived-plans/*/_prose.md|\
+  *docs/superpowers/archived-plans/*/_meta.yaml|\
+  *docs/superpowers/archived-plans/*/*.yaml) exit 0 ;;
   *docs/superpowers/plans/*.md|*docs/superpowers/archived-plans/*.md) ;;
   *) exit 0 ;;
 esac

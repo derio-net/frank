@@ -102,7 +102,7 @@
 
 - P5.T2.S1: After 14 days, choose one outcome and document the rationale:
 
-  **Outcome: (b) Dial back to 3 Gi** — `vk-local limits.memory: 8Gi → 3Gi` (PR #264).
+  **Outcome: (b) Dial back to 4 Gi** — `vk-local limits.memory: 8Gi → 4Gi` (PR #264). 4 Gi chosen over the data-minimum 3 Gi as a buffer, given low workload activity during the soak window.
 
 ---
 
@@ -129,7 +129,7 @@ Auto-filled by `scripts/phase5-soak-daily.sh` via supercronic (`0 8 * * *` UTC, 
 | 13 | 2026-05-15 | 0 | 0 | 1.66 GiB | 0 | pod=secure-agent-pod-fc9585b8b-jn2rx (pod replaced — node eviction, not OOM) |
 | 14 | 2026-05-16 | 0 | 0 | 0.19 GiB | 0 | pod=secure-agent-pod-548744b988-dngfj (pod replaced again) |
 
-**Decision rationale:** 14 days, zero OOMKills, zero container restarts. p99 RSS peaked at 2.95 GiB on Day 2 (the only day with queue depth > 0). All other days 0.19–1.90 GiB. The 8 Gi limit was a conservative post-OOM placeholder; 3 Gi covers the p99 peak with ~5 % headroom. `vk-local limits.memory` dialled back to 3 Gi in PR #264.
+**Decision rationale:** 14 days, zero OOMKills, zero container restarts. p99 RSS peaked at 2.95 GiB on Day 2 (the only day with queue depth > 0). All other days 0.19–1.90 GiB. The soak window was not particularly busy; 4 Gi chosen over the data-minimum 3 Gi to provide a comfortable buffer against busier-than-soak workloads. `vk-local limits.memory` dialled back to 4 Gi in PR #264.
 
 ## Phase 6: File tracking issues for B2, B3, R
 

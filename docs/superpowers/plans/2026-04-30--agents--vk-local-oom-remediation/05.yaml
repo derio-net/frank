@@ -66,9 +66,9 @@ state:
     P5.T2.S1:
       state: x
       ticked_at: '2026-05-16'
-      note: "Outcome (b): dial back to 3 Gi. vk-local limits.memory: 8Gi → 3Gi (PR #264). 14-day p99 peaked 2.95 GiB; 3 Gi covers it with ~5% headroom. Zero OOMKills, zero restarts across the full window."
+      note: "Outcome (b): dial back to 4 Gi. vk-local limits.memory: 8Gi → 4Gi (PR #264). 14-day p99 peaked 2.95 GiB; 4 Gi provides ~35% headroom as a buffer given low workload activity during the soak window. Zero OOMKills, zero restarts across the full window."
   completion:
     at: '2026-05-16'
-    note: Phase 5 soak complete. Outcome (b) implemented in PR #264.
+    note: Phase 5 soak complete. Outcome (b) implemented in PR #264 (4 Gi with buffer).
     observed_prs:
     - https://github.com/derio-net/frank/pull/264
