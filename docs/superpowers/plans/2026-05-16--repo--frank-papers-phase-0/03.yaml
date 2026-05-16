@@ -1,0 +1,213 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Hugo shortcodes
+  tag: agentic
+  depends_on: [1]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create `pullquote` and `scar` shortcodes
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Create `blog/layouts/shortcodes/papers/pullquote.html`
+
+
+      Usage: `{{< papers/pullquote source="Author, Title" url="https://..." >}}quoted text{{< /papers/pullquote >}}`
+
+      ```go-html-template
+      <div class="paper-pullquote">
+        <blockquote>{{ .Inner | markdownify }}</blockquote>
+        {{ with .Get "source" }}
+        <cite>
+          {{ if $.Get "url" }}<a href="{{ $.Get "url" }}" target="_blank" rel="noopener">{{ end }}
+          {{ . }}
+          {{ if $.Get "url" }}</a>{{ end }}
+        </cite>
+        {{ end }}
+      </div>
+      ```
+  - id: P3.T1.S2
+    text: |-
+      Create `blog/layouts/shortcodes/papers/scar.html`
+
+
+      Usage: `{{< papers/scar date="2026-01-15" >}}markdown content{{< /papers/scar >}}`
+
+      ```go-html-template
+      <div class="paper-scar">
+        {{ with .Get "date" }}<div class="paper-scar-date">🩹 {{ . }}</div>{{ end }}
+        <div>{{ .Inner | markdownify }}</div>
+      </div>
+      ```
+- number: 2
+  title: Create `capability-matrix` and `landscape` shortcodes
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Create `blog/layouts/shortcodes/papers/capability-matrix.html`
+
+
+      Reads a YAML data file from the page bundle at `data/vendors.yaml`. Each
+      vendor entry has a `name` key and arbitrary feature keys with values
+      `yes`, `partial`, or `no`.
+
+      Usage: `{{< papers/capability-matrix data="vendors" >}}`
+
+      ```go-html-template
+      {{ $dataFile := .Get "data" | default "vendors" }}
+      {{ $vendors := .Page.Resources.GetMatch (printf "data/%s.yaml" $dataFile) }}
+      {{ if $vendors }}
+        {{ $data := $vendors.Content | transform.Unmarshal }}
+        {{ if and $data $data.features $data.vendors }}
+        <div class="paper-capability-matrix">
+          <table>
+            <thead>
+              <tr>
+                <th>Feature</th>
+                {{ range $data.vendors }}<th>{{ .name }}</th>{{ end }}
+              </tr>
+            </thead>
+            <tbody>
+              {{ range $data.features }}
+              {{ $feature := .key }}
+              <tr>
+                <td>{{ .label }}</td>
+                {{ range $data.vendors }}
+                  {{ $val := index .features $feature | default "—" }}
+                  <td>{{ if eq $val "yes" }}✅{{ else if eq $val "partial" }}🟡{{ else if eq $val "no" }}❌{{ else }}{{ $val }}{{ end }}</td>
+                {{ end }}
+              </tr>
+              {{ end }}
+            </tbody>
+          </table>
+        </div>
+        {{ else }}
+        <p><em>vendors.yaml missing required <code>features</code> and <code>vendors</code> keys.</em></p>
+        {{ end }}
+      {{ else }}
+      <p><em>No <code>data/{{ $dataFile }}.yaml</code> found in page bundle.</em></p>
+      {{ end }}
+      ```
+
+      Expected `data/vendors.yaml` shape in a page bundle:
+
+      ```yaml
+      features:
+        - key: ha
+          label: High Availability
+        - key: oss
+          label: Open Source
+      vendors:
+        - name: Ollama
+          features:
+            ha: partial
+            oss: yes
+        - name: vLLM
+          features:
+            ha: yes
+            oss: yes
+      ```
+  - id: P3.T2.S2
+    text: |-
+      Create `blog/layouts/shortcodes/papers/landscape.html`
+
+
+      Thin wrapper around a Mermaid `quadrantChart` enforcing consistent Frank
+      styling. The inner content is the raw Mermaid chart body.
+
+      Usage:
+      ```
+      {{< papers/landscape title="Inference options" >}}
+          x-axis "OSS" --> "Commercial"
+          y-axis "Single-GPU" --> "Distributed"
+          quadrant-1 "Enterprise route"
+          quadrant-2 "Research route"
+          quadrant-3 "Homelab route"
+          quadrant-4 "SaaS route"
+          Ollama: [0.15, 0.2]
+          vLLM: [0.1, 0.75]
+      {{< /papers/landscape >}}
+      ```
+
+      ```go-html-template
+      <div class="paper-landscape">
+        {{ with .Get "title" }}<p class="paper-landscape-title"><strong>{{ . }}</strong></p>{{ end }}
+        <pre class="mermaid">
+      quadrantChart
+          {{ .Inner }}
+        </pre>
+      </div>
+      ```
+
+      Note: Mermaid renders `<pre class="mermaid">` blocks automatically on
+      Papers pages because `mermaid-frank.js` (Phase 2) is loaded there.
+- number: 3
+  title: Create `dossier-link` shortcode
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Create `blog/layouts/shortcodes/papers/dossier-link.html`
+
+
+      Renders a footer link to the committed dossier on GitHub, making the
+      research trail visible and auditable.
+
+      Usage: `{{< papers/dossier-link paper="10-self-hosted-inference" >}}`
+
+      ```go-html-template
+      {{ $paper := .Get "paper" }}
+      {{ $baseURL := "https://github.com/derio-net/frank/blob/main/docs/papers-dossiers" }}
+      <div class="paper-dossier-link">
+        📋 <strong>Research dossier:</strong>
+        <a href="{{ $baseURL }}/{{ $paper }}/dossier.md" target="_blank" rel="noopener">
+          docs/papers-dossiers/{{ $paper }}/dossier.md
+        </a>
+        — primary sources, Frank artefacts, named gaps, and counter-arguments
+        reviewed before this paper was drafted.
+      </div>
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Smoke-test all five shortcodes compile without Hugo errors
+
+
+      ```bash
+      cd blog && hugo --buildDrafts --quiet 2>&1 | grep -E "ERROR|WARN" || echo "Clean build"
+      ```
+
+      Expected: `Clean build` (no errors or warnings from shortcode templates).
+      The shortcodes will not render yet since no Paper content exists — that is
+      expected. Template parse errors would surface here if the Go template
+      syntax is wrong.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

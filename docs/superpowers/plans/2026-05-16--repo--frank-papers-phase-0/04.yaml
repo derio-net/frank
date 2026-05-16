@@ -1,0 +1,150 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Cross-series partials
+  tag: agentic
+  depends_on: [1]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Build `papers-backlink.html` and `papers-forwardlinks.html` partials
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Create `blog/layouts/partials/papers-backlink.html`
+
+
+      Renders a "→ The Frank Papers" chip on Building/Operating posts that have
+      a matching Paper. Zero writes to existing posts — queries at render time.
+
+      ```go-html-template
+      {{/* papers-backlink.html — included in single.html for non-Papers docs pages.
+           Finds any Paper whose related_building or related_operating matches
+           the current page's relative path, and renders a chip. */}}
+      {{ $currentPath := .RelPermalink | strings.TrimSuffix "/" }}
+      {{ $matchedPaper := false }}
+      {{ range where .Site.Pages "Params.series" "papers" }}
+        {{ $buildingRef := .Params.related_building | default "" }}
+        {{ $operatingRef := .Params.related_operating | default "" }}
+        {{ if or (strings.Contains $currentPath $buildingRef) (strings.Contains $currentPath $operatingRef) }}
+          {{ if $buildingRef | or $operatingRef }}
+            {{ $matchedPaper = . }}
+          {{ end }}
+        {{ end }}
+      {{ end }}
+      {{ with $matchedPaper }}
+      <div class="paper-cross-links">
+        <span>🔬 Decision-level view:</span>
+        <a href="{{ .RelPermalink }}">Paper {{ .Params.paper_number | printf "%02d" }} — {{ .Title }}</a>
+      </div>
+      {{ end }}
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Create `blog/layouts/partials/papers-forwardlinks.html`
+
+
+      Renders "→ Building NN / Operating NN" chips on Papers pages.
+
+      ```go-html-template
+      {{/* papers-forwardlinks.html — included in single.html for Papers pages.
+           Renders forward links to related Building and Operating posts from
+           Paper frontmatter. */}}
+      {{ $buildingRef := .Params.related_building | default "" }}
+      {{ $operatingRef := .Params.related_operating | default "" }}
+      {{ if or $buildingRef $operatingRef }}
+      <div class="paper-cross-links">
+        <span>🔧 Hands-on:</span>
+        {{ with $buildingRef }}
+          {{ $page := $.Site.GetPage . }}
+          {{ with $page }}
+          <a href="{{ .RelPermalink }}">Building — {{ .Title }}</a>
+          {{ end }}
+        {{ end }}
+        {{ with $operatingRef }}
+          {{ $page := $.Site.GetPage . }}
+          {{ with $page }}
+          <a href="{{ .RelPermalink }}">Operating — {{ .Title }}</a>
+          {{ end }}
+        {{ end }}
+      </div>
+      {{ end }}
+      ```
+- number: 2
+  title: Wire both partials into `blog/layouts/docs/single.html`
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Add partial calls to `blog/layouts/docs/single.html`
+
+
+      Insert both partials inside the `<main>` block, just before the closing
+      `{{ partial "components/last-updated.html" . }}` call.
+
+      Current end of content section (around line 23):
+
+      ```go-html-template
+          {{ .Content }}
+        </div>
+        {{ partial "components/last-updated.html" . }}
+      ```
+
+      Replace with:
+
+      ```go-html-template
+          {{ .Content }}
+        </div>
+        {{- if eq .Params.series "papers" }}
+          {{- partial "papers-forwardlinks.html" . }}
+          {{- partial "papers/dossier-link.html" . }}
+        {{- else if and (ne .Params.series "papers") (not (eq .Section "")) }}
+          {{- partial "papers-backlink.html" . }}
+        {{- end }}
+        {{ partial "components/last-updated.html" . }}
+      ```
+
+      Note: the `dossier-link` partial call here is a convenience shortcut —
+      it renders the dossier chip from frontmatter's `paper_number` if present.
+      Papers that don't use the shortcode inline still get the footer chip.
+      Papers that DO use `{{< papers/dossier-link >}}` inline will render it
+      twice; use the inline shortcode OR the partial, not both. Document this
+      in `agents/rules/repo-papers.md`.
+  - id: P4.T2.S2
+    text: |-
+      Verify backlinks don't appear on Building/Operating posts yet
+
+
+      Start the dev server and spot-check a Building post:
+
+      ```bash
+      cd blog && hugo server --buildDrafts --port 1313 &
+      sleep 3
+      curl -s http://localhost:1313/docs/building/10-local-inference/ | grep "paper-cross-links" || echo "No backlinks (correct — no Papers exist yet)"
+      kill %1
+      ```
+
+      Expected: `No backlinks (correct — no Papers exist yet)`. The partial
+      queries `.Site.Pages` filtered by `series: papers` — an empty result set
+      renders nothing.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

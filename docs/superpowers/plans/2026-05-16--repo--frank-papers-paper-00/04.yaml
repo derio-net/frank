@@ -1,0 +1,113 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on: [3]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 00 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add a new section header and entry after the `banner-papers-thin` entry,
+      before the `# --- Building Series Covers ---` comment:
+
+      ```yaml
+        # --- Papers Series Covers ---
+
+        - key: paper-00-cover
+          output: blog/content/docs/papers/00-why-homelab-in-2026/cover.png
+          description: Paper 00 cover — Frank at whiteboard with "2026?" written on it, skeptical expression
+          prompt: >-
+            Frank the server-hardware Frankenstein monster stands at a whiteboard,
+            one hand on his chin in a skeptical "weighing" expression. On the
+            whiteboard behind him: "2026?" written in large chalk letters, with
+            three branching arrows below it — one labeled "cloud", one labeled
+            "managed", one labeled "DIY". He wears thin round reading glasses
+            resting low on his nose and a thin black necktie. His posture is
+            thoughtful, not triumphant — the question is genuinely open. Warm
+            overhead lamp. Dark background. RJ45 neck bolts, green skin, messy
+            black hair, rack-mount torso. No other text in the image besides
+            what is written on the whiteboard by Frank.
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-00-cover
+      ```
+
+      Expected: `blog/content/docs/papers/00-why-homelab-in-2026/cover.png`
+      created, ≥50KB.
+
+      ```bash
+      ls -lh blog/content/docs/papers/00-why-homelab-in-2026/cover.png
+      ```
+
+      Spot-check: Frank should have thin round reading glasses, thin black tie,
+      skeptical/weighing expression, whiteboard with "2026?". Up to 3 regeneration
+      attempts if the visual signature is missing.
+- number: 2
+  title: Validate all Mermaid diagrams render
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/00-why-homelab-in-2026/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft work. If any
+      remain, fill them now.
+  - id: P4.T2.S2
+    text: |-
+      Verify Mermaid diagrams parse without errors in Hugo dev server
+
+
+      ```bash
+      cd blog && hugo server --buildDrafts --port 1313 &
+      sleep 3
+      # Check the Paper 00 page loads without Hugo errors
+      curl -s http://localhost:1313/docs/papers/00-why-homelab-in-2026/ \
+        | grep -i "mermaid\|error" | head -10
+      kill %1
+      ```
+
+      Expected: the page loads (HTTP 200), Mermaid script tag is present,
+      no Hugo template errors in the page HTML. Mermaid client-side rendering
+      errors are only visible in a real browser — note any visible in the
+      dev browser if available.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
