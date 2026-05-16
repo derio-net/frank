@@ -2,7 +2,8 @@
 
 Logged during: writing plans for `2026-04-15--repo--frank-papers-series-design.md`
 Session date: 2026-05-16
-vk version: 1.4.3
+vk version at time of session: **1.4.3** (should have been 2.1.4 — see §E)
+vk version after remediation: **2.1.4**
 Agent: Claude Sonnet 4.6 via vk-plan skill (superpowers-for-vk 2.1.4)
 
 All issues below were discovered by running the vk CLI against a new v2
@@ -244,6 +245,65 @@ grep -qi 'post.deploy\|post-deploy checklist' "$FILE_PATH"
 
 ---
 
+---
+
+## E — CLI version skew: vk 1.4.3 in use while plugin is at 2.1.4
+
+### E1 · Root cause: `install.sh` not re-run after plugin version bump
+
+**Symptom:** `vk --version` reports `1.4.3`; plugin cache and `pyproject.toml`
+in the source repo are both at `2.1.4`.
+
+**Root cause:** The vk CLI binary and the plugin are versioned together in the
+`superpowers-for-vk` repo, but they are installed through two independent
+channels:
+
+1. **Plugin cache** (`~/.claude/plugins/cache/derio-net/superpowers-for-vk/2.1.4/`) —
+   updated by the Claude Code plugin system automatically when a new version is
+   published. This controls the skills, rules, and hooks the agent sees.
+
+2. **CLI binary** (`~/.local/bin/vk`) — installed by `uv tool install` as part
+   of `scripts/install.sh`. This controls what `vk plan`, `vk apply`, etc. do.
+
+When the plugin is updated from 1.4.3 → 2.1.4, channel 1 updates automatically.
+Channel 2 does **not** — `install.sh` must be re-run manually. Without it, the
+agent loads skills that describe v2 CLI behaviour (`vk plan create`, v2 folder
+format) while actually running v1 CLI commands. This is what happened in this
+session.
+
+**Remediation:**
+```bash
+bash /home/claude/repos/superpowers-for-vk/scripts/install.sh
+```
+
+Output confirmed:
+```
+- vk==1.4.3 (from file:///...superpowers-for-vk/1.4.3)
++ vk==2.1.4 (from file:///home/claude/repos/superpowers-for-vk)
+```
+
+**Prevention gap:** There is no automatic check at session start that detects
+skew between the plugin cache version and `vk --version`. An agent running a
+plan session may silently operate against a stale CLI version.
+
+**Fix needed:** A session-start check (or an `install.sh` cron or hook) that
+compares the plugin cache version against `vk --version` and warns if they
+differ. Something like:
+
+```bash
+# In install.sh or a separate health-check script:
+CACHE_VER=$(jq -r '.version' \
+  ~/.claude/plugins/cache/derio-net/superpowers-for-vk/*/plugin.json 2>/dev/null \
+  | tail -1)
+CLI_VER=$(vk --version 2>/dev/null | awk '{print $2}')
+if [ "$CACHE_VER" != "$CLI_VER" ]; then
+  echo "WARNING: vk CLI ($CLI_VER) is out of sync with plugin cache ($CACHE_VER)."
+  echo "  Run: bash /home/claude/repos/superpowers-for-vk/scripts/install.sh"
+fi
+```
+
+---
+
 ## Summary table
 
 | ID | Area | Severity | Workaround available? |
@@ -258,3 +318,4 @@ grep -qi 'post.deploy\|post-deploy checklist' "$FILE_PATH"
 | C4 | Skill promises auto spec-index via create | High — skill is misleading | N/A — workaround is A1 fix |
 | D1 | Hook layer extraction broken for `_prose.md` | Low — false positive warning only | Accept the noise |
 | D2 | Hook Post-Deploy grep case-sensitive | Low — false positive warning only | Accept the noise |
+| E1 | CLI version skew — `install.sh` not re-run | High — agent uses wrong CLI silently | Fixed: re-ran `install.sh` |
