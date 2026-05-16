@@ -5,7 +5,8 @@ set -euo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Collect staged plan files
-PLAN_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/superpowers/(plans|archived-plans)/.*\.md$' || true)
+# Only match top-level .md files; skip v2 folder components (_prose.md, NN.yaml, _meta.yaml in subdirs).
+PLAN_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/superpowers/(plans|archived-plans)/[^/]+\.md$' || true)
 AGENT_CONFIG_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(AGENTS\.md|CLAUDE\.md|GEMINI\.md|agents/|\.claude/settings\.json|\.claude/launch\.json|scripts/hooks/|scripts/validate-agent-config\.sh|docs/runbooks/)' || true)
 
 if [ -n "$AGENT_CONFIG_FILES" ]; then

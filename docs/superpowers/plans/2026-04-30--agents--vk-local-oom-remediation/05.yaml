@@ -56,18 +56,19 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-16'
+      note: Auto-collected by scripts/phase5-soak-daily.sh via supercronic (0 8 * * * UTC, kali sibling container). 14 days, zero OOMKills, zero container restarts.
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-16'
+      note: Soak log recorded in _prose.md. p99 RSS peaked 2.95 GiB (Day 2, queue=3); median ~1.1 GiB; Day 14 = 0.19 GiB.
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-16'
+      note: "Outcome (b): dial back to 4 Gi. vk-local limits.memory: 8Gi → 4Gi (PR #264). 14-day p99 peaked 2.95 GiB; 4 Gi provides ~35% headroom as a buffer given low workload activity during the soak window. Zero OOMKills, zero restarts across the full window."
   completion:
-    at: null
-    note: null
-    observed_prs: []
+    at: '2026-05-16'
+    note: Phase 5 soak complete. Outcome (b) implemented in PR #264 (4 Gi with buffer).
+    observed_prs:
+    - https://github.com/derio-net/frank/pull/264
