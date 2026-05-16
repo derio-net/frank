@@ -4,18 +4,21 @@
 # deadlock waiting for the mount to release (see frank-gotchas.md).
 #
 # Image SHAs reference agent-images main commit
-# 8af0d0800905487dfdb1716218d64bc1f915aecc (merge of derio-net/agent-images#53,
-# tail of the four-PR fix chain that recovered Phase 1's images:
-#   #50 — re-land of PR #48 (the original Phase 1 squash-merged onto the wrong
-#         branch and never reached main, leaving its images unbuilt)
-#   #51 — fix the COPY paths (upstream tree has src/ruvocal under an extra
-#         leading `ruflo/` dir, not at the repo root)
-#   #52 — sed-patch upstream's ChatWindow.svelte IIFE that vite-plugin-svelte
-#         rejects with js_parse_error
-#   #53 — chown /app to UID 1000 (ruvocal mkdirs /app/db at startup) and
-#         re-introduce paperclip-shell's install -d for /var/log/cont-init.d
-#         + /var/lib/ruflo-shell that ruflo-shell's fork-from-paperclip lost
-# See plan Deployment Notes for the full trace.
+# 8af32cba360d8bfa86e31fc8fc91e8fc787d55b7 (tip of derio-net/agent-images
+# main as of 2026-05-16; tail of a two-PR fix for the local-model "no
+# response" bug):
+#   #77 — patch upstream urlSafety.ts to allow wasm:// URLs (the browser-
+#         local "RVAgent Local (WASM)" MCP server) so autopilot-ON chat
+#         doesn't silently brick when wasm:// is the only selected MCP;
+#         bump RUFLO_GIT_REF to ruvnet/ruflo main (ca0a6fa), 328 commits
+#         ahead of the previous pin
+#   #78 — vendor ruflo/src/ruvocal/.env from ruvnet/ruflo@0fd61e3e5b20
+#         (the last SHA where it was tracked; upstream untracked it on
+#         2026-05-05 in f8f4cd4 for security — admin tokens had been
+#         committed historically). Curl into the source stage; defaults-
+#         only payload, no secrets ride on the vendored file
+# See PR description on derio-net/agent-images#77 / #78 and frank-gotchas
+# `paperclip-ruflo` section for the full trace.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -84,7 +87,7 @@ spec:
       containers:
         # ----- ruvocal (the multi-agent web server) ------------------
         - name: ruflo
-          image: ghcr.io/derio-net/ruflo-server:800638927752ca388255fa5dd977db0d15720052
+          image: ghcr.io/derio-net/ruflo-server:8af32cba360d8bfa86e31fc8fc91e8fc787d55b7
           imagePullPolicy: IfNotPresent
           ports:
             - { name: http, containerPort: 3000, protocol: TCP }
@@ -148,7 +151,7 @@ spec:
 
         # ----- ruflo-shell (interactive maintainer sidecar) ----------
         - name: ruflo-shell
-          image: ghcr.io/derio-net/ruflo-shell:800638927752ca388255fa5dd977db0d15720052
+          image: ghcr.io/derio-net/ruflo-shell:8af32cba360d8bfa86e31fc8fc91e8fc787d55b7
           imagePullPolicy: IfNotPresent
           ports:
             - { name: ssh,         containerPort: 2222,  protocol: TCP }
