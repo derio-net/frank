@@ -1,6 +1,6 @@
 # Frank Gotchas — Argo Rollouts
 
-Long-form companion to the **Argo Rollouts** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **Argo Rollouts** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 Most of the meatier discoveries here came out of the litellm canary rehearsal on 2026-05-04 — see `building/19-progressive-delivery` (Update section) and `docs/superpowers/specs/2026-05-04--deploy--litellm-canary-metric-source-design.md`.
 

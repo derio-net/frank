@@ -1,6 +1,6 @@
 # Frank Gotchas — Omni
 
-Long-form companion to the **Omni** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **Omni** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 ## TLS cert is NOT renewed by the snap-installed certbot timer
 

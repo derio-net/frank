@@ -1,6 +1,6 @@
 # Frank Gotchas — Authentik
 
-Long-form companion to the **Authentik** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **Authentik** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 ## Blueprints mount in the worker pod, not the server
 

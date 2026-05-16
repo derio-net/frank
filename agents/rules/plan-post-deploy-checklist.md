@@ -19,7 +19,7 @@ When creating a plan for a **standard layer** (new deployment, not a fix/extensi
 - [ ] **Step 6: Update plan status** — Set `**Status:**` to `Deployed` (cluster workload) or `Complete` (repo/meta work)
 
 **When to skip steps:**
-- Fix/extension plans: skip blog posts (update the existing layer's posts instead). New gotchas: one-liner in `.claude/rules/frank-gotchas.md` (or `hop-gotchas.md`), full prose in the matching per-topic file under `docs/runbooks/frank-gotchas/<topic>.md`.
+- Fix/extension plans: skip blog posts (update the existing layer's posts instead). New gotchas: one-liner in `agents/rules/frank-gotchas.md` (or `hop-gotchas.md`), full prose in the matching per-topic file under `docs/runbooks/frank-gotchas/<topic>.md`.
 - Internal-only services (no public/mesh domain, no homepage tile): skip Step 1.
 - Meta/repo plans (`repo` layer): skip blog posts and README unless the change is user-visible.
 - Investigation/audit plans: skip all — these are diagnostic, not deployments.

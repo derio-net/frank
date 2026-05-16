@@ -32,7 +32,7 @@ Update the annotated tree if new top-level directories or significant `apps/<nam
 
 Add a row for each new LoadBalancer service. Columns: `Service | URL | IP`.
 
-- Source of truth: `CLAUDE.md` Services table (keep both in sync).
+- Source of truth: `agents/rules/frank-infrastructure.md` Services table (keep both in sync).
 - Include the port in the URL if non-standard (e.g. `:8080`).
 
 ### 4. Current Status

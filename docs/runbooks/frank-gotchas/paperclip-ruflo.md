@@ -1,6 +1,6 @@
 # Frank Gotchas — Paperclip / Ruflo
 
-Long-form companion to the **Paperclip / Ruflo** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **Paperclip / Ruflo** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 ## `paperclip-data` PVC fills up
 

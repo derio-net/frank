@@ -1,6 +1,6 @@
 # Frank Gotchas — Other in-cluster apps
 
-Long-form companion to the **Other in-cluster apps** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **Other in-cluster apps** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 Apps with only one or two gotchas live here together (Sympozium, Zot, Gitea, n8n, VK, curlimages). Apps with larger gotcha clusters get their own file (Authentik, Grafana, Tekton, Argo Rollouts, Paperclip/Ruflo).
 

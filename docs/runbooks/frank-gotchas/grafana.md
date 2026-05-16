@@ -1,6 +1,6 @@
 # Frank Gotchas — Grafana
 
-Long-form companion to the **Grafana** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **Grafana** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 ## OIDC secret key naming
 

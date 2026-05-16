@@ -1,6 +1,6 @@
 # Frank Gotchas — Archive
 
-Long-form companion to `.claude/rules/frank-gotchas.md`. That hot file is auto-loaded into every Claude Code session and gets the one-line summary of each gotcha. The files here are **not auto-loaded** — agents and operators read whichever section is relevant.
+Long-form companion to `agents/rules/frank-gotchas.md`. That hot file is auto-loaded into every Claude Code session and gets the one-line summary of each gotcha. The files here are **not auto-loaded** — agents and operators read whichever section is relevant.
 
 ## Contents
 
@@ -21,7 +21,7 @@ Long-form companion to `.claude/rules/frank-gotchas.md`. That hot file is auto-l
 
 ## When to add a new gotcha
 
-1. Add a one-liner to the relevant section in `.claude/rules/frank-gotchas.md`.
+1. Add a one-liner to the relevant section in `agents/rules/frank-gotchas.md`.
 2. If the gotcha needs more than two lines (recovery commands, repro steps, dated incident notes), add the full entry to the corresponding file here under a `## <short title>` heading. If no file matches the topic, add a new file and update this index.
 3. Cross-references in the hot file's section header already point at the directory — no need to update them per-entry.
 

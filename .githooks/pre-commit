@@ -6,6 +6,11 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 # Collect staged plan files
 PLAN_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/superpowers/(plans|archived-plans)/.*\.md$' || true)
+AGENT_CONFIG_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(AGENTS\.md|CLAUDE\.md|GEMINI\.md|agents/|\.claude/settings\.json|\.claude/launch\.json|scripts/hooks/|scripts/validate-agent-config\.sh|docs/runbooks/)' || true)
+
+if [ -n "$AGENT_CONFIG_FILES" ]; then
+  "$REPO_ROOT/scripts/validate-agent-config.sh"
+fi
 
 if [ -n "$PLAN_FILES" ]; then
   # shellcheck disable=SC2086

@@ -1,6 +1,6 @@
 # Frank Gotchas — ArgoCD
 
-Long-form companion to the **ArgoCD** section in `.claude/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
+Long-form companion to the **ArgoCD** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
 ## Notifications: named-webhook subscription syntax is counter-intuitive
 
