@@ -15,8 +15,14 @@ esac
 
 [ -f "$FILE_PATH" ] || exit 0
 
-# Skip if this is a fix/extension/investigation/audit/meta plan
+# For v2 folder-format plans, _prose.md is the markdown file — extract the
+# layer from the parent directory name instead of the file's own basename.
 BASE=$(basename "$FILE_PATH" .md)
+if [ "$BASE" = "_prose" ]; then
+  BASE=$(basename "$(dirname "$FILE_PATH")")
+fi
+
+# Skip if this is a fix/extension/investigation/audit/meta plan
 DETAILS="${BASE#*--*--}"  # strip date--layer--
 case "$DETAILS" in
   *fix*|*regression*|*investigation*|*audit*|*completion*) exit 0 ;;
@@ -31,7 +37,7 @@ esac
 # Phase-based plans get post-deploy auto-appended by vk-plan via profile
 if grep -q '^## Phase' "$FILE_PATH"; then
   # Phase-based plan — check for a post-deploy phase specifically
-  if ! grep -q 'Post-Deploy\|post.deploy' "$FILE_PATH"; then
+  if ! grep -qi 'post.deploy' "$FILE_PATH"; then
     echo "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"This phase-based plan is missing a Post-Deploy phase. vk-plan should auto-append it from plan-config.yaml. If this is a fix/meta/investigation plan, ignore this warning.\"}}"
   fi
 elif ! grep -q 'blog.*post\|/blog-post\|Post-Deploy' "$FILE_PATH"; then
