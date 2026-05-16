@@ -87,6 +87,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - ruvocal stores state in `/app/db/ruvocal.rvf.json` (RVF), NOT Postgres — `DATABASE_URL` is silently ignored at the pinned SHA. Mount a PVC at `/app/db`.
 - ruvocal liveness should probe `/api/v2/feature-flags`, not `/` (SSR `/` reaches into LiteLLM/DB).
 - LiteLLM-fronted apps need a LiteLLM virtual key for `OPENAI_API_KEY` — not the upstream provider key.
+- ruvocal's server-side `isValidUrl` rejects `wasm://` URLs but the in-browser "RVAgent Local (WASM)" MCP advertises one; with autopilot ON + WASM-only MCP (chat-ui defaults), the SPA silently refuses to submit and the chat POST never reaches the server. Local fork in agent-images adds a `wasm:` allow-line.
 
 ### Omni — `docs/runbooks/frank-gotchas/omni.md`
 - TLS cert is NOT renewed by the snap-installed certbot timer (config lives at `/opt/manual_install/certbot/config/`). Use the dedicated systemd unit in `omni/certbot/certbot.md`. Renewal hook MUST `docker restart omni` (no SIGHUP path on v1.5.0).
