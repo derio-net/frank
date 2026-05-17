@@ -259,7 +259,7 @@ model: "ollama-cloud/qwen-think-14b"
 
 `OLLAMA_BASE_URL=http://litellm.litellm.svc:4000/v1` and `OLLAMA_API_KEY=$(LITELLM_API_KEY)` are set in `deployment.yaml`.
 
-**Model field shape (verified, Phase 1.T2.S4):** `--provider ollama-cloud --model <alias>` where `<alias>` is one of the LiteLLM model names (`qwen-coder-14b`, `qwen-think-14b`, `mistral-small-24b`, etc.). Hermes auto-normalizes `ollama-cloud/<alias>` → `<alias>` when `--provider ollama-cloud` is explicit. The `--provider` flag itself is injected by the wrapper at `/paperclip/agent-bin/bin/hermes` (see "Hermes wrapper" below) — the `hermes_local` adapter cannot pass it directly because its `VALID_PROVIDERS` whitelist rejects `ollama-cloud`.
+**Model field shape (verified, Phase 1.T2.S4 + Phase 5 re-verification):** the adapter passes `-m <alias>` (bare, e.g. `qwen-think-14b`) — no `--provider` flag. Routing to ollama-cloud (Frank LiteLLM) is set by the config.yaml's `model: "ollama-cloud/qwen-think-14b"` line: the `ollama-cloud/` prefix on the **default** model makes ollama-cloud the default provider for this hermes install, and that default applies even when the caller overrides the model with `-m qwen-think-14b` (bare). Phase 1.T2.S4's CLI probe used the explicit `--provider ollama-cloud --model qwen-think-14b` form; Phase 5 confirmed the implicit form via config.yaml works equally well from the adapter's invocation pattern.
 
 **HERMES_HOME cannot be read-only (verified, Phase 1.T2.S5):** hermes v0.10.0 writes ALL state to `HERMES_HOME`: sessions, `state.db`, `auth.json`, `logs/`, `memories/`, `SOUL.md`. There is no separate config vs. state path override. **`HERMES_HOME` must be a writable directory.** The spec's original assumption (`/etc/paperclip/hermes-base` as a ConfigMap mount) is invalid.
 
@@ -277,36 +277,21 @@ model: "ollama-cloud/qwen-think-14b"
 }
 ```
 
-Leave `provider` blank and **do not** set `extraArgs: ["--provider", "ollama-cloud"]` from the UI — the schema-form text input stores the value as a single-element array `["--provider ollama-cloud"]` (one argv token with an embedded space) which hermes argparse rejects. The wrapper at `hermesCommand` injects `--provider ollama-cloud` for you.
+Leave `provider` blank and **do not** type anything into the UI's `extraArgs` text input. Two reasons (Phase 5 P5.T2 deviation):
 
-### Hermes wrapper (`--provider` injection)
+- **`extraArgs` UI bug.** The schema-driven config form stores the text value as a single-element array `["--provider ollama-cloud"]` (one argv token with an embedded space). The adapter's `args.push(...extraArgs)` then forwards that single malformed string to hermes, and argparse rejects it: `hermes: error: unrecognized arguments: --provider ollama-cloud`. The custom `buildHermesConfig` in `hermes-paperclip-adapter` whitespace-splits correctly, but it isn't on the path the schema-driven form takes.
+- **`provider` field whitelist.** The adapter (`hermes-paperclip-adapter@0.2.0`, `dist/server/execute.js:268`) gates the `provider` adapter-config field through a hardcoded list `[auto, openrouter, nous, openai-codex, zai, kimi-coding, minimax, minimax-cn]` that drops `ollama-cloud` silently. It is also stale vs. the upstream `hermes` CLI, which lists `ollama-cloud` among its valid `--provider` choices. Net: setting `provider: "ollama-cloud"` in the hire form is a no-op.
 
-**Why it exists (Phase 5 deviation, P5.T2):** `hermes-paperclip-adapter@0.2.0` gates the `provider` adapter-config field through a hardcoded `VALID_PROVIDERS` whitelist:
+Neither of these matters in practice because routing is handled at the **config.yaml** layer (see the model-field-shape paragraph above), not at the CLI flag layer. The hire payload above (just `model` + `hermesCommand`) is everything the adapter needs.
 
-```
-[auto, openrouter, nous, openai-codex, zai, kimi-coding, minimax, minimax-cn]
-```
+### Phase 5 false-start: the hermes wrapper (don't ship one)
 
-`ollama-cloud` is not in that list, so the adapter silently drops the field and invokes hermes without `--provider`. Hermes then auto-detects from the model name; for a bare `qwen-think-14b` (no cloud provider prefix) it falls through to "No LLM API keys found (set `ANTHROPIC_API_KEY`/`OPENROUTER_API_KEY`/`OPENAI_API_KEY`/`ZAI_API_KEY` in env)" and the run fails before reaching LiteLLM.
+PR #296 added a `hermes-wrapper` script ConfigMap key + an initContainer that installed it at `/paperclip/agent-bin/bin/hermes` to "inject `--provider ollama-cloud`." It was reverted in the next PR. Two reasons:
 
-The schema-driven UI also can't help: its `extraArgs` text input stores the value as a single-element array. The custom `buildHermesConfig` in `hermes-paperclip-adapter` whitespace-splits correctly, but it isn't on the path the schema-form takes.
+- **It solved a non-problem.** The original user-facing failure was a model **typo** (`litelllm/quen36-a3b-nothin`, four L's — hermes saw the unknown `litelllm/` prefix and asked for cloud keys). With the correct bare model `qwen-think-14b` and no `extraArgs`, the adapter's invocation already works because config.yaml pins ollama-cloud as the default provider via the prefix on `model:`.
+- **It broke things.** `--provider` is a subcommand-scoped flag (`hermes chat --provider X`), not top-level. The wrapper prepended `--provider ollama-cloud` to the full argv, producing `hermes --provider ollama-cloud chat …` — argparse parses the first positional as the subcommand name and errors with `argument command: invalid choice: 'ollama-cloud'`.
 
-**The fix:** the `paperclip-hermes` ConfigMap ships a `hermes-wrapper` script that the `hermes-init` initContainer installs at `/paperclip/agent-bin/bin/hermes`, **replacing** the venv symlink from Phase 1's one-shot install. The wrapper:
-
-```sh
-#!/bin/sh
-case " $* " in
-  *" --provider "*|*" --provider="*)
-    exec /paperclip/agent-bin/hermes-agent/venv/bin/hermes "$@" ;;
-esac
-exec /paperclip/agent-bin/hermes-agent/venv/bin/hermes --provider ollama-cloud "$@"
-```
-
-This injects `--provider ollama-cloud` only when the caller didn't already specify one — so the adapter (which never sets `--provider`) gets the right invocation, and direct CLI use from `paperclip-shell` (Phase 1 probe style, ad-hoc debugging) that already passes `--provider <other>` still works unchanged.
-
-**To upgrade hermes-agent in the future:** the wrapper hardcodes the venv path `/paperclip/agent-bin/hermes-agent/venv/bin/hermes` — keep the install layout when the version changes (`uv venv --python 3.12 /paperclip/agent-bin/hermes-agent/venv`) and the wrapper continues to work.
-
-**To drop the wrapper (post upstream fix):** if `hermes-paperclip-adapter` lands a release that either accepts custom providers or exposes a `prependArgs` field, swap the initContainer back to a venv-symlink and document the version pin.
+Lesson for future deviations: probe the **adapter's** invocation pattern end-to-end, not just the underlying CLI in isolation, before deciding the adapter is broken.
 
 ### Python-on-PVC install pattern (hermes)
 

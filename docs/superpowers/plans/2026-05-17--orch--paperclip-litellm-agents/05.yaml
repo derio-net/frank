@@ -59,9 +59,9 @@ tasks:
 
       Notes:
 
-      - `model` is the bare LiteLLM alias `qwen-think-14b`, NOT `litellm/qwen-think-14b` (that prefix is opencode-specific). The `--provider ollama-cloud` flag is injected by the wrapper at `/paperclip/agent-bin/bin/hermes` — see `docs/runbooks/frank-gotchas/paperclip-ruflo.md#hermes-wrapper-provider-injection` and the Phase 5 Deployment Deviation entry in `_prose.md`.
+      - `model` is the bare LiteLLM alias `qwen-think-14b`, NOT `litellm/qwen-think-14b` (that prefix is opencode-specific). Routing to ollama-cloud is set by `paperclip-hermes` ConfigMap's `model: "ollama-cloud/qwen-think-14b"` — the prefix on the **default** model pins ollama-cloud as the install's default provider, and that default applies even when the adapter passes `-m qwen-think-14b` (bare).
       - `hermesCommand` is set explicitly to the absolute path even though Phase 3 widens PATH to include `/paperclip/agent-bin/bin`. Belt-and-braces against future PATH drift.
-      - Do NOT set `provider: "ollama-cloud"` — `hermes_local`'s `VALID_PROVIDERS` whitelist drops it silently. Do NOT set `extraArgs: ["--provider", "ollama-cloud"]` from the UI — the schema-form text input stores it as a single-element array (one argv token with embedded space), which hermes argparse rejects. The wrapper handles both.
+      - Do NOT set `provider: "ollama-cloud"` — `hermes_local`'s `VALID_PROVIDERS` whitelist drops it silently (the whitelist is stale vs. the upstream hermes CLI but the field is a no-op here anyway). Do NOT type anything into the UI's `extraArgs` text input — the schema-form stores it as a single-element array (one argv token with embedded space), which hermes argparse rejects with `unrecognized arguments`. Neither of these matter because we don't actually need any extra CLI args — see `docs/runbooks/frank-gotchas/paperclip-ruflo.md#litellm-backed-agents` and the Phase 5 Deployment Deviation entry in `_prose.md`.
   - id: P5.T2.S2
     text: |-
       Assign a second trivial issue. Watch the transcript flow back as structured tool cards (hermes-paperclip-adapter parses Hermes's stdout into typed entries).
