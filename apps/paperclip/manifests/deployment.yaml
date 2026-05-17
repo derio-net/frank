@@ -89,8 +89,10 @@ spec:
             # from paperclip-shell. Suffix (not prefix) so image-baked
             # binaries at /usr/local/bin still win — paperclip's pinned
             # codex stays authoritative; we only fill gaps (gemini).
-            # TODO: lift this install from operator-imperative to a
-            # declarative initContainer so PVC wipe regenerates state.
+            # opencode is image-baked (/usr/local/bin/opencode); no PVC
+            # install needed. Other PVC-installed CLIs (hermes shim, uv)
+            # are declared in configmap-shell-inventory.yaml paperclip-shared
+            # section — the reconcile handler is deferred to agent-images.
             - name: PATH
               value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/paperclip/agent-bin/node_modules/.bin"
             # opencode reads its config from $XDG_CONFIG_HOME/opencode/opencode.json.
@@ -218,6 +220,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: paperclip-data
+        - name: opencode-config
+          configMap:
+            name: paperclip-opencode
         - name: shell-home
           persistentVolumeClaim:
             claimName: paperclip-shell-home
@@ -238,6 +243,3 @@ spec:
           configMap:
             name: paperclip-shell-motd-tips
             defaultMode: 0644
-        - name: opencode-config
-          configMap:
-            name: paperclip-opencode
