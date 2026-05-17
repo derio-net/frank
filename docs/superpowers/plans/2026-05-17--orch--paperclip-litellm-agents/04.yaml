@@ -71,26 +71,27 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T18:29:49+00:00'
       note: null
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T18:30:16+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-17T18:30:22+00:00'
+      note: Cluster-side verification deferred to Phase 5 operator walkthrough; MOTD
+        shell script logic is syntactically correct
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T18:31:19+00:00'
       note: null
     P4.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T18:31:29+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-17T18:31:32+00:00'
     note: null
     observed_prs: []

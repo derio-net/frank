@@ -197,6 +197,147 @@ Examples:
 
 Upstream fix is one line: unwrap the cause chain in `isIssuePrefixConflict`. Worth a PR.
 
+## LiteLLM-backed agents (`opencode_local` + `hermes_local`) {#litellm-backed-agents}
+
+Paperclip's local LLM path routes agent runs through Frank's LiteLLM gateway (`litellm.litellm.svc:4000` / `192.168.55.206:4000`) to Ollama models on `gpu-1`. Two adapters implement this:
+
+### opencode_local
+
+**Config shape** — `paperclip-opencode` ConfigMap, mounted via `XDG_CONFIG_HOME`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Frank LiteLLM",
+      "options": {
+        "baseURL": "http://litellm.litellm.svc:4000/v1",
+        "apiKey": "{env:LITELLM_API_KEY}"
+      },
+      "models": {
+        "mistral-small-24b": { "name": "Mistral Small 3.2 24B (local)" },
+        "qwen-coder-14b":    { "name": "Qwen2.5-Coder 14B Q6 (local)" },
+        "qwen-think-14b":    { "name": "Qwen3 14B Thinking (local)" },
+        "qwen36-a3b":        { "name": "Qwen3.6 35B-A3B MoE (local)" },
+        "qwen36-a3b-nothin": { "name": "Qwen3.6 35B-A3B MoE — no-think (local)" },
+        "gemma-12b":         { "name": "Gemma 3 12B multimodal (local)" }
+      }
+    }
+  }
+}
+```
+
+**Model field shape (verified, Phase 1.T1.S3):** `litellm/<alias>` — provider-prefixed is required. Bare `qwen-coder-14b` fails with `Error: Model not found: qwen-coder-14b/.`.
+
+**Env-var interpolation:** `{env:LITELLM_API_KEY}` in `opencode.json` resolves correctly at runtime — no syntax change needed.
+
+**Adapter copy behavior:** The `opencode_local` adapter's `runtime-config.ts` copies the base `XDG_CONFIG_HOME` dir to a per-run tempdir and then merges only the `permission` block. Our `provider.litellm` block is preserved on every run (verified Phase 1.T3.S1 against `sha-c445e59`, `runtime-config.ts` line 68–91).
+
+**Binary location:** opencode is image-baked at `/usr/local/bin/opencode` (v1.14.48 at time of Phase 2). The PVC install (`npm install --prefix /paperclip/agent-bin opencode-ai` → v1.15.3) is reachable via absolute path but the image-baked binary wins PATH precedence. Wire `XDG_CONFIG_HOME` for the image-baked binary.
+
+**Hire payload:**
+
+```json
+{
+  "adapterType": "opencode_local",
+  "adapterConfig": { "model": "litellm/qwen-coder-14b" }
+}
+```
+
+### hermes_local
+
+**Hermes v0.10.0 schema deviation from spec:** The spec assumed `inference.chain:` config format. Hermes v0.10.0 uses a `providers:` dict + env vars. The working path is the built-in `ollama-cloud` provider, which reads `OLLAMA_BASE_URL` and `OLLAMA_API_KEY` from the container env.
+
+**Config shape** — `paperclip-hermes` ConfigMap, seeded into `HERMES_HOME` by initContainer:
+
+```yaml
+# Hermes Agent v0.10.0 — ollama-cloud provider via Frank LiteLLM
+model: "ollama-cloud/qwen-think-14b"
+```
+
+`OLLAMA_BASE_URL=http://litellm.litellm.svc:4000/v1` and `OLLAMA_API_KEY=$(LITELLM_API_KEY)` are set in `deployment.yaml`.
+
+**Model field shape (verified, Phase 1.T2.S4):** `--provider ollama-cloud --model <alias>` where `<alias>` is one of the LiteLLM model names (`qwen-coder-14b`, `qwen-think-14b`, `mistral-small-24b`, etc.). Hermes auto-normalizes `ollama-cloud/<alias>` → `<alias>` when `--provider ollama-cloud` is explicit.
+
+**HERMES_HOME cannot be read-only (verified, Phase 1.T2.S5):** hermes v0.10.0 writes ALL state to `HERMES_HOME`: sessions, `state.db`, `auth.json`, `logs/`, `memories/`, `SOUL.md`. There is no separate config vs. state path override. **`HERMES_HOME` must be a writable directory.** The spec's original assumption (`/etc/paperclip/hermes-base` as a ConfigMap mount) is invalid.
+
+**Revised approach:** `HERMES_HOME=/paperclip/agent-bin/.hermes` (writable PVC). The `hermes-init` initContainer seeds `config.yaml` there on every pod boot from the `paperclip-hermes` ConfigMap (mounted read-only at `/etc/paperclip/hermes-template/`). The initContainer runs before all app containers, so `HERMES_HOME` is always ready before hermes is invoked.
+
+**Hire payload:**
+
+```json
+{
+  "adapterType": "hermes_local",
+  "adapterConfig": {
+    "model": "qwen-think-14b",
+    "hermesCommand": "/paperclip/agent-bin/bin/hermes"
+  }
+}
+```
+
+### Python-on-PVC install pattern (hermes)
+
+hermes-agent is Python-based; the Paperclip image is Node-only. Install it onto the shared `/paperclip` PVC using `uv`:
+
+```bash
+# From paperclip-shell (run once, or after a PVC wipe):
+# uv binary must already be at /paperclip/agent-bin/bin/uv
+# (installed via curl astral.sh/uv/install.sh | env UV_INSTALL_DIR=... sh)
+
+# Non-relocatable venv gotcha: default uv downloads CPython to ~/.local/share/uv/python/
+# which is the shell sidecar's home PVC — invisible from the paperclip container.
+# Fix: pin UV_PYTHON_INSTALL_DIR to the shared PVC.
+UV_PYTHON_INSTALL_DIR=/paperclip/agent-bin/python \
+  /paperclip/agent-bin/bin/uv venv --python 3.12 /paperclip/agent-bin/hermes-agent/venv
+
+/paperclip/agent-bin/bin/uv pip install \
+  --python /paperclip/agent-bin/hermes-agent/venv/bin/python \
+  'hermes-agent @ git+https://github.com/NousResearch/hermes-agent.git@v2026.4.16'
+
+ln -sf /paperclip/agent-bin/hermes-agent/venv/bin/hermes /paperclip/agent-bin/bin/hermes
+```
+
+**Key gotcha:** `UV_PYTHON_INSTALL_DIR` must be on the shared `/paperclip` PVC. Without it, the venv's `python` symlink resolves to `~/.local/share/uv/python/…` (shell sidecar's home) which is mounted as the shell sidecar's PV — not visible to the `paperclip` container. The shim at `/paperclip/agent-bin/bin/hermes` then executes cleanly from both containers.
+
+### shell-inventory `paperclip-shared` section
+
+The `configmap-shell-inventory.yaml` has a `paperclip-shared:` section (distinct from `npm-global:`, `pipx:`, `cargo:` which target the shell sidecar's home PV). It declares tools that must land on `/paperclip` for the paperclip container to reach them:
+
+```yaml
+paperclip-shared:
+  npm:
+    - opencode-ai        # installed to /paperclip/agent-bin/node_modules/
+uv:
+  - id: hermes-agent
+    pin: "git+https://github.com/NousResearch/hermes-agent.git@v2026.4.16"
+    venv: /paperclip/agent-bin/hermes-agent/venv
+    python_install_dir: /paperclip/agent-bin/python
+    shim: /paperclip/agent-bin/bin/hermes
+```
+
+The reconcile script does not yet handle `paperclip-shared:` or `uv:` sections (deferred to an agent-images PR). Until then, these entries serve as the declarative recovery record — run the commands above manually after a PVC wipe.
+
+### Verification commands
+
+```bash
+# From outside the cluster:
+kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- opencode --version
+kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- hermes --version
+
+# Smoke-test opencode against LiteLLM:
+kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- \
+  opencode run -m litellm/qwen-coder-14b -p "say ping"
+
+# Smoke-test hermes against LiteLLM:
+kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- \
+  hermes chat -Q -q "say ping" --provider ollama-cloud --model qwen-think-14b
+
+# Confirm LiteLLM received the request (adjust pod name):
+kubectl -n litellm logs deploy/litellm --since=2m | grep "POST /v1/chat/completions"
+```
+
 ## Operator API calls from CLI need Origin header + `%3D` cookie encoding
 
 Two independent guards make CLI access to the board-scoped API non-obvious:
