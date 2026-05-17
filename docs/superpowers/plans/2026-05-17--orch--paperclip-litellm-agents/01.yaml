@@ -231,70 +231,70 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:32+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:32+00:00'
       note: null
     P1.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:32+00:00'
       note: null
     P1.T1.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:33+00:00'
       note: null
     P1.T1.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:33+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:38+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:38+00:00'
       note: null
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:38+00:00'
       note: null
     P1.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:38+00:00'
       note: null
     P1.T2.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:38+00:00'
       note: null
     P1.T2.S6:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:39+00:00'
       note: null
     P1.T2.S7:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:39+00:00'
       note: null
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:44+00:00'
       note: null
     P1.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-17T12:51:45+00:00'
+      note: deferred to Phase 5 per plan — API access gates this smoke test
     P1.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:45+00:00'
       note: null
     P1.T4.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T12:51:45+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-17T12:51:49+00:00'
     note: null
     observed_prs: []
