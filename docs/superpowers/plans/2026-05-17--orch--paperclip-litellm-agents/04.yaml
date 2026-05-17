@@ -1,0 +1,96 @@
+schema_version: 2
+phase:
+  number: 4
+  title: MOTD + runbook + stale-comment cleanup
+  tag: agentic
+  depends_on:
+  - 2
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Refresh external-secret-llm.yaml header comment
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Replace the stale "http-local coming soon" comment block in `apps/paperclip/manifests/external-secret-llm.yaml` with the wording drafted in P1.T4.S2. The new comment names both consumers: opencode (via `opencode.json` + `{env:LITELLM_API_KEY}`) and hermes (via `config.yml` + `api_key_env: LITELLM_API_KEY`).
+- number: 2
+  title: Add "LiteLLM-backed agents" section to MOTD
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Edit `apps/paperclip/manifests/configmap-shell-motd-tips.yaml`. Append a new conditional section to the `60-paperclip-shell-tips.sh` script that prints the spec-defined block (per the spec's "paperclip-shell MOTD" section).
+
+      Two design choices to make at edit time:
+
+      1. **Conditional or unconditional?** The MOTD prints on every interactive SSH login to paperclip-shell; many of those are routine. Three options:
+         a. Always print (simple, can become noise).
+         b. Print only if `/paperclip/agent-bin/node_modules/.bin/opencode` or `/paperclip/agent-bin/bin/hermes` is missing (helpful on cold PVs).
+         c. Print until the operator acks via touching `~/.config/paperclip-shell/litellm-tips-seen`.
+
+         Recommended: option (b). It uses absolute paths on the shared `/paperclip` PVC, so the existence check works from the shell-sidecar's filesystem view directly — no `kubectl exec` cross-container probe needed.
+
+      2. **Match the existing script's helper style.** Read `apps/paperclip/manifests/configmap-shell-motd-tips.yaml` first to see what idioms (`tput`, color codes, divider chars) the existing tips use, and match.
+
+      Sketch:
+
+      ```bash
+      if [ ! -x /paperclip/agent-bin/node_modules/.bin/opencode ] || \
+         [ ! -x /paperclip/agent-bin/bin/hermes ]; then
+        cat <<'TIPS'
+        <the LiteLLM-backed agents block from the spec, verbatim>
+      TIPS
+      fi
+      ```
+
+      Verbatim block = the text under "## paperclip-shell MOTD" in the design spec.
+  - id: P4.T2.S2
+    text: |-
+      ArgoCD sync; SSH into paperclip-shell to confirm the new tip prints on login (and is suppressed when both CLIs exist — flip a binary off temporarily to test the on-path).
+
+      ```bash
+      argocd app sync paperclip --port-forward --port-forward-namespace argocd
+      ssh paperclip-shell  # observe the MOTD
+      ```
+- number: 3
+  title: Document in the runbook
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Add a new "LiteLLM-backed agents" section to `docs/runbooks/frank-gotchas/paperclip-ruflo.md` covering:
+
+      - Both ConfigMap shapes (`opencode.json` provider block, hermes `config.yml` inference chain)
+      - The uv-based Python install pattern for hermes
+      - The session-DB override (from Phase 1.T2.S5)
+      - The shell-inventory `paperclip-shared` section vs the shell-home-scoped sections
+      - The model-name shape findings from Phase 1.T1 / T2
+      - Any gotchas surfaced during execution (e.g., adapter-copy quirks, env-interpolation behavior)
+  - id: P4.T3.S2
+    text: |-
+      Add a one-liner pointing at the new section to `agents/rules/frank-gotchas.md` under the existing `Paperclip / Ruflo` section.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

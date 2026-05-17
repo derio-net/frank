@@ -62,7 +62,7 @@ Both run from the existing single Paperclip pod. The deliverable is an end-to-en
 7. **Adapter-internal behavior must be verified at plan time:**
    - `opencode_local`: the adapter constructs a temporary `XDG_CONFIG_HOME` per run and copies our base `opencode.json` into it; rely on that copy preserving the `provider`/`models` blocks. (Per upstream `packages/adapters/opencode-local/src/server/runtime-config.ts`.)
    - `hermes_local`: the adapter's `normalizeHermesConfig` passes through process env (including `HERMES_HOME` and `LITELLM_API_KEY`) and merges in `adapterConfig.env` if set. We do not need the env-merge path; the config-file path is sufficient.
-8. **Python on shared PVC via `uv`.** Install hermes-agent with `uv python install` plus `uv pip install hermes-agent==v2026.4.16` onto `/paperclip/agent-bin/hermes-agent/venv`, with the entry-point shim at `/paperclip/agent-bin/bin/hermes`. uv produces a self-contained, relocatable Python install — the venv's shebang resolves to a path that exists in both the shell sidecar and the paperclip container's filesystem because both mount the same `/paperclip` PVC. (`v2026.4.16` is the pinned upstream Hermes release used here because it's the one already exercised against Frank's LiteLLM elsewhere.)
+8. **Python on shared PVC via `uv`.** Install hermes-agent with `uv python install` plus `uv pip install 'hermes-agent @ git+https://github.com/NousResearch/hermes-agent.git@v2026.4.16'` onto `/paperclip/agent-bin/hermes-agent/venv`, with the entry-point shim at `/paperclip/agent-bin/bin/hermes`. (PyPI has a different `hermes-agent` package; we install from the upstream git tag.) uv produces a self-contained, relocatable Python install — the venv's shebang resolves to a path that exists in both the shell sidecar and the paperclip container's filesystem because both mount the same `/paperclip` PVC. (`v2026.4.16` is the pinned upstream Hermes release used here because it's the one already exercised against Frank's LiteLLM elsewhere.)
 
 ## Architecture
 
@@ -399,6 +399,12 @@ status: pending
 ```
 
 (If a declarative initContainer install lands, `orch-paperclip-reconcile-shared-agent-clis` becomes belt-and-braces rather than load-bearing.)
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Paperclip LiteLLM-Backed Agents Implementation Plan |  | `docs/superpowers/plans/2026-05-17--orch--paperclip-litellm-agents/` | — |
 
 ## References
 

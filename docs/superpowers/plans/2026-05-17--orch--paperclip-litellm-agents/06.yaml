@@ -1,0 +1,47 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+tasks:
+- number: 1
+  title: (unstructured content)
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Post-Deploy Checklist [manual]
+      **Depends on:** Phase 1, Phase 2, Phase 3, Phase 4, Phase 5
+
+      This is a fix/extension of the existing `orch`/paperclip layer (not a new layer), so per `agents/rules/repo-workflows.md` and `agents/rules/plan-post-deploy-checklist.md` most steps are skipped or redirected to retroactive updates of the existing layer's posts.
+
+      - [-] **Step 1: Expose externally** — *(skipped — no new IngressRoute, no new homepage tile; this is a Paperclip-internal capability extension)*
+      - [-] **Step 2: Write building blog post** — *(skipped — fix/extension; update the existing paperclip building post instead, see Step 4 below)*
+      - [-] **Step 3: Write operating blog post** — *(skipped — same; update the existing operating post in Step 4)*
+      - [ ] **Step 4: Update existing paperclip blog posts retroactively**
+            - Building post: add a new section covering the two LiteLLM-backed adapters (opencode + hermes), the `XDG_CONFIG_HOME` / `HERMES_HOME` declarative-config pattern, and any non-obvious findings from Phase 1's verification log
+            - Operating post: add the new operational commands (`opencode run …`, `hermes chat -q --model …`, the LiteLLM-log grep) and the MOTD setup flow for cold PVs
+            - Locate the existing posts under `blog/content/docs/building/` and `blog/content/docs/operating/` (the paperclip layer post — look for the slug matching the existing 2026-03-14 paperclip work, plus the 2026-05-02 paperclip-shell-sidecar follow-up)
+      - [ ] **Step 5: Update gotchas one-liner** — Append a short row to `agents/rules/frank-gotchas.md` under `Paperclip / Ruflo` pointing at the new section in `docs/runbooks/frank-gotchas/paperclip-ruflo.md` (the prose section was added in Phase 4, so this is just the one-line index entry)
+      - [-] **Step 6: Update README** — *(skipped unless a new user-facing service was exposed; this plan added neither)*
+      - [ ] **Step 7: Sync runbook** — Run `/sync-runbook` to pick up the three `# manual-operation` blocks declared in the spec (`orch-paperclip-reconcile-shared-agent-clis`, `orch-paperclip-hire-opencode-litellm-agent`, `orch-paperclip-hire-hermes-litellm-agent`)
+      - [ ] **Step 8: Update plan status** — Once Phase 5 transcripts are observed end-to-end and LiteLLM logs confirm both adapters routed to Ollama, set the spec's `**Status:**` line to `Deployed` (cluster workload). Note in the spec the date and the two agent IDs created.
+
+      ---
+
+      ## Deployment Deviations
+
+      To be populated during execution. Format: each entry names the phase + step where the deviation surfaced, what was observed, and the resolution (or the open question). Phase 1's verification-log entries in `_prose.md` already capture findings; this section captures *deviations* (something didn't go as the spec predicted) so a future reader can map plan → reality.
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
