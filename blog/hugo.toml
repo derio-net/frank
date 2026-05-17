@@ -7,7 +7,7 @@ title = "Frank, the Talos Cluster"
     path = "github.com/imfing/hextra"
 
 [params]
-  description = "Tutorial series on building and operating an AI-hybrid Kubernetes homelab"
+  description = "Building, operating, and deciding: an AI-hybrid Kubernetes homelab with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute"
 
   [params.navbar]
     displayTitle = true
@@ -36,15 +36,20 @@ title = "Frank, the Talos Cluster"
   weight = 2
 
 [[menu.main]]
-  name = "Search"
+  name = "Papers"
+  pageRef = "/docs/papers"
   weight = 3
+
+[[menu.main]]
+  name = "Search"
+  weight = 4
   [menu.main.params]
     type = "search"
 
 [[menu.main]]
   name = "GitHub"
   url = "https://github.com/derio-net/frank"
-  weight = 4
+  weight = 5
   [menu.main.params]
     icon = "github"
 
@@ -56,6 +61,11 @@ title = "Frank, the Talos Cluster"
     codeFences = true
     lineNos = false
     style = "monokai"
+
+[taxonomies]
+  series = "series"
+  capabilities = "capabilities"
+  references = "references"
 
 [outputs]
   home = ["HTML", "RSS", "JSON"]
