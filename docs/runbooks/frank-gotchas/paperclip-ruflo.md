@@ -98,3 +98,123 @@ The allow-line is straightforwardly upstreamable to ruvnet/ruflo; file a PR ther
 ### Related: autopilot's silent-block UX
 
 Upstream commit `9cfba12` ("autopilot AUTO toggle is silent + autopilotMaxSteps setting was dead wiring", ruvnet/ruflo#1742) made the visible AUTO/MANUAL state legible (previously both branches rendered the same "AUTO" label, so users had no UI signal that the toggle did anything). That fix is included in the `ca0a6fa` bump but doesn't address the underlying "autopilot + zero valid MCPs → silent submit block" interaction; the wasm:// allowance does, by ensuring the WASM MCP is no longer the zeroth case.
+
+## Company import from GitHub is unauthenticated upstream
+
+Discovered 2026-05-16. The board UI's import flow has two source modes: **GitHub** and **Local zip**. The GitHub path constructs `https://raw.githubusercontent.com/<owner>/<repo>/<ref>/COMPANY.md` and fetches it via `server/src/services/github-fetch.ts:ghFetch`, which is exactly `fetch(url, init?)` — no `Authorization` header is ever set and no env var is read. There is no token slot in the Admin UI because the backing code path has nothing to plumb a token into. So private repos fail at the preview step with "GitHub company package is missing COMPANY.md".
+
+Workarounds, in increasing effort:
+
+1. **Local zip** — clone the package locally (or in `paperclip-shell` using the operator's SSH access), zip the subtree with `git archive` to avoid the macOS resource-fork warning, upload via the UI's **Local zip** tab:
+
+   ```bash
+   git archive --format=zip --prefix=<name>/ HEAD:<subdir> > <name>.zip
+   # or, if not in a git repo:
+   python3 -m zipfile -c <name>.zip <subdir>/
+   ```
+
+   `readLocalPackageZip` detects the shared top-level directory and strips it as the package prefix, so zipping the *directory* (not its contents) is correct.
+
+2. **Public scratch repo** — mirror only the company-package markdown to a public repo if the content is non-sensitive.
+
+3. **Fork the image with token injection** — same pattern we used for `ruflo-server`'s wasm: fix (see above). Patch `github-fetch.ts:ghFetch` to inject `Authorization: Bearer ${PAPERCLIP_GITHUB_TOKEN}` when the hostname is in the `github.com` / `*.githubusercontent.com` set, wire an ExternalSecret in `apps/paperclip/manifests/`. Worth an upstream PR — Paperclip already reads `GITHUB_TOKEN` from `process.env` for the unrelated `scripts/paperclip-commit-metrics.ts`, so the env-var convention is established.
+
+## Hard DELETE is the only path to free `issue_prefix`
+
+`companies_issue_prefix_idx` is a plain `UNIQUE INDEX` on `issue_prefix` — there is no partial-where filtering archived rows. Symptom: a fresh import of company "Stoa" returns 500 with `duplicate key value violates unique constraint "companies_issue_prefix_idx"` even though the colliding `STO` row is archived in the UI. The DB doesn't care about the lifecycle column.
+
+The board UI deliberately exposes only Archive — Delete is API-only and gated to `assertBoard(req)` in `server/src/routes/companies.ts:400` precisely because there's no filesystem cleanup safety net (`svc.remove` is a single Drizzle transaction with zero `fs.*` calls; `PAPERCLIP_HOME=/paperclip` state for the company is orphaned on disk).
+
+**To free a prefix:** delete the holding company via API or (when API breaks — see below) via direct DB. Then clean up its filesystem subtrees with `scripts/paperclip-purge-fs.sh`.
+
+## `DELETE /api/companies/:id` cascades incompletely on active companies
+
+Discovered 2026-05-16 against `ghcr.io/paperclipai/paperclip:sha-c445e59` (v2026.512.0). The `companies.ts:remove()` function performs a single Drizzle transaction that explicitly deletes from ~25 named tables in a fixed order, then deletes the `companies` row. Two failure modes on active companies:
+
+1. **FK ordering bug** — `cost_events.heartbeat_run_id` references `heartbeat_runs.id`, but the function deletes `heartbeat_runs` first (line 271) and `cost_events` afterwards (line 276). For archived companies with no run history this is invisible; for active companies it 500s on:
+
+   ```
+   update or delete on table "heartbeat_runs" violates foreign key constraint
+   "cost_events_heartbeat_run_id_heartbeat_runs_id_fk" on table "cost_events"
+   ```
+
+2. **Missing cascades for newer tables** — schema additions since the function was last touched aren't in the cascade. Observed in this incident: `issue_thread_interactions` referencing `issues`. The full list of `company_id`-bearing tables is much larger than what the function enumerates; any of the post-2026-02 additions could trip the cascade.
+
+### Workaround: retry-loop SQL DO block
+
+Iterate over every table with a `company_id` column, attempt the delete, swallow FK violations, and retry until either no errors remain or a pass limit is hit. PostgreSQL's `EXCEPTION WHEN foreign_key_violation` rolls back only the failing statement (implicit savepoint), so the surrounding `DO` block keeps making progress.
+
+```sql
+BEGIN;
+DO $purge$
+DECLARE
+  targets uuid[] := ARRAY['<id1>'::uuid, '<id2>'::uuid];
+  tbl text;
+  pass int := 0;
+  fk_errors int;
+BEGIN
+  LOOP
+    pass := pass + 1;
+    fk_errors := 0;
+    FOR tbl IN
+      SELECT table_name FROM information_schema.columns
+      WHERE table_schema='public' AND column_name='company_id' AND table_name <> 'companies'
+      ORDER BY table_name
+    LOOP
+      BEGIN
+        EXECUTE format('DELETE FROM %I WHERE company_id = ANY($1)', tbl) USING targets;
+      EXCEPTION WHEN foreign_key_violation THEN
+        fk_errors := fk_errors + 1;
+      END;
+    END LOOP;
+    EXIT WHEN fk_errors = 0;
+    EXIT WHEN pass > 20;
+  END LOOP;
+END $purge$;
+DELETE FROM companies WHERE id = ANY(ARRAY['<id1>','<id2>']);
+COMMIT;
+```
+
+Followed by the filesystem cleanup script — `scripts/paperclip-purge-fs.sh` — which removes the per-company subtrees under `/paperclip/instances/default/{companies,projects,data/storage}/<id>`. The script defaults to dry-run; pass `--apply` to actually delete. It refuses to touch any path outside `INSTANCE_ROOT` and refuses to delete the keeper UUID.
+
+Both bugs are upstream-fixable: explicit `cost_events` reordering, plus either an exhaustive table list or — much better — a schema-introspecting cascade that mirrors what the workaround does.
+
+## `createCompanyWithUniquePrefix` retry-on-collision is broken
+
+`server/src/services/companies.ts:createCompanyWithUniquePrefix` is *supposed* to derive a 3-letter prefix from the company name (`name.toUpperCase().replace(/[^A-Z]/g,'').slice(0,3)`) and, on a unique-constraint conflict, append `A`, `AA`, `AAA`, … via `suffixForAttempt(n)` and retry up to 10000 times. In practice it bails on attempt 1, returning the 500 from above directly to the client.
+
+Root cause: `isIssuePrefixConflict(error)` reads `error.code` and `error.constraint` from the *outer* error, but the actual `postgres.PostgresError` is wrapped in a `DrizzleQueryError` whose top-level shape has neither field. So the classifier returns `false`, the `catch` clause rethrows, and the retry never fires.
+
+**For the operator:** the first attempt's prefix must be unique. If `AGENT_NAME` derives to `XYZ` and `XYZ` is taken (archived OR active), rename the company to something whose first 3 alpha chars are free. The display name can be changed later in the UI; the prefix can't.
+
+Examples:
+
+| Import name | Derived prefix |
+|---|---|
+| `Stoa` | `STO` |
+| `Synthesis Stoa` | `SYN` |
+| `Agentic Stoa` | `AGE` |
+
+Upstream fix is one line: unwrap the cause chain in `isIssuePrefixConflict`. Worth a PR.
+
+## Operator API calls from CLI need Origin header + `%3D` cookie encoding
+
+Two independent guards make CLI access to the board-scoped API non-obvious:
+
+**1. `boardMutationGuard` requires a trusted Origin.** Every non-`GET`/`HEAD`/`OPTIONS` request whose actor is `board` (i.e. session-cookie auth, not a board API key) must include `Origin` or `Referer` matching the configured `PAPERCLIP_PUBLIC_URL` (Frank: `http://192.168.55.212:3100`) — or one of `http://localhost:3100` / `http://127.0.0.1:3100` (the built-in dev defaults). Without it the API returns 403 `Board mutation requires trusted browser origin`. Bypass: issue a board API key (token path: `boardAuth.findBoardApiKeyByToken`), pass as `Authorization: Bearer …` — the `board_key` source skips the Origin check entirely.
+
+**2. better-auth's session cookie value contains `=` which curl mishandles.** Cookie name format: `paperclip-<instanceId>.session_token` (instanceId defaults to `default`, derived from `PAPERCLIP_INSTANCE_ID`). The cookie value is `<token>.<base64-signature>` and the signature is `=`-padded. When pasted directly into `curl -b "name=value"` or interpolated through inline shell quoting, the trailing `=` reaches the server unencoded, fails the HMAC check, and the request is silently treated as unauthenticated (`Board access required`).
+
+Working incantation — file-backed to dodge shell quoting:
+
+```bash
+# In the browser: DevTools → Network → any /api request → Copy Request Header "Cookie"
+# Save the entire line to /tmp/pc_cookie.txt verbatim (it includes the %3D padding the browser sends).
+
+ORIGIN='http://192.168.55.212:3100'
+curl -s -H "Cookie: $(tr -d '\n' < /tmp/pc_cookie.txt)" \
+     -H "Origin: $ORIGIN" \
+     -X DELETE "http://192.168.55.212:3100/api/companies/<id>"
+```
+
+Diagnostic shortcut: if you get `Board access required` with a valid-looking cookie, the most likely cause is `=` → not `%3D`. If you get `Board mutation requires trusted browser origin`, the Origin header is missing.
