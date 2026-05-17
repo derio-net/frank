@@ -160,18 +160,24 @@ state:
         agent-images PR. Section added to inventory for declarative intent — operator-imperative
         install from Phase 1 remains the working installer.
     P2.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T16:12:37+00:00'
       note: null
     P2.T4.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-17T16:13:04+00:00'
+      note: 'deferred: requires PR #294 merge + ArgoCD sync. Run: kubectl -n paperclip-system
+        exec deploy/paperclip -c paperclip -- cat /etc/paperclip/opencode-base/opencode/opencode.json
+        | head -5; printenv XDG_CONFIG_HOME'
     P2.T4.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-17T16:13:04+00:00'
+      note: 'deferred: requires PR #294 merge + ArgoCD sync. Run: opencode run -m
+        litellm/qwen-coder-14b -p ''say ping''; check litellm logs for 200 on qwen-coder-14b'
   completion:
-    at: null
-    note: null
+    at: '2026-05-17T16:13:09+00:00'
+    note: 'PR #294 opened. Manifests: configmap-opencode.yaml (new), deployment.yaml
+      (XDG_CONFIG_HOME + volume/mount), configmap-shell-inventory.yaml (paperclip-shared
+      section, reconcile handler deferred to agent-images). Cluster smoke test (P2.T4.S2/S3)
+      deferred until PR merge + ArgoCD sync.'
     observed_prs: []
