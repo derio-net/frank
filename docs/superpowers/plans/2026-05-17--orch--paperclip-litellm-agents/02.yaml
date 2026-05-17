@@ -164,16 +164,18 @@ state:
       ticked_at: '2026-05-17T16:12:37+00:00'
       note: null
     P2.T4.S2:
-      state: '-'
-      ticked_at: '2026-05-17T16:13:04+00:00'
-      note: 'deferred: requires PR #294 merge + ArgoCD sync. Run: kubectl -n paperclip-system
-        exec deploy/paperclip -c paperclip -- cat /etc/paperclip/opencode-base/opencode/opencode.json
-        | head -5; printenv XDG_CONFIG_HOME'
+      state: x
+      ticked_at: '2026-05-17T18:24:27+00:00'
+      note: PASS post-merge. ConfigMap content matches git exactly. XDG_CONFIG_HOME=/etc/paperclip/opencode-base
+        confirmed. opencode 1.15.3 (image-baked, /usr/local/bin/opencode) in use —
+        image bumped to sha-93cd933 (v2026.517.0) ships 1.15.3 directly.
     P2.T4.S3:
-      state: '-'
-      ticked_at: '2026-05-17T16:13:04+00:00'
-      note: 'deferred: requires PR #294 merge + ArgoCD sync. Run: opencode run -m
-        litellm/qwen-coder-14b -p ''say ping''; check litellm logs for 200 on qwen-coder-14b'
+      state: x
+      ticked_at: '2026-05-17T18:24:27+00:00'
+      note: 'PASS post-merge. ''opencode run -m litellm/qwen-coder-14b say ping''
+        succeeded (note: -p flag changed to --password in v1.15.3; message is now
+        positional). Output: ''> build · qwen-coder-14b''. LiteLLM log confirms POST
+        /v1/chat/completions 200 OK from paperclip pod IP 10.244.10.19.'
   completion:
     at: '2026-05-17T16:13:09+00:00'
     note: 'PR #294 opened. Manifests: configmap-opencode.yaml (new), deployment.yaml
