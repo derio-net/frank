@@ -190,4 +190,4 @@ These should be resolved during plan writing or first-task execution; they do no
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| vk-local OOMKill Remediation — Implementation Plan |  | `docs/superpowers/plans/2026-04-30--agents--vk-local-oom-remediation/` | — |
+| vk-local OOMKill Remediation — Implementation Plan |  | `docs/superpowers/archived-plans/2026-04-30--agents--vk-local-oom-remediation/` | — |
