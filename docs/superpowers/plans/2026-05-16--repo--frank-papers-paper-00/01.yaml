@@ -123,26 +123,30 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T20:56:05+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T20:56:10+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T20:56:10+00:00'
       note: null
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T20:56:10+00:00'
       note: null
     P1.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T20:56:10+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-17T20:56:15+00:00'
+    note: Scaffolded Paper 00 bundle and dossier manually (scaffold script from Phase
+      0 not yet merged). Dossier populated with 3 vendor approaches, 6 primary sources
+      (benchmark x2, postmortem x1, talk x1, vendor-docs x2), 3 Frank artefacts (yaml
+      x2, commit x1), 1 named gap (TCO methodology gap at homelab scale), 1 counter-argument
+      (cloud wins for production, homelab wins for learning).
     observed_prs: []
