@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: paperclip-hermes
+  namespace: paperclip-system
+data:
+  # Deviation from spec (P1.T2.S4): hermes v0.10.0 does not use inference.chain.
+  # It uses built-in provider overlays + env vars. ollama-cloud is the built-in
+  # provider that reads OLLAMA_BASE_URL + OLLAMA_API_KEY, both set in deployment.yaml
+  # to point at litellm.litellm.svc:4000.
+  #
+  # Deviation from spec (P1.T2.S5): no session-DB override key needed.
+  # hermes v0.10.0 has no config/state path split — all state (sessions, state.db,
+  # memory, logs) writes to HERMES_HOME. The spec's read-only ConfigMap mount at
+  # HERMES_HOME is therefore invalid. Revised: HERMES_HOME=/paperclip/agent-bin/.hermes
+  # (writable PVC); this ConfigMap is mounted as a template at
+  # /etc/paperclip/hermes-template/ and seeded into HERMES_HOME by an initContainer
+  # on every pod start.
+  config.yaml: |
+    # Hermes Agent v0.10.0 — ollama-cloud provider via Frank LiteLLM
+    # Built-in ollama-cloud transport reads OLLAMA_BASE_URL + OLLAMA_API_KEY
+    # from the container env (both set in deployment.yaml, pointing at LiteLLM).
+    # Default model for operator convenience; hermes_local adapter passes
+    # --provider ollama-cloud --model <model> at invocation time.
+    model: "ollama-cloud/qwen-think-14b"
