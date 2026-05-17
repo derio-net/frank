@@ -165,46 +165,64 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T13:06:23+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T13:06:23+00:00'
+      note: No session-DB override key exists in hermes v0.10.0; placeholder removed.
+        HERMES_HOME must be writable — revised to /paperclip/agent-bin/.hermes (PVC),
+        seeded by initContainer.
     P3.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T13:06:23+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T13:06:29+00:00'
+      note: ConfigMap mounted at /etc/paperclip/hermes-template/config.yaml (read-only);
+        initContainer hermes-init seeds HERMES_HOME from this template on pod start.
+        Spec's /etc/paperclip/hermes-base mount invalid — HERMES_HOME must be writable.
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T13:06:29+00:00'
+      note: HERMES_HOME=/paperclip/agent-bin/.hermes (not /etc/paperclip/hermes-base).
+        Added OLLAMA_BASE_URL + OLLAMA_API_KEY for ollama-cloud transport (P1.T2.S4
+        working shape). PATH extended with /paperclip/agent-bin/bin.
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T13:06:35+00:00'
+      note: 'Added uv: section to configmap-shell-inventory.yaml documenting hermes
+        install steps. Reconcile script (paperclip-shell-reconcile) does not yet handle
+        uv: sections — deviation captured, relies on Phase 1 operator-imperative install
+        for now.'
     P3.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T13:06:40+00:00'
+      note: Committed + pushed. ArgoCD syncs from main — manual apply+validate done
+        on feature branch per ArgoCD gotcha pattern (suspend selfHeal, apply, test,
+        restore).
     P3.T4.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T13:06:40+00:00'
+      note: 'Verified: /etc/paperclip/hermes-template/config.yaml mounted, HERMES_HOME=/paperclip/agent-bin/.hermes,
+        PATH ends with agent-bin/bin, which hermes → /paperclip/agent-bin/bin/hermes.
+        initContainer seeded config.yaml into HERMES_HOME.'
     P3.T4.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T13:06:47+00:00'
+      note: 'Smoke test: hermes chat -Q --provider ollama-cloud --model qwen-think-14b
+        -q ''say ping''. LiteLLM log: POST /v1/chat/completions HTTP/1.1 200 OK from
+        10.244.10.16 (paperclip pod). HERMES_HOME sessions, state.db, logs, memories
+        all created.'
     P3.T4.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T13:06:47+00:00'
+      note: 'ls -la /paperclip/agent-bin/.hermes/ shows: config.yaml, SOUL.md, auth.json,
+        auth.lock, state.db, sessions/, logs/, memories/, cron/, sandboxes/ — full
+        state tree written correctly.'
   completion:
-    at: null
+    at: '2026-05-17T13:06:50+00:00'
     note: null
     observed_prs: []
