@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: paperclip-opencode
+  namespace: paperclip-system
+data:
+  opencode.json: |
+    {
+      "$schema": "https://opencode.ai/config.json",
+      "provider": {
+        "litellm": {
+          "npm": "@ai-sdk/openai-compatible",
+          "name": "Frank LiteLLM",
+          "options": {
+            "baseURL": "http://litellm.litellm.svc:4000/v1",
+            "apiKey": "{env:LITELLM_API_KEY}"
+          },
+          "models": {
+            "mistral-small-24b": { "name": "Mistral Small 3.2 24B (local)" },
+            "qwen-coder-14b":    { "name": "Qwen2.5-Coder 14B Q6 (local)" },
+            "qwen-think-14b":    { "name": "Qwen3 14B Thinking (local)" },
+            "qwen36-a3b":        { "name": "Qwen3.6 35B-A3B MoE (local)" },
+            "qwen36-a3b-nothin": { "name": "Qwen3.6 35B-A3B MoE — no-think (local)" },
+            "gemma-12b":         { "name": "Gemma 3 12B multimodal (local)" }
+          }
+        }
+      }
+    }

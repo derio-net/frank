@@ -115,19 +115,23 @@ spec:
             # from paperclip-shell. Suffix (not prefix) so image-baked
             # binaries at /usr/local/bin still win — paperclip's pinned
             # codex stays authoritative; we only fill gaps (gemini).
-            # TODO: lift this install from operator-imperative to a
-            # declarative initContainer so PVC wipe regenerates state.
-            #
-            # hermes is installed on the PVC at /paperclip/agent-bin/bin/hermes
-            # (uv venv, seeded in Phase 1). PATH extended here so the paperclip
-            # container can invoke it directly. HERMES_HOME points at a writable
-            # PVC subdirectory — hermes v0.10.0 has no config/state split, so
-            # a read-only ConfigMap mount is not viable; config.yaml is seeded
-            # from paperclip-hermes ConfigMap by the hermes-init initContainer
-            # on every pod start. OLLAMA_BASE_URL/OLLAMA_API_KEY route hermes
-            # through LiteLLM (discovered working shape in P1.T2.S4).
+            # opencode is image-baked (/usr/local/bin/opencode); no PVC
+            # install needed. hermes shim lives at /paperclip/agent-bin/bin/hermes
+            # (uv venv, seeded in Phase 1) — PATH extended to include /bin.
+            # opencode config: XDG_CONFIG_HOME → paperclip-opencode ConfigMap.
+            # hermes config: seeded by hermes-init initContainer into HERMES_HOME.
+            # hermes routes through LiteLLM via OLLAMA_BASE_URL/OLLAMA_API_KEY
+            # (working shape: --provider ollama-cloud --model <alias>, P1.T2.S4).
             - name: PATH
               value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/paperclip/agent-bin/node_modules/.bin:/paperclip/agent-bin/bin"
+            # opencode reads its config from $XDG_CONFIG_HOME/opencode/opencode.json.
+            # We mount the paperclip-opencode ConfigMap there so the image-baked
+            # opencode binary picks up Frank's LiteLLM provider block on every run.
+            # The adapter's runtime-config.ts copies this base dir to a per-run
+            # tempdir and merges only the permission block — our provider.litellm
+            # block is preserved (verified in Phase 1, P1.T3.S1).
+            - name: XDG_CONFIG_HOME
+              value: /etc/paperclip/opencode-base
             - name: HERMES_HOME
               value: /paperclip/agent-bin/.hermes
             - name: OLLAMA_BASE_URL
@@ -147,6 +151,10 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /paperclip
+            - name: opencode-config
+              mountPath: /etc/paperclip/opencode-base/opencode/opencode.json
+              subPath: opencode.json
+              readOnly: true
             # hermes config template — mounted read-only; hermes-init initContainer
             # copies this into HERMES_HOME (/paperclip/agent-bin/.hermes/) on boot.
             - name: hermes-config
@@ -256,6 +264,9 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: paperclip-data
+        - name: opencode-config
+          configMap:
+            name: paperclip-opencode
         - name: shell-home
           persistentVolumeClaim:
             claimName: paperclip-shell-home
