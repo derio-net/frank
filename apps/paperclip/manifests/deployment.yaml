@@ -47,6 +47,26 @@ spec:
       # made (see PR #196): we forgo the cross-container `ps` for a working
       # sshd; the shell still gets full visibility into `/paperclip` (the
       # actual debugging surface) via the shared PVC.
+      initContainers:
+        # Seeds HERMES_HOME from the paperclip-hermes ConfigMap on every pod start.
+        # Required because hermes v0.10.0 writes ALL state (sessions, memory, state.db)
+        # to HERMES_HOME — a read-only ConfigMap mount at that path is not viable.
+        # HERMES_HOME=/paperclip/agent-bin/.hermes (writable PVC); this initContainer
+        # ensures a fresh config.yaml lands there before the main container starts,
+        # keeping the ConfigMap as the declarative source of truth.
+        - name: hermes-init
+          image: busybox:1
+          command:
+            - sh
+            - -c
+            - "mkdir -p /paperclip/agent-bin/.hermes && cp /etc/paperclip/hermes-template/config.yaml /paperclip/agent-bin/.hermes/config.yaml"
+          volumeMounts:
+            - name: data
+              mountPath: /paperclip
+            - name: hermes-config
+              mountPath: /etc/paperclip/hermes-template/config.yaml
+              subPath: config.yaml
+              readOnly: true
       containers:
         - name: paperclip
           # Upstream public image. Pinned by digest-equivalent sha tag.
@@ -92,8 +112,26 @@ spec:
             # codex stays authoritative; we only fill gaps (gemini).
             # TODO: lift this install from operator-imperative to a
             # declarative initContainer so PVC wipe regenerates state.
+            #
+            # hermes is installed on the PVC at /paperclip/agent-bin/bin/hermes
+            # (uv venv, seeded in Phase 1). PATH extended here so the paperclip
+            # container can invoke it directly. HERMES_HOME points at a writable
+            # PVC subdirectory — hermes v0.10.0 has no config/state split, so
+            # a read-only ConfigMap mount is not viable; config.yaml is seeded
+            # from paperclip-hermes ConfigMap by the hermes-init initContainer
+            # on every pod start. OLLAMA_BASE_URL/OLLAMA_API_KEY route hermes
+            # through LiteLLM (discovered working shape in P1.T2.S4).
             - name: PATH
-              value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/paperclip/agent-bin/node_modules/.bin"
+              value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/paperclip/agent-bin/node_modules/.bin:/paperclip/agent-bin/bin"
+            - name: HERMES_HOME
+              value: /paperclip/agent-bin/.hermes
+            - name: OLLAMA_BASE_URL
+              value: "http://litellm.litellm.svc:4000/v1"
+            - name: OLLAMA_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: paperclip-llm-key
+                  key: LITELLM_API_KEY
             - name: PG_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -104,6 +142,12 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /paperclip
+            # hermes config template — mounted read-only; hermes-init initContainer
+            # copies this into HERMES_HOME (/paperclip/agent-bin/.hermes/) on boot.
+            - name: hermes-config
+              mountPath: /etc/paperclip/hermes-template/config.yaml
+              subPath: config.yaml
+              readOnly: true
           resources:
             requests:
               memory: 512Mi
@@ -227,3 +271,6 @@ spec:
           configMap:
             name: paperclip-shell-motd-tips
             defaultMode: 0644
+        - name: hermes-config
+          configMap:
+            name: paperclip-hermes

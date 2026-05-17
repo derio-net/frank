@@ -47,3 +47,22 @@ data:
       npm-global: []
       pipx: []
       cargo: []
+    # uv-based installs — reconcile script does not yet handle the 'uv' section;
+    # these entries document the install steps for hermes-agent and serve as
+    # the declarative record for PVC-wipe recovery. Run manually from paperclip-shell
+    # until derio-net/agent-images adds reconcile-script support for this section.
+    # Deviation captured in plan 2026-05-17--orch--paperclip-litellm-agents P3.T3.S1.
+    #
+    # Install commands (run from paperclip-shell):
+    #   UV_PYTHON_INSTALL_DIR=/paperclip/agent-bin/python \
+    #     /paperclip/agent-bin/bin/uv venv --python 3.12 /paperclip/agent-bin/hermes-agent/venv
+    #   /paperclip/agent-bin/bin/uv pip install \
+    #     --python /paperclip/agent-bin/hermes-agent/venv/bin/python \
+    #     'hermes-agent @ git+https://github.com/NousResearch/hermes-agent.git@v2026.4.16'
+    #   ln -sf /paperclip/agent-bin/hermes-agent/venv/bin/hermes /paperclip/agent-bin/bin/hermes
+    uv:
+      - id: hermes-agent
+        pin: "git+https://github.com/NousResearch/hermes-agent.git@v2026.4.16"
+        venv: /paperclip/agent-bin/hermes-agent/venv
+        python_install_dir: /paperclip/agent-bin/python
+        shim: /paperclip/agent-bin/bin/hermes
