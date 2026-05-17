@@ -1,0 +1,109 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Hire LiteLLM-backed agents — end-to-end
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Hire one opencode_local agent
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Two paths to hire — **prefer the UI**:
+
+      - **UI (recommended):** http://192.168.55.212:3100 → board hire form. Sidesteps the board-mutation CSRF gotcha in `docs/runbooks/frank-gotchas/paperclip-ruflo.md` (which requires the `Origin` header + `%3D`-encoded cookie). The UI does that wiring for you.
+      - **API via `paperclip-create-agent` skill:** Works from the dev box when you have `$PAPERCLIP_API_KEY` + `$PAPERCLIP_COMPANY_ID` set. Honor the runbook's CSRF + cookie-encoding rules; the skill does this correctly.
+
+      Payload template (drop into UI form or skill `adapterConfig`):
+
+      ```json
+      {
+        "name": "Local Coder",
+        "role": "engineer",
+        "title": "Local Engineer (opencode)",
+        "icon": "wrench",
+        "adapterType": "opencode_local",
+        "adapterConfig": {
+          "model": "<working-shape-from-P1.T1>"
+        }
+      }
+      ```
+  - id: P5.T1.S2
+    text: |-
+      Assign a trivial issue (e.g. "Reply 'ack' as a comment"). Watch the run in Paperclip's UI: transcript completes, no errors, comment posted.
+- number: 2
+  title: Hire one hermes_local agent
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Same UI-vs-skill choice as P5.T1.S1; same CSRF caveats on the skill path. Payload:
+
+      ```json
+      {
+        "name": "Local Reasoner",
+        "role": "engineer",
+        "title": "Local Reasoner (Hermes)",
+        "icon": "brain",
+        "adapterType": "hermes_local",
+        "adapterConfig": {
+          "model": "<working-shape-from-P1.T2>",
+          "hermesCommand": "/paperclip/agent-bin/bin/hermes",
+          "toolsets": "terminal,file,web",
+          "persistSession": true
+        }
+      }
+      ```
+
+      Note: `hermesCommand` is set explicitly to the absolute path even though Phase 3 widens PATH to include `/paperclip/agent-bin/bin`. Belt-and-braces against future PATH drift.
+  - id: P5.T2.S2
+    text: |-
+      Assign a second trivial issue. Watch the transcript flow back as structured tool cards (hermes-paperclip-adapter parses Hermes's stdout into typed entries).
+- number: 3
+  title: Cross-verify on LiteLLM
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Confirm both calls landed on LiteLLM and routed to Ollama (not OpenRouter).
+
+      ```bash
+      kubectl -n litellm logs -l app.kubernetes.io/name=litellm --tail=200 \
+        | grep -E 'ollama/(qwen2.5-coder|qwen3:14b|mistral-small)' | tail -10
+      ```
+
+      Expected: both agents' calls appear with model=`qwen-coder-14b` (opencode) and `qwen-think-14b` (hermes).
+  - id: P5.T3.S2
+    text: |-
+      Pod-restart resilience: restart the paperclip pod (`kubectl rollout restart`), wait for it to come back, and rerun a heartbeat on the hermes agent. Confirm it resumes its session via `--resume` (no fresh-start banner).
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,175 @@
+schema_version: 2
+phase:
+  number: 2
+  title: opencode_local — declarative wiring
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create the opencode ConfigMap
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Write `apps/paperclip/manifests/configmap-opencode.yaml` containing the validated `opencode.json` (from Phase 1.T1).
+
+      BEGIN_FILE apps/paperclip/manifests/configmap-opencode.yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: paperclip-opencode
+        namespace: paperclip-system
+      data:
+        opencode.json: |
+          {
+            "$schema": "https://opencode.ai/config.json",
+            "provider": {
+              "litellm": {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Frank LiteLLM",
+                "options": {
+                  "baseURL": "http://litellm.litellm.svc:4000/v1",
+                  "apiKey": "{env:LITELLM_API_KEY}"
+                },
+                "models": {
+                  "mistral-small-24b": { "name": "Mistral Small 3.2 24B (local)" },
+                  "qwen-coder-14b":    { "name": "Qwen2.5-Coder 14B Q6 (local)" },
+                  "qwen-think-14b":    { "name": "Qwen3 14B Thinking (local)" },
+                  "qwen36-a3b":        { "name": "Qwen3.6 35B-A3B MoE (local)" },
+                  "qwen36-a3b-nothin": { "name": "Qwen3.6 35B-A3B MoE — no-think (local)" },
+                  "gemma-12b":         { "name": "Gemma 3 12B multimodal (local)" }
+                }
+              }
+            }
+          }
+      END_FILE
+  - id: P2.T1.S2
+    text: |-
+      Verify the file parses as YAML and the embedded JSON is well-formed.
+
+      ```bash
+      yq '.data."opencode.json"' apps/paperclip/manifests/configmap-opencode.yaml | python3 -c 'import json,sys; json.load(sys.stdin); print("OK")'
+      ```
+- number: 2
+  title: Mount the ConfigMap and set XDG_CONFIG_HOME
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Edit `apps/paperclip/manifests/deployment.yaml` to add a new volume + volumeMount for the opencode ConfigMap.
+
+      Add to `spec.template.spec.volumes` (sibling of the existing `data` volume):
+
+      ```yaml
+      - name: opencode-config
+        configMap:
+          name: paperclip-opencode
+      ```
+
+      Add to the `paperclip` container's `volumeMounts`:
+
+      ```yaml
+      - name: opencode-config
+        mountPath: /etc/paperclip/opencode-base/opencode/opencode.json
+        subPath: opencode.json
+        readOnly: true
+      ```
+  - id: P2.T2.S2
+    text: |-
+      Add `XDG_CONFIG_HOME` to the paperclip container's `env:` block (alongside the existing `PATH` env at `deployment.yaml:95-96`):
+
+      ```yaml
+      - name: XDG_CONFIG_HOME
+        value: /etc/paperclip/opencode-base
+      ```
+- number: 3
+  title: Persist opencode-ai install via shell-inventory
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Edit `apps/paperclip/manifests/configmap-shell-inventory.yaml`. Extend the inventory schema with a new `paperclip-shared` section (or amend the comment block to clarify that future entries land on `/paperclip/agent-bin` not on the shell home PVC). Add `opencode-ai` so the reconcile re-installs it after a PVC wipe.
+
+      ```yaml
+      paperclip-shared:
+        npm:
+          - opencode-ai
+      ```
+
+      Note: this requires the shell-sidecar's reconcile script to grow handling for the new section. If that's an `agent-images` change (out of scope here), document as a deviation and keep the operator-imperative install from Phase 1 as the working installer for now.
+- number: 4
+  title: Ship via ArgoCD and smoke-test
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      Commit the manifest changes on a branch, push, open PR. Once merged, force ArgoCD sync:
+
+      ```bash
+      argocd app sync paperclip --port-forward --port-forward-namespace argocd
+      kubectl -n paperclip-system rollout status deploy/paperclip --timeout=2m
+      ```
+
+      Expected: paperclip pod restarts with new env and ConfigMap mounted (`strategy: Recreate` is already in place).
+  - id: P2.T4.S2
+    text: |-
+      Verify the ConfigMap is mounted in the running pod:
+
+      ```bash
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- cat /etc/paperclip/opencode-base/opencode/opencode.json | head -5
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- printenv XDG_CONFIG_HOME
+      ```
+
+      Expected: file contents match git, `XDG_CONFIG_HOME=/etc/paperclip/opencode-base`.
+  - id: P2.T4.S3
+    text: |-
+      End-to-end smoke test from inside the paperclip container, using the model shape validated in Phase 1.T1:
+
+      ```bash
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- \
+        opencode run -m <working-shape> -p 'say ping'
+      ```
+
+      Then verify LiteLLM saw the call:
+
+      ```bash
+      kubectl -n litellm logs -l app.kubernetes.io/name=litellm --tail=50 | grep qwen-coder
+      ```
+
+      Expected: opencode prints a model response; LiteLLM log shows a 200 against `qwen-coder-14b` from the Paperclip virtual key.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

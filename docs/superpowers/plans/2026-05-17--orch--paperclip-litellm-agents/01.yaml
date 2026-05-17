@@ -1,0 +1,300 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Plan-time verifications + one-shot install
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Install opencode-ai and probe behavior against LiteLLM
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      SSH into paperclip-shell and install opencode-ai onto the shared `/paperclip` PVC. Operator-imperative for now; persistence comes in Phase 2.
+
+      ```bash
+      ssh paperclip-shell
+      npm install --prefix /paperclip/agent-bin opencode-ai
+      ls -la /paperclip/agent-bin/node_modules/.bin/opencode
+      ```
+
+      Expected: `/paperclip/agent-bin/node_modules/.bin/opencode` exists and is executable.
+  - id: P1.T1.S2
+    text: |-
+      Verify opencode is reachable from the paperclip main container — that container's PATH already includes `/paperclip/agent-bin/node_modules/.bin` (`deployment.yaml:96`), so this should succeed without any wiring change.
+
+      ```bash
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- which opencode
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- opencode --version
+      ```
+
+      Expected: `which` resolves to `/paperclip/agent-bin/node_modules/.bin/opencode`; `--version` prints. If either fails, the cause is most likely either a npm-prefix install layout surprise or a stale paperclip pod that needs `rollout restart` to pick up the new PVC contents — record as a deviation.
+
+      The shell sidecar's PATH does NOT necessarily include that directory, so subsequent shell-sidecar steps in this phase use the absolute path `/paperclip/agent-bin/node_modules/.bin/opencode`.
+  - id: P1.T1.S3
+    text: |-
+      Author a probe `opencode.json` under a temp `XDG_CONFIG_HOME` and run opencode against LiteLLM to discover the working `model` field shape. Run from inside the paperclip main container — that's where `$LITELLM_API_KEY` is injected (the shell sidecar doesn't have it).
+
+      ```bash
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- sh -eu <<'PROBE'
+      mkdir -p /tmp/oc-probe/opencode
+      cat > /tmp/oc-probe/opencode/opencode.json <<'JSON'
+      {
+        "$schema": "https://opencode.ai/config.json",
+        "provider": {
+          "litellm": {
+            "npm": "@ai-sdk/openai-compatible",
+            "name": "Frank LiteLLM",
+            "options": {
+              "baseURL": "http://litellm.litellm.svc:4000/v1",
+              "apiKey": "{env:LITELLM_API_KEY}"
+            },
+            "models": {
+              "qwen-coder-14b": { "name": "Qwen Coder 14B" }
+            }
+          }
+        }
+      }
+      JSON
+
+      echo '--- Shape A: provider-prefixed ---'
+      XDG_CONFIG_HOME=/tmp/oc-probe opencode run -m litellm/qwen-coder-14b -p 'say ping' || echo 'shape A failed'
+
+      echo '--- Shape B: bare model name ---'
+      XDG_CONFIG_HOME=/tmp/oc-probe opencode run -m qwen-coder-14b -p 'say ping' || echo 'shape B failed'
+      PROBE
+      ```
+
+      Record which form succeeded. Capture also: did opencode read `{env:LITELLM_API_KEY}` correctly, or did it pass the literal string through? (If literal, look up the right interpolation syntax in opencode docs.) Note: `kubectl exec` with stdin heredoc requires no `-it` flag for non-interactive runs; if your kubectl version misbehaves, fall back to dropping the heredoc into a file via `kubectl cp` and exec-ing the file path.
+  - id: P1.T1.S4
+    text: |-
+      Verify the call landed on LiteLLM (not somewhere else). Grep the LiteLLM pod logs for the request.
+
+      ```bash
+      kubectl -n litellm logs -l app.kubernetes.io/name=litellm --tail=200 | grep -E 'POST|/chat/completions|qwen-coder' | tail -20
+      ```
+
+      Expected: a `POST /chat/completions` entry with `model=qwen-coder-14b` (or the working form discovered in S3) and `200 OK`.
+  - id: P1.T1.S5
+    text: |-
+      Record findings in this plan's `_prose.md` under the "Plan-time verification log — opencode" section: working model shape, env-interpolation behavior, anything surprising. P1.T2.S7 will clean up the `/tmp/oc-probe` dir alongside the hermes probe.
+- number: 2
+  title: Install Hermes via uv and probe behavior against LiteLLM
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      From paperclip-shell, install `uv` (the relocatable Python installer) into `/paperclip/agent-bin/bin`:
+
+      ```bash
+      curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/paperclip/agent-bin/bin sh
+      /paperclip/agent-bin/bin/uv --version
+      ```
+
+      Expected: uv installs and reports a version.
+  - id: P1.T2.S2
+    text: |-
+      Install Hermes Agent (`v2026.4.16`) into a relocatable venv on the shared PVC. NOTE: PyPI's `hermes-agent` is a different package (`0.13.0` at this writing); the Nous Research agent is installed from the upstream git tag.
+
+      ```bash
+      cd /paperclip/agent-bin
+      /paperclip/agent-bin/bin/uv venv --python 3.12 /paperclip/agent-bin/hermes-agent/venv
+      /paperclip/agent-bin/bin/uv pip install --python /paperclip/agent-bin/hermes-agent/venv/bin/python \
+          'hermes-agent @ git+https://github.com/NousResearch/hermes-agent.git@v2026.4.16'
+
+      # Shim onto agent-bin/bin
+      mkdir -p /paperclip/agent-bin/bin
+      ln -sf /paperclip/agent-bin/hermes-agent/venv/bin/hermes /paperclip/agent-bin/bin/hermes
+      /paperclip/agent-bin/bin/hermes --version
+      ```
+
+      Expected: hermes reports a version matching the tag. If the git ref doesn't resolve (tag renamed / repo moved), check `https://github.com/NousResearch/hermes-agent/tags` for the closest stable tag and update the pin everywhere (`_prose.md` verification log + the shell-inventory entry in Phase 3 + the spec's pin).
+  - id: P1.T2.S3
+    text: |-
+      Verify hermes is reachable from BOTH containers. The paperclip container's PATH does NOT currently include `/paperclip/agent-bin/bin` — record that finding; Phase 3 widens it.
+
+      ```bash
+      # Shell sidecar — should work if /paperclip/agent-bin/bin is on PATH
+      /paperclip/agent-bin/bin/hermes --version
+
+      # Paperclip container — direct path; PATH widening is Phase 3 work
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- /paperclip/agent-bin/bin/hermes --version
+      ```
+
+      Expected: both report the same Hermes version. If the second call fails with a shebang / interpreter error, the uv venv isn't relocatable from that container's mount view — escalate to spec deviation.
+  - id: P1.T2.S4
+    text: |-
+      Author a probe `$HERMES_HOME/config.yml` and run hermes against LiteLLM to discover the working `--model` field shape. Run from inside the paperclip main container so `$LITELLM_API_KEY` is in scope (the shell sidecar doesn't have it).
+
+      ```bash
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- sh -eu <<'PROBE'
+      mkdir -p /tmp/hermes-probe
+      cat > /tmp/hermes-probe/config.yml <<'YAML'
+      inference:
+        chain:
+          - name: frank-litellm-reasoner
+            type: openai
+            base_url: http://litellm.litellm.svc:4000/v1
+            model: qwen-think-14b
+            api_key_env: LITELLM_API_KEY
+      YAML
+
+      export HERMES_HOME=/tmp/hermes-probe
+      HERMES=/paperclip/agent-bin/bin/hermes
+
+      echo '--- Shape A: backend name ---'
+      "$HERMES" chat -q --model frank-litellm-reasoner 'say ping' || echo 'shape A failed'
+
+      echo '--- Shape B: provider/model ---'
+      "$HERMES" chat -q --model openai/qwen-think-14b 'say ping' || echo 'shape B failed'
+
+      echo '--- Shape C: bare model name ---'
+      "$HERMES" chat -q --model qwen-think-14b 'say ping' || echo 'shape C failed'
+      PROBE
+      ```
+
+      Record which form succeeded — this drives the agent-hire payload shape in Phase 5.
+  - id: P1.T2.S5
+    text: |-
+      Verify hermes wrote its session state somewhere writable, and find the path. Critical: in Phase 3 the `$HERMES_HOME` mount will be read-only (ConfigMap), so hermes must NOT default its session DB to `$HERMES_HOME`. Run from the paperclip main container.
+
+      ```bash
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- sh -eu <<'PROBE'
+      export HERMES_HOME=/tmp/hermes-probe
+      /paperclip/agent-bin/bin/hermes chat -q --model <SHAPE_FROM_S4> 'remember this number: 42'
+      find /tmp/hermes-probe /root/.hermes /home /paperclip -newer /tmp/hermes-probe/config.yml -type f 2>/dev/null | head -30
+      PROBE
+      ```
+
+      Replace `<SHAPE_FROM_S4>` with the working form from the previous step. Record the session-DB location. If under `$HERMES_HOME` by default, look up the override option in `config.yml` (likely `tools.memory.path` or `session.database_path` — confirm exact key against the installed Hermes version's docs) and document the override syntax — Phase 3 will set it to `/paperclip/agent-bin/.hermes/`.
+  - id: P1.T2.S6
+    text: |-
+      Verify the hermes call landed on LiteLLM.
+
+      ```bash
+      kubectl -n litellm logs -l app.kubernetes.io/name=litellm --tail=200 | grep -E 'POST|/chat/completions|qwen-think' | tail -20
+      ```
+
+      Expected: `POST /chat/completions` with `model=qwen-think-14b`, `200 OK`.
+  - id: P1.T2.S7
+    text: |-
+      Record findings in `_prose.md` under "Plan-time verification log — hermes": working model shape, session-DB default path + override syntax, any quirks. Clean up the probe dirs in BOTH containers (the opencode probe wrote to `/tmp` in the paperclip container; the hermes probe also wrote there):
+
+      ```bash
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- rm -rf /tmp/oc-probe /tmp/hermes-probe
+      ```
+- number: 3
+  title: Verify opencode_local adapter's per-run config-copy preserves our blocks
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Per the spec's constraint 7, the `opencode_local` adapter constructs a temporary `XDG_CONFIG_HOME` per run and copies our base `opencode.json` into it. Verify by reading the adapter source for v2026.512.0 (the image we run) — confirm the `fs.cp(..., recursive: true)` is in place and the only mutating write only adds `permission.external_directory: allow` without re-authoring the rest of the file.
+
+      ```bash
+      env -u GITHUB_TOKEN gh api repos/paperclipai/paperclip/contents/packages/adapters/opencode-local/src/server/runtime-config.ts --jq '.content' \
+        | base64 -d \
+        | grep -nE 'fs\.cp|fs\.copyFile|writeFile|JSON\.stringify|recursive'
+      ```
+
+      Expected output (line numbers may drift across releases):
+
+      - one line like `await fs.cp(sourceConfigDir, runtimeConfigDir, {`
+      - one line like `await fs.writeFile(runtimeConfigPath, ...JSON.stringify(nextConfig, ...))`
+      - the `recursive: true` flag visible on the `fs.cp` options
+
+      If the source re-authors `opencode.json` from scratch (i.e., writes the file without first having `cp`'d the source dir), escalate as a spec deviation — our `provider`/`models` blocks would be lost on every run.
+  - id: P1.T3.S2
+    text: |-
+      Smoke test the adapter's copy behavior end-to-end: drop a stub agent through Paperclip's API that uses `opencode_local`, run it once, and verify our `provider.litellm` block survived into the per-run temp dir.
+
+      Optional — defer to Phase 5 if API access is the gating factor. Record the verification path chosen.
+- number: 4
+  title: Decide PATH-widening and stale comment cleanups
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Based on Phase 1.T1/T2 findings, draft the exact `deployment.yaml` env / PATH edits needed:
+
+      - `PATH` extension: add `/paperclip/agent-bin/bin` (for the hermes shim + uv binary)
+      - New env: `XDG_CONFIG_HOME=/etc/paperclip/opencode-base`
+      - New env: `HERMES_HOME=/etc/paperclip/hermes-base`
+
+      Record the exact diff in `_prose.md`; Phase 2/3 apply it.
+  - id: P1.T4.S2
+    text: |-
+      Draft the refreshed `apps/paperclip/manifests/external-secret-llm.yaml` header comment based on what we learned:
+
+      - opencode reads `LITELLM_API_KEY` via `{env:...}` interpolation in `opencode.json`
+      - hermes reads `LITELLM_API_KEY` via `api_key_env:` in `config.yml`
+
+      The old "http-local coming soon" paragraph is removed entirely. Record the new comment in `_prose.md`; Phase 4 applies it.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

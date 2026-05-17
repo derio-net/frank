@@ -1,0 +1,210 @@
+schema_version: 2
+phase:
+  number: 3
+  title: hermes_local — declarative wiring
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create the hermes ConfigMap
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Write `apps/paperclip/manifests/configmap-hermes.yaml` containing the validated Hermes `config.yml` (inference chain from spec, plus the session-DB override path discovered in Phase 1.T2.S5).
+
+      BEGIN_FILE apps/paperclip/manifests/configmap-hermes.yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: paperclip-hermes
+        namespace: paperclip-system
+      data:
+        config.yml: |
+          inference:
+            chain:
+              - name: frank-litellm-coder
+                type: openai
+                base_url: http://litellm.litellm.svc:4000/v1
+                model: qwen-coder-14b
+                api_key_env: LITELLM_API_KEY
+              - name: frank-litellm-reasoner
+                type: openai
+                base_url: http://litellm.litellm.svc:4000/v1
+                model: qwen-think-14b
+                api_key_env: LITELLM_API_KEY
+              - name: frank-litellm-default
+                type: openai
+                base_url: http://litellm.litellm.svc:4000/v1
+                model: mistral-small-24b
+                api_key_env: LITELLM_API_KEY
+
+          # Session DB override — $HERMES_HOME is read-only (ConfigMap mount),
+          # so write session state under /paperclip/agent-bin/.hermes/.
+          # PLACEHOLDER: replace in P3.T1.S2 with the actual override key
+          # discovered in P1.T2.S5. Do NOT commit this file with the
+          # marker `SESSION_DB_OVERRIDE_PLACEHOLDER` still present.
+          # SESSION_DB_OVERRIDE_PLACEHOLDER
+
+          tools:
+            filesystem:
+              read_roots:
+                - /paperclip
+              write_roots: []
+            shell:
+              enabled: false
+      END_FILE
+  - id: P3.T1.S2
+    text: |-
+      Replace the `SESSION_DB_OVERRIDE_PLACEHOLDER` marker line in `configmap-hermes.yaml` with the exact override discovered in P1.T2.S5. Example shape (verify the key name against Hermes docs):
+
+      ```yaml
+              session:
+                database_path: /paperclip/agent-bin/.hermes/sessions.db
+      ```
+
+      Or `tools.memory.path: /paperclip/agent-bin/.hermes/`, depending on which key Phase 1 found. If Phase 1 found Hermes already writes outside `$HERMES_HOME` by default, delete the placeholder + the comment block entirely and leave a one-line comment explaining no override is needed.
+
+      Sanity check: `grep SESSION_DB_OVERRIDE_PLACEHOLDER apps/paperclip/manifests/configmap-hermes.yaml` returns nothing. Add this grep to the pre-commit check if a recurring footgun.
+  - id: P3.T1.S3
+    text: |-
+      Sanity-check the YAML:
+
+      ```bash
+      yq '.data."config.yml"' apps/paperclip/manifests/configmap-hermes.yaml | yq -P >/dev/null && echo OK
+      ```
+- number: 2
+  title: Mount the ConfigMap, set HERMES_HOME, widen PATH
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Edit `apps/paperclip/manifests/deployment.yaml`:
+
+      Add to `spec.template.spec.volumes`:
+
+      ```yaml
+      - name: hermes-config
+        configMap:
+          name: paperclip-hermes
+      ```
+
+      Add to the `paperclip` container's `volumeMounts`:
+
+      ```yaml
+      - name: hermes-config
+        mountPath: /etc/paperclip/hermes-base/config.yml
+        subPath: config.yml
+        readOnly: true
+      ```
+  - id: P3.T2.S2
+    text: |-
+      Add `HERMES_HOME` to the paperclip container's `env:` block, and extend `PATH` to include `/paperclip/agent-bin/bin`:
+
+      ```yaml
+      - name: PATH
+        value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/paperclip/agent-bin/node_modules/.bin:/paperclip/agent-bin/bin"
+      - name: HERMES_HOME
+        value: /etc/paperclip/hermes-base
+      ```
+
+      Update the comment block at `deployment.yaml:81-94` to mention hermes alongside the existing codex/gemini/opencode notes.
+- number: 3
+  title: Persist hermes install via shell-inventory
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Extend `paperclip-shared` in `configmap-shell-inventory.yaml` with a uv-based entry for hermes-agent. If a `uv:` section type doesn't exist yet, define one (or use a generic `commands:` list that captures the install steps from Phase 1.T2.S1-S2). Pin `v2026.4.16`.
+
+      Same caveat as P2.T3.S1: the reconcile-script-side handling for this section type may need to grow in `agent-images`. If it doesn't exist yet, capture as a deviation and rely on the Phase 1 operator-imperative install.
+- number: 4
+  title: Ship via ArgoCD and smoke-test
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Commit + push + sync (same pattern as P2.T4.S1).
+
+      ```bash
+      argocd app sync paperclip --port-forward --port-forward-namespace argocd
+      kubectl -n paperclip-system rollout status deploy/paperclip --timeout=2m
+      ```
+  - id: P3.T4.S2
+    text: |-
+      Verify mount + env:
+
+      ```bash
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- cat /etc/paperclip/hermes-base/config.yml | head -10
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- printenv HERMES_HOME PATH
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- which hermes
+      ```
+
+      Expected: config rendered, `HERMES_HOME=/etc/paperclip/hermes-base`, PATH ends with `agent-bin/bin`, `which hermes` resolves.
+  - id: P3.T4.S3
+    text: |-
+      End-to-end smoke test using the model shape validated in P1.T2.S4:
+
+      ```bash
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- \
+        hermes chat -q --model frank-litellm-reasoner 'say ping'
+      ```
+
+      Verify in LiteLLM logs:
+
+      ```bash
+      kubectl -n litellm logs -l app.kubernetes.io/name=litellm --tail=50 | grep qwen-think
+      ```
+
+      Expected: hermes prints a response; LiteLLM log shows a 200 against `qwen-think-14b`.
+  - id: P3.T4.S4
+    text: |-
+      Verify session state writes to the configured path (the override from P3.T1.S2). Re-run hermes once and confirm a file appeared under `/paperclip/agent-bin/.hermes/`:
+
+      ```bash
+      kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- ls -la /paperclip/agent-bin/.hermes/ 2>&1 | head -20
+      ```
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
