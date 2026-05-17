@@ -48,23 +48,23 @@ spec:
       # sshd; the shell still gets full visibility into `/paperclip` (the
       # actual debugging surface) via the shared PVC.
       initContainers:
-        # Two responsibilities, both seeded from the paperclip-hermes ConfigMap
-        # on every pod start so the ConfigMap stays the declarative source of
-        # truth:
+        # Seeds HERMES_HOME from the paperclip-hermes ConfigMap and reconciles
+        # the hermes shim on every pod start.
         #
-        # 1. Seed HERMES_HOME (config.yaml). hermes v0.10.0 writes ALL state
-        #    (sessions, memory, state.db) into HERMES_HOME, so a read-only
-        #    ConfigMap mount at that path is not viable. HERMES_HOME points
-        #    at /paperclip/agent-bin/.hermes (writable PVC); this init lands
-        #    a fresh config.yaml before the main container starts.
+        # 1. config.yaml seed: hermes v0.10.0 writes ALL state (sessions,
+        #    memory, state.db) into HERMES_HOME, so a read-only ConfigMap
+        #    mount at that path is not viable. HERMES_HOME points at
+        #    /paperclip/agent-bin/.hermes (writable PVC); this init lands a
+        #    fresh config.yaml before the main container starts. The config
+        #    sets `model: ollama-cloud/qwen-think-14b` so hermes uses
+        #    ollama-cloud as the default provider (the prefix is what carries
+        #    over when callers pass a bare `-m <alias>`).
         #
-        # 2. Install the hermes-wrapper at /paperclip/agent-bin/bin/hermes,
-        #    replacing the venv symlink from Phase 1. The wrapper injects
-        #    `--provider ollama-cloud` when the caller didn't pass one — the
-        #    `hermes_local` adapter's VALID_PROVIDERS whitelist drops
-        #    ollama-cloud silently, so without the wrapper hermes runs with
-        #    no provider and errors on missing cloud API keys. See the long
-        #    comment in configmap-hermes.yaml for the full rationale.
+        # 2. Symlink reconcile: Phase 1's one-shot install created
+        #    /paperclip/agent-bin/bin/hermes as a symlink to the venv binary.
+        #    A short-lived release (PR #296) shipped a wrapper script at the
+        #    same path; reconcile back to the symlink on every boot so PVCs
+        #    that still carry the wrapper get reset.
         - name: hermes-init
           image: busybox:1.37
           command:
@@ -74,19 +74,16 @@ spec:
               set -eu
               mkdir -p /paperclip/agent-bin/.hermes /paperclip/agent-bin/bin
               cp /etc/paperclip/hermes-template/config.yaml /paperclip/agent-bin/.hermes/config.yaml
-              rm -f /paperclip/agent-bin/bin/hermes
-              cp /etc/paperclip/hermes-template/hermes-wrapper /paperclip/agent-bin/bin/hermes
-              chmod 0755 /paperclip/agent-bin/bin/hermes
+              if [ -e /paperclip/agent-bin/hermes-agent/venv/bin/hermes ]; then
+                rm -f /paperclip/agent-bin/bin/hermes
+                ln -s /paperclip/agent-bin/hermes-agent/venv/bin/hermes /paperclip/agent-bin/bin/hermes
+              fi
           volumeMounts:
             - name: data
               mountPath: /paperclip
             - name: hermes-config
               mountPath: /etc/paperclip/hermes-template/config.yaml
               subPath: config.yaml
-              readOnly: true
-            - name: hermes-config
-              mountPath: /etc/paperclip/hermes-template/hermes-wrapper
-              subPath: hermes-wrapper
               readOnly: true
           resources:
             requests:
@@ -137,15 +134,16 @@ spec:
             # binaries at /usr/local/bin still win — paperclip's pinned
             # codex stays authoritative; we only fill gaps (gemini).
             # opencode is image-baked (/usr/local/bin/opencode); no PVC
-            # install needed. hermes lives at /paperclip/agent-bin/bin/hermes —
-            # a wrapper installed by the hermes-init initContainer that
-            # injects --provider ollama-cloud (see configmap-hermes.yaml for
-            # the rationale). The wrapper execs the venv binary at
-            # /paperclip/agent-bin/hermes-agent/venv/bin/hermes (seeded in
-            # Phase 1). PATH extended to include /bin.
+            # install needed. hermes shim lives at /paperclip/agent-bin/bin/hermes
+            # (symlink to the uv venv binary, seeded in Phase 1, reconciled by
+            # the hermes-init initContainer on every boot) — PATH extended to
+            # include /bin.
             # opencode config: XDG_CONFIG_HOME → paperclip-opencode ConfigMap.
             # hermes config: seeded by hermes-init initContainer into HERMES_HOME.
-            # hermes routes through LiteLLM via OLLAMA_BASE_URL/OLLAMA_API_KEY.
+            # hermes routes through LiteLLM via OLLAMA_BASE_URL/OLLAMA_API_KEY
+            # (the "ollama-cloud/" prefix on the config.yaml model sets the
+            # default provider, so adapter-passed bare models still route
+            # through LiteLLM without needing --provider on the CLI).
             - name: PATH
               value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/paperclip/agent-bin/node_modules/.bin:/paperclip/agent-bin/bin"
             # opencode reads its config from $XDG_CONFIG_HOME/opencode/opencode.json.

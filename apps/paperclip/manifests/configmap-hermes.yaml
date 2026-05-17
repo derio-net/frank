@@ -17,41 +17,14 @@ data:
   # /etc/paperclip/hermes-template/ and seeded into HERMES_HOME by an initContainer
   # on every pod start.
   config.yaml: |
-    # Hermes Agent v0.10.0 — ollama-cloud provider via Frank LiteLLM
-    # Built-in ollama-cloud transport reads OLLAMA_BASE_URL + OLLAMA_API_KEY
-    # from the container env (both set in deployment.yaml, pointing at LiteLLM).
-    # Default model for operator convenience. The hermes_local adapter does
-    # NOT pass --provider ollama-cloud (see hermes-wrapper below for why);
-    # the wrapper injects it instead.
+    # Hermes Agent v0.10.0 — ollama-cloud provider via Frank LiteLLM.
+    #
+    # The "ollama-cloud/" prefix on the model field tells hermes to use the
+    # built-in ollama-cloud transport, which reads OLLAMA_BASE_URL and
+    # OLLAMA_API_KEY from the container env (both set in deployment.yaml
+    # to point at litellm.litellm.svc:4000). Because the prefix encodes
+    # the provider, hermes uses ollama-cloud as the DEFAULT provider for
+    # this install — so when the hermes_local adapter passes `-m <alias>`
+    # (bare, no prefix), hermes still routes to LiteLLM rather than
+    # falling back to a cloud provider that has no API key.
     model: "ollama-cloud/qwen-think-14b"
-  # Smart wrapper installed onto /paperclip/agent-bin/bin/hermes by the
-  # hermes-init initContainer (deployment.yaml). Replaces the venv symlink
-  # set up during Phase 1's one-shot install.
-  #
-  # Why this wrapper exists (Phase 5 deviation, P5.T2):
-  #   hermes-paperclip-adapter@0.2.0 gates the `provider` adapter-config
-  #   field through a hardcoded VALID_PROVIDERS whitelist
-  #     [auto, openrouter, nous, openai-codex, zai, kimi-coding, minimax,
-  #      minimax-cn]
-  #   that does NOT include "ollama-cloud". Setting provider="ollama-cloud"
-  #   in adapterConfig is silently dropped; hermes is then invoked with no
-  #   --provider, fails to auto-detect from a bare model name, and errors
-  #   with "No LLM API keys found (set ANTHROPIC_API_KEY/OPENROUTER_API_KEY…)".
-  #
-  #   The schema-driven UI's extraArgs text input also can't help: it stores
-  #   `--provider ollama-cloud` as a single-element array
-  #   `["--provider ollama-cloud"]` (one argv token with embedded space)
-  #   rather than `["--provider", "ollama-cloud"]`. The custom
-  #   buildHermesConfig DOES whitespace-split, but it isn't on this path.
-  #
-  # The wrapper transparently injects `--provider ollama-cloud` only when
-  # the caller didn't specify one, so both adapter-invoked runs (the bulk
-  # of the workload) and direct CLI use (Phase 1 probes, ad-hoc debugging
-  # from paperclip-shell) work without per-call ceremony.
-  hermes-wrapper: |
-    #!/bin/sh
-    case " $* " in
-      *" --provider "*|*" --provider="*)
-        exec /paperclip/agent-bin/hermes-agent/venv/bin/hermes "$@" ;;
-    esac
-    exec /paperclip/agent-bin/hermes-agent/venv/bin/hermes --provider ollama-cloud "$@"
