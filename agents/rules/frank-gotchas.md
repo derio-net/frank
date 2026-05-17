@@ -88,6 +88,11 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - ruvocal liveness should probe `/api/v2/feature-flags`, not `/` (SSR `/` reaches into LiteLLM/DB).
 - LiteLLM-fronted apps need a LiteLLM virtual key for `OPENAI_API_KEY` — not the upstream provider key.
 - ruvocal's server-side `isValidUrl` rejects `wasm://` URLs but the in-browser "RVAgent Local (WASM)" MCP advertises one; with autopilot ON + WASM-only MCP (chat-ui defaults), the SPA silently refuses to submit and the chat POST never reaches the server. Local fork in agent-images adds a `wasm:` allow-line.
+- Company-import's GitHub fetch is unauthenticated upstream (`server/src/services/github-fetch.ts:ghFetch` injects no `Authorization`) — private repos fail at the COMPANY.md fetch. Use **Local zip** mode: `git archive --format=zip --prefix=<name>/ HEAD:<subdir> > <name>.zip`.
+- Archive does NOT free `issue_prefix` (`companies_issue_prefix_idx` is plain UNIQUE, no partial-where on status) — only hard DELETE frees a prefix; re-imports under the same name collide.
+- `DELETE /api/companies/:id` cascades incompletely on active companies — `companies.ts:remove()` order is wrong (`cost_events` after `heartbeat_runs`) and several newer tables (e.g. `issue_thread_interactions`) aren't in the cascade at all. Workaround: `scripts/paperclip-purge-fs.sh` + the retry-loop SQL DO block pattern in `paperclip-ruflo.md`.
+- `createCompanyWithUniquePrefix` retry-on-collision is broken — `isIssuePrefixConflict()` doesn't unwrap `DrizzleQueryError`, so the loop bails on attempt 1. First attempt's derived prefix (first 3 alpha chars of `newCompanyName`) must be unique or you get a 500; rename at import time to dodge.
+- Operator API calls from CLI need `Origin: $PAPERCLIP_PUBLIC_URL` header (CSRF guard `boardMutationGuard` rejects board mutations otherwise) and `%3D`-encoded trailing `=` in the better-auth session cookie value (curl `-b` and inline shell quoting both pass the raw `=` through, which fails signature verification).
 
 ### Omni — `docs/runbooks/frank-gotchas/omni.md`
 - TLS cert is NOT renewed by the snap-installed certbot timer (config lives at `/opt/manual_install/certbot/config/`). Use the dedicated systemd unit in `omni/certbot/certbot.md`. Renewal hook MUST `docker restart omni` (no SIGHUP path on v1.5.0).
