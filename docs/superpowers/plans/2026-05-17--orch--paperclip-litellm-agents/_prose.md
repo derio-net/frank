@@ -83,21 +83,22 @@ Each entry: timestamp (UTC), finding, evidence.
 +        key: LITELLM_API_KEY
 ```
 
-Note: `HERMES_HOME=/etc/paperclip/hermes-base` (from the original spec) is REVISED to `/paperclip/agent-bin/.hermes` because hermes has no config/state split — the directory must be writable. Phase 3 seeds `config.yaml` at startup.
+Note: `HERMES_HOME=/etc/paperclip/hermes-base` (from the original spec) is REVISED to `/paperclip/agent-bin/.hermes` because hermes has no config/state split — the directory must be writable. Phase 3 seeds `config.yaml` at startup via an **initContainer** (preferred over the shell-inventory bootstrapper — see HERMES_HOME deviation note below for rationale).
+
+Alternative for `OLLAMA_API_KEY`: instead of a second `secretKeyRef`, Phase 3 can use Kubernetes variable substitution (`value: "$(LITELLM_API_KEY)"`) since `LITELLM_API_KEY` is already in-scope from `envFrom.secretRef`. Either works; the substitution form is simpler and avoids a redundant secret reference.
 
 **P1.T4.S2 — `external-secret-llm.yaml` header comment refresh:**
 
-The old "http-local coming soon" paragraph is removed. New comment:
+The old "http-local coming soon" paragraph is removed. Use this draft **verbatim** — the step text in `01.yaml` reflects the pre-investigation `api_key_env:` assumption (the spec's `inference.chain` schema), which P1.T2.S4 found does not exist in hermes v0.10.0. The actual mechanism is the `OLLAMA_API_KEY` env var, as described below.
 
 ```yaml
 # Syncs the LiteLLM virtual key from Infisical and exposes it as two env vars:
 #   LITELLM_API_KEY  — consumed by opencode via {env:LITELLM_API_KEY} interpolation
 #                      in the XDG_CONFIG_HOME-mounted opencode.json
-#   LITELLM_BASE_URL — reference value; actual URL is hardcoded in opencode.json
-#                      and OLLAMA_BASE_URL (hermes uses OLLAMA_BASE_URL + OLLAMA_API_KEY
-#                      with --provider ollama-cloud to route through LiteLLM)
-# LITELLM_API_KEY is also aliased as OLLAMA_API_KEY in deployment.yaml env so
-# hermes can pick it up without a separate secret.
+#   LITELLM_BASE_URL — injected but not consumed by either adapter; both hardcode
+#                      the URL (opencode in opencode.json, hermes via OLLAMA_BASE_URL)
+# LITELLM_API_KEY is also available as OLLAMA_API_KEY in deployment.yaml env so
+# hermes (--provider ollama-cloud) can pick it up without a separate secret.
 ```
 
 ## Deployment Deviations
@@ -105,7 +106,7 @@ The old "http-local coming soon" paragraph is removed. New comment:
 - **P1.T1.S2 — opencode image-baked wins over PVC install**: The paperclip image `sha-c445e59` ships opencode 1.14.48 at `/usr/local/bin/opencode`. This takes precedence over the PVC-installed 1.15.3 because PATH puts `/usr/local/bin` before the PVC suffix. Decision: wire `XDG_CONFIG_HOME` for the image-baked binary. PVC install remains as a newer-version fallback accessible by absolute path and as a baseline for future image updates.
 - **P1.T2.S2 — uv venv non-relocatable by default**: uv downloads CPython to the invoking user's home dir (`~/.local/share/uv/python/`), which is the shell sidecar's home PVC — invisible to the paperclip container. Fix: `UV_PYTHON_INSTALL_DIR=/paperclip/agent-bin/python` pins CPython to the shared PVC. Phase 3 must document this env var in the shell-inventory bootstrapper command.
 - **P1.T2.S4 — hermes v0.10.0 uses different config schema than spec assumed**: The spec assumed `inference.chain` (a custom config format). Actual hermes v0.10.0 uses `providers:` dict + env vars. The `ollama-cloud` built-in provider with `OLLAMA_BASE_URL`/`OLLAMA_API_KEY` is the working path. Phase 3's hermes ConfigMap will use this schema instead.
-- **P1.T2.S5 — HERMES_HOME cannot be read-only**: No config/state path override exists in hermes v0.10.0. `HERMES_HOME` must be a writable directory. Spec's assumption (`/etc/paperclip/hermes-base` as ConfigMap mount) is invalid. Phase 3 revised approach: `HERMES_HOME=/paperclip/agent-bin/.hermes/` (writable PVC), config.yaml seeded at pod boot.
+- **P1.T2.S5 — HERMES_HOME cannot be read-only**: No config/state path override exists in hermes v0.10.0. `HERMES_HOME` must be a writable directory. Spec's assumption (`/etc/paperclip/hermes-base` as ConfigMap mount) is invalid. Phase 3 revised approach: `HERMES_HOME=/paperclip/agent-bin/.hermes/` (writable PVC), `config.yaml` seeded by an **initContainer** at pod boot. Rationale: the shell-inventory bootstrapper runs in the `paperclip-shell` sidecar which may not start before the main container's first hermes invocation; an initContainer runs before all app containers and writes once unconditionally. The initContainer only needs to write `config.yaml` — `ensure_hermes_home()` creates the rest of the directory tree (`sessions/`, `logs/`, `memories/`, `state.db`) on first run.
 
 ## References
 
