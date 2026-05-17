@@ -259,7 +259,7 @@ model: "ollama-cloud/qwen-think-14b"
 
 `OLLAMA_BASE_URL=http://litellm.litellm.svc:4000/v1` and `OLLAMA_API_KEY=$(LITELLM_API_KEY)` are set in `deployment.yaml`.
 
-**Model field shape (verified, Phase 1.T2.S4):** `--provider ollama-cloud --model <alias>` where `<alias>` is one of the LiteLLM model names (`qwen-coder-14b`, `qwen-think-14b`, `mistral-small-24b`, etc.). Hermes auto-normalizes `ollama-cloud/<alias>` → `<alias>` when `--provider ollama-cloud` is explicit.
+**Model field shape (verified, Phase 1.T2.S4):** `--provider ollama-cloud --model <alias>` where `<alias>` is one of the LiteLLM model names (`qwen-coder-14b`, `qwen-think-14b`, `mistral-small-24b`, etc.). Hermes auto-normalizes `ollama-cloud/<alias>` → `<alias>` when `--provider ollama-cloud` is explicit. The `--provider` flag itself is injected by the wrapper at `/paperclip/agent-bin/bin/hermes` (see "Hermes wrapper" below) — the `hermes_local` adapter cannot pass it directly because its `VALID_PROVIDERS` whitelist rejects `ollama-cloud`.
 
 **HERMES_HOME cannot be read-only (verified, Phase 1.T2.S5):** hermes v0.10.0 writes ALL state to `HERMES_HOME`: sessions, `state.db`, `auth.json`, `logs/`, `memories/`, `SOUL.md`. There is no separate config vs. state path override. **`HERMES_HOME` must be a writable directory.** The spec's original assumption (`/etc/paperclip/hermes-base` as a ConfigMap mount) is invalid.
 
@@ -276,6 +276,37 @@ model: "ollama-cloud/qwen-think-14b"
   }
 }
 ```
+
+Leave `provider` blank and **do not** set `extraArgs: ["--provider", "ollama-cloud"]` from the UI — the schema-form text input stores the value as a single-element array `["--provider ollama-cloud"]` (one argv token with an embedded space) which hermes argparse rejects. The wrapper at `hermesCommand` injects `--provider ollama-cloud` for you.
+
+### Hermes wrapper (`--provider` injection)
+
+**Why it exists (Phase 5 deviation, P5.T2):** `hermes-paperclip-adapter@0.2.0` gates the `provider` adapter-config field through a hardcoded `VALID_PROVIDERS` whitelist:
+
+```
+[auto, openrouter, nous, openai-codex, zai, kimi-coding, minimax, minimax-cn]
+```
+
+`ollama-cloud` is not in that list, so the adapter silently drops the field and invokes hermes without `--provider`. Hermes then auto-detects from the model name; for a bare `qwen-think-14b` (no cloud provider prefix) it falls through to "No LLM API keys found (set `ANTHROPIC_API_KEY`/`OPENROUTER_API_KEY`/`OPENAI_API_KEY`/`ZAI_API_KEY` in env)" and the run fails before reaching LiteLLM.
+
+The schema-driven UI also can't help: its `extraArgs` text input stores the value as a single-element array. The custom `buildHermesConfig` in `hermes-paperclip-adapter` whitespace-splits correctly, but it isn't on the path the schema-form takes.
+
+**The fix:** the `paperclip-hermes` ConfigMap ships a `hermes-wrapper` script that the `hermes-init` initContainer installs at `/paperclip/agent-bin/bin/hermes`, **replacing** the venv symlink from Phase 1's one-shot install. The wrapper:
+
+```sh
+#!/bin/sh
+case " $* " in
+  *" --provider "*|*" --provider="*)
+    exec /paperclip/agent-bin/hermes-agent/venv/bin/hermes "$@" ;;
+esac
+exec /paperclip/agent-bin/hermes-agent/venv/bin/hermes --provider ollama-cloud "$@"
+```
+
+This injects `--provider ollama-cloud` only when the caller didn't already specify one — so the adapter (which never sets `--provider`) gets the right invocation, and direct CLI use from `paperclip-shell` (Phase 1 probe style, ad-hoc debugging) that already passes `--provider <other>` still works unchanged.
+
+**To upgrade hermes-agent in the future:** the wrapper hardcodes the venv path `/paperclip/agent-bin/hermes-agent/venv/bin/hermes` — keep the install layout when the version changes (`uv venv --python 3.12 /paperclip/agent-bin/hermes-agent/venv`) and the wrapper continues to work.
+
+**To drop the wrapper (post upstream fix):** if `hermes-paperclip-adapter` lands a release that either accepts custom providers or exposes a `prependArgs` field, swap the initContainer back to a venv-symlink and document the version pin.
 
 ### Python-on-PVC install pattern (hermes)
 

@@ -49,7 +49,7 @@ tasks:
         "icon": "brain",
         "adapterType": "hermes_local",
         "adapterConfig": {
-          "model": "<working-shape-from-P1.T2>",
+          "model": "qwen-think-14b",
           "hermesCommand": "/paperclip/agent-bin/bin/hermes",
           "toolsets": "terminal,file,web",
           "persistSession": true
@@ -57,7 +57,11 @@ tasks:
       }
       ```
 
-      Note: `hermesCommand` is set explicitly to the absolute path even though Phase 3 widens PATH to include `/paperclip/agent-bin/bin`. Belt-and-braces against future PATH drift.
+      Notes:
+
+      - `model` is the bare LiteLLM alias `qwen-think-14b`, NOT `litellm/qwen-think-14b` (that prefix is opencode-specific). The `--provider ollama-cloud` flag is injected by the wrapper at `/paperclip/agent-bin/bin/hermes` — see `docs/runbooks/frank-gotchas/paperclip-ruflo.md#hermes-wrapper-provider-injection` and the Phase 5 Deployment Deviation entry in `_prose.md`.
+      - `hermesCommand` is set explicitly to the absolute path even though Phase 3 widens PATH to include `/paperclip/agent-bin/bin`. Belt-and-braces against future PATH drift.
+      - Do NOT set `provider: "ollama-cloud"` — `hermes_local`'s `VALID_PROVIDERS` whitelist drops it silently. Do NOT set `extraArgs: ["--provider", "ollama-cloud"]` from the UI — the schema-form text input stores it as a single-element array (one argv token with embedded space), which hermes argparse rejects. The wrapper handles both.
   - id: P5.T2.S2
     text: |-
       Assign a second trivial issue. Watch the transcript flow back as structured tool cards (hermes-paperclip-adapter parses Hermes's stdout into typed entries).
@@ -80,13 +84,13 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T19:56:02+00:00'
+      note: Hired via UI; transcript completed successfully (operator-verified)
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T19:56:04+00:00'
+      note: Trivial issue ack posted via opencode_local agent (operator-verified)
     P5.T2.S1:
       state: ' '
       ticked_at: null
