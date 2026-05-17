@@ -3,8 +3,9 @@ phase:
   number: 4
   title: Cross-series partials
   tag: agentic
-  depends_on: [1]
-  tracking_issue: null
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/280
 tasks:
 - number: 1
   title: Build `papers-backlink.html` and `papers-forwardlinks.html` partials

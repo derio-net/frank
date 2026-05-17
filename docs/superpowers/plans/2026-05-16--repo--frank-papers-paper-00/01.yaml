@@ -4,7 +4,7 @@ phase:
   title: Dossier construction
   tag: agentic
   depends_on: []
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/286
 tasks:
 - number: 1
   title: Scaffold Paper 00 bundle and dossier

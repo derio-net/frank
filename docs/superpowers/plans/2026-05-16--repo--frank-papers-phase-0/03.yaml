@@ -3,8 +3,9 @@ phase:
   number: 3
   title: Hugo shortcodes
   tag: agentic
-  depends_on: [1]
-  tracking_issue: null
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/279
 tasks:
 - number: 1
   title: Create `pullquote` and `scar` shortcodes

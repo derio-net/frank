@@ -3,8 +3,9 @@ phase:
   number: 2
   title: Gate validation
   tag: agentic
-  depends_on: [1]
-  tracking_issue: null
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/287
 tasks:
 - number: 1
   title: Run validate-dossier.py and resolve failures

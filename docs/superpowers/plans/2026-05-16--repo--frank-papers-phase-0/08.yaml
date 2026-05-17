@@ -3,8 +3,14 @@ phase:
   number: 8
   title: Validation & completion
   tag: agentic
-  depends_on: [2, 3, 4, 5, 6, 7]
-  tracking_issue: null
+  depends_on:
+  - 2
+  - 3
+  - 4
+  - 5
+  - 6
+  - 7
+  tracking_issue: https://github.com/derio-net/frank/issues/284
 tasks:
 - number: 1
   title: Hugo build validation

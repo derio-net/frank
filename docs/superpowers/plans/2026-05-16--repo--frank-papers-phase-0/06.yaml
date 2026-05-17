@@ -3,8 +3,9 @@ phase:
   number: 6
   title: Banner images
   tag: agentic
-  depends_on: [1]
-  tracking_issue: null
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/282
 tasks:
 - number: 1
   title: Add banner image prompts to `blog/prompt_for_images.yaml` and generate

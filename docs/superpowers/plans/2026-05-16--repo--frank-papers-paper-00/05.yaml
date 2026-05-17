@@ -3,8 +3,9 @@ phase:
   number: 5
   title: Review + publish
   tag: agentic
-  depends_on: [4]
-  tracking_issue: null
+  depends_on:
+  - 4
+  tracking_issue: https://github.com/derio-net/frank/issues/290
 tasks:
 - number: 1
   title: Voice pass and TL;DR

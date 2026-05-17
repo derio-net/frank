@@ -3,8 +3,9 @@ phase:
   number: 3
   title: Scaffold + draft
   tag: agentic
-  depends_on: [2]
-  tracking_issue: null
+  depends_on:
+  - 2
+  tracking_issue: https://github.com/derio-net/frank/issues/288
 tasks:
 - number: 1
   title: Update frontmatter in `blog/content/docs/papers/00-why-homelab-in-2026/index.md`

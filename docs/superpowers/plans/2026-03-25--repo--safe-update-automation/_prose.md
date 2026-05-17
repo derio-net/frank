@@ -1,5 +1,8 @@
 # Safe Update Automation Implementation Plan
 
+**Spec:** `docs/superpowers/specs/2026-03-25--repo--safe-update-automation-design.md`
+**Status:** Not Started
+
 ## Phase 0: GitHub App Prerequisites
 
 ### Task 1: Install ARC GitHub App

@@ -1,5 +1,8 @@
 # Multi-Cluster Monorepo Restructure — Implementation Plan
 
+**Spec:** `docs/superpowers/specs/2026-03-20--repo--multi-cluster-restructure-design.md`
+**Status:** Not Started
+
 ## Phase 0: File Restructure
 
 ### Task 1: Move directories and update all file-level path references

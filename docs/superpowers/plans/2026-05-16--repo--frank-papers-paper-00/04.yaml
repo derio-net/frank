@@ -3,8 +3,9 @@ phase:
   number: 4
   title: Media fill
   tag: agentic
-  depends_on: [3]
-  tracking_issue: null
+  depends_on:
+  - 3
+  tracking_issue: https://github.com/derio-net/frank/issues/289
 tasks:
 - number: 1
   title: Generate per-paper cover image

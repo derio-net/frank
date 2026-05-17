@@ -4,7 +4,7 @@ phase:
   title: Hugo foundation
   tag: agentic
   depends_on: []
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/277
 tasks:
 - number: 1
   title: Add taxonomies and Papers nav entry to `blog/hugo.toml`

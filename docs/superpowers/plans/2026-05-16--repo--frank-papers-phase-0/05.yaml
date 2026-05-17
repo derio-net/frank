@@ -4,7 +4,7 @@ phase:
   title: Research tooling
   tag: agentic
   depends_on: []
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/281
 tasks:
 - number: 1
   title: Create `scripts/validate-dossier.py`

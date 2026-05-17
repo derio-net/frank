@@ -3,8 +3,9 @@ phase:
   number: 6
   title: Post-Deploy Checklist
   tag: manual
-  depends_on: [5]
-  tracking_issue: null
+  depends_on:
+  - 5
+  tracking_issue: https://github.com/derio-net/frank/issues/291
 tasks:
 - number: 1
   title: Post-Deploy Checklist

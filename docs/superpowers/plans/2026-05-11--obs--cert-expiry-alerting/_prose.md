@@ -1,5 +1,8 @@
 # Obs — Cert-Expiry Alerting Implementation Plan
 
+**Spec:** `docs/superpowers/specs/2026-04-20--obs--pass3-followups-design.md`
+**Status:** Complete
+
 ## Phase 1: Probe targets
 
 ### Task 1: Extend `apps/blackbox-exporter/manifests/vmprobe.yaml`
