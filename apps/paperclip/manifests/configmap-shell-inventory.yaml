@@ -47,3 +47,14 @@ data:
       npm-global: []
       pipx: []
       cargo: []
+    # paperclip-shared: packages installed onto the shared /paperclip PVC
+    # (not the shell sidecar's home PVC). The reconcile script does not yet
+    # handle this section — it requires an agent-images change to grow the
+    # handler in cont-init.d/. Until then, the operator-imperative install
+    # from Phase 1 (npm install --prefix /paperclip/agent-bin opencode-ai)
+    # remains the working installer. This entry declares intent so the next
+    # PVC wipe surfaces what needs re-installing.
+    # Deviation: P2.T3.S1 — reconcile handler deferred to agent-images PR.
+    paperclip-shared:
+      npm:
+        - opencode-ai

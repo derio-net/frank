@@ -93,6 +93,14 @@ spec:
             # declarative initContainer so PVC wipe regenerates state.
             - name: PATH
               value: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/paperclip/agent-bin/node_modules/.bin"
+            # opencode reads its config from $XDG_CONFIG_HOME/opencode/opencode.json.
+            # We mount the paperclip-opencode ConfigMap there so the image-baked
+            # opencode binary picks up Frank's LiteLLM provider block on every run.
+            # The adapter's runtime-config.ts copies this base dir to a per-run
+            # tempdir and merges only the permission block — our provider.litellm
+            # block is preserved (verified in Phase 1, P1.T3.S1).
+            - name: XDG_CONFIG_HOME
+              value: /etc/paperclip/opencode-base
             - name: PG_PASSWORD
               valueFrom:
                 secretKeyRef:
@@ -103,6 +111,10 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /paperclip
+            - name: opencode-config
+              mountPath: /etc/paperclip/opencode-base/opencode/opencode.json
+              subPath: opencode.json
+              readOnly: true
           resources:
             requests:
               memory: 512Mi
@@ -226,3 +238,6 @@ spec:
           configMap:
             name: paperclip-shell-motd-tips
             defaultMode: 0644
+        - name: opencode-config
+          configMap:
+            name: paperclip-opencode
