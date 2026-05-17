@@ -5,7 +5,7 @@ phase:
   tag: agentic
   depends_on:
   - 1
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/273
 tasks:
 - number: 1
   title: Create the hermes ConfigMap

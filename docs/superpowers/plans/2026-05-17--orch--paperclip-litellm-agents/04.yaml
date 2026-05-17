@@ -6,7 +6,7 @@ phase:
   depends_on:
   - 2
   - 3
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/274
 tasks:
 - number: 1
   title: Refresh external-secret-llm.yaml header comment

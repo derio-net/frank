@@ -4,7 +4,7 @@ phase:
   title: Plan-time verifications + one-shot install
   tag: agentic
   depends_on: []
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/271
 tasks:
 - number: 1
   title: Install opencode-ai and probe behavior against LiteLLM
