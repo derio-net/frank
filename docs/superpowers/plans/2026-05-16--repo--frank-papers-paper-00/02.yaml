@@ -63,18 +63,20 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-17T21:22:08+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T21:22:08+00:00'
+      note: dossier status was already 'ready' from Phase 1; gaps and counter-args
+        reviewed and confirmed valid
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-17T21:22:09+00:00'
+      note: validate-dossier.py created from Phase 0 spec; dossier unchanged (already
+        committed in Phase 1)
   completion:
-    at: null
+    at: '2026-05-17T21:22:11+00:00'
     note: null
     observed_prs: []
