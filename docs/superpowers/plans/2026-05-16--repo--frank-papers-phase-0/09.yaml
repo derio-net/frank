@@ -1,0 +1,104 @@
+schema_version: 2
+phase:
+  number: 9
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on: [8]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Post-Deploy Checklist
+  steps:
+  - id: P9.T1.S1
+    text: |-
+      Expose externally (if user-facing)
+
+
+      Phase 0 adds a new `/docs/papers/` section to the existing public blog at
+      `blog.derio.net/frank`. No new Traefik IngressRoute or Authentik provider
+      is needed — the blog deploys via the existing Hop cluster Caddy + CI pipeline.
+
+      Verify the Papers section is live after the PR merges and CI deploys:
+
+      ```bash
+      curl -s https://blog.derio.net/frank/docs/papers/ | grep -i "frank papers"
+      # Expected: page content with "The Frank Papers"
+      ```
+  - id: P9.T1.S2
+    text: |-
+      Write building blog post
+
+
+      Use `/blog-post` skill. This is a `repo` layer plan — write a Building
+      post about the Papers infrastructure work:
+
+      Title: "Building The Frank Papers — Research Infrastructure for a Third Series"
+      Covers: the decision to add the Papers series, Phase 0 tooling choices
+      (dossier gate, Mermaid theme, cross-series linking), and what comes next.
+
+      Update `blog/content/docs/building/00-overview/index.md` (Series Index).
+  - id: P9.T1.S3
+    text: |-
+      Write operating blog post
+
+
+      Use `/blog-post` skill. Operating guide for the Papers series workflow:
+
+      Title: "Operating The Frank Papers — Research, Dossiers, and Publishing"
+      Covers: day-to-day commands (`scaffold-paper.sh`, `validate-dossier.py`,
+      `/papers` skill), the dossier gate, Mermaid diagrams, cross-link
+      conventions, and the publication workflow.
+  - id: P9.T1.S4
+    text: |-
+      Update README
+
+
+      Run `/update-readme` to sync Technology Stack, Repository Structure,
+      and Current Status in `README.md` to reflect the Papers series.
+  - id: P9.T1.S5
+    text: |-
+      Sync runbook
+
+
+      This plan contains no `# manual-operation` blocks — skip `/sync-runbook`.
+  - id: P9.T1.S6
+    text: |-
+      Update plan status
+
+
+      Edit `docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/_meta.yaml`:
+
+      ```yaml
+      status: Complete
+      completed: 'YYYY-MM-DD'
+      ```
+state:
+  steps:
+    P9.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P9.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P9.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P9.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P9.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P9.T1.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,130 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Banner images
+  tag: agentic
+  depends_on: [1]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Add banner image prompts to `blog/prompt_for_images.yaml` and generate
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Add `banner-papers` and `banner-papers-thin` entries to `blog/prompt_for_images.yaml`
+
+
+      Insert two new entries in the `# --- Site Banners & Icons ---` section,
+      after the existing `banner-hero` entry (the operating-series tile) and
+      before the `# --- Building Series Covers ---` comment.
+
+      Visual signature for all Papers covers (per spec): **Frank wears thin round
+      reading glasses resting low on the nose and a thin black necktie.**
+
+      Add these two entries:
+
+      ```yaml
+        - key: banner-papers
+          output: blog/static/images/banner-papers.png
+          description: Papers-card cover on landing page — Frank at whiteboard drawing a decision tree (1200x630)
+          prompt: >-
+            A wide cinematic banner (1200×630 pixels). Frank the server-hardware
+            Frankenstein monster stands at a wall-sized whiteboard, drawing a
+            decision tree that branches and forks all the way to the edges of
+            the wall. He wears his utility belt of ethernet cables, his RJ45 neck
+            bolts, and — new for this scene — thin round reading glasses resting
+            low on his nose, and a thin black necktie. The floor around him is
+            scattered with loose server parts that are being *considered*, not
+            assembled: open spec sheets, sticky notes with architecture diagrams,
+            a quadrant chart drawn in chalk. A warm single overhead work-lamp
+            illuminates the whiteboard from above. Frank's expression is focused
+            and curious, marker in hand mid-stroke. Background: dark room, faint
+            blue PCB traces on the walls. The mood is thinking and weighing, not
+            triumphant. ABSOLUTELY NO TEXT in the image.
+
+        - key: banner-papers-thin
+          output: blog/static/images/banner-papers-thin.png
+          description: Papers section-page hero — Frank at desk annotating schematics (wide thin strip)
+          prompt: >-
+            An ultra-wide horizontal strip banner — 1200 pixels wide by 200 pixels
+            tall (6:1 aspect ratio). Wide low silhouette: Frank the server-hardware
+            Frankenstein monster sits at a wide desk viewed in profile (facing left),
+            surrounded by open books, terminal screens glowing with green text,
+            and large architectural schematics pinned to a corkboard behind him.
+            He wears thin round reading glasses resting low on his nose, and a
+            thin black necktie. He is annotating a diagram with a marker. No other
+            figures. Background: very dark, library-like. Warm desk lamp light
+            spills across the schematics. The image is extremely wide and short —
+            1200×200 pixels, 6:1 ratio. ABSOLUTELY NO TEXT. Profile view, calm
+            atmosphere.
+      ```
+
+      Insert these BEFORE the `# --- Building Series Covers ---` comment line
+      so site-wide assets stay grouped together.
+  - id: P6.T1.S2
+    text: |-
+      Generate both banner images
+
+
+      ```bash
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only banner-papers banner-papers-thin
+      ```
+
+      Expected output:
+      - `blog/static/images/banner-papers.png` created, non-zero size
+      - `blog/static/images/banner-papers-thin.png` created, non-zero size
+
+      Verify:
+
+      ```bash
+      ls -lh blog/static/images/banner-papers.png blog/static/images/banner-papers-thin.png
+      ```
+
+      Expected: both files ≥ 50KB. If either is missing or tiny (< 10KB), the
+      Gemini image call failed — check API key and re-run.
+  - id: P6.T1.S3
+    text: |-
+      Spot-check images visually
+
+
+      Open both images and confirm Frank's visual signature (thin round reading
+      glasses, thin black necktie) is present and the composition matches the
+      prompt intent (whiteboard + decision tree for `banner-papers`, desk profile
+      for `banner-papers-thin`).
+
+      If either image does not meet the spec, re-run generation:
+
+      ```bash
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only banner-papers
+      ```
+
+      Up to 3 regeneration attempts are acceptable. If the visual signature
+      consistently fails to appear, note it in the plan deviations — the image
+      can be iterated post-launch without blocking Paper 00.
+
+      Update `blog/content/_index.md` if the image filename used in the Papers
+      card (Step P1.T3.S1) needs to change (it should not — `banner-papers.png`
+      is what was specified).
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

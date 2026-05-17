@@ -1,0 +1,402 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Research tooling
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create `scripts/validate-dossier.py`
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Create `scripts/validate-dossier.py`
+
+
+      The validator reads a dossier YAML file and enforces the gate rules from
+      the spec. Exit 0 = pass, exit 1 = fail with specific error messages.
+
+      ```python
+      #!/usr/bin/env python3
+      """Validate a Frank Papers research dossier against the gate rules.
+
+      Usage: python scripts/validate-dossier.py <dossier.md>
+
+      Exit 0 = pass. Exit 1 = fail (prints specific failures).
+      """
+      import sys
+      import re
+      import urllib.request
+      import urllib.error
+      from pathlib import Path
+
+      try:
+          import yaml
+      except ImportError:
+          print("ERROR: PyYAML required. Run: pip install pyyaml", file=sys.stderr)
+          sys.exit(1)
+
+
+      def check_url(url: str) -> bool:
+          try:
+              req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "vk-dossier-validator/1.0"})
+              with urllib.request.urlopen(req, timeout=10) as resp:
+                  return resp.status < 400
+          except Exception:
+              try:
+                  req = urllib.request.Request(url, headers={"User-Agent": "vk-dossier-validator/1.0"})
+                  with urllib.request.urlopen(req, timeout=10) as resp:
+                      return resp.status < 400
+              except Exception:
+                  return False
+
+
+      def validate(path: Path) -> list[str]:
+          text = path.read_text()
+          # Strip YAML frontmatter if present
+          fm_match = re.match(r'^---\n(.*?)\n---\n', text, re.DOTALL)
+          if fm_match:
+              text = text[fm_match.end():]
+
+          # Parse sections as YAML blocks delimited by ## headers
+          # Each ## section becomes a top-level key
+          sections: dict = {}
+          current_key = None
+          current_lines: list[str] = []
+          for line in text.splitlines():
+              if line.startswith("## "):
+                  if current_key:
+                      try:
+                          sections[current_key] = yaml.safe_load("\n".join(current_lines)) or []
+                      except yaml.YAMLError:
+                          sections[current_key] = current_lines
+                  current_key = line[3:].strip().lower().replace(" ", "_").replace("(", "").replace(")", "")
+                  current_lines = []
+              elif current_key is not None:
+                  current_lines.append(line)
+          if current_key:
+              try:
+                  sections[current_key] = yaml.safe_load("\n".join(current_lines)) or []
+              except yaml.YAMLError:
+                  sections[current_key] = current_lines
+
+          failures: list[str] = []
+
+          # Rule 1: vendors_in_scope >= 3
+          vendors = sections.get("vendors_in_scope", [])
+          if not isinstance(vendors, list) or len(vendors) < 3:
+              failures.append(f"vendors_in_scope: need ≥3, got {len(vendors) if isinstance(vendors, list) else 0}")
+
+          # Rule 2: primary_sources >= 5, spanning >= 3 distinct type values
+          sources = sections.get("primary_sources", [])
+          if not isinstance(sources, list) or len(sources) < 5:
+              failures.append(f"primary_sources: need ≥5, got {len(sources) if isinstance(sources, list) else 0}")
+          else:
+              types = set()
+              for s in sources:
+                  if isinstance(s, dict):
+                      types.add(s.get("type", ""))
+              if len(types) < 3:
+                  failures.append(f"primary_sources: need ≥3 distinct type values, got {len(types)}: {types}")
+
+          # Rule 3: all primary_sources[].url return HTTP 200
+          if isinstance(sources, list):
+              for s in sources:
+                  if isinstance(s, dict):
+                      url = s.get("url", "")
+                      if url and not check_url(url):
+                          failures.append(f"primary_sources URL not reachable (non-200): {url}")
+
+          # Rule 4: frank_artefacts >= 3, spanning >= 2 distinct kind values
+          artefacts = sections.get("frank_artefacts", [])
+          if not isinstance(artefacts, list) or len(artefacts) < 3:
+              failures.append(f"frank_artefacts: need ≥3, got {len(artefacts) if isinstance(artefacts, list) else 0}")
+          else:
+              kinds = set()
+              for a in artefacts:
+                  if isinstance(a, dict):
+                      kinds.add(a.get("kind", ""))
+              if len(kinds) < 2:
+                  failures.append(f"frank_artefacts: need ≥2 distinct kind values, got {len(kinds)}: {kinds}")
+
+          # Rule 5: named_gaps >= 1
+          gaps = sections.get("named_gaps", [])
+          if not isinstance(gaps, list) or len(gaps) < 1:
+              failures.append("named_gaps: need ≥1")
+
+          # Rule 6: counter_arguments_considered >= 1
+          counters = sections.get("counter-arguments_considered", [])
+          if not isinstance(counters, list) or len(counters) < 1:
+              failures.append("counter-arguments_considered: need ≥1")
+
+          return failures
+
+
+      if __name__ == "__main__":
+          if len(sys.argv) != 2:
+              print(f"Usage: {sys.argv[0]} <dossier.md>", file=sys.stderr)
+              sys.exit(1)
+          dossier_path = Path(sys.argv[1])
+          if not dossier_path.exists():
+              print(f"ERROR: {dossier_path} not found", file=sys.stderr)
+              sys.exit(1)
+          failures = validate(dossier_path)
+          if failures:
+              print(f"DOSSIER GATE FAILED: {dossier_path}", file=sys.stderr)
+              for f in failures:
+                  print(f"  ✗ {f}", file=sys.stderr)
+              sys.exit(1)
+          print(f"DOSSIER GATE PASSED: {dossier_path}")
+          sys.exit(0)
+      ```
+  - id: P5.T1.S2
+    text: |-
+      Make executable and smoke-test
+
+
+      ```bash
+      chmod +x scripts/validate-dossier.py
+
+      # Test: missing dossier file
+      python scripts/validate-dossier.py docs/papers-dossiers/nonexistent/dossier.md 2>&1 | grep "not found"
+      # Expected: ERROR: ... not found
+      ```
+
+      Note: a full gate test (pass + fail cases) is done in Phase 8 after the
+      scaffold script creates a real dossier file.
+- number: 2
+  title: Create `scripts/scaffold-paper.sh`
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Create `scripts/scaffold-paper.sh`
+
+
+      Creates both the Hugo page bundle and the research dossier from templates.
+      Usage: `scripts/scaffold-paper.sh <NN> <slug>`
+      Example: `scripts/scaffold-paper.sh 10 self-hosted-inference`
+
+      ```bash
+      #!/usr/bin/env bash
+      # scaffold-paper.sh — create Hugo bundle + dossier for a new Frank Paper.
+      # Usage: scripts/scaffold-paper.sh <NN> <slug>
+      # Example: scripts/scaffold-paper.sh 10 self-hosted-inference
+      set -euo pipefail
+
+      NN="${1:?Usage: $0 <NN> <slug>}"
+      SLUG="${2:?Usage: $0 <NN> <slug>}"
+      PADDED="$(printf '%02d' "$NN")"
+      DIR_NAME="${PADDED}-${SLUG}"
+      TODAY="$(date +%Y-%m-%d)"
+
+      BUNDLE_DIR="blog/content/docs/papers/${DIR_NAME}"
+      DOSSIER_DIR="docs/papers-dossiers/${DIR_NAME}"
+
+      if [ -e "$BUNDLE_DIR" ] || [ -e "$DOSSIER_DIR" ]; then
+        echo "ERROR: ${DIR_NAME} already exists (bundle or dossier)" >&2
+        exit 1
+      fi
+
+      mkdir -p "$BUNDLE_DIR/data"
+      mkdir -p "$DOSSIER_DIR"
+
+      # --- Hugo page bundle ---
+      cat > "${BUNDLE_DIR}/index.md" <<FRONTMATTER
+      ---
+      title: "TODO: Paper title"
+      date: ${TODAY}
+      draft: true
+      weight: ${NN}
+      series: papers
+      layer: TODO
+      paper_number: ${NN}
+      publish_order: TODO
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["TODO"]
+      capabilities: ["TODO"]
+      related_building: ""
+      related_operating: ""
+      references: []
+      ---
+
+      {{< papers/dossier-link paper="${DIR_NAME}" >}}
+
+      ## TL;DR
+
+      *Write last.*
+
+      ## §1 — The capability
+
+      *200–350 words. 1 Mermaid flowchart LR showing stack position.*
+
+      ## §2 — The landscape
+
+      *400–600 words. 1 quadrantChart + 1 capability-matrix.*
+
+      ## §3 — How each option handles the hard part
+
+      *800–1400 words. 1 architecture diagram per vendor.*
+
+      ## §4 — What scale changes
+
+      *300–600 words. Charts or ≥2 primary-source citations.*
+
+      ## §5 — Frank's choice, and what happened
+
+      *300–600 words. ≥1 scar callout.*
+
+      ## §6 — When Frank's answer doesn't generalize
+
+      *200–400 words. 1 decision flowchart ≤4 leaves.*
+
+      ## §7 — Roadmap & where this space is going
+
+      *200–400 words.*
+
+      ## References
+
+      *Auto-rendered from frontmatter by Hugo taxonomy.*
+      FRONTMATTER
+
+      # --- Research dossier ---
+      cat > "${DOSSIER_DIR}/dossier.md" <<DOSSIER
+      ---
+      paper: ${DIR_NAME}
+      status: draft
+      ---
+
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: TODO
+        positioning: "one-line claim from their own marketing"
+        primary_url: "https://TODO"
+
+      ## Primary sources (≥5, ≥3 distinct type values)
+      - title: "TODO"
+        type: vendor-docs
+        url: "https://TODO"
+        quoted_passages: []
+        relevance: "one sentence"
+
+      ## Frank artefacts (≥3, ≥2 distinct kind values)
+      - kind: yaml
+        path_or_url: "TODO"
+        date: ${TODAY}
+        demonstrates: "one sentence"
+
+      ## Diagrams planned
+      - landscape:
+          x_axis: "TODO ↔ TODO"
+          y_axis: "TODO ↔ TODO"
+          vendors_plotted: []
+      - architecture_comparison:
+          vendors: []
+      - decision_tree:
+          leaves: 4
+
+      ## Named gaps (≥1)
+      - "TODO: gap description"
+
+      ## Counter-arguments considered (≥1)
+      - "TODO: counter-argument"
+      DOSSIER
+
+      echo "Scaffolded Paper ${NN}:"
+      echo "  Hugo bundle:  ${BUNDLE_DIR}/"
+      echo "  Dossier:      ${DOSSIER_DIR}/dossier.md"
+      echo ""
+      echo "Next steps:"
+      echo "  1. Edit ${DOSSIER_DIR}/dossier.md — fill vendors, sources, artefacts"
+      echo "  2. python scripts/validate-dossier.py ${DOSSIER_DIR}/dossier.md"
+      echo "  3. Draft ${BUNDLE_DIR}/index.md"
+      ```
+  - id: P5.T2.S2
+    text: |-
+      Make executable and test scaffold + cleanup
+
+
+      ```bash
+      chmod +x scripts/scaffold-paper.sh
+
+      # Test scaffold
+      scripts/scaffold-paper.sh 99 test-dummy
+      ls blog/content/docs/papers/99-test-dummy/index.md
+      ls docs/papers-dossiers/99-test-dummy/dossier.md
+      # Expected: both files exist
+
+      # Test idempotency guard
+      scripts/scaffold-paper.sh 99 test-dummy 2>&1 | grep "already exists"
+      # Expected: ERROR: 99-test-dummy already exists
+
+      # Cleanup test scaffold
+      rm -rf blog/content/docs/papers/99-test-dummy
+      rm -rf docs/papers-dossiers/99-test-dummy
+      echo "Cleanup done"
+      ```
+- number: 3
+  title: Wire dossier gate into `.githooks/pre-commit`
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Update `.githooks/pre-commit` to call `validate-dossier.py` when a
+      Papers content file is staged
+
+
+      Add a new block after the existing PLAN_FILES / AGENT_CONFIG_FILES blocks.
+      The gate triggers when any `blog/content/docs/papers/NN-*/index.md` file
+      is staged — ensures no Paper lands without a valid dossier.
+
+      Append to `.githooks/pre-commit` before the final blank line:
+
+      ```bash
+      # Dossier gate: any staged Papers index.md requires a passing dossier.
+      PAPER_FILES=$(git diff --cached --name-only --diff-filter=ACM \
+        | grep -E '^blog/content/docs/papers/[0-9]+-[^/]+/index\.md$' || true)
+
+      if [ -n "$PAPER_FILES" ]; then
+        for PAPER_INDEX in $PAPER_FILES; do
+          # Derive dossier path from paper bundle path
+          # blog/content/docs/papers/NN-slug/index.md -> docs/papers-dossiers/NN-slug/dossier.md
+          PAPER_DIR=$(echo "$PAPER_INDEX" | sed 's|blog/content/docs/papers/||; s|/index\.md||')
+          DOSSIER_PATH="docs/papers-dossiers/${PAPER_DIR}/dossier.md"
+          if [ ! -f "$DOSSIER_PATH" ]; then
+            echo "DOSSIER GATE: no dossier found for staged paper '${PAPER_DIR}'" >&2
+            echo "  Expected: ${DOSSIER_PATH}" >&2
+            echo "  Run: scripts/scaffold-paper.sh <NN> <slug> to create it" >&2
+            exit 1
+          fi
+          "$REPO_ROOT/scripts/validate-dossier.py" "$DOSSIER_PATH"
+        done
+      fi
+      ```
+
+      The hook already `set -euo pipefail`, so a validate-dossier.py exit-1
+      will abort the commit automatically.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

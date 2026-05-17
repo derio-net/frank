@@ -1,0 +1,187 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Hugo foundation
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Add taxonomies and Papers nav entry to `blog/hugo.toml`
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Add `[taxonomies]` section and Papers nav entry to `blog/hugo.toml`
+
+
+      After the `[markup]` block, add:
+
+      ```toml
+      [taxonomies]
+        series = "series"
+        capabilities = "capabilities"
+        references = "references"
+      ```
+
+      Update the existing nav entries to shift weights and insert Papers at weight 3:
+
+      ```toml
+      # Papers entry — insert before Search
+      [[menu.main]]
+        name = "Papers"
+        pageRef = "/docs/papers"
+        weight = 3
+
+      # Search moves from weight 3 to 4
+      [[menu.main]]
+        name = "Search"
+        weight = 4
+        [menu.main.params]
+          type = "search"
+
+      # GitHub moves from weight 4 to 5
+      [[menu.main]]
+        name = "GitHub"
+        url = "https://github.com/derio-net/frank"
+        weight = 5
+        [menu.main.params]
+          icon = "github"
+      ```
+
+      The existing Building (weight 1) and Operating (weight 2) entries are unchanged.
+  - id: P1.T1.S2
+    text: |-
+      Verify Hugo registers the taxonomies without errors
+
+
+      ```bash
+      cd blog && hugo --buildDrafts --quiet 2>&1 | tail -5
+      ```
+
+      Expected: 0 errors, 0 warnings. Hugo will create empty taxonomy pages at
+      `/series/`, `/capabilities/`, `/references/` — that is correct behaviour.
+- number: 2
+  title: Create `blog/content/docs/papers/_index.md`
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create the Papers section landing page
+
+
+      Create `blog/content/docs/papers/_index.md`:
+
+      ```markdown
+      ---
+      title: "The Frank Papers"
+      weight: 3
+      sidebar:
+        open: true
+      ---
+
+      Research-grade landscape reviews for every capability on the cluster. Each
+      Paper maps the vendor space, grades options against a decision-maker rubric,
+      and returns to Frank's choice as a worked case study — honest about where
+      that choice would not generalize.
+
+      *First paper coming soon.*
+      ```
+
+      `weight: 3` puts Papers after Building (1) and Operating (2) in the sidebar.
+- number: 3
+  title: Add Papers card to `blog/content/_index.md` landing page
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Add a third card to the homepage and update the hero subtitle
+
+
+      Edit `blog/content/_index.md`. Change `cols="2"` to `cols="3"` and append a
+      Papers card. Also update the hero subtitle to mention the third series.
+
+      Current cards block:
+
+      ```
+      {{< cards cols="2" >}}
+        {{< card link="docs/building/" title="Building Frank" ... >}}
+        {{< card link="docs/operating/" title="Operating on Frank" ... >}}
+      {{< /cards >}}
+      ```
+
+      Replace with:
+
+      ```
+      {{< cards cols="3" >}}
+        {{< card
+          link="docs/building/"
+          title="Building Frank"
+          subtitle="29 posts — from bare metal to a fully operational AI-hybrid cluster."
+          image="/images/tile-building.png"
+        >}}
+        {{< card
+          link="docs/operating/"
+          title="Operating on Frank"
+          subtitle="20 posts — day-to-day commands, health checks, and debugging guides."
+          image="/images/tile-operating.png"
+        >}}
+        {{< card
+          link="docs/papers/"
+          title="The Frank Papers"
+          subtitle="Research-grade decision reviews for every capability on the cluster."
+          image="/images/banner-papers.png"
+        >}}
+      {{< /cards >}}
+      ```
+
+      Also update the hero subtitle line from:
+
+      ```
+        Tutorial series on building and operating an AI-hybrid Kubernetes homelab
+        with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute.
+      ```
+
+      to:
+
+      ```
+        Building, operating, and deciding: an AI-hybrid Kubernetes homelab with
+        Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute.
+      ```
+
+      Note: `banner-papers.png` won't exist until Phase 6. Leave the card in
+      place — Hugo renders an empty image slot gracefully until the file lands.
+  - id: P1.T3.S2
+    text: |-
+      Verify the landing page renders with 3 cards
+
+
+      ```bash
+      cd blog && hugo --buildDrafts --quiet 2>&1 | tail -5
+      ```
+
+      Expected: 0 errors. The Papers card image will be missing (404 in dev
+      server) until Phase 6 — that is expected.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

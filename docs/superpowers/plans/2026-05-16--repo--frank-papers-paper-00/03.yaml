@@ -1,0 +1,228 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on: [2]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/00-why-homelab-in-2026/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 00 frontmatter
+
+
+      Update `blog/content/docs/papers/00-why-homelab-in-2026/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "Why Run Your Own Cluster in 2026?"
+      date: <today>
+      draft: true
+      weight: 0
+      series: papers
+      layer: repo
+      paper_number: 0
+      publish_order: 1
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["homelab", "kubernetes", "talos", "architecture"]
+      capabilities: ["hw", "os", "gitops"]
+      related_building: "docs/building/01-introduction"
+      related_operating: "docs/operating/01-cluster-nodes"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 0` places it first in the Papers sidebar (before Paper 01).
+      `layer: repo` — this is a meta paper, not tied to a single cluster capability.
+- number: 2
+  title: Draft all sections
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Draft §1 — The question (150–300 words)
+
+
+      Open: the question a technical decision-maker sits with before any
+      infrastructure project. Not "should I use Kubernetes?" but the layer
+      under that: "who should own this machine?"
+
+      Voice: Frank speaks as the cluster. The question is framed as something
+      Frank himself had to answer before existing. No false modesty ("maybe
+      cloud is better for you") — that comes in §4. This section is the hook.
+
+      Include one `flowchart LR` Mermaid diagram showing the three approaches
+      as branches from a single decision point ("Who owns the hardware?"):
+      ```
+      flowchart LR
+          Q["Who owns\nthe hardware?"] --> A["Cloud provider"]
+          Q --> B["You + SaaS\ncontrol plane"]
+          Q --> C["You, entirely"]
+          A --> A1["GKE / EKS / AKS"]
+          B --> B1["k3s + Omni\nor Rancher"]
+          C --> C1["Talos + ArgoCD\n= Frank"]
+      ```
+  - id: P3.T2.S2
+    text: |-
+      Draft §2 — Three approaches and their real costs (400–600 words)
+
+
+      Map the three philosophies from the dossier. For each:
+      - What it gives you for free
+      - What the real cost is (not the marketing cost)
+      - What failure mode it does NOT prepare you for
+
+      Use `{{< papers/pullquote >}}` for at least one direct quote from the
+      dossier's primary sources.
+
+      Use `{{< papers/capability-matrix data="approaches" >}}` here. Create
+      `blog/content/docs/papers/00-why-homelab-in-2026/data/approaches.yaml`:
+
+      ```yaml
+      features:
+        - key: capital_cost
+          label: Capital cost
+        - key: ops_burden
+          label: Ops burden
+        - key: failure_visibility
+          label: Failure visibility
+        - key: ai_inference
+          label: Local AI inference
+        - key: learning_depth
+          label: Learning depth
+      vendors:
+        - name: Cloud-native
+          features:
+            capital_cost: "yes"
+            ops_burden: "no"
+            failure_visibility: "no"
+            ai_inference: "partial"
+            learning_depth: "no"
+        - name: Managed homelab
+          features:
+            capital_cost: "no"
+            ops_burden: "partial"
+            failure_visibility: "partial"
+            ai_inference: "yes"
+            learning_depth: "partial"
+        - name: DIY homelab
+          features:
+            capital_cost: "no"
+            ops_burden: "no"
+            failure_visibility: "yes"
+            ai_inference: "yes"
+            learning_depth: "yes"
+      ```
+
+      Note: "yes" for ops_burden / capital_cost means "low cost / burden".
+      Add a legend line in the prose if the polarity is non-obvious.
+  - id: P3.T2.S3
+    text: |-
+      Draft §3 — Frank's answer, and what happened (300–500 words)
+
+
+      Return to Frank's choice: DIY, heterogeneous, maximum complexity.
+      Be honest about the cost: 29 building posts to get to a working cluster.
+      At least one `{{< papers/scar >}}` callout — use a real incident from
+      the cluster history (e.g., the GPU Talos validation crash, the SOPS
+      bootstrap chicken-and-egg, or the ArgoCD comparison error from a
+      symlink).
+
+      Example scar:
+      ```
+      {{< papers/scar date="2025-XX-XX" >}}
+      The GPU Talos kernel module validation loop: 6 hours debugging why GPU
+      workloads kept failing validation, discovered Talos's secure boot
+      requirement conflicted with the NVIDIA driver's kernel module signing.
+      The fix was a Talos patch; the lesson was that immutable OS + proprietary
+      drivers requires explicit allowlisting, not assumed compatibility.
+      {{< /papers/scar >}}
+      ```
+
+      Use a real date and incident from `docs/investigations/` or `blog/`.
+  - id: P3.T2.S4
+    text: |-
+      Draft §4 — When Frank's answer doesn't generalize (200–400 words) + decision flowchart
+
+
+      Be explicit: Frank is a learning platform. The cluster would not pass
+      a production readiness review. List the specific conditions under which
+      DIY homelab is NOT the right answer.
+
+      End with a Mermaid decision flowchart (≤4 leaves):
+
+      ```
+      flowchart TD
+          A["Do you need production SLAs?"] -- "Yes" --> B["Use cloud or managed K8s"]
+          A -- "No" --> C["Is your primary goal learning\ninfrastructure failure modes?"]
+          C -- "Yes" --> D["DIY homelab is worth the cost"]
+          C -- "No" --> E["Managed homelab-as-code\nis probably right"]
+      ```
+  - id: P3.T2.S5
+    text: |-
+      Draft §5 — What this series is (150–250 words)
+
+
+      The only self-referential section in the entire Papers series. Explain
+      the series thesis: not "how to build Frank" (Building series) and not
+      "how to run Frank" (Operating series), but "why these choices and not
+      others." Point readers to the publication order and the first capability
+      paper (Paper 10 — Self-Hosted Inference, the first to publish after
+      the prologue).
+
+      End with the dossier-link shortcode:
+      ```
+      {{< papers/dossier-link paper="00-why-homelab-in-2026" >}}
+      ```
+  - id: P3.T2.S6
+    text: |-
+      Verify draft word count is within budget (≤1500 words for Paper 00)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/00-why-homelab-in-2026/index.md \
+        | wc -w
+      ```
+
+      Expected: ≤1500 words. If over, trim §3 first (most prone to sprawl),
+      then §2.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

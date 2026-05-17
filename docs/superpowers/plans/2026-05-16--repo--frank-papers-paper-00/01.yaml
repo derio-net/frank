@@ -1,0 +1,148 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 00 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 00 why-homelab-in-2026
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 0:
+        Hugo bundle:  blog/content/docs/papers/00-why-homelab-in-2026/
+        Dossier:      docs/papers-dossiers/00-why-homelab-in-2026/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/00-why-homelab-in-2026/index.md
+      ls docs/papers-dossiers/00-why-homelab-in-2026/dossier.md
+      ```
+- number: 2
+  title: Research the "why homelab" landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/00-why-homelab-in-2026/dossier.md` — vendors in scope
+
+
+      Paper 00 maps philosophies/approaches rather than product vendors. Use
+      these three as "vendors in scope" (the paper's landscape):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Cloud-native (fully managed)
+        positioning: "Let someone else run the metal — focus on code, not ops."
+        primary_url: "https://cloud.google.com/kubernetes-engine"
+      - name: Managed homelab-as-code (k3s / Talos + cloud control-plane)
+        positioning: "Own your hardware, outsource cluster lifecycle to a SaaS control plane."
+        primary_url: "https://www.siderolabs.com/omni/"
+      - name: DIY homelab (self-hosted everything)
+        positioning: "Own the hardware, the OS, the cluster, and the failure modes."
+        primary_url: "https://talos.dev"
+      ```
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: cost analysis (benchmark or postmortem), practitioner
+      experience (talk or blog-as-postmortem), and vendor documentation. At
+      minimum, include:
+
+      1. A cloud cost analysis paper or benchmark (type: `benchmark`)
+      2. A practitioner writeup on self-hosted AI inference costs vs cloud API
+         costs (type: `postmortem` or `talk`)
+      3. A vendor-docs reference for Talos / Omni capabilities (type: `vendor-docs`)
+      4. A frank/homelab culture framing post — e.g., Alex Ellis, Jeff Geerling,
+         or equivalent practitioner with a named audience (type: `talk` or `postmortem`)
+      5. A counter-position piece arguing for cloud defaults (type: any)
+
+      For each source, complete all fields: `title`, `type`, `url`,
+      `quoted_passages` (at least one direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull from the actual cluster repo. Suggested artefacts:
+
+      1. `kind: yaml` — a representative ArgoCD Application CR showing the
+         GitOps-everything approach (e.g., `apps/root/templates/argocd.yaml`)
+      2. `kind: commit` — the initial Layer 1 hardware commit showing the
+         heterogeneous node list (link to the commit in derio-net/frank)
+      3. `kind: grafana-screenshot` — a Grafana dashboard screenshot showing
+         the full cluster in a healthy state (capture from the live cluster
+         at `http://192.168.55.203`)
+
+      For each artefact: fill `path_or_url`, `date`, `demonstrates`.
+
+      Capturing the Grafana screenshot:
+      ```bash
+      # From the secure-agent-pod or a machine with cluster access:
+      # Browse to http://192.168.55.203 → Dashboards → Kubernetes / Cluster
+      # Export as PNG and commit to docs/papers-dossiers/00-why-homelab-in-2026/
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No standardized TCO methodology for homelab vs cloud at ≤10 concurrent
+        users / ≤$500/mo equivalent spend. All cost comparisons in the literature
+        assume production scale or oversimplify power and hardware amortization."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "Cloud gives instant scale, managed SLAs, and zero capital expenditure —
+        for most teams it is strictly better than a homelab. Why doesn't this win
+        for Frank? Answer: Frank is a learning platform, not a production
+        alternative. The question 'should I run a homelab in 2026?' is meaningless
+        without 'for what purpose?' Cloud wins for production; homelab wins for
+        learning failure modes at depth."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

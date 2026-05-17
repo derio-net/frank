@@ -1,0 +1,163 @@
+schema_version: 2
+phase:
+  number: 8
+  title: Validation & completion
+  tag: agentic
+  depends_on: [2, 3, 4, 5, 6, 7]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Hugo build validation
+  steps:
+  - id: P8.T1.S1
+    text: |-
+      Run full Hugo build and assert zero errors
+
+
+      ```bash
+      cd blog && hugo --buildDrafts 2>&1 | tee /tmp/hugo-build.log | tail -10
+      grep -cE "^ERROR" /tmp/hugo-build.log && echo "BUILD ERRORS FOUND" || echo "Build clean"
+      ```
+
+      Expected: `Build clean`. Any `ERROR` lines must be resolved before
+      proceeding. Common sources: malformed shortcode template syntax (Phase 3),
+      broken partial includes (Phase 4), missing closing tags.
+  - id: P8.T1.S2
+    text: |-
+      Spot-check the Papers section page and landing page
+
+
+      ```bash
+      cd blog && hugo server --buildDrafts --port 1313 &
+      sleep 3
+
+      # Papers section landing
+      curl -s http://localhost:1313/docs/papers/ | grep -i "frank papers" | head -3
+      # Expected: "The Frank Papers" in the page title area
+
+      # Landing page has 3 cards
+      curl -s http://localhost:1313/ | grep -c "hextra-card" | xargs -I{} sh -c 'echo "{} cards found"; [ {} -ge 3 ] && echo "PASS" || echo "FAIL"'
+      # Expected: PASS (3 or more card elements)
+
+      # Nav has Papers entry
+      curl -s http://localhost:1313/ | grep -i "papers" | head -5
+      # Expected: at least one "Papers" nav link
+
+      kill %1
+      ```
+- number: 2
+  title: Pre-commit hook gate test
+  steps:
+  - id: P8.T2.S1
+    text: |-
+      Test the dossier gate fires on a staged Papers file with no dossier
+
+
+      ```bash
+      # Scaffold a temporary test paper (dossier exists but is invalid — too few vendors)
+      scripts/scaffold-paper.sh 99 hook-test
+
+      # Stage the paper index
+      git add blog/content/docs/papers/99-hook-test/index.md
+
+      # Run the pre-commit hook directly (don't actually commit)
+      bash .githooks/pre-commit 2>&1 | grep -E "DOSSIER GATE|FAILED|PASSED"
+      # Expected: DOSSIER GATE FAILED — dossier exists but has only 1 vendor (stub)
+
+      # Cleanup
+      git restore --staged blog/content/docs/papers/99-hook-test/index.md
+      rm -rf blog/content/docs/papers/99-hook-test
+      rm -rf docs/papers-dossiers/99-hook-test
+      echo "Gate test complete"
+      ```
+- number: 3
+  title: Validate agent config and update spec index
+  steps:
+  - id: P8.T3.S1
+    text: |-
+      Run `validate-agent-config.sh` to confirm AGENTS.md changes are valid
+
+
+      ```bash
+      scripts/validate-agent-config.sh
+      ```
+
+      Expected: exit 0 with no errors. This validates that all files referenced
+      in AGENTS.md exist (`repo-papers.md`, `agents/skills/papers/SKILL.md`).
+  - id: P8.T3.S2
+    text: |-
+      Update the spec's Implementation Plans table
+
+
+      ```bash
+      vk plan spec-index docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0 --yes
+      ```
+
+      Expected: adds a row for this plan to the `## Implementation Plans` table
+      in `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`.
+  - id: P8.T3.S3
+    text: |-
+      Commit all Phase 0 changes
+
+
+      ```bash
+      git add \
+        blog/hugo.toml \
+        blog/content/docs/papers/ \
+        blog/content/_index.md \
+        blog/assets/js/mermaid-frank.js \
+        blog/assets/css/custom.css \
+        blog/layouts/ \
+        blog/static/images/banner-papers.png \
+        blog/static/images/banner-papers-thin.png \
+        blog/prompt_for_images.yaml \
+        scripts/validate-dossier.py \
+        scripts/scaffold-paper.sh \
+        .githooks/pre-commit \
+        agents/rules/repo-papers.md \
+        agents/skills/papers/SKILL.md \
+        AGENTS.md \
+        docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md \
+        docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/
+
+      git commit -m "feat(repo): Phase 0 tooling for The Frank Papers series
+
+      - Hugo: series/capabilities/references taxonomies, Papers nav entry
+      - Content: docs/papers/ section, landing page 3rd card
+      - Visuals: Mermaid Frank theme, .paper-post CSS scope, body class gate
+      - Shortcodes: pullquote, scar, capability-matrix, landscape, dossier-link
+      - Partials: papers-backlink, papers-forwardlinks wired into single.html
+      - Scripts: validate-dossier.py, scaffold-paper.sh, pre-commit dossier gate
+      - Images: banner-papers.png, banner-papers-thin.png
+      - Docs: agents/rules/repo-papers.md, agents/skills/papers/SKILL.md"
+      ```
+state:
+  steps:
+    P8.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

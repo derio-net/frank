@@ -381,3 +381,10 @@ Phase 0 done → Paper 00 dossier → Paper 00 draft → publish → Phase 1 ope
 - Existing blog architecture rules: `.claude/rules/repo-blog.md`
 - Existing post skill: `.claude/skills/blog-post/`
 - Hextra migration spec: `docs/superpowers/specs/2026-04-13--repo--blog-hextra-migration-design.md`
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| The Frank Papers — Phase 0: Tooling & Scaffolding | derio-net/frank | `docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/` | — |
+| The Frank Papers — Paper 00: Prologue | derio-net/frank | `docs/superpowers/plans/2026-05-16--repo--frank-papers-paper-00/` | Phase 0 complete |

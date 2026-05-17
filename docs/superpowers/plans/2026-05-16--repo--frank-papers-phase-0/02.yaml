@@ -1,0 +1,207 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Visual system
+  tag: agentic
+  depends_on: [1]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create Mermaid Frank theme and wire into `head-end.html`
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Create `blog/assets/js/mermaid-frank.js`
+
+
+      Create the file with Frank's brand palette applied as a Mermaid base theme.
+      Hextra does not bundle Mermaid, so the theme initializer must also load
+      the library from CDN on Papers pages.
+
+      ```javascript
+      /* Mermaid initializer for The Frank Papers series.
+         Loaded only on pages with series: papers in frontmatter (see head-end.html). */
+      (function () {
+        var script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+        script.onload = function () {
+          mermaid.initialize({
+            startOnLoad: true,
+            theme: 'base',
+            themeVariables: {
+              background: '#0d1117',
+              primaryColor: '#1e3a5f',
+              primaryTextColor: '#e6edf3',
+              primaryBorderColor: '#1f6feb',
+              lineColor: '#30a46c',
+              secondaryColor: '#161b22',
+              tertiaryColor: '#21262d',
+              edgeLabelBackground: '#0d1117',
+              clusterBkg: '#161b22',
+              titleColor: '#e6edf3',
+              fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+              fontSize: '14px',
+            },
+          });
+        };
+        document.head.appendChild(script);
+      })();
+      ```
+  - id: P2.T1.S2
+    text: |-
+      Wire Mermaid theme into `blog/layouts/partials/custom/head-end.html`
+
+
+      Append to the existing `head-end.html`, gated on `series: papers`:
+
+      ```go-html-template
+      {{- if eq .Params.series "papers" }}
+      {{ $mermaidFrank := resources.Get "js/mermaid-frank.js" | minify | fingerprint }}
+      <script src="{{ $mermaidFrank.RelPermalink }}" defer></script>
+      {{- end }}
+      ```
+
+      This keeps Mermaid off Building/Operating pages entirely.
+- number: 2
+  title: Add `.paper-post` CSS scoping and body-class gate to `single.html`
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Append `.paper-post` CSS block to `blog/assets/css/custom.css`
+
+
+      Append to the end of the file:
+
+      ```css
+      /* === The Frank Papers — scoped under .paper-post === */
+
+      .paper-post .paper-tldr {
+        background: var(--tw-prose-pre-bg, #1e1e1e);
+        border-left: 4px solid #1f6feb;
+        border-radius: 0.375rem;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.5rem;
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+
+      .paper-post .paper-pullquote {
+        border-left: 3px solid #30a46c;
+        padding: 0.75rem 1.25rem;
+        margin: 1.5rem 0;
+        font-style: italic;
+        color: var(--tw-prose-body);
+      }
+
+      .paper-post .paper-pullquote cite {
+        display: block;
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        font-style: normal;
+        opacity: 0.7;
+      }
+
+      .paper-post .paper-scar {
+        background: rgba(255, 190, 0, 0.08);
+        border: 1px solid rgba(255, 190, 0, 0.3);
+        border-radius: 0.375rem;
+        padding: 0.75rem 1rem;
+        margin: 1.25rem 0;
+        font-size: 0.9rem;
+      }
+
+      .paper-post .paper-scar-date {
+        font-size: 0.75rem;
+        opacity: 0.6;
+        margin-bottom: 0.25rem;
+        font-family: ui-monospace, monospace;
+      }
+
+      .paper-post .paper-capability-matrix table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+      }
+
+      .paper-post .paper-capability-matrix th,
+      .paper-post .paper-capability-matrix td {
+        padding: 0.5rem 0.75rem;
+        border: 1px solid var(--tw-prose-td-borders, rgba(128,128,128,0.2));
+        text-align: center;
+      }
+
+      .paper-post .paper-capability-matrix th:first-child,
+      .paper-post .paper-capability-matrix td:first-child {
+        text-align: left;
+        font-weight: 500;
+      }
+
+      .paper-post .paper-dossier-link {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--tw-prose-hr, rgba(128,128,128,0.2));
+        font-size: 0.85rem;
+        opacity: 0.8;
+      }
+
+      .paper-post .paper-cross-links {
+        margin-top: 1rem;
+        font-size: 0.875rem;
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .paper-post .paper-cross-links a {
+        color: #1f6feb;
+        text-decoration: none;
+      }
+
+      .paper-post .paper-cross-links a:hover {
+        text-decoration: underline;
+      }
+      ```
+  - id: P2.T2.S2
+    text: |-
+      Add `paper-post` body class to `blog/layouts/docs/single.html`
+
+
+      The existing `<article>` tag in `blog/layouts/docs/single.html` does not
+      have a class. Gate on `series: papers` and add the class:
+
+      Current line (line 7 approximately):
+
+      ```go-html-template
+      <article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]">
+      ```
+
+      Replace with:
+
+      ```go-html-template
+      <article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]{{ if eq .Params.series "papers" }} paper-post{{ end }}">
+      ```
+
+      This scopes all `.paper-post *` CSS rules to Papers pages only, leaving
+      Building and Operating pages unaffected.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

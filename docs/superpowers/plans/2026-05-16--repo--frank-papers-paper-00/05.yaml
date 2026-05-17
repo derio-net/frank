@@ -1,0 +1,159 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Review + publish
+  tag: agentic
+  depends_on: [4]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Voice pass and TL;DR
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      **Human gate: author voice pass**
+
+
+      Read the full draft aloud (or equivalent). Check:
+      - Frank speaks as the cluster — first-person plural ("we learned") or
+        third-person cluster ("Frank tried X, and X failed") are both fine;
+        distant academic voice is not.
+      - Every scar callout uses a real incident with a real date.
+      - The counter-argument ("cloud wins for production") is addressed
+        directly in §4 — not hedged away.
+      - §5 (what this series is) does not oversell — the thesis is honest.
+  - id: P5.T1.S2
+    text: |-
+      Write the TL;DR (≤150 words)
+
+
+      Write last, after the body has stabilized. Aim for three short paragraphs:
+      1. The question and the three approaches (one sentence each)
+      2. Frank's answer and the honest cost of it
+      3. What the Papers series will do from here
+
+      Count words:
+      ```bash
+      # Extract the tldr field from frontmatter and count
+      awk '/^tldr:/,/^[a-z]/' \
+        blog/content/docs/papers/00-why-homelab-in-2026/index.md \
+        | grep -v "^tldr:\|^[a-z]" | wc -w
+      ```
+
+      Expected: ≤150 words. Update the `tldr:` field in the frontmatter.
+- number: 2
+  title: Final checks and publish
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Run dossier gate one final time
+
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/00-why-homelab-in-2026/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED`.
+  - id: P5.T2.S2
+    text: |-
+      Run full Hugo build and assert zero errors
+
+
+      ```bash
+      cd blog && hugo --buildDrafts 2>&1 | grep -E "^ERROR" | head -5
+      ```
+
+      Expected: no output (zero errors).
+  - id: P5.T2.S3
+    text: |-
+      Set `draft: false` and `status: published`, run production build
+
+
+      In `blog/content/docs/papers/00-why-homelab-in-2026/index.md`:
+      - Change `draft: true` → `draft: false`
+      - Change `status: drafting` → `status: published`
+
+      Verify the paper appears in the production build (without `--buildDrafts`):
+
+      ```bash
+      cd blog && hugo --quiet 2>&1 | tail -3
+      ls public/docs/papers/00-why-homelab-in-2026/index.html
+      ```
+
+      Expected: `public/docs/papers/00-why-homelab-in-2026/index.html` exists.
+  - id: P5.T2.S4
+    text: |-
+      Update the Papers section `_index.md` stub
+
+
+      In `blog/content/docs/papers/_index.md`, replace the stub line:
+
+      ```
+      *First paper coming soon.*
+      ```
+
+      with a brief intro that doesn't list papers (the sidebar auto-generates
+      from page bundles):
+
+      ```markdown
+      Research-grade landscape reviews for every capability on the cluster. Each
+      Paper maps the vendor space, grades options against a decision-maker rubric,
+      and returns to Frank's choice as a worked case study — honest about where
+      that choice would not generalize.
+
+      Start with the prologue: **[Why Run Your Own Cluster in 2026?](/docs/papers/00-why-homelab-in-2026/)**
+      ```
+  - id: P5.T2.S5
+    text: |-
+      Commit and push Paper 00
+
+
+      ```bash
+      git add \
+        blog/content/docs/papers/00-why-homelab-in-2026/ \
+        blog/content/docs/papers/_index.md \
+        docs/papers-dossiers/00-why-homelab-in-2026/ \
+        blog/prompt_for_images.yaml
+
+      git commit -m "docs(repo): publish Paper 00 — Why Run Your Own Cluster in 2026?"
+
+      git push
+      ```
+
+      The pre-commit hook will run `validate-dossier.py` automatically on the
+      staged `index.md`. If it fails, the dossier is not in the expected state —
+      re-run the gate and fix before retrying the commit.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

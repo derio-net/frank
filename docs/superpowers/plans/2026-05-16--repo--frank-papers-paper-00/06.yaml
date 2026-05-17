@@ -1,0 +1,124 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on: [5]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Post-Deploy Checklist
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Expose externally (if user-facing)
+
+
+      Paper 00 publishes on the existing public blog at `blog.derio.net/frank`.
+      No new infrastructure needed. Verify it is live after CI deploys:
+
+      ```bash
+      curl -s https://blog.derio.net/frank/docs/papers/00-why-homelab-in-2026/ \
+        | grep -i "why run your own cluster"
+      # Expected: page content with the Paper title
+      ```
+
+      Also verify the Papers nav link is visible on the homepage.
+  - id: P6.T1.S2
+    text: |-
+      Update blog series overviews
+
+
+      In `blog/content/docs/building/00-overview/index.md` (Series Index):
+      - Add a note in the Capability Map or a new "Further reading" section
+        pointing to The Frank Papers for decision-level context.
+
+      In `blog/layouts/shortcodes/cluster-roadmap.html`:
+      - Add a reference to The Frank Papers series if the roadmap shortcode
+        has a section for blog content.
+  - id: P6.T1.S3
+    text: |-
+      Write building blog post (skip for Paper 00)
+
+
+      Paper 00 is itself the inaugural publication of the Papers series —
+      there is no separate "building" post needed. The Phase 0 plan's
+      post-deploy checklist covers the infrastructure building post.
+
+      *Skip.*
+  - id: P6.T1.S4
+    text: |-
+      Write operating blog post (skip for Paper 00)
+
+
+      Papers are not operational workloads — they have no operational commands
+      to document beyond the Papers skill (`agents/skills/papers/SKILL.md`).
+
+      *Skip.*
+  - id: P6.T1.S5
+    text: |-
+      Update README
+
+
+      Run `/update-readme` to sync README.md. The Papers series is a new
+      content section — update the "Blog Content" or equivalent section to
+      mention all three series.
+  - id: P6.T1.S6
+    text: |-
+      Sync runbook
+
+
+      This plan contains no `# manual-operation` blocks — skip `/sync-runbook`.
+  - id: P6.T1.S7
+    text: |-
+      Update plan status and log publish date
+
+
+      Edit `docs/superpowers/plans/2026-05-16--repo--frank-papers-paper-00/_meta.yaml`:
+
+      ```yaml
+      status: Complete
+      completed: 'YYYY-MM-DD'
+      ```
+
+      Also note in `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
+      that Paper 00 is published and Phase 1 of the series is now open.
+      Use `vk plan spec-index` to update the Implementation Plans table:
+
+      ```bash
+      vk plan spec-index docs/superpowers/plans/2026-05-16--repo--frank-papers-paper-00 --yes
+      ```
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
