@@ -15,17 +15,17 @@ layout: hextra-home
 
 <div class="hx-mb-12">
 {{< hextra/hero-subtitle >}}
-  Tutorial series on building and operating an AI-hybrid Kubernetes homelab
-  with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute.
+  Building, operating, and deciding: an AI-hybrid Kubernetes homelab with
+  Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute.
 {{< /hextra/hero-subtitle >}}
 </div>
 
 <div class="blog-series-cards">
-{{< cards cols="2" >}}
+{{< cards cols="3" >}}
   {{< card
     link="docs/building/"
     title="Building Frank"
-    subtitle="26 posts — from bare metal to a fully operational AI-hybrid cluster."
+    subtitle="29 posts — from bare metal to a fully operational AI-hybrid cluster."
     image="/images/tile-building.png"
   >}}
   {{< card
@@ -33,6 +33,12 @@ layout: hextra-home
     title="Operating on Frank"
     subtitle="20 posts — day-to-day commands, health checks, and debugging guides."
     image="/images/tile-operating.png"
+  >}}
+  {{< card
+    link="docs/papers/"
+    title="The Frank Papers"
+    subtitle="Research-grade decision reviews for every capability on the cluster."
+    image="/images/banner-papers.png"
   >}}
 {{< /cards >}}
 </div>

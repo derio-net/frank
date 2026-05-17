@@ -36,17 +36,27 @@ title = "Frank, the Talos Cluster"
   weight = 2
 
 [[menu.main]]
-  name = "Search"
+  name = "Papers"
+  pageRef = "/docs/papers"
   weight = 3
+
+[[menu.main]]
+  name = "Search"
+  weight = 4
   [menu.main.params]
     type = "search"
 
 [[menu.main]]
   name = "GitHub"
   url = "https://github.com/derio-net/frank"
-  weight = 4
+  weight = 5
   [menu.main.params]
     icon = "github"
+
+[taxonomies]
+  series = "series"
+  capabilities = "capabilities"
+  references = "references"
 
 [markup]
   [markup.goldmark]
