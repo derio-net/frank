@@ -55,7 +55,7 @@ spec:
         # ensures a fresh config.yaml lands there before the main container starts,
         # keeping the ConfigMap as the declarative source of truth.
         - name: hermes-init
-          image: busybox:1
+          image: busybox:1.37
           command:
             - sh
             - -c
@@ -67,6 +67,12 @@ spec:
               mountPath: /etc/paperclip/hermes-template/config.yaml
               subPath: config.yaml
               readOnly: true
+          resources:
+            requests:
+              cpu: 1m
+              memory: 8Mi
+            limits:
+              memory: 32Mi
       containers:
         - name: paperclip
           # Upstream public image. Pinned by digest-equivalent sha tag.
