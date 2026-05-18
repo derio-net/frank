@@ -389,3 +389,4 @@ Phase 0 done → Paper 00 dossier → Paper 00 draft → publish → Phase 1 ope
 | The Frank Papers — Phase 0: Tooling & Scaffolding | derio-net/frank | `docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/` | — |
 | The Frank Papers — Paper 00: Prologue | derio-net/frank | `docs/superpowers/plans/2026-05-16--repo--frank-papers-paper-00/` | Phase 0 complete |
 | 2026-05-18--repo--frank-papers-paper-10 | `derio-net/frank` | `docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-10/` | — |
+| The Frank Papers — Paper 04: Distributed Storage on Bare Metal | derio-net/frank | `docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-04/` | Phase 0 complete; Paper 00 published |

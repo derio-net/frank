@@ -1,0 +1,217 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 04 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 04 distributed-storage
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 4:
+        Hugo bundle:  blog/content/docs/papers/04-distributed-storage/
+        Dossier:      docs/papers-dossiers/04-distributed-storage/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/04-distributed-storage/index.md
+      ls docs/papers-dossiers/04-distributed-storage/dossier.md
+      ```
+- number: 2
+  title: Research the distributed-storage-on-bare-metal landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/04-distributed-storage/dossier.md` — vendors in scope
+
+
+      Paper 04 maps the bare-metal distributed-storage vendor space. Suggested
+      six-vendor landscape (final list is the dossier-construction subagent's
+      call after research, but anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Longhorn
+        positioning: "Rancher/SUSE — distributed block storage for Kubernetes with snapshots, backups, and a friendly UI."
+        primary_url: "https://longhorn.io"
+      - name: Rook-Ceph
+        positioning: "Operator-driven Ceph on Kubernetes — the 'real' distributed storage, unified block/file/object."
+        primary_url: "https://rook.io"
+      - name: OpenEBS Mayastor
+        positioning: "NVMe-over-Fabrics replicated block storage — performance-first, MayaData-led."
+        primary_url: "https://openebs.io/docs/concepts/mayastor"
+      - name: Piraeus / LINSTOR
+        positioning: "LINBIT's K8s offering — DRBD-based block replication with kernel-level guarantees."
+        primary_url: "https://piraeus.io"
+      - name: Portworx
+        positioning: "Commercial, enterprise SLA, PX-Backup — paid distributed storage for production Kubernetes."
+        primary_url: "https://portworx.com"
+      - name: local-path-provisioner
+        positioning: "Rancher's trivial single-node baseline — hostPath PVCs, no replication, useful as the 'null hypothesis'."
+        primary_url: "https://github.com/rancher/local-path-provisioner"
+      ```
+
+      Frank's case study is Longhorn (3 replicas across 3 control-plane
+      nodes); the other five exist in the dossier so §3 can compare
+      architectures and §6 can branch the decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one foundational
+      academic paper, at least one practitioner benchmark, and at least one
+      real-world postmortem. URL hints to chase:
+
+      1. Longhorn architecture / design docs — type: `vendor-docs`
+         (https://longhorn.io/docs/latest/concepts/)
+      2. Rook-Ceph operational + design docs — type: `vendor-docs`
+         (https://rook.io/docs/rook/latest-release/Getting-Started/intro/)
+      3. Weil et al. 2006 — "Ceph: A Scalable, High-Performance Distributed
+         File System" (OSDI '06) — type: `paper`
+         (https://www.ssrc.ucsc.edu/Papers/weil-osdi06.pdf)
+      4. A practitioner head-to-head benchmark of Longhorn vs Ceph in a
+         homelab / SMB setting — type: `benchmark`
+         (search: "Longhorn vs Ceph benchmark homelab" — pick a writeup
+         with reproducible methodology, not just vibes)
+      5. A storage-failure postmortem — homelab loss of a multi-replica
+         volume (Longhorn or Ceph) — type: `postmortem`
+         (search: "Longhorn volume lost replicas" / "Ceph homelab data
+         loss postmortem" — Reddit r/kubernetes or a personal blog)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo and Frank's gotcha registry.
+      Suggested artefacts (the dossier-construction subagent picks the
+      final list, but at least these are known to exist):
+
+      1. `kind: yaml` — `apps/longhorn/values.yaml` — shows the
+         3-replica default matching 3 control-plane nodes.
+         `path_or_url: apps/longhorn/values.yaml`
+         `demonstrates: "Frank's Longhorn replica count is bound to the
+          control-plane count by construction — not chosen for
+          durability, chosen because that's the node fleet."`
+
+      2. `kind: incident` — the RWO PVC + RollingUpdate deadlock.
+         Source: `agents/rules/frank-gotchas.md → Storage/Secrets/SSA`
+         + the per-topic file `docs/runbooks/frank-gotchas/storage-
+         secrets-ssa.md`.
+         `demonstrates: "RWO storage forces strategy: Recreate at the
+          Deployment level — a discovery that ripples into every
+          stateful chart in apps/."`
+
+      3. `kind: commit` — the one-time `kubectl patch` that cleared
+         the orphan `rollingUpdate:` block when switching strategy via
+         Helm. Find with:
+         ```bash
+         git log --all --oneline -- apps/longhorn/ \
+           | grep -i "recreate\|rolling" | head -5
+         ```
+         `demonstrates: "Helm's chart rendering cannot delete keys
+          from a live resource — strategy switches require manual
+          surgery, an immutability boundary inside an otherwise
+          declarative stack."`
+
+      4. `kind: grafana-screenshot` — Longhorn UI showing 3-replica
+         healthy state, captured live from `192.168.55.201`.
+         Capture procedure:
+         ```bash
+         # From the secure-agent-pod or a machine with cluster access:
+         # Browse to http://192.168.55.201 → Volumes
+         # Filter to "Healthy" — verify all show "Replicas: 3" and
+         # all three nodes (mini-1, mini-2, mini-3) appear in the
+         # replica list. Screenshot → commit to
+         # docs/papers-dossiers/04-distributed-storage/longhorn-3-replica-healthy.png
+         ```
+
+      5. `kind: incident` (optional but encouraged) — ESO's
+         empty-`data: []` admission rejection. Source: same gotcha
+         file. `demonstrates: "Declarative tooling does not infer
+          'empty' from 'missing' — when all keys are removed, the
+          ExternalSecret itself must be deleted, not zeroed."`
+
+      6. `kind: yaml` (optional) — an example SOPS-encrypted Secret
+         applied out-of-band from `secrets/` (e.g., the bootstrap
+         age key). Demonstrates: "SOPS-encrypted secrets must NOT be
+         ArgoCD-managed — the only declarative-exception class in the
+         whole Frank stack."
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No published TCO comparison of Longhorn vs Rook-Ceph at ≤10-node
+        scale that accounts for operational burden — only $/GB. Every
+        available comparison either (a) benchmarks performance without
+        cost, or (b) compares cloud storage pricing without measuring
+        the ops tax on the bare-metal side. The single most useful
+        number for a decision-maker — 'how many hours per month does
+        each option cost you?' — does not exist as published work."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "Managed cloud storage (EBS, Persistent Disk, Azure Managed
+        Disks) at small scale is cheaper per-GB than amortized homelab
+        hardware AND erases the operational tax — why doesn't that
+        win for Frank? Answer: same as Paper 00. Frank is a learning
+        platform. The reason to run Longhorn is to encounter the
+        RWO-RollingUpdate deadlock, the SSA discipline, the empty-
+        ExternalSecret admission rejection — first-hand. Managed cloud
+        storage hides exactly the failure modes the cluster exists to
+        teach. For a production team, the counter-argument wins; for
+        Frank, that is the point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,445 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/04-distributed-storage/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 04 frontmatter
+
+
+      Update `blog/content/docs/papers/04-distributed-storage/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "Distributed Storage on Bare Metal"
+      date: <today>
+      draft: true
+      weight: 4
+      series: papers
+      layer: stor
+      paper_number: 4
+      publish_order: 3
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["storage", "longhorn", "ceph", "kubernetes", "homelab"]
+      capabilities: ["stor"]
+      related_building: "docs/building/03-storage"
+      related_operating: "docs/operating/02-storage-backups"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 4` matches paper_number for TOC order. `publish_order: 3`
+      reflects this being the third Paper to publish (`00 → 10 → 04 → ...`).
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      Create `blog/content/docs/papers/04-distributed-storage/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: block
+          label: Block (RWO)
+        - key: file
+          label: File (RWX)
+        - key: object
+          label: Object (S3)
+        - key: snapshots
+          label: Snapshots
+        - key: backups
+          label: Off-cluster backup
+        - key: replication
+          label: Synchronous replication
+        - key: oss
+          label: OSS / no contract required
+        - key: min_nodes
+          label: Min healthy nodes
+      vendors:
+        - name: Longhorn
+          features:
+            block: "yes"
+            file: "partial"
+            object: "no"
+            snapshots: "yes"
+            backups: "yes"
+            replication: "yes"
+            oss: "yes"
+            min_nodes: "3"
+        - name: Rook-Ceph
+          features:
+            block: "yes"
+            file: "yes"
+            object: "yes"
+            snapshots: "yes"
+            backups: "yes"
+            replication: "yes"
+            oss: "yes"
+            min_nodes: "5"
+        - name: OpenEBS Mayastor
+          features:
+            block: "yes"
+            file: "no"
+            object: "no"
+            snapshots: "yes"
+            backups: "partial"
+            replication: "yes"
+            oss: "yes"
+            min_nodes: "3"
+        - name: Piraeus / LINSTOR
+          features:
+            block: "yes"
+            file: "no"
+            object: "no"
+            snapshots: "yes"
+            backups: "partial"
+            replication: "yes"
+            oss: "yes"
+            min_nodes: "2"
+        - name: Portworx
+          features:
+            block: "yes"
+            file: "yes"
+            object: "no"
+            snapshots: "yes"
+            backups: "yes"
+            replication: "yes"
+            oss: "no"
+            min_nodes: "3"
+        - name: local-path-provisioner
+          features:
+            block: "yes"
+            file: "no"
+            object: "no"
+            snapshots: "no"
+            backups: "no"
+            replication: "no"
+            oss: "yes"
+            min_nodes: "1"
+      ```
+
+      Final feature polarity check: "yes" = the option HAS that feature.
+      Adjust to match the conventions established by Paper 00's
+      `approaches.yaml` if the capability-matrix shortcode reads polarity
+      differently.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      The opening question: *if you want PVCs on bare metal that survive
+      a node loss, who keeps your bytes alive — and who pays the tax for
+      keeping them alive?* Position storage in the stack: under
+      workloads, over the kernel, sibling to CNI and CSI. Acknowledge
+      that "distributed storage" is doing several jobs at once —
+      replication, snapshots, backup, RWX — and the vendor space splits
+      on which of those jobs each option treats as the primary one.
+
+      Voice: Frank speaks as the cluster. No hedging, no "it depends"
+      — the question is real, the answers diverge.
+
+      Include one `flowchart LR` Mermaid diagram showing storage's
+      stack position and the four jobs it does:
+
+      ```
+      flowchart LR
+          W["Workloads (PVCs)"] --> C["CSI"]
+          C --> S["Distributed storage layer"]
+          S --> R["Replication"]
+          S --> SN["Snapshots"]
+          S --> B["Backup"]
+          S --> RW["RWX access"]
+          S -.-> K["Local disks (bare metal)"]
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the six vendors against two axes. Use `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:OSS↔commercial,y:centralized↔distributed" >}}
+          quadrantChart
+              title Distributed storage on bare metal — 2026
+              x-axis OSS --> Commercial
+              y-axis Centralized --> Replicated-per-volume
+              quadrant-1 "Replicated · Commercial"
+              quadrant-2 "Replicated · OSS"
+              quadrant-3 "Centralized · OSS"
+              quadrant-4 "Centralized · Commercial"
+              Longhorn: [0.25, 0.75]
+              Rook-Ceph: [0.25, 0.25]
+              OpenEBS Mayastor: [0.30, 0.80]
+              Piraeus / LINSTOR: [0.20, 0.85]
+              Portworx: [0.75, 0.70]
+              local-path-provisioner: [0.10, 0.95]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("Longhorn: friendly UI + per-volume
+      replication"; "Rook-Ceph: a real distributed filesystem you have
+      to feed five nodes to") and what it gives up to get there. Use
+      `{{< papers/pullquote source="..." url="..." >}}` for at least
+      one direct quote pulled from the dossier (probably the Weil et
+      al. Ceph paper for the centralized-storage definition).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: surviving a node loss without losing acknowledged
+      writes. Each vendor has a different answer; this section lays
+      them out side-by-side with one `flowchart TD` per vendor in a
+      shared visual language (same shapes, same edge types, same
+      colour conventions — that's what makes the comparison legible).
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = control plane components
+      - Cylinders = data on disk
+      - Hexagons = client (CSI driver, kernel module)
+      - Dashed edges = replication / failover paths
+      - Solid edges = read/write hot paths
+
+      Four-to-six architecture diagrams (one per vendor in the
+      landscape that has a meaningfully different answer). Skip
+      local-path-provisioner here — it doesn't have a "hard part",
+      which is the §6 punchline.
+
+      Example for Longhorn:
+
+      ```
+      flowchart TD
+          subgraph LH["Longhorn"]
+              M["longhorn-manager"]
+              E1[("Engine pod (vol-A)")]
+              R1[("Replica · mini-1")]
+              R2[("Replica · mini-2")]
+              R3[("Replica · mini-3")]
+          end
+          C{{"CSI driver"}}
+          C --> E1
+          E1 --> R1
+          E1 -.-> R2
+          E1 -.-> R3
+          M --> E1
+      ```
+
+      For each diagram include 80–200 words of prose: what survives
+      a node loss, what the recovery path looks like, what the
+      failure mode is when the answer is "nothing survives".
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Node count.** Ceph's CRUSH map wants ≥5 OSD hosts for a
+         healthy default crush rule. Longhorn's per-volume replicas
+         work cleanly at 3. Piraeus/LINSTOR can survive on 2.
+         local-path-provisioner is single-node by construction.
+         State the "5-node minimum for healthy Ceph" rule explicitly,
+         with a citation from the dossier.
+
+      2. **Replica count vs throughput.** Synchronous replication
+         taxes write throughput by approximately N× where N is the
+         replica count. Cite a benchmark from the dossier (NVMe
+         write IOPS at replica=1 vs replica=3) — if no benchmark is
+         in the dossier, name ≥2 primary-source citations as the
+         spec allows.
+
+      3. **NVMe latency floor.** Mayastor's NVMe-over-Fabrics design
+         aims at the latency floor; Longhorn's userspace-engine
+         design accepts a higher floor in exchange for simplicity.
+         This is the "performance-first vs operability-first"
+         philosophical split.
+
+      Cite ≥2 primary sources from the dossier (benchmark + paper).
+      Do not editorialize past what the citations support.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank chose Longhorn. Three replicas across three control-plane
+      nodes — not because the math of `replica_count = control_plane_count`
+      is durable (it isn't, mathematically), but because it was the
+      shape Frank already had. Honest about the cost.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative options:
+
+      Scar 1 — the RWO PVC + RollingUpdate deadlock:
+      ```
+      {{< papers/scar date="2025-XX-XX" >}}
+      An RWO PVC pinned to one node deadlocked a RollingUpdate: the
+      new pod could never attach the volume while the old pod still
+      held it. Switched the Helm strategy to `Recreate` — and
+      discovered that the old `rollingUpdate:` block had to be
+      manually patched out via `kubectl`, because Helm's chart
+      rendering cannot delete keys from a live resource. An
+      immutability boundary inside an otherwise declarative stack.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — the SSA / prune / ignoreDifferences trio:
+      ```
+      {{< papers/scar date="2025-XX-XX" >}}
+      ServerSideApply, prune:false, and ignoreDifferences on Secret
+      /data aren't decorations — they're the only thing that prevents
+      ArgoCD from fighting the secret store at every sync. Learn that
+      once, encode it in every Application CR forever.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — the ESO empty-data admission rejection:
+      ```
+      {{< papers/scar date="2025-XX-XX" >}}
+      An ExternalSecret with `data: []` is rejected by the admission
+      webhook. There is no "empty secret" valid state — when all keys
+      are removed, the ExternalSecret itself must be deleted.
+      ArgoCD will not infer that from a values diff; the human has
+      to know.
+      {{< /papers/scar >}}
+      ```
+
+      Pick the scars that best carry §5's argument. Real dates only
+      — pull from `agents/rules/frank-gotchas.md` cross-referenced
+      with `git log apps/longhorn/`.
+
+      Include ≥1 evidence artefact — the Longhorn UI screenshot from
+      P4.T3 referenced inline with a Markdown image link.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one leaf;
+      the others are real:
+
+      ```
+      flowchart TD
+          A["How many nodes do you have?"] -- "1" --> L1["local-path-provisioner"]
+          A -- "2–4" --> B["RWX heavy?"]
+          B -- "No" --> L2["Longhorn"]
+          B -- "Yes" --> L3["Rook-Ceph (accept the operational tax)"]
+          A -- "≥5" --> L4["Rook-Ceph (the sweet spot)"]
+          L1 -.-> P["Production SLA needed?"]
+          L2 -.-> P
+          L3 -.-> P
+          L4 -.-> P
+          P -- "Yes" --> PX["Portworx or managed cloud storage"]
+      ```
+
+      ≤4 visible leaves. The Portworx/cloud branch is a fifth-leaf
+      override on the SLA axis — keep it visually subordinate (dashed
+      edges) so the decision tree still reads as "4 leaves + one
+      production override". If the renderer struggles, fold the SLA
+      branch into prose and keep 4 hard leaves only.
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **NVMe-over-Fabrics going mainstream.** Mayastor was early;
+         the design is becoming the default expectation for new
+         distributed-storage projects. The latency floor moves.
+
+      2. **Rook's operator maturity** — Ceph is stable, the operator
+         is stable, the gap between "Ceph works" and "Ceph works in
+         K8s" is closing. The "Rook tax" is shrinking.
+
+      3. **Snapshot/backup standardization.** The CSI snapshot API
+         and Velero/Kopia layered on top are reaching the point
+         where "which backup tool" is no longer a vendor-lock-in
+         decision. Off-cluster backup is becoming portable.
+
+      Optional timeline diagram or roadmap citations. Cite the
+      dossier where possible.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/04-distributed-storage/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If over,
+      trim §3 first — that's where capability papers reliably
+      sprawl past budget.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
