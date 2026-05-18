@@ -4,7 +4,7 @@
   <div class='hx:mx-auto hx:flex hextra-max-page-width'>
     {{ partial "sidebar.html" (dict "context" .) }}
     {{ partial "toc.html" . }}
-    <article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]{{ if eq .Params.series "papers" }} paper-post{{ end }}">
+    <article class="hx:w-full hx:break-words hx:flex hx:min-h-[calc(100vh-var(--navbar-height))] hx:min-w-0 hx:justify-center hx:pb-8 hx:pr-[calc(env(safe-area-inset-right)-1.5rem)]{{ if in .Params.series "papers" }} paper-post{{ end }}">
       <main id="content" class="hx:w-full hx:min-w-0 hextra-max-content-width hx:px-6 hx:pt-4 hx:md:px-12">
         {{ partial "breadcrumb.html" (dict "page" . "enable" true) }}
         {{ $cover := .Resources.GetMatch "cover.*" }}
@@ -22,10 +22,10 @@
           {{ end }}
           {{ .Content }}
         </div>
-        {{- if eq .Params.series "papers" }}
+        {{- if in .Params.series "papers" }}
           {{- partial "papers-forwardlinks.html" . }}
           {{- partial "papers/dossier-link.html" . }}
-        {{- else if and (ne .Params.series "papers") (not (eq .Section "")) }}
+        {{- else if and (not (in .Params.series "papers")) (not (eq .Section "")) }}
           {{- partial "papers-backlink.html" . }}
         {{- end }}
         {{ partial "components/last-updated.html" . }}
