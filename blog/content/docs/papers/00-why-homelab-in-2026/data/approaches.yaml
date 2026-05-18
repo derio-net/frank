@@ -1,0 +1,33 @@
+features:
+  - key: capital_cost
+    label: Capital cost
+  - key: ops_burden
+    label: Ops burden
+  - key: failure_visibility
+    label: Failure visibility
+  - key: ai_inference
+    label: Local AI inference
+  - key: learning_depth
+    label: Learning depth
+vendors:
+  - name: Cloud-native
+    features:
+      capital_cost: "yes"
+      ops_burden: "no"
+      failure_visibility: "no"
+      ai_inference: "partial"
+      learning_depth: "no"
+  - name: Managed homelab
+    features:
+      capital_cost: "no"
+      ops_burden: "partial"
+      failure_visibility: "partial"
+      ai_inference: "yes"
+      learning_depth: "partial"
+  - name: DIY homelab
+    features:
+      capital_cost: "no"
+      ops_burden: "no"
+      failure_visibility: "yes"
+      ai_inference: "yes"
+      learning_depth: "yes"
