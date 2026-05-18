@@ -88,6 +88,45 @@ If the goal is cross-container debugging via `ps -ef`, use the shared workspace 
 
 **Diagnostics**: kubectl describe pod's `lastState.terminated.reason: OOMKilled` is the canonical signal — Kubernetes events age out within ~1h on Frank, so the pod-level field is more durable. The metrics-server may also be down in this cluster (kubectl top fails with "Metrics API not available"), so prefer cadvisor → VictoriaMetrics for memory time-series.
 
+## vk-issue-bridge 30 s MCP timeout cascades to zombie execution_processes
+
+The bridge's MCP client (`/opt/scripts/vk_mcp_client.py:76`) defaults `_recv(timeout=30.0)`. Heavy operations — notably `start_workspace`, which provisions a git worktree + imports CLAUDE.md/AGENTS.md + runs setupscript — routinely exceed 30 s under bridge load (≥4 active sibling workspaces hammering the longhorn-backed `/home/claude` PV). On timeout:
+
+1. Bridge raises `TimeoutError` and `sys.exit`s (no `try/except` around the `sync_issue()` call in `vk-issue-bridge.py:1066`).
+2. Server-side, vk-local's request-handler future is dropped, which **cancels the `Child::wait().await`** for the in-flight setupscript / codingagent / cleanupscript.
+3. The child shell process runs to completion (`|| true` ensures exit 0) but **vibe-kanban never calls `waitpid()`** because the wait future was cancelled. Child → zombie. DB row stays `status='running'` forever.
+4. UI shows the workspace stuck "active" with no output. New bridge cycles add more.
+
+**Detection signals** (any one is sufficient):
+
+- `ps -eo pid,etime,comm,args` inside vk-local shows multiple `[sh] <defunct>` children of `vibe-kanban` PID 7.
+- `python3 -c "import sqlite3; ..."` against `/home/claude/.local/share/vibe-kanban/db.v2.sqlite`:
+  `SELECT status, COUNT(*) FROM execution_processes GROUP BY status` shows multiple `running` rows whose `created_at` is >5 min ago and `completed_at IS NULL`.
+- Bridge log on supercronic in the kali container: traceback at `vk_mcp_client.py:81 TimeoutError: No response from MCP server within 30.0s`, then `[bridge] starting — dry_run=False` on next cycle (proves the crash-restart loop).
+
+**Recovery** (canonical, non-destructive — used on 2026-05-18):
+
+```bash
+POD=$(kubectl get pod -n secure-agent-pod -o jsonpath='{.items[0].metadata.name}')
+kubectl exec -n secure-agent-pod $POD -c vk-local -- kill -TERM 1
+# tini propagates SIGTERM → vibe-kanban shuts down → k8s restarts vk-local only.
+# At startup, vk-local logs `Found orphaned execution process X / Marked X as failed` for every stuck row.
+# Worktrees on the PVC survive — check /var/tmp/vibe-kanban/worktrees/ before re-running cards whose coding agent had already completed (some `running` rows are the trailing cleanupscript only).
+```
+
+**Important — check whether the codingagent actually finished before retrying**: not all `failed` cards need to be re-run. Some have a `completed` codingagent and only a stuck cleanupscript. Inspect the worktree diff first:
+
+```bash
+ls -la /var/tmp/vibe-kanban/worktrees/<hash>-<name>/frank/
+cd /var/tmp/vibe-kanban/worktrees/<hash>-<name>/frank && git status && git log --oneline -5
+```
+
+**Durable fix** lives upstream of frank — in the bridge code being migrated from `derio-net/agent-images` to `derio-net/superpowers-for-vk` (mid-migration as of 2026-05-18). Two changes are needed there:
+1. Bump `vk_mcp_client.py` `_recv` default timeout from `30.0` to `180.0`.
+2. Wrap `sync_issue()` invocation in `vk-issue-bridge.py:main()` with `try/except TimeoutError: continue` so a single slow call doesn't kill the whole cycle.
+
+There's also an upstream `vibe-kanban` server-side bug — the request-handler future should not own the `Child::wait()` lifetime; child processes should be tracked in a global registry with a background reaper. That's a forked-fork change in `derio-net/vibe-kanban`, lower priority once the timeout is bumped.
+
 ## sshd scrubs container env on SSH login — env-dependent commands silently no-op
 
 sshd runs with the OpenSSH default `PermitUserEnvironment no` posture and does not preserve the K8s `envFrom` env injected at PID 1, so anything launched via `ssh agent@<host> -- some-command` runs with the bare login env — `FRANK_C2_TELEGRAM_BOT_TOKEN`, `FRANK_C2_TELEGRAM_CHAT_ID`, `INFISICAL_*`, etc. are absent from the SSH session.

@@ -81,6 +81,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - Sidecars with `runAsUser` overriding the image default need explicit `HOME` env — the binary resolves HOME from `/etc/passwd` of the image-baked user.
 - Supercronic auto-reloads on `~/.crontab` change — no restart needed.
 - vk-local `limits.memory: 4Gi` is too tight in practice — `VK_MAX_CONCURRENT_EXECUTIONS=4` does NOT bound the cgroup once the bridge feeds 8+ cards (queued sessions retain memory; new images drift baseline). Keep at 8 Gi until the bridge slot count is bound below the executor cap AND a soak under busy load proves the floor.
+- vk-issue-bridge's 30 s MCP timeout cascades to zombie execution_processes: bridge crash on timeout → vk-local request handler future drops → `Child::wait()` cancelled → setup/cleanup shell scripts exit but never reaped → DB rows stuck `status='running'` forever, UI shows workspaces stuck active with no output. Recovery: `kubectl exec -c vk-local -- kill -TERM 1` triggers vk-local-only restart whose startup orphan-cleanup marks the rows failed. Durable fix lives in the bridge code being migrated to `superpowers-for-vk`.
 
 ### Paperclip / Ruflo — `docs/runbooks/frank-gotchas/paperclip-ruflo.md`
 - Paperclip's "Test environment" runs in the `paperclip` app container, NOT the `paperclip-shell` sidecar — agent-CLIs installed via the shell PVC are invisible. Wire through the shared `/paperclip` PVC: `npm install --prefix /paperclip/agent-bin <pkg>` from the shell, PATH-suffix on the paperclip container.
