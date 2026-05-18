@@ -130,22 +130,26 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T09:30:25+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T09:30:25+00:00'
       note: null
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T09:30:25+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-18T09:30:25+00:00'
+      note: 'Verified via ''hugo --buildDrafts'' + curl on built HTML; /docs/building/10-local-inference
+        renders 0 cross-links (expected); /docs/building/01-introduction renders the
+        Paper 00 backlink chip. Dev server is blocked by a pre-existing Hextra opengraph
+        bug (''series: papers'' string vs. list expected) in Paper 00''s frontmatter
+        — out of Phase 4 scope.'
   completion:
-    at: null
+    at: '2026-05-18T09:30:29+00:00'
     note: null
     observed_prs: []
