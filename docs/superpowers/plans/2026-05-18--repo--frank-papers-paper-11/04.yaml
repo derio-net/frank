@@ -1,0 +1,136 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 11 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add an entry under the `# --- Papers Series Covers ---`
+      section (which already exists from Paper 00):
+
+      ```yaml
+        - key: paper-11-cover
+          output: blog/content/docs/papers/11-identity-heterogeneous-stack/cover.png
+          description: Paper 11 cover — Frank examining a wall of glowing identity badges, weighing expression
+          prompt: >-
+            Frank the server-hardware Frankenstein monster stands before a
+            wall covered in glowing passport-style identity badges, each one
+            with a different photograph and a different colored border. He
+            holds one badge in his right hand at eye level, weighing it
+            against the wall. His expression is skeptical / weighing — the
+            same expression he wore on the cover of Paper 00, but here aimed
+            at the badges. He wears thin round reading glasses resting low
+            on his nose and a thin black necktie. RJ45 neck bolts, green
+            skin, messy black hair, rack-mount torso. Warm overhead lamp.
+            Dark background. No text in the image.
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-11-cover
+      ```
+
+      Expected: `blog/content/docs/papers/11-identity-heterogeneous-stack/cover.png`
+      created, ≥50KB.
+
+      ```bash
+      ls -lh blog/content/docs/papers/11-identity-heterogeneous-stack/cover.png
+      ```
+
+      Spot-check: Frank should have thin round reading glasses,
+      thin black tie, weighing/skeptical expression, wall of
+      badges visible behind him. Up to 3 regeneration attempts if
+      the visual signature is missing.
+- number: 2
+  title: Validate Mermaid diagrams and screenshots
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:` placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/11-identity-heterogeneous-stack/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft
+      work (except possibly the TL;DR, which is written last in
+      P5.T1.S2). If diagram TODOs remain, fill them now.
+  - id: P4.T2.S2
+    text: |-
+      Capture Authentik admin-UI screenshot for §5
+
+
+      From a machine with cluster access:
+      1. Browse to `https://authentik.cluster.derio.net/if/admin/`
+      2. Applications → screenshot the list (showing the
+         forward-auth applications)
+      3. Save as `blog/content/docs/papers/11-identity-heterogeneous-stack/authentik-applications.png`
+      4. Inline in §5 with a Markdown image reference:
+         `![Authentik applications list](authentik-applications.png)`
+
+      Verify the screenshot does not contain any
+      customer/tenant-identifying data (third-party-privacy rule).
+      Crop or redact if necessary.
+  - id: P4.T2.S3
+    text: |-
+      Verify Mermaid diagrams parse and the page builds
+
+
+      ```bash
+      cd blog && hugo --minify 2>&1 | grep -E "^ERROR" | head -10
+      ```
+
+      Expected: zero `ERROR` lines. Mermaid client-side rendering
+      errors only surface in a real browser — also run the dev
+      server and open the page if possible:
+
+      ```bash
+      cd blog && hugo server --buildDrafts --port 1313 &
+      sleep 3
+      curl -s http://localhost:1313/docs/papers/11-identity-heterogeneous-stack/ \
+        | grep -i "mermaid\|error" | head -10
+      kill %1
+      ```
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

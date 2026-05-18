@@ -1,0 +1,166 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Review + publish
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Voice pass and TL;DR
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      **Human gate: author voice pass**
+
+
+      Read the full draft aloud (or equivalent). Check:
+      - Frank speaks as the cluster — first-person plural ("we
+        learned") or third-person cluster ("Frank tried X, and X
+        failed") are both fine; distant academic voice is not.
+      - All three §5 scar callouts use real dates from commit
+        history. No placeholder dates remain.
+      - The §4 counter-argument
+        ("just-use-OAuth-via-GitHub") is addressed in §1 or §7,
+        not hand-waved.
+      - The §6 decision tree has exactly four leaves and one
+        paragraph per leaf — no §3 sprawl into §6.
+      - The Authentik admin-UI screenshot in §5 does not leak
+        any identifying data.
+  - id: P5.T1.S2
+    text: |-
+      Write the TL;DR (≤150 words)
+
+
+      Three short paragraphs:
+      1. The capability question (10 web UIs, 3 CLIs, a gRPC
+         backend — what goes in front?) and the seven-vendor
+         landscape (one sentence).
+      2. Frank's answer (Authentik + embedded outpost) and the
+         three operational scars in one phrase each.
+      3. When Frank's answer doesn't generalize (one sentence
+         pointing at the §6 decision tree).
+
+      Count words:
+      ```bash
+      awk '/^tldr:/,/^[a-z]/' \
+        blog/content/docs/papers/11-identity-heterogeneous-stack/index.md \
+        | grep -v "^tldr:\|^[a-z]" | wc -w
+      ```
+
+      Expected: ≤150 words. Update the `tldr:` field in the
+      frontmatter.
+- number: 2
+  title: Final checks and publish
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Run dossier gate one final time
+
+
+      ```bash
+      python scripts/validate-dossier.py \
+        docs/papers-dossiers/11-identity-heterogeneous-stack/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED`.
+  - id: P5.T2.S2
+    text: |-
+      Run full Hugo build and assert zero errors
+
+
+      ```bash
+      cd blog && hugo --buildDrafts 2>&1 | grep -E "^ERROR" | head -5
+      ```
+
+      Expected: no output (zero errors).
+  - id: P5.T2.S3
+    text: |-
+      Verify dossier-link injection (no double-render)
+
+
+      Per `agents/rules/repo-papers.md`: `papers-forwardlinks.html`
+      and the footer dossier chip are automatically injected by
+      `single.html`. Do NOT also use `{{< papers/dossier-link >}}`
+      inline.
+
+      ```bash
+      grep -n "papers/dossier-link" \
+        blog/content/docs/papers/11-identity-heterogeneous-stack/index.md
+      ```
+
+      Expected: no matches. If the shortcode appears inline, the
+      chip will render twice — delete the inline call.
+  - id: P5.T2.S4
+    text: |-
+      Set `draft: false` and `status: published`, run production build
+
+
+      In `blog/content/docs/papers/11-identity-heterogeneous-stack/index.md`:
+      - Change `draft: true` → `draft: false`
+      - Change `status: drafting` → `status: published`
+
+      Verify the paper appears in the production build:
+
+      ```bash
+      cd blog && hugo --quiet 2>&1 | tail -3
+      ls public/docs/papers/11-identity-heterogeneous-stack/index.html
+      ```
+
+      Expected: `public/docs/papers/11-identity-heterogeneous-stack/index.html`
+      exists.
+  - id: P5.T2.S5
+    text: |-
+      Commit and push Paper 11
+
+
+      ```bash
+      git add \
+        blog/content/docs/papers/11-identity-heterogeneous-stack/ \
+        docs/papers-dossiers/11-identity-heterogeneous-stack/ \
+        blog/prompt_for_images.yaml
+
+      git commit -m "docs(repo): publish Paper 11 — Identity for a Heterogeneous Stack"
+
+      git push
+      ```
+
+      The pre-commit hook will run `validate-dossier.py`
+      automatically on the staged `index.md`. If it fails, the
+      dossier is not in the expected state — re-run the gate and
+      fix before retrying the commit.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

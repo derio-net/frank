@@ -1,0 +1,207 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 11 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 11 identity-heterogeneous-stack
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 11:
+        Hugo bundle:  blog/content/docs/papers/11-identity-heterogeneous-stack/
+        Dossier:      docs/papers-dossiers/11-identity-heterogeneous-stack/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/11-identity-heterogeneous-stack/index.md
+      ls docs/papers-dossiers/11-identity-heterogeneous-stack/dossier.md
+      ```
+- number: 2
+  title: Research the identity / forward-auth landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/11-identity-heterogeneous-stack/dossier.md` — vendors in scope
+
+
+      Paper 11 maps seven vendors. The seventh (Pomerium) occupies a
+      different stack position (identity-aware reverse proxy rather
+      than pure IdP) and exists in the landscape to anchor the §6
+      decision tree's "you're already on a service mesh" branch.
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Authentik
+        positioning: "Opinionated open-source IdP with embedded forward-auth outpost — Frank's choice."
+        primary_url: "https://goauthentik.io/"
+      - name: Keycloak
+        positioning: "Red Hat / CNCF-incubating enterprise IdP — the heavy-enterprise default."
+        primary_url: "https://www.keycloak.org/"
+      - name: Dex
+        positioning: "CoreOS-origin OIDC IdP that federates upstream providers — used by ArgoCD and others."
+        primary_url: "https://dexidp.io/"
+      - name: Zitadel
+        positioning: "Newer cloud-native IdP with a Rust core and multi-tenancy by design."
+        primary_url: "https://zitadel.com/"
+      - name: Authelia
+        positioning: "Lightweight forward-auth-only authentication portal — popular in the homelab world."
+        primary_url: "https://www.authelia.com/"
+      - name: Ory Hydra + Kratos
+        positioning: "Composable identity primitives — library-first, you assemble the IdP."
+        primary_url: "https://www.ory.sh/"
+      - name: Pomerium
+        positioning: "Identity-aware reverse proxy — different stack position; SSO and proxy in one."
+        primary_url: "https://www.pomerium.com/"
+      ```
+
+      The final list of vendors that make it into the dossier may
+      shrink (a credible dossier needs ≥3, typically 4–6). Drop
+      vendors that lack a primary source the dossier can quote.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: the IAP / zero-trust origin paper, vendor
+      documentation for the architectural-choice claims, a
+      practitioner talk at homelab/SMB scale, and at least one
+      postmortem / case study of an IdP failure mode that affected
+      a service-mesh-style fan-out.
+
+      Suggested starting points (verify URLs reachable before recording):
+
+      1. **BeyondCorp: A New Approach to Enterprise Security** —
+         Ward & Beyer, 2014 (type: `paper`) — the IAP /
+         zero-trust origin paper. usenix.org or research.google.
+      2. **Authentik docs on the forward-auth pattern and embedded
+         outpost** (type: `vendor-docs`) —
+         `https://docs.goauthentik.io/docs/providers/proxy/forward_auth`
+         and the embedded-outpost docs at
+         `https://docs.goauthentik.io/docs/outposts/embedded`.
+      3. **Keycloak federated identity** (type: `vendor-docs`) —
+         `https://www.keycloak.org/docs/latest/server_admin/#_identity_broker`.
+      4. **A named practitioner talk / blog on self-hosted SSO at
+         homelab/SMB scale** (type: `talk`) — Techno Tim,
+         Wolfgang's Channel, Christian Lempa, or equivalent.
+         One specific talk URL, not a channel root.
+      5. **A postmortem or case study on an Authentik or Keycloak
+         outage that affected an ingress-protected fan-out**
+         (type: `postmortem`) — search GitHub issues, Reddit
+         r/selfhosted, or vendor status pages for a dated incident.
+
+      For each source: fill `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote), and `relevance` (one
+      sentence). Verify all URLs return HTTP 200 before recording.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull from the actual cluster repo. Required artefacts:
+
+      1. **`kind: yaml`** — `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml`
+         (the per-service forward-auth proxy providers).
+         `demonstrates: "Every forward-auth-protected service requires a ProxyProvider blueprint entry; this is the declarative half of the workflow."`
+      2. **`kind: yaml`** — `apps/authentik/values.yaml`
+         showing `blueprints.configMaps` registration and
+         `global.env` setting `AUTHENTIK_HOST`.
+         `demonstrates: "global.env applies to both server and worker pods — the chart structure is the doc."`
+      3. **`kind: incident`** — the manual Django ORM
+         outpost-assignment step documented in
+         `agents/rules/frank-argocd.md` under "Homepage Dashboard
+         → step 3c".
+         `demonstrates: "Authentik blueprints cannot manage outpost provider lists — every new forward-auth service costs a manual kubectl exec running Django ORM."`
+      4. **`kind: grafana-screenshot`** — Authentik admin-UI
+         screenshot showing the applications + proxy providers
+         list. Capture from `https://authentik.cluster.derio.net`
+         (Applications and Providers tabs).
+      5. **`kind: incident`** — the Grafana OIDC env-var-name
+         gotcha (`GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` is the
+         only key name `envFromSecret` accepts) documented in
+         `docs/runbooks/frank-gotchas/grafana.md`.
+      6. **`kind: commit`** or **`kind: incident`** — the 2026.x
+         Authentik schema migration that added `invalidation_flow`,
+         object-shaped `redirect_uris`, and `signing_key` UUID.
+         Use the commit SHA that retrofitted the blueprints.
+
+      For each artefact: fill `path_or_url`, `date`, `demonstrates`.
+
+      Capturing the admin-UI screenshot:
+      ```bash
+      # Browse to https://authentik.cluster.derio.net/if/admin/
+      # → Applications → screenshot the list
+      # → Providers → screenshot the proxy providers list
+      # Commit to docs/papers-dossiers/11-identity-heterogeneous-stack/
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No widely-cited side-by-side outage analysis comparing
+        forward-auth and identity-aware-proxy failure modes:
+        specifically, what fails when the IdP is *down* vs *slow*
+        vs *misconfigured*. The available postmortems are
+        single-vendor and rarely separate the three modes — yet
+        the operational consequences differ sharply (forward-auth
+        with a down outpost 502s every request; an OIDC-only IdP
+        outage lets existing sessions ride but blocks token
+        refresh)."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "OAuth-via-GitHub / Google is already federated, free for
+        personal use, and has 99.9%+ uptime. Why self-host an IdP
+        at all? Answer: Frank wants the failure modes (you can't
+        run an IdP outage drill against Google), the
+        multi-tenancy story (vCluster-per-tenant identity
+        isolation is impossible against a third-party IdP), and
+        the offline-survival property (the cluster keeps
+        functioning when the upstream IdP doesn't, or when the
+        upstream IdP decides your account is now spam)."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
