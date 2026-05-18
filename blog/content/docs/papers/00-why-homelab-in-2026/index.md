@@ -1,13 +1,13 @@
 ---
 title: "Why Run Your Own Cluster in 2026?"
 date: 2026-05-18
-draft: true
+draft: false
 weight: 0
 series: papers
 layer: repo
 paper_number: 0
 publish_order: 1
-status: drafting
+status: published
 tldr: |
   Three live answers to "who should own this machine in 2026?": full cloud
   (GKE/EKS), managed homelab-as-code (Talos + Omni), and DIY homelab

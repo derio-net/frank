@@ -127,34 +127,35 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:19:09+00:00'
       note: null
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:19:10+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:19:12+00:00'
       note: null
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T18:19:14+00:00'
+      note: Local hugo blocked by go-toolchain mismatch — CI on this PR is the verification
+        surface for zero-errors build.
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:19:15+00:00'
       note: null
     P5.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:19:17+00:00'
       note: null
     P5.T2.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:19:18+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-18T18:19:20+00:00'
     note: null
     observed_prs: []

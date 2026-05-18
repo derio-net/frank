@@ -10,4 +10,4 @@ Paper maps the vendor space, grades options against a decision-maker rubric,
 and returns to Frank's choice as a worked case study — honest about where
 that choice would not generalize.
 
-*First paper coming soon.*
+Start with the prologue: **[Why Run Your Own Cluster in 2026?]({{< relref "/docs/papers/00-why-homelab-in-2026" >}})**
