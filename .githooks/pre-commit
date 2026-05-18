@@ -17,3 +17,23 @@ if [ -n "$PLAN_FILES" ]; then
   # shellcheck disable=SC2086
   "$REPO_ROOT/scripts/validate-plans.sh" $PLAN_FILES
 fi
+
+# Dossier gate: any staged Papers index.md requires a passing dossier.
+PAPER_FILES=$(git diff --cached --name-only --diff-filter=ACM \
+  | grep -E '^blog/content/docs/papers/[0-9]+-[^/]+/index\.md$' || true)
+
+if [ -n "$PAPER_FILES" ]; then
+  for PAPER_INDEX in $PAPER_FILES; do
+    # Derive dossier path from paper bundle path
+    # blog/content/docs/papers/NN-slug/index.md -> docs/papers-dossiers/NN-slug/dossier.md
+    PAPER_DIR=$(echo "$PAPER_INDEX" | sed 's|blog/content/docs/papers/||; s|/index\.md||')
+    DOSSIER_PATH="docs/papers-dossiers/${PAPER_DIR}/dossier.md"
+    if [ ! -f "$DOSSIER_PATH" ]; then
+      echo "DOSSIER GATE: no dossier found for staged paper '${PAPER_DIR}'" >&2
+      echo "  Expected: ${DOSSIER_PATH}" >&2
+      echo "  Run: scripts/scaffold-paper.sh <NN> <slug> to create it" >&2
+      exit 1
+    fi
+    "$REPO_ROOT/scripts/validate-dossier.py" "$DOSSIER_PATH"
+  done
+fi
