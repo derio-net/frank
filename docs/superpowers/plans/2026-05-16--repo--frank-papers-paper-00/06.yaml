@@ -92,34 +92,38 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T20:15:06+00:00'
+      note: 'External-verification curl deferred to post-merge: this PR is the publish
+        merge itself; the deploy pipeline runs only on push to main.'
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T20:15:08+00:00'
       note: null
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T20:15:10+00:00'
+      note: Skip per plan text — Paper 00 IS the publication; phase-0 plan covered
+        the infrastructure building post.
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T20:15:11+00:00'
+      note: Skip per plan text — Papers have no operational commands beyond agents/skills/papers/SKILL.md.
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-18T20:15:13+00:00'
+      note: README Technology Stack already lists Frank Papers from phase-0; no Paper
+        00-specific row needed — README is a stack snapshot, not a publish log.
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T20:15:15+00:00'
+      note: No manual-operation blocks in this plan — confirmed by grep.
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T20:15:16+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-18T20:15:18+00:00'
+    note: Post-deploy checklist complete; Paper 00 published; plan status flipped
+      to Complete in _prose.md.
     observed_prs: []

@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 00: Prologue
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Not Started
+**Status:** Complete (2026-05-18) — Paper 00 published; series Phase 1 (capability papers) is now open.
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete — scripts,
 shortcodes, dossier gate, and `agents/skills/papers/SKILL.md` must be in place.
