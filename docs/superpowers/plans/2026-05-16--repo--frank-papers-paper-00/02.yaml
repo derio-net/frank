@@ -63,18 +63,20 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T19:13:12+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-18T19:13:19+00:00'
+      note: Operator review surfaced inline in vk-execute turn; gap on TCO-at-homelab-scale
+        accepted as honest; counter-argument frames Frank as learning platform, not
+        production alternative
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T19:13:24+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-18T19:13:33+00:00'
     note: null
     observed_prs: []
