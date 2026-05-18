@@ -41,7 +41,7 @@ The Hugo bundle lands with:
 - Frontmatter pre-populated (`title:`, `paper_number: 4`, `series: papers`, `status: draft`, empty `tldr`, empty `tags`, empty `capabilities`, empty `references`).
 - §1 Stack position, §2 Vendor landscape, §3 Architecture comparison, §4 Operational evidence, §5 Decision rubric, §6 Return to Frank's choice — each with a placeholder paragraph.
 - Mermaid diagram placeholders in the sections that need them (§1 `flowchart LR`, §2 the `landscape` shortcode, §3 per-vendor `flowchart TD`, §6 the decision tree).
-- A `{{< papers/dossier-link >}}` placeholder — **commented out by default**, because `single.html` injects one automatically (see *Don't render the dossier chip twice* below).
+- A `{{</* papers/dossier-link */>}}` placeholder — **commented out by default**, because `single.html` injects one automatically (see *Don't render the dossier chip twice* below).
 
 The dossier lands with the six required section headers and stub entries:
 
@@ -154,12 +154,12 @@ The diagram types by section live in `agents/rules/repo-papers.md`. Use the righ
 
 ## Don't Render the Dossier Chip Twice
 
-`single.html` automatically injects a footer chip pointing to the paper's dossier on every Papers page. **If you also use `{{< papers/dossier-link >}}` inline in the body, the chip renders twice.**
+`single.html` automatically injects a footer chip pointing to the paper's dossier on every Papers page. **If you also use `{{</* papers/dossier-link */>}}` inline in the body, the chip renders twice.**
 
 Two patterns, pick one:
 
 - **Default (recommended):** rely on the auto-injected footer chip. Leave the inline shortcode commented out in `index.md`.
-- **Inline:** use `{{< papers/dossier-link >}}` near §1 to make the dossier discoverable above the fold. If you do this, **remove the auto-injection** for this paper by setting `dossier_link_auto: false` in frontmatter (it overrides the default `single.html` behaviour for this page only).
+- **Inline:** use `{{</* papers/dossier-link */>}}` near §1 to make the dossier discoverable above the fold. If you do this, **remove the auto-injection** for this paper by setting `dossier_link_auto: false` in frontmatter (it overrides the default `single.html` behaviour for this page only).
 
 This is captured in `agents/rules/repo-papers.md` and is the most common authoring footgun.
 
@@ -250,7 +250,7 @@ cd blog && hugo --buildDrafts 2>&1 | tee /tmp/hugo-build.log | tail -10
 grep -cE "^ERROR" /tmp/hugo-build.log
 ```
 
-Expected: zero errors. The most common Phase 0 break was a malformed shortcode call — `{{< papers/landscape title="…" axes="…" >}}` with mismatched quotes inside the `vendors` argument. Fix the quote escaping; rerun.
+Expected: zero errors. The most common Phase 0 break was a malformed shortcode call — `{{</* papers/landscape title="…" axes="…" */>}}` with mismatched quotes inside the `vendors` argument. Fix the quote escaping; rerun.
 
 ## Publishing
 
