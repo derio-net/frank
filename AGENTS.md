@@ -38,6 +38,7 @@ Agent-neutral rules live in `agents/rules/`:
 - `repo-architecture.md`
 - `repo-blog.md`
 - `repo-manual-ops.md`
+- `repo-papers.md`
 - `repo-principles.md`
 - `repo-workflows.md`
 - `third-party-privacy.md`
@@ -50,6 +51,7 @@ read that skill's `SKILL.md` before acting.
 - `blog-post`: `agents/skills/blog-post/SKILL.md`
 - `deploy-app`: `agents/skills/deploy-app/SKILL.md`
 - `media`: `agents/skills/media/SKILL.md`
+- `papers`: `agents/skills/papers/SKILL.md`
 - `sync-runbook`: `agents/skills/sync-runbook/SKILL.md`
 - `update-readme`: `agents/skills/update-readme/SKILL.md`
 
