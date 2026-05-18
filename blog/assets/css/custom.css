@@ -122,3 +122,91 @@
   line-height: 1.5 !important;
   -webkit-line-clamp: unset !important;
 }
+
+/* === The Frank Papers — scoped under .paper-post === */
+
+.paper-post .paper-tldr {
+  background: var(--tw-prose-pre-bg, #1e1e1e);
+  border-left: 4px solid #1f6feb;
+  border-radius: 0.375rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.paper-post .paper-pullquote {
+  border-left: 3px solid #30a46c;
+  padding: 0.75rem 1.25rem;
+  margin: 1.5rem 0;
+  font-style: italic;
+  color: var(--tw-prose-body);
+}
+
+.paper-post .paper-pullquote cite {
+  display: block;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  font-style: normal;
+  opacity: 0.7;
+}
+
+.paper-post .paper-scar {
+  background: rgba(255, 190, 0, 0.08);
+  border: 1px solid rgba(255, 190, 0, 0.3);
+  border-radius: 0.375rem;
+  padding: 0.75rem 1rem;
+  margin: 1.25rem 0;
+  font-size: 0.9rem;
+}
+
+.paper-post .paper-scar-date {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  margin-bottom: 0.25rem;
+  font-family: ui-monospace, monospace;
+}
+
+.paper-post .paper-capability-matrix table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.paper-post .paper-capability-matrix th,
+.paper-post .paper-capability-matrix td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--tw-prose-td-borders, rgba(128,128,128,0.2));
+  text-align: center;
+}
+
+.paper-post .paper-capability-matrix th:first-child,
+.paper-post .paper-capability-matrix td:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.paper-post .paper-dossier-link {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--tw-prose-hr, rgba(128,128,128,0.2));
+  font-size: 0.85rem;
+  opacity: 0.8;
+}
+
+.paper-post .paper-cross-links {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.paper-post .paper-cross-links a {
+  color: #1f6feb;
+  text-decoration: none;
+}
+
+.paper-post .paper-cross-links a:hover {
+  text-decoration: underline;
+}
