@@ -1,0 +1,178 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Post-Deploy Checklist
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Verify the published Paper is live
+
+
+      Paper 11 publishes on the existing public blog at
+      `blog.derio.net/frank`. No new infrastructure needed.
+      Verify after CI deploys:
+
+      ```bash
+      curl -s https://blog.derio.net/frank/docs/papers/11-identity-heterogeneous-stack/ \
+        | grep -i "identity for a heterogeneous stack"
+      # Expected: page content with the Paper title
+      ```
+
+      Also verify the cover image loads:
+      ```bash
+      curl -sI https://blog.derio.net/frank/docs/papers/11-identity-heterogeneous-stack/cover.png \
+        | head -1
+      # Expected: HTTP/2 200
+      ```
+  - id: P6.T1.S2
+    text: |-
+      Verify cross-link chips render automatically on Building / Operating posts
+
+
+      The spec design is **zero-retrofit**: `papers-backlink.html`
+      queries Paper frontmatter at Hugo build time. Verify the
+      chips appeared on the related Building / Operating posts
+      without any manual edit:
+
+      ```bash
+      # Building 13 — Unified Auth
+      curl -s https://blog.derio.net/frank/docs/building/13-unified-auth/ \
+        | grep -i "paper 11\|identity for a heterogeneous"
+      # Expected: chip referencing Paper 11
+
+      # Operating 08 — Auth
+      curl -s https://blog.derio.net/frank/docs/operating/08-auth/ \
+        | grep -i "paper 11\|identity for a heterogeneous"
+      # Expected: chip referencing Paper 11
+      ```
+
+      If the chips are missing, the `related_building` /
+      `related_operating` frontmatter paths are wrong — they must
+      be relative to `blog/content/` (e.g.,
+      `docs/building/13-unified-auth`, not
+      `blog/content/docs/building/13-unified-auth`).
+  - id: P6.T1.S3
+    text: |-
+      Update the Papers section `_index.md` if needed
+
+
+      In `blog/content/docs/papers/_index.md`, the section
+      landing page is auto-populated from page bundles. No edit
+      needed unless the intro copy is stale. Skim it:
+
+      ```bash
+      cat blog/content/docs/papers/_index.md
+      ```
+
+      If the copy still says "Start with the prologue" only,
+      consider adding a line pointing at the newest paper. Optional.
+  - id: P6.T1.S4
+    text: |-
+      Write building blog post (skip — Paper 11 augments existing post)
+
+
+      Paper 11's related Building post (`docs/building/13-unified-auth`)
+      already exists. Papers in this series are decision-level
+      commentary on existing Building/Operating posts, not new
+      implementation narratives.
+
+      *Skip* per `agents/rules/plan-post-deploy-checklist.md`
+      (papers are not workloads).
+  - id: P6.T1.S5
+    text: |-
+      Write operating blog post (skip — Paper 11 augments existing post)
+
+
+      Operating 08 (`docs/operating/08-auth`) already exists with
+      the day-to-day auth commands. Paper 11 is the
+      decision-level companion, not a new operating guide.
+
+      *Skip.*
+  - id: P6.T1.S6
+    text: |-
+      Update README if relevant
+
+
+      Run `/update-readme` only if the README's "Blog Content"
+      section calls out individual published Papers (it generally
+      doesn't — it lists series, not papers). For most published
+      Papers this is a no-op.
+
+      ```bash
+      grep -i "paper 11\|paper 00\|frank papers" README.md | head -5
+      ```
+
+      If README lists Papers by number, add Paper 11. Otherwise
+      skip.
+  - id: P6.T1.S7
+    text: |-
+      Sync runbook (skip — no manual-operation blocks)
+
+
+      ```bash
+      grep -n "manual-operation" \
+        docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-11/*.yaml
+      ```
+
+      Expected: no matches. Skip `/sync-runbook`.
+  - id: P6.T1.S8
+    text: |-
+      Update plan status to Complete
+
+
+      Edit `docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-11/_prose.md`:
+
+      ```markdown
+      **Status:** Complete (YYYY-MM-DD) — Paper 11 published.
+      ```
+
+      Update the spec's Implementation Plans table if needed:
+
+      ```bash
+      vk plan spec-index docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-11 --yes
+      ```
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

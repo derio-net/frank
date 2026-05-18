@@ -1,0 +1,89 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Gate validation
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Run validate-dossier.py and resolve failures
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Run the dossier gate validator
+
+
+      ```bash
+      python scripts/validate-dossier.py \
+        docs/papers-dossiers/11-identity-heterogeneous-stack/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED: ...`
+
+      If it fails, fix the reported issues:
+      - `vendors_in_scope: need ≥3` → add more vendors from the
+        seven-vendor shortlist in P1.T2.S1
+      - `primary_sources: need ≥5` → add more sources
+      - `primary_sources: need ≥3 distinct type values` → ensure
+        you have `paper` + `vendor-docs` + (`talk` or `postmortem`)
+      - `URL not reachable` → find an alternative URL or use a
+        web archive link
+      - `frank_artefacts: need ≥3` → add more from the P1.T2.S3
+        shortlist
+      - `frank_artefacts: need ≥2 distinct kind values` → ensure
+        you have at least `yaml` + (`incident` or
+        `grafana-screenshot` or `commit`)
+      - `named_gaps: need ≥1` → keep the failure-mode gap from
+        P1.T2.S4
+      - `counter-arguments_considered: need ≥1` → keep the
+        "why-not-just-OAuth-via-GitHub" counter from P1.T2.S4
+
+      Re-run until exit 0.
+  - id: P2.T1.S2
+    text: |-
+      **Human gate: author reviews named gaps and counter-arguments**
+
+
+      The author reads:
+      1. `## Named gaps` — does the failure-mode gap point at a
+         real hole in the literature (no clean down-vs-slow-vs-
+         misconfigured separation) rather than a vague disclaimer?
+      2. `## Counter-arguments considered` — is the
+         "just-use-OAuth-via-GitHub" counter addressed with the
+         right framing (failure-mode drills, multi-tenancy,
+         offline-survival) rather than hand-waved?
+
+      When satisfied, update dossier status:
+      ```yaml
+      # In docs/papers-dossiers/11-identity-heterogeneous-stack/dossier.md frontmatter:
+      status: ready
+      ```
+  - id: P2.T1.S3
+    text: |-
+      Commit the validated dossier
+
+
+      ```bash
+      git add docs/papers-dossiers/11-identity-heterogeneous-stack/dossier.md
+      git commit -m "docs(repo): Paper 11 research dossier — identity for a heterogeneous stack"
+      ```
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
