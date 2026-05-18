@@ -169,6 +169,49 @@ images:
       - resize: {target: "blog/static/apple-touch-icon.png", size: 180}
       - ico: {target: "blog/static/favicon.ico", size: 32}
 
+  - key: banner-papers
+    output: blog/static/images/banner-papers.png
+    description: Papers-card cover on landing page — Frank at whiteboard drawing a decision tree (1200x630)
+    prompt: >-
+      A wide cinematic banner (1200×630 pixels). Frank the server-hardware
+      Frankenstein monster stands at a wall-sized whiteboard, drawing a
+      decision tree that branches and forks all the way to the edges of
+      the wall. He wears his utility belt of ethernet cables, his RJ45 neck
+      bolts, and — new for this scene — a crisp WHITE BUTTON-DOWN DRESS
+      SHIRT (clearly white, not green; the shirt fabric must contrast
+      visibly with his green skin), thin round reading glasses resting low
+      on his nose, and a thin black necktie. The floor around him is
+      scattered with loose server parts that are being *considered*, not
+      assembled: open spec sheets, sticky notes with architecture diagrams,
+      a quadrant chart drawn in chalk. A warm single overhead work-lamp
+      illuminates the whiteboard from above. Frank's expression is focused
+      and curious, marker in hand mid-stroke. Background: dark room, faint
+      blue PCB traces on the walls. The mood is thinking and weighing, not
+      triumphant. EXACTLY ONE FIGURE — one single Frank, no duplicates,
+      no mirrored copies. ABSOLUTELY NO TEXT in the image.
+
+  - key: banner-papers-thin
+    output: blog/static/images/banner-papers-thin.png
+    description: Papers section-page hero — Frank at desk annotating schematics (wide thin strip)
+    prompt: >-
+      An ultra-wide horizontal strip banner — 1200 pixels wide by 200 pixels
+      tall (6:1 aspect ratio). EXACTLY ONE FIGURE in the image. ONE single
+      Frank the server-hardware Frankenstein monster — green skin, messy
+      black hair, RJ45 neck bolts — sits at a wide desk on the LEFT THIRD
+      of the image, viewed in profile (facing right toward the schematics).
+      About 60% the strip height. He wears thin round reading glasses
+      resting low on his nose, and a thin black necktie, and a white lab
+      coat. He is annotating a diagram with a marker. The RIGHT TWO-THIRDS
+      of the image is the rest of the workspace: open books, a warm desk
+      lamp, large architectural schematics laid flat and pinned to a
+      corkboard behind the desk, a terminal screen glowing with green text,
+      and bookshelves fading into darkness at the right edge. Background:
+      very dark, library-like, faint blue PCB traces. ABSOLUTELY NO
+      DUPLICATE FRANKS. NO mirrored copies of the figure. NO repeated
+      composition. Exactly one Frank. ABSOLUTELY NO TEXT. The image MUST
+      be extremely wide and short, like a letterbox strip — 1200×200
+      pixels, 6:1 ratio. Calm, contemplative atmosphere.
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
