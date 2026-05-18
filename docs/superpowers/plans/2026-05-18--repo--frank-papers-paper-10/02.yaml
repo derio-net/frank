@@ -67,18 +67,19 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T22:05:35+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-18T22:05:37+00:00'
+      note: 'Reviewed: small-scale benchmark gap and ''just use the OpenAI API'' counter-argument
+        both survive scrutiny; dossier status flipped to ready.'
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T22:05:38+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-18T22:05:40+00:00'
+    note: 'validate-dossier.py exits 0; dossier status: ready; human gate review complete.'
     observed_prs: []
