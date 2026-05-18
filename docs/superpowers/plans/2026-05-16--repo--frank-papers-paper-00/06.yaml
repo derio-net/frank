@@ -92,34 +92,36 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T18:22:53+00:00'
+      note: Blocked on PR chain merge (#316→#320). Will verify live URL after merge.
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:22:54+00:00'
       note: null
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T18:22:56+00:00'
+      note: Skipped per plan — Paper 00 IS the inaugural Papers publication; no separate
+        Building post needed (Building 30 already covers the infrastructure).
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T18:22:58+00:00'
+      note: Skipped per plan — Papers have no operational commands.
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:22:59+00:00'
       note: null
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T18:23:01+00:00'
+      note: No manual-operation blocks in plan.
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:23:02+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-18T18:23:04+00:00'
+    note: 'Paper 00 published. PR chain #316→#320 awaiting merge; live URL verification
+      deferred to post-merge.'
     observed_prs: []

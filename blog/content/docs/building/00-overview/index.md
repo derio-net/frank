@@ -103,6 +103,12 @@ This post is a **living document**: it gets updated as new technologies and capa
 
 - Virtual Machines with KubeVirt _(planned)_
 
+## Further reading — The Frank Papers
+
+Decision-level companions to the Building / Operating series. Each Paper is a research-grade landscape review for one capability — vendor map, capability matrix, scar tissue from Frank, decision rubric — written for the staff engineer or CTO weighing tools.
+
+- [Paper 00 — Why Run Your Own Cluster in 2026?]({{< relref "/docs/papers/00-why-homelab-in-2026" >}})
+
 ## Operating on Frank — Series Index
 
 Companion series with day-to-day commands, health checks, and debugging guides.

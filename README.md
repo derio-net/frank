@@ -147,7 +147,7 @@ frank/
 │   ├── hugo.toml
 │   ├── content/docs/building/       # 30 posts documenting the build
 │   ├── content/docs/operating/      # 25 companion operations guides
-│   ├── content/docs/papers/         # Frank Papers — research-grade landscape reviews (gated)
+│   ├── content/docs/papers/         # Frank Papers — research-grade landscape reviews (gated); Paper 00 published 2026-05-18
 │   ├── assets/js/mermaid-frank.js   # Mermaid Frank theme (loads on .paper-post pages)
 │   ├── layouts/partials/papers-*    # papers-backlink + papers-forwardlinks (cross-series)
 │   └── layouts/shortcodes/          # Custom shortcodes (cluster-roadmap, papers/*)
