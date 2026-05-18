@@ -1,0 +1,33 @@
+{{ $dataFile := .Get "data" | default "vendors" }}
+{{ $vendors := .Page.Resources.GetMatch (printf "data/%s.yaml" $dataFile) }}
+{{ if $vendors }}
+  {{ $data := $vendors.Content | transform.Unmarshal }}
+  {{ if and $data $data.features $data.vendors }}
+  <div class="paper-capability-matrix">
+    <table>
+      <thead>
+        <tr>
+          <th>Feature</th>
+          {{ range $data.vendors }}<th>{{ .name }}</th>{{ end }}
+        </tr>
+      </thead>
+      <tbody>
+        {{ range $data.features }}
+        {{ $feature := .key }}
+        <tr>
+          <td>{{ .label }}</td>
+          {{ range $data.vendors }}
+            {{ $val := index .features $feature | default "—" }}
+            <td>{{ if eq $val "yes" }}✅{{ else if eq $val "partial" }}🟡{{ else if eq $val "no" }}❌{{ else }}{{ $val }}{{ end }}</td>
+          {{ end }}
+        </tr>
+        {{ end }}
+      </tbody>
+    </table>
+  </div>
+  {{ else }}
+  <p><em>vendors.yaml missing required <code>features</code> and <code>vendors</code> keys.</em></p>
+  {{ end }}
+{{ else }}
+<p><em>No <code>data/{{ $dataFile }}.yaml</code> found in page bundle.</em></p>
+{{ end }}

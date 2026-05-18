@@ -1,0 +1,7 @@
+<div class="paper-landscape">
+  {{ with .Get "title" }}<p class="paper-landscape-title"><strong>{{ . }}</strong></p>{{ end }}
+  <pre class="mermaid">
+quadrantChart
+    {{ .Inner }}
+  </pre>
+</div>

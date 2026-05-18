@@ -1,0 +1,10 @@
+<div class="paper-pullquote">
+  <blockquote>{{ .Inner | markdownify }}</blockquote>
+  {{ with .Get "source" }}
+  <cite>
+    {{ if $.Get "url" }}<a href="{{ $.Get "url" }}" target="_blank" rel="noopener">{{ end }}
+    {{ . }}
+    {{ if $.Get "url" }}</a>{{ end }}
+  </cite>
+  {{ end }}
+</div>
