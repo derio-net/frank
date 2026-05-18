@@ -306,6 +306,30 @@ images:
       ONE FIGURE — one single Frank. The image MUST be extremely wide
       and short, like a letterbox strip — 1200×200 pixels, 6:1 ratio.
 
+  # --- Papers Series Covers ---------------------------------------------------
+
+  - key: paper-00-cover
+    # NOTE: deliberately NOT setting `series: papers` here — using only
+    # reference.png as the style anchor avoids the aspect-ratio leak we
+    # hit on building-cover regenerations (the 6:1 banner-papers.png as
+    # secondary ref made Gemini emit 2048×512 covers). The Papers
+    # signature (glasses + tie + dress shirt) is explicit in the prompt
+    # below; reference.png anchors Frank's identity.
+    output: blog/content/docs/papers/00-why-homelab-in-2026/cover.png
+    description: Paper 00 cover — Frank at a whiteboard weighing three approaches with a skeptical expression
+    prompt: >-
+      Frank stands at a whiteboard, one hand on his chin in a skeptical
+      "weighing" expression. On the whiteboard behind him: "2026?"
+      written in large chalk letters at the top, with three branching
+      arrows below it — one labeled "cloud", one labeled "managed",
+      one labeled "DIY". He wears the Papers signature (white button-
+      down dress shirt, thin black necktie, small senior reading
+      glasses perched low on the nose). His posture is thoughtful, not
+      triumphant — the question is genuinely open. Warm overhead lamp.
+      Dark studio-style background. The whiteboard "2026?" and the
+      three labels are the ONLY text in the image — no extra captions
+      or watermarks. ONE FIGURE — one single Frank.
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
