@@ -1,0 +1,161 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Post-Deploy Checklist
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Expose externally (skip — already public via the existing blog)
+
+
+      Paper 10 publishes on the existing public blog at
+      `blog.derio.net/frank` — no new IngressRoute, no homepage tile.
+      Verify the published URL renders after CI deploys:
+
+      ```bash
+      curl -s https://blog.derio.net/frank/docs/papers/10-self-hosted-inference/ \
+        | grep -i "self-hosted inference"
+      # Expected: page content with the Paper title
+      ```
+
+      *Skip the rest of Step 1.*
+  - id: P6.T1.S2
+    text: |-
+      Update Papers section landing + cross-link chips render
+
+
+      Confirm the Papers section landing references the new paper:
+
+      ```bash
+      grep -i "self-hosted inference\|paper 10" \
+        blog/content/docs/papers/_index.md || true
+      ```
+
+      If the `_index.md` carries a curated list (it currently doesn't —
+      the sidebar auto-generates), no edit is needed. Otherwise add a
+      line linking to `/docs/papers/10-self-hosted-inference/`.
+
+      Verify the cross-series chip lands on the Building / Operating
+      companion posts. The `papers-backlink.html` partial renders the
+      chip automatically from Paper 10's `related_building` /
+      `related_operating` frontmatter — no edits to those existing
+      posts. After the production build:
+
+      ```bash
+      grep -c "Paper 10" \
+        public/docs/building/10-local-inference/index.html \
+        public/docs/operating/07-inference/index.html
+      ```
+
+      Expected: both files match. If either does not, double-check the
+      frontmatter paths in Paper 10's `index.md` — they must be relative
+      to `blog/content/` with no leading slash and no `.md` extension.
+  - id: P6.T1.S3
+    text: |-
+      Write building blog post (skip — Building 10-local-inference exists)
+
+
+      Paper 10 is a decision-level companion to the existing Building
+      post at `blog/content/docs/building/10-local-inference/`. No new
+      Building post is created here.
+
+      *Skip.*
+  - id: P6.T1.S4
+    text: |-
+      Write operating blog post (skip — Operating 07-inference exists)
+
+
+      Paper 10 is a decision-level companion to the existing Operating
+      post at `blog/content/docs/operating/07-inference/`. No new
+      Operating post is created here.
+
+      *Skip.*
+  - id: P6.T1.S5
+    text: |-
+      Update README (optional — only if user-visible)
+
+
+      The Papers series itself is already listed in README from the
+      Phase 0 plan; Paper 10 is content addition, not a stack change.
+      Run `/update-readme` only if a new external service or
+      infrastructure change accompanies this Paper. Otherwise:
+
+      *Skip.*
+  - id: P6.T1.S6
+    text: |-
+      Sync runbook (skip — no manual-operation blocks)
+
+
+      This plan contains no `# manual-operation` blocks:
+
+      ```bash
+      grep -l "manual-operation" \
+        docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-10/*.yaml \
+        || echo "none — skip /sync-runbook"
+      ```
+
+      Expected: `none — skip /sync-runbook`.
+  - id: P6.T1.S7
+    text: |-
+      Update plan status to Complete
+
+
+      Edit `docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-10/_prose.md`
+      and `_meta.yaml`:
+
+      ```yaml
+      # _meta.yaml
+      status: Complete
+      completed: 'YYYY-MM-DD'
+      ```
+
+      Also update the spec's Implementation Plans table via:
+
+      ```bash
+      vk plan spec-index docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-10 --yes
+      ```
+
+      Log the publish date in
+      `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
+      if the spec carries a publish ledger for Phase 1 papers.
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

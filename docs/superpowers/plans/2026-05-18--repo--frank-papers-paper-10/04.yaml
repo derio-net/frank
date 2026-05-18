@@ -1,0 +1,146 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 10 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add the entry under the existing `# --- Papers Series Covers ---`
+      section (added during Paper 00). Follow the per-paper cover
+      template from `agents/rules/repo-papers.md`:
+
+      ```yaml
+        - key: paper-10-cover
+          output: blog/content/docs/papers/10-self-hosted-inference/cover.png
+          description: Paper 10 cover — Frank examining a glowing token-stream LLM with a curious/weighing expression
+          prompt: >-
+            Frank the server-hardware Frankenstein monster examines a glowing
+            token-stream emanating from an LLM — visualised as a softly
+            luminous river of letters and tokens flowing between two boxes
+            labelled "engine" and "gateway". Frank's expression is curious
+            and weighing — he is sizing up the system, not celebrating it.
+            He wears thin round reading glasses resting low on his nose and
+            a thin black necktie. One hand gestures at the token stream as
+            if measuring it. Warm overhead lamp. Dark background. RJ45 neck
+            bolts, green skin, messy black hair, rack-mount torso. No text
+            in the image besides the small labels "engine" and "gateway" on
+            the two boxes.
+      ```
+
+      Place this entry next to other paper-NN-cover entries in the
+      Papers Series Covers section.
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-10-cover
+      ```
+
+      Expected: `blog/content/docs/papers/10-self-hosted-inference/cover.png`
+      created, ≥50KB.
+
+      ```bash
+      ls -lh blog/content/docs/papers/10-self-hosted-inference/cover.png
+      ```
+
+      Spot-check: Frank should have thin round reading glasses, thin
+      black tie, curious/weighing expression, glowing token-stream
+      between "engine" and "gateway" boxes. Up to 3 regeneration
+      attempts if the visual signature is missing.
+- number: 2
+  title: Render Mermaid diagrams, screenshots, and check the bundle
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/10-self-hosted-inference/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft work. If
+      any remain, fill them now — every Mermaid block, every
+      `{{< papers/landscape >}}` / `{{< papers/capability-matrix >}}`
+      invocation must be present, and the Grafana screenshot must be
+      copied into the page bundle and referenced by relative path.
+  - id: P4.T2.S2
+    text: |-
+      Copy the Grafana screenshot from the dossier into the page bundle
+
+
+      The dossier's inference Grafana screenshot belongs in the page
+      bundle so it ships with the Hugo build:
+
+      ```bash
+      cp docs/papers-dossiers/10-self-hosted-inference/grafana-inference.png \
+         blog/content/docs/papers/10-self-hosted-inference/grafana-inference.png
+      ```
+
+      Reference it in §5 (or §4 as a benchmark chart) via a Markdown
+      image with a caption.
+  - id: P4.T2.S3
+    text: |-
+      Verify the Hugo production build is error-free
+
+
+      ```bash
+      cd blog && hugo --minify 2>&1 | grep -E "^ERROR" | head -5
+      ```
+
+      Expected: no output (zero errors).
+
+      Also verify the Mermaid diagrams render without parse errors by
+      eyeballing the page in a dev server:
+
+      ```bash
+      cd blog && hugo server --buildDrafts --port 1313 &
+      sleep 3
+      curl -s http://localhost:1313/docs/papers/10-self-hosted-inference/ \
+        | grep -i "mermaid\|error" | head -10
+      kill %1
+      ```
+
+      Mermaid client-side parse errors are only visible in a real
+      browser — open the page in the dev browser when available.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

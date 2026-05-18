@@ -1,0 +1,197 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 10 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 10 self-hosted-inference
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 10:
+        Hugo bundle:  blog/content/docs/papers/10-self-hosted-inference/
+        Dossier:      docs/papers-dossiers/10-self-hosted-inference/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/10-self-hosted-inference/index.md
+      ls docs/papers-dossiers/10-self-hosted-inference/dossier.md
+      ```
+- number: 2
+  title: Research the self-hosted-inference + LLM gateway landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/10-self-hosted-inference/dossier.md` — vendors in scope
+
+
+      Paper 10's landscape is the OSS / self-hostable inference stack plus the
+      gateway pattern that sits in front of it. Suggested vendors (final list
+      confirmed during dossier construction):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Ollama
+        positioning: "Run open models locally with a single binary — Modelfile abstraction over llama.cpp + GGUF."
+        primary_url: "https://ollama.com"
+      - name: vLLM
+        positioning: "Throughput-optimised LLM serving with PagedAttention — the engine many SaaS providers run."
+        primary_url: "https://docs.vllm.ai"
+      - name: llama.cpp / llama-server
+        positioning: "CPU-first OSS inference — GGUF quantization, runs on a Raspberry Pi as easily as a laptop."
+        primary_url: "https://github.com/ggml-org/llama.cpp"
+      - name: HuggingFace TGI (Text Generation Inference)
+        positioning: "Production-grade transformer inference server — continuous batching, tensor parallelism."
+        primary_url: "https://huggingface.co/docs/text-generation-inference"
+      - name: LiteLLM
+        positioning: "OSS gateway/proxy — virtual keys, cost tracking, OpenAI-compatible routing across ~100 providers."
+        primary_url: "https://docs.litellm.ai"
+      - name: OpenRouter
+        positioning: "Managed gateway-as-a-service — pay-per-token aggregation across hosted models, no infra to run."
+        primary_url: "https://openrouter.ai"
+      ```
+
+      Pin the final list once the dossier is being constructed — keep ≥3 OSS
+      engines and ≥1 explicit "buy-it" gateway alternative so the landscape
+      spans the build/buy axis.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: at least one academic paper, one practitioner
+      postmortem/talk, and one vendor-docs reference. URL hints to chase
+      (validate each returns HTTP 200 before recording):
+
+      1. **vLLM PagedAttention paper** (type: `paper`) — Kwon et al. 2023,
+         "Efficient Memory Management for Large Language Model Serving with
+         PagedAttention." `https://arxiv.org/abs/2309.06180`
+      2. **Ollama design notes / docs** (type: `vendor-docs`) — Ollama blog
+         post on the Modelfile abstraction or the `ollama/ollama` README.
+      3. **LiteLLM virtual keys + Prometheus metrics** (type: `vendor-docs`) —
+         the official docs page on virtual key management. Pair with the
+         Frank gotcha that the OSS image emits **no** `litellm_*` metrics
+         (enterprise-only) — cite this gotcha by linking
+         `agents/rules/frank-gotchas.md` (Argo Rollouts section) so the
+         paper carries a documented gap between marketing and reality.
+      4. **A vLLM-vs-TGI throughput benchmark** (type: `benchmark`) — find a
+         reproducible benchmark, e.g. a vLLM blog post or independent
+         comparison; record the model, hardware, batch sizes, and tokens/sec
+         numbers in `quoted_passages`.
+      5. **A practitioner postmortem on running OSS LLMs at home or at
+         small scale** (type: `postmortem` or `talk`) — Simon Willison,
+         Hamel Husain, or a similar named practitioner. The dossier should
+         capture *who* wrote it and *what they discovered the hard way*.
+
+      For each source, fill every field: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull from the actual cluster repo. Suggested artefacts (use whichever
+      are still accurate at dossier time):
+
+      1. **`kind: yaml`** — `apps/litellm/values.yaml` plus the model-list
+         ConfigMap that drives the LiteLLM virtual model catalog. Captures
+         the gateway pattern as Frank lives it.
+      2. **`kind: commit`** — the LiteLLM `main-v1.83.14-stable.patch.1`
+         bump together with the discovery that `litellm_*` Prometheus
+         metrics are Enterprise-only. Both the bump commit SHA and the
+         dated incident note belong in the dossier.
+      3. **`kind: grafana-screenshot`** — Frank's local-inference dashboard
+         on `http://192.168.55.203` (latency, tokens/sec, GPU utilisation).
+         Export PNG and commit into the dossier directory.
+      4. **`kind: incident`** — the `OLLAMA_KEEP_ALIVE` cgroup-RAM incident
+         documented under "gpu-1 specifics" in `agents/rules/frank-gotchas.md`.
+         Ollama emitted "system memory" errors that read like VRAM
+         exhaustion; the real cause was the container cgroup memory
+         ceiling because `OLLAMA_KEEP_ALIVE` had pinned the page cache
+         near `resources.limits.memory`. This is a high-value scar
+         artefact for §5.
+      5. **`kind: incident`** — the Argo Rollouts canary tuning incident
+         for LiteLLM: the Prometheus provider panics on an empty result
+         vector, retries at 10s cadence, aborts in ~50s; `AnalysisTemplate`
+         has no `inconclusiveCondition` field. Both gotchas live under
+         "Argo Rollouts" in `agents/rules/frank-gotchas.md`.
+
+      For each artefact: fill `path_or_url`, `date`, `demonstrates`.
+
+      Capturing the Grafana screenshot:
+      ```bash
+      # From a machine with cluster access:
+      # Browse to http://192.168.55.203 → Dashboards → Local Inference
+      # Export as PNG and commit to docs/papers-dossiers/10-self-hosted-inference/
+      ```
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No published head-to-head latency + cost benchmark for Ollama vs
+        vLLM vs llama.cpp at ≤2 concurrent users on a single consumer GPU
+        (e.g. 16GB GDDR7). Public benchmarks assume datacenter GPUs and
+        batched workloads — the small-scale homelab regime is under-served
+        by the literature."
+      - "LiteLLM OSS emits no `litellm_*` Prometheus metrics — gateway
+        observability at the OSS tier requires synthesising signals from
+        access logs or upstream model server metrics. No vendor-side
+        documentation acknowledges this gap clearly."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "Just use the OpenAI API — why doesn't that win? For most
+        production teams it does: the API is cheaper than amortised GPU
+        capex below ~24/7 utilisation, faster on the frontier-model curve,
+        and the SLA is someone else's problem. Self-hosted wins on three
+        axes only: data-locality (the prompt never leaves your network),
+        latency floor (no internet round-trip), and learning depth (you
+        see the GPU memory map, the cgroup ceilings, and the gateway-tier
+        gotchas in your own logs). Frank chose self-hosted to pay the
+        learning tax in full."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

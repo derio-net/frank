@@ -1,0 +1,332 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/10-self-hosted-inference/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 10 frontmatter
+
+
+      Update `blog/content/docs/papers/10-self-hosted-inference/index.md`
+      frontmatter:
+
+      ```yaml
+      ---
+      title: "Self-Hosted Inference & the LLM Gateway Pattern"
+      date: <today>
+      draft: true
+      weight: 10
+      series: papers
+      layer: infer
+      paper_number: 10
+      publish_order: 2
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["inference", "llm", "gpu", "gateway", "litellm", "ollama", "vllm"]
+      capabilities: ["infer", "gpu"]
+      related_building: "docs/building/10-local-inference"
+      related_operating: "docs/operating/07-inference"
+      references: []
+      ---
+      ```
+
+      Notes:
+      - `weight: 10` matches `paper_number` — sidebar order in `/docs/papers/`.
+      - `publish_order: 2` — Paper 10 is the first capability paper after
+        Paper 00 in the spec's publication schedule.
+      - `related_building` / `related_operating` paths are relative to
+        `blog/content/` (no leading slash, no `.md`).
+- number: 2
+  title: Draft all sections in order (TL;DR written last)
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Draft §1 — The capability (200–350 words)
+
+
+      Frame the capability question Frank had to answer: where does
+      inference live? In the cluster, in someone else's datacenter, or
+      somewhere in between? Voice: Frank speaks as the cluster.
+
+      Include one `flowchart LR` Mermaid diagram showing where inference
+      sits in the stack — between application code and the GPU:
+
+      ```
+      flowchart LR
+          App["Application\n(chat UI, agent,\nbatch job)"] --> GW["Gateway\n(LiteLLM,\nOpenRouter)"]
+          GW --> E1["Self-hosted engine\n(Ollama / vLLM /\nllama.cpp / TGI)"]
+          GW --> E2["Hosted API\n(OpenAI / Anthropic /\nGroq / Together)"]
+          E1 --> HW["Local GPU\n(RTX 5070 Ti, 16GB)"]
+          E2 --> Net[("Internet")]
+      ```
+
+      Establish the two decisions a stack owner makes here:
+      1. Which engine runs the model?
+      2. Does anything sit *in front of* the engine — a gateway — and
+         why?
+  - id: P3.T2.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape + capability-matrix
+
+
+      Map the OSS engine landscape and the gateway landscape side by side.
+      Two shortcodes go in this section:
+
+      a) `{{< papers/landscape >}}` — vendor quadrant chart. Suggested axes:
+         - x: `OSS ↔ managed/commercial`
+         - y: `single-machine ↔ cluster-scale`
+         Plot all six vendors: Ollama (OSS, single-machine), llama.cpp
+         (OSS, single-machine, leftmost), vLLM (OSS, cluster-scale),
+         TGI (OSS-leaning, cluster-scale), LiteLLM (OSS, cluster-scale —
+         gateway tier), OpenRouter (commercial, cluster-scale — gateway).
+
+      b) `{{< papers/capability-matrix data="vendors" >}}` — create
+         `blog/content/docs/papers/10-self-hosted-inference/data/vendors.yaml`
+         as part of this step. Feature rows to cover at minimum:
+
+      ```yaml
+      features:
+        - key: openai_compat_api
+          label: OpenAI-compatible API
+        - key: gguf_quant
+          label: GGUF / quantization support
+        - key: paged_attention
+          label: PagedAttention / continuous batching
+        - key: multi_user_throughput
+          label: Multi-user throughput
+        - key: gateway_features
+          label: Gateway features (virtual keys, cost tracking)
+        - key: prometheus_metrics
+          label: Prometheus metrics (OSS tier)
+        - key: cpu_only
+          label: Runs CPU-only
+      vendors:
+        - name: Ollama
+          features: { openai_compat_api: "yes", gguf_quant: "yes", paged_attention: "no", multi_user_throughput: "partial", gateway_features: "no", prometheus_metrics: "partial", cpu_only: "yes" }
+        - name: vLLM
+          features: { openai_compat_api: "yes", gguf_quant: "partial", paged_attention: "yes", multi_user_throughput: "yes", gateway_features: "no", prometheus_metrics: "yes", cpu_only: "no" }
+        - name: llama.cpp
+          features: { openai_compat_api: "yes", gguf_quant: "yes", paged_attention: "no", multi_user_throughput: "partial", gateway_features: "no", prometheus_metrics: "partial", cpu_only: "yes" }
+        - name: TGI
+          features: { openai_compat_api: "yes", gguf_quant: "partial", paged_attention: "yes", multi_user_throughput: "yes", gateway_features: "no", prometheus_metrics: "yes", cpu_only: "no" }
+        - name: LiteLLM
+          features: { openai_compat_api: "yes", gguf_quant: "n/a", paged_attention: "n/a", multi_user_throughput: "n/a", gateway_features: "yes", prometheus_metrics: "no", cpu_only: "n/a" }
+        - name: OpenRouter
+          features: { openai_compat_api: "yes", gguf_quant: "n/a", paged_attention: "n/a", multi_user_throughput: "yes", gateway_features: "yes", prometheus_metrics: "no", cpu_only: "n/a" }
+      ```
+
+      Use at least one `{{< papers/pullquote >}}` block with a direct
+      quote from the vLLM paper on PagedAttention.
+
+      Important honesty marker: in the LiteLLM row, `prometheus_metrics:
+      "no"` is the load-bearing cell — explain in the prose that the OSS
+      image emits no `litellm_*` metrics (enterprise-only). This becomes
+      a §5 scar.
+  - id: P3.T2.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The "hard part" for an inference engine is GPU memory under
+      concurrent users. The hard part for a gateway is being honest about
+      what it does and doesn't observe.
+
+      Write one architecture sub-section per vendor with a paired
+      `flowchart TD` Mermaid diagram. Keep shared shapes across diagrams
+      so readers can compare at a glance — same shape for "request
+      queue", "KV cache", "model weights", "scheduler".
+
+      Sub-sections to write:
+      1. **Ollama** — Modelfile + llama.cpp runtime; single-user-first;
+         page-cache pinning via `OLLAMA_KEEP_ALIVE` is a foot-gun (cite
+         Frank's gpu-1 incident).
+      2. **vLLM + PagedAttention** — block-allocated KV cache, continuous
+         batching, why this matters at >1 concurrent user.
+      3. **llama.cpp / llama-server** — pure-C, GGUF, runs on CPU; the
+         floor of the landscape.
+      4. **TGI** — production-grade serving, tensor parallelism; what
+         HuggingFace gives you for the operational complexity tax.
+      5. **LiteLLM (the gateway)** — virtual keys, cost ledger,
+         OpenAI-compatible routing across upstream engines. Diagram shows
+         the gateway as a sidecar in front of `n` engines plus a hosted
+         API fallback.
+      6. **OpenRouter (the gateway-as-a-service)** — same shape as
+         LiteLLM in the diagram, but the "engines" box is replaced by
+         "third-party providers". Used to contrast build-vs-buy.
+  - id: P3.T2.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words)
+
+
+      At 1 user / 1 conversation, all five engines look identical. Scale
+      changes everything:
+
+      - Continuous batching (vLLM, TGI) at >2 concurrent users dominates
+        throughput vs sequential-completion engines (Ollama, llama.cpp).
+        Cite the benchmark from the dossier with exact numbers.
+      - VRAM is the binding constraint — quantization choice (Q4_K_M vs
+        q8_0) becomes a model-quality decision, not just a performance
+        one. Cite Frank's RTX 5070 Ti / 16GB GDDR7 constraint forcing
+        qwen-vl-7b from q8_0 to Q4_K_M.
+      - At gateway tier, virtual keys + cost ledger become non-negotiable
+        when ≥2 applications share an engine.
+
+      Required media in this section: either 1–2 scale/benchmark charts
+      OR ≥2 primary-source citations if no benchmark is available. The
+      vLLM paper's PagedAttention throughput numbers can stand in as the
+      cited benchmark.
+  - id: P3.T2.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank's stack: Ollama on `gpu-1`, LiteLLM in front, the LiteLLM
+      gateway publishes the OpenAI-compatible endpoint at
+      `192.168.55.206`. Be honest about why this combination and not
+      e.g. vLLM-only.
+
+      Use 1–3 `{{< papers/scar >}}` callouts pulled from real incidents
+      in `agents/rules/frank-gotchas.md`:
+
+      ```
+      {{< papers/scar date="2025-XX-XX" >}}
+      We assumed LiteLLM emits Prometheus metrics out of the box. The OSS
+      image does not — `litellm_*` series are enterprise-only. The
+      gateway's Grafana panels sat empty for two weeks before we read
+      the chart values closely enough to notice the gap.
+      {{< /papers/scar >}}
+      ```
+
+      ```
+      {{< papers/scar date="2025-XX-XX" >}}
+      The RTX 5070 Ti at 16GB GDDR7 forced qwen-vl-7b down from q8_0 to
+      Q4_K_M. The cluster's hardware constraint became a model-quality
+      decision — and the model-quality decision became a §6 caveat about
+      when Frank's answer doesn't generalize.
+      {{< /papers/scar >}}
+      ```
+
+      ```
+      {{< papers/scar date="2025-XX-XX" >}}
+      Ollama emitted "system memory" errors. The cause wasn't VRAM but
+      the container cgroup RAM ceiling: `OLLAMA_KEEP_ALIVE` had pinned
+      the page cache near `resources.limits.memory`. We were debugging
+      the wrong subsystem for hours.
+      {{< /papers/scar >}}
+      ```
+
+      Use real dates from the corresponding investigations / gotcha
+      commits — placeholder dates above will fail review.
+  - id: P3.T2.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision flowchart
+
+
+      End with a Mermaid decision flowchart, ≤4 leaves:
+
+      ```
+      flowchart TD
+          A["≤2 concurrent users\nand a dev box?"] -- "Yes" --> L1["Ollama bare-metal,\nno gateway"]
+          A -- "No" --> B["Small team,\nmultiple apps,\nsame model?"]
+          B -- "Yes" --> L2["LiteLLM +\nOllama or vLLM"]
+          B -- "No" --> C["Customer-facing,\nuptime SLA?"]
+          C -- "Yes" --> L3["Cloud API behind\nLiteLLM (privacy-aware\nrouting)"]
+          C -- "No" --> L4["vLLM/TGI on dedicated\nGPUs, LiteLLM as\naccess control"]
+      ```
+
+      The four leaves are the honest answer set. Be explicit that Frank
+      is at L2 today, and that L3 is the right answer for a customer-
+      facing product team.
+  - id: P3.T2.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Where the self-hosted-inference + gateway space is heading:
+      - Engine convergence on OpenAI-compatible HTTP — by 2026 every
+        engine ships this surface; gateway routing becomes cheaper.
+      - Cost ledgering as table-stakes for gateways (LiteLLM, Helicone,
+        Pezzo) — observability is catching up.
+      - The Enterprise/OSS split is the live tension: LiteLLM's metrics
+        gap is one example of where OSS shapes-the-conversation-but-
+        monetises-elsewhere.
+      - Frank's roadmap: add vLLM alongside Ollama on `gpu-1` for the
+        batched-workload case; explore Prometheus signal synthesis from
+        LiteLLM access logs to close the OSS-tier observability gap.
+
+      Optional timeline diagram if it earns its space — otherwise prose
+      with roadmap citations.
+
+      End with the dossier-link shortcode:
+      ```
+      {{< papers/dossier-link paper="10-self-hosted-inference" >}}
+      ```
+
+      (Or rely on automatic injection from `single.html` — pick one,
+      not both, to avoid double-render.)
+  - id: P3.T2.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/10-self-hosted-inference/index.md \
+        | wc -w
+      ```
+
+      Expected: between 2400 and 4200 words. If over, trim §3 first
+      (it has the largest budget and is most prone to sprawl). If
+      under, expand §3 or §5 — never pad the TL;DR.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
