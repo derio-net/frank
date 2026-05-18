@@ -97,9 +97,11 @@ state:
       ticked_at: '2026-05-18T08:10:44+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T08:22:33+00:00'
+      note: 'Deferred: Gemini gemini-3-pro-image-preview returning 503 UNAVAILABLE
+        on 7+ retries with backoff. Prompt is in place; rerun ''.venv/bin/python scripts/generate-all-images.py
+        -r blog/static/images/reference.png --only paper-00-cover'' once API is healthy.'
     P4.T2.S1:
       state: x
       ticked_at: '2026-05-18T08:12:04+00:00'
@@ -109,6 +111,8 @@ state:
       ticked_at: '2026-05-18T08:13:12+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-18T08:22:38+00:00'
+    note: 'Cover prompt added and Mermaid validation complete; cover image generation
+      deferred — Gemini image model 503 UNAVAILABLE through 7+ retries with up to
+      90s backoff. Followup task needed: rerun image gen script when API recovers.'
     observed_prs: []
