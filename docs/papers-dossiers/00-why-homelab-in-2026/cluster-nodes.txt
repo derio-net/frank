@@ -1,8 +1,0 @@
-NAME      STATUS   ROLES           AGE   VERSION   INTERNAL-IP     EXTERNAL-IP   OS-IMAGE          KERNEL-VERSION   CONTAINER-RUNTIME
-gpu-1     Ready    <none>          76d   v1.35.3   192.168.55.31   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
-mini-1    Ready    control-plane   76d   v1.35.3   192.168.55.21   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
-mini-2    Ready    control-plane   76d   v1.35.3   192.168.55.22   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
-mini-3    Ready    control-plane   76d   v1.35.3   192.168.55.23   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
-pc-1      Ready    <none>          76d   v1.35.3   192.168.55.71   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
-raspi-1   Ready    <none>          76d   v1.35.3   192.168.55.41   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
-raspi-2   Ready    <none>          76d   v1.35.3   192.168.55.42   <none>        Talos (v1.12.6)   6.18.18-talos    containerd://2.1.6
