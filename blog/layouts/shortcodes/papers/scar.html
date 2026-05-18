@@ -1,0 +1,4 @@
+<div class="paper-scar">
+  {{ with .Get "date" }}<div class="paper-scar-date">🩹 {{ . }}</div>{{ end }}
+  <div>{{ .Inner | markdownify }}</div>
+</div>

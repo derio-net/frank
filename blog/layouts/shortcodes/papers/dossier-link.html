@@ -1,0 +1,10 @@
+{{ $paper := .Get "paper" }}
+{{ $baseURL := "https://github.com/derio-net/frank/blob/main/docs/papers-dossiers" }}
+<div class="paper-dossier-link">
+  📋 <strong>Research dossier:</strong>
+  <a href="{{ $baseURL }}/{{ $paper }}/dossier.md" target="_blank" rel="noopener">
+    docs/papers-dossiers/{{ $paper }}/dossier.md
+  </a>
+  — primary sources, Frank artefacts, named gaps, and counter-arguments
+  reviewed before this paper was drafted.
+</div>
