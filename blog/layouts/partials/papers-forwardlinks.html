@@ -1,0 +1,22 @@
+{{/* papers-forwardlinks.html — included in single.html for Papers pages.
+     Renders forward links to related Building and Operating posts from
+     Paper frontmatter. */}}
+{{ $buildingRef := .Params.related_building | default "" }}
+{{ $operatingRef := .Params.related_operating | default "" }}
+{{ if or $buildingRef $operatingRef }}
+<div class="paper-cross-links">
+  <span>🔧 Hands-on:</span>
+  {{ with $buildingRef }}
+    {{ $page := $.Site.GetPage . }}
+    {{ with $page }}
+    <a href="{{ .RelPermalink }}">Building — {{ .Title }}</a>
+    {{ end }}
+  {{ end }}
+  {{ with $operatingRef }}
+    {{ $page := $.Site.GetPage . }}
+    {{ with $page }}
+    <a href="{{ .RelPermalink }}">Operating — {{ .Title }}</a>
+    {{ end }}
+  {{ end }}
+</div>
+{{ end }}

@@ -1,0 +1,20 @@
+{{/* papers/dossier-link.html — automatic footer chip for Papers pages.
+     Reads the dossier directory from the page bundle's folder name
+     (e.g., `00-why-homelab-in-2026`). Mirrors the inline shortcode
+     `papers/dossier-link.html`; do NOT use both inline and automatic
+     injection in the same Paper or the chip renders twice. */}}
+{{ $dir := "" }}
+{{ with .File }}
+  {{ $dir = path.Base .Dir }}
+{{ end }}
+{{ with $dir }}
+{{ $baseURL := "https://github.com/derio-net/frank/blob/main/docs/papers-dossiers" }}
+<div class="paper-dossier-link">
+  📋 <strong>Research dossier:</strong>
+  <a href="{{ $baseURL }}/{{ . }}/dossier.md" target="_blank" rel="noopener">
+    docs/papers-dossiers/{{ . }}/dossier.md
+  </a>
+  — primary sources, Frank artefacts, named gaps, and counter-arguments
+  reviewed before this paper was drafted.
+</div>
+{{ end }}

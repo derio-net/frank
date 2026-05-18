@@ -22,6 +22,12 @@
           {{ end }}
           {{ .Content }}
         </div>
+        {{- if eq .Params.series "papers" }}
+          {{- partial "papers-forwardlinks.html" . }}
+          {{- partial "papers/dossier-link.html" . }}
+        {{- else if and (ne .Params.series "papers") (not (eq .Section "")) }}
+          {{- partial "papers-backlink.html" . }}
+        {{- end }}
         {{ partial "components/last-updated.html" . }}
         {{- if (site.Params.page.displayPagination | default true) -}}
           {{- partial "components/pager.html" . -}}

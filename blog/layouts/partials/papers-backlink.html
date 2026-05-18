@@ -1,0 +1,20 @@
+{{/* papers-backlink.html — included in single.html for non-Papers docs pages.
+     Finds any Paper whose related_building or related_operating matches
+     the current page's relative path, and renders a chip. */}}
+{{ $currentPath := .RelPermalink | strings.TrimSuffix "/" }}
+{{ $matchedPaper := false }}
+{{ range where .Site.Pages "Params.series" "papers" }}
+  {{ $buildingRef := .Params.related_building | default "" }}
+  {{ $operatingRef := .Params.related_operating | default "" }}
+  {{ if or (strings.Contains $currentPath $buildingRef) (strings.Contains $currentPath $operatingRef) }}
+    {{ if $buildingRef | or $operatingRef }}
+      {{ $matchedPaper = . }}
+    {{ end }}
+  {{ end }}
+{{ end }}
+{{ with $matchedPaper }}
+<div class="paper-cross-links">
+  <span>🔬 Decision-level view:</span>
+  <a href="{{ .RelPermalink }}">Paper {{ .Params.paper_number | printf "%02d" }} — {{ .Title }}</a>
+</div>
+{{ end }}
