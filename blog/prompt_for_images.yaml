@@ -326,6 +326,7 @@ images:
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
+    series: building
     output: blog/content/docs/building/00-overview/cover.png
     description: "Overview & Roadmap — Frank assembling himself"
     prompt: >-
@@ -341,6 +342,7 @@ images:
       background.
 
   - key: building-01-introduction
+    series: building
     output: blog/content/docs/building/01-introduction/cover.png
     description: "Introduction — Why build a homelab (rejecting the cloud)"
     prompt: >-
@@ -354,6 +356,7 @@ images:
       server rack shelves in background.
 
   - key: building-02-foundation
+    series: building
     output: blog/content/docs/building/02-foundation/cover.png
     description: "Foundation — Talos immutable OS, Cilium eBPF networking"
     prompt: >-
@@ -368,6 +371,7 @@ images:
       setting with scaffolding and a "No SSH" warning sign.
 
   - key: building-03-storage
+    series: building
     output: blog/content/docs/building/03-storage/cover.png
     description: "Storage — Longhorn distributed storage with 3 replicas"
     prompt: >-
@@ -380,6 +384,7 @@ images:
       setting with server racks as fence posts, sunset sky.
 
   - key: building-04-gpu-compute
+    series: building
     output: blog/content/docs/building/04-gpu-compute/cover.png
     description: "GPU Compute — RTX 5070 drama + Intel Arc iGPU"
     prompt: >-
@@ -393,6 +398,7 @@ images:
       Feature Discovery" label floats. Dark server room background.
 
   - key: building-05-gitops
+    series: building
     output: blog/content/docs/building/05-gitops/cover.png
     description: "GitOps — ArgoCD App-of-Apps orchestra"
     prompt: >-
@@ -406,6 +412,7 @@ images:
       center. Concert hall setting with dark curtains and spotlights.
 
   - key: building-06-fun-stuff
+    series: building
     output: blog/content/docs/building/06-fun-stuff/cover.png
     description: "Fun Stuff — GitOps-managed RGB LEDs on case hardware"
     prompt: >-
@@ -420,6 +427,7 @@ images:
       reflections.
 
   - key: building-07-observability
+    series: building
     output: blog/content/docs/building/07-observability/cover.png
     description: "Observability — VictoriaMetrics + Grafana + Fluent Bit"
     prompt: >-
@@ -435,6 +443,7 @@ images:
       line running along the bottom edge.
 
   - key: building-08-backup
+    series: building
     output: blog/content/docs/building/08-backup/cover.png
     description: "Backup — Longhorn daily/weekly to Cloudflare R2"
     prompt: >-
@@ -448,6 +457,7 @@ images:
       "Daily" and "Weekly" backup schedules circled. Dark server room.
 
   - key: building-09-secrets
+    series: building
     output: blog/content/docs/building/09-secrets/cover.png
     description: "Secrets — Infisical vault + External Secrets Operator"
     prompt: >-
@@ -462,6 +472,7 @@ images:
       labeled "PostgreSQL", "Redis", "Infisical". Dark server room.
 
   - key: building-10-local-inference
+    series: building
     output: blog/content/docs/building/10-local-inference/cover.png
     description: "Local Inference — Ollama + LiteLLM gateway + OpenRouter"
     prompt: >-
@@ -478,6 +489,7 @@ images:
       purple lightning.
 
   - key: building-11-agentic-control-plane
+    series: building
     output: blog/content/docs/building/11-agentic-control-plane/cover.png
     description: "Sympozium — Kubernetes-native agentic control plane"
     prompt: >-
@@ -493,6 +505,7 @@ images:
       robots and tower. Dark server room with blue and orange lightning.
 
   - key: building-12-gpu-talos-fix
+    series: building
     output: blog/content/docs/building/12-gpu-talos-fix/cover.png
     description: "GPU Talos Fix — debugging containerd, validation markers"
     prompt: >-
@@ -508,6 +521,7 @@ images:
       corner. Dark server room with electric blue and green sparks.
 
   - key: building-13-unified-auth
+    series: building
     output: blog/content/docs/building/13-unified-auth/cover.png
     description: "Unified Auth — Authentik SSO for the entire cluster"
     prompt: >-
@@ -525,6 +539,7 @@ images:
       Dark server room with blue and gold lightning accents.
 
   - key: building-14-multi-tenancy
+    series: building
     output: blog/content/docs/building/14-multi-tenancy/cover.png
     description: "Multi-tenancy — vCluster disposable sandbox clusters"
     prompt: >-
@@ -542,6 +557,7 @@ images:
       teal lighting accents.
 
   - key: building-15-paperclip
+    series: building
     output: blog/content/docs/building/15-paperclip/cover.png
     description: "Paperclip — AI agent orchestrator with virtual companies and org charts"
     prompt: >-
@@ -559,6 +575,7 @@ images:
       boardroom lighting overlay, blue electric accents from Frank's neck bolts.
 
   - key: building-16-media-generation
+    series: building
     output: blog/content/docs/building/16-media-generation/cover.png
     description: "Media Generation — Frank juggling video frames and audio waves between ComfyUI and Ollama"
     prompt: >-
@@ -576,6 +593,7 @@ images:
       lighting accents.
 
   - key: building-17-public-edge
+    series: building
     output: blog/content/docs/building/17-public-edge/cover.png
     description: "Public Edge — Frank hopping through a glowing Tailscale portal into a cloud datacenter"
     prompt: >-
@@ -595,6 +613,7 @@ images:
       primary light source, electric blue and teal accents.
 
   - key: building-18-persistent-agent
+    series: building
     output: blog/content/docs/building/18-persistent-agent/cover.png
     description: "Persistent Agent — Frank at an always-on workstation terminal"
     prompt: >-
@@ -611,6 +630,7 @@ images:
       human steps away. Dark background, electric blue and green accents.
 
   - key: building-19-progressive-delivery
+    series: building
     output: blog/content/docs/building/19-progressive-delivery/cover.png
     description: "Progressive Delivery — Frank at a traffic control tower directing canary and blue-green lanes"
     prompt: >-
@@ -628,6 +648,7 @@ images:
       Dark server room with blue, green, and yellow lighting accents.
 
   - key: building-20-workflow-automation
+    series: building
     output: blog/content/docs/building/20-workflow-automation/cover.png
     description: "Workflow Automation — Frank orchestrating n8n conveyor belt pipelines"
     prompt: >-
@@ -644,6 +665,7 @@ images:
       orange lightning accents.
 
   - key: building-21-secure-agent-pod
+    series: building
     output: blog/content/docs/building/21-secure-agent-pod/cover.png
     description: "Secure Agent Pod — Frank in a hardened vault operating a locked-down workstation"
     prompt: >-
@@ -661,6 +683,7 @@ images:
       with blue lightning accents and steel textures.
 
   - key: building-22-health-monitoring
+    series: building
     output: blog/content/docs/building/22-health-monitoring/cover.png
     description: "Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts"
     prompt: >-
@@ -679,6 +702,7 @@ images:
       lighting accents, dark server room atmosphere.
 
   - key: building-23-health-bridge
+    series: building
     output: blog/content/docs/building/23-health-bridge/cover.png
     description: "Health Bridge — Frank routing alert signals from monitoring to project boards"
     prompt: >-
@@ -697,6 +721,7 @@ images:
       electricity. Dark server room with amber and blue lighting accents.
 
   - key: building-24-in-cluster-ingress
+    series: building
     output: blog/content/docs/building/24-in-cluster-ingress/cover.png
     description: "In-Cluster Ingress — Frank directing traffic through a glowing gateway"
     prompt: >-
@@ -718,6 +743,7 @@ images:
       Dark server room with blue, teal, and gold lighting accents.
 
   - key: building-25-vk-relay
+    series: building
     output: blog/content/docs/building/25-vk-relay/cover.png
     description: "VK Relay — Frank bridging two screens with a glowing WebSocket tunnel"
     prompt: >-
@@ -735,6 +761,7 @@ images:
       accents. Simple composition, clean layout.
 
   - key: building-26-vk-remote-self-host
+    series: building
     output: blog/content/docs/building/26-vk-remote-self-host/cover.png
     description: "VK Remote Self-Host — Frank unplugging from a dying cloud and wiring up his own kanban server"
     prompt: >-
@@ -754,6 +781,7 @@ images:
       blue lighting accents.
 
   - key: building-27-cicd-platform
+    series: building
     output: blog/content/docs/building/27-cicd-platform/cover.png
     description: "CI/CD Platform — Frank operating a multi-stage assembly line from git to signed container images"
     prompt: >-
@@ -773,6 +801,7 @@ images:
       Clean composition, left-to-right flow.
 
   - key: building-28-agent-images-sidecar
+    series: building
     output: blog/content/docs/building/28-agent-images-sidecar/cover.png
     description: "Agent Images & VK-Local Sidecar — Frank has just cracked a tall stone monolith in two, revealing a neat vk-local crate nested inside"
     prompt: >-
@@ -811,6 +840,7 @@ images:
       right. Cinematic lighting, the moment of discovery.
 
   - key: building-29-ruflo
+    series: building
     output: blog/content/docs/building/29-ruflo/cover.png
     description: "Ruflo — chaotic swarm orchestrator next to Paperclip's org chart"
     prompt: >-
@@ -864,6 +894,7 @@ images:
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
+    series: operating
     output: blog/content/docs/operating/01-cluster-nodes/cover.png
     description: "Operating on Cluster & Nodes — Frank checking vital signs"
     prompt: >-
@@ -881,6 +912,7 @@ images:
       and green accent lighting.
 
   - key: ops-02-storage-backups
+    series: operating
     output: blog/content/docs/operating/02-storage-backups/cover.png
     description: "Operating on Storage & Backups — Frank maintaining his storage drives"
     prompt: >-
@@ -896,6 +928,7 @@ images:
       room with blue and orange lighting.
 
   - key: ops-03-gitops
+    series: operating
     output: blog/content/docs/operating/03-gitops/cover.png
     description: "Operating on GitOps — Frank managing his application orchestra"
     prompt: >-
@@ -909,6 +942,7 @@ images:
       above each app box. Dark server room with blue and orange lighting.
 
   - key: ops-04-gpu-compute
+    series: operating
     output: blog/content/docs/operating/04-gpu-compute/cover.png
     description: "Operating on GPU Compute — Frank servicing his GPU arms"
     prompt: >-
@@ -922,6 +956,7 @@ images:
       server room with green and blue electric sparks.
 
   - key: ops-05-observability
+    series: operating
     output: blog/content/docs/operating/05-observability/cover.png
     description: "Operating on Observability — Frank at his command center"
     prompt: >-
@@ -938,6 +973,7 @@ images:
       blue and purple monitoring glow.
 
   - key: ops-06-secrets
+    series: operating
     output: blog/content/docs/operating/06-secrets/cover.png
     description: "Operating on Secrets — Frank cracking a safe with a blowtorch"
     prompt: >-
@@ -955,6 +991,7 @@ images:
       blue and gold lighting.
 
   - key: ops-07-inference
+    series: operating
     output: blog/content/docs/operating/07-inference/cover.png
     description: "Operating on Local Inference — Frank holding his own head open"
     prompt: >-
@@ -971,6 +1008,7 @@ images:
       brain. Dark server room with purple and blue neural network lighting.
 
   - key: ops-08-auth
+    series: operating
     output: blog/content/docs/operating/08-auth/cover.png
     description: "Operating on Authentication — Frank installing security systems"
     prompt: >-
@@ -984,6 +1022,7 @@ images:
       red X. Dark server room with blue and gold lighting accents.
 
   - key: ops-09-multi-tenancy
+    series: operating
     output: blog/content/docs/operating/09-multi-tenancy/cover.png
     description: "Operating on Multi-tenancy — Frank juggling vCluster snow globes"
     prompt: >-
@@ -1000,6 +1039,7 @@ images:
       server room with blue and teal lighting.
 
   - key: ops-10-media-generation
+    series: operating
     output: blog/content/docs/operating/10-media-generation/cover.png
     description: "Operating on Media Generation — Frank at a control panel managing GPU workloads"
     prompt: >-
@@ -1015,6 +1055,7 @@ images:
       blue and purple lighting accents.
 
   - key: ops-11-public-edge
+    series: operating
     output: blog/content/docs/operating/11-public-edge/cover.png
     description: "Operating on Hop — Frank monitoring a miniature portal-connected cloud server"
     prompt: >-
@@ -1031,6 +1072,7 @@ images:
       accents.
 
   - key: ops-12-progressive-delivery
+    series: operating
     output: blog/content/docs/operating/12-progressive-delivery/cover.png
     description: "Operating on Progressive Delivery — Frank at a control panel managing canary and blue-green rollouts"
     prompt: >-
@@ -1047,6 +1089,7 @@ images:
       Dark server room with blue, green, and yellow lighting accents.
 
   - key: ops-13-workflow-automation
+    series: operating
     output: blog/content/docs/operating/13-workflow-automation/cover.png
     description: "Operating on Workflow Automation — Frank maintaining n8n workflow internals"
     prompt: >-
@@ -1062,6 +1105,7 @@ images:
       orange lighting accents.
 
   - key: ops-14-secure-agent-pod
+    series: operating
     output: blog/content/docs/operating/14-secure-agent-pod/cover.png
     description: "Operating on Secure Agent Pod — Frank maintaining a layered security orb"
     prompt: >-
@@ -1082,6 +1126,7 @@ images:
       lighting accents.
 
   - key: ops-15-health-monitoring
+    series: operating
     output: blog/content/docs/operating/15-health-monitoring/cover.png
     description: "Operating on Health Monitoring — Frank tuning heartbeat monitors"
     prompt: >-
@@ -1099,6 +1144,7 @@ images:
       mood. Dark server room with blue and green lighting accents.
 
   - key: ops-16-health-bridge
+    series: operating
     output: blog/content/docs/operating/16-health-bridge/cover.png
     description: "Operating on Health Bridge — Frank at a console managing alert-to-issue routing"
     prompt: >-
@@ -1115,6 +1161,7 @@ images:
       lighting accents.
 
   - key: ops-17-ingress
+    series: operating
     output: blog/content/docs/operating/17-ingress/cover.png
     description: "Operating on In-Cluster Ingress — Frank maintaining a traffic gateway"
     prompt: >-
@@ -1134,6 +1181,7 @@ images:
       and teal lighting accents.
 
   - key: ops-18-paperclip
+    series: operating
     output: blog/content/docs/operating/18-paperclip/cover.png
     description: "Operating on Paperclip — Frank managing an AI agent org chart"
     prompt: >-
@@ -1153,6 +1201,7 @@ images:
       Dark server room with warm amber and blue lighting accents.
 
   - key: ops-19-git-credentials-without-a-shell
+    series: operating
     output: blog/content/docs/operating/19-git-credentials-without-a-shell/cover.png
     description: "Git Credentials Without a Shell — Frank pulling a token directly from PID 1's environment"
     prompt: >-
@@ -1174,6 +1223,7 @@ images:
       teal lighting accents.
 
   - key: ops-21-vk-remote
+    series: operating
     output: blog/content/docs/operating/21-vk-remote/cover.png
     description: "Operating on VK Remote — Frank monitoring three stacked service components at an operations desk"
     prompt: >-
@@ -1193,6 +1243,7 @@ images:
       accents.
 
   - key: ops-20-vk-relay
+    series: operating
     output: blog/content/docs/operating/20-vk-relay/cover.png
     description: "Operating on VK Relay — Frank monitoring relay tunnel status on a dashboard"
     prompt: >-
@@ -1211,6 +1262,7 @@ images:
       room with blue and teal lighting accents.
 
   - key: ops-22-cicd-platform
+    series: operating
     output: blog/content/docs/operating/22-cicd-platform/cover.png
     description: "Operating on CI/CD Platform — Frank monitoring pipeline and registry status"
     prompt: >-
@@ -1230,6 +1282,7 @@ images:
       with blue, green, and orange lighting accents.
 
   - key: ops-23-argocd-drift-detective
+    series: operating
     output: blog/content/docs/operating/23-argocd-drift-detective/cover.png
     description: "Operating on ArgoCD Drift — Frank as a detective pinning up drift evidence"
     prompt: >-
@@ -1253,6 +1306,7 @@ images:
 
 
   - key: ops-24-ruflo
+    series: operating
     output: blog/content/docs/operating/24-ruflo/cover.png
     description: "Operating on Ruflo — Frank pruning a hexagonal beehive of agent tasks at the operations console"
     prompt: >-

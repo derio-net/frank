@@ -23,6 +23,12 @@ from google import genai
 from PIL import Image
 
 MODEL = "gemini-3-pro-image-preview"
+FALLBACK_MODEL = "gemini-2.5-flash-image"
+# Per-request timeout in milliseconds (genai SDK convention). The default
+# is essentially "wait forever," which turned model-side stalls into
+# unrecoverable hangs in practice. 120s is enough headroom for a successful
+# image gen and short enough to fall back fast on a real stall.
+REQUEST_TIMEOUT_MS = 120_000
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROMPTS_FILE = REPO_ROOT / "blog" / "prompt_for_images.yaml"
 
@@ -91,6 +97,24 @@ def post_process(source_path: Path, steps: list[dict]) -> None:
             print(f"    ICO     → {target.relative_to(REPO_ROOT)} ({size}x{size})")
 
 
+def _is_transient_error(exc: Exception) -> bool:
+    """Heuristic for 'this looks worth retrying on a different model.'
+
+    Covers httpx ReadTimeout (model stalled at TCP layer), genai-wrapped
+    5xx responses ('UNAVAILABLE', '503', '504'), and the SDK's own
+    timeout exception. Permission/auth errors and 4xx bad-prompt errors
+    return False so we don't waste a fallback call.
+    """
+    msg = str(exc).upper()
+    if "TIMEOUT" in msg or "TIMED OUT" in msg:
+        return True
+    if "UNAVAILABLE" in msg or "503" in msg or "504" in msg or "502" in msg:
+        return True
+    if "DEADLINE EXCEEDED" in msg:
+        return True
+    return False
+
+
 def generate_one(
     client: genai.Client,
     reference: Image.Image,
@@ -105,7 +129,13 @@ def generate_one(
     reference_2: Image.Image | None = None,
     series_modifiers: str | None = None,
     series_label: str | None = None,
-) -> bool:
+    request_timeout_ms: int = REQUEST_TIMEOUT_MS,
+) -> "bool | str":
+    """Generate one image.
+
+    Returns True on success, the string 'retry' when the failure looks
+    transient (timeout / 5xx / model overload), False otherwise.
+    """
     sections = [base_style, reference_guidance]
     if series_modifiers:
         sections.append(series_modifiers)
@@ -119,25 +149,28 @@ def generate_one(
     print(f"\n{'='*60}")
     print(f"  [{key}] → {output_path.relative_to(REPO_ROOT)}")
     print(f"{'='*60}")
+    print(f"  Model: {model}")
     if series_label:
         print(f"  Series: {series_label} (+ secondary reference)")
     if aspect_ratio or image_size:
         print(f"  Image config: aspect_ratio={aspect_ratio}, image_size={image_size}")
     print(f"  Prompt: {prompt[:80]}...")
-    print(f"  Generating...", flush=True)
+    print(f"  Generating (timeout {request_timeout_ms // 1000}s)...", flush=True)
 
     try:
         # Build generation config if aspect_ratio or image_size specified
-        gen_config = None
+        gen_config_kwargs: dict = {
+            "http_options": genai.types.HttpOptions(timeout=request_timeout_ms),
+        }
         if aspect_ratio or image_size:
             image_config_kwargs = {}
             if aspect_ratio:
                 image_config_kwargs["aspect_ratio"] = aspect_ratio
             if image_size:
                 image_config_kwargs["image_size"] = image_size
-            gen_config = genai.types.GenerateContentConfig(
-                image_config=genai.types.ImageConfig(**image_config_kwargs),
-            )
+            gen_config_kwargs["image_config"] = genai.types.ImageConfig(**image_config_kwargs)
+
+        gen_config = genai.types.GenerateContentConfig(**gen_config_kwargs)
 
         response = client.models.generate_content(
             model=model,
@@ -159,6 +192,9 @@ def generate_one(
         return False
 
     except Exception as e:
+        if _is_transient_error(e):
+            print(f"  TRANSIENT ERROR ({type(e).__name__}): {str(e)[:200]}", file=sys.stderr)
+            return "retry"
         print(f"  ERROR: {e}", file=sys.stderr)
         return False
 
@@ -210,6 +246,17 @@ def main() -> None:
     )
     parser.add_argument(
         "--model", "-m", default=MODEL, help=f"Gemini model (default: {MODEL})"
+    )
+    parser.add_argument(
+        "--fallback-model", default=FALLBACK_MODEL,
+        help=(
+            "Model to retry with when --model times out or returns 5xx. "
+            f"Pass an empty string to disable. Default: {FALLBACK_MODEL}"
+        ),
+    )
+    parser.add_argument(
+        "--timeout-seconds", type=int, default=REQUEST_TIMEOUT_MS // 1000,
+        help=f"Per-request timeout in seconds (default: {REQUEST_TIMEOUT_MS // 1000})",
     )
     parser.add_argument(
         "--delay", type=int, default=5,
@@ -277,6 +324,8 @@ def main() -> None:
 
     succeeded = 0
     failed = []
+    timeout_ms = args.timeout_seconds * 1000
+    fallback_model = args.fallback_model.strip() or None
 
     for i, img in enumerate(targets):
         key = img["key"]
@@ -289,7 +338,7 @@ def main() -> None:
             series_map.get(series_name, {}).get("modifiers") if series_name else None
         )
 
-        ok = generate_one(
+        result = generate_one(
             client, reference, key, output_path, prompt,
             base_style, base_guidance, model=args.model,
             aspect_ratio=img.get("aspect_ratio"),
@@ -297,8 +346,26 @@ def main() -> None:
             reference_2=reference_2,
             series_modifiers=series_modifiers,
             series_label=series_name,
+            request_timeout_ms=timeout_ms,
         )
-        if ok:
+
+        # Fallback path: when the primary model stalls or 5xxs, retry once
+        # with the fallback model (unless --fallback-model "" or the fallback
+        # is the same as the primary).
+        if result == "retry" and fallback_model and fallback_model != args.model:
+            print(f"  Falling back to {fallback_model}...", flush=True)
+            result = generate_one(
+                client, reference, key, output_path, prompt,
+                base_style, base_guidance, model=fallback_model,
+                aspect_ratio=img.get("aspect_ratio"),
+                image_size=img.get("image_size"),
+                reference_2=reference_2,
+                series_modifiers=series_modifiers,
+                series_label=series_name,
+                request_timeout_ms=timeout_ms,
+            )
+
+        if result is True:
             succeeded += 1
             # Run post-processing if defined (e.g., favicon resizing)
             if img.get("post_process"):
