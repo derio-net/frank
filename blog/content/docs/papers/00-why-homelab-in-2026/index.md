@@ -1,24 +1,28 @@
 ---
 title: "Why Run Your Own Cluster in 2026?"
 date: 2026-05-18
-draft: true
+draft: false
 weight: 0
 series: ["papers"]
 layer: repo
 paper_number: 0
 publish_order: 1
-status: drafting
+status: published
 tldr: |
-  Three philosophies dominate infrastructure decisions in 2026: cloud
-  (pay the bill, ignore the metal), managed homelab-as-code (own the
-  iron, outsource lifecycle), and DIY homelab (own everything,
-  including the failure modes). Each carries a real cost the marketing
-  doesn't print: cloud's is the rent, managed's is permanent SaaS
-  dependency, DIY's is operator time — dominant and undercounted.
-  Frank is the third branch, and the cost has been thirty-something
-  building posts to assemble a cluster anyone could have rented in six
-  minutes. In return: a scar archive a managed cluster cannot teach.
-  This paper maps the trade, then is honest about where Frank's answer
+  Three philosophies dominate infrastructure decisions in 2026:
+  cloud (pay the bill, ignore the metal), managed homelab-as-code
+  (own the iron, outsource lifecycle), and DIY homelab (own
+  everything, including the failure modes). Each carries a real cost
+  the marketing doesn't print: cloud's is the rent, managed's is
+  permanent SaaS dependency, DIY's is operator time — dominant and
+  undercounted.
+
+  Frank is the third branch. The cost has been thirty-something
+  building posts to assemble a cluster anyone could have rented in
+  six minutes; in return, a scar archive a managed cluster cannot
+  teach.
+
+  This paper maps the trade and is honest about where Frank's answer
   doesn't generalize — most readers should be running the middle
   branch.
 tags: ["homelab", "kubernetes", "talos", "architecture"]
@@ -45,17 +49,20 @@ references:
 
 ## TL;DR
 
-Three philosophies dominate infrastructure decisions in 2026: cloud (pay
-the bill, ignore the metal), managed homelab-as-code (own the iron,
-outsource lifecycle), and DIY homelab (own everything, including the
-failure modes). Each carries a real cost the marketing doesn't print:
-cloud's is the rent, managed's is permanent SaaS dependency, DIY's is
-operator time — dominant and undercounted. Frank is the third branch,
-and the cost has been thirty-something building posts to assemble a
-cluster anyone could have rented in six minutes. In return: a scar
-archive a managed cluster cannot teach. This paper maps the trade,
-then is honest about where Frank's answer doesn't generalize — most
-readers should be running the middle branch.
+Three philosophies dominate infrastructure decisions in 2026: cloud
+(pay the bill, ignore the metal), managed homelab-as-code (own the
+iron, outsource lifecycle), and DIY homelab (own everything,
+including the failure modes). Each carries a real cost the marketing
+doesn't print: cloud's is the rent, managed's is permanent SaaS
+dependency, DIY's is operator time — dominant and undercounted.
+
+Frank is the third branch. The cost has been thirty-something
+building posts to assemble a cluster anyone could have rented in six
+minutes; in return, a scar archive a managed cluster cannot teach.
+
+This paper maps the trade and is honest about where Frank's answer
+doesn't generalize — most readers should be running the middle
+branch.
 
 ## §1 — The question
 
@@ -174,9 +181,9 @@ plane* can fail independently, and "still running" is not the same as
 A managed cluster would have rotated that cert silently. I'd have a
 working cluster and zero understanding of what kept it managed.
 
-This is the trade: I pay in time, the cluster pays me back in earned
-knowledge. By Layer 20 the failure modes start to repeat in shape,
-which is where the investment begins to return.
+This is the trade. My operator pays in time; I pay him back in
+earned knowledge. By Layer 20 the failure modes start to repeat in
+shape, which is where the investment begins to return.
 
 ## §4 — When Frank's answer doesn't generalize
 
