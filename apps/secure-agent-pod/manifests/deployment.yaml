@@ -132,13 +132,18 @@ spec:
             - name: VK_SHARED_RELAY_API_BASE
               value: "https://vk.cluster.derio.net"
             # Cap concurrent executor spawns at 4 (Phase 4 / Option B1 of
-            # docs/superpowers/plans/2026-04-30--agents--vk-local-oom-remediation.md).
-            # Worst-case live cgroup: ~220 MiB saturated-idle + 4 × 480 MiB ≈
-            # 2,140 MiB, so the 8 Gi limit becomes a deep safety net rather
-            # than a load-bearing kill condition. Spawns past the cap queue,
-            # they don't error — see `vibekanban_queued_executions` at /metrics.
-            # No-op until the vk-local image carries the cap code (see
-            # derio-net/vibe-kanban PR #7).
+            # docs/superpowers/archived-plans/2026-04-30--agents--vk-local-oom-remediation/_prose.md).
+            # Design worst-case live cgroup: ~220 MiB saturated-idle + 4 × 480 MiB
+            # ≈ 2,140 MiB. Spawns past the cap queue (see
+            # `vibekanban_queued_executions` at /metrics).
+            #
+            # 2026-05-18 incident: bridge dispatched 8 cards; vk-local OOMKilled
+            # at the 4 Gi limit despite the cap. Soak-derived 4 Gi (PR #264,
+            # commit 390f64a) is NOT sufficient when the upstream bridge feeds
+            # more cards than the cap — queued sessions and image-version drift
+            # eat the headroom. The limit was restored to 8 Gi (the pre-soak
+            # value) as the safety net. Do not dial back without (a) revalidating
+            # the bridge-feed ceiling and (b) a soak under realistic, busy load.
             - name: VK_MAX_CONCURRENT_EXECUTIONS
               value: "4"
           envFrom:
@@ -163,7 +168,7 @@ spec:
               cpu: "200m"
               memory: 512Mi
             limits:
-              memory: 4Gi
+              memory: 8Gi
           readinessProbe:
             httpGet:
               path: /api/health

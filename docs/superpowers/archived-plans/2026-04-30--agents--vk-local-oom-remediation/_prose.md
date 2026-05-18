@@ -146,3 +146,39 @@ Auto-filled by `scripts/phase5-soak-daily.sh` via supercronic (`0 8 * * *` UTC, 
 - P6.T3.S1: Open issue in `derio-net/frank` titled `agents: investigate 9× OOM-rate escalation on vibe-kanban image dc414b4`.
 
 ## Phase 7: Post-Deploy Checklist
+
+---
+
+## Post-Deployment Deviation — 2026-05-18 OOMKill
+
+**Symptom:** `vk-local` container OOMKilled (exit 137) on `secure-agent-pod-f88d4cfb6-8ds89` / gpu-1 at 2026-05-18 07:10:57 UTC. RestartCount went 0 → 1; pod recovered on its own and resumed normal cycles 28 minutes later.
+
+**Trigger sequence:**
+- 2026-05-16 — Phase 5 dial-back from 8 Gi → 4 Gi merged (commit `390f64a`, PR #264).
+- 2026-05-17 23:40 CEST — Image bump to `agent-images@be41440` / `vk-remote@1768b9c` (commit `58ba8c2`, PR #302).
+- 2026-05-18 07:10:57 UTC (~9.5h later) — OOMKill at 4 Gi limit.
+
+**Evidence pre-kill (bridge log, last cycle before SIGKILL):**
+
+```
+[bridge] active workspaces: 8, max: 8, slots available: 0
+[bridge] existing VK cards: 10
+TimeoutError: No response from MCP server within 30.0s
+```
+
+**Root cause** — the Phase 5 dial-back to 4 Gi was sized off a quiet soak (peak queue depth = 3, p99 RSS = 2.95 GiB) and assumed queued executions held ~0 MiB. Two assumptions failed:
+
+1. **Bridge slot count is independent of the executor cap.** The bridge feeds the executor up to its own slot ceiling (8, configured in `agent-images`), not the `VK_MAX_CONCURRENT_EXECUTIONS=4` semaphore. Surplus cards queue inside vk-local with non-zero memory footprint (claude/npm/node child trees survive the semaphore wait in the v9 image).
+2. **Image drift consumes headroom.** The `be41440` image carries a higher per-session baseline than the soak-tested `8af0d080`, narrowing the 1 GiB margin further.
+
+**Mitigation applied (commit on 2026-05-18):**
+- `vk-local limits.memory: 4Gi → 8Gi` — revert to pre-dial-back value. Headroom over soak p99 returns to ~5 GiB.
+- Inline comment in `apps/secure-agent-pod/manifests/deployment.yaml` updated to record the incident and the two preconditions for any future dial-back.
+- Gotcha entry added in `agents/rules/frank-gotchas.md` and full prose in `docs/runbooks/frank-gotchas/agent-shells.md`.
+
+**Defense-in-depth follow-ups (deferred — not in this commit):**
+- Cap the bridge's own slot count at or below `VK_MAX_CONCURRENT_EXECUTIONS` so queue depth in vk-local is structurally bounded. (Needs an `agent-images` change.)
+- Re-evaluate per-session memory cost on image `be41440` against the Phase 2 memprofile baseline (480 MiB/session). If higher, fold the new figure into the design memo before any future dial-back.
+- Extend the existing R follow-up issue ("9× OOM-rate escalation on image `dc414b4`") to also cover `be41440` regression.
+
+**Status:** Mitigated. Plan remains archived; this incident is recorded as a deviation rather than a new plan because the root cause is sizing-of-the-existing-knob, not new design surface.

@@ -76,6 +76,18 @@ Any pod where a sidecar container uses agent-shell-base (or any image where `s6-
 
 If the goal is cross-container debugging via `ps -ef`, use the shared workspace volume instead (every shell sidecar already mounts `/workspace`); reach for `kubectl exec -c <other>` for live process inspection. Affects ruflo, paperclip, and any future hybrid pod that pairs an app container with an agent-shell-base sidecar.
 
+## vk-local 4 Gi limit is load-bearing when the bridge over-feeds the executor cap
+
+`VK_MAX_CONCURRENT_EXECUTIONS=4` bounds *active* executor spawns inside vibe-kanban; it does NOT bound the bridge's own slot count (separate config in `agent-images`). When the bridge dispatches more cards than the executor cap, the surplus queues inside vk-local and the queued sessions retain non-zero memory (claude/npm/node child trees survive across the semaphore wait). The design memo for PR #264 assumed queued sessions held ~0 MiB; the 2026-05-18 incident invalidated that assumption.
+
+**Incident — 2026-05-18 07:10:57 UTC**: `vk-local` OOMKilled (exit 137) on `secure-agent-pod-f88d4cfb6-8ds89` / gpu-1, ~9.5h after the May 17 23:40 CEST image bump to `agent-images@be41440`. Bridge log immediately pre-kill: `active workspaces: 8, max: 8, slots available: 0` with 10 existing VK cards. MCP timeouts (`No response from MCP server within 30.0s`) preceded SIGKILL — classic cgroup pressure → GC stall → unresponsiveness chain. Phase 5 soak (2026-05-03 → 16) had peaked at p99 2.95 GiB with queue depth 3; the 4 Gi limit chosen on commit `390f64a` left only 1 Gi headroom and a 2× bump in upstream load consumed it.
+
+**Mitigation**: vk-local `limits.memory` restored to 8 Gi (the pre-dial-back value). Do not re-dial-back without:
+1. Capping the bridge's own slot count at or below `VK_MAX_CONCURRENT_EXECUTIONS` (so queue depth in vk-local stays bounded), OR
+2. Re-running the soak under realistic busy load (≥8 in-flight cards for 14 days) and seeing p99 RSS stay below 3 GiB.
+
+**Diagnostics**: kubectl describe pod's `lastState.terminated.reason: OOMKilled` is the canonical signal — Kubernetes events age out within ~1h on Frank, so the pod-level field is more durable. The metrics-server may also be down in this cluster (kubectl top fails with "Metrics API not available"), so prefer cadvisor → VictoriaMetrics for memory time-series.
+
 ## sshd scrubs container env on SSH login — env-dependent commands silently no-op
 
 sshd runs with the OpenSSH default `PermitUserEnvironment no` posture and does not preserve the K8s `envFrom` env injected at PID 1, so anything launched via `ssh agent@<host> -- some-command` runs with the bare login env — `FRANK_C2_TELEGRAM_BOT_TOKEN`, `FRANK_C2_TELEGRAM_CHAT_ID`, `INFISICAL_*`, etc. are absent from the SSH session.
