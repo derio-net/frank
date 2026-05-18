@@ -1,7 +1,7 @@
 # The Frank Papers — Phase 0: Tooling & Scaffolding
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Not Started
+**Status:** Complete (2026-05-18)
 
 This plan delivers all infrastructure needed before the first Paper may begin its
 dossier. Phase 0 is self-contained and produces no published content — it produces

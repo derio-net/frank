@@ -18,21 +18,101 @@ base_style: >-
   Cartoon illustration, vibrant colors, thick outlines, chibi proportions.
   Dark background with electric blue lightning accents.
   Tech-horror aesthetic, playful not scary.
-  The character has green skin, messy black hair, black eyes with white pupils, stitches, and
-  RJ45 bolt connectors on his neck. Blue glow comes from the environment,
-  props, and electric sparks.
-  Draw the character's face naturally for the scene — match expression to the
-  action, vary the head angle, and apply scene-appropriate lighting. Do NOT
-  copy-paste the face from the reference; use it only as a design guide.
 
-reference_guidance: >-
-  Use the attached reference image as a CHARACTER DESIGN SHEET — it defines
-  Frank's body shape, proportions, color palette, outfit, and hardware-part
-  anatomy. Key face details: black messy hair, black eyes with white pupils,
-  green skin, stitch scars, expressive brow. For each new image,
-  redraw Frank from scratch in the scene's perspective and lighting. His
-  facial expression should match the scene's mood. Vary his pose, angle,
-  and body language naturally.
+  CANONICAL FRANK FEATURES (derived from the reference image — apply
+  consistently across every scene):
+
+  • SKIN: uneven cartoon green, with subtle shading variation across
+    the face (not a flat colour fill).
+  • HAIR: messy black flat-top with a clearly jagged, uneven silhouette
+    at the top — visible spiky peaks of varying heights.
+  • EYES: chibi style — each eye is an entirely BLACK solid round
+    shape with a small WHITE DOT inside as the highlight / pupil
+    (black-with-white-dot, NOT white-with-black-iris).
+  • NOSE: absent. Flat featureless plane of green skin between the
+    eyes and the mouth — no nose ridge, no nostrils, no nose shadow.
+  • FOREHEAD SCAR: a HORIZONTAL stitched scar runs across the upper
+    forehead just below the hairline — drawn as a dark line with
+    multiple short vertical cross-stitches along its length.
+  • RED FOREHEAD PATCH: a small rectangular RED patch (like a sewn-on
+    hardware decal / label) sits above his RIGHT eye on the upper
+    forehead. Distinctly RED, small, rectangular, with a thin dark
+    border. This is one of Frank's signature details.
+  • OTHER PATCHES: brown / tan skin patches elsewhere on the face
+    (cheek, jaw) with horizontal stitches inside each patch.
+    Unmistakably brown against the green skin, not slightly-darker
+    green. Placement varies by scene. Critically, these are
+    SEWN-ON SKIN PATCHES — flat coloured fabric/skin with simple
+    horizontal stitch lines crossing them. They are NOT exposed
+    mechanical surfaces, NOT visible gears, NOT circuit boards,
+    NOT cybernetic implants. The mechanical / server-hardware
+    aesthetic belongs in the environment and props around Frank,
+    not on his face. Frank's face is monster-with-patches, not
+    cyborg-with-implants.
+  • BOLTS: TWO SYMMETRIC RJ45-connector bolts — either on the NECK
+    (preferred when the neck is visible) OR on the TEMPLES (when the
+    crop is head-only and the neck isn't shown). Always symmetric,
+    one on each side. Faint blue electricity sparking from each.
+
+  Blue glow comes from the environment, props, and electric sparks
+  — NOT from Frank's eyes.
+
+  Draw Frank's face naturally for each scene — match expression to
+  the action, vary the head angle, and apply scene-appropriate
+  lighting. Do NOT copy-paste the face from the reference; use it
+  only as a design guide.
+
+reference_guidance:
+  # Base character-sheet guidance — applied to every image.
+  # Reference image #1 is always blog/static/images/reference.png (passed via -r).
+  base: >-
+    Use the attached primary reference image as a CHARACTER DESIGN SHEET —
+    it defines Frank's body shape, proportions, color palette, outfit, and
+    hardware-part anatomy. Key face details: black messy hair, black eyes
+    with white pupils, green skin, stitch scars, expressive brow. For each
+    new image, redraw Frank from scratch in the scene's perspective and
+    lighting. His facial expression should match the scene's mood. Vary
+    his pose, angle, and body language naturally.
+
+  # Per-series modifiers. When an image entry sets `series: <name>`, the
+  # script injects that series's `modifiers` block into the prompt AND
+  # passes the `banner` image as a SECONDARY reference (in addition to the
+  # primary reference.png), so Gemini conditions on both the character
+  # sheet and the series-specific aesthetic.
+  series:
+    building:
+      banner: blog/static/images/banner-building.png
+      modifiers: >-
+        BUILDING-SERIES SIGNATURE — hands-on builder persona. Frank is
+        actively constructing, assembling, or working on the subject of
+        the post. Tools, parts, or hardware are typically in his hands.
+        Workshop / lab lighting; scattered cables, blueprints, or hardware
+        parts in the scene. Use the secondary reference image
+        (banner-building.png) as a style anchor for the Building series.
+
+    operating:
+      banner: blog/static/images/banner-operating.png
+      modifiers: >-
+        OPERATING-SERIES SIGNATURE — SRE / maintenance persona. Frank is
+        at an operations console facing monitoring screens, OR on a
+        surgical table being maintained by overhead rail-mounted robotic
+        arms, OR inspecting an open chassis. Dashboards, status indicators,
+        and dark server-room lighting are typical. Calm, watchful
+        expression — routine monitoring, not crisis. Use the secondary
+        reference image (banner-operating.png) as a style anchor for the
+        Operating series.
+
+    papers:
+      banner: blog/static/images/tile-papers.png
+      modifiers: >-
+        PAPERS-SERIES SIGNATURE — scholar / researcher persona. Frank
+        wears a crisp white button-down dress shirt, a thin black necktie,
+        and small thin-framed reading glasses perched low on the bridge
+        of his nose (the kind older readers use for close work). This
+        outfit is the consistent visual signature across every Papers
+        image — apply it unless the scene explicitly contradicts. Use the
+        secondary reference image (banner-papers.png) as a style anchor
+        for the Papers series.
 
 # ---------------------------------------------------------------------------
 # Site-wide assets (banner, favicon) — share a unified design language
@@ -155,66 +235,81 @@ images:
 
   - key: favicon
     output: blog/static/images/favicon.png
-    description: Master favicon (512x512, resized to 32/16/180 after generation)
+    description: Master favicon — generated high-res, center-cropped to square, then scaled down to all derivatives in one pass
     prompt: >-
-      A simple square icon of Frank's head — green Frankenstein monster head made
-      of computer parts. Green skin, messy black hair, black eyes, flat-top head
-      is a CPU die with circuit traces, neck bolts are RJ45 connectors sparking
-      with blue electricity, forehead stitches are solder traces. Minimal detail,
-      icon-friendly, works when scaled down to 32x32px. Solid dark background
-      (#1a1a2e). No body, just the head and neck bolts. Square 1:1 aspect ratio.
+      A square icon of canonical Frank — head only, no body, no
+      shoulders, no torso. Solid dark navy background (#1a1a2e).
+
+      FRAME: a thin clean WHITE BORDER LINE just inside the edge of
+      the image, forming a rectangular frame around the entire
+      composition. ALL elements — Frank's head, hair peaks, temple
+      bolts, and any blue electric sparks — must sit fully INSIDE
+      this white frame, with comfortable padding between the
+      outermost element and the frame line. The head should fill
+      perhaps 60–70% of the framed area (NOT fill it edge to edge),
+      so the temple-bolt sparks have room to extend outward without
+      touching or crossing the frame.
+
+      Because the crop is neckless, place the two symmetric RJ45
+      bolts on the TEMPLES (one each side) — they must be clearly
+      drawn, unmistakable as RJ45 sockets, silver/grey metal, with
+      faint blue sparks that stay well inside the white frame.
+
+      Expression: SMUG / KNOWING — small confident smirk, eyebrows
+      angled to give a pleased-with-himself look. Alert eyes, fully
+      open (not half-lidded, not sleepy).
+
+      Flat cartoon/chibi style with clean bold dark outlines, designed
+      to read at small sizes (16×16, 32×32). Square 1:1 framing.
+      ABSOLUTELY NO TEXT. EXACTLY ONE character. No stray horns,
+      hardware, or extra shapes peeking from under the hair.
+
+      Apply all CANONICAL FRANK FEATURES from base_style as drawn
+      — including the horizontal forehead scar, the small red
+      rectangular patch above the right eye, the brown cheek / jaw
+      patches (drawn as SEWN-ON SKIN with horizontal stitches, NOT
+      as mechanical surfaces or gears), the chibi black-with-white-
+      dot eyes, and the flat no-nose plane.
     post_process:
+      # Gemini returns ~1408×736 regardless of requested aspect, so first
+      # center-crop the source to square at 512×512 (overwrites the master
+      # PNG); subsequent resize/ico steps work from the cropped image.
+      - crop_resize: {target: "blog/static/images/favicon.png", width: 512, height: 512}
+      - resize: {target: "blog/static/apple-touch-icon.png", size: 180}
       - resize: {target: "blog/static/favicon-32x32.png", size: 32}
       - resize: {target: "blog/static/favicon-16x16.png", size: 16}
-      - resize: {target: "blog/static/apple-touch-icon.png", size: 180}
       - ico: {target: "blog/static/favicon.ico", size: 32}
 
   - key: banner-papers
+    series: papers
     output: blog/static/images/banner-papers.png
-    description: Papers-card cover on landing page — Frank at whiteboard drawing a decision tree (1200x630)
+    description: Papers series header strip banner (1200x200, 6:1 ratio) — matches banner-building / banner-operating style with title text
     prompt: >-
-      A wide cinematic banner (1200×630 pixels). Frank the server-hardware
-      Frankenstein monster stands at a wall-sized whiteboard, drawing a
-      decision tree that branches and forks all the way to the edges of
-      the wall. He wears his utility belt of ethernet cables, his RJ45 neck
-      bolts, and — new for this scene — a crisp WHITE BUTTON-DOWN DRESS
-      SHIRT (clearly white, not green; the shirt fabric must contrast
-      visibly with his green skin), thin round reading glasses resting low
-      on his nose, and a thin black necktie. The floor around him is
-      scattered with loose server parts that are being *considered*, not
-      assembled: open spec sheets, sticky notes with architecture diagrams,
-      a quadrant chart drawn in chalk. A warm single overhead work-lamp
-      illuminates the whiteboard from above. Frank's expression is focused
-      and curious, marker in hand mid-stroke. Background: dark room, faint
-      blue PCB traces on the walls. The mood is thinking and weighing, not
-      triumphant. EXACTLY ONE FIGURE — one single Frank, no duplicates,
-      no mirrored copies. ABSOLUTELY NO TEXT in the image.
-
-  - key: banner-papers-thin
-    output: blog/static/images/banner-papers-thin.png
-    description: Papers section-page hero — Frank at desk annotating schematics (wide thin strip)
-    prompt: >-
-      An ultra-wide horizontal strip banner — 1200 pixels wide by 200 pixels
-      tall (6:1 aspect ratio). EXACTLY ONE FIGURE in the image. ONE single
-      Frank the server-hardware Frankenstein monster — green skin, messy
-      black hair, RJ45 neck bolts — sits at a wide desk on the LEFT THIRD
-      of the image, viewed in profile (facing right toward the schematics).
-      About 60% the strip height. He wears thin round reading glasses
-      resting low on his nose, and a thin black necktie, and a white lab
-      coat. He is annotating a diagram with a marker. The RIGHT TWO-THIRDS
-      of the image is the rest of the workspace: open books, a warm desk
-      lamp, large architectural schematics laid flat and pinned to a
-      corkboard behind the desk, a terminal screen glowing with green text,
-      and bookshelves fading into darkness at the right edge. Background:
-      very dark, library-like, faint blue PCB traces. ABSOLUTELY NO
-      DUPLICATE FRANKS. NO mirrored copies of the figure. NO repeated
-      composition. Exactly one Frank. ABSOLUTELY NO TEXT. The image MUST
-      be extremely wide and short, like a letterbox strip — 1200×200
-      pixels, 6:1 ratio. Calm, contemplative atmosphere.
+      An ultra-wide horizontal strip banner, extremely wide and short
+      — exactly 1200 pixels wide by 200 pixels tall (6:1 aspect ratio).
+      On the LEFT THIRD, Frank the server-hardware Frankenstein monster
+      stands in profile facing right (toward the title text), about 60%
+      the strip height. He wears the Papers signature (white button-
+      down dress shirt, thin black necktie, small senior reading
+      glasses perched low on the nose) and holds an open manila folder
+      with sticky tabs in one hand and a marker in the other, glancing
+      sideways at the title. CENTER-RIGHT: the title text "The Frank
+      Papers" in bold chunky retro-tech lettering, glowing electric
+      blue with subtle circuit-trace underlines (MATCH the lettering
+      style used in banner-building.png and banner-operating.png — same
+      font, same glow, same circuit-trace underlines). Background:
+      dark circuit-board surface with faint green PCB traces and sparse
+      blue lightning arcs. BOTTOM EDGE: tiny decorative icons — a
+      stack of bound papers with a spine label, a quadrant-chart icon,
+      a small magnifying glass, and a balance/scales icon — evenly
+      spaced. Composition fades at both edges into darkness. EXACTLY
+      ONE FIGURE — one single Frank. The image MUST be extremely wide
+      and short, like a letterbox strip — 1200×200 pixels, 6:1 ratio.
 
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
+    series: building
     output: blog/content/docs/building/00-overview/cover.png
     description: "Overview & Roadmap — Frank assembling himself"
     prompt: >-
@@ -230,6 +325,7 @@ images:
       background.
 
   - key: building-01-introduction
+    series: building
     output: blog/content/docs/building/01-introduction/cover.png
     description: "Introduction — Why build a homelab (rejecting the cloud)"
     prompt: >-
@@ -243,6 +339,7 @@ images:
       server rack shelves in background.
 
   - key: building-02-foundation
+    series: building
     output: blog/content/docs/building/02-foundation/cover.png
     description: "Foundation — Talos immutable OS, Cilium eBPF networking"
     prompt: >-
@@ -257,6 +354,7 @@ images:
       setting with scaffolding and a "No SSH" warning sign.
 
   - key: building-03-storage
+    series: building
     output: blog/content/docs/building/03-storage/cover.png
     description: "Storage — Longhorn distributed storage with 3 replicas"
     prompt: >-
@@ -269,6 +367,7 @@ images:
       setting with server racks as fence posts, sunset sky.
 
   - key: building-04-gpu-compute
+    series: building
     output: blog/content/docs/building/04-gpu-compute/cover.png
     description: "GPU Compute — RTX 5070 drama + Intel Arc iGPU"
     prompt: >-
@@ -282,6 +381,7 @@ images:
       Feature Discovery" label floats. Dark server room background.
 
   - key: building-05-gitops
+    series: building
     output: blog/content/docs/building/05-gitops/cover.png
     description: "GitOps — ArgoCD App-of-Apps orchestra"
     prompt: >-
@@ -295,6 +395,7 @@ images:
       center. Concert hall setting with dark curtains and spotlights.
 
   - key: building-06-fun-stuff
+    series: building
     output: blog/content/docs/building/06-fun-stuff/cover.png
     description: "Fun Stuff — GitOps-managed RGB LEDs on case hardware"
     prompt: >-
@@ -309,6 +410,7 @@ images:
       reflections.
 
   - key: building-07-observability
+    series: building
     output: blog/content/docs/building/07-observability/cover.png
     description: "Observability — VictoriaMetrics + Grafana + Fluent Bit"
     prompt: >-
@@ -324,6 +426,7 @@ images:
       line running along the bottom edge.
 
   - key: building-08-backup
+    series: building
     output: blog/content/docs/building/08-backup/cover.png
     description: "Backup — Longhorn daily/weekly to Cloudflare R2"
     prompt: >-
@@ -337,6 +440,7 @@ images:
       "Daily" and "Weekly" backup schedules circled. Dark server room.
 
   - key: building-09-secrets
+    series: building
     output: blog/content/docs/building/09-secrets/cover.png
     description: "Secrets — Infisical vault + External Secrets Operator"
     prompt: >-
@@ -351,6 +455,7 @@ images:
       labeled "PostgreSQL", "Redis", "Infisical". Dark server room.
 
   - key: building-10-local-inference
+    series: building
     output: blog/content/docs/building/10-local-inference/cover.png
     description: "Local Inference — Ollama + LiteLLM gateway + OpenRouter"
     prompt: >-
@@ -367,6 +472,7 @@ images:
       purple lightning.
 
   - key: building-11-agentic-control-plane
+    series: building
     output: blog/content/docs/building/11-agentic-control-plane/cover.png
     description: "Sympozium — Kubernetes-native agentic control plane"
     prompt: >-
@@ -382,6 +488,7 @@ images:
       robots and tower. Dark server room with blue and orange lightning.
 
   - key: building-12-gpu-talos-fix
+    series: building
     output: blog/content/docs/building/12-gpu-talos-fix/cover.png
     description: "GPU Talos Fix — debugging containerd, validation markers"
     prompt: >-
@@ -397,6 +504,7 @@ images:
       corner. Dark server room with electric blue and green sparks.
 
   - key: building-13-unified-auth
+    series: building
     output: blog/content/docs/building/13-unified-auth/cover.png
     description: "Unified Auth — Authentik SSO for the entire cluster"
     prompt: >-
@@ -414,6 +522,7 @@ images:
       Dark server room with blue and gold lightning accents.
 
   - key: building-14-multi-tenancy
+    series: building
     output: blog/content/docs/building/14-multi-tenancy/cover.png
     description: "Multi-tenancy — vCluster disposable sandbox clusters"
     prompt: >-
@@ -431,6 +540,7 @@ images:
       teal lighting accents.
 
   - key: building-15-paperclip
+    series: building
     output: blog/content/docs/building/15-paperclip/cover.png
     description: "Paperclip — AI agent orchestrator with virtual companies and org charts"
     prompt: >-
@@ -448,6 +558,7 @@ images:
       boardroom lighting overlay, blue electric accents from Frank's neck bolts.
 
   - key: building-16-media-generation
+    series: building
     output: blog/content/docs/building/16-media-generation/cover.png
     description: "Media Generation — Frank juggling video frames and audio waves between ComfyUI and Ollama"
     prompt: >-
@@ -465,6 +576,7 @@ images:
       lighting accents.
 
   - key: building-17-public-edge
+    series: building
     output: blog/content/docs/building/17-public-edge/cover.png
     description: "Public Edge — Frank hopping through a glowing Tailscale portal into a cloud datacenter"
     prompt: >-
@@ -484,6 +596,7 @@ images:
       primary light source, electric blue and teal accents.
 
   - key: building-18-persistent-agent
+    series: building
     output: blog/content/docs/building/18-persistent-agent/cover.png
     description: "Persistent Agent — Frank at an always-on workstation terminal"
     prompt: >-
@@ -500,6 +613,7 @@ images:
       human steps away. Dark background, electric blue and green accents.
 
   - key: building-19-progressive-delivery
+    series: building
     output: blog/content/docs/building/19-progressive-delivery/cover.png
     description: "Progressive Delivery — Frank at a traffic control tower directing canary and blue-green lanes"
     prompt: >-
@@ -517,6 +631,7 @@ images:
       Dark server room with blue, green, and yellow lighting accents.
 
   - key: building-20-workflow-automation
+    series: building
     output: blog/content/docs/building/20-workflow-automation/cover.png
     description: "Workflow Automation — Frank orchestrating n8n conveyor belt pipelines"
     prompt: >-
@@ -533,6 +648,7 @@ images:
       orange lightning accents.
 
   - key: building-21-secure-agent-pod
+    series: building
     output: blog/content/docs/building/21-secure-agent-pod/cover.png
     description: "Secure Agent Pod — Frank in a hardened vault operating a locked-down workstation"
     prompt: >-
@@ -550,6 +666,7 @@ images:
       with blue lightning accents and steel textures.
 
   - key: building-22-health-monitoring
+    series: building
     output: blog/content/docs/building/22-health-monitoring/cover.png
     description: "Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts"
     prompt: >-
@@ -568,6 +685,7 @@ images:
       lighting accents, dark server room atmosphere.
 
   - key: building-23-health-bridge
+    series: building
     output: blog/content/docs/building/23-health-bridge/cover.png
     description: "Health Bridge — Frank routing alert signals from monitoring to project boards"
     prompt: >-
@@ -586,6 +704,7 @@ images:
       electricity. Dark server room with amber and blue lighting accents.
 
   - key: building-24-in-cluster-ingress
+    series: building
     output: blog/content/docs/building/24-in-cluster-ingress/cover.png
     description: "In-Cluster Ingress — Frank directing traffic through a glowing gateway"
     prompt: >-
@@ -607,6 +726,7 @@ images:
       Dark server room with blue, teal, and gold lighting accents.
 
   - key: building-25-vk-relay
+    series: building
     output: blog/content/docs/building/25-vk-relay/cover.png
     description: "VK Relay — Frank bridging two screens with a glowing WebSocket tunnel"
     prompt: >-
@@ -624,6 +744,7 @@ images:
       accents. Simple composition, clean layout.
 
   - key: building-26-vk-remote-self-host
+    series: building
     output: blog/content/docs/building/26-vk-remote-self-host/cover.png
     description: "VK Remote Self-Host — Frank unplugging from a dying cloud and wiring up his own kanban server"
     prompt: >-
@@ -643,6 +764,7 @@ images:
       blue lighting accents.
 
   - key: building-27-cicd-platform
+    series: building
     output: blog/content/docs/building/27-cicd-platform/cover.png
     description: "CI/CD Platform — Frank operating a multi-stage assembly line from git to signed container images"
     prompt: >-
@@ -662,6 +784,7 @@ images:
       Clean composition, left-to-right flow.
 
   - key: building-28-agent-images-sidecar
+    series: building
     output: blog/content/docs/building/28-agent-images-sidecar/cover.png
     description: "Agent Images & VK-Local Sidecar — Frank has just cracked a tall stone monolith in two, revealing a neat vk-local crate nested inside"
     prompt: >-
@@ -700,6 +823,7 @@ images:
       right. Cinematic lighting, the moment of discovery.
 
   - key: building-29-ruflo
+    series: building
     output: blog/content/docs/building/29-ruflo/cover.png
     description: "Ruflo — chaotic swarm orchestrator next to Paperclip's org chart"
     prompt: >-
@@ -724,9 +848,36 @@ images:
       amber accent lighting (amber from the honeycomb glow). Cinematic,
       slightly chaotic, swarm-vs-hierarchy contrast.
 
+  - key: building-30-frank-papers
+    series: papers
+    output: blog/content/docs/building/30-frank-papers/cover.png
+    description: "Building The Frank Papers — Frank installing the dossier gate at the entrance to a research library"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster bolting a heavy
+      brass gate onto the entrance of a small, well-lit research library
+      built into a server rack. The gate is engraved with the words
+      "DOSSIER GATE" in clear letterpress style. In one hand he holds a
+      torque wrench; in the other, a manila folder labeled "VENDORS ·
+      SOURCES · ARTEFACTS · GAPS · COUNTER-ARGUMENTS" with sticky tabs
+      sprouting from the side. Through the half-built gate, the library
+      interior shows tall shelves of bound papers (each spine labeled
+      with a paper number like "01", "02", "03"), a low desk with a
+      Mermaid quadrant chart in chalk, and a glowing terminal reading
+      "validate-dossier.py — PASS". On the floor by his boots: a stamped
+      reject-pile of un-gated papers with a red "NO DOSSIER" stamp on
+      top. Above the gate, three thin brass plaques are mounted side by
+      side reading "BUILDING", "OPERATING", and "PAPERS" — the third
+      plaque is the only one being newly installed, with a small drill
+      resting beside it. Warm reading-room lamp lighting from within
+      the library, cool blue PCB-trace lighting from the server rack
+      frame outside. Frank's expression: focused craftsman pride.
+      EXACTLY ONE FIGURE — one single Frank. Any visible text in the
+      scene must be readable English (no garbled letters).
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
+    series: operating
     output: blog/content/docs/operating/01-cluster-nodes/cover.png
     description: "Operating on Cluster & Nodes — Frank checking vital signs"
     prompt: >-
@@ -744,6 +895,7 @@ images:
       and green accent lighting.
 
   - key: ops-02-storage-backups
+    series: operating
     output: blog/content/docs/operating/02-storage-backups/cover.png
     description: "Operating on Storage & Backups — Frank maintaining his storage drives"
     prompt: >-
@@ -759,6 +911,7 @@ images:
       room with blue and orange lighting.
 
   - key: ops-03-gitops
+    series: operating
     output: blog/content/docs/operating/03-gitops/cover.png
     description: "Operating on GitOps — Frank managing his application orchestra"
     prompt: >-
@@ -772,6 +925,7 @@ images:
       above each app box. Dark server room with blue and orange lighting.
 
   - key: ops-04-gpu-compute
+    series: operating
     output: blog/content/docs/operating/04-gpu-compute/cover.png
     description: "Operating on GPU Compute — Frank servicing his GPU arms"
     prompt: >-
@@ -785,6 +939,7 @@ images:
       server room with green and blue electric sparks.
 
   - key: ops-05-observability
+    series: operating
     output: blog/content/docs/operating/05-observability/cover.png
     description: "Operating on Observability — Frank at his command center"
     prompt: >-
@@ -801,6 +956,7 @@ images:
       blue and purple monitoring glow.
 
   - key: ops-06-secrets
+    series: operating
     output: blog/content/docs/operating/06-secrets/cover.png
     description: "Operating on Secrets — Frank cracking a safe with a blowtorch"
     prompt: >-
@@ -818,6 +974,7 @@ images:
       blue and gold lighting.
 
   - key: ops-07-inference
+    series: operating
     output: blog/content/docs/operating/07-inference/cover.png
     description: "Operating on Local Inference — Frank holding his own head open"
     prompt: >-
@@ -834,6 +991,7 @@ images:
       brain. Dark server room with purple and blue neural network lighting.
 
   - key: ops-08-auth
+    series: operating
     output: blog/content/docs/operating/08-auth/cover.png
     description: "Operating on Authentication — Frank installing security systems"
     prompt: >-
@@ -847,6 +1005,7 @@ images:
       red X. Dark server room with blue and gold lighting accents.
 
   - key: ops-09-multi-tenancy
+    series: operating
     output: blog/content/docs/operating/09-multi-tenancy/cover.png
     description: "Operating on Multi-tenancy — Frank juggling vCluster snow globes"
     prompt: >-
@@ -863,6 +1022,7 @@ images:
       server room with blue and teal lighting.
 
   - key: ops-10-media-generation
+    series: operating
     output: blog/content/docs/operating/10-media-generation/cover.png
     description: "Operating on Media Generation — Frank at a control panel managing GPU workloads"
     prompt: >-
@@ -878,6 +1038,7 @@ images:
       blue and purple lighting accents.
 
   - key: ops-11-public-edge
+    series: operating
     output: blog/content/docs/operating/11-public-edge/cover.png
     description: "Operating on Hop — Frank monitoring a miniature portal-connected cloud server"
     prompt: >-
@@ -894,6 +1055,7 @@ images:
       accents.
 
   - key: ops-12-progressive-delivery
+    series: operating
     output: blog/content/docs/operating/12-progressive-delivery/cover.png
     description: "Operating on Progressive Delivery — Frank at a control panel managing canary and blue-green rollouts"
     prompt: >-
@@ -910,6 +1072,7 @@ images:
       Dark server room with blue, green, and yellow lighting accents.
 
   - key: ops-13-workflow-automation
+    series: operating
     output: blog/content/docs/operating/13-workflow-automation/cover.png
     description: "Operating on Workflow Automation — Frank maintaining n8n workflow internals"
     prompt: >-
@@ -925,6 +1088,7 @@ images:
       orange lighting accents.
 
   - key: ops-14-secure-agent-pod
+    series: operating
     output: blog/content/docs/operating/14-secure-agent-pod/cover.png
     description: "Operating on Secure Agent Pod — Frank maintaining a layered security orb"
     prompt: >-
@@ -945,6 +1109,7 @@ images:
       lighting accents.
 
   - key: ops-15-health-monitoring
+    series: operating
     output: blog/content/docs/operating/15-health-monitoring/cover.png
     description: "Operating on Health Monitoring — Frank tuning heartbeat monitors"
     prompt: >-
@@ -962,6 +1127,7 @@ images:
       mood. Dark server room with blue and green lighting accents.
 
   - key: ops-16-health-bridge
+    series: operating
     output: blog/content/docs/operating/16-health-bridge/cover.png
     description: "Operating on Health Bridge — Frank at a console managing alert-to-issue routing"
     prompt: >-
@@ -978,6 +1144,7 @@ images:
       lighting accents.
 
   - key: ops-17-ingress
+    series: operating
     output: blog/content/docs/operating/17-ingress/cover.png
     description: "Operating on In-Cluster Ingress — Frank maintaining a traffic gateway"
     prompt: >-
@@ -997,6 +1164,7 @@ images:
       and teal lighting accents.
 
   - key: ops-18-paperclip
+    series: operating
     output: blog/content/docs/operating/18-paperclip/cover.png
     description: "Operating on Paperclip — Frank managing an AI agent org chart"
     prompt: >-
@@ -1016,6 +1184,7 @@ images:
       Dark server room with warm amber and blue lighting accents.
 
   - key: ops-19-git-credentials-without-a-shell
+    series: operating
     output: blog/content/docs/operating/19-git-credentials-without-a-shell/cover.png
     description: "Git Credentials Without a Shell — Frank pulling a token directly from PID 1's environment"
     prompt: >-
@@ -1037,6 +1206,7 @@ images:
       teal lighting accents.
 
   - key: ops-21-vk-remote
+    series: operating
     output: blog/content/docs/operating/21-vk-remote/cover.png
     description: "Operating on VK Remote — Frank monitoring three stacked service components at an operations desk"
     prompt: >-
@@ -1056,6 +1226,7 @@ images:
       accents.
 
   - key: ops-20-vk-relay
+    series: operating
     output: blog/content/docs/operating/20-vk-relay/cover.png
     description: "Operating on VK Relay — Frank monitoring relay tunnel status on a dashboard"
     prompt: >-
@@ -1074,6 +1245,7 @@ images:
       room with blue and teal lighting accents.
 
   - key: ops-22-cicd-platform
+    series: operating
     output: blog/content/docs/operating/22-cicd-platform/cover.png
     description: "Operating on CI/CD Platform — Frank monitoring pipeline and registry status"
     prompt: >-
@@ -1093,6 +1265,7 @@ images:
       with blue, green, and orange lighting accents.
 
   - key: ops-23-argocd-drift-detective
+    series: operating
     output: blog/content/docs/operating/23-argocd-drift-detective/cover.png
     description: "Operating on ArgoCD Drift — Frank as a detective pinning up drift evidence"
     prompt: >-
@@ -1116,6 +1289,7 @@ images:
 
 
   - key: ops-24-ruflo
+    series: operating
     output: blog/content/docs/operating/24-ruflo/cover.png
     description: "Operating on Ruflo — Frank pruning a hexagonal beehive of agent tasks at the operations console"
     prompt: >-

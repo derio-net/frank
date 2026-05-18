@@ -61,6 +61,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | In-Cluster Ingress | Traefik v3 | Wildcard TLS (`*.cluster.derio.net`) via ACME + Cloudflare DNS-01, Authentik forward-auth, raspi edge nodes |
 | CI/CD Platform | Gitea + Tekton + Zot | Self-hosted git forge (GitHub mirror), K8s-native pipelines, OCI registry with cosign signing — all on pc-1 |
 | Cluster Dashboard | gethomepage.dev | Service catalog at `master.cluster.derio.net` with HTTP health indicators and custom bookmarks |
+| The Frank Papers | Third blog series (research) | Hugo section with dossier-gate pre-commit hook, Mermaid Frank theme, five `papers/` shortcodes, render-time cross-series backlinks (zero-retrofit) |
 
 ## Repository Structure
 
@@ -142,20 +143,24 @@ frank/
 │   ├── phase06-cicd/          # Containerd registry mirror for Zot
 │   └── phase13-auth/          # kube-apiserver OIDC flags for Authentik
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
-├── blog/                      # Hugo blog (PaperMod theme)
+├── blog/                      # Hugo blog (Hextra theme)
 │   ├── hugo.toml
-│   ├── content/docs/building/       # 29 posts documenting the build
-│   ├── content/docs/operating/      # 24 companion operations guides
-│   └── layouts/shortcodes/    # Custom shortcodes (cluster-roadmap, etc.)
+│   ├── content/docs/building/       # 30 posts documenting the build
+│   ├── content/docs/operating/      # 25 companion operations guides
+│   ├── content/docs/papers/         # Frank Papers — research-grade landscape reviews (gated)
+│   ├── assets/js/mermaid-frank.js   # Mermaid Frank theme (loads on .paper-post pages)
+│   ├── layouts/partials/papers-*    # papers-backlink + papers-forwardlinks (cross-series)
+│   └── layouts/shortcodes/          # Custom shortcodes (cluster-roadmap, papers/*)
 ├── docs/
+│   ├── papers-dossiers/        # Frank Papers research dossiers (one per paper, gate-validated)
 │   └── superpowers/
 │       ├── plans/             # Active implementation plans
 │       ├── archived-plans/    # Completed/deployed plans
 │       ├── specs/             # Design specifications
 │   └── runbooks/              # Manual operations registry
 ├── omni/                      # Omni-specific configs
-├── scripts/                   # Utility scripts (plan-status.sh, validate-plans.sh)
-└── .githooks/                 # Git hooks (plan header validation)
+├── scripts/                   # Utility scripts (plan-status.sh, validate-plans.sh, scaffold-paper.sh, validate-dossier.py)
+└── .githooks/                 # Git hooks (plan header + agent-config + Papers dossier gate)
 ```
 
 ## Environment Setup

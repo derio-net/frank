@@ -76,30 +76,34 @@ tasks:
 state:
   steps:
     P9.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T10:25:15+00:00'
       note: null
     P9.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T10:32:38+00:00'
       note: null
     P9.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T10:34:53+00:00'
       note: null
     P9.T1.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T10:35:34+00:00'
       note: null
     P9.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T10:35:35+00:00'
+      note: Plan contains no manual-operation blocks
     P9.T1.S6:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T10:36:48+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-18T10:36:59+00:00'
+    note: Building post + Operating post + README + roadmap + plan status complete.
+      Cover image for building-30-frank-papers blocked by Gemini 503 across 5 retries;
+      prompt is committed to blog/prompt_for_images.yaml and can be regenerated when
+      the model is healthy. Plan status updated in _prose.md (not _meta.yaml — PlanMeta
+      schema rejects extra fields).
     observed_prs: []
