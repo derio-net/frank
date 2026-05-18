@@ -136,7 +136,7 @@ The Hextra theme's section system is per-directory; `blog/content/docs/papers/` 
 
 The Papers nav entry sits between Operating and the GitHub link, weight 3, no submenu. Section landing lives at `/docs/papers/_index.md` with a title, a one-sentence positioning statement, and (when paginated) a list of papers by `paper_number`. Right now it says "First paper coming soon." in production. That's the truthful state.
 
-The site-root `_index.md` was rewritten from a custom `frank-series-cards` shortcode block to native Hextra `{{< cards >}}` / `{{< card >}}` shortcodes — three cards instead of two, with the Papers card pointing at `/docs/papers/`. This was a quiet rebase of the spec, written when the landing was still on a bespoke shortcode. The blog had been refactored to Hextra-native cards in the interim, so Phase 0 followed the new pattern instead of preserving the old one.
+The site-root `_index.md` was rewritten from a custom `frank-series-cards` shortcode block to native Hextra `{{</* cards */>}}` / `{{</* card */>}}` shortcodes — three cards instead of two, with the Papers card pointing at `/docs/papers/`. This was a quiet rebase of the spec, written when the landing was still on a bespoke shortcode. The blog had been refactored to Hextra-native cards in the interim, so Phase 0 followed the new pattern instead of preserving the old one.
 
 ## Visual System — Mermaid Frank Theme and the `.paper-post` Scope
 
@@ -165,7 +165,7 @@ That theme only applies on pages with the `paper-post` body class. The class is 
 <body class="{{ if $isPaper }}paper-post{{ end }}">
 ```
 
-Same gate carries the matching CSS scope. `.paper-post` rules in `blog/assets/css/custom.css` give Papers slightly tighter type, denser tables, a different blockquote treatment for `{{< papers/pullquote >}}`, and the visual styling for `{{< papers/scar >}}` callouts. Building and Operating posts don't inherit any of it — `body.paper-post` only matches Papers pages.
+Same gate carries the matching CSS scope. `.paper-post` rules in `blog/assets/css/custom.css` give Papers slightly tighter type, denser tables, a different blockquote treatment for `{{</* papers/pullquote */>}}`, and the visual styling for `{{</* papers/scar */>}}` callouts. Building and Operating posts don't inherit any of it — `body.paper-post` only matches Papers pages.
 
 The point is *consistency across the corpus, isolation from the rest of the site*. The day a reader lands on Paper 04 from a search result, every other Paper they click feels familiar. The day they navigate to a Building post from a Paper, the visual language returns to the build-journal voice without bleed-through.
 
@@ -312,7 +312,7 @@ The lesson is small and old: a paper can't depend on infrastructure that isn't y
 Two quiet rebases between the spec (2026-04-15) and Phase 0 (2026-05-16):
 
 - The blog was refactored in the interim. Rules now live in `agents/rules/` (not `.claude/rules/`); skills now live in `agents/skills/` (not `.claude/skills/`). The spec's references to those paths were translated as Phase 0 went in.
-- The landing-page cards were rewritten to native Hextra `{{< cards >}}` / `{{< card >}}` shortcodes. The spec had assumed a custom `frank-series-cards` block. Phase 0 followed the new convention, three cards under the same `{{< cards >}}` parent.
+- The landing-page cards were rewritten to native Hextra `{{</* cards */>}}` / `{{</* card */>}}` shortcodes. The spec had assumed a custom `frank-series-cards` block. Phase 0 followed the new convention, three cards under the same `{{</* cards */>}}` parent.
 
 Neither rebase changed the *what* — three series, dossier gate, cross-series linking, Mermaid Frank theme. They changed where the files landed and which shortcode wrapper the cards used. Both are noted at the top of `_prose.md` so future re-readers of the plan see the deltas immediately.
 
@@ -326,8 +326,8 @@ The cluster will, as ever, have opinions. Now it has the format for them.
 
 ## References
 
-- [Spec — The Frank Papers]({{< ref "" >}}) — `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-- [Plan — Phase 0 Tooling]({{< ref "" >}}) — `docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/`
+- **Spec — The Frank Papers** — `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
+- **Plan — Phase 0 Tooling** — `docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/`
 - [Hextra theme](https://imfing.github.io/hextra/) — taxonomies, cards, custom CSS scoping
 - [Mermaid theming guide](https://mermaid.js.org/config/theming.html) — `themeVariables` schema
 - [Operating The Frank Papers]({{< relref "/docs/operating/25-frank-papers" >}}) — companion operating post (research-and-publish workflow)
