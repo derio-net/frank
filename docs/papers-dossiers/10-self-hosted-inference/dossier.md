@@ -1,6 +1,6 @@
 ---
 paper: 10-self-hosted-inference
-status: draft
+status: ready
 ---
 
 ## Vendors in scope (≥3, typically 4–6)
