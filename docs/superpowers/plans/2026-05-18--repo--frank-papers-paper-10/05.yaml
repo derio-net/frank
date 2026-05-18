@@ -1,0 +1,174 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Review + publish
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Voice pass and TL;DR
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      **Human gate: author voice pass**
+
+
+      Read the full draft aloud (or equivalent). Check:
+      - Frank speaks as the cluster — first-person ("we learned…") or
+        third-person cluster ("Frank tried X, and X failed") are both
+        fine; distant academic voice is not.
+      - Every `{{< papers/scar >}}` callout uses a real incident with a
+        real date taken from a dated gotcha line or investigation note.
+      - The "just use the OpenAI API" counter-argument is addressed
+        directly in §6 — not hedged away.
+      - §2's capability matrix tells the truth about LiteLLM's OSS
+        Prometheus gap (`no`, not `partial`).
+      - The §6 decision tree's L2 leaf names Frank's current position
+        honestly — Frank is at L2, not L3 or L4.
+  - id: P5.T1.S2
+    text: |-
+      Write the TL;DR (≤150 words)
+
+
+      Write last, after the body has stabilized. Aim for three short
+      paragraphs:
+      1. The capability question and the build/buy split (one sentence
+         per side).
+      2. Frank's stack (Ollama + LiteLLM on `gpu-1`) and the honest cost
+         of it.
+      3. When this answer doesn't generalize — one sentence pointing at
+         §6.
+
+      Count words:
+      ```bash
+      # Extract the tldr field from frontmatter and count
+      awk '/^tldr:/,/^[a-z]/' \
+        blog/content/docs/papers/10-self-hosted-inference/index.md \
+        | grep -v "^tldr:\|^[a-z]" | wc -w
+      ```
+
+      Expected: ≤150 words. Update the `tldr:` field in the frontmatter.
+- number: 2
+  title: Final checks and publish
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Run dossier gate one final time
+
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/10-self-hosted-inference/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED`.
+  - id: P5.T2.S2
+    text: |-
+      Run full Hugo build and assert zero errors
+
+
+      ```bash
+      cd blog && hugo --buildDrafts 2>&1 | grep -E "^ERROR" | head -5
+      ```
+
+      Expected: no output (zero errors).
+  - id: P5.T2.S3
+    text: |-
+      Set `draft: false` and `status: published`, run production build
+
+
+      In `blog/content/docs/papers/10-self-hosted-inference/index.md`:
+      - Change `draft: true` → `draft: false`
+      - Change `status: drafting` → `status: published`
+
+      Verify the paper appears in the production build (without
+      `--buildDrafts`):
+
+      ```bash
+      cd blog && hugo --quiet 2>&1 | tail -3
+      ls public/docs/papers/10-self-hosted-inference/index.html
+      ```
+
+      Expected: `public/docs/papers/10-self-hosted-inference/index.html`
+      exists. Verify the `papers-backlink.html` chip rendered on the
+      related Building / Operating posts:
+
+      ```bash
+      grep -l "Paper 10" \
+        public/docs/building/10-local-inference/index.html \
+        public/docs/operating/07-inference/index.html
+      ```
+
+      Expected: both files match — backlinks render on both companions.
+  - id: P5.T2.S4
+    text: |-
+      Confirm `papers/dossier-link` did not double-render
+
+
+      `papers-forwardlinks.html` and a footer dossier chip are
+      automatically injected by `single.html`. If §7 also includes an
+      inline `{{< papers/dossier-link paper="10-self-hosted-inference" >}}`,
+      the dossier chip will render twice — pick one. Check:
+
+      ```bash
+      grep -c "dossier-link\|papers-dossiers/10-self-hosted-inference" \
+        public/docs/papers/10-self-hosted-inference/index.html
+      ```
+
+      Expected: 1 dossier reference. If 2+, remove either the inline
+      shortcode invocation or the auto-injection block.
+  - id: P5.T2.S5
+    text: |-
+      Commit and push Paper 10
+
+
+      ```bash
+      git add \
+        blog/content/docs/papers/10-self-hosted-inference/ \
+        docs/papers-dossiers/10-self-hosted-inference/ \
+        blog/prompt_for_images.yaml
+
+      git commit -m "docs(repo): publish Paper 10 — Self-Hosted Inference & LLM Gateway"
+
+      git push
+      ```
+
+      The pre-commit hook will run `validate-dossier.py` automatically
+      on the staged `index.md`. If it fails, the dossier is not in the
+      expected state — re-run the gate and fix before retrying the
+      commit.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

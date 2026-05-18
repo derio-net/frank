@@ -1,0 +1,84 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Gate validation
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Run validate-dossier.py and resolve failures
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Run the dossier gate validator
+
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/10-self-hosted-inference/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED: ...`
+
+      If it fails, fix the reported issues:
+      - `vendors_in_scope: need ≥3` → add more vendors to the dossier
+      - `primary_sources: need ≥5` → add more sources
+      - `primary_sources: need ≥3 distinct type values` → diversify source types
+      - `URL not reachable` → find an alternative URL or use a web archive link
+      - `frank_artefacts: need ≥3` → add more artefacts
+      - `frank_artefacts: need ≥2 distinct kind values` → add a different kind
+      - `named_gaps: need ≥1` → add a gap
+      - `counter-arguments_considered: need ≥1` → add a counter-argument
+
+      Re-run until exit 0.
+  - id: P2.T1.S2
+    text: |-
+      Human gate: author reviews named gaps and counter-arguments
+
+
+      **This step requires human review.**
+
+      The author (user) reads:
+      1. `## Named gaps` — are the gaps honest and specific? Do they point
+         at real holes in the literature rather than vague disclaimers?
+         For Paper 10 in particular, the "no small-scale Ollama/vLLM/llama.cpp
+         benchmark at ≤2 concurrent users" gap should survive scrutiny —
+         if the dossier-construction agent found such a benchmark, downgrade
+         or replace this gap.
+      2. `## Counter-arguments considered` — is the "just use the OpenAI
+         API" counter-argument addressed with the right framing (Frank
+         chose self-hosted to pay the learning tax in full)? Hedge-free.
+
+      When satisfied, update dossier status:
+      ```yaml
+      # In docs/papers-dossiers/10-self-hosted-inference/dossier.md frontmatter:
+      status: ready
+      ```
+  - id: P2.T1.S3
+    text: |-
+      Commit the validated dossier
+
+
+      ```bash
+      git add docs/papers-dossiers/10-self-hosted-inference/dossier.md
+      git commit -m "docs(repo): Paper 10 research dossier — self-hosted inference"
+      ```
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
