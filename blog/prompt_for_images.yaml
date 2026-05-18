@@ -103,7 +103,7 @@ reference_guidance:
         Operating series.
 
     papers:
-      banner: blog/static/images/banner-papers.png
+      banner: blog/static/images/tile-papers.png
       modifiers: >-
         PAPERS-SERIES SIGNATURE — scholar / researcher persona. Frank
         wears a crisp white button-down dress shirt, a thin black necktie,
@@ -281,47 +281,30 @@ images:
       - ico: {target: "blog/static/favicon.ico", size: 32}
 
   - key: banner-papers
+    series: papers
     output: blog/static/images/banner-papers.png
-    description: Papers-card cover on landing page — Frank at whiteboard drawing a decision tree (1200x630)
+    description: Papers series header strip banner (1200x200, 6:1 ratio) — matches banner-building / banner-operating style with title text
     prompt: >-
-      A wide cinematic banner (1200×630 pixels). Frank the server-hardware
-      Frankenstein monster stands at a wall-sized whiteboard, drawing a
-      decision tree that branches and forks all the way to the edges of
-      the wall. He wears his utility belt of ethernet cables, his RJ45 neck
-      bolts, and — new for this scene — a crisp WHITE BUTTON-DOWN DRESS
-      SHIRT (clearly white, not green; the shirt fabric must contrast
-      visibly with his green skin), thin round reading glasses resting low
-      on his nose, and a thin black necktie. The floor around him is
-      scattered with loose server parts that are being *considered*, not
-      assembled: open spec sheets, sticky notes with architecture diagrams,
-      a quadrant chart drawn in chalk. A warm single overhead work-lamp
-      illuminates the whiteboard from above. Frank's expression is focused
-      and curious, marker in hand mid-stroke. Background: dark room, faint
-      blue PCB traces on the walls. The mood is thinking and weighing, not
-      triumphant. EXACTLY ONE FIGURE — one single Frank, no duplicates,
-      no mirrored copies. ABSOLUTELY NO TEXT in the image.
-
-  - key: banner-papers-thin
-    output: blog/static/images/banner-papers-thin.png
-    description: Papers section-page hero — Frank at desk annotating schematics (wide thin strip)
-    prompt: >-
-      An ultra-wide horizontal strip banner — 1200 pixels wide by 200 pixels
-      tall (6:1 aspect ratio). EXACTLY ONE FIGURE in the image. ONE single
-      Frank the server-hardware Frankenstein monster — green skin, messy
-      black hair, RJ45 neck bolts — sits at a wide desk on the LEFT THIRD
-      of the image, viewed in profile (facing right toward the schematics).
-      About 60% the strip height. He wears thin round reading glasses
-      resting low on his nose, and a thin black necktie, and a white lab
-      coat. He is annotating a diagram with a marker. The RIGHT TWO-THIRDS
-      of the image is the rest of the workspace: open books, a warm desk
-      lamp, large architectural schematics laid flat and pinned to a
-      corkboard behind the desk, a terminal screen glowing with green text,
-      and bookshelves fading into darkness at the right edge. Background:
-      very dark, library-like, faint blue PCB traces. ABSOLUTELY NO
-      DUPLICATE FRANKS. NO mirrored copies of the figure. NO repeated
-      composition. Exactly one Frank. ABSOLUTELY NO TEXT. The image MUST
-      be extremely wide and short, like a letterbox strip — 1200×200
-      pixels, 6:1 ratio. Calm, contemplative atmosphere.
+      An ultra-wide horizontal strip banner, extremely wide and short
+      — exactly 1200 pixels wide by 200 pixels tall (6:1 aspect ratio).
+      On the LEFT THIRD, Frank the server-hardware Frankenstein monster
+      stands in profile facing right (toward the title text), about 60%
+      the strip height. He wears the Papers signature (white button-
+      down dress shirt, thin black necktie, small senior reading
+      glasses perched low on the nose) and holds an open manila folder
+      with sticky tabs in one hand and a marker in the other, glancing
+      sideways at the title. CENTER-RIGHT: the title text "The Frank
+      Papers" in bold chunky retro-tech lettering, glowing electric
+      blue with subtle circuit-trace underlines (MATCH the lettering
+      style used in banner-building.png and banner-operating.png — same
+      font, same glow, same circuit-trace underlines). Background:
+      dark circuit-board surface with faint green PCB traces and sparse
+      blue lightning arcs. BOTTOM EDGE: tiny decorative icons — a
+      stack of bound papers with a spine label, a quadrant-chart icon,
+      a small magnifying glass, and a balance/scales icon — evenly
+      spaced. Composition fades at both edges into darkness. EXACTLY
+      ONE FIGURE — one single Frank. The image MUST be extremely wide
+      and short, like a letterbox strip — 1200×200 pixels, 6:1 ratio.
 
   # --- Post Covers ------------------------------------------------------------
 

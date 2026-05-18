@@ -38,7 +38,7 @@ layout: hextra-home
     link="docs/papers/"
     title="The Frank Papers"
     subtitle="Research-grade decision reviews for every capability on the cluster."
-    image="/images/banner-papers.png"
+    image="/images/tile-papers.png"
   >}}
 {{< /cards >}}
 </div>
