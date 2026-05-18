@@ -724,6 +724,36 @@ images:
       amber accent lighting (amber from the honeycomb glow). Cinematic,
       slightly chaotic, swarm-vs-hierarchy contrast.
 
+  - key: building-30-frank-papers
+    output: blog/content/docs/building/30-frank-papers/cover.png
+    description: "Building The Frank Papers — Frank installing the dossier gate at the entrance to a research library"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster bolting a heavy
+      brass gate onto the entrance of a small, well-lit research library
+      built into a server rack. The gate is engraved with the words
+      "DOSSIER GATE" in clear letterpress style. He wears a crisp WHITE
+      BUTTON-DOWN DRESS SHIRT (clearly white, contrasting with his green
+      skin), thin round reading glasses resting low on his nose, and a
+      thin black necktie — the consistent Papers visual signature. In one
+      hand he holds a torque wrench; in the other, a manila folder
+      labeled "VENDORS · SOURCES · ARTEFACTS · GAPS · COUNTER-ARGUMENTS"
+      with sticky tabs sprouting from the side. Through the half-built
+      gate, the library interior shows tall shelves of bound papers (each
+      spine labeled with a paper number like "01", "02", "03"), a low
+      desk with a Mermaid quadrant chart in chalk, and a glowing terminal
+      reading "validate-dossier.py — PASS". On the floor by his boots: a
+      stamped reject-pile of un-gated papers with a red "NO DOSSIER"
+      stamp on top. Above the gate, three thin brass plaques are mounted
+      side by side reading "BUILDING", "OPERATING", and "PAPERS" — the
+      third plaque is the only one being newly installed, with a small
+      drill resting beside it. Warm reading-room lamp lighting from
+      within the library, cool blue PCB-trace lighting from the server
+      rack frame outside. Frank's expression: focused craftsman pride,
+      eyes down on the bolt he's tightening. EXACTLY ONE FIGURE — one
+      single Frank. ABSOLUTELY NO TEXT errors; if any text is shown, it
+      must be readable English (no garbled letters). Green skin, messy
+      black hair, RJ45 neck bolts sparking faint blue electricity.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
