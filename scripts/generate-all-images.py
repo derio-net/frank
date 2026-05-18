@@ -102,16 +102,25 @@ def generate_one(
     model: str = MODEL,
     aspect_ratio: str | None = None,
     image_size: str | None = None,
+    reference_2: Image.Image | None = None,
+    series_modifiers: str | None = None,
+    series_label: str | None = None,
 ) -> bool:
-    full_prompt = (
-        f"{base_style}\n\n"
-        f"{reference_guidance}\n\n"
-        f"{prompt}"
-    )
+    sections = [base_style, reference_guidance]
+    if series_modifiers:
+        sections.append(series_modifiers)
+    sections.append(prompt)
+    full_prompt = "\n\n".join(s for s in sections if s)
+
+    contents: list = [full_prompt, reference]
+    if reference_2 is not None:
+        contents.append(reference_2)
 
     print(f"\n{'='*60}")
     print(f"  [{key}] → {output_path.relative_to(REPO_ROOT)}")
     print(f"{'='*60}")
+    if series_label:
+        print(f"  Series: {series_label} (+ secondary reference)")
     if aspect_ratio or image_size:
         print(f"  Image config: aspect_ratio={aspect_ratio}, image_size={image_size}")
     print(f"  Prompt: {prompt[:80]}...")
@@ -132,7 +141,7 @@ def generate_one(
 
         response = client.models.generate_content(
             model=model,
-            contents=[full_prompt, reference],
+            contents=contents,
             config=gen_config,
         )
 
@@ -154,10 +163,31 @@ def generate_one(
         return False
 
 
+def _resolve_reference_guidance(raw) -> tuple[str, dict[str, dict]]:
+    """Accept either legacy string form or dict form {base, series.{name}.{banner,modifiers}}.
+
+    Returns (base_guidance_text, series_map). series_map is keyed by series name
+    (papers, building, operating) and each entry has 'banner' (repo-relative path
+    or absolute) and 'modifiers' (string injected into the prompt).
+    """
+    if isinstance(raw, str):
+        return raw, {}
+    base = raw.get("base", "")
+    series = {}
+    for name, cfg in (raw.get("series") or {}).items():
+        if not isinstance(cfg, dict):
+            continue
+        series[name] = {
+            "banner": cfg.get("banner"),
+            "modifiers": cfg.get("modifiers", ""),
+        }
+    return base, series
+
+
 def main() -> None:
     config = load_prompts(PROMPTS_FILE)
     base_style = config["base_style"]
-    reference_guidance = config["reference_guidance"]
+    base_guidance, series_map = _resolve_reference_guidance(config["reference_guidance"])
     images = config["images"]
 
     all_keys = [img["key"] for img in images]
@@ -226,6 +256,25 @@ def main() -> None:
     print(f"Prompts: {PROMPTS_FILE.relative_to(REPO_ROOT)}")
     print(f"Generating {len(targets)} images...")
 
+    # Lazy cache for per-series banner images — load each at most once.
+    series_ref_cache: dict[str, Image.Image] = {}
+
+    def _series_ref(series_name: str) -> Image.Image | None:
+        if series_name in series_ref_cache:
+            return series_ref_cache[series_name]
+        cfg = series_map.get(series_name)
+        if not cfg or not cfg.get("banner"):
+            return None
+        banner_path = Path(cfg["banner"])
+        if not banner_path.is_absolute():
+            banner_path = REPO_ROOT / banner_path
+        if not banner_path.exists():
+            print(f"  WARN: series '{series_name}' banner not found at {banner_path}", file=sys.stderr)
+            return None
+        loaded = Image.open(banner_path)
+        series_ref_cache[series_name] = loaded
+        return loaded
+
     succeeded = 0
     failed = []
 
@@ -234,11 +283,20 @@ def main() -> None:
         output_path = REPO_ROOT / img["output"]
         prompt = img["prompt"]
 
+        series_name = img.get("series")
+        reference_2 = _series_ref(series_name) if series_name else None
+        series_modifiers = (
+            series_map.get(series_name, {}).get("modifiers") if series_name else None
+        )
+
         ok = generate_one(
             client, reference, key, output_path, prompt,
-            base_style, reference_guidance, model=args.model,
+            base_style, base_guidance, model=args.model,
             aspect_ratio=img.get("aspect_ratio"),
             image_size=img.get("image_size"),
+            reference_2=reference_2,
+            series_modifiers=series_modifiers,
+            series_label=series_name,
         )
         if ok:
             succeeded += 1

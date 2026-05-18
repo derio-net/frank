@@ -18,21 +18,101 @@ base_style: >-
   Cartoon illustration, vibrant colors, thick outlines, chibi proportions.
   Dark background with electric blue lightning accents.
   Tech-horror aesthetic, playful not scary.
-  The character has green skin, messy black hair, black eyes with white pupils, stitches, and
-  RJ45 bolt connectors on his neck. Blue glow comes from the environment,
-  props, and electric sparks.
-  Draw the character's face naturally for the scene — match expression to the
-  action, vary the head angle, and apply scene-appropriate lighting. Do NOT
-  copy-paste the face from the reference; use it only as a design guide.
 
-reference_guidance: >-
-  Use the attached reference image as a CHARACTER DESIGN SHEET — it defines
-  Frank's body shape, proportions, color palette, outfit, and hardware-part
-  anatomy. Key face details: black messy hair, black eyes with white pupils,
-  green skin, stitch scars, expressive brow. For each new image,
-  redraw Frank from scratch in the scene's perspective and lighting. His
-  facial expression should match the scene's mood. Vary his pose, angle,
-  and body language naturally.
+  CANONICAL FRANK FEATURES (derived from the reference image — apply
+  consistently across every scene):
+
+  • SKIN: uneven cartoon green, with subtle shading variation across
+    the face (not a flat colour fill).
+  • HAIR: messy black flat-top with a clearly jagged, uneven silhouette
+    at the top — visible spiky peaks of varying heights.
+  • EYES: chibi style — each eye is an entirely BLACK solid round
+    shape with a small WHITE DOT inside as the highlight / pupil
+    (black-with-white-dot, NOT white-with-black-iris).
+  • NOSE: absent. Flat featureless plane of green skin between the
+    eyes and the mouth — no nose ridge, no nostrils, no nose shadow.
+  • FOREHEAD SCAR: a HORIZONTAL stitched scar runs across the upper
+    forehead just below the hairline — drawn as a dark line with
+    multiple short vertical cross-stitches along its length.
+  • RED FOREHEAD PATCH: a small rectangular RED patch (like a sewn-on
+    hardware decal / label) sits above his RIGHT eye on the upper
+    forehead. Distinctly RED, small, rectangular, with a thin dark
+    border. This is one of Frank's signature details.
+  • OTHER PATCHES: brown / tan skin patches elsewhere on the face
+    (cheek, jaw) with horizontal stitches inside each patch.
+    Unmistakably brown against the green skin, not slightly-darker
+    green. Placement varies by scene. Critically, these are
+    SEWN-ON SKIN PATCHES — flat coloured fabric/skin with simple
+    horizontal stitch lines crossing them. They are NOT exposed
+    mechanical surfaces, NOT visible gears, NOT circuit boards,
+    NOT cybernetic implants. The mechanical / server-hardware
+    aesthetic belongs in the environment and props around Frank,
+    not on his face. Frank's face is monster-with-patches, not
+    cyborg-with-implants.
+  • BOLTS: TWO SYMMETRIC RJ45-connector bolts — either on the NECK
+    (preferred when the neck is visible) OR on the TEMPLES (when the
+    crop is head-only and the neck isn't shown). Always symmetric,
+    one on each side. Faint blue electricity sparking from each.
+
+  Blue glow comes from the environment, props, and electric sparks
+  — NOT from Frank's eyes.
+
+  Draw Frank's face naturally for each scene — match expression to
+  the action, vary the head angle, and apply scene-appropriate
+  lighting. Do NOT copy-paste the face from the reference; use it
+  only as a design guide.
+
+reference_guidance:
+  # Base character-sheet guidance — applied to every image.
+  # Reference image #1 is always blog/static/images/reference.png (passed via -r).
+  base: >-
+    Use the attached primary reference image as a CHARACTER DESIGN SHEET —
+    it defines Frank's body shape, proportions, color palette, outfit, and
+    hardware-part anatomy. Key face details: black messy hair, black eyes
+    with white pupils, green skin, stitch scars, expressive brow. For each
+    new image, redraw Frank from scratch in the scene's perspective and
+    lighting. His facial expression should match the scene's mood. Vary
+    his pose, angle, and body language naturally.
+
+  # Per-series modifiers. When an image entry sets `series: <name>`, the
+  # script injects that series's `modifiers` block into the prompt AND
+  # passes the `banner` image as a SECONDARY reference (in addition to the
+  # primary reference.png), so Gemini conditions on both the character
+  # sheet and the series-specific aesthetic.
+  series:
+    building:
+      banner: blog/static/images/banner-building.png
+      modifiers: >-
+        BUILDING-SERIES SIGNATURE — hands-on builder persona. Frank is
+        actively constructing, assembling, or working on the subject of
+        the post. Tools, parts, or hardware are typically in his hands.
+        Workshop / lab lighting; scattered cables, blueprints, or hardware
+        parts in the scene. Use the secondary reference image
+        (banner-building.png) as a style anchor for the Building series.
+
+    operating:
+      banner: blog/static/images/banner-operating.png
+      modifiers: >-
+        OPERATING-SERIES SIGNATURE — SRE / maintenance persona. Frank is
+        at an operations console facing monitoring screens, OR on a
+        surgical table being maintained by overhead rail-mounted robotic
+        arms, OR inspecting an open chassis. Dashboards, status indicators,
+        and dark server-room lighting are typical. Calm, watchful
+        expression — routine monitoring, not crisis. Use the secondary
+        reference image (banner-operating.png) as a style anchor for the
+        Operating series.
+
+    papers:
+      banner: blog/static/images/banner-papers.png
+      modifiers: >-
+        PAPERS-SERIES SIGNATURE — scholar / researcher persona. Frank
+        wears a crisp white button-down dress shirt, a thin black necktie,
+        and small thin-framed reading glasses perched low on the bridge
+        of his nose (the kind older readers use for close work). This
+        outfit is the consistent visual signature across every Papers
+        image — apply it unless the scene explicitly contradicts. Use the
+        secondary reference image (banner-papers.png) as a style anchor
+        for the Papers series.
 
 # ---------------------------------------------------------------------------
 # Site-wide assets (banner, favicon) — share a unified design language
@@ -155,18 +235,49 @@ images:
 
   - key: favicon
     output: blog/static/images/favicon.png
-    description: Master favicon (512x512, resized to 32/16/180 after generation)
+    description: Master favicon — generated high-res, center-cropped to square, then scaled down to all derivatives in one pass
     prompt: >-
-      A simple square icon of Frank's head — green Frankenstein monster head made
-      of computer parts. Green skin, messy black hair, black eyes, flat-top head
-      is a CPU die with circuit traces, neck bolts are RJ45 connectors sparking
-      with blue electricity, forehead stitches are solder traces. Minimal detail,
-      icon-friendly, works when scaled down to 32x32px. Solid dark background
-      (#1a1a2e). No body, just the head and neck bolts. Square 1:1 aspect ratio.
+      A square icon of canonical Frank — head only, no body, no
+      shoulders, no torso. Solid dark navy background (#1a1a2e).
+
+      FRAME: a thin clean WHITE BORDER LINE just inside the edge of
+      the image, forming a rectangular frame around the entire
+      composition. ALL elements — Frank's head, hair peaks, temple
+      bolts, and any blue electric sparks — must sit fully INSIDE
+      this white frame, with comfortable padding between the
+      outermost element and the frame line. The head should fill
+      perhaps 60–70% of the framed area (NOT fill it edge to edge),
+      so the temple-bolt sparks have room to extend outward without
+      touching or crossing the frame.
+
+      Because the crop is neckless, place the two symmetric RJ45
+      bolts on the TEMPLES (one each side) — they must be clearly
+      drawn, unmistakable as RJ45 sockets, silver/grey metal, with
+      faint blue sparks that stay well inside the white frame.
+
+      Expression: SMUG / KNOWING — small confident smirk, eyebrows
+      angled to give a pleased-with-himself look. Alert eyes, fully
+      open (not half-lidded, not sleepy).
+
+      Flat cartoon/chibi style with clean bold dark outlines, designed
+      to read at small sizes (16×16, 32×32). Square 1:1 framing.
+      ABSOLUTELY NO TEXT. EXACTLY ONE character. No stray horns,
+      hardware, or extra shapes peeking from under the hair.
+
+      Apply all CANONICAL FRANK FEATURES from base_style as drawn
+      — including the horizontal forehead scar, the small red
+      rectangular patch above the right eye, the brown cheek / jaw
+      patches (drawn as SEWN-ON SKIN with horizontal stitches, NOT
+      as mechanical surfaces or gears), the chibi black-with-white-
+      dot eyes, and the flat no-nose plane.
     post_process:
+      # Gemini returns ~1408×736 regardless of requested aspect, so first
+      # center-crop the source to square at 512×512 (overwrites the master
+      # PNG); subsequent resize/ico steps work from the cropped image.
+      - crop_resize: {target: "blog/static/images/favicon.png", width: 512, height: 512}
+      - resize: {target: "blog/static/apple-touch-icon.png", size: 180}
       - resize: {target: "blog/static/favicon-32x32.png", size: 32}
       - resize: {target: "blog/static/favicon-16x16.png", size: 16}
-      - resize: {target: "blog/static/apple-touch-icon.png", size: 180}
       - ico: {target: "blog/static/favicon.ico", size: 32}
 
   - key: banner-papers
@@ -725,34 +836,30 @@ images:
       slightly chaotic, swarm-vs-hierarchy contrast.
 
   - key: building-30-frank-papers
+    series: papers
     output: blog/content/docs/building/30-frank-papers/cover.png
     description: "Building The Frank Papers — Frank installing the dossier gate at the entrance to a research library"
     prompt: >-
       Frank the server-hardware Frankenstein monster bolting a heavy
       brass gate onto the entrance of a small, well-lit research library
       built into a server rack. The gate is engraved with the words
-      "DOSSIER GATE" in clear letterpress style. He wears a crisp WHITE
-      BUTTON-DOWN DRESS SHIRT (clearly white, contrasting with his green
-      skin), thin round reading glasses resting low on his nose, and a
-      thin black necktie — the consistent Papers visual signature. In one
-      hand he holds a torque wrench; in the other, a manila folder
-      labeled "VENDORS · SOURCES · ARTEFACTS · GAPS · COUNTER-ARGUMENTS"
-      with sticky tabs sprouting from the side. Through the half-built
-      gate, the library interior shows tall shelves of bound papers (each
-      spine labeled with a paper number like "01", "02", "03"), a low
-      desk with a Mermaid quadrant chart in chalk, and a glowing terminal
-      reading "validate-dossier.py — PASS". On the floor by his boots: a
-      stamped reject-pile of un-gated papers with a red "NO DOSSIER"
-      stamp on top. Above the gate, three thin brass plaques are mounted
-      side by side reading "BUILDING", "OPERATING", and "PAPERS" — the
-      third plaque is the only one being newly installed, with a small
-      drill resting beside it. Warm reading-room lamp lighting from
-      within the library, cool blue PCB-trace lighting from the server
-      rack frame outside. Frank's expression: focused craftsman pride,
-      eyes down on the bolt he's tightening. EXACTLY ONE FIGURE — one
-      single Frank. ABSOLUTELY NO TEXT errors; if any text is shown, it
-      must be readable English (no garbled letters). Green skin, messy
-      black hair, RJ45 neck bolts sparking faint blue electricity.
+      "DOSSIER GATE" in clear letterpress style. In one hand he holds a
+      torque wrench; in the other, a manila folder labeled "VENDORS ·
+      SOURCES · ARTEFACTS · GAPS · COUNTER-ARGUMENTS" with sticky tabs
+      sprouting from the side. Through the half-built gate, the library
+      interior shows tall shelves of bound papers (each spine labeled
+      with a paper number like "01", "02", "03"), a low desk with a
+      Mermaid quadrant chart in chalk, and a glowing terminal reading
+      "validate-dossier.py — PASS". On the floor by his boots: a stamped
+      reject-pile of un-gated papers with a red "NO DOSSIER" stamp on
+      top. Above the gate, three thin brass plaques are mounted side by
+      side reading "BUILDING", "OPERATING", and "PAPERS" — the third
+      plaque is the only one being newly installed, with a small drill
+      resting beside it. Warm reading-room lamp lighting from within
+      the library, cool blue PCB-trace lighting from the server rack
+      frame outside. Frank's expression: focused craftsman pride.
+      EXACTLY ONE FIGURE — one single Frank. Any visible text in the
+      scene must be readable English (no garbled letters).
 
   # --- Operating Series Covers ------------------------------------------------
 
