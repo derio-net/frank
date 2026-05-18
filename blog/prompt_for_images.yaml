@@ -169,6 +169,23 @@ images:
       - resize: {target: "blog/static/apple-touch-icon.png", size: 180}
       - ico: {target: "blog/static/favicon.ico", size: 32}
 
+  # --- Papers Series Covers --------------------------------------------------
+
+  - key: paper-00-cover
+    output: blog/content/docs/papers/00-why-homelab-in-2026/cover.png
+    description: Paper 00 cover — Frank at whiteboard with "2026?" written on it, skeptical expression
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands at a whiteboard,
+      one hand on his chin in a skeptical "weighing" expression. On the
+      whiteboard behind him: "2026?" written in large chalk letters, with
+      three branching arrows below it — one labeled "cloud", one labeled
+      "managed", one labeled "DIY". He wears thin round reading glasses
+      resting low on his nose and a thin black necktie. His posture is
+      thoughtful, not triumphant — the question is genuinely open. Warm
+      overhead lamp. Dark background. RJ45 neck bolts, green skin, messy
+      black hair, rack-mount torso. No other text in the image besides
+      what is written on the whiteboard by Frank.
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
