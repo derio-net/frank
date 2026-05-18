@@ -192,16 +192,22 @@ images:
     description: Papers section-page hero — Frank at desk annotating schematics (wide thin strip)
     prompt: >-
       An ultra-wide horizontal strip banner — 1200 pixels wide by 200 pixels
-      tall (6:1 aspect ratio). Wide low silhouette: Frank the server-hardware
-      Frankenstein monster sits at a wide desk viewed in profile (facing left),
-      surrounded by open books, terminal screens glowing with green text,
-      and large architectural schematics pinned to a corkboard behind him.
-      He wears thin round reading glasses resting low on his nose, and a
-      thin black necktie. He is annotating a diagram with a marker. No other
-      figures. Background: very dark, library-like. Warm desk lamp light
-      spills across the schematics. The image is extremely wide and short —
-      1200×200 pixels, 6:1 ratio. ABSOLUTELY NO TEXT. Profile view, calm
-      atmosphere.
+      tall (6:1 aspect ratio). EXACTLY ONE FIGURE in the image. ONE single
+      Frank the server-hardware Frankenstein monster — green skin, messy
+      black hair, RJ45 neck bolts — sits at a wide desk on the LEFT THIRD
+      of the image, viewed in profile (facing right toward the schematics).
+      About 60% the strip height. He wears thin round reading glasses
+      resting low on his nose, and a thin black necktie, and a white lab
+      coat. He is annotating a diagram with a marker. The RIGHT TWO-THIRDS
+      of the image is the rest of the workspace: open books, a warm desk
+      lamp, large architectural schematics laid flat and pinned to a
+      corkboard behind the desk, a terminal screen glowing with green text,
+      and bookshelves fading into darkness at the right edge. Background:
+      very dark, library-like, faint blue PCB traces. ABSOLUTELY NO
+      DUPLICATE FRANKS. NO mirrored copies of the figure. NO repeated
+      composition. Exactly one Frank. ABSOLUTELY NO TEXT. The image MUST
+      be extremely wide and short, like a letterbox strip — 1200×200
+      pixels, 6:1 ratio. Calm, contemplative atmosphere.
 
   # --- Post Covers ------------------------------------------------------------
 
