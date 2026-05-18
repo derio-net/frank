@@ -93,22 +93,24 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:16:26+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:16:28+00:00'
       note: null
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-18T18:16:30+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-18T18:16:31+00:00'
+      note: Local hugo blocked by go-toolchain mismatch (1.19 vs go.mod 1.24.2). Mermaid
+        syntax matches the working pattern used in the existing dossier-link / capability-matrix
+        shortcodes; CI on this PR is the real verification.
   completion:
-    at: null
+    at: '2026-05-18T18:16:33+00:00'
     note: null
     observed_prs: []

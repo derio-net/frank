@@ -306,6 +306,31 @@ images:
       ONE FIGURE — one single Frank. The image MUST be extremely wide
       and short, like a letterbox strip — 1200×200 pixels, 6:1 ratio.
 
+  # --- Papers Series Covers ---
+
+  - key: paper-00-cover
+    series: papers
+    output: blog/content/docs/papers/00-why-homelab-in-2026/cover.png
+    description: Paper 00 cover — Frank at whiteboard with "2026?" written on it, weighing three approaches
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands at a wide
+      whiteboard, one hand on his chin in a thoughtful "weighing"
+      expression, the other holding a small piece of chalk. On the
+      whiteboard behind him: the question "2026?" written large in
+      chalk lettering at the top, with three branching arrows below
+      it — one labeled "cloud", one labeled "managed", one labeled
+      "DIY". The DIY branch has a small chalk underline as if recently
+      chosen. Frank's expression is skeptical and considering — not
+      triumphant, not sad; the question is genuinely open and he is
+      mid-thought. Warm single overhead work-lamp lights the
+      whiteboard from above. Dark room behind, faint blue PCB traces
+      on the walls. Scattered around his feet on the floor: a few open
+      spec sheets, a power-consumption chart on paper, a cup of
+      coffee. Apply all CANONICAL FRANK FEATURES from base_style, plus
+      the Papers signature (white shirt + thin black necktie + small
+      thin-framed reading glasses perched low on the bridge of the
+      nose) from the series modifiers. EXACTLY ONE FIGURE.
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
