@@ -7,7 +7,7 @@ summary: "A third blog series — research-grade landscape reviews framed as dec
 weight: 31
 ---
 
-The cluster has two voices already. The [Building series]({{< relref "/docs/building/00-overview" >}}) answers *how* — step by step, with the manifests and the gotchas. The [Operating series]({{< relref "/docs/operating/00-overview" >}}) answers *how to run* — day-to-day commands, the wrong things to type, what to check first when the page goes red. Neither answers *why this and not the other twelve options*. That's the gap the third series fills.
+The cluster has two voices already. The [Building series]({{< relref "/docs/building/00-overview" >}}) answers *how* — step by step, with the manifests and the gotchas. The [Operating series]({{< relref "/docs/operating" >}}) answers *how to run* — day-to-day commands, the wrong things to type, what to check first when the page goes red. Neither answers *why this and not the other twelve options*. That's the gap the third series fills.
 
 **The Frank Papers** are research-grade landscape reviews. Each paper maps the vendor space for one capability, grades the options against criteria a staff engineer or CTO actually brings to the table, then returns to Frank's choice as a worked case study — honest about where that choice wouldn't generalize. Every paper carries a ≤150-word TL;DR up front, so an engineering manager reading over a shoulder gets the conclusion without scrolling.
 
