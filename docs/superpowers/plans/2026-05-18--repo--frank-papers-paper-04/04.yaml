@@ -1,0 +1,171 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 04 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add a new entry under the `# --- Papers Series Covers ---` section
+      (created with Paper 00), after the `paper-00-cover` entry:
+
+      ```yaml
+        - key: paper-04-cover
+          output: blog/content/docs/papers/04-distributed-storage/cover.png
+          description: Paper 04 cover — Frank examining a column of spinning replica disks with a weighing expression
+          prompt: >-
+            Frank the server-hardware Frankenstein monster stands in front of a
+            tall column of three spinning hard-disk platters stacked vertically,
+            one hand reaching up to weigh one of the disks in his palm. His
+            expression is skeptical / weighing — genuinely uncertain whether
+            three replicas are enough. He wears thin round reading glasses
+            resting low on his nose and a thin black necktie. Warm overhead
+            lamp. Dark background. RJ45 neck bolts, green skin, messy black
+            hair, rack-mount torso. The disk platters glow faintly blue. No
+            text in the image.
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-04-cover
+      ```
+
+      Expected: `blog/content/docs/papers/04-distributed-storage/cover.png`
+      created, ≥50KB.
+
+      ```bash
+      ls -lh blog/content/docs/papers/04-distributed-storage/cover.png
+      ```
+
+      Spot-check: Frank should have thin round reading glasses, thin
+      black tie, skeptical/weighing expression, and the column of
+      three disks should be recognisable. Up to 3 regeneration
+      attempts if the visual signature is missing.
+- number: 2
+  title: Render Mermaid diagrams and verify they parse
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/04-distributed-storage/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft work.
+      If any remain, fill them now. The diagrams expected at this point:
+      - §1: one `flowchart LR` (stack position)
+      - §2: one `quadrantChart` via `{{< papers/landscape >}}` + one
+        `{{< papers/capability-matrix >}}`
+      - §3: 4–6 `flowchart TD` (per-vendor architecture)
+      - §6: one `flowchart TD` decision tree, ≤4 leaves
+  - id: P4.T2.S2
+    text: |-
+      Verify Mermaid diagrams parse without errors in Hugo dev server
+
+
+      ```bash
+      cd blog && hugo server --buildDrafts --port 1313 &
+      sleep 3
+      # Check the Paper 04 page loads without Hugo errors
+      curl -s http://localhost:1313/docs/papers/04-distributed-storage/ \
+        | grep -i "mermaid\|error" | head -10
+      kill %1
+      ```
+
+      Expected: the page loads (HTTP 200), Mermaid script tag is
+      present, no Hugo template errors in the page HTML. Client-side
+      Mermaid render errors are only visible in a real browser —
+      note any visible in the dev browser if available.
+- number: 3
+  title: Capture Longhorn UI screenshot
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Capture a Longhorn UI screenshot showing 3-replica healthy state
+
+
+      Source: `http://192.168.55.201` (Longhorn UI, exposed via Cilium
+      L2 LoadBalancer — see `agents/rules/frank-infrastructure.md`).
+
+      Procedure:
+      ```bash
+      # From a machine with cluster access:
+      # 1. Open http://192.168.55.201
+      # 2. Navigate to Volumes
+      # 3. Filter to "Healthy"
+      # 4. Verify all listed volumes show "Replicas: 3" and that the
+      #    three replicas span mini-1 / mini-2 / mini-3.
+      # 5. Screenshot the full table view.
+      ```
+
+      Save to:
+      ```
+      blog/content/docs/papers/04-distributed-storage/longhorn-3-replica-healthy.png
+      ```
+
+      Reference inline in §5 (Frank's choice) with a Markdown image
+      link. Caption: "Longhorn UI showing 3 replicas spanning the
+      three control-plane nodes (mini-1 / mini-2 / mini-3)."
+- number: 4
+  title: Full Hugo build smoke-test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Run the production Hugo build to assert zero errors
+
+
+      ```bash
+      cd blog && hugo --minify 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/04-distributed-storage/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+      Warnings about draft pages being skipped are fine (the draft
+      flag flips in Phase 5).
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
