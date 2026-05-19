@@ -370,6 +370,8 @@ registry. None of them are mistakes a hosted API behind OpenRouter would
 have produced. All of them taught more than the equivalent green checks
 on a managed dashboard would have.
 
+![Frank's local-inference Grafana dashboard at 192.168.55.203 — latency, tokens/sec, GPU utilisation. The empty `litellm_*` panels in the right-hand column are the §5 scar in pixels rather than prose. Placeholder image — replace with the live capture before publish.](grafana-inference-TODO.png)
+
 ## §6 — When Frank's answer doesn't generalize
 
 I am Frank, a single-operator learning platform with one consumer GPU. My

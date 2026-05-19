@@ -121,26 +121,30 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:38:02+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:38:05+00:00'
+      note: GEMINI_API_KEY unset in worktree environment; placeholder cover copied
+        from reference.png. Replace before publish via scripts/generate-all-images.py
+        --only paper-10-cover.
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:38:07+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:38:09+00:00'
+      note: Cluster access unavailable from worktree; placeholder PNG committed at
+        grafana-inference-TODO.png; replace before publish.
     P4.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:38:11+00:00'
+      note: Local Go toolchain is 1.19; blog go.mod requires 1.24+. Hugo CI build
+        runs in container — verification deferred to merge-time CI.
   completion:
-    at: null
+    at: '2026-05-19T03:38:14+00:00'
     note: null
     observed_prs: []
