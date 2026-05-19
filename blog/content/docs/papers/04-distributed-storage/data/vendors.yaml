@@ -1,0 +1,78 @@
+features:
+  - key: block
+    label: Block (RWO)
+  - key: file
+    label: File (RWX)
+  - key: object
+    label: Object (S3)
+  - key: snapshots
+    label: Snapshots
+  - key: backups
+    label: Off-cluster backup
+  - key: replication
+    label: Synchronous replication
+  - key: oss
+    label: OSS / no contract required
+  - key: min_nodes
+    label: Min healthy nodes
+vendors:
+  - name: Longhorn
+    features:
+      block: "yes"
+      file: "partial"
+      object: "no"
+      snapshots: "yes"
+      backups: "yes"
+      replication: "yes"
+      oss: "yes"
+      min_nodes: "3"
+  - name: Rook-Ceph
+    features:
+      block: "yes"
+      file: "yes"
+      object: "yes"
+      snapshots: "yes"
+      backups: "yes"
+      replication: "yes"
+      oss: "yes"
+      min_nodes: "5"
+  - name: OpenEBS Mayastor
+    features:
+      block: "yes"
+      file: "no"
+      object: "no"
+      snapshots: "yes"
+      backups: "partial"
+      replication: "yes"
+      oss: "yes"
+      min_nodes: "3"
+  - name: Piraeus / LINSTOR
+    features:
+      block: "yes"
+      file: "no"
+      object: "no"
+      snapshots: "yes"
+      backups: "partial"
+      replication: "yes"
+      oss: "yes"
+      min_nodes: "2"
+  - name: Portworx
+    features:
+      block: "yes"
+      file: "yes"
+      object: "no"
+      snapshots: "yes"
+      backups: "yes"
+      replication: "yes"
+      oss: "no"
+      min_nodes: "3"
+  - name: local-path-provisioner
+    features:
+      block: "yes"
+      file: "no"
+      object: "no"
+      snapshots: "no"
+      backups: "no"
+      replication: "no"
+      oss: "yes"
+      min_nodes: "1"
