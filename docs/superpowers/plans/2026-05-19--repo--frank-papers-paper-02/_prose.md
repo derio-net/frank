@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 02: Immutable OS & Declarative Machines
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** In Progress (2026-05-19) — Paper 02 drafting under the v3 single-PR-multi-phase workflow.
+**Status:** Complete (2026-05-19) — Paper 02 published; series Phase 1 continues.
 
 **Prerequisite:** Phase 0 (`2026-05-16--repo--frank-papers-phase-0`) complete (scripts, shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Paper 00 (prologue), Paper 10 (inference), Paper 04 (storage), and Paper 11 (identity) already published — series Phase 1 is open, and this is the eighth Paper to publish in decision-weight order (`00 → 10 → 04 → 11 → 14 → 06 → 07 → 02 → ...`).
 
