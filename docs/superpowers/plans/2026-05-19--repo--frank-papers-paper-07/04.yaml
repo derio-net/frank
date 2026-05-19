@@ -1,0 +1,176 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 07 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add a new entry under the `# --- Papers Series Covers ---`
+      section, after the existing paper-NN-cover entries:
+
+      ```yaml
+        - key: paper-07-cover
+          # Same convention as paper-00-cover and paper-10-cover: only
+          # reference.png anchors style; the Papers signature (glasses
+          # + tie + dress shirt) is explicit in the prompt below.
+          output: blog/content/docs/papers/07-observability-honestly/cover.png
+          description: Paper 07 cover — Frank examining a wall of glowing dashboards with a skeptical / weighing expression
+          prompt: >-
+            Frank the server-hardware Frankenstein monster examines a
+            wall of glowing dashboards — line charts of request latency,
+            heatmaps, alert panels, and a small column of currently-
+            firing alerts. The panels read as honest data, NOT hero
+            metrics: one chart is rising, one is flat, one shows a
+            clear scar / spike from a past incident. Frank's
+            expression is skeptical and weighing — he is reading
+            the dashboard, not selling it. He wears small circular
+            wire-rim reading glasses resting low on his face, a thin
+            black necktie over a white button-down dress shirt. One
+            hand points at the spike. Warm overhead lamp. Dark
+            studio-style background. RJ45 temple bolts, green skin,
+            messy black hair. The ONLY text in the image is small
+            axis labels on the charts — no captions or watermarks.
+            ONE FIGURE — one single Frank.
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      set -a && source .env_common && set +a
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-07-cover
+      ```
+
+      Expected: `blog/content/docs/papers/07-observability-honestly/cover.png`
+      created, ≥50KB.
+
+      ```bash
+      ls -lh blog/content/docs/papers/07-observability-honestly/cover.png
+      ```
+
+      Spot-check: Frank should have thin round reading glasses, thin
+      black tie, and the wall of dashboards behind him. If GEMINI
+      generation fails, copy `blog/static/images/reference.png` as
+      a fallback. Up to 3 regeneration attempts.
+- number: 2
+  title: Render Mermaid diagrams and verify they parse
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/07-observability-honestly/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft work.
+      If any remain, fill them now. The diagrams expected at this point:
+      - §1: one `flowchart LR` (stack position)
+      - §2: one `quadrantChart` via `{{< papers/landscape >}}` + one
+        `{{< papers/capability-matrix >}}`
+      - §3: 4–6 `flowchart TD` (per-vendor architecture)
+      - §6: one `flowchart TD` decision tree, ≤4 leaves
+  - id: P4.T2.S2
+    text: |-
+      Verify Mermaid diagrams parse without errors in Hugo dev server
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --buildDrafts --minify 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ```
+
+      Expected: zero ERROR lines. Warnings about draft pages being
+      skipped are fine until Phase 5.
+- number: 3
+  title: Capture Grafana UI screenshot
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Capture a Grafana UI screenshot showing a real dashboard or
+      currently-firing alert list
+
+
+      Source: `http://192.168.55.203` (Grafana, exposed via Cilium
+      L2 LoadBalancer — see `agents/rules/frank-infrastructure.md`).
+
+      Procedure:
+      ```bash
+      # From a machine with cluster access:
+      # 1. Open http://192.168.55.203
+      # 2. Navigate to a dashboard that shows real cluster metrics
+      #    (or the Alerting → Alert rules page, or an alertlist panel)
+      # 3. Screenshot the panel.
+      ```
+
+      Save to:
+      ```
+      blog/content/docs/papers/07-observability-honestly/grafana-honest-dashboard.png
+      ```
+
+      Reference inline in §5 with a Markdown image link. If cluster
+      access is unavailable from the worktree, commit a 1×1
+      transparent PNG with the `-TODO.png` suffix (copy from
+      Paper 11's `authentik-applications-TODO.png` as the canonical
+      placeholder) and tick this step with `state: -` and the note
+      `"Cluster access unavailable from worktree."`
+- number: 4
+  title: Full Hugo build smoke-test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Run the production Hugo build to assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/07-observability-honestly/index.html 2>/dev/null || true
+      ```
+
+      Expected: zero ERROR lines. The Paper is still draft, so the
+      file will not appear in public/ until Phase 5. Verify the
+      non-draft build is clean.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

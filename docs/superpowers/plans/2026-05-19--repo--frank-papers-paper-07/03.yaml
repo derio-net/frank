@@ -1,0 +1,440 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/07-observability-honestly/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 07 frontmatter
+
+
+      Update `blog/content/docs/papers/07-observability-honestly/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "The Observability Stack, Honestly"
+      date: <today>
+      draft: true
+      weight: 7
+      series: ["papers"]
+      layer: obs
+      paper_number: 7
+      publish_order: 7
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["observability", "grafana", "prometheus", "loki", "victoriametrics", "kubernetes", "homelab"]
+      capabilities: ["obs"]
+      related_building: "docs/building/07-observability"
+      related_operating: "docs/operating/05-observability"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 7` matches paper_number for TOC order.
+      `publish_order: 7` reflects this being the seventh Paper to
+      publish (`00 → 10 → 04 → 11 → 14 → 06 → 07 → ...`).
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      Create `blog/content/docs/papers/07-observability-honestly/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: metrics
+          label: Metrics
+        - key: logs
+          label: Logs
+        - key: traces
+          label: Traces
+        - key: alerts
+          label: Alerting
+        - key: dashboards
+          label: Dashboards
+        - key: ha
+          label: HA / sharding
+        - key: oss
+          label: OSS / no contract required
+        - key: tco_low
+          label: Cheap at homelab scale
+      vendors:
+        - name: Grafana + Prometheus + Loki
+          features:
+            metrics: "yes"
+            logs: "yes"
+            traces: "partial"
+            alerts: "yes"
+            dashboards: "yes"
+            ha: "partial"
+            oss: "yes"
+            tco_low: "yes"
+        - name: VictoriaMetrics
+          features:
+            metrics: "yes"
+            logs: "partial"
+            traces: "no"
+            alerts: "yes"
+            dashboards: "no"
+            ha: "yes"
+            oss: "yes"
+            tco_low: "yes"
+        - name: Grafana Mimir
+          features:
+            metrics: "yes"
+            logs: "no"
+            traces: "no"
+            alerts: "yes"
+            dashboards: "no"
+            ha: "yes"
+            oss: "yes"
+            tco_low: "no"
+        - name: Tempo / Jaeger
+          features:
+            metrics: "no"
+            logs: "no"
+            traces: "yes"
+            alerts: "no"
+            dashboards: "no"
+            ha: "partial"
+            oss: "yes"
+            tco_low: "partial"
+        - name: Datadog / New Relic
+          features:
+            metrics: "yes"
+            logs: "yes"
+            traces: "yes"
+            alerts: "yes"
+            dashboards: "yes"
+            ha: "yes"
+            oss: "no"
+            tco_low: "no"
+        - name: OpenSearch / Elastic
+          features:
+            metrics: "partial"
+            logs: "yes"
+            traces: "partial"
+            alerts: "yes"
+            dashboards: "yes"
+            ha: "yes"
+            oss: "yes"
+            tco_low: "no"
+      ```
+
+      "yes" = the option HAS that feature. Match the polarity used in
+      Papers 04 and 11's vendors.yaml.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      The opening question: *if you want a single screen that tells
+      you whether the cluster is healthy, who renders it — and what
+      does each option charge you in operational tax, $/GB, and
+      proprietary lock-in?* Position observability in the stack:
+      sibling to control plane, telemetry consumer of every workload,
+      sender of pages when things break. Acknowledge that
+      "observability" is doing several jobs at once — metrics, logs,
+      traces, alerting, dashboards — and the vendor space splits on
+      which of those jobs each option treats as the primary one.
+
+      Voice: Frank speaks as the cluster. No hedging — the question
+      is real, the answers diverge.
+
+      Include one `flowchart LR` Mermaid diagram showing
+      observability's stack position and the five jobs it does:
+
+      ```
+      flowchart LR
+          W["Workloads"] --> A["Agents / scrapers"]
+          A --> O["Observability stack"]
+          O --> M["Metrics (TSDB)"]
+          O --> L["Logs"]
+          O --> T["Traces"]
+          O --> D["Dashboards"]
+          O --> AL["Alerts → pager"]
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the six vendors against two axes. Use `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:OSS↔commercial,y:assembled↔unified" >}}
+          title Observability stacks — 2026
+          x-axis OSS --> Commercial
+          y-axis Assembled --> Unified
+          quadrant-1 "Unified · Commercial"
+          quadrant-2 "Unified · OSS"
+          quadrant-3 "Assembled · OSS"
+          quadrant-4 "Assembled · Commercial"
+          "Grafana+Prom+Loki": [0.20, 0.30]
+          "VictoriaMetrics": [0.15, 0.25]
+          "Grafana Mimir": [0.20, 0.40]
+          "Tempo / Jaeger": [0.15, 0.15]
+          "Datadog / New Relic": [0.85, 0.85]
+          "OpenSearch / Elastic": [0.35, 0.70]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("Grafana+Prometheus+Loki: the OSS
+      reference assembly, you build it"; "Datadog: the contract, you
+      buy it") and what it gives up to get there. Use
+      `{{< papers/pullquote source="..." url="..." >}}` for at least
+      one direct quote pulled from the dossier (probably the Google
+      SRE book chapter on monitoring distributed systems).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: turning the cluster's chaos into one screen a
+      human can read at 3 AM, without burying real incidents under
+      noise. Each vendor has a different answer; this section lays
+      them out side-by-side with one `flowchart TD` per vendor in a
+      shared visual language.
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = control plane components
+      - Cylinders = data on disk (TSDB / log store)
+      - Hexagons = clients (agent, scraper, alertmanager)
+      - Dashed edges = alerting / async paths
+      - Solid edges = ingest / query paths
+
+      Four-to-six architecture diagrams (one per vendor with a
+      meaningfully different answer). Example for Grafana+Prom+Loki:
+
+      ```
+      flowchart TD
+          subgraph LGTM["Grafana + Prometheus + Loki"]
+              G["grafana"]
+              P[("Prometheus TSDB")]
+              LO[("Loki log store")]
+              AM["alertmanager"]
+          end
+          S{{"ServiceMonitor / scrape"}}
+          A{{"Promtail / Fluentd"}}
+          S --> P
+          A --> LO
+          G --> P
+          G --> LO
+          P -.-> AM
+          AM -.-> X["Telegram / Slack"]
+      ```
+
+      For each diagram include 80–200 words of prose: what survives a
+      backend failure, what the recovery path looks like, what the
+      failure mode is when the answer is "the dashboard just stops
+      updating".
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Metric cardinality.** Prometheus's in-process TSDB is
+         cardinality-bound — millions of active series degrade
+         ingest latency. VictoriaMetrics and Mimir solve cardinality
+         very differently (vmagent's relabel + per-tenant sharding
+         vs Mimir's ingester ring). Cite the VictoriaMetrics
+         benchmark from the dossier.
+
+      2. **Log volume vs query cost.** Loki indexes labels only,
+         not content; query cost rises with volume scanned.
+         OpenSearch / Elastic index at write time; storage cost
+         rises with retention. Cite the practitioner postmortem
+         with concrete $/GB numbers.
+
+      3. **Tracing sample rate.** Tempo / Jaeger costs scale with
+         trace volume; commercial SaaS charges per-trace. The
+         trade is sampling — head-based, tail-based, or none —
+         and each has very different debugging properties.
+
+      Cite ≥2 primary sources from the dossier (benchmark + paper).
+      Do not editorialize past what the citations support.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank runs Grafana + Prometheus-protocol-compatible
+      VictoriaMetrics + Loki. No Tempo (yet) — tracing is not load-
+      bearing for the workloads Frank runs. Alerts are file-
+      provisioned via ConfigMaps in `apps/grafana-alerting/manifests/`.
+      Telegram is the contact point. Honest about what was assumed
+      (file-provisioning would behave like Kubernetes ConfigMaps —
+      hot-watched) and what turned out to be true (it isn't).
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative options:
+
+      Scar 1 — file-provisioned alerts read-only in UI:
+      ```
+      {{< papers/scar date="2026-04-XX" >}}
+      We provisioned an alert in `apps/grafana-alerting/manifests/`,
+      edited it in the Grafana UI, and lost the edit on the next pod
+      restart. File-provisioned alerts are read-only in the UI; the
+      only durable path is ConfigMap → push → restart pod (provisioning
+      files are read at boot, not watched). Twice rediscovered before
+      we wrote it into the rules.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — Grafana 12.x SSE alert format break:
+      ```
+      {{< papers/scar date="2026-04-XX" >}}
+      An alert that read fine in Grafana 11 failed with `sse.parseError`
+      in Grafana 12. The 12.x server-side-expression engine needs a
+      3-step A→B→C alert rule; the old classic-condition format
+      silently breaks. Half our alerts went dark on a minor-version
+      bump.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — ALERTS{} doesn't exist in VM:
+      ```
+      {{< papers/scar date="2026-05-XX" >}}
+      We assumed `ALERTS{}` would work in VictoriaMetrics for
+      Grafana-managed alerts. It does not — VM doesn't expose the
+      same internal series Prometheus does. The `alertlist` panel
+      is the only first-class way to render currently-firing
+      Grafana alerts when VM is the TSDB.
+      {{< /papers/scar >}}
+      ```
+
+      Pick the scars that best carry §5's argument. Real dates only
+      — pull from `agents/rules/frank-gotchas.md → Grafana` cross-
+      referenced with `git log apps/grafana-alerting/`.
+
+      Include ≥1 evidence artefact — a Grafana UI screenshot from
+      P4.T3 referenced inline with a Markdown image link. If cluster
+      access is unavailable, reference the TODO placeholder.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one leaf;
+      the others are real:
+
+      ```
+      flowchart TD
+          A["What's your scale?"] -- "Single VM / laptop" --> L1["Docker stats + Grafana Cloud free"]
+          A -- "1–3 small clusters, OSS-only" --> L2["Grafana + Prom + Loki (VM if cardinality grows)"]
+          A -- "Multi-tenant SaaS, business-critical" --> L3["Mimir + Tempo + Loki  OR  Datadog / New Relic"]
+          A -- "Logs-first regulated industry" --> L4["OpenSearch + Filebeat"]
+      ```
+
+      ≤4 visible leaves. Frank's answer is L2 — and it is the
+      *right* answer for the scale Frank actually runs at.
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **OpenTelemetry collector as the universal agent.** OTel is
+         eating the agent layer — Prometheus's own client libraries
+         increasingly defer to it, and vendors of every shape are
+         converging on OTLP as the wire protocol. The two-decade-old
+         "every vendor has its own agent" anti-pattern is finally
+         dying.
+
+      2. **eBPF-native observability.** Cilium Hubble, Pixie,
+         Parca, Pyroscope — eBPF-based observability eliminates the
+         in-pod agent for a non-trivial subset of signals. Frank
+         already runs Hubble; profiling-as-a-cluster-capability is
+         the next direction this space moves.
+
+      3. **AI-assisted alert triage.** Every commercial vendor is
+         shipping "AI alert grouping" or "anomaly detection" of
+         varying quality. The OSS side has not caught up. Whether
+         that gap closes is the most consequential open question
+         in this space for the next 2–3 years.
+
+      Optional timeline diagram or roadmap citations.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/07-observability-honestly/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If over,
+      trim §3 first.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
