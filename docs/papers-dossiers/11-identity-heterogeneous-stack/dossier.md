@@ -1,6 +1,6 @@
 ---
 paper: 11-identity-heterogeneous-stack
-status: draft
+status: ready
 ---
 
 ## Vendors in scope (≥3, typically 4–6)
@@ -59,9 +59,9 @@ status: draft
     - "This lets dex defer authentication to LDAP servers, SAML providers, or established identity providers like GitHub, Google, and Active Directory."
   relevance: "Defines the 'federation-only' position in the §2 landscape — Dex deliberately does not store users, only proxies authentication. Explains why projects that adopted Dex (ArgoCD's bundled provider) end up adding a 'real' IdP behind it as soon as they want password policies, MFA enrolment, or admin UI."
 
-- title: "TechnoTim — Authelia + Authentik + Traefik for self-hosted SSO"
+- title: "TechnoTim — 2 Factor Auth and Single Sign on with Authelia (Traefik forward-auth)"
   type: talk
-  url: "https://docs.techno.tim/docs/authelia-traefik"
+  url: "https://docs.technotim.com/posts/authelia-traefik/"
   quoted_passages:
     - "Authelia is an open-source authentication and authorization server providing two-factor authentication and single sign-on (SSO) for your applications via a web portal."
     - "It acts as a companion of reverse proxies like nginx, Traefik or HAProxy to let them know whether requests should either be allowed or redirected to Authelia's portal for authentication."
