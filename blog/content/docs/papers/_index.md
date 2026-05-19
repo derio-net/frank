@@ -21,3 +21,5 @@ The auth landscape paper: **[Identity for a Heterogeneous Stack](/docs/papers/11
 The progressive-delivery landscape paper: **[Progressive Delivery & the Service-Mesh Tax](/docs/papers/14-progressive-delivery/)**.
 
 The GitOps landscape paper: **[GitOps at Small Scale](/docs/papers/06-gitops-at-small-scale/)** — six contenders for who watches Git and reconciles your cluster, and why Frank picks ArgoCD's App-of-Apps as a single point of declarative truth.
+
+Then the observability landscape paper: **[The Observability Stack, Honestly](/docs/papers/07-observability-honestly/)**.

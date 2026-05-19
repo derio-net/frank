@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 07: The Observability Stack, Honestly
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** In progress (2026-05-19) — Paper 07 is the next capability paper after Paper 11; series Phase 1 continues.
+**Status:** Complete (2026-05-19) — Paper 07 published; series Phase 1 continues.
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete (scripts,
 shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Papers 00, 10, 04,
