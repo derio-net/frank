@@ -141,38 +141,47 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:26:21+00:00'
+      note: Defer to CI — Paper 11 published on existing public blog at blog.derio.net/frank,
+        no new IngressRoute. URL liveness check deferred to post-deploy CI.
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:26:31+00:00'
+      note: Defer to CI — local Hugo build green; chip rendering verification deferred
+        to merge-time CI, consistent with Paper 10 Phase 6.
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T04:26:40+00:00'
+      note: Updated blog/content/docs/papers/_index.md to link Paper 11 alongside
+        Paper 00 and Paper 10.
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:26:53+00:00'
+      note: Skip — Building 13-unified-auth exists; Paper 11 is decision-level companion.
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:26:54+00:00'
+      note: Skip — Operating 08-auth exists; Paper 11 is decision-level companion.
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:26:56+00:00'
+      note: Skip — README does not list individual papers; Papers series already represented
+        in README from Phase 0.
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:26:58+00:00'
+      note: 'Skip — no # manual-operation blocks in plan (verified by grep).'
     P6.T1.S8:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T04:26:59+00:00'
+      note: _prose.md Status flipped to Complete (2026-05-19). Spec Implementation
+        Plans table row updated for Paper 11. vk 2.2.4 has no spec-index subcommand;
+        used direct Edit on the spec table row.
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T04:27:08+00:00'
+    note: Paper 11 published; Papers landing updated to link Paper 11; plan status
+      flipped to Complete in _prose.md and spec Implementation Plans table; cross-series
+      chip backlink verification deferred to merge-time Hugo CI build (consistent
+      with Paper 10 Phase 6).
     observed_prs: []
