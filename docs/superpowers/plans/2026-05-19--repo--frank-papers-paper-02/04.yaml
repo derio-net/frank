@@ -1,0 +1,170 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 02 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add a new entry under the `# --- Papers Series Covers ---`
+      section, after the `paper-11-cover` entry:
+
+      ```yaml
+        - key: paper-02-cover
+          # Same convention as paper-00 / 04 / 10 / 11-cover: only
+          # reference.png anchors style; the Papers signature
+          # (glasses + tie + dress shirt) is explicit in the prompt
+          # below.
+          output: blog/content/docs/papers/02-immutable-os/cover.png
+          description: Paper 02 cover — Frank examining a row of identical immutable-OS server nodes with an approving expression
+          prompt: >-
+            Frank the server-hardware Frankenstein monster examines a
+            row of identical, immutable-OS server nodes — each carrying
+            the same machine-config rendered as a glowing manifest file
+            floating beside it. The nodes are visibly homogeneous from
+            the outside (same exact shape, same labels) but each has
+            a subtle hardware difference visible up close (one with a
+            GPU, one with ARM markings, one as a small board). Frank's
+            expression is approving — this is the part of the stack
+            where the abstraction holds. He wears small circular
+            wire-rim reading glasses resting low on his face, a thin
+            black necktie over a white button-down dress shirt. One
+            hand traces a line from a manifest to its node. Warm
+            overhead lamp. Dark studio-style background. RJ45 temple
+            bolts, green skin, messy black hair. The ONLY text in the
+            image is small machine identifiers (mini-1, mini-2, gpu-1,
+            etc.) — no captions or watermarks. ONE FIGURE — one single
+            Frank.
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      set -a && source .env_common && set +a
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-02-cover
+      ls -lh blog/content/docs/papers/02-immutable-os/cover.png
+      ```
+
+      Expected: cover.png created, ≥50KB. If `GEMINI_API_KEY` is
+      unavailable, fall back to copying `blog/static/images/reference.png`
+      as a placeholder.
+
+      Spot-check: Frank should have thin round reading glasses, thin
+      black tie, approving expression, and the row of identical
+      nodes should be recognisable. Up to 3 regeneration attempts.
+- number: 2
+  title: Render Mermaid diagrams and verify they parse
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/02-immutable-os/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft work.
+  - id: P4.T2.S2
+    text: |-
+      Verify Hugo build succeeds with the draft
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH \
+        hugo --buildDrafts --minify 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/02-immutable-os/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB
+      when built with `--buildDrafts`.
+- number: 3
+  title: Capture Omni UI screenshot (optional)
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Capture an Omni UI screenshot showing the 7-machine `frank` cluster
+
+
+      Source: the Omni UI (per `omni/Readme.md`). Procedure:
+
+      1. Open the Omni UI in browser.
+      2. Navigate to the `frank` cluster machines list.
+      3. Verify all 7 machines (mini-1/2/3, gpu-1, raspi-1/2, pc-1)
+         show the same Talos version.
+      4. Screenshot the machines table.
+
+      Save to:
+      ```
+      blog/content/docs/papers/02-immutable-os/omni-machines.png
+      ```
+
+      If cluster access is unavailable from the worktree, copy the
+      68-byte transparent placeholder pattern used by other Papers:
+      ```bash
+      cp blog/content/docs/papers/11-identity-heterogeneous-stack/authentik-applications-TODO.png \
+         blog/content/docs/papers/02-immutable-os/omni-machines-TODO.png
+      ```
+
+      Reference inline in §5 (Frank's choice) with a Markdown image
+      link. Caption: "Omni UI showing all 7 machines on the `frank`
+      cluster running the same Talos version."
+- number: 4
+  title: Full Hugo build smoke-test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Run the production Hugo build to assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH \
+        hugo --minify 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ```
+
+      Expected: zero ERROR lines. Paper 02 may be skipped because
+      it's still `draft: true` (the draft flag flips in Phase 5).
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

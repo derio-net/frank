@@ -1,0 +1,83 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Gate validation
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Run validate-dossier.py and resolve failures
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Run the dossier gate validator
+
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/02-immutable-os/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED: ...`
+
+      If it fails, fix the reported issues:
+      - `vendors_in_scope: need ≥3` → add more vendors
+      - `primary_sources: need ≥5` → add more sources
+      - `primary_sources: need ≥3 distinct type values` → diversify
+      - `URL not reachable` → find an alternative URL or Wayback link
+      - `frank_artefacts: need ≥3` → add more artefacts
+      - `frank_artefacts: need ≥2 distinct kind values` → add a different kind
+      - `named_gaps: need ≥1` → add a gap
+      - `counter-arguments_considered: need ≥1` → add a counter-argument
+
+      Re-run until exit 0.
+  - id: P2.T1.S2
+    text: |-
+      Human gate: author reviews named gaps and counter-arguments
+
+
+      **This step requires human review.**
+
+      The author (user) reads:
+      1. `## Named gaps` — is the day-2-ops-cost gap honest and
+         specific? Does it point at a real hole in the literature
+         rather than a vague disclaimer?
+      2. `## Counter-arguments considered` — is the "mutable +
+         Ansible is the right default for most teams"
+         counter-argument addressed with the right framing (Frank
+         is a learning platform — encountering Talos's scars
+         first-hand is the point)?
+
+      When satisfied, update dossier status:
+      ```yaml
+      # In docs/papers-dossiers/02-immutable-os/dossier.md frontmatter:
+      status: ready
+      ```
+  - id: P2.T1.S3
+    text: |-
+      Commit the validated dossier
+
+
+      ```bash
+      git add docs/papers-dossiers/02-immutable-os/dossier.md
+      git commit -m "docs(repo): Paper 02 research dossier — immutable OS & declarative machines"
+      ```
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
