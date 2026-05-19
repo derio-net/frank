@@ -3,7 +3,10 @@
      the current page's relative path, and renders a chip. */}}
 {{ $currentPath := .RelPermalink | strings.TrimSuffix "/" }}
 {{ $matchedPaper := false }}
-{{ range where .Site.Pages "Params.series" "papers" }}
+{{/* series is declared as a list (required by Hextra's OpenGraph template),
+     so match it via intersect rather than a scalar where — Hugo's scalar
+     where does not match list-valued params. */}}
+{{ range where .Site.Pages "Params.series" "intersect" (slice "papers") }}
   {{ $buildingRef := .Params.related_building | default "" }}
   {{ $operatingRef := .Params.related_operating | default "" }}
   {{ if or (strings.Contains $currentPath $buildingRef) (strings.Contains $currentPath $operatingRef) }}
