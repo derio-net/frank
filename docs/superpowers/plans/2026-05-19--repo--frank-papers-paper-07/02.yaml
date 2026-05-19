@@ -65,18 +65,19 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T13:59:03+00:00'
+      note: DOSSIER GATE PASSED
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T13:59:04+00:00'
+      note: Agent acted as gate-keeper; gap and counter-argument framed for Frank's
+        learning-platform thesis
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T13:59:06+00:00'
+      note: dossier ships with Phase 1 commit (combined per PR-workflow)
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T13:59:52+00:00'
+    note: 'Validator exits 0; dossier marked status: ready; agent acted as gate-keeper.'
     observed_prs: []
