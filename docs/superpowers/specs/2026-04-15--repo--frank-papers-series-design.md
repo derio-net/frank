@@ -391,4 +391,4 @@ Phase 0 done → Paper 00 dossier → Paper 00 draft → publish → Phase 1 ope
 | The Frank Papers — Paper 10: Self-Hosted Inference & the LLM Gateway Pattern | derio-net/frank | `docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-10/` | Complete (2026-05-19) — published |
 | The Frank Papers — Paper 04: Distributed Storage on Bare Metal | derio-net/frank | `docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-04/` | Complete (2026-05-19) — published |
 | The Frank Papers — Paper 11: Identity for a Heterogeneous Stack | derio-net/frank | `docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-11/` | Complete (2026-05-19) — published |
-| 2026-05-19--repo--frank-papers-paper-14 | `derio-net/frank` | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-14/` | — |
+| The Frank Papers — Paper 14: Progressive Delivery & the Service-Mesh Tax | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-14/` | Complete (2026-05-19) — PR open for review |

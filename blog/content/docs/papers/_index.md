@@ -17,3 +17,5 @@ Then the first capability paper: **[Self-Hosted Inference & the LLM Gateway Patt
 Followed by: **[Distributed Storage on Bare Metal](/docs/papers/04-distributed-storage/)** — the six contenders for PVCs that survive a node loss, and why Frank trades the unified data plane for a per-volume mirror.
 
 The auth landscape paper: **[Identity for a Heterogeneous Stack](/docs/papers/11-identity-heterogeneous-stack/)**.
+
+The progressive-delivery landscape paper: **[Progressive Delivery & the Service-Mesh Tax](/docs/papers/14-progressive-delivery/)**.

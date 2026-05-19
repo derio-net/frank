@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 14: Progressive Delivery & the Service-Mesh Tax
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Draft — Paper 14 enters the series queue as the fifth published Paper (publish order: `00 → 10 → 04 → 11 → 14`).
+**Status:** Complete (2026-05-19) — Paper 14 draft published on branch `paper-14`; PR open for human review (publish order: `00 → 10 → 04 → 11 → 14`).
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete (scripts,
 shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Papers 00, 10, 04,
