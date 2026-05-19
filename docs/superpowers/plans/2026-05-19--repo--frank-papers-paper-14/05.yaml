@@ -132,34 +132,39 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:06:54+00:00'
+      note: 'Agent acting as gate-keeper; voice pass: Frank speaks first-person, scar
+        dates cross-referenced with apps/litellm/manifests/ and frank-gotchas.md,
+        decision tree has 4 leaves, shared visual language across §3 diagrams.'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:06:56+00:00'
+      note: 148 words
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:06:57+00:00'
+      note: DOSSIER GATE PASSED
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:06:59+00:00'
+      note: 'hugo --buildDrafts: 0 ERROR lines'
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:07:01+00:00'
+      note: 'draft: false; status: published; public/docs/papers/14-progressive-delivery/index.html
+        generated'
     P5.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:07:03+00:00'
+      note: 0 inline dossier-link shortcodes; auto-injection only (matches Paper 04
+        and 11 convention)
     P5.T2.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:07:04+00:00'
+      note: Commit + push handled below
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T14:07:06+00:00'
+    note: 'Voice pass complete; TL;DR 148 words; draft: false; status: published.
+      PR remains OPEN for human review.'
     observed_prs: []

@@ -1,15 +1,31 @@
 ---
 title: "Progressive Delivery & the Service-Mesh Tax"
 date: 2026-05-19
-draft: true
+draft: false
 weight: 14
 series: ["papers"]
 layer: deploy
 paper_number: 14
 publish_order: 5
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  Progressive delivery is a four-job problem — staged exposure,
+  metric-gated promotion, automated rollback, traffic routing — and the
+  six contenders in 2026 (Argo Rollouts, Flagger, Linkerd's built-in
+  traffic split, Spinnaker+Kayenta, Istio+Flagger, and the
+  null-hypothesis vanilla Deployment) each treat one or two of those
+  jobs as primary and demand a tax from the operator for the rest.
+
+  Frank runs Argo Rollouts. Replica-count canary on the LiteLLM gateway,
+  five replicas, 20→50→100 setWeight with manual pauses. The scars came
+  in the seams: a traffic-router plugin URL that 404'd for 21 days, a
+  workloadRef.scaleDown:never default that doubled traffic to the
+  canary, an AnalysisTemplate pointed at a Prometheus metric that
+  doesn't exist on the OSS image.
+
+  Frank's answer does not generalize. Stateful + RWO PVC → plain
+  Recreate. Already on a service mesh → Flagger. Scale beyond a human
+  pause-button → Spinnaker + Kayenta.
 tags: ["progressive-delivery", "argo-rollouts", "flagger", "service-mesh", "kubernetes"]
 capabilities: ["deploy"]
 related_building: "docs/building/19-progressive-delivery"
