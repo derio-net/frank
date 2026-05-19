@@ -1,0 +1,78 @@
+features:
+  - key: pull_mode
+    label: Pull-mode reconciler
+  - key: ui
+    label: First-party web UI
+  - key: helm
+    label: Helm native
+  - key: kustomize
+    label: Kustomize native
+  - key: multi_cluster
+    label: Multi-cluster fan-out
+  - key: drift_alerts
+    label: Drift notifications
+  - key: oss
+    label: OSS / no contract required
+  - key: opinion
+    label: Opinionated all-in-one
+vendors:
+  - name: ArgoCD
+    features:
+      pull_mode: "yes"
+      ui: "yes"
+      helm: "yes"
+      kustomize: "yes"
+      multi_cluster: "yes"
+      drift_alerts: "yes"
+      oss: "yes"
+      opinion: "no"
+  - name: Flux v2
+    features:
+      pull_mode: "yes"
+      ui: "partial"
+      helm: "yes"
+      kustomize: "yes"
+      multi_cluster: "yes"
+      drift_alerts: "yes"
+      oss: "yes"
+      opinion: "no"
+  - name: Jenkins X
+    features:
+      pull_mode: "yes"
+      ui: "yes"
+      helm: "yes"
+      kustomize: "partial"
+      multi_cluster: "yes"
+      drift_alerts: "partial"
+      oss: "yes"
+      opinion: "yes"
+  - name: Cloud-managed GitOps
+    features:
+      pull_mode: "yes"
+      ui: "yes"
+      helm: "yes"
+      kustomize: "yes"
+      multi_cluster: "yes"
+      drift_alerts: "yes"
+      oss: "no"
+      opinion: "yes"
+  - name: Spinnaker
+    features:
+      pull_mode: "no"
+      ui: "yes"
+      helm: "partial"
+      kustomize: "partial"
+      multi_cluster: "yes"
+      drift_alerts: "no"
+      oss: "yes"
+      opinion: "yes"
+  - name: Just bash + kubectl
+    features:
+      pull_mode: "no"
+      ui: "no"
+      helm: "partial"
+      kustomize: "partial"
+      multi_cluster: "no"
+      drift_alerts: "no"
+      oss: "yes"
+      opinion: "no"
