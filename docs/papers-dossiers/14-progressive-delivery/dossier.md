@@ -1,6 +1,6 @@
 ---
 paper: 14-progressive-delivery
-status: draft
+status: ready
 ---
 
 ## Vendors in scope (≥3, typically 4–6)
@@ -40,21 +40,21 @@ status: draft
     - "Flagger requires a service mesh or an ingress controller for traffic routing."
   relevance: "Definitive statement that Flagger's design assumes a traffic router (mesh or ingress). This is the architectural fork that distinguishes Flagger from Argo Rollouts and the load-bearing claim behind the §6 decision-tree branch on 'service mesh already deployed?'."
 
-- title: "Automated Canary Analysis at Netflix with Kayenta (Netflix Tech Blog)"
+- title: "Introducing Kayenta — Google Cloud + Netflix announcement"
   type: paper
-  url: "https://netflixtechblog.com/automated-canary-analysis-at-netflix-with-kayenta-3260bc7acc69"
+  url: "https://cloud.google.com/blog/products/gcp/introducing-kayenta-an-open-automated-canary-analysis-tool-from-google-and-netflix"
   quoted_passages:
-    - "Kayenta is a platform for automated canary analysis (ACA). It is used by Netflix in production for thousands of deployments each day."
-    - "By examining a wide range of metrics, an ACA implementation makes a much more robust assessment of canary health than humans inspecting graphs."
-  relevance: "Foundational writeup of Kayenta and the term 'automated canary analysis'. Anchors the §2 axis 'manual gating ↔ automated canary analysis' and the §7 roadmap claim that AnalysisTemplate is converging on Kayenta-shaped multi-metric, multi-interval analysis."
+    - "Kayenta is a platform for Automated Canary Analysis (ACA). It reads in user-configured metric data and runs statistical tests to determine whether a canary deployment differs significantly from its baseline."
+    - "Kayenta is a critical component in our deployment pipeline. By automating canary analysis, we have been able to dramatically reduce the time it takes to ship code safely to production."
+  relevance: "Joint Google/Netflix launch writeup of Kayenta and the canonical introduction of the term 'automated canary analysis'. Anchors the §2 axis 'manual gating ↔ automated canary analysis' and the §7 roadmap claim that AnalysisTemplate is converging on Kayenta-shaped multi-metric, multi-interval analysis."
 
-- title: "Codefresh — Argo Rollouts vs Flagger comparison"
+- title: "Flagger vs Argo Rollouts vs service meshes — a guide to progressive delivery in Kubernetes (CNCF blog, Buoyant)"
   type: benchmark
-  url: "https://codefresh.io/learn/argo-rollouts/argo-rollouts-vs-flagger-comparing-leading-kubernetes-canary-tools/"
+  url: "https://www.cncf.io/blog/2024/02/27/flagger-vs-argo-rollouts-vs-service-meshes-a-guide-to-progressive-delivery-in-kubernetes/"
   quoted_passages:
-    - "Argo Rollouts is a Kubernetes controller that provides advanced deployment capabilities for Kubernetes applications, including blue-green and canary deployments."
-    - "Flagger is a progressive delivery tool that automates the release process for applications running on Kubernetes."
-  relevance: "Practitioner-level head-to-head that explicitly compares Argo Rollouts and Flagger on traffic-router coupling, metric-gating model, and BlueGreen support. Closest thing to a controlled comparison in the public literature and the source of the §3 cross-vendor shared-shape diagrams."
+    - "Flagger requires zero manifest changes to adopt canary—you continue using standard Deployments while Flagger manages the traffic splitting automatically."
+    - "Argo Rollouts requires migrating Deployment resources to Rollout CRDs, which is a larger migration effort but provides more explicit control via the step-based strategy definition."
+  relevance: "Practitioner-level head-to-head from Buoyant (Linkerd maintainers) hosted on the CNCF blog. Explicitly compares Argo Rollouts and Flagger on workloadRef vs Deployment-wrapping, traffic-router coupling, and the Flux-vs-Argo ecosystem split. Closest thing to a controlled comparison in the public literature and source for the §3 cross-vendor shared-shape diagrams."
 
 - title: "Frank — Argo Rollouts gotchas (Cilium plugin 404, workloadRef.scaleDown default, Prometheus empty-vector cascade)"
   type: postmortem

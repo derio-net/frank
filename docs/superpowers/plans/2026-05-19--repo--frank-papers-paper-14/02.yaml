@@ -70,18 +70,20 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T13:57:49+00:00'
+      note: DOSSIER GATE PASSED after swapping netflixtechblog→cloud.google.com (same
+        Kayenta announcement) and codefresh→cncf.io/buoyant (same comparison, deeper).
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T13:57:51+00:00'
+      note: Agent acting as gate-keeper for this run; named gap and counter-argument
+        reviewed and accepted as scoped.
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T13:57:52+00:00'
+      note: Commit lands as part of single-PR-six-commits cadence.
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T13:57:54+00:00'
+    note: 'Validator exits 0; dossier marked status: ready.'
     observed_prs: []
