@@ -141,34 +141,44 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T03:40:49+00:00'
+      note: 'Voice pass: first-person Frank-as-cluster throughout; three §5 scars
+        dated to real Frank incidents (2026-04-08, 2026-04-22, 2026-04-29); §6 names
+        L2 as Frank''s current position; §2 capability matrix marks LiteLLM prometheus_metrics:
+        no (not partial); ''just use OpenAI API'' counter-argument addressed directly
+        in §6.'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T03:40:51+00:00'
+      note: 'TL;DR: 123 words (under 150-word budget). Three paragraphs: build/buy
+        split, Frank''s stack and honest costs, generalisation limit pointer.'
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:40:52+00:00'
       note: null
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:40:54+00:00'
+      note: Local Go is 1.19; blog go.mod needs 1.24+. Hugo CI build runs in container
+        — defer build verification to CI.
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T03:40:56+00:00'
+      note: 'draft: false, status: published flipped in frontmatter. Backlink chip
+        verification deferred to CI.'
     P5.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T03:40:57+00:00'
+      note: grep returns 0 inline references — single.html auto-injection will fire
+        once; no double-render.
     P5.T2.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:40:59+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T03:41:01+00:00'
+    note: 'Voice pass, TL;DR (123 words), dossier gate, double-render check all pass.
+      draft: false / status: published. Hugo build verification deferred to merge-time
+      CI.'
     observed_prs: []
