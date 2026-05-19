@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 10: Self-Hosted Inference & the LLM Gateway Pattern
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Pending — Paper 10 is the first capability paper after the Paper 00 prologue (publish order 2 of the Phase 1 series).
+**Status:** Complete (2026-05-19) — Paper 10 published as the first capability paper after the Paper 00 prologue (publish order 2 of the Phase 1 series).
 
 **Prerequisite:** Paper 00 (`2026-05-16--repo--frank-papers-paper-00`) complete —
 the Papers section landing, the per-paper cover template, and the dossier gate
