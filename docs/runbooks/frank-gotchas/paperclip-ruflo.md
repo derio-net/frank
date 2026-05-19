@@ -293,6 +293,33 @@ PR #296 added a `hermes-wrapper` script ConfigMap key + an initContainer that in
 
 Lesson for future deviations: probe the **adapter's** invocation pattern end-to-end, not just the underlying CLI in isolation, before deciding the adapter is broken.
 
+### Hermes session ID gets truncated → 2nd heartbeat fails (upstream bug) {#hermes-session-truncation}
+
+**Affects:** every `hermes_local` hire on `hermes-paperclip-adapter@0.2.0` (verified unfixed in `0.3.0`) + `ghcr.io/paperclipai/paperclip:sha-93cd933`. Tracked at [derio-net/paperclip#1](https://github.com/derio-net/paperclip/issues/1).
+
+**Symptom:** first heartbeat after the hire exits 0 (transcript visible, response captured). Second heartbeat exits 1 in ~2s with `Session not found: <YYYYMMDD_HHMMSS_>`. Third heartbeat exits 1 with `Session not found: from`. Paperclip retries once, fails again, then marks the issue as `RECOVERY NEEDED` / `Stranded Issue`.
+
+**Root cause (two interacting bugs):**
+
+1. `hermes-paperclip-adapter` sets `executionResult.sessionDisplayId = parsed.sessionId.slice(0, 16)`. Hermes session IDs are 22 chars (`YYYYMMDD_HHMMSS_<6hex>`), so the display value is the prefix only.
+2. `paperclipai/paperclip`'s `heartbeat.ts → resolveNextSessionState` gives `explicitDisplayId` priority over `deserialized?.sessionId`, so the truncated value ends up stored as `session_id_after` AND fed back to the adapter as `--resume <truncated>` on the next heartbeat. Hermes can't find it; the adapter's stdout regex then mis-captures `from` out of hermes's `Use a session ID from a previous CLI run` error message, and from then on the stored session ID is permanently `from`.
+
+**Workaround:** set `adapterConfig.persistSession: false` on the hire. Each heartbeat starts hermes fresh (no `--resume` flag), the truncation bug never fires. Trade-off: hermes loses cross-heartbeat session continuity within a task — fine for tool-heavy work that re-establishes context per run; bad for long multi-turn discussions.
+
+**Recovery for a stuck agent:** clear the corrupted task-session row (alternative: delete the task entirely). The agent record is unaffected — only the per-task session state in `agent_task_sessions` is poisoned, so the next heartbeat after the row is cleared starts a fresh hermes session:
+
+```sql
+-- Identify the bad row:
+SELECT task_key, session_display_id, session_params_json
+  FROM agent_task_sessions
+  WHERE agent_id = '<agent-uuid>'
+  ORDER BY updated_at DESC;
+-- Clear it (next heartbeat will start fresh):
+UPDATE agent_task_sessions
+  SET session_params_json = NULL, session_display_id = NULL
+  WHERE agent_id = '<agent-uuid>' AND task_key = '<task-uuid>';
+```
+
 ### Python-on-PVC install pattern (hermes)
 
 hermes-agent is Python-based; the Paperclip image is Node-only. Install it onto the shared `/paperclip` PVC using `uv`:
