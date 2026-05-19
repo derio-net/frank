@@ -419,6 +419,29 @@ images:
       text in the image — no extra captions or watermarks. ONE FIGURE —
       one single Frank. The framing communicates "staged exposure under
       uncertainty" rather than "deployment is solved".
+  - key: paper-02-cover
+    # Same convention as paper-00 / 04 / 10 / 11-cover: only
+    # reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/02-immutable-os/cover.png
+    description: Paper 02 cover — Frank examining a row of identical immutable-OS server nodes with an approving expression
+    prompt: >-
+      Frank the server-hardware Frankenstein monster examines a row
+      of identical, immutable-OS server nodes — each carrying the
+      same machine-config rendered as a glowing manifest file
+      floating beside it. The nodes are visibly homogeneous from the
+      outside (same exact shape, same labels) but each has a subtle
+      hardware difference visible up close (one with a GPU, one with
+      ARM markings, one as a small board). Frank's expression is
+      approving — this is the part of the stack where the abstraction
+      holds. He wears small circular wire-rim reading glasses resting
+      low on his face, a thin black necktie over a white button-down
+      dress shirt. One hand traces a line from a manifest to its
+      node. Warm overhead lamp. Dark studio-style background. RJ45
+      temple bolts, green skin, messy black hair. The ONLY text in
+      the image is small machine identifiers (mini-1, mini-2, gpu-1,
+      etc.) — no captions or watermarks. ONE FIGURE — one single
+      Frank.
 
   - key: paper-06-cover
     # Same convention as paper-00/04/10/11 covers: only reference.png

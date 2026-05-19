@@ -141,30 +141,33 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T14:13:43+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:13:44+00:00'
+      note: Cover generated via Gemini 3 Pro Image, 804KB; .env_common sourced successfully.
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:13:46+00:00'
+      note: Two intentional TODO markers remain (TL;DR placeholder + omni-machines-TODO.png
+        filename); no diagram TODOs.
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:13:48+00:00'
+      note: Hugo --buildDrafts clean (0 ERROR lines); index.html renders to 183KB.
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T14:13:50+00:00'
+      note: Cluster access unavailable from worktree; placeholder omni-machines-TODO.png
+        (68B) retained for cluster-side capture.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:13:51+00:00'
+      note: hugo --minify clean (Paper 02 skipped as draft, by design); hugo --buildDrafts
+        --minify renders Paper 02 to 183KB.
   completion:
-    at: null
+    at: '2026-05-19T14:13:53+00:00'
     note: null
     observed_prs: []
