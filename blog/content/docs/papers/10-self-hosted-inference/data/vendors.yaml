@@ -1,0 +1,70 @@
+features:
+  - key: openai_compat_api
+    label: OpenAI-compatible API
+  - key: gguf_quant
+    label: GGUF / quantization support
+  - key: paged_attention
+    label: PagedAttention / continuous batching
+  - key: multi_user_throughput
+    label: Multi-user throughput
+  - key: gateway_features
+    label: Gateway features (virtual keys, cost tracking)
+  - key: prometheus_metrics
+    label: Prometheus metrics (OSS tier)
+  - key: cpu_only
+    label: Runs CPU-only
+vendors:
+  - name: Ollama
+    features:
+      openai_compat_api: "yes"
+      gguf_quant: "yes"
+      paged_attention: "no"
+      multi_user_throughput: "partial"
+      gateway_features: "no"
+      prometheus_metrics: "partial"
+      cpu_only: "yes"
+  - name: vLLM
+    features:
+      openai_compat_api: "yes"
+      gguf_quant: "partial"
+      paged_attention: "yes"
+      multi_user_throughput: "yes"
+      gateway_features: "no"
+      prometheus_metrics: "yes"
+      cpu_only: "no"
+  - name: llama.cpp
+    features:
+      openai_compat_api: "yes"
+      gguf_quant: "yes"
+      paged_attention: "no"
+      multi_user_throughput: "partial"
+      gateway_features: "no"
+      prometheus_metrics: "partial"
+      cpu_only: "yes"
+  - name: TGI
+    features:
+      openai_compat_api: "yes"
+      gguf_quant: "partial"
+      paged_attention: "yes"
+      multi_user_throughput: "yes"
+      gateway_features: "no"
+      prometheus_metrics: "yes"
+      cpu_only: "no"
+  - name: LiteLLM
+    features:
+      openai_compat_api: "yes"
+      gguf_quant: "n/a"
+      paged_attention: "n/a"
+      multi_user_throughput: "n/a"
+      gateway_features: "yes"
+      prometheus_metrics: "no"
+      cpu_only: "n/a"
+  - name: OpenRouter
+    features:
+      openai_compat_api: "yes"
+      gguf_quant: "n/a"
+      paged_attention: "n/a"
+      multi_user_throughput: "yes"
+      gateway_features: "yes"
+      prometheus_metrics: "no"
+      cpu_only: "n/a"
