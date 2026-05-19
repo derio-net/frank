@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 06: GitOps at Small Scale
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Drafting (2026-05-19) — Paper 06 is the sixth Paper to publish in the series.
+**Status:** Complete (2026-05-19) — Paper 06 published; series Phase 1 continues.
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete (scripts,
 shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Papers 00, 10, 04,
