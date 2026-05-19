@@ -1,0 +1,86 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Gate validation
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Run validate-dossier.py and resolve failures
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Run the dossier gate validator
+
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/06-gitops-at-small-scale/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED: ...`
+
+      If it fails, fix the reported issues:
+      - `vendors_in_scope: need ≥3` → add more vendors to the dossier
+      - `primary_sources: need ≥5` → add more sources
+      - `primary_sources: need ≥3 distinct type values` → diversify source types
+      - `URL not reachable` → find an alternative URL or use a web archive link
+      - `frank_artefacts: need ≥3` → add more artefacts
+      - `frank_artefacts: need ≥2 distinct kind values` → add a different kind
+      - `named_gaps: need ≥1` → add a gap
+      - `counter-arguments_considered: need ≥1` → add a counter-argument
+
+      Re-run until exit 0. Per the URL-recovery protocol: hard
+      90-second budget per dead URL. If a URL is dead and no
+      replacement is found in 90s, swap for a sibling source from
+      the same author/vendor and re-record `quoted_passages`.
+  - id: P2.T1.S2
+    text: |-
+      Human gate: author reviews named gaps and counter-arguments
+
+
+      **This step requires human review.**
+
+      The author (user) reads:
+      1. `## Named gaps` — is the TCO-methodology gap honest and
+         specific? Does it point at a real hole in the literature
+         rather than a vague disclaimer?
+      2. `## Counter-arguments considered` — is the "just bash +
+         kubectl in CI" counter-argument addressed with the right
+         framing (Frank is a learning platform — the reconciler is
+         what makes drift visible and therefore teachable)?
+
+      When satisfied, update dossier status:
+      ```yaml
+      # In docs/papers-dossiers/06-gitops-at-small-scale/dossier.md frontmatter:
+      status: ready
+      ```
+  - id: P2.T1.S3
+    text: |-
+      Commit the validated dossier
+
+
+      ```bash
+      git add docs/papers-dossiers/06-gitops-at-small-scale/dossier.md
+      git commit -m "docs(repo): Paper 06 research dossier — GitOps at small scale"
+      ```
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-05-19T14:06:48+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-05-19T14:06:50+00:00'
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: '2026-05-19T14:06:52+00:00'
+      note: null
+  completion:
+    at: '2026-05-19T14:07:06+00:00'
+    note: Validator exits 0 with all 6 vendors, 6 sources spanning 5 type values,
+      6 artefacts spanning 4 kind values. Agent acted as gate-keeper.
+    observed_prs: []

@@ -1,0 +1,185 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 06 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add a new entry under the `# --- Papers Series Covers ---`
+      section, after the `paper-11-cover` entry:
+
+      ```yaml
+        - key: paper-06-cover
+          # Same convention as paper-00/04/10/11 covers: only
+          # reference.png anchors style; the Papers signature
+          # (glasses + tie + dress shirt) is explicit in the prompt.
+          output: blog/content/docs/papers/06-gitops-at-small-scale/cover.png
+          description: Paper 06 cover — Frank examining a Git repo whose branches root downward into a cluster
+          prompt: >-
+            Frank the server-hardware Frankenstein monster examines a
+            single glowing Git repository that branches downward into
+            root-like fibres feeding a small cluster of server nodes.
+            The lines from repo to cluster are continuous and clearly
+            directional — the cluster pulls from the repo, not the
+            other way around. Frank's expression is calm and approving
+            — this is the one where he is not arguing with the design.
+            He wears small circular wire-rim reading glasses resting
+            low on his face, a thin black necktie over a white
+            button-down dress shirt. One hand rests on the repo as if
+            confirming it. Warm overhead lamp. Dark studio-style
+            background. RJ45 temple bolts, green skin, messy black
+            hair. The ONLY text in the image is the word "main" on the
+            repo. ONE FIGURE — one single Frank.
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      set -a && source .env_common && set +a
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-06-cover
+      ```
+
+      Expected: `blog/content/docs/papers/06-gitops-at-small-scale/cover.png`
+      created, ≥50KB.
+
+      ```bash
+      ls -lh blog/content/docs/papers/06-gitops-at-small-scale/cover.png
+      ```
+
+      Spot-check: Frank should have thin round reading glasses,
+      thin black tie, calm/approving expression, and the Git repo
+      with cluster nodes should be recognisable. Up to 3
+      regeneration attempts if the visual signature is missing.
+      If generation fails entirely, copy reference.png and tick
+      this step --state -.
+- number: 2
+  title: Render Mermaid diagrams and verify they parse
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/06-gitops-at-small-scale/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft
+      work. If any remain, fill them now. The diagrams expected
+      at this point:
+      - §1: one `flowchart LR` (stack position)
+      - §2: one `quadrantChart` via `{{< papers/landscape >}}` + one
+        `{{< papers/capability-matrix >}}`
+      - §3: 4–6 `flowchart TD` (per-vendor architecture)
+      - §6: one `flowchart TD` decision tree, ≤4 leaves
+  - id: P4.T2.S2
+    text: |-
+      Verify Mermaid diagrams parse without errors in Hugo build
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --buildDrafts --minify 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ```
+
+      Expected: zero ERROR lines. Client-side Mermaid render
+      errors are only visible in a real browser — note any
+      visible in the dev browser if available.
+- number: 3
+  title: Capture ArgoCD UI screenshot
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Capture an ArgoCD UI screenshot showing the App-of-Apps tree healthy
+
+
+      Source: `http://192.168.55.200` (ArgoCD UI, exposed via
+      Cilium L2 LoadBalancer — see
+      `agents/rules/frank-infrastructure.md`).
+
+      Procedure:
+      ```bash
+      # From a machine with cluster access:
+      # 1. Open http://192.168.55.200
+      # 2. Navigate to Applications
+      # 3. Click into root → Tree view
+      # 4. Verify every leaf Application shows Synced + Healthy
+      # 5. Screenshot the full tree.
+      ```
+
+      Save to:
+      ```
+      blog/content/docs/papers/06-gitops-at-small-scale/argocd-app-of-apps-tree-healthy.png
+      ```
+
+      Reference inline in §5 (Frank's choice) with a Markdown
+      image link. Caption: "ArgoCD UI — the root App-of-Apps
+      tree, every leaf Synced and Healthy."
+
+      If cluster access is unavailable from the worktree, copy
+      the canonical placeholder shape from Paper 11
+      (authentik-applications-TODO.png — 68B 1×1 PNG) and tick
+      this step --state - with note "Cluster access unavailable
+      from worktree."
+- number: 4
+  title: Full Hugo build smoke-test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Run the production Hugo build to assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/06-gitops-at-small-scale/index.html 2>/dev/null || echo "draft mode — file not yet built"
+      ```
+
+      Expected: zero ERROR lines; in draft mode the index.html
+      won't be present until Phase 5 flips draft: false.
+      Warnings about draft pages being skipped are fine.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-05-19T14:14:12+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-05-19T14:14:14+00:00'
+      note: Cover generated (786KB) via gemini-3-pro-image-preview
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-05-19T14:14:16+00:00'
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: '2026-05-19T14:14:18+00:00'
+      note: Hugo --buildDrafts --minify exits with 0 ERROR lines; Paper 06 renders
+        to 183KB
+    P4.T3.S1:
+      state: '-'
+      ticked_at: '2026-05-19T14:14:20+00:00'
+      note: Cluster access unavailable from worktree; placeholder argocd-app-of-apps-tree-healthy-TODO.png
+        retained for cluster-side capture.
+    P4.T4.S1:
+      state: x
+      ticked_at: '2026-05-19T14:14:22+00:00'
+      note: 'hugo --minify --buildDrafts: 0 ERROR lines; index.html 183KB'
+  completion:
+    at: '2026-05-19T14:14:23+00:00'
+    note: null
+    observed_prs: []
