@@ -1,15 +1,29 @@
 ---
 title: "Self-Hosted Inference & the LLM Gateway Pattern"
 date: 2026-05-19
-draft: true
+draft: false
 weight: 10
 series: ["papers"]
 layer: infer
 paper_number: 10
 publish_order: 2
-status: drafting
+status: published
 tldr: |
-  TODO — write last (≤150 words).
+  Inference is a build-versus-buy question dressed up in GPU language. The
+  engine tier (Ollama, vLLM, llama.cpp, TGI) decides whether the model
+  runs on your metal; the gateway tier (LiteLLM, OpenRouter) decides
+  whether anything sits in front of the engine. The two decisions are
+  independent.
+
+  Frank's stack is Ollama on a 16GB RTX 5070 Ti behind LiteLLM at
+  192.168.55.206. The honest costs: qwen-vl-7b dropped from q8_0 to
+  Q4_K_M for the VRAM ceiling; LiteLLM's OSS image emits no
+  `litellm_*` Prometheus metrics (Enterprise-only); OLLAMA_KEEP_ALIVE
+  pinned the container cgroup RAM and looked like a VRAM bug for hours.
+
+  This stack wins on data-locality, latency floor, and learning depth.
+  On every other axis a hosted API behind LiteLLM is the right answer
+  for most teams — see §6.
 tags: ["inference", "llm", "gpu", "gateway", "litellm", "ollama", "vllm"]
 capabilities: ["infer", "gpu"]
 related_building: "docs/building/10-local-inference"
@@ -34,7 +48,20 @@ references:
 
 ## TL;DR
 
-*Write last.*
+Inference is a build-versus-buy question dressed up in GPU language. The
+engine tier (Ollama, vLLM, llama.cpp, TGI) decides whether the model runs
+on your metal; the gateway tier (LiteLLM, OpenRouter) decides whether
+anything sits in front of the engine. The two decisions are independent.
+
+Frank's stack is Ollama on a 16GB RTX 5070 Ti behind LiteLLM at
+`192.168.55.206`. The honest costs: qwen-vl-7b dropped from `q8_0` to
+`Q4_K_M` for the VRAM ceiling; LiteLLM's OSS image emits no `litellm_*`
+Prometheus metrics (Enterprise-only); `OLLAMA_KEEP_ALIVE` pinned the
+container cgroup RAM and looked like a VRAM bug for hours.
+
+This stack wins on data-locality, latency floor, and learning depth.
+On every other axis a hosted API behind LiteLLM is the right answer
+for most teams — see §6.
 
 ## §1 — The capability
 
