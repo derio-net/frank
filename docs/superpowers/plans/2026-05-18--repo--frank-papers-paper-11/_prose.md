@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 11: Identity for a Heterogeneous Stack
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Draft
+**Status:** Complete (2026-05-19) — Paper 11 published; backlink chip verification deferred to CI (consistent with Paper 10 Phase 6).
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete and
 `2026-05-16--repo--frank-papers-paper-00` published — series tooling
