@@ -1,0 +1,70 @@
+features:
+  - key: forward_auth
+    label: Forward-auth (opaque apps)
+  - key: oidc
+    label: OIDC provider
+  - key: saml
+    label: SAML
+  - key: federation
+    label: Federates upstream IdPs
+  - key: multi_tenant
+    label: Multi-tenancy
+  - key: declarative
+    label: Declarative config (no UI required)
+vendors:
+  - name: Authentik
+    features:
+      forward_auth: "yes"
+      oidc: "yes"
+      saml: "yes"
+      federation: "yes"
+      multi_tenant: "partial"
+      declarative: "partial"
+  - name: Keycloak
+    features:
+      forward_auth: "no"
+      oidc: "yes"
+      saml: "yes"
+      federation: "yes"
+      multi_tenant: "yes"
+      declarative: "partial"
+  - name: Dex
+    features:
+      forward_auth: "no"
+      oidc: "yes"
+      saml: "no"
+      federation: "yes"
+      multi_tenant: "no"
+      declarative: "yes"
+  - name: Zitadel
+    features:
+      forward_auth: "no"
+      oidc: "yes"
+      saml: "yes"
+      federation: "yes"
+      multi_tenant: "yes"
+      declarative: "yes"
+  - name: Authelia
+    features:
+      forward_auth: "yes"
+      oidc: "partial"
+      saml: "no"
+      federation: "partial"
+      multi_tenant: "no"
+      declarative: "yes"
+  - name: Ory
+    features:
+      forward_auth: "no"
+      oidc: "yes"
+      saml: "no"
+      federation: "yes"
+      multi_tenant: "yes"
+      declarative: "yes"
+  - name: Pomerium
+    features:
+      forward_auth: "yes"
+      oidc: "partial"
+      saml: "partial"
+      federation: "yes"
+      multi_tenant: "partial"
+      declarative: "yes"
