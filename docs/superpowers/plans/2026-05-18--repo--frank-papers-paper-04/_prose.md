@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 04: Distributed Storage on Bare Metal
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Not Started
+**Status:** Complete (2026-05-19) — Paper 04 published as the second capability paper after Paper 10; series Phase 1 continues.
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete (scripts,
 shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Paper 00 published
