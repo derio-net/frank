@@ -1,0 +1,466 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/14-progressive-delivery/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 14 frontmatter
+
+
+      Update `blog/content/docs/papers/14-progressive-delivery/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "Progressive Delivery & the Service-Mesh Tax"
+      date: <today>
+      draft: true
+      weight: 14
+      series: ["papers"]
+      layer: deploy
+      paper_number: 14
+      publish_order: 5
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["progressive-delivery", "argo-rollouts", "flagger", "service-mesh", "kubernetes"]
+      capabilities: ["deploy"]
+      related_building: "docs/building/19-progressive-delivery"
+      related_operating: "docs/operating/12-progressive-delivery"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 14` matches paper_number for TOC order.
+      `publish_order: 5` reflects this being the fifth Paper to
+      publish (`00 → 10 → 04 → 11 → 14`).
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      Create `blog/content/docs/papers/14-progressive-delivery/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: canary
+          label: Canary
+        - key: bluegreen
+          label: Blue/Green
+        - key: traffic_split
+          label: Per-request traffic split
+        - key: metric_gating
+          label: Metric-gated promotion
+        - key: mesh_required
+          label: Service mesh required
+        - key: multi_mesh
+          label: Multi-mesh support
+        - key: replica_fallback
+          label: Replica-count fallback
+        - key: oss
+          label: OSS / no contract required
+      vendors:
+        - name: Argo Rollouts
+          features:
+            canary: "yes"
+            bluegreen: "yes"
+            traffic_split: "partial"
+            metric_gating: "yes"
+            mesh_required: "no"
+            multi_mesh: "partial"
+            replica_fallback: "yes"
+            oss: "yes"
+        - name: Flagger
+          features:
+            canary: "yes"
+            bluegreen: "yes"
+            traffic_split: "yes"
+            metric_gating: "yes"
+            mesh_required: "yes"
+            multi_mesh: "yes"
+            replica_fallback: "no"
+            oss: "yes"
+        - name: Linkerd traffic split
+          features:
+            canary: "yes"
+            bluegreen: "no"
+            traffic_split: "yes"
+            metric_gating: "no"
+            mesh_required: "yes"
+            multi_mesh: "no"
+            replica_fallback: "no"
+            oss: "yes"
+        - name: Spinnaker (Kayenta)
+          features:
+            canary: "yes"
+            bluegreen: "yes"
+            traffic_split: "yes"
+            metric_gating: "yes"
+            mesh_required: "no"
+            multi_mesh: "partial"
+            replica_fallback: "yes"
+            oss: "yes"
+        - name: Istio + Flagger
+          features:
+            canary: "yes"
+            bluegreen: "yes"
+            traffic_split: "yes"
+            metric_gating: "yes"
+            mesh_required: "yes"
+            multi_mesh: "no"
+            replica_fallback: "no"
+            oss: "yes"
+        - name: Vanilla Deployment + manual
+          features:
+            canary: "no"
+            bluegreen: "no"
+            traffic_split: "no"
+            metric_gating: "no"
+            mesh_required: "no"
+            multi_mesh: "no"
+            replica_fallback: "yes"
+            oss: "yes"
+      ```
+
+      Polarity check: "yes" = the option HAS that feature. Adjust to
+      match the conventions established by Paper 00's
+      `approaches.yaml` if the capability-matrix shortcode reads
+      polarity differently.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      The opening question: *if you want to ship a change to
+      production without flipping every pod over at once — and
+      without writing the rollback yourself when the change is
+      bad — who orchestrates the staged exposure, and what tax do
+      they charge?* Position progressive delivery in the stack:
+      above CD, below the service mesh, sibling to autoscaler and
+      HPA. Acknowledge that "progressive delivery" is doing several
+      jobs at once — staged exposure, metric-gated promotion,
+      automated rollback, traffic routing — and the vendor space
+      splits on which of those jobs each option treats as primary.
+
+      Voice: Frank speaks as the cluster. No hedging. The question
+      is real, the answers diverge.
+
+      Include one `flowchart LR` Mermaid diagram showing the stack
+      position and the four jobs progressive delivery does:
+
+      ```
+      flowchart LR
+          G["GitOps (ArgoCD)"] --> D["Deployment"]
+          D --> PD["Progressive delivery controller"]
+          PD --> SE["Staged exposure"]
+          PD --> MG["Metric-gated promotion"]
+          PD --> AR["Automated rollback"]
+          PD --> TR["Traffic routing"]
+          PD -.-> M["Service mesh (optional)"]
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the six vendors against two axes. Use `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:mesh-required↔mesh-optional,y:full-canary-analysis↔manual-gating" >}}
+          quadrantChart
+              title Progressive delivery — 2026
+              x-axis Mesh required --> Mesh optional
+              y-axis Manual gating --> Automated canary analysis
+              quadrant-1 "Mesh-optional · Automated"
+              quadrant-2 "Mesh-required · Automated"
+              quadrant-3 "Mesh-required · Manual"
+              quadrant-4 "Mesh-optional · Manual"
+              Argo Rollouts: [0.75, 0.55]
+              Flagger: [0.20, 0.70]
+              Linkerd traffic split: [0.15, 0.20]
+              Spinnaker (Kayenta): [0.65, 0.90]
+              Istio + Flagger: [0.10, 0.75]
+              Vanilla Deployment + manual: [0.95, 0.10]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("Argo Rollouts: canary without
+      requiring a mesh"; "Flagger: canary that assumes a mesh and
+      speaks all of them") and what it gives up to get there. Use
+      `{{< papers/pullquote source="..." url="..." >}}` for at
+      least one direct quote pulled from the dossier (likely the
+      Kayenta writeup defining automated canary analysis).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: deciding *during* the rollout whether to
+      proceed or roll back, without a human in the loop, and
+      without confusing replica-count progress for traffic-routing
+      progress. Each vendor has a different answer; this section
+      lays them out side-by-side with one `flowchart TD` per vendor
+      in a shared visual language.
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = controller components
+      - Rounded rectangles = ReplicaSets / Deployments
+      - Diamonds = decision points (gates, analysis)
+      - Cylinders = metric provider / data source
+      - Dashed edges = analysis / metric paths
+      - Solid edges = pod lifecycle / traffic paths
+
+      Four-to-six architecture diagrams (one per vendor in the
+      landscape that has a meaningfully different answer). Skip
+      vanilla Deployment + manual here — it doesn't have a "hard
+      part", which is the §6 punchline.
+
+      Example for Argo Rollouts:
+
+      ```
+      flowchart TD
+          subgraph AR["Argo Rollouts"]
+              C["argo-rollouts controller"]
+              RS_S["ReplicaSet (stable)"]
+              RS_C["ReplicaSet (canary)"]
+              AT{"AnalysisTemplate"}
+              P[("Prometheus / VictoriaMetrics")]
+          end
+          WR["workloadRef → Helm Deployment"]
+          C --> RS_S
+          C --> RS_C
+          C -.-> AT
+          AT -.-> P
+          C --> WR
+      ```
+
+      For each diagram include 80–200 words of prose: what the
+      controller does at promotion time, what the gating signal
+      looks like, what the failure mode is when the signal is
+      absent or noisy.
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Service count.** A 5-service cluster can run Argo
+         Rollouts with manual pauses and stay sane. A 50-service
+         cluster cannot — the operator becomes the bottleneck and
+         needs Kayenta-style automated analysis. State the
+         crossover threshold honestly: it's not a number, it's
+         "how many concurrent rollouts can one human watch?"
+
+      2. **Mesh overhead per request.** Istio sidecars add ~1-2ms
+         P50 and 5-10ms P99 to every request. At 10 RPS that's
+         free; at 10k RPS it's a SLO budget you spent on canary
+         gating. Cite a benchmark from the dossier (or name ≥2
+         primary sources as the spec allows).
+
+      3. **Metric provider lag.** AnalysisTemplate intervals fight
+         with Prometheus scrape intervals. At 1m scrape + 1m
+         analysis interval, the first analysis sees ~30s of
+         canary traffic. Below that scale, the analysis is noise.
+         This is the "automated gating needs traffic volume to
+         work at all" axis.
+
+      Cite ≥2 primary sources from the dossier (Kayenta writeup +
+      mesh latency benchmark). Do not editorialize past what the
+      citations support.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank chose Argo Rollouts. Replica-count canary on LiteLLM,
+      5 replicas, 20→50→100 setWeight with manual pauses at each
+      step. The Helm chart's Deployment kept as `workloadRef`
+      target with `scaleDown: onsuccess`. No traffic router (the
+      Cilium plugin URL 404'd — see scar 1). Honest about the
+      cost: every single scar listed below was discovered by
+      stepping on it in production.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative options
+      from the gotcha registry:
+
+      Scar 1 — the Cilium traffic-router plugin 404 (21-day crash loop):
+      ```
+      {{< papers/scar date="2026-04-13" >}}
+      We configured the controller to load the Cilium traffic-router
+      plugin from a release URL. The URL had never been published.
+      The controller crash-looped for 21 days before we tried to
+      use the canary for the first time. The Helm-managed
+      Deployment quietly served traffic the entire time, exactly
+      as if no Rollout existed. `kubectl get rollout` showed
+      steady-state.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — `workloadRef.scaleDown: never` doubling traffic:
+      ```
+      {{< papers/scar date="2026-05-02" >}}
+      `workloadRef.scaleDown` defaults to `never`. We didn't set
+      it. The Rollout's canary ReplicaSet AND the chart's
+      underlying Deployment both served traffic at the same time,
+      at double the resource cost. We noticed because the load
+      graphs didn't match the expected pod count, not because
+      anything was broken — which is exactly the failure mode
+      that nobody escalates until billing month-end.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — LiteLLM Prometheus is Enterprise-only:
+      ```
+      {{< papers/scar date="2026-05-04" >}}
+      We pointed an AnalysisTemplate at `litellm_request_total`.
+      That metric is part of LiteLLM's Enterprise (paid) Prometheus
+      integration. The OSS image emits nothing. Empty result vector
+      → metric phase: Error → 10-second retry cadence →
+      consecutive-error limit of 4 → canary aborts in ~50 seconds.
+      Every. Single. Time. The "flaky deploy" was a working alarm
+      pointed at silence.
+      {{< /papers/scar >}}
+      ```
+
+      Pick 2-3 scars from the above (all three is also fine if the
+      section budget allows). Real dates only — pull from
+      `agents/rules/frank-gotchas.md` cross-referenced with
+      `apps/litellm/manifests/rollout.yaml`.
+
+      Include ≥1 evidence artefact: either the Grafana canary
+      screenshot from P4.T3 or `apps/litellm/manifests/rollout.yaml`
+      inlined as a code block.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one
+      leaf; the others are real:
+
+      ```
+      flowchart TD
+          A["Stateful + RWO PVC?"] -- "Yes" --> L1["Plain Deployment, strategy: Recreate"]
+          A -- "No" --> B["Service mesh already deployed?"]
+          B -- "No" --> L2["Argo Rollouts (Frank's pick)"]
+          B -- "Yes, multi-mesh / Flux shop" --> L3["Flagger"]
+          B -- "Yes, scale > 10 concurrent rollouts" --> L4["Spinnaker + Kayenta"]
+      ```
+
+      ≤4 visible leaves. The decision turns on two questions:
+      *does your workload survive a canary at all* (stateful + RWO
+      PVC: no), and *do you already have the mesh tax priced in*
+      (if yes, Flagger; if no, Argo Rollouts). The Kayenta leaf
+      is for the scale at which the human pause-button becomes
+      the bottleneck.
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **Gateway API and HTTPRoute are eating SMI.** Per-route
+         traffic split is moving from mesh-specific CRDs into the
+         upstream Gateway API. Argo Rollouts and Flagger both
+         track this; in 18 months the "which mesh do you speak"
+         question may be replaced with "which Gateway API
+         implementation do you have".
+
+      2. **AnalysisTemplate is becoming Kayenta-shaped.** The
+         community has converged on multi-metric, multi-interval
+         analysis with inconclusive states — exactly the model
+         Kayenta pioneered. Argo Rollouts' `inconclusiveLimit` is
+         a step in that direction.
+
+      3. **Service mesh tax is being unbundled.** Cilium's
+         L7 stats and Hubble are absorbing the observability slice
+         of "why you needed Istio in the first place" without
+         the sidecar. The mesh-required vendors in the landscape
+         are the ones likely to feel the squeeze.
+
+      Optional timeline diagram or roadmap citations. Cite the
+      dossier where possible.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/14-progressive-delivery/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If
+      over, trim §3 first — that's where capability papers
+      reliably sprawl past budget.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
