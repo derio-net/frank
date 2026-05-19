@@ -330,6 +330,23 @@ images:
       three labels are the ONLY text in the image — no extra captions
       or watermarks. ONE FIGURE — one single Frank.
 
+  - key: paper-04-cover
+    # Same convention as paper-00-cover: only reference.png anchors style;
+    # the Papers signature (glasses + tie + dress shirt) is explicit in the
+    # prompt below.
+    output: blog/content/docs/papers/04-distributed-storage/cover.png
+    description: Paper 04 cover — Frank examining a column of spinning replica disks with a weighing expression
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands in front of a
+      tall column of three spinning hard-disk platters stacked vertically,
+      one hand reaching up to weigh one of the disks in his palm. His
+      expression is skeptical / weighing — genuinely uncertain whether
+      three replicas are enough. He wears thin round reading glasses
+      resting low on his nose and a thin black necktie. Warm overhead
+      lamp. Dark background. RJ45 neck bolts, green skin, messy black
+      hair, rack-mount torso. The disk platters glow faintly blue. No
+      text in the image.
+
   - key: paper-10-cover
     # Same convention as paper-00-cover: only reference.png anchors style;
     # the Papers signature (glasses + tie + dress shirt) is explicit in the
