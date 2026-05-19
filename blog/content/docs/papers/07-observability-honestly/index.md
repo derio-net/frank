@@ -2,7 +2,7 @@
 title: "The Observability Stack, Honestly"
 date: 2026-05-19
 draft: false
-weight: 7
+weight: 8
 series: ["papers"]
 layer: obs
 paper_number: 7

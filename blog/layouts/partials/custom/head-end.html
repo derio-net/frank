@@ -6,7 +6,7 @@
 {{- end }}
 {{ $readTracker := resources.Get "js/read-tracker.js" | minify | fingerprint }}
 <script src="{{ $readTracker.RelPermalink }}" defer></script>
-{{- if eq .Params.series "papers" }}
-{{ $mermaidFrank := resources.Get "js/mermaid-frank.js" | minify | fingerprint }}
-<script src="{{ $mermaidFrank.RelPermalink }}" defer></script>
-{{- end }}
+{{/* Mermaid styling for Frank Papers is handled entirely via CSS overrides
+     on the rendered SVG in custom.css (under .paper-post .mermaid). No
+     custom JS loader — Hextra's bundled mermaid does the rendering, we
+     just re-colour. */}}

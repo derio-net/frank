@@ -1,0 +1,169 @@
+# Frank Papers — series roster.
+# Source of truth for the papers-roadmap.html shortcode.
+#
+# The shortcode looks up Site.Pages for each entry by paper_number and
+# derives status dynamically:
+#   - entry.deferred: true                     -> deferred (Phase 2, struck-through)
+#   - page exists + draft: false               -> published (linked, full colour)
+#   - page exists + draft: true                -> drafting (linked, dim)
+#   - no page bundle yet                       -> planned (grey, not linked)
+#
+# Adding a paper here makes it appear on the /docs/papers/ roadmap.
+# Publishing a paper (its index.md flips draft: false) auto-promotes the
+# status on the next Hugo build.
+#
+# `layer` is the docs/layers.yaml registry code, used for CSS colour class
+# (.layer-<code>). For papers that don't map 1:1 to a registry layer
+# (Papers 15, 18, 19), use the closest fit or `default`.
+
+entries:
+  - number: 0
+    slug: why-homelab-in-2026
+    title: "Why Run Your Own Cluster in 2026?"
+    covers: "Cloud-native vs managed homelab vs DIY"
+    layer: docs
+    phase: 1
+
+  - number: 1
+    slug: heterogeneous-hardware
+    title: "Heterogeneous Hardware as a Design Choice"
+    covers: "x86 + ARM + GPU on bare metal"
+    layer: hw
+    phase: 1
+
+  - number: 2
+    slug: immutable-os
+    title: "Immutable OS & Declarative Machines"
+    covers: "Talos + Fedora CoreOS + Flatcar + Bottlerocket"
+    layer: os
+    phase: 1
+
+  - number: 3
+    slug: ebpf-networking
+    title: "eBPF Networking Without a Service Mesh"
+    covers: "Cilium + Hubble + eBPF"
+    layer: net
+    phase: 1
+
+  - number: 4
+    slug: distributed-storage
+    title: "Distributed Storage on Bare Metal"
+    covers: "Longhorn + Rook-Ceph + Mayastor + Piraeus"
+    layer: stor
+    phase: 1
+
+  - number: 5
+    slug: gpu-scheduling
+    title: "GPU Scheduling for Mixed Workloads"
+    covers: "NVIDIA + Intel iGPU + DRA + MIG"
+    layer: gpu
+    phase: 1
+
+  - number: 6
+    slug: gitops-at-small-scale
+    title: "GitOps at Small Scale"
+    covers: "ArgoCD + Flux + Jenkins X + Spinnaker"
+    layer: gitops
+    phase: 1
+
+  - number: 7
+    slug: observability-honestly
+    title: "The Observability Stack, Honestly"
+    covers: "Grafana + Prometheus + Loki + VictoriaMetrics"
+    layer: obs
+    phase: 1
+
+  - number: 8
+    slug: backup-dr
+    title: "Backup & DR Without a Vendor Contract"
+    covers: "Velero + Longhorn snapshots + restic"
+    layer: backup
+    phase: 1
+
+  - number: 9
+    slug: secrets-bootstrap
+    title: "Secrets Management Without the Bootstrap Chicken-and-Egg"
+    covers: "Infisical + SOPS + External Secrets Operator"
+    layer: secrets
+    phase: 1
+
+  - number: 10
+    slug: self-hosted-inference
+    title: "Self-Hosted Inference & the LLM Gateway Pattern"
+    covers: "Ollama + vLLM + llama.cpp + TGI + LiteLLM"
+    layer: infer
+    phase: 1
+
+  - number: 11
+    slug: identity-heterogeneous-stack
+    title: "Identity for a Heterogeneous Stack"
+    covers: "Authentik + Keycloak + Dex + Zitadel + Authelia"
+    layer: auth
+    phase: 1
+
+  - number: 12
+    slug: multi-tenancy-vcluster
+    title: "Multi-Tenancy with vCluster"
+    covers: "vCluster + Capsule + kiosk + namespaces"
+    layer: tenant
+    phase: 1
+
+  - number: 13
+    slug: self-hosted-cicd
+    title: "Self-Hosted CI/CD on a Homelab"
+    covers: "Gitea + Tekton + Zot"
+    layer: cicd
+    phase: 1
+
+  - number: 14
+    slug: progressive-delivery
+    title: "Progressive Delivery & the Service-Mesh Tax"
+    covers: "Argo Rollouts"
+    layer: deploy
+    phase: 1
+
+  - number: 15
+    slug: ingress-forward-auth
+    title: "Ingress, Forward-Auth, and the Service Catalog"
+    covers: "Traefik + Homepage"
+    layer: edge
+    phase: 1
+
+  - number: 16
+    slug: media-generation
+    title: "Self-Hosted Media Generation"
+    covers: "ComfyUI + GPU switcher"
+    layer: media
+    phase: 1
+
+  - number: 17
+    slug: agentic-orchestration
+    title: "Agentic Orchestration & Safe Agent Workstations"
+    covers: "Sympozium + secure-agent-pod + VK Remote"
+    layer: orch
+    phase: 1
+
+  - number: 18
+    slug: workflow-automation
+    title: "Workflow Automation Beyond CI/CD"
+    covers: "n8n"
+    layer: cicd
+    phase: 2
+    deferred: true
+    deferred_reason: "Need lived experience"
+
+  - number: 19
+    slug: feature-level-health
+    title: "Feature-Level Health & the Alert-to-Issue Bridge"
+    covers: "Blackbox + Pushgateway + Health Bridge"
+    layer: obs
+    phase: 2
+    deferred: true
+    deferred_reason: "Need lived experience"
+
+  - number: 20
+    slug: edge-clusters-public-exposure
+    title: "Edge Clusters & Public Exposure"
+    covers: "Hop + Headscale + Caddy"
+    layer: edge
+    phase: 1

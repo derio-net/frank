@@ -168,22 +168,272 @@
 }
 
 .paper-post .paper-capability-matrix table {
-  width: 100%;
+  /* Size to content with a sensible cap. Forcing 100% leaves dead space
+     in the emoji-heavy columns and makes the outer frame visibly wider
+     than the actual cells. */
+  width: auto;
+  max-width: 100%;
+  margin: 1.25rem auto;
   border-collapse: collapse;
   font-size: 0.875rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(148, 180, 255, 0.25);
+  border-radius: 6px;
+  overflow: hidden;
 }
 
-.paper-post .paper-capability-matrix th,
+.paper-post .paper-capability-matrix thead {
+  background: rgba(77, 171, 247, 0.18);
+}
+
+.paper-post .paper-capability-matrix th {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid rgba(77, 171, 247, 0.45);
+  text-align: center;
+  color: #eaf2ff;
+  font-weight: 600;
+}
+
 .paper-post .paper-capability-matrix td {
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--tw-prose-td-borders, rgba(128,128,128,0.2));
+  border-top: 1px solid rgba(148, 180, 255, 0.18);
   text-align: center;
+  color: #d8e1ec;
+}
+
+.paper-post .paper-capability-matrix tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.paper-post .paper-capability-matrix tbody tr:hover {
+  background: rgba(77, 171, 247, 0.12);
 }
 
 .paper-post .paper-capability-matrix th:first-child,
 .paper-post .paper-capability-matrix td:first-child {
   text-align: left;
   font-weight: 500;
+  color: #eaf2ff;
+}
+
+/* Light-mode override for capability matrices. */
+:root:not(.dark) .paper-post .paper-capability-matrix table {
+  background: rgba(31, 111, 235, 0.04);
+  border-color: rgba(31, 111, 235, 0.25);
+}
+:root:not(.dark) .paper-post .paper-capability-matrix thead {
+  background: rgba(31, 111, 235, 0.10);
+}
+:root:not(.dark) .paper-post .paper-capability-matrix th {
+  color: #0d1b2a;
+  border-bottom-color: rgba(31, 111, 235, 0.45);
+}
+:root:not(.dark) .paper-post .paper-capability-matrix td {
+  color: #1a2533;
+  border-top-color: rgba(31, 111, 235, 0.15);
+}
+:root:not(.dark) .paper-post .paper-capability-matrix tbody tr:nth-child(even) {
+  background: rgba(31, 111, 235, 0.03);
+}
+:root:not(.dark) .paper-post .paper-capability-matrix tbody tr:hover {
+  background: rgba(31, 111, 235, 0.08);
+}
+:root:not(.dark) .paper-post .paper-capability-matrix th:first-child,
+:root:not(.dark) .paper-post .paper-capability-matrix td:first-child {
+  color: #0d1b2a;
+}
+
+/* ---------------------------------------------------------------
+   Mermaid SVG colour overrides for Frank Papers (.paper-post only).
+   Hextra renders mermaid with its default light/dark theme, which is
+   muted in dark mode. We override the resulting SVG attributes.
+
+   Mermaid 11 sets fill/stroke as inline attributes, so we need
+   !important to win.
+--------------------------------------------------------------- */
+
+/* --- dark mode (default) --- */
+.paper-post .mermaid svg {
+  background: transparent !important;
+}
+
+/* node fills (rect/polygon/circle/ellipse/path that aren't edge arrows) */
+.paper-post .mermaid .node rect,
+.paper-post .mermaid .node polygon,
+.paper-post .mermaid .node circle,
+.paper-post .mermaid .node ellipse,
+.paper-post .mermaid .node path {
+  fill: #1f3a5f !important;
+  stroke: #4dabf7 !important;
+  stroke-width: 1.5px !important;
+}
+
+/* node labels — the text inside boxes */
+.paper-post .mermaid .nodeLabel,
+.paper-post .mermaid .nodeLabel p,
+.paper-post .mermaid .node .label,
+.paper-post .mermaid .node text,
+.paper-post .mermaid .nodeLabel foreignObject div {
+  color: #eaf2ff !important;
+  fill: #eaf2ff !important;
+}
+
+/* edge lines */
+.paper-post .mermaid .edgePath path,
+.paper-post .mermaid .flowchart-link {
+  stroke: #51cf66 !important;
+  stroke-width: 1.5px !important;
+}
+
+/* edge arrowheads */
+.paper-post .mermaid .arrowheadPath,
+.paper-post .mermaid marker path {
+  fill: #51cf66 !important;
+  stroke: #51cf66 !important;
+}
+
+/* dashed/dotted edges (used for "fallback" or "scar" paths) */
+.paper-post .mermaid .edgePath path.flowchart-link[style*="dasharray"],
+.paper-post .mermaid path.flowchart-link.dashed {
+  stroke: #ffa94d !important;
+}
+
+/* edge labels */
+.paper-post .mermaid .edgeLabel,
+.paper-post .mermaid .edgeLabel p,
+.paper-post .mermaid .edgeLabel rect {
+  color: #eaf2ff !important;
+  fill: #0d1117 !important;
+  background-color: #0d1117 !important;
+}
+.paper-post .mermaid .edgeLabel foreignObject div {
+  color: #eaf2ff !important;
+  background-color: #0d1117 !important;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+/* subgraph (cluster) container */
+.paper-post .mermaid .cluster rect {
+  fill: #161b22 !important;
+  stroke: #4dabf7 !important;
+  stroke-width: 1.5px !important;
+  stroke-dasharray: 4 2 !important;
+}
+.paper-post .mermaid .cluster-label,
+.paper-post .mermaid .cluster text,
+.paper-post .mermaid .cluster .label foreignObject div {
+  color: #4dabf7 !important;
+  fill: #4dabf7 !important;
+  font-weight: 600 !important;
+}
+
+/* quadrantChart — Mermaid 11 renders the four quadrants as rects with
+   classes .quadrant1 … .quadrant4 (top-right, top-left, bottom-left,
+   bottom-right). We tint all four with the Frank blue and vary the
+   opacity slightly so they read as four distinct cells without
+   competing with the rest of the diagram. */
+.paper-post .mermaid .quadrantChart .background-fill {
+  fill: #0d1117 !important;
+}
+.paper-post .mermaid .quadrantChart text,
+.paper-post .mermaid .quadrant-title,
+.paper-post .mermaid .x-axis-label,
+.paper-post .mermaid .y-axis-label,
+.paper-post .mermaid .quadrants text {
+  fill: #eaf2ff !important;
+}
+.paper-post .mermaid .quadrantChart .quadrant,
+.paper-post .mermaid .quadrant1,
+.paper-post .mermaid .quadrant2,
+.paper-post .mermaid .quadrant3,
+.paper-post .mermaid .quadrant4,
+.paper-post .mermaid g.quadrants rect {
+  fill: #4dabf7 !important;
+  stroke: #4dabf7 !important;
+  stroke-opacity: 0.35 !important;
+}
+.paper-post .mermaid .quadrant1,
+.paper-post .mermaid g.quadrants rect:nth-of-type(1) {
+  fill-opacity: 0.22 !important;
+}
+.paper-post .mermaid .quadrant2,
+.paper-post .mermaid g.quadrants rect:nth-of-type(2) {
+  fill-opacity: 0.16 !important;
+}
+.paper-post .mermaid .quadrant3,
+.paper-post .mermaid g.quadrants rect:nth-of-type(3) {
+  fill-opacity: 0.10 !important;
+}
+.paper-post .mermaid .quadrant4,
+.paper-post .mermaid g.quadrants rect:nth-of-type(4) {
+  fill-opacity: 0.18 !important;
+}
+.paper-post .mermaid .quadrantChart .quadrant-point {
+  fill: #51cf66 !important;
+  stroke: #51cf66 !important;
+}
+
+/* title text */
+.paper-post .mermaid .flowchartTitleText,
+.paper-post .mermaid .titleText {
+  fill: #eaf2ff !important;
+  font-weight: 700 !important;
+}
+
+/* --- light-mode overrides --- */
+:root:not(.dark) .paper-post .mermaid .node rect,
+:root:not(.dark) .paper-post .mermaid .node polygon,
+:root:not(.dark) .paper-post .mermaid .node circle,
+:root:not(.dark) .paper-post .mermaid .node ellipse,
+:root:not(.dark) .paper-post .mermaid .node path {
+  fill: #dde9ff !important;
+  stroke: #1f6feb !important;
+}
+:root:not(.dark) .paper-post .mermaid .nodeLabel,
+:root:not(.dark) .paper-post .mermaid .nodeLabel p,
+:root:not(.dark) .paper-post .mermaid .node text,
+:root:not(.dark) .paper-post .mermaid .nodeLabel foreignObject div {
+  color: #0d1b2a !important;
+  fill: #0d1b2a !important;
+}
+:root:not(.dark) .paper-post .mermaid .edgePath path,
+:root:not(.dark) .paper-post .mermaid .flowchart-link {
+  stroke: #198754 !important;
+}
+:root:not(.dark) .paper-post .mermaid .arrowheadPath,
+:root:not(.dark) .paper-post .mermaid marker path {
+  fill: #198754 !important;
+  stroke: #198754 !important;
+}
+:root:not(.dark) .paper-post .mermaid .edgeLabel,
+:root:not(.dark) .paper-post .mermaid .edgeLabel p {
+  color: #0d1b2a !important;
+  fill: #f8f9fa !important;
+  background-color: #f8f9fa !important;
+}
+:root:not(.dark) .paper-post .mermaid .edgeLabel foreignObject div {
+  color: #0d1b2a !important;
+  background-color: #f8f9fa !important;
+}
+:root:not(.dark) .paper-post .mermaid .cluster rect {
+  fill: #eef2f6 !important;
+  stroke: #1f6feb !important;
+}
+:root:not(.dark) .paper-post .mermaid .cluster-label,
+:root:not(.dark) .paper-post .mermaid .cluster text,
+:root:not(.dark) .paper-post .mermaid .cluster .label foreignObject div {
+  fill: #1f6feb !important;
+  color: #1f6feb !important;
+}
+:root:not(.dark) .paper-post .mermaid .quadrantChart .background-fill {
+  fill: #f8f9fa !important;
+}
+:root:not(.dark) .paper-post .mermaid .quadrantChart text,
+:root:not(.dark) .paper-post .mermaid .quadrant-title,
+:root:not(.dark) .paper-post .mermaid .x-axis-label,
+:root:not(.dark) .paper-post .mermaid .y-axis-label {
+  fill: #0d1b2a !important;
 }
 
 .paper-post .paper-dossier-link {
@@ -209,4 +459,70 @@
 
 .paper-post .paper-cross-links a:hover {
   text-decoration: underline;
+}
+
+/* TOC-ordered prev/next navigation at the foot of each Paper.
+   Updates automatically each Hugo build as new papers publish. */
+.paper-post .paper-prev-next {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--tw-prose-hr, rgba(128, 128, 128, 0.2));
+}
+
+.paper-post .paper-prev-next-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.paper-post .paper-prev-link,
+.paper-post .paper-next-link {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--tw-prose-td-borders, rgba(128, 128, 128, 0.2));
+  border-radius: 0.5rem;
+  color: var(--tw-prose-body);
+  text-decoration: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.paper-post .paper-next-link {
+  text-align: right;
+  align-items: flex-end;
+}
+
+.paper-post .paper-prev-link:hover,
+.paper-post .paper-next-link:hover {
+  border-color: #1f6feb;
+  background: rgba(31, 111, 235, 0.04);
+  text-decoration: none;
+}
+
+.paper-post .paper-prev-next-direction {
+  font-size: 0.75rem;
+  opacity: 0.65;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.paper-post .paper-prev-next-title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #1f6feb;
+}
+
+.paper-post .paper-prev-next-placeholder {
+  /* empty cell when only one neighbour exists */
+}
+
+@media (max-width: 560px) {
+  .paper-post .paper-prev-next-row {
+    grid-template-columns: 1fr;
+  }
+  .paper-post .paper-next-link {
+    text-align: left;
+    align-items: flex-start;
+  }
 }

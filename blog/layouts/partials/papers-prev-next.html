@@ -1,0 +1,52 @@
+{{/* papers-prev-next.html — TOC-ordered prev/next nav for Frank Papers.
+
+  Considers only PUBLISHED papers (draft != true). Orders by paper_number
+  ascending. Renders nothing if the current page is not in the published
+  set, or if both neighbours are absent.
+
+  Auto-updates each Hugo build as new papers publish — no manual edits per
+  paper.
+
+  series is declared as a list (Hextra OpenGraph requirement), so query
+  with intersect rather than scalar where.
+*/}}
+{{ $published := where (where site.Pages "Params.series" "intersect" (slice "papers")) "Params.draft" "!=" true }}
+{{ $sorted := sort $published "Params.paper_number" "asc" }}
+{{ $idx := -1 }}
+{{ range $i, $p := $sorted }}
+  {{ if eq $p.RelPermalink $.RelPermalink }}
+    {{ $idx = $i }}
+  {{ end }}
+{{ end }}
+{{ if ge $idx 0 }}
+  {{ $prev := false }}
+  {{ $next := false }}
+  {{ if gt $idx 0 }}
+    {{ $prev = index $sorted (sub $idx 1) }}
+  {{ end }}
+  {{ if lt $idx (sub (len $sorted) 1) }}
+    {{ $next = index $sorted (add $idx 1) }}
+  {{ end }}
+  {{ if or $prev $next }}
+<nav class="paper-prev-next">
+  <div class="paper-prev-next-row">
+    {{ with $prev }}
+      <a class="paper-prev-link" href="{{ .RelPermalink }}">
+        <span class="paper-prev-next-direction">← Previous Paper</span>
+        <span class="paper-prev-next-title">Paper {{ .Params.paper_number | printf "%02d" }} — {{ .Title }}</span>
+      </a>
+    {{ else }}
+      <span class="paper-prev-next-placeholder"></span>
+    {{ end }}
+    {{ with $next }}
+      <a class="paper-next-link" href="{{ .RelPermalink }}">
+        <span class="paper-prev-next-direction">Next Paper →</span>
+        <span class="paper-prev-next-title">Paper {{ .Params.paper_number | printf "%02d" }} — {{ .Title }}</span>
+      </a>
+    {{ else }}
+      <span class="paper-prev-next-placeholder"></span>
+    {{ end }}
+  </div>
+</nav>
+  {{ end }}
+{{ end }}
