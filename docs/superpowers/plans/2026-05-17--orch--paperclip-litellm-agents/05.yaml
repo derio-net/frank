@@ -92,22 +92,46 @@ state:
       ticked_at: '2026-05-17T19:56:04+00:00'
       note: Trivial issue ack posted via opencode_local agent (operator-verified)
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:06:11+00:00'
+      note: 'Hired Media Pipeline Engineer (UUID 30f6c830-...) as hermes_local with
+        model qwen-think-14b + hermesCommand /paperclip/agent-bin/bin/hermes; UI Test
+        passed after revert PR #297 (cosmetic ''No LLM API keys'' warning expected
+        — adapter test-env hard-coded to look for cloud keys, our deployment uses
+        OLLAMA_API_KEY)'
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:06:13+00:00'
+      note: First heartbeat 7745ce28 exited 0 in 32s; hermes ran with model=qwen-think-14b
+        provider=ollama-cloud via config.yaml default-provider inference; LiteLLM
+        logged POST /v1/chat/completions 200 OK from paperclip pod IP. Subsequent
+        heartbeats blocked by upstream session-ID truncation bug — see derio-net/paperclip#1
+        + P5.T3.S2 below
     P5.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:06:15+00:00'
+      note: LiteLLM access log on pod litellm-5d7466bfd5-2psn6 shows 'POST /v1/chat/completions
+        200 OK' from 10.244.10.177 (paperclip pod IP). Opencode_local already verified
+        earlier with model litellm/qwen36-a3b-nothin → ollama/qwen3.6:35b-a3b. Both
+        adapter types confirmed routed through LiteLLM to Ollama (not OpenRouter)
     P5.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T14:06:17+00:00'
+      note: 'Blocked by upstream bug: hermes-paperclip-adapter@0.2.0 truncates session
+        ID to 16 chars (slice(0,16) in execute.js:385), compounded by paperclipai/paperclip''s
+        heartbeat.ts giving explicitDisplayId priority over runtimeSessionParams.sessionId.
+        Net effect: any hermes_local agent fails on its 2nd heartbeat onward. Pod-restart
+        resume is a special case of multi-wake and is broken by the same code path.
+        Issue: derio-net/paperclip#1 (https://github.com/derio-net/paperclip/issues/1).
+        Workaround documented in runbook (set adapterConfig.persistSession=false on
+        hires that need to survive multi-wake). Will revisit P5.T3.S2 once upstream
+        patch lands and a paperclip image bump is available'
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T14:09:01+00:00'
+    note: Hires + first-heartbeat e2e routing verified for both adapter types (opencode_local
+      → LiteLLM/ollama, hermes_local → LiteLLM/ollama). Pod-restart resume (P5.T3.S2)
+      deliberately skipped — blocked by upstream hermes-paperclip-adapter session-ID
+      truncation bug + paperclip displayId-priority chain; tracked at derio-net/paperclip#1,
+      workaround documented in runbook + frank-gotchas. Will re-test P5.T3.S2 once
+      upstream patch lands and a paperclip image bump becomes available.
     observed_prs: []
