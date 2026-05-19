@@ -330,6 +330,26 @@ images:
       three labels are the ONLY text in the image — no extra captions
       or watermarks. ONE FIGURE — one single Frank.
 
+  - key: paper-10-cover
+    # Same convention as paper-00-cover: only reference.png anchors style;
+    # the Papers signature (glasses + tie + dress shirt) is explicit in the
+    # prompt below.
+    output: blog/content/docs/papers/10-self-hosted-inference/cover.png
+    description: Paper 10 cover — Frank examining a glowing token-stream LLM with a curious/weighing expression
+    prompt: >-
+      Frank the server-hardware Frankenstein monster examines a glowing
+      token-stream emanating from an LLM — visualised as a softly
+      luminous river of letters and tokens flowing between two boxes
+      labelled "engine" and "gateway". Frank's expression is curious
+      and weighing — he is sizing up the system, not celebrating it.
+      He wears thin round reading glasses resting low on his nose and
+      a thin black necktie over a white button-down dress shirt. One
+      hand gestures at the token stream as if measuring it. Warm
+      overhead lamp. Dark studio-style background. RJ45 neck bolts,
+      green skin, messy black hair, rack-mount torso. The two boxes
+      labelled "engine" and "gateway" are the ONLY text in the image
+      — no extra captions or watermarks. ONE FIGURE — one single Frank.
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
