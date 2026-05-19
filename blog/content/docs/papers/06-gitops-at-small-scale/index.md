@@ -1,15 +1,28 @@
 ---
 title: "GitOps at Small Scale"
 date: 2026-05-19
-draft: true
+draft: false
 weight: 6
 series: ["papers"]
 layer: gitops
 paper_number: 6
 publish_order: 6
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  GitOps on Kubernetes is a four-jobs-in-one bundle — reconcile, drift-
+  detect, gate write access, audit — and the six contenders in 2026
+  (ArgoCD, Flux v2, Jenkins X, cloud-managed GitOps, Spinnaker, just
+  bash + kubectl) trade differently on bundling and on push vs pull.
+
+  Frank runs ArgoCD with the App-of-Apps pattern — one root Application
+  reconciles 30+ leaves. The scars came from the seams: an out-of-bounds
+  symlink that locked the entire comparison engine, root re-templating
+  reverting live spec patches, manual syncs blowing the 256KB
+  annotation ceiling.
+
+  Frank's answer does not generalize. Solo + one app → just bash. One
+  small cluster → ArgoCD or Flux, on team culture. Multi-cluster → Flux
+  or cloud-managed. Heavy CD pipeline → keep it, layer GitOps on top.
 tags: ["gitops", "argocd", "flux", "kubernetes", "homelab"]
 capabilities: ["gitops"]
 related_building: "docs/building/05-gitops"
@@ -37,7 +50,20 @@ references:
 
 ## TL;DR
 
-*Write last.*
+GitOps on Kubernetes is a four-jobs-in-one bundle — reconcile, drift-
+detect, gate write access, audit — and the six contenders in 2026
+(ArgoCD, Flux v2, Jenkins X, cloud-managed GitOps, Spinnaker, just
+bash + kubectl) trade differently on bundling and on push vs pull.
+
+Frank runs ArgoCD with the App-of-Apps pattern — one root Application
+reconciles 30+ leaves. The scars came from the seams: an out-of-bounds
+symlink that locked the entire comparison engine, root re-templating
+reverting live spec patches, manual syncs blowing the 256KB annotation
+ceiling.
+
+Frank's answer does not generalize. Solo + one app → just bash. One
+small cluster → ArgoCD or Flux, on team culture. Multi-cluster → Flux
+or cloud-managed. Heavy CD pipeline → keep it, layer GitOps on top.
 
 ## §1 — The capability
 
