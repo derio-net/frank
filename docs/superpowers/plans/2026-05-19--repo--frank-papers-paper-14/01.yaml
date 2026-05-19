@@ -1,0 +1,227 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 14 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 14 progressive-delivery
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 14:
+        Hugo bundle:  blog/content/docs/papers/14-progressive-delivery/
+        Dossier:      docs/papers-dossiers/14-progressive-delivery/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/14-progressive-delivery/index.md
+      ls docs/papers-dossiers/14-progressive-delivery/dossier.md
+      ```
+- number: 2
+  title: Research the progressive-delivery landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/14-progressive-delivery/dossier.md` — vendors in scope
+
+
+      Paper 14 maps the progressive-delivery vendor space. Suggested
+      six-vendor landscape (final list is the dossier-construction
+      subagent's call after research, but anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Argo Rollouts
+        positioning: "Argo project — Kubernetes-native controller for canary and blueGreen Deployments, workloadRef integration, replica-count fallback when no traffic router available."
+        primary_url: "https://argoproj.github.io/argo-rollouts/"
+      - name: Flagger
+        positioning: "Flux ecosystem — operator-driven canary with first-class multi-mesh traffic routing (Istio, Linkerd, App Mesh, NGINX, Contour, Gloo, Cilium)."
+        primary_url: "https://docs.flagger.app/"
+      - name: Linkerd (built-in traffic split)
+        positioning: "Buoyant — service mesh with SMI/HTTPRoute traffic-split primitives; canary as a mesh-native feature, not a separate controller."
+        primary_url: "https://linkerd.io/2/features/traffic-split/"
+      - name: Spinnaker (Kayenta)
+        positioning: "Netflix/Google heritage CD — automated canary analysis with Kayenta, multi-cloud pipelines, the most mature canary-analysis engine in the space."
+        primary_url: "https://spinnaker.io/docs/guides/user/canary/"
+      - name: Istio + Flagger
+        positioning: "The 'service-mesh tax' case study — Flagger as canary controller on top of a full Istio mesh; per-request traffic routing at the cost of mesh complexity."
+        primary_url: "https://istio.io/latest/docs/tasks/traffic-management/"
+      - name: Vanilla Deployments + manual promotion
+        positioning: "The null hypothesis — `kubectl rollout restart` plus a human watching dashboards; no controller, no metric gate, no traffic split."
+        primary_url: "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+      ```
+
+      Frank's case study is Argo Rollouts (canary on LiteLLM, the
+      chart's Deployment kept as workloadRef target); the other five
+      exist in the dossier so §3 can compare architectures and §6 can
+      branch the decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one
+      foundational paper or comparison talk, and at least one real-
+      world postmortem. URL hints to chase:
+
+      1. Argo Rollouts architecture / canary docs — type: `vendor-docs`
+         (https://argoproj.github.io/argo-rollouts/features/canary/)
+      2. Flagger traffic-routing providers — type: `vendor-docs`
+         (https://docs.flagger.app/usage/how-it-works)
+      3. Netflix's Kayenta automated canary analysis writeup —
+         type: `paper` or `talk`
+         (https://netflixtechblog.com/automated-canary-analysis-at-netflix-with-kayenta-3260bc7acc69)
+      4. A practitioner head-to-head (Argo Rollouts vs Flagger) —
+         type: `benchmark` or `talk`
+         (search Codefresh / Container Solutions writeups)
+      5. Frank's own running postmortem registry on the Argo
+         Rollouts scars — type: `postmortem`
+         (https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo and Frank's gotcha registry.
+      Suggested artefacts (the dossier-construction subagent picks the
+      final list, but at least these are known to exist):
+
+      1. `kind: yaml` — `apps/litellm/manifests/rollout.yaml` — the
+         canonical Argo Rollouts canary CR Frank actually runs. Shows
+         `workloadRef.scaleDown: onsuccess`, 5-replica setup,
+         20→50→100 setWeight steps with manual pause.
+         `path_or_url: apps/litellm/manifests/rollout.yaml`
+         `demonstrates: "Replica-count canary (no traffic router) with
+          workloadRef.scaleDown: onsuccess. The Helm chart's Deployment
+          is the source of pod template; the Rollout drives staged
+          exposure; scaleDown lets the Deployment go to zero on
+          promotion."`
+
+      2. `kind: incident` — the Cilium traffic-router plugin 404
+         that crash-looped the controller for 21 days. Source:
+         `apps/argo-rollouts/values.yaml` comment block + Frank's
+         gotcha registry. `demonstrates: "Argo Rollouts traffic-
+          router plugins are loaded at controller boot via URL
+          reference; a 404 takes the whole controller down. The
+          plugin URL we were chasing had never been published as
+          a release artefact."`
+
+      3. `kind: incident` — the `workloadRef.scaleDown: never`
+         default doubling traffic. Source:
+         `agents/rules/frank-gotchas.md → Argo Rollouts`.
+         `demonstrates: "Default scaleDown is never. Without setting
+          onsuccess, both the Rollout's canary ReplicaSet AND the
+          chart's underlying Deployment serve traffic at the same
+          time — at double the resource cost — until somebody
+          notices."`
+
+      4. `kind: incident` — the LiteLLM-Prometheus-Enterprise-only
+         canary abort. Source:
+         `agents/rules/frank-gotchas.md → Argo Rollouts`.
+         `demonstrates: "AnalysisTemplate query pointed at
+          litellm_request_total — a metric only emitted by LiteLLM's
+          Enterprise image. The OSS image emits nothing. Empty result
+          vector → metric phase: Error → 10s retry cadence → canary
+          aborts in ~50s. The 'flaky deploy' was a working alarm
+          pointed at silence."`
+
+      5. `kind: incident` (optional) — the pre-workload-phase
+         reconcile abort that shows steady-state in `kubectl get
+         rollout` and lives only in the controller pod log.
+         `demonstrates: "When a Rollout reconcile aborts before
+          the workload phase (missing AnalysisTemplate, missing
+          traffic-router plugin), kubectl reports a healthy-
+          looking workloadRef state. The controller pod log is the
+          only signal. The Helm Deployment quietly serves traffic
+          on its own for as long as it takes you to notice."`
+
+      6. `kind: yaml` (optional) —
+         `apps/litellm/manifests/analysis-template.yaml`. Shows the
+         error-rate AnalysisTemplate with the `status!~"2..|3.."`
+         correction (was originally `5..`-only, would have green-lit
+         a 100%-broken 4xx canary).
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No apples-to-apples 'progressive-delivery tax' benchmark
+        exists in the public literature — i.e., a measurement of
+        total operational overhead (controller CPU/memory, mesh
+        sidecar overhead per request, metric provider scrape cost,
+        ops time per rollout) at small-to-medium cluster scale
+        (3–20 nodes). Published comparisons cover either feature
+        matrices (Argo Rollouts vs Flagger checklist) or single-
+        dimension benchmarks (Istio sidecar latency in isolation)
+        but never the bundled tax that determines whether
+        progressive delivery is worth running at all."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "For a 6-node homelab cluster with mostly stateful
+        workloads and a single human operator, plain `Recreate`
+        Deployments plus manual verification by watching Grafana
+        is the rational choice — why doesn't that win for Frank?
+        Answer: same shape as Paper 04. Frank is a learning
+        platform. The reason to run Argo Rollouts is to encounter
+        the workloadRef.scaleDown trap, the Prometheus-empty-vector
+        cascade, the missing-plugin-URL crash loop, the 4xx-blind
+        successCondition — first-hand. A team that has internalized
+        these lessons can rationally skip the controller and keep
+        `kubectl rollout restart`; a team that has not will
+        reinvent the same scars at production scale. The counter-
+        argument wins for the team that has already paid the
+        tuition; for Frank, paying the tuition is the point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-05-19T13:53:53+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-05-19T13:53:55+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-05-19T13:53:57+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-05-19T13:53:59+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-05-19T13:54:00+00:00'
+      note: null
+  completion:
+    at: '2026-05-19T13:54:02+00:00'
+    note: null
+    observed_prs: []

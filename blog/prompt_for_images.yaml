@@ -394,6 +394,32 @@ images:
       communicates "one identity, many surfaces" rather than
       "identity is solved".
 
+  - key: paper-14-cover
+    # Same convention as paper-00-cover / paper-10-cover / paper-11-cover:
+    # only reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/14-progressive-delivery/cover.png
+    description: Paper 14 cover — Frank examining a vintage signal-box of canary-promotion levers labelled 20, 50, 100
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands in front of
+      a vintage railway-style signal box mounted to a rack panel. The
+      signal box has three large numbered levers labelled 20, 50, and
+      100 — the staged setWeight steps of a canary promotion. One
+      green-skinned hand rests on the 20 lever, half-pulled; the other
+      hand holds a small clipboard with a Grafana-style red-and-green
+      sparkline drawn on it. His expression is weighing and cautious —
+      a decision-maker genuinely uncertain whether the metric will hold
+      before he pulls the lever further. He wears thin small round
+      reading glasses resting low on his face and a thin black necktie
+      over a white button-down dress shirt. The signal box glows faintly
+      amber from internal indicator lamps. Warm overhead work-lamp
+      light. Deep navy studio-style background. RJ45 neck bolts, green
+      skin, messy black hair, rack-mount torso. The lever numbers
+      (20, 50, 100) and the sparkline on the clipboard are the ONLY
+      text in the image — no extra captions or watermarks. ONE FIGURE —
+      one single Frank. The framing communicates "staged exposure under
+      uncertainty" rather than "deployment is solved".
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview

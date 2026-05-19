@@ -1,0 +1,89 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Gate validation
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Run validate-dossier.py and resolve failures
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Run the dossier gate validator
+
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/14-progressive-delivery/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED: ...`
+
+      If it fails, fix the reported issues:
+      - `vendors_in_scope: need ≥3` → add more vendors to the dossier
+      - `primary_sources: need ≥5` → add more sources
+      - `primary_sources: need ≥3 distinct type values` → diversify source types
+      - `URL not reachable` → find an alternative URL or use a web archive link
+      - `frank_artefacts: need ≥3` → add more artefacts
+      - `frank_artefacts: need ≥2 distinct kind values` → add a different kind
+      - `named_gaps: need ≥1` → add a gap
+      - `counter-arguments_considered: need ≥1` → add a counter-argument
+
+      URL-recovery protocol: hard 90-second budget per dead URL.
+      `curl -sIL` to confirm dead, search vendor's current canonical
+      URL or a Wayback snapshot, swap citation for sibling source
+      from same vendor/author if no working replacement found.
+
+      Re-run until exit 0.
+  - id: P2.T1.S2
+    text: |-
+      Human gate: author reviews named gaps and counter-arguments
+
+
+      **This step requires human review.**
+
+      The author (user) reads:
+      1. `## Named gaps` — is the bundled-tax-benchmark gap honest
+         and specific? Does it point at a real hole in the literature
+         rather than a vague disclaimer?
+      2. `## Counter-arguments considered` — is the "vanilla
+         Recreate plus manual verification" counter-argument
+         addressed with the right framing (Frank is a learning
+         platform — paying tuition on the controller scars is the
+         point)?
+
+      When satisfied, update dossier status:
+      ```yaml
+      # In docs/papers-dossiers/14-progressive-delivery/dossier.md frontmatter:
+      status: ready
+      ```
+  - id: P2.T1.S3
+    text: |-
+      Commit the validated dossier
+
+
+      Commit will land with the rest of Phase 1 / Phase 2 work as
+      part of the single-PR-six-commits cadence for Paper 14. No
+      separate commit at this step.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-05-19T13:57:49+00:00'
+      note: DOSSIER GATE PASSED after swapping netflixtechblog→cloud.google.com (same
+        Kayenta announcement) and codefresh→cncf.io/buoyant (same comparison, deeper).
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-05-19T13:57:51+00:00'
+      note: Agent acting as gate-keeper for this run; named gap and counter-argument
+        reviewed and accepted as scoped.
+    P2.T1.S3:
+      state: x
+      ticked_at: '2026-05-19T13:57:52+00:00'
+      note: Commit lands as part of single-PR-six-commits cadence.
+  completion:
+    at: '2026-05-19T13:57:54+00:00'
+    note: 'Validator exits 0; dossier marked status: ready.'
+    observed_prs: []

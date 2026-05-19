@@ -1,0 +1,78 @@
+features:
+  - key: canary
+    label: Canary
+  - key: bluegreen
+    label: Blue/Green
+  - key: traffic_split
+    label: Per-request traffic split
+  - key: metric_gating
+    label: Metric-gated promotion
+  - key: mesh_required
+    label: Service mesh required
+  - key: multi_mesh
+    label: Multi-mesh support
+  - key: replica_fallback
+    label: Replica-count fallback
+  - key: oss
+    label: OSS / no contract required
+vendors:
+  - name: Argo Rollouts
+    features:
+      canary: "yes"
+      bluegreen: "yes"
+      traffic_split: "partial"
+      metric_gating: "yes"
+      mesh_required: "no"
+      multi_mesh: "partial"
+      replica_fallback: "yes"
+      oss: "yes"
+  - name: Flagger
+    features:
+      canary: "yes"
+      bluegreen: "yes"
+      traffic_split: "yes"
+      metric_gating: "yes"
+      mesh_required: "yes"
+      multi_mesh: "yes"
+      replica_fallback: "no"
+      oss: "yes"
+  - name: Linkerd traffic split
+    features:
+      canary: "yes"
+      bluegreen: "no"
+      traffic_split: "yes"
+      metric_gating: "no"
+      mesh_required: "yes"
+      multi_mesh: "no"
+      replica_fallback: "no"
+      oss: "yes"
+  - name: Spinnaker (Kayenta)
+    features:
+      canary: "yes"
+      bluegreen: "yes"
+      traffic_split: "yes"
+      metric_gating: "yes"
+      mesh_required: "no"
+      multi_mesh: "partial"
+      replica_fallback: "yes"
+      oss: "yes"
+  - name: Istio + Flagger
+    features:
+      canary: "yes"
+      bluegreen: "yes"
+      traffic_split: "yes"
+      metric_gating: "yes"
+      mesh_required: "yes"
+      multi_mesh: "no"
+      replica_fallback: "no"
+      oss: "yes"
+  - name: Vanilla Deployment + manual
+    features:
+      canary: "no"
+      bluegreen: "no"
+      traffic_split: "no"
+      metric_gating: "no"
+      mesh_required: "no"
+      multi_mesh: "no"
+      replica_fallback: "yes"
+      oss: "yes"
