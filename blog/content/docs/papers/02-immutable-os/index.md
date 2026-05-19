@@ -1,15 +1,31 @@
 ---
 title: "Immutable OS & Declarative Machines"
 date: 2026-05-19
-draft: true
+draft: false
 weight: 2
 series: ["papers"]
 layer: os
 paper_number: 2
 publish_order: 8
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  Immutable OS for Kubernetes nodes is a four-job problem — read-only
+  root, transactional updates, declarative config, and (at the strict
+  end) no SSH at all — and the six 2026 contenders (Talos, Fedora
+  CoreOS, Flatcar, Bottlerocket, Ubuntu Core, plus the mutable
+  Ubuntu+Ansible baseline) each treat one of those jobs as primary
+  and the rest as supported.
+
+  Frank runs Talos. Every node, control-plane and worker — on Frank
+  under Sidero Omni, on Hop with plain talosctl. The scars came in
+  the seams: --config-patch rebuilds the base file not the running
+  config, single-node clusters need allowSchedulingOnControlPlanes,
+  and the NVIDIA operator's stock validator needed its own plan to
+  coexist with Talos's signed system extensions.
+
+  Frank's answer doesn't generalize. Laptop or dev VM → Ubuntu
+  Server. Bare-metal heterogeneous homelab → Talos. AWS shop →
+  Bottlerocket. Edge or appliance → Ubuntu Core or Flatcar.
 tags: ["os", "talos", "immutable", "kubernetes", "homelab"]
 capabilities: ["os"]
 related_building: "docs/building/02-foundation"
@@ -37,7 +53,23 @@ references:
 
 ## TL;DR
 
-*Write last.*
+Immutable OS for Kubernetes nodes is a four-job problem — read-only
+root, transactional updates, declarative config, and (at the strict
+end) no SSH at all — and the six 2026 contenders (Talos, Fedora
+CoreOS, Flatcar, Bottlerocket, Ubuntu Core, plus the mutable
+Ubuntu+Ansible baseline) each treat one of those jobs as primary and
+the rest as supported.
+
+Frank runs Talos. Every node, control-plane and worker — on Frank
+under Sidero Omni, on Hop with plain `talosctl`. The scars came in
+the seams: `--config-patch` rebuilds the base file not the running
+config, single-node clusters need `allowSchedulingOnControlPlanes`,
+and the NVIDIA operator's stock validator needed its own plan to
+coexist with Talos's signed system extensions.
+
+Frank's answer doesn't generalize. Laptop or dev VM → Ubuntu Server.
+Bare-metal heterogeneous homelab → Talos. AWS shop → Bottlerocket.
+Edge or appliance → Ubuntu Core or Flatcar.
 
 ## §1 — The capability
 
