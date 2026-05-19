@@ -121,26 +121,30 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:44:40+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:44:48+00:00'
+      note: GEMINI_API_KEY unavailable in worktree; copied blog/static/images/reference.png
+        as placeholder cover.png — needs regeneration before Phase 6 publish.
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:45:01+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:45:03+00:00'
+      note: Dossier has no grafana-inference.png; draft does not reference it. Cluster
+        access unavailable from worktree — capture in Phase 5/6 if review demands
+        it.
     P4.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T03:45:04+00:00'
+      note: hugo --minify exits 0; zero ERROR lines; verified paper 10 renders (176K
+        HTML) when draft=false toggled temporarily, restored to draft=true.
   completion:
-    at: null
+    at: '2026-05-19T03:45:12+00:00'
     note: null
     observed_prs: []
