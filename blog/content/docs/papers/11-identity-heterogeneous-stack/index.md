@@ -1,15 +1,32 @@
 ---
 title: "Identity for a Heterogeneous Stack"
 date: 2026-05-19
-draft: true
+draft: false
 weight: 11
 series: ["papers"]
 layer: auth
 paper_number: 11
 publish_order: 4
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last (Phase 5).
+  Ten web UIs, three CLIs, and a gRPC service all want to ask the same
+  question: who's on the other side of this URL? The identity-provider
+  slot has seven serious vendors — Authentik, Keycloak, Authelia, Dex,
+  Zitadel, Pomerium, Ory — split between forward-auth (cookie-validating
+  proxies) and OIDC-native flows, and between homelab weight and
+  enterprise multi-tenancy.
+
+  Frank picked Authentik because it does both forward-auth (Longhorn,
+  Hubble, Zot, Homepage) and native OIDC (Grafana, ArgoCD, Gitea) in one
+  Helm release. The scars: blueprints can't assign providers to the
+  embedded outpost (manual Django ORM forever); `AUTHENTIK_HOST` unset
+  returns `0.0.0.0` redirects; the 2026.x schema break required
+  `invalidation_flow` and Bearer tokens.
+
+  Authentik isn't universal. A small AD-backed team should run Authelia;
+  an enterprise with multi-realm federation should run Keycloak; a
+  service mesh shop should let Pomerium swallow forward-auth entirely.
+  See §6.
 tags: ["authentik", "identity", "sso", "forward-auth", "oidc"]
 capabilities: ["auth"]
 related_building: "docs/building/13-unified-auth"
@@ -37,7 +54,24 @@ references:
 
 ## TL;DR
 
-*Write last (Phase 5). Three paragraphs, ≤150 words.*
+Ten web UIs, three CLIs, and a gRPC service all want to ask the same
+question: who's on the other side of this URL? The identity-provider
+slot has seven serious vendors — Authentik, Keycloak, Authelia, Dex,
+Zitadel, Pomerium, Ory — split between forward-auth (cookie-validating
+proxies) and OIDC-native flows, and between homelab weight and
+enterprise multi-tenancy.
+
+Frank picked Authentik because it does both forward-auth (Longhorn,
+Hubble, Zot, Homepage) and native OIDC (Grafana, ArgoCD, Gitea) in one
+Helm release. The scars: blueprints can't assign providers to the
+embedded outpost (manual Django ORM forever); `AUTHENTIK_HOST` unset
+returns `0.0.0.0` redirects; the 2026.x schema break required
+`invalidation_flow` and Bearer tokens.
+
+Authentik isn't universal. A small AD-backed team should run Authelia;
+an enterprise with multi-realm federation should run Keycloak; a
+service mesh shop should let Pomerium swallow forward-auth entirely.
+See §6.
 
 ## §1 — The capability
 
