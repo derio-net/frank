@@ -1,0 +1,212 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 07 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 07 observability-honestly
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 7:
+        Hugo bundle:  blog/content/docs/papers/07-observability-honestly/
+        Dossier:      docs/papers-dossiers/07-observability-honestly/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/07-observability-honestly/index.md
+      ls docs/papers-dossiers/07-observability-honestly/dossier.md
+      ```
+- number: 2
+  title: Research the observability landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/07-observability-honestly/dossier.md` — vendors in scope
+
+
+      Paper 07 maps the cluster-observability vendor space. Suggested
+      six-vendor landscape:
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Grafana + Prometheus + Loki
+        positioning: "The LGTM stack — Grafana for visualization, Prometheus for metrics, Loki for logs, Tempo (optional) for traces. The OSS reference assembly."
+        primary_url: "https://grafana.com/oss/grafana/"
+      - name: VictoriaMetrics
+        positioning: "Prometheus-compatible TSDB optimised for high-cardinality and low-resource clusters — Frank's actual metrics backend."
+        primary_url: "https://victoriametrics.com/"
+      - name: Grafana Mimir
+        positioning: "HA Prometheus replacement at enterprise scale — horizontal sharding, multi-tenancy, object-store backed."
+        primary_url: "https://grafana.com/oss/mimir/"
+      - name: Tempo / Jaeger
+        positioning: "OSS distributed tracing — Tempo is Grafana's object-store backend; Jaeger is the CNCF predecessor with its own UI."
+        primary_url: "https://grafana.com/oss/tempo/"
+      - name: Datadog / New Relic
+        positioning: "Commercial all-in-one SaaS observability — agents on every host, billable per host and per GB ingested, contract-grade SLA."
+        primary_url: "https://www.datadoghq.com/"
+      - name: OpenSearch / Elastic
+        positioning: "Logs-first stack — full-text search across log volumes, dashboards, alerts. Heavier than Loki but indexes at query time."
+        primary_url: "https://opensearch.org/"
+      ```
+
+      Frank's case study is Grafana + Prometheus-protocol-compatible
+      VictoriaMetrics + Loki (no Tempo yet); the other vendors exist in
+      the dossier so §3 can compare architectures and §6 can branch the
+      decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one
+      foundational paper (the SRE book chapter is the canonical one),
+      at least one practitioner benchmark or postmortem, and Frank's
+      own gotcha registry. URL hints to chase:
+
+      1. Prometheus operator + ServiceMonitor docs — type: `vendor-docs`
+         (https://prometheus-operator.dev/docs/getting-started/introduction/)
+      2. VictoriaMetrics architecture overview — type: `vendor-docs`
+         (https://docs.victoriametrics.com/)
+      3. SRE Book — Chapter 6: "Monitoring Distributed Systems" — type: `paper`
+         (https://sre.google/sre-book/monitoring-distributed-systems/)
+      4. Grafana Alerting v12 / SSE design notes — type: `vendor-docs`
+         (https://grafana.com/docs/grafana/latest/alerting/)
+      5. A Loki vs Elastic cost-comparison practitioner writeup —
+         type: `postmortem` (search: "Loki vs Elasticsearch cost
+         comparison" — pick a writeup with concrete $/GB numbers)
+      6. Optional benchmark — VictoriaMetrics vs Prometheus resource
+         benchmarks — type: `benchmark`
+         (https://victoriametrics.com/blog/...)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo and Frank's gotcha registry.
+      Suggested artefacts:
+
+      1. `kind: yaml` — `apps/grafana/values.yaml` and
+         `apps/grafana-alerting/manifests/` — shows Frank's
+         file-provisioned alerts/dashboards layout.
+         `demonstrates: "Frank's alerts/dashboards are provisioned
+          from ConfigMaps in apps/grafana-alerting/manifests/ — the
+          read-only-in-UI scar is baked into this directory by
+          design."`
+
+      2. `kind: incident` — file-provisioned alerts read-only in UI
+         on Grafana 12. Source: `agents/rules/frank-gotchas.md →
+         Grafana` + `docs/runbooks/frank-gotchas/grafana.md`.
+         `demonstrates: "File-provisioned alerts/dashboards are
+          read-only in the Grafana UI; provisioning files are read
+          at boot, not watched. The only durable edit path is
+          ConfigMap → push → pod restart."`
+
+      3. `kind: incident` — Grafana 12.x SSE alert format break
+         (`sse.parseError`). Source: same gotcha file.
+         `demonstrates: "Grafana 12.x SSE alert rules need 3-step
+          A→B→C; classic-condition format fails with sse.parseError.
+          Half of Frank's alerts went dark on a minor-version bump."`
+
+      4. `kind: incident` — `ALERTS{}` doesn't exist in VM for
+         Grafana-managed alerts. Source: same gotcha file.
+         `demonstrates: "VictoriaMetrics does not expose the same
+          internal series Prometheus does. The alertlist panel is the
+          only first-class way to render currently-firing Grafana
+          alerts when VM is the TSDB."`
+
+      5. `kind: incident` (optional) — "Cannot change provenance from
+         'api' to 'file'" sqlite recovery dance.
+         `demonstrates: "Once an alert exists with provenance: api in
+          sqlite, the file-provisioning loader refuses to overwrite
+          it. Recovery is scale-down → DELETE FROM alert_rule → scale-
+          up — a write-then-revert pattern at the database level."`
+
+      6. `kind: grafana-screenshot` — a Grafana dashboard from
+         `192.168.55.203` showing real cluster metrics or the
+         alert-list panel. Capture procedure described inline; commit
+         a TODO placeholder if cluster access is unavailable.
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No published TCO comparison of OSS LGTM(-without-T) vs
+        commercial all-in-one (Datadog, New Relic) at ≤10-node scale
+        that accounts for operational burden — only $/host or $/GB
+        ingested. Every available comparison either (a) quotes
+        Datadog's headline numbers at enterprise scale where the
+        percentage saved is the story, or (b) ignores the alert-
+        engine maintenance + dashboard-drift hours that the OSS stack
+        charges in operator time. The single most useful number for a
+        small team — 'how many hours per month does each option
+        cost you?' — is not published anywhere reliable."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "Commercial all-in-one (Datadog, New Relic) is two orders of
+        magnitude faster to stand up than the OSS LGTM assembly,
+        erases the alert-engine bug surface (no sse.parseError, no
+        file-provisioning sqlite-recovery dance), and ships with a
+        contract — why doesn't that win for Frank? Answer: same as
+        Paper 00. Frank is a learning platform. The reason to run
+        Grafana + Prometheus + Loki is to encounter the
+        file-provisioned-alerts read-only scar, the Grafana 12.x SSE
+        alert format break, the ALERTS{}-doesn't-exist-in-VM trap —
+        first-hand. Commercial SaaS hides exactly the failure modes
+        the cluster exists to teach. For a production team with a
+        real on-call rotation, the counter-argument wins; for Frank,
+        that is the point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-05-19T13:58:09+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-05-19T13:58:11+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-05-19T13:58:13+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-05-19T13:58:14+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-05-19T13:58:16+00:00'
+      note: null
+  completion:
+    at: '2026-05-19T13:58:18+00:00'
+    note: null
+    observed_prs: []

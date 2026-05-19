@@ -441,6 +441,28 @@ images:
       ONLY text in the image is the word "main" on the repo. ONE
       FIGURE — one single Frank.
 
+  - key: paper-07-cover
+    # Same convention as paper-00-cover and paper-10-cover: only
+    # reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/07-observability-honestly/cover.png
+    description: Paper 07 cover — Frank examining a wall of glowing dashboards with a skeptical / weighing expression
+    prompt: >-
+      Frank the server-hardware Frankenstein monster examines a wall
+      of glowing dashboards — line charts of request latency,
+      heatmaps, alert panels, and a small column of currently-firing
+      alerts. The panels read as honest data, NOT hero metrics: one
+      chart is rising, one is flat, one shows a clear scar / spike
+      from a past incident. Frank's expression is skeptical and
+      weighing — he is reading the dashboard, not selling it. He
+      wears small circular wire-rim reading glasses resting low on
+      his face, a thin black necktie over a white button-down dress
+      shirt. One hand points at the spike. Warm overhead lamp. Dark
+      studio-style background. RJ45 temple bolts, green skin, messy
+      black hair. The ONLY text in the image is small axis labels on
+      the charts — no captions or watermarks. ONE FIGURE — one
+      single Frank.
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview

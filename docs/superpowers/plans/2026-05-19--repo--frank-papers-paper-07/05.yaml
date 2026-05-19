@@ -1,0 +1,155 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Review + publish
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Voice pass and TL;DR
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      **Human gate: author voice pass**
+
+
+      Read the full draft. Check:
+      - Frank speaks as the cluster — first-person plural ("we
+        learned") or third-person cluster ("Frank chose Grafana, and
+        Grafana 12 broke half our alerts on the upgrade") are both
+        fine; distant academic voice is not.
+      - Every scar callout uses a real incident with a real date.
+        Cross-reference dates against `agents/rules/frank-gotchas.md`
+        and `git log apps/grafana-alerting/`.
+      - The counter-argument ("commercial all-in-one erases the
+        assembly tax") is addressed directly in §5 or §6 — not
+        hedged away.
+      - §3 per-vendor architectures use shared visual language.
+      - §6 decision tree has ≤4 leaves.
+  - id: P5.T1.S2
+    text: |-
+      Write the TL;DR (≤150 words)
+
+
+      Write last, after the body has stabilized. Aim for three short
+      paragraphs:
+      1. The capability question and the six-vendor landscape (one
+         sentence)
+      2. Frank's answer (Grafana + Prometheus-compatible
+         VictoriaMetrics + Loki, file-provisioned alerts) and the
+         scars (one sentence)
+      3. When Frank's answer doesn't generalize — the decision tree
+         in 1–2 sentences
+
+      Count words:
+      ```bash
+      awk '/^tldr:/,/^[a-z]/' \
+        blog/content/docs/papers/07-observability-honestly/index.md \
+        | grep -v "^tldr:\|^[a-z]" | wc -w
+      ```
+
+      Expected: ≤150 words. Update the `tldr:` field in the frontmatter.
+- number: 2
+  title: Final checks and publish
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Run dossier gate one final time
+
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/07-observability-honestly/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED`.
+  - id: P5.T2.S2
+    text: |-
+      Run full Hugo build and assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --buildDrafts 2>&1 | grep -E "^ERROR" | head -5
+      ```
+
+      Expected: no output (zero errors).
+  - id: P5.T2.S3
+    text: |-
+      Set `draft: false` and `status: published`, run production build
+
+
+      In `blog/content/docs/papers/07-observability-honestly/index.md`:
+      - Change `draft: true` → `draft: false`
+      - Change `status: drafting` → `status: published`
+
+      Verify the paper appears in the production build:
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify 2>&1 | tail -3
+      ls public/docs/papers/07-observability-honestly/index.html
+      ```
+  - id: P5.T2.S4
+    text: |-
+      Verify the dossier-link shortcode renders exactly once
+
+
+      ```bash
+      grep -n "papers/dossier-link" blog/content/docs/papers/07-observability-honestly/index.md
+      ```
+
+      Expected: zero matches (rely on automatic injection) OR exactly
+      one match (inline use, accepting that the footer auto-injection
+      also runs — verify the rendered HTML has only one chip).
+  - id: P5.T2.S5
+    text: |-
+      Commit Paper 07
+
+
+      ```bash
+      git add \
+        blog/content/docs/papers/07-observability-honestly/ \
+        docs/papers-dossiers/07-observability-honestly/ \
+        blog/prompt_for_images.yaml
+
+      git commit -m "docs(repo): publish Paper 07 — The Observability Stack, Honestly"
+      ```
+state:
+  steps:
+    P5.T1.S1:
+      state: x
+      ticked_at: '2026-05-19T14:07:42+00:00'
+      note: 'Voice pass: Frank speaks as the cluster; scars carry real dates from
+        frank-gotchas.md; counter-argument addressed in §6; §3 architecture diagrams
+        share visual language; §6 decision tree has 4 leaves.'
+    P5.T1.S2:
+      state: x
+      ticked_at: '2026-05-19T14:07:43+00:00'
+      note: 127 words
+    P5.T2.S1:
+      state: x
+      ticked_at: '2026-05-19T14:07:45+00:00'
+      note: DOSSIER GATE PASSED
+    P5.T2.S2:
+      state: x
+      ticked_at: '2026-05-19T14:07:47+00:00'
+      note: 'Hugo --buildDrafts: 0 ERROR lines'
+    P5.T2.S3:
+      state: x
+      ticked_at: '2026-05-19T14:07:49+00:00'
+      note: 'draft: false, status: published; public/docs/papers/07-observability-honestly/index.html
+        generated (184K)'
+    P5.T2.S4:
+      state: x
+      ticked_at: '2026-05-19T14:07:50+00:00'
+      note: 0 inline dossier-link shortcodes; rendered HTML has exactly one auto-injected
+        chip
+    P5.T2.S5:
+      state: x
+      ticked_at: '2026-05-19T14:07:52+00:00'
+      note: Commit + push handled in agent workflow
+  completion:
+    at: '2026-05-19T14:07:54+00:00'
+    note: 'Voice pass complete; TL;DR 127 words; draft: false; status: published.
+      Agent acted as gate-keeper.'
+    observed_prs: []
