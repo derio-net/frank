@@ -111,26 +111,28 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T04:05:02+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:05:04+00:00'
+      note: GEMINI_API_KEY unavailable in worktree; placeholder cover (reference.png
+        copy) committed.
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T04:05:05+00:00'
+      note: Only remaining TODO is the TL;DR by design (deferred to P5.T1.S2).
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:05:07+00:00'
+      note: Cluster access unavailable from worktree; placeholder committed as authentik-applications-TODO.png.
     P4.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T04:05:09+00:00'
+      note: hugo --minify exits 0 with PATH=Go1.26; only deprecation warnings, no
+        ERROR lines.
   completion:
-    at: null
+    at: '2026-05-19T04:05:19+00:00'
     note: null
     observed_prs: []

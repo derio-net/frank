@@ -350,6 +350,30 @@ images:
       labelled "engine" and "gateway" are the ONLY text in the image
       — no extra captions or watermarks. ONE FIGURE — one single Frank.
 
+  - key: paper-11-cover
+    # Same convention as paper-00-cover and paper-10-cover: only
+    # reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/11-identity-heterogeneous-stack/cover.png
+    description: Paper 11 cover — Frank examining a wall of glowing passport-style identity badges from many distinct services
+    prompt: >-
+      Frank the server-hardware Frankenstein monster examines a wall
+      of glowing passport-style identity badges, each representing a
+      distinct service in his stack. His expression is weighing and
+      skeptical — a decision-maker sizing up how many surfaces share
+      one identity. He wears thin round reading glasses resting low
+      on his nose and a thin black necktie over a white button-down
+      dress shirt. Most of the badges are stamped with a soft
+      "verified" mark; ONE badge in the row is visibly dimmed — the
+      manual-step scar that lives in Authentik's outpost-provider
+      model. Warm overhead work-lamp light. Deep navy studio-style
+      background. RJ45 neck bolts, green skin, messy black hair,
+      rack-mount torso. The badges and the single "verified" stamp
+      are the ONLY text in the image — no extra captions or
+      watermarks. ONE FIGURE — one single Frank. The framing
+      communicates "one identity, many surfaces" rather than
+      "identity is solved".
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
