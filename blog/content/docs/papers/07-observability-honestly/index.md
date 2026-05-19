@@ -1,15 +1,31 @@
 ---
 title: "The Observability Stack, Honestly"
 date: 2026-05-19
-draft: true
+draft: false
 weight: 7
 series: ["papers"]
 layer: obs
 paper_number: 7
 publish_order: 7
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, <=150 words. Write this last.
+  Cluster observability is a five-job problem — metrics, logs,
+  traces, dashboards, alerts — and the six contenders in 2026
+  (Grafana+Prometheus+Loki, VictoriaMetrics, Mimir, Tempo/Jaeger,
+  Datadog/New Relic, OpenSearch/Elastic) each treat one or two
+  jobs as primary and the rest as supported-eventually.
+
+  Frank runs Grafana with VictoriaMetrics as a Prometheus-compatible
+  TSDB and Loki for logs, alerts file-provisioned from ConfigMaps to
+  Telegram. The scars came in the seams: file-provisioned alerts
+  read-only in the UI, a Grafana 12.x SSE engine that broke half
+  Frank's alert rules on a minor-version bump, and an `ALERTS{}`
+  series that does not exist in VictoriaMetrics.
+
+  Frank's answer does not generalize. Laptop scale → Grafana Cloud
+  free. Small OSS cluster → Frank's stack. Production multi-tenant
+  SaaS → Mimir+Tempo+Loki or Datadog/New Relic. Logs-first
+  regulated industry → OpenSearch + Filebeat.
 tags: ["observability", "grafana", "prometheus", "loki", "victoriametrics", "kubernetes", "homelab"]
 capabilities: ["obs"]
 related_building: "docs/building/07-observability"
@@ -40,7 +56,23 @@ references:
 
 ## TL;DR
 
-*Write last.*
+Cluster observability is a five-job problem — metrics, logs, traces,
+dashboards, alerts — and the six contenders in 2026
+(Grafana+Prometheus+Loki, VictoriaMetrics, Mimir, Tempo/Jaeger,
+Datadog/New Relic, OpenSearch/Elastic) each treat one or two jobs
+as primary and the rest as supported-eventually.
+
+Frank runs Grafana with VictoriaMetrics as a Prometheus-compatible
+TSDB and Loki for logs, alerts file-provisioned from ConfigMaps to
+Telegram. The scars came in the seams: file-provisioned alerts
+read-only in the UI, a Grafana 12.x SSE engine that broke half
+Frank's alert rules on a minor-version bump, and an `ALERTS{}`
+series that does not exist in VictoriaMetrics.
+
+Frank's answer does not generalize. Laptop scale → Grafana Cloud
+free. Small OSS cluster → Frank's stack. Production multi-tenant
+SaaS → Mimir+Tempo+Loki or Datadog/New Relic. Logs-first regulated
+industry → OpenSearch + Filebeat.
 
 ## §1 — The capability
 

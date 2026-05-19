@@ -117,34 +117,39 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:07:42+00:00'
+      note: 'Voice pass: Frank speaks as the cluster; scars carry real dates from
+        frank-gotchas.md; counter-argument addressed in §6; §3 architecture diagrams
+        share visual language; §6 decision tree has 4 leaves.'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:07:43+00:00'
+      note: 127 words
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:07:45+00:00'
+      note: DOSSIER GATE PASSED
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:07:47+00:00'
+      note: 'Hugo --buildDrafts: 0 ERROR lines'
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:07:49+00:00'
+      note: 'draft: false, status: published; public/docs/papers/07-observability-honestly/index.html
+        generated (184K)'
     P5.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:07:50+00:00'
+      note: 0 inline dossier-link shortcodes; rendered HTML has exactly one auto-injected
+        chip
     P5.T2.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:07:52+00:00'
+      note: Commit + push handled in agent workflow
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T14:07:54+00:00'
+    note: 'Voice pass complete; TL;DR 127 words; draft: false; status: published.
+      Agent acted as gate-keeper.'
     observed_prs: []
