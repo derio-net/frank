@@ -11,3 +11,5 @@ and returns to Frank's choice as a worked case study — honest about where
 that choice would not generalize.
 
 Start with the prologue: **[Why Run Your Own Cluster in 2026?](/docs/papers/00-why-homelab-in-2026/)**
+
+Then the first capability paper: **[Self-Hosted Inference & the LLM Gateway Pattern](/docs/papers/10-self-hosted-inference/)**.

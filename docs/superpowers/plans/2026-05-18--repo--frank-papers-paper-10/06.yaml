@@ -128,34 +128,43 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:47:29+00:00'
+      note: Skip — Paper 10 publishes on existing public blog at blog.derio.net/frank,
+        no new IngressRoute. URL liveness check deferred to post-deploy CI.
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T03:47:31+00:00'
+      note: Updated blog/content/docs/papers/_index.md to link Paper 10. Cross-series
+        chip backlink verification deferred to merge-time Hugo CI build.
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:47:33+00:00'
+      note: Skip — Building 10-local-inference exists; Paper 10 is decision-level
+        companion.
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:47:34+00:00'
+      note: Skip — Operating 07-inference exists; Paper 10 is decision-level companion.
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:47:36+00:00'
+      note: Skip — Papers series already in README from Phase 0; Paper 10 is content
+        addition, not a stack change.
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T03:47:37+00:00'
+      note: 'Skip — no # manual-operation blocks in plan.'
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T03:47:39+00:00'
+      note: _prose.md Status flipped to Complete (2026-05-19). Spec Implementation
+        Plans table row updated. vk 2.2.4 has no spec-index subcommand; used direct
+        Edit on the spec table row.
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T03:47:41+00:00'
+    note: Papers landing updated to link Paper 10. Plan status flipped to Complete
+      in _prose.md and the spec's Implementation Plans table row. Building/Operating
+      retro-edits not needed (cross-series chip auto-renders from Paper 10 frontmatter
+      at Hugo build time).
     observed_prs: []
