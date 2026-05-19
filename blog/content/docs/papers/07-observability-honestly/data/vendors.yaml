@@ -1,0 +1,78 @@
+features:
+  - key: metrics
+    label: Metrics
+  - key: logs
+    label: Logs
+  - key: traces
+    label: Traces
+  - key: alerts
+    label: Alerting
+  - key: dashboards
+    label: Dashboards
+  - key: ha
+    label: HA / sharding
+  - key: oss
+    label: OSS / no contract required
+  - key: tco_low
+    label: Cheap at homelab scale
+vendors:
+  - name: Grafana + Prometheus + Loki
+    features:
+      metrics: "yes"
+      logs: "yes"
+      traces: "partial"
+      alerts: "yes"
+      dashboards: "yes"
+      ha: "partial"
+      oss: "yes"
+      tco_low: "yes"
+  - name: VictoriaMetrics
+    features:
+      metrics: "yes"
+      logs: "partial"
+      traces: "no"
+      alerts: "yes"
+      dashboards: "no"
+      ha: "yes"
+      oss: "yes"
+      tco_low: "yes"
+  - name: Grafana Mimir
+    features:
+      metrics: "yes"
+      logs: "no"
+      traces: "no"
+      alerts: "yes"
+      dashboards: "no"
+      ha: "yes"
+      oss: "yes"
+      tco_low: "no"
+  - name: Tempo / Jaeger
+    features:
+      metrics: "no"
+      logs: "no"
+      traces: "yes"
+      alerts: "no"
+      dashboards: "no"
+      ha: "partial"
+      oss: "yes"
+      tco_low: "partial"
+  - name: Datadog / New Relic
+    features:
+      metrics: "yes"
+      logs: "yes"
+      traces: "yes"
+      alerts: "yes"
+      dashboards: "yes"
+      ha: "yes"
+      oss: "no"
+      tco_low: "no"
+  - name: OpenSearch / Elastic
+    features:
+      metrics: "partial"
+      logs: "yes"
+      traces: "partial"
+      alerts: "yes"
+      dashboards: "yes"
+      ha: "yes"
+      oss: "yes"
+      tco_low: "no"
