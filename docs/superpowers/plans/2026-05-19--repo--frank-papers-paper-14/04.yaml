@@ -140,30 +140,31 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T14:05:07+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:05:09+00:00'
+      note: Gemini cover generated, 637.8 KB
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:05:11+00:00'
+      note: Only TL;DR placeholder remains, by design (Phase 5)
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:05:13+00:00'
+      note: 'Hugo --minify --buildDrafts: 0 ERROR; Paper 14 renders to 189.2 KB'
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T14:05:15+00:00'
+      note: Cluster access unavailable from worktree; placeholder argo-rollouts-canary-TODO.png
+        retained for cluster-side capture.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:05:17+00:00'
+      note: hugo --minify --buildDrafts clean; Paper 14 renders to 189.2 KB
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T14:05:19+00:00'
+    note: Cover generated via Gemini; canary screenshot deferred with TODO placeholder.
     observed_prs: []
