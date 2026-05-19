@@ -68,18 +68,19 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T14:06:48+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T14:06:50+00:00'
       note: null
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T14:06:52+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T14:07:06+00:00'
+    note: Validator exits 0 with all 6 vendors, 6 sources spanning 5 type values,
+      6 artefacts spanning 4 kind values. Agent acted as gate-keeper.
     observed_prs: []
