@@ -291,42 +291,42 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:30:49+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:30:51+00:00'
       note: null
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:30:53+00:00'
       note: null
     P3.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:30:55+00:00'
       note: null
     P3.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:30:56+00:00'
       note: null
     P3.T2.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:30:58+00:00'
       note: null
     P3.T2.S6:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:31:00+00:00'
       note: null
     P3.T2.S7:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:31:02+00:00'
       note: null
     P3.T2.S8:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T03:31:04+00:00'
+      note: 'Body word count: 2889 (within 2400-4200 budget)'
   completion:
-    at: null
+    at: '2026-05-19T03:31:05+00:00'
     note: null
     observed_prs: []
