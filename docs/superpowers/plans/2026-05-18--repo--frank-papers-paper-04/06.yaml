@@ -153,38 +153,51 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:30:15+00:00'
+      note: Skip — Paper 04 publishes on existing public blog at blog.derio.net/frank;
+        no new IngressRoute. URL liveness check deferred to post-deploy CI.
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T04:30:16+00:00'
+      note: Cross-series chip backlink verification deferred to merge-time Hugo CI
+        build (same posture as Paper 10 Phase 6). Hugo build green locally; partial
+        logic pre-existing, out of scope for this phase.
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T04:30:18+00:00'
+      note: 'Updated blog/content/docs/papers/_index.md: appended Paper 04 link below
+        Paper 10 (publish order 00 → 10 → 04).'
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:30:33+00:00'
+      note: Skip — Building 03-storage and Operating 02-storage-backups exist; cross-series
+        chip auto-renders from Paper 04 frontmatter. No series-overview 'Further reading'
+        section in current building/operating/00-overview pages.
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:30:35+00:00'
+      note: Skip — Papers reference existing Building/Operating posts via frontmatter;
+        no new posts needed (Paper 04 is decision-level companion).
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:30:37+00:00'
+      note: Skip — README references Papers series from Paper 00; Paper 04 is content
+        addition, not a stack change. Same posture as Paper 10 Phase 6.
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T04:30:39+00:00'
+      note: 'Skip — no # manual-operation blocks in plan.'
     P6.T1.S8:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T04:30:48+00:00'
+      note: _prose.md Status flipped to Complete (2026-05-19). Spec Implementation
+        Plans table row updated to 'Complete (2026-05-19) — published'. vk 2.2.4 has
+        no spec-index subcommand; used direct Edit on the spec table row.
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T04:30:56+00:00'
+    note: Papers landing updated to link Paper 04. Plan status flipped to Complete
+      in _prose.md and the spec's Implementation Plans table row. Building/Operating
+      retro-edits not needed (cross-series chip auto-renders from Paper 04 frontmatter
+      at Hugo build time).
     observed_prs: []
