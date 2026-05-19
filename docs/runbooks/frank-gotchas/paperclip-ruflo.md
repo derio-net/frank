@@ -293,7 +293,7 @@ PR #296 added a `hermes-wrapper` script ConfigMap key + an initContainer that in
 
 Lesson for future deviations: probe the **adapter's** invocation pattern end-to-end, not just the underlying CLI in isolation, before deciding the adapter is broken.
 
-### Hermes session ID gets truncated → 2nd heartbeat fails (upstream bug)
+### Hermes session ID gets truncated → 2nd heartbeat fails (upstream bug) {#hermes-session-truncation}
 
 **Affects:** every `hermes_local` hire on `hermes-paperclip-adapter@0.2.0` (verified unfixed in `0.3.0`) + `ghcr.io/paperclipai/paperclip:sha-93cd933`. Tracked at [derio-net/paperclip#1](https://github.com/derio-net/paperclip/issues/1).
 
@@ -306,7 +306,7 @@ Lesson for future deviations: probe the **adapter's** invocation pattern end-to-
 
 **Workaround:** set `adapterConfig.persistSession: false` on the hire. Each heartbeat starts hermes fresh (no `--resume` flag), the truncation bug never fires. Trade-off: hermes loses cross-heartbeat session continuity within a task — fine for tool-heavy work that re-establishes context per run; bad for long multi-turn discussions.
 
-**Recovery for a stuck agent:** clear the corrupted task session row (no other way to dislodge the bad session ID short of deleting the task):
+**Recovery for a stuck agent:** clear the corrupted task-session row (alternative: delete the task entirely). The agent record is unaffected — only the per-task session state in `agent_task_sessions` is poisoned, so the next heartbeat after the row is cleared starts a fresh hermes session:
 
 ```sql
 -- Identify the bad row:
@@ -319,8 +319,6 @@ UPDATE agent_task_sessions
   SET session_params_json = NULL, session_display_id = NULL
   WHERE agent_id = '<agent-uuid>' AND task_key = '<task-uuid>';
 ```
-
-The agent itself is fine — only the per-task session state is poisoned.
 
 ### Python-on-PVC install pattern (hermes)
 
