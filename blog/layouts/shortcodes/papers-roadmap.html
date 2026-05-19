@@ -1,0 +1,255 @@
+{{/* papers-roadmap.html — renders the Frank Papers roster as a roadmap.
+
+  Reads blog/data/papers.yaml for the full 21-entry roster (source of truth).
+  Looks up each entry against Site.Pages to derive live status:
+    - entry.deferred: true                     -> deferred (Phase 2)
+    - page exists + draft: false               -> published (linked)
+    - page exists + draft: true                -> drafting (linked, dim)
+    - no page bundle yet                       -> planned (grey)
+
+  Visual language mirrors cluster-roadmap.html. The base .roadmap / .roadmap-card
+  / .layer-*  CSS is duplicated here so the shortcode is self-contained — the
+  cluster-roadmap.html style block is only loaded on /docs/building/00-overview/,
+  not on this page.
+*/}}
+
+<style>
+.roadmap {
+  --rm-bg: #f8f9fa;
+  --rm-border: #dee2e6;
+  --rm-text: #212529;
+  --rm-muted: #6c757d;
+  --rm-line: #adb5bd;
+  --rm-accent-1: #0d6efd;
+  --rm-accent-2: #198754;
+  --rm-accent-3: #6f42c1;
+  --rm-accent-4: #dc3545;
+  --rm-accent-5: #fd7e14;
+  --rm-accent-6: #20c997;
+  --rm-accent-7: #e83e8c;
+  --rm-accent-8: #ffd43b;
+  --rm-accent-9: #74c0fc;
+  --rm-accent-10: #a9e34b;
+  --rm-accent-11: #da77f2;
+  --rm-accent-12: #ff922b;
+  font-family: inherit;
+  max-width: 720px;
+  margin: 1.5rem auto;
+}
+
+.dark .roadmap {
+  --rm-bg: #1a1a2e;
+  --rm-border: #333;
+  --rm-text: #e0e0e0;
+  --rm-muted: #999;
+  --rm-line: #555;
+  --rm-accent-1: #4dabf7;
+  --rm-accent-2: #51cf66;
+  --rm-accent-3: #b197fc;
+  --rm-accent-4: #ff6b6b;
+  --rm-accent-5: #ffa94d;
+  --rm-accent-6: #63e6be;
+  --rm-accent-7: #f783ac;
+  --rm-accent-8: #ffe066;
+  --rm-accent-9: #a5d8ff;
+  --rm-accent-10: #c0eb75;
+  --rm-accent-11: #e599f7;
+  --rm-accent-12: #ffa94d;
+}
+
+.roadmap .roadmap-layer {
+  position: relative;
+  margin-bottom: 0;
+}
+
+.roadmap .roadmap-layer::after {
+  content: '';
+  display: block;
+  width: 2px;
+  height: 24px;
+  background: var(--rm-line);
+  margin: 0 auto;
+}
+
+.roadmap .roadmap-layer:last-child::after {
+  display: none;
+}
+
+.roadmap .roadmap-card {
+  background: var(--rm-bg);
+  border: 1px solid var(--rm-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  border-left: 4px solid var(--rm-accent-1);
+}
+
+.roadmap .roadmap-card .layer-title {
+  margin: 0 0 4px 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--rm-text);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roadmap .roadmap-card .layer-title .layer-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 22px;
+  border-radius: 11px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+
+.roadmap .roadmap-card .tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.roadmap .roadmap-card .tag {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--rm-border);
+  color: var(--rm-muted);
+  font-weight: 500;
+}
+
+/* per-layer colours (matches cluster-roadmap convention) */
+.roadmap .layer-hw      { border-left-color: var(--rm-accent-4); }
+.roadmap .layer-hw .layer-num      { background: var(--rm-accent-4); }
+.roadmap .layer-os      { border-left-color: var(--rm-accent-5); }
+.roadmap .layer-os .layer-num      { background: var(--rm-accent-5); }
+.roadmap .layer-net     { border-left-color: var(--rm-accent-1); }
+.roadmap .layer-net .layer-num     { background: var(--rm-accent-1); }
+.roadmap .layer-stor    { border-left-color: var(--rm-accent-2); }
+.roadmap .layer-stor .layer-num    { background: var(--rm-accent-2); }
+.roadmap .layer-gpu     { border-left-color: var(--rm-accent-3); }
+.roadmap .layer-gpu .layer-num     { background: var(--rm-accent-3); }
+.roadmap .layer-gitops  { border-left-color: var(--rm-accent-6); }
+.roadmap .layer-gitops .layer-num  { background: var(--rm-accent-6); }
+.roadmap .layer-obs     { border-left-color: var(--rm-accent-8); }
+.roadmap .layer-obs .layer-num     { background: var(--rm-accent-8); color: #333; }
+.roadmap .layer-backup  { border-left-color: var(--rm-accent-9); }
+.roadmap .layer-backup .layer-num  { background: var(--rm-accent-9); color: #333; }
+.roadmap .layer-secrets { border-left-color: var(--rm-accent-10); }
+.roadmap .layer-secrets .layer-num { background: var(--rm-accent-10); color: #333; }
+.roadmap .layer-infer   { border-left-color: var(--rm-accent-11); }
+.roadmap .layer-infer .layer-num   { background: var(--rm-accent-11); color: #333; }
+.roadmap .layer-auth    { border-left-color: var(--rm-accent-4); }
+.roadmap .layer-auth .layer-num    { background: var(--rm-accent-4); }
+.roadmap .layer-tenant  { border-left-color: var(--rm-accent-3); }
+.roadmap .layer-tenant .layer-num  { background: var(--rm-accent-3); }
+.roadmap .layer-cicd    { border-left-color: var(--rm-accent-2); }
+.roadmap .layer-cicd .layer-num    { background: var(--rm-accent-2); }
+.roadmap .layer-deploy  { border-left-color: var(--rm-accent-5); }
+.roadmap .layer-deploy .layer-num  { background: var(--rm-accent-5); }
+.roadmap .layer-edge    { border-left-color: var(--rm-accent-6); }
+.roadmap .layer-edge .layer-num    { background: var(--rm-accent-6); color: #333; }
+.roadmap .layer-media   { border-left-color: var(--rm-accent-12); }
+.roadmap .layer-media .layer-num   { background: var(--rm-accent-12); color: #333; }
+.roadmap .layer-orch    { border-left-color: var(--rm-accent-12); }
+.roadmap .layer-orch .layer-num    { background: var(--rm-accent-12); color: #333; }
+.roadmap .layer-docs    { border-left-color: var(--rm-accent-7); }
+.roadmap .layer-docs .layer-num    { background: var(--rm-accent-7); color: #fff; }
+.roadmap .layer-default { border-left-color: var(--rm-muted); }
+.roadmap .layer-default .layer-num { background: var(--rm-muted); }
+
+/* papers-specific: status badges and dim variants */
+.papers-roadmap .paper-status-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.papers-roadmap .paper-status-published { background: #198754; color: #fff; }
+.dark .papers-roadmap .paper-status-published { background: #51cf66; color: #1a1a2e; }
+.papers-roadmap .paper-status-drafting { background: #fd7e14; color: #fff; }
+.dark .papers-roadmap .paper-status-drafting { background: #ffa94d; color: #1a1a2e; }
+.papers-roadmap .paper-status-planned  { background: var(--rm-border); color: var(--rm-muted); }
+.papers-roadmap .paper-status-deferred {
+  background: transparent;
+  color: var(--rm-muted);
+  border: 1px dashed var(--rm-line);
+}
+.papers-roadmap .paper-card-planned   { opacity: 0.6; }
+.papers-roadmap .paper-card-drafting  { opacity: 0.85; }
+.papers-roadmap .paper-card-deferred  { opacity: 0.55; }
+.papers-roadmap .paper-card-deferred .layer-title a,
+.papers-roadmap .paper-card-deferred .layer-title span:not(.layer-num):not(.paper-status-badge) {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.papers-roadmap .paper-card .layer-title { width: 100%; }
+.papers-roadmap .paper-card .layer-title a {
+  color: var(--rm-text);
+  text-decoration: none;
+  font-weight: 600;
+}
+.papers-roadmap .paper-card .layer-title a:hover { text-decoration: underline; }
+.papers-roadmap .paper-deferred-reason {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--rm-muted);
+  font-style: italic;
+  margin-top: 4px;
+}
+</style>
+
+<div class="roadmap papers-roadmap">
+{{ range sort site.Data.papers.entries "number" "asc" }}
+  {{ $entry := . }}
+  {{/* Find matching Hugo page by paper_number (intersect handles list-valued series param). */}}
+  {{ $page := false }}
+  {{ range where site.Pages "Params.series" "intersect" (slice "papers") }}
+    {{ if eq (int .Params.paper_number) (int $entry.number) }}
+      {{ $page = . }}
+    {{ end }}
+  {{ end }}
+  {{/* Derive status. */}}
+  {{ $status := "planned" }}
+  {{ if $entry.deferred }}
+    {{ $status = "deferred" }}
+  {{ else if $page }}
+    {{ if $page.Params.draft }}
+      {{ $status = "drafting" }}
+    {{ else }}
+      {{ $status = "published" }}
+    {{ end }}
+  {{ end }}
+  {{ $layerClass := printf "layer-%s" ($entry.layer | default "default") }}
+  <div class="roadmap-layer">
+    <div class="roadmap-card paper-card paper-card-{{ $status }} {{ $layerClass }}">
+      <div class="layer-title">
+        <span class="layer-num">{{ printf "%02d" $entry.number }}</span>
+        {{ if and $page (or (eq $status "published") (eq $status "drafting")) }}
+          <a href="{{ $page.RelPermalink }}">{{ $entry.title }}</a>
+        {{ else }}
+          <span>{{ $entry.title }}</span>
+        {{ end }}
+        <span class="paper-status-badge paper-status-{{ $status }}">{{ $status }}</span>
+      </div>
+      <div class="tags">
+        <span class="tag">{{ $entry.covers }}</span>
+        {{ with $entry.layer }}<span class="tag">layer: {{ . }}</span>{{ end }}
+      </div>
+      {{ if and $entry.deferred $entry.deferred_reason }}
+        <span class="paper-deferred-reason">Phase 2 — {{ $entry.deferred_reason }}</span>
+      {{ end }}
+    </div>
+  </div>
+{{ end }}
+</div>

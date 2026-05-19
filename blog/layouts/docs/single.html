@@ -25,11 +25,12 @@
         {{- if in .Params.series "papers" }}
           {{- partial "papers-forwardlinks.html" . }}
           {{- partial "papers/dossier-link.html" . }}
+          {{- partial "papers-prev-next.html" . }}
         {{- else if and (not (in .Params.series "papers")) (not (eq .Section "")) }}
           {{- partial "papers-backlink.html" . }}
         {{- end }}
         {{ partial "components/last-updated.html" . }}
-        {{- if (site.Params.page.displayPagination | default true) -}}
+        {{- if and (not (in .Params.series "papers")) (site.Params.page.displayPagination | default true) -}}
           {{- partial "components/pager.html" . -}}
         {{- end -}}
         {{ partial "components/comments.html" . }}

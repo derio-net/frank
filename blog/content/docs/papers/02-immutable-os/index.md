@@ -2,7 +2,7 @@
 title: "Immutable OS & Declarative Machines"
 date: 2026-05-19
 draft: false
-weight: 2
+weight: 3
 series: ["papers"]
 layer: os
 paper_number: 2

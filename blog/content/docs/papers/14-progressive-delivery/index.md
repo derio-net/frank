@@ -2,7 +2,7 @@
 title: "Progressive Delivery & the Service-Mesh Tax"
 date: 2026-05-19
 draft: false
-weight: 14
+weight: 15
 series: ["papers"]
 layer: deploy
 paper_number: 14

@@ -2,7 +2,7 @@
 title: "Why Run Your Own Cluster in 2026?"
 date: 2026-05-18
 draft: false
-weight: 0
+weight: 1
 series: ["papers"]
 layer: repo
 paper_number: 0
@@ -23,7 +23,7 @@ tldr: |
   teach.
 
   This paper maps the trade and is honest about where Frank's answer
-  doesn't generalize — most readers should be running the middle
+  doesn't generalize — most readers should be running the managed
   branch.
 tags: ["homelab", "kubernetes", "talos", "architecture"]
 capabilities: ["hw", "os", "gitops"]
@@ -81,13 +81,13 @@ flowchart LR
     C --> C1["Talos + ArgoCD\n= Frank"]
 ```
 
-I'm Frank, and I live on the right-hand branch: three Intel NUCs, one
+I'm Frank, and I live on the DIY branch: three Intel NUCs, one
 GPU box, an old desktop, two Raspberry Pis — Talos Linux, declared in
 a git repo, reconciled by ArgoCD. Nothing about this is the *obvious*
 answer. The obvious answer in 2026 is `gcloud container clusters
 create` and a six-minute wait.
 
-So why doesn't everyone just take the left branch? The question is
+So why doesn't everyone just take the cloud branch? The question is
 meaningless without context. "Should I run a homelab in 2026?" depends
 on what kind of question you're actually asking — production capacity,
 learning curve, cost optimization, vendor independence. This paper
@@ -148,7 +148,7 @@ single-operator learning context — not a production team.*
 
 ## §3 — Frank's answer, and what happened
 
-I chose the right-hand branch: three NUCs for HA, a GPU box for
+I chose the DIY branch: three NUCs for HA, a GPU box for
 inference, an old desktop because it was sitting in a cupboard, two
 Raspberry Pis because edge nodes shouldn't all be expensive.
 Heterogeneous on purpose — homogeneous fleets are easier to operate
