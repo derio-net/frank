@@ -355,17 +355,20 @@ images:
     description: Paper 10 cover — Frank examining a glowing token-stream LLM with a curious/weighing expression
     prompt: >-
       Frank the server-hardware Frankenstein monster examines a glowing
-      token-stream emanating from an LLM — visualised as a softly
-      luminous river of letters and tokens flowing between two boxes
-      labelled "engine" and "gateway". Frank's expression is curious
-      and weighing — he is sizing up the system, not celebrating it.
-      He wears thin small round reading glasses resting low on his face and
-      a thin black necktie over a white button-down dress shirt. One
-      hand gestures at the token stream as if measuring it. Warm
-      overhead lamp. Dark studio-style background. RJ45 neck bolts,
-      green skin, messy black hair, white shirt with black tie. The two boxes
-      labelled "engine" and "gateway" are the ONLY text in the image
-      — no extra captions or watermarks. ONE FIGURE — one single Frank.
+      token-stream emanating from an LLM. The stream is ONE continuous
+      unbroken luminous river of letters and numbers that flows in a
+      single uninterrupted arc from a box labelled "engine" on one side
+      to a box labelled "gateway" on the other. Frank's expression is
+      curious and weighing — he is sizing up the system, not
+      celebrating it. He wears small circular wire-rim reading
+      glasse swhich rest low on his face. 
+      He wears a thin black necktie over a white
+      button-down dress shirt. One hand gestures at the token stream
+      as if measuring it. Warm overhead lamp. Dark studio-style
+      background. RJ45 temple bolts, green skin, messy black hair. The
+      two boxes labelled "engine" and "gateway" are the ONLY text in
+      the image — no extra captions or watermarks. ONE FIGURE — one
+      single Frank.
 
   - key: paper-11-cover
     # Same convention as paper-00-cover and paper-10-cover: only
