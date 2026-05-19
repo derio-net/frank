@@ -1,15 +1,31 @@
 ---
 title: "Distributed Storage on Bare Metal"
 date: 2026-05-19
-draft: true
+draft: false
 weight: 4
 series: ["papers"]
 layer: stor
 paper_number: 4
 publish_order: 3
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last (Phase 5).
+  Distributed storage on bare-metal Kubernetes is a four-job problem
+  — synchronous replication, snapshots, off-cluster backup, RWX —
+  and the six contenders in 2026 (Longhorn, Rook-Ceph, OpenEBS
+  Mayastor, Piraeus/LINSTOR, Portworx, local-path-provisioner) each
+  treat one job as primary and the rest as supported-eventually.
+
+  Frank runs Longhorn with three replicas across the three
+  control-plane nodes. The scars came in the seams between Longhorn
+  and the rest of the declarative stack: a RWO RollingUpdate
+  deadlock, an empty-ExternalSecret rejection, an ArgoCD-versus-
+  secret-store fight settled by `ServerSideApply=true` plus
+  `ignoreDifferences` on Secret data.
+
+  Frank's answer does not generalize. One node → local-path. Two-to-
+  four nodes → Longhorn (or Rook-Ceph if RWX is load-bearing). Five-
+  plus → Rook-Ceph is the sweet spot. Production SLA on top of any
+  leaf → Portworx or managed cloud storage.
 tags: ["storage", "longhorn", "ceph", "kubernetes", "homelab"]
 capabilities: ["stor"]
 related_building: "docs/building/03-storage"
@@ -34,7 +50,23 @@ references:
 
 ## TL;DR
 
-*Write last (Phase 5).*
+Distributed storage on bare-metal Kubernetes is a four-job problem —
+synchronous replication, snapshots, off-cluster backup, RWX — and the
+six contenders in 2026 (Longhorn, Rook-Ceph, OpenEBS Mayastor,
+Piraeus/LINSTOR, Portworx, local-path-provisioner) each treat one job
+as primary and the rest as supported-eventually.
+
+Frank runs Longhorn with three replicas across the three
+control-plane nodes. The scars came in the seams between Longhorn and
+the rest of the declarative stack: a RWO RollingUpdate deadlock, an
+empty-ExternalSecret rejection, an ArgoCD-versus-secret-store fight
+settled by `ServerSideApply=true` plus `ignoreDifferences` on Secret
+data.
+
+Frank's answer does not generalize. One node → local-path. Two-to-four
+nodes → Longhorn (or Rook-Ceph if RWX is load-bearing). Five-plus →
+Rook-Ceph is the sweet spot. Production SLA on top of any leaf →
+Portworx or managed cloud storage.
 
 ## §1 — The capability
 
@@ -116,7 +148,7 @@ you every volume, every replica, every snapshot — and the per-volume
 engine model means a corrupted Postgres volume cannot poison the
 storage of an unrelated workload. The trade is that the same per-
 volume architecture is genuinely worse than CRUSH for huge fleets.
-Longhorn shines at ≤10 nodes and stops scaling well around 50.
+Longhorn is comfortable at ≤10 nodes and stops scaling well around 50.
 
 **Rook-Ceph** is the inverse trade. You install an operator and you
 get Ceph — a real distributed filesystem with twenty years of
@@ -238,10 +270,10 @@ placement and the surviving OSDs accept the orphaned PG replicas
 within seconds. The workload's I/O blocks on the kernel-level
 client briefly, then resumes.
 
-The architecture is genuinely better than Longhorn's *per
-fleet-megabyte managed*, and the price is the five-node minimum
-for a healthy default CRUSH rule, plus enough Ceph fluency to
-debug when something below the operator abstraction fails.
+The architecture is genuinely better than Longhorn's per managed
+megabyte, and the price is the five-node minimum for a healthy
+default CRUSH rule plus enough Ceph fluency to debug when something
+below the operator abstraction fails.
 
 ### OpenEBS Mayastor
 
