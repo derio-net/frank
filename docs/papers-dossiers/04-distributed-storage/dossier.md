@@ -1,6 +1,6 @@
 ---
 paper: 04-distributed-storage
-status: draft
+status: ready
 ---
 
 ## Vendors in scope (≥3, typically 4–6)
@@ -42,7 +42,7 @@ status: draft
 
 - title: "Ceph: A Scalable, High-Performance Distributed File System (Weil et al., OSDI '06)"
   type: paper
-  url: "https://www.ssrc.ucsc.edu/Papers/weil-osdi06.pdf"
+  url: "https://www.usenix.org/legacy/event/osdi06/tech/full_papers/weil/weil.pdf"
   quoted_passages:
     - "We have designed and implemented Ceph, a distributed file system that provides excellent performance, reliability, and scalability."
     - "Ceph maximizes the separation between data and metadata management by replacing allocation tables with a pseudo-random data distribution function (CRUSH) designed for heterogeneous and dynamic clusters of unreliable object storage devices (OSDs)."

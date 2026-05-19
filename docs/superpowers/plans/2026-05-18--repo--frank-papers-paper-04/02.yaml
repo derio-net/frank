@@ -66,18 +66,18 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:39:25+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:39:26+00:00'
       note: null
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T03:39:28+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-19T03:39:38+00:00'
+    note: 'Validator exits 0; dossier marked status: ready by agent acting as gate-keeper.'
     observed_prs: []
