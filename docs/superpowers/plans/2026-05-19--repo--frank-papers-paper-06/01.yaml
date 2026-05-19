@@ -1,0 +1,218 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 06 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 06 gitops-at-small-scale
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 6:
+        Hugo bundle:  blog/content/docs/papers/06-gitops-at-small-scale/
+        Dossier:      docs/papers-dossiers/06-gitops-at-small-scale/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/06-gitops-at-small-scale/index.md
+      ls docs/papers-dossiers/06-gitops-at-small-scale/dossier.md
+      ```
+- number: 2
+  title: Research the GitOps-at-small-scale landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/06-gitops-at-small-scale/dossier.md` — vendors in scope
+
+
+      Paper 06 maps the GitOps vendor space at small (≤10-node) scale.
+      Suggested six-vendor landscape (final list is the dossier-
+      construction subagent's call after research, but anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: ArgoCD
+        positioning: "Intuit/CNCF graduated — pull-mode reconciler with a polished UI and the App-of-Apps composition pattern."
+        primary_url: "https://argo-cd.readthedocs.io/"
+      - name: Flux v2
+        positioning: "Weaveworks/CNCF graduated — modular pull-mode reconciler (source-controller + kustomize-controller + helm-controller), Kustomize-first."
+        primary_url: "https://fluxcd.io/"
+      - name: Jenkins X
+        positioning: "CD-Foundation — opinionated all-in-one GitOps + Tekton + preview environments, optimized for app teams not platform teams."
+        primary_url: "https://jenkins-x.io/"
+      - name: Cloud-managed GitOps
+        positioning: "Hyperscaler-bundled — AWS App Runner / Azure Arc / GKE Config Sync. GitOps as a managed feature of the control plane."
+        primary_url: "https://cloud.google.com/anthos/config-management"
+      - name: Spinnaker
+        positioning: "Netflix-origin push-mode CD — pipeline-first, multi-cloud, predates the GitOps label. The push-mode foil."
+        primary_url: "https://spinnaker.io/"
+      - name: Just bash + kubectl
+        positioning: "The null hypothesis — CI runs `kubectl apply -f` against the cluster. No reconciler, no drift detection. Useful as the lower bound."
+        primary_url: "https://kubernetes.io/docs/concepts/cluster-administration/manage-deployment/"
+      ```
+
+      Frank's case study is ArgoCD (App-of-Apps, 30+ Applications);
+      the other five exist in the dossier so §3 can compare
+      architectures and §6 can branch the decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one
+      foundational paper or whitepaper, at least one practitioner
+      talk or benchmark, and at least one real-world postmortem.
+      URL hints to chase:
+
+      1. ArgoCD architecture / design docs — type: `vendor-docs`
+         (https://argo-cd.readthedocs.io/en/stable/operator-manual/architecture/)
+      2. Flux v2 design / GitOps Toolkit — type: `vendor-docs`
+         (https://fluxcd.io/flux/concepts/)
+      3. "GitOps Principles 1.0" — OpenGitOps / CNCF working group — type: `paper`
+         (https://opengitops.dev/)
+      4. Alexis Richardson's original "GitOps - Operations by Pull Request"
+         (Weaveworks blog, 2017) — type: `talk` or `postmortem`
+         (https://www.weave.works/blog/gitops-operations-by-pull-request)
+      5. An ArgoCD scale/operational postmortem — type: `postmortem`
+         (search: "argocd scale postmortem", "argocd app-of-apps 256KB
+         annotation", "argocd reconcile storm" — pick a real practitioner
+         writeup, not a vendor case study)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo and Frank's gotcha registry.
+      Suggested artefacts (the dossier-construction subagent picks the
+      final list, but at least these are known to exist):
+
+      1. `kind: yaml` — `apps/root/templates/` + `apps/argocd/values.yaml` —
+         the App-of-Apps entrypoint. Shows the root Application that
+         templates every leaf Application CR.
+         `demonstrates: "Frank's whole cluster is composed by a single
+          root Application that templates every other Application — one
+          folder reconciles every workload."`
+
+      2. `kind: incident` — the out-of-bounds symlink ComparisonError.
+         Source: `agents/rules/frank-gotchas.md → ArgoCD` +
+         `docs/runbooks/frank-gotchas/argocd.md`.
+         `demonstrates: "A single out-of-bounds symlink anywhere in
+          the repo locks ArgoCD's comparison engine into
+          ComparisonError for the ENTIRE GitOps loop — not just the
+          affected Application. find . -type l -lname '*../../..*'
+          after every symlink commit is now muscle memory."`
+
+      3. `kind: incident` — the manual-syncOptions-inheritance gotcha.
+         Source: same gotcha file.
+         `demonstrates: "kubectl patch application … --type=merge
+          -p '{\"operation\":{\"sync\":...}}' does NOT inherit
+          spec.syncPolicy.syncOptions — ServerSideApply must be passed
+          explicitly. We learned this when a manual sync of a 300KB
+          ConfigMap blew the 256KB last-applied-config annotation."`
+
+      4. `kind: incident` — the root App-of-Apps re-templating leaf
+         specs within the sync window. Source: same gotcha file.
+         `demonstrates: "Live patches against ArgoCD-managed
+          Application specs (selfHeal off, branch override) are
+          reverted by the root App-of-Apps within the sync window —
+          you have to pause the parent or commit to git, never
+          kubectl-patch."`
+
+      5. `kind: grafana-screenshot` — ArgoCD UI showing the
+         App-of-Apps tree healthy. Captured live from
+         `192.168.55.200`.
+         Capture procedure:
+         ```bash
+         # From the secure-agent-pod or a machine with cluster access:
+         # Browse to http://192.168.55.200 → Applications
+         # Filter to root and click into the tree view.
+         # Screenshot the full App-of-Apps tree → commit to
+         # blog/content/docs/papers/06-gitops-at-small-scale/argocd-app-of-apps-tree-healthy.png
+         ```
+
+      6. `kind: yaml` (optional) — `apps/root/Chart.yaml` and the
+         `templates/` dir showing the leaf Application CR template
+         pattern. Demonstrates: "Every leaf Application is rendered
+         from one Helm chart — adding a new app means adding one
+         file and one values entry."
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No published end-to-end TCO comparison of ArgoCD App-of-Apps
+        vs Flux v2 vs cloud-managed GitOps at ≤10-node single-cluster
+        scale that accounts for the operator's time. Every available
+        comparison either (a) benchmarks reconciliation latency
+        without cost, or (b) compares licensing without measuring the
+        gotcha tax. The single most useful number for a decision-
+        maker — 'how many hours per month does each option cost
+        you?' — does not exist as published work."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "GitOps is overengineering for small clusters — just have
+        CI run `kubectl apply -f manifests/` on push to main and
+        skip the reconciler entirely. Why doesn't that win for
+        Frank? Answer: same as Paper 00. Frank is a learning
+        platform. The reconciler exists to catch drift, and drift
+        only happens when somebody edits the cluster outside Git
+        — which is exactly the discipline a learning platform
+        needs to develop. Without the reconciler reverting your
+        ad-hoc patches, you never learn to commit them. The
+        counter-argument wins for a one-app team with strong CI
+        discipline; for Frank, it would have erased every scar
+        that actually taught the lesson."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

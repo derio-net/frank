@@ -1,0 +1,472 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/06-gitops-at-small-scale/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 06 frontmatter
+
+
+      Update `blog/content/docs/papers/06-gitops-at-small-scale/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "GitOps at Small Scale"
+      date: <today>
+      draft: true
+      weight: 6
+      series: ["papers"]
+      layer: gitops
+      paper_number: 6
+      publish_order: 6
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["gitops", "argocd", "flux", "kubernetes", "homelab"]
+      capabilities: ["gitops"]
+      related_building: "docs/building/05-gitops"
+      related_operating: "docs/operating/03-gitops"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 6` matches paper_number for TOC order.
+      `publish_order: 6` reflects this being the sixth Paper to
+      publish (`00 → 10 → 04 → 11 → 14 → 06 → ...`).
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      Create `blog/content/docs/papers/06-gitops-at-small-scale/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: pull_mode
+          label: Pull-mode reconciler
+        - key: ui
+          label: First-party web UI
+        - key: helm
+          label: Helm native
+        - key: kustomize
+          label: Kustomize native
+        - key: multi_cluster
+          label: Multi-cluster fan-out
+        - key: drift_alerts
+          label: Drift notifications
+        - key: oss
+          label: OSS / no contract required
+        - key: opinion
+          label: Opinionated all-in-one
+      vendors:
+        - name: ArgoCD
+          features:
+            pull_mode: "yes"
+            ui: "yes"
+            helm: "yes"
+            kustomize: "yes"
+            multi_cluster: "yes"
+            drift_alerts: "yes"
+            oss: "yes"
+            opinion: "no"
+        - name: Flux v2
+          features:
+            pull_mode: "yes"
+            ui: "partial"
+            helm: "yes"
+            kustomize: "yes"
+            multi_cluster: "yes"
+            drift_alerts: "yes"
+            oss: "yes"
+            opinion: "no"
+        - name: Jenkins X
+          features:
+            pull_mode: "yes"
+            ui: "yes"
+            helm: "yes"
+            kustomize: "partial"
+            multi_cluster: "yes"
+            drift_alerts: "partial"
+            oss: "yes"
+            opinion: "yes"
+        - name: Cloud-managed GitOps
+          features:
+            pull_mode: "yes"
+            ui: "yes"
+            helm: "yes"
+            kustomize: "yes"
+            multi_cluster: "yes"
+            drift_alerts: "yes"
+            oss: "no"
+            opinion: "yes"
+        - name: Spinnaker
+          features:
+            pull_mode: "no"
+            ui: "yes"
+            helm: "partial"
+            kustomize: "partial"
+            multi_cluster: "yes"
+            drift_alerts: "no"
+            oss: "yes"
+            opinion: "yes"
+        - name: Just bash + kubectl
+          features:
+            pull_mode: "no"
+            ui: "no"
+            helm: "partial"
+            kustomize: "partial"
+            multi_cluster: "no"
+            drift_alerts: "no"
+            oss: "yes"
+            opinion: "no"
+      ```
+
+      Final feature polarity check: "yes" = the option HAS that
+      feature. Adjust to match conventions established by Paper 04's
+      `vendors.yaml` if the capability-matrix shortcode reads
+      polarity differently.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      The opening question: *if your cluster's source of truth lives
+      in Git, who watches Git and reconciles the cluster — and how
+      do you trust the answer when the reconciler disagrees with
+      the cluster?* Position GitOps in the stack: above raw
+      kubectl, sibling to CI/CD, owner of the apply loop. Name
+      what GitOps is doing: (1) reconciling declared state to
+      live state, (2) detecting drift, (3) gating who can change
+      production (only commits to main can), (4) creating an audit
+      trail by construction.
+
+      Voice: Frank speaks as the cluster. No hedging — the
+      reconciler is either watching Git or it isn't.
+
+      Include one `flowchart LR` Mermaid diagram showing GitOps's
+      stack position:
+
+      ```
+      flowchart LR
+          G[("Git repo (main)")] --> R["Reconciler"]
+          R --> K["Kubernetes API"]
+          K --> W["Workloads"]
+          R -.-> D["Drift detector"]
+          R -.-> A["Audit trail"]
+          CI["CI"] --> G
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the six vendors against two axes. Use `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:OSS↔commercial,y:unbundled↔opinionated" >}}
+          quadrantChart
+              title GitOps reconcilers — 2026
+              x-axis OSS --> Commercial
+              y-axis Unbundled --> Opinionated
+              quadrant-1 "Opinionated · Commercial"
+              quadrant-2 "Opinionated · OSS"
+              quadrant-3 "Unbundled · OSS"
+              quadrant-4 "Unbundled · Commercial"
+              "ArgoCD": [0.20, 0.30]
+              "Flux v2": [0.15, 0.20]
+              "Jenkins X": [0.30, 0.75]
+              "Cloud-managed GitOps": [0.80, 0.80]
+              "Spinnaker": [0.25, 0.70]
+              "Just bash + kubectl": [0.10, 0.10]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("ArgoCD: App-of-Apps composition
+      + the friendliest UI in the category"; "Flux v2: a kit of
+      controllers you compose yourself") and what it gives up to
+      get there. Use `{{< papers/pullquote source="..." url="..." >}}`
+      for at least one direct quote pulled from the dossier (probably
+      the OpenGitOps principles or Alexis Richardson's original
+      blog post).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: reconciling declared state against live state
+      *continuously*, and surfacing the difference when they
+      diverge. Each vendor has a different answer; this section
+      lays them out side-by-side with one `flowchart TD` per vendor
+      in a shared visual language (same shapes, same edge types,
+      same colour conventions — that's what makes the comparison
+      legible).
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = control plane components
+      - Cylinders = data on disk (Git repo, sqlite state)
+      - Hexagons = client (kubectl, K8s API)
+      - Dashed edges = reconcile / drift-detect paths
+      - Solid edges = apply / push hot paths
+
+      Four-to-six architecture diagrams (one per vendor in the
+      landscape that has a meaningfully different answer). Skip
+      "just bash + kubectl" here — it doesn't have a "hard part",
+      which is the §6 punchline.
+
+      Example for ArgoCD:
+
+      ```
+      flowchart TD
+          subgraph AC["ArgoCD"]
+              R["argocd-repo-server"]
+              A["argocd-application-controller"]
+              S["argocd-server (UI/API)"]
+              DB[("Redis · cache")]
+          end
+          G[("Git repo")]
+          K{{"Kubernetes API"}}
+          G --> R
+          R --> A
+          A --> K
+          A -.-> K
+          S --> A
+          A --> DB
+      ```
+
+      For each diagram include 80–200 words of prose: what the
+      reconciliation loop looks like, what the drift-detection
+      path is, what the failure mode is when the answer is "the
+      reconciler is silently lost".
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Cluster count.** Single-cluster ≤10-node: ArgoCD and
+         Flux are both comfortable. Multi-cluster fan-out (5+
+         clusters): ArgoCD ApplicationSet and Flux's
+         Source-Helm-Kustomize chain start to diverge in cost.
+         Cloud-managed GitOps is built around the multi-cluster
+         case from the start.
+
+      2. **App count per cluster.** App-of-Apps depth has a real
+         cost — each Application CR holds a `lastAppliedConfig`
+         annotation, and the K8s API rejects annotations >256KB.
+         Large rendered manifests (CRDs, large ConfigMaps) blow
+         that ceiling and require `ServerSideApply=true` to
+         avoid the annotation entirely. Cite the dossier postmortem.
+
+      3. **Drift-detection cadence.** ArgoCD polls every 3 minutes
+         by default; Flux source-controller polls on the cadence
+         you configure (often 60s). The interesting question:
+         *what's the smallest drift window your team can detect
+         and act on?* Sub-minute drift detection is only useful
+         if somebody is watching alerts.
+
+      Cite ≥2 primary sources from the dossier (vendor-docs +
+      postmortem). Do not editorialize past what the citations
+      support.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank chose ArgoCD. Single `root` App-of-Apps reconciles
+      every leaf Application — 30+ at last count, from Cilium
+      and Longhorn to OpenRGB and the LED controller. Honest
+      about the cost: the App-of-Apps pattern produces a single
+      point of GitOps failure (the root Application), and that
+      single point IS a feature when the root is healthy and a
+      problem when it isn't.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative
+      options (real Frank incidents):
+
+      Scar 1 — the out-of-bounds symlink ComparisonError:
+      ```
+      {{< papers/scar date="2026-XX-XX" >}}
+      An out-of-bounds symlink locked the ArgoCD comparison
+      engine into ComparisonError for the entire repo. Not the
+      affected Application — the entire GitOps loop. The fix
+      took five minutes; finding it took two hours. `find . -type l
+      -lname '*../../..*'` after every symlink commit is now
+      muscle memory. A single bad symlink is one of the
+      sharpest single-point-of-failure shapes the App-of-Apps
+      pattern produces.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — live-spec mutations reverted by the parent:
+      ```
+      {{< papers/scar date="2026-XX-XX" >}}
+      We patched an Application's syncPolicy live to suspend
+      selfHeal during a validation test. Within the sync window,
+      the root App-of-Apps re-templated the leaf and reverted
+      the patch. Live spec mutations against ArgoCD-managed
+      Applications are not durable unless you also pause the
+      parent or commit to git — there is no third option.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — manual sync not inheriting syncOptions:
+      ```
+      {{< papers/scar date="2026-XX-XX" >}}
+      `kubectl patch application … --type=merge -p
+      '{"operation":{"sync":...}}'` does NOT inherit
+      spec.syncPolicy.syncOptions — ServerSideApply must be
+      passed explicitly. We learned this when a manual sync
+      of a 300KB ConfigMap blew the 256KB last-applied-config
+      annotation. The lesson lives in every script that
+      kubectl-patches an Application now.
+      {{< /papers/scar >}}
+      ```
+
+      Pick the scars that best carry §5's argument. Real dates
+      only — pull from `agents/rules/frank-gotchas.md` cross-
+      referenced with `git log apps/argocd/` and `git log apps/root/`.
+
+      Include ≥1 evidence artefact — the ArgoCD UI screenshot
+      from P4.T3 referenced inline with a Markdown image link.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one
+      leaf; the others are real:
+
+      ```
+      flowchart TD
+          A["How many clusters?"] -- "1 small cluster, 5–20 apps" --> B["Team familiar with ArgoCD?"]
+          B -- "Yes" --> L1["ArgoCD App-of-Apps (Frank's pick)"]
+          B -- "No, Flux culture" --> L2["Flux v2"]
+          A -- "Multi-cluster, multi-team" --> L3["Flux v2 (pull-mode discipline) or cloud-managed GitOps"]
+          A -- "Solo, one small app" --> L4["Just bash + kubectl in CI"]
+          L1 -.-> P["Heavy existing pipeline?"]
+          L2 -.-> P
+          P -- "Yes (Tekton/Spinnaker)" --> PX["Keep existing CD, layer GitOps reconciler on top"]
+      ```
+
+      ≤4 visible leaves. The "keep existing CD" branch is a
+      fifth-leaf override on the pipeline-investment axis — keep
+      it visually subordinate (dashed edges) so the decision
+      tree still reads as "4 leaves + one pipeline override". If
+      the renderer struggles, fold the override branch into
+      prose and keep 4 hard leaves only.
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **OCI-native GitOps.** Both ArgoCD and Flux v2 now
+         support OCI registries as the source of truth, not
+         just Git. The implication: the "Git" in GitOps is
+         becoming "the artifact registry" — Git for code, OCI
+         for rendered manifests, with the reconciler watching
+         both. The decoupling matters for compliance teams that
+         want signed artifacts.
+
+      2. **ApplicationSets and dynamic generation.** ArgoCD
+         ApplicationSets and Flux's generator chain are
+         converging on the same shape: programmatically
+         generate Applications from a list (cluster matrix,
+         file glob, pull-request list). The "Application as
+         value, not template" pattern is becoming the default.
+
+      3. **GitOps + signed images + admission control.** The
+         reconciler enforces "what's in Git", the signer
+         enforces "what's in this Git is what was built",
+         and admission control enforces "what is running was
+         signed". The three layers are converging on a single
+         supply-chain story (Sigstore, cosign, ratify) that
+         GitOps can plausibly own end-to-end by 2027.
+
+      Optional timeline diagram or roadmap citations. Cite the
+      dossier where possible.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/06-gitops-at-small-scale/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If
+      over, trim §3 first — that's where capability papers
+      reliably sprawl past budget.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
