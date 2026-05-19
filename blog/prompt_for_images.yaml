@@ -420,6 +420,27 @@ images:
       one single Frank. The framing communicates "staged exposure under
       uncertainty" rather than "deployment is solved".
 
+  - key: paper-06-cover
+    # Same convention as paper-00/04/10/11 covers: only reference.png
+    # anchors style; the Papers signature (glasses + tie + dress shirt)
+    # is explicit in the prompt below.
+    output: blog/content/docs/papers/06-gitops-at-small-scale/cover.png
+    description: Paper 06 cover — Frank examining a Git repo whose branches root downward into a cluster
+    prompt: >-
+      Frank the server-hardware Frankenstein monster examines a single
+      glowing Git repository that branches downward into root-like
+      fibres feeding a small cluster of server nodes. The lines from
+      repo to cluster are continuous and clearly directional — the
+      cluster pulls from the repo, not the other way around. Frank's
+      expression is calm and approving — this is the one where he is
+      not arguing with the design. He wears small circular wire-rim
+      reading glasses resting low on his face, a thin black necktie
+      over a white button-down dress shirt. One hand rests on the repo
+      as if confirming it. Warm overhead lamp. Dark studio-style
+      background. RJ45 temple bolts, green skin, messy black hair. The
+      ONLY text in the image is the word "main" on the repo. ONE
+      FIGURE — one single Frank.
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview

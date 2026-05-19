@@ -154,30 +154,32 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T14:14:12+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:14:14+00:00'
+      note: Cover generated (786KB) via gemini-3-pro-image-preview
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-19T14:14:16+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:14:18+00:00'
+      note: Hugo --buildDrafts --minify exits with 0 ERROR lines; Paper 06 renders
+        to 183KB
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-19T14:14:20+00:00'
+      note: Cluster access unavailable from worktree; placeholder argocd-app-of-apps-tree-healthy-TODO.png
+        retained for cluster-side capture.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-19T14:14:22+00:00'
+      note: 'hugo --minify --buildDrafts: 0 ERROR lines; index.html 183KB'
   completion:
-    at: null
+    at: '2026-05-19T14:14:23+00:00'
     note: null
     observed_prs: []
