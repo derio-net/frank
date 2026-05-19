@@ -1,0 +1,71 @@
+features:
+  - key: api_driven
+    label: "API-driven config"
+  - key: transactional_updates
+    label: "Transactional updates"
+  - key: no_ssh
+    label: "No SSH / no shell"
+  - key: image_based
+    label: "Image-based root"
+  - key: config_mgmt_friendly
+    label: "Config-mgmt friendly (Ansible/Puppet)"
+  - key: kubernetes_native
+    label: "K8s-purpose-built"
+  - key: oss
+    label: "Open source"
+
+vendors:
+  - name: Talos Linux
+    features:
+      api_driven: "yes"
+      transactional_updates: "yes"
+      no_ssh: "yes"
+      image_based: "yes"
+      config_mgmt_friendly: "no"
+      kubernetes_native: "yes"
+      oss: "yes"
+  - name: Fedora CoreOS
+    features:
+      api_driven: "partial"
+      transactional_updates: "yes"
+      no_ssh: "no"
+      image_based: "yes"
+      config_mgmt_friendly: "partial"
+      kubernetes_native: "no"
+      oss: "yes"
+  - name: Flatcar
+    features:
+      api_driven: "partial"
+      transactional_updates: "yes"
+      no_ssh: "no"
+      image_based: "yes"
+      config_mgmt_friendly: "partial"
+      kubernetes_native: "no"
+      oss: "yes"
+  - name: Bottlerocket
+    features:
+      api_driven: "yes"
+      transactional_updates: "yes"
+      no_ssh: "yes"
+      image_based: "yes"
+      config_mgmt_friendly: "no"
+      kubernetes_native: "yes"
+      oss: "yes"
+  - name: Ubuntu Core
+    features:
+      api_driven: "partial"
+      transactional_updates: "yes"
+      no_ssh: "no"
+      image_based: "yes"
+      config_mgmt_friendly: "no"
+      kubernetes_native: "no"
+      oss: "yes"
+  - name: Ubuntu + Ansible
+    features:
+      api_driven: "no"
+      transactional_updates: "no"
+      no_ssh: "no"
+      image_based: "no"
+      config_mgmt_friendly: "yes"
+      kubernetes_native: "no"
+      oss: "yes"

@@ -23,3 +23,5 @@ The progressive-delivery landscape paper: **[Progressive Delivery & the Service-
 The GitOps landscape paper: **[GitOps at Small Scale](/docs/papers/06-gitops-at-small-scale/)** — six contenders for who watches Git and reconciles your cluster, and why Frank picks ArgoCD's App-of-Apps as a single point of declarative truth.
 
 Then the observability landscape paper: **[The Observability Stack, Honestly](/docs/papers/07-observability-honestly/)**.
+
+The foundation OS paper: **[Immutable OS & Declarative Machines](/docs/papers/02-immutable-os/)** — the six contenders for cluster-node operating systems in 2026, and why Frank runs Talos on every node and absorbs the re-training curve as the price of admission.

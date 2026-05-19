@@ -1,0 +1,449 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/02-immutable-os/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 02 frontmatter
+
+
+      Update `blog/content/docs/papers/02-immutable-os/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "Immutable OS & Declarative Machines"
+      date: <today>
+      draft: true
+      weight: 2
+      series: ["papers"]
+      layer: os
+      paper_number: 2
+      publish_order: 8
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["os", "talos", "immutable", "kubernetes", "homelab"]
+      capabilities: ["os"]
+      related_building: "docs/building/02-foundation"
+      related_operating: "docs/operating/01-cluster-nodes"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 2` matches paper_number for TOC order.
+      `publish_order: 8` reflects this being the eighth Paper to
+      publish (`00 → 10 → 04 → 11 → 14 → 06 → 07 → 02`).
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      ```yaml
+      # blog/content/docs/papers/02-immutable-os/data/vendors.yaml
+      features:
+        - key: api_driven
+          label: "API-driven config"
+        - key: transactional_updates
+          label: "Transactional updates"
+        - key: no_ssh
+          label: "No SSH / no shell"
+        - key: image_based
+          label: "Image-based root"
+        - key: config_mgmt_friendly
+          label: "Config-mgmt friendly (Ansible/Puppet)"
+        - key: kubernetes_native
+          label: "K8s-purpose-built"
+        - key: oss
+          label: "Open source"
+      vendors:
+        - name: Talos Linux
+          features:
+            api_driven: "yes"
+            transactional_updates: "yes"
+            no_ssh: "yes"
+            image_based: "yes"
+            config_mgmt_friendly: "no"
+            kubernetes_native: "yes"
+            oss: "yes"
+        - name: Fedora CoreOS
+          features:
+            api_driven: "partial"
+            transactional_updates: "yes"
+            no_ssh: "no"
+            image_based: "yes"
+            config_mgmt_friendly: "partial"
+            kubernetes_native: "no"
+            oss: "yes"
+        - name: Flatcar
+          features:
+            api_driven: "partial"
+            transactional_updates: "yes"
+            no_ssh: "no"
+            image_based: "yes"
+            config_mgmt_friendly: "partial"
+            kubernetes_native: "no"
+            oss: "yes"
+        - name: Bottlerocket
+          features:
+            api_driven: "yes"
+            transactional_updates: "yes"
+            no_ssh: "yes"
+            image_based: "yes"
+            config_mgmt_friendly: "no"
+            kubernetes_native: "yes"
+            oss: "yes"
+        - name: Ubuntu Core
+          features:
+            api_driven: "partial"
+            transactional_updates: "yes"
+            no_ssh: "no"
+            image_based: "yes"
+            config_mgmt_friendly: "no"
+            kubernetes_native: "no"
+            oss: "yes"
+        - name: Ubuntu + Ansible (mutable baseline)
+          features:
+            api_driven: "no"
+            transactional_updates: "no"
+            no_ssh: "no"
+            image_based: "no"
+            config_mgmt_friendly: "yes"
+            kubernetes_native: "no"
+            oss: "yes"
+      ```
+
+      Polarity check: "yes" = the option HAS that feature. Verify
+      against the conventions in Paper 00 / 04 / 10 / 11.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      Opening question: *if you're going to run Kubernetes on
+      hardware you own, what OS keeps the nodes from drifting — and
+      how do you re-deploy a node from zero without ever logging
+      into it?* Position the OS in the stack: below the kernel-CNI
+      line, above firmware/bare-metal, sibling to bootloader and
+      init system. Acknowledge that "immutable OS" is doing several
+      jobs at once — read-only root, transactional updates, declarative
+      config, the absence of shell access — and the vendor space
+      splits on which of those jobs each option treats as the primary
+      one.
+
+      Voice: Frank speaks as the cluster. No hedging. The question
+      is real, the answers diverge.
+
+      Include one `flowchart LR` Mermaid diagram showing the OS's
+      stack position:
+
+      ```
+      flowchart LR
+          W["Workloads (pods)"] --> K["Kubelet + CRI"]
+          K --> OS["Immutable OS layer"]
+          OS --> R["Read-only root"]
+          OS --> U["Transactional updates"]
+          OS --> C["Declarative config"]
+          OS --> A["No-SSH access"]
+          OS -.-> BM["Bare metal / firmware"]
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the six vendors against two axes. Use `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:mutable↔immutable,y:config-mgmt↔API-driven" >}}
+          quadrantChart
+              title Immutable OS landscape — 2026
+              x-axis Mutable --> Immutable
+              y-axis Config-mgmt overlay --> API-driven
+              quadrant-1 "Immutable · API-driven"
+              quadrant-2 "Mutable · API-driven"
+              quadrant-3 "Mutable · Config-mgmt"
+              quadrant-4 "Immutable · Config-mgmt"
+              Talos Linux: [0.92, 0.92]
+              Bottlerocket: [0.85, 0.85]
+              Fedora CoreOS: [0.75, 0.40]
+              Flatcar: [0.72, 0.42]
+              Ubuntu Core: [0.70, 0.30]
+              Ubuntu + Ansible: [0.15, 0.20]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("Talos: machine config as a single
+      YAML blob"; "Bottlerocket: AWS-aligned, Auto Scaling Group
+      friendly"; "Fedora CoreOS: rpm-ostree A/B with Ignition for
+      bootstrap"; "Ubuntu + Ansible: the familiar default, mutable
+      and surveyable") and what it gives up. Use `{{< papers/pullquote >}}`
+      for at least one direct quote from the dossier (probably Morris's
+      ImmutableServer essay or the Talos design docs).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: rebuilding a node from zero, with no drift, no
+      interactive steps, and no chance for a careless `apt-get` to
+      invalidate cluster invariants. Each vendor has a different
+      answer; this section lays them out side-by-side with one
+      `flowchart TD` per vendor in a shared visual language.
+
+      Shared shapes (reuse across all diagrams):
+      - Squares = control-plane / management surface (Omni, Ignition, AWS API)
+      - Cylinders = on-disk state (rootfs partition, config volume)
+      - Hexagons = the operator-facing interface (talosctl, ignition.json, user-data)
+      - Dashed edges = update / re-render paths
+      - Solid edges = boot / runtime paths
+
+      Four-to-six architecture diagrams (one per meaningfully
+      different vendor). Skip the Ubuntu+Ansible baseline here — it
+      doesn't have a "hard part" the same way the others do, which is
+      the §6 punchline.
+
+      Example for Talos:
+
+      ```
+      flowchart TD
+          subgraph T["Talos + Omni"]
+              O["Omni (mgmt)"]
+              M["Machine config (YAML)"]
+              K[("Talos rootfs (read-only)")]
+              A{{"talosctl"}}
+          end
+          O --> M
+          M -.-> K
+          A --> O
+          A -.-> K
+      ```
+
+      For each diagram include 80–200 words of prose: what gets
+      re-rendered on a config change, what survives a reboot, what
+      the rollback path looks like, what the failure mode is when
+      "nothing applies".
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Node count.** At 1 node, you have a laptop / dev VM —
+         Talos is overkill; mutable+Ansible is fine. At 5–20 nodes,
+         immutable wins because human-paced config drift becomes the
+         failure mode. At 100+ nodes, immutable is the only sane
+         choice — Bottlerocket+ASG or Talos+Omni both work; pick on
+         vendor alignment.
+      2. **Heterogeneity.** Frank's seven nodes span x86, ARM,
+         iGPU, dGPU, and a 2013 i5-3570K. Talos's machine-config
+         render pipeline absorbs that heterogeneity by parameterizing
+         on machine ID. A mutable+Ansible host group would need per-host
+         playbooks; an image-based approach (CoreOS, Flatcar, Bottlerocket)
+         needs per-platform images. Talos's API-driven model is the
+         cheapest at heterogeneity.
+      3. **Update cadence.** Bottlerocket+ASG can do continuous
+         rolling node replacement because the management plane (ASG)
+         schedules it. Talos+Omni does it via `talosctl upgrade` per
+         machine — manual today, soon to be Omni-orchestrated. CoreOS/
+         Flatcar use Zincati/locksmithd to coordinate within a fleet,
+         which is closer to the Bottlerocket model. The mutable baseline
+         relies on whatever you bolted on top (unattended-upgrades,
+         Ansible cron, Foreman, etc.) — usually the weakest link.
+
+      Cite ≥2 primary sources from the dossier (Morris's ImmutableServer
+      essay for the philosophical baseline, plus a Talos or Bottlerocket
+      vendor doc for the API-driven update model).
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank chose Talos. Every node, control-plane and worker, on
+      Frank's home cluster and on the Hop edge cluster. Two
+      management surfaces — Sidero Omni for Frank, plain `talosctl`
+      for Hop — but the same underlying OS and the same declarative
+      machine-config model. Honest about the cost: this is a steep
+      re-training curve, and the things you learned about Linux
+      day-2 ops mostly don't apply.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative options:
+
+      Scar 1 — the `--config-patch` rebuild semantics:
+      ```
+      {{< papers/scar date="2025-XX-XX" >}}
+      We applied a single config patch on top of Talos's running
+      config and watched half the change take effect and the other
+      half silently get dropped. The lesson: `talosctl apply-config
+      --config-patch` rebuilds the base file, not the running
+      config. Every patch must arrive as part of one full
+      invocation — there is no incremental patch model the way
+      kubectl conditioned us to expect.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — the Hop single-node `allowSchedulingOnControlPlanes`:
+      ```
+      {{< papers/scar date="2025-XX-XX" >}}
+      Hop is a single-node cluster. By default Talos refuses to
+      schedule workloads on a control-plane node. The fix is
+      `allowSchedulingOnControlPlanes: true` in the cluster config
+      — but only after we'd spent an evening assuming our CNI was
+      broken because no pods ever entered Running. The immutable-
+      OS guarantee includes "no — you can't do that the old way",
+      and "the old way" sometimes means "the only way that ever
+      made sense on a single-node cluster".
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — the GPU validation fix:
+      ```
+      {{< papers/scar date="2025-XX-XX" >}}
+      We tried to bring up the GPU layer with the off-the-shelf
+      NVIDIA GPU Operator. Its init containers wait forever for
+      `/run/nvidia/validations/toolkit-ready`, a file the toolkit
+      DaemonSet would normally create — except Talos disables that
+      DaemonSet because the driver and toolkit come from system
+      extensions. The fix landed as a separate plan, `gpu--
+      operator-talos-fix`, with its own scar tissue. The immutable-
+      OS guarantee includes "no — you can't do that the old way".
+      {{< /papers/scar >}}
+      ```
+
+      Pick the scars that best carry §5's argument. Real dates only —
+      pull from `agents/rules/frank-gotchas.md`, `agents/rules/hop-
+      gotchas.md`, and `git log patches/`.
+
+      Include ≥1 evidence artefact — an Omni UI screenshot (or
+      placeholder if cluster access is unavailable) showing the 7
+      machines in the `frank` cluster, all running the same Talos
+      version, referenced inline with a Markdown image link.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one leaf;
+      the others are real:
+
+      ```
+      flowchart TD
+          A["What are you running?"] -- "Laptop / single VM / dev" --> L1["Ubuntu Server (or any general-purpose distro)"]
+          A -- "Bare-metal homelab / small heterogeneous cluster" --> L2["Talos Linux (Frank's pick)"]
+          A -- "AWS / EKS shop" --> L3["Bottlerocket"]
+          A -- "Edge devices / IoT / appliance" --> L4["Ubuntu Core or Flatcar"]
+      ```
+
+      ≤4 visible leaves. Frank's pick (Talos) is one of them; the
+      other three are honest defaults — not strawmen. If a fifth-
+      leaf "production CoreOS shop" override matters, fold it into
+      prose as a dashed-subordinate branch, not a visible leaf. The
+      decision tree must still read as four honest answers to
+      "what should you actually run?".
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **Image-based Linux going mainstream.** The CoreOS pattern
+         (atomic A/B updates, Ignition for first-boot) is becoming
+         table-stakes. Even traditional distros are bolting it on
+         (Ubuntu Core, Fedora Silverblue, openSUSE MicroOS).
+      2. **API-driven OS as a contract surface.** Talos's
+         `talosctl` and Bottlerocket's API server are both signals
+         that "the OS is a resource you reconcile against" is the
+         near-future model. Config-management tools (Ansible,
+         Puppet) become the legacy interoperability layer rather
+         than the primary surface.
+      3. **Kubernetes-purpose-built distros normalising.** Talos,
+         Bottlerocket, k0s, k3OS — the "general-purpose Linux that
+         happens to run Kubernetes" model is losing ground to
+         "Linux purpose-built for Kubernetes nodes". The cost is
+         re-training; the win is one fewer config dimension.
+
+      Optional timeline diagram or roadmap citations. Cite the dossier
+      where possible.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/02-immutable-os/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If over,
+      trim §3 first.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-05-19T14:10:24+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-05-19T14:10:27+00:00'
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: '2026-05-19T14:10:29+00:00'
+      note: null
+    P3.T3.S2:
+      state: x
+      ticked_at: '2026-05-19T14:10:31+00:00'
+      note: null
+    P3.T3.S3:
+      state: x
+      ticked_at: '2026-05-19T14:10:33+00:00'
+      note: null
+    P3.T3.S4:
+      state: x
+      ticked_at: '2026-05-19T14:10:35+00:00'
+      note: null
+    P3.T3.S5:
+      state: x
+      ticked_at: '2026-05-19T14:10:37+00:00'
+      note: null
+    P3.T3.S6:
+      state: x
+      ticked_at: '2026-05-19T14:10:39+00:00'
+      note: null
+    P3.T3.S7:
+      state: x
+      ticked_at: '2026-05-19T14:10:41+00:00'
+      note: null
+    P3.T3.S8:
+      state: x
+      ticked_at: '2026-05-19T14:10:43+00:00'
+      note: null
+  completion:
+    at: '2026-05-19T14:10:45+00:00'
+    note: null
+    observed_prs: []

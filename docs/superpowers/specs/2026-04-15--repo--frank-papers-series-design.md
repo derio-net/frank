@@ -394,3 +394,4 @@ Phase 0 done → Paper 00 dossier → Paper 00 draft → publish → Phase 1 ope
 | The Frank Papers — Paper 14: Progressive Delivery & the Service-Mesh Tax | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-14/` | Complete (2026-05-19) — PR open for review |
 | The Frank Papers — Paper 06: GitOps at Small Scale | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-06/` | Complete (2026-05-19) — published |
 | The Frank Papers — Paper 07: The Observability Stack, Honestly | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-07/` | Complete (2026-05-19) — published |
+| The Frank Papers — Paper 02: Immutable OS & Declarative Machines | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-02/` | Complete (2026-05-19) — published |

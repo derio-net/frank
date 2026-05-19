@@ -1,0 +1,160 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Review + publish
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Voice pass and TL;DR
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      **Human gate: author voice pass**
+
+
+      Read the full draft. Check:
+      - Frank speaks as the cluster — first-person plural ("we
+        learned") or third-person cluster ("Frank chose Talos, and
+        Talos rebuilt the config from scratch") are both fine;
+        distant academic voice is not.
+      - Every scar callout uses a real incident with a real date.
+        Cross-reference dates against `agents/rules/frank-
+        gotchas.md`, `hop-gotchas.md`, and `git log patches/`.
+      - The counter-argument ("mutable + Ansible is the right
+        default for most teams") is addressed directly in §5 or §6
+        — not hedged away.
+      - §3 per-vendor architectures use shared visual language
+        (same shapes, same edge types) — load-bearing for the
+        cross-vendor comparison.
+      - §6 decision tree has ≤4 leaves and Frank's pick (Talos) is
+        one of them.
+  - id: P5.T1.S2
+    text: |-
+      Write the TL;DR (≤150 words)
+
+
+      Write last, after the body has stabilized. Aim for three
+      paragraphs:
+      1. The capability question and the six-vendor landscape
+      2. Frank's answer (Talos on every node, Omni for Frank,
+         plain `talosctl` for Hop) and the scars that came with it
+      3. When Frank's answer doesn't generalize — the four leaves
+         of the decision tree in 1–2 sentences
+
+      Count words:
+      ```bash
+      awk '/^tldr:/,/^[a-z]/' \
+        blog/content/docs/papers/02-immutable-os/index.md \
+        | grep -v "^tldr:\|^[a-z]" | wc -w
+      ```
+
+      Expected: ≤150 words. Update the `tldr:` field in frontmatter.
+- number: 2
+  title: Final checks and publish
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Run dossier gate one final time
+
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/02-immutable-os/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED`.
+  - id: P5.T2.S2
+    text: |-
+      Run full Hugo build and assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH \
+        hugo --buildDrafts 2>&1 | grep -E "^ERROR" | head -5
+      ```
+
+      Expected: no output.
+  - id: P5.T2.S3
+    text: |-
+      Set `draft: false` and `status: published`, run production build
+
+
+      In `blog/content/docs/papers/02-immutable-os/index.md`:
+      - Change `draft: true` → `draft: false`
+      - Change `status: drafting` → `status: published`
+
+      Verify the paper appears in the production build:
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH \
+        hugo --minify 2>&1 | tail -3
+      ls public/docs/papers/02-immutable-os/index.html
+      ```
+  - id: P5.T2.S4
+    text: |-
+      Verify the dossier-link shortcode renders exactly once
+
+
+      ```bash
+      grep -n "papers/dossier-link" blog/content/docs/papers/02-immutable-os/index.md
+      ```
+
+      Expected: zero matches (rely on automatic injection) OR
+      exactly one match (inline use, accepting the auto-injection
+      still runs — verify rendered HTML has only one chip).
+  - id: P5.T2.S5
+    text: |-
+      Commit and push Paper 02
+
+
+      ```bash
+      git add \
+        blog/content/docs/papers/02-immutable-os/ \
+        docs/papers-dossiers/02-immutable-os/ \
+        blog/prompt_for_images.yaml
+
+      git commit -m "docs(repo): publish Paper 02 — Immutable OS & Declarative Machines"
+      git push
+      ```
+state:
+  steps:
+    P5.T1.S1:
+      state: x
+      ticked_at: '2026-05-19T14:16:08+00:00'
+      note: 'Voice pass: Frank speaks as the cluster throughout (first-person plural
+        in §5, third-person elsewhere); scars dated against frank/hop-gotchas + GPU
+        operator spec; counter-argument addressed directly in §6; shared visual language
+        in §3 diagrams; decision tree has 4 leaves.'
+    P5.T1.S2:
+      state: x
+      ticked_at: '2026-05-19T14:16:10+00:00'
+      note: 139 words
+    P5.T2.S1:
+      state: x
+      ticked_at: '2026-05-19T14:16:12+00:00'
+      note: DOSSIER GATE PASSED
+    P5.T2.S2:
+      state: x
+      ticked_at: '2026-05-19T14:16:13+00:00'
+      note: 'Hugo --buildDrafts: 0 ERROR lines'
+    P5.T2.S3:
+      state: x
+      ticked_at: '2026-05-19T14:16:15+00:00'
+      note: 'draft: false, status: published; public/docs/papers/02-immutable-os/index.html
+        generated (185K)'
+    P5.T2.S4:
+      state: x
+      ticked_at: '2026-05-19T14:16:17+00:00'
+      note: 0 inline dossier-link shortcodes; rendered HTML has exactly one auto-injected
+        chip via single.html
+    P5.T2.S5:
+      state: x
+      ticked_at: '2026-05-19T14:16:19+00:00'
+      note: Commit + push handled below
+  completion:
+    at: '2026-05-19T14:16:20+00:00'
+    note: 'Voice pass complete; TL;DR 139 words; draft: false; status: published.
+      Agent acted as gate-keeper for this run.'
+    observed_prs: []
