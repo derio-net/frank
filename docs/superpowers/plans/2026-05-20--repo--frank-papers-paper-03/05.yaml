@@ -1,0 +1,158 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Review + publish
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Voice pass and TL;DR
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      **Human gate: author voice pass**
+
+      Read the full draft. Check:
+      - Frank speaks as the cluster — first-person plural ("we
+        learned") or third-person cluster ("Frank chose Cilium, and
+        the FQDN policy persisted in the kernel for hours after
+        deletion") are both fine; distant academic voice is not.
+      - Every scar callout uses a real incident with a real date.
+        Cross-reference dates against `docs/runbooks/frank-gotchas/networking.md`
+        and the comment blocks in `apps/cilium/`.
+      - The counter-argument ("VPC CNI is the rational default on
+        AWS") is addressed directly in §5 or §6 — not hedged away.
+      - §3 per-vendor architectures use shared visual language
+        (same shapes, same edge types) — that's load-bearing for
+        cross-vendor comparison.
+      - §6 decision tree has ≤4 leaves.
+  - id: P5.T1.S2
+    text: |-
+      Write the TL;DR (≤150 words)
+
+      Write last, after the body has stabilized. Aim for three
+      short paragraphs:
+      1. The capability question and the six-vendor landscape (one
+         sentence)
+      2. Frank's answer (Cilium with eBPF kube-proxy replacement,
+         L2 LBIPAM, Hubble — no service mesh) and the scars (one
+         sentence)
+      3. When Frank's answer doesn't generalize — the decision tree
+         in 1–2 sentences
+
+      Count words:
+      ```bash
+      awk '/^tldr:/,/^[a-z]/' \
+        blog/content/docs/papers/03-ebpf-networking/index.md \
+        | grep -v "^tldr:\|^[a-z]" | wc -w
+      ```
+
+      Expected: ≤150 words. Update the `tldr:` field in the
+      frontmatter AND any TL;DR section body that mirrors it.
+- number: 2
+  title: Final checks and publish
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Run dossier gate one final time
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/03-ebpf-networking/dossier.md
+      ```
+
+      Expected: `DOSSIER GATE PASSED`.
+  - id: P5.T2.S2
+    text: |-
+      Run full Hugo build and assert zero errors
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --buildDrafts 2>&1 | grep -E "^ERROR" | head -5
+      ```
+
+      Expected: no output (zero errors).
+  - id: P5.T2.S3
+    text: |-
+      Set `draft: false` and `status: published`, run production build
+
+      In `blog/content/docs/papers/03-ebpf-networking/index.md`:
+      - Change `draft: true` → `draft: false`
+      - Change `status: drafting` → `status: published`
+
+      Verify the paper appears in the production build (without `--buildDrafts`):
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify 2>&1 | tail -3
+      ls public/docs/papers/03-ebpf-networking/index.html
+      ```
+
+      Expected: `public/docs/papers/03-ebpf-networking/index.html`
+      exists.
+  - id: P5.T2.S4
+    text: |-
+      Verify the dossier-link shortcode renders exactly once
+
+      single.html auto-injects the dossier-link chip in the footer.
+      If §5 or §7 also uses `{{< papers/dossier-link paper="..." >}}`
+      inline, the chip renders twice. Choose one or the other:
+
+      ```bash
+      grep -n "papers/dossier-link" blog/content/docs/papers/03-ebpf-networking/index.md
+      ```
+
+      Expected: zero matches (rely on automatic injection) OR
+      exactly one match (inline use, accepting that the footer
+      auto-injection also runs — verify the rendered HTML has
+      only one chip).
+  - id: P5.T2.S5
+    text: |-
+      Commit and push Paper 03
+
+      The publish commit lands as part of the single-PR-six-commits
+      cadence — one commit per phase, all pushed to branch
+      `paper-03`. The PR stays open at the end for human review.
+
+      ```bash
+      git add \
+        blog/content/docs/papers/03-ebpf-networking/ \
+        docs/papers-dossiers/03-ebpf-networking/ \
+        blog/prompt_for_images.yaml
+
+      git commit -m "feat(papers): Paper 03 — Phase 5: Review + publish"
+      git push
+      ```
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

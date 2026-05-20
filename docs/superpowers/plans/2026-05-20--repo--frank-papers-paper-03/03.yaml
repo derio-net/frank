@@ -1,0 +1,483 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/03-ebpf-networking/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 03 frontmatter
+
+      Update `blog/content/docs/papers/03-ebpf-networking/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "eBPF Networking Without a Service Mesh"
+      date: <today>
+      draft: true
+      weight: 4
+      series: ["papers"]
+      layer: net
+      paper_number: 3
+      publish_order: 9
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["cilium", "ebpf", "kubernetes", "service-mesh", "networking"]
+      capabilities: ["net"]
+      related_building: "docs/building/02-foundation"
+      related_operating: "docs/operating/01-cluster-nodes"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 4` keeps it sorted between Paper 02 and Paper 04.
+      `publish_order: 9` reflects this being the ninth Paper to publish
+      (after 00 → 10 → 04 → 11 → 14 → 06 → 07 → 02 → 03).
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+      Create `blog/content/docs/papers/03-ebpf-networking/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: ebpf_dataplane
+          label: eBPF data plane
+        - key: kube_proxy_replacement
+          label: kube-proxy replacement
+        - key: l4_loadbalancer
+          label: Built-in L4 LoadBalancer
+        - key: network_policy
+          label: NetworkPolicy enforcement
+        - key: l7_policy
+          label: L7 policy (HTTP / gRPC)
+        - key: flow_observability
+          label: Flow-level observability
+        - key: mtls
+          label: Mutual TLS between pods
+        - key: bare_metal
+          label: Works on bare metal
+        - key: oss
+          label: OSS / no contract required
+      vendors:
+        - name: Cilium
+          features:
+            ebpf_dataplane: "yes"
+            kube_proxy_replacement: "yes"
+            l4_loadbalancer: "yes"
+            network_policy: "yes"
+            l7_policy: "yes"
+            flow_observability: "yes"
+            mtls: "partial"
+            bare_metal: "yes"
+            oss: "yes"
+        - name: Calico
+          features:
+            ebpf_dataplane: "yes"
+            kube_proxy_replacement: "yes"
+            l4_loadbalancer: "no"
+            network_policy: "yes"
+            l7_policy: "no"
+            flow_observability: "partial"
+            mtls: "no"
+            bare_metal: "yes"
+            oss: "yes"
+        - name: kube-proxy + iptables
+          features:
+            ebpf_dataplane: "no"
+            kube_proxy_replacement: "no"
+            l4_loadbalancer: "no"
+            network_policy: "partial"
+            l7_policy: "no"
+            flow_observability: "no"
+            mtls: "no"
+            bare_metal: "yes"
+            oss: "yes"
+        - name: Istio
+          features:
+            ebpf_dataplane: "no"
+            kube_proxy_replacement: "no"
+            l4_loadbalancer: "no"
+            network_policy: "yes"
+            l7_policy: "yes"
+            flow_observability: "yes"
+            mtls: "yes"
+            bare_metal: "yes"
+            oss: "yes"
+        - name: Linkerd2
+          features:
+            ebpf_dataplane: "no"
+            kube_proxy_replacement: "no"
+            l4_loadbalancer: "no"
+            network_policy: "partial"
+            l7_policy: "partial"
+            flow_observability: "yes"
+            mtls: "yes"
+            bare_metal: "yes"
+            oss: "yes"
+        - name: AWS VPC CNI
+          features:
+            ebpf_dataplane: "no"
+            kube_proxy_replacement: "no"
+            l4_loadbalancer: "partial"
+            network_policy: "partial"
+            l7_policy: "no"
+            flow_observability: "partial"
+            mtls: "no"
+            bare_metal: "no"
+            oss: "yes"
+      ```
+
+      Polarity check: "yes" = the option HAS that feature. Adjust to
+      match the conventions established by Paper 00's
+      `approaches.yaml` if the capability-matrix shortcode reads
+      polarity differently.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+      The opening question: *who carries the packet from pod A to pod
+      B, who enforces the policy that says A can talk to B at all, and
+      who tells you afterwards what just happened — and what tax do
+      they charge for any of it?* Position networking in the stack:
+      below the workload, above the kernel, sibling to storage and
+      scheduling. Acknowledge that "networking" is doing several jobs
+      at once — pod-to-pod routing, Service abstraction (kube-proxy or
+      replacement), NetworkPolicy enforcement, external load
+      balancing, flow observability, optional mTLS — and the vendor
+      space splits on which of those jobs each option treats as
+      primary.
+
+      Voice: Frank speaks as the cluster. No hedging. The question is
+      real, the answers diverge.
+
+      Include one `flowchart LR` Mermaid diagram showing the stack
+      position and the six jobs the network layer does:
+
+      ```
+      flowchart LR
+          P["Pods"] --> CNI["CNI plugin"]
+          CNI --> KP["kube-proxy or replacement"]
+          CNI --> NP["NetworkPolicy enforcement"]
+          CNI --> LB["L4 LoadBalancer (LBIPAM / BGP)"]
+          CNI --> OBS["Flow observability"]
+          CNI -.-> MESH["Service mesh (optional)"]
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+      Map the six vendors against two axes. Use `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:userspace-sidecar↔kernel-ebpf,y:reactive-only↔structured-observability" >}}
+          quadrantChart
+              title eBPF networking — 2026
+              x-axis "Userspace sidecar" --> "Kernel / eBPF"
+              y-axis "Reactive only" --> "Structured observability"
+              quadrant-1 "Kernel · Observable"
+              quadrant-2 "Userspace · Observable"
+              quadrant-3 "Userspace · Reactive"
+              quadrant-4 "Kernel · Reactive"
+              "Cilium": [0.85, 0.80]
+              "Calico": [0.70, 0.45]
+              "kube-proxy + iptables": [0.55, 0.05]
+              "Istio": [0.10, 0.85]
+              "Linkerd2": [0.15, 0.75]
+              "AWS VPC CNI": [0.40, 0.40]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("Cilium: data-plane and
+      observability fused in the kernel"; "Istio: per-request control,
+      paid for in sidecars") and what it gives up to get there. Use
+      `{{< papers/pullquote source="..." url="..." >}}` for at least
+      one direct quote pulled from the dossier (likely the Cilium
+      architecture doc defining `kubeProxyReplacement`).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+      The hard part: *carrying a packet from one pod to another with
+      policy enforcement, observability, and load-balancing, without
+      paying per-request overhead that would not exist if there were
+      no abstraction.* Each vendor has a different answer; this
+      section lays them out side-by-side with one `flowchart TD` per
+      vendor in a shared visual language.
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = control-plane components (agent, controller)
+      - Rounded rectangles = pods / workloads
+      - Diamonds = decision points (policy gates, mesh routing)
+      - Cylinders = kernel data structures (BPF maps, conntrack)
+      - Dashed edges = control / policy paths
+      - Solid edges = data-plane / packet paths
+
+      Five architecture diagrams (one per vendor that has a
+      meaningfully different answer). Skip kube-proxy + iptables here
+      — its "hard part" is "there isn't one", which is the §6 punchline
+      for small clusters.
+
+      Example for Cilium:
+
+      ```
+      flowchart TD
+          subgraph CIL["Cilium (eBPF kernel)"]
+              AGT["cilium-agent (per-node)"]
+              BPF[("BPF maps · endpoints + policy")]
+              XDP{"XDP / tc hooks"}
+              HUB["Hubble (flow logs)"]
+          end
+          P1(("Pod A"))
+          P2(("Pod B"))
+          AGT --> BPF
+          P1 --> XDP
+          XDP -.-> BPF
+          XDP --> P2
+          XDP -.-> HUB
+      ```
+
+      For each diagram include 80–200 words of prose: what the data
+      plane does at packet-forward time, where policy is enforced,
+      what the failure mode is when the data plane is misconfigured
+      or the controller crashes.
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Pod count and BPF map sizing.** Cilium's BPF maps have
+         compile-time-bounded sizes. At 5k endpoints the defaults
+         work; at 50k endpoints you start hitting policy-map
+         exhaustion and have to retune. iptables-based kube-proxy
+         degrades linearly with Service count — at 5k Services the
+         kube-proxy resync is measured in minutes. State the
+         crossover honestly.
+
+      2. **Per-request mesh overhead.** Istio sidecars add ~1-2ms
+         P50 and 5-10ms P99 to every request. Linkerd2's Rust proxy
+         is closer to 0.5ms P50. At 10 RPS that's free; at 10k RPS
+         it's a SLO budget. Cilium's L7 inspection on the eBPF
+         fast path measures in microseconds — but only for the
+         protocols its parser supports. Cite ≥2 primary sources.
+
+      3. **Observability stack footprint.** Hubble's flow logs are
+         cheap (BPF ring buffer); Istio's distributed-traces
+         pipeline is not. At 1k RPS, the trace storage and
+         aggregation cost can match the workload's own resource
+         budget. This is the "observable by default" axis.
+
+      Cite ≥2 primary sources from the dossier (Cilium architecture
+      doc + a practitioner benchmark). Do not editorialize past what
+      the citations support.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+      Frank chose Cilium. eBPF kube-proxy replacement on Talos, L2
+      LBIPAM advertising on `eth*`/`en*` interfaces, Hubble UI on
+      192.168.55.202, IPAM in kubernetes mode. No service mesh.
+      Honest about the cost: every single scar listed below was
+      discovered by stepping on it in production.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative options
+      from the gotcha registry:
+
+      Scar 1 — FQDN CiliumNetworkPolicy stale BPF rule retention:
+      ```
+      {{< papers/scar date="2026-03-12" >}}
+      An FQDN CiliumNetworkPolicy banned a misbehaving image
+      registry. We deleted the policy. Pods still couldn't reach
+      the registry. The DNS proxy's BPF maps had cached the
+      original block decision and persisted in the data path for
+      hours after the CiliumNetworkPolicy was gone. Restarting the
+      Cilium agent on each node cleared the LRU; without that, the
+      deleted policy continued enforcing itself silently. The
+      controller's view of the world and the kernel's view of the
+      world had drifted apart, and only the kernel's view was
+      carrying packets.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — LBIPAM `sharing-key` required (41-day Gitea SSH outage):
+      ```
+      {{< papers/scar date="2026-04-09" >}}
+      We tried to share one LoadBalancer IP between Gitea's two
+      Services (HTTP :3000 and SSH :2222 — the chart splits them).
+      We annotated both with `lbipam.cilium.io/ips:
+      "192.168.55.209"`. The HTTP Service got the IP; the SSH
+      Service stayed `EXTERNAL-IP <pending>` for 41 days. No
+      event, no error, no diagnostic except `kubectl describe`.
+      The fix turned out to be a second annotation —
+      `lbipam.cilium.io/sharing-key: "gitea"` — on both Services.
+      The `ips` annotation alone is a request for an IP, not a
+      sharing directive. Cilium documents this; we did not read
+      the doc carefully enough. The outage hid in plain sight
+      because pipelines clone via the in-cluster ClusterIP and
+      only operator workstations needing `git@host:repo.git`
+      were affected — and they had quietly switched to HTTPS.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — MixedProtocolLBService is gate-free on Cilium 1.17 + K8s 1.35:
+      ```
+      {{< papers/scar date="2026-05-02" >}}
+      Two protocols needed to share one IP — TCP/22 for SSH and
+      UDP/60000-60015 for mosh. We assumed Cilium would need a
+      feature gate for MixedProtocolLBService and went hunting
+      through old GitHub issues from the 2022-era debate. The
+      issue had been settled long ago: Cilium 1.17 on K8s 1.35
+      ships with it on, no annotation, no gate, no per-protocol
+      service split. The ports bind on a single EndpointSlice
+      and answer from the same Pod. We spent half an hour
+      reading old issues for a flag we did not need to flip.
+      *Reading old GitHub issues is not the same as reading the
+      current release notes.*
+      {{< /papers/scar >}}
+      ```
+
+      Pick 2-3 scars from the above. Real dates only — pull from
+      `docs/runbooks/frank-gotchas/networking.md` cross-referenced
+      with `apps/cilium/manifests/`.
+
+      Include ≥1 evidence artefact: either the Hubble UI screenshot
+      from P4.T3 or `apps/cilium/values.yaml` inlined as a code block.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+      Be explicit about the four leaves. Frank's answer is one
+      leaf; the others are real:
+
+      ```
+      flowchart TD
+          A["Cluster topology?"] -- "Solo dev / single-node" --> L1["kube-proxy + iptables (Cilium is overkill)"]
+          A -- "Small bare-metal cluster, opinionated tooling" --> L2["Cilium (Frank's pick)"]
+          A -- "Multi-mesh / mTLS-everywhere enterprise" --> L3["Istio (+ Flagger for canary)"]
+          A -- "AWS-native" --> L4["VPC CNI (+ Cilium chaining for policy if needed)"]
+      ```
+
+      ≤4 visible leaves. The decision turns on two questions: *how
+      much do you control the kernel* (cloud-managed: not at all;
+      bare-metal: completely), and *do you need L7 policy or just
+      L3/L4* (if just L3/L4, the userspace mesh tax is a non-starter
+      below mid-five-figure RPS; if L7 with mTLS, sidecar-based mesh
+      is the mature answer). The Cilium leaf is for the cluster that
+      owns its kernel and wants flow observability without sidecars.
+
+      Frank is on bare metal, so the cloud-managed leaf does not
+      apply. The Istio leaf does not apply because Frank does not
+      have the operational budget for a full mesh control plane.
+      kube-proxy + iptables would work on Frank in 2026 — but it
+      would give up the L2 LBIPAM and Hubble for nothing.
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+      Three trends worth naming:
+
+      1. **eBPF is winning the data-plane fight.** GKE Dataplane V2
+         ships Cilium by default. EKS has Cilium chaining as a
+         first-class option. Calico's eBPF data plane is GA. The
+         iptables-kube-proxy default still exists for upstream
+         compatibility but practically nobody picks it on a new
+         cluster in 2026. Cite the trend, not the breathless
+         press releases.
+
+      2. **The service-mesh and CNI layers are merging.** Cilium
+         Service Mesh and Ambient Mesh (Istio) are converging on
+         the same idea: do as much as possible in the kernel /
+         on the node, only fall back to a sidecar / per-pod
+         proxy when L7 control is genuinely needed. The "every
+         pod gets a sidecar" model is on its way out.
+
+      3. **Gateway API is replacing Service-of-type-LoadBalancer +
+         Ingress.** Cilium, Calico, and the cloud-managed CNIs all
+         support GatewayClass + Gateway + HTTPRoute. The L4
+         LoadBalancer concern (LBIPAM, BGP, MetalLB) is increasingly
+         an implementation detail of the Gateway resource.
+
+      Optional timeline diagram or roadmap citations. Cite the
+      dossier where possible.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/03-ebpf-networking/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If
+      over, trim §3 first — that's where capability papers
+      reliably sprawl past budget.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
