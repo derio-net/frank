@@ -1,15 +1,29 @@
 ---
 title: "Secrets Management Without the Bootstrap Chicken-and-Egg"
 date: 2026-05-20
-draft: true
+draft: false
 weight: 9
 series: ["papers"]
 layer: secrets
 paper_number: 9
 publish_order: 9
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  Secrets management is a five-job problem — storage, distribution,
+  rotation, audit, and the bootstrap chicken-and-egg — and the six
+  contenders in 2026 (Infisical, ESO + SOPS-in-Git, HashiCorp Vault,
+  Sealed Secrets, AWS Secrets Manager + CSI, and the null-hypothesis
+  plaintext-in-Git) each treat one or two of those jobs as primary
+  and demand a tax from the operator for the rest.
+
+  Frank runs Infisical + External Secrets Operator, with SOPS-encrypted
+  Secrets in Git as the bootstrap layer. The scars came in the seams:
+  the ExternalSecret `data: []` admission-webhook rejection, the
+  `envFrom.secretRef` without `optional: true` wedge, and the
+  three-ArgoCD-app split forced by an Infisical chart bug.
+
+  Frank's answer does not generalize. ≤20 secrets → SOPS in Git.
+  Compliance audit → Vault. Single cloud → cloud Secrets Manager + CSI.
 tags: ["secrets", "infisical", "external-secrets", "sops", "vault", "kubernetes"]
 capabilities: ["secrets"]
 related_building: "docs/building/09-secrets"
@@ -46,7 +60,21 @@ references:
 
 ## TL;DR
 
-*Write last.*
+Secrets management is a five-job problem — storage, distribution,
+rotation, audit, and the bootstrap chicken-and-egg — and the six
+contenders in 2026 (Infisical, ESO + SOPS-in-Git, HashiCorp Vault,
+Sealed Secrets, AWS Secrets Manager + CSI, and the null-hypothesis
+plaintext-in-Git) each treat one or two of those jobs as primary and
+demand a tax from the operator for the rest.
+
+Frank runs Infisical + External Secrets Operator, with SOPS-encrypted
+Secrets in Git as the bootstrap layer. The scars came in the seams:
+the ExternalSecret `data: []` admission-webhook rejection, the
+`envFrom.secretRef` without `optional: true` wedge, and the
+three-ArgoCD-app split forced by an Infisical chart bug.
+
+Frank's answer does not generalize. ≤20 secrets → SOPS in Git.
+Compliance audit → Vault. Single cloud → cloud Secrets Manager + CSI.
 
 ## §1 — The capability
 
