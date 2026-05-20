@@ -139,30 +139,31 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:30:55+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:30:57+00:00'
+      note: Gemini cover generated, 543.1 KB
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:30:59+00:00'
+      note: Only TL;DR placeholder remains, by design (Phase 5)
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:31:01+00:00'
+      note: 'Hugo --minify --buildDrafts: 0 ERROR; Paper 03 renders to 194.6 KB'
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:31:04+00:00'
+      note: Cluster access unavailable from worktree; placeholder hubble-ui-TODO.png
+        retained for cluster-side capture.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:31:06+00:00'
+      note: hugo --minify --buildDrafts clean; Paper 03 renders to 194.6 KB
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T04:31:08+00:00'
+    note: Cover generated via Gemini; Hubble UI screenshot deferred with TODO placeholder.
     observed_prs: []
