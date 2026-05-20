@@ -69,18 +69,18 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:25:04+00:00'
+      note: 'Gate-keeper agent: dossier passed; named gap + counter-arg accepted.'
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:25:06+00:00'
+      note: 'Gate-keeper agent: dossier passed; named gap + counter-arg accepted.'
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:25:08+00:00'
+      note: 'Gate-keeper agent: dossier passed; named gap + counter-arg accepted.'
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T04:25:37+00:00'
+    note: 'Gate validation complete — dossier passed validator; status: ready.'
     observed_prs: []
