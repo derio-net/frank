@@ -1,15 +1,31 @@
 ---
 title: "GPU Scheduling for Mixed Workloads"
 date: 2026-05-20
-draft: true
+draft: false
 weight: 5
 series: ["papers"]
 layer: gpu
 paper_number: 5
 publish_order: 9
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  GPU scheduling on Kubernetes is a four-job problem — driver lifecycle,
+  device discovery, allocation, partitioning — and the six contenders in
+  2026 (NVIDIA GPU Operator, Intel GPU Resource Driver / DRA, AMD ROCm
+  device plugin, NVIDIA MIG/MPS, Run.AI, and Volcano scheduler) each
+  treat one or two of those jobs as primary and demand a tax from the
+  operator for the rest.
+
+  Frank runs the NVIDIA GPU Operator on gpu-1 (with `driver.enabled: false`
+  because Talos system extensions own the driver) plus the Intel GPU
+  Resource Driver on mini-1/2/3, with an in-house gpu-switcher brokering
+  exclusive runtime access. The scars came in the seams: Talos refused
+  NVIDIA's stock driver installer, the `nvidia.com/gpu:NoSchedule` taint
+  re-asserted after restart, Ollama tripped the cgroup OOM-killer.
+
+  Frank's answer does not generalize. Single GPU → device plugin alone.
+  NVIDIA-only data centre → Operator + MIG. Multi-tenant batch → Volcano
+  or Run.AI.
 tags: ["gpu", "nvidia", "intel", "dra", "kubernetes"]
 capabilities: ["gpu"]
 related_building: "docs/building/04-gpu-compute"
@@ -37,7 +53,25 @@ references:
 
 ## TL;DR
 
-*Write last.*
+GPU scheduling on Kubernetes is a four-job problem — driver lifecycle,
+device discovery, allocation, partitioning — and the six contenders in 2026
+(NVIDIA GPU Operator, Intel GPU Resource Driver / DRA, AMD ROCm device
+plugin, NVIDIA MIG/MPS, Run.AI, and Volcano scheduler) each treat one or
+two of those jobs as primary and demand a tax from the operator for the
+rest.
+
+Frank runs the NVIDIA GPU Operator on gpu-1 (with `driver.enabled: false`
+because Talos system extensions own the driver) plus the Intel GPU Resource
+Driver on mini-1/2/3, with an in-house `gpu-switcher` brokering exclusive
+runtime access among Ollama, ComfyUI, and vLLM. The scars came in the
+seams: Talos refused NVIDIA's stock driver installer, the
+`nvidia.com/gpu:NoSchedule` taint re-asserted after every restart, Ollama
+tripped the cgroup OOM-killer with `OLLAMA_KEEP_ALIVE` pinning the page
+cache.
+
+Frank's answer does not generalize. Single GPU, single workload → device
+plugin alone. NVIDIA-only data-centre fleet → Operator + MIG/MPS.
+Multi-tenant batch at scale → Volcano (OSS) or Run.AI (commercial).
 
 ## §1 — The capability
 
