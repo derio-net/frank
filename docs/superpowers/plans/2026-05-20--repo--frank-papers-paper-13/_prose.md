@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 13: Self-Hosted CI/CD on a Homelab
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Draft (2026-05-20) — Paper 13 in progress on branch `paper-13`; PR open for human review.
+**Status:** Complete (2026-05-20) — Paper 13 draft published on branch `paper-13`; PR open for human review.
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete (scripts,
 shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Papers 00, 10, 04,
