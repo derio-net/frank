@@ -1,15 +1,30 @@
 ---
 title: "Self-Hosted CI/CD on a Homelab"
 date: 2026-05-20
-draft: true
+draft: false
 weight: 13
 series: ["papers"]
 layer: cicd
 paper_number: 13
 publish_order: 14
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  Self-hosted CI/CD is a choice between one tool or three. The six
+  contenders in 2026 — Gitea+Tekton+Zot, GitLab CE, Forgejo+Woodpecker,
+  Drone CI, Jenkins, and the SaaS baseline GitHub Actions — split on
+  integration shape and Kubernetes-nativity; the cost curve is so
+  lopsided that GitHub Actions is the rational answer until it isn't.
+
+  Frank runs Gitea + Tekton + Zot. Three tools, three LB IPs,
+  pipelines as CRDs. The scars came in the seams: a v1 Task whose
+  `spec.resources` was silently eaten because the field is
+  `computeResources`, an EventListener that dropped every Gitea
+  webhook because the github interceptor filters `X-GitHub-Event` and
+  Gitea sends `X-Gitea-Event`, a Zot chart pinned at v0.1.0 that
+  lacked TLS, auth, and persistence until v0.1.60+.
+
+  Frank's answer does not generalize. Solo OSS dev → GitHub Actions.
+  Tiny homelab → Forgejo + Woodpecker. Multi-team → GitLab CE.
 tags: ["ci-cd", "tekton", "gitea", "zot", "kubernetes"]
 capabilities: ["cicd"]
 related_building: "docs/building/27-cicd-platform"
