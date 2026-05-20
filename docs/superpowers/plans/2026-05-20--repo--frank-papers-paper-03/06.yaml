@@ -1,0 +1,158 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Post-Deploy Checklist
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Verify external publish (deferred)
+
+      Paper 03 publishes on the existing public blog at
+      `blog.derio.net/frank` after CI deploys, which happens after
+      this PR is merged by a human reviewer. URL liveness check
+      is deferred to post-merge.
+
+      Reference URL once live:
+      `https://blog.derio.net/frank/docs/papers/03-ebpf-networking/`
+  - id: P6.T1.S2
+    text: |-
+      Verify cross-link chips render bidirectionally
+
+      The `papers-backlink.html` partial auto-renders a "→ Paper 03"
+      chip on Building 02-foundation and Operating 01-cluster-nodes
+      via `related_building` / `related_operating` frontmatter. No
+      edits needed — verify post-merge.
+
+      Cross-series chip backlink verification is deferred to
+      merge-time Hugo CI build (same posture as Papers 10, 04, 11, 14).
+  - id: P6.T1.S3
+    text: |-
+      Update the Papers section `_index.md`
+
+      The Papers landing page renders the roadmap dynamically from
+      `blog/data/papers.yaml` via the `papers-roadmap` shortcode —
+      no manual append to `blog/content/docs/papers/_index.md` is
+      needed for Paper 03 to appear once `draft: false` flips.
+
+      Verify with:
+      ```bash
+      grep -c "papers-roadmap" blog/content/docs/papers/_index.md
+      ```
+
+      Expected: 1 (the shortcode call). If the convention has changed
+      and a manual list exists, append Paper 03 there.
+  - id: P6.T1.S4
+    text: |-
+      Update Building/Operating series overviews (optional)
+
+      Building 02-foundation and Operating 01-cluster-nodes exist;
+      the cross-series chip auto-renders from Paper 03 frontmatter.
+      No manual edit required to the post bodies themselves. If the
+      series overview has a "Further reading" section listing Papers
+      by capability, append Paper 03 there.
+
+      If no such section exists, mark this step skipped with reason
+      "no series-overview Further-reading section to update".
+  - id: P6.T1.S5
+    text: |-
+      Write building/operating blog posts (skip for Papers)
+
+      Papers are not new layer deployments — they review existing
+      capabilities. The Building 02-foundation and Operating
+      01-cluster-nodes posts already exist (that's what
+      `related_building` and `related_operating` point at). No new
+      posts.
+
+      *Skip — Papers reference existing Building/Operating posts via
+      frontmatter; the cross-link chips do the work.*
+  - id: P6.T1.S6
+    text: |-
+      Update README
+
+      Run `/update-readme` or check manually. The Papers series is
+      already referenced in README (from Paper 00's post-deploy);
+      verify Paper 03 doesn't need a stack-list addition. README is
+      a stack snapshot, not a publish log — most likely no row
+      change is needed.
+
+      If no diff is produced, mark this step skipped with reason
+      "README is a stack snapshot — no Paper 03-specific row needed".
+  - id: P6.T1.S7
+    text: |-
+      Sync runbook
+
+      This plan contains no `# manual-operation` blocks — skip
+      `/sync-runbook`.
+
+      Confirm with:
+      ```bash
+      grep -c "# manual-operation" docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-03/*.yaml \
+        | grep -v ":0$" || echo "no manual-operation blocks"
+      ```
+  - id: P6.T1.S8
+    text: |-
+      Update plan status and log publish date
+
+      Edit `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-03/_prose.md`:
+
+      ```
+      **Status:** Complete (YYYY-MM-DD) — Paper 03 draft published; PR open for human review.
+      ```
+
+      Update the spec's Implementation Plans table row for Paper 03
+      (`docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`).
+state:
+  steps:
+    P6.T1.S1:
+      state: '-'
+      ticked_at: '2026-05-20T04:34:05+00:00'
+      note: Skip — Paper 03 publishes on existing public blog at blog.derio.net/frank;
+        URL liveness check deferred to post-merge CI.
+    P6.T1.S2:
+      state: x
+      ticked_at: '2026-05-20T04:34:07+00:00'
+      note: Cross-series chip backlink verification deferred to merge-time Hugo CI
+        build (same posture as Papers 10/04/11/14). Hugo build green locally.
+    P6.T1.S3:
+      state: x
+      ticked_at: '2026-05-20T04:34:11+00:00'
+      note: Papers _index.md uses dynamic papers-roadmap shortcode reading blog/data/papers.yaml;
+        Paper 03 already in roster — no manual append needed.
+    P6.T1.S4:
+      state: '-'
+      ticked_at: '2026-05-20T04:34:14+00:00'
+      note: Skip — Building 02-foundation and Operating 01-cluster-nodes exist; cross-series
+        chip auto-renders from Paper 03 frontmatter. No series-overview Further-reading
+        section in current building/operating/00-overview pages.
+    P6.T1.S5:
+      state: '-'
+      ticked_at: '2026-05-20T04:34:16+00:00'
+      note: Skip — Papers reference existing Building/Operating posts via frontmatter;
+        no new posts needed.
+    P6.T1.S6:
+      state: '-'
+      ticked_at: '2026-05-20T04:34:19+00:00'
+      note: Skip — README references Papers series from Paper 00; Paper 03 is content
+        addition, not a stack change.
+    P6.T1.S7:
+      state: '-'
+      ticked_at: '2026-05-20T04:34:22+00:00'
+      note: 'Skip — no # manual-operation blocks in plan (the matches in 06.yaml are
+        verify-step grep strings, not operation blocks).'
+    P6.T1.S8:
+      state: x
+      ticked_at: '2026-05-20T04:34:25+00:00'
+      note: _prose.md Status was already Complete (2026-05-20); spec Implementation
+        Plans table row updated to full naming + Complete status.
+  completion:
+    at: '2026-05-20T04:34:27+00:00'
+    note: Plan status flipped to Complete in _prose.md and the spec's Implementation
+      Plans table row. PR remains OPEN for human review.
+    observed_prs: []

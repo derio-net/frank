@@ -1,0 +1,173 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 09 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add a new entry under the `# --- Papers Series Covers ---`
+      section, after the most recent paper entry:
+
+      ```yaml
+        - key: paper-09-cover
+          output: blog/content/docs/papers/09-secrets-bootstrap/cover.png
+          description: Paper 09 cover — Frank examining a chained-key handoff with a satisfied expression
+          prompt: >-
+            Frank the server-hardware Frankenstein monster stands at
+            a workbench, holding a chain of three brass keys connected
+            by short links. One key is labelled SOPS in tiny etched
+            text; the next is labelled INFISICAL; the third is
+            labelled K8S SECRET. A small SOPS-encrypted scroll labelled
+            "bootstrap" floats in the background as the first key in
+            the chain. His expression is satisfied — the kind of
+            person who finally has a clean key-rotation story. He
+            wears thin round reading glasses resting low on his nose
+            and a thin black necktie. Warm overhead lamp on a dark
+            background. RJ45 neck bolts, green skin, messy black
+            hair, rack-mount torso. The brass keys glow faintly
+            amber. No text in the image other than the small etched
+            key labels.
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      set -a && source .env_common && set +a
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-09-cover
+      ```
+
+      Expected: `blog/content/docs/papers/09-secrets-bootstrap/cover.png`
+      created, ≥50KB.
+
+      If generation fails for any reason (Gemini API timeout, quota,
+      etc.), fall back: `cp blog/static/images/reference.png
+      blog/content/docs/papers/09-secrets-bootstrap/cover.png` and
+      tick step `--state - --note "Gemini fallback used; regen
+      post-merge."`
+
+      Spot-check: Frank should have thin round reading glasses, thin
+      black tie, satisfied expression, and the chained-key metaphor
+      should be recognisable. Up to 3 regeneration attempts if the
+      visual signature is missing.
+- number: 2
+  title: Render Mermaid diagrams and verify they parse
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/09-secrets-bootstrap/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft work
+      (TL;DR remains pending — that is by design and lives outside
+      the Mermaid scope).
+  - id: P4.T2.S2
+    text: |-
+      Verify Mermaid diagrams parse without errors in Hugo dev server
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/09-secrets-bootstrap/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+- number: 3
+  title: Capture Infisical / ExternalSecret screenshot
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Capture an Infisical or ExternalSecret screenshot showing real cluster state
+
+
+      Source: Infisical UI at `192.168.55.204` (project view, or
+      secret list), or `kubectl describe externalsecret -A` output
+      captured as an image.
+
+      Procedure:
+      ```bash
+      # From a machine with cluster access:
+      # 1. Open Infisical UI at http://192.168.55.204:8080
+      #    Navigate to frank-cluster project / prod environment
+      #    Screenshot the secrets list
+      # OR
+      # 2. kubectl describe externalsecret -A | head -40
+      #    Screenshot the terminal output
+      ```
+
+      Save to:
+      ```
+      blog/content/docs/papers/09-secrets-bootstrap/infisical-ui.png
+      ```
+
+      If cluster access is unavailable, copy the 1×1 placeholder
+      and rename with `-TODO.png` suffix:
+      ```bash
+      cp blog/content/docs/papers/11-identity-heterogeneous-stack/authentik-applications-TODO.png \
+         blog/content/docs/papers/09-secrets-bootstrap/infisical-ui-TODO.png
+      ```
+      Tick the step `--state - --note "Cluster access unavailable
+      from worktree."`
+- number: 4
+  title: Full Hugo build smoke-test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Run the production Hugo build to assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/09-secrets-bootstrap/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-05-20T04:27:02+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-05-20T04:27:04+00:00'
+      note: Gemini cover generated, 682K
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-05-20T04:27:06+00:00'
+      note: Only TL;DR placeholder remains, by design (Phase 5)
+    P4.T2.S2:
+      state: x
+      ticked_at: '2026-05-20T04:27:07+00:00'
+      note: 'Hugo --minify --buildDrafts: 0 ERROR; Paper 09 renders to 198K'
+    P4.T3.S1:
+      state: '-'
+      ticked_at: '2026-05-20T04:27:09+00:00'
+      note: Cluster access unavailable from worktree; placeholder infisical-ui-TODO.png
+        retained for cluster-side capture.
+    P4.T4.S1:
+      state: x
+      ticked_at: '2026-05-20T04:27:11+00:00'
+      note: hugo --minify --buildDrafts clean; Paper 09 renders to 198K
+  completion:
+    at: '2026-05-20T04:27:12+00:00'
+    note: Cover generated via Gemini; Infisical UI screenshot deferred with TODO placeholder.
+    observed_prs: []
