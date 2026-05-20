@@ -1,0 +1,78 @@
+features:
+  - key: integrated
+    label: All-in-one (one tool, not three)
+  - key: k8s_native
+    label: Kubernetes-native pipeline engine
+  - key: declarative_yaml
+    label: Declarative YAML pipelines
+  - key: webhook_native
+    label: Native webhook triggers
+  - key: oci_registry
+    label: Bundled OCI registry
+  - key: oss
+    label: OSS / no contract required
+  - key: low_ops
+    label: Low operations overhead
+  - key: zero_cost
+    label: No infrastructure cost (SaaS only)
+vendors:
+  - name: Gitea + Tekton + Zot
+    features:
+      integrated: "no"
+      k8s_native: "yes"
+      declarative_yaml: "yes"
+      webhook_native: "yes"
+      oci_registry: "yes"
+      oss: "yes"
+      low_ops: "no"
+      zero_cost: "no"
+  - name: GitLab CE
+    features:
+      integrated: "yes"
+      k8s_native: "partial"
+      declarative_yaml: "yes"
+      webhook_native: "yes"
+      oci_registry: "yes"
+      oss: "yes"
+      low_ops: "no"
+      zero_cost: "no"
+  - name: Forgejo + Woodpecker
+    features:
+      integrated: "no"
+      k8s_native: "partial"
+      declarative_yaml: "yes"
+      webhook_native: "yes"
+      oci_registry: "no"
+      oss: "yes"
+      low_ops: "yes"
+      zero_cost: "no"
+  - name: Drone CI
+    features:
+      integrated: "no"
+      k8s_native: "partial"
+      declarative_yaml: "yes"
+      webhook_native: "yes"
+      oci_registry: "no"
+      oss: "yes"
+      low_ops: "yes"
+      zero_cost: "no"
+  - name: Jenkins
+    features:
+      integrated: "no"
+      k8s_native: "partial"
+      declarative_yaml: "partial"
+      webhook_native: "partial"
+      oci_registry: "no"
+      oss: "yes"
+      low_ops: "no"
+      zero_cost: "no"
+  - name: GitHub Actions
+    features:
+      integrated: "yes"
+      k8s_native: "no"
+      declarative_yaml: "yes"
+      webhook_native: "yes"
+      oci_registry: "yes"
+      oss: "partial"
+      low_ops: "yes"
+      zero_cost: "yes"

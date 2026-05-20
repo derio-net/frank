@@ -419,6 +419,35 @@ images:
       text in the image — no extra captions or watermarks. ONE FIGURE —
       one single Frank. The framing communicates "staged exposure under
       uncertainty" rather than "deployment is solved".
+  - key: paper-17-cover
+    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
+    # reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/17-agentic-orchestration/cover.png
+    description: Paper 17 cover — Frank surveying a fleet of identical safe agent workstations, one dimmed
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands in front
+      of a tall rack panel showing a fleet of identical safe agent
+      workstations — each rendered as a glowing terminal podlet with
+      a small green tmux status bar across the bottom of its screen.
+      The pods are stacked in a 3x3 grid; eight are warmly lit, ONE
+      pod (middle row, right column) is visibly dimmed and dark — the
+      per-PV scar, a workstation in a crashloop. One green-skinned
+      hand rests on the rack frame; the other holds a small clipboard
+      with a Kanban-style three-column board sketched on it (with a
+      few tiny rectangular cards in the columns). His expression is
+      weighing and slightly grave — a decision-maker genuinely
+      uncertain about running other people's code on his cluster.
+      He wears thin small round reading glasses resting low on his
+      face and a thin black necktie over a white button-down dress
+      shirt. Warm overhead work-lamp light. Deep navy studio-style
+      background. RJ45 neck bolts, green skin, messy black hair,
+      rack-mount torso. NO text on the terminals or rack labels —
+      only the abstract sparklines and the sketched Kanban columns
+      are visible on the clipboard, with no captions or watermarks.
+      ONE FIGURE — one single Frank. The framing communicates "fleet
+      isolation under uncertainty" rather than "agent platform is
+      solved".
   - key: paper-02-cover
     # Same convention as paper-00 / 04 / 10 / 11-cover: only
     # reference.png anchors style; the Papers signature (glasses + tie
@@ -510,6 +539,110 @@ images:
       heat-sink shroud) — no captions or watermarks. ONE FIGURE — one
       single Frank. The framing communicates "ownership decisions on
       shared silicon" rather than "GPU scheduling is solved".
+  - key: paper-08-cover
+    # Same convention as paper-00 / 04 / 10 / 11 / 14 / 02 / 06 / 07
+    # covers: only reference.png anchors style; the Papers signature
+    # (glasses + tie + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/08-backup-dr/cover.png
+    description: Paper 08 cover — Frank watching a labelled snapshot parcel float off-cluster toward an archive box
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands in front
+      of a server rack from which a small glowing data parcel labelled
+      "snapshot-2026-05-20" is floating up and away, travelling along
+      a faint amber arc toward an off-cluster archive box drawn on the
+      far side of the frame. One green-skinned hand is extended as if
+      having just released the parcel; the other holds a small
+      clipboard with a tiny retention-schedule list visible on it
+      reading "daily / weekly". His expression is cautious and weighing
+      — the part of the stack you only know works after you have
+      restored from scratch. He wears small circular wire-rim reading
+      glasses resting low on his face and a thin black necktie over a
+      white button-down dress shirt. Warm overhead work-lamp light.
+      Deep navy studio-style background. RJ45 neck bolts, green skin,
+      messy black hair, rack-mount torso. The ONLY text in the image
+      is the words "snapshot-2026-05-20" on the parcel and "daily /
+      weekly" on the clipboard — no other captions or watermarks. ONE
+      FIGURE — one single Frank. The framing communicates "shipping
+      the snapshot off-cluster, knowing the restore is the part you
+      haven't tested" rather than "backup is solved".
+  - key: paper-13-cover
+    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
+    # reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/13-self-hosted-cicd/cover.png
+    description: Paper 13 cover — Frank examining a three-stage CI/CD pipeline of glowing rack-panels labelled git, test, push
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands in front
+      of a wall-mounted rack panel that holds three large rectangular
+      indicator panels labelled "git", "test", and "push" — wired
+      together in sequence by thick conduit cabling like a
+      self-hosted CI/CD pipeline. The middle panel ("test") glows
+      amber, mid-build; the flanking panels glow steady green. One
+      green-skinned hand rests on the test panel's frame; the other
+      hand holds a small clipboard with a Tekton-style stick-figure
+      pipeline graph drawn on it (three nodes connected by arrows).
+      His expression is approving-but-cautious — the rare layer
+      where the homelab stack genuinely matches enterprise tooling,
+      and he knows it. He wears thin small round reading glasses
+      resting low on his face and a thin black necktie over a white
+      button-down dress shirt. Warm overhead work-lamp light. Deep
+      navy studio-style background. RJ45 neck bolts, green skin,
+      messy black hair, rack-mount torso. The panel labels (git,
+      test, push) and the clipboard pipeline graph are the ONLY
+      text in the image — no extra captions or watermarks. ONE
+      FIGURE — one single Frank. The framing communicates "a
+      three-tool stack that works because every seam is documented"
+      rather than "CI/CD is solved".
+
+  - key: paper-03-cover
+    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
+    # reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/03-ebpf-networking/cover.png
+    description: Paper 03 cover — Frank tracing a glowing network packet through a row of labelled eBPF kernel hooks
+    prompt: >-
+      Frank the server-hardware Frankenstein monster traces a single
+      glowing blue network packet with one green-skinned finger as it
+      travels through a row of labelled eBPF kernel hooks (XDP, tc,
+      socket) — no service-mesh sidecars in the picture. The hooks
+      glow faintly from inside; the packet's trail is continuous and
+      obviously kernel-level. His expression is focused and approving
+      — this is one of the layers where the abstraction does its job.
+      He wears thin small round reading glasses resting low on his
+      face and a thin black necktie over a white button-down dress
+      shirt. Warm overhead lamp light. Deep navy studio-style
+      background. RJ45 neck bolts, green skin, messy black hair,
+      rack-mount torso. The hook labels (XDP, tc, socket) and small
+      kernel-stack labels are the ONLY text in the image — no extra
+      captions or watermarks. ONE FIGURE — one single Frank. The
+      framing communicates "kernel-level networking" rather than
+      "service-mesh tax".
+  - key: paper-09-cover
+    # Same convention as paper-00 / 02 / 04 / 06 / 07 / 10 / 11 / 14
+    # covers: only reference.png anchors style; the Papers signature
+    # (glasses + tie + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/09-secrets-bootstrap/cover.png
+    description: Paper 09 cover — Frank holding a chain of three brass keys with a satisfied expression
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands at a
+      workbench, holding a chain of three brass keys connected by
+      short links. Each key is etched with a single small label:
+      the first reads SOPS, the second reads INFISICAL, the third
+      reads K8S SECRET. A small sealed scroll labelled "bootstrap"
+      floats in the background behind his shoulder as the implied
+      first key in the chain — the out-of-band predecessor that
+      starts the custody chain. His expression is satisfied — the
+      kind of person who finally has a clean key-rotation story.
+      He wears small circular wire-rim reading glasses resting low
+      on his face, a thin black necktie over a white button-down
+      dress shirt. Warm overhead work-lamp light. Deep navy
+      studio-style background. RJ45 temple bolts, green skin, messy
+      black hair, rack-mount torso. The brass keys glow faintly
+      amber. The ONLY text in the image is the small etched key
+      labels (SOPS, INFISICAL, K8S SECRET) and the word "bootstrap"
+      on the scroll — no captions or watermarks. ONE FIGURE — one
+      single Frank. The framing communicates "named chain of
+      custody" rather than "secrets are solved".
 
   # --- Post Covers ------------------------------------------------------------
 

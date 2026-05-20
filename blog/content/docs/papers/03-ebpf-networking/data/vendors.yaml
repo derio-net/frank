@@ -1,0 +1,86 @@
+features:
+  - key: ebpf_dataplane
+    label: eBPF data plane
+  - key: kube_proxy_replacement
+    label: kube-proxy replacement
+  - key: l4_loadbalancer
+    label: Built-in L4 LoadBalancer
+  - key: network_policy
+    label: NetworkPolicy enforcement
+  - key: l7_policy
+    label: L7 policy (HTTP / gRPC)
+  - key: flow_observability
+    label: Flow-level observability
+  - key: mtls
+    label: Mutual TLS between pods
+  - key: bare_metal
+    label: Works on bare metal
+  - key: oss
+    label: OSS / no contract required
+vendors:
+  - name: Cilium
+    features:
+      ebpf_dataplane: "yes"
+      kube_proxy_replacement: "yes"
+      l4_loadbalancer: "yes"
+      network_policy: "yes"
+      l7_policy: "yes"
+      flow_observability: "yes"
+      mtls: "partial"
+      bare_metal: "yes"
+      oss: "yes"
+  - name: Calico
+    features:
+      ebpf_dataplane: "yes"
+      kube_proxy_replacement: "yes"
+      l4_loadbalancer: "no"
+      network_policy: "yes"
+      l7_policy: "no"
+      flow_observability: "partial"
+      mtls: "no"
+      bare_metal: "yes"
+      oss: "yes"
+  - name: kube-proxy + iptables
+    features:
+      ebpf_dataplane: "no"
+      kube_proxy_replacement: "no"
+      l4_loadbalancer: "no"
+      network_policy: "partial"
+      l7_policy: "no"
+      flow_observability: "no"
+      mtls: "no"
+      bare_metal: "yes"
+      oss: "yes"
+  - name: Istio
+    features:
+      ebpf_dataplane: "no"
+      kube_proxy_replacement: "no"
+      l4_loadbalancer: "no"
+      network_policy: "yes"
+      l7_policy: "yes"
+      flow_observability: "yes"
+      mtls: "yes"
+      bare_metal: "yes"
+      oss: "yes"
+  - name: Linkerd2
+    features:
+      ebpf_dataplane: "no"
+      kube_proxy_replacement: "no"
+      l4_loadbalancer: "no"
+      network_policy: "partial"
+      l7_policy: "partial"
+      flow_observability: "yes"
+      mtls: "yes"
+      bare_metal: "yes"
+      oss: "yes"
+  - name: AWS VPC CNI
+    features:
+      ebpf_dataplane: "no"
+      kube_proxy_replacement: "no"
+      l4_loadbalancer: "partial"
+      network_policy: "partial"
+      l7_policy: "no"
+      flow_observability: "partial"
+      mtls: "no"
+      bare_metal: "no"
+      oss: "yes"

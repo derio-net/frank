@@ -1,0 +1,233 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 13 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 13 self-hosted-cicd
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 13:
+        Hugo bundle:  blog/content/docs/papers/13-self-hosted-cicd/
+        Dossier:      docs/papers-dossiers/13-self-hosted-cicd/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/13-self-hosted-cicd/index.md
+      ls docs/papers-dossiers/13-self-hosted-cicd/dossier.md
+      ```
+- number: 2
+  title: Research the self-hosted CI/CD landscape
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Populate `docs/papers-dossiers/13-self-hosted-cicd/dossier.md` — vendors in scope
+
+
+      Paper 13 maps the self-hosted CI/CD vendor space. Suggested
+      six-vendor landscape (final list is the dossier-construction
+      subagent's call after research, but anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Gitea + Tekton + Zot
+        positioning: "Three-tool stack — Gitea (git host), Tekton (Kubernetes-native pipeline engine using CRDs as build steps), Zot (CNCF OCI-conformant registry). Manifests-as-code at every layer; Frank's pick."
+        primary_url: "https://tekton.dev/docs/"
+      - name: GitLab CE
+        positioning: "All-in-one self-hosted platform — built-in git host, CI/CD runner, container registry, package registry, issue tracker. Single Rails monolith plus runners; the GitHub-equivalent in one package."
+        primary_url: "https://docs.gitlab.com/ee/install/"
+      - name: Forgejo + Woodpecker CI
+        positioning: "Lightweight homelab pattern — Forgejo (Gitea fork, community-governed) plus Woodpecker (Drone fork). One-tool-each, minimal-ops; the most popular small-scale self-host combo on r/selfhosted."
+        primary_url: "https://woodpecker-ci.org/docs/intro"
+      - name: Drone CI
+        positioning: "Container-native CI, now under CNCF — every pipeline step is a container, simple YAML, lightweight server + agent model. The architectural predecessor of Tekton's pods-as-steps model."
+        primary_url: "https://docs.drone.io/"
+      - name: Jenkins
+        positioning: "The heritage incumbent — JVM controller, Groovy DSL pipelines, vast plugin ecosystem, agent-as-VM (or container) build runners. Two decades of accumulated CI design patterns and warts."
+        primary_url: "https://www.jenkins.io/doc/book/pipeline/"
+      - name: GitHub Actions
+        positioning: "The SaaS baseline — fully managed, generous free tier for OSS, marketplace of pre-built actions. The thing self-hosted CI/CD exists to compete with."
+        primary_url: "https://docs.github.com/en/actions"
+      ```
+
+      Frank's case study is Gitea + Tekton + Zot (Tekton EventListener
+      triggered by Gitea webhooks, builds running in the cluster,
+      images pushed to Zot at 192.168.55.210); the other five
+      exist in the dossier so §3 can compare architectures and §6
+      can branch the decision tree.
+  - id: P1.T2.S2
+    text: |
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one
+      foundational paper or conference talk, and at least one
+      real-world postmortem. URL hints to chase:
+
+      1. Tekton design / concepts — type: `vendor-docs`
+         (https://tekton.dev/docs/concepts/)
+      2. Gitea Actions or webhook docs — type: `vendor-docs`
+         (https://docs.gitea.com/usage/actions/overview)
+      3. Zot OCI-registry design / architecture — type: `vendor-docs`
+         (https://zotregistry.dev/v2.1.0/general/architecture/)
+      4. A practitioner self-hosted-vs-Actions cost-curve writeup —
+         type: `postmortem` (search r/selfhosted long-form posts,
+         Honeycomb-style "we moved off GitHub Actions" writeups)
+      5. A CNCF CI/CD landscape whitepaper or KubeCon talk —
+         type: `paper` or `talk`
+         (CD Foundation State-of-CD report, or KubeCon Tekton talks)
+      6. Frank's own running postmortem registry on the Tekton/Gitea
+         scars — type: `postmortem`
+         (https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the
+      gate validator will probe them.
+  - id: P1.T2.S3
+    text: |
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo and Frank's gotcha
+      registry. Suggested artefacts (the dossier-construction
+      subagent picks the final list, but at least these are known
+      to exist):
+
+      1. `kind: yaml` — `apps/tekton/values.yaml` + `apps/tekton/manifests/github-listener/`
+         — Frank's Tekton install plus the EventListener wiring
+         for Gitea webhooks. Shows the `cel` interceptor matching
+         `X-Gitea-Event` (not `X-GitHub-Event`).
+         `path_or_url: apps/tekton/manifests/github-listener/`
+         `demonstrates: "EventListener + cel-interceptor pattern
+          for Gitea webhooks. The github interceptor doesn't fit
+          because Gitea sends X-Gitea-Event."`
+
+      2. `kind: yaml` — `apps/gitea/values.yaml` + `apps/zot/values.yaml`
+         — Gitea git host on LB IP .209 (ports 3000 HTTP + 2222
+         SSH); Zot OCI registry on LB IP .210 with TLS, htpasswd
+         auth, and a Longhorn-backed PVC.
+         `path_or_url: apps/zot/values.yaml`
+         `demonstrates: "Three-tool stack composition — Gitea
+          pushes webhook to Tekton, Tekton clones from Gitea +
+          pushes image to Zot, Zot at LB IP .210 backed by RWO
+          Longhorn PVC."`
+
+      3. `kind: incident` — Tekton v1 Task validation silently
+         failed because `spec.resources` (v1beta1 field) was
+         accepted by the CRD schema but ignored. The whole
+         ArgoCD Application went silent. Source:
+         `agents/rules/frank-gotchas.md → Tekton`.
+         `demonstrates: "Tekton v1 Task uses computeResources,
+          not resources. The schema migration from v1beta1 to v1
+          isn't graceful — fields whose name differs by one
+          letter are eaten without error."`
+
+      4. `kind: incident` — Gitea EventListener with a `github`
+         interceptor refused to fire on Gitea pushes because
+         Gitea sends `X-Gitea-Event`, not `X-GitHub-Event`. Source:
+         `agents/rules/frank-gotchas.md → Tekton`.
+         `demonstrates: "Tekton's github interceptor doesn't log
+          rejections, it just drops them. Frank lost an afternoon
+          staring at the webhook receiver's log; the cel
+          interceptor matching X-Gitea-Event is the fix."`
+
+      5. `kind: incident` — Zot Helm chart v0.1.0 too minimal
+         (no TLS, no auth, no persistence); v0.1.60+ adds first-
+         class schema for all three. Source:
+         `agents/rules/frank-gotchas.md → Other in-cluster apps`.
+         `demonstrates: "Pinning to .0 because it's the GA isn't
+          the same as pinning to .0 because it's stable."`
+
+      6. `kind: incident` (optional) — Gitea
+         `webhook.ALLOWED_HOST_LIST` blocks in-cluster delivery
+         to `*.svc.cluster.local`. Source:
+         `agents/rules/frank-gotchas.md → Other in-cluster apps`.
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No apples-to-apples 'self-hosted CI/CD tax' benchmark
+        exists in the public literature at homelab-to-small-team
+        scale — i.e., a measurement of the bundled operational
+        overhead (server CPU/RAM for the controller, persistent
+        storage for the registry, ops time per pipeline failure,
+        webhook latency at the seams, total wall-clock build time
+        vs GitHub Actions for the same workload) at 1–10
+        concurrent builds. Published comparisons cover either
+        feature matrices (Jenkins vs Tekton vs Drone checklist)
+        or single-dimension benchmarks (Tekton pod startup
+        latency in isolation) but never the bundled tax that
+        determines whether self-hosting is worth running at all
+        vs paying GitHub's per-minute meter. The single most
+        useful number — 'how many hours per month will this
+        stack cost a single operator?' — does not exist as
+        published work."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "For a solo developer with an open-source repo, GitHub
+        Actions is free, zero-ops, has a marketplace of pre-built
+        actions, and runs builds in seconds — why doesn't that
+        win for Frank? Answer: same shape as Papers 04 and 14.
+        Frank is a learning platform. The reason to run Gitea +
+        Tekton + Zot is to encounter the Tekton v1 schema-eats-
+        fields trap, the X-Gitea-Event header mismatch, the Zot
+        v0.1.0 missing-TLS-auth-persistence triple, the Gitea
+        ALLOWED_HOST_LIST in-cluster block — first-hand. A
+        developer who has internalized these lessons can
+        rationally pick GitHub Actions and pay for what they
+        don't have to operate; a team that has not will reinvent
+        the same scars when the day comes that GitHub Actions
+        minutes get rate-limited or an air-gap requirement
+        lands. For Frank, paying the tuition is the point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-05-20T04:20:45+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-05-20T04:20:47+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-05-20T04:20:49+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-05-20T04:20:50+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-05-20T04:20:52+00:00'
+      note: null
+  completion:
+    at: '2026-05-20T04:20:53+00:00'
+    note: null
+    observed_prs: []

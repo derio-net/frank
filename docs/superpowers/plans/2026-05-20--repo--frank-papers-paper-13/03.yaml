@@ -1,0 +1,478 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/13-self-hosted-cicd/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Fill the Paper 13 frontmatter
+
+
+      Update `blog/content/docs/papers/13-self-hosted-cicd/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "Self-Hosted CI/CD on a Homelab"
+      date: <today>
+      draft: true
+      weight: 13
+      series: ["papers"]
+      layer: cicd
+      paper_number: 13
+      publish_order: 14
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["ci-cd", "tekton", "gitea", "zot", "kubernetes"]
+      capabilities: ["cicd"]
+      related_building: "docs/building/27-cicd-platform"
+      related_operating: "docs/operating/22-cicd-platform"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 13` matches paper_number for TOC order.
+      `publish_order: 14` reflects the position in
+      `00 → 10 → 04 → 11 → 14 → 06 → 07 → 02 → 03 → 09 → 05 → 08 → 17 → 13`.
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      Create `blog/content/docs/papers/13-self-hosted-cicd/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: integrated
+          label: All-in-one (one tool, not three)
+        - key: k8s_native
+          label: Kubernetes-native pipeline engine
+        - key: declarative_yaml
+          label: Declarative YAML pipelines
+        - key: webhook_native
+          label: Native webhook triggers
+        - key: oci_registry
+          label: Bundled OCI registry
+        - key: oss
+          label: OSS / no contract required
+        - key: low_ops
+          label: Low operations overhead
+        - key: zero_cost
+          label: No infrastructure cost (SaaS only)
+      vendors:
+        - name: Gitea + Tekton + Zot
+          features:
+            integrated: "no"
+            k8s_native: "yes"
+            declarative_yaml: "yes"
+            webhook_native: "yes"
+            oci_registry: "yes"
+            oss: "yes"
+            low_ops: "no"
+            zero_cost: "no"
+        - name: GitLab CE
+          features:
+            integrated: "yes"
+            k8s_native: "partial"
+            declarative_yaml: "yes"
+            webhook_native: "yes"
+            oci_registry: "yes"
+            oss: "yes"
+            low_ops: "no"
+            zero_cost: "no"
+        - name: Forgejo + Woodpecker
+          features:
+            integrated: "no"
+            k8s_native: "partial"
+            declarative_yaml: "yes"
+            webhook_native: "yes"
+            oci_registry: "no"
+            oss: "yes"
+            low_ops: "yes"
+            zero_cost: "no"
+        - name: Drone CI
+          features:
+            integrated: "no"
+            k8s_native: "partial"
+            declarative_yaml: "yes"
+            webhook_native: "yes"
+            oci_registry: "no"
+            oss: "yes"
+            low_ops: "yes"
+            zero_cost: "no"
+        - name: Jenkins
+          features:
+            integrated: "no"
+            k8s_native: "partial"
+            declarative_yaml: "partial"
+            webhook_native: "partial"
+            oci_registry: "no"
+            oss: "yes"
+            low_ops: "no"
+            zero_cost: "no"
+        - name: GitHub Actions
+          features:
+            integrated: "yes"
+            k8s_native: "no"
+            declarative_yaml: "yes"
+            webhook_native: "yes"
+            oci_registry: "yes"
+            oss: "partial"
+            low_ops: "yes"
+            zero_cost: "yes"
+      ```
+
+      Polarity check: "yes" = the option HAS that feature. Adjust to
+      match the conventions established by Paper 14's
+      `vendors.yaml` if the capability-matrix shortcode reads
+      polarity differently.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      The opening question: *if you do not want your CI minutes
+      billed by a SaaS vendor — for cost, sovereignty, or air-
+      gap reasons — who runs your builds, who stores your
+      images, and what is the tax for running them yourself?*
+      Position self-hosted CI/CD in the stack: above git, below
+      GitOps (ArgoCD watches the registry, not the pipeline),
+      sibling to image scanning and supply chain.
+
+      Voice: Frank speaks as the cluster. The question is real,
+      the answers diverge.
+
+      Include one `flowchart LR` Mermaid diagram showing the
+      three-stage pipeline (git → test → push) and the three
+      self-hosted components (host, engine, registry):
+
+      ```
+      flowchart LR
+          DEV["Developer commit"] --> GH["Git host (Gitea / GitLab / Forgejo)"]
+          GH --> CI["Pipeline engine (Tekton / Woodpecker / Drone / Jenkins)"]
+          CI --> REG["OCI registry (Zot / GitLab / Harbor)"]
+          REG --> CD["GitOps (ArgoCD)"]
+      ```
+  - id: P3.T3.S2
+    text: |
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the six vendors against two axes. Use
+      `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:three-tool↔all-in-one,y:k8s-native↔agent-based" >}}
+          quadrantChart
+              title Self-hosted CI/CD — 2026
+              x-axis "Three composable tools" --> "All-in-one platform"
+              y-axis "Agent-based runners" --> "Kubernetes-native pods-as-steps"
+              quadrant-1 "All-in-one · K8s-native"
+              quadrant-2 "Three-tool · K8s-native"
+              quadrant-3 "Three-tool · Agent-based"
+              quadrant-4 "All-in-one · Agent-based"
+              "Gitea + Tekton + Zot": [0.15, 0.90]
+              "GitLab CE": [0.90, 0.40]
+              "Forgejo + Woodpecker": [0.25, 0.55]
+              "Drone CI": [0.30, 0.55]
+              "Jenkins": [0.20, 0.20]
+              "GitHub Actions": [0.85, 0.30]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via
+      `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("Tekton: every step is a pod
+      and every pipeline is a CRD"; "GitLab CE: everything in
+      one binary, run it on one VM") and what it gives up. Use
+      `{{< papers/pullquote source="..." url="..." >}}` for at
+      least one direct quote pulled from the dossier (e.g.
+      Tekton's own description of pods-as-steps).
+  - id: P3.T3.S3
+    text: |
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: *triggering a deterministic, isolated build
+      from a webhook and getting an immutable image to a registry
+      without operating the build runner like a snowflake.* Each
+      vendor has a different answer; this section lays them out
+      side-by-side with one `flowchart TD` per vendor in a
+      shared visual language.
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = controllers / servers
+      - Rounded rectangles = build runners (pods / agents / VMs)
+      - Diamonds = decision points (interceptors, gates)
+      - Cylinders = storage (registry, artefact store)
+      - Dashed edges = webhook / event paths
+      - Solid edges = build-step / data paths
+
+      Four-to-six architecture diagrams (one per vendor in the
+      landscape that has a meaningfully different answer). Skip
+      GitHub Actions here — it's the §6 "use a SaaS" leaf and
+      doesn't have a self-hosted architecture to compare.
+
+      Example for Gitea + Tekton + Zot:
+
+      ```
+      flowchart TD
+          subgraph FRANK["Gitea + Tekton + Zot"]
+              G["Gitea (git host)"]
+              EL{"EventListener (cel interceptor)"}
+              PR(("PipelineRun pod"))
+              TR(("TaskRun pod"))
+              Z[("Zot (OCI registry)"])
+          end
+          DEV["Developer push"] --> G
+          G -.->|"X-Gitea-Event webhook"| EL
+          EL --> PR
+          PR --> TR
+          TR --> Z
+      ```
+
+      For each diagram include 80–200 words of prose: what the
+      controller does on a webhook, where the build runs, where
+      the image lands, what the failure mode is when the wiring
+      between the three (or two, or one) tools is misaligned.
+  - id: P3.T3.S4
+    text: |
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Concurrent build count.** A homelab with 1–2
+         concurrent builds runs Tekton, Woodpecker, Drone, or
+         Jenkins on a single worker without breaking a sweat.
+         At 10+ concurrent builds, Tekton's pod-per-step model
+         starts costing in scheduler churn and registry pulls;
+         at 100+, Spinnaker-style heavy controllers and
+         GitLab's runner-as-service architecture pay back.
+         State the crossover honestly.
+
+      2. **Registry storage growth.** Every CI build pushes an
+         image. At 5 commits/day with 200MB images, that is
+         1GB/day → 30GB/month → garbage-collection becomes a
+         weekly operational concern by month two. Zot's
+         retention policies, GitLab's container-registry
+         cleanup, and Harbor's GC schedules are all asymmetric
+         in ergonomics. Cite the dossier where possible.
+
+      3. **Webhook latency and the seam between three tools.**
+         Three-tool stacks have three webhook hops (git host
+         → pipeline engine → registry notification). All-in-one
+         platforms (GitLab CE, GitHub Actions) have one
+         internal call. At small scale the latency is the same;
+         at high concurrency, the three-hop path picks up
+         retries and ordering bugs that the one-binary path
+         does not. Frank's `X-Gitea-Event` scar is exactly this
+         class of failure.
+
+      Cite ≥2 primary sources from the dossier (Tekton concept
+      docs + practitioner cost-curve writeup). Do not
+      editorialise past what the citations support.
+  - id: P3.T3.S5
+    text: |
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank chose Gitea + Tekton + Zot. Three tools, three IPs
+      (.209 Gitea, .210 Zot, in-cluster Tekton EventListener
+      with a dedicated LB IP for the GitHub-listener at .223 for
+      external GitHub webhooks). Tekton's pipelines as CRDs;
+      Gitea webhooks fed through a `cel` interceptor matching
+      `X-Gitea-Event`; Zot at v0.1.60+ with TLS, htpasswd auth,
+      and a Longhorn-backed PVC for image storage.
+
+      Honest about the cost: the three tools were not the
+      problem. The seams between the three tools were the
+      problem.
+
+      Use 2–3 `{{< papers/scar >}}` callouts. Authoritative
+      options from the gotcha registry:
+
+      Scar 1 — Tekton v1 Task `spec.resources` silently ignored:
+      ```
+      {{< papers/scar date="2026-03-XX" >}}
+      We wrote a Tekton v1 Task with `spec.resources`. The CRD
+      validation accepted it — silently, because `resources` is
+      the v1beta1 field, and v1 wants `computeResources`. The
+      whole Application went green; the build pod ran without
+      the resource limits we thought we'd set; we discovered
+      the typo only when a build OOM-killed the cluster's
+      scheduler. The schema migration from v1beta1 to v1 isn't
+      graceful — it eats fields whose name differs by one
+      letter, with no error.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — Gitea's `X-Gitea-Event` header (not `X-GitHub-Event`):
+      ```
+      {{< papers/scar date="2026-03-XX" >}}
+      An EventListener with a `github` interceptor refused to
+      fire on Gitea pushes. Gitea sends `X-Gitea-Event`, not
+      `X-GitHub-Event`. The fix is a `cel` interceptor matching
+      the actual header. The cost was an afternoon of staring
+      at the webhook receiver's log, because the github
+      interceptor doesn't log rejections — it just drops them.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — Zot chart v0.1.0 missing TLS, auth, persistence:
+      ```
+      {{< papers/scar date="2026-03-XX" >}}
+      We pinned Zot at chart v0.1.0 because it was the first
+      GA. v0.1.0 has no first-class TLS, no auth, no
+      persistence story — the schema for those came in v0.1.60+.
+      Pinning to .0 because it's the GA isn't the same as
+      pinning to .0 because it's stable. The fix was the chart
+      bump; the lesson was a category, not a fact.
+      {{< /papers/scar >}}
+      ```
+
+      Pick 2-3 scars from the above. Real dates only — pull
+      from `agents/rules/frank-gotchas.md` cross-referenced with
+      `apps/tekton/`, `apps/gitea/`, `apps/zot/`.
+
+      Include ≥1 evidence artefact: either the Tekton
+      PipelineRun screenshot from P4.T3, or `apps/tekton/
+      manifests/github-listener/eventlistener.yaml` inlined as
+      a code block.
+  - id: P3.T3.S6
+    text: |
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one
+      leaf; the others are real:
+
+      ```
+      flowchart TD
+          A["Solo dev / OSS repo?"] -- "Yes" --> L1["GitHub Actions (free, zero-ops)"]
+          A -- "No" --> B["Need declarative K8s pipelines + manifests-as-code?"]
+          B -- "No, want one tool" --> L2["Forgejo + Woodpecker (tiny homelab)"]
+          B -- "Yes, serious self-host" --> L3["Gitea + Tekton + Zot (Frank's pick)"]
+          B -- "Multi-team enterprise / RBAC + audit" --> L4["GitLab CE + Runner"]
+      ```
+
+      ≤4 visible leaves. The decision turns on two questions:
+      *who is this for* (solo OSS or a team), and *do you want
+      three tools or one?* The Forgejo+Woodpecker leaf is for
+      the homelab that wants minimal ceremony; the
+      Gitea+Tekton+Zot leaf is for the team that wants the
+      pipelines themselves to be GitOps-managed CRDs; the
+      GitLab CE leaf is for the enterprise that values
+      integrated audit and RBAC over composability.
+  - id: P3.T3.S7
+    text: |
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **Tekton Chains is making supply-chain attestation
+         default.** SLSA provenance, in-toto attestations, and
+         sigstore signatures are moving from add-on tools into
+         the pipeline engine itself. Tekton Chains is the
+         reference implementation; expect Drone, Woodpecker,
+         and GitLab Runner to converge here.
+
+      2. **OCI registries are absorbing artefact storage.**
+         Helm charts, Tekton bundles, Cosign signatures, SBOMs
+         — all OCI-conformant now. Zot, Harbor, and GHCR all
+         store "anything OCI" rather than just container
+         images. The registry stops being a build output and
+         becomes the artefact store for the whole supply chain.
+
+      3. **Gitea Actions is closing the Forgejo ↔ Gitea gap.**
+         Gitea Actions implements the GitHub Actions YAML
+         syntax server-side; the Forgejo Actions fork tracks
+         it closely. In two years, the "what runs my Actions
+         YAML" question may collapse to "do you want
+         Forgejo/Gitea or Drone/Tekton semantics" — independent
+         of where the syntax came from.
+
+      Optional timeline diagram or roadmap citations. Cite the
+      dossier where possible.
+  - id: P3.T3.S8
+    text: |
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/13-self-hosted-cicd/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If
+      over, trim §3 first — that's where capability papers
+      reliably sprawl past budget.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-05-20T04:28:22+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-05-20T04:28:24+00:00'
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: '2026-05-20T04:28:25+00:00'
+      note: null
+    P3.T3.S2:
+      state: x
+      ticked_at: '2026-05-20T04:28:27+00:00'
+      note: null
+    P3.T3.S3:
+      state: x
+      ticked_at: '2026-05-20T04:28:29+00:00'
+      note: null
+    P3.T3.S4:
+      state: x
+      ticked_at: '2026-05-20T04:28:31+00:00'
+      note: null
+    P3.T3.S5:
+      state: x
+      ticked_at: '2026-05-20T04:28:33+00:00'
+      note: null
+    P3.T3.S6:
+      state: x
+      ticked_at: '2026-05-20T04:28:35+00:00'
+      note: null
+    P3.T3.S7:
+      state: x
+      ticked_at: '2026-05-20T04:28:37+00:00'
+      note: null
+    P3.T3.S8:
+      state: x
+      ticked_at: '2026-05-20T04:28:39+00:00'
+      note: 3656 words — within 2400–4200 budget
+  completion:
+    at: '2026-05-20T04:28:41+00:00'
+    note: null
+    observed_prs: []
