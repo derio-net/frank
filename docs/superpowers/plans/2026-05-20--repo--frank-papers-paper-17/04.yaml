@@ -143,30 +143,31 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T00:15:00+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:15:02+00:00'
+      note: Gemini cover generated, 683.5 KB
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:15:04+00:00'
+      note: Only TL;DR placeholder remains, by design (Phase 5)
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:15:06+00:00'
+      note: 'Hugo --minify --buildDrafts: 0 ERROR; Paper 17 renders to 192.0 KB'
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T00:15:08+00:00'
+      note: Cluster access unavailable from worktree; placeholder vk-board-TODO.png
+        retained for cluster-side capture.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:15:10+00:00'
+      note: hugo --minify --buildDrafts clean; Paper 17 renders to 192.0 KB
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T00:15:12+00:00'
+    note: Cover generated via Gemini; VK board screenshot deferred with TODO placeholder.
     observed_prs: []
