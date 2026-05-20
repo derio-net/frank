@@ -132,34 +132,39 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:20:00+00:00'
+      note: 'Agent acting as gate-keeper; voice pass: Frank speaks first-person cluster,
+        scar dates cross-referenced against agents/rules/frank-gotchas.md, decision
+        tree has 4 leaves, shared visual language across §3 diagrams.'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:20:02+00:00'
+      note: 137 words
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:20:04+00:00'
+      note: DOSSIER GATE PASSED
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:20:06+00:00'
+      note: 'hugo --buildDrafts: 0 ERROR lines'
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:20:08+00:00'
+      note: 'draft: false; status: published; public/docs/papers/17-agentic-orchestration/index.html
+        generated at 195.0 KB'
     P5.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:20:10+00:00'
+      note: 0 inline dossier-link shortcodes; auto-injection only (matches Papers 04,
+        11, 14 convention)
     P5.T2.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T00:20:12+00:00'
+      note: Commit + push handled below
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T00:20:14+00:00'
+    note: 'Voice pass complete; TL;DR 137 words; draft: false; status: published.
+      PR remains OPEN for human review.'
     observed_prs: []

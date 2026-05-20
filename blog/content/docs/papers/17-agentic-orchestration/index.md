@@ -1,15 +1,31 @@
 ---
 title: "Agentic Orchestration & Safe Agent Workstations"
 date: 2026-05-20
-draft: true
+draft: false
 weight: 17
 series: ["papers"]
 layer: orch
 paper_number: 17
 publish_order: 9
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  Agent orchestration is a four-job problem — isolation, persistent
+  state, access, and fleet dispatch — and the six contenders in 2026
+  (secure-agent-pod, VibeKanban, Paperclip + Sympozium, Coder.com,
+  GitPod, and plain devcontainers / Codespaces) each treat one or two
+  of those jobs as primary and demand a tax from the operator for the
+  rest.
+
+  Frank runs the self-hosted stack: per-PV secure-agent-pod for the
+  workstation, VibeKanban for ticket-driven fan-out, Paperclip and
+  Sympozium for company-runner and control plane. The scars came at
+  the seams — a shareProcessNamespace + s6 PID-1 fight that silently
+  broke the pod, a 30-second MCP timeout cascading into zombie
+  execution_processes, a vk-local cgroup that drifted past 4 GB
+  because concurrency limits do not bound cgroups.
+
+  Frank's answer does not generalize. Solo dev → laptop devcontainer.
+  Need policy + audit → Coder.com. Shared cloud IDE → GitPod.
 tags: ["agents", "orchestration", "secure-workstation", "vibekanban", "paperclip", "kubernetes"]
 capabilities: ["orch"]
 related_building: "docs/building/21-secure-agent-pod"
@@ -40,7 +56,22 @@ references:
 
 ## TL;DR
 
-*Write last.*
+Agent orchestration is a four-job problem — isolation, persistent state,
+access, and fleet dispatch — and the six contenders in 2026
+(secure-agent-pod, VibeKanban, Paperclip + Sympozium, Coder.com, GitPod,
+and plain devcontainers / Codespaces) each treat one or two of those jobs
+as primary and demand a tax from the operator for the rest.
+
+Frank runs the self-hosted stack: per-PV secure-agent-pod for the
+workstation, VibeKanban for ticket-driven fan-out, Paperclip and Sympozium
+for company-runner and control plane. The scars came at the seams — a
+`shareProcessNamespace` + s6 PID-1 fight that silently broke the pod, a
+30-second MCP timeout cascading into zombie `execution_processes`, a
+vk-local cgroup that drifted past 4 GB because concurrency limits do not
+bound cgroups.
+
+Frank's answer does not generalize. Solo dev → laptop devcontainer. Need
+policy + audit → Coder.com. Shared cloud IDE → GitPod.
 
 ## §1 — The capability
 
