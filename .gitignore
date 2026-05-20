@@ -64,3 +64,10 @@ clusters/hop/talosconfig/
 .gitnexus
 frank-cluster.code-workspace
 blog/themes/
+
+# Image-generation iteration archive. Every successful run of
+# scripts/generate-all-images.py drops the new PNG + a prompt sidecar
+# under .regen-archive/<key>/<key>-<sha12>.{png,txt}. Capped at
+# --archive-cap entries per key (FIFO by mtime; default 30). Curate by
+# promoting keepers into .reference-pool/<series>/ (which IS tracked).
+.regen-archive/
