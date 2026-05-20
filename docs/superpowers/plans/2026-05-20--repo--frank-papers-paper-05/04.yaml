@@ -121,30 +121,32 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:34:27+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:34:30+00:00'
+      note: Gemini cover generated, 532.5 KB (gemini-3-pro-image-preview)
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:34:33+00:00'
+      note: Only TL;DR placeholder remains, by design (Phase 5)
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:34:36+00:00'
+      note: 'Hugo --minify --buildDrafts: 0 ERROR; Paper 05 renders to 195 KB'
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:34:38+00:00'
+      note: Cluster access unavailable from worktree; placeholder gpu-utilisation-TODO.png
+        retained for cluster-side capture.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:34:41+00:00'
+      note: hugo --minify --buildDrafts clean; Paper 05 renders to 195 KB
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T04:34:44+00:00'
+    note: Cover generated via Gemini; GPU-utilisation screenshot deferred with TODO
+      placeholder.
     observed_prs: []

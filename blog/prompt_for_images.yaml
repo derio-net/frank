@@ -486,6 +486,31 @@ images:
       the charts — no captions or watermarks. ONE FIGURE — one
       single Frank.
 
+  - key: paper-05-cover
+    # Same convention as paper-00 / 04 / 10 / 11 / 14 covers: only
+    # reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/05-gpu-scheduling/cover.png
+    description: Paper 05 cover — Frank examining a single PCIe GPU card with two workload streams sharing time-slices on its surface
+    prompt: >-
+      Frank the server-hardware Frankenstein monster holds a single
+      PCIe GPU card horizontally in both green-skinned hands,
+      inspecting it through thin small round wire-rim reading glasses
+      resting low on his face. Above the card, two glowing data streams
+      flow into the card top edge: one green-tinted inference workload
+      stream and one blue-tinted training workload stream. The streams
+      meet on the card surface and partition it into alternating
+      green/blue time-slice zones along its length. His expression is
+      weighing and careful — he is judging whether the partition will
+      hold under contention. He wears a thin black necktie over a white
+      button-down dress shirt. Warm overhead work-lamp light. Deep navy
+      studio-style background. RJ45 temple bolts, green skin, messy
+      black hair, rack-mount torso. The ONLY text in the image is small
+      legible markings on the card edge (a fake model number on the
+      heat-sink shroud) — no captions or watermarks. ONE FIGURE — one
+      single Frank. The framing communicates "ownership decisions on
+      shared silicon" rather than "GPU scheduling is solved".
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
