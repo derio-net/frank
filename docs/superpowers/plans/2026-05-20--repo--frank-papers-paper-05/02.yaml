@@ -70,18 +70,20 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:26:32+00:00'
+      note: DOSSIER GATE PASSED on first run (no URL retries needed; all 6 source
+        URLs resolved 200 OK).
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:26:34+00:00'
+      note: Agent acting as gate-keeper; named gap (bundled GPU-scheduling tax) and
+        counter-argument (device-plugin-alone null hypothesis) reviewed and accepted.
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:26:35+00:00'
+      note: Commit lands as part of single-PR-six-commits cadence.
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T04:26:37+00:00'
+    note: 'Validator exits 0; dossier marked status: ready.'
     observed_prs: []
