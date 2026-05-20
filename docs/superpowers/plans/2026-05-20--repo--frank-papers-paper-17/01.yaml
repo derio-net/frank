@@ -1,0 +1,218 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 17 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 17 agentic-orchestration
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 17:
+        Hugo bundle:  blog/content/docs/papers/17-agentic-orchestration/
+        Dossier:      docs/papers-dossiers/17-agentic-orchestration/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/17-agentic-orchestration/index.md
+      ls docs/papers-dossiers/17-agentic-orchestration/dossier.md
+      ```
+- number: 2
+  title: Research the agent-orchestration / safe-workstation landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/17-agentic-orchestration/dossier.md` — vendors in scope
+
+
+      Paper 17 maps the agent-orchestration + safe-workstation vendor
+      space. Suggested six-vendor landscape (final list is the
+      dossier-construction subagent's call after research, but anchor
+      here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: secure-agent-pod (Frank)
+        positioning: "Frank — per-PV Kubernetes pod running s6-overlay v3 in non-root mode with sshd, mosh, tmux-resurrect, and an agent-CLI of choice; isolation by namespace + cgroup, state on a Longhorn PV. The 'safe workstation' Frank actually runs."
+        primary_url: "https://github.com/derio-net/agent-images"
+      - name: VibeKanban (+ vk-issue-bridge)
+        positioning: "Multi-agent task fan-out: a Kanban board with vk-ready labels on GitHub issues drives an MCP bridge that spawns vk-local execution sessions inside secure-agent-pod. The orchestrator/dispatcher layer above the workstation."
+        primary_url: "https://github.com/vibekanban"
+      - name: Paperclip + Sympozium (Frank)
+        positioning: "Paperclip is Frank's company-runner / heartbeat orchestrator; Sympozium is the control-plane web UI. Together they assign tasks to agents, capture cost events, and present a board view of in-flight work."
+        primary_url: "https://github.com/derio-net/paperclip"
+      - name: Coder.com
+        positioning: "Commercial cloud workspace platform — VS-Code-in-browser plus Terraform-managed Kubernetes/VM workstations with policy-as-code, RBAC, audit logs. The managed answer to 'where does the agent run?'."
+        primary_url: "https://coder.com/docs"
+      - name: GitPod (Cloud devcontainers)
+        positioning: "Commercial cloud devcontainer platform — ephemeral browser-based VS Code workspaces backed by `.devcontainer.json`, run on GitPod's infra or self-hosted Flex. Auto-prebuilds, OIDC, prebuilt images."
+        primary_url: "https://www.gitpod.io/docs"
+      - name: Plain devcontainers / GitHub Codespaces
+        positioning: "The null hypothesis — `.devcontainer.json` running on your laptop (VS Code Remote-Containers) or on Microsoft's Codespaces infra. No fleet, no orchestrator, no per-agent isolation beyond container boundaries."
+        primary_url: "https://containers.dev/"
+      ```
+
+      Frank's case study is the stack: secure-agent-pod as the
+      workstation, VibeKanban as the dispatcher, Paperclip + Sympozium
+      as the company-runner / control plane on top. The other three
+      exist in the dossier so §3 can compare architectures and §6 can
+      branch the decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one
+      foundational paper or comparison talk, and at least one real-
+      world postmortem. URL hints to chase:
+
+      1. s6-overlay v3 README / architecture — type: `vendor-docs`
+         (https://github.com/just-containers/s6-overlay)
+      2. Coder.com platform architecture docs — type: `vendor-docs`
+         (https://coder.com/docs/admin/infrastructure/architecture)
+      3. devcontainers / containers.dev spec — type: `vendor-docs`
+         (https://containers.dev/implementors/spec/)
+      4. A practitioner talk or paper on agent-safety / sandboxing
+         (CNCF, Anthropic agent-safety blog, or similar) —
+         type: `talk` or `paper`
+      5. Frank's own running postmortem registry — type: `postmortem`
+         (https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo and Frank's gotcha registry.
+      Suggested artefacts (the dossier-construction subagent picks the
+      final list, but at least these are known to exist):
+
+      1. `kind: yaml` — `apps/secure-agent-pod/manifests/` — the
+         canonical per-PV pod manifest (sshd + s6-overlay + Mosh +
+         tmux-resurrect). `demonstrates: "Per-PV pod with s6-overlay
+          v3 in non-root mode, sshd at port 22, Mosh at UDP
+          60000-60015, Longhorn-backed PVC for /home/claude state."`
+
+      2. `kind: incident` — the s6-overlay v3 +
+         shareProcessNamespace incompatibility.
+         `demonstrates: "shareProcessNamespace: true is incompatible
+          with s6-overlay v3 — suexec must be PID 1; sharing the
+          namespace fights that requirement. Replaced with a shared
+          workspace volume + kubectl exec -c <other> for cross-
+          container debugging."`
+
+      3. `kind: incident` — the vk-issue-bridge 30s MCP timeout
+         cascading to zombie execution_processes.
+         `demonstrates: "vk-issue-bridge's 30s MCP timeout cascades
+          to zombie execution_processes: bridge crash on timeout
+          → vk-local request handler future drops →
+          Child::wait() cancelled → setup/cleanup shell scripts exit
+          but never reaped → DB rows stuck status='running' forever,
+          UI shows workspaces stuck active with no output."`
+
+      4. `kind: incident` — the vk-local cgroup memory limit
+         drift past 4Gi under sustained bridge feeding.
+         `demonstrates: "vk-local limits.memory: 4Gi is too tight
+          in practice — VK_MAX_CONCURRENT_EXECUTIONS=4 does NOT
+          bound the cgroup once the bridge feeds 8+ cards (queued
+          sessions retain memory; new images drift baseline)."`
+
+      5. `kind: incident` — Paperclip's "Test environment" container
+         boundary surprise.
+         `demonstrates: "Paperclip's Test environment runs in the
+          paperclip app container, NOT the paperclip-shell sidecar
+          — agent-CLIs installed via the shell PVC are invisible.
+          Wire through the shared /paperclip PVC."`
+
+      6. `kind: yaml` (optional) —
+         `apps/vibekanban/values.yaml`. Shows the relay sidecar +
+         vk-local cgroup config, SPAKE2 enrollment-code semantics,
+         and resource limits.
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No apples-to-apples 'agent-workstation safety tax'
+        benchmark exists in the public literature — i.e., a
+        measurement of per-agent CPU/RAM overhead, network egress
+        per agent-hour, supervisor blast-radius probability (what
+        fraction of agent runs need human intervention?), and
+        debugging time on long-tail failures (s6 cont-init
+        boot-only behaviour, cgroup-not-bounding-cgroup,
+        PID-namespace-fights-PID-1). Published comparisons cover
+        either single-dimension benchmarks (cold-start latency on
+        Codespaces vs GitPod vs local) or feature checklists
+        (Coder.com vs GitPod table on the vendor sites). Nobody
+        has published the bundled tax for running other people's
+        code agents at non-trivial scale."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "For a solo developer running one Claude session in a
+        devcontainer on their laptop, plain VS Code Remote-
+        Containers is the rational choice — why doesn't that win
+        for Frank? Answer: same shape as Paper 04. Frank is a
+        learning platform AND a fleet — multiple agents,
+        multiple humans, multiple time zones. The reason to run
+        secure-agent-pod + VibeKanban + Paperclip is to encounter
+        the s6-overlay PID-1 fight, the vk-issue-bridge 30s
+        timeout zombie cascade, the vk-local cgroup drift, the
+        cont-init.d boot-only authorized_keys behaviour —
+        first-hand. A team that has internalized these lessons
+        can rationally pick Coder.com or GitPod and pay the
+        vendor instead; a team that has not will reinvent the
+        same scars on a managed platform's blast-radius. For
+        Frank, paying the tuition is the point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,172 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 17 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add a new entry under the `# --- Papers Series Covers ---`
+      section, after the most recent paper entry:
+
+      ```yaml
+        - key: paper-17-cover
+          output: blog/content/docs/papers/17-agentic-orchestration/cover.png
+          description: Paper 17 cover — Frank surveying a fleet of identical safe agent workstations, one dimmed
+          prompt: >-
+            Frank the server-hardware Frankenstein monster stands in
+            front of a tall rack panel showing a fleet of identical
+            safe agent workstations — each rendered as a glowing
+            terminal podlet with a small green tmux status bar at the
+            bottom. The pods are stacked in a 3x3 grid; eight are
+            warmly lit, ONE pod (middle row, right column) is visibly
+            dimmed — the per-PV scar. Frank holds a clipboard with a
+            small Kanban-style board sketched on it; his expression
+            is weighing — running other people's code on his cluster.
+            He wears thin small round reading glasses resting low on
+            his face and a thin black necktie over a white button-
+            down dress shirt. Warm overhead work-lamp light. Deep
+            navy studio-style background. RJ45 neck bolts, green
+            skin, messy black hair, rack-mount torso. No text in the
+            image. ONE FIGURE — one single Frank.
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      set -a && source .env_common && set +a
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-17-cover
+      ```
+
+      Expected: `blog/content/docs/papers/17-agentic-orchestration/cover.png`
+      created, ≥50KB.
+
+      If generation fails for any reason (Gemini API timeout, quota,
+      etc.), fall back: `cp blog/static/images/reference.png
+      blog/content/docs/papers/17-agentic-orchestration/cover.png` and
+      tick step `--state - --note "Gemini fallback used; regen
+      post-merge."`
+
+      Spot-check: Frank should have thin round reading glasses, thin
+      black tie, weighing expression, and the fleet-of-workstations
+      metaphor should be recognisable. Up to 3 regeneration attempts
+      if the visual signature is missing.
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/17-agentic-orchestration/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft work
+      (TL;DR remains pending — that is by design and lives outside
+      the Mermaid scope).
+- number: 2
+  title: Render Mermaid diagrams and verify they parse
+  steps:
+  - id: P4.T2.S2
+    text: |-
+      Verify Mermaid diagrams parse without errors in Hugo dev server
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/17-agentic-orchestration/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+- number: 3
+  title: Capture VK board / Sympozium fleet screenshot
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Capture a fleet screenshot showing the orchestrator in action
+
+
+      Source: VK board showing a list of in-flight agent workspaces,
+      OR Sympozium showing the fleet of agents, OR
+      `kubectl get pods -n secure-agent-pod -o wide` output as a
+      terminal capture.
+
+      Procedure:
+      ```bash
+      # From a machine with cluster access:
+      # 1. Open VK board → screenshot the workspace list with a few
+      #    cards in "running" / "completed" states.
+      # OR
+      # 2. kubectl get pods -n secure-agent-pod -o wide
+      ```
+
+      Save to:
+      ```
+      blog/content/docs/papers/17-agentic-orchestration/vk-board.png
+      ```
+
+      If cluster access is unavailable, copy the 1×1 placeholder
+      and rename with `-TODO.png` suffix:
+      ```bash
+      cp blog/content/docs/papers/14-progressive-delivery/argo-rollouts-canary-TODO.png \
+         blog/content/docs/papers/17-agentic-orchestration/vk-board-TODO.png
+      ```
+      Tick the step `--state - --note "Cluster access unavailable
+      from worktree."`
+- number: 4
+  title: Full Hugo build smoke-test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Run the production Hugo build to assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/17-agentic-orchestration/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
