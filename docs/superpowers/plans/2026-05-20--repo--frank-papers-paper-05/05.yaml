@@ -1,0 +1,135 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Review + publish
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Voice pass and TL;DR
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      **Human gate: author voice pass**
+
+
+      Read the full draft. Check:
+      - Frank speaks as the cluster — first-person plural or
+        third-person cluster; distant academic voice is not.
+      - Every scar callout uses a real incident with a real date.
+        Cross-reference dates against `agents/rules/frank-gotchas.md`
+        and the comment blocks in `patches/phase04-gpu/`.
+      - The counter-argument is addressed directly in §5 or §6.
+      - §3 per-vendor architectures use shared visual language.
+      - §6 decision tree has ≤4 leaves.
+  - id: P5.T1.S2
+    text: |-
+      Write the TL;DR (≤150 words)
+
+
+      Write last, after the body has stabilised. Aim for three
+      short paragraphs:
+      1. The capability question and the six-vendor landscape
+      2. Frank's answer (Operator + Intel DRA + gpu-switcher) and the scars
+      3. When Frank's answer doesn't generalise — the decision tree
+
+      Count words:
+      ```bash
+      awk '/^tldr:/,/^[a-z]/' \
+        blog/content/docs/papers/05-gpu-scheduling/index.md \
+        | grep -v "^tldr:\|^[a-z]" | wc -w
+      ```
+
+      Expected: ≤150 words.
+- number: 2
+  title: Final checks and publish
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Run dossier gate one final time
+
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/05-gpu-scheduling/dossier.md
+      ```
+  - id: P5.T2.S2
+    text: |-
+      Run full Hugo build and assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --buildDrafts 2>&1 | grep -E "^ERROR" | head -5
+      ```
+  - id: P5.T2.S3
+    text: |-
+      Set `draft: false` and `status: published`, run production build
+
+
+      In `blog/content/docs/papers/05-gpu-scheduling/index.md`:
+      - Change `draft: true` → `draft: false`
+      - Change `status: drafting` → `status: published`
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify 2>&1 | tail -3
+      ls public/docs/papers/05-gpu-scheduling/index.html
+      ```
+  - id: P5.T2.S4
+    text: |-
+      Verify the dossier-link shortcode renders exactly once
+
+
+      ```bash
+      grep -n "papers/dossier-link" blog/content/docs/papers/05-gpu-scheduling/index.md
+      ```
+
+      Expected: zero matches (rely on auto-injection).
+  - id: P5.T2.S5
+    text: |-
+      Commit and push Paper 05
+
+
+      ```bash
+      git add \
+        blog/content/docs/papers/05-gpu-scheduling/ \
+        docs/papers-dossiers/05-gpu-scheduling/ \
+        blog/prompt_for_images.yaml
+
+      git commit -m "feat(papers): Paper 05 — Phase 5: Review + publish"
+      git push
+      ```
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

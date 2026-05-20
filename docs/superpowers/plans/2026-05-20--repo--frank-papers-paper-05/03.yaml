@@ -1,0 +1,351 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/05-gpu-scheduling/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 05 frontmatter
+
+
+      Update `blog/content/docs/papers/05-gpu-scheduling/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "GPU Scheduling for Mixed Workloads"
+      date: <today>
+      draft: true
+      weight: 5
+      series: ["papers"]
+      layer: gpu
+      paper_number: 5
+      publish_order: 9
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["gpu", "nvidia", "intel", "dra", "kubernetes"]
+      capabilities: ["gpu"]
+      related_building: "docs/building/04-gpu-compute"
+      related_operating: "docs/operating/04-gpu-compute"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 5` matches paper_number for TOC order.
+      `publish_order: 9` reflects this being the ninth Paper to
+      publish.
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      Create `blog/content/docs/papers/05-gpu-scheduling/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: nvidia
+          label: NVIDIA support
+        - key: intel
+          label: Intel support
+        - key: amd
+          label: AMD support
+        - key: dra
+          label: Dynamic Resource Allocation
+        - key: partitioning
+          label: GPU partitioning (MIG/MPS/slices)
+        - key: gang_scheduling
+          label: Gang / batch scheduling
+        - key: quota
+          label: Multi-tenant quota
+        - key: oss
+          label: OSS / no contract required
+      vendors:
+        - name: NVIDIA GPU Operator
+          features:
+            nvidia: "yes"
+            intel: "no"
+            amd: "no"
+            dra: "partial"
+            partitioning: "yes"
+            gang_scheduling: "no"
+            quota: "no"
+            oss: "yes"
+        - name: Intel GPU Resource Driver (DRA)
+          features:
+            nvidia: "no"
+            intel: "yes"
+            amd: "no"
+            dra: "yes"
+            partitioning: "yes"
+            gang_scheduling: "no"
+            quota: "partial"
+            oss: "yes"
+        - name: AMD ROCm device plugin
+          features:
+            nvidia: "no"
+            intel: "no"
+            amd: "yes"
+            dra: "no"
+            partitioning: "no"
+            gang_scheduling: "no"
+            quota: "no"
+            oss: "yes"
+        - name: NVIDIA MIG / MPS
+          features:
+            nvidia: "yes"
+            intel: "no"
+            amd: "no"
+            dra: "partial"
+            partitioning: "yes"
+            gang_scheduling: "no"
+            quota: "partial"
+            oss: "yes"
+        - name: Run.AI
+          features:
+            nvidia: "yes"
+            intel: "no"
+            amd: "no"
+            dra: "no"
+            partitioning: "yes"
+            gang_scheduling: "yes"
+            quota: "yes"
+            oss: "no"
+        - name: Volcano scheduler
+          features:
+            nvidia: "yes"
+            intel: "partial"
+            amd: "partial"
+            dra: "no"
+            partitioning: "no"
+            gang_scheduling: "yes"
+            quota: "yes"
+            oss: "yes"
+      ```
+
+      Polarity check: "yes" = the option HAS that feature.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      The opening question: *if you want to run heterogeneous
+      accelerator workloads on Kubernetes, who tells the scheduler
+      which pod gets which silicon, and what tax do they charge?*
+      Position GPU scheduling in the stack: between the kernel
+      driver and the Kubernetes scheduler, sibling to NFD and
+      kubelet device manager. Acknowledge that "GPU scheduling"
+      is doing several jobs at once — driver lifecycle, device
+      discovery, capacity advertisement, allocation, partitioning,
+      gang scheduling — and the vendor space splits on which of
+      those jobs each option treats as primary.
+
+      Voice: Frank speaks as the cluster. No hedging.
+
+      Include one `flowchart LR` Mermaid diagram showing stack
+      position and the four jobs GPU scheduling does.
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the six vendors against two axes. Use `{{< papers/landscape >}}`:
+      x = single-vendor ↔ multi-vendor; y = device-plugin (legacy) ↔
+      DRA (KEP-3063).
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`.
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase and what it gives up. Use
+      `{{< papers/pullquote >}}` for at least one direct quote from
+      the dossier (likely a KEP-3063 or NVIDIA Operator definition).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: deciding *which pod gets which physical (or
+      virtual) GPU slice*, without leaking driver state between
+      tenants and without making the scheduler do per-card book-
+      keeping it was never designed for. Each vendor has a
+      different answer; this section lays them out side-by-side
+      with one `flowchart TD` per vendor in a shared visual language
+      (squares for controllers, rounded rectangles for daemons /
+      pods, diamonds for decision points, cylinders for device
+      sources, dashed edges for discovery / advertisement, solid
+      edges for binding / runtime paths).
+
+      Four-to-six architecture diagrams. Skip vanilla device plugin
+      alone here — it doesn't have a "hard part" beyond
+      advertisement, which is the §6 punchline.
+
+      For each diagram include 80–200 words of prose: what the
+      controller does at binding time, what the partitioning model
+      looks like, what the failure mode is when a node restarts or
+      a driver re-validates.
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+
+      Three scale axes that flip vendor rankings:
+
+      1. **GPU count per node.** A single-card node can run device
+         plugin alone. A four-card node with mixed workloads needs
+         partitioning (MIG/MPS) or a batch scheduler (Volcano).
+
+      2. **Tenant count.** One tenant per cluster needs no quota.
+         Ten teams sharing a fleet needs Run.AI- or Volcano-shape
+         quota trees and gang scheduling.
+
+      3. **Driver re-validation cost.** Every node restart costs N
+         seconds of GPU unavailability while the NVIDIA driver re-
+         validates and the operator re-advertises capacity. At one
+         node it's free; at fifty nodes during a rolling kernel
+         update it is the SLO budget.
+
+      Cite ≥2 primary sources from the dossier.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank chose NVIDIA GPU Operator + Intel GPU Resource Driver.
+      One discrete RTX 5070 Ti on gpu-1 (NVIDIA), three Intel iGPUs
+      on mini-1/2/3, both routed through gpu-switcher. No
+      partitioning (yet); no Run.AI; no Volcano (the workload mix
+      isn't batch-heavy enough yet). Honest about the cost: every
+      scar listed below was discovered by stepping on it.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative options
+      from the gotcha registry:
+
+      Scar 1 — Talos refused to validate the NVIDIA driver installer.
+      The installer assumes mutable kernel module space; Talos
+      sandboxes it. Fix: `patches/phase04-gpu/` ships the NVIDIA
+      bits as Talos system extensions; the Operator runs with
+      driver.enabled: false.
+
+      Scar 2 — `nvidia.com/gpu:NoSchedule` taint re-asserted by
+      driver re-validation after a node restart. Every GPU
+      workload now ships a defensive toleration.
+
+      Scar 3 — Ollama `system memory` errors meant cgroup RAM
+      ceiling, not VRAM. OLLAMA_KEEP_ALIVE had pinned the page
+      cache near `resources.limits.memory`.
+
+      Include ≥1 evidence artefact: either the Grafana GPU-
+      utilisation screenshot or `patches/phase04-gpu/gpu-operator-values.yaml` inlined.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one
+      leaf; the others are real:
+
+      ```
+      flowchart TD
+          A["Single GPU? Single workload?"] -- "Yes" --> L1["Docker Desktop / device plugin alone"]
+          A -- "No" --> B["Heterogeneous vendor mix (NVIDIA + Intel/AMD)?"]
+          B -- "Yes" --> L2["GPU Operator + DRA per-vendor (Frank's pick)"]
+          B -- "No, NVIDIA-only" --> C["Multi-tenant quota required?"]
+          C -- "No" --> L3["GPU Operator + MIG/MPS partitioning"]
+          C -- "Yes" --> L4["Volcano or Run.AI"]
+      ```
+
+      ≤4 visible leaves.
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **Dynamic Resource Allocation is eating the device plugin.**
+         KEP-3063 is stable in 1.32+; Intel's driver is DRA-native
+         already, NVIDIA's GPU Operator is DRA-capable behind a
+         flag, AMD is the laggard. In 18 months the device-plugin
+         API will be legacy.
+
+      2. **Partitioning is moving from hardware to software.**
+         MIG (hardware) is being joined by MPS (software time-
+         slicing) and CUDA-stream-level partitioning in the runtime;
+         the "one card = one tenant" assumption is dying.
+
+      3. **The scheduler tax is being unbundled.** Gang scheduling,
+         quota trees, and metric-based GPU placement are appearing
+         as native Kubernetes APIs rather than vendor-specific
+         schedulers; Volcano and Kueue track this.
+
+      Optional timeline diagram or roadmap citations.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/05-gpu-scheduling/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
