@@ -1,0 +1,222 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 09 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 09 secrets-bootstrap
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 09:
+        Hugo bundle:  blog/content/docs/papers/09-secrets-bootstrap/
+        Dossier:      docs/papers-dossiers/09-secrets-bootstrap/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/09-secrets-bootstrap/index.md
+      ls docs/papers-dossiers/09-secrets-bootstrap/dossier.md
+      ```
+- number: 2
+  title: Research the secrets-management landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/09-secrets-bootstrap/dossier.md` — vendors in scope
+
+
+      Paper 09 maps the secrets-management vendor space. Suggested
+      six-vendor landscape (final list is the dossier-construction
+      subagent's call after research, but anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Infisical
+        positioning: "Self-hosted secret manager — projects/environments/identities model, web UI + API, Helm chart, free for self-hosting."
+        primary_url: "https://infisical.com/docs/self-hosting/overview"
+      - name: External Secrets Operator + SOPS-in-Git
+        positioning: "ESO syncs from external stores into native K8s Secrets; SOPS+age encrypts bootstrap secrets in Git for the chicken-and-egg layer."
+        primary_url: "https://external-secrets.io/latest/"
+      - name: HashiCorp Vault
+        positioning: "Enterprise-grade secret store — KV, transit, PKI, dynamic credentials, audit log, the most feature-complete option in the space."
+        primary_url: "https://developer.hashicorp.com/vault/docs"
+      - name: Bitnami Sealed Secrets
+        positioning: "Encrypt-in-Git, controller-decrypts — asymmetric key pair; encrypted SealedSecret CRs ship in Git, controller materializes Secrets."
+        primary_url: "https://github.com/bitnami-labs/sealed-secrets"
+      - name: AWS Secrets Manager + CSI driver
+        positioning: "Cloud-managed secret store mounted into pods via the Secrets Store CSI Driver — no self-hosted server, IAM-gated, auto-rotation."
+        primary_url: "https://docs.aws.amazon.com/secretsmanager/latest/userguide/intro.html"
+      - name: Plaintext in Git
+        positioning: "The null hypothesis — secrets committed as raw .env or values.yaml. This is the anti-pattern Paper 09 exists to argue against."
+        primary_url: "https://12factor.net/config"
+      ```
+
+      Frank's case study is Infisical + ESO with SOPS as the
+      bootstrap layer; the other five exist in the dossier so §3
+      can compare architectures and §6 can branch the decision
+      tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one
+      foundational paper or comparison talk, and at least one real-
+      world postmortem. URL hints to chase:
+
+      1. ESO architecture / ClusterSecretStore docs — type: `vendor-docs`
+         (https://external-secrets.io/latest/api/clustersecretstore/)
+      2. Infisical self-hosting overview — type: `vendor-docs`
+         (https://infisical.com/docs/self-hosting/overview)
+      3. Mozilla SOPS design + age writeup — type: `vendor-docs` or `talk`
+         (https://github.com/getsops/sops)
+      4. HashiCorp Vault architecture — type: `vendor-docs` or `paper`
+         (https://developer.hashicorp.com/vault/docs/internals/architecture)
+      5. Frank's own running postmortem registry on the Storage/Secrets/SSA
+         scars — type: `postmortem`
+         (https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo and Frank's gotcha registry.
+      Suggested artefacts (the dossier-construction subagent picks the
+      final list, but at least these are known to exist):
+
+      1. `kind: yaml` — `apps/infisical/values.yaml` — the Infisical
+         Helm values with the three-app split rationale comments
+         explaining why `postgresql.enabled: false` and
+         `redis.enabled: false`, plus the `kubeSecretRef:
+         infisical-secrets` pointer to the SOPS-bootstrapped Secret.
+         `demonstrates: "Why the Infisical chart's two-source DB_CONNECTION_URI
+          injection bug forced splitting one ArgoCD app into three. The
+          chart has no else branch between postgresql.enabled and
+          useExistingPostgresSecret; both code paths inject the env var."`
+
+      2. `kind: yaml` — `apps/infisical/manifests/cluster-secret-store.yaml`
+         — the ClusterSecretStore CR that bridges Infisical to ESO via
+         Machine Identity (Universal Auth).
+         `demonstrates: "How ESO reaches into Infisical via the
+          projectSlug + environmentSlug + secretsPath triple. The
+          credentials themselves live in a Secret in the external-secrets
+          namespace, which is itself SOPS-bootstrapped."`
+
+      3. `kind: incident` — the ExternalSecret `data: []` admission-
+         webhook rejection. Source:
+         `agents/rules/frank-gotchas.md → Storage/Secrets/SSA`.
+         `demonstrates: "ESO admission webhook rejects ExternalSecret
+          CRs with an empty data array. Removing the last key from a
+          values.yaml is not a valid state — the only resolution is to
+          delete the ExternalSecret entirely. ArgoCD does not infer
+          this from a values diff and leaves the app stuck OutOfSync."`
+
+      4. `kind: incident` — `envFrom.secretRef` without `optional: true`
+         wedging rolling updates. Source:
+         `agents/rules/frank-gotchas.md → Storage/Secrets/SSA`.
+         `demonstrates: "A Deployment that envFroms a Secret which ESO
+          has not yet materialized wedges every rolling update on
+          CreateContainerConfigError. The fix is a one-line annotation
+          per envFrom block — easy when you know it, invisible when
+          you don't."`
+
+      5. `kind: incident` — the SOPS-bootstrap chicken-and-egg itself.
+         Source: `secrets/` directory + `agents/rules/repo-principles.md`.
+         `demonstrates: "Infisical needs an admin password and a DB
+          connection string before it can run. Those secrets cannot
+          come from Infisical. The only accepted exception to the
+          declarative-everything principle is SOPS-encrypted secrets
+          applied via 'sops --decrypt | kubectl apply -f -' BEFORE
+          the secret store exists. Everything else is ArgoCD-managed."`
+
+      6. `kind: yaml` (optional) — a representative ExternalSecret
+         from `apps/<any>/manifests/external-secret.yaml` showing the
+         `data: [{secretKey:, remoteRef: {key:}}]` shape that ESO
+         consumes.
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No apples-to-apples 'bootstrap-cost' benchmark exists in
+        the public literature for self-hosted secret stores. Vendor
+        comparisons cover feature matrices (KV vs PKI vs transit;
+        audit-log retention; rotation cadence) and single-dimension
+        benchmarks (request latency, HA failover time) — but never
+        the bundled cost that determines whether a self-hosted
+        secret store is worth running at small-to-medium scale
+        (3–20 nodes, 10–200 secrets). The bootstrap chicken-and-egg
+        itself is rarely measured: how many out-of-band steps does
+        the operator pay on day one? How many on the day they rotate
+        the root key? Comparisons either skip this entirely or
+        treat it as 'covered by Helm' — which is the value system
+        this Paper exists to contradict."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "For a solo developer on one laptop with one cluster and ten
+        secrets, plain SOPS+age in Git with decrypt-on-deploy is the
+        rational choice — why doesn't that win for Frank? Answer:
+        same shape as Paper 04. Frank is a learning platform. The
+        reason to run Infisical + ESO is to encounter the
+        ExternalSecret data:[] admission rejection, the
+        envFrom.secretRef rolling-update wedge, the Infisical chart's
+        two-source DB_CONNECTION_URI bug — first-hand. A team that
+        has internalized these lessons can rationally skip the
+        secret-store layer and keep SOPS+age; a team that has not
+        will reinvent the same scars at production scale. The
+        counter-argument wins for the team that has already paid
+        the tuition; for Frank, paying the tuition is the point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
