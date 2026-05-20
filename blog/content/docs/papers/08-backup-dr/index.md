@@ -1,15 +1,31 @@
 ---
 title: "Backup & DR Without a Vendor Contract"
 date: 2026-05-20
-draft: true
+draft: false
 weight: 8
 series: ["papers"]
 layer: backup
 paper_number: 8
 publish_order: 10
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  Kubernetes backup & DR is a five-job problem — API-object capture,
+  volume capture, application-consistency hooks, offsite shipment,
+  credential restore — and the six contenders in 2026 (Velero,
+  Longhorn-native, Kasten K10, TrilioVault, restic, and the
+  rclone-and-cron null hypothesis) each treat one or two of those jobs
+  as primary and assume you have something else for the rest.
+
+  Frank runs Longhorn-native backup to Cloudflare R2. No Velero —
+  ArgoCD plus git already restores every K8s API object in under ten
+  minutes, leaving only PVC contents and a small set of SOPS-encrypted
+  bootstrap secrets that must be applied before any restore can run.
+  The scars: a Longhorn 1.11 NFS mount-string bug, a RecurringJob
+  schema with no per-job target field, secrets that live outside the
+  backup tool's reach by design.
+
+  Frank's answer does not generalize. No GitOps coverage → Kasten K10.
+  Regulated workloads → Kasten K10. Paranoid → restic on a NAS.
 tags: ["backup", "disaster-recovery", "velero", "longhorn", "kasten", "kubernetes"]
 capabilities: ["backup"]
 related_building: "docs/building/08-backup"
@@ -40,7 +56,23 @@ references:
 
 ## TL;DR
 
-*Write last.*
+Kubernetes backup & DR is a five-job problem — API-object capture, volume
+capture, application-consistency hooks, offsite shipment, credential
+restore — and the six contenders in 2026 (Velero, Longhorn-native, Kasten
+K10, TrilioVault, restic, and the rclone-and-cron null hypothesis) each
+treat one or two of those jobs as primary and assume you have something
+else for the rest.
+
+Frank runs Longhorn-native backup to Cloudflare R2. No Velero — ArgoCD
+plus git already restores every Kubernetes API object in under ten
+minutes, leaving only PVC contents and a small set of SOPS-encrypted
+bootstrap secrets that must be applied before any restore can run. The
+scars: a Longhorn 1.11 NFS mount-string bug, a RecurringJob schema with
+no per-job target field, secrets that live outside the backup tool's
+reach by design.
+
+Frank's answer does not generalize. No GitOps coverage → Kasten K10.
+Regulated workloads → Kasten K10. Paranoid → restic on a NAS.
 
 ## §1 — The capability
 

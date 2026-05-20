@@ -134,34 +134,39 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:38:30+00:00'
+      note: 'Gate-keeper agent voice pass: Frank speaks as cluster (first-person);
+        3 scars cross-referenced with building-08 post + frank-gotchas; Kasten counter-arg
+        addressed in §5 + §6; §3 uses shared visual language; §6 has 4 leaves.'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:38:32+00:00'
+      note: 148 words
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:38:34+00:00'
+      note: DOSSIER GATE PASSED
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:38:35+00:00'
+      note: 'hugo --buildDrafts: 0 ERROR lines'
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:38:37+00:00'
+      note: 'draft: false; status: published; public/docs/papers/08-backup-dr/index.html
+        generated (198KB)'
     P5.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:38:39+00:00'
+      note: 0 inline dossier-link shortcodes; auto-injection only (matches Papers
+        04/11/14 convention)
     P5.T2.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:38:41+00:00'
+      note: Commit + push handled by orchestrator below
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T04:38:43+00:00'
+    note: 'Voice pass complete; TL;DR 148 words; draft: false; status: published.
+      PR remains OPEN for human review.'
     observed_prs: []
