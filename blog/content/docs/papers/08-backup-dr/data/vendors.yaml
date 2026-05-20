@@ -1,0 +1,78 @@
+features:
+  - key: api_objects
+    label: K8s API objects
+  - key: pvc_data
+    label: PVC data
+  - key: app_aware
+    label: Application-aware
+  - key: dedup
+    label: Deduplication
+  - key: offsite
+    label: Offsite target (S3/NFS)
+  - key: control_plane
+    label: Adds control plane
+  - key: rbac_audit
+    label: RBAC / audit
+  - key: oss
+    label: OSS / no contract required
+vendors:
+  - name: Velero
+    features:
+      api_objects: "yes"
+      pvc_data: "yes"
+      app_aware: "partial"
+      dedup: "partial"
+      offsite: "yes"
+      control_plane: "yes"
+      rbac_audit: "partial"
+      oss: "yes"
+  - name: Longhorn (native)
+    features:
+      api_objects: "no"
+      pvc_data: "yes"
+      app_aware: "no"
+      dedup: "yes"
+      offsite: "yes"
+      control_plane: "no"
+      rbac_audit: "no"
+      oss: "yes"
+  - name: Kasten K10
+    features:
+      api_objects: "yes"
+      pvc_data: "yes"
+      app_aware: "yes"
+      dedup: "yes"
+      offsite: "yes"
+      control_plane: "yes"
+      rbac_audit: "yes"
+      oss: "no"
+  - name: TrilioVault
+    features:
+      api_objects: "yes"
+      pvc_data: "yes"
+      app_aware: "yes"
+      dedup: "yes"
+      offsite: "yes"
+      control_plane: "yes"
+      rbac_audit: "yes"
+      oss: "no"
+  - name: restic
+    features:
+      api_objects: "no"
+      pvc_data: "yes"
+      app_aware: "no"
+      dedup: "yes"
+      offsite: "yes"
+      control_plane: "no"
+      rbac_audit: "no"
+      oss: "yes"
+  - name: rclone + cron
+    features:
+      api_objects: "no"
+      pvc_data: "partial"
+      app_aware: "no"
+      dedup: "no"
+      offsite: "yes"
+      control_plane: "no"
+      rbac_audit: "no"
+      oss: "yes"
