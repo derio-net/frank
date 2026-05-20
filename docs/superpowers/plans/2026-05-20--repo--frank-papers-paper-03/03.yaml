@@ -438,46 +438,47 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:27:05+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:27:07+00:00'
       note: null
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:27:09+00:00'
       note: null
     P3.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:27:10+00:00'
       note: null
     P3.T3.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:27:12+00:00'
       note: null
     P3.T3.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:27:14+00:00'
       note: null
     P3.T3.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:27:16+00:00'
       note: null
     P3.T3.S6:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:27:17+00:00'
       note: null
     P3.T3.S7:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:27:19+00:00'
       note: null
     P3.T3.S8:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:27:21+00:00'
+      note: 3773 words — within 2400-4200 budget
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T04:27:22+00:00'
+    note: All sections drafted; Hugo --minify --buildDrafts renders Paper 03 to 194.2
+      KB; word count 3773.
     observed_prs: []
