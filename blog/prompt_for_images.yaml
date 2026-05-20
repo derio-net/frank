@@ -515,6 +515,30 @@ images:
       the charts — no captions or watermarks. ONE FIGURE — one
       single Frank.
 
+
+  - key: paper-03-cover
+    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
+    # reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/03-ebpf-networking/cover.png
+    description: Paper 03 cover — Frank tracing a glowing network packet through a row of labelled eBPF kernel hooks
+    prompt: >-
+      Frank the server-hardware Frankenstein monster traces a single
+      glowing blue network packet with one green-skinned finger as it
+      travels through a row of labelled eBPF kernel hooks (XDP, tc,
+      socket) — no service-mesh sidecars in the picture. The hooks
+      glow faintly from inside; the packet's trail is continuous and
+      obviously kernel-level. His expression is focused and approving
+      — this is one of the layers where the abstraction does its job.
+      He wears thin small round reading glasses resting low on his
+      face and a thin black necktie over a white button-down dress
+      shirt. Warm overhead lamp light. Deep navy studio-style
+      background. RJ45 neck bolts, green skin, messy black hair,
+      rack-mount torso. The hook labels (XDP, tc, socket) and small
+      kernel-stack labels are the ONLY text in the image — no extra
+      captions or watermarks. ONE FIGURE — one single Frank. The
+      framing communicates "kernel-level networking" rather than
+      "service-mesh tax".
   - key: paper-09-cover
     # Same convention as paper-00 / 02 / 04 / 06 / 07 / 10 / 11 / 14
     # covers: only reference.png anchors style; the Papers signature
