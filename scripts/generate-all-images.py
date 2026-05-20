@@ -13,9 +13,12 @@ Requires GEMINI_API_KEY env var.
 """
 
 import argparse
+import hashlib
 import os
+import random
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -31,6 +34,150 @@ FALLBACK_MODEL = "gemini-2.5-flash-image"
 REQUEST_TIMEOUT_MS = 120_000
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PROMPTS_FILE = REPO_ROOT / "blog" / "prompt_for_images.yaml"
+
+# Per-key archive of every successful generation, with a sidecar .txt that
+# records the exact prompt sections and reference images used. Lets us look
+# at the iteration history of a given cover and curate the reference pool.
+# Gitignored — see .gitignore.
+ARCHIVE_DIR = REPO_ROOT / ".regen-archive"
+ARCHIVE_DEFAULT_CAP = 30
+
+# Optional pool of "known-good" reference images, split by blog series so
+# each series can anchor its own visual style. Subdirs:
+#   generic/    — Frank character signature (applies to every key)
+#   papers/     — Papers covers (dark navy + glasses + tie)
+#   building/   — Building Frank covers
+#   operating/  — Operating Frank covers
+# Curated by the operator; tracked in git so the canonical style stays
+# discoverable across machines.
+POOL_DIR = REPO_ROOT / ".reference-pool"
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+def _sha256_short(data: bytes, n: int = 12) -> str:
+    return hashlib.sha256(data).hexdigest()[:n]
+
+
+def _sha256_file_short(path: Path, n: int = 12) -> str:
+    return _sha256_short(path.read_bytes(), n)
+
+
+def _key_to_series(key: str) -> str | None:
+    """Map an image key to its series subdir under .reference-pool/.
+
+    Keys not matching a known prefix get None — they'll still pull from
+    .reference-pool/generic/ if it exists.
+    """
+    if key.startswith("paper-"):
+        return "papers"
+    if key.startswith("building-"):
+        return "building"
+    if key.startswith("ops-"):
+        return "operating"
+    return None
+
+
+def load_pool_refs(
+    key: str, n_generic: int, n_series: int, rng: random.Random
+) -> list[Path]:
+    """Pick reference-pool images for this key.
+
+    Returns up to n_generic from .reference-pool/generic/ plus n_series from
+    the key's series subdir. Missing or empty pools simply contribute fewer
+    references — no error. Selection within each pool is random per call.
+    """
+    refs: list[Path] = []
+
+    def _sample_from(subdir: str, n: int) -> list[Path]:
+        if n <= 0:
+            return []
+        d = POOL_DIR / subdir
+        if not d.is_dir():
+            return []
+        candidates = sorted(
+            p for p in d.iterdir() if p.suffix.lower() in IMAGE_EXTS and p.is_file()
+        )
+        if not candidates:
+            return []
+        return rng.sample(candidates, min(n, len(candidates)))
+
+    refs.extend(_sample_from("generic", n_generic))
+    series = _key_to_series(key)
+    if series:
+        refs.extend(_sample_from(series, n_series))
+    return refs
+
+
+def write_archive_entry(
+    key: str,
+    image_bytes: bytes,
+    prompt_sections: dict[str, str],
+    refs_used: list[Path],
+    model: str,
+    output_path: Path,
+    cap: int = ARCHIVE_DEFAULT_CAP,
+) -> Path:
+    """Save the just-generated image and a sidecar with full provenance.
+
+    Archive layout: .regen-archive/<key>/<key>-<sha12>.{png,txt}
+    Identical bytes produce the same sha → idempotent overwrite.
+    """
+    sha = _sha256_short(image_bytes)
+    archive_root = ARCHIVE_DIR / key
+    archive_root.mkdir(parents=True, exist_ok=True)
+    img_path = archive_root / f"{key}-{sha}.png"
+    txt_path = archive_root / f"{key}-{sha}.txt"
+    img_path.write_bytes(image_bytes)
+
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    out_rel = (
+        output_path.relative_to(REPO_ROOT)
+        if str(output_path).startswith(str(REPO_ROOT))
+        else output_path
+    )
+    lines = [
+        f"key: {key}",
+        f"image_sha256: {sha}",
+        f"generated_at: {now}",
+        f"model: {model}",
+        f"output_path: {out_rel}",
+        "",
+        "=== references (in order, as passed to model) ===",
+    ]
+    if not refs_used:
+        lines.append("(none)")
+    for i, p in enumerate(refs_used, 1):
+        try:
+            ref_sha = _sha256_file_short(p)
+        except OSError:
+            ref_sha = "unreadable"
+        rel = (
+            p.relative_to(REPO_ROOT)
+            if str(p).startswith(str(REPO_ROOT))
+            else p
+        )
+        lines.append(f"{i}. {rel}  (sha256: {ref_sha})")
+    lines.append("")
+    lines.append("=== prompt sections (joined with \\n\\n) ===")
+    for label in ("base_style", "reference_guidance", "series_modifiers", "prompt"):
+        section = prompt_sections.get(label, "")
+        lines.append("")
+        lines.append(f"[{label}]")
+        lines.append(section if section else "(empty)")
+    txt_path.write_text("\n".join(lines) + "\n")
+
+    # FIFO cap by file mtime (latest survives).
+    if cap > 0:
+        snaps = sorted(
+            archive_root.glob(f"{key}-*.png"), key=lambda p: p.stat().st_mtime
+        )
+        excess = len(snaps) - cap
+        if excess > 0:
+            for old in snaps[:excess]:
+                old.unlink(missing_ok=True)
+                old.with_suffix(".txt").unlink(missing_ok=True)
+
+    return img_path
 
 
 def load_prompts(path: Path) -> dict:
@@ -117,7 +264,8 @@ def _is_transient_error(exc: Exception) -> bool:
 
 def generate_one(
     client: genai.Client,
-    reference: Image.Image,
+    reference_path: Path,
+    reference_image: Image.Image,
     key: str,
     output_path: Path,
     prompt: str,
@@ -126,15 +274,21 @@ def generate_one(
     model: str = MODEL,
     aspect_ratio: str | None = None,
     image_size: str | None = None,
-    reference_2: Image.Image | None = None,
+    reference_2_path: Path | None = None,
+    reference_2_image: Image.Image | None = None,
     series_modifiers: str | None = None,
     series_label: str | None = None,
+    pool_refs: list[Path] | None = None,
+    archive_cap: int = ARCHIVE_DEFAULT_CAP,
     request_timeout_ms: int = REQUEST_TIMEOUT_MS,
 ) -> "bool | str":
     """Generate one image.
 
     Returns True on success, the string 'retry' when the failure looks
     transient (timeout / 5xx / model overload), False otherwise.
+
+    On success, also writes the same image bytes + a sidecar prompt log
+    to .regen-archive/<key>/ for retrospective curation.
     """
     sections = [base_style, reference_guidance]
     if series_modifiers:
@@ -142,9 +296,22 @@ def generate_one(
     sections.append(prompt)
     full_prompt = "\n\n".join(s for s in sections if s)
 
-    contents: list = [full_prompt, reference]
-    if reference_2 is not None:
-        contents.append(reference_2)
+    pool_refs = pool_refs or []
+    pool_images: list[Image.Image] = []
+    for p in pool_refs:
+        try:
+            pool_images.append(Image.open(p))
+        except OSError as exc:
+            print(f"  WARN: pool ref unreadable, skipping: {p} ({exc})", file=sys.stderr)
+
+    contents: list = [full_prompt, reference_image]
+    refs_log: list[Path] = [reference_path]
+    if reference_2_image is not None:
+        contents.append(reference_2_image)
+        if reference_2_path is not None:
+            refs_log.append(reference_2_path)
+    contents.extend(pool_images)
+    refs_log.extend(pool_refs)
 
     print(f"\n{'='*60}")
     print(f"  [{key}] → {output_path.relative_to(REPO_ROOT)}")
@@ -152,6 +319,8 @@ def generate_one(
     print(f"  Model: {model}")
     if series_label:
         print(f"  Series: {series_label} (+ secondary reference)")
+    if pool_refs:
+        print(f"  Pool refs: {len(pool_refs)} image(s) from .reference-pool/")
     if aspect_ratio or image_size:
         print(f"  Image config: aspect_ratio={aspect_ratio}, image_size={image_size}")
     print(f"  Prompt: {prompt[:80]}...")
@@ -182,8 +351,55 @@ def generate_one(
             if part.inline_data is not None:
                 image = part.as_image()
                 output_path.parent.mkdir(parents=True, exist_ok=True)
+                # Archive the EXISTING file (if any) BEFORE we overwrite it.
+                # This is the load-bearing piece — without it, iterating on
+                # a cover destroys the previous version with no recovery.
+                if archive_cap > 0 and output_path.exists():
+                    try:
+                        existing_bytes = output_path.read_bytes()
+                        existing_sha = _sha256_short(existing_bytes)
+                        archive_root = ARCHIVE_DIR / key
+                        archive_root.mkdir(parents=True, exist_ok=True)
+                        existing_path = archive_root / f"{key}-{existing_sha}.png"
+                        if not existing_path.exists():
+                            existing_path.write_bytes(existing_bytes)
+                            # No sidecar — we don't know the prompt that
+                            # produced this prior image. The next call to
+                            # write_archive_entry will add one for the new
+                            # gen.
+                            print(
+                                f"  Pre-archived existing cover: "
+                                f"{existing_path.relative_to(REPO_ROOT)}"
+                            )
+                    except OSError as exc:
+                        print(
+                            f"  WARN: could not pre-archive existing cover: {exc}",
+                            file=sys.stderr,
+                        )
                 image.save(str(output_path))
                 print(f"  Saved: {output_path.relative_to(REPO_ROOT)}")
+                # Archive the exact bytes we just wrote, plus a sidecar log.
+                # We re-read instead of using part.inline_data.data so the
+                # sha matches the on-disk PNG, which may have been re-encoded
+                # by PIL.
+                if archive_cap > 0:
+                    image_bytes = output_path.read_bytes()
+                    prompt_sections = {
+                        "base_style": base_style or "",
+                        "reference_guidance": reference_guidance or "",
+                        "series_modifiers": series_modifiers or "",
+                        "prompt": prompt or "",
+                    }
+                    archived = write_archive_entry(
+                        key=key,
+                        image_bytes=image_bytes,
+                        prompt_sections=prompt_sections,
+                        refs_used=refs_log,
+                        model=model,
+                        output_path=output_path,
+                        cap=archive_cap,
+                    )
+                    print(f"  Archived: {archived.relative_to(REPO_ROOT)}")
                 return True
             elif part.text is not None:
                 print(f"  Model text: {part.text[:200]}", file=sys.stderr)
@@ -262,7 +478,24 @@ def main() -> None:
         "--delay", type=int, default=5,
         help="Seconds to wait between API calls to avoid rate limits (default: 5)"
     )
+    parser.add_argument(
+        "--pool-generic", type=int, default=1,
+        help="Number of images to sample from .reference-pool/generic/ per call (default: 1; 0 to disable)"
+    )
+    parser.add_argument(
+        "--pool-series", type=int, default=2,
+        help="Number of images to sample from the key's series subdir of .reference-pool/ per call (default: 2; 0 to disable)"
+    )
+    parser.add_argument(
+        "--archive-cap", type=int, default=ARCHIVE_DEFAULT_CAP,
+        help=f"Max archived entries to keep per key under .regen-archive/<key>/ (FIFO by mtime; default: {ARCHIVE_DEFAULT_CAP}; 0 disables archiving)"
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None,
+        help="Seed the random source used to sample reference-pool images (default: system entropy)"
+    )
     args = parser.parse_args()
+    rng = random.Random(args.seed) if args.seed is not None else random.Random()
 
     if args.list:
         print("Available image keys:")
@@ -296,7 +529,10 @@ def main() -> None:
         sys.exit(1)
 
     client = genai.Client(api_key=api_key)
-    reference = Image.open(args.reference)
+    reference_path = Path(args.reference)
+    if not reference_path.is_absolute():
+        reference_path = (REPO_ROOT / reference_path).resolve()
+    reference = Image.open(reference_path)
 
     print(f"Model: {args.model}")
     print(f"Reference: {args.reference}")
@@ -304,23 +540,23 @@ def main() -> None:
     print(f"Generating {len(targets)} images...")
 
     # Lazy cache for per-series banner images — load each at most once.
-    series_ref_cache: dict[str, Image.Image] = {}
+    series_ref_cache: dict[str, tuple[Path, Image.Image]] = {}
 
-    def _series_ref(series_name: str) -> Image.Image | None:
+    def _series_ref(series_name: str) -> tuple[Path, Image.Image] | tuple[None, None]:
         if series_name in series_ref_cache:
             return series_ref_cache[series_name]
         cfg = series_map.get(series_name)
         if not cfg or not cfg.get("banner"):
-            return None
+            return None, None
         banner_path = Path(cfg["banner"])
         if not banner_path.is_absolute():
             banner_path = REPO_ROOT / banner_path
         if not banner_path.exists():
             print(f"  WARN: series '{series_name}' banner not found at {banner_path}", file=sys.stderr)
-            return None
+            return None, None
         loaded = Image.open(banner_path)
-        series_ref_cache[series_name] = loaded
-        return loaded
+        series_ref_cache[series_name] = (banner_path, loaded)
+        return banner_path, loaded
 
     succeeded = 0
     failed = []
@@ -333,19 +569,23 @@ def main() -> None:
         prompt = img["prompt"]
 
         series_name = img.get("series")
-        reference_2 = _series_ref(series_name) if series_name else None
+        ref2_path, ref2_image = _series_ref(series_name) if series_name else (None, None)
         series_modifiers = (
             series_map.get(series_name, {}).get("modifiers") if series_name else None
         )
+        pool_refs = load_pool_refs(key, args.pool_generic, args.pool_series, rng)
 
         result = generate_one(
-            client, reference, key, output_path, prompt,
+            client, reference_path, reference, key, output_path, prompt,
             base_style, base_guidance, model=args.model,
             aspect_ratio=img.get("aspect_ratio"),
             image_size=img.get("image_size"),
-            reference_2=reference_2,
+            reference_2_path=ref2_path,
+            reference_2_image=ref2_image,
             series_modifiers=series_modifiers,
             series_label=series_name,
+            pool_refs=pool_refs,
+            archive_cap=args.archive_cap,
             request_timeout_ms=timeout_ms,
         )
 
@@ -355,13 +595,16 @@ def main() -> None:
         if result == "retry" and fallback_model and fallback_model != args.model:
             print(f"  Falling back to {fallback_model}...", flush=True)
             result = generate_one(
-                client, reference, key, output_path, prompt,
+                client, reference_path, reference, key, output_path, prompt,
                 base_style, base_guidance, model=fallback_model,
                 aspect_ratio=img.get("aspect_ratio"),
                 image_size=img.get("image_size"),
-                reference_2=reference_2,
+                reference_2_path=ref2_path,
+                reference_2_image=ref2_image,
                 series_modifiers=series_modifiers,
                 series_label=series_name,
+                pool_refs=pool_refs,
+                archive_cap=args.archive_cap,
                 request_timeout_ms=timeout_ms,
             )
 
