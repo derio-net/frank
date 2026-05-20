@@ -193,26 +193,28 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T00:00:00+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T00:00:02+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T00:00:04+00:00'
       note: null
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T00:00:06+00:00'
       note: null
     P1.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T00:00:08+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T00:00:10+00:00'
+    note: 'Dossier filled with 6 vendors, 7 sources (≥3 type values), 6 artefacts (yaml+incident),
+      named gap on the agent-workstation safety tax benchmark, counter-argument on
+      solo-dev devcontainer.'
     observed_prs: []
