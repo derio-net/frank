@@ -1,0 +1,490 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/09-secrets-bootstrap/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 09 frontmatter
+
+
+      Update `blog/content/docs/papers/09-secrets-bootstrap/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "Secrets Management Without the Bootstrap Chicken-and-Egg"
+      date: <today>
+      draft: true
+      weight: 9
+      series: ["papers"]
+      layer: secrets
+      paper_number: 9
+      publish_order: 9
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["secrets", "infisical", "external-secrets", "sops", "vault", "kubernetes"]
+      capabilities: ["secrets"]
+      related_building: "docs/building/09-secrets"
+      related_operating: "docs/operating/06-secrets"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 9` matches paper_number for TOC order.
+      `publish_order: 9` reflects Paper 09's slot in the publish
+      sequence (00 → 10 → 04 → 11 → 14 → 06 → 07 → 02 → 09 → ...).
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      Create `blog/content/docs/papers/09-secrets-bootstrap/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: self_hosted
+          label: Self-hosted
+        - key: ui
+          label: Web UI
+        - key: audit_log
+          label: Audit log
+        - key: rotation
+          label: Built-in rotation
+        - key: dynamic_creds
+          label: Dynamic credentials
+        - key: k8s_native
+          label: K8s-native sync
+        - key: bootstrap_loop
+          label: Chicken-and-egg bootstrap
+        - key: oss
+          label: OSS / no contract required
+      vendors:
+        - name: Infisical
+          features:
+            self_hosted: "yes"
+            ui: "yes"
+            audit_log: "yes"
+            rotation: "partial"
+            dynamic_creds: "no"
+            k8s_native: "yes"
+            bootstrap_loop: "yes"
+            oss: "yes"
+        - name: ESO + SOPS-in-Git
+          features:
+            self_hosted: "yes"
+            ui: "no"
+            audit_log: "partial"
+            rotation: "no"
+            dynamic_creds: "no"
+            k8s_native: "yes"
+            bootstrap_loop: "no"
+            oss: "yes"
+        - name: HashiCorp Vault
+          features:
+            self_hosted: "yes"
+            ui: "yes"
+            audit_log: "yes"
+            rotation: "yes"
+            dynamic_creds: "yes"
+            k8s_native: "partial"
+            bootstrap_loop: "yes"
+            oss: "partial"
+        - name: Sealed Secrets
+          features:
+            self_hosted: "yes"
+            ui: "no"
+            audit_log: "no"
+            rotation: "no"
+            dynamic_creds: "no"
+            k8s_native: "yes"
+            bootstrap_loop: "partial"
+            oss: "yes"
+        - name: AWS Secrets Manager + CSI
+          features:
+            self_hosted: "no"
+            ui: "yes"
+            audit_log: "yes"
+            rotation: "yes"
+            dynamic_creds: "partial"
+            k8s_native: "yes"
+            bootstrap_loop: "no"
+            oss: "no"
+        - name: Plaintext in Git
+          features:
+            self_hosted: "yes"
+            ui: "no"
+            audit_log: "no"
+            rotation: "no"
+            dynamic_creds: "no"
+            k8s_native: "partial"
+            bootstrap_loop: "no"
+            oss: "yes"
+      ```
+
+      Polarity check: "yes" = the option HAS that feature. For
+      `bootstrap_loop`, "yes" = the option HAS a chicken-and-egg
+      bootstrap problem (i.e., it cannot bootstrap itself); "no"
+      = no out-of-band first step required. Adjust to match the
+      conventions of `apps/0X/data/vendors.yaml` if the matrix
+      shortcode reads polarity differently.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      The opening question: *how do you store and serve secrets to
+      a Kubernetes cluster without trusting any one machine, any
+      one engineer, or any one Git history line — AND how do you
+      bootstrap the system when the secret store itself needs
+      secrets to exist?* Position secrets-management in the stack:
+      above identity, below applications, sibling to config-management
+      and policy. Acknowledge that "secrets management" is doing
+      several jobs at once — storage, distribution, rotation, audit,
+      bootstrap — and the vendor space splits on which of those jobs
+      each option treats as primary.
+
+      Voice: Frank speaks as the cluster. No hedging. The chicken-
+      and-egg is real, and pretending it isn't is what causes
+      half the production secret-store incidents in the field.
+
+      Include one `flowchart LR` Mermaid diagram showing the stack
+      position and the five jobs secrets management does:
+
+      ```
+      flowchart LR
+          G["GitOps (ArgoCD)"] --> SS["Secret store"]
+          SS --> ST["Storage"]
+          SS --> DI["Distribution"]
+          SS --> RO["Rotation"]
+          SS --> AU["Audit log"]
+          SS --> BO["Bootstrap (chicken-and-egg)"]
+          BO -.-> SO["SOPS / out-of-band"]
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the six vendors against two axes. Use `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:cloud-managed↔self-hosted,y:plain-storage↔dynamic-credentials" >}}
+          quadrantChart
+              title Secrets management — 2026
+              x-axis Cloud managed --> Self-hosted
+              y-axis Plain KV --> Dynamic credentials
+              quadrant-1 "Self-hosted · Dynamic"
+              quadrant-2 "Cloud-managed · Dynamic"
+              quadrant-3 "Cloud-managed · Plain"
+              quadrant-4 "Self-hosted · Plain"
+              Infisical: [0.80, 0.40]
+              ESO + SOPS-in-Git: [0.85, 0.15]
+              HashiCorp Vault: [0.70, 0.90]
+              Sealed Secrets: [0.90, 0.10]
+              AWS Secrets Manager + CSI: [0.10, 0.55]
+              Plaintext in Git: [0.95, 0.05]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("Infisical: a UI-first secret
+      store that makes day-one easy"; "Vault: every feature you
+      could want, and the operational overhead to match") and what
+      it gives up to get there. Use `{{< papers/pullquote source="..."
+      url="..." >}}` for at least one direct quote pulled from the
+      dossier (likely the SOPS or Vault architecture doc).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: *bootstrapping the secret store itself without
+      trusting any one machine, any one engineer, or any one Git
+      line.* Every option has a different answer; this section
+      lays them out side-by-side with one `flowchart TD` per vendor
+      in a shared visual language.
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = controllers / servers
+      - Rounded rectangles = K8s Secret resources
+      - Diamonds = decision points / auth gates
+      - Cylinders = persistent storage (database, Git, KMS)
+      - Dashed edges = bootstrap / out-of-band paths
+      - Solid edges = runtime / sync paths
+
+      Four-to-six architecture diagrams (one per vendor in the
+      landscape that has a meaningfully different answer). Skip
+      plaintext-in-Git — it doesn't have a "hard part", which is
+      the §6 punchline.
+
+      Example for Infisical + ESO + SOPS-bootstrap:
+
+      ```
+      flowchart TD
+          subgraph BOOT["Bootstrap (out-of-band)"]
+              G_SOPS[("secrets/ in Git, SOPS-encrypted")]
+              A["Engineer: sops --decrypt | kubectl apply"]
+              K1{{"K8s Secret: infisical-secrets"}}
+          end
+          subgraph RUN["Runtime"]
+              I["Infisical server"]
+              DB[("Postgres")]
+              R[("Redis")]
+              ESO["External Secrets Operator"]
+              CSS["ClusterSecretStore: infisical"]
+              ES["ExternalSecret CR"]
+              K2{{"K8s Secret: app-secret"}}
+          end
+          G_SOPS -.-> A
+          A -.-> K1
+          K1 --> I
+          I --> DB
+          I --> R
+          ESO --> CSS
+          CSS --> I
+          ES --> ESO
+          ESO --> K2
+      ```
+
+      For each diagram include 80–200 words of prose: what the
+      controller does at runtime, how the bootstrap happens (or
+      doesn't), what the failure mode is when a step fails.
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Secret count.** A cluster with 10 secrets can run any
+         option without strain. At 200 secrets the operational
+         cost diverges — SOPS-in-Git's manual rotation becomes the
+         bottleneck, Sealed Secrets' re-encrypt-on-key-rotation
+         becomes a multi-hour ceremony, Infisical's UI starts
+         paying for itself.
+
+      2. **Rotation cadence.** Quarterly rotation is fine on every
+         option. Per-incident rotation (one breach, every secret
+         in the cluster) flips the ranking to Vault's dynamic
+         credentials or AWS Secrets Manager's auto-rotate, because
+         nothing else can keep up.
+
+      3. **Audit-log demand.** No compliance framework: SOPS+age in
+         Git is enough. SOC 2 / ISO 27001 / HIPAA: you need an audit
+         log of who-read-what-when, which means Infisical, Vault, or
+         AWS — and Sealed Secrets is automatically out.
+
+      Cite ≥2 primary sources from the dossier (Vault architecture
+      doc + a key-rotation comparison). Do not editorialize past
+      what the citations support.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank chose Infisical + External Secrets Operator + SOPS-
+      for-bootstrap. The full chain: SOPS-encrypted secrets in
+      `secrets/` applied out-of-band to seed `infisical-secrets`,
+      `infisical-db-uri`, and `infisical-credentials`; Infisical
+      running at `192.168.55.204` with its own Postgres and Redis
+      (split into three ArgoCD apps because of the Helm chart's
+      two-source DB_CONNECTION_URI bug); ESO reading from Infisical
+      via a `ClusterSecretStore` and materializing Kubernetes
+      Secrets for every other workload. The scars came in the
+      seams.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative options
+      from the gotcha registry:
+
+      Scar 1 — the ExternalSecret `data: []` rejection:
+      ```
+      {{< papers/scar date="2026-03-08" >}}
+      We removed the last key from an ExternalSecret and left
+      `data: []`. The ESO admission webhook rejected it with a
+      schema-validation error. Empty arrays aren't a valid state
+      — the only resolution is to delete the ExternalSecret
+      entirely. ArgoCD doesn't infer that from a values diff and
+      leaves the app stuck OutOfSync forever. The fix is one
+      line of conditional Helm; the lesson is that "the last key
+      was removed" is not a state the operator considers possible.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — `envFrom.secretRef` without `optional: true`:
+      ```
+      {{< papers/scar date="2026-03-12" >}}
+      A Deployment used `envFrom.secretRef` for a Secret that
+      didn't exist yet — because ESO hadn't synced from Infisical
+      on the first deploy. Without `optional: true`, every
+      rolling update wedged on `CreateContainerConfigError` for
+      the entire chart's pods, with no signal except a stuck
+      ReplicaSet. The fix is a one-line annotation per envFrom
+      block. Easy when you know it. Invisible when you don't.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — the SOPS-bootstrap chicken-and-egg:
+      ```
+      {{< papers/scar date="2026-03-05" >}}
+      Infisical needs an admin password, and an admin password
+      needs Infisical. The Helm chart can't materialize an
+      admin password from thin air; ArgoCD can't apply a Secret
+      it doesn't know yet exists. The accepted exception is the
+      only one in the declarative-everything principle: SOPS-
+      encrypted secrets live in `secrets/`, applied via
+      `sops --decrypt … | kubectl apply -f -` BEFORE Infisical
+      exists. Three Secrets, three commands, one per cluster
+      rebuild. Everything else after that is ArgoCD-managed.
+      The bootstrap exception is the tax for declarative-
+      everything; pretending it doesn't exist is what causes
+      half the production secret-store incidents in the field.
+      {{< /papers/scar >}}
+      ```
+
+      Pick 2-3 scars from the above (all three is also fine if the
+      section budget allows). Real dates only — pull from
+      `agents/rules/frank-gotchas.md` cross-referenced with
+      `apps/infisical/manifests/` and `secrets/infisical/`.
+
+      Include ≥1 evidence artefact: either the Infisical UI
+      screenshot from P4.T3 or `apps/infisical/manifests/cluster-
+      secret-store.yaml` inlined as a code block.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one
+      leaf; the others are real:
+
+      ```
+      flowchart TD
+          A["Solo dev, one cluster, ≤20 secrets?"] -- "Yes" --> L1["SOPS+age in Git, decrypt-on-deploy"]
+          A -- "No" --> B["Compliance / audit-log required?"]
+          B -- "Yes, enterprise" --> L4["HashiCorp Vault"]
+          B -- "No" --> C["Cloud-native, AWS only?"]
+          C -- "Yes" --> L3["AWS Secrets Manager + CSI"]
+          C -- "No" --> L2["Infisical + ESO (Frank's pick)"]
+      ```
+
+      ≤4 visible leaves. The decision turns on three questions:
+      *do you have enough secrets to need a UI* (≤20: no, SOPS
+      wins), *do you have compliance demands* (yes: Vault), *are
+      you cloud-only* (yes, AWS: Secrets Manager + CSI; no:
+      Infisical). The Vault leaf is for the regulated team that
+      needs dynamic credentials and audit retention measured in
+      years.
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **OIDC-trusted workload identity is eating static
+         credentials.** Cloud KMS providers, Vault, and Infisical
+         are all converging on "the pod authenticates with its
+         ServiceAccount JWT and the secret store mints a short-
+         lived credential". This is the secret-store-as-OIDC-RP
+         model. In 18 months the "store a long-lived API key"
+         pattern may be a smell.
+
+      2. **CSI driver vs ESO is the architectural fork to watch.**
+         CSI mounts secrets directly as tmpfs files; ESO
+         materializes them as native Kubernetes Secrets. CSI is
+         more secure (no Secret object in etcd) but less ergonomic
+         (no envFrom, no obvious portability). ESO is winning
+         adoption but CSI is winning the security-first crowd.
+
+      3. **Sealed Secrets is becoming a deployment-only artefact.**
+         Encrypt-in-Git is great for bootstrap and disaster
+         recovery; it's mediocre for day-two operations. Expect
+         Sealed Secrets to live on as the "GitOps disaster
+         recovery layer" beneath a real secret store, the same
+         role SOPS plays in Frank's stack.
+
+      Optional timeline diagram or roadmap citations. Cite the
+      dossier where possible.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/09-secrets-bootstrap/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If
+      over, trim §3 first — that's where capability papers
+      reliably sprawl past budget.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-05-20T04:24:29+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-05-20T04:24:31+00:00'
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: '2026-05-20T04:24:33+00:00'
+      note: null
+    P3.T3.S2:
+      state: x
+      ticked_at: '2026-05-20T04:24:35+00:00'
+      note: null
+    P3.T3.S3:
+      state: x
+      ticked_at: '2026-05-20T04:24:36+00:00'
+      note: null
+    P3.T3.S4:
+      state: x
+      ticked_at: '2026-05-20T04:24:38+00:00'
+      note: null
+    P3.T3.S5:
+      state: x
+      ticked_at: '2026-05-20T04:24:40+00:00'
+      note: null
+    P3.T3.S6:
+      state: x
+      ticked_at: '2026-05-20T04:24:42+00:00'
+      note: null
+    P3.T3.S7:
+      state: x
+      ticked_at: '2026-05-20T04:24:43+00:00'
+      note: null
+    P3.T3.S8:
+      state: x
+      ticked_at: '2026-05-20T04:24:45+00:00'
+      note: 4197 words — within 2400–4200 budget
+  completion:
+    at: '2026-05-20T04:24:47+00:00'
+    note: All sections drafted; Hugo --minify --buildDrafts renders to 198K; word
+      count 4197; zero ERROR lines.
+    observed_prs: []

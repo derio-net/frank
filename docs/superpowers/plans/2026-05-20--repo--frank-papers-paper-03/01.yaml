@@ -1,0 +1,239 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 03 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+      ```bash
+      scripts/scaffold-paper.sh 03 ebpf-networking
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 03:
+        Hugo bundle:  blog/content/docs/papers/03-ebpf-networking/
+        Dossier:      docs/papers-dossiers/03-ebpf-networking/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/03-ebpf-networking/index.md
+      ls docs/papers-dossiers/03-ebpf-networking/dossier.md
+      ```
+- number: 2
+  title: Research the eBPF-vs-service-mesh landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/03-ebpf-networking/dossier.md` — vendors in scope
+
+      Paper 03 maps the eBPF networking and service-mesh vendor space.
+      Suggested six-vendor landscape (final list is the dossier-construction
+      subagent's call after research, but anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Cilium
+        positioning: "Isovalent / CNCF — eBPF-native CNI, kube-proxy replacement, L2 LBIPAM, network policy, and Hubble flow observability in one chart."
+        primary_url: "https://docs.cilium.io/en/stable/"
+      - name: Calico
+        positioning: "Tigera — original Kubernetes network policy implementation; iptables/eBPF/VPP data planes, BGP peering for bare-metal, mature multi-tenant policy model."
+        primary_url: "https://docs.tigera.io/calico/latest/about/"
+      - name: kube-proxy + iptables / IPVS
+        positioning: "Upstream Kubernetes default — userspace controller programming iptables (or IPVS) rules from Service and Endpoints, paired with any CNI plugin. The baseline this paper exists to argue against (and for, at small scale)."
+        primary_url: "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+      - name: Istio
+        positioning: "Service mesh — Envoy sidecars on every pod, full L7 inspection, mTLS, retries, traffic management; the canonical 'tax' against which eBPF data-plane vendors are measured."
+        primary_url: "https://istio.io/latest/docs/concepts/what-is-istio/"
+      - name: Linkerd2
+        positioning: "Buoyant — lightweight Rust-based sidecar service mesh; same job as Istio with a smaller per-request overhead and a smaller feature surface."
+        primary_url: "https://linkerd.io/2/overview/"
+      - name: Cloud-managed CNI (AWS VPC CNI / GKE Cilium-default)
+        positioning: "Cloud vendors — AWS VPC CNI assigns ENIs to pods; GKE Dataplane V2 ships Cilium as default. The 'somebody else runs the data plane' option, with the trade that you lose control over the kernel."
+        primary_url: "https://docs.aws.amazon.com/eks/latest/userguide/pod-networking.html"
+      ```
+
+      Frank's case study is Cilium (eBPF kube-proxy replacement on Talos,
+      L2 LBIPAM, Hubble UI on 192.168.55.202); the other five exist in the
+      dossier so §3 can compare architectures and §6 can branch the
+      decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+      Required coverage: vendor architecture docs, at least one
+      foundational paper or comparison talk, and at least one real-
+      world postmortem. URL hints to chase:
+
+      1. Cilium architecture / concepts — type: `vendor-docs`
+         (https://docs.cilium.io/en/stable/overview/component-overview/)
+      2. Cilium 1.17 release notes — type: `vendor-docs`
+         (https://isovalent.com/blog/post/cilium-1-17/ or current
+         equivalent)
+      3. "BPF: The Future of Linux Networking" — Liz Rice / Brendan
+         Gregg / Daniel Borkmann talks — type: `talk`
+      4. AWS VPC CNI architecture — type: `vendor-docs`
+         (https://docs.aws.amazon.com/eks/latest/best-practices/vpc-cni.html
+          or similar)
+      5. Cilium vs Calico vs kube-proxy throughput / latency benchmark —
+         type: `benchmark`
+         (search "cilium calico benchmark" — practitioner writeups
+          from cilium.io blog, kubernetes blog, ITNEXT, etc.)
+      6. Frank's own running postmortem registry on the Cilium scars —
+         type: `postmortem`
+         (https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+
+      URL-recovery protocol: 90-second budget per dead URL. `curl -sIL`
+      to confirm dead; `WebFetch`/`WebSearch` for the canonical or a
+      Wayback snapshot; swap to a sibling source from the same vendor/
+      author if no working replacement found. Do not loop.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+      Pull directly from the cluster repo and Frank's gotcha registry.
+      Suggested artefacts (the dossier-construction subagent picks the
+      final list, but at least these are known to exist):
+
+      1. `kind: yaml` — `apps/cilium/values.yaml` — the canonical Cilium
+         configuration Frank actually runs. Shows
+         `kubeProxyReplacement: true`, `l2announcements.enabled: true`,
+         `externalIPs.enabled: true`, Hubble UI + relay enabled, IPAM
+         kubernetes mode.
+         `path_or_url: apps/cilium/values.yaml`
+         `demonstrates: "Cilium 1.17 with eBPF kube-proxy replacement,
+          L2 LBIPAM for bare-metal LoadBalancer Services, Hubble for
+          flow observability — all configured in 47 lines of Helm values.
+          No sidecar mesh, no separate L4 LB controller, no separate
+          observability stack."`
+
+      2. `kind: yaml` — `apps/cilium/manifests/lb-ippool.yaml` +
+         `apps/cilium/manifests/l2-policy.yaml` — the Cilium
+         LoadBalancer IP pool (192.168.55.200-254) and L2 announcement
+         policy on `eth*`/`en*` interfaces.
+         `demonstrates: "Cilium L2 LBIPAM in production — a single IP
+          pool announces all 25+ LoadBalancer Services on Frank without
+          MetalLB, without an external load balancer, without BGP."`
+
+      3. `kind: incident` — the FQDN CiliumNetworkPolicy stale-BPF rule
+         retention. Source:
+         `docs/runbooks/frank-gotchas/networking.md`.
+         `demonstrates: "Stale BPF egress rules persist even after
+          deleting the CiliumNetworkPolicy. Cilium 1.17 FQDN policies
+          also fail with 'FQDN regex compilation LRU not yet initialized'
+          if no endpoint on the node has previously triggered DNS proxy
+          initialization. Workaround: restart Cilium agent on the node."`
+
+      4. `kind: incident` — the `lbipam.cilium.io/sharing-key` 41-day
+         outage. Source: `docs/runbooks/frank-gotchas/networking.md`.
+         `demonstrates: "Separate Service objects need
+          lbipam.cilium.io/sharing-key to share one LB IP. Annotating
+          both Services with the same lbipam.cilium.io/ips does NOT
+          cause Cilium to coordinate the allocation — IPAM treats each
+          annotation as an independent request and leaves the second
+          Service at EXTERNAL-IP <pending> indefinitely. The Gitea SSH
+          LB stayed pending for 41 days; the chart's split into two
+          Services hid the failure."`
+
+      5. `kind: incident` (optional) — the MixedProtocolLBService
+         gate-free discovery on Cilium 1.17 + K8s 1.35. Source:
+         `docs/runbooks/frank-gotchas/networking.md` + the
+         `paperclip-shell`/`ruflo-shell` Services that mix TCP/22 with
+         UDP/60000-60015 on a single LB IP.
+         `demonstrates: "TCP + UDP on a single Cilium L2 LB IP works on
+          Cilium 1.17 + K8s 1.35 — no feature gate, no annotation, no
+          per-protocol service split. We spent half an hour reading old
+          GitHub issues looking for the gate that didn't need flipping."`
+
+      6. `kind: yaml` (optional) —
+         `apps/secure-agent-pod/manifests/service-mosh.yaml`. Shows the
+         16-port UDP Service that mosh uses, paired with the SSH TCP
+         Service on the matching IP — concrete example of LBIPAM
+         sharing in production.
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No apples-to-apples 'CNI total operational tax' benchmark
+        exists in the public literature — i.e., a measurement of
+        total operational overhead (data-plane CPU per pod, policy
+        enforcement overhead per request, observability stack
+        footprint, debugging hours per incident, BPF map sizing at
+        N endpoints) at small-to-medium cluster scale (3–20 nodes).
+        Published comparisons cover either synthetic throughput
+        (iperf3 between two pods) or feature matrices (Cilium vs
+        Calico checklist) but never the bundled tax that
+        determines whether eBPF is worth running at all. The
+        single most useful number for a decision-maker — 'how many
+        hours per month will this CNI cost you in production
+        debugging?' — does not exist as published work."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "For an AWS-native cluster with mostly stateful workloads
+        and no NetworkPolicy needs, the VPC CNI is the rational
+        default and replacing it with Cilium is overkill — why
+        doesn't that win for Frank? Answer: same shape as Paper 04
+        and Paper 14. Frank is a learning platform on bare metal.
+        VPC CNI does not exist for us; kube-proxy + iptables is
+        the only baseline available. The reason to run Cilium is
+        to encounter the FQDN-stale-BPF trap, the LBIPAM
+        sharing-key surprise, the MixedProtocolLBService non-gate
+        — first-hand. A team that has internalized these lessons
+        can rationally accept the VPC CNI's opinionated trade-offs
+        and let AWS run the data plane; a team that has not will
+        reinvent the same scars when they migrate off the cloud.
+        The counter-argument wins for the team that has already
+        paid the tuition; for Frank, paying the tuition is the
+        point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-05-20T04:22:23+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-05-20T04:22:24+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-05-20T04:22:26+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-05-20T04:22:28+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-05-20T04:22:30+00:00'
+      note: null
+  completion:
+    at: '2026-05-20T04:22:31+00:00'
+    note: 'Dossier passes validate-dossier.py: 6 vendors, 6 sources (4 type values:
+      vendor-docs/talk/benchmark/postmortem), 6 artefacts (3 kinds: yaml/incident/grafana-screenshot),
+      1 gap, 1 counter-argument.'
+    observed_prs: []
