@@ -83,31 +83,64 @@ jobs:
             ghcr.io/derio-net/blog:latest
             ghcr.io/derio-net/blog:${{ github.sha }}
 
-      - name: Update deployment manifest with new image tag
+      - name: Update deployment manifest with new image tag (idempotent)
+        # Idempotent push loop. Each attempt:
+        #   1. Resets the working tree to fresh origin/main (no rebase mess).
+        #   2. Reads the currently-deployed image SHA.
+        #   3. If main already points at OUR_SHA → nothing to do, exit 0.
+        #   4. If CURRENT_SHA is a descendant of OUR_SHA → a newer build won
+        #      the race; our SHA is stale, yield silently with exit 0.
+        #   5. Otherwise apply the SHA bump, commit, push.
+        #   6. If push is rejected (someone pushed in the gap), loop back to
+        #      step 1 with a fresh checkout.
+        #
+        # This replaces the previous retry-loop that did `git pull --rebase`,
+        # which would silently leave the working tree in a conflicted state
+        # when two workflows both modified the same image: line.
         run: |
-          sed -i "s|image: ghcr.io/derio-net/blog:.*|image: ghcr.io/derio-net/blog:$IMAGE_SHA  # updated by CI — do not pin manually|" \
-            clusters/hop/apps/blog/manifests/deployment.yaml
-        env:
-          IMAGE_SHA: ${{ github.sha }}
-
-      - name: Commit and push updated manifest
-        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add clusters/hop/apps/blog/manifests/deployment.yaml
-          # Only commit if the file actually changed
-          git diff --cached --quiet && echo "No changes to commit" && exit 0
-          git commit -m "ci(blog): update image to ${IMAGE_SHA:0:7}"
-          # Retry with rebase on push rejection (concurrent workflows racing to push to main)
+          MANIFEST=clusters/hop/apps/blog/manifests/deployment.yaml
+
           for attempt in 1 2 3 4 5; do
-            if git push; then
+            git fetch origin main
+            git reset --hard origin/main
+
+            CURRENT_SHA=$(sed -nE 's|.*image: ghcr.io/derio-net/blog:([a-f0-9]+).*|\1|p' "$MANIFEST" | head -1)
+            if [ -z "$CURRENT_SHA" ]; then
+              echo "::error::Could not parse current image SHA from $MANIFEST"
+              exit 1
+            fi
+
+            if [ "$CURRENT_SHA" = "$OUR_SHA" ]; then
+              echo "Deployment already pinned to $OUR_SHA — nothing to do"
               exit 0
             fi
-            echo "Push rejected (attempt $attempt/5) — rebasing onto latest main and retrying..."
-            git pull --rebase origin main
+
+            if git merge-base --is-ancestor "$OUR_SHA" "$CURRENT_SHA" 2>/dev/null; then
+              echo "Race lost: main already deployed at $CURRENT_SHA (descendant of our build $OUR_SHA) — exiting clean"
+              exit 0
+            fi
+
+            sed -i "s|image: ghcr.io/derio-net/blog:.*|image: ghcr.io/derio-net/blog:$OUR_SHA  # updated by CI — do not pin manually|" "$MANIFEST"
+            git add "$MANIFEST"
+            if git diff --cached --quiet; then
+              echo "No-op after sed — exiting clean"
+              exit 0
+            fi
+            git commit -m "ci(blog): update image to ${OUR_SHA:0:7}"
+
+            if git push; then
+              echo "Pushed manifest update on attempt $attempt"
+              exit 0
+            fi
+
+            echo "Push rejected (attempt $attempt/5) — another workflow pushed in the gap. Retrying with a fresh checkout."
             sleep $((attempt * 2))
           done
+
           echo "::error::Failed to push manifest update after 5 attempts"
           exit 1
         env:
-          IMAGE_SHA: ${{ github.sha }}
+          OUR_SHA: ${{ github.sha }}
