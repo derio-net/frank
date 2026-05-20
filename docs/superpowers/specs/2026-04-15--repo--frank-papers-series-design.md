@@ -395,4 +395,4 @@ Phase 0 done → Paper 00 dossier → Paper 00 draft → publish → Phase 1 ope
 | The Frank Papers — Paper 06: GitOps at Small Scale | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-06/` | Complete (2026-05-19) — published |
 | The Frank Papers — Paper 07: The Observability Stack, Honestly | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-07/` | Complete (2026-05-19) — published |
 | The Frank Papers — Paper 02: Immutable OS & Declarative Machines | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-02/` | Complete (2026-05-19) — published |
-| 2026-05-20--repo--frank-papers-paper-03 | `derio-net/frank` | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-03/` | — |
+| The Frank Papers — Paper 03: eBPF Networking Without a Service Mesh | derio-net/frank | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-03/` | Complete (2026-05-20) — PR open for review |
