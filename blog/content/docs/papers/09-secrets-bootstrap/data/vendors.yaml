@@ -1,0 +1,78 @@
+features:
+  - key: self_hosted
+    label: Self-hosted
+  - key: ui
+    label: Web UI
+  - key: audit_log
+    label: Audit log
+  - key: rotation
+    label: Built-in rotation
+  - key: dynamic_creds
+    label: Dynamic credentials
+  - key: k8s_native
+    label: K8s-native sync
+  - key: bootstrap_loop
+    label: Bootstrap chicken-and-egg
+  - key: oss
+    label: OSS / no contract required
+vendors:
+  - name: Infisical
+    features:
+      self_hosted: "yes"
+      ui: "yes"
+      audit_log: "yes"
+      rotation: "partial"
+      dynamic_creds: "no"
+      k8s_native: "yes"
+      bootstrap_loop: "yes"
+      oss: "yes"
+  - name: ESO + SOPS-in-Git
+    features:
+      self_hosted: "yes"
+      ui: "no"
+      audit_log: "partial"
+      rotation: "no"
+      dynamic_creds: "no"
+      k8s_native: "yes"
+      bootstrap_loop: "no"
+      oss: "yes"
+  - name: HashiCorp Vault
+    features:
+      self_hosted: "yes"
+      ui: "yes"
+      audit_log: "yes"
+      rotation: "yes"
+      dynamic_creds: "yes"
+      k8s_native: "partial"
+      bootstrap_loop: "yes"
+      oss: "partial"
+  - name: Sealed Secrets
+    features:
+      self_hosted: "yes"
+      ui: "no"
+      audit_log: "no"
+      rotation: "no"
+      dynamic_creds: "no"
+      k8s_native: "yes"
+      bootstrap_loop: "partial"
+      oss: "yes"
+  - name: AWS Secrets Manager + CSI
+    features:
+      self_hosted: "no"
+      ui: "yes"
+      audit_log: "yes"
+      rotation: "yes"
+      dynamic_creds: "partial"
+      k8s_native: "yes"
+      bootstrap_loop: "no"
+      oss: "no"
+  - name: Plaintext in Git
+    features:
+      self_hosted: "yes"
+      ui: "no"
+      audit_log: "no"
+      rotation: "no"
+      dynamic_creds: "no"
+      k8s_native: "partial"
+      bootstrap_loop: "no"
+      oss: "yes"

@@ -1,0 +1,166 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Post-Deploy Checklist
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Verify external publish (deferred)
+
+
+      Paper 17 publishes on the existing public blog at
+      `blog.derio.net/frank` after CI deploys, which happens after
+      this PR is merged by a human reviewer. URL liveness check
+      is deferred to post-merge.
+
+      Reference URL once live:
+      `https://blog.derio.net/frank/docs/papers/17-agentic-orchestration/`
+  - id: P6.T1.S2
+    text: |-
+      Verify cross-link chips render bidirectionally
+
+
+      The `papers-backlink.html` partial auto-renders a "→ Paper 17"
+      chip on Building 21-secure-agent-pod and Operating 14-
+      secure-agent-pod via `related_building` / `related_operating`
+      frontmatter. No edits needed — verify post-merge.
+
+      Cross-series chip backlink verification is deferred to
+      merge-time Hugo CI build (same posture as Papers 10, 04, 11,
+      14).
+  - id: P6.T1.S3
+    text: |-
+      Update the Papers section `_index.md`
+
+
+      Append Paper 17 to `blog/content/docs/papers/_index.md` in the
+      publish-order list if such a list exists:
+
+      ```bash
+      grep -n "Paper 04\|Paper 10\|Paper 11\|Paper 14" blog/content/docs/papers/_index.md
+      ```
+
+      If a list exists, add a list item for Paper 17 below the
+      existing entries, matching the existing format. If the
+      `_index.md` just renders `{{< papers-roadmap >}}` (status
+      auto-updates from frontmatter), no edit is needed — mark
+      skipped with reason.
+  - id: P6.T1.S4
+    text: |-
+      Update Building/Operating series overviews (optional)
+
+
+      Building 21-secure-agent-pod and Operating 14-secure-agent-pod
+      exist; the cross-series chip auto-renders from Paper 17
+      frontmatter. No manual edit required to the post bodies
+      themselves. If the series overview has a "Further reading"
+      section listing Papers by capability, append Paper 17 there.
+
+      If no such section exists, mark this step skipped with reason
+      "no series-overview Further-reading section to update".
+  - id: P6.T1.S5
+    text: |-
+      Write building/operating blog posts (skip for Papers)
+
+
+      Papers are not new layer deployments — they review existing
+      capabilities. The Building 21-secure-agent-pod and Operating
+      14-secure-agent-pod posts already exist (that's what
+      `related_building` and `related_operating` point at). No new
+      posts.
+
+      *Skip — Papers reference existing Building/Operating posts via
+      frontmatter; the cross-link chips do the work.*
+  - id: P6.T1.S6
+    text: |-
+      Update README
+
+
+      Run `/update-readme` or check manually. The Papers series is
+      already referenced in README (from Paper 00's post-deploy);
+      verify Paper 17 doesn't need a stack-list addition. README is
+      a stack snapshot, not a publish log — most likely no row
+      change is needed.
+
+      If no diff is produced, mark this step skipped with reason
+      "README is a stack snapshot — no Paper 17-specific row needed".
+  - id: P6.T1.S7
+    text: |-
+      Sync runbook
+
+
+      This plan contains no `# manual-operation` blocks — skip
+      `/sync-runbook`.
+
+      Confirm with:
+      ```bash
+      grep -c "# manual-operation" docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-17/*.yaml \
+        | grep -v ":0$" || echo "no manual-operation blocks"
+      ```
+  - id: P6.T1.S8
+    text: |-
+      Update plan status and log publish date
+
+
+      Edit `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-17/_prose.md`:
+
+      ```
+      **Status:** Complete (YYYY-MM-DD) — Paper 17 draft published; PR open for human review.
+      ```
+
+      Update the spec's Implementation Plans table row for Paper 17
+      (`docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`).
+state:
+  steps:
+    P6.T1.S1:
+      state: '-'
+      ticked_at: '2026-05-20T00:25:00+00:00'
+      note: Skip — Paper 17 publishes on existing public blog at blog.derio.net/frank;
+        URL liveness check deferred to post-merge CI.
+    P6.T1.S2:
+      state: x
+      ticked_at: '2026-05-20T00:25:02+00:00'
+      note: Cross-series chip backlink verification deferred to merge-time Hugo CI
+        build (same posture as Papers 10, 04, 11, 14). Hugo build green locally.
+    P6.T1.S3:
+      state: '-'
+      ticked_at: '2026-05-20T00:25:04+00:00'
+      note: 'Skip — blog/content/docs/papers/_index.md renders {{< papers-roadmap >}};
+        status auto-updates from frontmatter. No manual edit needed.'
+    P6.T1.S4:
+      state: '-'
+      ticked_at: '2026-05-20T00:25:06+00:00'
+      note: Skip — Building 21-secure-agent-pod and Operating 14-secure-agent-pod
+        exist; cross-series chip auto-renders from Paper 17 frontmatter. No series-overview
+        Further-reading section in current building/operating/00-overview pages.
+    P6.T1.S5:
+      state: '-'
+      ticked_at: '2026-05-20T00:25:08+00:00'
+      note: Skip — Papers reference existing Building/Operating posts via frontmatter;
+        no new posts needed.
+    P6.T1.S6:
+      state: '-'
+      ticked_at: '2026-05-20T00:25:10+00:00'
+      note: Skip — README references Papers series from Paper 00; Paper 17 is content
+        addition, not a stack change.
+    P6.T1.S7:
+      state: '-'
+      ticked_at: '2026-05-20T00:25:12+00:00'
+      note: 'Skip — no # manual-operation blocks in plan.'
+    P6.T1.S8:
+      state: x
+      ticked_at: '2026-05-20T00:25:14+00:00'
+      note: _prose.md Status flipped to Complete (2026-05-20); spec Implementation
+        Plans table row updated.
+  completion:
+    at: '2026-05-20T00:25:16+00:00'
+    note: Plan status flipped to Complete in _prose.md and the spec's Implementation
+      Plans table row. PR remains OPEN for human review.
+    observed_prs: []
