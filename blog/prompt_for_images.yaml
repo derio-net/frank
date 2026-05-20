@@ -486,6 +486,35 @@ images:
       the charts — no captions or watermarks. ONE FIGURE — one
       single Frank.
 
+  - key: paper-13-cover
+    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
+    # reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/13-self-hosted-cicd/cover.png
+    description: Paper 13 cover — Frank examining a three-stage CI/CD pipeline of glowing rack-panels labelled git, test, push
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands in front
+      of a wall-mounted rack panel that holds three large rectangular
+      indicator panels labelled "git", "test", and "push" — wired
+      together in sequence by thick conduit cabling like a
+      self-hosted CI/CD pipeline. The middle panel ("test") glows
+      amber, mid-build; the flanking panels glow steady green. One
+      green-skinned hand rests on the test panel's frame; the other
+      hand holds a small clipboard with a Tekton-style stick-figure
+      pipeline graph drawn on it (three nodes connected by arrows).
+      His expression is approving-but-cautious — the rare layer
+      where the homelab stack genuinely matches enterprise tooling,
+      and he knows it. He wears thin small round reading glasses
+      resting low on his face and a thin black necktie over a white
+      button-down dress shirt. Warm overhead work-lamp light. Deep
+      navy studio-style background. RJ45 neck bolts, green skin,
+      messy black hair, rack-mount torso. The panel labels (git,
+      test, push) and the clipboard pipeline graph are the ONLY
+      text in the image — no extra captions or watermarks. ONE
+      FIGURE — one single Frank. The framing communicates "a
+      three-tool stack that works because every seam is documented"
+      rather than "CI/CD is solved".
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview

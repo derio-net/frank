@@ -149,30 +149,31 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:31:00+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:31:03+00:00'
+      note: Gemini cover generated, 698.2 KB
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:31:05+00:00'
+      note: Only TL;DR placeholder remains, by design (Phase 5)
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:31:07+00:00'
+      note: 'hugo --minify --buildDrafts: 0 ERROR; Paper 13 renders to 192.5 KB'
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:31:10+00:00'
+      note: Cluster access unavailable from worktree; placeholder tekton-pipelinerun-TODO.png
+        retained for cluster-side capture.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:31:12+00:00'
+      note: hugo --minify --buildDrafts clean; Paper 13 renders to 192.5 KB
   completion:
-    at: null
+    at: '2026-05-20T04:31:14+00:00'
     note: null
     observed_prs: []
