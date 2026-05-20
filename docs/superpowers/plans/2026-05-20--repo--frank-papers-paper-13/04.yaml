@@ -1,0 +1,178 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Add Paper 13 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add a new entry under the `# --- Papers Series Covers ---`
+      section, after the most recent paper entry:
+
+      ```yaml
+        - key: paper-13-cover
+          output: blog/content/docs/papers/13-self-hosted-cicd/cover.png
+          description: Paper 13 cover — Frank examining a three-stage pipeline of glowing rectangles labelled git → test → push
+          prompt: >-
+            Frank the server-hardware Frankenstein monster stands in
+            front of a wall-mounted rack panel that holds three large
+            glowing rectangular indicator panels labelled "git",
+            "test", and "push" — wired together in sequence by thick
+            conduit cabling like a self-hosted CI/CD pipeline.
+            The middle panel ("test") glows amber, mid-build; the
+            flanking panels glow steady green. One green-skinned
+            hand rests on the test panel's frame, the other holds a
+            small clipboard with a Tekton-style stick-figure
+            pipeline graph drawn on it. His expression is
+            approving-but-cautious — the rare layer where the
+            homelab stack genuinely matches enterprise tooling, and
+            he knows it. He wears thin small round reading glasses
+            resting low on his face and a thin black necktie over a
+            white button-down dress shirt. Warm overhead work-lamp
+            light. Deep navy studio-style background. RJ45 neck
+            bolts, green skin, messy black hair, rack-mount torso.
+            The panel labels (git, test, push) and the clipboard
+            pipeline graph are the ONLY text in the image — no
+            extra captions or watermarks. ONE FIGURE — Frank alone.
+      ```
+  - id: P4.T1.S2
+    text: |
+      Generate the cover image
+
+
+      ```bash
+      set -a && source .env_common && set +a
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-13-cover
+      ```
+
+      Expected: `blog/content/docs/papers/13-self-hosted-cicd/cover.png`
+      created, ≥50KB.
+
+      If generation fails for any reason (Gemini API timeout,
+      quota, etc.), fall back: `cp blog/static/images/reference.png
+      blog/content/docs/papers/13-self-hosted-cicd/cover.png` and
+      tick step `--state - --note "Gemini fallback used; regen
+      post-merge."`
+
+      Spot-check: Frank should have thin round reading glasses,
+      thin black tie, approving expression, and the three-stage
+      pipeline metaphor should be recognisable. Up to 3
+      regeneration attempts if the visual signature is missing.
+- number: 2
+  title: Render Mermaid diagrams and verify they parse
+  steps:
+  - id: P4.T2.S1
+    text: |
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/13-self-hosted-cicd/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft
+      work (TL;DR remains pending — that is by design and lives
+      outside the Mermaid scope).
+  - id: P4.T2.S2
+    text: |
+      Verify Mermaid diagrams parse without errors in Hugo build
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/13-self-hosted-cicd/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+- number: 3
+  title: Capture Tekton PipelineRun / Gitea webhook screenshot
+  steps:
+  - id: P4.T3.S1
+    text: |
+      Capture a Tekton screenshot showing a real pipeline run
+
+
+      Source: `kubectl get pipelinerun -A` output, or the Tekton
+      Dashboard (at 192.168.55.217) showing a PipelineRun
+      triggered by a Gitea webhook.
+
+      Procedure:
+      ```bash
+      # From a machine with cluster access:
+      # 1. kubectl get pipelinerun -A --watch
+      #    (capture a PipelineRun progressing through TaskRuns)
+      # OR
+      # 2. Open the Tekton Dashboard at 192.168.55.217 during a
+      #    Gitea-webhook-triggered build and screenshot the
+      #    PipelineRun graph view.
+      ```
+
+      Save to:
+      ```
+      blog/content/docs/papers/13-self-hosted-cicd/tekton-pipelinerun.png
+      ```
+
+      If cluster access is unavailable, copy the 1×1 placeholder
+      and rename with `-TODO.png` suffix:
+      ```bash
+      cp blog/content/docs/papers/14-progressive-delivery/argo-rollouts-canary-TODO.png \
+         blog/content/docs/papers/13-self-hosted-cicd/tekton-pipelinerun-TODO.png
+      ```
+      Tick the step `--state - --note "Cluster access unavailable
+      from worktree."`
+- number: 4
+  title: Full Hugo build smoke-test
+  steps:
+  - id: P4.T4.S1
+    text: |
+      Run the production Hugo build to assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/13-self-hosted-cicd/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
