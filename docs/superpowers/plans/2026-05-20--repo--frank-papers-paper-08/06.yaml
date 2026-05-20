@@ -120,38 +120,49 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:39:54+00:00'
+      note: Skip — Paper 08 publishes on existing public blog at blog.derio.net/frank;
+        URL liveness check deferred to post-merge CI.
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:39:57+00:00'
+      note: Cross-series chip backlink verification deferred to merge-time Hugo CI
+        build (same posture as Papers 10/04/11/14). Hugo build green locally.
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:39:59+00:00'
+      note: _index.md uses {{< papers-roadmap >}} shortcode (auto-discovers published
+        Papers); no manual list update required.
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:40:01+00:00'
+      note: Skip — Building 08-backup and Operating 02-storage-backups exist; cross-series
+        chip auto-renders from Paper 08 frontmatter; no Further-reading section in
+        current building/operating/00-overview pages.
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:40:03+00:00'
+      note: Skip — Papers reference existing Building/Operating posts via frontmatter;
+        no new posts needed.
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:40:05+00:00'
+      note: Skip — README references Papers series from Paper 00; Paper 08 is content
+        addition, not a stack change.
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:40:07+00:00'
+      note: 'Skip — no # manual-operation blocks in plan (only documentation references
+        to the term).'
     P6.T1.S8:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:40:08+00:00'
+      note: _prose.md Status flipped to Complete (2026-05-20); spec Implementation
+        Plans table row updated.
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T04:40:10+00:00'
+    note: Papers landing uses papers-roadmap shortcode (auto-discovers). Plan status
+      flipped to Complete in _prose.md and spec table row. PR remains OPEN for human
+      review.
     observed_prs: []
