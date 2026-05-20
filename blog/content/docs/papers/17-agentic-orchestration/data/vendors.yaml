@@ -1,0 +1,78 @@
+features:
+  - key: per_agent_isolation
+    label: Per-agent isolation
+  - key: persistent_state
+    label: Persistent workstation state
+  - key: ssh_mosh
+    label: SSH + Mosh access
+  - key: web_ide
+    label: Browser-based IDE
+  - key: fleet_orchestration
+    label: Fleet / dispatcher
+  - key: policy_audit
+    label: Policy + audit
+  - key: self_hostable
+    label: Self-hostable
+  - key: oss
+    label: OSS / no contract required
+vendors:
+  - name: secure-agent-pod (Frank)
+    features:
+      per_agent_isolation: "yes"
+      persistent_state: "yes"
+      ssh_mosh: "yes"
+      web_ide: "no"
+      fleet_orchestration: "partial"
+      policy_audit: "partial"
+      self_hostable: "yes"
+      oss: "yes"
+  - name: VibeKanban
+    features:
+      per_agent_isolation: "partial"
+      persistent_state: "yes"
+      ssh_mosh: "partial"
+      web_ide: "yes"
+      fleet_orchestration: "yes"
+      policy_audit: "partial"
+      self_hostable: "yes"
+      oss: "yes"
+  - name: Paperclip + Sympozium
+    features:
+      per_agent_isolation: "partial"
+      persistent_state: "yes"
+      ssh_mosh: "partial"
+      web_ide: "yes"
+      fleet_orchestration: "yes"
+      policy_audit: "yes"
+      self_hostable: "yes"
+      oss: "yes"
+  - name: Coder.com
+    features:
+      per_agent_isolation: "yes"
+      persistent_state: "yes"
+      ssh_mosh: "yes"
+      web_ide: "yes"
+      fleet_orchestration: "yes"
+      policy_audit: "yes"
+      self_hostable: "yes"
+      oss: "partial"
+  - name: GitPod
+    features:
+      per_agent_isolation: "yes"
+      persistent_state: "partial"
+      ssh_mosh: "partial"
+      web_ide: "yes"
+      fleet_orchestration: "partial"
+      policy_audit: "yes"
+      self_hostable: "partial"
+      oss: "partial"
+  - name: devcontainers / Codespaces
+    features:
+      per_agent_isolation: "partial"
+      persistent_state: "partial"
+      ssh_mosh: "no"
+      web_ide: "yes"
+      fleet_orchestration: "no"
+      policy_audit: "partial"
+      self_hostable: "partial"
+      oss: "yes"

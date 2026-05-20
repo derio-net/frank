@@ -419,6 +419,35 @@ images:
       text in the image — no extra captions or watermarks. ONE FIGURE —
       one single Frank. The framing communicates "staged exposure under
       uncertainty" rather than "deployment is solved".
+  - key: paper-17-cover
+    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
+    # reference.png anchors style; the Papers signature (glasses + tie
+    # + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/17-agentic-orchestration/cover.png
+    description: Paper 17 cover — Frank surveying a fleet of identical safe agent workstations, one dimmed
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands in front
+      of a tall rack panel showing a fleet of identical safe agent
+      workstations — each rendered as a glowing terminal podlet with
+      a small green tmux status bar across the bottom of its screen.
+      The pods are stacked in a 3x3 grid; eight are warmly lit, ONE
+      pod (middle row, right column) is visibly dimmed and dark — the
+      per-PV scar, a workstation in a crashloop. One green-skinned
+      hand rests on the rack frame; the other holds a small clipboard
+      with a Kanban-style three-column board sketched on it (with a
+      few tiny rectangular cards in the columns). His expression is
+      weighing and slightly grave — a decision-maker genuinely
+      uncertain about running other people's code on his cluster.
+      He wears thin small round reading glasses resting low on his
+      face and a thin black necktie over a white button-down dress
+      shirt. Warm overhead work-lamp light. Deep navy studio-style
+      background. RJ45 neck bolts, green skin, messy black hair,
+      rack-mount torso. NO text on the terminals or rack labels —
+      only the abstract sparklines and the sketched Kanban columns
+      are visible on the clipboard, with no captions or watermarks.
+      ONE FIGURE — one single Frank. The framing communicates "fleet
+      isolation under uncertainty" rather than "agent platform is
+      solved".
   - key: paper-02-cover
     # Same convention as paper-00 / 04 / 10 / 11-cover: only
     # reference.png anchors style; the Papers signature (glasses + tie
