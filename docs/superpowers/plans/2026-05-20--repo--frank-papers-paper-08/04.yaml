@@ -144,30 +144,31 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-20T04:36:42+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:36:45+00:00'
+      note: Gemini cover generated, 604KB
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:36:48+00:00'
+      note: Only TL;DR placeholder remains, by design (Phase 5)
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:36:52+00:00'
+      note: 'hugo --minify --buildDrafts: 0 ERROR; renders to 195KB'
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:36:55+00:00'
+      note: Cluster access unavailable from worktree; placeholder longhorn-r2-backups-TODO.png
+        retained for cluster-side capture.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:36:58+00:00'
+      note: hugo --minify --buildDrafts clean; Paper 08 renders to 195KB
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T04:37:01+00:00'
+    note: Cover generated via Gemini; cluster screenshot deferred with TODO placeholder.
     observed_prs: []

@@ -486,6 +486,33 @@ images:
       the charts — no captions or watermarks. ONE FIGURE — one
       single Frank.
 
+  - key: paper-08-cover
+    # Same convention as paper-00 / 04 / 10 / 11 / 14 / 02 / 06 / 07
+    # covers: only reference.png anchors style; the Papers signature
+    # (glasses + tie + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/08-backup-dr/cover.png
+    description: Paper 08 cover — Frank watching a labelled snapshot parcel float off-cluster toward an archive box
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands in front
+      of a server rack from which a small glowing data parcel labelled
+      "snapshot-2026-05-20" is floating up and away, travelling along
+      a faint amber arc toward an off-cluster archive box drawn on the
+      far side of the frame. One green-skinned hand is extended as if
+      having just released the parcel; the other holds a small
+      clipboard with a tiny retention-schedule list visible on it
+      reading "daily / weekly". His expression is cautious and weighing
+      — the part of the stack you only know works after you have
+      restored from scratch. He wears small circular wire-rim reading
+      glasses resting low on his face and a thin black necktie over a
+      white button-down dress shirt. Warm overhead work-lamp light.
+      Deep navy studio-style background. RJ45 neck bolts, green skin,
+      messy black hair, rack-mount torso. The ONLY text in the image
+      is the words "snapshot-2026-05-20" on the parcel and "daily /
+      weekly" on the clipboard — no other captions or watermarks. ONE
+      FIGURE — one single Frank. The framing communicates "shipping
+      the snapshot off-cluster, knowing the restore is the part you
+      haven't tested" rather than "backup is solved".
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
