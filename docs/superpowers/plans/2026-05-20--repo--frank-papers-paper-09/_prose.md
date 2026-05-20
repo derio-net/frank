@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 09: Secrets Management Without the Bootstrap Chicken-and-Egg
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Drafting — Paper 09 in flight on branch `paper-09`.
+**Status:** Complete (2026-05-20) — Paper 09 draft published on branch `paper-09`; PR open for human review.
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete (scripts,
 shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Papers 00, 02, 04,
