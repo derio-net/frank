@@ -486,6 +486,33 @@ images:
       the charts — no captions or watermarks. ONE FIGURE — one
       single Frank.
 
+  - key: paper-09-cover
+    # Same convention as paper-00 / 02 / 04 / 06 / 07 / 10 / 11 / 14
+    # covers: only reference.png anchors style; the Papers signature
+    # (glasses + tie + dress shirt) is explicit in the prompt below.
+    output: blog/content/docs/papers/09-secrets-bootstrap/cover.png
+    description: Paper 09 cover — Frank holding a chain of three brass keys with a satisfied expression
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands at a
+      workbench, holding a chain of three brass keys connected by
+      short links. Each key is etched with a single small label:
+      the first reads SOPS, the second reads INFISICAL, the third
+      reads K8S SECRET. A small sealed scroll labelled "bootstrap"
+      floats in the background behind his shoulder as the implied
+      first key in the chain — the out-of-band predecessor that
+      starts the custody chain. His expression is satisfied — the
+      kind of person who finally has a clean key-rotation story.
+      He wears small circular wire-rim reading glasses resting low
+      on his face, a thin black necktie over a white button-down
+      dress shirt. Warm overhead work-lamp light. Deep navy
+      studio-style background. RJ45 temple bolts, green skin, messy
+      black hair, rack-mount torso. The brass keys glow faintly
+      amber. The ONLY text in the image is the small etched key
+      labels (SOPS, INFISICAL, K8S SECRET) and the word "bootstrap"
+      on the scroll — no captions or watermarks. ONE FIGURE — one
+      single Frank. The framing communicates "named chain of
+      custody" rather than "secrets are solved".
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
