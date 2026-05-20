@@ -1,0 +1,78 @@
+features:
+  - key: nvidia
+    label: NVIDIA support
+  - key: intel
+    label: Intel support
+  - key: amd
+    label: AMD support
+  - key: dra
+    label: Dynamic Resource Allocation
+  - key: partitioning
+    label: GPU partitioning (MIG/MPS/slices)
+  - key: gang_scheduling
+    label: Gang / batch scheduling
+  - key: quota
+    label: Multi-tenant quota
+  - key: oss
+    label: OSS / no contract required
+vendors:
+  - name: NVIDIA GPU Operator
+    features:
+      nvidia: "yes"
+      intel: "no"
+      amd: "no"
+      dra: "partial"
+      partitioning: "yes"
+      gang_scheduling: "no"
+      quota: "no"
+      oss: "yes"
+  - name: Intel GPU Resource Driver (DRA)
+    features:
+      nvidia: "no"
+      intel: "yes"
+      amd: "no"
+      dra: "yes"
+      partitioning: "yes"
+      gang_scheduling: "no"
+      quota: "partial"
+      oss: "yes"
+  - name: AMD ROCm device plugin
+    features:
+      nvidia: "no"
+      intel: "no"
+      amd: "yes"
+      dra: "no"
+      partitioning: "no"
+      gang_scheduling: "no"
+      quota: "no"
+      oss: "yes"
+  - name: NVIDIA MIG / MPS
+    features:
+      nvidia: "yes"
+      intel: "no"
+      amd: "no"
+      dra: "partial"
+      partitioning: "yes"
+      gang_scheduling: "no"
+      quota: "partial"
+      oss: "yes"
+  - name: Run.AI
+    features:
+      nvidia: "yes"
+      intel: "no"
+      amd: "no"
+      dra: "no"
+      partitioning: "yes"
+      gang_scheduling: "yes"
+      quota: "yes"
+      oss: "no"
+  - name: Volcano scheduler
+    features:
+      nvidia: "yes"
+      intel: "partial"
+      amd: "partial"
+      dra: "no"
+      partitioning: "no"
+      gang_scheduling: "yes"
+      quota: "yes"
+      oss: "yes"
