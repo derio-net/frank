@@ -1,15 +1,28 @@
 ---
 title: "eBPF Networking Without a Service Mesh"
 date: 2026-05-20
-draft: true
+draft: false
 weight: 4
 series: ["papers"]
 layer: net
 paper_number: 3
 publish_order: 9
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  Six options dominate Kubernetes networking in 2026 — Cilium, Calico,
+  kube-proxy + iptables, Istio, Linkerd2, and the cloud-managed VPC CNI
+  — and they split on two axes: kernel/eBPF vs userspace sidecars, and
+  structured flow observability vs reactive `kubectl describe`.
+
+  Frank runs Cilium. eBPF kube-proxy replacement on Talos, L2 LBIPAM,
+  Hubble for flow observability, no service mesh. The scars came in the
+  seams: an FQDN policy whose BPF rules persisted in the kernel for
+  hours after deletion, an `lbipam.cilium.io/ips` annotation that left
+  a Service `<pending>` for 41 days without `sharing-key`, half an hour
+  spent hunting a feature gate Cilium 1.17 had already shipped on.
+
+  Frank's answer does not generalize. Solo dev → kube-proxy. Enterprise
+  mesh → Istio. AWS-native → VPC CNI.
 tags: ["cilium", "ebpf", "kubernetes", "service-mesh", "networking"]
 capabilities: ["net"]
 related_building: "docs/building/02-foundation"
@@ -37,7 +50,20 @@ references:
 
 ## TL;DR
 
-*Write last.*
+Six options dominate Kubernetes networking in 2026 — Cilium, Calico,
+kube-proxy + iptables, Istio, Linkerd2, and the cloud-managed VPC CNI —
+and they split on two axes: kernel/eBPF vs userspace sidecars, and
+structured flow observability vs reactive `kubectl describe`.
+
+Frank runs Cilium. eBPF kube-proxy replacement on Talos, L2 LBIPAM,
+Hubble for flow observability, no service mesh. The scars came in the
+seams: an FQDN policy whose BPF rules persisted in the kernel for hours
+after deletion, an `lbipam.cilium.io/ips` annotation that left a Service
+`<pending>` for 41 days without `sharing-key`, half an hour spent
+hunting a feature gate Cilium 1.17 had already shipped on.
+
+Frank's answer does not generalize. Solo dev → kube-proxy. Enterprise
+mesh → Istio. AWS-native → VPC CNI.
 
 ## §1 — The capability
 

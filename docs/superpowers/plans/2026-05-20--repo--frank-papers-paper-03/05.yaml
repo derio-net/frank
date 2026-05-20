@@ -125,34 +125,40 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:32:22+00:00'
+      note: 'Agent acting as gate-keeper; voice pass: Frank speaks first-person, scar
+        dates cross-referenced with docs/runbooks/frank-gotchas/networking.md and
+        apps/cilium/, decision tree has 4 leaves, shared visual language across §3
+        diagrams.'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:32:25+00:00'
+      note: 120 words
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:32:27+00:00'
+      note: DOSSIER GATE PASSED
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:32:29+00:00'
+      note: 'hugo --buildDrafts: 0 ERROR lines'
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:32:32+00:00'
+      note: 'draft: false; status: published; public/docs/papers/03-ebpf-networking/index.html
+        generated (196 KB)'
     P5.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:32:35+00:00'
+      note: 0 inline dossier-link shortcodes; auto-injection only (matches Paper 04/11/14
+        convention)
     P5.T2.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:32:37+00:00'
+      note: Commit + push handled below
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T04:32:41+00:00'
+    note: 'Voice pass complete; TL;DR 120 words; draft: false; status: published.
+      PR remains OPEN for human review.'
     observed_prs: []
