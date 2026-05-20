@@ -1,0 +1,125 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Post-Deploy Checklist
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Verify external publish (deferred)
+
+
+      Paper 05 publishes on the existing public blog at
+      `blog.derio.net/frank` after CI deploys post-merge.
+
+      Reference URL once live:
+      `https://blog.derio.net/frank/docs/papers/05-gpu-scheduling/`
+  - id: P6.T1.S2
+    text: |-
+      Verify cross-link chips render bidirectionally
+
+
+      The `papers-backlink.html` partial auto-renders a "→ Paper 05"
+      chip on Building 04-gpu-compute and Operating 04-gpu-compute
+      via `related_building` / `related_operating` frontmatter. No
+      edits needed — verify post-merge.
+  - id: P6.T1.S3
+    text: |-
+      Update the Papers section `_index.md`
+
+
+      Append Paper 05 to `blog/content/docs/papers/_index.md` in the
+      publish-order list if such a list exists.
+  - id: P6.T1.S4
+    text: |-
+      Update Building/Operating series overviews (optional)
+
+
+      Building 04-gpu-compute and Operating 04-gpu-compute exist;
+      cross-series chip auto-renders from Paper 05 frontmatter. No
+      manual edit required.
+  - id: P6.T1.S5
+    text: |-
+      Write building/operating blog posts (skip for Papers)
+
+
+      Papers are not new layer deployments — they review existing
+      capabilities. *Skip*.
+  - id: P6.T1.S6
+    text: |-
+      Update README
+
+
+      Skip — README is a stack snapshot, not a publish log.
+  - id: P6.T1.S7
+    text: |-
+      Sync runbook
+
+
+      This plan contains no `# manual-operation` blocks — skip.
+  - id: P6.T1.S8
+    text: |-
+      Update plan status and log publish date
+
+
+      Edit `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-05/_prose.md`:
+
+      ```
+      **Status:** Complete (YYYY-MM-DD) — Paper 05 draft published; PR open for human review.
+      ```
+
+      Update the spec's Implementation Plans table row.
+state:
+  steps:
+    P6.T1.S1:
+      state: '-'
+      ticked_at: '2026-05-20T04:38:10+00:00'
+      note: Skip — Paper 05 publishes on existing public blog at blog.derio.net/frank;
+        URL liveness check deferred to post-merge CI.
+    P6.T1.S2:
+      state: x
+      ticked_at: '2026-05-20T04:38:12+00:00'
+      note: Cross-series chip backlink verification deferred to merge-time Hugo CI
+        build (same posture as Papers 04, 10, 11, 14). Hugo build green locally.
+    P6.T1.S3:
+      state: x
+      ticked_at: '2026-05-20T04:38:14+00:00'
+      note: No list to update in blog/content/docs/papers/_index.md (it uses {{< papers-roadmap
+        >}} shortcode that auto-discovers published papers via frontmatter).
+    P6.T1.S4:
+      state: '-'
+      ticked_at: '2026-05-20T04:38:15+00:00'
+      note: Skip — Building 04-gpu-compute and Operating 04-gpu-compute exist; cross-series
+        chip auto-renders from Paper 05 frontmatter. No series-overview Further-reading
+        section in current building/operating/00-overview pages.
+    P6.T1.S5:
+      state: '-'
+      ticked_at: '2026-05-20T04:38:17+00:00'
+      note: Skip — Papers reference existing Building/Operating posts via frontmatter;
+        no new posts needed.
+    P6.T1.S6:
+      state: '-'
+      ticked_at: '2026-05-20T04:38:20+00:00'
+      note: Skip — README references Papers series from Paper 00; Paper 05 is content
+        addition, not a stack change.
+    P6.T1.S7:
+      state: '-'
+      ticked_at: '2026-05-20T04:38:22+00:00'
+      note: 'Skip — no # manual-operation blocks in plan.'
+    P6.T1.S8:
+      state: x
+      ticked_at: '2026-05-20T04:38:23+00:00'
+      note: _prose.md Status flipped to Complete (2026-05-20); spec Implementation
+        Plans table row updated to 'Complete (2026-05-20) — PR open for review'.
+  completion:
+    at: '2026-05-20T04:38:25+00:00'
+    note: Plan status flipped to Complete in _prose.md and the spec's Implementation
+      Plans table row. Papers landing page auto-discovers Paper 05 via frontmatter.
+      PR remains OPEN for human review.
+    observed_prs: []

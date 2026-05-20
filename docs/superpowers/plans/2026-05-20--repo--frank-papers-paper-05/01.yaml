@@ -1,0 +1,256 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 05 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 05 gpu-scheduling
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 05:
+        Hugo bundle:  blog/content/docs/papers/05-gpu-scheduling/
+        Dossier:      docs/papers-dossiers/05-gpu-scheduling/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/05-gpu-scheduling/index.md
+      ls docs/papers-dossiers/05-gpu-scheduling/dossier.md
+      ```
+- number: 2
+  title: Research the GPU-scheduling landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/05-gpu-scheduling/dossier.md` — vendors in scope
+
+
+      Paper 05 maps the Kubernetes GPU-scheduling vendor space.
+      Suggested six-vendor landscape (final list is the dossier-
+      construction subagent's call after research, but anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: NVIDIA GPU Operator
+        positioning: "NVIDIA — vendor-owned operator that bundles
+          driver, container toolkit, device plugin, and DCGM exporter;
+          node-feature discovery + GFD; primary path for discrete
+          NVIDIA cards on Kubernetes."
+        primary_url: "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/index.html"
+      - name: Intel GPU Resource Driver (DRA)
+        positioning: "Intel — Dynamic Resource Allocation driver for
+          Intel iGPUs/dGPUs; replaces the legacy device plugin and
+          enables fine-grained quota and per-pod GPU partition
+          requests via the KEP-3063 DRA framework."
+        primary_url: "https://github.com/intel/intel-resource-drivers-for-kubernetes"
+      - name: AMD ROCm (k8s-device-plugin)
+        positioning: "AMD — ROCm-stack device plugin exposing AMD
+          Instinct and consumer Radeon GPUs to Kubernetes via the
+          legacy device plugin API."
+        primary_url: "https://github.com/ROCm/k8s-device-plugin"
+      - name: NVIDIA MIG / MPS (partitioning)
+        positioning: "NVIDIA — Multi-Instance GPU (hardware partition)
+          and Multi-Process Service (time-slice / spatial share) for
+          partitioning a single physical GPU across multiple
+          workloads with quota isolation."
+        primary_url: "https://docs.nvidia.com/datacenter/tesla/mig-user-guide/"
+      - name: Run.AI
+        positioning: "NVIDIA (acquired) — commercial GPU scheduler
+          with fractional GPU allocation, quota trees, and gang
+          scheduling on top of Kubernetes; positioned at multi-tenant
+          AI platforms."
+        primary_url: "https://docs.run.ai/"
+      - name: Volcano scheduler
+        positioning: "CNCF Incubating — batch-aware scheduler with
+          gang scheduling, queue-based quota, and GPU-aware
+          placement; the OSS answer to the Run.AI shape."
+        primary_url: "https://volcano.sh/en/docs/"
+      ```
+
+      Frank's case study is the NVIDIA GPU Operator + Intel GPU
+      Resource Driver pair (one discrete NVIDIA card on gpu-1, three
+      Intel iGPUs on mini-1/2/3, both fronted by the in-house gpu-
+      switcher); the other four exist in the dossier so §3 can
+      compare architectures and §6 can branch the decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one
+      foundational paper or comparison talk, and at least one real-
+      world postmortem. URL hints to chase:
+
+      1. NVIDIA GPU Operator overview — type: `vendor-docs`
+         (https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html)
+      2. Intel GPU Resource Driver / KEP-3063 DRA — type: `vendor-docs`
+         or `paper`
+         (https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/3063-dynamic-resource-allocation)
+      3. NVIDIA MIG user guide — type: `vendor-docs`
+         (https://docs.nvidia.com/datacenter/tesla/mig-user-guide/)
+      4. Volcano scheduler architecture / KubeCon talk —
+         type: `talk` or `paper`
+         (https://volcano.sh/en/docs/architecture/)
+      5. Frank's own running postmortem registry on the GPU
+         stack scars — type: `postmortem`
+         (https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo and Frank's gotcha registry.
+      Suggested artefacts (the dossier-construction subagent picks the
+      final list, but at least these are known to exist):
+
+      1. `kind: yaml` — `patches/phase04-gpu/` — the Talos
+         extension/kernel-module patch set that ships NVIDIA's
+         binaries the immutable way (driver disabled on the
+         Operator side, since Talos provides it).
+         `path_or_url: patches/phase04-gpu/`
+         `demonstrates: "Talos refuses to validate NVIDIA's stock
+          driver installer (mutable kernel-module space).
+          phase04-gpu ships nvidia-container-toolkit +
+          nvidia-open-gpu-kernel-modules as Talos system
+          extensions; gpu-operator-values.yaml then runs with
+          driver.enabled: false and toolkit.enabled: false."`
+
+      2. `kind: yaml` — `apps/gpu-operator/values.yaml` — the
+         minimal Helm values for the NVIDIA GPU Operator on Talos.
+         `path_or_url: apps/gpu-operator/values.yaml`
+         `demonstrates: "driver.enabled: false + toolkit.enabled:
+          false + hostPaths.driverInstallDir: /usr/local + cdi.
+          enabled: false — the four overrides that make the
+          upstream Operator chart work on Talos's non-standard
+          driver path."`
+
+      3. `kind: yaml` — `apps/intel-gpu-driver/chart/Chart.yaml` —
+         the vendored Intel GPU Resource Driver chart with K8s 1.35
+         DRA patches.
+         `path_or_url: apps/intel-gpu-driver/chart/`
+         `demonstrates: "Intel's DRA driver chart upstream lags
+          Kubernetes 1.35's DRA API churn; the vendored chart in
+          apps/intel-gpu-driver/chart/ carries the local patches
+          that keep it scheduling on Frank today."`
+
+      4. `kind: incident` — the NVIDIA driver re-validation re-
+         asserts `nvidia.com/gpu:NoSchedule` after a node restart.
+         Source: `agents/rules/frank-gotchas.md → gpu-1 specifics`.
+         `path_or_url: agents/rules/frank-gotchas.md`
+         `demonstrates: "After a node restart, NVIDIA's driver re-
+          validation re-asserts the nvidia.com/gpu:NoSchedule
+          taint. Workloads without a defensive toleration silently
+          fail to schedule with 'Insufficient nvidia.com/gpu'.
+          Every GPU workload on Frank now ships the toleration."`
+
+      5. `kind: incident` — OLLAMA_KEEP_ALIVE cgroup RAM error.
+         Source: `agents/rules/frank-gotchas.md → gpu-1 specifics`.
+         `path_or_url: agents/rules/frank-gotchas.md`
+         `demonstrates: "Ollama reported 'system memory' errors on
+          gpu-1. Not VRAM — the container's cgroup RAM ceiling.
+          OLLAMA_KEEP_ALIVE pinned the page cache near
+          resources.limits.memory, and the cgroup OOM-killer found
+          it before the model did. Fix: raise the cgroup ceiling
+          AND lower OLLAMA_KEEP_ALIVE."`
+
+      6. `kind: yaml` (optional) — `apps/gpu-switcher/manifests/` —
+         the in-house GPU routing service that brokers exclusive use
+         among competing inference workloads.
+
+      7. `kind: grafana-screenshot` (optional, may be deferred) — a
+         Grafana panel showing GPU utilisation during a real
+         inference workload (vs idle baseline) on gpu-1.
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No apples-to-apples 'GPU-scheduling tax' benchmark exists
+        in the public literature — i.e., a measurement of total
+        operational overhead (operator CPU/memory per GPU node,
+        MIG fragmentation cost when only some slices are in use,
+        DRA scheduling-latency overhead vs the legacy device
+        plugin, recovery time after a driver re-validation re-
+        asserts the NoSchedule taint, time spent ferrying CUDA
+        libraries across a non-standard Talos driver path) at
+        small-to-medium cluster scale (1–10 GPU nodes). Published
+        comparisons cover either feature matrices (device plugin
+        vs DRA checklist) or single-dimension benchmarks (MIG
+        isolation overhead in isolation) but never the bundled
+        tax that determines whether GPU scheduling is worth the
+        complexity at all."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "For a homelab cluster with a single discrete GPU and one
+        workload at a time, the NVIDIA device plugin alone covers
+        the case — why don't we just stop there? Answer: same
+        shape as Paper 04. Frank is a learning platform. Three
+        of the four scars in §5 — the Talos driver-validation
+        refusal, the NVIDIA taint re-assertion after restart,
+        the OLLAMA_KEEP_ALIVE cgroup-RAM error — would also bite
+        a device-plugin-only setup; they are platform-level scars,
+        not Operator-level. The reason to run the full Operator
+        + DRA pair is to encounter the heterogeneous-vendor
+        integration surface first-hand (NVIDIA on gpu-1, Intel
+        iGPUs on the minis) and to be able to compose with a
+        future partitioning controller (MIG) without re-architecting.
+        A team that has internalised these lessons can rationally
+        skip the Operator and ship the device plugin alone; a team
+        that has not will reinvent the same scars at production
+        scale. The counter-argument wins for the team that has
+        already paid the tuition; for Frank, paying the tuition
+        is the point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-05-20T04:25:45+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-05-20T04:25:46+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-05-20T04:25:48+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-05-20T04:25:50+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-05-20T04:25:52+00:00'
+      note: null
+  completion:
+    at: '2026-05-20T04:25:53+00:00'
+    note: null
+    observed_prs: []
