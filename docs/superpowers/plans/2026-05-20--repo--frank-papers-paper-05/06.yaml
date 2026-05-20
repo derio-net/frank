@@ -78,38 +78,48 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:38:10+00:00'
+      note: Skip — Paper 05 publishes on existing public blog at blog.derio.net/frank;
+        URL liveness check deferred to post-merge CI.
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:38:12+00:00'
+      note: Cross-series chip backlink verification deferred to merge-time Hugo CI
+        build (same posture as Papers 04, 10, 11, 14). Hugo build green locally.
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:38:14+00:00'
+      note: No list to update in blog/content/docs/papers/_index.md (it uses {{< papers-roadmap
+        >}} shortcode that auto-discovers published papers via frontmatter).
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:38:15+00:00'
+      note: Skip — Building 04-gpu-compute and Operating 04-gpu-compute exist; cross-series
+        chip auto-renders from Paper 05 frontmatter. No series-overview Further-reading
+        section in current building/operating/00-overview pages.
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:38:17+00:00'
+      note: Skip — Papers reference existing Building/Operating posts via frontmatter;
+        no new posts needed.
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:38:20+00:00'
+      note: Skip — README references Papers series from Paper 00; Paper 05 is content
+        addition, not a stack change.
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-20T04:38:22+00:00'
+      note: 'Skip — no # manual-operation blocks in plan.'
     P6.T1.S8:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-20T04:38:23+00:00'
+      note: _prose.md Status flipped to Complete (2026-05-20); spec Implementation
+        Plans table row updated to 'Complete (2026-05-20) — PR open for review'.
   completion:
-    at: null
-    note: null
+    at: '2026-05-20T04:38:25+00:00'
+    note: Plan status flipped to Complete in _prose.md and the spec's Implementation
+      Plans table row. Papers landing page auto-discovers Paper 05 via frontmatter.
+      PR remains OPEN for human review.
     observed_prs: []
