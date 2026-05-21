@@ -116,6 +116,7 @@ def write_archive_entry(
     model: str,
     output_path: Path,
     cap: int = ARCHIVE_DEFAULT_CAP,
+    extra_meta: dict[str, str] | None = None,
 ) -> Path:
     """Save the just-generated image and a sidecar with full provenance.
 
@@ -141,9 +142,13 @@ def write_archive_entry(
         f"generated_at: {now}",
         f"model: {model}",
         f"output_path: {out_rel}",
+    ]
+    for k, v in (extra_meta or {}).items():
+        lines.append(f"{k}: {v}")
+    lines.extend([
         "",
         "=== references (in order, as passed to model) ===",
-    ]
+    ])
     if not refs_used:
         lines.append("(none)")
     for i, p in enumerate(refs_used, 1):
@@ -159,8 +164,30 @@ def write_archive_entry(
         lines.append(f"{i}. {rel}  (sha256: {ref_sha})")
     lines.append("")
     lines.append("=== prompt sections (joined with \\n\\n) ===")
-    for label in ("base_style", "reference_guidance", "series_modifiers", "prompt"):
-        section = prompt_sections.get(label, "")
+    # Render in composition order; legacy keys are still accepted in case
+    # any older sidecar consumers read the file.
+    order = (
+        "base_character",
+        "base_atmosphere",
+        "base_style",
+        "reference_guidance",
+        "torso",
+        "series_modifiers",
+        "mood",
+        "prompt",
+    )
+    seen: set[str] = set()
+    for label in order:
+        if label in prompt_sections:
+            section = prompt_sections[label]
+            lines.append("")
+            lines.append(f"[{label}]")
+            lines.append(section if section else "(empty)")
+            seen.add(label)
+    # Any extra keys the caller passed in (forward-compat) get appended.
+    for label, section in prompt_sections.items():
+        if label in seen:
+            continue
         lines.append("")
         lines.append(f"[{label}]")
         lines.append(section if section else "(empty)")
@@ -269,15 +296,20 @@ def generate_one(
     key: str,
     output_path: Path,
     prompt: str,
-    base_style: str,
+    base_character: str,
+    base_atmosphere: str,
     reference_guidance: str,
+    torso_text: str,
+    mood_text: str,
     model: str = MODEL,
     aspect_ratio: str | None = None,
     image_size: str | None = None,
     reference_2_path: Path | None = None,
     reference_2_image: Image.Image | None = None,
-    series_modifiers: str | None = None,
+    explicit_refs: list[Path] | None = None,
     series_label: str | None = None,
+    torso_label: str | None = None,
+    mood_label: str | None = None,
     pool_refs: list[Path] | None = None,
     archive_cap: int = ARCHIVE_DEFAULT_CAP,
     request_timeout_ms: int = REQUEST_TIMEOUT_MS,
@@ -287,16 +319,30 @@ def generate_one(
     Returns True on success, the string 'retry' when the failure looks
     transient (timeout / 5xx / model overload), False otherwise.
 
+    Composition order: base_character → base_atmosphere → reference_guidance
+    → torso → mood → prompt.
+
     On success, also writes the same image bytes + a sidecar prompt log
     to .regen-archive/<key>/ for retrospective curation.
     """
-    sections = [base_style, reference_guidance]
-    if series_modifiers:
-        sections.append(series_modifiers)
-    sections.append(prompt)
+    sections = [
+        base_character,
+        base_atmosphere,
+        reference_guidance,
+        torso_text,
+        mood_text,
+        prompt,
+    ]
     full_prompt = "\n\n".join(s for s in sections if s)
 
+    explicit_refs = explicit_refs or []
     pool_refs = pool_refs or []
+    explicit_images: list[Image.Image] = []
+    for p in explicit_refs:
+        try:
+            explicit_images.append(Image.open(p))
+        except OSError as exc:
+            print(f"  WARN: explicit ref unreadable, skipping: {p} ({exc})", file=sys.stderr)
     pool_images: list[Image.Image] = []
     for p in pool_refs:
         try:
@@ -310,6 +356,8 @@ def generate_one(
         contents.append(reference_2_image)
         if reference_2_path is not None:
             refs_log.append(reference_2_path)
+    contents.extend(explicit_images)
+    refs_log.extend(explicit_refs)
     contents.extend(pool_images)
     refs_log.extend(pool_refs)
 
@@ -319,6 +367,12 @@ def generate_one(
     print(f"  Model: {model}")
     if series_label:
         print(f"  Series: {series_label} (+ secondary reference)")
+    if torso_label:
+        print(f"  Torso variant: {torso_label}")
+    if mood_label:
+        print(f"  Mood: {mood_label}")
+    if explicit_refs:
+        print(f"  Explicit refs: {len(explicit_refs)} image(s) from `references:` field")
     if pool_refs:
         print(f"  Pool refs: {len(pool_refs)} image(s) from .reference-pool/")
     if aspect_ratio or image_size:
@@ -385,10 +439,17 @@ def generate_one(
                 if archive_cap > 0:
                     image_bytes = output_path.read_bytes()
                     prompt_sections = {
-                        "base_style": base_style or "",
+                        "base_character": base_character or "",
+                        "base_atmosphere": base_atmosphere or "",
                         "reference_guidance": reference_guidance or "",
-                        "series_modifiers": series_modifiers or "",
+                        "torso": torso_text or "",
+                        "mood": mood_text or "",
                         "prompt": prompt or "",
+                    }
+                    extra_meta = {
+                        "series": series_label or "(none)",
+                        "torso_variant": torso_label or "(none)",
+                        "mood_key": mood_label or "(none)",
                     }
                     archived = write_archive_entry(
                         key=key,
@@ -398,6 +459,7 @@ def generate_one(
                         model=model,
                         output_path=output_path,
                         cap=archive_cap,
+                        extra_meta=extra_meta,
                     )
                     print(f"  Archived: {archived.relative_to(REPO_ROOT)}")
                 return True
@@ -436,10 +498,31 @@ def _resolve_reference_guidance(raw) -> tuple[str, dict[str, dict]]:
     return base, series
 
 
+def _key_to_torso_default(key: str, series: str | None) -> str:
+    """Default torso variant when an image entry doesn't set `torso:` explicitly.
+
+    Falls back to series, then key prefix, then "generic".
+    """
+    if series in ("papers", "building", "operating"):
+        return series
+    if key.startswith("paper-"):
+        return "papers"
+    if key.startswith("building-"):
+        return "building"
+    if key.startswith("ops-") or key.startswith("operating-"):
+        return "operating"
+    return "generic"
+
+
 def main() -> None:
     config = load_prompts(PROMPTS_FILE)
-    base_style = config["base_style"]
+    # New schema uses `base_character` + `base_atmosphere`; old schema used
+    # `base_style`. Accept either for graceful transition.
+    base_character = config.get("base_character") or config.get("base_style", "")
+    base_atmosphere = config.get("base_atmosphere", "")
     base_guidance, series_map = _resolve_reference_guidance(config["reference_guidance"])
+    torso_variants: dict[str, str] = config.get("torso_variants", {}) or {}
+    mood_presets: dict[str, str] = config.get("moods", {}) or {}
     images = config["images"]
 
     all_keys = [img["key"] for img in images]
@@ -570,20 +653,59 @@ def main() -> None:
 
         series_name = img.get("series")
         ref2_path, ref2_image = _series_ref(series_name) if series_name else (None, None)
-        series_modifiers = (
-            series_map.get(series_name, {}).get("modifiers") if series_name else None
-        )
+
+        # Torso variant: per-image `torso:` wins, else derived from series/key.
+        torso_key = img.get("torso") or _key_to_torso_default(key, series_name)
+        torso_text = torso_variants.get(torso_key, "")
+        if torso_key and torso_key not in torso_variants:
+            print(
+                f"  WARN: torso '{torso_key}' not found in torso_variants — "
+                "passing empty",
+                file=sys.stderr,
+            )
+
+        # Mood: per-image `mood:` is either a key into `moods` or a free-form
+        # string. Empty / missing → no mood line.
+        mood_raw = img.get("mood")
+        mood_text = ""
+        mood_label = ""
+        if mood_raw:
+            if mood_raw in mood_presets:
+                mood_text = mood_presets[mood_raw]
+                mood_label = mood_raw
+            else:
+                mood_text = mood_raw
+                mood_label = "(custom)"
+
+        # Explicit per-image references — paths relative to REPO_ROOT or absolute.
+        explicit_refs: list[Path] = []
+        for r in img.get("references", []) or []:
+            p = Path(r)
+            if not p.is_absolute():
+                p = REPO_ROOT / p
+            if p.exists():
+                explicit_refs.append(p)
+            else:
+                print(
+                    f"  WARN: references entry not found: {p} — skipping",
+                    file=sys.stderr,
+                )
+
         pool_refs = load_pool_refs(key, args.pool_generic, args.pool_series, rng)
 
         result = generate_one(
             client, reference_path, reference, key, output_path, prompt,
-            base_style, base_guidance, model=args.model,
+            base_character, base_atmosphere, base_guidance,
+            torso_text, mood_text,
+            model=args.model,
             aspect_ratio=img.get("aspect_ratio"),
             image_size=img.get("image_size"),
             reference_2_path=ref2_path,
             reference_2_image=ref2_image,
-            series_modifiers=series_modifiers,
+            explicit_refs=explicit_refs,
             series_label=series_name,
+            torso_label=torso_key,
+            mood_label=mood_label,
             pool_refs=pool_refs,
             archive_cap=args.archive_cap,
             request_timeout_ms=timeout_ms,
@@ -596,13 +718,17 @@ def main() -> None:
             print(f"  Falling back to {fallback_model}...", flush=True)
             result = generate_one(
                 client, reference_path, reference, key, output_path, prompt,
-                base_style, base_guidance, model=fallback_model,
+                base_character, base_atmosphere, base_guidance,
+                torso_text, mood_text,
+                model=fallback_model,
                 aspect_ratio=img.get("aspect_ratio"),
                 image_size=img.get("image_size"),
                 reference_2_path=ref2_path,
                 reference_2_image=ref2_image,
-                series_modifiers=series_modifiers,
+                explicit_refs=explicit_refs,
                 series_label=series_name,
+                torso_label=torso_key,
+                mood_label=mood_label,
                 pool_refs=pool_refs,
                 archive_cap=args.archive_cap,
                 request_timeout_ms=timeout_ms,

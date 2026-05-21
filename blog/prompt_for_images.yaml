@@ -1,118 +1,168 @@
 # Image Generation Prompts for "Frank, the Talos Cluster" Blog
 #
 # Used by: scripts/generate-all-images.py
-# Reference: blog/static/images/reference.png
+# Primary reference: blog/static/images/reference.png (passed via -r)
 #
-# Character: "Frank" — a chibi Frankenstein monster made of server hardware.
-#   Green skin, messy black hair, black eyes, flat-top head, stitched/scarred.
-#   Neck bolts are RJ45 connectors. Wears a utility belt of ethernet cables.
-#   Torso is a rack-mount server chassis with blinking LEDs.
-#   Blue glow comes from environment/props (sparks, tools, screens) — NOT his eyes.
+# ---------------------------------------------------------------------------
+# COMPOSITION MODEL
+# ---------------------------------------------------------------------------
+# Every prompt sent to the image model is composed in this fixed order:
 #
-# IMPORTANT: The reference image is for CHARACTER DESIGN only — body proportions,
-# color palette, outfit, and overall aesthetic. Do NOT copy the face as a flat
-# sticker or paste it unchanged. Redraw the face fresh in each scene with
-# appropriate expression, angle, and lighting for the composition.
+#   base_character       — face, signature traits, applied to every image
+#   base_atmosphere      — lighting, colour, scene-feel, applied to every image
+#   reference_guidance   — how to use the attached reference image(s)
+#   torso_variants[X]    — torso kind (generic / building / operating / papers)
+#   moods[Y] or Y        — short mood phrase (preset or free-form)
+#   prompt               — scene-specific description, including the body-
+#                          variant SPECIALIZATION (form factor, exposed
+#                          device, clothing variant, etc.)
+#
+# X is picked from the image entry's `torso:` field, or derived from
+# `series:` (papers/paper-* → papers, building/* → building, ops-/operating-*
+# → operating, default → generic). Y is picked from `mood:`.
+#
+# ---------------------------------------------------------------------------
+# IMPORTANT — message for any agent creating new image entries
+# ---------------------------------------------------------------------------
+# When you write a new image entry, your `prompt:` MUST specialize the
+# generic torso variant chosen by `series:`:
+#
+#   building   → name the form factor in the scene (rack-mount, half-rack,
+#                ITX motherboard, blade, single-board, microserver, ...).
+#   operating  → name which exposed device is on view (GPU, NVMe array,
+#                NIC, PSU, ...).
+#   papers     → either keep the default white-shirt-and-tie OR invoke a
+#                variant — a lab coat worn open over the shirt, or a
+#                denim/leather overall in place of the shirt.
+#
+# Do NOT repeat character traits already covered by base_character (skin,
+# eyes, hair, patches, scar, bolts, no nose, stitched hands), the chibi
+# proportions, the dark studio background, or the electric-blue sparks —
+# all of that is composed in by the script. Per-image prompts are short
+# and scene-specific.
+# ---------------------------------------------------------------------------
 
-base_style: >-
-  Cartoon illustration, vibrant colors, thick outlines, chibi proportions.
-  Dark background with electric blue lightning accents.
-  Tech-horror aesthetic, playful not scary.
+base_character: >-
+  Frank — a chibi-proportioned green Frankenstein monster.
 
-  CANONICAL FRANK FEATURES (derived from the reference image — apply
-  consistently across every scene):
+  • SKIN: uneven cartoon green, subtle shading variation across the face
+    (not a flat colour fill).
+  • FACE PATCHES: brown / reddish-tan sewn-on patches on cheek and jaw,
+    with horizontal stitch lines crossing each. Unmistakably brown
+    against the green skin (not slightly-darker green). These are
+    SEWN-ON SKIN PATCHES, not exposed mechanical surfaces / circuit
+    boards / cyborg implants.
+  • EYES: each eye is an entirely BLACK solid round shape with a single
+    small WHITE DOT inside as the pupil/highlight. Black-with-white-dot,
+    NOT white-with-black-iris. No glow from the eyes.
+  • NOSE: absent. Flat featureless plane of green skin between the eyes
+    and the mouth — no nose ridge, no nostrils, no nose shadow.
+  • HAIR: messy black flat-top with a clearly jagged silhouette at the
+    top — visible spiky peaks of varying heights.
+  • FOREHEAD: a horizontal stitched scar runs across the upper forehead
+    just below the hairline (dark line with short vertical cross-stitches).
+    A small rectangular RED bandage/patch sits over the scar, above the
+    right eye — thin dark border, distinctly red.
+  • BOLTS: TWO SYMMETRIC RJ45-connector bolts placed EITHER on the
+    temples OR on the sides of the neck (one location per image, never
+    both). Always symmetric, one on each side. Faint blue electricity
+    sparking from each.
+  • HANDS: stitched onto the arms with visible scar lines circling each
+    wrist.
 
-  • SKIN: uneven cartoon green, with subtle shading variation across
-    the face (not a flat colour fill).
-  • HAIR: messy black flat-top with a clearly jagged, uneven silhouette
-    at the top — visible spiky peaks of varying heights.
-  • EYES: chibi style — each eye is an entirely BLACK solid round
-    shape with a small WHITE DOT inside as the highlight / pupil
-    (black-with-white-dot, NOT white-with-black-iris).
-  • NOSE: absent. Flat featureless plane of green skin between the
-    eyes and the mouth — no nose ridge, no nostrils, no nose shadow.
-  • FOREHEAD SCAR: a HORIZONTAL stitched scar runs across the upper
-    forehead just below the hairline — drawn as a dark line with
-    multiple short vertical cross-stitches along its length.
-  • RED FOREHEAD PATCH: a small rectangular RED patch (like a sewn-on
-    hardware decal / label) sits above his RIGHT eye on the upper
-    forehead. Distinctly RED, small, rectangular, with a thin dark
-    border. This is one of Frank's signature details.
-  • OTHER PATCHES: brown / tan skin patches elsewhere on the face
-    (cheek, jaw) with horizontal stitches inside each patch.
-    Unmistakably brown against the green skin, not slightly-darker
-    green. Placement varies by scene. Critically, these are
-    SEWN-ON SKIN PATCHES — flat coloured fabric/skin with simple
-    horizontal stitch lines crossing them. They are NOT exposed
-    mechanical surfaces, NOT visible gears, NOT circuit boards,
-    NOT cybernetic implants. The mechanical / server-hardware
-    aesthetic belongs in the environment and props around Frank,
-    not on his face. Frank's face is monster-with-patches, not
-    cyborg-with-implants.
-  • BOLTS: TWO SYMMETRIC RJ45-connector bolts — either on the NECK
-    (preferred when the neck is visible) OR on the TEMPLES (when the
-    crop is head-only and the neck isn't shown). Always symmetric,
-    one on each side. Faint blue electricity sparking from each.
+  Cartoon illustration with thick outlines, vibrant colours, chibi
+  proportions. Draw Frank's face fresh for each scene — match expression
+  to the action, vary head angle, apply scene-appropriate lighting.
+  Do NOT copy-paste the face from the reference; use it only as a
+  character-design guide.
 
-  Blue glow comes from the environment, props, and electric sparks
-  — NOT from Frank's eyes.
+base_atmosphere: >-
+  Atmosphere — consistent across every image:
 
-  Draw Frank's face naturally for each scene — match expression to
-  the action, vary the head angle, and apply scene-appropriate
-  lighting. Do NOT copy-paste the face from the reference; use it
-  only as a design guide.
+  • Dark server-room aesthetic. Deep navy or near-black background;
+    studio-style framing rather than a documentary photograph.
+  • Small flecks of bright white / electric-blue sparks scattered
+    through the scene; faint blue glow on metal edges and from any
+    small LED indicators in the frame.
+  • Lighting is a single warm overhead source unless the scene says
+    otherwise; soft falloff into deep shadow rather than uniform fill.
 
 reference_guidance:
-  # Base character-sheet guidance — applied to every image.
-  # Reference image #1 is always blog/static/images/reference.png (passed via -r).
+  # How to USE the attached reference image(s). Reference image #1 is
+  # always the primary `--reference` (blog/static/images/reference.png).
+  # Series banner images and per-image `references:` lists land as
+  # additional image inputs alongside it.
   base: >-
-    Use the attached primary reference image as a CHARACTER DESIGN SHEET —
-    it defines Frank's body shape, proportions, color palette, outfit, and
-    hardware-part anatomy. Key face details: black messy hair, black eyes
-    with white pupils, green skin, stitch scars, expressive brow. For each
-    new image, redraw Frank from scratch in the scene's perspective and
-    lighting. His facial expression should match the scene's mood. Vary
-    his pose, angle, and body language naturally.
+    Use the attached primary reference image as a CHARACTER DESIGN
+    SHEET — it defines Frank's body shape, proportions, colour palette,
+    and hardware-part anatomy. Where additional reference images are
+    attached, treat them as STYLE / SCENE ANCHORS (lighting, mood,
+    composition) rather than character anchors. Redraw Frank from
+    scratch in the scene's perspective and lighting; vary his pose,
+    angle, and body language naturally.
 
-  # Per-series modifiers. When an image entry sets `series: <name>`, the
-  # script injects that series's `modifiers` block into the prompt AND
-  # passes the `banner` image as a SECONDARY reference (in addition to the
-  # primary reference.png), so Gemini conditions on both the character
-  # sheet and the series-specific aesthetic.
+  # Per-series banner images. When an image entry sets `series: <name>`,
+  # the named banner is passed as a SECONDARY reference (in addition to
+  # the primary reference.png). The body-typing language that used to
+  # live here has moved to `torso_variants` below.
   series:
     building:
       banner: blog/static/images/banner-building.png
-      modifiers: >-
-        BUILDING-SERIES SIGNATURE — hands-on builder persona. Frank is
-        actively constructing, assembling, or working on the subject of
-        the post. Tools, parts, or hardware are typically in his hands.
-        Workshop / lab lighting; scattered cables, blueprints, or hardware
-        parts in the scene. Use the secondary reference image
-        (banner-building.png) as a style anchor for the Building series.
-
     operating:
       banner: blog/static/images/banner-operating.png
-      modifiers: >-
-        OPERATING-SERIES SIGNATURE — SRE / maintenance persona. Frank is
-        at an operations console facing monitoring screens, OR on a
-        surgical table being maintained by overhead rail-mounted robotic
-        arms, OR inspecting an open chassis. Dashboards, status indicators,
-        and dark server-room lighting are typical. Calm, watchful
-        expression — routine monitoring, not crisis. Use the secondary
-        reference image (banner-operating.png) as a style anchor for the
-        Operating series.
-
     papers:
       banner: blog/static/images/tile-papers.png
-      modifiers: >-
-        PAPERS-SERIES SIGNATURE — scholar / researcher persona. Frank
-        wears a crisp white button-down dress shirt, a thin black necktie,
-        and small thin-framed reading glasses perched low on the bridge
-        of his nose (the kind older readers use for close work). This
-        outfit is the consistent visual signature across every Papers
-        image — apply it unless the scene explicitly contradicts. Use the
-        secondary reference image (banner-papers.png) as a style anchor
-        for the Papers series.
+
+# ---------------------------------------------------------------------------
+# TORSO VARIANTS
+#
+# Picked per image. The script defaults the variant from `series:` (Papers →
+# papers, building/* → building, ops-/operating-* → operating, anything
+# else → generic). Override per-image with `torso: <name>`.
+#
+# The variant text below is INTENTIONALLY generic. The PER-IMAGE prompt
+# specializes it — see the IMPORTANT note at the top of this file.
+# ---------------------------------------------------------------------------
+torso_variants:
+  generic: >-
+    Torso and clothing follow the scene prompt.
+
+  building: >-
+    Frank's torso/body is exposed server hardware. The scene prompt
+    below names the form factor on display.
+
+  operating: >-
+    Frank's torso has an open access panel exposing a device under
+    maintenance. The scene prompt below names which device.
+
+  papers: >-
+    Frank wears clothes — typically a white button-down shirt and a
+    thin black necktie. Optional variants the scene may invoke: a lab
+    coat worn open over the shirt, OR a denim / leather overall in
+    place of the shirt. No exposed server chassis on his body.
+
+# ---------------------------------------------------------------------------
+# MOOD PRESET BANK
+#
+# Per-image `mood: <key>` looks up a preset here. If the value isn't a
+# known key, it's passed through as a free-form mood string. Each preset
+# is a single short sentence — enough to set the expression without
+# fighting the scene prompt.
+# ---------------------------------------------------------------------------
+moods:
+  curious: Frank's expression is curious — head tilted, brow lifted, eyes wide and attentive.
+  weighing: Frank's expression is weighing — measured, slightly squinting, the look of someone judging an option.
+  determined: Frank's expression is determined — jaw set, brow level, eyes forward and focused.
+  worried: Frank's expression is worried — brow furrowed inward, mouth tightened, eyes slightly wider than usual.
+  smirking: Frank's expression is smirking — one corner of the mouth pulled up, eyes narrowed in dry amusement.
+  approving: Frank's expression is approving — a small contented smile, brow relaxed, eyes calm and pleased.
+  skeptical: Frank's expression is skeptical — one brow raised higher than the other, mouth flat, eyes narrowed.
+  satisfied: Frank's expression is satisfied — soft closed-mouth smile, brow at rest, eyes relaxed.
+  cautious: Frank's expression is cautious — alert but not anxious; brow level, eyes scanning, mouth neutral.
+  angry: Frank's expression is angry — brow pulled down, mouth tight, eyes narrowed and dark.
+  alarmed: Frank's expression is alarmed — eyes wide, brow lifted high, mouth slightly open.
+  focused: Frank's expression is focused — brow lowered in concentration, eyes locked on his work, mouth still.
+  amused: Frank's expression is amused — small grin, brow relaxed, eyes bright.
 
 # ---------------------------------------------------------------------------
 # Site-wide assets (banner, favicon) — share a unified design language
