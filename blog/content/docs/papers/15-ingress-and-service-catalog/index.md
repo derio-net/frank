@@ -1,15 +1,29 @@
 ---
 title: "Ingress, Forward-Auth, and the Service Catalog"
 date: 2026-05-22
-draft: true
+draft: false
 weight: 15
 series: ["papers"]
 layer: net
 paper_number: 15
 publish_order: 14
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  Ingress in 2026 is three jobs stacked — hostname routing and TLS,
+  auth enforcement, and a catalogue humans can read — and six contenders
+  (Traefik, Nginx, Contour/Gateway-API, per-app OIDC, service-mesh
+  mTLS, Cloudflare Access) each treat one or two as primary.
+
+  Frank runs Traefik in-cluster + Authentik embedded outpost forward-auth
+  + Homepage as the catalogue at `master.cluster.derio.net`. The scars
+  came in the seams: the Cilium `lbipam.cilium.io/ips` annotation that
+  is not a sharing directive, the Authentik blueprint that creates
+  proxy providers but can't assign them to the embedded outpost, the
+  `AUTHENTIK_HOST` env that defaults the redirect to `0.0.0.0:9000`.
+
+  Frank's answer is not universal. Single-team behind Cloudflare Access:
+  L1. ≥1000 QPS east-west: mesh mTLS. All-OIDC-native apps: per-app SDK.
+  Mixed apps at homelab QPS: in-cluster forward-auth. See §6.
 tags: ["ingress", "traefik", "authentik", "forward-auth", "homepage", "service-catalog", "kubernetes"]
 capabilities: ["net", "auth"]
 related_building: "docs/building/24-in-cluster-ingress"
@@ -46,7 +60,21 @@ references:
 
 ## TL;DR
 
-*Write last.*
+Ingress in 2026 is three jobs stacked — hostname routing and TLS, auth
+enforcement, and a catalogue humans can read — and six contenders
+(Traefik, Nginx, Contour/Gateway-API, per-app OIDC, service-mesh mTLS,
+Cloudflare Access) each treat one or two as primary.
+
+Frank runs Traefik in-cluster + Authentik embedded outpost forward-auth +
+Homepage as the catalogue at `master.cluster.derio.net`. The scars came
+in the seams: the Cilium `lbipam.cilium.io/ips` annotation that is not a
+sharing directive, the Authentik blueprint that creates proxy providers
+but can't assign them to the embedded outpost, the `AUTHENTIK_HOST` env
+that defaults the redirect to `0.0.0.0:9000`.
+
+Frank's answer is not universal. Single-team behind Cloudflare Access:
+L1. ≥1000 QPS east-west: mesh mTLS. All-OIDC-native apps: per-app SDK.
+Mixed apps at homelab QPS: in-cluster forward-auth. See §6.
 
 ## §1 — The capability
 
