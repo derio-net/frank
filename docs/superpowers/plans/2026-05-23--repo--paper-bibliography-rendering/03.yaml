@@ -278,34 +278,34 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-23'
+      note: 'Partial created at blog/layouts/partials/papers/references.html; reads .Site.Data.papers via path.Base .Dir.'
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-23'
+      note: 'Inserted between papers-forwardlinks and papers/dossier-link in blog/layouts/docs/single.html.'
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-23'
+      note: 'Used one-shot hugo build to /tmp/hugo-build-p3 (hugo server alternative per plan). Paper 09 renders <section class="paper-references"> + <h2 id="references"> + <li id="ref-1"> + chips + quotes + relevance. Papers 04 (paper chip) and 14 (postmortem chip) also verified. Placeholder text still present in body — expected for Phase 3. Required PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH because default go1.19 is below blog/go.mod minimum 1.24.2.'
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-23'
+      note: 'Cross-series index partial created at blog/layouts/partials/papers/references-index.html.'
     P3.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-23'
+      note: 'Shortcode wrapper created at blog/layouts/shortcodes/papers/references-index.html.'
     P3.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-23'
+      note: 'Appended ~58 lines to blog/assets/css/custom.css (file already existed; no deviation from plan snippet).'
     P3.T4.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-23'
+      note: 'Commit ddb2a1a on bibliography-rendering.'
   completion:
-    at: null
-    note: null
+    at: '2026-05-23'
+    note: 'Phase 3 complete; §8 auto-renders on every paper, cross-series index partial + shortcode in place, CSS appended. Hugo build clean (123 pages).'
     observed_prs: []
