@@ -2,7 +2,7 @@
 title: "Self-Hosted Inference & the LLM Gateway Pattern"
 date: 2026-05-19
 draft: false
-weight: 11
+weight: 10
 series: ["papers"]
 layer: infer
 paper_number: 10

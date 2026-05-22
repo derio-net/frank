@@ -2,7 +2,7 @@
 title: "GitOps at Small Scale"
 date: 2026-05-19
 draft: false
-weight: 7
+weight: 6
 series: ["papers"]
 layer: gitops
 paper_number: 6

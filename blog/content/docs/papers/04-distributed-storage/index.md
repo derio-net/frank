@@ -2,7 +2,7 @@
 title: "Distributed Storage on Bare Metal"
 date: 2026-05-19
 draft: false
-weight: 5
+weight: 4
 series: ["papers"]
 layer: stor
 paper_number: 4

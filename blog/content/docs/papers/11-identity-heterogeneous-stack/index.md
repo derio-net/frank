@@ -2,7 +2,7 @@
 title: "Identity for a Heterogeneous Stack"
 date: 2026-05-19
 draft: false
-weight: 12
+weight: 11
 series: ["papers"]
 layer: auth
 paper_number: 11

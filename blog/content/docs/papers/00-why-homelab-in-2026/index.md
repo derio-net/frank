@@ -2,7 +2,7 @@
 title: "Why Run Your Own Cluster in 2026?"
 date: 2026-05-18
 draft: false
-weight: 1
+weight: 0
 series: ["papers"]
 layer: repo
 paper_number: 0
