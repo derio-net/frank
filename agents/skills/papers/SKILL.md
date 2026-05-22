@@ -60,12 +60,35 @@ dossier gate and correct section skeleton.
    - §6: 200–400 words + `flowchart TD` ≤4 leaves
    - §7: 200–400 words
 
-7. **Cover image** — add prompt to `blog/prompt_for_images.yaml` under
-   `# --- Papers Series Covers ---`. Template:
-   `"Frank examining [domain object] with a decision-maker expression
-   (curious / skeptical / weighing), wearing his thin black tie and
-   round reading glasses."`
-   Generate: `scripts/generate-all-images.py --only <key>`
+7. **Cover image** — read the top-of-file comment block in
+   `blog/prompt_for_images.yaml` for the full agent procedure. Add an
+   entry under `# --- Papers Series Covers ---` with required fields:
+
+   - `key: paper-NN-cover`
+   - `torso_variant: <0|1|2>` — index into `torso_variants.papers`
+     (`0` = white shirt + tie default, `1` = lab coat over shirt+tie,
+     `2` = denim/leather overalls over shirt+tie). Match it to what
+     the paper's domain calls for.
+   - `mood: <preset key>` — `weighing`, `skeptical`, `cautious`,
+     `approving`, `satisfied`, `focused`, etc. Decision-maker moods
+     fit Papers best.
+   - `references:` — **pick explicitly** from
+     `.reference-pool/papers/subjects/`. Filenames are descriptive
+     (e.g. `frank-white-shirt-black-tie-2.png`,
+     `frank-white-shirt-sleeves-up-black-tie-1.png`). Choose 1 (rarely
+     2) whose clothing AND pose match what the scene should look like.
+   - `output:`, `description:`, `prompt:` — scene only, following the
+     header guidance.
+
+   Setting `series: papers` is fine — there's no auto-attached banner
+   anymore, so it no longer brings any risk. Torso also derives from
+   the key prefix, so either works.
+
+   Generate:
+   ```bash
+   source .env_common && uv run --with pyyaml --with google-genai --with pillow \
+     scripts/generate-all-images.py -r blog/static/images/reference.png --only <key>
+   ```
 
 8. **Review** — verify TL;DR ≤150 words, voice pass, dossier-link renders.
 
