@@ -41,8 +41,14 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:17:08+00:00'
+      note: Sub-step 4 (blog retroactive updates) DEFERRED — building post 15-paperclip
+        + paperclip operating post not yet updated with LiteLLM-backed adapter section.
+        Steps 5 (gotcha), 7 (runbook synced this session), 8 (spec status flipped
+        to Deployed) complete. Steps 1/2/3/6 skipped per fix/extension rules.
   completion:
-    at: null
+    at: '2026-05-22T20:17:09+00:00'
+    note: Most checklist items done (gotcha line, runbook sync, spec Deployed). Blog
+      retroactive updates explicitly deferred — track via the composite step's deferred
+      state.

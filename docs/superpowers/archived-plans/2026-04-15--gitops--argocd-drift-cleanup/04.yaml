@@ -144,42 +144,51 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:18+00:00'
+      note: Gitea redis-cluster orphans cleaned (verified no residual pods/services
+        2026-05-22)
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:20+00:00'
+      note: Gitea redis-cluster orphans cleaned (verified no residual pods/services
+        2026-05-22)
     P4.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:22+00:00'
+      note: Gitea redis-cluster orphans cleaned (verified no residual pods/services
+        2026-05-22)
     P4.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:24+00:00'
+      note: Gitea redis-cluster orphans cleaned (verified no residual pods/services
+        2026-05-22)
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:26+00:00'
+      note: Infisical nginx/mongodb orphans cleaned (only supported redis-master remains,
+        verified 2026-05-22)
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:29+00:00'
+      note: Infisical nginx/mongodb orphans cleaned (only supported redis-master remains,
+        verified 2026-05-22)
     P4.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:31+00:00'
+      note: Infisical nginx/mongodb orphans cleaned (only supported redis-master remains,
+        verified 2026-05-22)
     P4.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:33+00:00'
+      note: Infisical nginx/mongodb orphans cleaned (only supported redis-master remains,
+        verified 2026-05-22)
     P4.T2.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:35+00:00'
+      note: Infisical nginx/mongodb orphans cleaned (only supported redis-master remains,
+        verified 2026-05-22)
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:14:23+00:00'
+    note: Backfilled — see step-level notes for implementing commits / verification
     observed_prs: []

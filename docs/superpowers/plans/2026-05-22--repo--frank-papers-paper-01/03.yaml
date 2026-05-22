@@ -1,0 +1,542 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/01-heterogeneous-hardware/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 01 frontmatter
+
+
+      Update `blog/content/docs/papers/01-heterogeneous-hardware/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "Heterogeneous Hardware as a Design Choice"
+      date: <today>
+      draft: true
+      weight: 1
+      series: ["papers"]
+      layer: hw
+      paper_number: 1
+      publish_order: 17
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["hardware", "heterogeneous", "node-pools", "kubernetes", "talos", "raspberry-pi", "gpu"]
+      capabilities: ["hw"]
+      related_building: "docs/building/01-introduction"
+      related_operating: "docs/operating/01-cluster-nodes"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 1` matches paper_number for sidebar order.
+      `publish_order: 17` reflects Paper 01's slot in the
+      decision-weight publish sequence (00 → 10 → 04 → 11 →
+      14 → 06 → 07 → 02 → 03 → 09 → 05 → 08 → 17 → 13 → 15 →
+      16 → 12 → **01** → 20).
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      Create `blog/content/docs/papers/01-heterogeneous-hardware/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: identical_image
+          label: One golden image
+        - key: single_driver_matrix
+          label: Single driver matrix
+        - key: per_node_class_cost
+          label: Multi-class operator cost
+        - key: arch_diversity
+          label: ARM+x86 in one cluster
+        - key: gpu_diversity
+          label: iGPU+dGPU in one cluster
+        - key: cloud_outsourced
+          label: Cloud-managed nodes
+        - key: real_hardware_lessons
+          label: Real-hardware failure modes
+        - key: small_scale_fit
+          label: Fits 3–20 nodes
+      vendors:
+        - name: All-RPi homelab
+          features:
+            identical_image: "yes"
+            single_driver_matrix: "yes"
+            per_node_class_cost: "no"
+            arch_diversity: "no"
+            gpu_diversity: "no"
+            cloud_outsourced: "no"
+            real_hardware_lessons: "partial"
+            small_scale_fit: "yes"
+        - name: All-NUC mini-fleet
+          features:
+            identical_image: "yes"
+            single_driver_matrix: "yes"
+            per_node_class_cost: "no"
+            arch_diversity: "no"
+            gpu_diversity: "no"
+            cloud_outsourced: "no"
+            real_hardware_lessons: "partial"
+            small_scale_fit: "yes"
+        - name: Heterogeneous bare metal (Frank)
+          features:
+            identical_image: "no"
+            single_driver_matrix: "no"
+            per_node_class_cost: "yes"
+            arch_diversity: "yes"
+            gpu_diversity: "yes"
+            cloud_outsourced: "no"
+            real_hardware_lessons: "yes"
+            small_scale_fit: "yes"
+        - name: Edge+core split
+          features:
+            identical_image: "partial"
+            single_driver_matrix: "partial"
+            per_node_class_cost: "yes"
+            arch_diversity: "yes"
+            gpu_diversity: "partial"
+            cloud_outsourced: "no"
+            real_hardware_lessons: "yes"
+            small_scale_fit: "partial"
+        - name: Single beefy server + VMs
+          features:
+            identical_image: "yes"
+            single_driver_matrix: "yes"
+            per_node_class_cost: "no"
+            arch_diversity: "no"
+            gpu_diversity: "no"
+            cloud_outsourced: "no"
+            real_hardware_lessons: "no"
+            small_scale_fit: "yes"
+        - name: Full-cloud node-pool-per-shape
+          features:
+            identical_image: "yes"
+            single_driver_matrix: "yes"
+            per_node_class_cost: "no"
+            arch_diversity: "yes"
+            gpu_diversity: "yes"
+            cloud_outsourced: "yes"
+            real_hardware_lessons: "no"
+            small_scale_fit: "no"
+      ```
+
+      Polarity check: "yes" = the shape HAS that property. For
+      `per_node_class_cost`, "yes" = the shape pays a
+      real multi-class operator cost (more classes = more cost);
+      "no" = the shape collapses everything to one class.
+      Adjust to match the conventions of `apps/0X/data/vendors.yaml`
+      if the matrix shortcode reads polarity differently.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      The opening question: *what do you put in the rack — and
+      do you buy seven of the same box or seven different boxes?*
+      Position node-class heterogeneity in the stack: between
+      physical hardware (BIOS, PSU, firmware) and the Kubernetes
+      scheduler (nodeSelector, taints, tolerations, NodePools,
+      DRA). Acknowledge that "fleet shape" is doing several
+      jobs at once — capacity, failure isolation, workload
+      specialization, operator-cost surface, learning surface —
+      and the vendor space splits on which of those jobs each
+      shape treats as primary.
+
+      Voice: Frank speaks as the cluster. No hedging. The
+      production-SRE answer (homogenize) is right for production-
+      SRE jobs, and that doesn't make it right for a learning
+      cluster. Both can be true.
+
+      Include one `flowchart LR` Mermaid diagram showing the
+      stack position and the five jobs fleet-shape does:
+
+      ```
+      flowchart LR
+          HW["Physical hardware (board / PSU / firmware)"] --> NC["Node class"]
+          NC --> SCH["Kubernetes scheduler"]
+          NC --> CAP["Capacity"]
+          NC --> FI["Failure isolation"]
+          NC --> WS["Workload specialization (GPU / ARM / RAM-heavy)"]
+          NC --> OC["Operator cost surface"]
+          NC --> LS["Learning surface"]
+          SCH --> APP["Pods"]
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the six fleet shapes against two axes. Use `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:single-class↔multi-class,y:bare-metal↔cloud-managed" >}}
+          quadrantChart
+              title Fleet shape — 2026
+              x-axis Single class --> Multi class
+              y-axis Bare metal --> Cloud managed
+              quadrant-1 "Multi · Cloud (Karpenter-style)"
+              quadrant-2 "Single · Cloud (one-shape EKS)"
+              quadrant-3 "Single · Bare metal (all-NUC / all-RPi)"
+              quadrant-4 "Multi · Bare metal (Frank)"
+              All-RPi homelab: [0.05, 0.05]
+              All-NUC mini-fleet: [0.10, 0.10]
+              Heterogeneous bare metal (Frank): [0.85, 0.10]
+              Edge+core split: [0.70, 0.35]
+              Single beefy server + VMs: [0.05, 0.10]
+              Full-cloud node-pool-per-shape: [0.85, 0.90]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each shape, name what
+      it optimises for in one phrase ("All-NUC: a one-image
+      fleet that lets you forget hardware exists";
+      "Heterogeneous bare metal: a deliberate teacher about
+      scheduler primitives you would otherwise never invoke")
+      and what it gives up to get there. Use `{{< papers/pullquote
+      source="..." url="..." >}}` for at least one direct quote
+      pulled from the dossier (likely a Karpenter NodePool doc
+      or a Geerling all-RPi benchmark post).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: *how does each fleet shape express
+      heterogeneity (or hide it) to the scheduler?* Every shape
+      has a different answer; this section lays them out
+      side-by-side with one `flowchart TD` per shape in a shared
+      visual language.
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = physical nodes
+      - Rounded rectangles = K8s primitives (Node, NodePool,
+        MachineDeployment, vCluster)
+      - Diamonds = scheduler decision points (nodeSelector,
+        tolerations, DRA)
+      - Cylinders = persistent fleet state (cluster API DB,
+        Karpenter CRDs, Talos machine configs)
+      - Dashed edges = out-of-band provisioning paths
+      - Solid edges = runtime / scheduling paths
+
+      Four-to-six architecture diagrams (one per shape that has
+      a meaningfully different answer). Skip single-beefy-with-
+      VMs at the architecture-diagram level — it doesn't have
+      a "hard part" in the scheduler, which is the §6 punchline.
+
+      Example for Frank's heterogeneous bare metal:
+
+      ```
+      flowchart TD
+          subgraph DECL["Declarative (Talos + Omni)"]
+              P1[("patches/phase01-node-config/03-labels-*.yaml")]
+              A["talosctl apply-config per node"]
+          end
+          subgraph NODES["Physical fleet (7 nodes, 4 hardware classes)"]
+              M1["mini-1/2/3 (Intel Ultra 5, 64GB, iGPU)"]
+              G1["gpu-1 (i9, RTX 5070 Ti, 128GB)"]
+              PC1["pc-1 (Z77/i5-3570K, 32GB)"]
+              R12["raspi-1/2 (RPi 4, ARM, 4GB)"]
+          end
+          subgraph SCHED["K8s scheduler"]
+              NS{{"nodeSelector: kubernetes.io/hostname / frank/zone"}}
+              TOL{{"toleration: nvidia.com/gpu:NoSchedule"}}
+              DRA{{"DRA: intel-gpu-resource-driver"}}
+              POD[("Pod")]
+          end
+          P1 -.-> A
+          A -.-> M1
+          A -.-> G1
+          A -.-> PC1
+          A -.-> R12
+          M1 --> DRA
+          G1 --> TOL
+          NS --> POD
+          TOL --> POD
+          DRA --> POD
+      ```
+
+      For each diagram include 80–200 words of prose: what the
+      shape exposes to the scheduler at runtime, how the
+      heterogeneity is provisioned (talosctl per node, Karpenter
+      NodePool CRDs, Cluster API MachineDeployments, k3s edge
+      agents over WAN, cloud node-pool-per-shape), what the
+      failure mode is when a class is misconfigured.
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + per-node-class cost callouts
+
+
+      Three scale axes that flip fleet-shape rankings:
+
+      1. **Node count.** At 3–7 nodes (Frank's regime) the
+         heterogeneity tax is paid in operator-hours per
+         quarter, not in fleet management tooling. At 50 nodes
+         the per-class firmware-update hour starts dominating
+         and homogeneity becomes a real cost lever. At 500
+         nodes, Karpenter / Cluster API / a cloud node-pool
+         product is doing the work whether you ship it or not
+         — multi-class becomes a CRD problem rather than a
+         human-operator problem.
+
+      2. **Image multi-arch tax.** A homogeneous x86 fleet
+         only consumes amd64 manifests; the day you add a
+         single RPi worker you discover which of your Helm
+         charts ship multi-arch and which ship x86-only with
+         a stale arm64 alpha. The cost is one-off per chart
+         but pays compound interest on every chart you add.
+
+      3. **What breaks first.** At 5 nodes the smoking gun is
+         a single old PSU (pc-1). At 50 nodes it is the driver
+         matrix on the GPU class. At 500 nodes it is whichever
+         firmware vendor missed a CVE this quarter and you have
+         to roll only the 41 nodes of that BIOS version. The
+         class of failure mode changes with N; only the
+         heterogeneous fleet teaches all three classes at
+         once.
+
+      Cite ≥2 primary sources from the dossier (Karpenter
+      NodePool doc + a Geerling/PiCluster benchmark, or a
+      KubeCon SIG-scheduling talk). Do not editorialize past
+      what the citations support.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank chose heterogeneous bare metal — 3× Intel Ultra 5
+      minis as control plane (with iGPU DRA wiring on each),
+      1× i9/RTX 5070 Ti as the discrete-GPU worker, 1× legacy
+      Z77/i5-3570K as a general-purpose worker, 2× RPi 4 as
+      low-power ARM edge workers. The full chain: per-node
+      Talos label patches under `patches/phase01-node-config/`,
+      two parallel GPU stacks (NVIDIA operator on gpu-1, vendored
+      Intel DRA chart on minis), per-pod nodeSelector +
+      defensive tolerations, and a multi-arch image story for
+      every Helm chart that touches the Pi nodes. The scars
+      came where the heterogeneity met the operational floor.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative
+      options from the gotcha registry and the investigations
+      folder:
+
+      Scar 1 — pc-1 spontaneous reboots (the 245-line
+      investigation):
+      ```
+      {{< papers/scar date="2026-05-07" >}}
+      pc-1 rebooted 7 times in 33 days, with no kernel panic,
+      no OOM, no thermal trip, no watchdog. Inter-reboot
+      intervals 4–11 days, no diurnal pattern. The kernel
+      logger streamed to Omni over SideroLink up until the
+      second of each silence, then nothing — the failure was
+      faster than printk. 245 lines of VictoriaMetrics
+      history, in-cluster privileged debug pods, hardware
+      DMI inventory, and absence-of-ECC reasoning landed on
+      "the 12-year-old PSU was browning out under transient
+      load." PSU-swapped 2026-05-07; soak clean at T+3.87d.
+      A homogeneous fleet of 2025 NUCs would never have
+      taught us what a silent hardware reset looks like in
+      Talos. The cluster has plenty of compute; pc-1 stayed
+      because the failure mode it carries is itself the
+      lesson.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — gpu-1 `kubectl port-forward` CNI flake:
+      ```
+      {{< papers/scar date="2026-04-12" >}}
+      `kubectl port-forward` (and CLIs that wrap it, like
+      `argocd --port-forward`) regularly fails on pods scheduled
+      to gpu-1 with `failed to execute portforward in network
+      namespace cni-…: read: connection reset by peer`. Only
+      gpu-1's netns exhibits this. Every metric-scraping script
+      that worked on the minis had to be rewritten as
+      `kubectl exec deploy/<target> -- wget -qO- localhost:<port>`.
+      A homogeneous fleet of identical workers would not have
+      this per-host class of bug. A heterogeneous fleet
+      teaches you to write scrape scripts that route around
+      the network-namespace transport layer entirely — a habit
+      that pays off the day production has the same flake
+      under a different name.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — Intel iGPU DRA wiring on the minis:
+      ```
+      {{< papers/scar date="2026-02-18" >}}
+      mini-1/2/3 each carry an Intel Ultra 5 with an integrated
+      GPU. The "obvious" path — install the upstream
+      `intel-resource-driver-operator` chart — does not work
+      under K8s 1.35, because the upstream chart predates the
+      DRA API changes. Frank ships a vendored chart with the
+      1.35 DRA patches under
+      `patches/phase05-mini-config/`, one per mini, with
+      per-host CDI containerd configuration. The NVIDIA stack
+      on gpu-1 took its own integration pass; neither pass was
+      reusable for the other. That's the heterogeneity tax in
+      concrete form — and the reason every reference to "the
+      GPU layer" in this cluster requires "on which host?"
+      as a follow-up question.
+      {{< /papers/scar >}}
+      ```
+
+      Pick 2-3 scars from the above (all three is also fine if
+      the section budget allows). Real dates only — pull from
+      `agents/rules/frank-gotchas.md` cross-referenced with
+      `docs/investigations/2026-05-11--hw--pc-1-reboot-investigation.md`
+      and `docs/runbooks/frank-gotchas/gpu-1.md`.
+
+      Include ≥1 evidence artefact: either the
+      `kubectl get nodes -o wide` capture from P4.T3 (showing
+      the seven-node fleet with ARCHITECTURE / KERNEL-VERSION
+      / OS-IMAGE columns) or the pc-1 reboot-timeline table
+      from the investigation inlined as a code block.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one
+      leaf; the others are real:
+
+      ```
+      flowchart TD
+          A["Goal = shipping a product at scale?"] -- "Yes" --> L1["Homogenize (all-NUC or full-cloud one-shape)"]
+          A -- "No, learning infrastructure" --> B["Want real-hardware failure modes in scope?"]
+          B -- "Yes" --> L2["Heterogeneous bare metal (Frank's pick)"]
+          B -- "No, just want a cluster API" --> C["Cloud OK?"]
+          C -- "Yes" --> L4["Full-cloud node-pool-per-shape (EKS Karpenter)"]
+          C -- "No" --> L3["Single beefy server + VMs (Proxmox + LXC)"]
+      ```
+
+      ≤4 visible leaves. The decision turns on three questions:
+      *what is the primary job* (shipping vs learning),
+      *do you want real-hardware failure modes in scope*
+      (Frank: yes, that's the point), *is cloud acceptable*
+      (homelab no, regulated SaaS often yes). The "single
+      beefy server + VMs" leaf is for the homelab that wants
+      "Kubernetes as software" without "Kubernetes as hardware
+      curriculum" — a perfectly reasonable line that Frank
+      chooses not to take.
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **ARM-on-server is normalizing.** Ampere, AWS Graviton,
+         and the rumored next round of Apple-silicon-derived
+         server cores are moving ARM out of the "edge / RPi"
+         box and into mainline server racks. The multi-arch
+         image tax is in the process of becoming a multi-arch
+         image *expectation* — Helm charts that ship amd64-only
+         in 2027 will start to look like Helm charts that
+         ship glibc-only in 2025.
+
+      2. **Karpenter NodePool taxonomy is becoming the lingua
+         franca for "what shapes does my cluster need."** Even
+         on bare metal, the NodePool/NodeClass CRD pair is the
+         cleanest way to declare "this cluster has these
+         kinds of nodes" — Cluster API and operator-managed
+         fleets are converging on it. Expect Talos and other
+         machine managers to grow first-class NodePool-shaped
+         primitives within 18 months.
+
+      3. **DRA is the next inflection.** Dynamic Resource
+         Allocation (K8s 1.32+) abstracts "what hardware
+         does this pod need" out of nodeSelector and into a
+         first-class resource API. iGPU vs dGPU vs NPU vs
+         specialty accelerator stops being a per-vendor wiring
+         problem and starts being a DRA driver problem. Frank
+         already runs this on the minis under a vendored chart;
+         expect the pattern to spread to every NIC, every
+         crypto accelerator, every storage class in the next
+         two years.
+
+      Optional timeline diagram or roadmap citations. Cite the
+      dossier where possible.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/01-heterogeneous-hardware/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-shape
+      architecture is the section with most room to grow). If
+      over, trim §3 first — that's where capability papers
+      reliably sprawl past budget.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

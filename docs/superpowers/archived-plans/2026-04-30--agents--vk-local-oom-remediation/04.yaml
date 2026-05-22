@@ -148,14 +148,18 @@ state:
       ticked_at: null
       note: null
     P4.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:15:14+00:00'
+      note: vibekanban_max_executions/active_executions metrics scraped by VictoriaMetrics
+        — confirmed in Phase 5 Day-1 query output
     P4.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:15:16+00:00'
+      note: Deferred — current secure-agent-pod dashboard has working-set RSS + restart-count
+        + last-terminated-reason panels only (apps/grafana-alerting/manifests/secure-agent-pod-dashboard-cm.yaml).
+        Queue-depth panel not built; not on critical path since cap is enforced upstream.
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:15:21+00:00'
+    note: VK_MAX_CONCURRENT_EXECUTIONS=4 + /metrics endpoint live + scraped; queue-depth
+      Grafana panel deferred (P4.T2.S4)
     observed_prs: []
