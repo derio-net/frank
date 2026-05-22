@@ -1,38 +1,32 @@
 ---
 title: "Edge Clusters & Public Exposure"
 date: 2026-05-22
-draft: true
+draft: false
 weight: 20
 series: ["papers"]
 layer: edge
 paper_number: 20
 publish_order: 18
-status: drafting
+status: published
 tldr: |
-  Public exposure from a home cluster is a five-job problem — NAT
-  traversal, TLS termination, DNS / domains, reverse proxy, and (when
-  it applies) mesh coordination. The vendor space in 2026 splits on
-  one structural question: do you cede the edge to someone else's
-  network (Cloudflare Tunnel, Tailscale Funnel, ngrok), or do you run
-  your own edge node — a tiny VPS with Headscale + Caddy, or a full
-  multi-region cluster with Rancher Fleet?
+  Public exposure from a home cluster is a five-job problem: NAT
+  traversal, TLS termination, DNS, reverse proxy, mesh coordination.
+  The 2026 vendor space splits on one question — cede the edge to
+  someone else (Cloudflare Tunnel, Tailscale Funnel, ngrok) or run
+  your own (tiny VPS with Headscale + Caddy, or a multi-region
+  cluster with Rancher Fleet).
 
-  Frank runs the middle path. A single-node Talos cluster called Hop,
-  on a Hetzner CX23 at €5/month, terminating TLS via Cloudflare
-  DNS-01, running Headscale as the mesh coordination plane and Caddy
-  as the reverse proxy. The scars came from being a single-node
-  cluster wearing edge-router hats: hostPort + RollingUpdate deadlocks
-  on every chart upgrade, a Headplane v0.5 upstream rewrite that
-  silently stopped accepting env-var configuration, a Tailscale
-  DaemonSet that had to be coaxed into kernel mode before Caddy could
-  see mesh source IPs.
+  Frank runs the middle path: a single-node Talos cluster called Hop
+  on a Hetzner CX23 (~€5/month), Caddy on hostPort 80/443 terminating
+  TLS via Cloudflare DNS-01, Headscale as mesh control plane. The
+  scars: hostPort + RollingUpdate deadlocks, a Headplane v0.5 rewrite
+  that silently dropped env-var config, Tailscale needing kernel mode
+  for source-IP visibility.
 
-  Frank's answer does not generalize. One blog and one status page →
-  Cloudflare Tunnel wins. Already on Tailscale → Funnel is one
-  toggle. Three or more clusters across regions → Rancher Fleet
-  starts paying for itself. Frank picked Hop because the Headscale
-  control plane lives there, and putting the mesh control plane
-  behind someone else's tunnel would re-create the chicken-and-egg.
+  Frank's answer doesn't generalize. One blog → Cloudflare Tunnel.
+  Three-plus clusters → Rancher Fleet. Frank picked Hop because the
+  Headscale control plane lives there — putting it behind someone
+  else's tunnel re-creates the chicken-and-egg.
 tags: ["edge", "headscale", "cloudflare-tunnel", "tailscale", "talos", "caddy", "kubernetes"]
 capabilities: ["edge"]
 related_building: "docs/building/17-public-edge"
@@ -73,31 +67,24 @@ references:
     type: vendor-docs
 ---
 
-{{< papers/dossier-link paper="20-edge-clusters-public-exposure" >}}
-
 ## TL;DR
 
-Public exposure from a home cluster is a five-job problem — NAT traversal,
-TLS termination, DNS / domains, reverse proxy, and (when it applies) mesh
-coordination. The vendor space in 2026 splits on one structural question:
-do you cede the edge to someone else's network (Cloudflare Tunnel,
-Tailscale Funnel, ngrok), or do you run your own edge node — a tiny VPS
-with Headscale + Caddy, or a full multi-region cluster with Rancher Fleet?
+Public exposure from a home cluster is a five-job problem: NAT traversal,
+TLS termination, DNS, reverse proxy, mesh coordination. The 2026 vendor
+space splits on one question — cede the edge to someone else (Cloudflare
+Tunnel, Tailscale Funnel, ngrok) or run your own (tiny VPS with Headscale
++ Caddy, or a multi-region cluster with Rancher Fleet).
 
-Frank runs the middle path. A single-node Talos cluster called Hop, on a
-Hetzner CX23 at €5/month, terminating TLS via Cloudflare DNS-01, running
-Headscale as the mesh coordination plane and Caddy as the reverse proxy.
-The scars came from being a single-node cluster wearing edge-router hats:
-hostPort + RollingUpdate deadlocks on every chart upgrade, a Headplane
-v0.5 rewrite that silently stopped accepting env-var configuration, a
-Tailscale DaemonSet that had to be coaxed into kernel mode before Caddy
-could see mesh source IPs.
+Frank runs the middle path: a single-node Talos cluster called Hop on a
+Hetzner CX23 (~€5/month), Caddy on hostPort 80/443 terminating TLS via
+Cloudflare DNS-01, Headscale as mesh control plane. The scars: hostPort
++ RollingUpdate deadlocks, a Headplane v0.5 rewrite that silently dropped
+env-var config, Tailscale needing kernel mode for source-IP visibility.
 
-Frank's answer does not generalize. One blog and one status page →
-Cloudflare Tunnel wins. Three or more clusters across regions → Rancher
-Fleet pays for itself. Frank picked Hop because the Headscale control
-plane lives there, and putting the mesh control plane behind someone
-else's tunnel would re-create the chicken-and-egg.
+Frank's answer doesn't generalize. One blog → Cloudflare Tunnel.
+Three-plus clusters → Rancher Fleet. Frank picked Hop because the
+Headscale control plane lives there — putting it behind someone else's
+tunnel re-creates the chicken-and-egg.
 
 ## §1 — The capability
 
