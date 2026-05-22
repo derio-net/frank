@@ -4,7 +4,7 @@ phase:
   title: ArgoCD Sync
   tag: manual
   depends_on: []
-  tracking_issue: null
+  tracking_issue:
 tasks:
 - number: 1
   title: Disable auto-sync, update ArgoCD root app, push, sync, verify, re-enable
@@ -66,26 +66,26 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
   completion:
-    at: null
-    note: null
+    at: '2026-05-22'
+    note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     observed_prs: []
