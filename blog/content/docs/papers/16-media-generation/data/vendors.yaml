@@ -1,0 +1,78 @@
+features:
+  - key: self_hosted
+    label: Self-hosted
+  - key: node_graph
+    label: Node-graph workflow
+  - key: webui
+    label: Web UI
+  - key: opinionated
+    label: Opinionated pipeline
+  - key: lora_stacking
+    label: LoRA / ControlNet stacking
+  - key: api_compatible
+    label: OpenAI / REST API
+  - key: gpu_sharing
+    label: Handles GPU sharing
+  - key: oss
+    label: OSS / no contract required
+vendors:
+  - name: ComfyUI
+    features:
+      self_hosted: "yes"
+      node_graph: "yes"
+      webui: "yes"
+      opinionated: "no"
+      lora_stacking: "yes"
+      api_compatible: "partial"
+      gpu_sharing: "no"
+      oss: "yes"
+  - name: AUTOMATIC1111
+    features:
+      self_hosted: "yes"
+      node_graph: "no"
+      webui: "yes"
+      opinionated: "no"
+      lora_stacking: "yes"
+      api_compatible: "yes"
+      gpu_sharing: "no"
+      oss: "yes"
+  - name: InvokeAI
+    features:
+      self_hosted: "yes"
+      node_graph: "partial"
+      webui: "yes"
+      opinionated: "yes"
+      lora_stacking: "yes"
+      api_compatible: "yes"
+      gpu_sharing: "no"
+      oss: "partial"
+  - name: Fooocus
+    features:
+      self_hosted: "yes"
+      node_graph: "no"
+      webui: "yes"
+      opinionated: "yes"
+      lora_stacking: "partial"
+      api_compatible: "no"
+      gpu_sharing: "no"
+      oss: "yes"
+  - name: Replicate (cloud)
+    features:
+      self_hosted: "no"
+      node_graph: "no"
+      webui: "yes"
+      opinionated: "partial"
+      lora_stacking: "partial"
+      api_compatible: "yes"
+      gpu_sharing: "yes"
+      oss: "no"
+  - name: Midjourney / DALL-E
+    features:
+      self_hosted: "no"
+      node_graph: "no"
+      webui: "yes"
+      opinionated: "yes"
+      lora_stacking: "no"
+      api_compatible: "partial"
+      gpu_sharing: "yes"
+      oss: "no"
