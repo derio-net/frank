@@ -1,6 +1,6 @@
 ---
 paper: 12-multi-tenancy-vcluster
-status: draft
+status: ready
 ---
 
 ## Vendors in scope (≥3, typically 4–6)
