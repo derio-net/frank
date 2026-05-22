@@ -442,6 +442,8 @@ tasks:
           C -- "No (mixed)" --> L4["In-cluster ingress + forward-auth (Frank's pick)"]
       ```
 
+      > Threshold "≥1000 QPS" is illustrative; see § Named Gap.
+
       ≤4 visible leaves. The decision turns on three questions:
       *can you live as a Cloudflare tenant* (yes: Cloudflare
       Access wins), *do you have ≥1000 QPS that makes a
@@ -449,7 +451,10 @@ tasks:
       mTLS), *do all your apps support native OIDC* (yes:
       per-app SDK skips forward-auth; mixed/no: in-cluster
       forward-auth is the only option that doesn't require
-      modifying every workload).
+      modifying every workload). At ≥1000 QPS east-west
+      traffic, mesh mTLS starts to pay back (though see
+      § Named Gap — no apples-to-apples homelab benchmark
+      exists).
   - id: P3.T3.S7
     text: |-
       Draft §7 — Roadmap & where this space is going (200–400 words)
