@@ -1,0 +1,36 @@
+{{/* papers/references.html — auto-injected by single.html for
+     pages with `series: papers`. Reads .Site.Data.papers
+     keyed by the paper bundle directory name. Renders the
+     §8 References section. */}}
+{{ $dir := "" }}
+{{ with .File }}
+  {{ $dir = path.Base .Dir }}
+{{ end }}
+{{ with $dir }}
+  {{ $data := index $.Site.Data.papers . }}
+  {{ with $data }}
+    {{ with .primary_sources }}
+      <section class="paper-references">
+        <h2 id="references">References</h2>
+        <ol>
+          {{ range $i, $src := . }}
+            <li id="ref-{{ add $i 1 }}">
+              <span class="paper-reference-chip paper-reference-chip--{{ .type }}">{{ .type }}</span>
+              <a href="{{ .url }}" rel="noopener nofollow">{{ .title }}</a>
+              {{ with .quoted_passages }}
+                <div class="paper-reference-quotes">
+                  {{ range . }}
+                    <blockquote>{{ . }}</blockquote>
+                  {{ end }}
+                </div>
+              {{ end }}
+              {{ with .relevance }}
+                <p class="paper-reference-relevance"><em>{{ . }}</em></p>
+              {{ end }}
+            </li>
+          {{ end }}
+        </ol>
+      </section>
+    {{ end }}
+  {{ end }}
+{{ end }}

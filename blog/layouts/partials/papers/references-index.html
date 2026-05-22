@@ -1,0 +1,87 @@
+{{/* papers/references-index.html — cross-series bibliography.
+     Iterates .Site.Data.papers.*, dedupes sources by URL,
+     groups by type, preserves per-paper relevance. */}}
+{{ $byUrl := dict }}
+{{ range $slug, $data := .Site.Data.papers }}
+  {{ $paperPage := $.Site.GetPage (printf "/docs/papers/%s" $slug) }}
+  {{ $paperTitle := $slug }}
+  {{ $paperNumber := 0 }}
+  {{ with $paperPage }}
+    {{ $paperTitle = .Title }}
+    {{ $paperNumber = .Params.paper_number | default 0 }}
+  {{ end }}
+  {{ range $data.primary_sources }}
+    {{ $url := .url }}
+    {{ $existing := index $byUrl $url }}
+    {{ if not $existing }}
+      {{ $byUrl = merge $byUrl (dict $url (dict
+        "title" .title
+        "type" .type
+        "quoted_passages" .quoted_passages
+        "citations" (slice (dict
+          "paper_slug" $slug
+          "paper_title" $paperTitle
+          "paper_number" $paperNumber
+          "relevance" .relevance
+        ))
+      )) }}
+    {{ else }}
+      {{ $merged_quotes := union $existing.quoted_passages .quoted_passages }}
+      {{ $merged_citations := append (dict
+        "paper_slug" $slug
+        "paper_title" $paperTitle
+        "paper_number" $paperNumber
+        "relevance" .relevance
+      ) $existing.citations }}
+      {{ $byUrl = merge $byUrl (dict $url (merge $existing (dict
+        "quoted_passages" $merged_quotes
+        "citations" $merged_citations
+      ))) }}
+    {{ end }}
+  {{ end }}
+{{ end }}
+
+<div class="papers-references-index">
+  <p>The cross-series bibliography for the Frank Papers. Every
+  primary source cited in any Paper appears here exactly once,
+  grouped by source type. Per-paper §8 sections remain the
+  primary citation surface; this index exists for cross-paper
+  navigation.</p>
+
+  {{ range $type := slice "vendor-docs" "paper" "postmortem" "talk" "benchmark" }}
+    {{ $matches := slice }}
+    {{ range $url, $entry := $byUrl }}
+      {{ if eq $entry.type $type }}
+        {{ $matches = append (merge $entry (dict "url" $url)) $matches }}
+      {{ end }}
+    {{ end }}
+    {{ if $matches }}
+      <h2 id="{{ $type }}">{{ $type }}</h2>
+      {{ $sorted := sort $matches "title" "asc" }}
+      <ul>
+        {{ range $sorted }}
+          <li>
+            <span class="paper-reference-chip paper-reference-chip--{{ .type }}">{{ .type }}</span>
+            <a href="{{ .url }}" rel="noopener nofollow">{{ .title }}</a>
+            {{ with .quoted_passages }}
+              {{ range . }}
+                <blockquote>{{ . }}</blockquote>
+              {{ end }}
+            {{ end }}
+            <div class="paper-reference-citations">
+              <strong>Cited in:</strong>
+              <ul>
+                {{ range sort .citations "paper_number" "asc" }}
+                  <li>
+                    <a href="/docs/papers/{{ .paper_slug }}/">Paper {{ .paper_number }} — {{ .paper_title }}</a>
+                    — <em>{{ .relevance }}</em>
+                  </li>
+                {{ end }}
+              </ul>
+            </div>
+          </li>
+        {{ end }}
+      </ul>
+    {{ end }}
+  {{ end }}
+</div>
