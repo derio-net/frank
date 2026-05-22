@@ -1,6 +1,6 @@
 ---
 paper: 16-media-generation
-status: draft
+status: ready
 ---
 
 ## Vendors in scope (≥3, typically 4–6)
