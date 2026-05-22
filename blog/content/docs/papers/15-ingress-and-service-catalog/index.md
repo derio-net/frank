@@ -611,6 +611,3 @@ label gets a tile" — and at that point the catalogue collapses back
 into the cluster's own resource model, where it arguably should have
 lived from the start.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

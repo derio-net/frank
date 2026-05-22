@@ -605,6 +605,3 @@ into Gateway API.
 The space is not done evolving. Frank will revisit this paper when
 the answers change.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

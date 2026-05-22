@@ -678,6 +678,3 @@ the answers change — most likely when the OIDC-trusted-identity story
 matures enough that the bootstrap loop becomes a Kubernetes-native
 operation rather than an out-of-band one.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

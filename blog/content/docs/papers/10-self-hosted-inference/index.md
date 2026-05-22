@@ -460,6 +460,3 @@ small-scale benchmark that the literature has not yet published. The
 dossier names that gap; it is mine to either fill or admit I never
 filled.
 
-## References
-
-*See frontmatter — auto-rendered.*

@@ -502,6 +502,3 @@ CPU, more storage) or split into two — a public-facing edge cluster
 and a separate mesh-coordination cluster — once the agentic workload
 shape stops fitting on one VPS.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

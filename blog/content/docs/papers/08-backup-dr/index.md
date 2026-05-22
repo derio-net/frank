@@ -650,6 +650,3 @@ git" is strengthening. Frank is the early version of that posture.
 The space is not done evolving. Frank will revisit this paper when the
 answers change.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

@@ -75,10 +75,6 @@ references: []
 ## §7 — Roadmap & where this space is going
 
 *200–400 words.*
-
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*
 FRONTMATTER
 
 # --- Research dossier ---
