@@ -511,6 +511,8 @@ images:
   - key: paper-02-cover
     torso_variant: 0
     mood: approving
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-3.png
     output: blog/content/docs/papers/02-immutable-os/cover.png
     description: Paper 02 cover — Frank tracing a manifest to one of a row of identical immutable-OS nodes
     prompt: >-
@@ -1400,6 +1402,8 @@ images:
     series: operating
     torso_variant: 0
     mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-2.png
     output: blog/content/docs/operating/02-storage-backups/cover.png
     description: "Operating on Storage & Backups — open chest panel exposes a Longhorn SSD array mid-replacement"
     prompt: >-
@@ -1438,21 +1442,24 @@ images:
     torso_variant: 0
     mood: focused
     references:
-      - .reference-pool/operating/subjects/frank-open-torso-1.png
+      - .reference-pool/operating/subjects/frank-open-torso-2.png
     output: blog/content/docs/operating/04-gpu-compute/cover.png
     description: "Operating on GPU Compute — open access panel exposes an RTX 5070 Ti mid-service"
     prompt: >-
-      Exposed device under maintenance: a NVIDIA GeForce RTX 5070 Ti
-      graphics card, seated through a hinged access panel in Frank's
-      torso. Two slim robotic arms work on the card — one runs a glowing
-      diagnostic probe across the PCB, the other tightens the 8-pin PCIe
-      power connector. A small translucent terminal panel floats
-      alongside, displaying ASCII bars of `nvidia-smi` output
-      (utilization, memory, temperature). A second, smaller access port
-      lower on the torso exposes an Intel Arc iGPU glowing cool blue —
-      already inspected, with a small green checkmark hovering above it.
-      Frank tips his head down to watch the work; this is a routine
-      service procedure, not surgery in extremis. No text in the image.
+      Frank sits upright on the edge of a low metal workbench, body
+      facing the camera in a slight three-quarter angle. His chest
+      panel is hinged open; seated inside the panel is a NVIDIA
+      GeForce RTX 5070 Ti graphics card under maintenance. Two slim
+      robotic arms reach into the open panel — one runs a glowing
+      diagnostic probe across the card's PCB, the other tightens the
+      8-pin PCIe power connector. A translucent terminal panel floats
+      to one side, displaying ASCII bars of `nvidia-smi` output
+      (utilization, memory, temperature). On a small side-tray, a
+      separate Intel Arc iGPU chip glows cool blue — already
+      inspected, with a small green checkmark hovering above it.
+      Frank looks calmly down at the work — routine service, not
+      surgery in extremis. Keep his proportions chibi and consistent
+      with the canonical reference. No text in the image.
 
   - key: ops-05-observability
     series: operating
@@ -1777,6 +1784,29 @@ images:
       token card, the broken-box labels, and the clipboard text are
       the only writing in the image.
 
+  - key: ops-20-vk-relay
+    series: operating
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-suit.png
+    output: blog/content/docs/operating/20-vk-relay/cover.png
+    description: "Operating on VK Relay — Frank monitoring relay tunnel status on a dashboard"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster seated at an operations
+      desk in a dark server room, facing a wide monitoring screen. The screen
+      shows a relay status dashboard with a glowing green WebSocket tunnel
+      icon connecting two endpoints labeled "browser" and "agent-pod".
+      Status indicators show: connection UP (green dot), latency bar,
+      active sessions count. His left hand rests on the desk near a small
+      terminal showing log output scrolling past. His right hand adjusts a
+      dial labeled "relay-server:8082". On the desk, a small pairing card
+      with a 6-digit code glows faintly. In the background, server racks
+      with blinking LEDs and ethernet cables. Green skin, messy black hair,
+      black eyes with white pupils, RJ45 neck bolts sparking faint blue
+      electricity. Calm operational mood — routine monitoring. Dark server
+      room with blue and teal lighting accents.
+
   - key: ops-21-vk-remote
     series: operating
     torso_variant: 1
@@ -1800,29 +1830,6 @@ images:
       sparking faint blue electricity. Calm operational mood — routine
       stack monitoring. Dark server room with blue and amber lighting
       accents.
-
-  - key: ops-20-vk-relay
-    series: operating
-    torso_variant: 1
-    mood: focused
-    references:
-      - .reference-pool/operating/subjects/frank-suit.png
-    output: blog/content/docs/operating/20-vk-relay/cover.png
-    description: "Operating on VK Relay — Frank monitoring relay tunnel status on a dashboard"
-    prompt: >-
-      Frank the server-hardware Frankenstein monster seated at an operations
-      desk in a dark server room, facing a wide monitoring screen. The screen
-      shows a relay status dashboard with a glowing green WebSocket tunnel
-      icon connecting two endpoints labeled "browser" and "agent-pod".
-      Status indicators show: connection UP (green dot), latency bar,
-      active sessions count. His left hand rests on the desk near a small
-      terminal showing log output scrolling past. His right hand adjusts a
-      dial labeled "relay-server:8082". On the desk, a small pairing card
-      with a 6-digit code glows faintly. In the background, server racks
-      with blinking LEDs and ethernet cables. Green skin, messy black hair,
-      black eyes with white pupils, RJ45 neck bolts sparking faint blue
-      electricity. Calm operational mood — routine monitoring. Dark server
-      room with blue and teal lighting accents.
 
   - key: ops-22-cicd-platform
     series: operating
@@ -1912,3 +1919,28 @@ images:
       character sheet, only change pose, expression, scene, and lighting.
       Operational mood — routine pruning, not chaos. Server-room
       background with cyan and amber accent lighting.
+
+  - key: ops-25-frank-papers
+    series: papers
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-sleeves-up-black-tie-2.png
+    output: blog/content/docs/operating/25-frank-papers/cover.png
+    description: "Operating The Frank Papers — research workflow, dossier gate, publishing"
+    prompt: >-
+      Scene: a quiet research-desk study. Frank stands beside a tall
+      DOSSIER GATE drawn as a brass-trimmed checkpoint built into a
+      bookshelf — vendors, sources, artefacts, gaps, counter-arguments
+      etched on a small plaque at the top. A holographic checklist
+      floats beside the gate showing five ticked items: "vendors ≥ 3
+      ✓", "sources ≥ 5 ✓", "artefacts ≥ 3 ✓", "gaps ≥ 1 ✓",
+      "counter-arguments ≥ 1 ✓". A small terminal panel below the
+      checklist displays a green "validate-dossier.py: PASS" line.
+      Frank holds a printed page in one hand titled "§1–§7" with the
+      Papers section skeleton, and a small wax-sealed scroll labelled
+      "ready" in the other. To the right, three faintly glowing
+      Mermaid mini-charts hover — a quadrant chart, a flowchart, and
+      a capability matrix — the per-paper diagram types. The
+      "DOSSIER GATE" sign and the five checklist labels are the only
+      writing in the image. ONE figure — one single Frank.
