@@ -166,10 +166,10 @@ state:
       ticked_at: 2026-05-23
       note: 'Replaced §8 anatomy row + rewrote "References taxonomy" → "References pipeline" (dossier → sync script → data file → partials, with reference to implementation spec).'
     P5.T4.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: 2026-05-23
+      note: 'Commit a482c55 on bibliography-rendering; staged the 17 papers, scaffold, repo-papers.md, /references/_index.md, spec, plan checkboxes, and the Phase-3 partial fix (references-index.html data-shape guard).'
   completion:
-    at: null
-    note: null
+    at: 2026-05-23
+    note: 'Phase 5 complete. Deviations: (1) plan regex needed `|\Z` because `references:` is the last frontmatter key; (2) `series:` must be a list not a scalar (Hextra opengraph); (3) Phase-3 partial needed a data-shape guard to skip data/papers.yaml. All three documented inline in the respective step notes.'
     observed_prs: []
