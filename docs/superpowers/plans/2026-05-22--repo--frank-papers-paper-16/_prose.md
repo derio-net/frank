@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 16: Self-Hosted Media Generation
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Drafting (2026-05-22) — plan created; awaiting agentic Phase 1 execution.
+**Status:** Complete (2026-05-22) — Paper 16 draft on branch paper-16; PR open for human review.
 
 **Prerequisite:** Papers 00, 04, 06, 07, 09, 10, 11, 14 published; Paper 10 (Self-Hosted Inference) in particular provides the shared GPU-language for §3/§5 — Paper 16 is its GPU-sharing companion. The custom ComfyUI image (`apps/comfyui/docker/`) and GPU Switcher API (`apps/gpu-switcher/`) referenced in the case study are live on Frank.
 

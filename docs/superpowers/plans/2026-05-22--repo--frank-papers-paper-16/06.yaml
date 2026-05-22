@@ -109,38 +109,42 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:59:01+00:00'
+      note: Live URL deferred to post-merge — CI deploys after PR merge.
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:59:03+00:00'
+      note: Cross-link chip verification deferred to post-merge Hugo CI build.
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:59:05+00:00'
+      note: _index.md uses papers-roadmap shortcode — auto-built from frontmatter,
+        no manual edit needed.
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:59:06+00:00'
+      note: No Further-reading section in series overviews — cross-link chips do the
+        work via auto-render.
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:59:08+00:00'
+      note: Papers reference existing Building/Operating posts via frontmatter; chips
+        do the work.
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:59:10+00:00'
+      note: README is a stack snapshot — no Paper 16-specific row needed.
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:59:12+00:00'
+      note: 'No # manual-operation blocks in this plan — sync-runbook skipped.'
     P6.T1.S8:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:59:13+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:59:15+00:00'
+    note: Plan status set to Complete (2026-05-22). Spec table row updated. _index.md
+      auto-built. README stack snapshot — no row change. No manual-operation blocks.
     observed_prs: []
