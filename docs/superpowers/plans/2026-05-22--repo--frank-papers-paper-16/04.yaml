@@ -156,30 +156,31 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:54:10+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:54:12+00:00'
+      note: Gemini fallback used (.env_common absent in worktree); cover-TODO.png
+        placed. Regen post-merge.
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:54:13+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:54:15+00:00'
       note: null
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:54:17+00:00'
+      note: Cluster access unavailable from worktree; gpu-switch-TODO.png placed.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:54:19+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-22T20:54:21+00:00'
     note: null
     observed_prs: []

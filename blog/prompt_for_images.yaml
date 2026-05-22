@@ -680,6 +680,32 @@ images:
       are the only writing in the image. ONE figure — one single
       Frank. Framing communicates "named chain of custody," not
       "secrets are solved".
+  - key: paper-16-cover
+    torso_variant: 1
+    mood: satisfied
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-sleeves-up-black-tie-1.png
+    output: blog/content/docs/papers/16-media-generation/cover.png
+    description: Paper 16 cover — Frank examining a freshly-printed photo, single GPU rack glowing behind him
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands in a dim
+      workshop, holding a single freshly-printed glossy photo at eye
+      level in his right hand. The photo shows an abstract generated
+      landscape — the kind of image a diffusion model produces — with
+      subtle colour banding visible in the ink. His expression is
+      satisfied-but-critical, the kind of person who finally has a
+      clean image-gen pipeline but knows exactly what the GPU sharing
+      tax cost him. Behind him, a server rack with a single GPU card
+      glows a soft warm orange through its fan grille — the GPU is
+      alive, doing the work. He wears thin small round reading glasses
+      resting low on his face and a thin black necktie over a white
+      button-down dress shirt with sleeves rolled to the elbows. Warm
+      overhead lamp light. Deep navy studio-style background. RJ45
+      neck bolts, green skin, messy black hair, rack-mount torso. A
+      small faint label "gpu-1" on the server rack is the ONLY text in
+      the image — no extra captions or watermarks. ONE FIGURE — one
+      single Frank. The framing communicates "self-hosted generative
+      media has a GPU sharing tax" rather than "image-gen is solved".
 
   # --- Post Covers ------------------------------------------------------------
 
