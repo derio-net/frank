@@ -703,6 +703,10 @@ images:
 
   - key: building-01-introduction
     series: building
+    torso_variant: 4
+    mood: curious
+    references:
+      - .reference-pool/building/subjects/frank-shirt-ar-glasses.png
     output: blog/content/docs/building/01-introduction/cover.png
     description: "Introduction — Why build a homelab (rejecting the cloud)"
     prompt: >-
@@ -773,6 +777,10 @@ images:
 
   - key: building-05-gitops
     series: building
+    torso_variant: 4
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-gear-shirt-binoculars.png
     output: blog/content/docs/building/05-gitops/cover.png
     description: "GitOps — ArgoCD App-of-Apps orchestra"
     prompt: >-
@@ -806,6 +814,10 @@ images:
 
   - key: building-07-observability
     series: building
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-gear-shirt-antenna.png
     output: blog/content/docs/building/07-observability/cover.png
     description: "Observability — VictoriaMetrics + Grafana + Fluent Bit"
     prompt: >-
@@ -822,6 +834,10 @@ images:
 
   - key: building-08-backup
     series: building
+    torso_variant: 2
+    mood: cautious
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-jean-overalls-1.png
     output: blog/content/docs/building/08-backup/cover.png
     description: "Backup — Longhorn daily/weekly to Cloudflare R2"
     prompt: >-
@@ -856,6 +872,10 @@ images:
 
   - key: building-10-local-inference
     series: building
+    torso_variant: 3
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-overalls.png
     output: blog/content/docs/building/10-local-inference/cover.png
     description: "Local Inference — Ollama + LiteLLM gateway + OpenRouter"
     prompt: >-
@@ -873,6 +893,10 @@ images:
 
   - key: building-11-agentic-control-plane
     series: building
+    torso_variant: 4
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-hard-hat.png
     output: blog/content/docs/building/11-agentic-control-plane/cover.png
     description: "Sympozium — Kubernetes-native agentic control plane"
     prompt: >-
@@ -889,6 +913,10 @@ images:
 
   - key: building-12-gpu-talos-fix
     series: building
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-gear-shirt-headlamp.png
     output: blog/content/docs/building/12-gpu-talos-fix/cover.png
     description: "GPU Talos Fix — debugging containerd, validation markers"
     prompt: >-
@@ -951,6 +979,10 @@ images:
 
   - key: building-15-paperclip
     series: building
+    torso_variant: 0
+    mood: approving
+    references:
+      - .reference-pool/building/subjects/frank-suit-server-torso.png
     output: blog/content/docs/building/15-paperclip/cover.png
     description: "Paperclip — AI agent orchestrator with virtual companies and org charts"
     prompt: >-
@@ -1015,6 +1047,10 @@ images:
 
   - key: building-18-persistent-agent
     series: building
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-2.png
     output: blog/content/docs/building/18-persistent-agent/cover.png
     description: "Persistent Agent — Frank at an always-on workstation terminal"
     prompt: >-
@@ -1096,6 +1132,10 @@ images:
 
   - key: building-22-health-monitoring
     series: building
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-3.png
     output: blog/content/docs/building/22-health-monitoring/cover.png
     description: "Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts"
     prompt: >-
@@ -1115,6 +1155,10 @@ images:
 
   - key: building-23-health-bridge
     series: building
+    torso_variant: 4
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-4.png
     output: blog/content/docs/building/23-health-bridge/cover.png
     description: "Health Bridge — Frank routing alert signals from monitoring to project boards"
     prompt: >-
@@ -1134,6 +1178,10 @@ images:
 
   - key: building-24-in-cluster-ingress
     series: building
+    torso_variant: 4
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-gear-shirt-goggles.png
     output: blog/content/docs/building/24-in-cluster-ingress/cover.png
     description: "In-Cluster Ingress — Frank directing traffic through a glowing gateway"
     prompt: >-
@@ -1178,6 +1226,10 @@ images:
 
   - key: building-26-vk-remote-self-host
     series: building
+    torso_variant: 1
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-5.png
     output: blog/content/docs/building/26-vk-remote-self-host/cover.png
     description: "VK Remote Self-Host — Frank unplugging from a dying cloud and wiring up his own kanban server"
     prompt: >-
@@ -1292,6 +1344,10 @@ images:
 
   - key: building-30-frank-papers
     series: papers
+    torso_variant: 0
+    mood: satisfied
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-tool-belt.png
     output: blog/content/docs/building/30-frank-papers/cover.png
     description: "Building The Frank Papers — Frank installing the dossier gate at the entrance to a research library"
     prompt: >-
@@ -1320,6 +1376,10 @@ images:
 
   - key: ops-01-cluster-nodes
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-2.png
     output: blog/content/docs/operating/01-cluster-nodes/cover.png
     description: "Operating on Cluster & Nodes — Frank checking vital signs"
     prompt: >-
@@ -1357,6 +1417,10 @@ images:
 
   - key: ops-03-gitops
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-3.png
     output: blog/content/docs/operating/03-gitops/cover.png
     description: "Operating on GitOps — Frank managing his application orchestra"
     prompt: >-
@@ -1430,6 +1494,10 @@ images:
 
   - key: ops-07-inference
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-4.png
     output: blog/content/docs/operating/07-inference/cover.png
     description: "Operating on Local Inference — Frank holding his own head open"
     prompt: >-
@@ -1469,6 +1537,10 @@ images:
 
   - key: ops-09-multi-tenancy
     series: operating
+    torso_variant: 2
+    mood: amused
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/09-multi-tenancy/cover.png
     description: "Operating on Multi-tenancy — Frank juggling vCluster snow globes"
     prompt: >-
@@ -1527,6 +1599,10 @@ images:
 
   - key: ops-12-progressive-delivery
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-5.png
     output: blog/content/docs/operating/12-progressive-delivery/cover.png
     description: "Operating on Progressive Delivery — Frank at a control panel managing canary and blue-green rollouts"
     prompt: >-
@@ -1544,6 +1620,10 @@ images:
 
   - key: ops-13-workflow-automation
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-1.png
     output: blog/content/docs/operating/13-workflow-automation/cover.png
     description: "Operating on Workflow Automation — Frank maintaining n8n workflow internals"
     prompt: >-
@@ -1560,6 +1640,10 @@ images:
 
   - key: ops-14-secure-agent-pod
     series: operating
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/operating/subjects/frank-coat-overalls.png
     output: blog/content/docs/operating/14-secure-agent-pod/cover.png
     description: "Operating on Secure Agent Pod — Frank maintaining a layered security orb"
     prompt: >-
@@ -1719,6 +1803,10 @@ images:
 
   - key: ops-20-vk-relay
     series: operating
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-suit.png
     output: blog/content/docs/operating/20-vk-relay/cover.png
     description: "Operating on VK Relay — Frank monitoring relay tunnel status on a dashboard"
     prompt: >-
