@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 01: Heterogeneous Hardware as a Design Choice
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Drafting — plan created 2026-05-22 on branch `paper-01`; PR open for human review of plan structure.
+**Status:** Complete (2026-05-22) — Paper 01 draft on branch `paper-01`; PR open for human review.
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete (scripts,
 shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Papers 00, 02, 03,
