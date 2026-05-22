@@ -285,3 +285,9 @@ be updated:
 - No changes to existing building post content (only moved to new path)
 - No changes to the cluster roadmap shortcode (this is not a layer)
 - No README update (no new services or architecture changes)
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Operating on Frank — Blog Series Design Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-13--repo--operating-blog-series/` | — |

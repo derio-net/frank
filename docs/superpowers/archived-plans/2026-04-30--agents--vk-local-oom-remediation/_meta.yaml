@@ -4,5 +4,3 @@ spec: docs/superpowers/specs/2026-04-30--agents--vk-local-oom-remediation-design
 target_repo: derio-net/frank
 vk_version: '>=1.0.0,<3.0.0'
 created: '2026-04-30'
-status: Deployed
-completed: '2026-05-16'

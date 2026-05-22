@@ -288,3 +288,9 @@ Mitigation:
 - Headscale config itself is declarative (in Git), so only the runtime state (registrations) needs backup
 
 **Private route IP verification:** For public traffic, Caddy sees real source IPs because it binds directly via `hostPort`. For mesh traffic, the kernel-mode Tailscale DaemonSet creates a `tailscale0` interface in the host network namespace. Since Caddy also runs with `hostPort` (same network namespace), it sees mesh source IPs (`100.64.0.0/10`) on connections arriving through the tunnel. MagicDNS `extra_records` ensure mesh clients resolve mesh-only domains to the Tailscale IP, directing traffic through the tunnel rather than the public IP.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Hop: Public Edge Entrypoint Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-16--edge--hop-public/` | — |

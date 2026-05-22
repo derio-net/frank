@@ -74,6 +74,12 @@ All volumes via Longhorn.
 | VMSingle | ClusterIP only | Internal to cluster |
 | VictoriaLogs | ClusterIP only | Internal to cluster |
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Observability Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-07--obs--observability/` | — |
+
 ## Blog Post
 
 **Title:** "Observability: Why We Chose VictoriaMetrics Over Prometheus"

@@ -110,3 +110,9 @@ No changes to existing `apps/gpu-operator/values.yaml`.
 ## Scope
 
 This is an extension of the GPU layer, not a new layer. File naming follows the convention: `gpu--operator-talos-fix`.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| GPU Operator Talos Validation Fix Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-10--gpu--operator-talos-fix/` | — |

@@ -157,3 +157,9 @@ tailscale set --exit-node=  # Disconnect exit node
 # Verify auto-approval (simulate by re-registering a raspi)
 # New routes should appear as Enabled without manual approval
 ```
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Subnet Router Auto-Approval + Split DNS Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-21--edge--subnet-router-autoapproval/` | — |

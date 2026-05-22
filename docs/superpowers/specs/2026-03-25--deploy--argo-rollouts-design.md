@@ -267,6 +267,12 @@ kubectl argo rollouts abort sympozium-apiserver -n sympozium-system
 - **`inconclusiveCondition` does not exist** — the AnalysisTemplate CRD has no such field. NaN results implicitly match neither `successCondition` nor `failureCondition` and are automatically inconclusive.
 - **Prometheus `successCondition`/`failureCondition` use `result[0]`** — scalar query results require array indexing syntax, not bare `result`.
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Argo Rollouts — Progressive Delivery Platform Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-25--deploy--argo-rollouts/` | — |
+
 ## Out of Scope
 
 - Argo Rollouts dashboard UI and Grafana dashboard (the kubectl plugin is sufficient; the official Argo Rollouts Grafana dashboard can be added later as a ConfigMap to the monitoring stack)

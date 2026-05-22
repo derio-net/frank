@@ -359,3 +359,9 @@ When adding a new outward-facing service with an IngressRoute:
 | `secrets/traefik-cloudflare-credentials.yaml` | SOPS-encrypted CF API token |
 | `.claude/rules/frank-argocd.md` | Updated with Homepage update rule |
 | `.claude/rules/frank-infrastructure.md` | Updated with Traefik (192.168.55.220) and Homepage entries |
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| In-Cluster Ingress: Traefik + Authentik Forward-Auth Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-29--net--in-cluster-ingress/` | — |

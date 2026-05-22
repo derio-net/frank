@@ -167,6 +167,12 @@ This uses Kubernetes variable expansion (`$(PG_PASSWORD)`) to construct the URL 
 - **Bitnami PG auto-creates the database** — set `auth.database: paperclip` in values; no manual DB creation needed
 - **Cilium L2 IP pool** — verify that 192.168.55.212 is within the configured `CiliumLoadBalancerIPPool` range
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Paperclip AI Orchestrator Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-14--orch--paperclip/` | — |
+
 ## Out of Scope
 
 - Authentik SSO integration (can be added later if Paperclip becomes permanent)

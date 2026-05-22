@@ -360,3 +360,9 @@ argocd login localhost:8080 --port-forward --port-forward-namespace argocd
 - Monitoring stack (Prometheus/Grafana — future ArgoCD Application)
 - S3-compatible backup for ArgoCD/etcd (future)
 - Ansible automation for raspi-omni management host
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| ArgoCD-Managed Infrastructure — Design Document Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-02--gitops--argocd-infrastructure/` | — |

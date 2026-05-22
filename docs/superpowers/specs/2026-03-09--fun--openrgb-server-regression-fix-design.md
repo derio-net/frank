@@ -64,3 +64,9 @@ The ConfigMap is unchanged. Updating LED config remains a one-line git edit + Ar
 3. Update `docs/superpowers/specs/2026-03-03--fun--openrgb-led-control-design.md`
 4. Update `docs/superpowers/plans/2026-03-03--fun--openrgb-led-control.md`
 5. Update OpenRGB blog post with corrected architecture and regression note
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Design: OpenRGB Server Regression Fix Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-09--fun--openrgb-server-regression-fix/` | — |

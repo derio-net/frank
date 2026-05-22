@@ -217,3 +217,9 @@ K8s Secret → mounted as env vars in LiteLLM pod
 |---------|-----|------|--------|
 | LiteLLM Gateway | 192.168.55.206 | 4000 | LoadBalancer (Cilium L2) |
 | Ollama | ClusterIP | 11434 | Internal only |
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Local Inference Gateway Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-09--infer--ollama-litellm/` | — |

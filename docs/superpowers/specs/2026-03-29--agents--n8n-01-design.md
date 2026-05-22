@@ -170,3 +170,9 @@ To add a new instance:
 
 - Update `.claude/rules/frank-infrastructure.md` Service table with n8n-01 entry (IP 192.168.55.216, port 5678)
 - Run `/update-readme` to sync Technology Stack, Service Access, and Current Status
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| n8n-01: Per-User Workflow Automation Instance Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-29--agents--n8n-01/` | — |

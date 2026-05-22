@@ -229,6 +229,13 @@ The critical dependency is whether PyTorch stable (2.6.x) supports sm_120. If no
 2. Test `torch.cuda.is_available()` and `torch.cuda.get_device_capability()` inside the container on gpu-1
 3. If sm_120 is not supported, rebuild with PyTorch nightly index URL
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Custom ComfyUI Docker Image — Design Spec Implementation Plan (2026-03-16--media--comfyui-custom-image) | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-16--media--comfyui-custom-image/` | — |
+| Custom ComfyUI Docker Image — Design Spec Implementation Plan (2026-03-14--media--comfyui-gpu-switcher) | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-14--media--comfyui-gpu-switcher/` | — |
+
 ## Out of Scope
 
 - Custom node pre-installation (handled by Manager + PVC at runtime)

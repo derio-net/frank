@@ -116,3 +116,9 @@ the Talos `nvidia-open-gpu-kernel-modules-production` extension registry:
 1. Update the extension pin in `patches/phase04-gpu/402-gpu1-nvidia-extensions.yaml`
 2. Change PCIe setting back to **Auto** in BIOS to allow Gen 5 training
 3. Verify `32.0 GT/s` in dmesg
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Design: RTX 5070 PCIe Link Speed Fix (gpu-1) Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-09--gpu--pcie-link-speed-fix/` | — |
