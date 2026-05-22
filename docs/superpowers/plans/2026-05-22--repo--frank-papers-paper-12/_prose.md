@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 12: Multi-Tenancy with vCluster
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Drafting (2026-05-22) — Paper 12 plan opened on branch `paper-12`; execution to follow on the same branch.
+**Status:** Complete (2026-05-22) — Paper 12 draft on branch paper-12; PR open for human review.
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete (scripts,
 shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Papers 00, 02, 03,

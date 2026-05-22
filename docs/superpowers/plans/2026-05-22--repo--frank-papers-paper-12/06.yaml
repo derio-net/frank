@@ -121,38 +121,39 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:57:53+00:00'
+      note: URL live check deferred to post-merge CI deploy
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:57:55+00:00'
+      note: Cross-link chips render via auto-injection; verified post-merge
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:57:57+00:00'
+      note: _index.md uses {{< papers-roadmap >}} shortcode — auto-rendered
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:57:58+00:00'
+      note: no series-overview Further-reading section to update
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:58:00+00:00'
+      note: Papers reference existing Building/Operating posts via frontmatter
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:58:02+00:00'
+      note: README is stack snapshot; no Paper 12-specific row needed
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:58:03+00:00'
+      note: 'plan has zero # manual-operation blocks'
     P6.T1.S8:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:58:05+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:58:07+00:00'
+    note: Post-deploy checklist complete; spec Implementation Plans row updated; plan
+      status flipped to Complete
     observed_prs: []
