@@ -23,7 +23,7 @@ tasks:
       date: <today>
       draft: true
       weight: 16
-      series: papers
+      series: ["papers"]
       layer: media
       paper_number: 16
       publish_order: 15
@@ -310,6 +310,12 @@ tasks:
       Use 1–3 `{{< papers/scar >}}` callouts. Authoritative options
       from the gotcha registry and the comfyui design spec:
 
+      Note on scar dates: all three scars below carry `date="2026-03-16"`.
+      They are derived from the 2026-03-16 comfyui-design spec
+      investigation period — exact in-cluster incident dates were not
+      separately recorded, so we use the spec date as a conservative
+      grouping.
+
       Scar 1 — the ai-dock image abandonment:
       ```
       {{< papers/scar date="2026-03-16" >}}
@@ -331,7 +337,7 @@ tasks:
 
       Scar 2 — GPU contention with Ollama:
       ```
-      {{< papers/scar date="2026-03-14" >}}
+      {{< papers/scar date="2026-03-16" >}}
       `nvidia.com/gpu: 1` is a binary resource in Kubernetes.
       There is no "schedule this OR that, never both" primitive.
       Time-Slicing is enterprise-only with the NVIDIA GPU Operator.
@@ -350,7 +356,7 @@ tasks:
 
       Scar 3 — "system memory" misdiagnosed as VRAM:
       ```
-      {{< papers/scar date="2026-03-19" >}}
+      {{< papers/scar date="2026-03-16" >}}
       Ollama returned `model requires more system memory (15 GiB)
       than is available (837 MiB)` and `nvidia-smi` showed ~15 GB
       of VRAM free. We assumed VRAM exhaustion. It wasn't.

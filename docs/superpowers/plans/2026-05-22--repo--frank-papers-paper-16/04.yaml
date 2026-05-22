@@ -100,6 +100,10 @@ tasks:
   steps:
   - id: P4.T3.S1
     text: |-
+      Use the artefact chosen in dossier step P1.T2.S3 #5 — if asciinema
+      was chosen, see Option B (GPU-switcher asciinema capture); if
+      generated image, see Option A (ComfyUI sample render).
+
       Capture an inline figure showing real cluster state — pick ONE:
 
       Option A (preferred — meta-honesty):
