@@ -124,38 +124,49 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:02:13+00:00'
+      note: URL liveness deferred to post-merge — Paper 15 lives at blog.derio.net/frank
+        only after CI deploys main.
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:02:15+00:00'
+      note: Backlink chip render verification deferred to post-merge Hugo CI build
+        (same posture as Papers 09, 10, 04, 11, 14).
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:02:17+00:00'
+      note: 'Papers _index.md uses {{< papers-roadmap >}} shortcode — auto-builds
+        from blog/data/papers.yaml + frontmatter; updated roster entry layer: net
+        + covers: ''Traefik + Authentik + Homepage'' + slug: ingress-and-service-catalog
+        to match the bundle.'
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:02:18+00:00'
+      note: No series-overview Further-reading section exists to update.
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:02:20+00:00'
+      note: Skip — Papers reference existing Building 24-in-cluster-ingress / Operating
+        17-ingress via frontmatter; cross-link chips do the work.
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:02:45+00:00'
+      note: README is a stack snapshot — no Paper 15-specific row needed (Papers series
+        already referenced from Paper 00 post-deploy).
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:02:47+00:00'
+      note: 'Skip — no # manual-operation blocks in plan (the Authentik outpost Django-ORM
+        step is already documented in agents/rules/frank-argocd.md, not a new manual
+        op for this Paper).'
     P6.T1.S8:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:02:48+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T21:02:50+00:00'
+    note: Paper 15 published on branch paper-15; _prose.md status flipped to Complete
+      (2026-05-22); spec Implementation-Plans row updated; papers-roadmap data entry
+      synced to bundle slug + correct layer.
     observed_prs: []
