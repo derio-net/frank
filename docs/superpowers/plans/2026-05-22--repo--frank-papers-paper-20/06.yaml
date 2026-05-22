@@ -1,0 +1,164 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Post-Deploy Checklist
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Verify external publish (deferred)
+
+
+      Paper 20 publishes on the existing public blog at
+      `blog.derio.net/frank` after CI deploys, which happens after
+      this PR is merged by a human reviewer. URL liveness check
+      is deferred to post-merge.
+
+      Reference URL once live:
+      `https://blog.derio.net/frank/docs/papers/20-edge-clusters-public-exposure/`
+  - id: P6.T1.S2
+    text: |-
+      Verify cross-link chips render bidirectionally
+
+
+      The `papers-backlink.html` partial auto-renders a "→ Paper 20"
+      chip on `docs/building/17-public-edge` and
+      `docs/operating/11-public-edge` via the `related_building` /
+      `related_operating` frontmatter. No edits needed — verify
+      post-merge.
+
+      Cross-series chip backlink verification is deferred to
+      merge-time Hugo CI build (same posture as Papers 09, 10, 04,
+      11, 14, 17).
+  - id: P6.T1.S3
+    text: |-
+      Update the Papers section `_index.md`
+
+
+      Append Paper 20 to `blog/content/docs/papers/_index.md` if
+      and only if `_index.md` uses a hand-curated list rather than
+      the auto-rendered `{{< papers-roadmap >}}` shortcode:
+
+      ```bash
+      grep -n "papers-roadmap\|Paper 02\|Paper 09\|Paper 17" blog/content/docs/papers/_index.md
+      ```
+
+      If `papers-roadmap` is present, skip (the shortcode auto-
+      builds from frontmatter). Otherwise add a list item for
+      Paper 20 below the existing entries, matching the existing
+      format.
+
+      Model on the existing entries in `blog/content/docs/papers/_index.md` —
+      pick a recently-published paper (e.g., Paper 09's line) and copy its
+      format verbatim, substituting Paper 20's title, slug
+      (`20-edge-clusters-public-exposure`), and one-sentence summary.
+      Run `grep -n 'paper-' blog/content/docs/papers/_index.md` first to
+      find the existing entries.
+  - id: P6.T1.S4
+    text: |-
+      Update Building/Operating series overviews (optional)
+
+
+      Building 17-public-edge and Operating 11-public-edge exist;
+      the cross-series chip auto-renders from Paper 20 frontmatter.
+      No manual edit required to the post bodies themselves. If
+      the series overview has a "Further reading" section listing
+      Papers by capability, append Paper 20 there.
+
+      If no such section exists, mark this step skipped with reason
+      "no series-overview Further-reading section to update".
+  - id: P6.T1.S5
+    text: |-
+      Write building/operating blog posts (skip for Papers)
+
+
+      Papers are not new layer deployments — they review existing
+      capabilities. The Building 17-public-edge and Operating
+      11-public-edge posts already exist (that's what `related_building`
+      and `related_operating` point at). No new posts.
+
+      *Skip — Papers reference existing Building/Operating posts via
+      frontmatter; the cross-link chips do the work.*
+  - id: P6.T1.S6
+    text: |-
+      Update README
+
+
+      Run `/update-readme` or check manually. The Papers series is
+      already referenced in README (from Paper 00's post-deploy);
+      verify Paper 20 doesn't need a stack-list addition. README is
+      a stack snapshot, not a publish log — most likely no row
+      change is needed (the Hop edge layer already appears).
+
+      If no diff is produced, mark this step skipped with reason
+      "README is a stack snapshot — no Paper 20-specific row needed".
+  - id: P6.T1.S7
+    text: |-
+      Sync runbook
+
+
+      This plan contains no `# manual-operation` blocks — skip
+      `/sync-runbook`.
+
+      Confirm with:
+      ```bash
+      grep -c "# manual-operation" docs/superpowers/plans/2026-05-22--repo--frank-papers-paper-20/*.yaml \
+        | grep -v ":0$" || echo "no manual-operation blocks"
+      ```
+  - id: P6.T1.S8
+    text: |-
+      Update plan status and log publish date
+
+
+      Edit `docs/superpowers/plans/2026-05-22--repo--frank-papers-paper-20/_prose.md`:
+
+      ```
+      **Status:** Complete (YYYY-MM-DD) — Paper 20 draft published; PR open for human review.
+      ```
+
+      Update the spec's Implementation Plans table row for Paper 20
+      (`docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`).
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

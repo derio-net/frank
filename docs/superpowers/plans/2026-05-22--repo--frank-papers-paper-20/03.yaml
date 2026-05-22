@@ -1,0 +1,547 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/20-edge-clusters-public-exposure/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 20 frontmatter
+
+
+      Update `blog/content/docs/papers/20-edge-clusters-public-exposure/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "Edge Clusters & Public Exposure"
+      date: <today>
+      draft: true
+      weight: 20
+      series: ["papers"]
+      layer: edge
+      paper_number: 20
+      publish_order: 18
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["edge", "headscale", "cloudflare-tunnel", "tailscale", "talos", "caddy", "kubernetes"]
+      capabilities: ["edge"]
+      related_building: "docs/building/17-public-edge"
+      related_operating: "docs/operating/11-public-edge"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 20` matches paper_number for TOC order.
+      `publish_order: 18` reflects Paper 20's slot as the last Phase-1
+      Paper in the publish sequence.
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      Create `blog/content/docs/papers/20-edge-clusters-public-exposure/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: no_edge_node
+          label: No edge node required
+        - key: free_tier
+          label: Free tier viable
+        - key: tls_self
+          label: Self-terminated TLS
+        - key: cg_nat
+          label: Survives CG-NAT
+        - key: custom_dns
+          label: Custom DNS / domains
+        - key: mesh_overlay
+          label: Mesh data plane
+        - key: oss
+          label: OSS / no contract required
+        - key: data_plane_owned
+          label: You own the data plane
+      vendors:
+        - name: Cloudflare Tunnel
+          features:
+            no_edge_node: "yes"
+            free_tier: "yes"
+            tls_self: "no"
+            cg_nat: "yes"
+            custom_dns: "yes"
+            mesh_overlay: "no"
+            oss: "no"
+            data_plane_owned: "no"
+        - name: Tailscale Funnel
+          features:
+            no_edge_node: "yes"
+            free_tier: "partial"
+            tls_self: "no"
+            cg_nat: "yes"
+            custom_dns: "partial"
+            mesh_overlay: "yes"
+            oss: "partial"
+            data_plane_owned: "no"
+        - name: ngrok
+          features:
+            no_edge_node: "yes"
+            free_tier: "partial"
+            tls_self: "no"
+            cg_nat: "yes"
+            custom_dns: "partial"
+            mesh_overlay: "no"
+            oss: "no"
+            data_plane_owned: "no"
+        - name: Headscale + tiny VPS
+          features:
+            no_edge_node: "no"
+            free_tier: "no"
+            tls_self: "yes"
+            cg_nat: "yes"
+            custom_dns: "yes"
+            mesh_overlay: "yes"
+            oss: "yes"
+            data_plane_owned: "yes"
+        - name: Multi-region cluster (Rancher Fleet)
+          features:
+            no_edge_node: "no"
+            free_tier: "no"
+            tls_self: "yes"
+            cg_nat: "yes"
+            custom_dns: "yes"
+            mesh_overlay: "partial"
+            oss: "yes"
+            data_plane_owned: "yes"
+      ```
+
+      Polarity check: "yes" = the option HAS that feature. For
+      `no_edge_node`, "yes" = does NOT require an edge node (the
+      tunnel/funnel options); "no" = does require one (Headscale,
+      multi-region). For `data_plane_owned`, "yes" = your keys, your
+      TLS, your DNS; "no" = a vendor's edge. Adjust to match the
+      conventions of any sibling Paper's `data/vendors.yaml` if the
+      matrix shortcode reads polarity differently.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      The opening question: *your home cluster is behind a residential
+      ISP — CG-NAT possible, dynamic IPv4, no inbound 80/443. The
+      internet wants to reach a subset of its services (a blog, a
+      status page, a remote-access control plane). What sits at the
+      edge, who terminates TLS, and where does the auth boundary
+      live?* Position public-exposure in the stack: above the home
+      cluster's CNI, below applications, sibling to identity and
+      cache. Acknowledge that "public exposure" is doing several
+      jobs at once — NAT traversal, TLS termination, DNS, reverse
+      proxy, mesh coordination — and the vendor space splits on
+      whether you cede those jobs to someone else's edge or run
+      your own.
+
+      Voice: Frank speaks as the cluster. No hedging. The "just put
+      it behind Cloudflare Tunnel" answer is real, it works, and
+      pretending Frank's separate-VPS cluster is the One True Path
+      is dishonest — the §6 decision tree exists for that reason.
+
+      Include one `flowchart LR` Mermaid diagram showing the stack
+      position and the five jobs public-exposure does:
+
+      ```
+      flowchart LR
+          U["Public internet"] --> E["Edge (someone's)"]
+          E --> NAT["NAT traversal"]
+          E --> TLS["TLS termination"]
+          E --> DNS["DNS / domains"]
+          E --> RP["Reverse proxy"]
+          E --> MC["Mesh coordination"]
+          E --> H["Home cluster"]
+          H -.-> ISP["Residential ISP (no inbound)"]
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the five vendors against two axes. Use `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:tunnel-to-vendor-edge↔dedicated-edge-cluster,y:hub-and-spoke↔mesh-overlay" >}}
+          quadrantChart
+              title Edge & public exposure — 2026
+              x-axis Tunnel to vendor edge --> Dedicated edge cluster
+              y-axis Hub-and-spoke --> Mesh overlay
+              quadrant-1 "Dedicated · Mesh"
+              quadrant-2 "Vendor-edge · Mesh"
+              quadrant-3 "Vendor-edge · Hub-and-spoke"
+              quadrant-4 "Dedicated · Hub-and-spoke"
+              Cloudflare Tunnel: [0.10, 0.20]
+              Tailscale Funnel: [0.20, 0.85]
+              ngrok: [0.10, 0.15]
+              Headscale + tiny VPS: [0.80, 0.75]
+              Multi-region cluster: [0.95, 0.30]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("Cloudflare Tunnel: zero edge
+      infra, free TLS, you get a public URL in five minutes — and
+      Cloudflare sees every byte"; "Tailscale Funnel: public
+      exposure as a side effect of being on the tailnet — convenient
+      until you want your own DNS"; "Headscale + tiny VPS: the
+      most work, the most ownership, the most teaching") and what
+      it gives up to get there. Use `{{< papers/pullquote source="..."
+      url="..." >}}` for at least one direct quote pulled from the
+      dossier (likely the Tailscale "How it works" architecture
+      writeup or the Cloudflare Tunnel architecture doc).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: *getting a packet from the public internet to a
+      Service inside a home cluster behind a residential ISP, with
+      TLS terminated by someone who's allowed to terminate TLS for
+      your domain, and an audit trail of who did what when.* Three
+      shapes dominate, and Paper 20 lays them out side-by-side with
+      one `flowchart TD` per vendor in a shared visual language.
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = controllers / servers
+      - Rounded rectangles = K8s Service / Pod resources
+      - Diamonds = decision points / auth gates
+      - Cylinders = persistent storage (Headscale DB, Caddy certs,
+        Cloudflare's edge cache)
+      - Dashed edges = control-plane / bootstrap paths
+      - Solid edges = data-plane / request paths
+
+      **Three** architecture flowcharts — one per shape (Shape A:
+      tunnel-back-to-origin; Shape B: mesh-overlay-as-edge; Shape C:
+      dedicated-edge-cluster). The 4th-5th vendors in the landscape
+      get a one-sentence mention inside the matching shape's
+      flowchart, not their own diagram.
+
+      Shape A — tunnel-back-to-origin (Cloudflare Tunnel, ngrok):
+
+      ```
+      flowchart TD
+          U["Public internet"] --> CF["Cloudflare edge POP"]
+          CF -- "TLS terminated here" --> TUN["cloudflared (outbound-initiated tunnel)"]
+          TUN --> POD["Pod in home cluster"]
+          CF -.-> CTRL[("Cloudflare control plane")]
+          TUN -.-> CTRL
+      ```
+
+      Shape B — mesh-overlay-as-edge (Tailscale Funnel):
+
+      ```
+      flowchart TD
+          U["Public internet"] --> TS["Tailscale Funnel ingress"]
+          TS -- "TLS terminated here" --> NODE["Tailnet node (Pod or host)"]
+          NODE --> POD["Application Pod"]
+          TS -.-> CTRL[("Tailscale control plane")]
+          NODE -.-> CTRL
+      ```
+
+      Shape C — dedicated-edge-cluster (Frank: Headscale + Caddy on Hop):
+
+      ```
+      flowchart TD
+          U["Public internet"] --> CADDY["Caddy (hostPort 80/443)"]
+          CADDY -- "TLS terminated here (Cloudflare DNS-01)" --> SVC["Hop Service"]
+          SVC --> HS["Headscale Pod"]
+          SVC --> BLOG["Blog Pod"]
+          U2["Mesh client (laptop, phone)"] --> TSD["Tailscale DaemonSet on hop-1"]
+          TSD --> HS
+          TSD -.-> CADDY
+          HS -.-> CERTS[("Hetzner Volume: certs, headscale.db")]
+          CADDY -.-> CERTS
+      ```
+
+      Shape D (optional) — full multi-region cluster (Rancher Fleet
+      across cloud + on-prem): same as Shape C but the "edge" is a
+      managed cloud region, and Fleet syncs both regions from one
+      GitOps source. Worth including iff §6's enterprise leaf needs
+      a picture; otherwise omit and reference in prose.
+
+      For each diagram include 80–200 words of prose: what the
+      controller does at runtime, who terminates TLS and where the
+      keys live, what the failure mode is when the edge component
+      goes down (and what the blast radius is — for Cloudflare
+      Tunnel, your domain stays up but is unreachable; for Frank's
+      Hop, the blog goes down, the Headscale control plane goes
+      down, and so do all mesh-only services that rely on Hop's
+      MagicDNS).
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Tunnel concurrency.** Free-tier tunnels (Cloudflare,
+         ngrok) cap connection count and request rate at numbers
+         that work for "my blog" and break at "my agent control
+         plane that opens 200 SSE streams." Cloudflare's free
+         Tunnel limits are generous-but-real; ngrok's free tier
+         is openly tighter and quotas are why the paid plan
+         exists. Above ~100 concurrent connections the calculus
+         changes.
+
+      2. **Mesh peer fan-out.** Tailscale's mesh is roughly free
+         up to 100 nodes (current TOS, subject to change), then
+         priced. Headscale is uncapped because you run it; the
+         cost is operating it. Above ~50 nodes the peer-to-peer
+         coordination traffic on a single-node Headscale starts to
+         matter — Frank's Hop CX23 has 2 vCPU and 4 GB, which is
+         fine for a tailnet of <30 and tightening at >100.
+
+      3. **Single-node blast radius.** When the edge IS the cluster
+         (Frank's Hop), a single-node failure takes down everything
+         on that cluster simultaneously: the public blog, the
+         Headscale coordination plane, the private landing page,
+         and the mesh-only DNS entries that depend on Hop's
+         MagicDNS. Cloudflare Tunnel's failure mode is different —
+         your origin is fine, Cloudflare is fine, the tunnel
+         itself is the failure surface, and Cloudflare's "tunnel
+         healthy" dashboard is the only signal.
+
+      Cite ≥2 primary sources from the dossier (Tailscale's
+      capacity / DERP docs and either a Cloudflare Tunnel limits
+      doc or a homelab benchmark writeup). Do not editorialize past
+      what the citations support.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank chose Headscale + Caddy + Hugo blog + private landing
+      page, all running on a single-node Talos cluster called Hop,
+      provisioned on a Hetzner CX23 (~€5/month including the
+      Hetzner Volume). The full chain: Packer builds a Hetzner
+      snapshot from upstream Talos `hcloud-amd64.raw.xz`; `hcloud
+      server create` provisions the VPS and attaches the Volume;
+      `talosctl apply-config` + `talosctl bootstrap` brings up the
+      single-node cluster; ArgoCD on Hop syncs the app-of-apps from
+      `clusters/hop/apps/`; Caddy on hostPort 80/443 terminates TLS
+      via Cloudflare DNS-01; Headscale coordinates the mesh and
+      Tailscale DaemonSet on hop-1 gives the node a tailnet IP so
+      Caddy can see mesh source IPs; the Hugo blog is baked into a
+      Caddy-compatible container and served at `blog.derio.net/frank`.
+      The scars came in the seams.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative options
+      from the gotcha registry:
+
+      Scar 1 — hostPort + RollingUpdate deadlock on single-node:
+      ```
+      {{< papers/scar date="2026-03-17" >}}
+      We deployed Caddy with the default `strategy: RollingUpdate`.
+      The first config change rolled, the new pod entered
+      `ContainerCreating`, and stayed there forever — because the
+      old pod still held hostPort 80/443 and the new pod couldn't
+      bind. On a single-node cluster RollingUpdate is structurally
+      a deadlock for any hostPort-using Deployment. The fix is
+      `strategy: Recreate` on every Deployment that binds a
+      hostPort (Caddy, Headscale's STUN on 3478/UDP, Tailscale
+      DaemonSet's privileged hostNetwork). It's a property of the
+      edge model — one node, one port-binding pod at a time —
+      not a Caddy bug.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — Headplane v0.5 ConfigMap requirement:
+      ```
+      {{< papers/scar date="2026-03-18" >}}
+      Headplane was running on env-var configuration alone. The
+      v0.5 upstream rewrite quietly stopped accepting that — env
+      vars still parse, but several fields are read only from a
+      mounted `config.yaml`. Without it, the admin UI shows
+      `headscale unreachable` even though it's the same Pod that
+      was working ten minutes ago. The fix is a ConfigMap-mounted
+      `config.yaml` with `config_path` pointing at the Headscale
+      config file and `config_strict: true`. Non-strict mode works
+      but logs scary warnings and forfeits upstream support. The
+      lesson: when an upstream upgrade silently changes its config
+      surface, the failure mode is "looks healthy, lies about
+      state" — which is the worst failure mode there is.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — Tailscale DaemonSet kernel-mode for source-IP visibility:
+      ```
+      {{< papers/scar date="2026-03-19" >}}
+      We ran Tailscale as a userspace DaemonSet because it felt
+      safer. Caddy then saw every mesh request as coming from
+      `127.0.0.1` — userspace Tailscale doesn't expose tailnet
+      source IPs to host-network neighbours. The fix is to run the
+      DaemonSet in kernel mode: `TS_USERSPACE=false`, `privileged:
+      true`, `hostNetwork: true`. That's a real privilege grant,
+      and we made it grudgingly — but without it the entire
+      reverse-proxy story falls apart because Caddy can't
+      distinguish "request from a mesh client" from "request from
+      the public internet", which destroys the auth boundary that
+      separates Headplane (mesh-only) from Headscale (public).
+      {{< /papers/scar >}}
+      ```
+
+      Pick 2-3 scars from the above (all three is also fine if the
+      section budget allows). Real dates only — pull from
+      `agents/rules/hop-gotchas.md` cross-referenced with
+      `clusters/hop/apps/caddy/manifests/` and
+      `clusters/hop/apps/headscale/manifests/`.
+
+      Include ≥1 evidence artefact: either the Caddyfile snippet
+      from `clusters/hop/apps/caddy/manifests/` showing the
+      Cloudflare DNS-01 challenge configuration, or the
+      Headscale + Tailscale DaemonSet manifest excerpt.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one
+      leaf; the others are real:
+
+      ```
+      flowchart TD
+          A["Only need to expose 1–2 stateless services (blog, status page)?"] -- "Yes" --> L1["Cloudflare Tunnel"]
+          A -- "No" --> B["Already on Tailscale / want exposure as a side effect of mesh?"]
+          B -- "Yes" --> L2["Tailscale Funnel"]
+          B -- "No" --> C["Need full data-plane ownership + your own DNS + self-terminated TLS?"]
+          C -- "Yes" --> L3["Headscale + tiny VPS (Frank's pick)"]
+          C -- "No, enterprise + regulated" --> L4["Multi-region cluster (Rancher Fleet)"]
+      ```
+
+      ≤4 visible leaves. The decision turns on three questions:
+      *how many services and how stateful are they* (1–2 stateless:
+      Cloudflare Tunnel wins), *are you already on Tailscale*
+      (yes: Funnel is one toggle), *do you need to own the data
+      plane end-to-end* (yes: Headscale + VPS; yes-and-regulated:
+      multi-region cluster). The Cloudflare Tunnel leaf is the
+      correct answer for a lot of homelabs — pretending otherwise
+      is dishonest. Frank's answer wins specifically because the
+      Headscale coordination plane and the Hugo blog and the
+      private landing page all share one edge, and pushing
+      Headscale's control plane behind Cloudflare's edge would
+      re-create the mesh chicken-and-egg.
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **CG-NAT keeps eating IPv4 inbound.** Residential ISPs
+         continue rolling out CG-NAT as the IPv4 exhaustion
+         workaround, which means "port-forward 443" is dying as a
+         homelab option faster than IPv6 is replacing it for
+         consumer-grade inbound. Tunnels and mesh overlays are
+         not optional features — they're the default path forward.
+         This raises the floor for "I want to expose one service"
+         and makes the "no edge node" tier of the vendor space
+         more important, not less.
+
+      2. **Tailscale Funnel + custom-domain support is closing the
+         gap with dedicated edges.** When Funnel can serve
+         `blog.your-domain.tld` with a self-supplied TLS cert and
+         a real ACME flow, the gap between "managed-mesh-as-edge"
+         and "dedicated edge cluster" narrows. Watch the next 12
+         months of Tailscale roadmap — if BYO-domain Funnel lands
+         GA, the Frank-style edge cluster has to justify itself
+         differently than it does today.
+
+      3. **Edge clusters are becoming agentic landing pads.** When
+         a home cluster grows agents that need a public callback
+         URL (webhooks, OAuth redirects, Tekton EventListeners),
+         the edge cluster stops being "the thing serving the
+         blog" and becomes "the thing the public internet talks
+         to when an agent needs a reply". Frank's Hop is already
+         being asked to do double duty as the public landing pad
+         for GitHub webhooks routed back to in-cluster Tekton
+         listeners. Expect the "single-node CX23" answer to
+         strain — and the dedicated-edge-cluster pattern to
+         grow legs (or split into two: a public edge cluster
+         and a separate mesh-coordination cluster).
+
+      Optional timeline diagram or roadmap citations. Cite the
+      dossier where possible.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/20-edge-clusters-public-exposure/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If
+      over, trim §3 first — that's where capability papers
+      reliably sprawl past budget.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
