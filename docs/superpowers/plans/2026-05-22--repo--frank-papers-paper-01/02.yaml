@@ -71,18 +71,27 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:49:30+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:49:31+00:00'
       note: null
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:49:33+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:49:51+00:00'
+    note: 'Dossier gate passes (≥3 vendors, ≥5 sources, ≥3 type values, ≥3 artefacts,
+      ≥2 kind values, ≥1 gap, ≥1 counter). Author best-effort review of the gap+counter
+      performed by execution agent: the operator-overhead-per-node-class gap is specific
+      (names what the literature does NOT measure — operator-hours per quarter per
+      class — rather than a vague disclaimer); the homogenize-the-fleet counter is
+      addressed via the learning-platform framing with all four leaves (homogenize,
+      heterogeneous bare metal, single-beefy+VMs, full-cloud) treated as legitimate
+      answers to differently-shaped questions. Flagged for human reviewer: confirm
+      the scar-as-deliverable framing of pc-1 is the framing they want vs the milder
+      ''pc-1 is a tolerated cost'' framing. Dossier marked status: ready.'
     observed_prs: []
