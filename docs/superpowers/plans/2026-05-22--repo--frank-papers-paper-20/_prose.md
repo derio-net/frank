@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 20: Edge Clusters & Public Exposure
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Drafting (2026-05-22) — Plan only; execution pending human review.
+**Status:** Complete (2026-05-22) — Paper 20 draft on branch paper-20; PR open for human review.
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete (scripts,
 shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Papers 00, 02, 04,

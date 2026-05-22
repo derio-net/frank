@@ -127,38 +127,44 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:10:29+00:00'
+      note: Deferred to post-merge — CI deploys after human review merges PR.
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:10:31+00:00'
+      note: Cross-link chip verification deferred to merge-time Hugo CI build.
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:10:33+00:00'
+      note: Skipped — papers-roadmap shortcode auto-builds the index from frontmatter;
+        no hand-curated list to edit.
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:10:34+00:00'
+      note: Skipped — cross-series chip auto-renders via related_building/operating
+        frontmatter; no Further-reading section to update.
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:10:36+00:00'
+      note: Skipped — Papers reference existing Building/Operating posts via frontmatter;
+        no new posts.
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:10:38+00:00'
+      note: Skipped — README is a stack snapshot; Hop edge layer already appears,
+        no Paper 20-specific row needed.
     P6.T1.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:10:39+00:00'
+      note: Skipped — no manual-operation blocks in plan (grep -c confirms 0).
     P6.T1.S8:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:10:41+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T21:10:42+00:00'
+    note: Post-deploy checklist complete. Most rows skipped per Paper-series conventions
+      (auto-rendered index, frontmatter-driven cross-links, no new layer deployment).
+      Plan _prose.md status flipped to Complete (2026-05-22); spec row updated likewise.
     observed_prs: []
