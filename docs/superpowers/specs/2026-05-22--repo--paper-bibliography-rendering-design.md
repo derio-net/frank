@@ -2,13 +2,13 @@
 
 **Layer:** repo
 **Date:** 2026-05-22
-**Status:** Draft — skeleton for parallel implementation
+**Status:** Approved — ready for plan
 
 ## Summary
 
 Every Frank Paper carries a research dossier under `docs/papers-dossiers/<slug>/dossier.md` with primary sources, **quoted passages** per source, and a **relevance** sentence per source explaining where in the paper the source is used. The Frank Papers series spec promised the paper's §8 References section would auto-render from that research trail; in practice no template was ever built and every paper today carries the literal placeholder `*Auto-rendered from frontmatter by Hugo taxonomy.*`.
 
-This spec closes that gap. The dossier becomes the single source of truth for the bibliography. A build-time sync extracts `primary_sources` from each dossier into `blog/data/papers/<slug>.yaml`; a new Hugo partial reads that data and renders an enriched §8 — title + URL + type chip + 1–2 quoted passages + a 1-sentence "why this matters" per source. The placeholder text comes out, the real bibliography goes in, and the dossier-gate ritual stops being theatre.
+This spec closes that gap. The dossier becomes the single source of truth for the bibliography. A build-time sync extracts `primary_sources` from each dossier into `blog/data/papers/<slug>.yaml`. A Hugo partial then renders, per paper, an enriched §8 — title + URL + type chip + 1–2 quoted passages + a 1-sentence "why this matters" per source — auto-injected by `single.html` (no shortcode call needed in paper markdown, mirroring how `papers-forwardlinks` and the footer dossier chip already work). A second partial renders a cross-series `/docs/papers/references/` index page that groups every cited source by type and shows which papers cite it. The redundant `references:` frontmatter block is hard-deleted in the same migration. A `--check` mode on the sync script wires into CI to catch dossier-vs-data-file drift.
 
 ## Motivation
 
@@ -24,18 +24,19 @@ Closing this gap turns the dossier from a *gate that exists* into a *bibliograph
 ## Goals
 
 - §8 References on every Paper renders as a real bibliography: title + URL + type chip + 1–2 quoted passages + 1-sentence relevance per source.
-- The dossier is the single source of truth. No double-bookkeeping in frontmatter.
-- The pipeline runs at commit time (or pre-commit) so the published paper and the dossier never diverge.
-- Existing 14 published papers benefit automatically on the next build — no per-paper content edits required.
-- The placeholder text (`*Auto-rendered from frontmatter by Hugo taxonomy.*`) is removed everywhere; a new template-rendered section replaces it.
-- The redundant `references:` block in Paper frontmatter is deprecated (kept for one migration cycle, then removed).
+- §8 is **auto-injected** by `layouts/docs/single.html` (gated on `series: papers`), mirroring how `papers-forwardlinks.html` and the footer dossier chip already work. The `## References` heading and placeholder line come out of every paper's `index.md`.
+- A new `/docs/papers/references/` page renders a cross-series index: every cited source grouped by `type`, alphabetical within group, each entry showing all citing papers with their per-paper `relevance` notes.
+- The dossier is the single source of truth. No double-bookkeeping in frontmatter — the `references:` block is hard-deleted from every paper bundle and from the scaffold script in the same migration. (17 paper bundles exist in `blog/content/docs/papers/` as of this spec; the migration enumerates them at plan time.)
+- The pipeline runs at commit time (pre-commit hook) AND in CI: a `--check` mode on the sync script fails CI on dossier-vs-data-file drift, so a forgotten regenerate from a web-UI edit can't ship stale §8 content.
+- Every existing paper benefits automatically on the next build — no per-paper content edits required beyond the heading-strip.
+- The placeholder text (`*Auto-rendered from frontmatter by Hugo taxonomy.*`) is removed everywhere.
 
 ## Non-Goals
 
 - Not a re-architecture of the dossier format. Dossiers stay as markdown with embedded YAML blocks under `## Vendors in scope`, `## Primary sources`, etc. — that human-readable shape is preserved.
-- Not a cross-paper references index page at `/references/`. The spec's earlier line 250-256 mentions one; defer to a follow-up if the per-paper §8 alone proves insufficient.
 - Not a backfill of `quoted_passages` / `relevance` for older dossiers. Every committed dossier already has both per the gate validator — nothing to backfill.
 - Not a new authoring surface for paper authors. They continue to write dossiers exactly as they do today.
+- Not a redesign of the per-paper §8 layout or the parent Hextra theme. The new partial inherits existing `.paper-post` styling and the scar-callout-like chip pattern already used for capability matrices.
 
 ## Design (high-level)
 
@@ -49,10 +50,15 @@ docs/papers-dossiers/<slug>/dossier.md  (markdown + embedded YAML, human-authore
         ▼
 blog/data/papers/<slug>.yaml            (Hugo data file, autogenerated, do not edit)
         │
-        │  layouts/partials/papers/references.html
-        │  (reads .Site.Data.papers[<slug>])
-        ▼
-blog/content/docs/papers/<slug>/index.md → rendered §8
+        ├──► layouts/partials/papers/references.html
+        │    (reads .Site.Data.papers[<slug>], auto-injected by single.html)
+        │      ▼
+        │    rendered §8 on each paper page
+        │
+        └──► layouts/partials/papers/references-index.html
+             (iterates .Site.Data.papers.*, dedupes by URL, groups by type)
+               ▼
+             rendered /docs/papers/references/ index page
 ```
 
 ### Sync script: `scripts/sync-dossier-to-data.py`
@@ -70,73 +76,130 @@ blog/content/docs/papers/<slug>/index.md → rendered §8
       relevance: "..."
   ```
 - Idempotent. Re-running with no dossier changes produces no diff.
+- Three CLI modes:
+  - `<slug>` — regenerate one dossier's data file.
+  - `--all` — regenerate every data file.
+  - `--check` — verify every data file matches its dossier; exit 0 if clean, exit 1 with a unified diff on drift. Used in CI.
 - Emits to stdout the slugs touched + a `git status` hint.
 - Wired into `.githooks/pre-commit` so any commit touching `docs/papers-dossiers/**/dossier.md` regenerates the matching `blog/data/papers/<slug>.yaml` and adds it to the commit. Same pattern as `/sync-runbook`.
 
-### Hugo partial: `blog/layouts/partials/papers/references.html`
+### Per-paper §8 partial: `blog/layouts/partials/papers/references.html`
 
-Renders the enriched §8. Reads `.Site.Data.papers[<paper-dir-name>]`. For each source:
+Renders the enriched §8. Reads `.Site.Data.papers[<paper-dir-name>]`. **Auto-injected from `layouts/docs/single.html`** alongside the existing `papers-forwardlinks.html` and `papers/dossier-link.html` partials (inside the existing `{{- if in .Params.series "papers" }}` block at `single.html:25`, rendered after `.Content`). No shortcode call appears in the paper markdown.
 
-- Numbered entry (1., 2., 3., …) — papers cite numerically by convention.
+For each source:
+
+- Numbered entry (1., 2., 3., …) — stable ordinals so future paper bodies can cite "ref #3" if useful. (Papers today cite discursively in prose, not via `[N]` superscripts; numbering is presentational, not a back-link target.)
 - Title as a link to the URL.
 - Type chip (`[vendor-docs]`, `[paper]`, `[postmortem]`, `[talk]`, `[benchmark]`) using existing scar-callout-like styling.
 - For each `quoted_passages` entry: an indented blockquote.
 - The `relevance` sentence as italic prose below the quotes.
 
-CSS scoped under `.paper-post` (already gated on `series: papers` in `layouts/docs/single.html`).
+The partial renders the `## References` heading itself, so removing the heading from each paper's `index.md` is part of the migration.
 
-### Wiring into the paper template
+CSS scoped under `.paper-post .paper-references` in `assets/css/custom.css`.
 
-Replace the literal placeholder in each paper's `index.md`:
+### Cross-series index partial: `blog/layouts/partials/papers/references-index.html`
 
-```diff
- ## References
+Powers the `/docs/papers/references/` page. Iterates `.Site.Data.papers.*`, builds a `map[url]entry` where each entry is:
 
--*Auto-rendered from frontmatter by Hugo taxonomy.*
-+{{< papers/references >}}
+```yaml
+url: "..."
+title: "..."           # canonical title from first-seen citing dossier
+type: vendor-docs|paper|postmortem|talk|benchmark
+quoted_passages: [...] # union across all citing dossiers, deduped
+citations:
+  - paper_slug: "01-heterogeneous-hardware"
+    paper_title: "Heterogeneous Hardware as a Design Choice"
+    paper_number: 1
+    relevance: "<this paper's relevance sentence for this source>"
+  - paper_slug: "14-..."
+    ...
 ```
 
-…via a new shortcode `layouts/shortcodes/papers/references.html` (1 line: `{{ partial "papers/references.html" . }}`) so authors don't need to call partials inline. A small migration script can do all 14 papers in one pass.
+Rendered output:
 
-Alternative: auto-inject §8 from `layouts/docs/single.html` (like `papers-forwardlinks.html` / `dossier-link.html` already are). This removes the §8 stub from `index.md` entirely. Cleaner long-term; mildly more disruptive (every Paper loses its `## References` heading from the markdown). Decision deferred to implementation — both work.
+- Page intro: 2-3 sentences explaining the index, with a note that per-paper §8 sections are the primary citation surface.
+- 5 `<h2>` sections, one per `type` value: vendor-docs · paper · postmortem · talk · benchmark. Empty sections are omitted.
+- Within each section: alphabetical by title. Each entry: type chip + title (link) + quoted passages (blockquotes) + a "Cited in:" subsection listing each citing paper with its per-paper `relevance` sentence.
+
+CSS scoped under `.papers-references-index` in `assets/css/custom.css` (chip styles can be shared with the per-paper partial via a common `.paper-reference-chip` class).
+
+### Cross-series index content page: `blog/content/docs/papers/references/_index.md`
+
+Single Hextra leaf page:
+
+```markdown
+---
+title: "References"
+weight: 999
+series: references
+---
+
+{{< papers/references-index >}}
+```
+
+Calling the partial via a thin shortcode (`layouts/shortcodes/papers/references-index.html` — 1-liner) keeps the page markdown declarative and parallel to how `capability-matrix` and `landscape` are wired today.
+
+**Gate trap to avoid:** the per-paper §8 gate in `single.html` is `{{- if in .Params.series "papers" }}` and Hugo's `in` does substring matching on strings — so `series: papers-index` (or any value containing "papers") would *also* match the gate and accidentally auto-inject the per-paper §8 partial onto this page. Use `series: references` (no substring overlap) instead. This also keeps the `papers-backlink.html` chip well-behaved: it iterates pages with `series: papers` and matches against `related_building`/`related_operating` paths — the index page is neither, so the chip is a clean no-op.
+
+### Wiring into the paper template — heading strip migration
+
+For each paper bundle, remove this block from `index.md`:
+
+```diff
+-## References
+-
+-*Auto-rendered from frontmatter by Hugo taxonomy.*
+```
+
+A small migration script (or `sed -i` one-pass) handles every paper bundle in a single commit. The scaffold (`scripts/scaffold-paper.sh`) is updated to omit the §8 stub from new papers.
+
+### Frontmatter cleanup
+
+The `references:` block in paper frontmatter is removed from every paper bundle and from `scripts/scaffold-paper.sh` in the same migration. The partial does not read frontmatter — it reads `.Site.Data.papers[<slug>]`. No transitional fallback.
+
+### CI drift gate
+
+Add a job step to the blog CI workflow (alongside `hugo --minify`) that runs `scripts/sync-dossier-to-data.py --check` and fails the build on any drift. This is the durable guarantee that the published §8 cannot diverge from the dossier, even on edits that bypass the local pre-commit hook (web UI edits, forks, agents that forget to install hooks).
 
 ## Phases (high-level — refine into vk-plan tasks at implementation time)
 
-1. **Sync script + tests**
-   - `scripts/sync-dossier-to-data.py` (CLI: `--all` / `<slug>` / `--check` for CI).
-   - Unit tests against 2-3 representative dossiers (Paper 09 — 9 sources, Paper 04 — has the "paper" type, Paper 14 — has postmortem).
+1. **Sync script + `--check` + tests + pre-commit hook**
+   - `scripts/sync-dossier-to-data.py` (CLI: `<slug>` / `--all` / `--check`).
+   - Share the `## Primary sources` YAML-block parser with `scripts/validate-dossier.py`.
+   - Unit tests against representative dossier fixtures (Paper 09 — 9 sources covering all 5 type values; Paper 04 — 4 types incl. `paper`; Paper 14 — 4 types incl. a postmortem).
    - Wire into `.githooks/pre-commit`.
 
-2. **Hugo data files generated for all 14 dossiers**
+2. **Generate `blog/data/papers/*.yaml` for every dossier**
    - Run `sync-dossier-to-data.py --all`; commit the resulting `blog/data/papers/*.yaml`.
-   - Verify shape via `hugo --buildDrafts=false --verbose` — Hugo's data loader will fail loudly on malformed YAML.
+   - Verify shape via `hugo --buildDrafts=false --verbose` — Hugo's data loader fails loudly on malformed YAML.
 
-3. **Render partial + shortcode**
-   - `layouts/partials/papers/references.html`.
-   - `layouts/shortcodes/papers/references.html` (1-liner partial wrapper).
-   - CSS in `assets/css/custom.css` under `.paper-post .paper-references`.
+3. **Render partials + auto-injection + cross-series index + CSS**
+   - `layouts/partials/papers/references.html` (per-paper §8).
+   - Auto-inject from `layouts/docs/single.html` (gated on `series: papers`).
+   - `layouts/partials/papers/references-index.html` (cross-series).
+   - `layouts/shortcodes/papers/references-index.html` (1-liner partial wrapper).
+   - CSS in `assets/css/custom.css` under `.paper-post .paper-references` and `.papers-references-index`.
 
-4. **Paper-side migration**
-   - Replace the placeholder in each of 14 published papers with `{{< papers/references >}}` (or remove the §8 stub entirely if auto-injection in `single.html` is chosen).
-   - Verify rendered output for at least 3 papers (one with many sources, one with mixed types, one with the postmortem-heavy register).
+4. **Strip `## References` heading from every paper bundle + scaffold**
+   - Remove the §8 heading + placeholder line from every paper in `blog/content/docs/papers/`.
+   - Remove the §8 stub from `scripts/scaffold-paper.sh`.
+   - Verify auto-injected output renders for at least 3 papers (one many-source, one mixed-type, one postmortem-heavy).
 
-5. **Cleanup + deprecation**
-   - Remove `references:` block from new-paper frontmatter scaffold (`scripts/scaffold-paper.sh`).
+5. **Frontmatter cleanup + `/references/` content page + spec updates**
+   - Hard-delete the `references:` block from every paper's frontmatter.
+   - Remove `references:` from `scripts/scaffold-paper.sh` and `agents/rules/repo-papers.md`'s "Required fields" list.
+   - Create `blog/content/docs/papers/references/_index.md` with the index shortcode.
    - Update `agents/rules/repo-papers.md` to point at the dossier as the bibliography source.
-   - Update the parent series spec (`2026-04-15--repo--frank-papers-series-design.md`) — line 106 (§8 row in the anatomy table) + lines 250-256 (References taxonomy section) — to reflect the actual mechanism.
+   - Update the parent series spec (`2026-04-15--repo--frank-papers-series-design.md`) — §8 row in the anatomy table + the References taxonomy section — to reflect the actual mechanism.
 
-6. **Post-deploy checklist (per `agents/rules/plan-post-deploy-checklist.md`)**
+6. **CI drift gate + post-deploy checklist**
+   - Add `scripts/sync-dossier-to-data.py --check` to the blog CI workflow.
    - No new building/operating posts (this is a meta improvement to an existing series).
-   - Update README only if user-visible (probably skip — internal infra).
+   - No README update (internal infra).
    - No sync-runbook (no manual ops).
    - Plan status → Complete.
-
-## Open questions
-
-- **Shortcode vs auto-injection in `single.html`.** Auto-injection mirrors how forward-links and dossier-link already work; shortcode keeps §8 explicit in the markdown. Implementer's call — flag the choice in the plan brainstorm.
-- **`references:` frontmatter deprecation timeline.** Hard-delete with the spec update, or keep for one cycle as a fallback if data files are missing? Lean toward hard-delete since `blog/data/papers/*.yaml` is autogenerated and CI-checked.
-- **Cross-series `/references/` index page.** The original series spec wanted one; defer until §8 lands and reader feedback (if any) clarifies whether the cross-index adds value.
-- **CI check for sync drift.** Add `scripts/sync-dossier-to-data.py --check` to CI so a PR that edits a dossier but forgets to regenerate the data file fails loud? Recommended.
 
 ## Related documents
 
