@@ -1,30 +1,28 @@
 ---
 title: "Self-Hosted Media Generation"
 date: 2026-05-22
-draft: true
+draft: false
 weight: 16
 series: ["papers"]
 layer: media
 paper_number: 16
 publish_order: 15
-status: drafting
+status: published
 tldr: |
   Image generation on your own metal is two problems pretending to be one:
-  picking a frontend (ComfyUI, AUTOMATIC1111, InvokeAI, Fooocus, Replicate,
-  Midjourney/DALL-E) and surviving GPU contention when one consumer card
-  hosts both an LLM and a diffusion model. The frontend question splits on
-  whether you want a node graph, a tabbed web UI, an opinionated single-
-  button pipeline, or a cloud API. The contention question splits on
-  whether your GPU is dedicated.
+  picking a frontend (ComfyUI, AUTOMATIC1111, InvokeAI, Fooocus,
+  Replicate, Midjourney/DALL-E) and surviving GPU contention when one
+  consumer card hosts both an LLM and a diffusion model.
 
-  Frank chose ComfyUI on a custom CUDA 12.8 image, deployed as
-  `replicas: 0` on `gpu-1` (RTX 5070 Ti, 16 GB GDDR7) and woken by a
-  150-line Go service called the GPU Switcher at `192.168.55.214`. The
-  scars: seven concrete problems with the stock `ai-dock/comfyui` image
-  (none patchable) and an Ollama "system memory" error that turned out to
-  be cgroup RAM, not VRAM. None of this is the right answer for most
-  teams. For the team that wants the workflow itself as a versioned
-  artefact, it is the only answer.
+  Frank chose ComfyUI on a custom CUDA 12.8 image, `replicas: 0` on
+  `gpu-1` (RTX 5070 Ti, 16 GB), woken by a 150-line Go service called
+  the GPU Switcher at `192.168.55.214`. The scars: seven concrete
+  problems with the stock `ai-dock/comfyui` image, and an Ollama "system
+  memory" error that was cgroup RAM, not VRAM.
+
+  None of this is the right answer for most teams — Midjourney wins for
+  single-image-no-infra. For the team that wants the workflow itself as
+  a versioned artefact, it is the only answer.
 tags: ["media", "comfyui", "stable-diffusion", "flux", "gpu", "kubernetes"]
 capabilities: ["media"]
 related_building: "docs/building/16-media-generation"
@@ -53,21 +51,19 @@ references:
 ## TL;DR
 
 Image generation on your own metal is two problems pretending to be one:
-picking a frontend (ComfyUI, AUTOMATIC1111, InvokeAI, Fooocus, Replicate,
-Midjourney/DALL-E) and surviving GPU contention when one consumer card
-hosts both an LLM and a diffusion model. The frontend question splits on
-whether you want a node graph, a tabbed web UI, an opinionated single-
-button pipeline, or a cloud API. The contention question splits on
-whether your GPU is dedicated.
+picking a frontend (ComfyUI, AUTOMATIC1111, InvokeAI, Fooocus,
+Replicate, Midjourney/DALL-E) and surviving GPU contention when one
+consumer card hosts both an LLM and a diffusion model.
 
-Frank chose ComfyUI on a custom CUDA 12.8 image, deployed as
-`replicas: 0` on `gpu-1` (RTX 5070 Ti, 16 GB GDDR7) and woken by a
-150-line Go service called the GPU Switcher at `192.168.55.214`. The
-scars: seven concrete problems with the stock `ai-dock/comfyui` image
-(none patchable) and an Ollama "system memory" error that turned out to
-be cgroup RAM, not VRAM. None of this is the right answer for most
-teams. For the team that wants the workflow itself as a versioned
-artefact, it is the only answer.
+Frank chose ComfyUI on a custom CUDA 12.8 image, `replicas: 0` on
+`gpu-1` (RTX 5070 Ti, 16 GB), woken by a 150-line Go service called
+the GPU Switcher at `192.168.55.214`. The scars: seven concrete
+problems with the stock `ai-dock/comfyui` image, and an Ollama "system
+memory" error that was cgroup RAM, not VRAM.
+
+None of this is the right answer for most teams — Midjourney wins for
+single-image-no-infra. For the team that wants the workflow itself as
+a versioned artefact, it is the only answer.
 
 ## §1 — The capability
 

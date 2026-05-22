@@ -131,34 +131,37 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:51+00:00'
       note: null
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:53+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:55+00:00'
       note: null
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:57+00:00'
       note: null
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:58+00:00'
       note: null
     P5.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:57:00+00:00'
       note: null
     P5.T2.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:57:02+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:57:03+00:00'
+    note: 'Voice pass complete (Frank-as-cluster, scar dates verified against 2026-03-16
+      spec). TLDR 122/150 words. Dossier gate pass, Hugo production build clean (201.9
+      KB, zero ERROR lines). draft: false, status: published. No inline dossier-link
+      (rely on auto-injection).'
     observed_prs: []
