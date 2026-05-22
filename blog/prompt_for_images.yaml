@@ -100,23 +100,29 @@ reference_guidance:
     The reference images attached to this request are ANCHORS, not
     subjects to render.
 
-    The FIRST reference image is the canonical character-design sheet —
-    it defines Frank's body shape, chibi proportions, colour palette,
-    and hardware-part anatomy. Match Frank's appearance to it.
+    The FIRST reference image is the canonical character-design sheet.
+    All of Frank's signature face features — chibi head proportions,
+    solid BLACK eyes with a single small WHITE pupil-dot (no white
+    sclera), no nose, jagged flat-top hair, brown sewn-on cheek and
+    jaw patches, the red forehead bandage — come from THIS image and
+    ONLY this image. If any additional reference image shows Frank
+    with different face proportions, white eyes, an over-detailed
+    face, or a "classic Frankenstein" square-jaw look, IGNORE those
+    facial details — they are leftover from older iterations.
 
-    Any ADDITIONAL reference images show Frank in a clothing variant,
-    accessory configuration, or pose similar to what this scene needs.
-    Some have transparent backgrounds because they isolate the
-    subject. Use them to MATCH the clothing, accessories, and posture
-    of the Frank you draw — do NOT render them as separate figures or
-    copy their composition.
+    Any ADDITIONAL reference images are clothing/pose anchors. Use
+    them ONLY to match the clothing variant, accessories, and rough
+    posture of the Frank you draw. Do NOT render them as separate
+    figures, do NOT copy face details from them, and do NOT interpret
+    their cropping or empty regions as compositional cues for the
+    output frame.
 
     There is exactly ONE Frank in the final image, regardless of how
     many reference images show him.
 
     Redraw Frank from scratch in the scene's perspective and lighting;
     vary his pose, angle, head turn, and body language to fit the
-    scene's action. Do not copy-paste any reference into the frame.
+    scene's action.
 
 # ---------------------------------------------------------------------------
 # TORSO VARIANTS
@@ -387,7 +393,10 @@ images:
       writing in the image. ONE figure — one single Frank.
 
   - key: paper-04-cover
+    torso_variant: 0
     mood: weighing
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-2.png
     output: blog/content/docs/papers/04-distributed-storage/cover.png
     description: Paper 04 cover — Frank weighing one of three replica platters at a desk
     prompt: >-
@@ -402,9 +411,10 @@ images:
       in the image.
 
   - key: paper-10-cover
-    # Same convention as paper-00-cover: only reference.png anchors style;
-    # the Papers signature (glasses + tie + dress shirt) is explicit in the
-    # prompt below.
+    torso_variant: 1
+    mood: curious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-sleeves-up-black-tie-2.png
     output: blog/content/docs/papers/10-self-hosted-inference/cover.png
     description: Paper 10 cover — Frank examining a glowing token-stream LLM with a curious/weighing expression
     prompt: >-
@@ -427,6 +437,8 @@ images:
   - key: paper-11-cover
     torso_variant: 1
     mood: cautious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-3.png
     output: blog/content/docs/papers/11-identity-heterogeneous-stack/cover.png
     description: Paper 11 cover — Frank (lab coat) surveying a wall of passport-style identity badges, one dimmed
     prompt: >-
@@ -441,9 +453,10 @@ images:
       many surfaces," not "identity is solved".
 
   - key: paper-14-cover
-    # Same convention as paper-00-cover / paper-10-cover / paper-11-cover:
-    # only reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 2
+    mood: weighing
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-tool-belt.png
     output: blog/content/docs/papers/14-progressive-delivery/cover.png
     description: Paper 14 cover — Frank examining a vintage signal-box of canary-promotion levers labelled 20, 50, 100
     prompt: >-
@@ -466,9 +479,10 @@ images:
       one single Frank. The framing communicates "staged exposure under
       uncertainty" rather than "deployment is solved".
   - key: paper-17-cover
-    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
-    # reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-1.png
     output: blog/content/docs/papers/17-agentic-orchestration/cover.png
     description: Paper 17 cover — Frank surveying a fleet of identical safe agent workstations, one dimmed
     prompt: >-
@@ -512,9 +526,10 @@ images:
       Frank.
 
   - key: paper-06-cover
-    # Same convention as paper-00/04/10/11 covers: only reference.png
-    # anchors style; the Papers signature (glasses + tie + dress shirt)
-    # is explicit in the prompt below.
+    torso_variant: 1
+    mood: curious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-2.png
     output: blog/content/docs/papers/06-gitops-at-small-scale/cover.png
     description: Paper 06 cover — Frank examining a Git repo whose branches root downward into a cluster
     prompt: >-
@@ -533,9 +548,10 @@ images:
       FIGURE — one single Frank.
 
   - key: paper-07-cover
-    # Same convention as paper-00-cover and paper-10-cover: only
-    # reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 0
+    mood: skeptical
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-4.png
     output: blog/content/docs/papers/07-observability-honestly/cover.png
     description: Paper 07 cover — Frank examining a wall of glowing dashboards with a skeptical / weighing expression
     prompt: >-
@@ -572,9 +588,10 @@ images:
       one single Frank. Framing communicates "ownership decisions on
       shared silicon," not "GPU scheduling is solved".
   - key: paper-08-cover
-    # Same convention as paper-00 / 04 / 10 / 11 / 14 / 02 / 06 / 07
-    # covers: only reference.png anchors style; the Papers signature
-    # (glasses + tie + dress shirt) is explicit in the prompt below.
+    torso_variant: 0
+    mood: cautious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-3.png
     output: blog/content/docs/papers/08-backup-dr/cover.png
     description: Paper 08 cover — Frank watching a labelled snapshot parcel float off-cluster toward an archive box
     prompt: >-
@@ -600,6 +617,8 @@ images:
   - key: paper-13-cover
     torso_variant: 2
     mood: focused
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-overalls.png
     output: blog/content/docs/papers/13-self-hosted-cicd/cover.png
     description: Paper 13 cover — Frank (leather overalls) at a wall-mounted three-stage CI/CD rack panel
     prompt: >-
@@ -617,9 +636,10 @@ images:
       every seam is documented," not "CI/CD is solved".
 
   - key: paper-03-cover
-    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
-    # reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-sleeves-up-black-tie-1.png
     output: blog/content/docs/papers/03-ebpf-networking/cover.png
     description: Paper 03 cover — Frank tracing a glowing network packet through a row of labelled eBPF kernel hooks
     prompt: >-
@@ -642,6 +662,8 @@ images:
   - key: paper-09-cover
     torso_variant: 2
     mood: satisfied
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-overalls.png
     output: blog/content/docs/papers/09-secrets-bootstrap/cover.png
     description: Paper 09 cover — Frank (leather overalls) holding a chain of three brass keys with a bootstrap scroll behind
     prompt: >-
@@ -661,6 +683,10 @@ images:
 
   - key: building-00-overview
     series: building
+    torso_variant: 4
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-hard-hat.png
     output: blog/content/docs/building/00-overview/cover.png
     description: "Overview & Roadmap — Frank assembling himself"
     prompt: >-
@@ -709,6 +735,10 @@ images:
 
   - key: building-03-storage
     series: building
+    torso_variant: 0
+    mood: amused
+    references:
+      - .reference-pool/building/subjects/frank-server-torso.png
     output: blog/content/docs/building/03-storage/cover.png
     description: "Storage — Longhorn distributed storage with 3 replicas"
     prompt: >-
@@ -722,7 +752,10 @@ images:
 
   - key: building-04-gpu-compute
     series: building
+    torso_variant: 0
     mood: satisfied
+    references:
+      - .reference-pool/building/subjects/frank-suit-server-torso.png
     output: blog/content/docs/building/04-gpu-compute/cover.png
     description: "GPU Compute — Frank as the gpu-1 ATX tower with RTX 5070 inside"
     prompt: >-
@@ -874,6 +907,8 @@ images:
     series: building
     torso_variant: 3
     mood: approving
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-overalls.png
     output: blog/content/docs/building/13-unified-auth/cover.png
     description: "Unified Auth — Frank (lab coat over overalls) at the OIDC gate, holding the SSO key"
     prompt: >-
@@ -894,6 +929,10 @@ images:
 
   - key: building-14-multi-tenancy
     series: building
+    torso_variant: 4
+    mood: curious
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-1.png
     output: blog/content/docs/building/14-multi-tenancy/cover.png
     description: "Multi-tenancy — vCluster disposable sandbox clusters"
     prompt: >-
@@ -930,6 +969,10 @@ images:
 
   - key: building-16-media-generation
     series: building
+    torso_variant: 1
+    mood: amused
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-3.png
     output: blog/content/docs/building/16-media-generation/cover.png
     description: "Media Generation — Frank juggling video frames and audio waves between ComfyUI and Ollama"
     prompt: >-
@@ -948,6 +991,10 @@ images:
 
   - key: building-17-public-edge
     series: building
+    torso_variant: 1
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-sleeveless-shirt-cable-arm-goggles.png
     output: blog/content/docs/building/17-public-edge/cover.png
     description: "Public Edge — Frank hopping through a glowing Tailscale portal into a cloud datacenter"
     prompt: >-
@@ -985,6 +1032,10 @@ images:
 
   - key: building-19-progressive-delivery
     series: building
+    torso_variant: 4
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-hard-hat.png
     output: blog/content/docs/building/19-progressive-delivery/cover.png
     description: "Progressive Delivery — Frank at a traffic control tower directing canary and blue-green lanes"
     prompt: >-
@@ -1003,6 +1054,10 @@ images:
 
   - key: building-20-workflow-automation
     series: building
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-jean-overalls-2.png
     output: blog/content/docs/building/20-workflow-automation/cover.png
     description: "Workflow Automation — Frank orchestrating n8n conveyor belt pipelines"
     prompt: >-
@@ -1101,6 +1156,10 @@ images:
 
   - key: building-25-vk-relay
     series: building
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-2.png
     output: blog/content/docs/building/25-vk-relay/cover.png
     description: "VK Relay — Frank bridging two screens with a glowing WebSocket tunnel"
     prompt: >-
@@ -1160,6 +1219,10 @@ images:
 
   - key: building-28-agent-images-sidecar
     series: building
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-1.png
     output: blog/content/docs/building/28-agent-images-sidecar/cover.png
     description: "Agent Images & VK-Local Sidecar — Frank has just cracked a tall stone monolith in two, revealing a neat vk-local crate nested inside"
     prompt: >-
@@ -1199,6 +1262,10 @@ images:
 
   - key: building-29-ruflo
     series: building
+    torso_variant: 2
+    mood: amused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-jean-overalls-1.png
     output: blog/content/docs/building/29-ruflo/cover.png
     description: "Ruflo — chaotic swarm orchestrator next to Paperclip's org chart"
     prompt: >-
@@ -1304,7 +1371,10 @@ images:
 
   - key: ops-04-gpu-compute
     series: operating
+    torso_variant: 0
     mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-1.png
     output: blog/content/docs/operating/04-gpu-compute/cover.png
     description: "Operating on GPU Compute — open access panel exposes an RTX 5070 Ti mid-service"
     prompt: >-
@@ -1379,6 +1449,8 @@ images:
     series: operating
     torso_variant: 2
     mood: determined
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-1.png
     output: blog/content/docs/operating/08-auth/cover.png
     description: "Operating on Auth — sleeves-rolled Frank with open chest cavity, OIDC lock being fitted"
     prompt: >-
@@ -1414,6 +1486,10 @@ images:
 
   - key: ops-10-media-generation
     series: operating
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/10-media-generation/cover.png
     description: "Operating on Media Generation — Frank at a control panel managing GPU workloads"
     prompt: >-
@@ -1430,6 +1506,10 @@ images:
 
   - key: ops-11-public-edge
     series: operating
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/operating/subjects/frank-coat-overalls.png
     output: blog/content/docs/operating/11-public-edge/cover.png
     description: "Operating on Hop — Frank monitoring a miniature portal-connected cloud server"
     prompt: >-
@@ -1501,6 +1581,10 @@ images:
 
   - key: ops-15-health-monitoring
     series: operating
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/operating/subjects/frank-coat-overalls.png
     output: blog/content/docs/operating/15-health-monitoring/cover.png
     description: "Operating on Health Monitoring — Frank tuning heartbeat monitors"
     prompt: >-
@@ -1519,6 +1603,10 @@ images:
 
   - key: ops-16-health-bridge
     series: operating
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/operating/subjects/frank-suit.png
     output: blog/content/docs/operating/16-health-bridge/cover.png
     description: "Operating on Health Bridge — Frank at a console managing alert-to-issue routing"
     prompt: >-
@@ -1536,6 +1624,10 @@ images:
 
   - key: ops-17-ingress
     series: operating
+    torso_variant: 2
+    mood: determined
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/17-ingress/cover.png
     description: "Operating on In-Cluster Ingress — Frank maintaining a traffic gateway"
     prompt: >-
@@ -1556,6 +1648,10 @@ images:
 
   - key: ops-18-paperclip
     series: operating
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/18-paperclip/cover.png
     description: "Operating on Paperclip — Frank managing an AI agent org chart"
     prompt: >-
@@ -1578,6 +1674,8 @@ images:
     series: operating
     torso_variant: 1
     mood: smirking
+    references:
+      - .reference-pool/operating/subjects/frank-coat-overalls.png
     output: blog/content/docs/operating/19-git-credentials-without-a-shell/cover.png
     description: "Git Credentials Without a Shell — hooded Frank routing a token from /proc/1/environ around a dead env chain"
     prompt: >-
@@ -1597,6 +1695,10 @@ images:
 
   - key: ops-21-vk-remote
     series: operating
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-suit.png
     output: blog/content/docs/operating/21-vk-remote/cover.png
     description: "Operating on VK Remote — Frank monitoring three stacked service components at an operations desk"
     prompt: >-
@@ -1636,6 +1738,10 @@ images:
 
   - key: ops-22-cicd-platform
     series: operating
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/22-cicd-platform/cover.png
     description: "Operating on CI/CD Platform — Frank monitoring pipeline and registry status"
     prompt: >-
@@ -1681,6 +1787,10 @@ images:
 
   - key: ops-24-ruflo
     series: operating
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/24-ruflo/cover.png
     description: "Operating on Ruflo — Frank pruning a hexagonal beehive of agent tasks at the operations console"
     prompt: >-
