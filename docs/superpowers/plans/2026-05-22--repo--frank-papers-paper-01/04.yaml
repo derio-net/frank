@@ -157,30 +157,32 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:58:38+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:58:40+00:00'
       note: null
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:58:41+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:58:43+00:00'
       note: null
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:58:45+00:00'
+      note: Cluster access unavailable from worktree — placed 1×1 cluster-nodes-TODO.png
+        placeholder; §5 inlines the kubectl get nodes -o wide output as a code block,
+        which serves as the evidence artefact for now.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:58:47+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-22T20:58:48+00:00'
     note: null
     observed_prs: []

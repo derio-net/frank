@@ -1,0 +1,78 @@
+features:
+  - key: identical_image
+    label: One golden image
+  - key: single_driver_matrix
+    label: Single driver matrix
+  - key: per_node_class_cost
+    label: Pays multi-class operator cost
+  - key: arch_diversity
+    label: ARM+x86 in one cluster
+  - key: gpu_diversity
+    label: iGPU+dGPU in one cluster
+  - key: cloud_outsourced
+    label: Cloud-managed nodes
+  - key: real_hardware_lessons
+    label: Real-hardware failure modes
+  - key: small_scale_fit
+    label: Fits 3–20 nodes
+vendors:
+  - name: All-RPi homelab
+    features:
+      identical_image: "yes"
+      single_driver_matrix: "yes"
+      per_node_class_cost: "no"
+      arch_diversity: "no"
+      gpu_diversity: "no"
+      cloud_outsourced: "no"
+      real_hardware_lessons: "partial"
+      small_scale_fit: "yes"
+  - name: All-NUC mini-fleet
+    features:
+      identical_image: "yes"
+      single_driver_matrix: "yes"
+      per_node_class_cost: "no"
+      arch_diversity: "no"
+      gpu_diversity: "no"
+      cloud_outsourced: "no"
+      real_hardware_lessons: "partial"
+      small_scale_fit: "yes"
+  - name: Heterogeneous bare metal (Frank)
+    features:
+      identical_image: "no"
+      single_driver_matrix: "no"
+      per_node_class_cost: "yes"
+      arch_diversity: "yes"
+      gpu_diversity: "yes"
+      cloud_outsourced: "no"
+      real_hardware_lessons: "yes"
+      small_scale_fit: "yes"
+  - name: Edge+core split
+    features:
+      identical_image: "partial"
+      single_driver_matrix: "partial"
+      per_node_class_cost: "yes"
+      arch_diversity: "yes"
+      gpu_diversity: "partial"
+      cloud_outsourced: "no"
+      real_hardware_lessons: "yes"
+      small_scale_fit: "partial"
+  - name: Single beefy server + VMs
+    features:
+      identical_image: "yes"
+      single_driver_matrix: "yes"
+      per_node_class_cost: "no"
+      arch_diversity: "no"
+      gpu_diversity: "no"
+      cloud_outsourced: "no"
+      real_hardware_lessons: "no"
+      small_scale_fit: "yes"
+  - name: Full-cloud node-pool-per-shape
+    features:
+      identical_image: "yes"
+      single_driver_matrix: "yes"
+      per_node_class_cost: "no"
+      arch_diversity: "yes"
+      gpu_diversity: "yes"
+      cloud_outsourced: "yes"
+      real_hardware_lessons: "no"
+      small_scale_fit: "no"
