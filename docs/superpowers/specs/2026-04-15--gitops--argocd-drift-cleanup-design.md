@@ -14,15 +14,15 @@ state is hiding real reconciliation failures (4 apps are stuck in
 
 Seven independent drift classes with different blast radius and fix shape:
 
-| Class | Cause | Apps |
-|-------|-------|------|
-| A | ExternalSecret CRD schema defaults injected into live objects but absent from git | 10 apps, 16 ES manifests |
-| B | `automated.prune: false` stripped from Application CRs as schema default | root → 12 child Applications |
-| C | CRDs installed out-of-band without `argocd.argoproj.io/tracking-id` | argo-rollouts (5), tekton-pipelines (6), tekton-dashboard (1) |
-| D | Helm subcharts once enabled, now disabled; orphan config resources kept by `prune: false` | gitea (redis-cluster), infisical (nginx+mongodb+redis) |
-| E | Namespace owned by two apps (tracking-id conflict) | sympozium-extras ↔ sympozium |
-| F | Terminal Job/PipelineRun still tracked by ArgoCD | Job/postgres-vk-init-electric, PipelineRun/test-build-sign-5qtn4 |
-| G | Chart-render vs cluster-state spec drift (no live-controller mutation) | victoria-metrics, gpu-operator, vcluster-experiments, infisical-postgresql |
+| Class | Cause | Apps | Resolved by |
+|-------|-------|------|-------------|
+| A | ExternalSecret CRD schema defaults injected into live objects but absent from git | 10 apps, 16 ES manifests | Schema defaults (`creationPolicy: Owner`, `deletionPolicy: Retain`) added to all ES manifests |
+| B | `automated.prune: false` stripped from Application CRs as schema default | root → 12 child Applications | `0bf146a` (canary on argo-rollouts) + `62ca0e7` (bulk: 50 templates) |
+| C | CRDs installed out-of-band without `argocd.argoproj.io/tracking-id` | argo-rollouts (5), tekton-pipelines (6), tekton-dashboard (1) | `582502c` (argo-rollouts) + `f4a051a` (tekton pipelines + dashboard) |
+| D | Helm subcharts once enabled, now disabled; orphan config resources kept by `prune: false` | gitea (redis-cluster), infisical (nginx+mongodb+redis) | Orphan resources deleted out-of-band; verified clean 2026-05-22 |
+| E | Namespace owned by two apps (tracking-id conflict) | sympozium-extras ↔ sympozium | `edfef58` + `f1e13b0` (revert managedNamespaceMetadata) |
+| F | Terminal Job/PipelineRun still tracked by ArgoCD | Job/postgres-vk-init-electric, PipelineRun/test-build-sign-5qtn4 | Deleted out-of-band; no residuals in current app status |
+| G | Chart-render vs cluster-state spec drift (no live-controller mutation) | victoria-metrics, gpu-operator, vcluster-experiments, infisical-postgresql | `e80a372` (4 apps) + `b703b25` (vcluster-experiments broaden) + `2427c25` (`group: ""` cleanup) + `ea62652` (infisical canary) |
 
 ## Design principles
 
@@ -42,10 +42,6 @@ Seven independent drift classes with different blast radius and fix shape:
 - Not migrating any chart to a different vendor/version
 - Not changing ArgoCD's default sync options project-wide
 - Not eliminating `prune: false` as the project default (it's deliberate — manual pruning only)
-
-## Related plan
-
-`docs/superpowers/plans/2026-04-15--gitops--argocd-drift-cleanup.md`
 
 ## Implementation Plans
 
