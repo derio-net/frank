@@ -1,0 +1,554 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/15-ingress-and-service-catalog/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 15 frontmatter
+
+
+      Update `blog/content/docs/papers/15-ingress-and-service-catalog/index.md` frontmatter:
+
+      ```yaml
+      ---
+      title: "Ingress, Forward-Auth, and the Service Catalog"
+      date: <today>
+      draft: true
+      weight: 15
+      series: ["papers"]
+      layer: net
+      paper_number: 15
+      publish_order: 14
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["ingress", "traefik", "authentik", "forward-auth", "homepage", "service-catalog", "kubernetes"]
+      capabilities: ["net", "auth"]
+      related_building: "docs/building/24-in-cluster-ingress"
+      related_operating: "docs/operating/17-ingress"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 15` matches paper_number for TOC order.
+      `publish_order: 14` reflects Paper 15's slot in the publish
+      sequence (00 → 10 → 04 → 11 → 14 → 06 → 07 → 02 → 03 → 09
+      → 05 → 08 → 17 → 13 → 15 → 16 → 12 → 01 → 20).
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by `{{< papers/capability-matrix >}}` in §2
+
+
+      Create `blog/content/docs/papers/15-ingress-and-service-catalog/data/vendors.yaml`.
+      Because Paper 15 spans three axes (ingress / auth / catalogue),
+      keep the matrix focused on cross-cutting capabilities the
+      reader can use to compare:
+
+      ```yaml
+      features:
+        - key: k8s_native_crd
+          label: K8s-native CRD (vs annotations)
+        - key: forward_auth
+          label: Forward-auth middleware
+        - key: native_oidc_sdk
+          label: Per-app OIDC SDK
+        - key: mesh_mtls
+          label: East-west mTLS / AuthZ
+        - key: gateway_api
+          label: Gateway API support
+        - key: built_in_acme
+          label: Built-in ACME / cert mgmt
+        - key: static_catalogue
+          label: Static-config catalogue
+        - key: oss
+          label: OSS / no contract required
+      vendors:
+        - name: Traefik + Authentik forward-auth
+          features:
+            k8s_native_crd: "yes"
+            forward_auth: "yes"
+            native_oidc_sdk: "partial"
+            mesh_mtls: "no"
+            gateway_api: "yes"
+            built_in_acme: "yes"
+            static_catalogue: "no"
+            oss: "yes"
+        - name: Nginx Ingress + oauth2-proxy
+          features:
+            k8s_native_crd: "partial"
+            forward_auth: "yes"
+            native_oidc_sdk: "partial"
+            mesh_mtls: "no"
+            gateway_api: "partial"
+            built_in_acme: "no"
+            static_catalogue: "no"
+            oss: "yes"
+        - name: Envoy / Contour (Gateway API)
+          features:
+            k8s_native_crd: "yes"
+            forward_auth: "yes"
+            native_oidc_sdk: "no"
+            mesh_mtls: "partial"
+            gateway_api: "yes"
+            built_in_acme: "no"
+            static_catalogue: "no"
+            oss: "yes"
+        - name: Per-app OIDC SDK only
+          features:
+            k8s_native_crd: "no"
+            forward_auth: "no"
+            native_oidc_sdk: "yes"
+            mesh_mtls: "no"
+            gateway_api: "no"
+            built_in_acme: "no"
+            static_catalogue: "no"
+            oss: "yes"
+        - name: Service mesh mTLS (Istio / Linkerd)
+          features:
+            k8s_native_crd: "yes"
+            forward_auth: "partial"
+            native_oidc_sdk: "no"
+            mesh_mtls: "yes"
+            gateway_api: "yes"
+            built_in_acme: "partial"
+            static_catalogue: "no"
+            oss: "yes"
+        - name: Homepage (gethomepage.dev)
+          features:
+            k8s_native_crd: "no"
+            forward_auth: "no"
+            native_oidc_sdk: "no"
+            mesh_mtls: "no"
+            gateway_api: "no"
+            built_in_acme: "no"
+            static_catalogue: "yes"
+            oss: "yes"
+        - name: Cloudflare Access (off-cluster)
+          features:
+            k8s_native_crd: "no"
+            forward_auth: "yes"
+            native_oidc_sdk: "no"
+            mesh_mtls: "no"
+            gateway_api: "no"
+            built_in_acme: "yes"
+            static_catalogue: "partial"
+            oss: "no"
+      ```
+
+      Polarity check: "yes" = the option HAS that feature. For
+      Paper 15 every key is positive-polarity. Adjust to match
+      the conventions of `apps/0X/data/vendors.yaml` if the matrix
+      shortcode reads polarity differently.
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram
+
+
+      The opening question: *once you have services in the
+      cluster, how do humans (and other clusters) actually reach
+      them safely and discoverably — without bolting per-app
+      auth onto every workload?* Position ingress + forward-auth
+      + catalogue in the stack: above the LoadBalancer layer
+      (Cilium L2), below applications, sibling to identity
+      (Authentik) and observability (Grafana). Acknowledge that
+      "ingress" is doing three jobs at once — hostname routing
+      + TLS termination, authentication enforcement, service
+      discovery for humans — and the vendor space splits on
+      which of those jobs each option treats as primary.
+
+      Voice: Frank speaks as the cluster. No hedging. Three axes
+      are not a feature, they are the work — choosing Traefik
+      commits you to forward-auth wiring; choosing per-app OIDC
+      multiplies callback-URL maintenance; choosing a mesh moves
+      auth into sidecars and gives up edge visibility.
+
+      Include one `flowchart LR` Mermaid diagram showing the
+      stack position and the three jobs:
+
+      ```
+      flowchart LR
+          LB["Cilium L2 LoadBalancer (192.168.55.220)"] --> ING["Ingress controller"]
+          ING --> TLS["TLS termination + hostname routing"]
+          ING --> AUTH["Auth enforcement (forward-auth / SDK / mesh)"]
+          ING --> CAT["Service catalogue (human discovery)"]
+          TLS --> APP["Application services"]
+          AUTH --> APP
+          CAT --> APP
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant + capability matrix
+
+
+      Map the four-to-six vendors against two axes. Use
+      `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:per-app-auth↔edge-auth,y:catalogue-included↔catalogue-separate" >}}
+          quadrantChart
+              title Ingress + auth + catalogue — 2026
+              x-axis Per-app OIDC --> Edge forward-auth
+              y-axis Catalogue included --> Catalogue separate
+              quadrant-1 "Edge auth · separate catalogue"
+              quadrant-2 "Edge auth · included catalogue"
+              quadrant-3 "Per-app auth · included catalogue"
+              quadrant-4 "Per-app auth · separate catalogue"
+              Traefik + Authentik + Homepage: [0.85, 0.85]
+              Nginx Ingress + oauth2-proxy: [0.75, 0.90]
+              Envoy / Contour (Gateway API): [0.65, 0.95]
+              Per-app OIDC SDK only: [0.15, 0.95]
+              Service mesh mTLS (Istio): [0.50, 0.95]
+              Cloudflare Access: [0.95, 0.20]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("Traefik: K8s-native CRDs and
+      a forwardAuth middleware that turns SSO into a one-line
+      chain"; "Cloudflare Access: off-cluster everything, at the
+      cost of becoming a cloud tenant") and what it gives up to
+      get there. Use `{{< papers/pullquote source="..."
+      url="..." >}}` for at least one direct quote pulled from the
+      dossier (likely the Traefik forwardAuth or Authentik proxy-
+      provider doc).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words)
+
+
+      The hard part: *the auth handoff between the ingress and
+      the upstream service.* Every option has a different answer;
+      this section lays them out side-by-side with one
+      `flowchart TD` per vendor in a shared visual language.
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = controllers / proxies / servers
+      - Rounded rectangles = K8s resources (IngressRoute,
+        Middleware, ConfigMap)
+      - Diamonds = decision points / auth gates
+      - Cylinders = persistent state (IdP DB, cookie store)
+      - Dashed edges = control-plane / manual-step paths
+      - Solid edges = data-plane / per-request paths
+
+      Four-to-six architecture diagrams. Skip "no catalogue, just
+      bookmarks" — it doesn't have an architecture, which is the
+      §6 punchline.
+
+      Example for Traefik + Authentik forward-auth + Homepage:
+
+      ```
+      flowchart TD
+          subgraph EDGE["Cluster edge"]
+              LB[("Cilium L2 LB: 192.168.55.220")]
+              T["Traefik (raspi-1/raspi-2)"]
+              IR{{"IngressRoute: grafana"}}
+              M_IP{{"Middleware: ip-allowlist"}}
+              M_SH{{"Middleware: security-headers"}}
+              M_FA{{"Middleware: authentik-forwardauth"}}
+          end
+          subgraph AUTH["Auth"]
+              AO["Authentik embedded outpost"]
+              AS["Authentik server (Django + Postgres)"]
+              APP_BP[("Blueprint: provider-grafana")]
+              DJ["Django ORM: outpost.providers.add"]
+          end
+          subgraph UP["Upstream"]
+              G["Grafana"]
+          end
+          LB --> T
+          T --> IR
+          IR --> M_IP --> M_SH --> M_FA
+          M_FA --> AO
+          AO --> AS
+          APP_BP -.-> AS
+          DJ -.-> AO
+          M_FA --> G
+      ```
+
+      For each diagram include 80–200 words of prose: what the
+      controller does per request, where auth happens, what the
+      failure mode is when a step fails.
+
+      Required diagrams (pick four-to-six from):
+      - Traefik + Authentik forward-auth + Homepage (Frank's
+        pick; required)
+      - Nginx Ingress + oauth2-proxy
+      - Envoy/Contour with Gateway API + ext_authz
+      - Per-app OIDC SDK (no forward-auth)
+      - Service mesh mTLS + AuthorizationPolicy (auth in sidecar)
+      - Cloudflare Access (off-cluster — to show the §6 leaf)
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts
+
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Route count.** A cluster with 10 IngressRoutes can run
+         any option without strain. At 200 routes the reconcile
+         latency of the controller's CRD watcher starts to matter,
+         and the operator surface (Nginx's annotation-on-Ingress
+         vs Traefik's IngressRoute CRD vs Gateway API's split
+         GatewayClass/Gateway/HTTPRoute) determines blast radius
+         of a typo.
+
+      2. **Auth QPS.** Forward-auth adds one round-trip per
+         request to the auth outpost. At 0.1–10 QPS per service
+         (homelab) the overhead is invisible; at 1000+ QPS it
+         becomes the bottleneck and per-app SDK or mesh mTLS
+         (cache the auth decision in the sidecar) flips the
+         ranking.
+
+      3. **Catalogue refresh cadence.** A 10-service catalogue
+         can be hand-edited in a ConfigMap. At 50 services the
+         operator either generates the ConfigMap from a script
+         (Homepage's siteMonitor entries are tedious to keep in
+         sync) or moves to a label-driven discovery model (k8s-
+         annotations-driven Heimdall/Dashy plugins).
+
+      Cite ≥2 primary sources from the dossier (a forwardAuth
+      latency benchmark + the Gateway API spec on scale). Do
+      not editorialize past what the citations support.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) + scar callouts
+
+
+      Frank chose Traefik (in-cluster, replacing the prior raspi-
+      omni external Traefik) + Authentik embedded outpost as
+      forward-auth backend + Homepage as the human catalogue.
+      The full chain: Cilium L2 announces `192.168.55.220` for
+      Traefik, Traefik terminates TLS via built-in ACME (Let's
+      Encrypt + Cloudflare DNS-01) for `*.cluster.derio.net`,
+      every IngressRoute chains `ip-allowlist + security-headers
+      + (optional) authentik-forwardauth`, the forwardAuth
+      middleware hits the embedded outpost at
+      `http://authentik-server.authentik.svc.cluster.local:80/outpost.goauthentik.io/auth/traefik`,
+      and Homepage at `master.cluster.derio.net` is the
+      human-visible doorway to every service. The scars came
+      in the seams.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative
+      options from the gotcha registry:
+
+      Scar 1 — the Cilium LB sharing-key:
+      ```
+      {{< papers/scar date="2026-03-29" >}}
+      We deployed the secure-agent-pod with TCP 22 (SSH) and
+      UDP 60000-60015 (Mosh) on the same `192.168.55.215`
+      LoadBalancer IP — both Services carried the
+      `lbipam.cilium.io/ips: 192.168.55.215` annotation. The
+      UDP Service ended up `<pending>` forever. Cilium's
+      `lbipam.cilium.io/ips` is NOT a sharing directive — it
+      is a request. Two Services on one IP need a matching
+      `lbipam.cilium.io/sharing-key` on both. The only signal
+      was `kubectl get svc -A | grep pending`. The lesson:
+      the L2 announcement layer has its own multi-tenant model
+      independent of what the ingress controller wants, and
+      when you split a single logical service across multiple
+      K8s Service objects, every annotation has to match.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — the Authentik blueprint manual outpost-provider
+      step:
+      ```
+      {{< papers/scar date="2026-03-30" >}}
+      We added a new forward-auth provider via an Authentik
+      blueprint. The blueprint applied cleanly. The provider
+      appeared in the Authentik UI. Then nothing — forward-auth
+      for the new route returned 404 from the embedded outpost.
+      Authentik blueprints declaratively create proxy providers
+      and applications, but adding a provider to the embedded
+      outpost is NOT in the blueprint API. The required step is
+      a Django-ORM command: `outpost.providers.add(provider)`,
+      run via `kubectl exec` against the authentik-server pod,
+      after every fresh deploy (or whenever a new forward-auth
+      service is added). It is the only out-of-band step in
+      an otherwise fully-declarative auth chain. We documented
+      it in `agents/rules/frank-argocd.md` and the runbook,
+      but the seam itself is the lesson: "declaratively
+      create" and "actually serve" are different verbs.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — the `AUTHENTIK_HOST` env requirement (and the
+      2026.x API shape changes):
+      ```
+      {{< papers/scar date="2026-04-12" >}}
+      Forward-auth login flow appeared to work — Authentik
+      login form rendered, credentials accepted — then
+      redirected to `0.0.0.0:9000`. The embedded outpost
+      self-discovers its callback URL from the request
+      context, and inside a K8s Service it gets it wrong by
+      default. Fix: set `AUTHENTIK_HOST` env var on both
+      server and worker pods to the external URL. Then,
+      upgrading to Authentik 2026.x, every blueprint failed
+      validation silently because the API now requires
+      `invalidation_flow`, `redirect_uris` as a list of
+      objects (not strings), and a `signing_key` UUID — none
+      documented in upgrade notes. Two scars, one lesson:
+      the outpost's view of "what URL am I" and the API's
+      view of "what shape is a proxy provider" both drift,
+      silently, between versions.
+      {{< /papers/scar >}}
+      ```
+
+      Pick 2-3 scars from the above (all three is also fine if
+      the section budget allows). Real dates only — pull from
+      `agents/rules/frank-gotchas.md` and the per-topic file
+      `docs/runbooks/frank-gotchas/authentik.md` cross-referenced
+      with `apps/traefik/manifests/` and `apps/authentik/values.yaml`.
+
+      Include ≥1 evidence artefact: either the Homepage dashboard
+      screenshot from P4.T3 or `apps/traefik/manifests/middlewares.yaml`
+      inlined as a code block showing the `authentik-forwardauth`
+      middleware definition.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words) + decision tree
+
+
+      Be explicit about the four leaves. Frank's answer is one
+      leaf; the others are real:
+
+      ```
+      flowchart TD
+          A["Off-cluster auth acceptable? (Cloudflare tenant)"] -- "Yes" --> L1["Cloudflare Access + bookmarks"]
+          A -- "No" --> B["Auth latency budget tight (≥1000 QPS)?"]
+          B -- "Yes" --> L2["Service-mesh mTLS (Istio/Linkerd)"]
+          B -- "No" --> C["Apps all support native OIDC SDK?"]
+          C -- "Yes" --> L3["Per-app OIDC SDK (no forward-auth)"]
+          C -- "No (mixed)" --> L4["In-cluster ingress + forward-auth (Frank's pick)"]
+      ```
+
+      > Threshold "≥1000 QPS" is illustrative; see § Named Gap.
+
+      ≤4 visible leaves. The decision turns on three questions:
+      *can you live as a Cloudflare tenant* (yes: Cloudflare
+      Access wins), *do you have ≥1000 QPS that makes a
+      forward-auth round-trip the bottleneck* (yes: mesh
+      mTLS), *do all your apps support native OIDC* (yes:
+      per-app SDK skips forward-auth; mixed/no: in-cluster
+      forward-auth is the only option that doesn't require
+      modifying every workload). At ≥1000 QPS east-west
+      traffic, mesh mTLS starts to pay back (though see
+      § Named Gap — no apples-to-apples homelab benchmark
+      exists).
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words)
+
+
+      Three trends worth naming:
+
+      1. **Gateway API is replacing Ingress.** The Ingress
+         resource is feature-frozen; Gateway API (GatewayClass /
+         Gateway / HTTPRoute / GRPCRoute) is the post-Ingress
+         contract. Traefik supports it as of v3.0; Contour and
+         Envoy Gateway are Gateway-API-first. Expect the next
+         three years to see the split-CRD model (separate
+         GatewayClass + HTTPRoute) replace per-controller CRDs
+         like Traefik's IngressRoute.
+
+      2. **Forward-auth is being absorbed into service meshes.**
+         Istio's `ext_authz` filter and Linkerd's policy CRDs
+         are converging on "auth in the sidecar, not at the
+         ingress". This pushes the cost from the edge into
+         every pod (mTLS handshake per request) but removes the
+         cold-cache latency penalty of forward-auth. Expect
+         forward-auth to live on as the "ingress-only deployment"
+         choice, with mesh-based auth becoming the default for
+         anything multi-tenant.
+
+      3. **Service catalogues are getting label-driven.** Static
+         ConfigMap dashboards (Homepage, Dashy) are great for
+         <50 services; beyond that, label-driven discovery
+         (Heimdall plugins, Hajimari) wins on operator overhead.
+         Expect Homepage to add a k8s-annotations source mode,
+         or to be displaced by a label-driven competitor.
+
+      Optional timeline diagram or roadmap citations. Cite the
+      dossier where possible.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for a capability paper)
+
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/15-ingress-and-service-catalog/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If
+      over, trim §3 first — that's where capability papers
+      reliably sprawl past budget.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

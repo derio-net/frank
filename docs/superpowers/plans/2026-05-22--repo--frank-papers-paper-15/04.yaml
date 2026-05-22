@@ -1,0 +1,184 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 15 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add a new entry under the `# --- Papers Series Covers ---`
+      section, after the most recent paper entry:
+
+      ```yaml
+        - key: paper-15-cover
+          output: blog/content/docs/papers/15-ingress-and-service-catalog/cover.png
+          description: Paper 15 cover — Frank at a triage desk routing request slips to a single AUTH door
+          prompt: >-
+            Frank the server-hardware Frankenstein monster stands
+            behind a heavy oak triage desk. On the desk a tidy
+            stack of paper request slips, each printed with a
+            service name (GRAFANA, LONGHORN, INFISICAL, HUBBLE,
+            N8N) and a small Host: header line. A thin red
+            thread runs from each slip toward a single door
+            centred behind him labelled in bold black letters
+            "AUTH"; other doors visible on the back wall are
+            labelled with service names but unthreaded. He holds
+            one slip up to the lamp, weighing it. Expression:
+            considered, slightly skeptical. He wears thin round
+            reading glasses resting low on his nose and a thin
+            black necktie. Warm overhead lamp on a dark wood-
+            panelled background. RJ45 neck bolts, green skin,
+            messy black hair, rack-mount torso. No text in the
+            image other than the small service names on the
+            slips and the door labels.
+      ```
+
+      Follow the agent procedure in the top-of-file comment block
+      of `blog/prompt_for_images.yaml`: pick a `torso_variant` int
+      and a `mood` preset, and 1–2 `references:` paths from
+      `.reference-pool/papers/subjects/` whose clothing+pose
+      match a "considered, slightly skeptical" expression at a
+      desk. Do NOT use the random pool sampler.
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      set -a && source .env_common && set +a
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-15-cover
+      ```
+
+      Expected: `blog/content/docs/papers/15-ingress-and-service-catalog/cover.png`
+      created, ≥50KB.
+
+      If generation fails for any reason (Gemini API timeout,
+      quota, etc.), fall back: `cp blog/static/images/reference.png
+      blog/content/docs/papers/15-ingress-and-service-catalog/cover.png`
+      and tick step `--state - --note "Gemini fallback used;
+      regen post-merge."`
+
+      Spot-check: Frank should have thin round reading glasses,
+      thin black tie, considered/skeptical expression, and the
+      triage-desk-with-AUTH-door metaphor should be recognisable.
+      Up to 3 regeneration attempts if the visual signature is
+      missing.
+- number: 2
+  title: Render Mermaid diagrams and verify they parse
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/15-ingress-and-service-catalog/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft
+      work (TL;DR remains pending — that is by design and lives
+      outside the Mermaid scope).
+  - id: P4.T2.S2
+    text: |-
+      Verify Mermaid diagrams parse without errors in Hugo dev server
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/15-ingress-and-service-catalog/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+- number: 3
+  title: Capture Homepage dashboard / IngressRoute screenshot
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Capture a Homepage or IngressRoute screenshot showing real cluster state
+
+
+      Source: Homepage dashboard at
+      `https://master.cluster.derio.net/` (full view showing the
+      three categories Infrastructure / CI/CD / Development), or
+      `kubectl describe ingressroute -n traefik-system` output
+      captured as an image.
+
+      Procedure:
+      ```bash
+      # From a machine with cluster access:
+      # 1. Open https://master.cluster.derio.net/
+      #    Screenshot the full dashboard (all three categories)
+      # OR
+      # 2. kubectl -n traefik-system describe ingressroute grafana | head -40
+      #    Screenshot the terminal output
+      ```
+
+      Save to:
+      ```
+      blog/content/docs/papers/15-ingress-and-service-catalog/homepage-dashboard.png
+      ```
+
+      If cluster access is unavailable, copy the 1×1 placeholder
+      and rename with `-TODO.png` suffix:
+      ```bash
+      cp blog/content/docs/papers/11-identity-heterogeneous-stack/authentik-applications-TODO.png \
+         blog/content/docs/papers/15-ingress-and-service-catalog/homepage-dashboard-TODO.png
+      ```
+      Tick the step `--state - --note "Cluster access unavailable
+      from worktree."`
+- number: 4
+  title: Full Hugo build smoke-test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Run the production Hugo build to assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/15-ingress-and-service-catalog/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
