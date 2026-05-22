@@ -1,0 +1,278 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 15 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 15 ingress-and-service-catalog
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 15:
+        Hugo bundle:  blog/content/docs/papers/15-ingress-and-service-catalog/
+        Dossier:      docs/papers-dossiers/15-ingress-and-service-catalog/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/15-ingress-and-service-catalog/index.md
+      ls docs/papers-dossiers/15-ingress-and-service-catalog/dossier.md
+      ```
+- number: 2
+  title: Research the ingress, forward-auth, and service-catalogue landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/15-ingress-and-service-catalog/dossier.md` — vendors in scope
+
+
+      Paper 15 maps a three-axis vendor space (ingress controller
+      + auth shape + service catalogue). Suggested four-to-six-
+      vendor landscape (final list is the dossier-construction
+      subagent's call after research, but anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Traefik (with authentik-forwardauth middleware)
+        positioning: "K8s-native ingress controller — IngressRoute CRD, built-in ACME, middleware chain (incl. forwardAuth). Frank's pick."
+        primary_url: "https://doc.traefik.io/traefik/v3.5/routing/providers/kubernetes-crd/"
+      - name: Nginx Ingress Controller
+        positioning: "The default reference ingress for K8s — annotation-driven, mature, integrates with oauth2-proxy via auth-url / auth-signin annotations."
+        primary_url: "https://kubernetes.github.io/ingress-nginx/"
+      - name: Envoy / Contour (or Gateway API conformant impls)
+        positioning: "L7 proxy + xDS control plane; Gateway API is the post-Ingress contract. ext_authz for external auth."
+        primary_url: "https://projectcontour.io/docs/"
+      - name: Authentik embedded outpost (forward-auth backend)
+        positioning: "OIDC IdP + proxy-provider outpost — IngressRoute middleware forwards every request to /outpost.goauthentik.io/auth/<provider>."
+        primary_url: "https://docs.goauthentik.io/docs/add-secure-apps/outposts/"
+      - name: oauth2-proxy (forward-auth alternative)
+        positioning: "Stateless OIDC proxy — sits between the ingress and the upstream; bring-your-own IdP. The forward-auth choice without an Authentik-shaped IdP."
+        primary_url: "https://oauth2-proxy.github.io/oauth2-proxy/"
+      - name: Service-mesh mTLS (Istio / Linkerd AuthorizationPolicy)
+        positioning: "Move auth into sidecars — every pod-to-pod request is mTLS + AuthZ policy. East-west enforcement; ingress becomes dumb again."
+        primary_url: "https://istio.io/latest/docs/concepts/security/"
+      - name: gethomepage.dev Homepage (service catalogue)
+        positioning: "Static-config dashboard for the cluster — services.yaml + bookmarks.yaml in ConfigMaps, container at /app/config. Frank's catalogue layer."
+        primary_url: "https://gethomepage.dev/"
+      - name: Heimdall / Dashy (catalogue alternatives)
+        positioning: "Heimdall is PHP-rendered with a web UI for config; Dashy is YAML-config like Homepage but with theming + status checks built in. Compare for §2."
+        primary_url: "https://dashy.to/"
+      ```
+
+      Frank's case study is Traefik + Authentik forward-auth +
+      Homepage; the other vendors exist in the dossier so §3 can
+      compare architectures across all three axes and §6 can
+      branch the decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one
+      standard/spec source, and at least one real-world
+      postmortem or benchmark. URL hints to chase:
+
+      1. Traefik IngressRoute CRD + forwardAuth middleware docs —
+         type: `vendor-docs`
+         (https://doc.traefik.io/traefik/v3.5/middlewares/http/forwardauth/)
+      2. Authentik proxy-provider + outpost docs — type: `vendor-docs`
+         (https://docs.goauthentik.io/docs/add-secure-apps/providers/proxy/)
+      3. Kubernetes Gateway API specification — type: `paper` or `vendor-docs`
+         (https://gateway-api.sigs.k8s.io/)
+      4. Nginx vs Traefik benchmark / comparison (homelab-grade or
+         cloud-vendor blog) — type: `benchmark`
+         (e.g., https://kubernetes.io/blog/2023/10/05/comparing-ingress-controllers/
+         or a comparable third-party comparison)
+      5. Frank's own gotcha registry on the Cilium LB sharing-key
+         and the Authentik outpost manual step — type: `postmortem`
+         (https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md
+         and https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/authentik.md)
+      6. gethomepage.dev configuration docs — type: `vendor-docs`
+         (https://gethomepage.dev/configs/services/)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the
+      gate validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo and Frank's gotcha
+      registry. Suggested artefacts (the dossier-construction
+      subagent picks the final list, but at least these are known
+      to exist):
+
+      1. `kind: yaml` — `apps/traefik/manifests/ingressroutes.yaml`
+         — 18+ IngressRoute CRs showing the two routing tiers
+         (forward-auth vs direct) and the common middleware chain
+         (`ip-allowlist`, `security-headers`, optional
+         `authentik-forwardauth`).
+         `demonstrates: "How Traefik IngressRoute CRDs compose
+          middleware chains per route. The authentik-forwardauth
+          middleware is opt-in per route — services with native
+          OIDC (ArgoCD, Sympozium, Authentik itself) skip it;
+          services without auth support (Longhorn, Hubble, etc.)
+          chain it. The pattern means adding a new SSO-gated
+          service is a single middleware reference, not a per-app
+          OIDC integration."`
+
+      2. `kind: yaml` — `apps/traefik/manifests/middlewares.yaml`
+         — the three middlewares used across every IngressRoute:
+         `security-headers`, `ip-allowlist`, `authentik-forwardauth`.
+         `demonstrates: "The forwardAuth middleware addresses
+          http://authentik-server.authentik.svc.cluster.local:80/outpost.goauthentik.io/auth/traefik
+          — the embedded outpost endpoint. authResponseHeaders
+          lists the X-authentik-* headers the upstream sees:
+          username, groups, email, jwt. No per-app SDK; one
+          Middleware CR is reused across the entire cluster."`
+
+      3. `kind: yaml` — `apps/homepage/manifests/configmap-services.yaml`
+         — the cluster service catalogue: three categories
+         (Infrastructure, CI/CD, Development), every service
+         grouped with icon, description, href, siteMonitor.
+         `demonstrates: "Homepage is a static-config dashboard
+          whose source of truth is a ConfigMap. The Hugo-like
+          'siteMonitor' field uses cluster-internal DNS, so the
+          catalogue's uptime indicator runs at pod-to-service
+          latency rather than via the public ingress — a small
+          detail that matters when the catalogue itself is
+          supposed to be the lowest-latency view of cluster
+          health."`
+
+      4. `kind: incident` — the Authentik blueprint manual outpost-
+         provider-assignment step. Source:
+         `agents/rules/frank-argocd.md → Homepage Dashboard, step 3c`
+         and `docs/runbooks/frank-gotchas/authentik.md → Blueprints
+         don't assign providers to the embedded outpost`.
+         `demonstrates: "Authentik blueprints declaratively create
+          proxy providers + applications, but adding a provider to
+          the embedded outpost is NOT in the blueprint API.
+          After each fresh deploy (or whenever a new forward-auth
+          service is added), a Django-ORM step is required:
+          outpost.providers.add(provider). This is the only
+          out-of-band step in an otherwise fully-declarative auth
+          chain — and it shows the seam between Authentik's
+          blueprint API surface and what the outpost actually
+          consumes."`
+
+      5. `kind: incident` — the `AUTHENTIK_HOST` env-var redirect
+         bug. Source:
+         `docs/runbooks/frank-gotchas/authentik.md → Embedded
+         outpost requires AUTHENTIK_HOST`.
+         `demonstrates: "Without AUTHENTIK_HOST set to the
+          external URL, the embedded outpost's forward-auth
+          redirects use 0.0.0.0:9000 — login appears to work,
+          then redirects to an unreachable URL. The fix is one
+          env var in apps/authentik/values.yaml; the lesson is
+          that the outpost self-discovers its own callback URL
+          from the request context and gets it wrong by default
+          inside a K8s Service."`
+
+      6. `kind: incident` — the Cilium LB `sharing-key` gotcha.
+         Source: `agents/rules/frank-gotchas.md → Networking`.
+         `demonstrates: "lbipam.cilium.io/ips alone is NOT a
+          sharing directive. When two Services target the same
+          LoadBalancer IP (e.g., the secure-agent-pod splitting
+          SSH 22 and Mosh UDP 60000-60015 onto one LB IP), both
+          Services need a matching lbipam.cilium.io/sharing-key
+          annotation. Without it, one Service ends up <pending>
+          forever. The only signal is kubectl get svc -A | grep
+          pending — and the lesson is that the L2 announcement
+          layer has its own multi-tenant model independent of
+          what the ingress controller wants."`
+
+      7. `kind: grafana-screenshot` (optional) — a screenshot of
+         the Homepage dashboard at
+         `https://master.cluster.derio.net/` showing the three
+         service categories live.
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No apples-to-apples benchmark of forward-auth latency
+        overhead per request exists at homelab QPS (0.1–10 QPS
+        per service). Vendor benchmarks measure 10k+ QPS
+        scenarios where the marginal cost of an extra L7 hop is
+        negligible compared to the steady-state throughput;
+        that result does not translate to the 'one human, one
+        click, one cold-cache OIDC redirect' interaction that
+        dominates homelab forward-auth use. The cost model
+        that matters for a learning cluster is 'first-page-load
+        latency after a 12-hour idle' — and no public benchmark
+        measures that. Comparisons either skip this entirely or
+        treat it as 'covered by your CDN' — which is the value
+        system this Paper exists to contradict."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "For a single-team SaaS behind Cloudflare Access, you
+        don't need any of this. Cloudflare terminates TLS,
+        enforces SSO via Cloudflare Access (or Google
+        Workspace), and you don't need a service catalogue
+        because every team member has the URLs in their
+        bookmarks. Why does Frank's in-cluster Traefik +
+        Authentik + Homepage stack win? Answer: same shape
+        as Paper 09. Frank is a learning platform. The reason
+        to run in-cluster ingress + forward-auth is to
+        encounter the Cilium LB sharing-key gotcha, the
+        Authentik blueprint manual-outpost step, the
+        AUTHENTIK_HOST env quirk, the 2026.x API shape
+        changes — first-hand. A team that has internalized
+        these lessons can rationally fall back to Cloudflare
+        Access for the production cluster and keep a thin
+        in-cluster ingress for east-west. A team that has
+        not will reinvent the same scars when they outgrow
+        Cloudflare's pricing or hit a feature wall. The
+        counter-argument wins for the team that has already
+        paid the tuition; for Frank, paying the tuition is
+        the point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
