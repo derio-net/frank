@@ -73,18 +73,22 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:51:26+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:51:28+00:00'
       note: null
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:51:29+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:51:41+00:00'
+    note: Dossier validator passes (9 sources, 4 types, 6 artefacts, 2 kinds, gap
+      + counter recorded). Status flipped to ready in Auto Mode per harness instructions
+      — gap and counter-argument match the spec framing (1 origin / 1 edge / 10 destinations
+      benchmark hole; €5/mo VPS justified by data-plane ownership + mesh-control-plane
+      chicken-and-egg + Talos/single-node-cluster pedagogy).
     observed_prs: []
