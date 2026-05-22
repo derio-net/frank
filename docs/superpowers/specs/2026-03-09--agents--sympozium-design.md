@@ -193,6 +193,12 @@ status: pending
 - **ServerSideApply**: Required as always for ArgoCD sync options.
 - **prune: false**: Manual pruning only, consistent with all Frank apps.
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Sympozium: Agentic Control Plane Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-09--agents--sympozium/` | — |
+
 ## Out of Scope
 
 - PostgreSQL for Sympozium session history — add later if web dashboard needs it

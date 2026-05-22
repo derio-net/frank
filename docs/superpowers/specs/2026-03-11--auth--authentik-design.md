@@ -249,6 +249,12 @@ Authentik requires several secrets that must exist before the application starts
 
 **Manual operations:** The `# manual-operation` blocks for each secret are deferred to the implementation plan (not this design spec). The implementation plan will include a block per secret with `when`, `why_manual`, `commands`, and `verify` fields, and will be synced to the runbook via `/sync-runbook`.
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Unified Authentication & Authorization Design Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-11--auth--authentik/` | — |
+
 ## Migration Path
 
 Four independent stages, each self-contained with rollback safety:

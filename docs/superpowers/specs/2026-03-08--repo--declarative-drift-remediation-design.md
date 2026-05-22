@@ -135,6 +135,12 @@ The Standard Layer Workflow gains a `/sync-runbook` step:
 
 ---
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Declarative Drift Remediation Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-08--repo--declarative-drift-remediation/` | — |
+
 ## Out of Scope
 
 - Layers 1–6: no manual operations found beyond bootstrap (verified via git log and cluster audit)

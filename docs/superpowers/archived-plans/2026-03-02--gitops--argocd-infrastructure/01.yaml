@@ -4,7 +4,7 @@ phase:
   title: ArgoCD Infrastructure — Implementation Plan
   tag: agentic
   depends_on: []
-  tracking_issue: null
+  tracking_issue:
 tasks:
 - number: 1
   title: Remove Flux CD
@@ -1324,314 +1324,314 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T2.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T2.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T3.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T3.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T3.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T3.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T3.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T4.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T5.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T5.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T5.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T5.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T5.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T5.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T5.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T6.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T6.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T6.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T7.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T7.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T7.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T7.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T8.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T8.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T8.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T9.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T9.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T9.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T9.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T9.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T9.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T9.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T9.S8:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T9.S9:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T10.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T10.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T11.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T11.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T11.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T11.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T12.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T12.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T12.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T12.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T13.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T13.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T13.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T13.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T13.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T13.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T14.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T14.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T14.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T14.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T14.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T14.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T15.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T15.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T15.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T15.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T15.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T15.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T15.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     P1.T15.S8:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-22'
+      note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
   completion:
-    at: null
-    note: null
+    at: '2026-05-22'
+    note: Backfilled — work shipped prior to v2 phase-tick tracking; deployment confirmed via cluster state on 2026-05-22.
     observed_prs: []

@@ -1,7 +1,7 @@
 # PII & Secret Guardrails Design
 
 **Date:** 2026-04-08
-**Status:** Draft
+**Status:** Open design — guardrails not implemented (no PII/secret pre-commit hook present as of 2026-05-22). Spec captures the threat model; implementation deferred.
 
 ## Problem
 

@@ -187,3 +187,9 @@ cd blog && hugo server -D
 - Post 0 (Overview) is updated with each new technology
 - Roadmap.sh diagram is updated independently
 - Series ordering uses numeric prefixes (`00-`, `01-`, ...) for natural sort
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Blog Series Design: Building an AI-Hybrid Kubernetes Homelab Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-06--repo--blog-series/` | — |

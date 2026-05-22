@@ -133,3 +133,9 @@ Step 1 is manual/interactive. Steps 2-4 are standard GitOps.
 - [OpenRGB supported devices](https://openrgb.org/devices.html)
 - [swensorm/openrgb-docker](https://github.com/swensorm/openrgb-docker)
 - [ITE IT5702 USB RGB controller](https://github.com/CalcProgrammer1/OpenRGB)
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| OpenRGB LED Control for gpu-1 — Design Document Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-03--fun--openrgb-led-control/` | — |

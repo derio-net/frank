@@ -251,3 +251,9 @@ None blocking. The top-left panel mechanism is the only TBD, and it's bounded â€
 - **Scope:** Codify existing alerting + dashboard layout fixes only. Expanding monitoring coverage is a follow-up. Cluster Health dashboard is a separate backlog item.
 - **Folder placement:** Feature Health dashboard moves to a `feature-health` folder.
 - **Top-left panel:** replace the verbose alertlist with a compact summary. Exact mechanism deferred to plan time.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| Grafana Alerting as Code Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-04-08--obs--grafana-alerting-as-code/` | â€” |
