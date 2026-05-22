@@ -1,6 +1,6 @@
 ---
 paper: 15-ingress-and-service-catalog
-status: draft
+status: ready
 ---
 
 ## Vendors in scope (≥3, typically 4–6)

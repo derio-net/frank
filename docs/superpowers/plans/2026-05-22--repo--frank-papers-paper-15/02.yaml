@@ -69,18 +69,19 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:48:08+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:48:10+00:00'
       note: null
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:48:12+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:48:24+00:00'
+    note: validate-dossier.py exit 0 (DOSSIER GATE PASSED); dossier status flipped
+      to ready
     observed_prs: []
