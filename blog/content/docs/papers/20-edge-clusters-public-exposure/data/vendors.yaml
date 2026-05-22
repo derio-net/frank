@@ -1,0 +1,68 @@
+features:
+  - key: no_edge_node
+    label: No edge node required
+  - key: free_tier
+    label: Free tier viable
+  - key: tls_self
+    label: Self-terminated TLS
+  - key: cg_nat
+    label: Survives CG-NAT
+  - key: custom_dns
+    label: Custom DNS / domains
+  - key: mesh_overlay
+    label: Mesh data plane
+  - key: oss
+    label: OSS / no contract required
+  - key: data_plane_owned
+    label: You own the data plane
+vendors:
+  - name: Cloudflare Tunnel
+    features:
+      no_edge_node: "yes"
+      free_tier: "yes"
+      tls_self: "no"
+      cg_nat: "yes"
+      custom_dns: "yes"
+      mesh_overlay: "no"
+      oss: "no"
+      data_plane_owned: "no"
+  - name: Tailscale Funnel
+    features:
+      no_edge_node: "yes"
+      free_tier: "partial"
+      tls_self: "yes"
+      cg_nat: "yes"
+      custom_dns: "partial"
+      mesh_overlay: "yes"
+      oss: "partial"
+      data_plane_owned: "partial"
+  - name: ngrok
+    features:
+      no_edge_node: "yes"
+      free_tier: "partial"
+      tls_self: "no"
+      cg_nat: "yes"
+      custom_dns: "partial"
+      mesh_overlay: "no"
+      oss: "no"
+      data_plane_owned: "no"
+  - name: Headscale + tiny VPS
+    features:
+      no_edge_node: "no"
+      free_tier: "no"
+      tls_self: "yes"
+      cg_nat: "yes"
+      custom_dns: "yes"
+      mesh_overlay: "yes"
+      oss: "yes"
+      data_plane_owned: "yes"
+  - name: Multi-region cluster (Rancher Fleet)
+    features:
+      no_edge_node: "no"
+      free_tier: "no"
+      tls_self: "yes"
+      cg_nat: "yes"
+      custom_dns: "yes"
+      mesh_overlay: "partial"
+      oss: "yes"
+      data_plane_owned: "yes"

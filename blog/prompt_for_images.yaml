@@ -680,6 +680,36 @@ images:
       are the only writing in the image. ONE figure — one single
       Frank. Framing communicates "named chain of custody," not
       "secrets are solved".
+  - key: paper-20-cover
+    torso_variant: 1
+    mood: thoughtful
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-1.png
+    output: blog/content/docs/papers/20-edge-clusters-public-exposure/cover.png
+    description: Paper 20 cover — Frank at a coastline weighing tunnel vs ferry to a remote outpost
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands on a
+      rocky coastline at twilight, looking across a narrow channel
+      of water toward a small remote outpost on the far shore — the
+      outpost rendered as a single-rack server hut with a warm lit
+      window. A tall lighthouse rises behind him on his side of the
+      channel, its rotating beacon casting a pale sweep across the
+      water. In one green-skinned hand he holds a small folded
+      blueprint showing two route options sketched in pencil — a
+      thin dotted line labelled "tunnel" curving underneath the
+      channel and a solid line labelled "ferry" crossing on top of
+      the water. His expression is thoughtful and weighing, the kind
+      of person deciding whether to bridge a real channel by
+      infrastructure he controls or by someone else's tunnel. He
+      wears thin small round reading glasses resting low on his face
+      and a thin black necktie over a white button-down dress shirt.
+      Cool overcast twilight light with a warm pinpoint of lamp-light
+      from the distant outpost. RJ45 neck bolts, green skin, messy
+      black hair, rack-mount torso. NO text in the image other than
+      the small pencil labels "tunnel" and "ferry" on the blueprint
+      — no extra captions or watermarks. ONE FIGURE — one single
+      Frank. The framing communicates "deciding how to cross the
+      public/private boundary" rather than "the answer is obvious".
 
   - key: paper-01-cover
     torso_variant: 1

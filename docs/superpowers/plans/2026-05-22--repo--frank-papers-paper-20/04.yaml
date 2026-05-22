@@ -179,30 +179,32 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:02:30+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:02:32+00:00'
       note: null
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:02:34+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:02:35+00:00'
       note: null
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T21:02:37+00:00'
+      note: Hop screenshot capture blocked by auto-mode policy (production reads);
+        placeholder hop-evidence-TODO.png copied per plan fallback. Regenerate post-merge
+        with caddy access log or talosctl health screenshot.
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:02:39+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-22T21:02:40+00:00'
     note: null
     observed_prs: []
