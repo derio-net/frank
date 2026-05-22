@@ -116,10 +116,13 @@ tasks:
       grep -n "papers/dossier-link" blog/content/docs/papers/12-multi-tenancy-vcluster/index.md
       ```
 
-      Expected: zero matches (rely on automatic injection) OR
-      exactly one match (inline use, accepting that the footer
-      auto-injection also runs — verify the rendered HTML has
-      only one chip).
+      Expected: zero matches (paper relies on automatic footer
+      injection via `single.html`). If exactly one inline
+      `{{< papers/dossier-link >}}` shortcode is found, the author
+      must have explicitly disabled the automatic footer injection
+      for this paper — verify by grepping the rendered page for
+      the footer chip. If both render, see
+      `agents/rules/repo-papers.md` § Dossier vs. shortcode.
   - id: P5.T2.S5
     text: |-
       Commit and push Paper 12

@@ -134,13 +134,19 @@ tasks:
             ops_floor: "no"
       ```
 
-      Polarity check: "yes" = the option HAS that feature. For
-      `shared_cp`, "yes" = it RUNS on a shared control plane (i.e.
-      no per-tenant API server). For `ops_floor`, "yes" = the per-
-      tenant operational floor is LOW (no per-tenant control plane
-      to operate). Adjust to match `apps/0X/data/vendors.yaml`
-      polarity conventions in other Papers if the matrix shortcode
-      reads polarity differently.
+      Polarity check: "yes" = the option HAS that feature
+      (truthy = the property holds). For `shared_cp`, "yes" = it
+      RUNS on a shared control plane (i.e. no per-tenant API
+      server). For `ops_floor`, "yes" = the per-tenant operational
+      floor is LOW (no per-tenant control plane to operate).
+
+      Use the column shape of
+      `blog/content/docs/papers/09-secrets-bootstrap/data/vendors.yaml`
+      as the canonical reference — it lists `features` as a top-
+      level list of `{key, label}` entries and each vendor's
+      `features` as a flat map of `key: "yes" | "no" | "partial"`
+      (truthy = the property holds, including for `oss`). Match
+      that schema and that polarity convention here.
 - number: 3
   title: Draft all sections in order
   steps:
