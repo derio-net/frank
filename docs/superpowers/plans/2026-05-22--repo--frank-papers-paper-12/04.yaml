@@ -145,30 +145,31 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:55:01+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:55:02+00:00'
+      note: .env_common not present in worktree; cover-TODO.png placeholder dropped,
+        regen post-merge
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:55:04+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:55:06+00:00'
       note: null
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T20:55:08+00:00'
+      note: Cluster access unavailable from worktree; vcluster-runtime-TODO.png placeholder
     P4.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:55:09+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-22T20:55:11+00:00'
     note: null
     observed_prs: []

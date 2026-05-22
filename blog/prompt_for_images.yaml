@@ -452,6 +452,29 @@ images:
       figure — one single Frank. Framing communicates "one identity,
       many surfaces," not "identity is solved".
 
+  - key: paper-12-cover
+    torso_variant: 0
+    mood: weighing
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-2.png
+    output: blog/content/docs/papers/12-multi-tenancy-vcluster/cover.png
+    description: Paper 12 cover — Frank drawing concentric boundary rings around pod groups on a whiteboard
+    prompt: >-
+      Frank stands at a large dark whiteboard, marker in hand, drawing
+      three concentric boundary rings around three labelled groups of
+      small pod icons. The innermost ring is labelled "namespace", the
+      middle ring "vcluster", the outermost ring "cluster". His
+      expression is focused and weighing — the kind of person sizing
+      up which boundary to draw, not picking a brand. He wears thin
+      round reading glasses resting low on his face and a thin black
+      necktie over a white button-down shirt. One hand grips a
+      whiteboard marker; the other gestures at the rings. A single
+      warm overhead lamp on a dark studio background. The rings glow
+      faintly white-blue. The three ring labels ("namespace",
+      "vcluster", "cluster") and the small pod icons are the ONLY
+      writing in the image — no extra captions or watermarks. ONE
+      figure — one single Frank.
+
   - key: paper-14-cover
     torso_variant: 2
     mood: weighing
