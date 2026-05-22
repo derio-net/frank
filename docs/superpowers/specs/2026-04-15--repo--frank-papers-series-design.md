@@ -69,11 +69,11 @@ TOC order below (bottom-of-stack upward). Publish order is separate and describe
 | 09 | Secrets Management Without the Bootstrap Chicken-and-Egg | secrets | 1 |
 | 10 | Self-Hosted Inference & the LLM Gateway Pattern | infer | 1 |
 | 11 | Identity for a Heterogeneous Stack | auth | 1 |
-| 12 | Multi-Tenancy with vCluster | tenant | 1 |
+| 12 | Multi-Tenancy with vCluster | tenant | 2 (deferred 2026-05-22 — need more lived experience) |
 | 13 | Self-Hosted CI/CD on a Homelab | Gitea + Tekton + Zot | 1 |
 | 14 | Progressive Delivery & the Service-Mesh Tax | Argo Rollouts | 1 |
 | 15 | Ingress, Forward-Auth, and the Service Catalog | Traefik + Homepage | 1 |
-| 16 | Self-Hosted Media Generation | ComfyUI + GPU switcher | 1 |
+| 16 | Self-Hosted Media Generation | ComfyUI + GPU switcher | 2 (deferred 2026-05-22 — need more lived experience) |
 | 17 | Agentic Orchestration & Safe Agent Workstations | Sympozium + secure-agent-pod + VK Remote | 1 |
 | 18 | Workflow Automation Beyond CI/CD | n8n | 2 (deferred — need lived experience) |
 | 19 | Feature-Level Health & the Alert-to-Issue Bridge | Blackbox + Pushgateway + Health Bridge | 2 (deferred — need lived experience) |
@@ -386,19 +386,23 @@ Phase 0 done → Paper 00 dossier → Paper 00 draft → publish → Phase 1 ope
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| The Frank Papers — Phase 0: Tooling & Scaffolding | derio-net/frank | `docs/superpowers/plans/2026-05-16--repo--frank-papers-phase-0/` | — |
-| The Frank Papers — Paper 00: Prologue | derio-net/frank | `docs/superpowers/plans/2026-05-16--repo--frank-papers-paper-00/` | Phase 0 complete |
-| The Frank Papers — Paper 10: Self-Hosted Inference & the LLM Gateway Pattern | derio-net/frank | `docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-10/` | Complete (2026-05-19) — published |
-| The Frank Papers — Paper 04: Distributed Storage on Bare Metal | derio-net/frank | `docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-04/` | Complete (2026-05-19) — published |
-| The Frank Papers — Paper 11: Identity for a Heterogeneous Stack | derio-net/frank | `docs/superpowers/plans/2026-05-18--repo--frank-papers-paper-11/` | Complete (2026-05-19) — published |
-| The Frank Papers — Paper 14: Progressive Delivery & the Service-Mesh Tax | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-14/` | Complete (2026-05-19) — PR open for review |
-| The Frank Papers — Paper 06: GitOps at Small Scale | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-06/` | Complete (2026-05-19) — published |
-| The Frank Papers — Paper 07: The Observability Stack, Honestly | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-07/` | Complete (2026-05-19) — published |
-| The Frank Papers — Paper 02: Immutable OS & Declarative Machines | derio-net/frank | `docs/superpowers/plans/2026-05-19--repo--frank-papers-paper-02/` | Complete (2026-05-19) — published |
-| The Frank Papers — Paper 05: GPU Scheduling for Mixed Workloads | derio-net/frank | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-05/` | Complete (2026-05-20) — PR open for review |
-| The Frank Papers — Paper 08: Backup & DR Without a Vendor Contract | derio-net/frank | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-08/` | Complete (2026-05-20) — Paper 08 draft published on branch `paper-08`; PR open for human review |
-| The Frank Papers — Paper 13: Self-Hosted CI/CD on a Homelab | derio-net/frank | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-13/` | Complete (2026-05-20) — PR open for review |
-| The Frank Papers — Paper 03: eBPF Networking Without a Service Mesh | derio-net/frank | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-03/` | Complete (2026-05-20) — PR open for review |
-| The Frank Papers — Paper 17: Agentic Orchestration & Safe Agent Workstations | derio-net/frank | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-17/` | Complete (2026-05-20) — PR open for review |
-| The Frank Papers — Paper 09: Secrets Management Without the Bootstrap Chicken-and-Egg | derio-net/frank | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-09/` | Complete (2026-05-20) — PR open for review |
-| The Frank Papers — Paper 15: Ingress, Forward-Auth, and the Service Catalog | derio-net/frank | `docs/superpowers/plans/2026-05-22--repo--frank-papers-paper-15/` | Complete (2026-05-22) — Paper 15 draft on branch `paper-15`; PR open for human review |
+| The Frank Papers — Phase 0: Tooling & Scaffolding | derio-net/frank | `docs/superpowers/archived-plans/2026-05-16--repo--frank-papers-phase-0/` | — |
+| The Frank Papers — Paper 00: Prologue | derio-net/frank | `docs/superpowers/archived-plans/2026-05-16--repo--frank-papers-paper-00/` | Phase 0 complete |
+| The Frank Papers — Paper 10: Self-Hosted Inference & the LLM Gateway Pattern | derio-net/frank | `docs/superpowers/archived-plans/2026-05-18--repo--frank-papers-paper-10/` | Complete (2026-05-19) — published |
+| The Frank Papers — Paper 04: Distributed Storage on Bare Metal | derio-net/frank | `docs/superpowers/archived-plans/2026-05-18--repo--frank-papers-paper-04/` | Complete (2026-05-19) — published |
+| The Frank Papers — Paper 11: Identity for a Heterogeneous Stack | derio-net/frank | `docs/superpowers/archived-plans/2026-05-18--repo--frank-papers-paper-11/` | Complete (2026-05-19) — published |
+| The Frank Papers — Paper 14: Progressive Delivery & the Service-Mesh Tax | derio-net/frank | `docs/superpowers/archived-plans/2026-05-19--repo--frank-papers-paper-14/` | Complete (2026-05-19) — PR open for review |
+| The Frank Papers — Paper 06: GitOps at Small Scale | derio-net/frank | `docs/superpowers/archived-plans/2026-05-19--repo--frank-papers-paper-06/` | Complete (2026-05-19) — published |
+| The Frank Papers — Paper 07: The Observability Stack, Honestly | derio-net/frank | `docs/superpowers/archived-plans/2026-05-19--repo--frank-papers-paper-07/` | Complete (2026-05-19) — published |
+| The Frank Papers — Paper 02: Immutable OS & Declarative Machines | derio-net/frank | `docs/superpowers/archived-plans/2026-05-19--repo--frank-papers-paper-02/` | Complete (2026-05-19) — published |
+| The Frank Papers — Paper 05: GPU Scheduling for Mixed Workloads | derio-net/frank | `docs/superpowers/archived-plans/2026-05-20--repo--frank-papers-paper-05/` | Complete (2026-05-20) — PR open for review |
+| The Frank Papers — Paper 08: Backup & DR Without a Vendor Contract | derio-net/frank | `docs/superpowers/archived-plans/2026-05-20--repo--frank-papers-paper-08/` | Complete (2026-05-20) — Paper 08 draft published on branch `paper-08`; PR open for human review |
+| The Frank Papers — Paper 13: Self-Hosted CI/CD on a Homelab | derio-net/frank | `docs/superpowers/archived-plans/2026-05-20--repo--frank-papers-paper-13/` | Complete (2026-05-20) — PR open for review |
+| The Frank Papers — Paper 03: eBPF Networking Without a Service Mesh | derio-net/frank | `docs/superpowers/archived-plans/2026-05-20--repo--frank-papers-paper-03/` | Complete (2026-05-20) — PR open for review |
+| The Frank Papers — Paper 17: Agentic Orchestration & Safe Agent Workstations | derio-net/frank | `docs/superpowers/archived-plans/2026-05-20--repo--frank-papers-paper-17/` | Complete (2026-05-20) — PR open for review |
+| The Frank Papers — Paper 09: Secrets Management Without the Bootstrap Chicken-and-Egg | derio-net/frank | `docs/superpowers/archived-plans/2026-05-20--repo--frank-papers-paper-09/` | Complete (2026-05-20) — PR open for review |
+| The Frank Papers — Paper 20: Edge Clusters & Public Exposure | derio-net/frank | `docs/superpowers/plans/2026-05-22--repo--frank-papers-paper-20/` | Drafting (2026-05-22) — plan merged; execution underway |
+| The Frank Papers — Paper 15: Ingress, Forward-Auth, and the Service Catalog | derio-net/frank | `docs/superpowers/plans/2026-05-22--repo--frank-papers-paper-15/` | Complete (2026-05-22) — execution PR #374 open for human review |
+| The Frank Papers — Paper 01: Heterogeneous Hardware as a Design Choice | derio-net/frank | `docs/superpowers/plans/2026-05-22--repo--frank-papers-paper-01/` | Drafting (2026-05-22) — execution PR #375 open for human review |
+| The Frank Papers — Paper 12: Multi-Tenancy with vCluster | derio-net/frank | _(deferred — see TOC; plan preserved on closed PR #370 / branch `paper-12`)_ | Deferred (2026-05-22) — needs more lived operational experience |
+| The Frank Papers — Paper 16: Self-Hosted Media Generation | derio-net/frank | _(deferred — see TOC; plan preserved on closed PR #371 / branch `paper-16`)_ | Deferred (2026-05-22) — needs more lived operational experience |

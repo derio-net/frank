@@ -1,5 +1,6 @@
 # ArgoCD Drift Cleanup Design
 
+**Status:** Complete (deployed via fix(gitops) commits 2026-04-16 → 2026-04-20; operating post at `blog/content/docs/operating/23-argocd-drift-detective/`; plan ticks backfilled 2026-05-22)
 **Layer:** gitops
 **Type:** Investigation + fix (extension of layer 6, GitOps)
 

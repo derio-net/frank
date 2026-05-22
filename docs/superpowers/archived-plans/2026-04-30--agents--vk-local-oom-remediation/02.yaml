@@ -130,18 +130,21 @@ state:
       ticked_at: null
       note: null
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:15:07+00:00'
+      note: Cadvisor pipeline fix verified — Phase 5 soak collected 14 days of continuous
+        container_memory_working_set_bytes data
     P2.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:15:09+00:00'
+      note: 24h+ soak window completed; non-zero cadvisor series confirmed across
+        all amd64 nodes
     P2.T4.S1:
       state: '-'
       ticked_at: null
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:15:18+00:00'
+    note: Cadvisor fix shipped + verified via Phase 5 soak. Deviation note in _prose.md
+      describes actual root cause (high-cardinality labels exceeding maxLabelsPerTimeseries=40)
     observed_prs: []

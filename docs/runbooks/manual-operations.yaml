@@ -1003,6 +1003,47 @@ operations:
     (other consumers may still reference it — verify before deleting).
 
     '
+- id: orch-paperclip-hire-hermes-litellm-agent
+  layer: orch
+  app: paperclip
+  plan: docs/superpowers/specs/2026-05-17--orch--paperclip-litellm-agents-design.md
+  when: After the reconcile op above has installed hermes on the PVC
+  why_manual: Agent hire is a board-level operator action; hermes inference chain is global via config.yml so the hire payload only needs adapterConfig.model
+  commands:
+  - 'Smoke test: kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- hermes chat -q --model frank-litellm-reasoner ''say ping'''
+  - Hire agent through Paperclip UI or via paperclip-create-agent skill with adapterType=hermes_local, adapterConfig.model=frank-litellm-reasoner
+  - Assign a trivial issue and confirm transcript completes with structured tool cards
+  verify:
+  - LiteLLM admin UI request log shows the call from the Paperclip virtual key against model=qwen-think-14b
+  - Paperclip run history shows successful completion; hermes session ID is captured for --resume continuity
+  status: done
+- id: orch-paperclip-hire-opencode-litellm-agent
+  layer: orch
+  app: paperclip
+  plan: docs/superpowers/specs/2026-05-17--orch--paperclip-litellm-agents-design.md
+  when: After the reconcile op above has installed opencode on the PVC
+  why_manual: Agent hire is a board-level operator action through Paperclip's API; not declarative
+  commands:
+  - 'Smoke test: kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- opencode run -m litellm/qwen-coder-14b -p ''say ping'''
+  - Hire agent through Paperclip UI or via paperclip-create-agent skill with adapterType=opencode_local
+  - Assign a trivial issue and confirm transcript completes
+  verify:
+  - LiteLLM admin UI request log shows the call from the Paperclip virtual key against model=qwen-coder-14b
+  - Paperclip run history shows successful completion with non-empty transcript
+  status: done
+- id: orch-paperclip-reconcile-shared-agent-clis
+  layer: orch
+  app: paperclip
+  plan: docs/superpowers/specs/2026-05-17--orch--paperclip-litellm-agents-design.md
+  when: After the inventory ConfigMap is synced and on every fresh /paperclip PV
+  why_manual: PVC-resident tools are installed by the shell sidecar's reconcile, not by ArgoCD. Declarative-initContainer is the long-term home; for now this stays operator-imperative + idempotent.
+  commands:
+  - 'SSH into paperclip-shell: ssh paperclip-shell'
+  - 'Run reconcile: paperclip-shell-reconcile  # installs opencode-ai + hermes-agent onto /paperclip/agent-bin'
+  - 'Verify from paperclip container: kubectl -n paperclip-system exec deploy/paperclip -c paperclip -- which opencode hermes'
+  verify:
+  - Both `opencode --version` and `hermes --version` succeed when exec'd in the paperclip container
+  status: done
 - id: orch-ruflo-authentik-outpost-assign
   layer: orch
   app: ruflo
