@@ -1,0 +1,181 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 16 cover prompt to `blog/prompt_for_images.yaml`.
+
+      Add a new entry under the `# --- Papers Series Covers ---`
+      section, after the most recent paper entry (Paper 09 at the
+      moment — check the file for the actual tail):
+
+      ```yaml
+        - key: paper-16-cover
+          torso_variant: 1
+          mood: satisfied
+          references:
+            - .reference-pool/papers/subjects/frank-white-shirt-sleeves-up-black-tie-1.png
+          output: blog/content/docs/papers/16-media-generation/cover.png
+          description: Paper 16 cover — Frank examining a freshly-printed photo, GPU rack glowing behind him
+          prompt: >-
+            Frank the server-hardware Frankenstein monster stands in a
+            dim workshop, holding a single freshly-printed glossy photo
+            at eye level in his right hand. The photo shows an abstract
+            generated landscape — the kind of image a diffusion model
+            produces — with subtle colour banding visible in the ink.
+            His expression is satisfied-but-critical, the kind of person
+            who finally has a clean image-gen pipeline but knows exactly
+            what the GPU sharing tax cost him. Behind him, a server rack
+            with a single GPU card glows a soft warm orange through its
+            fan grille — the GPU is alive, doing the work. He wears
+            small circular wire-rim reading glasses resting low on his
+            face and a thin black necktie over a white button-down dress
+            shirt with sleeves rolled to the elbows. Warm overhead lamp.
+            Deep navy studio-style background. RJ45 temple bolts, green
+            skin, messy black hair, rack-mount torso. No text in the
+            image other than a small faint label "gpu-1" on the server
+            rack. ONE FIGURE — one single Frank.
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image.
+
+      ```bash
+      set -a && source .env_common && set +a
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-16-cover
+      ```
+
+      Expected: `blog/content/docs/papers/16-media-generation/cover.png`
+      created, ≥50KB.
+
+      If generation fails for any reason (Gemini API timeout, quota,
+      etc.), fall back: `cp blog/static/images/reference.png
+      blog/content/docs/papers/16-media-generation/cover.png` and
+      tick step `--state - --note "Gemini fallback used; regen
+      post-merge."`
+
+      Spot-check: Frank should have thin round reading glasses, thin
+      black tie, satisfied-but-critical expression, and the
+      freshly-printed-photo + glowing-GPU-rack metaphor should be
+      recognisable. Up to 3 regeneration attempts if the visual
+      signature is missing.
+- number: 2
+  title: Render Mermaid diagrams and verify they parse
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders.
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/16-media-generation/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft work
+      (TL;DR remains pending — that is by design and lives outside
+      the Mermaid scope).
+  - id: P4.T2.S2
+    text: |-
+      Verify Mermaid diagrams parse without errors in Hugo dev server.
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/16-media-generation/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+- number: 3
+  title: Capture cluster-side evidence (generated image or GPU-switch asciinema)
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Capture an inline figure showing real cluster state — pick ONE:
+
+      Option A (preferred — meta-honesty):
+      ```bash
+      # From a machine with cluster access:
+      # 1. POST to GPU Switcher to activate ComfyUI:
+      curl -X POST http://192.168.55.214:8080/api/activate/comfyui
+      # 2. Open ComfyUI UI at http://192.168.55.213:8188
+      # 3. Load a basic SDXL workflow, run it, save the generated
+      #    image as paper-16-meta-image.png
+      ```
+
+      Option B — capture the GPU switch in action:
+      ```bash
+      # asciinema record showing:
+      kubectl -n ollama get deploy ollama -w &
+      kubectl -n comfyui get deploy comfyui -w &
+      curl -X POST http://192.168.55.214:8080/api/activate/comfyui
+      # Watch Ollama scale 1→0 and ComfyUI scale 0→1
+      ```
+
+      Save to:
+      ```
+      blog/content/docs/papers/16-media-generation/gpu-switch.png
+      ```
+      (or `.cast` for asciinema, then convert to an animated `.gif`/`.png`
+      via `agg` or a still frame.)
+
+      If cluster access is unavailable, copy a 1×1 placeholder and
+      rename with `-TODO.png` suffix:
+      ```bash
+      cp blog/content/docs/papers/10-self-hosted-inference/grafana-inference-TODO.png \
+         blog/content/docs/papers/16-media-generation/gpu-switch-TODO.png
+      ```
+      Tick the step `--state - --note "Cluster access unavailable
+      from worktree."`
+- number: 4
+  title: Full Hugo build smoke-test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Run the production Hugo build to assert zero errors.
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/16-media-generation/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

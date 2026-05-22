@@ -1,0 +1,205 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 16 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script.
+
+      ```bash
+      scripts/scaffold-paper.sh 16 media-generation
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 16:
+        Hugo bundle:  blog/content/docs/papers/16-media-generation/
+        Dossier:      docs/papers-dossiers/16-media-generation/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/16-media-generation/index.md
+      ls docs/papers-dossiers/16-media-generation/dossier.md
+      ```
+- number: 2
+  title: Research the media-generation landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/16-media-generation/dossier.md` — vendors in scope.
+
+      Paper 16 maps the self-hosted image-generation vendor space plus the
+      cloud-API null hypothesis. Suggested six-vendor landscape (final list
+      is the dossier-construction subagent's call after research, but
+      anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: ComfyUI
+        positioning: "Node-graph diffusion frontend — every step (load checkpoint, encode prompt, sample, decode VAE, save) is a node you wire by hand. Frank's choice."
+        primary_url: "https://docs.comfy.org/"
+      - name: AUTOMATIC1111 Stable Diffusion WebUI
+        positioning: "Monolith web UI — the original community frontend, txt2img / img2img / extras tabs, deepest extension ecosystem."
+        primary_url: "https://github.com/AUTOMATIC1111/stable-diffusion-webui"
+      - name: InvokeAI
+        positioning: "Commercial-leaning OSS — opinionated UX, canvas-first workflow, paid hosted tier, OSS core."
+        primary_url: "https://invoke-ai.github.io/InvokeAI/"
+      - name: Fooocus
+        positioning: "Opinionated single-button SDXL pipeline — Midjourney-like ergonomics, hidden complexity, no node graph."
+        primary_url: "https://github.com/lllyasviel/Fooocus"
+      - name: Replicate (cloud API)
+        positioning: "Pay-per-second managed inference for community models — image gen, audio, video. The OSS-models-on-someone-else's-GPU option."
+        primary_url: "https://replicate.com/docs"
+      - name: Midjourney / DALL-E / Stability API (cloud, closed)
+        positioning: "Managed, closed-weight image-gen APIs — best-in-class aesthetics, no infra, no node graph, no weights you can pull. The 'just use the API' null hypothesis."
+        primary_url: "https://docs.midjourney.com/"
+      ```
+
+      Frank's case study is ComfyUI on a custom CUDA 12.8 image, deployed
+      as `replicas: 0` and woken via the GPU Switcher. The other five exist
+      so §3 can compare architectures and §6 can branch the decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values.
+
+      Required coverage: vendor architecture docs, at least one foundational
+      paper, and at least one real-world postmortem. URL hints to chase:
+
+      1. ComfyUI docs / GitHub README — type: `vendor-docs`
+         (https://docs.comfy.org/ and https://github.com/comfyanonymous/ComfyUI)
+      2. Stable Diffusion paper (Rombach et al. 2022, "High-Resolution Image
+         Synthesis with Latent Diffusion Models") — type: `paper`
+         (https://arxiv.org/abs/2112.10752)
+      3. An SD vs Flux benchmark from a vendor or independent third party —
+         type: `benchmark` (e.g., BFL Flux release notes, Civitai community
+         benchmarks, or a vendor-published seconds-per-image comparison)
+      4. A real-world ComfyUI-on-Kubernetes deployment writeup or
+         community thread — type: `postmortem` or `talk`
+      5. Frank's gpu-1 specifics + GPU-switcher mechanics — type:
+         `postmortem` (https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/gpu-1.md
+         and the gpu-switcher source at
+         https://github.com/derio-net/frank/tree/main/apps/gpu-switcher/app)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values.
+
+      Pull directly from the cluster repo. Suggested artefacts (the
+      dossier-construction subagent picks the final list, but at least
+      these are known to exist):
+
+      1. `kind: yaml` — `apps/comfyui/values.yaml` + `apps/comfyui/manifests/deployment.yaml`
+         — the ComfyUI deployment with `replicas: 0` (woken by Switcher),
+         `image: ghcr.io/derio-net/comfyui:comfyui-v0.9.2-pt2.10.0-cu128`,
+         `nvidia.com/gpu: 1` request, `nodeSelector: gpu-1`, defensive
+         `nvidia.com/gpu:NoSchedule` toleration, `fsGroup: 1000`.
+         `demonstrates: "Why ComfyUI ships at zero replicas and is woken by an external controller — single consumer GPU cannot host LLM + diffusion model concurrently."`
+
+      2. `kind: yaml` — `apps/comfyui/docker/Dockerfile` — the custom CUDA
+         12.8 base image with PyTorch 2.10.0+cu128, ComfyUI v0.9.2,
+         ComfyUI-Manager 4.x as a pip package (NOT in custom_nodes/),
+         uid 1000:1000 non-root.
+         `demonstrates: "Why off-the-shelf ai-dock/comfyui:latest-cuda had to be replaced — broken Caddy template, wrong env var names, supervisord with cloudflared+SSH+Jupyter, ComfyUI v0.2.2 unable to load Flux, PyTorch 2.4.1+cu121 with no sm_120 Blackwell support."`
+
+      3. `kind: yaml` — `apps/gpu-switcher/app/main.go` + `apps/gpu-switcher/manifests/deployment.yaml`
+         — the Go HTTP service that scales Ollama and ComfyUI Deployments
+         between 0 and 1 to enforce single-GPU exclusivity. API contract:
+         `POST /api/activate/{ollama|comfyui}` and `POST /api/deactivate`.
+         `demonstrates: "How a 150-line Go service replaces K8s primitives that don't exist for single consumer GPUs — no Time-Slicing, no MIG, no 'schedule this OR that, never both'. The Switcher is the smallest possible workaround."`
+
+      4. `kind: incident` — the Ollama "system memory" misdiagnosis (from
+         `docs/runbooks/frank-gotchas/gpu-1.md`) — `OLLAMA_KEEP_ALIVE=24h`
+         page cache pinned container cgroup RAM near `resources.limits.memory`
+         ceiling so a 15 GB model failed to load with ~15 GB of VRAM free.
+         `demonstrates: "GPU contention isn't only about VRAM — cgroup RAM, container limits, and PVC mount order all surface as 'GPU' errors when a workload shares a node."`
+
+      5. `kind: grafana-screenshot` OR `kind: asciinema` — a capture of the
+         GPU switch in action (Ollama `replicas: 1 → 0`, then ComfyUI
+         `replicas: 0 → 1`), or a generated ComfyUI image used inline as
+         §5 evidence.
+
+      6. `kind: incident` — the custom-image migration (`ai-dock` → `derio-net/comfyui`)
+         from the spec at
+         `docs/superpowers/specs/2026-03-16--media--comfyui-custom-image-design.md`.
+         `demonstrates: "Seven concrete problems with the stock image — broken Caddy proxy, wrong env var names (COMFYUI_ARGS not COMFYUI_FLAGS), outdated ComfyUI v0.2.2, outdated PyTorch 2.4.1+cu121 with no sm_120 for RTX 5070 Ti, outdated Manager v2.51.2, permission mismatch — none patchable, all solved by a 60-line custom Dockerfile."`
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument.
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No public benchmark exists for seconds-per-image at SDXL or
+        FLUX-dev settings on a 16 GB consumer GPU that is concurrently
+        hosting (or contended with) a 7B-parameter LLM. Vendor benchmarks
+        (BFL Flux release notes, Civitai comparisons, Stability throughput
+        charts) all assume a dedicated GPU — usually an H100 or an
+        RTX 4090 with no other workloads. The bundled cost of GPU sharing
+        — cold-start time when ComfyUI swaps in for Ollama, VRAM
+        fragmentation, the cgroup-RAM ceiling — is rarely measured. This
+        gap matters because the homelab / startup audience is exactly the
+        cohort that runs one consumer GPU for both inference and image
+        generation, and they have no apples-to-apples seconds-per-image
+        number to anchor expectations against."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "Midjourney costs $10/month, requires zero infrastructure, and
+        produces aesthetically superior images out of the box for most
+        prompts. DALL-E 3 ships inside ChatGPT for $20/month and is
+        equally hands-off. Why does Frank self-host? Three honest answers:
+        (1) data sovereignty — prompts and reference images stay on Frank,
+        not Midjourney's training pipeline; (2) learning value — every
+        scar in §5 (GPU contention, custom-image build, cgroup-RAM
+        misdiagnosis) is a lesson the API hides; (3) ComfyUI's node graph
+        is a programmable workflow artefact — LoRA stacking, custom
+        samplers, region-conditioning, ControlNet chains, inpainting at
+        specific denoising strengths — these are things an API
+        fundamentally cannot expose because they collapse the workflow
+        into a JSON request. The counter-argument wins for users who
+        want a single image per session; it loses for users who want the
+        workflow itself as the durable artefact."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -401,3 +401,4 @@ Phase 0 done → Paper 00 dossier → Paper 00 draft → publish → Phase 1 ope
 | The Frank Papers — Paper 03: eBPF Networking Without a Service Mesh | derio-net/frank | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-03/` | Complete (2026-05-20) — PR open for review |
 | The Frank Papers — Paper 17: Agentic Orchestration & Safe Agent Workstations | derio-net/frank | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-17/` | Complete (2026-05-20) — PR open for review |
 | The Frank Papers — Paper 09: Secrets Management Without the Bootstrap Chicken-and-Egg | derio-net/frank | `docs/superpowers/plans/2026-05-20--repo--frank-papers-paper-09/` | Complete (2026-05-20) — PR open for review |
+| The Frank Papers — Paper 16: Self-Hosted Media Generation | derio-net/frank | `docs/superpowers/plans/2026-05-22--repo--frank-papers-paper-16/` | Drafting (2026-05-22) — plan only; PR open for review |

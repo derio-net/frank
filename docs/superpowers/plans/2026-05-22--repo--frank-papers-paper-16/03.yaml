@@ -1,0 +1,502 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Scaffold + draft
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update frontmatter in `blog/content/docs/papers/16-media-generation/index.md`
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Fill the Paper 16 frontmatter.
+
+      Update `blog/content/docs/papers/16-media-generation/index.md`
+      frontmatter:
+
+      ```yaml
+      ---
+      title: "Self-Hosted Media Generation"
+      date: <today>
+      draft: true
+      weight: 16
+      series: papers
+      layer: media
+      paper_number: 16
+      publish_order: 15
+      status: drafting
+      tldr: |
+        TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+      tags: ["media", "comfyui", "stable-diffusion", "flux", "gpu", "kubernetes"]
+      capabilities: ["media"]
+      related_building: "docs/building/16-media-generation"
+      related_operating: "docs/operating/10-media-generation"
+      references: []
+      ---
+      ```
+
+      Note: `weight: 16` matches paper_number for TOC order.
+      `publish_order: 15` reflects Paper 16's slot in the Phase-1
+      publish sequence of 19 papers.
+- number: 2
+  title: Create `data/vendors.yaml` for the capability matrix
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Author the data file `data/vendors.yaml` used by
+      `{{< papers/capability-matrix >}}` in §2.
+
+      Create `blog/content/docs/papers/16-media-generation/data/vendors.yaml`:
+
+      ```yaml
+      features:
+        - key: self_hosted
+          label: Self-hosted
+        - key: node_graph
+          label: Node-graph workflow
+        - key: webui
+          label: Web UI
+        - key: opinionated
+          label: Opinionated pipeline
+        - key: lora_stacking
+          label: LoRA / ControlNet stacking
+        - key: api_compatible
+          label: OpenAI / REST API
+        - key: gpu_sharing
+          label: Handles GPU sharing
+        - key: oss
+          label: OSS / no contract required
+      vendors:
+        - name: ComfyUI
+          features:
+            self_hosted: "yes"
+            node_graph: "yes"
+            webui: "yes"
+            opinionated: "no"
+            lora_stacking: "yes"
+            api_compatible: "partial"
+            gpu_sharing: "no"
+            oss: "yes"
+        - name: AUTOMATIC1111
+          features:
+            self_hosted: "yes"
+            node_graph: "no"
+            webui: "yes"
+            opinionated: "no"
+            lora_stacking: "yes"
+            api_compatible: "yes"
+            gpu_sharing: "no"
+            oss: "yes"
+        - name: InvokeAI
+          features:
+            self_hosted: "yes"
+            node_graph: "partial"
+            webui: "yes"
+            opinionated: "yes"
+            lora_stacking: "yes"
+            api_compatible: "yes"
+            gpu_sharing: "no"
+            oss: "partial"
+        - name: Fooocus
+          features:
+            self_hosted: "yes"
+            node_graph: "no"
+            webui: "yes"
+            opinionated: "yes"
+            lora_stacking: "partial"
+            api_compatible: "no"
+            gpu_sharing: "no"
+            oss: "yes"
+        - name: Replicate (cloud)
+          features:
+            self_hosted: "no"
+            node_graph: "no"
+            webui: "yes"
+            opinionated: "partial"
+            lora_stacking: "partial"
+            api_compatible: "yes"
+            gpu_sharing: "yes"
+            oss: "no"
+        - name: Midjourney / DALL-E
+          features:
+            self_hosted: "no"
+            node_graph: "no"
+            webui: "yes"
+            opinionated: "yes"
+            lora_stacking: "no"
+            api_compatible: "partial"
+            gpu_sharing: "yes"
+            oss: "no"
+      ```
+
+      Polarity check: "yes" = the option HAS that feature. For
+      `gpu_sharing`, "yes" = the option handles GPU sharing
+      transparently (i.e., the user does not have to think about it —
+      cloud APIs trivially yes, ComfyUI/A1111/etc trivially no, the
+      user has to build their own Switcher).
+- number: 3
+  title: Draft all sections in order
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Draft §1 — The capability (200–350 words) + stack-position diagram.
+
+      The opening question: *if you want to generate images (or video,
+      or audio) on your own infrastructure — and you've got exactly one
+      consumer-grade GPU you also use for LLM inference — what wins,
+      and what's the cost of sharing?* Position media-generation in
+      the stack: above the GPU device + driver layer, below the
+      workflow / business-logic layer, sibling to LLM inference (with
+      which it competes for the GPU). Acknowledge that "media
+      generation" is doing several jobs at once — model loading,
+      sampling, VAE decode, post-processing, GPU lifetime management —
+      and the vendor space splits on which of those jobs each option
+      treats as primary.
+
+      Voice: Frank speaks as the cluster. No hedging. The single-GPU
+      contention is real, and pretending it isn't is what gets your
+      ComfyUI pod OOM-killed at 3 a.m.
+
+      Include one `flowchart LR` Mermaid diagram showing the stack
+      position and the five jobs media generation does:
+
+      ```
+      flowchart LR
+          P["Prompt / workflow"] --> F["Image-gen frontend (ComfyUI / A1111 / etc)"]
+          F --> ML["Model load"]
+          F --> SA["Sampling"]
+          F --> VAE["VAE decode"]
+          F --> PP["Post-processing"]
+          F --> GPU["GPU lifecycle (sharing / cold-start)"]
+          GPU -.-> SW["GPU Switcher / API"]
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Draft §2 — The landscape (400–600 words) + landscape quadrant
+      + capability matrix.
+
+      Map the six vendors against two axes. Use `{{< papers/landscape >}}`:
+
+      ```
+      {{< papers/landscape axes="x:cloud-managed↔self-hosted,y:opinionated-UX↔node-graph-power" >}}
+          quadrantChart
+              title Media generation — 2026
+              x-axis Cloud managed --> Self-hosted
+              y-axis Opinionated UX --> Node-graph power
+              quadrant-1 "Self-hosted · Node-graph"
+              quadrant-2 "Cloud · Node-graph"
+              quadrant-3 "Cloud · Opinionated"
+              quadrant-4 "Self-hosted · Opinionated"
+              ComfyUI: [0.90, 0.95]
+              AUTOMATIC1111: [0.85, 0.55]
+              InvokeAI: [0.75, 0.45]
+              Fooocus: [0.85, 0.10]
+              Replicate (cloud): [0.20, 0.40]
+              Midjourney / DALL-E: [0.05, 0.05]
+      {{< /papers/landscape >}}
+      ```
+
+      Then the dense comparison via `{{< papers/capability-matrix >}}`:
+
+      ```
+      {{< papers/capability-matrix data="vendors" >}}
+      ```
+
+      Prose budget: 400–600 words. For each option, name what it
+      optimises for in one phrase ("ComfyUI: every step of the
+      diffusion pipeline is a node you wire by hand"; "Midjourney:
+      zero infrastructure, best-in-class aesthetics, your prompts
+      in someone else's training pipeline") and what it gives up
+      to get there. Use `{{< papers/pullquote source="..." url="..." >}}`
+      for at least one direct quote pulled from the dossier (likely
+      the SD paper or the ComfyUI docs).
+  - id: P3.T3.S3
+    text: |-
+      Draft §3 — How each option handles the hard part (800–1400 words).
+
+      The hard part: *expressing a non-trivial image-generation
+      workflow (model + sampler + LoRA + ControlNet + post-processing)
+      without losing reproducibility or having to write Python.*
+      Every option has a different answer; this section lays them
+      out side-by-side with one `flowchart TD` per vendor in a shared
+      visual language.
+
+      Suggested shapes (reuse across all diagrams):
+      - Squares = controllers / processes
+      - Rounded rectangles = artefacts (image, prompt, JSON)
+      - Diamonds = decision points / branches
+      - Cylinders = persistent storage (model weights, output dir)
+      - Dashed edges = optional / config paths
+      - Solid edges = sample-time / inference paths
+
+      Four-to-six architecture diagrams (one per vendor in the
+      landscape that has a meaningfully different answer). Skip
+      Midjourney/DALL-E as a separate diagram — collapse it into
+      the cloud-API "post a JSON" model (which is the §6 punchline).
+
+      Example for ComfyUI:
+
+      ```
+      flowchart TD
+          P["Prompt"] --> CL["CLIP encode node"]
+          CL --> KS["KSampler node"]
+          CK[("Checkpoint loader")] --> KS
+          LORA[("LoRA loader")] -.-> KS
+          CN[("ControlNet loader")] -.-> KS
+          KS --> LAT["Latent"]
+          LAT --> VAE["VAE decode node"]
+          VAE --> IMG{{"Output image"}}
+          MOD[("/app/models PVC")] --> CK
+          MOD --> LORA
+          MOD --> CN
+      ```
+
+      For each diagram include 80–200 words of prose: what the
+      controller does at runtime, how the workflow is expressed
+      (graph vs tabs vs single button vs JSON), what the failure
+      mode is when a step fails (missing LoRA, VRAM exhaustion,
+      sampler divergence).
+  - id: P3.T3.S4
+    text: |-
+      Draft §4 — What scale changes (300–600 words) + benchmark callouts.
+
+      Three scale axes that flip vendor rankings:
+
+      1. **Image complexity / model size.** SD 1.5 fits in 6 GB and
+         runs anywhere. SDXL needs 10–12 GB. FLUX-dev needs 12–24 GB
+         depending on quantisation. Once the model crosses the
+         GPU's VRAM ceiling, "self-hosted" stops meaning anything
+         at all — you're either swapping to disk (orders of
+         magnitude slower) or you're on a cloud API.
+
+      2. **GPU contention.** Dedicated GPU: every option is fine.
+         Shared with LLM inference: only options with explicit
+         start/stop hooks survive. K8s primitives don't help —
+         `nvidia.com/gpu: 1` is binary, Time-Slicing is enterprise-
+         only with NVIDIA Operator, MIG doesn't exist on consumer
+         GPUs. You build your own scheduler (Frank's GPU Switcher
+         is 150 lines of Go) or you pick the cloud.
+
+      3. **Workflow programmability.** Single image per session:
+         any frontend wins, and Midjourney's aesthetics win on
+         quality. Repeatable workflows (same LoRA stack, same
+         ControlNet, same prompt grid across 200 images): only
+         ComfyUI's node graph survives — workflows export as JSON,
+         version in git, replay on any instance.
+
+      Cite ≥2 primary sources from the dossier (SD paper for
+      VRAM-vs-resolution scaling, BFL Flux release for the SDXL→FLUX
+      VRAM ceiling jump). Do not editorialize past what the
+      citations support.
+  - id: P3.T3.S5
+    text: |-
+      Draft §5 — Frank's choice, and what happened (300–600 words) +
+      scar callouts.
+
+      Frank chose ComfyUI on a custom CUDA 12.8 image, deployed as
+      `replicas: 0` on `gpu-1` (RTX 5070 Ti, 16 GB GDDR7), woken
+      by a small Go service called the GPU Switcher at
+      `192.168.55.214`. The full chain: a custom Dockerfile
+      (`apps/comfyui/docker/Dockerfile`) on `nvidia/cuda:12.8.0-devel-
+      ubuntu22.04` with PyTorch 2.10.0+cu128 and ComfyUI v0.9.2;
+      two PVCs (`comfyui-models` for checkpoints/LoRAs/VAEs, `comfyui-
+      custom-nodes` for Manager-installed nodes); the Switcher service
+      at `apps/gpu-switcher/` with `POST /api/activate/{ollama|comfyui}`
+      and `POST /api/deactivate`. The scars came in the seams.
+
+      Use 1–3 `{{< papers/scar >}}` callouts. Authoritative options
+      from the gotcha registry and the comfyui design spec:
+
+      Scar 1 — the ai-dock image abandonment:
+      ```
+      {{< papers/scar date="2026-03-16" >}}
+      We started on `ghcr.io/ai-dock/comfyui:latest-cuda` because
+      it shipped. Then we found the Caddy template substitution
+      silently failed — port 8188 was never proxied to internal
+      18188 — and the env var was `COMFYUI_ARGS` (not
+      `COMFYUI_FLAGS` as documented), and supervisord was running
+      cloudflared + SSH + Jupyter + Syncthing + Caddy + a service
+      portal inside the container, and ComfyUI was pinned to v0.2.2
+      (September 2024) which can't load Flux, and PyTorch was
+      2.4.1+cu121 which has no sm_120 support for the RTX 5070 Ti.
+      Seven independent issues, none patchable. We wrote a 60-line
+      Dockerfile on `nvidia/cuda:12.8.0-devel-ubuntu22.04`, one
+      process, two PVCs, and stopped fighting an image whose
+      assumptions we did not share.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 2 — GPU contention with Ollama:
+      ```
+      {{< papers/scar date="2026-03-14" >}}
+      `nvidia.com/gpu: 1` is a binary resource in Kubernetes.
+      There is no "schedule this OR that, never both" primitive.
+      Time-Slicing is enterprise-only with the NVIDIA GPU Operator.
+      MIG doesn't exist on consumer GPUs — RTX 5070 Ti has no MIG
+      partitions. So the cluster will happily schedule Ollama AND
+      ComfyUI on the same GPU until one of them OOMs out of VRAM.
+      The fix: both Deployments ship at `replicas: 0`, and a
+      150-line Go service called the GPU Switcher exposes
+      `POST /api/activate/{ollama|comfyui}` — scale one to 1,
+      scale the other to 0, never both. A dropdown on
+      192.168.55.214 is the entire user interface. The Switcher
+      is the smallest workaround for a primitive K8s does not
+      provide.
+      {{< /papers/scar >}}
+      ```
+
+      Scar 3 — "system memory" misdiagnosed as VRAM:
+      ```
+      {{< papers/scar date="2026-03-19" >}}
+      Ollama returned `model requires more system memory (15 GiB)
+      than is available (837 MiB)` and `nvidia-smi` showed ~15 GB
+      of VRAM free. We assumed VRAM exhaustion. It wasn't.
+      `OLLAMA_KEEP_ALIVE=24h` page cache from a previously-loaded
+      model had pinned the *container cgroup* RAM near
+      `resources.limits.memory: 32Gi`. The Ollama container was
+      at 31/32 GiB system RAM; "system memory" in the error
+      message meant cgroup-allocated RAM, not GPU VRAM. Reducing
+      `num_ctx` did not help — the bottleneck is at-load working
+      buffers, not steady-state KV cache. Fix: bump
+      `resources.limits.memory` to 64 GiB. The lesson for image
+      generation: GPU contention isn't only about VRAM. Cgroup
+      RAM, container limits, and PVC mount order all surface as
+      "GPU" errors when a workload shares a node with another
+      heavyweight GPU consumer.
+      {{< /papers/scar >}}
+      ```
+
+      Pick 2-3 scars from the above. Real dates only — cross-reference
+      against the comfyui design spec
+      (`docs/superpowers/specs/2026-03-16--media--comfyui-custom-image-design.md`)
+      and `docs/runbooks/frank-gotchas/gpu-1.md`.
+
+      Include ≥1 evidence artefact: either a generated ComfyUI image
+      inline (meta — the Paper exists because Frank can generate
+      this Paper's own cover via ComfyUI), or `apps/gpu-switcher/app/main.go`
+      inlined as a code block, or the Grafana / asciinema capture
+      of the GPU switch in action.
+  - id: P3.T3.S6
+    text: |-
+      Draft §6 — When Frank's answer doesn't generalize (200–400 words)
+      + decision tree.
+
+      Be explicit about the four leaves. Frank's answer is one leaf;
+      the others are real:
+
+      ```
+      flowchart TD
+          A["Single image, best aesthetics, zero infra?"] -- "Yes" --> L1["Midjourney / DALL-E"]
+          A -- "No" --> B["Need programmable workflow (LoRA stack, ControlNet chain, JSON-versioned)?"]
+          B -- "No, just a web UI" --> L2["AUTOMATIC1111 or Fooocus"]
+          B -- "Yes" --> C["Dedicated GPU, or shared with LLM?"]
+          C -- "Dedicated GPU" --> L3["ComfyUI on its own GPU"]
+          C -- "Shared with LLM" --> L4["ComfyUI + GPU Switcher (Frank's pick)"]
+      ```
+
+      ≤4 visible leaves. The decision turns on three questions:
+      *do you want a single image or a repeatable workflow* (single
+      image: cloud wins), *do you need the node graph* (no: A1111
+      or Fooocus), *is the GPU dedicated or shared* (shared: you
+      build or borrow a Switcher). The dedicated-GPU leaf is the
+      common "ML team has a workstation" case; the
+      shared-with-LLM leaf is Frank.
+  - id: P3.T3.S7
+    text: |-
+      Draft §7 — Roadmap & where this space is going (200–400 words).
+
+      Three trends worth naming:
+
+      1. **Diffusion models are getting bigger faster than consumer
+         VRAM is growing.** SD 1.5 was 6 GB. SDXL is 10–12 GB.
+         FLUX-dev is 12–24 GB. SD 3.5 large is 24 GB+. The
+         consumer GPU ceiling is 24 GB (RTX 4090, RTX 5090). In
+         18 months the OSS-on-consumer-hardware story may require
+         quantisation that costs visible quality — at which point
+         the cloud-API value proposition strengthens.
+
+      2. **Node-graph workflows are eating the frontend tier.**
+         ComfyUI's design is winning adoption across the ecosystem
+         — InvokeAI added a partial node mode, even Fooocus has
+         an "advanced" tab now. The Stable Diffusion API may
+         eventually be JSON-encoded ComfyUI workflows; the
+         programmable-workflow-as-artefact pattern is too useful
+         to remain niche.
+
+      3. **GPU sharing across heterogeneous workloads is still
+         unsolved at the K8s primitive level.** NVIDIA Time-Slicing
+         works for homogeneous inference; it does not help when
+         one workload wants 16 GB of VRAM for 30 seconds and the
+         other wants 14 GB continuously. Expect a wave of
+         community Switcher-like tools (queue-based, declarative,
+         capacity-aware) over the next 12 months. Frank's 150-line
+         Go service is the simplest possible version; the
+         sophisticated version is still being written.
+
+      Optional timeline diagram or roadmap citations. Cite the
+      dossier where possible.
+  - id: P3.T3.S8
+    text: |-
+      Verify draft word count is within budget (2400–4200 words for
+      a capability paper).
+
+      ```bash
+      # Count words in the paper body (excluding frontmatter)
+      awk '/^---/{n++; if(n==2) found=1; next} found' \
+        blog/content/docs/papers/16-media-generation/index.md \
+        | wc -w
+      ```
+
+      Expected: 2400–4200 words. If under, expand §3 (per-vendor
+      architecture is the section with most room to grow). If
+      over, trim §3 first — that's where capability papers
+      reliably sprawl past budget.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S8:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
