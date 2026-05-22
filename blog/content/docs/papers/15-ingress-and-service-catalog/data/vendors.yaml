@@ -1,0 +1,88 @@
+features:
+  - key: k8s_native_crd
+    label: K8s-native CRD (vs annotations)
+  - key: forward_auth
+    label: Forward-auth middleware
+  - key: native_oidc_sdk
+    label: Per-app OIDC SDK
+  - key: mesh_mtls
+    label: East-west mTLS / AuthZ
+  - key: gateway_api
+    label: Gateway API support
+  - key: built_in_acme
+    label: Built-in ACME / cert mgmt
+  - key: static_catalogue
+    label: Static-config catalogue
+  - key: oss
+    label: OSS / no contract required
+vendors:
+  - name: Traefik + Authentik forward-auth
+    features:
+      k8s_native_crd: "yes"
+      forward_auth: "yes"
+      native_oidc_sdk: "partial"
+      mesh_mtls: "no"
+      gateway_api: "yes"
+      built_in_acme: "yes"
+      static_catalogue: "no"
+      oss: "yes"
+  - name: Nginx Ingress + oauth2-proxy
+    features:
+      k8s_native_crd: "partial"
+      forward_auth: "yes"
+      native_oidc_sdk: "partial"
+      mesh_mtls: "no"
+      gateway_api: "partial"
+      built_in_acme: "no"
+      static_catalogue: "no"
+      oss: "yes"
+  - name: Envoy / Contour (Gateway API)
+    features:
+      k8s_native_crd: "yes"
+      forward_auth: "yes"
+      native_oidc_sdk: "no"
+      mesh_mtls: "partial"
+      gateway_api: "yes"
+      built_in_acme: "no"
+      static_catalogue: "no"
+      oss: "yes"
+  - name: Per-app OIDC SDK only
+    features:
+      k8s_native_crd: "no"
+      forward_auth: "no"
+      native_oidc_sdk: "yes"
+      mesh_mtls: "no"
+      gateway_api: "no"
+      built_in_acme: "no"
+      static_catalogue: "no"
+      oss: "yes"
+  - name: Service mesh mTLS (Istio / Linkerd)
+    features:
+      k8s_native_crd: "yes"
+      forward_auth: "partial"
+      native_oidc_sdk: "no"
+      mesh_mtls: "yes"
+      gateway_api: "yes"
+      built_in_acme: "partial"
+      static_catalogue: "no"
+      oss: "yes"
+  - name: Homepage (gethomepage.dev)
+    features:
+      k8s_native_crd: "no"
+      forward_auth: "no"
+      native_oidc_sdk: "no"
+      mesh_mtls: "no"
+      gateway_api: "no"
+      built_in_acme: "no"
+      static_catalogue: "yes"
+      oss: "yes"
+  - name: Cloudflare Access (off-cluster)
+    features:
+      k8s_native_crd: "no"
+      forward_auth: "yes"
+      native_oidc_sdk: "no"
+      mesh_mtls: "no"
+      gateway_api: "no"
+      built_in_acme: "yes"
+      static_catalogue: "partial"
+      oss: "no"
