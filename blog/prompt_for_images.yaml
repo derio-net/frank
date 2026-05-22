@@ -681,6 +681,31 @@ images:
       Frank. Framing communicates "named chain of custody," not
       "secrets are solved".
 
+  - key: paper-01-cover
+    torso_variant: 1
+    mood: curious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-sleeves-up-black-tie-1.png
+    output: blog/content/docs/papers/01-heterogeneous-hardware/cover.png
+    description: Paper 01 cover — Frank examining a workbench scattered with mismatched hardware (RPi next to RTX 5070 Ti, Mac mini stacked on beige tower)
+    prompt: >-
+      Frank stands at a cluttered workbench, examining a deliberately
+      mismatched pile of hardware spread across the surface. In the
+      foreground: a small Raspberry Pi 4 board, a large discrete
+      graphics card with prominent triple-fan shroud and "RTX 5070 Ti"
+      suggested in micro-text on the side, a slim aluminium
+      Intel-NUC-style mini-PC, and a beige tower-case desktop visibly
+      older than the others (textured beige plastic, drive bays
+      showing). The mini-PC sits stacked precariously on top of the
+      beige tower. Frank holds a small caliper or measuring instrument
+      in one hand, head tilted as he considers the arrangement.
+      Expression: curious, weighing — the look of a decision-maker
+      comparing options, not assembling them. Thin round reading
+      glasses resting low on his nose, thin black necktie over a white
+      shirt with sleeves rolled up. Warm overhead lamp on a dark studio
+      background. No text in the image other than the faint device
+      markings.
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
