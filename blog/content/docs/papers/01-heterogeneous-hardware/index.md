@@ -1,15 +1,31 @@
 ---
 title: "Heterogeneous Hardware as a Design Choice"
 date: 2026-05-22
-draft: true
+draft: false
 weight: 1
 series: ["papers"]
 layer: hw
 paper_number: 1
 publish_order: 17
-status: drafting
+status: published
 tldr: |
-  TODO: Three-paragraph exec summary, ≤150 words. Write this last.
+  Same boxes or different boxes? Six fleet shapes split on that
+  one question — all-RPi, all-NUC, heterogeneous bare metal,
+  edge+core, single beefy server + VMs, full-cloud
+  node-pool-per-shape — and on which job each prizes: operator
+  cost, learning surface, capacity, failure isolation, workload
+  specialisation.
+
+  Frank picked heterogeneous bare metal: 3× Intel Ultra 5 minis,
+  1× i9/RTX 5070 Ti, 1× 2013 Z77/i5-3570K, 2× RPi 4. The scars:
+  pc-1's PSU browned out for 33 days under transient load
+  (245-line investigation, PSU swap), gpu-1's network namespace
+  silently breaks `kubectl port-forward`, the Intel iGPU needed a
+  vendored DRA chart for K8s 1.35.
+
+  Frank's leaf isn't universal. Production-SRE jobs should
+  homogenise; homelab-as-software should pick single-beefy+VMs;
+  regulated SaaS should pick full-cloud. See §6.
 tags: ["hardware", "heterogeneous", "node-pools", "kubernetes", "talos", "raspberry-pi", "gpu"]
 capabilities: ["hw"]
 related_building: "docs/building/01-introduction"
@@ -40,7 +56,22 @@ references:
 
 ## TL;DR
 
-*Write last.*
+Same boxes or different boxes? Six fleet shapes split on that one
+question — all-RPi, all-NUC, heterogeneous bare metal, edge+core,
+single beefy server + VMs, full-cloud node-pool-per-shape — and on
+which job each prizes: operator cost, learning surface, capacity,
+failure isolation, workload specialisation.
+
+Frank picked heterogeneous bare metal: 3× Intel Ultra 5 minis,
+1× i9/RTX 5070 Ti, 1× 2013 Z77/i5-3570K, 2× RPi 4. The scars: pc-1's
+PSU browned out for 33 days under transient load (245-line
+investigation, PSU swap), gpu-1's network namespace silently breaks
+`kubectl port-forward`, the Intel iGPU needed a vendored DRA chart
+for K8s 1.35.
+
+Frank's leaf isn't universal. Production-SRE jobs should homogenise;
+homelab-as-software should pick single-beefy+VMs; regulated SaaS
+should pick full-cloud. See §6.
 
 ## §1 — The capability
 

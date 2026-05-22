@@ -141,34 +141,47 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T21:00:57+00:00'
+      note: 'Voice pass by execution agent: Frank speaks as the cluster throughout
+        (§5 uses first-person ''I chose heterogeneous bare metal''; §1 uses ''A homogeneous
+        fleet … lets the scheduler treat nodes as a fungible pool''). All three scar
+        dates cross-checked against the pc-1 investigation (2026-05-07 PSU swap) and
+        gpu-1.md (2026-04-12 port-forward flake). Counter-argument addressed directly
+        in §5 first paragraph and §6 first leaf — homogenise is treated as right for
+        production-SRE jobs, not strawmanned. Single-beefy+VMs and full-cloud leaves
+        treated as legitimate in §6. §3 architecture diagrams share visual language
+        (squares=physical, rounded=K8s primitives, diamonds=scheduler decisions, cylinders=fleet
+        state, dashed=provisioning, solid=runtime). §6 decision tree has exactly 4
+        leaves.'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:00:58+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:01:00+00:00'
       note: null
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:01:02+00:00'
       note: null
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:01:04+00:00'
       note: null
     P5.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:01:05+00:00'
       note: null
     P5.T2.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T21:01:07+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T21:01:09+00:00'
+    note: 'Manual phase 5 completed by execution agent: voice pass clean, TL;DR written
+      (116 words, ≤150 budget), dossier gate passes, hugo --minify (no --buildDrafts)
+      renders the paper (draft: false works), zero ERROR lines, zero inline dossier-link
+      uses so no double-render risk.'
     observed_prs: []
