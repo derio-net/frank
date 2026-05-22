@@ -1,0 +1,284 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 01 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 01 heterogeneous-hardware
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 01:
+        Hugo bundle:  blog/content/docs/papers/01-heterogeneous-hardware/
+        Dossier:      docs/papers-dossiers/01-heterogeneous-hardware/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/01-heterogeneous-hardware/index.md
+      ls docs/papers-dossiers/01-heterogeneous-hardware/dossier.md
+      ```
+- number: 2
+  title: Research the heterogeneous-hardware fleet-shape landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/01-heterogeneous-hardware/dossier.md` — fleet-shape vendors in scope
+
+
+      Paper 01 maps the *fleet-shape* vendor space rather than
+      a list of products. Each "vendor" is a deliberate fleet
+      pattern with documentable architecture, operator-cost
+      profile, and failure modes. Suggested six-shape landscape
+      (final list is the dossier-construction subagent's call
+      after research, but anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: All-RPi homelab (PiCluster / k3s on Pis)
+        positioning: "ARM-only, identical SBC fleet — cheapest entry, demonstrates clustering as a learning artefact; production unsuitable for anything CPU-heavy."
+        primary_url: "https://github.com/geerlingguy/turing-pi-cluster"
+      - name: All-NUC mini-fleet (Intel-shop standard)
+        positioning: "Identical x86 mini-PCs as a homogeneous fleet — single image, single driver matrix, single firmware story. The production-SRE default."
+        primary_url: "https://www.intel.com/content/www/us/en/products/details/nuc.html"
+      - name: Heterogeneous bare metal (Frank's choice)
+        positioning: "Deliberately mixed node classes — mini-PCs as control plane, gaming PC for GPU, RPi for low-power edge — to surface scheduler and operator-cost deltas under one cluster."
+        primary_url: "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/"
+      - name: Edge+core split (DCs + ROBO)
+        positioning: "Heterogeneous by topology, not by intent — beefy core fleet plus thin edge nodes (KubeEdge / OpenYurt / k3s edge agents) that connect over WAN."
+        primary_url: "https://kubeedge.io/docs/"
+      - name: Single beefy server + VMs (Proxmox + LXC)
+        positioning: "The homelab default — one large bare-metal host, VMs/LXC as fake nodes. Skips real-hardware heterogeneity at the cost of skipping the lessons it teaches."
+        primary_url: "https://pve.proxmox.com/wiki/Linux_Container"
+      - name: Full-cloud node-pool-per-shape (EKS Karpenter / GKE node pools)
+        positioning: "Heterogeneity outsourced — node shapes declared as Karpenter NodePool/NodeClass CRDs, cloud provisions on demand. Same scheduler problem, no hardware visible."
+        primary_url: "https://karpenter.sh/docs/concepts/"
+      ```
+
+      Frank's case study is the heterogeneous-bare-metal shape:
+      3× Intel Ultra 5 minis as control plane, 1× i9+RTX 5070
+      Ti as GPU worker, 1× Z77/i5-3570K as legacy worker, 2×
+      RPi 4 as edge workers. The other five exist in the
+      dossier so §3 can compare fleet-shape architectures and
+      §6 can branch the decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: at least one vendor-docs source per
+      scheduler primitive (node labels, taints, tolerations,
+      Karpenter NodePools, Cluster API MachineDeployments),
+      at least one heterogeneous-scheduling paper or talk
+      (HPC, edge, or k8s SIG-scheduling), at least one
+      real-world postmortem on small-scale heterogeneity, and
+      at least one Raspberry Pi K8s benchmark.
+
+      URL hints to chase:
+
+      1. Talos node-labels and scheduling docs — type: `vendor-docs`
+         (https://www.talos.dev/v1.10/kubernetes-guides/configuration/managing-nodes/)
+      2. Karpenter NodePool/NodeClass concepts — type: `vendor-docs`
+         (https://karpenter.sh/docs/concepts/nodepools/)
+      3. Cluster API MachineDeployments — type: `vendor-docs`
+         (https://cluster-api.sigs.k8s.io/user/concepts.html)
+      4. A KubeCon SIG-scheduling talk on heterogeneous-node
+         scheduling OR an HPC/edge paper on placement across
+         mixed node classes — type: `talk` or `paper`
+         (e.g. https://kccnceu2023.sched.com/ — search "heterogeneous")
+      5. Geerling/PiCluster K8s benchmark posts on RPi-only
+         fleets — type: `benchmark` or `talk`
+         (https://www.jeffgeerling.com/blog/2022/will-it-cluster-k3s-pi-4-cluster)
+      6. Frank's own running gotcha registry on gpu-1 + storage/
+         secrets/SSA + pc-1 reboot investigation — type:
+         `postmortem`
+         (https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md
+          and https://github.com/derio-net/frank/blob/main/docs/investigations/2026-05-11--hw--pc-1-reboot-investigation.md)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the
+      gate validator will probe them. Apply the 90-second
+      URL-recovery budget per dead URL (curl -sIL → web archive
+      → sibling source) before swapping a citation.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo, the gotcha registry,
+      and the investigations folder. Suggested artefacts (the
+      dossier-construction subagent picks the final list, but
+      at least these are known to exist):
+
+      1. `kind: yaml` — `agents/rules/frank-infrastructure.md`
+         (the seven-node table — 3× Intel Ultra 5 minis, 1×
+         i9+RTX 5070 Ti, 1× Z77/i5-3570K, 2× RPi 4) AND the
+         per-node Talos label patches under
+         `patches/phase01-node-config/03-labels-{mini-1,mini-2,
+         mini-3,gpu-1,pc-1,raspi-1,raspi-2}.yaml`.
+         `demonstrates: "How a deliberately heterogeneous fleet
+          is declared in Talos: one machine-config patch per
+          node, naming the role/zone/hardware class. The label
+          schema (kubernetes.io/role, frank/zone, frank/hardware)
+          is what every nodeSelector and Karpenter-like
+          provisioning would otherwise have to express in CRDs."`
+
+      2. `kind: yaml` — `patches/phase04-gpu/` (the NVIDIA GPU
+         operator wiring for gpu-1) AND `patches/phase05-mini-
+         config/` (the Intel iGPU DRA wiring for mini-1/2/3
+         with K8s 1.35 alpha DRA patches).
+         `demonstrates: "Two different GPU stories, in one
+          cluster, both declarative. The NVIDIA stack on gpu-1
+          runs nvidia-container-runtime as default; the Intel
+          iGPU stack on minis runs a vendored DRA driver chart
+          with K8s 1.35 patches. Each took its own integration
+          pass; neither was reusable for the other. That's the
+          heterogeneity tax in concrete form."`
+
+      3. `kind: incident` — the pc-1 reboot investigation.
+         Source:
+         `docs/investigations/2026-05-11--hw--pc-1-reboot-investigation.md`.
+         `demonstrates: "A 2013 Gigabyte Z77X-UD3H with an
+          i5-3570K and a 12-year-old PSU rebooting 7 times in
+          33 days. 245 lines of investigation across
+          VictoriaMetrics history, kernel ring buffer via
+          privileged debug pod, hardware DMI inventory, and
+          ECC absence — to land on 'the PSU was browning out
+          under transient load.' A homogeneous fleet of 2025
+          NUCs would not have surfaced this failure mode at all;
+          a learning cluster that includes pc-1 surfaces it
+          whether you wanted to learn it or not."`
+
+      4. `kind: incident` — the gpu-1 `kubectl port-forward`
+         CNI-netns flake. Source:
+         `docs/runbooks/frank-gotchas/gpu-1.md`.
+         `demonstrates: "Only gpu-1's network namespace exhibits
+          'failed to execute portforward in network namespace
+          cni-…: read: connection reset by peer'. Every
+          metric-scraping script that worked on minis had to
+          be rewritten as 'kubectl exec ... wget -qO-' for
+          gpu-1. A homogeneous fleet would not have this
+          per-host class of bug — and would not have taught
+          the engineer to write exec-based scrape scripts in
+          the first place."`
+
+      5. `kind: yaml` — the defensive
+         `nvidia.com/gpu:NoSchedule` toleration pattern on
+         every gpu-1 pod (ollama, n8n, openrgb, secure-agent-pod,
+         paperclip values.yaml). Cross-ref: `gpu-1.md` "NoSchedule
+         taint pattern (defensive even when the live taint list
+         is empty)".
+         `demonstrates: "Insurance against the GPU operator
+          re-asserting the taint on driver re-validation —
+          a failure mode you only know to defend against after
+          you have lived through it once. A homogeneous fleet
+          of identical GPU nodes would have either always-on
+          taints (simple) or never-on taints (simple); a fleet
+          with one GPU node and six non-GPU nodes has to manage
+          the window in which the taint flips and a pod
+          without the toleration gets evicted."`
+
+      6. `kind: commit` (optional) — the corrective commit on
+         `frank-infrastructure.md` changing pc-1 RAM from
+         64GB → 32GB after the DMI inventory in the pc-1
+         investigation. `demonstrates: "Heterogeneous fleets
+          also catch documentation drift. A homogeneous fleet
+          would have one row to maintain; Frank has seven, and
+          pc-1's was wrong in a way that only surfaced because
+          the investigation forced a hardware audit."`
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No published apples-to-apples benchmark of
+        operator-overhead-per-node-class exists at small scale
+        (5–20 nodes). Vendor comparisons cover per-node throughput
+        (CPU benchmarks, network throughput, GPU TFLOPS) and
+        single-dimension TCO models (cloud vs on-prem at fleet
+        size N). What the literature does not cover: how many
+        operator-hours per quarter does each additional *class*
+        of node cost — firmware-update hour, driver-matrix
+        hour, image multi-arch hour, per-class on-call paging
+        hour? Karpenter's own docs acknowledge the cost
+        implicitly ('use as few NodePools as possible') but
+        do not measure it. The closest analogue is the
+        SRE-book chapter on toil, applied per fleet partition;
+        no one has done that exercise for the heterogeneous-
+        homelab regime. Without that benchmark, the
+        homogeneous-fleet advice is asserted, not proven."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "Every production SRE will tell you to homogenize the
+        fleet. They are not wrong — for a fleet running one
+        workload at scale, identical hardware is cheaper to
+        operate, cheaper to debug, cheaper to plan capacity
+        for, and lets a single golden image cover every
+        machine. Why doesn't that win for Frank? Answer:
+        same shape as Paper 04/09. Frank is a learning
+        platform. The reason to run a mixed ARM-and-x86,
+        iGPU-and-dGPU, 2013-Z77-and-2025-Ultra-5 fleet under
+        one scheduler is to encounter the pc-1 PSU brown-out,
+        the gpu-1 port-forward CNI flake, the Intel iGPU DRA
+        wiring, the multi-arch image divergence — first-hand.
+        A team that has lived through these will recognize
+        the failure-mode signal in production; a team that
+        has only ever run identical NUCs will alert on the
+        wrong things. The counter-argument wins for the team
+        that has already paid the tuition (or for the team
+        whose primary job is shipping a product, not learning
+        infrastructure); for Frank, paying the tuition is the
+        point. There is also a third leaf — for the homelab
+        that doesn't want a real cluster, 'single beefy
+        server + VMs' is the rational choice — and a fourth
+        for 'just buy AWS', which is right for the team that
+        wants to skip the hardware question entirely."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
