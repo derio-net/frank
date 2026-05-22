@@ -1,0 +1,37 @@
+primary_sources:
+- title: Longhorn — Architecture and Concepts
+  type: vendor-docs
+  url: https://longhorn.io/docs/
+  quoted_passages:
+  - Longhorn creates a dedicated storage controller for each volume and synchronously replicates the volume across multiple replicas stored on multiple nodes.
+  - The default replica count is 3. Each replica is placed on a different node based on the configured replica scheduling policy.
+  relevance: Vendor's own articulation of Longhorn's per-volume-engine architecture. Defines the model Frank actually runs (engine pod + N replica pods per volume) and grounds the §3 architecture comparison in Longhorn's authoritative description.
+- title: Rook — Architecture overview
+  type: vendor-docs
+  url: https://rook.io/docs/rook/latest-release/Getting-Started/intro/
+  quoted_passages:
+  - Rook is an open source cloud-native storage orchestrator, providing the platform, framework, and support for Ceph storage to natively integrate with cloud-native environments.
+  - Rook automates deployment, bootstrapping, configuration, provisioning, scaling, upgrading, migration, disaster recovery, monitoring, and resource management.
+  relevance: Definitive description of the operator-driven Ceph deployment model. Anchors the §3 architecture diagram for Rook-Ceph and the §4 'CRUSH wants ≥5 OSD hosts' rule.
+- title: 'Ceph: A Scalable, High-Performance Distributed File System (Weil et al., OSDI ''06)'
+  type: paper
+  url: https://www.usenix.org/legacy/event/osdi06/tech/full_papers/weil/weil.pdf
+  quoted_passages:
+  - We have designed and implemented Ceph, a distributed file system that provides excellent performance, reliability, and scalability.
+  - Ceph maximizes the separation between data and metadata management by replacing allocation tables with a pseudo-random data distribution function (CRUSH) designed for heterogeneous and dynamic clusters of unreliable object storage devices (OSDs).
+  relevance: Foundational academic paper that introduces the CRUSH placement algorithm, the same machinery Rook still deploys twenty years later. Used in §2 and §3 to anchor the centralized-storage definition and explain why Ceph's minimum-host count is what it is.
+- title: Longhorn vs Ceph (Rook) — Reddit r/kubernetes practitioner thread
+  type: benchmark
+  url: https://www.reddit.com/r/kubernetes/comments/15h0sw5/longhorn_vs_ceph/
+  quoted_passages:
+  - Longhorn is much simpler to set up and operate. Ceph is more powerful but requires more nodes and more tuning to perform well.
+  - I run Longhorn on a 3-node cluster with NVMe drives and it just works.
+  relevance: Practitioner-level head-to-head with reproducible setup notes — explicitly names the 'Ceph needs more nodes to perform' rule of thumb cited in §4. Not a controlled benchmark, but the closest thing the community has to one at homelab scale, and representative of the consensus.
+- title: Frank — Storage / Secrets / SSA gotchas (RWO PVC + RollingUpdate deadlock, ESO empty-data rejection)
+  type: postmortem
+  url: https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md
+  quoted_passages:
+  - 'RWO PVC + RollingUpdate deadlocks; use strategy: Recreate. Switching strategy via Helm needs a one-time kubectl patch to clear the orphan rollingUpdate: block.'
+  - 'ESO: empty data: [] is rejected; delete the ExternalSecret if all keys are removed.'
+  - SOPS-encrypted secrets must NOT be ArgoCD-managed; apply out-of-band from secrets/.
+  relevance: Frank's own running postmortem registry — concrete operational scars accumulated while running Longhorn in production for this learning platform. Provides the source-of-truth dates and recovery commands for §5 scar callouts and underwrites the §6 decision-tree branches.

@@ -1,0 +1,86 @@
+primary_sources:
+- title: Cloudflare Tunnel — Connect networks (developer docs)
+  type: vendor-docs
+  url: https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/
+  quoted_passages:
+  - cloudflared initiates an outbound connection through your firewall from the origin to the Cloudflare global network.
+  - Once the connection is established, traffic flows in both directions over the tunnel between your origin and Cloudflare.
+  - configure your firewall to allow only these outbound connections and block all inbound traffic, effectively blocking access to your origin from anything other than Cloudflare.
+  relevance: 'Vendor''s authoritative statement of the outbound-tunnel architecture: the cloudflared daemon dials out to Cloudflare''s edge, Cloudflare''s edge terminates TLS and serves the public hostname, and the origin needs zero inbound firewall holes. This is the load-bearing claim that distinguishes Cloudflare Tunnel from every ''run your own edge node'' option in §3 and underwrites the §2 quadrant axis ''who owns the edge node''.'
+- title: How Tailscale Works (Tailscale engineering blog)
+  type: vendor-docs
+  url: https://tailscale.com/blog/how-tailscale-works
+  quoted_passages:
+  - The node contacts the coordination server and leaves its public key and a note about where that node can currently be found, and what domain it's in.
+  - Remember that Tailscale private keys never leave the node where they were generated; that means there is never a way for a DERP server to decrypt your traffic.
+  - Tailscale uses several very advanced techniques, based on the Internet STUN and ICE standards, to make these connections work even though you wouldn't think it should be possible.
+  relevance: 'The canonical architectural writeup of Tailscale''s three-part design: coordination server (control plane), DERP relays (fallback data plane when NAT traversal fails), and direct WireGuard tunnels between peers. Grounds the §3 mesh-overlay architecture for both Tailscale Funnel and Frank''s Headscale + Hop setup, and justifies the §2 claim that ''mesh-overlay vs hub-and-spoke'' is a real architectural axis, not a marketing distinction.'
+- title: Tailscale Funnel docs
+  type: vendor-docs
+  url: https://tailscale.com/kb/1223/funnel
+  quoted_passages:
+  - Tailscale Funnel lets you route traffic from the broader internet to a local service running on a device in your Tailscale network (known as a tailnet).
+  - The Tailscale server running on your device receives the encrypted request from the TCP proxy. It then terminates the TLS connection and passes the decrypted request to the local service you exposed through Funnel.
+  relevance: Vendor docs for the 'public exposure via the mesh' pattern — TLS is terminated on the device itself, not on Tailscale's edge, which is the architectural twin of Frank's choice but with Tailscale's coordination server instead of Frank's self-hosted Headscale. Source for the §3 mesh-overlay-as-edge architecture and the §6 decision-tree branch 'are you OK with vendor-controlled coordination?'.
+- title: Headscale README (juanfont/headscale on GitHub)
+  type: vendor-docs
+  url: https://github.com/juanfont/headscale
+  quoted_passages:
+  - An open source, self-hosted implementation of the Tailscale control server.
+  - Headscale aims to implement a self-hosted, open source alternative to the Tailscale control server.
+  - The control server works as an exchange point of Wireguard public keys for the nodes in the Tailscale network.
+  relevance: 'Definitive description of what Headscale actually is: a drop-in replacement for the Tailscale control server, which is the *coordination* layer (key exchange, ACLs, DNS) — not the data plane. The Tailscale clients themselves are unchanged. This is the load-bearing claim behind Frank''s §5 architecture: Headscale on Hop is the control plane, the Tailscale DaemonSet on every Frank node is the data plane, and the WireGuard tunnels they establish are peer-to-peer.'
+- title: Talos Linux on Hetzner Cloud (Sidero Labs docs)
+  type: vendor-docs
+  url: https://docs.siderolabs.com/talos/v1.10/platform-specific-installations/cloud-platforms/hetzner
+  quoted_passages:
+  - Hetzner Cloud provides Talos as Public ISO with the schematic id `ce4c980550dd2ab1b17bbf2b08801c7eb59418eafe8f279833297925d67c7515`
+  - Once shutdown, simply create an image (snapshot) from the console. You can now use this snapshot to run Talos on the cloud.
+  - 'Bootstrap `etcd` on the first control plane node with: `talosctl --talosconfig talosconfig bootstrap`'
+  relevance: 'Vendor''s own deployment guide for the exact path Frank takes to stand up Hop. Justifies the §5 narrative claim that ''Hop is a real Talos cluster, not a Helm chart on an Ubuntu droplet'' — same OS, same image-factory pipeline, same `talosctl bootstrap` flow as Frank. The only architectural difference is the control plane: standalone talosctl with a combined patch file instead of Omni (Omni isn''t reachable from a Hetzner public IP).'
+- title: awesome-tunneling — community catalogue of self-hosted exposure tools (anderspitman/awesome-tunneling)
+  type: postmortem
+  url: https://github.com/anderspitman/awesome-tunneling
+  quoted_passages:
+  - exposing a local webserver via a public domain name, with automatic HTTPS, even if behind a NAT or other restricted network.
+  - map X domain/subdomain to Y port on Z client, and proxy all connections to that domain.
+  relevance: 'A community-maintained catalogue of every tunneling tool the self-hosting world has invented, organised around the exact problem class Frank''s Hop cluster solves: ''expose a local web service to the internet from behind NAT, with HTTPS''. The ''dream'' section reads like the problem statement Frank wrote for itself in §1 — a useful sanity check that Paper 20''s capability framing matches the practitioner consensus rather than a Frank-specific abstraction.'
+- title: How NAT traversal works (Tailscale engineering blog)
+  type: paper
+  url: https://tailscale.com/blog/how-nat-traversal-works
+  quoted_passages:
+  - 'STUN relies on a simple observation: when you talk to a server on the internet from a NATed client, the server sees the public `ip:port` that your NAT device created for you.'
+  - Both endpoints must attempt communication at roughly the same time, so that all the intermediate firewalls open up while both peers are still around.
+  - 'The algorithm is: try everything at once, and pick the best thing that works.'
+  relevance: The closest thing the mesh-overlay world has to a foundational paper — a long-form technical writeup of STUN, UDP hole punching, and ICE as applied to WireGuard mesh VPNs. Grounds the §3 mesh-overlay architecture in actual NAT-traversal mechanics rather than hand-wavy 'it just works' marketing, and explains why the residential-ISP edge problem is hard enough to justify a dedicated paper category in the first place.
+- title: Cloudflare network — sub-50ms latency to 95% of internet users (cloudflare.com/network)
+  type: benchmark
+  url: https://www.cloudflare.com/network/
+  quoted_passages:
+  - Sub-50ms to 95% of users — 95% of the world's Internet-connected population is within 50 milliseconds of a Cloudflare data center — most are within 20ms.
+  - One of the world's largest networks — running every service in every data center for unmatched performance, security, and reliability.
+  relevance: 'Vendor-published latency claim that anchors the §4 ''what scale changes'' discussion — Cloudflare Tunnel''s edge is closer to most users than any one-VPS edge can ever be, and the latency tax of running through a single Hetzner Falkenstein PoP is real. Sets the baseline against which Hop''s single-region edge has to justify itself: own the data plane, accept the latency floor of one geographic location.'
+- title: Frank — Hop cluster gotchas (hostPort + RollingUpdate, Headplane v0.5 ConfigMap, Tailscale DaemonSet kernel-mode, talosctl apply-config base-file pitfall)
+  type: postmortem
+  url: https://github.com/derio-net/frank/blob/main/agents/rules/hop-gotchas.md
+  quoted_passages:
+  - 'Deployments using `hostPort` (e.g., Caddy on 80/443, Headscale STUN on 3478/UDP) must use `strategy: Recreate` — `RollingUpdate` deadlocks on a single-node cluster because the new pod can''t bind ports while the old pod still holds them'
+  - Headplane v0.5+ requires a `config.yaml` ConfigMap — env vars alone are insufficient
+  - 'Tailscale DaemonSet must run in kernel mode (`TS_USERSPACE=false`, `privileged: true`) for Caddy to see mesh source IPs'
+  - '`talosctl apply-config --config-patch` patches the base file, not the running config — all patches must be combined in one invocation'
+  relevance: Frank's own dated postmortem registry for everything that broke on Hop in the first three weeks of operation. Each one-liner is the scar of a real outage or wasted day; each maps directly to a property of the 'separate single-node edge cluster' architecture rather than a Caddy or Headscale bug. Source for the §5 scar callouts and the §6 decision-tree branch on 'are you willing to run a single-node cluster as critical infrastructure?'.
+- title: inlets.dev — Self-hosted HTTP and TCP tunnels
+  type: vendor-docs
+  url: https://inlets.dev/
+  quoted_passages:
+  - Self-hosted HTTP and TCP tunnels with full control and privacy. Expose endpoints publicly, or tunnel customer services back to your SaaS.
+  - inlets exposes HTTP and TCP services without dragging whole subnets, hosts or teams into a VPN.
+  - inlets focuses on exposing specific services, self-hosting the data plane, and avoiding SaaS tunnel limits.
+  relevance: 'A fourth-vendor perspective: a tool that sits between Cloudflare Tunnel (zero infra) and Headscale (full mesh) — you still need a VPS, but you run only the tunnel daemon on it, not a coordination server or a cluster. Underwrites the §2 capability matrix row ''data-plane ownership'' and provides the bridge in the §6 decision tree between the ''tunnel SaaS'' branch and the ''edge cluster'' branch.'
+- title: Rancher Fleet — Multi-cluster GitOps engine (docs)
+  type: vendor-docs
+  url: https://fleet.rancher.io/0.15/
+  quoted_passages:
+  - Fleet is a container management and deployment engine designed to offer users more control on the local cluster and constant monitoring through GitOps.
+  - Fleet is fundamentally a set of Kubernetes custom resource definitions (CRDs) and controllers that manage GitOps for a single Kubernetes cluster or a large scale deployment of Kubernetes clusters.
+  relevance: 'The enterprise heavyweight in the §2 landscape: instead of treating the edge cluster as a separate platform with its own ArgoCD (Frank''s choice), Fleet promises one logical GitOps surface spanning hub + edge + cloud. Justifies the §6 decision-tree branch ''managing one cluster or ten?'' — Fleet starts paying for itself somewhere north of the Frank+Hop two-cluster mark, and below that it''s overhead.'

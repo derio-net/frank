@@ -1,0 +1,44 @@
+primary_sources:
+- title: NVIDIA GPU Operator — Overview
+  type: vendor-docs
+  url: https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html
+  quoted_passages:
+  - The NVIDIA GPU Operator uses the operator framework within Kubernetes to automate the management of all NVIDIA software components needed to provision GPU.
+  - These components include the NVIDIA drivers (to enable CUDA), Kubernetes device plugin for GPUs, the NVIDIA Container Toolkit, automatic node labeling using GFD, DCGM based monitoring and others.
+  relevance: Vendor's authoritative description of what the Operator does — five lifecycle components bundled into a single operator. Grounds the §3 NVIDIA architecture diagram and underwrites the §5 description of Frank's driver.enabled false Talos workaround (driver is the one component the Operator does NOT manage on Frank, because Talos system extensions already provide it).
+- title: Kubernetes — Dynamic Resource Allocation
+  type: vendor-docs
+  url: https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/
+  quoted_passages:
+  - DRA is a Kubernetes feature that lets you request and share resources among Pods. These resources are often attached devices like hardware accelerators.
+  - These benefits provide significant improvements in the device allocation workflow when compared to device plugins, which require per-container device requests, dont support device sharing, and dont support expression-based device filtering.
+  relevance: Upstream Kubernetes definition of DRA and the explicit contrast with the legacy device-plugin model. Anchors the §2 axis device plugin (legacy) ↔ DRA (KEP-4381) and the §7 roadmap claim that DRA is eating the device-plugin API.
+- title: NVIDIA Multi-Instance GPU (MIG) User Guide
+  type: vendor-docs
+  url: https://docs.nvidia.com/datacenter/tesla/mig-user-guide/
+  quoted_passages:
+  - The Multi-Instance GPU (MIG) User Guide explains how to partition supported NVIDIA GPUs into multiple isolated instances, each with dedicated compute and memory resources.
+  - MIG enables efficient GPU utilization across multiple users or workloads with guaranteed performance.
+  relevance: Vendor's authoritative description of MIG — hardware-level partitioning of a single physical GPU into isolated instances. Source for the §3 MIG/MPS architecture diagram, the §4 fragmentation-cost discussion, and the §6 decision-tree leaf multi-tenant on a single big card.
+- title: Volcano — A Cloud Native Batch System
+  type: paper
+  url: https://volcano.sh/en/docs/
+  quoted_passages:
+  - Volcano is a cloud native system for high-performance workloads, which has been accepted by Cloud Native Computing Foundation (CNCF) as its first and only official container batch scheduling project.
+  - Ensure all tasks of a job start simultaneously, suitable for distributed training and big data scenarios
+  relevance: CNCF Incubating projects own positioning statement and the gang-scheduling definition. Source for the §3 Volcano architecture diagram and the §6 decision-tree branch multi-tenant batch workloads. Counters the assumption that gang scheduling requires Run.AIs commercial product.
+- title: Intel Resource Drivers for Kubernetes
+  type: vendor-docs
+  url: https://github.com/intel/intel-resource-drivers-for-kubernetes
+  quoted_passages:
+  - Intel resource drivers for Kubernetes is an alternative for Intel device plugins, facilitating workload offloading by providing accelerator access on Kubernetes cluster worker nodes.
+  - The resource drivers are based on Dynamic Resource Allocation (DRA) framework in Kubernetes
+  relevance: Vendors authoritative positioning of the DRA replacement path for Intel hardware. Underwrites the §3 architecture diagram for the Intel iGPUs on Franks mini-1/2/3 and the §5 case-study claim that DRA is the path Intel has taken first.
+- title: Frank — gpu-1 specifics gotchas (Talos extension dance, NVIDIA taint re-assertion, OLLAMA_KEEP_ALIVE cgroup-RAM, port-forward CNI-netns flakes)
+  type: postmortem
+  url: https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md
+  quoted_passages:
+  - Pin GPU workloads with nodeSelector kubernetes.io/hostname gpu-1 plus defensive nvidia.com/gpu NoSchedule toleration (insurance against driver re-validation re-asserting the taint).
+  - Ollama system memory errors mean container cgroup RAM (not VRAM) — OLLAMA_KEEP_ALIVE page cache pins the cgroup near resources.limits.memory.
+  - kubectl port-forward flakes regularly with CNI-netns errors on gpu-1 pods only — use kubectl get application -n argocd -o wide for argocd-cli replacements; use kubectl exec ... wget -qO- for in-pod metrics.
+  relevance: Franks own running postmortem registry — concrete operational scars accumulated while running the NVIDIA GPU Operator + Intel GPU Resource Driver pair in production for this learning platform. Provides source-of-truth dates and recovery commands for the §5 scar callouts and underwrites the §6 decision-tree branches.

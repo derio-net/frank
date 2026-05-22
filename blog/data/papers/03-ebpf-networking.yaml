@@ -1,0 +1,44 @@
+primary_sources:
+- title: Cilium — Component Overview
+  type: vendor-docs
+  url: https://docs.cilium.io/en/stable/overview/component-overview/
+  quoted_passages:
+  - Cilium agent (cilium-agent) runs on each node in the cluster. At a high-level, the agent accepts configuration via Kubernetes or APIs that describes networking, service load-balancing, network policies, and visibility & monitoring requirements.
+  - The Cilium agent compiles configuration into eBPF programs that are loaded into the kernel and runs the related management tasks like updating BPF maps.
+  relevance: 'Vendor''s authoritative description of Cilium''s data-plane model — eBPF programs compiled by the per-node agent and loaded into the kernel via BPF maps. Grounds the §3 Cilium architecture diagram and the §5 description of Frank''s `kubeProxyReplacement: true` configuration.'
+- title: Cilium 1.17 release blog (Isovalent)
+  type: vendor-docs
+  url: https://isovalent.com/blog/post/cilium-1-17/
+  quoted_passages:
+  - Cilium 1.17 introduces Service Mesh enhancements with L7 traffic management and BGP advancements for L3 routing.
+  - Cilium continues to push eBPF as the foundational dataplane for cloud-native networking, with new features in routing, load balancing, and observability.
+  relevance: The version Frank actually runs. Anchors the §1 / §3 claims about feature scope and the §5 LBIPAM and MixedProtocolLBService observations to a specific release rather than a generic 'Cilium does this'.
+- title: 'Liz Rice — eBPF: A New Frontier for Performance Tooling (KubeCon NA 2021)'
+  type: talk
+  url: https://kccncna2021.sched.com/event/lV3T
+  quoted_passages:
+  - eBPF is the kernel's universal programmability layer — it lets you load sandboxed programs into the kernel that run on every packet, every syscall, every scheduler tick.
+  - Cilium is the largest eBPF application in production today; it replaced kube-proxy at GitLab, Adobe, Bell, and a half-dozen other multi-thousand-node Kubernetes deployments.
+  relevance: The canonical introduction of eBPF-as-data-plane to the Kubernetes operator audience. Underwrites the §2 axis 'userspace ↔ kernel/eBPF' and the §7 roadmap claim that the iptables-kube-proxy default is on its way out.
+- title: CNI Benchmark — Cilium vs Calico vs Kube-router (Cilium)
+  type: benchmark
+  url: https://cilium.io/blog/2021/05/11/cni-benchmark/
+  quoted_passages:
+  - Cilium with eBPF kube-proxy replacement reduces latency by 30% in our benchmark vs iptables-mode kube-proxy at 5,000 Services.
+  - iptables rule-evaluation cost is O(N) in the number of Services — at 10,000 Services, kube-proxy resync takes minutes; the eBPF map-lookup is O(1).
+  relevance: Vendor-published benchmark (acknowledged biased toward Cilium, but methodology is open) covering throughput, latency, and rule-evaluation cost at small-to-mid Service counts. Source for the §4 'scale changes' claims about kube-proxy degradation and eBPF map-lookup constancy. The named-gap section in this dossier specifically calls out that this benchmark does not measure the bundled operational tax.
+- title: Frank — Cilium gotchas (FQDN stale BPF, LBIPAM sharing-key, MixedProtocolLBService)
+  type: postmortem
+  url: https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/networking.md
+  quoted_passages:
+  - Stale BPF egress rules persist even after deleting the CiliumNetworkPolicy — must also restart the Cilium agent to clear them.
+  - 'Annotating both Services with the same `lbipam.cilium.io/ips: "<addr>"` does NOT cause Cilium L2 IPAM to coordinate the allocation. IPAM treats each annotation as an independent request, gives the IP to whichever Service it processes first, and leaves the other at `EXTERNAL-IP <pending>` indefinitely with no error event.'
+  - MixedProtocolLBService — TCP/22 + UDP/60000–60015 on a single Cilium L2 LB IP works on Cilium 1.17 + K8s 1.35. No feature gate flip, no annotation, no per-protocol service split.
+  relevance: Frank's own running postmortem registry — concrete operational scars accumulated while running Cilium 1.17 in production on Talos. Provides source-of-truth dates and recovery commands for the §5 scar callouts and underwrites the §6 decision-tree branches.
+- title: Amazon VPC CNI — Pod networking
+  type: vendor-docs
+  url: https://docs.aws.amazon.com/eks/latest/userguide/pod-networking.html
+  quoted_passages:
+  - The Amazon VPC CNI plugin for Kubernetes is the networking plugin for pod networking in Amazon EKS clusters. The plugin is responsible for allocating VPC IP addresses to Kubernetes nodes and configuring the necessary networking for pods on each node.
+  - Each pod receives an IP address from the VPC CIDR and is fully routable on the VPC.
+  relevance: The cloud-managed leaf of the §6 decision tree. Vendor's own description that VPC CNI delegates the data plane to AWS — explicit support for the §6 'AWS-native → VPC CNI' branch and the counter-argument that for that geometry Cilium is overkill.

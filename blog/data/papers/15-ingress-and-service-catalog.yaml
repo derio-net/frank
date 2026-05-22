@@ -1,0 +1,59 @@
+primary_sources:
+- title: Traefik v3.5 — ForwardAuth middleware
+  type: vendor-docs
+  url: https://doc.traefik.io/traefik/v3.5/middlewares/http/forwardauth/
+  quoted_passages:
+  - The ForwardAuth middleware delegates authentication to an external Service.
+  relevance: Defines the middleware Frank actually uses to route every SSO-gated IngressRoute to the Authentik embedded outpost. The 'authResponseHeaders' field is what propagates X-authentik-username / -groups / -email to upstream services.
+- title: Authentik — Proxy provider documentation
+  type: vendor-docs
+  url: https://docs.goauthentik.io/docs/add-secure-apps/providers/proxy/
+  quoted_passages:
+  - In this mode, the regular expressions are matched against the Request's Path.
+  - In this mode, the regular expressions are matched against the Request's full URL.
+  relevance: Defines the proxy-provider modes (forward_single, forward_domain, proxy) that Frank's blueprint declares for every SSO-gated service. The forward_single vs forward_domain distinction is what determines whether one Authentik provider serves one app or a wildcard subdomain.
+- title: Kubernetes — Ingress Controllers (project recommendation)
+  type: vendor-docs
+  url: https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/
+  quoted_passages:
+  - The Kubernetes project recommends using Gateway instead of Ingress. The Ingress API has been frozen.
+  - In order for an Ingress to work in your cluster, there must be an ingress controller running.
+  relevance: Authoritative statement that the Ingress API is feature-frozen and Gateway API is the forward path — load-bearing for §7's roadmap argument.
+- title: Kubernetes Gateway API
+  type: paper
+  url: https://gateway-api.sigs.k8s.io/
+  quoted_passages:
+  - Gateway API is an official Kubernetes project focused on L4 and L7 routing in Kubernetes.
+  relevance: The post-Ingress contract — splits GatewayClass / Gateway / HTTPRoute into three CRDs with separate role boundaries (infra owner, cluster operator, application developer). The shape every controller is converging on.
+- title: oauth2-proxy — reverse-proxy authentication
+  type: vendor-docs
+  url: https://oauth2-proxy.github.io/oauth2-proxy/
+  quoted_passages:
+  - A reverse proxy and static file server that provides authentication using Providers (Google, GitHub, and others) to validate accounts by email, domain or group.
+  relevance: 'The non-Authentik forward-auth alternative — same architectural slot (sits between ingress and upstream), different IdP shape. Important §3 comparison point: Nginx + oauth2-proxy is the most common forward-auth stack outside Authentik shops.'
+- title: Contour — Ingress controller built on Envoy
+  type: vendor-docs
+  url: https://projectcontour.io/docs/
+  quoted_passages:
+  - Contour is an Ingress controller for Kubernetes that works by deploying the Envoy proxy as a reverse proxy and load balancer.
+  relevance: Reference for the Envoy + Gateway API + ext_authz architecture — the §3 diagram for 'mesh-shaped' ingress that pushes auth into Envoy's external-authorization filter rather than chaining middleware at the ingress.
+- title: gethomepage.dev — Services configuration
+  type: vendor-docs
+  url: https://gethomepage.dev/configs/services/
+  quoted_passages:
+  - Services are configured inside the services.yaml file. You can have any number of groups, and any number of services per group.
+  relevance: Defines Frank's catalogue shape. The static-config model (ConfigMap → /app/config/services.yaml) is the simplest possible service catalogue — no API server, no scrape loop, no auto-discovery. The blast radius of a typo is one wrong tile, not a broken dashboard.
+- title: Frank gotcha registry — operational lessons
+  type: postmortem
+  url: https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md
+  quoted_passages:
+  - 'Cilium: lbipam.cilium.io/ips alone is NOT a sharing directive — separate Services need matching lbipam.cilium.io/sharing-key.'
+  - Blueprints don't assign providers to embedded outpost — manual Django ORM step (see frank-argocd.md).
+  relevance: Frank's own one-line gotcha registry — the two lines above are the load-bearing scars for §5. The full prose lives in per-topic files under docs/runbooks/frank-gotchas/.
+- title: Frank Authentik runbook — per-topic gotcha file
+  type: postmortem
+  url: https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/authentik.md
+  quoted_passages:
+  - Embedded outpost needs AUTHENTIK_HOST env or forward-auth redirects use 0.0.0.0:9000.
+  - 2026.x requires invalidation_flow + object-shaped redirect_uris + signing_key UUID.
+  relevance: Full-prose recovery commands for the three Authentik scars cited in §5 (manual outpost-provider step, AUTHENTIK_HOST env, 2026.x API shape changes). Direct evidence the scars are real, dated, and have documented recovery paths.
