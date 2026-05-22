@@ -51,14 +51,15 @@ tasks:
 state:
   steps:
     P0.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:12:39+00:00'
+      note: Baseline captured during execution (2026-04 — see Phase 5 commits referencing
+        OutOfSync diffs)
     P0.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:12:41+00:00'
+      note: argocd CLI access used throughout cleanup commits
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:14:15+00:00'
+    note: Backfilled — see step-level notes for implementing commits / verification
     observed_prs: []

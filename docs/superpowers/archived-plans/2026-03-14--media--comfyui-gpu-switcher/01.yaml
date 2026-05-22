@@ -1619,9 +1619,10 @@ state:
       ticked_at: null
       note: null
     P1.T16.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:03:30+00:00'
+      note: Models present — ComfyUI in active use for blog/papers cover generation
+        since 2026-04 (verified 2026-05-22)
     P1.T17.S0:
       state: x
       ticked_at: null
@@ -1635,6 +1636,7 @@ state:
       ticked_at: null
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:03:39+00:00'
+    note: Phase complete — ComfyUI + GPU Switcher deployed, models loaded, dashboard
+      at master.cluster.derio.net surfaces both.
     observed_prs: []

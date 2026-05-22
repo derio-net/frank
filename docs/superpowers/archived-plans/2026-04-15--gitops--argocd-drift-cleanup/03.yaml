@@ -84,26 +84,26 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:07+00:00'
+      note: argo-rollouts CRDs adopted in commit 582502c
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:09+00:00'
+      note: argo-rollouts CRDs adopted in commit 582502c
     P3.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:11+00:00'
+      note: argo-rollouts CRDs adopted in commit 582502c
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:14+00:00'
+      note: Tekton pipelines CRDs adopted in commit f4a051a
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:16+00:00'
+      note: Tekton Dashboard CRD adopted in commit f4a051a
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:14:21+00:00'
+    note: Backfilled — see step-level notes for implementing commits / verification
     observed_prs: []

@@ -77,14 +77,17 @@ state:
       ticked_at: null
       note: null
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:15:10+00:00'
+      note: Image-bumper PR merged; subsequent image bumps (8af0d080 → be41440 etc.)
+        confirm pipeline working
     P3.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:15:12+00:00'
+      note: Housekeeping crons verified active (worktree + npm-cache prune logs present
+        in PV; weekly window has passed)
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:15:20+00:00'
+    note: 'Housekeeping crons deployed via agent-images PRs #34/#47 + lockstep image
+      bumper; verified by absence of npm-cache/worktree drift'
     observed_prs: []

@@ -1,6 +1,6 @@
 # Paperclip via LiteLLM (opencode + hermes adapters) — Design
 
-**Status:** Draft
+**Status:** Deployed (2026-05-22 — both `opencode_local` and `hermes_local` adapters hired and routing through LiteLLM; gotchas + manual-ops runbook entries synced; building/operating post retroactive updates still pending)
 **Layer:** `orch`
 **Spec date:** 2026-05-17
 
@@ -404,7 +404,7 @@ status: pending
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Paperclip LiteLLM-Backed Agents Implementation Plan |  | `docs/superpowers/plans/2026-05-17--orch--paperclip-litellm-agents/` | — |
+| Paperclip LiteLLM-Backed Agents Implementation Plan |  | `docs/superpowers/archived-plans/2026-05-17--orch--paperclip-litellm-agents/` | — |
 
 ## References
 
