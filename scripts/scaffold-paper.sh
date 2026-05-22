@@ -39,7 +39,6 @@ tags: ["TODO"]
 capabilities: ["TODO"]
 related_building: ""
 related_operating: ""
-references: []
 ---
 
 {{< papers/dossier-link paper="${DIR_NAME}" >}}

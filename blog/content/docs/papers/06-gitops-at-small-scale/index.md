@@ -27,25 +27,6 @@ tags: ["gitops", "argocd", "flux", "kubernetes", "homelab"]
 capabilities: ["gitops"]
 related_building: "docs/building/05-gitops"
 related_operating: "docs/operating/03-gitops"
-references:
-  - title: "Argo CD — Architecture"
-    url: "https://argo-cd.readthedocs.io/en/stable/operator-manual/architecture/"
-    type: vendor-docs
-  - title: "Flux — Core Concepts"
-    url: "https://fluxcd.io/flux/concepts/"
-    type: vendor-docs
-  - title: "OpenGitOps Principles v1.0.0"
-    url: "https://opengitops.dev/"
-    type: paper
-  - title: "GitOps — Operations by Pull Request (Alexis Richardson, Weaveworks, 2017)"
-    url: "https://www.weave.works/blog/gitops-operations-by-pull-request"
-    type: talk
-  - title: "Frank — ArgoCD gotcha registry"
-    url: "https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/argocd.md"
-    type: postmortem
-  - title: "ArgoCD vs FluxCD — r/kubernetes practitioner thread"
-    url: "https://www.reddit.com/r/kubernetes/comments/16dj9lr/argocd_vs_fluxcd_which_one_did_you_choose_and_why/"
-    type: benchmark
 ---
 
 ## TL;DR

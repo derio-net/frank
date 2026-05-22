@@ -3,6 +3,10 @@
      groups by type, preserves per-paper relevance. */}}
 {{ $byUrl := dict }}
 {{ range $slug, $data := .Site.Data.papers }}
+  {{/* Skip non-paper entries (e.g. data/papers.yaml roster, which appears
+       under the same Site.Data.papers namespace as a sibling list). Only
+       per-paper data files have a `primary_sources` key. */}}
+  {{ if and (reflect.IsMap $data) (isset $data "primary_sources") }}
   {{ $paperPage := $.Site.GetPage (printf "/docs/papers/%s" $slug) }}
   {{ $paperTitle := $slug }}
   {{ $paperNumber := 0 }}
@@ -38,6 +42,7 @@
         "citations" $merged_citations
       ))) }}
     {{ end }}
+  {{ end }}
   {{ end }}
 {{ end }}
 

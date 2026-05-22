@@ -28,22 +28,6 @@ tags: ["inference", "llm", "gpu", "gateway", "litellm", "ollama", "vllm"]
 capabilities: ["infer", "gpu"]
 related_building: "docs/building/10-local-inference"
 related_operating: "docs/operating/07-inference"
-references:
-  - title: "Efficient Memory Management for LLM Serving with PagedAttention (Kwon et al. 2023)"
-    url: "https://arxiv.org/abs/2309.06180"
-    type: paper
-  - title: "Ollama README & Modelfile reference"
-    url: "https://github.com/ollama/ollama"
-    type: vendor-docs
-  - title: "LiteLLM virtual keys, budgets & rate limits"
-    url: "https://docs.litellm.ai/docs/proxy/virtual_keys"
-    type: vendor-docs
-  - title: "vLLM v0.6.0: 2.7× Throughput Improvement and 5× Latency Reduction"
-    url: "https://blog.vllm.ai/2024/09/05/perf-update.html"
-    type: benchmark
-  - title: "Simon Willison — Notes on running LLMs locally"
-    url: "https://simonwillison.net/tags/llm-pricing/"
-    type: postmortem
 ---
 
 ## TL;DR

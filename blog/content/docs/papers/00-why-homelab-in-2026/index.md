@@ -29,22 +29,6 @@ tags: ["homelab", "kubernetes", "talos", "architecture"]
 capabilities: ["hw", "os", "gitops"]
 related_building: "docs/building/01-introduction"
 related_operating: "docs/operating/01-cluster-nodes"
-references:
-  - title: "Leaving the Cloud — 37signals Cloud Exit case study"
-    url: "https://basecamp.com/cloud-exit"
-    type: benchmark
-  - title: "Simon Willison — LLM pricing notes"
-    url: "https://simonwillison.net/tags/llm-pricing/"
-    type: postmortem
-  - title: "Do you need Omni? — Sidero Labs"
-    url: "https://www.siderolabs.com/blog/do-you-need-omni"
-    type: vendor-docs
-  - title: "Kubernetes 101 — Jeff Geerling video series"
-    url: "https://kube101.jeffgeerling.com/"
-    type: talk
-  - title: "AKS vs EKS vs GKE: What you get with managed Kubernetes-as-a-Service — Fairwinds"
-    url: "https://www.fairwinds.com/blog/aks-eks-gke-managed-kubernetes-as-a-service"
-    type: talk
 ---
 
 ## TL;DR

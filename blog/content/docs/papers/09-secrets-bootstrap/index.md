@@ -28,34 +28,6 @@ tags: ["secrets", "infisical", "external-secrets", "sops", "vault", "kubernetes"
 capabilities: ["secrets"]
 related_building: "docs/building/09-secrets"
 related_operating: "docs/operating/06-secrets"
-references:
-  - title: "External Secrets Operator — ClusterSecretStore API"
-    url: "https://external-secrets.io/latest/api/clustersecretstore/"
-    type: vendor-docs
-  - title: "Infisical — Self-hosting overview"
-    url: "https://infisical.com/docs/self-hosting/overview"
-    type: vendor-docs
-  - title: "HashiCorp Vault — Architecture"
-    url: "https://developer.hashicorp.com/vault/docs/internals/architecture"
-    type: paper
-  - title: "Mozilla SOPS — README and design"
-    url: "https://github.com/getsops/sops"
-    type: vendor-docs
-  - title: "Frank — Storage / Secrets / SSA gotcha registry"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md"
-    type: postmortem
-  - title: "Secrets Store CSI Driver — Overview"
-    url: "https://secrets-store-csi-driver.sigs.k8s.io/"
-    type: vendor-docs
-  - title: "External Secrets Operator — GitHub repo"
-    url: "https://github.com/external-secrets/external-secrets"
-    type: vendor-docs
-  - title: "GitGuardian — The State of Secrets Sprawl 2024"
-    url: "https://blog.gitguardian.com/the-state-of-secrets-sprawl-2024/"
-    type: benchmark
-  - title: "KubeCon NA 2022 — The State of Kubernetes Secrets Management"
-    url: "https://kccncna2022.sched.com/event/182PB/the-state-of-kubernetes-secrets-management"
-    type: talk
 ---
 
 ## TL;DR

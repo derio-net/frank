@@ -29,25 +29,6 @@ tags: ["ci-cd", "tekton", "gitea", "zot", "kubernetes"]
 capabilities: ["cicd"]
 related_building: "docs/building/27-cicd-platform"
 related_operating: "docs/operating/22-cicd-platform"
-references:
-  - title: "Tekton — Concepts"
-    url: "https://tekton.dev/docs/concepts/"
-    type: vendor-docs
-  - title: "Tekton Triggers — Interceptors"
-    url: "https://github.com/tektoncd/triggers/blob/main/docs/interceptors.md"
-    type: vendor-docs
-  - title: "Gitea — Webhooks documentation"
-    url: "https://docs.gitea.com/usage/webhooks"
-    type: vendor-docs
-  - title: "Zot — Architecture overview"
-    url: "https://zotregistry.dev/v2.1.0/general/architecture/"
-    type: vendor-docs
-  - title: "GitHub Actions now supports CI/CD"
-    url: "https://github.blog/2019-08-08-github-actions-now-supports-ci-cd/"
-    type: paper
-  - title: "Frank — Tekton / Gitea / Zot gotchas"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md"
-    type: postmortem
 ---
 
 ## TL;DR

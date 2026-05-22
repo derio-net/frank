@@ -30,22 +30,6 @@ tags: ["storage", "longhorn", "ceph", "kubernetes", "homelab"]
 capabilities: ["stor"]
 related_building: "docs/building/03-storage"
 related_operating: "docs/operating/02-storage-backups"
-references:
-  - title: "Longhorn — Architecture and Concepts"
-    url: "https://longhorn.io/docs/"
-    type: vendor-docs
-  - title: "Rook — Architecture overview"
-    url: "https://rook.io/docs/rook/latest-release/Getting-Started/intro/"
-    type: vendor-docs
-  - title: "Ceph: A Scalable, High-Performance Distributed File System (Weil et al., OSDI '06)"
-    url: "https://www.usenix.org/legacy/event/osdi06/tech/full_papers/weil/weil.pdf"
-    type: paper
-  - title: "Longhorn vs Ceph (Rook) — r/kubernetes practitioner thread"
-    url: "https://www.reddit.com/r/kubernetes/comments/15h0sw5/longhorn_vs_ceph/"
-    type: benchmark
-  - title: "Frank — Storage / Secrets / SSA gotchas"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md"
-    type: postmortem
 ---
 
 ## TL;DR

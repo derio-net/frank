@@ -30,28 +30,6 @@ tags: ["agents", "orchestration", "secure-workstation", "vibekanban", "paperclip
 capabilities: ["orch"]
 related_building: "docs/building/21-secure-agent-pod"
 related_operating: "docs/operating/14-secure-agent-pod"
-references:
-  - title: "s6-overlay — README and architecture"
-    url: "https://github.com/just-containers/s6-overlay"
-    type: vendor-docs
-  - title: "Coder.com — Platform documentation"
-    url: "https://coder.com/docs"
-    type: vendor-docs
-  - title: "Development Containers Specification (containers.dev)"
-    url: "https://containers.dev/implementors/spec/"
-    type: vendor-docs
-  - title: "Model Context Protocol — Introduction"
-    url: "https://modelcontextprotocol.io/introduction"
-    type: paper
-  - title: "Claude Code — Security and isolation"
-    url: "https://docs.anthropic.com/en/docs/claude-code/security"
-    type: vendor-docs
-  - title: "Agentic Misalignment — Anthropic Research"
-    url: "https://www.anthropic.com/research/agentic-misalignment"
-    type: paper
-  - title: "Frank — Agent shells + Paperclip/Ruflo gotchas registry"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md"
-    type: postmortem
 ---
 
 ## TL;DR

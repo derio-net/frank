@@ -103,7 +103,7 @@ No fixed cadence. Each paper advances through `dossier-ready → drafting → re
 | 5 | Frank's choice, and what happened | 300–600 | ≥1 evidence artefact + ≥1 scar-tissue callout |
 | 6 | When Frank's answer doesn't generalize | 200–400 | 1 decision flowchart (≤4 leaves) |
 | 7 | Roadmap & where this space is going | 200–400 | Optional timeline + roadmap citations |
-| 8 | References & further reading | — | Auto-rendered from frontmatter |
+| 8 | References & further reading | — | Auto-injected by `single.html` from `blog/data/papers/<slug>.yaml` (sync'd from dossier — see `2026-05-22--repo--paper-bibliography-rendering-design.md`) |
 
 **Total budget per paper:** 2400–4200 words. Paper 00 caps at 1500.
 
@@ -247,12 +247,14 @@ New shortcodes to build under `blog/layouts/shortcodes/papers/`:
 - **`{{< papers/landscape axes="x:OSS↔commercial,y:centralized↔distributed" >}}...{{< /papers/landscape >}}`** — thin wrapper around Mermaid `quadrantChart` enforcing consistent styling.
 - **`{{< papers/dossier-link paper="10-self-hosted-inference" >}}`** — renders a small link at the bottom of every paper pointing at the committed dossier file on GitHub. Builds trust by making the research trail visible.
 
-### References taxonomy
+### References pipeline
 
-Enable a new Hugo taxonomy `references` populated from Paper frontmatter. Renders as:
+The dossier is the single source of truth. `scripts/sync-dossier-to-data.py` extracts `primary_sources` (title, URL, type, quoted passages, per-paper relevance) from each `docs/papers-dossiers/<slug>/dossier.md` into `blog/data/papers/<slug>.yaml`. From there:
 
-- The auto-generated §8 bibliography of each Paper.
-- A cross-series index at `/references/` listing every cited source with back-links to the Papers that cite it.
+- **Per-paper §8** — `layouts/partials/papers/references.html` is auto-injected by `layouts/docs/single.html` for any page with `series: papers`, reading `Site.Data.papers[<slug>]` and rendering title + URL + type chip + quoted passages.
+- **Cross-series index** — `layouts/partials/papers/references-index.html` (called via the `papers/references-index` shortcode from `blog/content/docs/papers/references/_index.md`) iterates the same data, dedupes by URL, groups by `type`, and shows the citing-paper relevance for each source.
+
+Implementation spec: `2026-05-22--repo--paper-bibliography-rendering-design.md`. Per-paper `references:` frontmatter is no longer used — it's hard-deleted from every paper and the scaffold.
 
 ### Cover imagery
 
