@@ -56,6 +56,6 @@ state:
       ticked_at: null
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:03:50+00:00'
+    note: All 3 follow-up tracking issues filed (B2/B3/R)
     observed_prs: []

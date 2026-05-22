@@ -65,9 +65,9 @@ state:
       ticked_at: null
       note: null
     P7.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:14:03+00:00'
+      note: Operating series index entry exists at blog/content/docs/building/00-overview/index.md:132
     P7.T1.S4:
       state: '-'
       ticked_at: null
@@ -77,10 +77,10 @@ state:
       ticked_at: null
       note: null
     P7.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:14:05+00:00'
+      note: Spec lacks explicit Status line; setting to Complete in this update
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:14:28+00:00'
+    note: Backfilled — see step-level notes for implementing commits / verification
     observed_prs: []

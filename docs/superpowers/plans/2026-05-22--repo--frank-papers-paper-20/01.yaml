@@ -1,0 +1,240 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 20 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 20 edge-clusters-public-exposure
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 20:
+        Hugo bundle:  blog/content/docs/papers/20-edge-clusters-public-exposure/
+        Dossier:      docs/papers-dossiers/20-edge-clusters-public-exposure/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/20-edge-clusters-public-exposure/index.md
+      ls docs/papers-dossiers/20-edge-clusters-public-exposure/dossier.md
+      ```
+- number: 2
+  title: Research the edge-exposure landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/20-edge-clusters-public-exposure/dossier.md` — vendors in scope
+
+
+      Paper 20 maps the homelab-edge / public-exposure vendor space.
+      Suggested five-vendor landscape (final list is the dossier-
+      construction subagent's call after research, but anchor here);
+      coverage must span the "no edge node needed" side (Cloudflare
+      Tunnel, Tailscale Funnel, ngrok) AND the "yes I run an edge
+      node" side (Headscale + tiny VPS, full multi-region cluster):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Cloudflare Tunnel (cloudflared)
+        positioning: "Outbound-initiated tunnel from origin to Cloudflare edge — no inbound ports, no static IP, free TLS via Cloudflare's CA. The dominant 'no edge node' option for homelabs behind residential ISPs."
+        primary_url: "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/"
+      - name: Tailscale Funnel
+        positioning: "Public exposure layered on top of the Tailscale mesh — your tailnet node becomes reachable from the open internet on a Tailscale-issued subdomain, TLS terminated by Tailscale."
+        primary_url: "https://tailscale.com/kb/1223/funnel"
+      - name: ngrok
+        positioning: "Classic dev-tunnel: outbound-initiated, ephemeral or reserved domain, paid plans for stable URLs / custom domains / OAuth gating. Originally a tunneling tool, now an 'API gateway' brand."
+        primary_url: "https://ngrok.com/docs/universal-gateway/"
+      - name: Headscale + tiny VPS (Frank's pick)
+        positioning: "Self-hosted Tailscale coordination on a public VPS that doubles as the reverse proxy and TLS terminator — full data-plane ownership, your own DNS, your own TLS keys. Hop is a single-node Talos cluster on Hetzner CX23 (~€5/month)."
+        primary_url: "https://github.com/juanfont/headscale"
+      - name: Full multi-region cluster (Rancher Fleet across cloud + on-prem)
+        positioning: "Enterprise heavyweight — one logical fleet spanning home cluster and one-or-more cloud regions, managed centrally, with the cloud region acting as the public-traffic landing pad."
+        primary_url: "https://fleet.rancher.io/"
+      ```
+
+      Frank's case study is Headscale + Caddy on a Hetzner CX23
+      single-node Talos cluster (Hop); the other four exist in the
+      dossier so §3 can compare architectures and §6 can branch the
+      decision tree.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one
+      foundational paper or talk on mesh-overlay design, and at least
+      one real-world homelab postmortem on residential-ISP edge
+      exposure. URL hints to chase:
+
+      1. Cloudflare Tunnel architecture overview — type: `vendor-docs`
+         (https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/)
+      2. Tailscale "How it works" architecture writeup — type: `vendor-docs`
+         (https://tailscale.com/blog/how-tailscale-works)
+      3. Headscale docs (deployment + DERP) — type: `vendor-docs`
+         (https://headscale.net/stable/setup/install/source/)
+      4. A residential-ISP / CG-NAT homelab postmortem — type: `postmortem`
+         (any reputable homelab writeup on getting around CG-NAT, dynamic
+         IPv4, or ISP-blocked 80/443; r/selfhosted or k8s-at-home blogs are
+         acceptable provided the URL is reachable and the writeup is dated)
+      5. Hetzner Talos cloud-init / image-factory docs — type: `vendor-docs`
+         (https://www.talos.dev/v1.10/talos-guides/install/cloud-platforms/hetzner/)
+      6. A KubeCon or similar talk on multi-cluster / edge topologies —
+         type: `talk`
+         (e.g., a KubeCon NA/EU "edge cluster" or "multi-region GitOps"
+         talk; YouTube + slide deck URL both acceptable)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the Hop cluster repo and Frank's gotcha
+      registry. Suggested artefacts (the dossier-construction subagent
+      picks the final list, but at least these are known to exist):
+
+      1. `kind: yaml` — `clusters/hop/apps/caddy/manifests/` — the
+         Caddy reverse-proxy manifests with Cloudflare DNS-01 challenge
+         and hostPort 80/443.
+         `demonstrates: "How a single Caddy Deployment on hostPort
+          becomes the TLS terminator + reverse proxy for every Hop
+          service. The strategy must be Recreate because the new pod
+          can't bind hostPort 80/443 while the old one still holds
+          them — RollingUpdate deadlocks on the single-node cluster."`
+
+      2. `kind: yaml` — `clusters/hop/apps/headscale/manifests/` — the
+         Headscale + Tailscale DaemonSet manifests. Includes the
+         DaemonSet running in kernel mode (TS_USERSPACE=false,
+         privileged: true) so Caddy sees mesh source IPs at all.
+         `demonstrates: "How a separate-cluster mesh-overlay edge is
+          assembled from primitives: Headscale as coordinator,
+          Tailscale DaemonSet as kernel-mode tailnet client on the
+          node itself, MagicDNS split-DNS via extra_records, all
+          on a single Hetzner CX23."`
+
+      3. `kind: yaml` — `clusters/hop/packer/hetzner-talos.pkr.hcl` —
+         the Packer template that builds a Hetzner Cloud snapshot
+         from the upstream Talos hcloud-amd64.raw.xz image.
+         `demonstrates: "Why Hop is a real Talos cluster and not a
+          Helm chart on a generic Ubuntu droplet. Same OS, same
+          tooling, same declarative-everything posture as Frank —
+          the difference is talosctl standalone instead of Omni
+          (the home Omni isn't reachable from Hetzner)."`
+
+      4. `kind: incident` — hostPort + RollingUpdate single-node
+         deadlock. Source: `agents/rules/hop-gotchas.md`.
+         `demonstrates: "Every Deployment that binds a hostPort on a
+          single-node edge cluster must use strategy: Recreate.
+          RollingUpdate deadlocks because the new pod can't bind the
+          port while the old pod still holds it. This is the
+          single-node-cluster blast radius made concrete — it's a
+          property of the edge model, not a Caddy or Headscale bug."`
+
+      5. `kind: incident` — Headplane v0.5+ config.yaml requirement.
+         Source: `agents/rules/hop-gotchas.md`.
+         `demonstrates: "The Headplane upstream rewrite at v0.5+
+          quietly stopped accepting env-var configuration. Env vars
+          alone are insufficient — a ConfigMap-mounted config.yaml
+          with config_path pointing at the Headscale config file
+          and config_strict: true is required. Non-strict mode works
+          but logs scary warnings and forfeits upstream support."`
+
+      6. `kind: incident` (optional) — `talosctl apply-config
+         --config-patch` patches-the-base-file pitfall. Source:
+         `agents/rules/hop-gotchas.md`.
+         `demonstrates: "talosctl apply-config --config-patch patches
+          the base file, not the running config. All patches must be
+          combined in one invocation. On Hop's combined-patch
+          workflow this is load-bearing — a missed patch silently
+          loses the change."`
+
+      Pick at least 3, spanning ≥2 distinct `kind` values.
+      Optional: an asciinema of `talosctl health --nodes $HOP_IP`
+      against Hop showing the single-node etcd + apid + kubelet
+      stack healthy.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No public benchmark of 'Cloudflare Tunnel vs Headscale-mesh-
+        to-tiny-VPS' steady-state latency and per-request cost exists
+        at homelab scale. Vendor benchmarks measure SaaS-scale flows
+        (Cloudflare's edge-to-edge p99) or enterprise-mesh-scale
+        flows (Tailscale's DERP-vs-direct percentages on >100-node
+        tailnets) — neither maps to the homelab case of 1 origin, 1
+        edge, 10 destinations, with the TLS-termination location and
+        the auth-boundary location both treated as first-class
+        variables. Without that benchmark, the 'edge tax' of running
+        a separate VPS cluster is a feeling, not a number."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "Cloudflare Tunnel is free, requires zero edge infrastructure,
+        has a free TLS cert built in, sails through CG-NAT, and gets
+        you a public URL in five minutes — why does Frank run a
+        separate VPS at €5/month? The honest answers, in order of
+        weight: (1) Cloudflare sees all traffic and decrypts TLS at
+        their edge, which is a real property worth pricing in — the
+        threat model of 'I trust Cloudflare with my blog' is fine,
+        the threat model of 'I trust Cloudflare with my Headscale
+        coordination traffic and my agent SSH sessions' is a different
+        conversation; (2) the Hop cluster IS the Headscale
+        coordination plane — pushing it behind Cloudflare Tunnel
+        would re-create the chicken-and-egg of 'the mesh control
+        plane depends on the mesh data plane'; (3) running an edge
+        cluster teaches things Cloudflare's UI never can — Talos on
+        Hetzner, Packer image builds, single-node-cluster blast
+        radius, hostPort + RollingUpdate deadlocks, Tailscale
+        DaemonSet kernel-mode requirements. Counter wins for the
+        team whose only public surface is a static blog and a
+        Headscale-replacement-as-SaaS choice; for Frank, owning the
+        full data plane is the point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-05-22T20:43:12+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-05-22T20:50:00+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-05-22T20:50:02+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-05-22T20:50:04+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-05-22T20:50:06+00:00'
+      note: null
+  completion:
+    at: '2026-05-22T20:50:09+00:00'
+    note: null
+    observed_prs: []

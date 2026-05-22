@@ -173,38 +173,42 @@ state:
       ticked_at: null
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:12:43+00:00'
+      note: Terminal resources cleaned up during execution (no residuals in cluster
+        as of 2026-05-22)
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:12:46+00:00'
+      note: Terminal resources cleaned up during execution (no residuals in cluster
+        as of 2026-05-22)
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:12:48+00:00'
+      note: Terminal resources cleaned up during execution (no residuals in cluster
+        as of 2026-05-22)
     P1.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:12:50+00:00'
+      note: Terminal resources cleaned up during execution (no residuals in cluster
+        as of 2026-05-22)
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:12:52+00:00'
+      note: Implemented in commits 0bf146a (canary) + 62ca0e7 (bulk 50 templates)
     P1.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:12:54+00:00'
+      note: Implemented in commits 0bf146a (canary) + 62ca0e7 (bulk 50 templates)
     P1.T3.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:12:56+00:00'
+      note: Implemented in commits 0bf146a (canary) + 62ca0e7 (bulk 50 templates)
     P1.T3.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:12:58+00:00'
+      note: Implemented in commits 0bf146a (canary) + 62ca0e7 (bulk 50 templates)
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:14:17+00:00'
+    note: Backfilled — see step-level notes for implementing commits / verification
     observed_prs: []

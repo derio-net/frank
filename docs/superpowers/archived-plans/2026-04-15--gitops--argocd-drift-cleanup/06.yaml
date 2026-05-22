@@ -54,22 +54,22 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:54+00:00'
+      note: Verification documented in operating post blog/content/docs/operating/23-argocd-drift-detective
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:56+00:00'
+      note: Verification documented in operating post blog/content/docs/operating/23-argocd-drift-detective
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:13:59+00:00'
+      note: Verification documented in operating post blog/content/docs/operating/23-argocd-drift-detective
     P6.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T20:14:02+00:00'
+      note: Verification documented in operating post blog/content/docs/operating/23-argocd-drift-detective
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:14:26+00:00'
+    note: Backfilled — see step-level notes for implementing commits / verification
     observed_prs: []
