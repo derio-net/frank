@@ -125,6 +125,7 @@ tasks:
       Source options (pick one — Hop access is required):
       ```bash
       # Option A — Caddy access log showing a real TLS-terminated request
+      # REQUIRED: Hop cluster context — never source .env (which targets Frank) before this.
       source .env_hop
       kubectl -n caddy-system logs deploy/caddy --tail=20
       # screenshot the terminal output, including the TLS handshake

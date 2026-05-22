@@ -53,6 +53,13 @@ tasks:
       builds from frontmatter). Otherwise add a list item for
       Paper 20 below the existing entries, matching the existing
       format.
+
+      Model on the existing entries in `blog/content/docs/papers/_index.md` —
+      pick a recently-published paper (e.g., Paper 09's line) and copy its
+      format verbatim, substituting Paper 20's title, slug
+      (`20-edge-clusters-public-exposure`), and one-sentence summary.
+      Run `grep -n 'paper-' blog/content/docs/papers/_index.md` first to
+      find the existing entries.
   - id: P6.T1.S4
     text: |-
       Update Building/Operating series overviews (optional)

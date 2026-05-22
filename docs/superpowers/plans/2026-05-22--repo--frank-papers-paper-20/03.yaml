@@ -232,8 +232,11 @@ tasks:
       - Dashed edges = control-plane / bootstrap paths
       - Solid edges = data-plane / request paths
 
-      Three-to-five architecture diagrams (one per vendor in the
-      landscape that has a meaningfully different answer).
+      **Three** architecture flowcharts — one per shape (Shape A:
+      tunnel-back-to-origin; Shape B: mesh-overlay-as-edge; Shape C:
+      dedicated-edge-cluster). The 4th-5th vendors in the landscape
+      get a one-sentence mention inside the matching shape's
+      flowchart, not their own diagram.
 
       Shape A — tunnel-back-to-origin (Cloudflare Tunnel, ngrok):
 
