@@ -1,0 +1,186 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Media fill
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate per-paper cover image
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add Paper 01 cover prompt to `blog/prompt_for_images.yaml`
+
+
+      Add a new entry under the `# --- Papers Series Covers ---`
+      section, after the most recent paper entry (paper-09 or
+      later, in source order):
+
+      ```yaml
+        - key: paper-01-cover
+          torso_variant: 1
+          mood: curious
+          references:
+            - .reference-pool/papers/subjects/frank-white-shirt-sleeves-up-black-tie-1.png
+          output: blog/content/docs/papers/01-heterogeneous-hardware/cover.png
+          description: Paper 01 cover — Frank examining a workbench scattered with mismatched hardware (RPi next to RTX 5070 Ti, Mac mini stacked on beige tower)
+          prompt: >-
+            Frank stands at a cluttered workbench, examining a
+            deliberately mismatched pile of hardware spread across
+            the surface. In the foreground: a small Raspberry Pi
+            4 board, a large discrete graphics card with prominent
+            triple-fan shroud and "RTX 5070 Ti" suggested in
+            micro-text on the side, a slim aluminium Intel-NUC-style
+            mini-PC, and a beige tower-case desktop visibly older
+            than the others (textured beige plastic, drive bays
+            showing). The mini-PC sits stacked precariously on top
+            of the beige tower. Frank holds a small caliper or
+            measuring instrument in one hand, head tilted as he
+            considers the arrangement. Expression: curious,
+            weighing — the look of a decision-maker comparing
+            options, not assembling them. Thin round reading
+            glasses resting low on his nose, thin black necktie
+            over a white shirt with sleeves rolled up. Warm
+            overhead lamp on a dark studio background. No text
+            in the image other than the faint device markings.
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Generate the cover image
+
+
+      ```bash
+      set -a && source .env_common && set +a
+      uv sync
+      .venv/bin/python scripts/generate-all-images.py \
+        -r blog/static/images/reference.png \
+        --only paper-01-cover
+      ```
+
+      Expected: `blog/content/docs/papers/01-heterogeneous-hardware/cover.png`
+      created, ≥50KB.
+
+      If generation fails for any reason (Gemini API timeout,
+      quota, etc.), fall back: `cp blog/static/images/reference.png
+      blog/content/docs/papers/01-heterogeneous-hardware/cover.png`
+      and tick step `--state - --note "Gemini fallback used;
+      regen post-merge."`
+
+      Spot-check: Frank should have thin round reading glasses,
+      thin black tie, curious/weighing expression, and the
+      mismatched-hardware-on-workbench metaphor should be
+      recognisable (at minimum: one small board next to one
+      large GPU). Up to 3 regeneration attempts if the visual
+      signature is missing.
+- number: 2
+  title: Render Mermaid diagrams and verify they parse
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Review draft for `TODO:<type>` diagram placeholders
+
+
+      ```bash
+      grep -n "TODO:" blog/content/docs/papers/01-heterogeneous-hardware/index.md
+      ```
+
+      Expected: no `TODO:` lines remaining after Phase 3 draft
+      work (TL;DR remains pending — that is by design and lives
+      outside the Mermaid scope).
+  - id: P4.T2.S2
+    text: |-
+      Verify Mermaid diagrams parse without errors in Hugo dev server
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/01-heterogeneous-hardware/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+- number: 3
+  title: Capture `kubectl get nodes -o wide` or Grafana node-overview screenshot
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Capture a cluster-side artefact showing the seven-node heterogeneity
+
+
+      Source: either the `kubectl get nodes -o wide` output (the
+      ARCHITECTURE / KERNEL-VERSION / OS-IMAGE / CONTAINER-RUNTIME
+      columns make the heterogeneity self-evident across mini-*,
+      gpu-1, pc-1, raspi-1/2) OR a Grafana node-overview panel
+      showing per-node CPU family / RAM / arch.
+
+      Procedure:
+      ```bash
+      # From a machine with cluster access:
+      # 1. source .env && kubectl get nodes -o wide
+      #    Screenshot the terminal output (full width — the
+      #    ARCHITECTURE column on the right is load-bearing).
+      # OR
+      # 2. Open Grafana at http://192.168.55.203 and navigate
+      #    to the node-overview dashboard; screenshot the
+      #    per-node table.
+      ```
+
+      Save to:
+      ```
+      blog/content/docs/papers/01-heterogeneous-hardware/cluster-nodes.png
+      ```
+
+      If cluster access is unavailable, copy the 1×1 placeholder
+      and rename with `-TODO.png` suffix:
+      ```bash
+      cp blog/content/docs/papers/11-identity-heterogeneous-stack/authentik-applications-TODO.png \
+         blog/content/docs/papers/01-heterogeneous-hardware/cluster-nodes-TODO.png
+      ```
+      Tick the step `--state - --note "Cluster access unavailable
+      from worktree."`
+- number: 4
+  title: Full Hugo build smoke-test
+  steps:
+  - id: P4.T4.S1
+    text: |-
+      Run the production Hugo build to assert zero errors
+
+
+      ```bash
+      cd blog && PATH=/usr/local/Cellar/go/1.26.2/bin:$PATH hugo --minify --buildDrafts 2>&1 | grep -E "^ERROR|^WARN" | head -10
+      ls -lh public/docs/papers/01-heterogeneous-hardware/index.html
+      ```
+
+      Expected: zero ERROR lines; `index.html` exists and is ≥10 KB.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
