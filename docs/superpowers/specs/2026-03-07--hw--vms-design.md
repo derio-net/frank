@@ -1,6 +1,7 @@
 # VMs — Design
 
 **Date:** 2026-03-07
+**Status:** Deferred — KubeVirt never deployed (no `apps/kubevirt`); spec retained as future-work reference.
 
 ## Overview
 

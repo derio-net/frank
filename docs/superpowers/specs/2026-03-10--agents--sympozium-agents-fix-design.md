@@ -2,7 +2,7 @@
 
 **Date**: 2026-03-10
 **Layer**: agents (extension)
-**Status**: Implementation
+**Status**: Implemented — fixes shipped via `apps/sympozium-extras` (PodSecurity label, LiteLLM baseURL injection, developer PersonaPack) without a dedicated v2 plan dir. The work was folded into the sympozium layer rather than tracked as a separate plan.
 
 ## Problem Statement
 

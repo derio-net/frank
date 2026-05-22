@@ -2,6 +2,8 @@
 
 *Date: 2026-04-07*
 
+**Status:** Deferred — not deployed on Frank (no `apps/rustdesk`). Parent kid-laptops project used an alternative path.
+
 ## Overview
 
 Deploy a self-hosted RustDesk relay (hbbs + hbbr) on Frank to support remote desktop access for the kid-laptops project. The relay handles connection brokering and traffic relay for RustDesk clients on the three laptops.
