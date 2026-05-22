@@ -123,10 +123,10 @@ entries:
     phase: 1
 
   - number: 15
-    slug: ingress-forward-auth
+    slug: ingress-and-service-catalog
     title: "Ingress, Forward-Auth, and the Service Catalog"
-    covers: "Traefik + Homepage"
-    layer: edge
+    covers: "Traefik + Authentik + Homepage"
+    layer: net
     phase: 1
 
   - number: 16

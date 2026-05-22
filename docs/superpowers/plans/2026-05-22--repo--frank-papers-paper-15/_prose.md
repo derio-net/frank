@@ -1,7 +1,7 @@
 # The Frank Papers — Paper 15: Ingress, Forward-Auth, and the Service Catalog
 
 **Spec:** `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`
-**Status:** Planning — Paper 15 plan drafted on branch `paper-15`; PR open for human review.
+**Status:** Complete (2026-05-22) — Paper 15 draft on branch `paper-15`; PR open for human review.
 
 **Prerequisite:** `2026-05-16--repo--frank-papers-phase-0` complete (scripts,
 shortcodes, dossier gate, `agents/skills/papers/SKILL.md`). Papers 00, 02, 03,
