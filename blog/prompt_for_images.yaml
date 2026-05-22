@@ -681,6 +681,36 @@ images:
       Frank. Framing communicates "named chain of custody," not
       "secrets are solved".
 
+  - key: paper-15-cover
+    torso_variant: 0
+    mood: weighing
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-2.png
+    output: blog/content/docs/papers/15-ingress-and-service-catalog/cover.png
+    description: Paper 15 cover — Frank at a triage desk routing request slips toward a single AUTH door
+    prompt: >-
+      Frank the server-hardware Frankenstein monster stands behind a
+      heavy oak triage desk. On the desk a tidy stack of paper request
+      slips, each printed with a service name (GRAFANA, LONGHORN,
+      INFISICAL, HUBBLE, N8N) and a small "Host:" header line. A thin
+      red thread runs from each slip toward a single door centred on
+      the back wall behind him labelled in bold black letters "AUTH";
+      other doors visible on the back wall are labelled with service
+      names but unthreaded. He holds one slip up to the lamp, weighing
+      it. His expression is considered and slightly skeptical — a
+      gatekeeper genuinely deciding whether the request gets through.
+      He wears small circular wire-rim reading glasses resting low on
+      his face and a thin black necktie over a white button-down dress
+      shirt. Warm overhead work-lamp light. Deep navy studio-style
+      background with subtle wood-panelling. RJ45 neck bolts, green
+      skin, messy black hair, rack-mount torso. The ONLY text in the
+      image is the small service names on the slips (GRAFANA, LONGHORN,
+      INFISICAL, HUBBLE, N8N) and the door labels (AUTH plus the
+      service names on the side doors) — no captions or watermarks.
+      ONE FIGURE — one single Frank. The framing communicates "every
+      request routes through one auth door" rather than "ingress is
+      solved".
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
