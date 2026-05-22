@@ -1,0 +1,247 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Dossier construction
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Scaffold Paper 12 bundle and dossier
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Run the scaffold script
+
+
+      ```bash
+      scripts/scaffold-paper.sh 12 multi-tenancy-vcluster
+      ```
+
+      Expected output:
+      ```
+      Scaffolded Paper 12:
+        Hugo bundle:  blog/content/docs/papers/12-multi-tenancy-vcluster/
+        Dossier:      docs/papers-dossiers/12-multi-tenancy-vcluster/dossier.md
+      ```
+
+      Verify both paths exist:
+      ```bash
+      ls blog/content/docs/papers/12-multi-tenancy-vcluster/index.md
+      ls docs/papers-dossiers/12-multi-tenancy-vcluster/dossier.md
+      ```
+- number: 2
+  title: Research the multi-tenancy landscape
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Populate `docs/papers-dossiers/12-multi-tenancy-vcluster/dossier.md` — vendors in scope
+
+
+      Paper 12 maps the Kubernetes multi-tenancy vendor space. The
+      shapes are categorically different (shared control plane vs.
+      virtual control plane vs. real cluster per tenant), so the
+      landscape has to span all three. Suggested five-to-six vendor
+      landscape (final list is the dossier-construction subagent's
+      call after research, but anchor here):
+
+      ```yaml
+      ## Vendors in scope (≥3, typically 4–6)
+      - name: Plain namespaces + RBAC + Cilium NetworkPolicies
+        positioning: "The null hypothesis — one shared control plane, tenants are namespaces, isolation is RBAC + NetworkPolicy + ResourceQuota + LimitRange. Zero per-tenant runtime cost. This is what most clusters actually run."
+        primary_url: "https://kubernetes.io/docs/concepts/security/multi-tenancy/"
+      - name: vCluster (Loft Labs)
+        positioning: "Virtual K8s control plane (API server + controller manager + SQLite-or-etcd) per tenant, running as a StatefulSet inside a host namespace. Tenants see a full K8s API, install CRDs, manage their own RBAC; the host syncs pods to its own nodes. Frank's pick."
+        primary_url: "https://www.vcluster.com/docs"
+      - name: Kamaji (Clastix)
+        positioning: "Control-plane-as-a-service — Kamaji runs a controller that materializes tenant control planes (kube-apiserver + controller-manager + scheduler) as Deployments in the management cluster, backed by an external datastore (kine/MySQL/etcd). Per-tenant kubeconfig handed back to the tenant."
+        primary_url: "https://kamaji.clastix.io/"
+      - name: Capsule (Clastix)
+        positioning: "Policy-driven namespace tenancy on a shared control plane — `Tenant` CR groups namespaces under a tenant owner, enforces network/quota/PSA policies, no per-tenant API server. The 'we don't want virtual clusters' answer."
+        primary_url: "https://capsule.clastix.io/docs/general/concepts/"
+      - name: Cluster API + per-tenant real cluster
+        positioning: "Use Cluster API (Talos, CAPA, CAPZ, CAPV, etc.) to lifecycle a real Kubernetes cluster per tenant. Hard isolation by kernel + network; operational cost is one full cluster per tenant. This is Frank's actual answer for the public-edge workload — see Hop."
+        primary_url: "https://cluster-api.sigs.k8s.io/"
+      - name: HyperShift (Red Hat OpenShift)
+        positioning: "Hosted control planes on OpenShift — control planes run as pods in a management cluster, data plane nodes can be on any infrastructure. The enterprise reference architecture for the virtual-control-plane pattern."
+        primary_url: "https://hypershift-docs.netlify.app/"
+      ```
+
+      Frank's case study is vCluster (OSS, embedded SQLite, Longhorn-
+      backed) under `apps/vclusters/<name>` as the sandbox answer,
+      with Hop (a real Hetzner Talos cluster reached via the multi-
+      cluster restructure) as the answer to questions vCluster
+      categorically can't answer. Both halves are part of the
+      Paper's pick.
+  - id: P1.T2.S2
+    text: |-
+      Gather ≥5 primary sources spanning ≥3 distinct type values
+
+
+      Required coverage: vendor architecture docs, at least one
+      foundational position paper or SIG-multitenancy talk, and at
+      least one real-world postmortem or integration writeup. URL
+      hints to chase:
+
+      1. vCluster architecture overview — type: `vendor-docs`
+         (https://www.vcluster.com/docs/vcluster)
+      2. Kamaji architecture / "What is Kamaji" — type: `vendor-docs`
+         (https://kamaji.clastix.io/concepts/)
+      3. Capsule concepts / Tenant CR — type: `vendor-docs`
+         (https://capsule.clastix.io/docs/general/concepts/)
+      4. Kubernetes Multi-Tenancy WG position — type: `paper` or
+         `talk` (https://github.com/kubernetes-sigs/multi-tenancy
+         or KubeCon talk by Tasha Drew / Jim Bugwadia)
+      5. A real-world vCluster + Karpenter or vCluster + Longhorn
+         postmortem — type: `postmortem` (search GitHub issues on
+         loft-sh/vcluster for "stuck StatefulSet", "PVC orphan", or
+         an Engineering blog about running vCluster at scale)
+      6. Frank's own tenant spec — type: `vendor-docs` (treat as
+         in-repo authoritative source)
+         (https://github.com/derio-net/frank/blob/main/docs/superpowers/specs/2026-03-07--tenant--vcluster-design.md)
+
+      For each source, fill all fields: `title`, `type`, `url`,
+      `quoted_passages` (≥1 direct quote per source), `relevance`.
+
+      Verify all URLs are reachable before recording them — the gate
+      validator will probe them.
+  - id: P1.T2.S3
+    text: |-
+      Document ≥3 Frank artefacts spanning ≥2 distinct kind values
+
+
+      Pull directly from the cluster repo. Suggested artefacts (the
+      dossier-construction subagent picks the final list, but at
+      least these are known to exist):
+
+      1. `kind: yaml` — `apps/vclusters/template/values.yaml` — the
+         vCluster template values with `sync.toHost` / `sync.fromHost`,
+         `controlPlane.backingStore.database.embedded`, the Longhorn
+         5Gi PV, and the `policies.resourceQuota` / `limitRange` /
+         `networkPolicy` block.
+         `demonstrates: "The OSS-edition design choices: SQLite (not
+          etcd, which requires a Pro license), Longhorn-backed PV
+          for control-plane state, ResourceQuota / LimitRange /
+          NetworkPolicy enforced on every tenant by default. This
+          is what 'sensible defaults for a homelab sandbox' actually
+          looks like in YAML."`
+
+      2. `kind: yaml` — `apps/vclusters/experiments/values.yaml` —
+         the per-instance overrides file (currently empty / all
+         template defaults) demonstrating the two-layer values
+         pattern.
+         `demonstrates: "How a new vCluster is added with one file
+          of overrides + one ArgoCD Application CR. The empty
+          instance file IS the point — the template carries the
+          policy."`
+
+      3. `kind: yaml` — `apps/root/templates/vcluster-experiments.yaml`
+         — the ArgoCD Application CR for the experiments vCluster.
+         Shows the multi-source pattern (upstream Helm chart +
+         `$values/apps/vclusters/template/values.yaml` ref +
+         `$values/apps/vclusters/experiments/values.yaml` ref) and
+         the StatefulSet `ignoreDifferences` block needed because
+         the vCluster chart injects a `vClusterConfigHash`
+         annotation and omits defaulted StatefulSet fields.
+         `demonstrates: "The integration cost of running vCluster
+          under ArgoCD: a non-trivial ignoreDifferences block on
+          the StatefulSet to keep ArgoCD from fighting chart
+          defaults. The fix is small, but it's the kind of seam
+          you only find by running it."`
+
+      4. `kind: commit` — the `2026-03-20 multi-cluster-restructure`
+         plan at `docs/superpowers/plans/2026-03-20--repo--multi-cluster-restructure/`
+         — evidence that Frank's answer to "I need a second cluster
+         for the public edge" was NOT another vCluster. It was a
+         real Talos cluster on Hetzner (Hop).
+         `demonstrates: "The category mismatch between vCluster and
+          a real second cluster. vCluster is for tenant isolation
+          inside one administrative domain; the public-edge
+          workload needed its own administrative domain entirely
+          (own etcd, own kubelet, own attack surface, own
+          geography). The plan to restructure the monorepo for
+          multi-cluster is the structural admission that vCluster
+          is one rung on the ladder, not the whole ladder."`
+
+      5. `kind: incident` (NEGATIVE result — write explicitly) —
+         grep `agents/rules/frank-gotchas.md` and
+         `docs/runbooks/frank-gotchas/*.md` for vCluster gotchas.
+         At time of dossier authoring there are NONE. Record the
+         null-result as an artefact: `demonstrates: "The absence
+          of an entry in the gotcha registry is itself evidence.
+          vCluster OSS + SQLite + Longhorn-PV has run on Frank
+          without producing a single registry-worthy scar. That
+          is the most surprising finding of the Paper — the
+          category is calm at homelab scale."`
+
+      Pick at least 3, spanning ≥2 distinct `kind` values. The
+      null-result incident counts as one `kind: incident` artefact
+      only if the dossier validator accepts it; if it rejects an
+      artefact whose `path_or_url` points at a missing scar, drop
+      it and lean on the four positive artefacts above.
+  - id: P1.T2.S4
+    text: |-
+      Record ≥1 named gap and ≥1 counter-argument
+
+
+      Named gap (add to dossier):
+      ```yaml
+      ## Named gaps (≥1)
+      - "No public, apples-to-apples benchmark of per-vCluster
+        steady-state RAM/CPU floor across realistic workload mixes
+        at homelab scale (3–8 nodes, 1–10 tenants, mixed idle and
+        active). Vendor docs publish best-case numbers (200–300 MiB
+        for an idle SQLite-backed control plane) and the K8s
+        SIG-Multitenancy SIG has produced a categorization framework
+        (model A / B / C tenancy) but not a cross-vendor cost
+        measurement. The gap matters because the *decision* between
+        namespace tenancy and virtual-cluster tenancy is gated on
+        this number — a 50-MiB RoleBinding per tenant vs. a 300-MiB
+        StatefulSet per tenant is the math that flips the answer at
+        5+ tenants on a 64-GiB node. Nobody has published the curve."
+      ```
+
+      Counter-argument (add to dossier):
+      ```yaml
+      ## Counter-arguments considered (≥1)
+      - "For a 3-person team running 5 services, plain namespaces +
+        RBAC + Cilium NetworkPolicies + a couple of ResourceQuotas
+        is fine — why doesn't that win for Frank? Answer: it DOES
+        win for that team. Plain namespaces are the right answer
+        when the tenants are trusted, the CRD churn is low, and
+        nobody needs to install a cluster-scoped resource. Frank's
+        actual tenants are *agents and experiments* — secure-agent
+        pods running arbitrary code, sandbox installs of unfamiliar
+        Helm charts, kubeconfig handoffs to external users who
+        should see zero of the host cluster. None of those use cases
+        survive on namespace-only isolation. The counter-argument
+        wins for the team whose tenants are well-behaved internal
+        services; for Frank, whose tenants are deliberately
+        ill-behaved, vCluster's API isolation is the point."
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
