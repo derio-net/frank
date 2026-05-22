@@ -22,7 +22,7 @@ weight: <NN>    # Sort order matches post number
 ---
 ```
 
-Cover image generation prompts go in `blog/prompt_for_images.yaml` — one entry per post, following the existing YAML format (key, output, description, prompt, optional post_process). Insert prompts in their correct section (building prompts before `# --- Operating Series Covers`, operating prompts at end of operating section). Do NOT embed the prompt in the frontmatter `alt` field; `alt` should be a short human-readable description. Generate images with: `.venv/bin/python scripts/generate-all-images.py -r blog/static/images/reference.png --only <key>` (run `uv sync` first if the venv is stale)
+Cover image entries go in `blog/prompt_for_images.yaml` — read the top-of-file comment block for the agent procedure. Required fields per entry: `key`, `series`, `torso_variant` (int index into `torso_variants.<series>`), `mood` (preset key), `references` (1–2 paths from `.reference-pool/<series>/subjects/` — filenames are descriptive, pick the one whose clothing+pose matches the scene intent), `output`, `description`, `prompt` (scene-only). The random pool sampler is disabled by default — explicit `references:` are the canonical path. Insert entries in their correct section (building before `# --- Operating Series Covers`, operating at end of operating section). Do NOT embed the prompt in the frontmatter `alt` field; `alt` should be a short human-readable description. Generate: `source .env_common && uv run --with pyyaml --with google-genai --with pillow scripts/generate-all-images.py -r blog/static/images/reference.png --only <key>`
 
 ## Blog Commands
 

@@ -70,14 +70,22 @@ Typical structure:
 
 ### 4. Images
 
-- **Cover image prompt**: Generate a Gemini image prompt for the cover image following the style and format in `blog/prompt_for_images.yaml`. Read the file's `base_style` and `reference_guidance` fields, plus existing entries for tone/length reference. The character is Frank — a chibi Frankenstein monster made of server hardware (green skin, messy black hair, black eyes, RJ45 neck bolts). Blue glow comes from environment/props/sparks, NOT his eyes. Present the prompt to the user for approval, then append a new YAML entry to `blog/prompt_for_images.yaml` under the `images:` list with fields: `key`, `output`, `description`, `prompt`.
-- **Cover image generation**: After the prompt is approved, generate the cover image:
+- **Cover image entry**: Read the top-of-file comment in `blog/prompt_for_images.yaml` — it describes the modular composition (`base_character`, `base_atmosphere`, `reference_guidance`, `torso_variants`, `moods`, `prompt`) and the exact agent procedure. Write a new image entry under `images:` with these required fields:
+  - `key` — e.g. `building-07-observability`, `ops-03-gitops` (the prefix routes the series)
+  - `series` — `building` / `operating` / `papers`. Drives the default `torso` bucket.
+  - `torso_variant` — integer index into `torso_variants.<series>` matching the scene's body/clothing intent
+  - `mood` — preset key from `moods:` (e.g. `weighing`, `focused`, `smirking`) matching the scene's emotion
+  - `references` — **picked explicitly** from `.reference-pool/<series>/subjects/`. Filenames are descriptive (`frank-white-shirt-black-tie-overalls.png`, `frank-open-torso-3.png`, etc.). List the directory once to see what's available, then pick **1 subject PNG** (occasionally 2) whose clothing AND pose most closely match the intended scene. Optionally add 1 whole-image style anchor from `.reference-pool/<series>/*.png` (root level). Do NOT rely on random pool sampling — the script's `--pool-generic` / `--pool-series` defaults are 0.
+  - `output` — path to where the cover lands (e.g. `blog/content/docs/building/07-observability/cover.png`)
+  - `description` — one-line caption (used for `--list` and humans skimming)
+  - `prompt` — **scene only**: form factor / device / clothing-variant specialization + action + composition + lighting cue. Do NOT repeat traits already in `base_character` / `base_atmosphere` / `torso_variants[X]`. Do NOT keyword-spam.
+
+- **Cover image generation**: After the entry is approved:
   ```bash
-  source .env && .venv/bin/python scripts/generate-all-images.py \
-    -r blog/static/images/reference.png \
-    --only <key>
+  source .env_common && uv run --with pyyaml --with google-genai --with pillow \
+    scripts/generate-all-images.py -r blog/static/images/reference.png --only <key>
   ```
-  Use the `key` from the YAML entry you just added (e.g. `post-07` for building, `operating-03` for operating). Show the generated image to the user for review. If they want a regeneration, run the command again.
+  Show the generated image to the user for review. If they want a regeneration, run the command again — the previous cover is auto-archived under `.regen-archive/<key>/` (capped at 30 per key, FIFO).
 - Inline images: co-locate in the page bundle directory (NOT in `/static/images/`)
 - Use relative paths: `![Alt text](image.png)`
 

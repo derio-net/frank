@@ -1,118 +1,189 @@
 # Image Generation Prompts for "Frank, the Talos Cluster" Blog
 #
 # Used by: scripts/generate-all-images.py
-# Reference: blog/static/images/reference.png
+# Primary reference: blog/static/images/reference.png (passed via -r)
 #
-# Character: "Frank" — a chibi Frankenstein monster made of server hardware.
-#   Green skin, messy black hair, black eyes, flat-top head, stitched/scarred.
-#   Neck bolts are RJ45 connectors. Wears a utility belt of ethernet cables.
-#   Torso is a rack-mount server chassis with blinking LEDs.
-#   Blue glow comes from environment/props (sparks, tools, screens) — NOT his eyes.
+# ---------------------------------------------------------------------------
+# COMPOSITION MODEL
+# ---------------------------------------------------------------------------
+# Every prompt sent to the image model is composed in this fixed order:
 #
-# IMPORTANT: The reference image is for CHARACTER DESIGN only — body proportions,
-# color palette, outfit, and overall aesthetic. Do NOT copy the face as a flat
-# sticker or paste it unchanged. Redraw the face fresh in each scene with
-# appropriate expression, angle, and lighting for the composition.
+#   base_character       — signature traits, applied to every image
+#   base_atmosphere      — lighting, colour, scene-feel, applied to every image
+#   reference_guidance   — how to use the attached reference image(s)
+#   torso_variants[X]    — torso kind (generic / building / operating / papers)
+#   moods[Y] or Y        — short mood phrase (preset or free-form)
+#   prompt               — scene-specific description, including the body-
+#                          variant SPECIALIZATION (form factor, exposed
+#                          device, clothing variant, etc.)
+#
+# X is picked from the image entry's `torso:` field, or derived from
+# `series:` (papers/paper-* → papers, building/* → building, ops-/operating-*
+# → operating, default → generic). Y is picked from `mood:`.
+#
+# ---------------------------------------------------------------------------
+# IMPORTANT — message for any agent creating new image entries
+# ---------------------------------------------------------------------------
+# When you write a new image entry:
+#
+# 1. Choose `series` (and the script derives the default `torso`).
+#
+# 2. Pick a `torso_variant` index from the list under `torso_variants:` —
+#    match it to the scene's body/clothing intent.
+#
+# 3. Pick a `mood` preset key from `moods:` — match it to the scene's emotion.
+#
+# 4. **Pick character-identity references explicitly** from
+#    `.reference-pool/<series>/subjects/`. Filenames are descriptive — e.g.
+#    `frank-white-shirt-black-tie-overalls.png` says exactly what's in the
+#    frame. Choose 1 (occasionally 2) subject PNGs whose clothing AND pose
+#    most closely match what you want the scene to look like. Optionally add
+#    1 whole-image style anchor from `.reference-pool/<series>/*.png` (root
+#    level — curated cover/tile keepers). List the chosen paths under
+#    `references:` on the image entry:
+#
+#        references:
+#          - .reference-pool/papers/subjects/frank-white-shirt-black-tie-2.png
+#          - .reference-pool/papers/tile-papers.png
+#
+#    Do NOT rely on the random pool sampler — it's disabled by default
+#    (`--pool-generic 0 --pool-series 0`). Explicit refs are the contract.
+#
+# 5. In your `prompt:` field, write the scene only. It MUST specialize the
+#    generic torso variant chosen by `series:`:
+#
+#      building   → name the form factor in the scene (rack-mount, half-rack,
+#                   ITX motherboard, blade, single-board, microserver, ...).
+#      operating  → name which exposed device is on view (GPU, NVMe array,
+#                   NIC, PSU, ...).
+#      papers     → either keep the default white-shirt-and-tie OR invoke a
+#                   variant — a lab coat worn open over the shirt, or a
+#                   denim/leather overall in place of the shirt.
+#
+#    Do NOT repeat character traits already covered by base_character (skin,
+#    eyes, hair, patches, scar, bolts, no nose, stitched hands), the chibi
+#    proportions, the dark studio background, or the electric-blue sparks —
+#    all of that is composed in by the script. Do NOT keyword-spam ("4k,
+#    masterpiece, trending on artstation, ..."). Per-image prompts are short,
+#    scene-specific, and follow the pattern:
+#
+#       [Subject doing Action in Location/Context]. [Composition/Camera].
+#       [Lighting/Atmosphere variations if any]. [Specific constraints/text].
+# ---------------------------------------------------------------------------
 
-base_style: >-
-  Cartoon illustration, vibrant colors, thick outlines, chibi proportions.
-  Dark background with electric blue lightning accents.
-  Tech-horror aesthetic, playful not scary.
+base_character: >-
+  Frank — a chibi-proportioned green Frankenstein monster. Uneven
+  cartoon-green skin with brown / reddish-tan sewn-on patches across the
+  cheek and jaw (horizontal stitch lines crossing each; brown against
+  green, NOT mechanical implants). Each eye is a solid BLACK circle
+  with a single small WHITE pupil-dot — no glow. No nose. Messy black
+  flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+  eyebrows. A horizontal stitched scar across the upper forehead with
+  a small rectangular RED bandage over it above the right eye. Two
+  symmetric RJ45-connector bolts on the temples, each sparking
+  faint blue. Hands stitched onto the arms with visible scar lines
+  around the wrists. Cartoon illustration, thick outlines, vibrant
+  colours.
 
-  CANONICAL FRANK FEATURES (derived from the reference image — apply
-  consistently across every scene):
-
-  • SKIN: uneven cartoon green, with subtle shading variation across
-    the face (not a flat colour fill).
-  • HAIR: messy black flat-top with a clearly jagged, uneven silhouette
-    at the top — visible spiky peaks of varying heights.
-  • EYES: chibi style — each eye is an entirely BLACK solid round
-    shape with a small WHITE DOT inside as the highlight / pupil
-    (black-with-white-dot, NOT white-with-black-iris).
-  • NOSE: absent. Flat featureless plane of green skin between the
-    eyes and the mouth — no nose ridge, no nostrils, no nose shadow.
-  • FOREHEAD SCAR: a HORIZONTAL stitched scar runs across the upper
-    forehead just below the hairline — drawn as a dark line with
-    multiple short vertical cross-stitches along its length.
-  • RED FOREHEAD PATCH: a small rectangular RED patch (like a sewn-on
-    hardware decal / label) sits above his RIGHT eye on the upper
-    forehead. Distinctly RED, small, rectangular, with a thin dark
-    border. This is one of Frank's signature details.
-  • OTHER PATCHES: brown / tan skin patches elsewhere on the face
-    (cheek, jaw) with horizontal stitches inside each patch.
-    Unmistakably brown against the green skin, not slightly-darker
-    green. Placement varies by scene. Critically, these are
-    SEWN-ON SKIN PATCHES — flat coloured fabric/skin with simple
-    horizontal stitch lines crossing them. They are NOT exposed
-    mechanical surfaces, NOT visible gears, NOT circuit boards,
-    NOT cybernetic implants. The mechanical / server-hardware
-    aesthetic belongs in the environment and props around Frank,
-    not on his face. Frank's face is monster-with-patches, not
-    cyborg-with-implants.
-  • BOLTS: TWO SYMMETRIC RJ45-connector bolts — either on the NECK
-    (preferred when the neck is visible) OR on the TEMPLES (when the
-    crop is head-only and the neck isn't shown). Always symmetric,
-    one on each side. Faint blue electricity sparking from each.
-
-  Blue glow comes from the environment, props, and electric sparks
-  — NOT from Frank's eyes.
-
-  Draw Frank's face naturally for each scene — match expression to
-  the action, vary the head angle, and apply scene-appropriate
-  lighting. Do NOT copy-paste the face from the reference; use it
-  only as a design guide.
+# Atmosphere — consistent across every image
+base_atmosphere: >-
+  • Dark server-room aesthetic. Deep navy or near-black background;
+    studio-style framing rather than a documentary photograph.
+  • Small flecks of bright white / electric-blue sparks scattered
+    through the scene; faint blue glow on metal edges and from any
+    small LED indicators in the frame.
+  • Lighting is a single warm overhead source unless the scene says
+    otherwise; soft falloff into deep shadow rather than uniform fill.
 
 reference_guidance:
-  # Base character-sheet guidance — applied to every image.
-  # Reference image #1 is always blog/static/images/reference.png (passed via -r).
   base: >-
-    Use the attached primary reference image as a CHARACTER DESIGN SHEET —
-    it defines Frank's body shape, proportions, color palette, outfit, and
-    hardware-part anatomy. Key face details: black messy hair, black eyes
-    with white pupils, green skin, stitch scars, expressive brow. For each
-    new image, redraw Frank from scratch in the scene's perspective and
-    lighting. His facial expression should match the scene's mood. Vary
-    his pose, angle, and body language naturally.
+    The reference images attached to this request are ANCHORS, not
+    subjects to render.
 
-  # Per-series modifiers. When an image entry sets `series: <name>`, the
-  # script injects that series's `modifiers` block into the prompt AND
-  # passes the `banner` image as a SECONDARY reference (in addition to the
-  # primary reference.png), so Gemini conditions on both the character
-  # sheet and the series-specific aesthetic.
-  series:
-    building:
-      banner: blog/static/images/banner-building.png
-      modifiers: >-
-        BUILDING-SERIES SIGNATURE — hands-on builder persona. Frank is
-        actively constructing, assembling, or working on the subject of
-        the post. Tools, parts, or hardware are typically in his hands.
-        Workshop / lab lighting; scattered cables, blueprints, or hardware
-        parts in the scene. Use the secondary reference image
-        (banner-building.png) as a style anchor for the Building series.
+    The FIRST reference image is the canonical character-design sheet.
+    All of Frank's signature face features — chibi head proportions,
+    solid BLACK eyes with a single small WHITE pupil-dot (no white
+    sclera), no nose, jagged flat-top hair, brown sewn-on cheek and
+    jaw patches, the red forehead bandage — come from THIS image and
+    ONLY this image. If any additional reference image shows Frank
+    with different face proportions, white eyes, an over-detailed
+    face, or a "classic Frankenstein" square-jaw look, IGNORE those
+    facial details — they are leftover from older iterations.
 
-    operating:
-      banner: blog/static/images/banner-operating.png
-      modifiers: >-
-        OPERATING-SERIES SIGNATURE — SRE / maintenance persona. Frank is
-        at an operations console facing monitoring screens, OR on a
-        surgical table being maintained by overhead rail-mounted robotic
-        arms, OR inspecting an open chassis. Dashboards, status indicators,
-        and dark server-room lighting are typical. Calm, watchful
-        expression — routine monitoring, not crisis. Use the secondary
-        reference image (banner-operating.png) as a style anchor for the
-        Operating series.
+    Any ADDITIONAL reference images are clothing/pose anchors. Use
+    them ONLY to match the clothing variant, accessories, and rough
+    posture of the Frank you draw. Do NOT render them as separate
+    figures, do NOT copy face details from them, and do NOT interpret
+    their cropping or empty regions as compositional cues for the
+    output frame.
 
-    papers:
-      banner: blog/static/images/tile-papers.png
-      modifiers: >-
-        PAPERS-SERIES SIGNATURE — scholar / researcher persona. Frank
-        wears a crisp white button-down dress shirt, a thin black necktie,
-        and small thin-framed reading glasses perched low on the bridge
-        of his nose (the kind older readers use for close work). This
-        outfit is the consistent visual signature across every Papers
-        image — apply it unless the scene explicitly contradicts. Use the
-        secondary reference image (banner-papers.png) as a style anchor
-        for the Papers series.
+    There is exactly ONE Frank in the final image, regardless of how
+    many reference images show him.
+
+    Redraw Frank from scratch in the scene's perspective and lighting;
+    vary his pose, angle, head turn, and body language to fit the
+    scene's action.
+
+# ---------------------------------------------------------------------------
+# TORSO VARIANTS
+#
+# Picked per image. Merged into the final prompt. The script defaults the variant from `series:` (Papers →
+# papers, building/* → building, ops-/operating-* → operating, anything
+# else → generic). Override per-image with `torso: <name>`.
+#
+# The variant text below is INTENTIONALLY generic. The PER-IMAGE prompt
+# specializes it — see the IMPORTANT note at the top of this file.
+# ---------------------------------------------------------------------------
+torso_variants:
+  generic:
+    - Torso and clothing follow the scene prompt.
+
+  # Two basic variants (as inspiration, not to be followed literally):
+  # 1. Frank is building himself - the scene prompt specifies the form factor of the hardware parts he's assembling into his body (rack-mount, half-rack, ITX motherboard, blade, single-board, microserver, etc.). The scene prompt specifies which parts are flying in to assemble onto him.
+  # 2. Frank is handling specific avatars of a technology in his stack (a bull for Longhorn, a tiny Kubernetes wheel for the cluster, a mini-SSD for storage, etc.) — the scene prompt specifies which device he's holding and how he's interacting with it.
+  building:
+    - Frank's torso/body is exposed server hardware
+    - Frank wears dirty/patched work clothes.
+    - Frank wears overalls.
+    - Frank wears overalls under a lab coat.
+    - Frank wears a work apron with tools in the pockets.
+
+  # Two basic variants (as inspiration, not to be followed literally): 
+  # 1. Frank is either on an operating table lying on a workbench, with an open access panel on his torso and various tools poking at him. The scene prompt specifies which device is exposed and what tools are poking him.
+  # 2. Frank is operating machines in a server room, as a hacker or sysadmin would — standing or sitting at a rack, typing on a keyboard, flipping switches, etc. The scene prompt specifies the machines he's operating and the mood of the scene.
+  operating:
+    - Frank's is lying on his back, torso has an open access panel exposing a device under maintenance
+    - Frank wears a hoodie and sunglasses.
+    - Frank wears t-shirt with rolled-up sleeves.
+
+  # Three variants: Creative expression is allowed, except on the same base clothing that MUST be worn (white button-down dress shirt, thin black necktie, small senior reading glasses perched low on the nose). The scene prompt specifies which variant he's wearing.
+  papers:
+    - Frank wears a thin black necktie over a white button-down dress shirt, small senior reading glasses perched low on the nose.
+    - Frank wears a white lab coat over a white button-down dress shirt and thin black necktie, small senior reading glasses perched low on the nose.
+    - Frank wears leather overalls over a white button-down dress shirt and thin black necktie, small senior reading glasses perched low on the nose.
+
+# ---------------------------------------------------------------------------
+# MOOD PRESET BANK
+#
+# Per-image `mood: <key>` looks up a preset here. If the value isn't a
+# known key, it's passed through as a free-form mood string. Each preset
+# is a single short sentence — enough to set the expression without
+# fighting the scene prompt.
+# ---------------------------------------------------------------------------
+moods:
+  curious: Frank's expression is curious — head tilted, brow lifted, eyes wide and attentive.
+  weighing: Frank's expression is weighing — measured, slightly squinting, the look of someone judging an option.
+  determined: Frank's expression is determined — jaw set, brow level, eyes forward and focused.
+  worried: Frank's expression is worried — brow furrowed inward, mouth tightened, eyes slightly wider than usual.
+  smirking: Frank's expression is smirking — one corner of the mouth pulled up, eyes narrowed in dry amusement.
+  approving: Frank's expression is approving — a small contented smile, brow relaxed, eyes calm and pleased.
+  skeptical: Frank's expression is skeptical — one brow raised higher than the other, mouth flat, eyes narrowed.
+  satisfied: Frank's expression is satisfied — soft closed-mouth smile, brow at rest, eyes relaxed.
+  cautious: Frank's expression is cautious — alert but not anxious; brow level, eyes scanning, mouth neutral.
+  angry: Frank's expression is angry — brow pulled down, mouth tight, eyes narrowed and dark.
+  alarmed: Frank's expression is alarmed — eyes wide, brow lifted high, mouth slightly open.
+  focused: Frank's expression is focused — brow lowered in concentration, eyes locked on his work, mouth still.
+  amused: Frank's expression is amused — small grin, brow relaxed, eyes bright.
 
 # ---------------------------------------------------------------------------
 # Site-wide assets (banner, favicon) — share a unified design language
@@ -264,7 +335,7 @@ images:
       ABSOLUTELY NO TEXT. EXACTLY ONE character. No stray horns,
       hardware, or extra shapes peeking from under the hair.
 
-      Apply all CANONICAL FRANK FEATURES from base_style as drawn
+      Apply all CANONICAL FRANK FEATURES from base_character as drawn
       — including the horizontal forehead scar, the small red
       rectangular patch above the right eye, the brown cheek / jaw
       patches (drawn as SEWN-ON SKIN with horizontal stitches, NOT
@@ -309,48 +380,41 @@ images:
   # --- Papers Series Covers ---------------------------------------------------
 
   - key: paper-00-cover
-    # NOTE: deliberately NOT setting `series: papers` here — using only
-    # reference.png as the style anchor avoids the aspect-ratio leak we
-    # hit on building-cover regenerations (the 6:1 banner-papers.png as
-    # secondary ref made Gemini emit 2048×512 covers). The Papers
-    # signature (glasses + tie + dress shirt) is explicit in the prompt
-    # below; reference.png anchors Frank's identity.
+    torso_variant: 0
+    mood: skeptical
     output: blog/content/docs/papers/00-why-homelab-in-2026/cover.png
-    description: Paper 00 cover — Frank at a whiteboard weighing three approaches with a skeptical expression
+    description: Paper 00 cover — Frank at a whiteboard weighing three approaches
     prompt: >-
-      Frank stands at a whiteboard, one hand on his chin in a skeptical
-      "weighing" expression. On the whiteboard behind him: "2026?"
-      written in large chalk letters at the top, with three branching
-      arrows below it — one labeled "cloud", one labeled "managed",
-      one labeled "DIY". He wears the Papers signature (white button-
-      down dress shirt, thin black necktie, small senior reading
-      glasses perched low on the nose). His posture is thoughtful, not
-      triumphant — the question is genuinely open. Warm overhead lamp.
-      Dark studio-style background. The whiteboard "2026?" and the
-      three labels are the ONLY text in the image — no extra captions
-      or watermarks. ONE FIGURE — one single Frank.
+      Frank stands at a whiteboard, one hand on his chin. The whiteboard
+      reads "2026?" at the top in chalk; three branching arrows fan
+      down from it, labelled "cloud", "managed", and "DIY". His
+      posture is thoughtful, not triumphant — the question is genuinely
+      open. The whiteboard "2026?" and the three labels are the only
+      writing in the image. ONE figure — one single Frank.
 
   - key: paper-04-cover
-    # Same convention as paper-00-cover: only reference.png anchors style;
-    # the Papers signature (glasses + tie + dress shirt) is explicit in the
-    # prompt below.
+    torso_variant: 0
+    mood: weighing
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-2.png
     output: blog/content/docs/papers/04-distributed-storage/cover.png
-    description: Paper 04 cover — Frank examining a column of spinning replica disks with a weighing expression
+    description: Paper 04 cover — Frank weighing one of three replica platters at a desk
     prompt: >-
-      Frank the server-hardware Frankenstein monster stands in front of a
-      tall column of three spinning hard-disk platters stacked vertically,
-      one hand reaching up to weigh one of the disks in his palm. His
-      expression is skeptical / weighing — genuinely uncertain whether
-      three replicas are enough. He wears thin small round reading
-      glasses resting low on his face and a thin black necktie. Warm overhead
-      lamp. Dark background. RJ45 neck bolts, green skin, messy black
-      hair, white shirt with black tie. The disk platters glow faintly blue. No
-      text in the image.
+      Scene: a quiet desk study, not a server room. Three 3.5-inch hard
+      drive platters hover in a slow vertical column above Frank's desk,
+      each rotating, the discs catching faint electric-blue rim light.
+      Frank has lifted one of the three platters off the column and rests
+      it flat on his open palm at eye level, the way someone weighs a
+      coin. Round reading glasses sit low on his face. A folded sheet of
+      paper on the desk shows "rep × 3" in clean handwriting. A single
+      warm overhead lamp. ONE figure — one single Frank. No other text
+      in the image.
 
   - key: paper-10-cover
-    # Same convention as paper-00-cover: only reference.png anchors style;
-    # the Papers signature (glasses + tie + dress shirt) is explicit in the
-    # prompt below.
+    torso_variant: 1
+    mood: curious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-sleeves-up-black-tie-2.png
     output: blog/content/docs/papers/10-self-hosted-inference/cover.png
     description: Paper 10 cover — Frank examining a glowing token-stream LLM with a curious/weighing expression
     prompt: >-
@@ -371,33 +435,28 @@ images:
       single Frank.
 
   - key: paper-11-cover
-    # Same convention as paper-00-cover and paper-10-cover: only
-    # reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-3.png
     output: blog/content/docs/papers/11-identity-heterogeneous-stack/cover.png
-    description: Paper 11 cover — Frank examining a wall of glowing passport-style identity badges from many distinct services
+    description: Paper 11 cover — Frank (lab coat) surveying a wall of passport-style identity badges, one dimmed
     prompt: >-
-      Frank the server-hardware Frankenstein monster examines a wall
-      of glowing passport-style identity badges, each representing a
-      distinct service in his stack. His expression is weighing and
-      skeptical — a decision-maker sizing up how many surfaces share
-      one identity. He wears thin small round reading glasses resting low
-      on his face and a thin black necktie over a white button-down
-      dress shirt. Most of the badges are stamped with a soft
-      "verified" mark; ONE badge in the row is visibly dimmed — the
-      manual-step scar that lives in Authentik's outpost-provider
-      model. Warm overhead work-lamp light. Deep navy studio-style
-      background. RJ45 neck bolts, green skin, messy black hair,
-      rack-mount torso. The badges and the single "verified" stamp
-      are the ONLY text in the image — no extra captions or
-      watermarks. ONE FIGURE — one single Frank. The framing
-      communicates "one identity, many surfaces" rather than
-      "identity is solved".
+      Frank examines a wide wall of glowing passport-style identity
+      badges, each one representing a distinct service in the stack.
+      Most badges carry a soft "verified" stamp; ONE badge in the row
+      is visibly dimmed — the manual-step scar that lives in
+      Authentik's outpost-provider model. His head is angled to size
+      up how many surfaces share a single identity. The badges and
+      the "verified" stamp are the only writing in the image. ONE
+      figure — one single Frank. Framing communicates "one identity,
+      many surfaces," not "identity is solved".
 
   - key: paper-14-cover
-    # Same convention as paper-00-cover / paper-10-cover / paper-11-cover:
-    # only reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 2
+    mood: weighing
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-tool-belt.png
     output: blog/content/docs/papers/14-progressive-delivery/cover.png
     description: Paper 14 cover — Frank examining a vintage signal-box of canary-promotion levers labelled 20, 50, 100
     prompt: >-
@@ -420,9 +479,10 @@ images:
       one single Frank. The framing communicates "staged exposure under
       uncertainty" rather than "deployment is solved".
   - key: paper-17-cover
-    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
-    # reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-1.png
     output: blog/content/docs/papers/17-agentic-orchestration/cover.png
     description: Paper 17 cover — Frank surveying a fleet of identical safe agent workstations, one dimmed
     prompt: >-
@@ -449,33 +509,27 @@ images:
       isolation under uncertainty" rather than "agent platform is
       solved".
   - key: paper-02-cover
-    # Same convention as paper-00 / 04 / 10 / 11-cover: only
-    # reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 0
+    mood: approving
     output: blog/content/docs/papers/02-immutable-os/cover.png
-    description: Paper 02 cover — Frank examining a row of identical immutable-OS server nodes with an approving expression
+    description: Paper 02 cover — Frank tracing a manifest to one of a row of identical immutable-OS nodes
     prompt: >-
-      Frank the server-hardware Frankenstein monster examines a row
-      of identical, immutable-OS server nodes — each carrying the
-      same machine-config rendered as a glowing manifest file
-      floating beside it. The nodes are visibly homogeneous from the
-      outside (same exact shape, same labels) but each has a subtle
-      hardware difference visible up close (one with a GPU, one with
-      ARM markings, one as a small board). Frank's expression is
-      approving — this is the part of the stack where the abstraction
-      holds. He wears small circular wire-rim reading glasses resting
-      low on his face, a thin black necktie over a white button-down
-      dress shirt. One hand traces a line from a manifest to its
-      node. Warm overhead lamp. Dark studio-style background. RJ45
-      temple bolts, green skin, messy black hair. The ONLY text in
-      the image is small machine identifiers (mini-1, mini-2, gpu-1,
-      etc.) — no captions or watermarks. ONE FIGURE — one single
+      Frank stands beside a row of four visually identical server
+      nodes on a long shelf; a glowing manifest file hovers next to
+      each node like a stamped certificate. The nodes look homogeneous
+      from the outside, but each carries one small hardware tell on
+      close inspection: a GPU sticker, ARM markings, a tiny
+      single-board form, a mini-PC silhouette. His right hand traces
+      a glowing line from a manifest to its node. Tiny machine
+      identifiers (mini-1, mini-2, mini-3, gpu-1) appear beneath each
+      node — the only writing in the image. ONE figure — one single
       Frank.
 
   - key: paper-06-cover
-    # Same convention as paper-00/04/10/11 covers: only reference.png
-    # anchors style; the Papers signature (glasses + tie + dress shirt)
-    # is explicit in the prompt below.
+    torso_variant: 1
+    mood: curious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-2.png
     output: blog/content/docs/papers/06-gitops-at-small-scale/cover.png
     description: Paper 06 cover — Frank examining a Git repo whose branches root downward into a cluster
     prompt: >-
@@ -494,9 +548,10 @@ images:
       FIGURE — one single Frank.
 
   - key: paper-07-cover
-    # Same convention as paper-00-cover and paper-10-cover: only
-    # reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 0
+    mood: skeptical
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-4.png
     output: blog/content/docs/papers/07-observability-honestly/cover.png
     description: Paper 07 cover — Frank examining a wall of glowing dashboards with a skeptical / weighing expression
     prompt: >-
@@ -516,33 +571,27 @@ images:
       single Frank.
 
   - key: paper-05-cover
-    # Same convention as paper-00 / 04 / 10 / 11 / 14 covers: only
-    # reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 1
+    mood: weighing
     output: blog/content/docs/papers/05-gpu-scheduling/cover.png
-    description: Paper 05 cover — Frank examining a single PCIe GPU card with two workload streams sharing time-slices on its surface
+    description: Paper 05 cover — Frank (lab coat) inspecting two workload streams time-slicing a single GPU card
     prompt: >-
-      Frank the server-hardware Frankenstein monster holds a single
-      PCIe GPU card horizontally in both green-skinned hands,
-      inspecting it through thin small round wire-rim reading glasses
-      resting low on his face. Above the card, two glowing data streams
-      flow into the card top edge: one green-tinted inference workload
-      stream and one blue-tinted training workload stream. The streams
-      meet on the card surface and partition it into alternating
-      green/blue time-slice zones along its length. His expression is
-      weighing and careful — he is judging whether the partition will
-      hold under contention. He wears a thin black necktie over a white
-      button-down dress shirt. Warm overhead work-lamp light. Deep navy
-      studio-style background. RJ45 temple bolts, green skin, messy
-      black hair, rack-mount torso. The ONLY text in the image is small
-      legible markings on the card edge (a fake model number on the
-      heat-sink shroud) — no captions or watermarks. ONE FIGURE — one
-      single Frank. The framing communicates "ownership decisions on
-      shared silicon" rather than "GPU scheduling is solved".
+      Frank holds a single PCIe GPU card horizontally in both hands,
+      inspecting it. Above the card two glowing data streams flow
+      into its top edge — a green-tinted "inference" stream and a
+      blue-tinted "training" stream — and they meet on the card
+      surface to partition it into alternating green/blue time-slice
+      zones along its length. His head tips down toward the card; the
+      angle is careful, judging whether the partition will hold under
+      contention. A small legible model number is etched on the
+      heat-sink shroud — the only writing in the image. ONE figure —
+      one single Frank. Framing communicates "ownership decisions on
+      shared silicon," not "GPU scheduling is solved".
   - key: paper-08-cover
-    # Same convention as paper-00 / 04 / 10 / 11 / 14 / 02 / 06 / 07
-    # covers: only reference.png anchors style; the Papers signature
-    # (glasses + tie + dress shirt) is explicit in the prompt below.
+    torso_variant: 0
+    mood: cautious
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-3.png
     output: blog/content/docs/papers/08-backup-dr/cover.png
     description: Paper 08 cover — Frank watching a labelled snapshot parcel float off-cluster toward an archive box
     prompt: >-
@@ -566,38 +615,31 @@ images:
       the snapshot off-cluster, knowing the restore is the part you
       haven't tested" rather than "backup is solved".
   - key: paper-13-cover
-    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
-    # reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-overalls.png
     output: blog/content/docs/papers/13-self-hosted-cicd/cover.png
-    description: Paper 13 cover — Frank examining a three-stage CI/CD pipeline of glowing rack-panels labelled git, test, push
+    description: Paper 13 cover — Frank (leather overalls) at a wall-mounted three-stage CI/CD rack panel
     prompt: >-
-      Frank the server-hardware Frankenstein monster stands in front
-      of a wall-mounted rack panel that holds three large rectangular
-      indicator panels labelled "git", "test", and "push" — wired
-      together in sequence by thick conduit cabling like a
-      self-hosted CI/CD pipeline. The middle panel ("test") glows
-      amber, mid-build; the flanking panels glow steady green. One
-      green-skinned hand rests on the test panel's frame; the other
-      hand holds a small clipboard with a Tekton-style stick-figure
-      pipeline graph drawn on it (three nodes connected by arrows).
-      His expression is approving-but-cautious — the rare layer
-      where the homelab stack genuinely matches enterprise tooling,
-      and he knows it. He wears thin small round reading glasses
-      resting low on his face and a thin black necktie over a white
-      button-down dress shirt. Warm overhead work-lamp light. Deep
-      navy studio-style background. RJ45 neck bolts, green skin,
-      messy black hair, rack-mount torso. The panel labels (git,
-      test, push) and the clipboard pipeline graph are the ONLY
-      text in the image — no extra captions or watermarks. ONE
-      FIGURE — one single Frank. The framing communicates "a
-      three-tool stack that works because every seam is documented"
-      rather than "CI/CD is solved".
+      Frank stands in front of a wall-mounted rack panel that holds
+      three large rectangular indicator panels labelled "git",
+      "test", and "push" — wired together in sequence by thick
+      conduit cabling like a self-hosted CI/CD pipeline. The middle
+      panel ("test") glows amber, mid-build; the flanking panels glow
+      steady green. One hand rests on the test panel's frame; the
+      other holds a small clipboard with a Tekton-style stick-figure
+      pipeline graph drawn on it — three nodes connected by arrows.
+      The panel labels (git, test, push) and the clipboard graph are
+      the only writing in the image. ONE figure — one single Frank.
+      Framing communicates "a three-tool stack that works because
+      every seam is documented," not "CI/CD is solved".
 
   - key: paper-03-cover
-    # Same convention as paper-00 / 04 / 10 / 11 / 14-cover: only
-    # reference.png anchors style; the Papers signature (glasses + tie
-    # + dress shirt) is explicit in the prompt below.
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-sleeves-up-black-tie-1.png
     output: blog/content/docs/papers/03-ebpf-networking/cover.png
     description: Paper 03 cover — Frank tracing a glowing network packet through a row of labelled eBPF kernel hooks
     prompt: >-
@@ -618,36 +660,33 @@ images:
       framing communicates "kernel-level networking" rather than
       "service-mesh tax".
   - key: paper-09-cover
-    # Same convention as paper-00 / 02 / 04 / 06 / 07 / 10 / 11 / 14
-    # covers: only reference.png anchors style; the Papers signature
-    # (glasses + tie + dress shirt) is explicit in the prompt below.
+    torso_variant: 2
+    mood: satisfied
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-overalls.png
     output: blog/content/docs/papers/09-secrets-bootstrap/cover.png
-    description: Paper 09 cover — Frank holding a chain of three brass keys with a satisfied expression
+    description: Paper 09 cover — Frank (leather overalls) holding a chain of three brass keys with a bootstrap scroll behind
     prompt: >-
-      Frank the server-hardware Frankenstein monster stands at a
-      workbench, holding a chain of three brass keys connected by
-      short links. Each key is etched with a single small label:
-      the first reads SOPS, the second reads INFISICAL, the third
-      reads K8S SECRET. A small sealed scroll labelled "bootstrap"
-      floats in the background behind his shoulder as the implied
-      first key in the chain — the out-of-band predecessor that
-      starts the custody chain. His expression is satisfied — the
-      kind of person who finally has a clean key-rotation story.
-      He wears small circular wire-rim reading glasses resting low
-      on his face, a thin black necktie over a white button-down
-      dress shirt. Warm overhead work-lamp light. Deep navy
-      studio-style background. RJ45 temple bolts, green skin, messy
-      black hair, rack-mount torso. The brass keys glow faintly
-      amber. The ONLY text in the image is the small etched key
-      labels (SOPS, INFISICAL, K8S SECRET) and the word "bootstrap"
-      on the scroll — no captions or watermarks. ONE FIGURE — one
-      single Frank. The framing communicates "named chain of
-      custody" rather than "secrets are solved".
+      Frank stands at a workbench, holding up a chain of three brass
+      keys joined by short links. Each key is etched with a single
+      label: the first reads SOPS, the second reads INFISICAL, the
+      third reads K8S SECRET. A small sealed scroll labelled
+      "bootstrap" floats in the background behind his shoulder, the
+      implied first key in the chain — the out-of-band predecessor
+      that starts the custody chain. The brass keys glow faintly
+      amber. The four labels (SOPS, INFISICAL, K8S SECRET, bootstrap)
+      are the only writing in the image. ONE figure — one single
+      Frank. Framing communicates "named chain of custody," not
+      "secrets are solved".
 
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
     series: building
+    torso_variant: 4
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-hard-hat.png
     output: blog/content/docs/building/00-overview/cover.png
     description: "Overview & Roadmap — Frank assembling himself"
     prompt: >-
@@ -664,6 +703,10 @@ images:
 
   - key: building-01-introduction
     series: building
+    torso_variant: 4
+    mood: curious
+    references:
+      - .reference-pool/building/subjects/frank-shirt-ar-glasses.png
     output: blog/content/docs/building/01-introduction/cover.png
     description: "Introduction — Why build a homelab (rejecting the cloud)"
     prompt: >-
@@ -678,21 +721,28 @@ images:
 
   - key: building-02-foundation
     series: building
+    torso_variant: 0
+    mood: determined
     output: blog/content/docs/building/02-foundation/cover.png
-    description: "Foundation — Talos immutable OS, Cilium eBPF networking"
+    description: "Foundation — Frank as a stacked column of NUC nodes laced with Cilium threads"
     prompt: >-
-      Frank the server-hardware Frankenstein monster laying the foundation
-      of a building on a construction site. He wears a hard hat with a small
-      blue antenna on top, crackling with faint blue sparks. He places three
-      identical NUC-shaped bricks as the base layer, each stamped with a Talos
-      shield logo. Glowing green eBPF/Cilium network threads weave between
-      the bricks like mortar. A hexagonal bee (Cilium mascot) buzzes nearby
-      trailing green network threads. Above the foundation, a ghostly padlock
-      icon represents immutability — no SSH, no shell. Construction site
-      setting with scaffolding and a "No SSH" warning sign.
+      Form factor on display: a stacked column of three NUC mini-PC
+      nodes — Frank's torso IS the stack, each NUC fitted with a small
+      Talos shield embossed on its face. Glowing green eBPF/Cilium
+      threads weave between the three nodes like mortar, knitting the
+      column into one machine. A small hexagonal Cilium bee buzzes
+      nearby, trailing more green threads. A ghostly padlock floats
+      above the column, representing immutability — no SSH, no shell.
+      Construction-site framing: scaffolding behind, a small "No SSH"
+      warning sign tacked to a beam. The "No SSH" sign is the only
+      writing in the image.
 
   - key: building-03-storage
     series: building
+    torso_variant: 0
+    mood: amused
+    references:
+      - .reference-pool/building/subjects/frank-server-torso.png
     output: blog/content/docs/building/03-storage/cover.png
     description: "Storage — Longhorn distributed storage with 3 replicas"
     prompt: >-
@@ -706,20 +756,31 @@ images:
 
   - key: building-04-gpu-compute
     series: building
+    torso_variant: 0
+    mood: satisfied
+    references:
+      - .reference-pool/building/subjects/frank-suit-server-torso.png
     output: blog/content/docs/building/04-gpu-compute/cover.png
-    description: "GPU Compute — RTX 5070 drama + Intel Arc iGPU"
+    description: "GPU Compute — Frank as the gpu-1 ATX tower with RTX 5070 inside"
     prompt: >-
-      Frank the server-hardware Frankenstein monster with two mismatched
-      arms: his right arm is a massive NVIDIA RTX 5070 GPU card (green
-      glow, oversized, crackling with energy) and his left arm is a smaller
-      Intel Arc iGPU (compact, sleek blue glow). The NVIDIA arm has a
-      "PCIe Gen 1?!" warning sticker being peeled off — now fixed and
-      working. The Intel arm has a tiny "DRA" badge. Lightning bolts arc
-      between both arms. Frank grins triumphantly. Below him, a "Node
-      Feature Discovery" label floats. Dark server room background.
+      Form factor on display: a full-tower ATX desktop chassis, the
+      gpu-1 node, seen straight-on with the side panel removed. The
+      dominant element inside the chassis is a large NVIDIA RTX 5070 Ti
+      graphics card slotted into the PCIe x16 slot of a Z790 motherboard;
+      the card glows electric green and a small "PCIe Gen 1?!" sticker
+      is being peeled away from one corner. Tucked lower in the same
+      chassis, an Intel Arc iGPU on a compact mini-PC board glows cooler
+      blue. Frank holds a screwdriver loosely in one hand and looks down
+      at the freshly-reseated card with the small smile of a stubborn
+      problem just solved. NVIDIA-green spill lights the case interior.
+      No text in the image.
 
   - key: building-05-gitops
     series: building
+    torso_variant: 4
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-gear-shirt-binoculars.png
     output: blog/content/docs/building/05-gitops/cover.png
     description: "GitOps — ArgoCD App-of-Apps orchestra"
     prompt: >-
@@ -734,21 +795,29 @@ images:
 
   - key: building-06-fun-stuff
     series: building
+    torso_variant: 4
+    mood: amused
     output: blog/content/docs/building/06-fun-stuff/cover.png
-    description: "Fun Stuff — GitOps-managed RGB LEDs on case hardware"
+    description: "Fun Stuff — Frank in a work apron admiring his case-fan RGB in a mirror"
     prompt: >-
-      Frank the server-hardware Frankenstein monster standing in front of a
-      mirror, admiring himself. His chest fans glow with rainbow RGB
-      lighting. He holds a tiny YAML ConfigMap that reads "color: rainbow"
-      but the fans remain stubbornly unchanged — a small "Firmware Bug"
-      sticky note is on the mirror. A USB HID cable connects from Frank's
-      chest to a small OpenRGB controller box. A tiny ArgoCD octopus on
-      his shoulder shrugs. Frank looks both proud and slightly frustrated.
-      Disco ball made of a CPU die hangs from ceiling, casting rainbow
-      reflections.
+      Frank stands in front of a full-length mirror, admiring himself.
+      Three case fans on his chest glow with rainbow RGB lighting,
+      cycling through hues. He holds a tiny YAML ConfigMap in one
+      hand that reads "color: rainbow", but the fans cycle through
+      their own pattern regardless, and a small "Firmware Bug" sticky
+      note is stuck to the mirror. A USB HID cable snakes from his
+      chest down to a small OpenRGB controller box on the floor. A
+      tiny ArgoCD octopus perched on his shoulder shrugs. A CPU-die
+      disco ball hangs from the ceiling, casting rainbow reflections
+      across the scene. The ConfigMap text and the "Firmware Bug"
+      note are the only writing in the image.
 
   - key: building-07-observability
     series: building
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-gear-shirt-antenna.png
     output: blog/content/docs/building/07-observability/cover.png
     description: "Observability — VictoriaMetrics + Grafana + Fluent Bit"
     prompt: >-
@@ -765,6 +834,10 @@ images:
 
   - key: building-08-backup
     series: building
+    torso_variant: 2
+    mood: cautious
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-jean-overalls-1.png
     output: blog/content/docs/building/08-backup/cover.png
     description: "Backup — Longhorn daily/weekly to Cloudflare R2"
     prompt: >-
@@ -779,21 +852,30 @@ images:
 
   - key: building-09-secrets
     series: building
+    torso_variant: 1
+    mood: cautious
     output: blog/content/docs/building/09-secrets/cover.png
-    description: "Secrets — Infisical vault + External Secrets Operator"
+    description: "Secrets — Frank in dirty work clothes loading key-blocks into a glowing Infisical vault"
     prompt: >-
-      Frank the server-hardware Frankenstein monster standing before a
-      large glowing vault door with the Infisical logo, carefully placing
-      labeled key-shaped data blocks inside (DATABASE_URL, REDIS_URL,
-      API_KEY engraved on each). A small helpful robot labeled "ESO"
-      stands nearby with sealed envelopes addressed to different pods
-      (small box-robots). A separate small locked chest labeled "SOPS"
-      sits off to the side for bootstrap secrets. Blue encryption lines
-      ripple across the vault. Three smaller vaults behind Frank are
-      labeled "PostgreSQL", "Redis", "Infisical". Dark server room.
+      Frank stands at the open door of a large glowing vault. The
+      vault face carries the Infisical logo etched into steel. He
+      carefully lifts a labelled key-shaped data block — etched
+      DATABASE_URL — into a rack inside; two more blocks (REDIS_URL,
+      API_KEY) wait at his feet. A small helper robot stamped "ESO"
+      stands beside him, a stack of sealed envelopes addressed to
+      small box-shaped pods. A separate small locked chest labelled
+      "SOPS" sits off to one side for bootstrap secrets. Blue
+      encryption lines ripple across the vault's interior. Three
+      smaller subordinate vaults behind Frank wear labels:
+      "PostgreSQL", "Redis", "Infisical". The labels listed above
+      are the only writing in the image.
 
   - key: building-10-local-inference
     series: building
+    torso_variant: 3
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-overalls.png
     output: blog/content/docs/building/10-local-inference/cover.png
     description: "Local Inference — Ollama + LiteLLM gateway + OpenRouter"
     prompt: >-
@@ -811,6 +893,10 @@ images:
 
   - key: building-11-agentic-control-plane
     series: building
+    torso_variant: 4
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-hard-hat.png
     output: blog/content/docs/building/11-agentic-control-plane/cover.png
     description: "Sympozium — Kubernetes-native agentic control plane"
     prompt: >-
@@ -827,6 +913,10 @@ images:
 
   - key: building-12-gpu-talos-fix
     series: building
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-gear-shirt-headlamp.png
     output: blog/content/docs/building/12-gpu-talos-fix/cover.png
     description: "GPU Talos Fix — debugging containerd, validation markers"
     prompt: >-
@@ -843,24 +933,34 @@ images:
 
   - key: building-13-unified-auth
     series: building
+    torso_variant: 3
+    mood: approving
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-overalls.png
     output: blog/content/docs/building/13-unified-auth/cover.png
-    description: "Unified Auth — Authentik SSO for the entire cluster"
+    description: "Unified Auth — Frank (lab coat over overalls) at the OIDC gate, holding the SSO key"
     prompt: >-
-      Frank the server-hardware Frankenstein monster standing in front of
-      a massive ornate gate made of circuit boards and glowing blue OIDC
-      token rings. He holds a large golden skeleton key labeled "SSO" in
-      one hand, and with the other hand gestures toward a line of service
-      icons (ArgoCD octopus, Grafana flame, a vault door, a longhorn bull,
-      a network eye, a robot) all passing through the gate single-file.
-      Each service wears a glowing green badge after passing through.
-      Above the gate, a shield emblem shows the Authentik logo. Small
-      floating group badges ("admins", "devops", "developers") orbit
-      around Frank's head like a halo. A rejected intruder robot with a
-      red X tries to sneak past but is blocked by a blue force field.
-      Dark server room with blue and gold lightning accents.
+      Form factor on display: a massive ornate gate built from circuit
+      boards and glowing blue OIDC token rings. Frank stands at the
+      gate's threshold holding a large golden skeleton key stamped
+      "SSO" in one hand; his other hand gestures at a single-file
+      line of service icons (an ArgoCD octopus, a Grafana flame, a
+      vault door, a Longhorn bull, a network-eye, a small robot)
+      stepping through the gate. Each service emerges on the other
+      side wearing a small glowing green badge. An Authentik shield
+      emblem floats above the gate. Three small group badges
+      ("admins", "devops", "developers") orbit Frank's head like a
+      halo. A rejected intruder figure with a red X tries to slip
+      past at the foot of the gate and is blocked by a blue
+      force-field shimmer. The "SSO" stamp, the three group badges,
+      and the rejection X are the only writing in the image.
 
   - key: building-14-multi-tenancy
     series: building
+    torso_variant: 4
+    mood: curious
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-1.png
     output: blog/content/docs/building/14-multi-tenancy/cover.png
     description: "Multi-tenancy — vCluster disposable sandbox clusters"
     prompt: >-
@@ -879,6 +979,10 @@ images:
 
   - key: building-15-paperclip
     series: building
+    torso_variant: 0
+    mood: approving
+    references:
+      - .reference-pool/building/subjects/frank-suit-server-torso.png
     output: blog/content/docs/building/15-paperclip/cover.png
     description: "Paperclip — AI agent orchestrator with virtual companies and org charts"
     prompt: >-
@@ -897,6 +1001,10 @@ images:
 
   - key: building-16-media-generation
     series: building
+    torso_variant: 1
+    mood: amused
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-3.png
     output: blog/content/docs/building/16-media-generation/cover.png
     description: "Media Generation — Frank juggling video frames and audio waves between ComfyUI and Ollama"
     prompt: >-
@@ -915,6 +1023,10 @@ images:
 
   - key: building-17-public-edge
     series: building
+    torso_variant: 1
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-sleeveless-shirt-cable-arm-goggles.png
     output: blog/content/docs/building/17-public-edge/cover.png
     description: "Public Edge — Frank hopping through a glowing Tailscale portal into a cloud datacenter"
     prompt: >-
@@ -935,6 +1047,10 @@ images:
 
   - key: building-18-persistent-agent
     series: building
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-2.png
     output: blog/content/docs/building/18-persistent-agent/cover.png
     description: "Persistent Agent — Frank at an always-on workstation terminal"
     prompt: >-
@@ -952,6 +1068,10 @@ images:
 
   - key: building-19-progressive-delivery
     series: building
+    torso_variant: 4
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-hard-hat.png
     output: blog/content/docs/building/19-progressive-delivery/cover.png
     description: "Progressive Delivery — Frank at a traffic control tower directing canary and blue-green lanes"
     prompt: >-
@@ -970,6 +1090,10 @@ images:
 
   - key: building-20-workflow-automation
     series: building
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-jean-overalls-2.png
     output: blog/content/docs/building/20-workflow-automation/cover.png
     description: "Workflow Automation — Frank orchestrating n8n conveyor belt pipelines"
     prompt: >-
@@ -987,24 +1111,31 @@ images:
 
   - key: building-21-secure-agent-pod
     series: building
+    torso_variant: 1
+    mood: focused
     output: blog/content/docs/building/21-secure-agent-pod/cover.png
-    description: "Secure Agent Pod — Frank in a hardened vault operating a locked-down workstation"
+    description: "Secure Agent Pod — Frank in dirty work clothes inside a reinforced vault, testing concentric security shields"
     prompt: >-
-      Frank the server-hardware Frankenstein monster inside a reinforced steel
-      vault, sitting at a minimalist terminal workstation. The vault door behind
-      him has multiple layers of locks — a padlock, a digital keypad, and a
-      biometric scanner — all glowing blue. His terminal screen shows a CLI
-      with green text. Around the workstation, translucent shield layers float
-      in concentric rings — each labeled with a tiny icon: a user silhouette
-      (non-root), a broken chain (dropped caps), a network firewall grid
-      (Cilium), and a key with a slash through it (no sudo). Frank looks
-      focused and calm, one hand on the keyboard, the other adjusting a shield
-      layer. Electric blue sparks arc between the shield layers. A small kanban
-      board floats beside the terminal showing task cards. Dark server room
-      with blue lightning accents and steel textures.
+      Form factor on display: a reinforced steel vault interior with
+      thick textured plate walls and a heavy multi-locked door
+      (padlock, digital keypad, biometric scanner, all glowing blue).
+      Inside the vault, Frank sits at a minimalist terminal
+      workstation; the terminal screen shows green CLI text.
+      Floating around the workstation, four translucent concentric
+      shield layers — each tagged with a tiny icon: a user
+      silhouette (non-root), a broken chain (dropped caps), a
+      network firewall grid (Cilium), and a key with a slash through
+      it (no sudo). One hand on the keyboard; the other reaches up
+      to adjust a shield layer. Electric blue arcs ripple between
+      the shield layers. A small kanban board floats beside the
+      terminal showing two task cards. No other writing in the image.
 
   - key: building-22-health-monitoring
     series: building
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-3.png
     output: blog/content/docs/building/22-health-monitoring/cover.png
     description: "Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts"
     prompt: >-
@@ -1024,6 +1155,10 @@ images:
 
   - key: building-23-health-bridge
     series: building
+    torso_variant: 4
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-4.png
     output: blog/content/docs/building/23-health-bridge/cover.png
     description: "Health Bridge — Frank routing alert signals from monitoring to project boards"
     prompt: >-
@@ -1043,6 +1178,10 @@ images:
 
   - key: building-24-in-cluster-ingress
     series: building
+    torso_variant: 4
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-gear-shirt-goggles.png
     output: blog/content/docs/building/24-in-cluster-ingress/cover.png
     description: "In-Cluster Ingress — Frank directing traffic through a glowing gateway"
     prompt: >-
@@ -1065,6 +1204,10 @@ images:
 
   - key: building-25-vk-relay
     series: building
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-2.png
     output: blog/content/docs/building/25-vk-relay/cover.png
     description: "VK Relay — Frank bridging two screens with a glowing WebSocket tunnel"
     prompt: >-
@@ -1083,6 +1226,10 @@ images:
 
   - key: building-26-vk-remote-self-host
     series: building
+    torso_variant: 1
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-5.png
     output: blog/content/docs/building/26-vk-remote-self-host/cover.png
     description: "VK Remote Self-Host — Frank unplugging from a dying cloud and wiring up his own kanban server"
     prompt: >-
@@ -1103,26 +1250,31 @@ images:
 
   - key: building-27-cicd-platform
     series: building
+    torso_variant: 2
+    mood: satisfied
     output: blog/content/docs/building/27-cicd-platform/cover.png
-    description: "CI/CD Platform — Frank operating a multi-stage assembly line from git to signed container images"
+    description: "CI/CD Platform — Frank in overalls running a multi-stage commit-to-signed-container conveyor"
     prompt: >-
-      Frank the server-hardware Frankenstein monster standing in a dark
-      factory-style server room, operating a glowing conveyor belt assembly
-      line. On the left, a monitor labeled "Gitea" shows a git repository
-      tree. The conveyor belt carries small glowing cubes (representing
-      code commits) through three stations: a blue testing chamber labeled
-      "Tekton", a green container-stamping press labeled "Zot" that wraps
-      cubes into container shapes, and a final orange signing station with
-      a wax-seal stamp labeled "cosign" pressing a glowing checkmark onto
-      each container. Frank watches the line with one hand on a lever and
-      a satisfied expression. Finished signed containers stack neatly on
-      a shelf at the right. Green skin, messy black hair, black eyes with
-      white pupils, RJ45 neck bolts sparking blue electricity. Dark
-      industrial background with blue, green, and orange lighting accents.
-      Clean composition, left-to-right flow.
+      Form factor on display: a factory-floor conveyor line running
+      left-to-right. On the far left, a wall monitor labelled "Gitea"
+      shows a git tree. The conveyor carries small glowing cubes
+      (code commits) through three stations: a blue testing chamber
+      labelled "Tekton", a green container-stamping press labelled
+      "Zot" that crimps the cubes into container shapes, and an
+      orange signing station with a wax-seal stamp labelled "cosign"
+      that presses a glowing checkmark onto each finished container.
+      Frank stands at a control lectern with one hand on a lever,
+      watching the line. Finished signed containers stack neatly on
+      a shelf at the far right. The station labels (Gitea, Tekton,
+      Zot, cosign) are the only writing in the image. Clean
+      left-to-right flow.
 
   - key: building-28-agent-images-sidecar
     series: building
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-work-clothes-1.png
     output: blog/content/docs/building/28-agent-images-sidecar/cover.png
     description: "Agent Images & VK-Local Sidecar — Frank has just cracked a tall stone monolith in two, revealing a neat vk-local crate nested inside"
     prompt: >-
@@ -1162,6 +1314,10 @@ images:
 
   - key: building-29-ruflo
     series: building
+    torso_variant: 2
+    mood: amused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-jean-overalls-1.png
     output: blog/content/docs/building/29-ruflo/cover.png
     description: "Ruflo — chaotic swarm orchestrator next to Paperclip's org chart"
     prompt: >-
@@ -1188,6 +1344,10 @@ images:
 
   - key: building-30-frank-papers
     series: papers
+    torso_variant: 0
+    mood: satisfied
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-tool-belt.png
     output: blog/content/docs/building/30-frank-papers/cover.png
     description: "Building The Frank Papers — Frank installing the dossier gate at the entrance to a research library"
     prompt: >-
@@ -1216,6 +1376,10 @@ images:
 
   - key: ops-01-cluster-nodes
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-2.png
     output: blog/content/docs/operating/01-cluster-nodes/cover.png
     description: "Operating on Cluster & Nodes — Frank checking vital signs"
     prompt: >-
@@ -1234,22 +1398,29 @@ images:
 
   - key: ops-02-storage-backups
     series: operating
+    torso_variant: 0
+    mood: focused
     output: blog/content/docs/operating/02-storage-backups/cover.png
-    description: "Operating on Storage & Backups — Frank maintaining his storage drives"
+    description: "Operating on Storage & Backups — open chest panel exposes a Longhorn SSD array mid-replacement"
     prompt: >-
-      Frank the server-hardware Frankenstein monster lying on a surgical table.
-      His chest is open, revealing a rack of small glowing SSD drives in a Longhorn
-      storage array. A replica indicator shows "3/3" above the drives.
-      A robotic arm carefully removes a glowing SSD from his torso while
-      another arm inserts a fresh replacement drive. A third arm holds a
-      magnifying glass over the drive bay, inspecting data integrity. Nearby,
-      a conveyor belt carries backup cubes into an orange R2-branded cloud
-      portal. Three replica indicators glow green above his chest. A Longhorn
-      bull silhouette is visible on a monitor in the background. Dark server
-      room with blue and orange lighting.
+      Exposed device under maintenance: a Longhorn SSD storage array,
+      seated inside Frank's chest through a hinged access panel.
+      Three robotic arms work the bay: one carefully removes a
+      glowing SSD, another inserts a fresh replacement, a third
+      holds a magnifying glass over the bay to inspect data
+      integrity. A small "3/3" replica indicator glows green above
+      the panel. Beside the table, a side conveyor belt carries
+      small backup cubes into an orange cloud portal stamped "R2".
+      A Longhorn bull silhouette is visible on a monitor in the
+      background. "3/3" and the "R2" label are the only writing in
+      the image.
 
   - key: ops-03-gitops
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-3.png
     output: blog/content/docs/operating/03-gitops/cover.png
     description: "Operating on GitOps — Frank managing his application orchestra"
     prompt: >-
@@ -1264,55 +1435,69 @@ images:
 
   - key: ops-04-gpu-compute
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-1.png
     output: blog/content/docs/operating/04-gpu-compute/cover.png
-    description: "Operating on GPU Compute — Frank servicing his GPU arms"
+    description: "Operating on GPU Compute — open access panel exposes an RTX 5070 Ti mid-service"
     prompt: >-
-      Frank the server-hardware Frankenstein monster on a surgical table. His
-      right arm (a massive NVIDIA GPU card) is detached and being serviced by
-      two robotic arms — one running diagnostics with a glowing probe, another
-      tightening a PCIe connector. His left arm (a smaller Intel Arc iGPU)
-      glows blue on the table beside him, also being inspected. A floating
-      terminal displays 'nvidia-smi' output showing GPU utilization bars.
-      Validation checkmark badges float above the repaired components. Dark
-      server room with green and blue electric sparks.
+      Exposed device under maintenance: a NVIDIA GeForce RTX 5070 Ti
+      graphics card, seated through a hinged access panel in Frank's
+      torso. Two slim robotic arms work on the card — one runs a glowing
+      diagnostic probe across the PCB, the other tightens the 8-pin PCIe
+      power connector. A small translucent terminal panel floats
+      alongside, displaying ASCII bars of `nvidia-smi` output
+      (utilization, memory, temperature). A second, smaller access port
+      lower on the torso exposes an Intel Arc iGPU glowing cool blue —
+      already inspected, with a small green checkmark hovering above it.
+      Frank tips his head down to watch the work; this is a routine
+      service procedure, not surgery in extremis. No text in the image.
 
   - key: ops-05-observability
     series: operating
+    torso_variant: 1
+    mood: cautious
     output: blog/content/docs/operating/05-observability/cover.png
-    description: "Operating on Observability — Frank at his command center"
+    description: "Operating on Observability — hoodied Frank leaning into a curved wall of dashboards"
     prompt: >-
-      Frank the server-hardware Frankenstein monster sitting in a large
-      command center chair, surrounded by a curved wall of glowing monitors.
-      Each monitor displays different Grafana dashboards — time-series
-      graphs, node resource panels, log streams in green-on-black. He leans
-      forward studying a particular time-series graph closely, one hand on
-      his chin. A tiny Fluent Bit bird perches on his shoulder, feeding log
-      entries into a small funnel. A VictoriaMetrics "VM" logo glows on
-      the central monitor. Green skin, messy black hair, black eyes with
-      white pupils, RJ45 neck bolts sparking blue electricity. The chair
-      and desk are built from server rack parts. Dark server room with
-      blue and purple monitoring glow.
+      Exposed device under maintenance: a curved wall of glowing
+      monitors arrayed around a command-center chair built from
+      server-rack parts. Each monitor displays a different Grafana
+      panel — time-series graphs, node resource grids, log streams of
+      green-on-black. Frank leans forward studying one particular
+      time-series panel, his sunglasses reflecting the graph. A tiny
+      Fluent Bit bird perches on his shoulder, dropping log lines
+      into a small funnel that pipes into a "VM" logo on the central
+      monitor. The "VM" mark is the only writing in the image.
 
   - key: ops-06-secrets
     series: operating
+    torso_variant: 1
+    mood: smirking
     output: blog/content/docs/operating/06-secrets/cover.png
-    description: "Operating on Secrets — Frank cracking a safe with a blowtorch"
+    description: "Operating on Secrets — hooded Frank cracking an Infisical safe with a blowtorch as ESO offers the proper keys"
     prompt: >-
-      Frank the server-hardware Frankenstein monster crouching in front of a
-      large ornate vault safe with the Infisical logo engraved on its door.
-      He holds a blue-flame blowtorch to the safe's lock mechanism, blue
-      sparks flying as he tries to force it open. Glowing encrypted data
-      capsules with tiny padlock icons and labels (DATABASE_URL, API_KEY,
-      REDIS_URL) are visible through a small window in the safe door. A
-      small ESO robot assistant stands beside Frank holding a ring of
-      age-encryption keys, offering them as the proper way in. A SOPS
-      lockbox sits on the floor nearby. Green skin, messy black hair, black
-      eyes with white pupils, RJ45 neck bolts sparking blue electricity.
-      Blue encryption ripples flow across the scene. Dark server room with
-      blue and gold lighting.
+      Exposed device under maintenance: a large ornate vault safe
+      stamped with the Infisical logo. Frank crouches in front of
+      it, hood up, sunglasses on, holding a blue-flame blowtorch to
+      the lock mechanism. Blue sparks fly. Through a small window in
+      the safe door, glowing encrypted data capsules with padlock
+      icons are visible — each labelled DATABASE_URL, API_KEY,
+      REDIS_URL. A small "ESO" helper robot stands beside Frank,
+      patiently holding out a ring of age-encryption keys — the
+      proper way in — that Frank is theatrically ignoring. A small
+      "SOPS" lockbox sits on the floor nearby. Blue encryption
+      ripples flow across the scene. The credential labels and the
+      "ESO" / "SOPS" / "Infisical" marks are the only writing in
+      the image.
 
   - key: ops-07-inference
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-4.png
     output: blog/content/docs/operating/07-inference/cover.png
     description: "Operating on Local Inference — Frank holding his own head open"
     prompt: >-
@@ -1330,20 +1515,32 @@ images:
 
   - key: ops-08-auth
     series: operating
+    torso_variant: 2
+    mood: determined
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-1.png
     output: blog/content/docs/operating/08-auth/cover.png
-    description: "Operating on Authentication — Frank installing security systems"
+    description: "Operating on Auth — sleeves-rolled Frank with open chest cavity, OIDC lock being fitted"
     prompt: >-
-      Frank the server-hardware Frankenstein monster on a surgical table.
-      A robotic arm installs a glowing golden lock mechanism into his chest
-      cavity — the lock has an OIDC token ring around it. Another arm tests
-      the lock with a golden skeleton key labeled 'SSO'. Service icons
-      (ArgoCD octopus, Grafana flame, a vault door) wait in line beside
-      the table, each holding a badge to be validated. An Authentik shield
-      emblem glows on a monitor. A rejected intruder icon dissolves with a
-      red X. Dark server room with blue and gold lighting accents.
+      Exposed device under maintenance: a hinged access panel on
+      Frank's chest is open; a robotic arm lowers a glowing golden
+      lock mechanism into the cavity, an OIDC token ring orbiting
+      it. A second arm raises a golden skeleton key stamped "SSO"
+      toward the lock to test the fit. Standing in a single-file
+      line beside the operating bench, service icons wait their
+      turn to be validated — an ArgoCD octopus, a Grafana flame, a
+      small vault door — each holding a small badge in its grip. An
+      Authentik shield emblem glows on a wall monitor. An intruder
+      figure dissolves under a red X off to the side. The "SSO"
+      stamp, the "Authentik" shield mark, and the rejection X are
+      the only writing in the image.
 
   - key: ops-09-multi-tenancy
     series: operating
+    torso_variant: 2
+    mood: amused
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/09-multi-tenancy/cover.png
     description: "Operating on Multi-tenancy — Frank juggling vCluster snow globes"
     prompt: >-
@@ -1361,6 +1558,10 @@ images:
 
   - key: ops-10-media-generation
     series: operating
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/10-media-generation/cover.png
     description: "Operating on Media Generation — Frank at a control panel managing GPU workloads"
     prompt: >-
@@ -1377,6 +1578,10 @@ images:
 
   - key: ops-11-public-edge
     series: operating
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/operating/subjects/frank-coat-overalls.png
     output: blog/content/docs/operating/11-public-edge/cover.png
     description: "Operating on Hop — Frank monitoring a miniature portal-connected cloud server"
     prompt: >-
@@ -1394,6 +1599,10 @@ images:
 
   - key: ops-12-progressive-delivery
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-5.png
     output: blog/content/docs/operating/12-progressive-delivery/cover.png
     description: "Operating on Progressive Delivery — Frank at a control panel managing canary and blue-green rollouts"
     prompt: >-
@@ -1411,6 +1620,10 @@ images:
 
   - key: ops-13-workflow-automation
     series: operating
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-open-torso-1.png
     output: blog/content/docs/operating/13-workflow-automation/cover.png
     description: "Operating on Workflow Automation — Frank maintaining n8n workflow internals"
     prompt: >-
@@ -1427,6 +1640,10 @@ images:
 
   - key: ops-14-secure-agent-pod
     series: operating
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/operating/subjects/frank-coat-overalls.png
     output: blog/content/docs/operating/14-secure-agent-pod/cover.png
     description: "Operating on Secure Agent Pod — Frank maintaining a layered security orb"
     prompt: >-
@@ -1448,6 +1665,10 @@ images:
 
   - key: ops-15-health-monitoring
     series: operating
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/operating/subjects/frank-coat-overalls.png
     output: blog/content/docs/operating/15-health-monitoring/cover.png
     description: "Operating on Health Monitoring — Frank tuning heartbeat monitors"
     prompt: >-
@@ -1466,6 +1687,10 @@ images:
 
   - key: ops-16-health-bridge
     series: operating
+    torso_variant: 1
+    mood: cautious
+    references:
+      - .reference-pool/operating/subjects/frank-suit.png
     output: blog/content/docs/operating/16-health-bridge/cover.png
     description: "Operating on Health Bridge — Frank at a console managing alert-to-issue routing"
     prompt: >-
@@ -1483,6 +1708,10 @@ images:
 
   - key: ops-17-ingress
     series: operating
+    torso_variant: 2
+    mood: determined
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/17-ingress/cover.png
     description: "Operating on In-Cluster Ingress — Frank maintaining a traffic gateway"
     prompt: >-
@@ -1503,6 +1732,10 @@ images:
 
   - key: ops-18-paperclip
     series: operating
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/18-paperclip/cover.png
     description: "Operating on Paperclip — Frank managing an AI agent org chart"
     prompt: >-
@@ -1523,28 +1756,33 @@ images:
 
   - key: ops-19-git-credentials-without-a-shell
     series: operating
+    torso_variant: 1
+    mood: smirking
+    references:
+      - .reference-pool/operating/subjects/frank-coat-overalls.png
     output: blog/content/docs/operating/19-git-credentials-without-a-shell/cover.png
-    description: "Git Credentials Without a Shell — Frank pulling a token directly from PID 1's environment"
+    description: "Git Credentials Without a Shell — hooded Frank routing a token from /proc/1/environ around a dead env chain"
     prompt: >-
-      Frank the server-hardware Frankenstein monster standing in a dim
-      server room, holding a glowing translucent cable labeled
-      "/proc/1/environ" that snakes out of a large server cabinet marked
-      "PID 1". From the end of the cable, a small glowing blue token
-      card labeled "GITHUB_TOKEN" emerges into his hand. He's handing
-      the token directly to a tiny floating git logo icon. In the
-      background, a separate broken chain of small labeled boxes —
-      "sshd", "bash", "VS Code", "git" — sits dark and disconnected,
-      with a red X marking the gap between them, showing the usual
-      env-var path that doesn't work. A small clipboard on a nearby
-      desk shows a checklist: "env var leak ✗", "on disk ✗",
-      "works in VS Code ✓". Green skin, messy black hair, black eyes
-      with white pupils, RJ45 neck bolts sparking faint blue
-      electricity. Problem-solver mood — quietly confident, routing
-      around a broken pipeline. Dark server room with cool blue and
-      teal lighting accents.
+      Exposed device under maintenance: a large server cabinet
+      stamped "PID 1" in one corner of the room. A glowing
+      translucent cable labelled "/proc/1/environ" snakes out of the
+      cabinet into Frank's hand. From the cable's end, a small blue
+      token card labelled "GITHUB_TOKEN" emerges; he hands it
+      forward to a tiny floating git logo. To the side, a separate
+      broken chain of small labelled boxes — "sshd", "bash", "VS
+      Code", "git" — sits dark and disconnected, a red X scratched
+      across the gap that env-vars never crossed. A small clipboard
+      on a nearby desk shows a three-line checklist: "env var leak
+      ✗", "on disk ✗", "works in VS Code ✓". The cable label, the
+      token card, the broken-box labels, and the clipboard text are
+      the only writing in the image.
 
   - key: ops-21-vk-remote
     series: operating
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-suit.png
     output: blog/content/docs/operating/21-vk-remote/cover.png
     description: "Operating on VK Remote — Frank monitoring three stacked service components at an operations desk"
     prompt: >-
@@ -1565,6 +1803,10 @@ images:
 
   - key: ops-20-vk-relay
     series: operating
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-suit.png
     output: blog/content/docs/operating/20-vk-relay/cover.png
     description: "Operating on VK Relay — Frank monitoring relay tunnel status on a dashboard"
     prompt: >-
@@ -1584,6 +1826,10 @@ images:
 
   - key: ops-22-cicd-platform
     series: operating
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/22-cicd-platform/cover.png
     description: "Operating on CI/CD Platform — Frank monitoring pipeline and registry status"
     prompt: >-
@@ -1604,30 +1850,35 @@ images:
 
   - key: ops-23-argocd-drift-detective
     series: operating
+    torso_variant: 2
+    mood: skeptical
     output: blog/content/docs/operating/23-argocd-drift-detective/cover.png
-    description: "Operating on ArgoCD Drift — Frank as a detective pinning up drift evidence"
+    description: "Operating on ArgoCD Drift — sleeves-rolled Frank as a detective pinning drift evidence to a corkboard"
     prompt: >-
-      Frank the server-hardware Frankenstein monster in a detective pose,
-      standing in a dimly lit server room in front of a large corkboard
-      investigation wall. The wall is covered in small ArgoCD application
-      cards pinned up with red string connecting them — each card shows an
-      "OutOfSync" banner and a snippet of YAML with highlighted mismatches
-      between "git" and "live" columns. He holds a glowing magnifying glass
-      in his right hand, focused on one central card labelled
-      "argo-rollouts" that has a flashing red sticker reading "21 DAYS
-      CRASHLOOP" underneath the OutOfSync badge. His other hand holds a
-      small notebook with tally marks for seven drift classes. Expression
-      is focused concentration — brow furrowed, slight frown, eyes sharp.
-      In the background, server racks with blinking LEDs and faint holographic
-      kubectl terminal output. Green skin, messy black hair, black eyes with
-      white pupils, RJ45 neck bolts sparking faint blue electricity. Dark
-      server room with cool blue lighting and warm amber accents from the
-      corkboard pins and magnifying glass glow. Detective-noir mood, cartoon
-      illustration style.
+      Exposed device under maintenance: a large corkboard
+      investigation wall, dimly lit. The board is covered in small
+      ArgoCD application cards pinned up with red string between
+      them — each card shows an "OutOfSync" banner and a snippet of
+      YAML with highlighted mismatches between "git" and "live"
+      columns. Frank stands in a detective pose, holding a glowing
+      magnifying glass in his right hand, focused on one central
+      card labelled "argo-rollouts" with a flashing red sticker
+      beneath the OutOfSync badge reading "21 DAYS CRASHLOOP". His
+      left hand holds a small notebook with tally marks for seven
+      drift classes. Behind him, server racks with blinking LEDs and
+      a faint holographic kubectl terminal float in the background.
+      Warm amber accents from the corkboard pins and magnifying-glass
+      glow. The card labels ("OutOfSync", "git", "live"), the
+      central "argo-rollouts" / "21 DAYS CRASHLOOP" mark, and the
+      seven tally marks are the only writing in the image.
 
 
   - key: ops-24-ruflo
     series: operating
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
     output: blog/content/docs/operating/24-ruflo/cover.png
     description: "Operating on Ruflo — Frank pruning a hexagonal beehive of agent tasks at the operations console"
     prompt: >-
