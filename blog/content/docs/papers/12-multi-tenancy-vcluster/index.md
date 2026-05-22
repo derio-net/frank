@@ -1,13 +1,13 @@
 ---
 title: "Multi-Tenancy with vCluster"
 date: 2026-05-22
-draft: true
+draft: false
 weight: 12
 series: ["papers"]
 layer: tenant
 paper_number: 12
 publish_order: 16
-status: drafting
+status: published
 tldr: |
   Multi-tenancy in Kubernetes is not one capability — it is a
   spectrum of shapes that look identical from outside the cluster

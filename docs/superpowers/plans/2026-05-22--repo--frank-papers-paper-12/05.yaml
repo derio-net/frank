@@ -144,34 +144,35 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:25+00:00'
       note: null
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:26+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:28+00:00'
       note: null
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:29+00:00'
       note: null
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:31+00:00'
       note: null
     P5.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:33+00:00'
       note: null
     P5.T2.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-22T20:56:35+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-22T20:56:37+00:00'
+    note: TL;DR 145 words; voice pass complete; dossier gate PASSED; draft:false published;
+      zero dossier-link inline shortcodes; Hugo prod build clean (205.9KB index.html)
     observed_prs: []
