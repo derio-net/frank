@@ -1,0 +1,311 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Render partials + auto-injection + cross-series index + CSS
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Per-paper §8 partial
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Create `blog/layouts/partials/papers/references.html`:
+
+      BEGIN blog/layouts/partials/papers/references.html
+      {{/* papers/references.html — auto-injected by single.html for
+           pages with `series: papers`. Reads .Site.Data.papers
+           keyed by the paper bundle directory name. Renders the
+           §8 References section. */}}
+      {{ $dir := "" }}
+      {{ with .File }}
+        {{ $dir = path.Base .Dir }}
+      {{ end }}
+      {{ with $dir }}
+        {{ $data := index $.Site.Data.papers . }}
+        {{ with $data }}
+          {{ with .primary_sources }}
+            <section class="paper-references">
+              <h2 id="references">References</h2>
+              <ol>
+                {{ range $i, $src := . }}
+                  <li id="ref-{{ add $i 1 }}">
+                    <span class="paper-reference-chip paper-reference-chip--{{ .type }}">{{ .type }}</span>
+                    <a href="{{ .url }}" rel="noopener nofollow">{{ .title }}</a>
+                    {{ with .quoted_passages }}
+                      <div class="paper-reference-quotes">
+                        {{ range . }}
+                          <blockquote>{{ . }}</blockquote>
+                        {{ end }}
+                      </div>
+                    {{ end }}
+                    {{ with .relevance }}
+                      <p class="paper-reference-relevance"><em>{{ . }}</em></p>
+                    {{ end }}
+                  </li>
+                {{ end }}
+              </ol>
+            </section>
+          {{ end }}
+        {{ end }}
+      {{ end }}
+      END blog/layouts/partials/papers/references.html
+
+      (Partial exists but is not yet auto-injected — verification comes in T2.)
+- number: 2
+  title: Auto-inject partial in single.html
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Edit `blog/layouts/docs/single.html`. Find the existing block at line ~25:
+
+      ```hugo
+      {{- if in .Params.series "papers" }}
+        {{- partial "papers-forwardlinks.html" . }}
+        {{- partial "papers/dossier-link.html" . }}
+        {{- partial "papers-prev-next.html" . }}
+      {{- else if and (not (in .Params.series "papers")) (not (eq .Section "")) }}
+      ```
+
+      Insert the references partial BETWEEN forwardlinks and the dossier-link footer chip:
+
+      ```diff
+       {{- if in .Params.series "papers" }}
+         {{- partial "papers-forwardlinks.html" . }}
+      +  {{- partial "papers/references.html" . }}
+         {{- partial "papers/dossier-link.html" . }}
+         {{- partial "papers-prev-next.html" . }}
+       {{- else if and (not (in .Params.series "papers")) (not (eq .Section "")) }}
+      ```
+  - id: P3.T2.S2
+    text: |-
+      Start hugo server and verify §8 renders:
+
+      ```bash
+      cd blog && hugo server --buildDrafts=false --port 1313 &
+      sleep 3
+      curl -s http://localhost:1313/docs/papers/09-secrets-bootstrap/ | grep -A2 '<section class="paper-references">'
+      ```
+
+      Expected: HTML output containing `<h2 id="references">References</h2>` followed by an `<ol>` with `<li id="ref-1">` and a chip span. The original placeholder `*Auto-rendered from frontmatter by Hugo taxonomy.*` (rendered as `<em>Auto-rendered from frontmatter by Hugo taxonomy.</em>`) ALSO still appears in the body because Phase 4 hasn't stripped it yet — that's expected at this stage.
+
+      Stop hugo server:
+
+      ```bash
+      pkill -f "hugo server" || true
+      ```
+- number: 3
+  title: Cross-series index partial + shortcode wrapper
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Create `blog/layouts/partials/papers/references-index.html`:
+
+      BEGIN blog/layouts/partials/papers/references-index.html
+      {{/* papers/references-index.html — cross-series bibliography.
+           Iterates .Site.Data.papers.*, dedupes sources by URL,
+           groups by type, preserves per-paper relevance. */}}
+      {{ $byUrl := dict }}
+      {{ range $slug, $data := .Site.Data.papers }}
+        {{ $paperPage := $.Site.GetPage (printf "/docs/papers/%s" $slug) }}
+        {{ $paperTitle := $slug }}
+        {{ $paperNumber := 0 }}
+        {{ with $paperPage }}
+          {{ $paperTitle = .Title }}
+          {{ $paperNumber = .Params.paper_number | default 0 }}
+        {{ end }}
+        {{ range $data.primary_sources }}
+          {{ $url := .url }}
+          {{ $existing := index $byUrl $url }}
+          {{ if not $existing }}
+            {{ $byUrl = merge $byUrl (dict $url (dict
+              "title" .title
+              "type" .type
+              "quoted_passages" .quoted_passages
+              "citations" (slice (dict
+                "paper_slug" $slug
+                "paper_title" $paperTitle
+                "paper_number" $paperNumber
+                "relevance" .relevance
+              ))
+            )) }}
+          {{ else }}
+            {{ $merged_quotes := union $existing.quoted_passages .quoted_passages }}
+            {{ $merged_citations := append (dict
+              "paper_slug" $slug
+              "paper_title" $paperTitle
+              "paper_number" $paperNumber
+              "relevance" .relevance
+            ) $existing.citations }}
+            {{ $byUrl = merge $byUrl (dict $url (merge $existing (dict
+              "quoted_passages" $merged_quotes
+              "citations" $merged_citations
+            ))) }}
+          {{ end }}
+        {{ end }}
+      {{ end }}
+
+      <div class="papers-references-index">
+        <p>The cross-series bibliography for the Frank Papers. Every
+        primary source cited in any Paper appears here exactly once,
+        grouped by source type. Per-paper §8 sections remain the
+        primary citation surface; this index exists for cross-paper
+        navigation.</p>
+
+        {{ range $type := slice "vendor-docs" "paper" "postmortem" "talk" "benchmark" }}
+          {{ $matches := slice }}
+          {{ range $url, $entry := $byUrl }}
+            {{ if eq $entry.type $type }}
+              {{ $matches = append (merge $entry (dict "url" $url)) $matches }}
+            {{ end }}
+          {{ end }}
+          {{ if $matches }}
+            <h2 id="{{ $type }}">{{ $type }}</h2>
+            {{ $sorted := sort $matches "title" "asc" }}
+            <ul>
+              {{ range $sorted }}
+                <li>
+                  <span class="paper-reference-chip paper-reference-chip--{{ .type }}">{{ .type }}</span>
+                  <a href="{{ .url }}" rel="noopener nofollow">{{ .title }}</a>
+                  {{ with .quoted_passages }}
+                    {{ range . }}
+                      <blockquote>{{ . }}</blockquote>
+                    {{ end }}
+                  {{ end }}
+                  <div class="paper-reference-citations">
+                    <strong>Cited in:</strong>
+                    <ul>
+                      {{ range sort .citations "paper_number" "asc" }}
+                        <li>
+                          <a href="/docs/papers/{{ .paper_slug }}/">Paper {{ .paper_number }} — {{ .paper_title }}</a>
+                          — <em>{{ .relevance }}</em>
+                        </li>
+                      {{ end }}
+                    </ul>
+                  </div>
+                </li>
+              {{ end }}
+            </ul>
+          {{ end }}
+        {{ end }}
+      </div>
+      END blog/layouts/partials/papers/references-index.html
+  - id: P3.T3.S2
+    text: |-
+      Create the shortcode wrapper:
+
+      BEGIN blog/layouts/shortcodes/papers/references-index.html
+      {{ partial "papers/references-index.html" . }}
+      END blog/layouts/shortcodes/papers/references-index.html
+- number: 4
+  title: CSS + commit
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Append to `blog/assets/css/custom.css` (or the equivalent — verify the actual path first with `ls blog/assets/css/`):
+
+      BEGIN append-block
+      /* Frank Papers — §8 References + cross-series index */
+
+      .paper-post .paper-references {
+        margin-top: 3rem;
+        border-top: 1px solid var(--border-color, #2a2a2a);
+        padding-top: 1.5rem;
+      }
+      .paper-post .paper-references ol {
+        list-style: decimal;
+        padding-left: 1.5rem;
+      }
+      .paper-post .paper-references li {
+        margin-bottom: 1.25rem;
+      }
+      .paper-post .paper-references blockquote,
+      .papers-references-index blockquote {
+        border-left: 3px solid var(--accent-color, #888);
+        padding-left: 0.75rem;
+        margin: 0.5rem 0;
+        font-style: normal;
+        color: var(--text-muted, #aaa);
+      }
+      .paper-reference-relevance {
+        margin-top: 0.5rem;
+        opacity: 0.85;
+      }
+      .paper-reference-chip {
+        display: inline-block;
+        padding: 0.1rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+        background: var(--chip-bg, #2a2a2a);
+        color: var(--chip-fg, #ddd);
+      }
+      .paper-reference-chip--vendor-docs { background: #1e3a5f; color: #cfe2ff; }
+      .paper-reference-chip--paper       { background: #2e1e5f; color: #d4c7ff; }
+      .paper-reference-chip--postmortem  { background: #5f1e1e; color: #ffcccc; }
+      .paper-reference-chip--talk        { background: #1e5f3a; color: #c7ffd4; }
+      .paper-reference-chip--benchmark   { background: #5f4e1e; color: #ffe9b3; }
+
+      .papers-references-index h2 {
+        margin-top: 2.5rem;
+        text-transform: lowercase;
+        font-variant: small-caps;
+      }
+      .papers-references-index .paper-reference-citations {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+      }
+      .papers-references-index .paper-reference-citations ul {
+        list-style: none;
+        padding-left: 1rem;
+      }
+      END append-block
+  - id: P3.T4.S2
+    text: |-
+      Commit Phase 3:
+
+      ```bash
+      git add blog/layouts/partials/papers/references.html \
+              blog/layouts/partials/papers/references-index.html \
+              blog/layouts/shortcodes/papers/references-index.html \
+              blog/layouts/docs/single.html \
+              blog/assets/css/custom.css
+      git commit -m "feat(repo): render §8 + cross-series references index"
+      ```
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

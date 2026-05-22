@@ -1,0 +1,114 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Strip
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: One-shot migration to strip the §8 stub
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Run this in-place migration. It removes the three-line §8 stub block from every paper's `index.md`:
+
+      ```bash
+      python - <<'PY'
+      import re
+      from pathlib import Path
+
+      STUB = re.compile(
+          r"\n## References\n\n\*Auto-rendered from frontmatter by Hugo taxonomy\.\*\n?",
+          re.MULTILINE,
+      )
+      changed = []
+      for idx in sorted(Path("blog/content/docs/papers").glob("*/index.md")):
+          text = idx.read_text()
+          new = STUB.sub("\n", text, count=1)
+          if new != text:
+              idx.write_text(new)
+              changed.append(str(idx))
+      print(f"stripped §8 stub from {len(changed)} papers:")
+      for c in changed:
+          print(f"  {c}")
+      PY
+      ```
+
+      Expected: `stripped §8 stub from 17 papers:` (if a paper had no stub, it's not in the list — but every existing paper should have it).
+  - id: P4.T1.S2
+    text: |-
+      Verify diffs look clean — three lines removed per file, nothing else touched:
+
+      ```bash
+      git diff --stat blog/content/docs/papers/
+      git diff blog/content/docs/papers/09-secrets-bootstrap/index.md | head -20
+      ```
+
+      Expected: each file's diff is a `-## References`, `-`, `-*Auto-rendered ...*` removal, no `+` additions.
+- number: 2
+  title: Update scaffold-paper.sh to omit the §8 stub
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Edit `scripts/scaffold-paper.sh`. Find lines 79-81 (the heredoc emitting `## References` + blank + `*Auto-rendered...*`). Remove those three lines from the heredoc. Verify:
+
+      ```bash
+      grep -n "References\|Auto-rendered" scripts/scaffold-paper.sh
+      ```
+
+      Expected: no output (both strings gone).
+- number: 3
+  title: Visual verification on three representative papers
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Start hugo server and verify auto-injected §8 renders correctly on the three fixture papers:
+
+      ```bash
+      cd blog && hugo server --buildDrafts=false --port 1313 &
+      sleep 3
+      for slug in 09-secrets-bootstrap 04-distributed-storage 14-progressive-delivery; do
+        echo "=== $slug ==="
+        curl -s "http://localhost:1313/docs/papers/$slug/" \
+          | grep -c '<li id="ref-'
+      done
+      pkill -f "hugo server" || true
+      ```
+
+      Expected: counts match the dossier source counts (Paper 09: 9, Paper 04: 5, Paper 14: 5 — confirm exact numbers from `wc -l < blog/data/papers/<slug>.yaml` first).
+  - id: P4.T3.S2
+    text: |-
+      Commit Phase 4:
+
+      ```bash
+      git add blog/content/docs/papers/ scripts/scaffold-paper.sh
+      git commit -m "feat(repo): strip §8 placeholder from every paper + scaffold"
+      ```
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,175 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Frontmatter cleanup + /references/ page + agents/rules + parent-spec
+  tag: agentic
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Hard-delete the references frontmatter block
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Run this one-shot migration. It removes the `references:` block (and any indented list items beneath it) from each paper's frontmatter:
+
+      ```bash
+      python - <<'PY'
+      import re
+      from pathlib import Path
+
+      # Match `references:` followed by either nothing (`references: []`)
+      # or a YAML block-list (lines starting with whitespace + `-`).
+      BLOCK = re.compile(
+          r"^references:.*?(?=^\S|^---)",
+          re.MULTILINE | re.DOTALL,
+      )
+      changed = []
+      for idx in sorted(Path("blog/content/docs/papers").glob("*/index.md")):
+          text = idx.read_text()
+          fm_match = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
+          if not fm_match:
+              continue
+          fm = fm_match.group(1)
+          new_fm = BLOCK.sub("", fm).rstrip() + "\n"
+          if new_fm != fm:
+              new_text = "---\n" + new_fm + "---\n" + text[fm_match.end():]
+              idx.write_text(new_text)
+              changed.append(str(idx))
+      print(f"removed references: block from {len(changed)} papers")
+      for c in changed:
+          print(f"  {c}")
+      PY
+      ```
+
+      Expected: 17 papers updated.
+  - id: P5.T1.S2
+    text: |-
+      Verify diffs:
+
+      ```bash
+      git diff blog/content/docs/papers/09-secrets-bootstrap/index.md | head -30
+      ```
+
+      Expected: only `references:` block removed from frontmatter. No other changes. The closing `---` of the frontmatter must still be intact.
+- number: 2
+  title: Drop references from scaffold + agents/rules required fields
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Edit `scripts/scaffold-paper.sh`. Find line 42 (`references: []`) — remove it from the frontmatter heredoc. Verify:
+
+      ```bash
+      grep -n "^references:\| references:" scripts/scaffold-paper.sh
+      ```
+
+      Expected: no output.
+  - id: P5.T2.S2
+    text: |-
+      Edit `agents/rules/repo-papers.md`. Find the "Required fields" line in the Frontmatter schema section (it currently lists `references` as the last item). Remove just the trailing `, references` (and the comma before it). Verify:
+
+      ```bash
+      grep -n "Required fields" agents/rules/repo-papers.md
+      ```
+
+      Expected: the line no longer contains `references`.
+- number: 3
+  title: Create /docs/papers/references/ content page
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Create `blog/content/docs/papers/references/_index.md`:
+
+      BEGIN blog/content/docs/papers/references/_index.md
+      ---
+      title: "References"
+      weight: 999
+      series: references
+      ---
+
+      {{< papers/references-index >}}
+      END blog/content/docs/papers/references/_index.md
+
+      Note: `series: references` (NOT `papers-index`) — see spec lines 137 for the Hugo `in` substring-match trap rationale.
+  - id: P5.T3.S2
+    text: |-
+      Verify the page renders. Start hugo server:
+
+      ```bash
+      cd blog && hugo server --buildDrafts=false --port 1313 &
+      sleep 3
+      curl -s http://localhost:1313/docs/papers/references/ \
+        | grep -cE 'id="(vendor-docs|paper|postmortem|talk|benchmark)"'
+      pkill -f "hugo server" || true
+      ```
+
+      Expected: a small integer (≥3, ≤5) — one anchor per type section that has at least one source across all dossiers.
+
+      Spot-check that per-paper relevance is attributed correctly: in browser, visit `/docs/papers/references/` and verify any vendor-docs entry under "Cited in:" shows the Paper title + that paper's specific relevance sentence.
+- number: 4
+  title: Update parent series spec + commit
+  steps:
+  - id: P5.T4.S1
+    text: |-
+      Edit `docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md`:
+
+      1. Around line 106 (§8 anatomy table row), replace `Auto-rendered from frontmatter` with `Auto-injected by single.html from blog/data/papers/<slug>.yaml (sync'd from dossier — see 2026-05-22--repo--paper-bibliography-rendering-design.md)`.
+      2. Around lines 250-256 (References taxonomy section), replace the placeholder language with a 2-3 sentence description of the actual mechanism: sync script extracts primary_sources from dossier → data file → partial renders §8 per paper + cross-series /docs/papers/references/ index.
+
+      Verify:
+
+      ```bash
+      grep -n "Auto-rendered\|References taxonomy" docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md
+      ```
+
+      Expected: no more `Auto-rendered` strings; References taxonomy section now describes the real mechanism.
+  - id: P5.T4.S2
+    text: |-
+      Commit Phase 5:
+
+      ```bash
+      git add blog/content/docs/papers/ \
+              scripts/scaffold-paper.sh \
+              agents/rules/repo-papers.md \
+              docs/superpowers/specs/2026-04-15--repo--frank-papers-series-design.md
+      git commit -m "feat(repo): frontmatter cleanup + /references/ page + spec sync"
+      ```
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

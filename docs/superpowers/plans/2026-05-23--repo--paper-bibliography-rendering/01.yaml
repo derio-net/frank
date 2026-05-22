@@ -1,0 +1,647 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Sync script + --check + tests + pre-commit hook
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Extract dossier parser to a shared library
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Read `scripts/validate-dossier.py` lines 33-65 to confirm the section-parsing logic. The parser walks the dossier line by line, treating each `## Section header` as a new section whose body is YAML-parsed via `yaml.safe_load`. The current key derivation is:
+
+      ```python
+      current_key = line[3:].strip().lower().replace(" ", "_").replace("(", "").replace(")", "")
+      ```
+
+      So `## Primary sources (≥5, ≥3 distinct type values)` becomes the key `primary_sources_≥5,_≥3_distinct_type_values`. This is preserved exactly — consumers look up via `next(v for k, v in sections.items() if k.startswith("primary_sources"))`.
+  - id: P1.T1.S2
+    text: |-
+      Create the lib directory and shared parser module.
+
+      ```bash
+      mkdir -p scripts/lib
+      touch scripts/lib/__init__.py
+      ```
+
+      Create `scripts/lib/dossier_parser.py` with two exported functions: `parse_dossier(path: Path) -> dict[str, Any]` (returns the full sections dict) and `get_primary_sources(sections: dict) -> list[dict]` (returns the `primary_sources` list, found via `startswith` lookup). Move the parser body from `validate-dossier.py:33-65` verbatim — same key derivation, same `yaml.safe_load` semantics.
+
+      BEGIN scripts/lib/dossier_parser.py
+      #!/usr/bin/env python3
+      """Shared parser for Frank Papers research dossiers.
+
+      Dossiers are markdown files where each `## H2` header begins a
+      section whose body is YAML. Two consumers depend on this parser:
+      `scripts/validate-dossier.py` (the gate validator) and
+      `scripts/sync-dossier-to-data.py` (the blog data sync).
+      """
+      from __future__ import annotations
+      import re
+      from pathlib import Path
+      from typing import Any
+
+      import yaml
+
+
+      def parse_dossier(path: Path) -> dict[str, Any]:
+          """Parse a dossier markdown file into a sections dict.
+
+          Strips YAML frontmatter if present, then walks the body line
+          by line. Each `## ...` line begins a new section; its
+          contents are yaml.safe_load'd.
+          """
+          text = path.read_text()
+          fm_match = re.match(r'^---\n(.*?)\n---\n', text, re.DOTALL)
+          if fm_match:
+              text = text[fm_match.end():]
+
+          sections: dict[str, Any] = {}
+          current_key: str | None = None
+          current_lines: list[str] = []
+          for line in text.splitlines():
+              if line.startswith("## "):
+                  if current_key:
+                      try:
+                          sections[current_key] = yaml.safe_load("\n".join(current_lines)) or []
+                      except yaml.YAMLError:
+                          sections[current_key] = current_lines
+                  current_key = (
+                      line[3:].strip().lower()
+                      .replace(" ", "_")
+                      .replace("(", "")
+                      .replace(")", "")
+                  )
+                  current_lines = []
+              elif current_key is not None:
+                  current_lines.append(line)
+          if current_key:
+              try:
+                  sections[current_key] = yaml.safe_load("\n".join(current_lines)) or []
+              except yaml.YAMLError:
+                  sections[current_key] = current_lines
+          return sections
+
+
+      def get_primary_sources(sections: dict[str, Any]) -> list[dict]:
+          """Return the parsed `## Primary sources` list.
+
+          The H2 header in dossiers includes a parenthetical
+          annotation (e.g., `## Primary sources (≥5, ≥3 distinct
+          type values)`), so look up by prefix.
+          """
+          for k, v in sections.items():
+              if k.startswith("primary_sources"):
+                  return v or []
+          return []
+      END scripts/lib/dossier_parser.py
+  - id: P1.T1.S3
+    text: |-
+      Refactor `scripts/validate-dossier.py` to import from the new module. Replace the inline `validate()` function's parsing block (lines 33-65) with a call to `parse_dossier()`. The lookup `data.get("primary_sources_..." )` in the rest of validate-dossier.py should become `get_primary_sources(sections)`.
+
+      Verify the validator still passes against every dossier:
+
+      ```bash
+      for d in docs/papers-dossiers/*/dossier.md; do
+        python scripts/validate-dossier.py "$d" || echo "FAIL: $d"
+      done
+      ```
+
+      Expected: every dossier exits 0 (no FAIL lines printed).
+- number: 2
+  title: Write failing parser test against a real dossier
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create `scripts/tests/` if not present and add the test scaffolding.
+
+      ```bash
+      mkdir -p scripts/tests
+      touch scripts/tests/__init__.py
+      ```
+
+      Create `scripts/tests/test_dossier_parser.py`:
+
+      BEGIN scripts/tests/test_dossier_parser.py
+      """Test the shared dossier parser against real fixtures.
+
+      Uses Paper 09 (9 sources covering all 5 type values) as the
+      comprehensive fixture, plus Paper 04 (4 types incl. `paper`)
+      and Paper 14 (4 types incl. one `postmortem`).
+      """
+      from pathlib import Path
+      import pytest
+
+      from scripts.lib.dossier_parser import parse_dossier, get_primary_sources
+
+      REPO_ROOT = Path(__file__).resolve().parents[2]
+      DOSSIERS = REPO_ROOT / "docs" / "papers-dossiers"
+
+
+      def test_paper_09_has_nine_sources_all_five_types():
+          sections = parse_dossier(DOSSIERS / "09-secrets-bootstrap" / "dossier.md")
+          sources = get_primary_sources(sections)
+          assert len(sources) == 9, f"expected 9 sources, got {len(sources)}"
+          types = {s["type"] for s in sources}
+          assert types == {"vendor-docs", "paper", "postmortem", "talk", "benchmark"}, (
+              f"expected all 5 types, got {types}"
+          )
+
+
+      def test_paper_04_includes_paper_type():
+          sections = parse_dossier(DOSSIERS / "04-distributed-storage" / "dossier.md")
+          sources = get_primary_sources(sections)
+          types = {s["type"] for s in sources}
+          assert "paper" in types
+          assert len(types) >= 3
+
+
+      def test_paper_14_includes_postmortem_type():
+          sections = parse_dossier(DOSSIERS / "14-progressive-delivery" / "dossier.md")
+          sources = get_primary_sources(sections)
+          types = {s["type"] for s in sources}
+          assert "postmortem" in types
+          assert len(types) >= 3
+
+
+      def test_every_source_has_required_fields():
+          sections = parse_dossier(DOSSIERS / "09-secrets-bootstrap" / "dossier.md")
+          sources = get_primary_sources(sections)
+          for s in sources:
+              assert "title" in s and s["title"]
+              assert "url" in s and s["url"]
+              assert "type" in s and s["type"]
+              assert "quoted_passages" in s and isinstance(s["quoted_passages"], list) and s["quoted_passages"]
+              assert "relevance" in s and s["relevance"]
+      END scripts/tests/test_dossier_parser.py
+  - id: P1.T2.S2
+    text: |-
+      Run the parser tests:
+
+      ```bash
+      cd $(git rev-parse --show-toplevel)
+      uv run --with pyyaml --with pytest pytest scripts/tests/test_dossier_parser.py -v
+      ```
+
+      Expected: 4 passed. These tests pin the parser shape — if any of these break in a future refactor, the sync downstream is broken.
+- number: 3
+  title: Write failing sync test, then implement single-slug mode
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Create `scripts/tests/test_sync_dossier_to_data.py` with a failing test for the single-slug entry point:
+
+      BEGIN scripts/tests/test_sync_dossier_to_data.py
+      """Test scripts/sync-dossier-to-data.py against real dossiers.
+
+      The sync script reads docs/papers-dossiers/<slug>/dossier.md
+      and writes blog/data/papers/<slug>.yaml. Output shape is
+      pinned by the spec.
+      """
+      from pathlib import Path
+      import subprocess
+      import sys
+
+      import yaml
+      import pytest
+
+      REPO_ROOT = Path(__file__).resolve().parents[2]
+      SCRIPT = REPO_ROOT / "scripts" / "sync-dossier-to-data.py"
+      DATA_DIR = REPO_ROOT / "blog" / "data" / "papers"
+
+
+      def run(*args: str) -> subprocess.CompletedProcess:
+          return subprocess.run(
+              [sys.executable, str(SCRIPT), *args],
+              capture_output=True,
+              text=True,
+              cwd=REPO_ROOT,
+          )
+
+
+      def test_sync_single_slug_writes_data_file(tmp_path, monkeypatch):
+          # Sync Paper 09 into a temp data dir to avoid clobbering main repo state during tests
+          target = tmp_path / "09-secrets-bootstrap.yaml"
+          proc = run("09-secrets-bootstrap", "--output", str(target))
+          assert proc.returncode == 0, proc.stderr
+          data = yaml.safe_load(target.read_text())
+          assert "primary_sources" in data
+          sources = data["primary_sources"]
+          assert len(sources) == 9
+          # Spec-pinned shape per source
+          s0 = sources[0]
+          assert set(s0.keys()) >= {"title", "url", "type", "quoted_passages", "relevance"}
+          assert s0["type"] in {"vendor-docs", "paper", "postmortem", "talk", "benchmark"}
+
+
+      def test_sync_emits_idempotent_yaml(tmp_path):
+          t1 = tmp_path / "a.yaml"
+          t2 = tmp_path / "b.yaml"
+          run("09-secrets-bootstrap", "--output", str(t1))
+          run("09-secrets-bootstrap", "--output", str(t2))
+          assert t1.read_text() == t2.read_text(), "repeat sync produced different output"
+      END scripts/tests/test_sync_dossier_to_data.py
+
+      Run; expect failure (script doesn't exist yet):
+
+      ```bash
+      uv run --with pyyaml --with pytest pytest scripts/tests/test_sync_dossier_to_data.py -v
+      ```
+
+      Expected: collection error or script-not-found — confirms the test is meaningful.
+  - id: P1.T3.S2
+    text: |-
+      Create `scripts/sync-dossier-to-data.py` with the single-slug mode implemented (other modes added in T4, T5):
+
+      BEGIN scripts/sync-dossier-to-data.py
+      #!/usr/bin/env python3
+      """Sync Frank Papers dossiers into Hugo data files.
+
+      Reads docs/papers-dossiers/<slug>/dossier.md and writes
+      blog/data/papers/<slug>.yaml. The data file is the single
+      source the Hugo §8 partial reads at build time.
+
+      CLI:
+          sync-dossier-to-data.py <slug>           regenerate one
+          sync-dossier-to-data.py --all            regenerate all
+          sync-dossier-to-data.py --check          CI drift gate
+
+      The --output flag (single-slug mode only) overrides the
+      default blog/data/papers/<slug>.yaml destination — used by
+      the test suite to write to a tmp dir.
+      """
+      from __future__ import annotations
+      import argparse
+      import difflib
+      import sys
+      from pathlib import Path
+
+      import yaml
+
+      REPO_ROOT = Path(__file__).resolve().parent.parent
+      sys.path.insert(0, str(REPO_ROOT))
+
+      from scripts.lib.dossier_parser import parse_dossier, get_primary_sources
+
+      DOSSIERS_DIR = REPO_ROOT / "docs" / "papers-dossiers"
+      DATA_DIR = REPO_ROOT / "blog" / "data" / "papers"
+
+
+      def render(sources: list[dict]) -> str:
+          """Serialize sources to a stable YAML string."""
+          payload = {"primary_sources": sources}
+          return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, width=1000)
+
+
+      def sync_one(slug: str, output: Path | None = None) -> Path:
+          dossier = DOSSIERS_DIR / slug / "dossier.md"
+          if not dossier.exists():
+              raise SystemExit(f"dossier not found: {dossier}")
+          sections = parse_dossier(dossier)
+          sources = get_primary_sources(sections)
+          dest = output if output else DATA_DIR / f"{slug}.yaml"
+          dest.parent.mkdir(parents=True, exist_ok=True)
+          dest.write_text(render(sources))
+          return dest
+
+
+      def main() -> int:
+          p = argparse.ArgumentParser(description="Sync dossiers → blog/data/papers/*.yaml")
+          p.add_argument("slug", nargs="?", help="Single dossier slug to sync")
+          p.add_argument("--all", action="store_true", help="Sync every dossier")
+          p.add_argument("--check", action="store_true", help="Fail on drift (CI mode)")
+          p.add_argument("--output", type=Path, help="(single-slug only) write to this path")
+          args = p.parse_args()
+
+          if args.slug and not args.all and not args.check:
+              dest = sync_one(args.slug, args.output)
+              print(f"wrote {dest.relative_to(REPO_ROOT)}")
+              return 0
+          p.error("only single-slug mode implemented yet; --all and --check come in later tasks")
+
+
+      if __name__ == "__main__":
+          sys.exit(main())
+      END scripts/sync-dossier-to-data.py
+
+      Make executable:
+
+      ```bash
+      chmod +x scripts/sync-dossier-to-data.py
+      ```
+  - id: P1.T3.S3
+    text: |-
+      Re-run the sync tests:
+
+      ```bash
+      uv run --with pyyaml --with pytest pytest scripts/tests/test_sync_dossier_to_data.py::test_sync_single_slug_writes_data_file scripts/tests/test_sync_dossier_to_data.py::test_sync_emits_idempotent_yaml -v
+      ```
+
+      Expected: 2 passed.
+- number: 4
+  title: Add --all mode (test-first)
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Append to `scripts/tests/test_sync_dossier_to_data.py`:
+
+      BEGIN append-block
+      def test_sync_all_covers_every_dossier(tmp_path, monkeypatch):
+          # Redirect DATA_DIR to tmp_path via env-controlled module monkey
+          from scripts import sync_dossier_to_data as mod  # type: ignore
+          monkeypatch.setattr(mod, "DATA_DIR", tmp_path)
+          # Count dossiers
+          dossier_count = len([
+              d for d in (REPO_ROOT / "docs" / "papers-dossiers").iterdir()
+              if d.is_dir() and (d / "dossier.md").exists()
+          ])
+          # Invoke programmatically (subprocess won't see the monkeypatch)
+          mod.sync_all()
+          generated = list(tmp_path.glob("*.yaml"))
+          assert len(generated) == dossier_count, (
+              f"expected {dossier_count} data files, generated {len(generated)}"
+          )
+      END append-block
+
+      Note: import path is `scripts.sync_dossier_to_data` (hyphens → underscores via importlib trick if needed; alternative is `importlib.util.spec_from_file_location`). The cleanest path: add `scripts/__init__.py` (if absent) and rename module to be importable, OR use importlib.
+
+      Choose importlib to avoid renaming the CLI tool:
+
+      ```python
+      import importlib.util
+      spec = importlib.util.spec_from_file_location(
+          "sync_dossier_to_data",
+          REPO_ROOT / "scripts" / "sync-dossier-to-data.py",
+      )
+      mod = importlib.util.module_from_spec(spec)
+      spec.loader.exec_module(mod)
+      ```
+
+      Update the test fixture at the top of the test file to expose `mod` and use it in both this test and the existing tests (cleaner than mixed subprocess + import).
+
+      Run; expect failure (sync_all not implemented):
+
+      ```bash
+      uv run --with pyyaml --with pytest pytest scripts/tests/test_sync_dossier_to_data.py::test_sync_all_covers_every_dossier -v
+      ```
+  - id: P1.T4.S2
+    text: |-
+      Add `sync_all()` to `scripts/sync-dossier-to-data.py`. Insert before `def main()`:
+
+      ```python
+      def sync_all() -> list[Path]:
+          results = []
+          for dossier in sorted(DOSSIERS_DIR.glob("*/dossier.md")):
+              slug = dossier.parent.name
+              results.append(sync_one(slug))
+          return results
+      ```
+
+      Wire into `main()` — add the `--all` branch before the existing single-slug branch:
+
+      ```python
+          if args.all:
+              written = sync_all()
+              for path in written:
+                  print(f"wrote {path.relative_to(REPO_ROOT)}")
+              return 0
+      ```
+
+      Re-run the test:
+
+      ```bash
+      uv run --with pyyaml --with pytest pytest scripts/tests/test_sync_dossier_to_data.py::test_sync_all_covers_every_dossier -v
+      ```
+
+      Expected: pass.
+- number: 5
+  title: Add --check mode (test-first)
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Append the --check test to `scripts/tests/test_sync_dossier_to_data.py`:
+
+      BEGIN append-block
+      def test_check_clean_exits_zero(tmp_path, monkeypatch):
+          """After --all, --check must pass."""
+          from importlib.util import spec_from_file_location, module_from_spec
+          spec = spec_from_file_location(
+              "sync_dossier_to_data",
+              REPO_ROOT / "scripts" / "sync-dossier-to-data.py",
+          )
+          mod = module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          monkeypatch.setattr(mod, "DATA_DIR", tmp_path)
+          mod.sync_all()
+          rc, diff = mod.check_drift()
+          assert rc == 0, f"expected clean, got diff:\n{diff}"
+
+
+      def test_check_dirty_exits_nonzero_with_diff(tmp_path, monkeypatch):
+          """Tamper with one data file, expect rc=1 + a unified diff."""
+          from importlib.util import spec_from_file_location, module_from_spec
+          spec = spec_from_file_location(
+              "sync_dossier_to_data",
+              REPO_ROOT / "scripts" / "sync-dossier-to-data.py",
+          )
+          mod = module_from_spec(spec)
+          spec.loader.exec_module(mod)
+          monkeypatch.setattr(mod, "DATA_DIR", tmp_path)
+          mod.sync_all()
+          # Corrupt one file
+          victim = next(tmp_path.glob("*.yaml"))
+          victim.write_text("primary_sources: []\n")
+          rc, diff = mod.check_drift()
+          assert rc == 1
+          assert victim.name in diff or victim.stem in diff
+      END append-block
+
+      Run; expect failure (check_drift undefined):
+
+      ```bash
+      uv run --with pyyaml --with pytest pytest scripts/tests/test_sync_dossier_to_data.py -k check -v
+      ```
+  - id: P1.T5.S2
+    text: |-
+      Add `check_drift()` to `scripts/sync-dossier-to-data.py` (before `main`):
+
+      ```python
+      def check_drift() -> tuple[int, str]:
+          """Return (exit_code, diff_text)."""
+          diffs: list[str] = []
+          for dossier in sorted(DOSSIERS_DIR.glob("*/dossier.md")):
+              slug = dossier.parent.name
+              sections = parse_dossier(dossier)
+              sources = get_primary_sources(sections)
+              expected = render(sources)
+              actual_path = DATA_DIR / f"{slug}.yaml"
+              actual = actual_path.read_text() if actual_path.exists() else ""
+              if expected != actual:
+                  diffs.extend(difflib.unified_diff(
+                      actual.splitlines(keepends=True),
+                      expected.splitlines(keepends=True),
+                      fromfile=f"{actual_path} (on disk)",
+                      tofile=f"{actual_path} (expected)",
+                  ))
+          if diffs:
+              return 1, "".join(diffs)
+          return 0, ""
+      ```
+
+      Wire into main:
+
+      ```python
+          if args.check:
+              rc, diff = check_drift()
+              if rc != 0:
+                  sys.stderr.write(diff)
+                  sys.stderr.write("\nFAIL: run `scripts/sync-dossier-to-data.py --all` and commit.\n")
+              return rc
+      ```
+
+      Re-run all sync tests:
+
+      ```bash
+      uv run --with pyyaml --with pytest pytest scripts/tests/test_sync_dossier_to_data.py -v
+      ```
+
+      Expected: 5 passed (single, idempotent, --all, --check clean, --check dirty).
+- number: 6
+  title: Wire into .githooks/pre-commit + manual verification
+  steps:
+  - id: P1.T6.S1
+    text: |-
+      Append a conditional block to `.githooks/pre-commit` after the existing blocks. Pattern mirrors the existing `PLAN_FILES` / `AGENT_CONFIG_FILES` shape:
+
+      BEGIN edit-block (append after the existing if-blocks, before final exit)
+      DOSSIER_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/papers-dossiers/[^/]+/dossier\.md$' || true)
+
+      if [ -n "$DOSSIER_FILES" ]; then
+        # Regenerate matching data files and stage them
+        for dossier in $DOSSIER_FILES; do
+          slug=$(basename "$(dirname "$dossier")")
+          python "$REPO_ROOT/scripts/sync-dossier-to-data.py" "$slug"
+          git add "$REPO_ROOT/blog/data/papers/${slug}.yaml"
+        done
+      fi
+      END edit-block
+
+      Verify hook is still executable:
+
+      ```bash
+      ls -la .githooks/pre-commit
+      ```
+  - id: P1.T6.S2
+    text: |-
+      Manual verification of the hook. From a clean working tree:
+
+      ```bash
+      # Touch a dossier (whitespace edit)
+      echo "" >> docs/papers-dossiers/09-secrets-bootstrap/dossier.md
+      git add docs/papers-dossiers/09-secrets-bootstrap/dossier.md
+
+      # Attempt commit — hook should regenerate the data file and add it
+      git commit -m "test: dossier hook verification" --dry-run
+      ```
+
+      Expected: hook output mentions writing `blog/data/papers/09-secrets-bootstrap.yaml`. Do not actually commit; reset:
+
+      ```bash
+      git restore --staged docs/papers-dossiers/09-secrets-bootstrap/dossier.md
+      git checkout -- docs/papers-dossiers/09-secrets-bootstrap/dossier.md
+      git restore --staged blog/data/papers/09-secrets-bootstrap.yaml 2>/dev/null || true
+      ```
+  - id: P1.T6.S3
+    text: |-
+      Commit Phase 1 work:
+
+      ```bash
+      git add scripts/lib/ scripts/tests/ scripts/sync-dossier-to-data.py scripts/validate-dossier.py .githooks/pre-commit
+      git commit -m "$(cat <<'EOF'
+      feat(repo): sync-dossier-to-data script + shared parser
+
+      New scripts/lib/dossier_parser.py is now imported by both
+      validate-dossier.py and the new sync-dossier-to-data.py, so
+      the dossier shape has one source of truth.
+
+      sync-dossier-to-data.py has three modes:
+      - <slug>       regenerate one data file
+      - --all        regenerate every data file
+      - --check      exit 1 with unified diff on drift (CI gate)
+
+      Pre-commit hook regenerates blog/data/papers/<slug>.yaml on
+      any commit that touches docs/papers-dossiers/**/dossier.md
+      and stages the result.
+
+      Tests: 7 cases in scripts/tests/ pin the parser + sync shapes.
+      EOF
+      )"
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T6.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

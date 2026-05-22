@@ -1,0 +1,137 @@
+schema_version: 2
+phase:
+  number: 6
+  title: CI drift gate + post-deploy checklist
+  tag: agentic
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Wire --check into the blog CI workflow
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Read `.github/workflows/deploy-blog.yml` to find the right insertion point — somewhere BEFORE the `hugo --minify` step, so a drift detection short-circuits the build:
+
+      ```bash
+      cat .github/workflows/deploy-blog.yml
+      ```
+
+      Identify the job that runs Hugo build. The `--check` step needs Python + PyYAML; add a setup-python step if not already present, then the check step.
+  - id: P6.T1.S2
+    text: |-
+      Edit `.github/workflows/deploy-blog.yml` to add the drift check. Insert before the `hugo --minify` (or equivalent) step:
+
+      ```yaml
+            - name: Setup Python
+              uses: actions/setup-python@v5
+              with:
+                python-version: '3.12'
+
+            - name: Install dossier-sync deps
+              run: pip install pyyaml
+
+            - name: Check dossier ↔ blog/data/papers sync
+              run: python scripts/sync-dossier-to-data.py --check
+      ```
+
+      (If `actions/setup-python` is already present elsewhere in the job, skip its block.)
+  - id: P6.T1.S3
+    text: |-
+      Commit and push:
+
+      ```bash
+      git add .github/workflows/deploy-blog.yml
+      git commit -m "ci(blog): fail on dossier ↔ data-file drift"
+      git push origin HEAD
+      ```
+
+      Watch the workflow run:
+
+      ```bash
+      gh run watch
+      ```
+
+      Expected: the new "Check dossier ↔ blog/data/papers sync" step passes (exit 0).
+  - id: P6.T1.S4
+    text: |-
+      Negative test (optional but worth it) — on a throwaway branch, tamper with one data file and verify CI fails with the expected diff:
+
+      ```bash
+      git checkout -b drift-negative-test
+      echo "primary_sources: []" > blog/data/papers/09-secrets-bootstrap.yaml
+      git add blog/data/papers/09-secrets-bootstrap.yaml
+      git commit -m "test: intentional drift"
+      git push -u origin drift-negative-test
+      gh run watch
+      ```
+
+      Expected: the check step fails with stderr containing a unified diff for `09-secrets-bootstrap.yaml`. After verification, delete the branch:
+
+      ```bash
+      git checkout main
+      git branch -D drift-negative-test
+      git push origin :drift-negative-test
+      ```
+- number: 2
+  title: Post-deploy checklist (meta/repo layer — most steps skipped)
+  steps:
+  - id: P6.T2.S1
+    text: |-
+      Per `docs/superpowers/plan-config.yaml`, `skip_when: meta/repo layer` applies to this plan. Skipped steps (no action):
+
+      - Step 1 (expose externally): N/A — no new service.
+      - Step 2 (building blog post): SKIP — meta improvement to existing series.
+      - Step 3 (operating blog post): SKIP — same reason.
+      - Step 4 (update README): SKIP — internal infra change.
+      - Step 5 (sync runbook): SKIP — no manual-operation blocks in this plan.
+
+      One action remains:
+
+      - Step 6 (update plan status): set the plan's `Status:` to `Complete` in `_meta.yaml` (or wherever the status field surfaces — v2 plans track via `vk plan edit` or by editing the meta).
+  - id: P6.T2.S2
+    text: |-
+      Mark plan complete:
+
+      ```bash
+      vk plan edit docs/superpowers/plans/2026-05-23--repo--paper-bibliography-rendering --complete
+      ```
+
+      (If `vk plan edit` does not support `--complete` directly, set the status field manually in `_meta.yaml` or via the per-phase tick-all flow.)
+
+      Verify in the spec's Implementation Plans table that the row now shows the plan as complete:
+
+      ```bash
+      grep "paper-bibliography-rendering" docs/superpowers/specs/2026-05-22--repo--paper-bibliography-rendering-design.md
+      ```
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,81 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Generate blog/data/papers/*.yaml for every dossier
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Generate data files
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Run the sync against every dossier:
+
+      ```bash
+      python scripts/sync-dossier-to-data.py --all
+      ```
+
+      Expected output: 17 `wrote blog/data/papers/<slug>.yaml` lines (one per dossier dir under docs/papers-dossiers/).
+
+      Sanity-check counts:
+
+      ```bash
+      ls docs/papers-dossiers/*/dossier.md | wc -l
+      ls blog/data/papers/*.yaml | wc -l
+      ```
+
+      Both should match.
+  - id: P2.T1.S2
+    text: |-
+      Inspect one data file to confirm shape:
+
+      ```bash
+      head -20 blog/data/papers/09-secrets-bootstrap.yaml
+      ```
+
+      Expected: starts with `primary_sources:` then a list of entries with `title`, `url`, `type`, `quoted_passages`, `relevance` keys.
+- number: 2
+  title: Verify Hugo loads the data files
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Hugo's data loader fails loudly on malformed YAML — use that as the shape gate:
+
+      ```bash
+      cd blog && hugo --buildDrafts=false --verbose 2>&1 | grep -iE "error|warn.*data" || echo "OK: no data-load errors"
+      ```
+
+      Expected: `OK: no data-load errors` (Hugo emits unrelated INFO/WARN lines; we only fail on data-load-specific issues).
+  - id: P2.T2.S2
+    text: |-
+      Commit Phase 2 data files:
+
+      ```bash
+      git add blog/data/papers/
+      git commit -m "feat(repo): generate blog/data/papers/*.yaml for all dossiers"
+      ```
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
