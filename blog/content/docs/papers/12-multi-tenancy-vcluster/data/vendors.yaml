@@ -1,0 +1,78 @@
+features:
+  - key: api_isolation
+    label: API-server isolation
+  - key: crd_isolation
+    label: Tenant can install CRDs
+  - key: net_isolation
+    label: Network isolation
+  - key: quota
+    label: Resource quotas
+  - key: shared_cp
+    label: Shared control plane
+  - key: per_tenant_kubeconfig
+    label: Per-tenant kubeconfig
+  - key: oss
+    label: OSS / no contract required
+  - key: ops_floor
+    label: Low operational floor
+vendors:
+  - name: Namespaces + RBAC + NetworkPolicy
+    features:
+      api_isolation: "no"
+      crd_isolation: "no"
+      net_isolation: "yes"
+      quota: "yes"
+      shared_cp: "yes"
+      per_tenant_kubeconfig: "partial"
+      oss: "yes"
+      ops_floor: "yes"
+  - name: vCluster
+    features:
+      api_isolation: "yes"
+      crd_isolation: "yes"
+      net_isolation: "yes"
+      quota: "yes"
+      shared_cp: "no"
+      per_tenant_kubeconfig: "yes"
+      oss: "yes"
+      ops_floor: "partial"
+  - name: Kamaji
+    features:
+      api_isolation: "yes"
+      crd_isolation: "yes"
+      net_isolation: "yes"
+      quota: "yes"
+      shared_cp: "no"
+      per_tenant_kubeconfig: "yes"
+      oss: "yes"
+      ops_floor: "partial"
+  - name: Capsule
+    features:
+      api_isolation: "no"
+      crd_isolation: "no"
+      net_isolation: "yes"
+      quota: "yes"
+      shared_cp: "yes"
+      per_tenant_kubeconfig: "yes"
+      oss: "yes"
+      ops_floor: "yes"
+  - name: Cluster API (per-tenant real cluster)
+    features:
+      api_isolation: "yes"
+      crd_isolation: "yes"
+      net_isolation: "yes"
+      quota: "yes"
+      shared_cp: "no"
+      per_tenant_kubeconfig: "yes"
+      oss: "yes"
+      ops_floor: "no"
+  - name: HyperShift
+    features:
+      api_isolation: "yes"
+      crd_isolation: "yes"
+      net_isolation: "yes"
+      quota: "yes"
+      shared_cp: "no"
+      per_tenant_kubeconfig: "yes"
+      oss: "partial"
+      ops_floor: "no"
