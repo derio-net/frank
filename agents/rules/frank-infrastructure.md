@@ -37,4 +37,5 @@
 | Ruflo Web UI | (via Traefik) | IngressRoute (ruflo.cluster.derio.net) |
 | Ruflo Shell (SSH+Mosh) | 192.168.55.222 | Cilium L2 LoadBalancer (port 22/SSH, UDP 60016-60031/Mosh) |
 | GitHub webhook receiver (Tekton github-listener) | 192.168.55.223 | Cilium L2 LoadBalancer (port 8080) |
+| VictoriaLogs (LB) | 192.168.55.225 | Cilium L2 LoadBalancer (port 9428, cross-cluster ingest from Hop) |
 | Homepage | (via Traefik) | IngressRoute (master.cluster.derio.net) |
