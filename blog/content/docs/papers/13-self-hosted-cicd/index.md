@@ -2,7 +2,7 @@
 title: "Self-Hosted CI/CD on a Homelab"
 date: 2026-05-20
 draft: false
-weight: 13
+weight: 14
 series: ["papers"]
 layer: cicd
 paper_number: 13

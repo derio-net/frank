@@ -24,9 +24,20 @@ Research dossiers live at `docs/papers-dossiers/NN-slug/dossier.md`.
 
 ### Frontmatter schema
 
-Required fields: `title`, `date`, `draft`, `weight`, `series: papers`,
-`layer`, `paper_number`, `publish_order`, `status`, `tldr`, `tags`,
-`capabilities`, `related_building`, `related_operating`.
+**Required fields** (enforced by `scripts/validate-papers.py`):
+`title`, `date`, `draft`, `weight`, `series: papers`, `layer`,
+`paper_number`, `publish_order`, `status`, `tldr`.
+
+**Conventional fields** (expected on every paper but not strictly
+validator-enforced because absence/empty is sometimes intentional —
+e.g., a paper with no companion building/operating post yet):
+`tags`, `capabilities`, `related_building`, `related_operating`.
+
+**`weight` convention:** `weight = paper_number + 1`. The `+1` offset is
+deliberate: Hugo treats `weight: 0` as "no weight set" and sorts those
+pages LAST. The shift means Paper 00 → `weight: 1`, Paper 20 → `weight: 21`,
+preserving numeric sidebar order without tripping the zero-weight trap.
+Enforced by `scripts/validate-papers.py` (pre-commit + CI).
 
 ### Cross-linking (bidirectional, zero retrofit)
 

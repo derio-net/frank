@@ -2,7 +2,7 @@
 title: "eBPF Networking Without a Service Mesh"
 date: 2026-05-20
 draft: false
-weight: 3
+weight: 4
 series: ["papers"]
 layer: net
 paper_number: 3

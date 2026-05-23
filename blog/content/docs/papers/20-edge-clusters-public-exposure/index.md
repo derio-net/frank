@@ -2,7 +2,7 @@
 title: "Edge Clusters & Public Exposure"
 date: 2026-05-22
 draft: false
-weight: 20
+weight: 21
 series: ["papers"]
 layer: edge
 paper_number: 20

@@ -2,7 +2,7 @@
 title: "Ingress, Forward-Auth, and the Service Catalog"
 date: 2026-05-22
 draft: false
-weight: 15
+weight: 16
 series: ["papers"]
 layer: net
 paper_number: 15
@@ -96,7 +96,6 @@ forward-auth at the other), and whether a service catalogue is included
 or bolted on as a separate layer.
 
 {{< papers/landscape axes="x:per-app-auth↔edge-auth,y:catalogue-included↔catalogue-separate" >}}
-    quadrantChart
         title Ingress + auth + catalogue — 2026
         x-axis "Per-app OIDC" --> "Edge forward-auth"
         y-axis "Catalogue included" --> "Catalogue separate"
@@ -104,12 +103,12 @@ or bolted on as a separate layer.
         quadrant-2 "Edge auth · included catalogue"
         quadrant-3 "Per-app auth · included catalogue"
         quadrant-4 "Per-app auth · separate catalogue"
-        Traefik + Authentik + Homepage: [0.85, 0.85]
-        Nginx Ingress + oauth2-proxy: [0.75, 0.90]
-        Envoy / Contour (Gateway API): [0.65, 0.95]
-        Per-app OIDC SDK only: [0.15, 0.95]
-        Service mesh mTLS (Istio): [0.50, 0.95]
-        Cloudflare Access: [0.95, 0.20]
+        "Traefik + Authentik + Homepage": [0.85, 0.85]
+        "Nginx Ingress + oauth2-proxy": [0.75, 0.90]
+        "Envoy / Contour (Gateway API)": [0.65, 0.95]
+        "Per-app OIDC SDK only": [0.15, 0.95]
+        "Service mesh mTLS (Istio)": [0.50, 0.95]
+        "Cloudflare Access": [0.95, 0.20]
 {{< /papers/landscape >}}
 
 {{< papers/capability-matrix data="vendors" >}}
