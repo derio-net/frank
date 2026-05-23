@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goatcounter
+  namespace: goatcounter-system
+  labels:
+    app.kubernetes.io/name: goatcounter
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate  # RWO PVC; rolling update would deadlock
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: goatcounter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: goatcounter
+    spec:
+      # GoatCounter image runs as user "goatcounter" (uid 1000 in official
+      # image). The official volume path is /home/goatcounter/goatcounter-data.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: goatcounter
+          image: arp242/goatcounter:2.7.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: false  # goatcounter writes temp files
+          args:
+            - serve
+            - -db=sqlite+/home/goatcounter/goatcounter-data/goatcounter.sqlite3
+            - -listen=:8080
+            - -tls=none
+            - -automigrate
+            # 3-value -domain takes: mainDomain,staticDomain,countDomain.
+            # - main  = admin UI (mesh-only via Traefik+Authentik)
+            # - static= same as main (serves /count.js / CSS / etc.)
+            # - count = public beacon hostname (Hop's Caddy reverse-proxies
+            #           counter.derio.net here)
+            - -domain=counter.cluster.derio.net,counter.cluster.derio.net,counter.derio.net
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /home/goatcounter/goatcounter-data
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 20m
+              memory: 40Mi
+            limits:
+              memory: 128Mi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: goatcounter-data
