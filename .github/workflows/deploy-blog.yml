@@ -57,7 +57,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: scripts/package.json
+          cache-dependency-path: scripts/package-lock.json
 
       - name: Install mermaid validator deps
         working-directory: scripts

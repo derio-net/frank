@@ -19,6 +19,7 @@ Checks per paper:
 """
 from __future__ import annotations
 
+import re
 import sys
 from pathlib import Path
 
@@ -54,12 +55,13 @@ def parse_frontmatter(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     if not text.startswith("---\n") and not text.startswith("---\r\n"):
         raise ValueError("missing opening `---` frontmatter delimiter")
-    # Strip the leading delimiter and find the closing one
+    # Strip the leading delimiter and find the closing one — match a line that
+    # is exactly `---` so a horizontal-rule literal in the body can't false-match.
     rest = text.split("\n", 1)[1]
-    end = rest.find("\n---")
-    if end == -1:
+    closer = re.search(r"^---\s*$", rest, re.MULTILINE)
+    if closer is None:
         raise ValueError("missing closing `---` frontmatter delimiter")
-    fm_text = rest[:end]
+    fm_text = rest[: closer.start()]
     data = yaml.safe_load(fm_text)
     if not isinstance(data, dict):
         raise ValueError(f"frontmatter did not parse as a mapping (got {type(data).__name__})")

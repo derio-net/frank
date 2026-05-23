@@ -22,6 +22,10 @@ mkdir -p "$BUNDLE_DIR/data"
 mkdir -p "$DOSSIER_DIR"
 
 # --- Hugo page bundle ---
+# `weight: $((NN + 1))` below is deliberate: Hugo treats weight:0 as "no
+# weight set" and sorts those pages LAST. The +1 offset keeps Paper 00
+# at the top of the papers list. Enforced by scripts/validate-papers.py;
+# see agents/rules/repo-papers.md § Frontmatter schema (weight convention).
 cat > "${BUNDLE_DIR}/index.md" <<FRONTMATTER
 ---
 title: "TODO: Paper title"
