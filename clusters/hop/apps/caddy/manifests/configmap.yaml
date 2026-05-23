@@ -9,7 +9,10 @@ data:
     {
       email admin@derio.net
       acme_dns cloudflare {env.CF_API_TOKEN}
-      log access {
+      # Default logger for ALL sites — Caddy applies this to per-site
+      # access logs unless overridden. Output JSON to stdout so fluent-bit
+      # can tail /var/log/containers/caddy-* and ship to VictoriaLogs.
+      log {
         output stdout
         format json
         level INFO
@@ -25,6 +28,10 @@ data:
 
     # Blog (public)
     blog.derio.net {
+      # Per-site access log — emits JSON request lines using the default
+      # logger set in the global block. Fluent-bit on Hop tails these
+      # via /var/log/containers/caddy-* and ships to Frank VictoriaLogs.
+      log
       handle /frank* {
         reverse_proxy blog.blog-system.svc:8080
       }
