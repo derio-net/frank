@@ -54,12 +54,16 @@ tasks:
           customfields: "cluster:hop"
           # Cross-cluster: write to Frank's VictoriaLogs LB IP (192.168.55.225)
           # added in phase 1. The kube service CIDR is not routable from Hop.
-          victoriaLogs:
-            enabled: true
-            address: "http://192.168.55.225:9428/insert/jsonline"
+          # Falcosidekick has no native VictoriaLogs output, but VictoriaLogs
+          # natively accepts the Loki push protocol at /insert/loki/api/v1/push,
+          # so the Loki output works directly.
+          loki:
+            hostport: "http://192.168.55.225:9428"
+            endpoint: "/insert/loki/api/v1/push"
+            format: "json"
+            minimumpriority: "informational"
           telegram:
-            enabled: true
-            minimumpriority: critical
+            minimumpriority: "critical"
             # token + chatID via existing FRANK_C2_TELEGRAM_BOT_TOKEN /
             # FRANK_C2_TELEGRAM_CHAT_ID infisical secrets, projected via
             # envFromSecret in T1.S3
@@ -105,6 +109,7 @@ tasks:
     text: |-
       Create `clusters/hop/apps/root/templates/falco.yaml` (Application
       CR, multi-source) and `clusters/hop/apps/root/templates/ns-falco.yaml`.
+      Use `spec.project: hop-infrastructure` (per `clusters/hop/apps/root/templates/project.yaml`) — `default` does not exist on Hop. The AppProject was extended in phase 1 task 2 to whitelist `falcosecurity.github.io/charts`.
 
       Commit, push, wait for sync:
 

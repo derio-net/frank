@@ -27,7 +27,7 @@ tasks:
       You will see retentionPeriod 14d, PVC 20Gi, service.type ClusterIP, service.port 9428. Do NOT replace this file; we extend it.
   - id: P1.T1.S2
     text: |-
-      Edit `apps/victoria-logs/values.yaml`. Bump retention 14d → 30d and add an extra LoadBalancer Service for cross-cluster reach from Hop. The chart supports `server.extraServices:` for sibling Services (verify the exact key against `helm show values vm/victoria-logs-single --version 0.11.28` — adjust if the chart uses `server.additionalServiceSpec` or similar).
+      Edit `apps/victoria-logs/values.yaml`. Bump retention 14d → 30d and add a sibling LoadBalancer Service via the chart's `extraObjects:` top-level key (verified to exist in `vm/victoria-logs-single` 0.11.28 — the chart does NOT expose `server.extraServices`).
 
       Target end-state of `apps/victoria-logs/values.yaml`:
 
@@ -41,25 +41,42 @@ tasks:
         service:
           type: ClusterIP
           port: 9428
-        # Sibling Service exposed via Cilium L2 so Hop's fluent-bit can push
-        # over the Tailscale subnet route to 192.168.55.0/24. Required because
-        # the kube service CIDR is NOT routable from Hop.
-        extraServices:
-          - name: lb
-            type: LoadBalancer
-            port: 9428
-            targetPort: 9428
+
+      # Sibling Service exposed via Cilium L2 so Hop's fluent-bit can push
+      # over the Tailscale subnet route to 192.168.55.0/24. The kube service
+      # CIDR is NOT routable from Hop, so we need a real LB IP.
+      extraObjects:
+        - apiVersion: v1
+          kind: Service
+          metadata:
+            name: victoria-logs-lb
+            namespace: monitoring
             annotations:
               lbipam.cilium.io/ips: "192.168.55.225"
+              lbipam.cilium.io/sharing-key: "victoria-logs-lb"
+          spec:
+            type: LoadBalancer
+            selector:
+              app.kubernetes.io/name: victoria-logs-single
+              app.kubernetes.io/instance: victoria-logs
+            ports:
+              - name: http
+                port: 9428
+                targetPort: 9428
       ```
 
-      If the chart's key for sibling Services is different, render and verify:
+      **Before pushing, verify the selector matches the actual Pod labels:**
 
       ```bash
-      helm template vm/victoria-logs-single --version 0.11.28 -f apps/victoria-logs/values.yaml | grep -A 10 'kind: Service'
+      kubectl get pod -n monitoring -l app.kubernetes.io/instance=victoria-logs --show-labels
+      # The selector above must match a non-empty label set on the running Pod.
       ```
 
-      Two Services should be templated — the original ClusterIP and the new LoadBalancer.
+      And confirm `extraObjects` renders the sibling Service:
+
+      ```bash
+      helm template vm/victoria-logs-single --version 0.11.28 -f apps/victoria-logs/values.yaml | grep -B 1 -A 15 'name: victoria-logs-lb'
+      ```
   - id: P1.T1.S3
     text: |-
       Commit and push. ArgoCD's automated sync picks up the change:
@@ -102,11 +119,48 @@ tasks:
       git push origin HEAD
       ```
 - number: 2
-  title: Verify Tailscale subnet routing 192.168.55.225 from Hop
+  title: Extend Hop's AppProject sourceRepos to whitelist new chart repos
   steps:
   - id: P1.T2.S1
     text: |-
-      The Tailscale subnet router on raspi nodes advertises `192.168.55.0/24` (per `docs/superpowers/specs/2026-03-21--edge--subnet-router-autoapproval-design.md`). Confirm the route is operational from Hop:
+      Hop has a single AppProject `hop-infrastructure` (`clusters/hop/apps/root/templates/project.yaml`) with a narrow sourceRepos whitelist (`derio-net/frank.git`, `argoproj.github.io/argo-helm`). Phases 1, 3, and 4 introduce new Helm charts from three additional repos; without extending the whitelist, every chart-backed Application is rejected by ArgoCD with a project-validation error.
+
+      Edit `clusters/hop/apps/root/templates/project.yaml`:
+
+      ```yaml
+      spec:
+        description: Hop edge cluster infrastructure
+        sourceRepos:
+          - "https://github.com/derio-net/frank.git"
+          - "https://argoproj.github.io/argo-helm"
+          - "https://fluent.github.io/helm-charts"            # phase 1: fluent-bit
+          - "https://crowdsecurity.github.io/helm-charts"     # phase 3: crowdsec
+          - "https://falcosecurity.github.io/charts"          # phase 4: falco
+      ```
+
+      Commit and push:
+
+      ```bash
+      git add clusters/hop/apps/root/templates/project.yaml
+      git commit -m "feat(obs): whitelist fluent/crowdsec/falco charts on hop AppProject"
+      git push origin HEAD
+      ```
+
+      Verify on Hop:
+
+      ```bash
+      source .env_hop
+      kubectl get appproject hop-infrastructure -n argocd -o jsonpath='{.spec.sourceRepos}' | jq
+      # Expected: array containing all 5 repos
+      ```
+
+      **Every** Hop Application CR added by phases 1, 3, 4 must use `project: hop-infrastructure` (NOT `default`, which doesn't exist on Hop).
+- number: 3
+  title: Verify Tailscale subnet routing 192.168.55.225 from Hop
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      The Tailscale subnet router on raspi nodes advertises `192.168.55.0/24` (per `docs/superpowers/specs/2026-03-21--edge--subnet-router-autoapproval-design.md`). Hop's Tailscale DaemonSet accepts advertised routes (verified at `clusters/hop/apps/headscale/manifests/tailscale-client.yaml`). Confirm the route is operational from Hop:
 
       ```bash
       source .env_hop
@@ -124,10 +178,10 @@ tasks:
       ```
 
       (Verify the actual Tailscale DaemonSet namespace/name in `clusters/hop/apps/headscale/manifests/` before running.)
-- number: 3
+- number: 4
   title: Switch Hop's Caddy to JSON access logs
   steps:
-  - id: P1.T3.S1
+  - id: P1.T4.S1
     text: |-
       Read `clusters/hop/apps/caddy/manifests/configmap.yaml` to confirm current structure. Add a global `log access` directive at the top of the `data.Caddyfile` block:
 
@@ -144,7 +198,7 @@ tasks:
       ```
 
       Place before any site definitions.
-  - id: P1.T3.S2
+  - id: P1.T4.S2
     text: |-
       Commit and push:
 
@@ -167,7 +221,7 @@ tasks:
       kubectl rollout restart deploy/caddy -n caddy-system
       kubectl rollout status deploy/caddy -n caddy-system --timeout 60s
       ```
-  - id: P1.T3.S3
+  - id: P1.T4.S3
     text: |-
       Verify Caddy is emitting JSON access logs:
 
@@ -185,10 +239,10 @@ tasks:
       ```
 
       Confirm the corresponding access log line appears in Caddy's stdout.
-- number: 4
+- number: 5
   title: Deploy fluent-bit on Hop targeting Frank's VictoriaLogs LB
   steps:
-  - id: P1.T4.S1
+  - id: P1.T5.S1
     text: |-
       Read Frank's existing fluent-bit config — we mirror it with one output URL change:
 
@@ -198,7 +252,7 @@ tasks:
       ```
 
       The proven pattern: chart `fluent/fluent-bit` version `0.56.0`, release `fluent-bit`, namespace `monitoring`, DaemonSet that tails `/var/log/containers/*.log` and writes via HTTP to the VictoriaLogs `/insert/jsonline` endpoint.
-  - id: P1.T4.S2
+  - id: P1.T5.S2
     text: |-
       Create `clusters/hop/apps/fluent-bit/values.yaml`. Copy Frank's config verbatim except the output Host points at the LB IP:
 
@@ -250,7 +304,7 @@ tasks:
         limits:
           memory: 80Mi
       END clusters/hop/apps/fluent-bit/values.yaml
-  - id: P1.T4.S3
+  - id: P1.T5.S3
     text: |-
       Create the Application CR by copying Frank's pattern. New file `clusters/hop/apps/root/templates/fluent-bit.yaml`:
 
@@ -263,7 +317,7 @@ tasks:
         finalizers:
           - resources-finalizer.argocd.argoproj.io
       spec:
-        project: default
+        project: hop-infrastructure
         sources:
           - repoURL: https://fluent.github.io/helm-charts
             chart: fluent-bit
@@ -286,8 +340,19 @@ tasks:
             - CreateNamespace=true
       END clusters/hop/apps/root/templates/fluent-bit.yaml
 
-      Verify the `monitoring` namespace block — Hop doesn't currently have one, so `CreateNamespace=true` is correct.
-  - id: P1.T4.S4
+      Verify the `monitoring` namespace block — Hop doesn't currently have one. `CreateNamespace=true` will create it, but **without the PodSecurity label fluent-bit needs for hostPath mounts**. Per `agents/rules/hop-gotchas.md` (precedent for `caddy-system`/`headscale-system`), pre-create the namespace with the privileged label by adding `clusters/hop/apps/root/templates/ns-monitoring.yaml`:
+
+      BEGIN clusters/hop/apps/root/templates/ns-monitoring.yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: monitoring
+        labels:
+          pod-security.kubernetes.io/enforce: privileged
+      END clusters/hop/apps/root/templates/ns-monitoring.yaml
+
+      With this namespace pre-existing, the `CreateNamespace=true` syncOption is a no-op safety; the actual labelled namespace already exists.
+  - id: P1.T5.S4
     text: |-
       Commit and push. Hop's ArgoCD picks it up:
 
@@ -307,7 +372,7 @@ tasks:
       kubectl -n monitoring get pods -l app.kubernetes.io/name=fluent-bit -w
       # Expected: fluent-bit-* Pod Running on hop-1
       ```
-  - id: P1.T4.S5
+  - id: P1.T5.S5
     text: |-
       Verify logs reach Frank's VictoriaLogs. From Frank:
 
@@ -327,7 +392,7 @@ tasks:
       ```
 
       Common failures: cannot reach 192.168.55.225 (subnet route issue — see P1.T2), or the kubernetes filter's RBAC missing (chart usually creates the ServiceAccount + ClusterRoleBinding automatically; verify `kubectl -n monitoring get sa,clusterrolebinding | grep fluent-bit`).
-  - id: P1.T4.S6
+  - id: P1.T5.S6
     text: |-
       **Memory budget check (Hop).** Mandatory exit step for every Hop-affecting phase per the spec.
 
@@ -346,14 +411,15 @@ state:
     P1.T1.S5: {state: ' ', ticked_at: null, note: null}
     P1.T2.S1: {state: ' ', ticked_at: null, note: null}
     P1.T3.S1: {state: ' ', ticked_at: null, note: null}
-    P1.T3.S2: {state: ' ', ticked_at: null, note: null}
-    P1.T3.S3: {state: ' ', ticked_at: null, note: null}
     P1.T4.S1: {state: ' ', ticked_at: null, note: null}
     P1.T4.S2: {state: ' ', ticked_at: null, note: null}
     P1.T4.S3: {state: ' ', ticked_at: null, note: null}
-    P1.T4.S4: {state: ' ', ticked_at: null, note: null}
-    P1.T4.S5: {state: ' ', ticked_at: null, note: null}
-    P1.T4.S6: {state: ' ', ticked_at: null, note: null}
+    P1.T5.S1: {state: ' ', ticked_at: null, note: null}
+    P1.T5.S2: {state: ' ', ticked_at: null, note: null}
+    P1.T5.S3: {state: ' ', ticked_at: null, note: null}
+    P1.T5.S4: {state: ' ', ticked_at: null, note: null}
+    P1.T5.S5: {state: ' ', ticked_at: null, note: null}
+    P1.T5.S6: {state: ' ', ticked_at: null, note: null}
   completion:
     at: null
     note: null

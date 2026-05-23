@@ -120,6 +120,7 @@ tasks:
     text: |-
       Create `clusters/hop/apps/root/templates/crowdsec.yaml` (Application
       CR, multi-source), `clusters/hop/apps/root/templates/ns-crowdsec.yaml`.
+      Use `spec.project: hop-infrastructure` (per `clusters/hop/apps/root/templates/project.yaml`) — `default` does not exist on Hop. The AppProject was extended in phase 1 task 2 to whitelist `crowdsecurity.github.io/helm-charts`.
 
       Commit, push, wait for sync.
   - id: P3.T2.S4

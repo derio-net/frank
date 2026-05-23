@@ -47,12 +47,6 @@ tasks:
                   - -listen=:8080
                   - -tls=none
                   - -domain=counter.derio.net,counter.cluster.derio.net
-                  # Trust X-Forwarded-For from Hop's Caddy (forwarded via mesh).
-                  # Without this, every hit looks like it came from Hop's mesh
-                  # IP and country/bot breakdowns are destroyed.
-                  # The trust scope is the Tailscale 100.64.0.0/10 range.
-                  - -real-ip-header=X-Forwarded-For
-                  - -real-ip-trust=100.64.0.0/10
                 ports: [{ containerPort: 8080, name: http }]
                 volumeMounts:
                   - { name: data, mountPath: /data }
@@ -64,10 +58,7 @@ tasks:
                 persistentVolumeClaim: { claimName: goatcounter-data }
       ```
 
-      Verify the exact GoatCounter CLI flag names against `goatcounter serve --help`
-      in the same image version — older versions use `-real-ip` or
-      `-trust-proxy` instead. The semantic must be: trust forwarded headers
-      from the upstream proxy and treat that as the real client IP.
+      **Note on real-client-IP:** GoatCounter parses `X-Forwarded-For` / `X-Real-Ip` automatically when a proxy is upstream (per upstream docs at arp242/goatcounter — no flag required). Caddy's `reverse_proxy` sets `X-Forwarded-For` by default, so the real reader IP propagates without extra config. Verify post-deploy by hitting the blog and inspecting the GoatCounter "Locations" panel for non-Hop countries.
   - id: P2.T1.S3
     text: |-
       Create `apps/root/templates/goatcounter.yaml` (Application CR,
@@ -464,16 +455,24 @@ tasks:
   - id: P2.T6.S1
     text: |-
       Add a tile to the homepage dashboard at `master.cluster.derio.net`
-      via `apps/homepage/manifests/configmap-services.yaml`. Use the
-      "Observability" category if it exists; otherwise add the tile in
-      the section that matches other Frank monitoring services.
+      via `apps/homepage/manifests/configmap-services.yaml`. The schema
+      nests tiles under category keys (`Infrastructure:`, `CI/CD:`,
+      `Development:`); GoatCounter belongs under `Infrastructure:`
+      alongside Grafana.
+
+      Insert the tile under the existing `- Infrastructure:` key, after
+      the Grafana entry:
 
       ```yaml
-      - GoatCounter:
-          icon: goatcounter.png  # or appropriate icon — /homepage-icon-finder skill
-          href: https://counter.cluster.derio.net
-          description: Blog analytics
+          - GoatCounter:
+              icon: chart-bar  # use /homepage-icon-finder for a better match
+              href: https://counter.cluster.derio.net
+              description: Blog analytics for blog.derio.net/frank
+              siteMonitor: http://goatcounter.goatcounter-system:8080
       ```
+
+      Indentation matches the sibling tiles in the file (8 spaces for
+      the dash, 12 for the keys).
   - id: P2.T6.S2
     text: |-
       End-to-end smoke test:

@@ -23,7 +23,7 @@ The blog is the public face of the Frank project — every paper, every building
 3. **What happens inside Hop's Pods at runtime.** If a Caddy CVE landed and someone got code-execution in the Caddy Pod, we'd find out from external symptoms (defacement, egress alert) rather than from a syscall-level event. Talos's immutable base mitigates some of this, but not container-internal compromise.
 4. **Whether something is unusual.** No baseline traffic shape, no anomaly detection. A 12× traffic spike from a successful Hacker News submission looks exactly like a 12× spike from a coordinated scrape attempt, and we'd notice neither.
 
-The architectural opportunity is that **Caddy is the single chokepoint** for everything inbound — blog, Headscale, GitHub webhook. One log source feeds analytics, security, and AI. And **Frank already has the heavy stack** (Grafana, VictoriaMetrics, Alertmanager, LiteLLM, Telegram bot) plus the mesh transport to Hop. The work reduces to: pick the lightest possible collectors for Hop, choose a log store that matches Frank's existing VM ecosystem, and wire an AI enrichment layer that's cheap to call and easy to swap.
+The architectural opportunity is that **Caddy is the single chokepoint** for everything inbound — blog, Headscale, GitHub webhook. One log source feeds analytics, security, and AI. And **Frank already has the heavy stack** (Grafana, VictoriaMetrics, VictoriaLogs, fluent-bit, LiteLLM, Telegram bot) plus the mesh transport to Hop. The work reduces to: pick the lightest possible collectors for Hop, choose a log store that matches Frank's existing VM ecosystem, and wire an AI enrichment layer that's cheap to call and easy to swap. (Note: Frank has no Alertmanager — alerting is Grafana-managed via the existing `apps/grafana-alerting/manifests/` ConfigMaps.)
 
 ## Goals
 
@@ -133,7 +133,7 @@ The architectural opportunity is that **Caddy is the single chokepoint** for eve
   }
   order crowdsec first
   crowdsec {
-    api_url http://crowdsec.crowdsec-system.svc:8080
+    api_url http://crowdsec-lapi.crowdsec-system.svc:8080
     api_key {env.CROWDSEC_BOUNCER_KEY}
     ticker_interval 10s
   }
@@ -172,7 +172,7 @@ Resource budget: requests `cpu: 10m / memory: 40Mi`, limits `memory: 80Mi`. ~40 
 
 - Parsers + scenarios from `crowdsecurity/base-http-scenarios`, `crowdsecurity/http-cve`, `crowdsecurity/http-dos`
 - Acquisition: Caddy access logs (shared volume with Caddy or via kubelet log path)
-- LAPI exposed via ClusterIP service `crowdsec.crowdsec-system.svc:8080` so the Caddy bouncer can pull decisions locally
+- LAPI exposed via ClusterIP service `crowdsec-lapi.crowdsec-system.svc:8080` so the Caddy bouncer can pull decisions locally
 - Community blocklist subscription enabled (free tier; rotates via CrowdSec hub)
 - Resource budget: requests `cpu: 50m / memory: 80Mi`, limits `memory: 128Mi`
 
