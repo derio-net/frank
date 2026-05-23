@@ -1,0 +1,526 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Blog analytics — GoatCounter on Frank, Hugo snippet, counter.derio.net route,
+    dashboard
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Deploy GoatCounter on Frank
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      GoatCounter has no first-party Helm chart. Inspect the upstream
+      container image and identify the canonical config:
+
+      ```bash
+      docker run --rm zgoat/goatcounter:latest goatcounter help serve | head -30
+      ```
+
+      Required: `-db sqlite+/data/goatcounter.sqlite3`, `-listen :8080`,
+      `-tls none` (TLS is terminated by Caddy on Hop and Traefik on
+      Frank), `-domain counter.derio.net,counter.cluster.derio.net`.
+  - id: P2.T1.S2
+    text: |-
+      Create `apps/goatcounter/manifests/deployment.yaml`, `service.yaml`,
+      `pvc.yaml`, `configmap.yaml`. Single-replica Deployment, RWO PVC
+      (Longhorn, 1 Gi), Service of type LoadBalancer with annotation
+      `lbipam.cilium.io/ips: 192.168.55.224`.
+
+      Key Deployment spec:
+
+      ```yaml
+      spec:
+        replicas: 1
+        strategy: { type: Recreate }  # RWO PVC
+        template:
+          spec:
+            containers:
+              - name: goatcounter
+                image: zgoat/goatcounter:<PINNED-VERSION>
+                args:
+                  - serve
+                  - -db=sqlite+/data/goatcounter.sqlite3
+                  - -listen=:8080
+                  - -tls=none
+                  - -domain=counter.derio.net,counter.cluster.derio.net
+                ports: [{ containerPort: 8080, name: http }]
+                volumeMounts:
+                  - { name: data, mountPath: /data }
+                resources:
+                  requests: { cpu: 20m, memory: 40Mi }
+                  limits: { memory: 128Mi }
+            volumes:
+              - name: data
+                persistentVolumeClaim: { claimName: goatcounter-data }
+      ```
+  - id: P2.T1.S3
+    text: |-
+      Create `apps/root/templates/goatcounter.yaml` (Application CR,
+      raw-manifests source, namespace `goatcounter-system`). Add
+      `apps/root/templates/ns-goatcounter.yaml`.
+
+      Commit, push, wait for sync:
+
+      ```bash
+      git add apps/goatcounter/ apps/root/templates/goatcounter.yaml apps/root/templates/ns-goatcounter.yaml
+      git commit -m "feat(obs): deploy goatcounter analytics backend"
+      git push origin HEAD
+      argocd app wait goatcounter --port-forward --port-forward-namespace argocd --health --timeout 300
+      ```
+  - id: P2.T1.S4
+    text: |-
+      Verify the Service got LB IP 192.168.55.224:
+
+      ```bash
+      kubectl get svc -n goatcounter-system goatcounter
+      # Expected EXTERNAL-IP: 192.168.55.224
+      ```
+
+      Bootstrap the first user via the GoatCounter CLI inside the Pod:
+
+      ```bash
+      kubectl exec -n goatcounter-system deploy/goatcounter -- \
+        goatcounter db create site -vhost counter.cluster.derio.net -user.email <YOUR-EMAIL> -user.password <STRONG-PW>
+      ```
+
+      **Manual operation block** (will be synced to runbook by /sync-runbook
+      in phase 6):
+
+      ```yaml
+      # manual-operation
+      id: obs-goatcounter-bootstrap-first-site
+      layer: obs
+      app: goatcounter
+      plan: 2026-05-23--obs--hop-blog-edge-monitoring
+      when: phase 2, task 1, after initial deploy
+      why_manual: SQLite DB seeding cannot be expressed declaratively;
+        admin user creation needs an interactive password.
+      commands:
+        - kubectl exec -n goatcounter-system deploy/goatcounter -- goatcounter db create site -vhost counter.cluster.derio.net -user.email <email> -user.password <pw>
+      verify:
+        - curl -sI https://counter.cluster.derio.net | grep -E '^HTTP'
+      status: pending
+      ```
+- number: 2
+  title: Register the new LB IP and add the IngressRoute for the admin UI
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Update `agents/rules/frank-infrastructure.md`. Add a row to the
+      Frank Cluster Services table:
+
+      ```
+      | GoatCounter | 192.168.55.224 | Cilium L2 LoadBalancer (port 8080) |
+      ```
+
+      Insert in numeric IP order (after the row for `.223`).
+  - id: P2.T2.S2
+    text: |-
+      Add a Traefik IngressRoute in `apps/traefik/manifests/ingressroutes.yaml`
+      for `counter.cluster.derio.net` (mesh-only with Authentik
+      forward-auth). Follow existing patterns from other mesh-only routes
+      in the same file. Use the `authentik-forwardauth` middleware.
+  - id: P2.T2.S3
+    text: |-
+      Add an Authentik proxy provider entry to
+      `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml`.
+      Follow the `forward_single` mode pattern (include `invalidation_flow`,
+      `redirect_uris` as object array, `signing_key` UUID — per the
+      authentik gotcha in `agents/rules/frank-gotchas.md`).
+  - id: P2.T2.S4
+    text: |-
+      Commit, push, wait for sync. Then run the **manual** outpost-
+      provider assignment from `agents/rules/frank-argocd.md`:
+
+      ```bash
+      kubectl exec -n authentik deploy/authentik-server -- python -c "
+      import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
+      import django; django.setup()
+      from authentik.providers.proxy.models import ProxyProvider
+      from authentik.outposts.models import Outpost
+      outpost = Outpost.objects.get(name='authentik Embedded Outpost')
+      provider = ProxyProvider.objects.get(name='goatcounter')
+      outpost.providers.add(provider)
+      print(f'Added {provider.name} to {outpost.name}')
+      "
+      ```
+
+      **Manual operation block:**
+
+      ```yaml
+      # manual-operation
+      id: obs-goatcounter-authentik-outpost
+      layer: obs
+      app: authentik
+      plan: 2026-05-23--obs--hop-blog-edge-monitoring
+      when: phase 2, task 2, after proxy provider blueprint syncs
+      why_manual: Authentik blueprints cannot mutate the embedded outpost's
+        provider list without replacing existing assignments.
+      commands:
+        - kubectl exec -n authentik deploy/authentik-server -- python -c "<see plan text>"
+      verify:
+        - curl -sI https://counter.cluster.derio.net | grep -E 'set-cookie.*authentik'
+      status: pending
+      ```
+  - id: P2.T2.S5
+    text: |-
+      Verify the mesh-only UI works:
+
+      ```bash
+      # From a mesh-connected machine
+      curl -sI https://counter.cluster.derio.net | head -3
+      # Expected: redirect to authentik login OR 200 if already authenticated
+      ```
+
+      Log in via browser, complete the GoatCounter setup wizard for
+      `blog.derio.net/frank` if not already done via CLI in T1.S4.
+- number: 3
+  title: Add counter.derio.net route to Hop's Caddy and create DNS record
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Edit `clusters/hop/apps/caddy/manifests/configmap.yaml`. Append a
+      new site block before the `# --- Private routes ---` section:
+
+      ```caddyfile
+      # Analytics ingest endpoint — reverse-proxies over Tailscale mesh
+      # to GoatCounter on Frank (LB IP 192.168.55.224)
+      counter.derio.net {
+        reverse_proxy 192.168.55.224:8080
+      }
+      ```
+  - id: P2.T3.S2
+    text: |-
+      Create a Cloudflare DNS record:
+
+      - Type: A
+      - Name: counter.derio.net
+      - Value: <Hop's public IPv4>  (same as the existing
+        `blog.derio.net` and `headscale.hop.derio.net` records)
+      - Proxy: DNS only (orange cloud OFF — Caddy needs to see the real
+        client IP; matches the pattern used by other Hop public routes).
+
+      **Manual operation block:**
+
+      ```yaml
+      # manual-operation
+      id: obs-dns-counter-derio-net
+      layer: obs
+      app: cloudflare-dns
+      plan: 2026-05-23--obs--hop-blog-edge-monitoring
+      when: phase 2, task 3, before commit so cert challenge can succeed
+      why_manual: DNS is managed in Cloudflare console, not GitOps.
+      commands:
+        - "(Cloudflare UI) Create A record counter.derio.net → $HOP_IP"
+      verify:
+        - "dig +short counter.derio.net"
+      status: pending
+      ```
+  - id: P2.T3.S3
+    text: |-
+      Commit, push, wait for Caddy to roll. Caddy will request a Let's
+      Encrypt cert via the existing DNS challenge.
+
+      ```bash
+      git add clusters/hop/apps/caddy/manifests/configmap.yaml
+      git commit -m "feat(obs): add counter.derio.net analytics ingest route"
+      git push origin HEAD
+      # Hop ArgoCD will sync the ConfigMap; restart Caddy:
+      source .env_hop
+      kubectl rollout restart deploy/caddy -n caddy-system
+      kubectl rollout status deploy/caddy -n caddy-system --timeout 120s
+      ```
+  - id: P2.T3.S4
+    text: |-
+      End-to-end smoke test:
+
+      ```bash
+      # Confirm TLS cert provisioned
+      curl -sI https://counter.derio.net | head -1
+      # Expected: HTTP/2 200 (or 404 from GoatCounter — meaning we reached it)
+
+      # Confirm the ingest endpoint responds (test the count beacon URL)
+      curl -s "https://counter.derio.net/count?p=/test&t=Test%20page" -H "Origin: https://blog.derio.net" | head -1
+      # Expected: 200 or 204 from GoatCounter
+      ```
+
+      If the request times out, check Caddy's logs — most likely the
+      Tailscale subnet route to `192.168.55.0/24` isn't being advertised
+      from Frank's worker.
+- number: 4
+  title: Inject the GoatCounter snippet in the Hugo blog
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      Create `blog/layouts/partials/goatcounter.html`:
+
+      ```html
+      BEGIN blog/layouts/partials/goatcounter.html
+      {{ if eq .Site.Params.env "production" }}
+      <script data-goatcounter="https://counter.derio.net/count"
+              async src="https://counter.derio.net/count.js"></script>
+      {{ end }}
+      END blog/layouts/partials/goatcounter.html
+      ```
+
+      The `eq .Site.Params.env "production"` guard prevents local
+      `hugo server` from sending hits.
+  - id: P2.T4.S2
+    text: |-
+      Inject the partial into the global head. Find the Hextra theme's
+      `baseof.html` or the site-level override:
+
+      ```bash
+      find blog/layouts -name 'baseof.html' -o -name 'head.html' | xargs grep -l 'head'
+      ```
+
+      Add `{{ partial "goatcounter.html" . }}` inside the `<head>`
+      section. If the theme uses a `head-end.html` partial, add it
+      there instead — that's the Hextra-friendly extension point.
+  - id: P2.T4.S3
+    text: |-
+      Confirm `blog/config.yaml` (or `hugo.yaml`) has `params.env:
+      production` set for the deployed build. Check the CI workflow
+      (`.github/workflows/deploy-blog.yml`) — if it passes
+      `--environment production` to Hugo, that's the gate.
+  - id: P2.T4.S4
+    text: |-
+      Test locally first:
+
+      ```bash
+      cd blog && hugo server --buildDrafts
+      # Visit http://localhost:1313 — view source, confirm the script tag is ABSENT (env != production)
+      HUGO_PARAMS_ENV=production hugo server --buildDrafts
+      # Visit again, confirm the script tag IS present, src=https://counter.derio.net/count.js
+      ```
+  - id: P2.T4.S5
+    text: |-
+      Commit, push. The blog CI image gets rebuilt and Hop's ArgoCD
+      picks up the new tag via the existing CI loop (per recent commits
+      like `ef66a76 ci(blog): update image to fdcf914`).
+
+      ```bash
+      git add blog/layouts/
+      git commit -m "feat(obs): inject goatcounter tracker on blog production builds"
+      git push origin HEAD
+      ```
+
+      Wait for the CI tag-bump commit to land, then for ArgoCD to
+      roll out the new blog image:
+
+      ```bash
+      source .env_hop
+      kubectl rollout status deploy/blog -n blog-system --timeout 300s
+      ```
+- number: 5
+  title: Build the "Blog overview" Grafana dashboard
+  steps:
+  - id: P2.T5.S1
+    text: |-
+      Create `apps/grafana-alerting/manifests/dashboards-blog-edge/blog-overview.json`
+      (full Grafana dashboard JSON). Panels:
+
+      1. Stat: yesterday's unique visitors (GoatCounter API).
+      2. Time series: pageviews per hour, last 24h (GoatCounter).
+      3. Table: top 10 pages (last 7d, GoatCounter).
+      4. Table: top 10 referrers (last 7d, GoatCounter).
+      5. World map: country breakdown (GoatCounter).
+      6. Stat: bots-vs-humans ratio from Caddy logs (VictoriaLogs query
+         classifying known crawlers by UA regex).
+      7. Stat: search-engine inbound count (referrer classification).
+
+      Grafana provisioning sidecar already watches the
+      `dashboards-blog-edge` directory if labelled
+      `grafana_dashboard: "1"` per the existing pattern.
+  - id: P2.T5.S2
+    text: |-
+      Create a Secret for the GoatCounter API token (needed for the
+      GoatCounter datasource). Generate the token in the GoatCounter UI
+      (Settings → API tokens) with read-only scope, then write it to
+      Infisical and reference via ExternalSecret in
+      `apps/grafana-alerting/manifests/externalsecret-goatcounter.yaml`.
+
+      **Manual operation block** (Infisical secret seeding):
+
+      ```yaml
+      # manual-operation
+      id: obs-goatcounter-api-token-infisical
+      layer: obs
+      app: grafana
+      plan: 2026-05-23--obs--hop-blog-edge-monitoring
+      when: phase 2, task 5, before Grafana datasource sync
+      why_manual: GoatCounter API tokens generated in UI; Infisical seed
+        cannot be declarative.
+      commands:
+        - "(GoatCounter UI) Settings → API tokens → New (read-only)"
+        - "(Infisical UI) Add secret OBS_GOATCOUNTER_API_TOKEN"
+      verify:
+        - kubectl get externalsecret -n grafana goatcounter-api-token -o jsonpath='{.status.conditions[0].type}'
+      status: pending
+      ```
+  - id: P2.T5.S3
+    text: |-
+      Add GoatCounter as a Grafana datasource (Infinity datasource or
+      JSON API datasource — GoatCounter exposes JSON over HTTP).
+      Update `apps/grafana/values.yaml`:
+
+      ```yaml
+      additionalDataSources:
+        # ... existing entries ...
+        - name: GoatCounter
+          type: yesoreyeram-infinity-datasource
+          url: https://counter.cluster.derio.net
+          jsonData:
+            global_queries: []
+          secureJsonData:
+            httpHeaderValue1: "Bearer $__file{/etc/secrets/goatcounter-api-token}"
+      ```
+
+      Confirm the Infinity plugin is in `grafana.plugins:`.
+  - id: P2.T5.S4
+    text: |-
+      Commit, push, verify the dashboard renders:
+
+      ```bash
+      git add apps/grafana-alerting/manifests/dashboards-blog-edge/ apps/grafana/values.yaml apps/grafana-alerting/manifests/externalsecret-goatcounter.yaml
+      git commit -m "feat(obs): blog overview grafana dashboard"
+      git push origin HEAD
+      ```
+
+      Wait for Grafana to roll, then in the UI navigate to Dashboards →
+      "Blog overview". Confirm all panels render without errors.
+- number: 6
+  title: End-to-end smoke test + post-deploy tile
+  steps:
+  - id: P2.T6.S1
+    text: |-
+      Add a tile to the homepage dashboard at `master.cluster.derio.net`
+      via `apps/homepage/manifests/configmap-services.yaml`. Use the
+      "Observability" category if it exists; otherwise add the tile in
+      the section that matches other Frank monitoring services.
+
+      ```yaml
+      - GoatCounter:
+          icon: goatcounter.png  # or appropriate icon — /homepage-icon-finder skill
+          href: https://counter.cluster.derio.net
+          description: Blog analytics
+      ```
+  - id: P2.T6.S2
+    text: |-
+      End-to-end smoke test:
+
+      1. Open an incognito browser window.
+      2. Visit `https://blog.derio.net/frank/papers/00-why-homelab-in-2026/`.
+      3. Within 30s, confirm:
+         - `https://counter.cluster.derio.net` shows a new hit on that
+           path.
+         - Grafana Explore (VictoriaLogs) for last 5m shows the Caddy
+           access log line for the request.
+         - "Blog overview" dashboard's "today's unique visitors" stat
+           incremented.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T5.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T5.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T6.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

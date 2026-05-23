@@ -1,0 +1,250 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Host runtime monitoring — Falco modern_ebpf + falcosidekick
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Deploy Falco on Hop with modern_ebpf driver
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add the Falco Helm repo:
+
+      ```bash
+      helm repo add falcosecurity https://falcosecurity.github.io/charts
+      helm repo update
+      helm show values falcosecurity/falco --version <PINNED> > /tmp/falco-values.yaml
+      ```
+
+      Find keys for: `driver.kind: modern_ebpf`, `falcosidekick.enabled:
+      true`, `falcosidekick.config.victoriaLogs.address`,
+      `falcosidekick.config.telegram.token`, rule overrides via
+      ConfigMap.
+  - id: P4.T1.S2
+    text: |-
+      Create `clusters/hop/apps/falco/values.yaml`:
+
+      ```yaml
+      driver:
+        kind: modern_ebpf
+      collectors:
+        enabled: true
+        kubernetes:
+          enabled: true
+      falco:
+        json_output: true
+        json_include_output_property: true
+        priority: notice
+      customRules:
+        talos_silence.yaml: |-
+          # Suppress kube-system exec noise on Talos — these are kubelet
+          # debugging primitives, not threats
+          - macro: user_known_shell_in_container_activities
+            condition: (k8s.ns.name = "kube-system")
+            override:
+              condition: append
+      falcosidekick:
+        enabled: true
+        webui: { enabled: false }
+        config:
+          customfields: "cluster:hop"
+          victoriaLogs:
+            enabled: true
+            address: "http://<frank-vlogs-clusterip>:9428/insert/jsonline"
+          telegram:
+            enabled: true
+            minimumpriority: critical
+            # token + chatID via existing FRANK_C2_TELEGRAM_BOT_TOKEN /
+            # FRANK_C2_TELEGRAM_CHAT_ID infisical secrets, projected via
+            # envFromSecret
+      resources:
+        requests: { cpu: 50m, memory: 100Mi }
+        limits: { memory: 200Mi }
+      ```
+  - id: P4.T1.S3
+    text: |-
+      Create the ExternalSecret to project the Telegram bot
+      credentials from Infisical into the falcosidekick container:
+
+      ```yaml
+      BEGIN clusters/hop/apps/falco/manifests/externalsecret-telegram.yaml
+      apiVersion: external-secrets.io/v1beta1
+      kind: ExternalSecret
+      metadata:
+        name: falco-telegram
+        namespace: falco-system
+      spec:
+        secretStoreRef: { name: infisical-default, kind: ClusterSecretStore }
+        target: { name: falco-telegram, creationPolicy: Owner }
+        data:
+          - secretKey: TELEGRAM_TOKEN
+            remoteRef: { key: FRANK_C2_TELEGRAM_BOT_TOKEN }
+          - secretKey: TELEGRAM_CHATID
+            remoteRef: { key: FRANK_C2_TELEGRAM_CHAT_ID }
+      END clusters/hop/apps/falco/manifests/externalsecret-telegram.yaml
+      ```
+
+      And configure the falcosidekick container to mount these via
+      `envFrom: secretRef: name: falco-telegram` (chart-specific key
+      in values).
+  - id: P4.T1.S4
+    text: |-
+      Create `clusters/hop/apps/root/templates/falco.yaml` (Application
+      CR, multi-source) and `clusters/hop/apps/root/templates/ns-falco.yaml`.
+
+      Commit, push, wait for sync:
+
+      ```bash
+      git add clusters/hop/apps/falco/ clusters/hop/apps/root/templates/falco.yaml clusters/hop/apps/root/templates/ns-falco.yaml
+      git commit -m "feat(obs): deploy falco daemonset on hop with modern_ebpf"
+      git push origin HEAD
+      source .env_hop
+      kubectl get pods -n falco-system -w
+      ```
+
+      Expected: 1 falco Pod Running on hop-1 (DaemonSet). If
+      CrashLooping with kernel module load errors, confirm the chart
+      actually picked `modern_ebpf` (some chart versions silently
+      default to `kmod`).
+- number: 2
+  title: Configure falcosidekick outputs and verify routing
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Verify falcosidekick is connected to both outputs:
+
+      ```bash
+      source .env_hop
+      kubectl logs -n falco-system deploy/falcosidekick --tail 30
+      # Expected lines:
+      #   [INFO] : Telegram - Enabled
+      #   [INFO] : Victoria Logs - Enabled
+      ```
+
+      If either is missing, debug the values mapping for `config.telegram`
+      and `config.victoriaLogs` against the chart docs.
+  - id: P4.T2.S2
+    text: |-
+      Generate a synthetic Falco event for routing verification. From a
+      controlled session, exec into a workload Pod that's NOT in
+      kube-system:
+
+      ```bash
+      kubectl exec -n blog-system deploy/blog -- /bin/sh -c "id; exit"
+      ```
+
+      The "Terminal shell in container" rule (default critical) should
+      fire.
+  - id: P4.T2.S3
+    text: |-
+      Verify the event reached BOTH outputs:
+
+      1. **Telegram:** within ~5 seconds, expect a message from
+         `@agent_zero_cc_bot` with the Falco event JSON.
+      2. **VictoriaLogs:** from Frank:
+         ```bash
+         source .env
+         kubectl exec -n grafana deploy/grafana -- \
+           curl -sG http://victoria-logs-single-server.observability.svc:9428/select/logsql/query \
+           --data-urlencode 'query=_time:5m falco' --data-urlencode 'limit=5'
+         ```
+         Expected: at least 1 event with `"rule":"Terminal shell in container"`.
+- number: 3
+  title: Add FalcoCriticalEvent alert + dashboard panel
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Append to `apps/grafana-alerting/manifests/rules-blog-edge.yaml`:
+
+      ```yaml
+      - uid: falco-critical-event
+        title: Falco critical event
+        condition: B
+        data:
+          - refId: A
+            datasourceUid: <VictoriaLogs UID>
+            relativeTimeRange: { from: 300, to: 0 }
+            model: { expr: 'count_over_time({app="falco"} |~ "\"priority\":\"Critical\"" [5m])', refId: A, instant: true }
+          - refId: B
+            datasourceUid: __expr__
+            model: { expression: "$A > 0", refId: B, type: "threshold" }
+        for: 0s
+        labels: { severity: critical }
+        annotations:
+          summary: "Falco fired a critical-severity event"
+      ```
+
+      This deduplicates with the falcosidekick direct path: Telegram
+      gets the immediate raw event from falcosidekick, AND a Grafana
+      alert fires that will (in phase 5) be enriched by the AI helper
+      into a story message.
+  - id: P4.T3.S2
+    text: |-
+      Update the "Security events" dashboard to add a Falco panel:
+
+      - Time series: Falco event count by `priority`, last 24h.
+      - Table: top 10 firing rules, last 7d.
+
+      Commit, push, verify dashboard renders.
+  - id: P4.T3.S3
+    text: |-
+      **Memory budget check (Hop):**
+
+      ```bash
+      kubectl describe node hop-1 | grep -A 5 "Allocated resources"
+      ```
+
+      Expected limits ≤ 90% (Falco + sidekick adds 200Mi → ~85% total).
+      If actually at 90%+, drop falcosidekick's resource limit or
+      consider whether to skip Phase 4 per the spec's "drop Falco"
+      fallback.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

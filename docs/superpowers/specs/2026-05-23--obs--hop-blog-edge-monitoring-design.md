@@ -490,6 +490,12 @@ Frank has multi-GB headroom across worker nodes — this is rounding error.
 - **Loki migration.** Only if a future use case actually needs Loki-specific features (e.g., LogQL JOINs against Prometheus). VictoriaLogs covers all current requirements.
 - **Frank-side Falco.** Extending host/Pod runtime monitoring to Frank's workers is a separate plan with its own resource picture (Frank has plenty of headroom but the rule-tuning surface is larger).
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-05-23--obs--hop-blog-edge-monitoring | `derio-net/frank` | `docs/superpowers/plans/2026-05-23--obs--hop-blog-edge-monitoring/` | — |
+
 ## Open questions
 
 - **Paper title and number.** "Edge Observability" is the working title; the canonical slot number depends on which papers have shipped by the time we author this one. Decide at paper-writing time, not plan time.

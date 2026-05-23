@@ -1,0 +1,396 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Log plumbing — VictoriaLogs on Frank, Caddy JSON access logs, vlagent on
+    Hop
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Deploy VictoriaLogs on Frank
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Research the VictoriaLogs Helm chart and pin a version.
+
+      ```bash
+      helm repo add vm https://victoriametrics.github.io/helm-charts/
+      helm repo update
+      helm search repo vm/victoria-logs-single -l | head -5
+      ```
+
+      Pick the latest stable chart version. Read its `values.yaml`:
+
+      ```bash
+      helm show values vm/victoria-logs-single --version <PINNED> > /tmp/vlogs-values.yaml
+      ```
+
+      Identify the keys for: persistence (Longhorn), retentionPeriod, resources, service type, server.extraArgs.
+  - id: P1.T1.S2
+    text: |-
+      Create `apps/victoria-logs/values.yaml`. The minimum surface to set:
+
+      ```yaml
+      server:
+        persistentVolume:
+          enabled: true
+          storageClass: longhorn
+          size: 10Gi
+        retentionPeriod: 30d
+        resources:
+          requests: {cpu: 100m, memory: 200Mi}
+          limits: {memory: 512Mi}
+        service:
+          type: ClusterIP
+        # Reachable from Hop via Tailscale subnet route to 10.43.0.0/16 (kube service CIDR).
+        # Hop's vlagent will write to the Tailscale-routed ClusterIP directly.
+      ```
+
+      Confirm the chart's actual key names match (some charts use `victoriaLogs:` vs `server:` — verify against the values dump from S1).
+  - id: P1.T1.S3
+    text: |-
+      Create `apps/root/templates/victoria-logs.yaml` (Application CR). Copy
+      the multi-source pattern from `apps/root/templates/grafana.yaml` and
+      adapt: upstream chart source + `$values/apps/victoria-logs/values.yaml`
+      ref. Use namespace `observability`. Always include:
+      `ServerSideApply=true`, `prune: false`, `selfHeal: true`.
+
+      Add `apps/root/templates/ns-observability.yaml` if the namespace doesn't
+      already exist (check first: `kubectl get ns observability`).
+  - id: P1.T1.S4
+    text: |-
+      Commit and push:
+
+      ```bash
+      git add apps/victoria-logs/ apps/root/templates/victoria-logs.yaml apps/root/templates/ns-observability.yaml
+      git commit -m "feat(obs): deploy victoria-logs on frank"
+      git push origin HEAD
+      ```
+
+      Then wait for ArgoCD to sync (auto-sync should pick it up within 3 min):
+
+      ```bash
+      argocd app list --port-forward --port-forward-namespace argocd | grep victoria-logs
+      argocd app wait victoria-logs --port-forward --port-forward-namespace argocd --health --timeout 300
+      ```
+
+      Expected: Synced/Healthy. If Degraded, inspect `kubectl describe pod -n observability` for PVC binding or image pull errors.
+  - id: P1.T1.S5
+    text: |-
+      Verify the service is reachable in-cluster and from Hop:
+
+      ```bash
+      kubectl run -n observability --rm -it --image=curlimages/curl --overrides='{"spec":{"securityContext":{"runAsUser":100}}}' curl-test -- \
+        curl -sf http://victoria-logs-single-server.observability.svc:9428/metrics | head -5
+      ```
+
+      From Hop (after `source .env_hop`):
+
+      ```bash
+      kubectl run -n default --rm -it --image=curlimages/curl --overrides='{"spec":{"securityContext":{"runAsUser":100}}}' curl-frank -- \
+        curl -sf http://10.43.X.X:9428/metrics | head -5  # Use the Frank ClusterIP visible via Tailscale subnet route
+      ```
+
+      If the cross-cluster curl fails, the Tailscale DaemonSet on Frank may not be advertising the service CIDR — `tailscale status` on Hop should show Frank's worker hostnames with advertised routes including the kube service CIDR.
+- number: 2
+  title: Wire VictoriaLogs as a Grafana datasource
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Edit `apps/grafana/values.yaml`. Find the `additionalDataSources:`
+      block (already present for Prometheus and VictoriaMetrics). Append:
+
+      ```yaml
+      additionalDataSources:
+        # ... existing entries ...
+        - name: VictoriaLogs
+          type: victoriametrics-logs-datasource
+          access: proxy
+          url: http://victoria-logs-single-server.observability.svc:9428
+          isDefault: false
+          editable: false
+      ```
+
+      Confirm the plugin is in `grafana.plugins:` — add `victoriametrics-logs-datasource` if missing.
+  - id: P1.T2.S2
+    text: |-
+      Commit, push, and wait for the Grafana ConfigMap to roll over:
+
+      ```bash
+      git add apps/grafana/values.yaml
+      git commit -m "feat(obs): add victoria-logs grafana datasource"
+      git push origin HEAD
+      argocd app wait grafana --port-forward --port-forward-namespace argocd --health --timeout 180
+      ```
+
+      Restart the Grafana Pod so the new datasource and plugin load:
+
+      ```bash
+      kubectl rollout restart deploy/grafana -n grafana
+      kubectl rollout status deploy/grafana -n grafana --timeout 120s
+      ```
+  - id: P1.T2.S3
+    text: |-
+      Verify in Grafana UI (https://grafana.cluster.derio.net or LB IP
+      192.168.55.203 over mesh): navigate to Configuration → Data sources →
+      VictoriaLogs → "Save & test" returns green.
+
+      Then in Explore: select VictoriaLogs datasource, query `*` for the
+      last 5 min. Expected: empty result set (no logs yet — vlagent isn't
+      shipping). No errors.
+- number: 3
+  title: Switch Hop's Caddy to JSON access logs
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Read `clusters/hop/apps/caddy/manifests/configmap.yaml` to confirm
+      current structure. Add a global `log access` directive:
+
+      ```caddyfile
+      {
+        email admin@derio.net
+        acme_dns cloudflare {env.CF_API_TOKEN}
+        log access {
+          output stdout
+          format json
+          level INFO
+        }
+      }
+      ```
+
+      Place at the top of the file's `data.Caddyfile` block, before any
+      site definitions.
+  - id: P1.T3.S2
+    text: |-
+      Commit and push. Hop's ArgoCD picks up the ConfigMap change.
+
+      ```bash
+      git add clusters/hop/apps/caddy/manifests/configmap.yaml
+      git commit -m "feat(obs): switch hop caddy to json access logs"
+      git push origin HEAD
+      ```
+
+      Wait for sync (Hop's ArgoCD is separate from Frank's):
+
+      ```bash
+      source .env_hop
+      kubectl get application caddy -n argocd -o jsonpath='{.status.sync.status}'
+      # Expected: Synced
+      ```
+
+      Wait for ConfigMap projection (~30–60s) then restart Caddy:
+
+      ```bash
+      kubectl rollout restart deploy/caddy -n caddy-system
+      kubectl rollout status deploy/caddy -n caddy-system --timeout 60s
+      ```
+  - id: P1.T3.S3
+    text: |-
+      Verify Caddy is emitting JSON access logs:
+
+      ```bash
+      kubectl logs -n caddy-system deploy/caddy --tail 20 | grep -E '"msg":"handled request"' | head -3
+      ```
+
+      Expected: lines like
+      `{"level":"info","ts":..,"logger":"http.log.access","msg":"handled request","request":{"remote_ip":"...","host":"blog.derio.net","uri":"/frank/..."},"status":200,...}`.
+
+      From an external machine, hit the blog:
+
+      ```bash
+      curl -sI https://blog.derio.net/frank/ | head -1
+      ```
+
+      Confirm the access log line appears in Caddy's stdout.
+- number: 4
+  title: Deploy vlagent DaemonSet on Hop
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Research the VictoriaLogs vlagent (vlogs-agent) Helm chart or
+      manifest pattern. The official path is `vm/victoria-logs-vlogsagent`
+      or the equivalent in `vm-operator`. Confirm chart name:
+
+      ```bash
+      helm search repo vm | grep -i 'log.*agent\|vlogs'
+      ```
+
+      Pick the canonical chart and pin a version.
+  - id: P1.T4.S2
+    text: |-
+      Create `clusters/hop/apps/observability/values.yaml` with the
+      DaemonSet configuration. Acquisition: tail Caddy stdout via
+      `/var/log/pods/caddy-system_caddy-*/caddy/*.log` (kubelet path);
+      destination: the Frank VictoriaLogs ClusterIP via Tailscale subnet
+      route.
+
+      Key settings:
+
+      ```yaml
+      deployment:
+        kind: DaemonSet
+      remoteWrite:
+        url: http://<frank-vlogs-clusterip>:9428/insert/jsonline
+        extraHeaders:
+          AccountID: "0"
+          ProjectID: "0"
+      scrape:
+        files:
+          - /var/log/pods/caddy-system_caddy-*/caddy/*.log
+          - /var/log/pods/crowdsec-system_*/agent/*.log
+          - /var/log/pods/falco-system_*/falco/*.log
+      volumeMounts:
+        - name: varlogpods
+          mountPath: /var/log/pods
+          readOnly: true
+      volumes:
+        - name: varlogpods
+          hostPath: { path: /var/log/pods, type: Directory }
+      resources:
+        requests: {cpu: 10m, memory: 32Mi}
+        limits: {memory: 64Mi}
+      ```
+
+      The exact key names depend on the chart — adapt from the values
+      dump in S1.
+  - id: P1.T4.S3
+    text: |-
+      Create `clusters/hop/apps/observability/manifests/` only if there are
+      raw manifests beyond Helm values (e.g., a Tailscale-routed Endpoint
+      stub if vlagent can't resolve a cross-cluster ClusterIP). Most
+      likely not needed.
+
+      Create `clusters/hop/apps/root/templates/observability.yaml`
+      (Application CR). Adapt the multi-source pattern. Namespace:
+      `observability`. Add `ns-observability.yaml` if missing.
+  - id: P1.T4.S4
+    text: |-
+      Commit and push:
+
+      ```bash
+      git add clusters/hop/apps/observability/ clusters/hop/apps/root/templates/observability.yaml clusters/hop/apps/root/templates/ns-observability.yaml
+      git commit -m "feat(obs): deploy vlagent daemonset on hop"
+      git push origin HEAD
+      ```
+
+      Wait for Hop's ArgoCD sync:
+
+      ```bash
+      source .env_hop
+      kubectl get application observability -n argocd
+      kubectl get pods -n observability -w
+      ```
+
+      Expected: vlagent Pod Running on hop-1.
+  - id: P1.T4.S5
+    text: |-
+      Verify logs reach Frank's VictoriaLogs. From a workstation with
+      Frank's kubeconfig:
+
+      ```bash
+      source .env
+      kubectl exec -n observability deploy/grafana -- \
+        curl -sG http://victoria-logs-single-server.observability.svc:9428/select/logsql/query \
+        --data-urlencode 'query=_time:5m caddy' --data-urlencode 'limit=5'
+      ```
+
+      Expected: JSON output with at least 1 hit containing
+      `"host":"blog.derio.net"`. If empty, check vlagent's logs on Hop:
+
+      ```bash
+      source .env_hop
+      kubectl logs -n observability ds/vlagent --tail 50
+      ```
+
+      Common failures: cross-cluster DNS resolution (use the Frank
+      ClusterIP directly, not the FQDN), missing hostPath mount, JSON
+      parse errors (Caddy log format mismatch).
+  - id: P1.T4.S6
+    text: |-
+      **Memory budget check (Hop).** Mandatory exit step for every
+      Hop-affecting phase per the spec.
+
+      ```bash
+      source .env_hop
+      kubectl describe node hop-1 | grep -A 5 "Allocated resources"
+      ```
+
+      Expected: `memory` limits < 85% of 3263780Ki (~2774 Mi). Pre-phase
+      baseline was 73% — adding ~64 Mi limit pushes to ~75%. If the
+      actual percentage exceeds 85%, raise it as a finding before
+      proceeding to phase 2.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

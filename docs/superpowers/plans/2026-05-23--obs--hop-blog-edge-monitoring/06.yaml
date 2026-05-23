@@ -1,0 +1,205 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-deploy — Paper, building post, operating post, README, runbook, status
+  tag: manual
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Expose externally (homepage tile)
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Already done in phase 2 task 6 (homepage tile for GoatCounter).
+      Confirm here, do not duplicate.
+
+      If during phase 5 we exposed any AI helper UI externally (we
+      shouldn't have — it's webhook-only), add the IngressRoute and
+      tile per `agents/rules/plan-post-deploy-checklist.md` step 1.
+      Otherwise, mark this step as `(skipped — internal-only service)`.
+- number: 2
+  title: Write the Paper
+  steps:
+  - id: P6.T2.S1
+    text: |-
+      Use the `/papers` skill (per `agents/skills/papers/`). Working
+      title: "Edge Observability — Watching Frank's Edge Without
+      Watching Frank's Edge Burn". Slot number depends on what's
+      shipped by paper-write time (likely Paper 21 or later).
+
+      Scaffold:
+
+      ```bash
+      scripts/scaffold-paper.sh <NN> edge-observability
+      ```
+
+      Fill the dossier at
+      `docs/papers-dossiers/<NN>-edge-observability/dossier.md` —
+      vendors (CrowdSec, Falco, VictoriaMetrics/Logs, GoatCounter,
+      Umami as counter-argument), primary sources, Frank artefacts
+      (grafana screenshots, asciinema of surge-detection demo, this
+      spec), named gaps, counter-arguments (Why not Wazuh? Why not
+      Loki?).
+
+      Pass dossier validation:
+
+      ```bash
+      python scripts/validate-dossier.py docs/papers-dossiers/<NN>-edge-observability/dossier.md
+      ```
+  - id: P6.T2.S2
+    text: |-
+      Fill all § sections in `blog/content/docs/papers/<NN>-edge-observability/index.md`.
+      Generate the cover image via `blog/prompt_for_images.yaml` (see
+      `agents/rules/repo-papers.md` cover prompt template).
+
+      Run validators:
+
+      ```bash
+      python scripts/validate-papers.py
+      cd blog && hugo --buildDrafts
+      ```
+
+      Both pass.
+  - id: P6.T2.S3
+    text: |-
+      Set `draft: false`, `status: published`. Commit and push. The
+      blog CI rebuilds; Hop's ArgoCD pulls the new image.
+- number: 3
+  title: Write building post
+  steps:
+  - id: P6.T3.S1
+    text: |-
+      Use the `/blog-post` skill. Path:
+      `blog/content/docs/building/<NN>-edge-observability/`.
+
+      Cover the build narrative: why the collectors-on-Hop /
+      backend-on-Frank topology emerged from the resource constraint,
+      why VictoriaLogs over Loki, why GoatCounter over Umami, what
+      broke during deployment (likely: the cross-cluster ClusterIP
+      resolution, the Authentik outpost-provider manual step, Falco
+      noise rules on Talos).
+  - id: P6.T3.S2
+    text: |-
+      Update `blog/content/docs/building/00-overview/index.md`
+      (Series Index + Capability Map) and
+      `blog/layouts/shortcodes/cluster-roadmap.html` to add the new
+      layer.
+
+      Commit and push.
+- number: 4
+  title: Write operating post
+  steps:
+  - id: P6.T4.S1
+    text: |-
+      Use the `/blog-post` skill. Path:
+      `blog/content/docs/operating/<NN>-edge-observability/`.
+
+      Cover day-to-day commands: query Grafana for blog traffic, force
+      a CrowdSec decision (`cscli decisions add --ip ...`), unban an IP
+      (`cscli decisions delete --ip ...`), tune a Falco rule, suppress
+      an alert temporarily, regenerate a Telegram bot token, restore
+      GoatCounter from PVC backup.
+
+      Update the operating series index in
+      `blog/content/docs/building/00-overview/index.md`.
+- number: 5
+  title: Update README
+  steps:
+  - id: P6.T5.S1
+    text: |-
+      Run `/update-readme`. The skill will sync Technology Stack,
+      Repository Structure (the new `apps/victoria-logs/`,
+      `apps/goatcounter/`, `apps/ai-alert-helper/`, and Hop's new
+      apps), Service Access (counter.cluster.derio.net),
+      and Current Status sections.
+
+      Commit and push.
+- number: 6
+  title: Sync runbook
+  steps:
+  - id: P6.T6.S1
+    text: |-
+      Run `/sync-runbook`. The skill scans the plan files for
+      `# manual-operation` blocks and merges them into
+      `docs/runbooks/manual-operations.yaml` (deduplicates by id,
+      preserves status of existing entries).
+
+      Expected new entries from this plan:
+      - obs-goatcounter-bootstrap-first-site (phase 2.1)
+      - obs-goatcounter-authentik-outpost (phase 2.2)
+      - obs-goatcounter-api-token-infisical (phase 2.5)
+      - obs-dns-counter-derio-net (phase 2.3)
+      - obs-crowdsec-community-blocklists (phase 3.2)
+      - obs-crowdsec-bouncer-api-key (phase 3.3)
+  - id: P6.T6.S2
+    text: |-
+      Verify the runbook is well-formed:
+
+      ```bash
+      python scripts/validate-manual-operations.py 2>/dev/null || echo "validator missing — visual review"
+      ```
+
+      Commit and push.
+- number: 7
+  title: Update plan status
+  steps:
+  - id: P6.T7.S1
+    text: |-
+      Set the plan's `**Status:**` to `Deployed` (cluster workload).
+      This goes in `_meta.yaml` or wherever the plan-config schema
+      tracks status — confirm via `vk plan self-review`.
+
+      Final action: announce in chat that the plan is Deployed and
+      link the published paper.
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T6.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T6.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T7.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

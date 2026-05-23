@@ -1,0 +1,391 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Edge security — CrowdSec on Hop with Caddy bouncer module
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Rebuild Hop's Caddy image with the crowdsec-bouncer module
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Edit `clusters/hop/apps/caddy/Dockerfile`. The current image
+      builds Caddy with the Cloudflare DNS module. Add the
+      `github.com/hslatman/caddy-crowdsec-bouncer/http` and
+      `.../layer4` plugins via `xcaddy`:
+
+      ```dockerfile
+      BEGIN Dockerfile additions
+      FROM caddy:2.9-builder AS builder
+      RUN xcaddy build \
+        --with github.com/caddy-dns/cloudflare \
+        --with github.com/hslatman/caddy-crowdsec-bouncer/http \
+        --with github.com/hslatman/caddy-crowdsec-bouncer/layer4
+
+      FROM caddy:2.9
+      COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+      END Dockerfile additions
+      ```
+
+      Adapt to the existing Dockerfile structure (don't break the
+      cloudflare module that's already there).
+  - id: P3.T1.S2
+    text: |-
+      Build and push to ghcr.io. Use the existing tag scheme:
+
+      ```bash
+      docker build -t ghcr.io/derio-net/caddy-cloudflare:2.9-crowdsec clusters/hop/apps/caddy/
+      docker push ghcr.io/derio-net/caddy-cloudflare:2.9-crowdsec
+      ```
+
+      Update `clusters/hop/apps/caddy/manifests/deployment.yaml` to use
+      the new tag. Commit:
+
+      ```bash
+      git add clusters/hop/apps/caddy/Dockerfile clusters/hop/apps/caddy/manifests/deployment.yaml
+      git commit -m "feat(obs): rebuild hop caddy with crowdsec-bouncer module"
+      git push origin HEAD
+      ```
+
+      Caddy on Hop restarts with the new image. Verify the module
+      loaded:
+
+      ```bash
+      source .env_hop
+      kubectl exec -n caddy-system deploy/caddy -- caddy list-modules | grep crowdsec
+      # Expected: http.handlers.crowdsec  + layer4.handlers.crowdsec
+      ```
+- number: 2
+  title: Deploy crowdsec agent on Hop
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Add the CrowdSec Helm repo and pin a chart version:
+
+      ```bash
+      helm repo add crowdsec https://crowdsecurity.github.io/helm-charts
+      helm repo update
+      helm show values crowdsec/crowdsec --version <PINNED> > /tmp/cs-values.yaml
+      ```
+
+      Identify keys for: acquisition (file paths to tail), collections
+      (parsers + scenarios), LAPI service, persistence (small PVC for
+      local decision DB).
+  - id: P3.T2.S2
+    text: |-
+      Create `clusters/hop/apps/crowdsec/values.yaml`:
+
+      ```yaml
+      agent:
+        acquisition:
+          - filenames:
+              - /var/log/pods/caddy-system_caddy-*/caddy/*.log
+            labels:
+              type: caddy
+        persistentVolume:
+          config:
+            enabled: true
+            storageClass: hcloud-volumes  # Hop's storage class
+            size: 1Gi
+      lapi:
+        enabled: true
+        dashboard: { enabled: false }
+        persistentVolume:
+          data:
+            enabled: true
+            storageClass: hcloud-volumes
+            size: 1Gi
+        service:
+          type: ClusterIP
+      tls: { enabled: false }  # local mesh, plain HTTP
+      config:
+        parsers:
+          - crowdsecurity/caddy-logs
+        scenarios:
+          - crowdsecurity/http-probing
+          - crowdsecurity/http-bad-user-agent
+          - crowdsecurity/http-crawl-non_statics
+          - crowdsecurity/http-cve
+          - crowdsecurity/http-sensitive-files
+          - crowdsecurity/http-dos
+      resources:
+        agent:
+          requests: { cpu: 50m, memory: 80Mi }
+          limits: { memory: 128Mi }
+      ```
+  - id: P3.T2.S3
+    text: |-
+      Create `clusters/hop/apps/root/templates/crowdsec.yaml` (Application
+      CR, multi-source), `clusters/hop/apps/root/templates/ns-crowdsec.yaml`.
+
+      Commit, push, wait for sync.
+  - id: P3.T2.S4
+    text: |-
+      **Manual operation block** — subscribe to the CrowdSec community
+      blocklists. This requires a free CrowdSec account:
+
+      ```yaml
+      # manual-operation
+      id: obs-crowdsec-community-blocklists
+      layer: obs
+      app: crowdsec
+      plan: 2026-05-23--obs--hop-blog-edge-monitoring
+      when: phase 3, task 2, after crowdsec agent is healthy
+      why_manual: Free-tier enrollment requires browser sign-up at
+        app.crowdsec.net; the resulting API key is then stored in
+        Infisical.
+      commands:
+        - "(crowdsec.net UI) Sign up, create a Security Engine, copy enrollment token"
+        - kubectl exec -n crowdsec-system deploy/crowdsec-lapi -- cscli console enroll <TOKEN>
+        - "(crowdsec.net UI) Accept the new engine"
+        - "(crowdsec.net UI) Subscribe to community blocklist"
+      verify:
+        - kubectl exec -n crowdsec-system deploy/crowdsec-lapi -- cscli decisions list | head -10
+      status: pending
+      ```
+- number: 3
+  title: Wire the bouncer into Caddy and configure the bouncer API key
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Create a bouncer API key:
+
+      ```bash
+      source .env_hop
+      kubectl exec -n crowdsec-system deploy/crowdsec-lapi -- \
+        cscli bouncers add caddy-hop
+      # Output: API key. Copy it.
+      ```
+
+      Add the key to Infisical as `OBS_CROWDSEC_BOUNCER_API_KEY`. Create
+      an ExternalSecret in
+      `clusters/hop/apps/caddy/manifests/externalsecret-crowdsec.yaml`
+      to project it into the `caddy-crowdsec` Secret.
+
+      **Manual operation block:**
+
+      ```yaml
+      # manual-operation
+      id: obs-crowdsec-bouncer-api-key
+      layer: obs
+      app: crowdsec
+      plan: 2026-05-23--obs--hop-blog-edge-monitoring
+      when: phase 3, task 3
+      why_manual: cscli bouncers add produces a one-time key that must
+        be captured and rotated outside GitOps.
+      commands:
+        - cscli bouncers add caddy-hop (inside crowdsec-lapi pod)
+        - "(Infisical UI) Save key as OBS_CROWDSEC_BOUNCER_API_KEY"
+      verify:
+        - kubectl get secret -n caddy-system caddy-crowdsec -o jsonpath='{.data.api-key}' | base64 -d | head -c 8
+      status: pending
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Edit `clusters/hop/apps/caddy/manifests/configmap.yaml` global
+      block:
+
+      ```caddyfile
+      {
+        email admin@derio.net
+        acme_dns cloudflare {env.CF_API_TOKEN}
+        log access { output stdout, format json, level INFO }
+        order crowdsec first
+        crowdsec {
+          api_url http://crowdsec-lapi.crowdsec-system.svc:8080
+          api_key {env.CROWDSEC_BOUNCER_API_KEY}
+          ticker_interval 10s
+        }
+      }
+      ```
+
+      And update the public blog handler:
+
+      ```caddyfile
+      blog.derio.net {
+        handle /frank* {
+          crowdsec
+          reverse_proxy blog.blog-system.svc:8080
+        }
+        handle { redir https://blog.derio.net/frank{uri} permanent }
+      }
+      ```
+
+      Also update `clusters/hop/apps/caddy/manifests/deployment.yaml`
+      to mount the new env var from the Secret.
+  - id: P3.T3.S3
+    text: |-
+      Commit, push, restart Caddy. Verify the bouncer connects to LAPI:
+
+      ```bash
+      git add clusters/hop/apps/caddy/manifests/
+      git commit -m "feat(obs): wire crowdsec bouncer into caddy"
+      git push origin HEAD
+      source .env_hop
+      kubectl rollout restart deploy/caddy -n caddy-system
+      kubectl logs -n caddy-system deploy/caddy --tail 50 | grep -i crowdsec
+      # Expected: "crowdsec: bouncer is up" / decision count updates
+      ```
+- number: 4
+  title: Build "Security events" dashboard + CrowdSecDecisionBurst alert
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Create `apps/grafana-alerting/manifests/dashboards-blog-edge/security-events.json`.
+      Panels:
+
+      1. Time series: CrowdSec decisions per minute (VictoriaLogs
+         query on `crowdsec` log stream filtered by decision events).
+      2. Table: top 10 banned IPs (last 24h) with geographic
+         enrichment.
+      3. Table: top 10 matched scenarios.
+      4. World map of banned IPs.
+      5. Falco event count over time (placeholder — populated by
+         phase 4).
+  - id: P3.T4.S2
+    text: |-
+      Add the alert rule in
+      `apps/grafana-alerting/manifests/rules-blog-edge.yaml`:
+
+      ```yaml
+      BEGIN apps/grafana-alerting/manifests/rules-blog-edge.yaml
+      apiVersion: 1
+      groups:
+        - orgId: 1
+          name: blog-edge
+          folder: Blog Edge
+          interval: 1m
+          rules:
+            - uid: crowdsec-decision-burst
+              title: CrowdSec decision burst
+              condition: B
+              data:
+                - refId: A
+                  datasourceUid: <VictoriaLogs UID>
+                  relativeTimeRange: { from: 300, to: 0 }
+                  model: { expr: 'count_over_time({app="crowdsec"} |~ "ban" [5m])', refId: A, instant: true }
+                - refId: B
+                  datasourceUid: __expr__
+                  model: { expression: "$A > 10", refId: B, type: "threshold" }
+              for: 1m
+              labels: { severity: warning }
+              annotations:
+                summary: ">10 CrowdSec ban decisions in last 5m"
+      END apps/grafana-alerting/manifests/rules-blog-edge.yaml
+      ```
+
+      (Adapt the actual datasource UID and exact LogsQL syntax.)
+  - id: P3.T4.S3
+    text: |-
+      Commit, push, wait for Grafana to provision. The alert routes to
+      Alertmanager → AI helper webhook (wired in phase 5; until then the
+      alert fires into the default channel).
+- number: 5
+  title: Smoke test the bouncer
+  steps:
+  - id: P3.T5.S1
+    text: |-
+      From a controlled external IP, hit the blog with a probing
+      pattern that matches a CrowdSec HTTP scenario:
+
+      ```bash
+      for i in $(seq 1 12); do
+        curl -s -o /dev/null -w '%{http_code}\n' \
+          "https://blog.derio.net/wp-login.php?attempt=$i"
+      done
+      ```
+
+      Expected behaviour: first ~5 requests get 200/404, then a 403
+      once CrowdSec issues a decision.
+
+      Confirm the decision exists:
+
+      ```bash
+      source .env_hop
+      kubectl exec -n crowdsec-system deploy/crowdsec-lapi -- \
+        cscli decisions list | grep <your-test-ip>
+      ```
+
+      Then verify it appears in Grafana's "Security events" dashboard.
+  - id: P3.T5.S2
+    text: |-
+      Clear the decision after testing so you can use that IP again:
+
+      ```bash
+      kubectl exec -n crowdsec-system deploy/crowdsec-lapi -- \
+        cscli decisions delete --ip <your-test-ip>
+      ```
+
+      **Memory budget check (Hop):**
+
+      ```bash
+      kubectl describe node hop-1 | grep -A 5 "Allocated resources"
+      ```
+
+      Expected limits ≤ 85%. Pre-phase-3 was ~75%; CrowdSec adds 128Mi
+      limit → ~78%. If higher, raise as finding.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
