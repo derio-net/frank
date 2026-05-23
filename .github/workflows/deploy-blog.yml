@@ -85,9 +85,14 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-  # Build container image for Hop and update deployment manifest
+  # Build container image for Hop and update deployment manifest.
+  # Gated on build-pages so a failing validator (dossier sync, paper
+  # frontmatter, mermaid) prevents the hop image from rolling out —
+  # otherwise GitHub Pages stays on the old build but ArgoCD on hop
+  # pulls a new image whose content failed the same validators.
   build-container:
     runs-on: ubuntu-latest
+    needs: build-pages
     permissions:
       contents: write
       packages: write
