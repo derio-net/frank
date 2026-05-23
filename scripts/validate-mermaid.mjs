@@ -51,8 +51,13 @@ function htmlDecode(s) {
 }
 
 function extractMermaid(html) {
+  // The character classes below exclude `>` so attribute matching can't bleed
+  // past the opener and into the diagram body (which contains unescaped `>`
+  // from Mermaid arrows like `-->`). Use `[^>"']` instead of `[^"']` for
+  // attribute-internal text; non-greedy quantifiers reinforce that the
+  // opening tag should be as short as possible.
   const blocks = [];
-  const re = /<pre[^>]*class=["']?[^"']*\bmermaid\b[^"']*["']?[^>]*>([\s\S]*?)<\/pre>/gi;
+  const re = /<pre[^>]*?class=["']?[^>"']*?\bmermaid\b[^>"']*?["']?[^>]*?>([\s\S]*?)<\/pre>/gi;
   for (const m of html.matchAll(re)) {
     blocks.push(htmlDecode(m[1]).trim());
   }
