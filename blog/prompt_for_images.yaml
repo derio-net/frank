@@ -225,10 +225,6 @@ images:
       both edges into darkness. The image MUST be extremely wide and short,
       like a letterbox strip — 1200x200 pixels, 6:1 ratio.
 
-  # banner-hero and banner-thin were drafted but never rendered or
-  # referenced from any template — removed as vestigial. Re-add here if
-  # the post-header banner or the building card cover ever gets wired up.
-
   - key: banner-operating
     output: blog/static/images/banner-operating.png
     description: Operating-on-Frank card cover — Frank wincing as gadgets poke him (1200x630)
@@ -253,10 +249,6 @@ images:
       green PCB traces on the walls and sparse blue lightning arcs. No text
       in the image. Output dimensions exactly 1200x630 pixels. Wide
       cinematic aspect ratio, 1200 pixels wide by 630 pixels tall.
-
-  # banner-operating-thin was drafted but never rendered or referenced
-  # from any template — removed as vestigial. Re-add here if the
-  # operating-series strip banner ever gets wired up.
 
   - key: favicon
     output: blog/static/images/favicon.png
