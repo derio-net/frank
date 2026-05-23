@@ -9,6 +9,11 @@ data:
     {
       email admin@derio.net
       acme_dns cloudflare {env.CF_API_TOKEN}
+      log access {
+        output stdout
+        format json
+        level INFO
+      }
     }
 
     # --- Public routes ---

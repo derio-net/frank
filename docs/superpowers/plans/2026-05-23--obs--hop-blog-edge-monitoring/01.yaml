@@ -426,12 +426,12 @@ state:
       ticked_at: '2026-05-23T22:09:58+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-23T22:11:03+00:00'
       note: null
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-23T22:11:54+00:00'
       note: null
     P1.T4.S1:
       state: ' '
