@@ -1,5 +1,5 @@
 server:
-  retentionPeriod: 14d
+  retentionPeriod: 30d
   persistentVolume:
     enabled: true
     size: 20Gi
@@ -7,3 +7,25 @@ server:
   service:
     type: ClusterIP
     port: 9428
+
+# Sibling Service exposed via Cilium L2 so Hop's fluent-bit can push
+# over the Tailscale subnet route to 192.168.55.0/24. The kube service
+# CIDR is NOT routable from Hop, so we need a real LB IP.
+extraObjects:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: victoria-logs-lb
+      namespace: monitoring
+      annotations:
+        lbipam.cilium.io/ips: "192.168.55.225"
+        lbipam.cilium.io/sharing-key: "victoria-logs-lb"
+    spec:
+      type: LoadBalancer
+      selector:
+        app.kubernetes.io/name: victoria-logs-single
+        app.kubernetes.io/instance: victoria-logs
+      ports:
+        - name: http
+          port: 9428
+          targetPort: 9428

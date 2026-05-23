@@ -1,7 +1,8 @@
 schema_version: 2
 phase:
   number: 1
-  title: Log plumbing — extend existing VictoriaLogs with LB IP, Caddy JSON, fluent-bit on Hop
+  title: Log plumbing — extend existing VictoriaLogs with LB IP, Caddy JSON, fluent-bit
+    on Hop
   tag: agentic
   depends_on: []
   tracking_issue: null
@@ -404,22 +405,70 @@ tasks:
       Expected memory limits < 85% of 3263780Ki (~2774 Mi). Pre-phase baseline was 73%; adding 80Mi fluent-bit limit moves it to ~75%. If actual % exceeds 85%, raise as a finding before phase 2.
 state:
   steps:
-    P1.T1.S1: {state: ' ', ticked_at: null, note: null}
-    P1.T1.S2: {state: ' ', ticked_at: null, note: null}
-    P1.T1.S3: {state: ' ', ticked_at: null, note: null}
-    P1.T1.S4: {state: ' ', ticked_at: null, note: null}
-    P1.T1.S5: {state: ' ', ticked_at: null, note: null}
-    P1.T2.S1: {state: ' ', ticked_at: null, note: null}
-    P1.T3.S1: {state: ' ', ticked_at: null, note: null}
-    P1.T4.S1: {state: ' ', ticked_at: null, note: null}
-    P1.T4.S2: {state: ' ', ticked_at: null, note: null}
-    P1.T4.S3: {state: ' ', ticked_at: null, note: null}
-    P1.T5.S1: {state: ' ', ticked_at: null, note: null}
-    P1.T5.S2: {state: ' ', ticked_at: null, note: null}
-    P1.T5.S3: {state: ' ', ticked_at: null, note: null}
-    P1.T5.S4: {state: ' ', ticked_at: null, note: null}
-    P1.T5.S5: {state: ' ', ticked_at: null, note: null}
-    P1.T5.S6: {state: ' ', ticked_at: null, note: null}
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-05-23T22:05:17+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-05-23T22:07:19+00:00'
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S6:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null
     note: null
