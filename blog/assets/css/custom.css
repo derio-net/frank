@@ -168,30 +168,32 @@
 }
 
 .paper-post .paper-capability-matrix {
-  /* Wrapper handles horizontal scroll on narrow viewports (phones in
-     portrait) — wider-than-viewport tables scroll left/right with the
-     finger instead of squeezing every column down to ~30 px. Tables that
-     fit naturally don't show a scrollbar (overflow-x: auto only renders
-     one when needed). The 1.25rem auto margin lives here rather than on
-     the table so the vertical rhythm survives the overflow context. */
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  /* Visual frame lives on the WRAPPER, not the table itself. Hextra's
+     default rule for `.content table` sets `display: block; width: 100%;
+     overflow-x: auto` — the same pattern that makes mermaid blocks
+     scrollable on mobile. The previous attempt (wrapper overflow-x +
+     `overflow: hidden` on the table) accidentally clipped that scrollbar
+     away on Android / zoomed browsers because `overflow: hidden` on the
+     table cancels Hextra's `overflow-x: auto`. Now we leave the table
+     alone (Hextra's scroll works) and put the frame on the wrapper, with
+     `overflow: hidden` here to clip the table's square corners against
+     the wrapper's border-radius. Scrollbar lives INSIDE the table block,
+     INSIDE the wrapper — visible and finger-swipeable. */
   margin: 1.25rem auto;
-}
-
-.paper-post .paper-capability-matrix table {
-  /* Size to content. NO max-width: 100% — that constraint would prevent
-     the wrapper's overflow-x: auto from doing anything, since the table
-     would re-squeeze to the wrapper's width. Without it, the table sizes
-     to its intrinsic content; the wrapper governs horizontal extent. */
-  width: auto;
-  margin: 0 auto;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-  background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(148, 180, 255, 0.25);
   border-radius: 6px;
   overflow: hidden;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.paper-post .paper-capability-matrix table {
+  /* DO NOT set width / display / overflow / margin / border / background
+     here. Those belong on the wrapper or come from Hextra's `.content
+     table` defaults. `overflow: hidden` here kills mobile scroll.
+     `width: auto` cancels Hextra's `width: 100%` and produces inconsistent
+     layout under browser zoom. */
+  border-collapse: collapse;
+  font-size: 0.875rem;
 }
 
 .paper-post .paper-capability-matrix thead {
