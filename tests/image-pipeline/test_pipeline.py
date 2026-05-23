@@ -184,6 +184,75 @@ class TestLoadPoolRefs:
 
 
 # ---------------------------------------------------------------------------
+# select_reference_path — per-series master reference resolution
+# ---------------------------------------------------------------------------
+
+
+class TestSelectReferencePath:
+    """Resolution order: override → series field → key prefix → generic."""
+
+    @pytest.fixture
+    def fake_pool(self, tmp_path, monkeypatch, script):
+        """Build a fake .reference-pool/ with all four reference files."""
+        for series in ("papers", "building", "operating", "generic"):
+            d = tmp_path / series
+            d.mkdir()
+            (d / f"reference-{series}.png").write_bytes(b"")
+        monkeypatch.setattr(script, "POOL_DIR", tmp_path)
+        return tmp_path
+
+    def test_override_wins_for_any_input(self, script, fake_pool, tmp_path):
+        custom = tmp_path / "custom-ref.png"
+        custom.write_bytes(b"")
+        chosen = script.select_reference_path(
+            {"key": "paper-04-cover", "series": "papers"}, custom
+        )
+        assert chosen == custom
+
+    def test_explicit_series_field_wins_over_prefix(self, script, fake_pool):
+        # `series: building` beats the `paper-` prefix.
+        chosen = script.select_reference_path(
+            {"key": "paper-04-cover", "series": "building"}, None
+        )
+        assert chosen == fake_pool / "building" / "reference-building.png"
+
+    def test_paper_prefix_maps_to_papers(self, script, fake_pool):
+        chosen = script.select_reference_path({"key": "paper-04-cover"}, None)
+        assert chosen == fake_pool / "papers" / "reference-papers.png"
+
+    def test_building_prefix_maps_to_building(self, script, fake_pool):
+        chosen = script.select_reference_path({"key": "building-04-gpu"}, None)
+        assert chosen == fake_pool / "building" / "reference-building.png"
+
+    def test_ops_prefix_maps_to_operating(self, script, fake_pool):
+        chosen = script.select_reference_path({"key": "ops-04-storage"}, None)
+        assert chosen == fake_pool / "operating" / "reference-operating.png"
+
+    def test_unknown_key_falls_back_to_generic(self, script, fake_pool):
+        chosen = script.select_reference_path({"key": "banner-papers"}, None)
+        assert chosen == fake_pool / "generic" / "reference-generic.png"
+
+    def test_per_series_missing_falls_back_to_generic(
+        self, script, fake_pool
+    ):
+        # Remove the papers reference; paper- prefix should fall through.
+        (fake_pool / "papers" / "reference-papers.png").unlink()
+        chosen = script.select_reference_path({"key": "paper-04-cover"}, None)
+        assert chosen == fake_pool / "generic" / "reference-generic.png"
+
+    def test_all_missing_raises_with_useful_message(
+        self, script, tmp_path, monkeypatch
+    ):
+        # Empty pool — both per-series and generic missing.
+        monkeypatch.setattr(script, "POOL_DIR", tmp_path / "empty")
+        with pytest.raises(FileNotFoundError) as exc:
+            script.select_reference_path({"key": "paper-04-cover"}, None)
+        msg = str(exc.value)
+        assert "papers" in msg  # names the series
+        assert "extract-subject.swift" in msg or "subjects" in msg  # hints fix
+
+
+# ---------------------------------------------------------------------------
 # YAML structural integrity
 # ---------------------------------------------------------------------------
 

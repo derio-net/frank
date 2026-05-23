@@ -83,8 +83,15 @@ Typical structure:
 - **Cover image generation**: After the entry is approved:
   ```bash
   source .env_common && uv run --with pyyaml --with google-genai --with pillow \
-    scripts/generate-all-images.py -r blog/static/images/reference.png --only <key>
+    scripts/generate-all-images.py --only <key>
   ```
+  The script auto-picks the master reference from
+  `.reference-pool/<series>/reference-<series>.png` based on the entry's
+  `series:` field (or key prefix). Add 1–2 paths to `references:` on the
+  yaml entry to stack additional anchors from
+  `.reference-pool/<series>/subjects/`. Override the master ref for a
+  one-off run with `-r path.png`.
+
   Show the generated image to the user for review. If they want a regeneration, run the command again — the previous cover is auto-archived under `.regen-archive/<key>/` (capped at 30 per key, FIFO).
 - Inline images: co-locate in the page bundle directory (NOT in `/static/images/`)
 - Use relative paths: `![Alt text](image.png)`

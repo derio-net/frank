@@ -167,13 +167,25 @@
   font-family: ui-monospace, monospace;
 }
 
-.paper-post .paper-capability-matrix table {
-  /* Size to content with a sensible cap. Forcing 100% leaves dead space
-     in the emoji-heavy columns and makes the outer frame visibly wider
-     than the actual cells. */
-  width: auto;
-  max-width: 100%;
+.paper-post .paper-capability-matrix {
+  /* Wrapper handles horizontal scroll on narrow viewports (phones in
+     portrait) — wider-than-viewport tables scroll left/right with the
+     finger instead of squeezing every column down to ~30 px. Tables that
+     fit naturally don't show a scrollbar (overflow-x: auto only renders
+     one when needed). The 1.25rem auto margin lives here rather than on
+     the table so the vertical rhythm survives the overflow context. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin: 1.25rem auto;
+}
+
+.paper-post .paper-capability-matrix table {
+  /* Size to content. NO max-width: 100% — that constraint would prevent
+     the wrapper's overflow-x: auto from doing anything, since the table
+     would re-squeeze to the wrapper's width. Without it, the table sizes
+     to its intrinsic content; the wrapper governs horizontal extent. */
+  width: auto;
+  margin: 0 auto;
   border-collapse: collapse;
   font-size: 0.875rem;
   background: rgba(255, 255, 255, 0.03);
