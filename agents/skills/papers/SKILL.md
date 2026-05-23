@@ -84,10 +84,13 @@ dossier gate and correct section skeleton.
    anymore, so it no longer brings any risk. Torso also derives from
    the key prefix, so either works.
 
-   Generate:
+   Generate (the script auto-picks the papers-series master reference
+   from `.reference-pool/papers/reference-papers.png`; add `references:`
+   to the yaml entry to stack additional anchors from
+   `.reference-pool/papers/subjects/`):
    ```bash
    source .env_common && uv run --with pyyaml --with google-genai --with pillow \
-     scripts/generate-all-images.py -r blog/static/images/reference.png --only <key>
+     scripts/generate-all-images.py --only <key>
    ```
 
 8. **Review** — verify TL;DR ≤150 words, voice pass, dossier-link renders.

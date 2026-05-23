@@ -1,7 +1,17 @@
 # Image Generation Prompts for "Frank, the Talos Cluster" Blog
 #
 # Used by: scripts/generate-all-images.py
-# Primary reference: blog/static/images/reference.png (passed via -r)
+# Master reference: auto-picked per-series from
+#     .reference-pool/<series>/reference-<series>.png
+# where series comes from the entry's `series:` field or the key prefix
+# (paper-* → papers, building-* → building, ops-* → operating, anything
+# else → generic). Override with `-r path.png` for one-off runs.
+#
+# Multi-reference: each entry can list additional anchors under
+# `references:` (paths from .reference-pool/<series>/subjects/ are the
+# canonical pick). These STACK on top of the master reference; both go
+# into the model call. Random sampling is also available via
+# --pool-generic N / --pool-series N (off by default).
 #
 # ---------------------------------------------------------------------------
 # COMPOSITION MODEL

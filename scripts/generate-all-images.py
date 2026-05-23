@@ -103,6 +103,11 @@ def select_reference_path(img: dict, override: Path | None) -> Path:
       2. Explicit `series:` field on the entry
       3. _key_to_series(key) prefix-based fallback
       4. .reference-pool/generic/reference-generic.png
+
+    Fails loudly (FileNotFoundError) if NONE of the candidates exist —
+    the previous behaviour silently returned a non-existent path and let
+    PIL crash later with an opaque error mid-run, after some images had
+    already cost API credits.
     """
     if override is not None:
         return override
@@ -110,7 +115,20 @@ def select_reference_path(img: dict, override: Path | None) -> Path:
     candidate = POOL_DIR / series / f"reference-{series}.png"
     if candidate.exists():
         return candidate
-    return POOL_DIR / "generic" / "reference-generic.png"
+    generic = POOL_DIR / "generic" / "reference-generic.png"
+    if generic.exists():
+        return generic
+    def _display(p: Path) -> str:
+        try:
+            return str(p.relative_to(REPO_ROOT))
+        except ValueError:
+            return str(p)
+    raise FileNotFoundError(
+        f"no master reference found for series '{series}' on image '{img.get('key', '?')}'. "
+        f"Expected {_display(candidate)} (per-series) or "
+        f"{_display(generic)} (generic fallback). "
+        f"Generate one via scripts/extract-subject.swift or crop a subjects/*.png."
+    )
 
 
 def load_pool_refs(

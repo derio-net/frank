@@ -70,8 +70,11 @@ def _walk_static() -> list[tuple[Path, Path]]:
     pairs: list[tuple[Path, Path]] = []
     static = REPO_ROOT / "blog" / "static" / "images"
     for src in static.glob("*.png"):
-        # Skip reference.png — it's the canonical character design sheet,
-        # not a "subject in scene" we want to lift.
+        # Guard against re-introducing a master reference at this path.
+        # The legacy blog/static/images/reference.png was retired in
+        # favour of per-series .reference-pool/<series>/reference-<series>.png
+        # files. If someone re-creates a stub at the old path, don't lift
+        # it into subjects/.
         if src.name == "reference.png":
             continue
         series = _series_from_static_basename(src.name)
