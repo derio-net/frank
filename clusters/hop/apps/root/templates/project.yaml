@@ -8,6 +8,9 @@ spec:
   sourceRepos:
     - "https://github.com/derio-net/frank.git"
     - "https://argoproj.github.io/argo-helm"
+    - "https://fluent.github.io/helm-charts"            # phase 1 obs: fluent-bit
+    - "https://crowdsecurity.github.io/helm-charts"     # phase 3 obs: crowdsec
+    - "https://falcosecurity.github.io/charts"          # phase 4 obs: falco
   destinations:
     - namespace: "*"
       server: https://kubernetes.default.svc
