@@ -2,7 +2,7 @@
 
 **Layer:** obs
 **Date:** 2026-05-23
-**Status:** Draft — awaiting user review
+**Status:** Approved — ready for plan
 
 ## Summary
 
