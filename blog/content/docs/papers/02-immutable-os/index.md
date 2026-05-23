@@ -30,25 +30,6 @@ tags: ["os", "talos", "immutable", "kubernetes", "homelab"]
 capabilities: ["os"]
 related_building: "docs/building/02-foundation"
 related_operating: "docs/operating/01-cluster-nodes"
-references:
-  - title: "Talos Linux — Concepts"
-    url: "https://www.talos.dev/v1.11/learn-more/concepts/"
-    type: vendor-docs
-  - title: "Fedora CoreOS — Documentation"
-    url: "https://docs.fedoraproject.org/en-US/fedora-coreos/"
-    type: vendor-docs
-  - title: "Ignition (CoreOS) — Specification"
-    url: "https://coreos.github.io/ignition/"
-    type: vendor-docs
-  - title: "Bottlerocket: A special-purpose container operating system (AWS blog)"
-    url: "https://aws.amazon.com/blogs/containers/bottlerocket-a-special-purpose-container-operating-system/"
-    type: paper
-  - title: "ImmutableServer (Martin Fowler / ThoughtWorks)"
-    url: "https://martinfowler.com/bliki/ImmutableServer.html"
-    type: paper
-  - title: "Frank — OS / Talos / Hop gotchas (postmortem registry)"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/hop-gotchas.md"
-    type: postmortem
 ---
 
 ## TL;DR

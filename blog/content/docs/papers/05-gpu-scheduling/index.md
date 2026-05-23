@@ -30,25 +30,6 @@ tags: ["gpu", "nvidia", "intel", "dra", "kubernetes"]
 capabilities: ["gpu"]
 related_building: "docs/building/04-gpu-compute"
 related_operating: "docs/operating/04-gpu-compute"
-references:
-  - title: "NVIDIA GPU Operator — Overview"
-    url: "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html"
-    type: vendor-docs
-  - title: "Kubernetes — Dynamic Resource Allocation"
-    url: "https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/"
-    type: vendor-docs
-  - title: "NVIDIA Multi-Instance GPU (MIG) User Guide"
-    url: "https://docs.nvidia.com/datacenter/tesla/mig-user-guide/"
-    type: vendor-docs
-  - title: "Volcano — A Cloud Native Batch System"
-    url: "https://volcano.sh/en/docs/"
-    type: paper
-  - title: "Intel Resource Drivers for Kubernetes"
-    url: "https://github.com/intel/intel-resource-drivers-for-kubernetes"
-    type: vendor-docs
-  - title: "Frank — gpu-1 specifics gotchas"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md"
-    type: postmortem
 ---
 
 ## TL;DR
@@ -632,6 +613,3 @@ allocation and management UI.
 The space is not done evolving. Frank will revisit this paper when the
 answers change.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

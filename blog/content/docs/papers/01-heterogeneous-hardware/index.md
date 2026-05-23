@@ -30,28 +30,6 @@ tags: ["hardware", "heterogeneous", "node-pools", "kubernetes", "talos", "raspbe
 capabilities: ["hw"]
 related_building: "docs/building/01-introduction"
 related_operating: "docs/operating/01-cluster-nodes"
-references:
-  - title: "Kubernetes docs — Assigning Pods to Nodes"
-    url: "https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/"
-    type: vendor-docs
-  - title: "Karpenter docs — NodePools and NodeClasses"
-    url: "https://karpenter.sh/docs/concepts/nodepools/"
-    type: vendor-docs
-  - title: "Cluster API — Concepts (MachineDeployments)"
-    url: "https://cluster-api.sigs.k8s.io/user/concepts"
-    type: vendor-docs
-  - title: "Talos Linux v1.10 — Managing Kubernetes nodes"
-    url: "https://www.talos.dev/v1.10/kubernetes-guides/configuration/managing-nodes/"
-    type: vendor-docs
-  - title: "Raspberry Pi Cluster Episode 3 — Installing K3s on the Turing Pi (Geerling, 2020)"
-    url: "https://www.jeffgeerling.com/blog/2020/installing-k3s-kubernetes-on-turing-pi-raspberry-pi-cluster-episode-3/"
-    type: benchmark
-  - title: "Frank cluster gotcha registry (frank-gotchas.md)"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md"
-    type: postmortem
-  - title: "pc-1 reboot investigation (2026-05-11)"
-    url: "https://github.com/derio-net/frank/blob/main/docs/investigations/2026-05-11--hw--pc-1-reboot-investigation.md"
-    type: postmortem
 ---
 
 ## TL;DR

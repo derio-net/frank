@@ -526,3 +526,59 @@
     align-items: flex-start;
   }
 }
+
+/* Frank Papers — §8 References + cross-series index */
+
+.paper-post .paper-references {
+  margin-top: 3rem;
+  border-top: 1px solid var(--border-color, #2a2a2a);
+  padding-top: 1.5rem;
+}
+.paper-post .paper-references ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+}
+.paper-post .paper-references li {
+  margin-bottom: 1.25rem;
+}
+.paper-post .paper-references blockquote,
+.papers-references-index blockquote {
+  border-left: 3px solid var(--accent-color, #888);
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  font-style: normal;
+  color: var(--text-muted, #aaa);
+}
+.paper-reference-relevance {
+  margin-top: 0.5rem;
+  opacity: 0.85;
+}
+.paper-reference-chip {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-right: 0.5rem;
+  background: var(--chip-bg, #2a2a2a);
+  color: var(--chip-fg, #ddd);
+}
+.paper-reference-chip--vendor-docs { background: #1e3a5f; color: #cfe2ff; }
+.paper-reference-chip--paper       { background: #2e1e5f; color: #d4c7ff; }
+.paper-reference-chip--postmortem  { background: #5f1e1e; color: #ffcccc; }
+.paper-reference-chip--talk        { background: #1e5f3a; color: #c7ffd4; }
+.paper-reference-chip--benchmark   { background: #5f4e1e; color: #ffe9b3; }
+
+.papers-references-index h2 {
+  margin-top: 2.5rem;
+  text-transform: lowercase;
+  font-variant: small-caps;
+}
+.papers-references-index .paper-reference-citations {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+.papers-references-index .paper-reference-citations ul {
+  list-style: none;
+  padding-left: 1rem;
+}

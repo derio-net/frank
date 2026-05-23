@@ -28,34 +28,6 @@ tags: ["ingress", "traefik", "authentik", "forward-auth", "homepage", "service-c
 capabilities: ["net", "auth"]
 related_building: "docs/building/24-in-cluster-ingress"
 related_operating: "docs/operating/17-ingress"
-references:
-  - title: "Traefik v3.5 — ForwardAuth middleware"
-    url: "https://doc.traefik.io/traefik/v3.5/middlewares/http/forwardauth/"
-    type: vendor-docs
-  - title: "Authentik — Proxy provider documentation"
-    url: "https://docs.goauthentik.io/docs/add-secure-apps/providers/proxy/"
-    type: vendor-docs
-  - title: "Kubernetes — Ingress Controllers (project recommendation)"
-    url: "https://kubernetes.io/docs/concepts/services-networking/ingress-controllers/"
-    type: vendor-docs
-  - title: "Kubernetes Gateway API"
-    url: "https://gateway-api.sigs.k8s.io/"
-    type: paper
-  - title: "oauth2-proxy — reverse-proxy authentication"
-    url: "https://oauth2-proxy.github.io/oauth2-proxy/"
-    type: vendor-docs
-  - title: "Contour — Ingress controller built on Envoy"
-    url: "https://projectcontour.io/docs/"
-    type: vendor-docs
-  - title: "gethomepage.dev — Services configuration"
-    url: "https://gethomepage.dev/configs/services/"
-    type: vendor-docs
-  - title: "Frank — gotcha registry (operational lessons)"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md"
-    type: postmortem
-  - title: "Frank — Authentik per-topic runbook"
-    url: "https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/authentik.md"
-    type: postmortem
 ---
 
 ## TL;DR
@@ -611,6 +583,3 @@ label gets a tile" — and at that point the catalogue collapses back
 into the cluster's own resource model, where it arguably should have
 lived from the start.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

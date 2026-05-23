@@ -108,30 +108,46 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T23:00:11+00:00'
+      note: 'Read .github/workflows/deploy-blog.yml. build-pages job runs Hugo. setup-python
+        NOT present. Insert point: between Setup Hugo and Build.'
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T23:00:24+00:00'
+      note: 'Added 3 steps between Setup Hugo and Build: Setup Python (3.12), Install
+        dossier-sync deps (pip install pyyaml), Check dossier ↔ blog/data/papers sync
+        (python scripts/sync-dossier-to-data.py --check). YAML parses cleanly.'
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T23:00:57+00:00'
+      note: 'DEVIATION: workflow only triggers on push to main (push.branches: [main]);
+        pushing to bibliography-rendering will NOT fire a run, so ''gh run watch''
+        is skipped. Live verification deferred to PR merge time. Substitute local
+        validation: (a) YAML parse OK; (b) ''uv run --with pyyaml python scripts/sync-dossier-to-data.py
+        --check'' exit 0 (no drift, prior phases in sync). Committed 85a5ad4. Push
+        to origin/bibliography-rendering performed.'
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-22T23:01:07+00:00'
+      note: 'SKIPPED: workflow only triggers on push.branches: [main], so a throwaway
+        feature branch with intentional drift would not fire CI. Per Phase 6 instructions,
+        negative test is skipped; the drift gate''s live exercise happens at PR merge.'
     P6.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T23:01:28+00:00'
+      note: 'All meta/repo skips confirmed: no new service (no IngressRoute / homepage
+        tile); no blog posts (meta improvement to existing pipeline); no README update
+        (internal infra); no runbook sync (no manual-operation blocks in any phase).
+        Sole action: mark plan complete.'
     P6.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-22T23:01:42+00:00'
+      note: vk plan edit has no --complete flag; uses --complete-phase per phase.
+        v2 plans have no plan-wide status field in _meta.yaml — completion is encoded
+        as state.completion.at being set on every phase. Phase 6 to be marked complete
+        next via --complete-phase 6.
   completion:
-    at: null
+    at: '2026-05-22T23:02:05+00:00'
     note: null
     observed_prs: []

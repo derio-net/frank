@@ -27,25 +27,6 @@ tags: ["cilium", "ebpf", "kubernetes", "service-mesh", "networking"]
 capabilities: ["net"]
 related_building: "docs/building/02-foundation"
 related_operating: "docs/operating/01-cluster-nodes"
-references:
-  - title: "Cilium — Component Overview"
-    url: "https://docs.cilium.io/en/stable/overview/component-overview/"
-    type: vendor-docs
-  - title: "Cilium 1.17 release blog (Isovalent)"
-    url: "https://isovalent.com/blog/post/cilium-1-17/"
-    type: vendor-docs
-  - title: "Liz Rice — eBPF: A New Frontier (KubeCon NA 2021)"
-    url: "https://kccncna2021.sched.com/event/lV3T"
-    type: talk
-  - title: "CNI Benchmark — Cilium vs Calico vs Kube-router (Cilium)"
-    url: "https://cilium.io/blog/2021/05/11/cni-benchmark/"
-    type: benchmark
-  - title: "Frank — Cilium gotchas"
-    url: "https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/networking.md"
-    type: postmortem
-  - title: "Amazon VPC CNI — Pod networking"
-    url: "https://docs.aws.amazon.com/eks/latest/userguide/pod-networking.html"
-    type: vendor-docs
 ---
 
 ## TL;DR
@@ -605,6 +586,3 @@ into Gateway API.
 The space is not done evolving. Frank will revisit this paper when
 the answers change.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

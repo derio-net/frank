@@ -31,40 +31,6 @@ tags: ["edge", "headscale", "cloudflare-tunnel", "tailscale", "talos", "caddy", 
 capabilities: ["edge"]
 related_building: "docs/building/17-public-edge"
 related_operating: "docs/operating/11-public-edge"
-references:
-  - title: "Cloudflare Tunnel — Connect networks"
-    url: "https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/"
-    type: vendor-docs
-  - title: "How Tailscale Works (Tailscale blog)"
-    url: "https://tailscale.com/blog/how-tailscale-works"
-    type: vendor-docs
-  - title: "Tailscale Funnel"
-    url: "https://tailscale.com/kb/1223/funnel"
-    type: vendor-docs
-  - title: "Headscale — self-hosted Tailscale control server"
-    url: "https://github.com/juanfont/headscale"
-    type: vendor-docs
-  - title: "Talos Linux on Hetzner Cloud"
-    url: "https://docs.siderolabs.com/talos/v1.10/platform-specific-installations/cloud-platforms/hetzner"
-    type: vendor-docs
-  - title: "How NAT traversal works (Tailscale blog)"
-    url: "https://tailscale.com/blog/how-nat-traversal-works"
-    type: paper
-  - title: "awesome-tunneling (anderspitman)"
-    url: "https://github.com/anderspitman/awesome-tunneling"
-    type: postmortem
-  - title: "Frank — Hop cluster gotchas"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/hop-gotchas.md"
-    type: postmortem
-  - title: "Cloudflare network — sub-50ms to 95% of users"
-    url: "https://www.cloudflare.com/network/"
-    type: benchmark
-  - title: "inlets.dev — self-hosted HTTP and TCP tunnels"
-    url: "https://inlets.dev/"
-    type: vendor-docs
-  - title: "Rancher Fleet — multi-cluster GitOps"
-    url: "https://fleet.rancher.io/0.15/"
-    type: vendor-docs
 ---
 
 ## TL;DR
@@ -502,6 +468,3 @@ CPU, more storage) or split into two — a public-facing edge cluster
 and a separate mesh-coordination cluster — once the agentic workload
 shape stops fitting on one VPS.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

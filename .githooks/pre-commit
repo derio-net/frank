@@ -37,3 +37,20 @@ if [ -n "$PAPER_FILES" ]; then
     "$REPO_ROOT/scripts/validate-dossier.py" "$DOSSIER_PATH"
   done
 fi
+
+# Dossier → data file sync: regenerate matching blog/data/papers/<slug>.yaml
+# for any staged docs/papers-dossiers/<slug>/dossier.md, and stage the result.
+DOSSIER_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/papers-dossiers/[^/]+/dossier\.md$' || true)
+
+if [ -n "$DOSSIER_FILES" ]; then
+  for dossier in $DOSSIER_FILES; do
+    slug=$(basename "$(dirname "$dossier")")
+    if ! python "$REPO_ROOT/scripts/sync-dossier-to-data.py" "$slug"; then
+      echo "ERROR: sync-dossier-to-data.py failed for slug '$slug'." >&2
+      echo "Fix the dossier YAML, re-stage, and retry the commit." >&2
+      echo "(Run manually: python scripts/sync-dossier-to-data.py $slug)" >&2
+      exit 1
+    fi
+    git add "$REPO_ROOT/blog/data/papers/${slug}.yaml"
+  done
+fi

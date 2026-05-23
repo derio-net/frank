@@ -30,28 +30,6 @@ tags: ["observability", "grafana", "prometheus", "loki", "victoriametrics", "kub
 capabilities: ["obs"]
 related_building: "docs/building/07-observability"
 related_operating: "docs/operating/05-observability"
-references:
-  - title: "Prometheus Operator — Getting Started"
-    url: "https://prometheus-operator.dev/docs/getting-started/introduction/"
-    type: vendor-docs
-  - title: "VictoriaMetrics — Overview & Architecture"
-    url: "https://docs.victoriametrics.com/"
-    type: vendor-docs
-  - title: "Google SRE Book — Monitoring Distributed Systems"
-    url: "https://sre.google/sre-book/monitoring-distributed-systems/"
-    type: paper
-  - title: "Grafana Alerting — Documentation"
-    url: "https://grafana.com/docs/grafana/latest/alerting/"
-    type: vendor-docs
-  - title: "SigNoz — Loki vs Elasticsearch"
-    url: "https://signoz.io/blog/loki-vs-elasticsearch/"
-    type: postmortem
-  - title: "VictoriaMetrics — Benchmarking Prometheus-compatible time series databases"
-    url: "https://victoriametrics.com/blog/remote-write-benchmark/"
-    type: benchmark
-  - title: "Frank — Grafana gotchas"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md"
-    type: postmortem
 ---
 
 ## TL;DR

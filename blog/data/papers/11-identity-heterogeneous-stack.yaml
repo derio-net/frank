@@ -1,0 +1,43 @@
+primary_sources:
+- title: 'BeyondCorp: A New Approach to Enterprise Security (Ward & Beyer, 2014)'
+  type: paper
+  url: https://research.google/pubs/beyondcorp-a-new-approach-to-enterprise-security/
+  quoted_passages:
+  - Virtually every company today uses firewalls to enforce perimeter security. However, this security model is problematic because, when that perimeter is breached, an attacker has relatively easy access to a company's privileged intranet.
+  - The BeyondCorp initiative is moving to a new model that dispenses with a privileged corporate network. Instead, access depends solely on device and user credentials, regardless of a user's network location.
+  relevance: The IAP / zero-trust origin paper. Establishes the model that every forward-auth IdP — Authentik's embedded outpost, Pomerium, Cloudflare Access — implements 11 years later. Anchors §1's framing of where an IdP sits in a modern stack.
+- title: Authentik docs — Forward auth (Proxy provider)
+  type: vendor-docs
+  url: https://docs.goauthentik.io/docs/add-secure-apps/providers/proxy/forward_auth/
+  quoted_passages:
+  - Forward auth uses your reverse proxy (like NGINX, Traefik, or Caddy) to forward authentication requests to authentik before serving the application.
+  - Single application mode allows you to protect a single application with a single proxy provider. Domain level mode allows you to protect multiple applications under the same domain with a single proxy provider.
+  relevance: Vendor's own description of the forward-auth pattern that Frank uses for every protected web UI. Defines the seam between the IdP, the ingress controller (Traefik) and the upstream application, which §3 needs to render as a flowchart.
+- title: Keycloak docs — Identity Brokering
+  type: vendor-docs
+  url: https://www.keycloak.org/docs/latest/server_admin/index.html
+  quoted_passages:
+  - Keycloak is an open source software product to allow single sign-on with identity and access management aimed at modern applications and services.
+  - An Identity Broker is an intermediary service that connects multiple service providers with different identity providers. As an intermediary service, the identity broker is responsible for creating a trust relationship with an external identity provider in order to use its identities to access internal services exposed by service providers.
+  relevance: Defines how a heavy-enterprise IdP positions itself against the smaller open-source IdPs. Supplies the §2 vendor-landscape claim that Keycloak's centre of gravity is brokering / federation, not embedded forward-auth.
+- title: Dex docs — A federated OpenID Connect provider
+  type: vendor-docs
+  url: https://dexidp.io/docs/
+  quoted_passages:
+  - Dex is an identity service that uses OpenID Connect to drive authentication for other apps. Dex acts as a portal to other identity providers through 'connectors.'
+  - This lets dex defer authentication to LDAP servers, SAML providers, or established identity providers like GitHub, Google, and Active Directory.
+  relevance: Defines the 'federation-only' position in the §2 landscape — Dex deliberately does not store users, only proxies authentication. Explains why projects that adopted Dex (ArgoCD's bundled provider) end up adding a 'real' IdP behind it as soon as they want password policies, MFA enrolment, or admin UI.
+- title: TechnoTim — 2 Factor Auth and Single Sign on with Authelia (Traefik forward-auth)
+  type: talk
+  url: https://docs.technotim.com/posts/authelia-traefik/
+  quoted_passages:
+  - Authelia is an open-source authentication and authorization server providing two-factor authentication and single sign-on (SSO) for your applications via a web portal.
+  - It acts as a companion of reverse proxies like nginx, Traefik or HAProxy to let them know whether requests should either be allowed or redirected to Authelia's portal for authentication.
+  relevance: Highest-visibility homelab/SMB-scale write-up of the forward-auth pattern. Anchors the §2 claim that the open-source homelab world has converged on a small set of forward-auth IdPs glued to one of three reverse proxies.
+- title: Authentik — release notes and breaking-change archive
+  type: postmortem
+  url: https://docs.goauthentik.io/docs/releases
+  quoted_passages:
+  - Starting with this release, Outposts will use the URL set in the authentik configuration to access authentik.
+  - OAuth2/OIDC and Proxy Providers now require an Invalidation flow to be set. This flow is used to log the user out of the application.
+  relevance: Source for the schema-migration scar tissue Paper 11 documents — `invalidation_flow`, object-shaped `redirect_uris`, the `AUTHENTIK_HOST` requirement on the embedded outpost. Concrete evidence that 'pin the chart and forget' is not a viable strategy for any self-hosted IdP.

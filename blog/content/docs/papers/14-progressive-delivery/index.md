@@ -30,22 +30,6 @@ tags: ["progressive-delivery", "argo-rollouts", "flagger", "service-mesh", "kube
 capabilities: ["deploy"]
 related_building: "docs/building/19-progressive-delivery"
 related_operating: "docs/operating/12-progressive-delivery"
-references:
-  - title: "Argo Rollouts — Canary strategy"
-    url: "https://argo-rollouts.readthedocs.io/en/stable/features/canary/"
-    type: vendor-docs
-  - title: "Flagger — How it works"
-    url: "https://docs.flagger.app/usage/how-it-works"
-    type: vendor-docs
-  - title: "Introducing Kayenta — Google Cloud + Netflix"
-    url: "https://cloud.google.com/blog/products/gcp/introducing-kayenta-an-open-automated-canary-analysis-tool-from-google-and-netflix"
-    type: paper
-  - title: "Flagger vs Argo Rollouts vs service meshes (CNCF / Buoyant)"
-    url: "https://www.cncf.io/blog/2024/02/27/flagger-vs-argo-rollouts-vs-service-meshes-a-guide-to-progressive-delivery-in-kubernetes/"
-    type: benchmark
-  - title: "Frank — Argo Rollouts gotchas"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md"
-    type: postmortem
 ---
 
 ## TL;DR
@@ -607,6 +591,3 @@ the Cilium tax is much smaller.
 The space is not done evolving. Frank will revisit this paper when
 the answers change.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

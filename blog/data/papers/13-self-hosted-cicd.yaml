@@ -1,0 +1,45 @@
+primary_sources:
+- title: Tekton — Concepts (Pipelines, Tasks, TaskRuns, PipelineRuns)
+  type: vendor-docs
+  url: https://tekton.dev/docs/concepts/
+  quoted_passages:
+  - Tekton Pipelines are a Kubernetes-native, lightweight, and easy-to-use framework that allow you to build CI/CD systems.
+  - A Task defines a series of ordered Steps that you want to execute. Each Step runs in its own container image.
+  relevance: Vendor's authoritative description of Tekton's pods-as-steps model — Tasks are CRDs, Steps are containers, PipelineRuns and TaskRuns are runtime objects. Grounds the §3 architecture diagram and underwrites the §1 claim that Tekton makes the pipeline itself a manifest in Git.
+- title: Tekton Triggers — EventListeners and Interceptors
+  type: vendor-docs
+  url: https://github.com/tektoncd/triggers/blob/main/docs/interceptors.md
+  quoted_passages:
+  - Interceptors are an extension mechanism that can be used to validate and modify the events that pass through them, including the headers and the body of the request.
+  - The CEL Interceptor can be used to apply CEL expressions to the request body, headers, or other parts of the request.
+  relevance: Definitive description of Tekton Triggers' interceptor mechanism — the `cel` interceptor is what makes Gitea-webhook-to-Tekton-pipeline wiring possible (matching `X-Gitea-Event`, not `X-GitHub-Event`). Load-bearing source for the §5 scar about the github interceptor silently dropping Gitea events.
+- title: Gitea — Webhooks documentation
+  type: vendor-docs
+  url: https://docs.gitea.com/usage/webhooks
+  quoted_passages:
+  - Gitea supports webhooks for repository events. To set up webhooks, in your repository, click on Settings → Webhooks → Add Webhook.
+  - 'Gitea webhooks send the following headers: X-Gitea-Event, X-Gitea-Delivery, X-Hub-Signature, X-Hub-Signature-256.'
+  relevance: Vendor confirmation that Gitea sends `X-Gitea-Event` (not `X-GitHub-Event`). This is the single header difference that makes the Tekton `github` interceptor drop every Gitea webhook silently. Cited in §5's scar callout.
+- title: Zot — Architecture overview
+  type: vendor-docs
+  url: https://zotregistry.dev/v2.1.0/general/architecture/
+  quoted_passages:
+  - Zot is a production-ready vendor-neutral OCI-native container image registry that supports the OCI Distribution and Image Specifications.
+  - Zot's modular architecture supports pluggable storage backends, authentication providers, and a sync mechanism that can mirror from other registries.
+  relevance: Vendor's architectural description of Zot as an OCI-native, CNCF-incubated registry. Grounds the §3 architecture diagram (Zot as the image destination) and the §7 roadmap claim that OCI registries are absorbing arbitrary artefact storage.
+- title: GitHub — GitHub Actions now supports CI/CD (free for public repos)
+  type: paper
+  url: https://github.blog/2019-08-08-github-actions-now-supports-ci-cd/
+  quoted_passages:
+  - GitHub Actions is free for public repositories, providing CI/CD with up to 20 concurrent jobs and a marketplace of pre-built actions.
+  - Hosted runners are available across Linux, macOS, and Windows, with 2,000 free minutes per month for private repositories on the Free plan.
+  relevance: GitHub's own announcement framing of Actions as the SaaS baseline that self-hosted CI/CD competes with. Establishes the cost-curve geometry the rest of the paper measures against (free for OSS at small scale, expensive almost immediately above).
+- title: Frank — Tekton, Gitea, and Zot gotchas (v1 Task computeResources, X-Gitea-Event header, Zot v0.1.0 missing TLS/auth)
+  type: postmortem
+  url: https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md
+  quoted_passages:
+  - v1 Task uses `computeResources` not `resources` — schema validation silently fails the whole app.
+  - Gitea sends `X-Gitea-Event` (not `X-GitHub-Event`) — use `cel` interceptor, not `github`.
+  - Zot Helm chart v0.1.0 too minimal — use v0.1.60+ for TLS/auth/persistence.
+  - Gitea `webhook.ALLOWED_HOST_LIST` blocks in-cluster delivery — add `*.svc.cluster.local`.
+  relevance: Frank's own running postmortem registry — concrete operational scars accumulated while running Gitea + Tekton + Zot in production for this learning platform. Provides source-of-truth dates and recovery commands for the §5 scar callouts and underwrites the §6 decision-tree branches.

@@ -26,7 +26,7 @@ Research dossiers live at `docs/papers-dossiers/NN-slug/dossier.md`.
 
 Required fields: `title`, `date`, `draft`, `weight`, `series: papers`,
 `layer`, `paper_number`, `publish_order`, `status`, `tldr`, `tags`,
-`capabilities`, `related_building`, `related_operating`, `references`.
+`capabilities`, `related_building`, `related_operating`.
 
 ### Cross-linking (bidirectional, zero retrofit)
 

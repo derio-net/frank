@@ -60,22 +60,22 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-23'
+      note: '17/17 data files written; counts match dossier dirs.'
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-23'
+      note: 'Shape confirmed on 09-secrets-bootstrap.yaml: primary_sources list with title/type/url/quoted_passages/relevance.'
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: 'x'
+      ticked_at: '2026-05-23'
+      note: 'Hugo build clean (123 pages); only pre-existing theme deprecation WARNs, no data-load errors. Substituted --logLevel info for --verbose (removed upstream).'
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: 'x'
+      ticked_at: '2026-05-23'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-23'
+    note: 'Phase 2 complete; data files generated and committed.'
     observed_prs: []

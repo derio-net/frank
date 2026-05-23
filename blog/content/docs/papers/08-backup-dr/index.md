@@ -30,28 +30,6 @@ tags: ["backup", "disaster-recovery", "velero", "longhorn", "kasten", "kubernete
 capabilities: ["backup"]
 related_building: "docs/building/08-backup"
 related_operating: "docs/operating/02-storage-backups"
-references:
-  - title: "Velero — How Velero Works"
-    url: "https://velero.io/docs/main/how-velero-works/"
-    type: vendor-docs
-  - title: "Longhorn — Concepts: Backups and Secondary Storage"
-    url: "https://longhorn.io/docs/latest/concepts/"
-    type: vendor-docs
-  - title: "Kubernetes blog — Kubernetes 1.20: Volume Snapshot Moves to GA"
-    url: "https://kubernetes.io/blog/2020/12/10/kubernetes-1.20-volume-snapshot-moves-to-ga/"
-    type: paper
-  - title: "restic — Design and References"
-    url: "https://restic.readthedocs.io/en/stable/100_references.html"
-    type: vendor-docs
-  - title: "Frank — Longhorn backup gotchas"
-    url: "https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md"
-    type: postmortem
-  - title: "Longhorn issue #11412 — NFS BackupTarget mount-string bug"
-    url: "https://github.com/longhorn/longhorn/issues/11412"
-    type: postmortem
-  - title: "Longhorn issue #11392 — RecurringJob lacks backupTargetName"
-    url: "https://github.com/longhorn/longhorn/issues/11392"
-    type: postmortem
 ---
 
 ## TL;DR
@@ -650,6 +628,3 @@ git" is strengthening. Frank is the early version of that posture.
 The space is not done evolving. Frank will revisit this paper when the
 answers change.
 
-## References
-
-*Auto-rendered from frontmatter by Hugo taxonomy.*

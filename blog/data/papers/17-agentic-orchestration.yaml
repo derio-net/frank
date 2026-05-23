@@ -1,0 +1,53 @@
+primary_sources:
+- title: s6-overlay — README and architecture
+  type: vendor-docs
+  url: https://github.com/just-containers/s6-overlay
+  quoted_passages:
+  - s6-overlay is a series of init scripts and utilities meant to ease the creation of Docker images using s6 as a process supervisor.
+  - 's6-overlay can run a container as a non-root user, but with caveats: the supervision tree still expects PID 1 to be its own pid1 process.'
+  relevance: Vendor's authoritative description of how s6-overlay v3 supervises non-root container processes. Grounds the §3 architecture description of secure-agent-pod and the §5 scar on shareProcessNamespace fighting s6's PID 1 requirement. The 'non-root with caveats' wording is exactly the constraint Frank stepped on.
+- title: Coder.com — Platform documentation
+  type: vendor-docs
+  url: https://coder.com/docs
+  quoted_passages:
+  - Coder is a self-hosted cloud development environment platform that runs developer workspaces in your infrastructure.
+  - Workspaces are defined as code using Terraform, giving you policy-as-code, audit logs, and centralized control over development environments.
+  relevance: Definitive statement of the managed-platform value proposition. Anchors the §2 axis 'self-hostable vs managed' and the §6 decision-tree leaf for teams that need policy + audit + RBAC but don't want to build it from secure-agent-pod primitives themselves.
+- title: Development Containers Specification (containers.dev)
+  type: vendor-docs
+  url: https://containers.dev/implementors/spec/
+  quoted_passages:
+  - A development container is a running container with a well-defined tool/runtime stack and its prerequisites.
+  - The development container specification (devcontainer.json) is a metadata format used to configure development containers.
+  relevance: The upstream spec that Codespaces, GitPod, and VS Code Remote-Containers all implement. Underwrites the §2 'null hypothesis' positioning of plain devcontainers — they ARE the baseline, and every fancier vendor in the landscape extends this same JSON schema.
+- title: Model Context Protocol — Introduction
+  type: paper
+  url: https://modelcontextprotocol.io/introduction
+  quoted_passages:
+  - The Model Context Protocol (MCP) is an open protocol that standardizes how applications provide context to LLMs.
+  - MCP follows a client-server architecture where a host application can connect to multiple servers.
+  relevance: Anthropic's specification of the protocol that vk-issue-bridge and Paperclip's heartbeat orchestrator both speak. Anchors the §7 roadmap claim that MCP and the agent-control-plane are converging — orchestrator-vs-workstation may collapse into a single MCP deployment with two endpoints.
+- title: Claude Code — Security and isolation
+  type: vendor-docs
+  url: https://docs.anthropic.com/en/docs/claude-code/security
+  quoted_passages:
+  - Claude Code includes safeguards to help prevent destructive operations, but users are ultimately responsible for the code Claude writes and the commands it runs.
+  - We recommend running Claude Code in a sandboxed environment when granting auto-accept permissions.
+  relevance: Vendor's own statement on why a safe workstation matters — Anthropic explicitly recommends sandboxing for auto-accept flows. The 'ultimately responsible' wording is the exact framing for §1 (the capability) and §5 (Frank's choice to pay the per-PV pod tuition rather than auto-accept on a laptop).
+- title: Agentic Misalignment — Anthropic Research
+  type: paper
+  url: https://www.anthropic.com/research/agentic-misalignment
+  quoted_passages:
+  - In our experiments, models from every developer we tested took actions like blackmailing fictional executives or leaking sensitive information when faced with goals that conflicted with their continued operation.
+  - Our findings underscore the importance of caution when deploying current models in roles with minimal human oversight and access to sensitive information.
+  relevance: Foundational paper on why agent isolation is not paranoia. Even frontier models from every vendor exhibit instrumental-goal-preserving misalignment under realistic deployment conditions. Anchors §1's framing of *blast radius* as the capability question and underwrites §6's branch from 'shared workstation' to 'per-agent isolation'.
+- title: Frank — Agent shells + Paperclip/Ruflo gotchas registry
+  type: postmortem
+  url: https://github.com/derio-net/frank/blob/main/agents/rules/frank-gotchas.md
+  quoted_passages:
+  - s6-overlay v3 in non-root mode needs `S6_KEEP_ENV=1`, `S6_VERBOSITY=2`, `with-contenv` shebangs (`#!/command/with-contenv bash` — `/command/`, NOT `/usr/bin/`), and `/run` chown'd to AGENT_UID at image build time.
+  - 'vk-issue-bridge''s 30 s MCP timeout cascades to zombie execution_processes: bridge crash on timeout → vk-local request handler future drops → `Child::wait()` cancelled → setup/cleanup shell scripts exit but never reaped → DB rows stuck `status=''running''` forever, UI shows workspaces stuck active with no output.'
+  - '`shareProcessNamespace: true` is incompatible with s6-overlay v3 (suexec must be PID 1) — use shared workspace volume + `kubectl exec -c <other>` for cross-container debugging.'
+  - 'vk-local `limits.memory: 4Gi` is too tight in practice — `VK_MAX_CONCURRENT_EXECUTIONS=4` does NOT bound the cgroup once the bridge feeds 8+ cards (queued sessions retain memory; new images drift baseline).'
+  - Paperclip's "Test environment" runs in the `paperclip` app container, NOT the `paperclip-shell` sidecar — agent-CLIs installed via the shell PVC are invisible. Wire through the shared `/paperclip` PVC.
+  relevance: Frank's own running postmortem registry — concrete operational scars accumulated while running secure-agent-pod + VibeKanban + Paperclip + Sympozium in production for this learning platform. Provides source-of-truth dates and recovery commands for every §5 scar callout and underwrites the §6 decision-tree branches.

@@ -1,0 +1,46 @@
+primary_sources:
+- title: Argo CD — Architecture
+  type: vendor-docs
+  url: https://argo-cd.readthedocs.io/en/stable/operator-manual/architecture/
+  quoted_passages:
+  - Argo CD is implemented as a Kubernetes controller which continuously monitors running applications and compares the current, live state against the desired target state (as specified in the Git repo).
+  - The application controller is a Kubernetes controller which continuously monitors running applications and compares the current, live state against the desired target state. It detects OutOfSync application state and optionally takes corrective action.
+  relevance: Vendor's own articulation of ArgoCD's reconciliation model — pull-mode controller that compares declared state against live state continuously. Anchors the §3 architecture diagram for ArgoCD and underwrites the §1 capability definition.
+- title: Flux — Core Concepts
+  type: vendor-docs
+  url: https://fluxcd.io/flux/concepts/
+  quoted_passages:
+  - Flux is a tool for keeping Kubernetes clusters in sync with sources of configuration (like Git repositories and OCI artifacts), and automating updates to configuration when there is new code to deploy.
+  - Flux is constructed with the GitOps Toolkit, a set of composable APIs and specialized tools for building Continuous Delivery on top of Kubernetes.
+  relevance: Definitive description of the GitOps Toolkit composition model — Flux is unbundled by design, where ArgoCD ships as a single application. Anchors the §2 axis (unbundled vs opinionated) and the §3 Flux architecture diagram.
+- title: OpenGitOps Principles v1.0.0
+  type: paper
+  url: https://opengitops.dev/
+  quoted_passages:
+  - 'Declarative: A system managed by GitOps must have its desired state expressed declaratively.'
+  - 'Versioned and Immutable: Desired state is stored in a way that enforces immutability, versioning and retains a complete version history.'
+  - 'Pulled Automatically: Software agents automatically pull the desired state declarations from the source.'
+  - 'Continuously Reconciled: Software agents continuously observe actual system state and attempt to apply the desired state.'
+  relevance: The CNCF/OpenGitOps working-group definition of what GitOps actually is. The four principles are load-bearing for §1 (the capability definition) and §6 (the decision-tree leaf where the 'just bash + kubectl' option fails Principle 3 and 4).
+- title: GitOps — Operations by Pull Request (Alexis Richardson, Weaveworks, 2017)
+  type: talk
+  url: https://www.weave.works/blog/gitops-operations-by-pull-request
+  quoted_passages:
+  - By using Git as our source of truth and operations toolkit, we can keep declarative descriptions of all of our infrastructure and applications under version control.
+  - Our Git repository is the source of truth for what we want our system to look like. Our diff tools and convergence operators are how we get there.
+  relevance: The original Weaveworks blog post that named the practice. Cited as the historical origin of the GitOps label (the term predates both ArgoCD and Flux v2). Used in §1 to ground the capability in its 2017 articulation.
+- title: Frank — ArgoCD gotcha registry (symlink ComparisonError, manual-syncOptions-inheritance, root re-templating)
+  type: postmortem
+  url: https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/argocd.md
+  quoted_passages:
+  - ArgoCD's repo-server refuses to generate manifests for any source in a repo that contains a symlink resolving above the repo root. Self-heal can't fire because comparison itself fails, so the cluster silently runs on the last-known-good cache indefinitely.
+  - 'Manually-triggered syncs do NOT inherit spec.syncPolicy.syncOptions ... any chart-bundled CM larger than ~250KB ... fails with metadata.annotations: Too long: may not be more than 262144 bytes.'
+  - Root App-of-Apps re-templates leaf Application specs on every sync. Any live mutation to a leaf is reverted within the root's sync window.
+  relevance: Frank's running postmortem registry for ArgoCD — concrete operational scars accumulated while running the App-of-Apps pattern in production for this learning platform. Provides the source-of-truth dates and recovery commands for the §5 scar callouts and underwrites the §6 decision-tree branches with real failure modes.
+- title: ArgoCD vs FluxCD — r/kubernetes practitioner thread
+  type: benchmark
+  url: https://www.reddit.com/r/kubernetes/comments/16dj9lr/argocd_vs_fluxcd_which_one_did_you_choose_and_why/
+  quoted_passages:
+  - ArgoCD has the better UI by far. Flux is more modular and feels more Kubernetes-native, but the UI gap is real.
+  - We picked Flux because we wanted everything to be a CR and we didn't want a separate UI service running. We picked ArgoCD because we wanted the UI and the App-of-Apps pattern.
+  relevance: Practitioner-level head-to-head capturing the community consensus on the trade Frank made. Not a controlled benchmark, but representative of the decision shape for the ≤10-node single-cluster case the paper actually addresses.

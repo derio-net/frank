@@ -1,0 +1,37 @@
+primary_sources:
+- title: Leaving the Cloud — 37signals Cloud Exit case study
+  type: benchmark
+  url: https://basecamp.com/cloud-exit
+  quoted_passages:
+  - 37signals pulled Basecamp, HEY, and five other heritage apps out of AWS and onto their own hardware — without adding any new staff. By 2022, their cloud bills had grown to over $3.2 million annually.
+  - Performance improved dramatically, with database queries running 3-5x faster and page load times improving 30-50%.
+  - Total projected savings from the combined cloud exit are well over $10 million over five years. The hardware cost was approximately $600,000 for a one-time purchase.
+  relevance: Canonical real-world cost benchmark of cloud-vs-self-hosted for a stable, predictable workload at small-org scale. Provides hard numbers other practitioners cite. Most directly supports §2 of Paper 00 (real costs of the three approaches).
+- title: Simon Willison — LLM pricing notes
+  type: postmortem
+  url: https://simonwillison.net/tags/llm-pricing/
+  quoted_passages:
+  - One of the most notable trends from 2024 was the total collapse in terms of LLM pricing — the API models are absurdly inexpensive now.
+  - Generating captions for 68,000 photos using Gemini 1.5 Flash 8B costs $1.68.
+  relevance: Running practitioner log of frontier LLM API price collapse. Critical counterweight to the assumption that 'self-host because cloud inference is expensive' — at most scales the API is now cheaper by an order of magnitude. Supports the counter-argument in §3.
+- title: Do you need Omni? — Sidero Labs
+  type: vendor-docs
+  url: https://www.siderolabs.com/blog/do-you-need-omni
+  quoted_passages:
+  - Omni handles the lifecycle of Talos Linux machines, provides unified access to the Talos and Kubernetes API tied to the identity provider of your choice, and provides a UI for cluster management and operations.
+  - From initial machine registration through cluster creation, day-to-day operations, and rolling upgrades, everything is handled through a single interface.
+  relevance: Vendor's own articulation of where the managed homelab-as-code seam sits. Defines what 'managed control-plane on owned hardware' actually means in practice and what it costs in operational autonomy.
+- title: Kubernetes 101 — Jeff Geerling video series
+  type: talk
+  url: https://kube101.jeffgeerling.com/
+  quoted_passages:
+  - A YouTube streaming series on Kubernetes and container-based infrastructure by Jeff Geerling.
+  - Everything on his site is being served from a Drupal site, which used to run on a Kubernetes cluster of Raspberry Pis in Jeff Geerling's basement.
+  relevance: Highest-visibility practitioner positioning of the DIY-homelab-for-learning thesis. Anchors the framing that real-world clusters built from cheap hardware teach skills that paid courses don't.
+- title: 'AKS vs EKS vs GKE: What you get with managed Kubernetes-as-a-Service — Fairwinds'
+  type: talk
+  url: https://www.fairwinds.com/blog/aks-eks-gke-managed-kubernetes-as-a-service
+  quoted_passages:
+  - Managed Kubernetes services take the complexities of managing Kubernetes clusters and relieve organizations of the underlying infrastructure management tasks. These services automatically handle the installation, configuration, and maintenance of Kubernetes.
+  - When you run Kubernetes yourself, you have to manage everything such as servers, networking, upgrades, and security, which adds significant operational overhead.
+  relevance: Counter-position arguing for cloud defaults. The strongest case for 'why not just use a managed cluster?' that Paper 00 must engage with honestly rather than dismiss.

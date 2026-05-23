@@ -89,26 +89,38 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: |
+        Widened regex to also catch paper 10's variant `*See frontmatter — auto-rendered.*`.
+        Stripped from 10 papers (9 canonical + 1 variant). Remaining 7 papers (00, 01, 02,
+        04, 06, 07, 11) never had a §8 stub — auto-injection from Phase 3 covers them.
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: |
+        `git diff --stat` shows 10 files × 3 deletions, 0 additions. Clean.
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: |
+        Removed lines 79-81 (## References + blank + *Auto-rendered...*) from heredoc.
+        `grep -n "References\|Auto-rendered" scripts/scaffold-paper.sh` → empty.
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: |
+        Hugo serves under `/frank/` baseURL. Verified all three fixtures + paper 10 +
+        two no-stub papers: §8 section renders with correct ref counts (09:9, 04:5,
+        14:5, 10:5, 00:5, 01:7) and 0 legacy placeholders anywhere.
     P4.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-23'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-23'
+    note: |
+      Phase 4 complete. Stripped §8 stubs from 10 papers (plan expected 17 — actual
+      ground-truth was 9 canonical + 1 variant + 7 papers that never had the stub).
+      Widened the strip regex to handle paper 10's variant text.
     observed_prs: []

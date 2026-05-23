@@ -31,25 +31,6 @@ tags: ["authentik", "identity", "sso", "forward-auth", "oidc"]
 capabilities: ["auth"]
 related_building: "docs/building/13-unified-auth"
 related_operating: "docs/operating/08-auth"
-references:
-  - title: "BeyondCorp: A New Approach to Enterprise Security (Ward & Beyer, 2014)"
-    url: "https://research.google/pubs/beyondcorp-a-new-approach-to-enterprise-security/"
-    type: paper
-  - title: "Authentik docs — Forward auth (Proxy provider)"
-    url: "https://docs.goauthentik.io/docs/add-secure-apps/providers/proxy/forward_auth/"
-    type: vendor-docs
-  - title: "Keycloak docs — Server Administration Guide"
-    url: "https://www.keycloak.org/docs/latest/server_admin/index.html"
-    type: vendor-docs
-  - title: "Dex docs — A federated OpenID Connect provider"
-    url: "https://dexidp.io/docs/"
-    type: vendor-docs
-  - title: "TechnoTim — 2 Factor Auth and Single Sign on with Authelia"
-    url: "https://docs.technotim.com/posts/authelia-traefik/"
-    type: talk
-  - title: "Authentik — Release notes and breaking-change archive"
-    url: "https://docs.goauthentik.io/docs/releases"
-    type: postmortem
 ---
 
 ## TL;DR

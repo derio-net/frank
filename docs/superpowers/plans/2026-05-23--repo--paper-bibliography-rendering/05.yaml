@@ -138,38 +138,38 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: 'Plan regex `^references:.*?(?=^\S|^---)` failed: `references:` is the last frontmatter key, so inside the captured `fm` group the lookahead never finds `^---` or `^\S`. Added `|\Z` alternation. All 17/17 papers stripped; YAML re-parses cleanly.'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: 'git diff on paper 09: only the 28-line references block removed, closing `---` intact, body untouched.'
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: 'Removed `references: []` from scaffold-paper.sh heredoc. Grep clean.'
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: '`references` removed from required-fields list in agents/rules/repo-papers.md. Grep clean.'
     P5.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: 'Created _index.md. `series` had to be a YAML list (`["references"]`) not a scalar — Hextra opengraph.html ranges over .Params.series, fails on string. `in ["references"] "papers"` still false, so the substring trap is still avoided.'
     P5.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: 'One-shot `hugo --gc -d /tmp/hugo-build` with Go 1.26.2 on PATH. All 5 type anchors render (vendor-docs/paper/postmortem/talk/benchmark). 102 unique URLs deduped, 102 Cited-in blocks. §8 partial confirmed absent on index (0 hits) but still renders on paper 09 (1 hit, 9 sources). Required a Phase-3 partial fix: guarded `range $slug, $data` with `(and (reflect.IsMap $data) (isset $data "primary_sources"))` to skip `data/papers.yaml` (the roster file under the same Site.Data.papers namespace).'
     P5.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: 'Replaced §8 anatomy row + rewrote "References taxonomy" → "References pipeline" (dossier → sync script → data file → partials, with reference to implementation spec).'
     P5.T4.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-23'
+      note: 'Commit a482c55 on bibliography-rendering; staged the 17 papers, scaffold, repo-papers.md, /references/_index.md, spec, plan checkboxes, and the Phase-3 partial fix (references-index.html data-shape guard).'
   completion:
-    at: null
-    note: null
+    at: '2026-05-23'
+    note: 'Phase 5 complete. Deviations: (1) plan regex needed `|\Z` because `references:` is the last frontmatter key; (2) `series:` must be a list not a scalar (Hextra opengraph); (3) Phase-3 partial needed a data-shape guard to skip data/papers.yaml. All three documented inline in the respective step notes.'
     observed_prs: []

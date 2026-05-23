@@ -6,16 +6,18 @@ Usage: python scripts/validate-dossier.py <dossier.md>
 Exit 0 = pass. Exit 1 = fail (prints specific failures).
 """
 import sys
-import re
 import urllib.request
 import urllib.error
 from pathlib import Path
 
 try:
-    import yaml
+    import yaml  # noqa: F401  (still imported for transitive consumers; parser uses it)
 except ImportError:
     print("ERROR: PyYAML required. Run: pip install pyyaml", file=sys.stderr)
     sys.exit(1)
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts.lib.dossier_parser import parse_dossier, get_primary_sources
 
 
 def check_url(url: str) -> bool:
@@ -33,33 +35,7 @@ def check_url(url: str) -> bool:
 
 
 def validate(path: Path) -> list[str]:
-    text = path.read_text()
-    # Strip YAML frontmatter if present
-    fm_match = re.match(r'^---\n(.*?)\n---\n', text, re.DOTALL)
-    if fm_match:
-        text = text[fm_match.end():]
-
-    # Parse sections as YAML blocks delimited by ## headers
-    # Each ## section becomes a top-level key
-    sections: dict = {}
-    current_key = None
-    current_lines: list[str] = []
-    for line in text.splitlines():
-        if line.startswith("## "):
-            if current_key:
-                try:
-                    sections[current_key] = yaml.safe_load("\n".join(current_lines)) or []
-                except yaml.YAMLError:
-                    sections[current_key] = current_lines
-            current_key = line[3:].strip().lower().replace(" ", "_").replace("(", "").replace(")", "")
-            current_lines = []
-        elif current_key is not None:
-            current_lines.append(line)
-    if current_key:
-        try:
-            sections[current_key] = yaml.safe_load("\n".join(current_lines)) or []
-        except yaml.YAMLError:
-            sections[current_key] = current_lines
+    sections = parse_dossier(path)
 
     failures: list[str] = []
 
@@ -69,7 +45,7 @@ def validate(path: Path) -> list[str]:
         failures.append(f"vendors_in_scope: need ≥3, got {len(vendors) if isinstance(vendors, list) else 0}")
 
     # Rule 2: primary_sources >= 5, spanning >= 3 distinct type values
-    sources = sections.get("primary_sources_≥5,_≥3_distinct_type_values", sections.get("primary_sources", []))
+    sources = get_primary_sources(sections)
     if not isinstance(sources, list) or len(sources) < 5:
         failures.append(f"primary_sources: need ≥5, got {len(sources) if isinstance(sources, list) else 0}")
     else:

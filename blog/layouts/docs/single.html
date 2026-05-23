@@ -24,6 +24,7 @@
         </div>
         {{- if in .Params.series "papers" }}
           {{- partial "papers-forwardlinks.html" . }}
+          {{- partial "papers/references.html" . }}
           {{- partial "papers/dossier-link.html" . }}
           {{- partial "papers-prev-next.html" . }}
         {{- else if and (not (in .Params.series "papers")) (not (eq .Section "")) }}
