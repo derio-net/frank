@@ -37,7 +37,11 @@ config:
         Match           kube.*
         Host            192.168.55.225
         Port            9428
-        URI             /insert/jsonline?_stream_fields=stream,kubernetes_pod_name,kubernetes_namespace_name,kubernetes_container_name&_msg_field=log&_time_field=time
+        # _msg_field=msg matches Caddy's JSON key for the log message (after
+        # kubernetes filter merges container JSON into the top-level record).
+        # Stream fields use dotted keys because the kubernetes filter emits
+        # `kubernetes.namespace_name` etc., not the legacy underscore form.
+        URI             /insert/jsonline?_stream_fields=stream,kubernetes.pod_name,kubernetes.namespace_name,kubernetes.container_name&_msg_field=msg&_time_field=time
         Format          json_lines
         Json_Date_Key   time
         Json_Date_Format iso8601
