@@ -96,7 +96,6 @@ forward-auth at the other), and whether a service catalogue is included
 or bolted on as a separate layer.
 
 {{< papers/landscape axes="x:per-app-auth↔edge-auth,y:catalogue-included↔catalogue-separate" >}}
-    quadrantChart
         title Ingress + auth + catalogue — 2026
         x-axis "Per-app OIDC" --> "Edge forward-auth"
         y-axis "Catalogue included" --> "Catalogue separate"
