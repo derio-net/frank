@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    # PodSecurity: fluent-bit needs hostPath mounts for /var/log/containers,
+    # which the default "restricted" PSA policy denies. Per hop-gotchas.md
+    # precedent for caddy-system/headscale-system.
+    pod-security.kubernetes.io/enforce: privileged
