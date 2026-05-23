@@ -301,7 +301,7 @@ images:
     description: Papers series header strip banner (1200x200, 6:1 ratio) — matches banner-building / banner-operating style with title text
     prompt: >-
       An ultra-wide horizontal strip banner, extremely wide and short
-      — exactly 1200 pixels wide by 200 pixels tall (6:1 aspect ratio).
+      — exactly 5000 pixels wide by 832 pixels tall (6:1 aspect ratio).
       On the LEFT THIRD, Frank the server-hardware Frankenstein monster
       stands in profile facing right (toward the title text), about 60%
       the strip height. He wears the Papers signature (white button-
@@ -319,7 +319,7 @@ images:
       a small magnifying glass, and a balance/scales icon — evenly
       spaced. Composition fades at both edges into darkness. EXACTLY
       ONE FIGURE — one single Frank. The image MUST be extremely wide
-      and short, like a letterbox strip — 1200×200 pixels, 6:1 ratio.
+      and short, like a letterbox strip — 5000×832 pixels, 6:1 ratio.
 
   # --- Papers Series Covers ---------------------------------------------------
 
