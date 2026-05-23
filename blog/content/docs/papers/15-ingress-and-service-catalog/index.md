@@ -2,7 +2,7 @@
 title: "Ingress, Forward-Auth, and the Service Catalog"
 date: 2026-05-22
 draft: false
-weight: 15
+weight: 16
 series: ["papers"]
 layer: net
 paper_number: 15

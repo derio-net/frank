@@ -2,7 +2,7 @@
 title: "GPU Scheduling for Mixed Workloads"
 date: 2026-05-20
 draft: false
-weight: 5
+weight: 6
 series: ["papers"]
 layer: gpu
 paper_number: 5

@@ -27,7 +27,7 @@ cat > "${BUNDLE_DIR}/index.md" <<FRONTMATTER
 title: "TODO: Paper title"
 date: ${TODAY}
 draft: true
-weight: ${NN}
+weight: $((10#${NN} + 1))
 series: papers
 layer: TODO
 paper_number: ${NN}

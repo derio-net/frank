@@ -2,7 +2,7 @@
 title: "Agentic Orchestration & Safe Agent Workstations"
 date: 2026-05-20
 draft: false
-weight: 17
+weight: 18
 series: ["papers"]
 layer: orch
 paper_number: 17

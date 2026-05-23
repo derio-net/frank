@@ -2,7 +2,7 @@
 title: "Backup & DR Without a Vendor Contract"
 date: 2026-05-20
 draft: false
-weight: 8
+weight: 9
 series: ["papers"]
 layer: backup
 paper_number: 8

@@ -2,7 +2,7 @@
 title: "Heterogeneous Hardware as a Design Choice"
 date: 2026-05-22
 draft: false
-weight: 1
+weight: 2
 series: ["papers"]
 layer: hw
 paper_number: 1

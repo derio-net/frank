@@ -2,7 +2,7 @@
 title: "Secrets Management Without the Bootstrap Chicken-and-Egg"
 date: 2026-05-20
 draft: false
-weight: 9
+weight: 10
 series: ["papers"]
 layer: secrets
 paper_number: 9
