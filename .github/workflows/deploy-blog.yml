@@ -52,6 +52,20 @@ jobs:
           hugo mod get
           hugo --minify
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: scripts/package.json
+
+      - name: Install mermaid validator deps
+        working-directory: scripts
+        run: npm install --no-audit --no-fund
+
+      - name: Validate mermaid diagrams
+        run: node scripts/validate-mermaid.mjs blog/public
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
