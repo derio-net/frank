@@ -3,11 +3,24 @@
 
 Reads prompts from blog/prompt_for_images.yaml.
 
+Each prompt's master reference is auto-picked per series:
+    .reference-pool/papers/reference-papers.png
+    .reference-pool/building/reference-building.png
+    .reference-pool/operating/reference-operating.png
+    .reference-pool/generic/reference-generic.png   (fallback)
+
+Series is taken from the prompt entry's `series:` field, or inferred
+from the image key prefix (`paper-` → papers, `building-` → building,
+`ops-` → operating; anything else → generic).
+
 Usage:
-    ./scripts/generate-all-images.py --reference <ref.png>
-    ./scripts/generate-all-images.py --reference <ref.png> --only banner-hero,building-04-gpu-compute
-    ./scripts/generate-all-images.py --reference <ref.png> --list
-    ./scripts/generate-all-images.py --reference <ref.png> --dry-run
+    ./scripts/generate-all-images.py --only banner-papers
+    ./scripts/generate-all-images.py --only building-04-gpu-compute,paper-09-cover
+    ./scripts/generate-all-images.py --list
+    ./scripts/generate-all-images.py --dry-run
+
+    # Override the per-series pick — applies to every image in this run:
+    ./scripts/generate-all-images.py -r path/to/custom-reference.png --only foo
 
 Requires GEMINI_API_KEY env var.
 """
@@ -80,6 +93,24 @@ def _key_to_series(key: str) -> str | None:
     if key.startswith("ops-"):
         return "operating"
     return None
+
+
+def select_reference_path(img: dict, override: Path | None) -> Path:
+    """Pick the master reference image for this prompt entry.
+
+    Resolution order:
+      1. --reference CLI override (applies to every image)
+      2. Explicit `series:` field on the entry
+      3. _key_to_series(key) prefix-based fallback
+      4. .reference-pool/generic/reference-generic.png
+    """
+    if override is not None:
+        return override
+    series = img.get("series") or _key_to_series(img["key"]) or "generic"
+    candidate = POOL_DIR / series / f"reference-{series}.png"
+    if candidate.exists():
+        return candidate
+    return POOL_DIR / "generic" / "reference-generic.png"
 
 
 def load_pool_refs(
@@ -521,7 +552,13 @@ def main() -> None:
         description="Generate all blog images with a consistent character reference"
     )
     parser.add_argument(
-        "--reference", "-r", required=True, help="Path to the master reference image"
+        "--reference", "-r", default=None,
+        help=(
+            "Master reference image to use for EVERY generated image "
+            "(overrides per-series selection). Default: auto-pick "
+            ".reference-pool/<series>/reference-<series>.png based on the "
+            "prompt's series: field or the image key prefix."
+        ),
     )
     parser.add_argument(
         "--only",
@@ -610,13 +647,27 @@ def main() -> None:
         sys.exit(1)
 
     client = genai.Client(api_key=api_key)
-    reference_path = Path(args.reference)
-    if not reference_path.is_absolute():
-        reference_path = (REPO_ROOT / reference_path).resolve()
-    reference = Image.open(reference_path)
+
+    # --reference is now an override. When provided, it wins for every image.
+    # When omitted, each image picks its own reference based on series. We
+    # cache opened PIL.Image handles by path so repeated picks don't re-open.
+    override_ref_path: Path | None = None
+    if args.reference:
+        p = Path(args.reference)
+        override_ref_path = p if p.is_absolute() else (REPO_ROOT / p).resolve()
+
+    _ref_cache: dict[Path, Image.Image] = {}
+
+    def load_reference(path: Path) -> Image.Image:
+        if path not in _ref_cache:
+            _ref_cache[path] = Image.open(path)
+        return _ref_cache[path]
 
     print(f"Model: {args.model}")
-    print(f"Reference: {args.reference}")
+    if override_ref_path is not None:
+        print(f"Reference (override, applies to all): {args.reference}")
+    else:
+        print("Reference: per-image auto-pick from .reference-pool/<series>/reference-<series>.png")
     print(f"Prompts: {PROMPTS_FILE.relative_to(REPO_ROOT)}")
     print(f"Generating {len(targets)} images...")
 
@@ -631,6 +682,10 @@ def main() -> None:
         prompt = img["prompt"]
 
         series_name = img.get("series")
+
+        # Per-image master reference (override wins; else pick by series).
+        reference_path = select_reference_path(img, override_ref_path)
+        reference = load_reference(reference_path)
 
         # Torso variant: per-image `torso:` wins, else derived from series/key.
         torso_key = img.get("torso") or _key_to_torso_default(key, series_name)

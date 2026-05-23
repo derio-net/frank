@@ -53,29 +53,23 @@ guard let result = request.results?.first else {
     exit(1)
 }
 
-let maskPixelBuffer: CVPixelBuffer
+// Use the cropped-to-subject API rather than scaled-mask + blend. The
+// cropped variant returns a CVPixelBuffer sized to the subject's bounding
+// box, with transparent pixels outside the mask — exactly what a character
+// reference wants (no padded canvas wasting Gemini's attention budget).
+let maskedPixelBuffer: CVPixelBuffer
 do {
-    maskPixelBuffer = try result.generateScaledMaskForImage(
-        forInstances: result.allInstances,
-        from: handler
+    maskedPixelBuffer = try result.generateMaskedImage(
+        ofInstances: result.allInstances,
+        from: handler,
+        croppedToInstancesExtent: true
     )
 } catch {
-    FileHandle.standardError.write(Data("error: mask generation failed: \(error)\n".utf8))
+    FileHandle.standardError.write(Data("error: masked-image generation failed: \(error)\n".utf8))
     exit(2)
 }
 
-let maskImage = CIImage(cvPixelBuffer: maskPixelBuffer)
-
-let blend = CIFilter.blendWithMask()
-blend.inputImage = ciImage
-blend.maskImage = maskImage
-blend.backgroundImage = CIImage.empty()
-
-guard let outputCI = blend.outputImage else {
-    FileHandle.standardError.write(Data("error: blend filter produced no output\n".utf8))
-    exit(2)
-}
-
+let outputCI = CIImage(cvPixelBuffer: maskedPixelBuffer)
 let context = CIContext(options: nil)
 guard let outputCG = context.createCGImage(outputCI, from: outputCI.extent) else {
     FileHandle.standardError.write(Data("error: could not render CGImage\n".utf8))

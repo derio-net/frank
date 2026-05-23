@@ -215,44 +215,9 @@ images:
       both edges into darkness. The image MUST be extremely wide and short,
       like a letterbox strip — 1200x200 pixels, 6:1 ratio.
 
-  - key: banner-hero
-    output: blog/static/images/banner-hero.png
-    description: Building-Frank card cover — triumphant, anthropomorphic Frank (1200x630)
-    prompt: >-
-      A wide cinematic banner. Frank the server-hardware Frankenstein monster
-      stands triumphantly atop a small mound of Raspberry Pis and NUC
-      mini-PCs, arms raised overhead in a victory pose, one fist clenched,
-      the other holding aloft a glowing Kubernetes wheel logo. This is a more
-      anthropomorphic, confident Frank — his body shapes are rounder and more
-      organic than blocky: shoulders are CPU heatsinks softened into muscular
-      deltoids, arms are bundles of ethernet cables and PCIe risers that flex
-      like tendons, legs are stacks of NVMe SSDs with curvature at the knees,
-      and his torso is a rack-mount server chassis whose edges soften into a
-      chest-and-abs silhouette. Green skin, messy black hair, expressive
-      confident smile, black eyes with white pupils, stitches, RJ45 neck
-      bolts crackling blue electricity. Behind him, a dark server room fades
-      into a starfield, with a faint circuit-board pattern on the floor.
-      Blue electric sparks arc from his neck bolts and between hardware
-      joints. Output dimensions exactly 1200x630 pixels. Wide cinematic
-      aspect ratio, 1200 pixels wide by 630 pixels tall.
-
-  - key: banner-thin
-    output: blog/static/images/banner-thin.png
-    description: Post header strip banner (1200x200, 6:1 ratio)
-    prompt: >-
-      An ultra-wide horizontal strip banner, extremely wide and short — exactly
-      1200 pixels wide by 200 pixels tall (6:1 aspect ratio). On the left third,
-      Frank the server-hardware Frankenstein monster strides confidently to the
-      right, about 60% the strip height — green skin, messy black hair, black
-      eyes, rack-mount torso, RJ45 neck bolts sparking blue electricity.
-      Center-right: the title "Building Frank" in bold chunky retro-tech
-      lettering, glowing electric blue with subtle circuit-trace underlines.
-      Background: dark circuit-board surface with faint green PCB traces and
-      sparse blue lightning arcs. Bottom edge: tiny decorative icons — a
-      Raspberry Pi, a NUC, an SSD, a Kubernetes wheel. Composition fades at
-      both edges into darkness. The image MUST be extremely wide and short,
-      like a letterbox strip — 1200x200 pixels, 6:1 ratio.
-
+  # banner-hero and banner-thin were drafted but never rendered or
+  # referenced from any template — removed as vestigial. Re-add here if
+  # the post-header banner or the building card cover ever gets wired up.
 
   - key: banner-operating
     output: blog/static/images/banner-operating.png
@@ -279,30 +244,9 @@ images:
       in the image. Output dimensions exactly 1200x630 pixels. Wide
       cinematic aspect ratio, 1200 pixels wide by 630 pixels tall.
 
-  - key: banner-operating-thin
-    output: blog/static/images/banner-operating-thin.png
-    description: Operating series header strip banner (1200x200, 6:1 ratio)
-    prompt: >-
-      An ultra-wide horizontal strip banner, extremely wide and short — exactly
-      1200 pixels wide by 200 pixels tall (6:1 aspect ratio). Frank the
-      server-hardware Frankenstein monster lies on his back on a surgical
-      operating table on the left third of the image, about 60% the strip
-      height. We can see all of his body.
-      His chest cavity is open, revealing circuit boards, drives, and
-      glowing cables inside. Multiple robotic arms (mounted to the ceiling or
-      the table frame) reach into his chest — one arm solders a circuit trace,
-      another swaps a miniature SSD, a third reconnects a glowing cable. Frank
-      is conscious and focused but relaxed, guiding the arms with a small handheld
-      controller. Green skin, messy black hair, black eyes, RJ45 neck bolts
-      sparking blue electricity. Center-right: the title "Operating on Frank"
-      in bold chunky retro-tech lettering, glowing electric blue with subtle
-      circuit-trace underlines (matching the "Building Frank" thin banner
-      style). Background: dark circuit-board surface with faint green PCB
-      traces and sparse blue lightning arcs. Bottom edge: tiny decorative icons
-      — a wrench, a stethoscope, a terminal prompt, a heartbeat monitor.
-      Composition fades at both edges into darkness. The image MUST be
-      extremely wide and short, like a letterbox strip — 1200x200 pixels,
-      6:1 ratio.
+  # banner-operating-thin was drafted but never rendered or referenced
+  # from any template — removed as vestigial. Re-add here if the
+  # operating-series strip banner ever gets wired up.
 
   - key: favicon
     output: blog/static/images/favicon.png
