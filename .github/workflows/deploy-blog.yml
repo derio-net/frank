@@ -43,6 +43,9 @@ jobs:
       - name: Check dossier ↔ blog/data/papers sync
         run: python scripts/sync-dossier-to-data.py --check
 
+      - name: Validate paper frontmatter
+        run: python scripts/validate-papers.py --all
+
       - name: Build
         working-directory: blog
         run: |

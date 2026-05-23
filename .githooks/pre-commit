@@ -38,6 +38,19 @@ if [ -n "$PAPER_FILES" ]; then
   done
 fi
 
+# Paper frontmatter validation: enforces weight = paper_number + 1 and
+# required-field schema. Runs on any staged paper bundle index.md.
+PAPER_INDEX_FILES=$(git diff --cached --name-only --diff-filter=ACM \
+  | grep -E '^blog/content/docs/papers/[^/]+/index\.md$' || true)
+
+if [ -n "$PAPER_INDEX_FILES" ]; then
+  # shellcheck disable=SC2086
+  if ! python "$REPO_ROOT/scripts/validate-papers.py" $PAPER_INDEX_FILES; then
+    echo "PAPER FRONTMATTER GATE: see failures above; fix and re-stage." >&2
+    exit 1
+  fi
+fi
+
 # Dossier → data file sync: regenerate matching blog/data/papers/<slug>.yaml
 # for any staged docs/papers-dossiers/<slug>/dossier.md, and stage the result.
 DOSSIER_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^docs/papers-dossiers/[^/]+/dossier\.md$' || true)
