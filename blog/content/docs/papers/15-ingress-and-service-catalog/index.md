@@ -103,12 +103,12 @@ or bolted on as a separate layer.
         quadrant-2 "Edge auth · included catalogue"
         quadrant-3 "Per-app auth · included catalogue"
         quadrant-4 "Per-app auth · separate catalogue"
-        Traefik + Authentik + Homepage: [0.85, 0.85]
-        Nginx Ingress + oauth2-proxy: [0.75, 0.90]
-        Envoy / Contour (Gateway API): [0.65, 0.95]
-        Per-app OIDC SDK only: [0.15, 0.95]
-        Service mesh mTLS (Istio): [0.50, 0.95]
-        Cloudflare Access: [0.95, 0.20]
+        "Traefik + Authentik + Homepage": [0.85, 0.85]
+        "Nginx Ingress + oauth2-proxy": [0.75, 0.90]
+        "Envoy / Contour (Gateway API)": [0.65, 0.95]
+        "Per-app OIDC SDK only": [0.15, 0.95]
+        "Service mesh mTLS (Istio)": [0.50, 0.95]
+        "Cloudflare Access": [0.95, 0.20]
 {{< /papers/landscape >}}
 
 {{< papers/capability-matrix data="vendors" >}}
