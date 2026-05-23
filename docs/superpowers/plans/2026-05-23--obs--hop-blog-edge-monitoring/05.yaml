@@ -23,6 +23,7 @@ tasks:
           __init__.py
           api.py
           facts.py
+          surge.py
           ai_adapter.py
           telegram.py
           prompts/
@@ -31,41 +32,92 @@ tasks:
             investigate-surge.txt
         tests/
           test_facts.py
+          test_surge.py
           test_ai_adapter.py
       ```
 
-      Write `test_facts.py` FIRST per TDD: a failing test that feeds
-      a recorded VictoriaLogs response into `facts.build_for_surge()`
-      and asserts the output shape (top_referrers length, ratio
-      computation, shape classification).
+      TDD first: write `tests/test_facts.py` with failing assertions that feed a recorded VictoriaLogs JSON response into `facts.build_for_surge()` and check the fact-sheet shape (top_referrers length, ratio computation, shape classification). Add a similar `test_surge.py` for `surge.compute()` that mocks two VictoriaLogs responses (current 1h count vs hour-of-day baseline) and asserts the tier classification logic (`Notable`/`Major`/`None`).
+
+      Run `pytest`; both fail. That's the red baseline.
   - id: P5.T1.S2
     text: |-
-      Implement `facts.py` with one function per fact-sheet type:
+      Implement `facts.py`. One function per fact-sheet type:
 
-      - `build_for_digest(since, until)` — calls VictoriaLogs +
-        GoatCounter, returns the digest fact dict per spec.
-      - `build_for_alert(alert_dict)` — dispatches by alert name:
-        - `BlogTrafficSurgeNotable/Major` → `build_for_surge()`
-        - `CrowdSecDecisionBurst` → `build_for_security()`
-        - `FalcoCriticalEvent` → `build_for_falco()`
-      - `build_for_surge(window_start, window_end)` — the rich
-        fact dict from the spec (top_referrers, human_vs_bot, shape,
-        etc.).
+      - `build_for_digest(since, until) -> dict` — queries VictoriaLogs + GoatCounter, returns the digest fact dict.
+      - `build_for_alert(alert: dict) -> dict` — dispatches by `alert['alertname']` to `build_for_security` (CrowdSec) / `build_for_falco`.
+      - `build_for_surge(window_start, window_end) -> dict` — the rich surge dict from the spec (top_referrers, human_vs_bot, shape, etc.).
 
-      Each function takes URLs/tokens from env vars (VICTORIALOGS_URL,
-      GOATCOUNTER_URL, GOATCOUNTER_TOKEN). Make the test from S1 pass.
+      Constants from env: `VICTORIALOGS_URL=http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428`, `GOATCOUNTER_URL=https://counter.cluster.derio.net`, `GOATCOUNTER_TOKEN` (from secret). Use `httpx` for the queries; each builder is ~30 LOC.
+
+      Make `test_facts.py` pass.
   - id: P5.T1.S3
     text: |-
-      Implement `ai_adapter.py` with the documented contract:
+      Implement `surge.py`:
 
-      ```python
+      BEGIN apps/ai-alert-helper/src/ai_alert_helper/surge.py
+      """Surge detection: hour-of-day baseline + tier classification.
+
+      LogsQL has no `quantile_over_time`, so we issue 7 individual queries
+      (one per recent day) for the same hour-of-day, then compute the
+      median in Python. Cheap at our volume (~7 queries, total ~50ms).
+      """
+      from __future__ import annotations
+      from datetime import datetime, timedelta, timezone
+      from statistics import median
+
+      import httpx
+
+      from . import facts
+
+
+      def _hour_count(when: datetime) -> int:
+          """Count of blog.derio.net requests in the 1h window ending at `when`."""
+          start = (when - timedelta(hours=1)).isoformat()
+          end = when.isoformat()
+          query = (
+              f'_time:[{start}, {end}] AND kubernetes_namespace_name:caddy-system '
+              f'AND _msg:"handled request" AND _msg:"blog.derio.net" | stats count() as c'
+          )
+          resp = httpx.get(
+              f"{facts.VICTORIALOGS_URL}/select/logsql/stats_query",
+              params={"query": query},
+              timeout=15,
+          )
+          resp.raise_for_status()
+          result = resp.json()["data"]["result"]
+          return int(result[0]["value"][1]) if result else 0
+
+
+      def compute() -> dict:
+          """Compute current 1h count vs hour-of-day baseline."""
+          now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+          current = _hour_count(now)
+          historical = [_hour_count(now - timedelta(days=d)) for d in range(1, 8)]
+          baseline = median(historical) or 1
+          ratio = current / baseline
+          tier = None
+          if ratio >= 10:
+              tier = "Major"  # caller validates visitor-side check
+          elif ratio >= 3:
+              tier = "Notable"
+          return {
+              "window_end": now.isoformat(),
+              "current": current,
+              "baseline": baseline,
+              "ratio": ratio,
+              "tier": tier,
+          }
+      END apps/ai-alert-helper/src/ai_alert_helper/surge.py
+
+      Make `test_surge.py` pass.
+  - id: P5.T1.S4
+    text: |-
+      Implement `ai_adapter.py` with the documented contract + retry-fallback:
+
       BEGIN apps/ai-alert-helper/src/ai_alert_helper/ai_adapter.py
       """LiteLLM-backed implementation of the AI adapter contract.
 
-      Future Sympozium swap replaces only this module. The
-      summarize() / investigate() signatures and the facts dict
-      shapes are the contract — don't change them without a follow-up
-      plan.
+      Future Sympozium swap replaces only this module.
       """
       from __future__ import annotations
       import os
@@ -74,16 +126,17 @@ tasks:
 
       _LITELLM_URL = os.environ["LITELLM_URL"]
       _LITELLM_KEY = os.environ["LITELLM_API_KEY"]
-      _MODEL = os.environ.get("LLM_MODEL", "qwen-think-14b")
+      _PRIMARY = os.environ.get("LLM_MODEL_PRIMARY", "qwen-think-14b")
+      _FALLBACK = os.environ.get("LLM_MODEL_FALLBACK", "claude-haiku-4-5")
       _PROMPTS = Path(__file__).parent / "prompts"
 
 
-      def _call(prompt: str) -> str:
+      def _call_once(model: str, prompt: str) -> str:
           resp = httpx.post(
               f"{_LITELLM_URL}/v1/chat/completions",
               headers={"Authorization": f"Bearer {_LITELLM_KEY}"},
               json={
-                  "model": _MODEL,
+                  "model": model,
                   "messages": [{"role": "user", "content": prompt}],
                   "temperature": 0.3,
               },
@@ -91,6 +144,13 @@ tasks:
           )
           resp.raise_for_status()
           return resp.json()["choices"][0]["message"]["content"].strip()
+
+
+      def _call(prompt: str) -> str:
+          try:
+              return _call_once(_PRIMARY, prompt)
+          except (httpx.TimeoutException, httpx.HTTPStatusError):
+              return _call_once(_FALLBACK, prompt)
 
 
       def summarize(facts: dict) -> str:
@@ -103,31 +163,20 @@ tasks:
           template = (_PROMPTS / f"investigate-{kind}.txt").read_text()
           return _call(template.format(alert=alert, facts=facts))
       END apps/ai-alert-helper/src/ai_alert_helper/ai_adapter.py
-      ```
 
-      Add a unit test that mocks `httpx.post` and confirms the right
-      prompt template is loaded based on alert name.
-  - id: P5.T1.S4
+      Add a unit test that mocks `httpx.post` to fail with a 503 on the primary model and confirm the fallback model is called. Make it pass.
+  - id: P5.T1.S5
     text: |-
       Implement `api.py` (FastAPI):
 
-      - `POST /alert` — accepts Alertmanager webhook payload, fans out
-        per-alert via `facts.build_for_alert` + `ai_adapter.investigate`,
-        posts to Telegram.
-      - `POST /digest` — runs the daily digest path (triggered by
-        CronJob).
-      - `GET /healthz` — liveness/readiness probe target.
+      - `POST /alert` — accepts Grafana webhook payload, fans out per-alert via `facts.build_for_alert` + `ai_adapter.investigate`, posts to Telegram.
+      - `POST /digest` — runs the daily digest path (triggered by CronJob).
+      - `POST /surge-check` — calls `surge.compute()`; if `tier` is set, builds the surge fact sheet (also pulls visitor count from GoatCounter for Major-tier validation), calls `investigate`, posts to Telegram.
+      - `GET /healthz` — returns `{"status":"ok"}`.
 
-      Implement `telegram.py` as a thin wrapper around the Telegram
-      Bot API `sendMessage` endpoint using existing
-      `FRANK_C2_TELEGRAM_BOT_TOKEN` and `FRANK_C2_TELEGRAM_CHAT_ID`
-      env vars.
-  - id: P5.T1.S5
-    text: |-
-      Write the three prompt templates (`prompts/*.txt`). Each follows
-      the constant-system + variable-task + variable-facts shape from
-      the spec. Cap each template's system block at ~150 words to
-      keep prompt-cache hits cheap.
+      Implement `telegram.py` as a thin wrapper around the Telegram Bot API `sendMessage` endpoint using existing `FRANK_C2_TELEGRAM_BOT_TOKEN` and `FRANK_C2_TELEGRAM_CHAT_ID` env vars. URGENT messages prefix with `🔥 *URGENT* ` (parse_mode unset — see Grafana contact-points-cm pattern that uses plain text deliberately).
+
+      Write the three prompt templates (`prompts/*.txt`). Each follows the constant-system + variable-task + variable-facts shape from the spec. System block ≤ 150 words for prompt-cache friendliness.
 
       Run tests:
 
@@ -137,13 +186,12 @@ tasks:
 
       All green.
 - number: 2
-  title: Package the service into a container image + deploy
+  title: Package the service into a container image and deploy
   steps:
   - id: P5.T2.S1
     text: |-
       Add `apps/ai-alert-helper/src/Dockerfile`:
 
-      ```dockerfile
       BEGIN apps/ai-alert-helper/src/Dockerfile
       FROM python:3.12-slim
       WORKDIR /app
@@ -153,25 +201,29 @@ tasks:
       EXPOSE 8080
       CMD ["uv", "run", "uvicorn", "ai_alert_helper.api:app", "--host", "0.0.0.0", "--port", "8080"]
       END Dockerfile
-      ```
 
-      Build and push to ghcr.io/derio-net/ai-alert-helper:0.1.0.
+      Build and push:
+
+      ```bash
+      docker build -t ghcr.io/derio-net/ai-alert-helper:0.1.0 apps/ai-alert-helper/src/
+      docker push ghcr.io/derio-net/ai-alert-helper:0.1.0
+      ```
   - id: P5.T2.S2
     text: |-
-      Create `apps/ai-alert-helper/manifests/deployment.yaml`,
-      `service.yaml`, `externalsecret.yaml`, `configmap-prompts.yaml`
-      (if prompts live in a ConfigMap rather than baked-in).
+      Create `apps/ai-alert-helper/manifests/deployment.yaml`, `service.yaml`, `externalsecret.yaml`. The Deployment uses image `ghcr.io/derio-net/ai-alert-helper:0.1.0`, resources `requests: cpu=20m, memory=40Mi / limits: memory=128Mi`, healthz probe at `/healthz`. Single replica is sufficient — the service is stateless.
 
-      ExternalSecret projects LITELLM_API_KEY,
-      FRANK_C2_TELEGRAM_BOT_TOKEN, FRANK_C2_TELEGRAM_CHAT_ID,
-      OBS_GOATCOUNTER_API_TOKEN from Infisical.
-
-      Deployment resources: requests `cpu: 20m / memory: 40Mi`,
-      limits `memory: 128Mi`.
+      ExternalSecret projects from Infisical into the helper's namespace: `LITELLM_API_KEY`, `FRANK_C2_TELEGRAM_BOT_TOKEN`, `FRANK_C2_TELEGRAM_CHAT_ID`, `OBS_GOATCOUNTER_API_TOKEN`. Inject as env vars via `envFrom: secretRef`.
   - id: P5.T2.S3
     text: |-
-      Create `apps/root/templates/ai-alert-helper.yaml` (Application
-      CR, raw-manifests source, namespace `ai-alert-helper-system`).
+      Create `apps/root/templates/ai-alert-helper.yaml` (Application CR, raw manifests, namespace `ai-alert-helper-system`). Include the full syncOptions per `agents/rules/frank-argocd.md`:
+
+      ```yaml
+      syncPolicy:
+        automated: { selfHeal: true, prune: false }
+        syncOptions:
+          - ServerSideApply=true
+          - CreateNamespace=true
+      ```
 
       Commit, push, wait for sync:
 
@@ -185,20 +237,19 @@ tasks:
       Verify the service responds to /healthz:
 
       ```bash
-      kubectl run -n ai-alert-helper-system --rm -it --image=curlimages/curl --overrides='{"spec":{"securityContext":{"runAsUser":100}}}' curl-test -- \
+      kubectl run -n ai-alert-helper-system --rm -it curl-test \
+        --image=curlimages/curl \
+        --overrides='{"spec":{"securityContext":{"runAsUser":100}}}' -- \
         curl -sf http://ai-alert-helper.ai-alert-helper-system.svc:8080/healthz
       # Expected: {"status":"ok"}
       ```
 - number: 3
-  title: Schedule the daily digest Tekton CronJob
+  title: Schedule the daily digest and surge-check CronJobs
   steps:
   - id: P5.T3.S1
     text: |-
-      Add `apps/ai-alert-helper/manifests/cronjob-digest.yaml`. Use a
-      Kubernetes CronJob (not Tekton TaskRun) for simplicity — Tekton
-      is overkill for a single HTTP call:
+      Add `apps/ai-alert-helper/manifests/cronjob-digest.yaml`:
 
-      ```yaml
       BEGIN apps/ai-alert-helper/manifests/cronjob-digest.yaml
       apiVersion: batch/v1
       kind: CronJob
@@ -216,6 +267,7 @@ tasks:
             template:
               spec:
                 restartPolicy: Never
+                securityContext: { runAsUser: 100 }
                 containers:
                   - name: trigger
                     image: curlimages/curl:8.10.1
@@ -223,92 +275,108 @@ tasks:
                       - sh
                       - -c
                       - 'curl -sf -X POST http://ai-alert-helper:8080/digest'
-                securityContext: { runAsUser: 100 }
       END apps/ai-alert-helper/manifests/cronjob-digest.yaml
-      ```
+
+      And `apps/ai-alert-helper/manifests/cronjob-surge-check.yaml`:
+
+      BEGIN apps/ai-alert-helper/manifests/cronjob-surge-check.yaml
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: surge-check
+        namespace: ai-alert-helper-system
+      spec:
+        schedule: "*/15 * * * *"
+        concurrencyPolicy: Forbid
+        successfulJobsHistoryLimit: 3
+        failedJobsHistoryLimit: 5
+        jobTemplate:
+          spec:
+            backoffLimit: 1
+            template:
+              spec:
+                restartPolicy: Never
+                securityContext: { runAsUser: 100 }
+                containers:
+                  - name: trigger
+                    image: curlimages/curl:8.10.1
+                    command:
+                      - sh
+                      - -c
+                      - 'curl -sf -X POST http://ai-alert-helper:8080/surge-check'
+      END apps/ai-alert-helper/manifests/cronjob-surge-check.yaml
+
+      Note `securityContext.runAsUser: 100` for `curlimages/curl` per `frank-gotchas.md` other-apps.
   - id: P5.T3.S2
     text: |-
       Commit, push, then trigger the digest manually for verification:
 
       ```bash
+      git add apps/ai-alert-helper/manifests/cronjob-digest.yaml apps/ai-alert-helper/manifests/cronjob-surge-check.yaml
+      git commit -m "feat(obs): schedule digest + surge-check cronjobs"
+      git push origin HEAD
+
       kubectl create job -n ai-alert-helper-system digest-manual --from=cronjob/digest
       kubectl logs -n ai-alert-helper-system job/digest-manual -f
       ```
 
-      Expected: HTTP 200 returned. Within ~10s, a Telegram message
-      arrives containing yesterday's blog digest. If the digest text
-      looks hallucinated, audit `facts.build_for_digest` output by
-      calling `POST /digest?dry_run=true` (add this debug param to
-      `api.py`).
+      Expected: HTTP 200 returned. Within ~10s, a Telegram message arrives containing yesterday's blog digest. If hallucinated, audit `facts.build_for_digest` output via a `?dry_run=true` debug param on `POST /digest` that returns the facts JSON without an LLM call.
 - number: 4
-  title: Wire Alertmanager to webhook the helper, add BlogTrafficSurge rules
+  title: Wire Grafana to webhook the AI helper for blog-edge alerts
   steps:
   - id: P5.T4.S1
     text: |-
-      Append BlogTrafficSurge rules to
-      `apps/grafana-alerting/manifests/rules-blog-edge.yaml`:
+      Frank has **no Alertmanager** — alerting is entirely Grafana-managed (`apps/victoria-metrics/values.yaml` sets `alertmanager.enabled: false`). Webhook delivery happens via a Grafana **contact point** of type `webhook`, referenced from a **notification policy** route.
+
+      Edit `apps/grafana-alerting/manifests/contact-points-cm.yaml`. Append under `data.contact-points.yaml → contactPoints`:
 
       ```yaml
-      - uid: blog-traffic-surge-notable
-        title: Blog traffic surge (Notable)
-        condition: C
-        data:
-          - refId: A
-            datasourceUid: <VictoriaLogs UID>
-            relativeTimeRange: { from: 3600, to: 0 }
-            model: { expr: 'count_over_time({host="blog.derio.net"}[1h])', refId: A, instant: true }
-          - refId: B
-            # Baseline: median over same hour-of-day, last 7 days
-            datasourceUid: <VictoriaLogs UID>
-            relativeTimeRange: { from: 604800, to: 0 }
-            model: { expr: 'quantile_over_time(0.5, count_over_time({host="blog.derio.net"}[1h])[7d:1h] @ <hour_offset>)', refId: B, instant: true }
-          - refId: C
-            datasourceUid: __expr__
-            model: { expression: "$A > $B * 3", refId: C, type: "threshold" }
-        for: 5m
-        labels: { severity: warning, alert_type: surge_notable }
-        annotations: { summary: "Blog traffic 3× hour-of-day baseline" }
-      - uid: blog-traffic-surge-major
-        # Same shape, threshold $A > $B * 10 AND unique visitors $D > 5× visitor_baseline $E
-        # severity: critical, alert_type: surge_major
-        # ... (full rule omitted here — see prose, expand at implementation time)
+      - orgId: 1
+        name: "AI Helper Webhook"
+        receivers:
+          - uid: ai-alert-helper-webhook
+            type: webhook
+            settings:
+              url: "http://ai-alert-helper.ai-alert-helper-system.svc.cluster.local:8080/alert"
+              httpMethod: POST
       ```
-
-      The unique-visitor count comes from a GoatCounter API call
-      embedded in the Grafana rule via the Infinity datasource.
   - id: P5.T4.S2
     text: |-
-      Configure Alertmanager (in `apps/alertmanager/values.yaml` or
-      equivalent — confirm where Frank's Alertmanager is configured)
-      to webhook the AI helper for non-critical alerts:
+      Edit `apps/grafana-alerting/manifests/notification-policy-cm.yaml`. Append a route entry under `policies[0].routes` that matches the `blog-edge` folder and routes those alerts exclusively to the AI Helper Webhook:
 
       ```yaml
-      receivers:
-        - name: ai-helper
-          webhook_configs:
-            - url: http://ai-alert-helper.ai-alert-helper-system.svc:8080/alert
-              send_resolved: false
-      route:
-        receiver: ai-helper
-        routes:
-          # Critical Falco events stay on the direct-Telegram path
-          # (falcosidekick handles them); the ai-helper enrichment is
-          # the follow-up story.
-          - matchers: ['severity = critical', 'alertname = "Falco critical event"']
-            receiver: ai-helper
-            # No continue: false — falcosidekick already sent the raw
-            # event, ai-helper sends the enriched follow-up
+      - receiver: "AI Helper Webhook"
+        matchers:
+          - grafana_folder = "blog-edge"
+        continue: false
       ```
+
+      Place this route **before** the existing `severity=critical`/`severity=warning` routes so the folder match wins for blog-edge alerts. The AI helper does its own Telegram delivery via the existing bot — `continue: false` prevents double notifications.
   - id: P5.T4.S3
     text: |-
-      Commit, push, wait for Alertmanager + Grafana to roll. Verify
-      the alerts appear in Grafana's Alerting → Alert rules UI.
+      Commit, push, wait for Grafana to reload provisioning:
+
+      ```bash
+      git add apps/grafana-alerting/manifests/contact-points-cm.yaml apps/grafana-alerting/manifests/notification-policy-cm.yaml
+      git commit -m "feat(obs): grafana contact point + policy for ai-alert-helper"
+      git push origin HEAD
+      ```
+
+      Grafana's provisioning sidecar tails the ConfigMaps and reloads. If the change doesn't take effect within ~2 min, restart Grafana once (per `frank-gotchas.md` grafana: file-provisioned config is read at boot, not always watched):
+
+      ```bash
+      kubectl rollout restart deploy/grafana -n monitoring
+      ```
+
+      Verify in Grafana UI: Alerting → Contact points → "AI Helper Webhook" present; Alerting → Notification policies → new route under root policy.
+
+      **If you hit `Cannot change provenance from 'api' to 'file'`:** scale Grafana to 0, delete the offending row from sqlite (`DELETE FROM alert_rule WHERE folder_uid = '<blog-edge>'`), scale back up. Per `frank-gotchas.md` grafana.
 - number: 5
-  title: End-to-end surge smoke test
+  title: End-to-end smoke tests
   steps:
   - id: P5.T5.S1
     text: |-
-      Install hey on a workstation outside the cluster:
+      **Surge smoke test.** Install `hey` on a workstation outside the cluster:
 
       ```bash
       brew install hey
@@ -320,100 +388,53 @@ tasks:
       hey -z 2m -c 50 https://blog.derio.net/frank/papers/00-why-homelab-in-2026/
       ```
 
-      Expected: ~50 RPS for 2 minutes against a single page from a
-      single source IP. Visitor count won't move (no JS executing).
-      This should match the "scraper" archetype, NOT the HN-spike
-      archetype.
+      Expected: ~50 RPS for 2 minutes against a single page from a single source IP. Visitor count won't move (no JS executing) — this should match the "scraper" archetype, NOT the HN-spike archetype.
   - id: P5.T5.S2
     text: |-
-      Within ~3 minutes (1 min Grafana eval + 5 min `for:` + helper
-      latency), expect a Telegram message from the AI helper with a
-      verdict like:
+      Wait for the next surge-check tick (up to 15 min). Confirm the cron fired:
 
-      > **Blog traffic surge — XX× baseline (Major)**
-      > … visitor:request ratio … not human … single IP … python-hey …
+      ```bash
+      kubectl -n ai-alert-helper-system get cronjob surge-check -o jsonpath='{.status.lastSuccessfulTime}'
+      kubectl -n ai-alert-helper-system logs -l app=ai-alert-helper --tail 100 | grep -i surge
+      ```
+
+      Within ~30s of the tick, expect a Telegram message from the AI helper with a verdict like:
+
+      > 🔥 *URGENT* **Blog traffic surge — XX× baseline (Major)**
+      > … visitor:request ratio … not human … single IP … `hey` …
       > **Risk read:** scraper
 
-      If the message arrives but the verdict is wrong (e.g., calls it
-      a viral hit), revise the surge prompt template — the LLM is
-      getting the right facts but interpreting them poorly.
-
-      If no message arrives:
-      - Check Alertmanager fired: Grafana → Alerting → Alert history.
-      - Check helper received: `kubectl logs deploy/ai-alert-helper`.
-      - Check LiteLLM didn't 429/timeout.
+      If no message arrives, common failures: LiteLLM 429/timeout (verify with `kubectl logs deploy/litellm-gateway -n litellm`), or VictoriaLogs `stats_query` endpoint returning unexpected shape (log the raw response and adapt the parser).
   - id: P5.T5.S3
     text: |-
-      Receive tomorrow's 08:00 UTC digest as a passive smoke test of
-      the daily path. (You can also trigger it manually right after
-      the surge test for immediate confirmation:
-      `kubectl create job -n ai-alert-helper-system digest-now --from=cronjob/digest`).
+      **Daily digest smoke test.** Trigger immediately (don't wait for 08:00 UTC):
+
+      ```bash
+      kubectl create job -n ai-alert-helper-system digest-now --from=cronjob/digest
+      kubectl logs -n ai-alert-helper-system job/digest-now -f
+      ```
+
+      Expected: Telegram message titled "Yesterday on the Frank blog" with pageview counts, top pages, top referrers, country breakdown, security event summary.
+
+      Then verify the scheduled run lands by waiting until next 08:00 UTC and confirming the Telegram message arrives.
 state:
   steps:
-    P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T4.S2:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T4.S3:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T5.S1:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T5.S2:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T5.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+    P5.T1.S1: {state: ' ', ticked_at: null, note: null}
+    P5.T1.S2: {state: ' ', ticked_at: null, note: null}
+    P5.T1.S3: {state: ' ', ticked_at: null, note: null}
+    P5.T1.S4: {state: ' ', ticked_at: null, note: null}
+    P5.T1.S5: {state: ' ', ticked_at: null, note: null}
+    P5.T2.S1: {state: ' ', ticked_at: null, note: null}
+    P5.T2.S2: {state: ' ', ticked_at: null, note: null}
+    P5.T2.S3: {state: ' ', ticked_at: null, note: null}
+    P5.T3.S1: {state: ' ', ticked_at: null, note: null}
+    P5.T3.S2: {state: ' ', ticked_at: null, note: null}
+    P5.T4.S1: {state: ' ', ticked_at: null, note: null}
+    P5.T4.S2: {state: ' ', ticked_at: null, note: null}
+    P5.T4.S3: {state: ' ', ticked_at: null, note: null}
+    P5.T5.S1: {state: ' ', ticked_at: null, note: null}
+    P5.T5.S2: {state: ' ', ticked_at: null, note: null}
+    P5.T5.S3: {state: ' ', ticked_at: null, note: null}
   completion:
     at: null
     note: null

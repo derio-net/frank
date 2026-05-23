@@ -47,6 +47,12 @@ tasks:
                   - -listen=:8080
                   - -tls=none
                   - -domain=counter.derio.net,counter.cluster.derio.net
+                  # Trust X-Forwarded-For from Hop's Caddy (forwarded via mesh).
+                  # Without this, every hit looks like it came from Hop's mesh
+                  # IP and country/bot breakdowns are destroyed.
+                  # The trust scope is the Tailscale 100.64.0.0/10 range.
+                  - -real-ip-header=X-Forwarded-For
+                  - -real-ip-trust=100.64.0.0/10
                 ports: [{ containerPort: 8080, name: http }]
                 volumeMounts:
                   - { name: data, mountPath: /data }
@@ -57,6 +63,11 @@ tasks:
               - name: data
                 persistentVolumeClaim: { claimName: goatcounter-data }
       ```
+
+      Verify the exact GoatCounter CLI flag names against `goatcounter serve --help`
+      in the same image version — older versions use `-real-ip` or
+      `-trust-proxy` instead. The semantic must be: trust forwarded headers
+      from the upstream proxy and treat that as the real client IP.
   - id: P2.T1.S3
     text: |-
       Create `apps/root/templates/goatcounter.yaml` (Application CR,
@@ -131,6 +142,19 @@ tasks:
       Follow the `forward_single` mode pattern (include `invalidation_flow`,
       `redirect_uris` as object array, `signing_key` UUID — per the
       authentik gotcha in `agents/rules/frank-gotchas.md`).
+
+      The cluster blueprint ConfigMap is already registered in
+      `apps/authentik/values.yaml` → `blueprints.configMaps:`. Verify before
+      editing:
+
+      ```bash
+      grep -A 3 blueprints apps/authentik/values.yaml
+      ```
+
+      Expected: an entry for `authentik-cluster-blueprints` (or similar). If
+      missing, add it — otherwise the new provider blueprint will silently
+      fail to apply (Authentik blueprints mount in the worker pod via
+      `blueprints.configMaps`, not via Application sync).
   - id: P2.T2.S4
     text: |-
       Commit, push, wait for sync. Then run the **manual** outpost-
@@ -338,11 +362,14 @@ tasks:
       `grafana_dashboard: "1"` per the existing pattern.
   - id: P2.T5.S2
     text: |-
-      Create a Secret for the GoatCounter API token (needed for the
-      GoatCounter datasource). Generate the token in the GoatCounter UI
-      (Settings → API tokens) with read-only scope, then write it to
-      Infisical and reference via ExternalSecret in
-      `apps/grafana-alerting/manifests/externalsecret-goatcounter.yaml`.
+      Generate a read-only GoatCounter API token in the UI
+      (Settings → API tokens), save to Infisical, and prepare an
+      ExternalSecret to project it into the Grafana namespace.
+
+      Verify the existing Grafana secret-mount pattern by reading
+      `apps/grafana-alerting/manifests/externalsecret.yaml` (which already
+      mounts `FRANK_C2_TELEGRAM_BOT_TOKEN` etc.) — add `OBS_GOATCOUNTER_API_TOKEN`
+      as a new key in that same ExternalSecret rather than creating a new one.
 
       **Manual operation block** (Infisical secret seeding):
 
@@ -353,46 +380,84 @@ tasks:
       app: grafana
       plan: 2026-05-23--obs--hop-blog-edge-monitoring
       when: phase 2, task 5, before Grafana datasource sync
-      why_manual: GoatCounter API tokens generated in UI; Infisical seed
-        cannot be declarative.
+      why_manual: GoatCounter API tokens are generated in the GoatCounter UI;
+        the Infisical seed step cannot be declarative.
       commands:
         - "(GoatCounter UI) Settings → API tokens → New (read-only)"
         - "(Infisical UI) Add secret OBS_GOATCOUNTER_API_TOKEN"
       verify:
-        - kubectl get externalsecret -n grafana goatcounter-api-token -o jsonpath='{.status.conditions[0].type}'
+        - kubectl get externalsecret -n monitoring grafana-secrets -o jsonpath='{.status.conditions[0].type}'
       status: pending
       ```
   - id: P2.T5.S3
     text: |-
-      Add GoatCounter as a Grafana datasource (Infinity datasource or
-      JSON API datasource — GoatCounter exposes JSON over HTTP).
-      Update `apps/grafana/values.yaml`:
+      Grafana is a subchart of victoria-metrics — there is **no
+      `apps/grafana/values.yaml`**. Datasources are provisioned via sidecar
+      ConfigMaps with the label `grafana_datasource: "1"`. Confirm the
+      existing pattern:
 
-      ```yaml
-      additionalDataSources:
-        # ... existing entries ...
-        - name: GoatCounter
-          type: yesoreyeram-infinity-datasource
-          url: https://counter.cluster.derio.net
-          jsonData:
-            global_queries: []
-          secureJsonData:
-            httpHeaderValue1: "Bearer $__file{/etc/secrets/goatcounter-api-token}"
+      ```bash
+      cat apps/victoria-metrics/manifests/grafana-victorialogs-ds.yaml
       ```
 
-      Confirm the Infinity plugin is in `grafana.plugins:`.
+      Mirror it. Create `apps/victoria-metrics/manifests/grafana-goatcounter-ds.yaml`:
+
+      BEGIN apps/victoria-metrics/manifests/grafana-goatcounter-ds.yaml
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: grafana-goatcounter-datasource
+        namespace: monitoring
+        labels:
+          grafana_datasource: "1"
+      data:
+        goatcounter-datasource.yaml: |
+          apiVersion: 1
+          datasources:
+            - name: GoatCounter
+              type: yesoreyeram-infinity-datasource
+              access: proxy
+              url: https://counter.cluster.derio.net
+              isDefault: false
+              version: 1
+              editable: false
+              jsonData:
+                global_queries: []
+              secureJsonData:
+                httpHeaderValue1: "Bearer $OBS_GOATCOUNTER_API_TOKEN"
+      END apps/victoria-metrics/manifests/grafana-goatcounter-ds.yaml
+
+      Verify the Infinity datasource plugin is included in
+      `apps/victoria-metrics/values.yaml` under `grafana.plugins:`. If not, add:
+
+      ```yaml
+      grafana:
+        plugins:
+          - yesoreyeram-infinity-datasource
+      ```
   - id: P2.T5.S4
     text: |-
       Commit, push, verify the dashboard renders:
 
       ```bash
-      git add apps/grafana-alerting/manifests/dashboards-blog-edge/ apps/grafana/values.yaml apps/grafana-alerting/manifests/externalsecret-goatcounter.yaml
-      git commit -m "feat(obs): blog overview grafana dashboard"
+      git add apps/grafana-alerting/manifests/dashboards-blog-edge/ \
+              apps/grafana-alerting/manifests/externalsecret.yaml \
+              apps/victoria-metrics/manifests/grafana-goatcounter-ds.yaml \
+              apps/victoria-metrics/values.yaml
+      git commit -m "feat(obs): blog overview grafana dashboard + goatcounter datasource"
       git push origin HEAD
       ```
 
-      Wait for Grafana to roll, then in the UI navigate to Dashboards →
-      "Blog overview". Confirm all panels render without errors.
+      The provisioning sidecar picks up new ConfigMaps without a Grafana
+      restart, but a plugin install requires Grafana to restart:
+
+      ```bash
+      kubectl rollout restart deploy/grafana -n monitoring
+      kubectl rollout status deploy/grafana -n monitoring --timeout 180s
+      ```
+
+      Then in the Grafana UI navigate to Dashboards → "Blog overview".
+      Confirm all panels render without errors.
 - number: 6
   title: End-to-end smoke test + post-deploy tile
   steps:

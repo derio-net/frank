@@ -247,42 +247,72 @@ tasks:
          phase 4).
   - id: P3.T4.S2
     text: |-
-      Add the alert rule in
-      `apps/grafana-alerting/manifests/rules-blog-edge.yaml`:
+      Alert rules live in **`apps/grafana-alerting/manifests/alert-rules-cm.yaml`** (the existing ConfigMap). Append a new `blog-edge` rule group following the 3-step A→B→C pattern used by every other rule in that file. **Grafana 12.x SSE rejects 2-step rules with `sse.parseError`** — per `agents/rules/frank-gotchas.md`.
 
-      ```yaml
-      BEGIN apps/grafana-alerting/manifests/rules-blog-edge.yaml
-      apiVersion: 1
-      groups:
-        - orgId: 1
-          name: blog-edge
-          folder: Blog Edge
-          interval: 1m
-          rules:
-            - uid: crowdsec-decision-burst
-              title: CrowdSec decision burst
-              condition: B
-              data:
-                - refId: A
-                  datasourceUid: <VictoriaLogs UID>
-                  relativeTimeRange: { from: 300, to: 0 }
-                  model: { expr: 'count_over_time({app="crowdsec"} |~ "ban" [5m])', refId: A, instant: true }
-                - refId: B
-                  datasourceUid: __expr__
-                  model: { expression: "$A > 10", refId: B, type: "threshold" }
-              for: 1m
-              labels: { severity: warning }
-              annotations:
-                summary: ">10 CrowdSec ban decisions in last 5m"
-      END apps/grafana-alerting/manifests/rules-blog-edge.yaml
+      First, look up the VictoriaLogs datasource UID by reading
+      `apps/victoria-metrics/manifests/grafana-victorialogs-ds.yaml` — if not explicitly set, query Grafana once provisioned:
+
+      ```bash
+      kubectl exec -n monitoring deploy/grafana -- \
+        curl -sf -u admin:$GF_PASS http://localhost:3000/api/datasources/name/VictoriaLogs | jq .uid
       ```
 
-      (Adapt the actual datasource UID and exact LogsQL syntax.)
+      Then append to `alert-rules-cm.yaml` under `data.alert-rules.yaml`:
+
+      ```yaml
+      - orgId: 1
+        name: blog-edge-security
+        folder: blog-edge
+        interval: 1m
+        rules:
+          - uid: crowdsec-decision-burst
+            title: CrowdSec decision burst
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 300, to: 0 }
+                datasourceUid: <VictoriaLogs-UID>
+                model:
+                  refId: A
+                  expr: '_time:5m _msg:"Adding decisions" AND kubernetes_namespace_name:crowdsec-system | stats by (host) count() as count'
+              - refId: B
+                relativeTimeRange: { from: 300, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: B
+                  type: reduce
+                  expression: A
+                  reducer: last
+                  settings: { mode: dropNN }
+              - refId: C
+                relativeTimeRange: { from: 300, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [10] }
+            noDataState: OK
+            execErrState: Error
+            for: 1m
+            labels: { severity: warning }
+            annotations:
+              summary: ">10 CrowdSec ban decisions in last 5m"
+      ```
+
+      Verify the LogsQL `stats` query returns numeric counts (the SSE `reduce` step expects a scalar). If the chart's exact ConfigMap key shape differs from existing groups, copy from a working sibling rule rather than the template above.
   - id: P3.T4.S3
     text: |-
-      Commit, push, wait for Grafana to provision. The alert routes to
-      Alertmanager → AI helper webhook (wired in phase 5; until then the
-      alert fires into the default channel).
+      Commit, push, wait for Grafana to provision (the alerting sidecar tails the ConfigMap and reloads provisioning):
+
+      ```bash
+      git add apps/grafana-alerting/manifests/alert-rules-cm.yaml apps/grafana-alerting/manifests/dashboards-blog-edge/
+      git commit -m "feat(obs): blog-edge security dashboard + crowdsec decision burst alert"
+      git push origin HEAD
+      ```
+
+      Verify in Grafana UI → Alerting → Alert rules → `blog-edge` folder → `CrowdSec decision burst` shows up with the right state. The route to the AI Helper Webhook is wired in phase 5; until then the alert fires into the default Telegram contact point.
 - number: 5
   title: Smoke test the bouncer
   steps:

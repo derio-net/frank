@@ -26,7 +26,7 @@ tasks:
       ConfigMap.
   - id: P4.T1.S2
     text: |-
-      Create `clusters/hop/apps/falco/values.yaml`:
+      Create `clusters/hop/apps/falco/values.yaml`. **Critical detail on rule overrides:** there is no `override:` key in the Falco schema. You override a macro by **re-declaring it with the same name** — the later-loaded definition replaces the earlier one. Mistaken `override:` blocks fail Falco's YAML schema validation and the DaemonSet crashloops.
 
       ```yaml
       driver:
@@ -40,31 +40,41 @@ tasks:
         json_include_output_property: true
         priority: notice
       customRules:
+        # Re-declare the macro to silence kubelet-driven exec in kube-system.
+        # The original macro definition is in /etc/falco/falco_rules.yaml;
+        # this file is loaded AFTER it (lexicographic order), so this becomes
+        # the effective definition.
         talos_silence.yaml: |-
-          # Suppress kube-system exec noise on Talos — these are kubelet
-          # debugging primitives, not threats
           - macro: user_known_shell_in_container_activities
             condition: (k8s.ns.name = "kube-system")
-            override:
-              condition: append
       falcosidekick:
         enabled: true
         webui: { enabled: false }
         config:
           customfields: "cluster:hop"
+          # Cross-cluster: write to Frank's VictoriaLogs LB IP (192.168.55.225)
+          # added in phase 1. The kube service CIDR is not routable from Hop.
           victoriaLogs:
             enabled: true
-            address: "http://<frank-vlogs-clusterip>:9428/insert/jsonline"
+            address: "http://192.168.55.225:9428/insert/jsonline"
           telegram:
             enabled: true
             minimumpriority: critical
             # token + chatID via existing FRANK_C2_TELEGRAM_BOT_TOKEN /
             # FRANK_C2_TELEGRAM_CHAT_ID infisical secrets, projected via
-            # envFromSecret
+            # envFromSecret in T1.S3
       resources:
         requests: { cpu: 50m, memory: 100Mi }
         limits: { memory: 200Mi }
       ```
+
+      Validate the rule override before pushing by templating locally:
+
+      ```bash
+      helm template falcosecurity/falco -f clusters/hop/apps/falco/values.yaml | grep -A 4 'macro: user_known_shell_in_container_activities'
+      ```
+
+      Expected: the macro appears in the rendered ConfigMap with the Talos-silencing condition. No `override:` key.
   - id: P4.T1.S3
     text: |-
       Create the ExternalSecret to project the Telegram bot
@@ -148,8 +158,8 @@ tasks:
       2. **VictoriaLogs:** from Frank:
          ```bash
          source .env
-         kubectl exec -n grafana deploy/grafana -- \
-           curl -sG http://victoria-logs-single-server.observability.svc:9428/select/logsql/query \
+         kubectl exec -n monitoring deploy/grafana -- \
+           curl -sG http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428/select/logsql/query \
            --data-urlencode 'query=_time:5m falco' --data-urlencode 'limit=5'
          ```
          Expected: at least 1 event with `"rule":"Terminal shell in container"`.
@@ -158,20 +168,39 @@ tasks:
   steps:
   - id: P4.T3.S1
     text: |-
-      Append to `apps/grafana-alerting/manifests/rules-blog-edge.yaml`:
+      Append to **`apps/grafana-alerting/manifests/alert-rules-cm.yaml`** (the existing ConfigMap, not a new file). Add a new rule into the `blog-edge-security` group created in P3.T4.S2. Use the same 3-step A→B→C SSE format as the CrowdSec rule:
 
       ```yaml
       - uid: falco-critical-event
         title: Falco critical event
-        condition: B
+        condition: C
         data:
           - refId: A
-            datasourceUid: <VictoriaLogs UID>
             relativeTimeRange: { from: 300, to: 0 }
-            model: { expr: 'count_over_time({app="falco"} |~ "\"priority\":\"Critical\"" [5m])', refId: A, instant: true }
+            datasourceUid: <VictoriaLogs-UID>
+            model:
+              refId: A
+              expr: '_time:5m kubernetes_namespace_name:falco-system AND _msg:"\"priority\":\"Critical\"" | stats count() as count'
           - refId: B
+            relativeTimeRange: { from: 300, to: 0 }
             datasourceUid: __expr__
-            model: { expression: "$A > 0", refId: B, type: "threshold" }
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+              settings: { mode: dropNN }
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        noDataState: OK
+        execErrState: Error
         for: 0s
         labels: { severity: critical }
         annotations:
@@ -180,8 +209,8 @@ tasks:
 
       This deduplicates with the falcosidekick direct path: Telegram
       gets the immediate raw event from falcosidekick, AND a Grafana
-      alert fires that will (in phase 5) be enriched by the AI helper
-      into a story message.
+      alert fires that gets routed through the AI Helper Webhook (set up
+      in phase 5) into an enriched follow-up message.
   - id: P4.T3.S2
     text: |-
       Update the "Security events" dashboard to add a Falco panel:

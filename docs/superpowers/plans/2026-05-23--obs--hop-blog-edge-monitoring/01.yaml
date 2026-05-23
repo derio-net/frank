@@ -1,151 +1,135 @@
 schema_version: 2
 phase:
   number: 1
-  title: Log plumbing — VictoriaLogs on Frank, Caddy JSON access logs, vlagent on
-    Hop
+  title: Log plumbing — extend existing VictoriaLogs with LB IP, Caddy JSON, fluent-bit on Hop
   tag: agentic
   depends_on: []
   tracking_issue: null
 tasks:
 - number: 1
-  title: Deploy VictoriaLogs on Frank
+  title: Extend existing VictoriaLogs with a LoadBalancer Service + retention bump
   steps:
   - id: P1.T1.S1
     text: |-
-      Research the VictoriaLogs Helm chart and pin a version.
+      Confirm the existing VictoriaLogs deployment state before touching anything.
 
       ```bash
-      helm repo add vm https://victoriametrics.github.io/helm-charts/
-      helm repo update
-      helm search repo vm/victoria-logs-single -l | head -5
+      kubectl -n monitoring get pods,svc,pvc -l app.kubernetes.io/instance=victoria-logs
+      kubectl -n monitoring get configmap | grep -i victoria
       ```
 
-      Pick the latest stable chart version. Read its `values.yaml`:
+      Expected: a Pod `victoria-logs-victoria-logs-single-server-*` Running, a Service `victoria-logs-victoria-logs-single-server` of type ClusterIP on port 9428, a PVC bound to a Longhorn volume ~20 Gi. Read the current values:
 
       ```bash
-      helm show values vm/victoria-logs-single --version <PINNED> > /tmp/vlogs-values.yaml
+      cat apps/victoria-logs/values.yaml
       ```
 
-      Identify the keys for: persistence (Longhorn), retentionPeriod, resources, service type, server.extraArgs.
+      You will see retentionPeriod 14d, PVC 20Gi, service.type ClusterIP, service.port 9428. Do NOT replace this file; we extend it.
   - id: P1.T1.S2
     text: |-
-      Create `apps/victoria-logs/values.yaml`. The minimum surface to set:
+      Edit `apps/victoria-logs/values.yaml`. Bump retention 14d → 30d and add an extra LoadBalancer Service for cross-cluster reach from Hop. The chart supports `server.extraServices:` for sibling Services (verify the exact key against `helm show values vm/victoria-logs-single --version 0.11.28` — adjust if the chart uses `server.additionalServiceSpec` or similar).
+
+      Target end-state of `apps/victoria-logs/values.yaml`:
 
       ```yaml
       server:
+        retentionPeriod: 30d
         persistentVolume:
           enabled: true
+          size: 20Gi
           storageClass: longhorn
-          size: 10Gi
-        retentionPeriod: 30d
-        resources:
-          requests: {cpu: 100m, memory: 200Mi}
-          limits: {memory: 512Mi}
         service:
           type: ClusterIP
-        # Reachable from Hop via Tailscale subnet route to 10.43.0.0/16 (kube service CIDR).
-        # Hop's vlagent will write to the Tailscale-routed ClusterIP directly.
+          port: 9428
+        # Sibling Service exposed via Cilium L2 so Hop's fluent-bit can push
+        # over the Tailscale subnet route to 192.168.55.0/24. Required because
+        # the kube service CIDR is NOT routable from Hop.
+        extraServices:
+          - name: lb
+            type: LoadBalancer
+            port: 9428
+            targetPort: 9428
+            annotations:
+              lbipam.cilium.io/ips: "192.168.55.225"
       ```
 
-      Confirm the chart's actual key names match (some charts use `victoriaLogs:` vs `server:` — verify against the values dump from S1).
+      If the chart's key for sibling Services is different, render and verify:
+
+      ```bash
+      helm template vm/victoria-logs-single --version 0.11.28 -f apps/victoria-logs/values.yaml | grep -A 10 'kind: Service'
+      ```
+
+      Two Services should be templated — the original ClusterIP and the new LoadBalancer.
   - id: P1.T1.S3
     text: |-
-      Create `apps/root/templates/victoria-logs.yaml` (Application CR). Copy
-      the multi-source pattern from `apps/root/templates/grafana.yaml` and
-      adapt: upstream chart source + `$values/apps/victoria-logs/values.yaml`
-      ref. Use namespace `observability`. Always include:
-      `ServerSideApply=true`, `prune: false`, `selfHeal: true`.
-
-      Add `apps/root/templates/ns-observability.yaml` if the namespace doesn't
-      already exist (check first: `kubectl get ns observability`).
-  - id: P1.T1.S4
-    text: |-
-      Commit and push:
+      Commit and push. ArgoCD's automated sync picks up the change:
 
       ```bash
-      git add apps/victoria-logs/ apps/root/templates/victoria-logs.yaml apps/root/templates/ns-observability.yaml
-      git commit -m "feat(obs): deploy victoria-logs on frank"
+      git add apps/victoria-logs/values.yaml
+      git commit -m "feat(obs): extend victoria-logs with lb ip + 30d retention"
       git push origin HEAD
-      ```
-
-      Then wait for ArgoCD to sync (auto-sync should pick it up within 3 min):
-
-      ```bash
-      argocd app list --port-forward --port-forward-namespace argocd | grep victoria-logs
+      argocd app sync victoria-logs --port-forward --port-forward-namespace argocd
       argocd app wait victoria-logs --port-forward --port-forward-namespace argocd --health --timeout 300
       ```
+  - id: P1.T1.S4
+    text: |-
+      Verify the new LB Service got the right IP and is reachable from within the cluster:
 
-      Expected: Synced/Healthy. If Degraded, inspect `kubectl describe pod -n observability` for PVC binding or image pull errors.
+      ```bash
+      kubectl -n monitoring get svc -l app.kubernetes.io/instance=victoria-logs
+      # Expected: a second Service with EXTERNAL-IP 192.168.55.225 and TYPE LoadBalancer
+
+      kubectl run -n monitoring --rm -it curl-test \
+        --image=curlimages/curl \
+        --overrides='{"spec":{"securityContext":{"runAsUser":100}}}' -- \
+        curl -sf http://192.168.55.225:9428/metrics | head -3
+      ```
+
+      Expected: Prometheus-style metrics output. If pending EXTERNAL-IP, check Cilium LB IPAM has the `192.168.55.224-192.168.55.230` range allowed.
   - id: P1.T1.S5
     text: |-
-      Verify the service is reachable in-cluster and from Hop:
+      Register the new LB IP in `agents/rules/frank-infrastructure.md`. Append a row to the Frank Cluster Services table:
 
-      ```bash
-      kubectl run -n observability --rm -it --image=curlimages/curl --overrides='{"spec":{"securityContext":{"runAsUser":100}}}' curl-test -- \
-        curl -sf http://victoria-logs-single-server.observability.svc:9428/metrics | head -5
+      ```
+      | VictoriaLogs (LB) | 192.168.55.225 | Cilium L2 LoadBalancer (port 9428, cross-cluster ingest from Hop) |
       ```
 
-      From Hop (after `source .env_hop`):
+      Insert in numeric IP order. Commit on the same branch:
 
       ```bash
-      kubectl run -n default --rm -it --image=curlimages/curl --overrides='{"spec":{"securityContext":{"runAsUser":100}}}' curl-frank -- \
-        curl -sf http://10.43.X.X:9428/metrics | head -5  # Use the Frank ClusterIP visible via Tailscale subnet route
+      git add agents/rules/frank-infrastructure.md
+      git commit -m "docs(obs): register victoria-logs lb ip 192.168.55.225"
+      git push origin HEAD
       ```
-
-      If the cross-cluster curl fails, the Tailscale DaemonSet on Frank may not be advertising the service CIDR — `tailscale status` on Hop should show Frank's worker hostnames with advertised routes including the kube service CIDR.
 - number: 2
-  title: Wire VictoriaLogs as a Grafana datasource
+  title: Verify Tailscale subnet routing 192.168.55.225 from Hop
   steps:
   - id: P1.T2.S1
     text: |-
-      Edit `apps/grafana/values.yaml`. Find the `additionalDataSources:`
-      block (already present for Prometheus and VictoriaMetrics). Append:
-
-      ```yaml
-      additionalDataSources:
-        # ... existing entries ...
-        - name: VictoriaLogs
-          type: victoriametrics-logs-datasource
-          access: proxy
-          url: http://victoria-logs-single-server.observability.svc:9428
-          isDefault: false
-          editable: false
-      ```
-
-      Confirm the plugin is in `grafana.plugins:` — add `victoriametrics-logs-datasource` if missing.
-  - id: P1.T2.S2
-    text: |-
-      Commit, push, and wait for the Grafana ConfigMap to roll over:
+      The Tailscale subnet router on raspi nodes advertises `192.168.55.0/24` (per `docs/superpowers/specs/2026-03-21--edge--subnet-router-autoapproval-design.md`). Confirm the route is operational from Hop:
 
       ```bash
-      git add apps/grafana/values.yaml
-      git commit -m "feat(obs): add victoria-logs grafana datasource"
-      git push origin HEAD
-      argocd app wait grafana --port-forward --port-forward-namespace argocd --health --timeout 180
+      source .env_hop
+      kubectl run -n default --rm -it curl-frank \
+        --image=curlimages/curl \
+        --overrides='{"spec":{"securityContext":{"runAsUser":100}}}' -- \
+        curl -sf http://192.168.55.225:9428/metrics | head -3
       ```
 
-      Restart the Grafana Pod so the new datasource and plugin load:
+      Expected: VictoriaLogs metrics from Hop. If timeout, on Hop check the Tailscale DaemonSet pod's mesh status:
 
       ```bash
-      kubectl rollout restart deploy/grafana -n grafana
-      kubectl rollout status deploy/grafana -n grafana --timeout 120s
+      kubectl -n headscale-system exec ds/tailscale -- tailscale status | head -10
+      kubectl -n headscale-system exec ds/tailscale -- tailscale ping 192.168.55.225
       ```
-  - id: P1.T2.S3
-    text: |-
-      Verify in Grafana UI (https://grafana.cluster.derio.net or LB IP
-      192.168.55.203 over mesh): navigate to Configuration → Data sources →
-      VictoriaLogs → "Save & test" returns green.
 
-      Then in Explore: select VictoriaLogs datasource, query `*` for the
-      last 5 min. Expected: empty result set (no logs yet — vlagent isn't
-      shipping). No errors.
+      (Verify the actual Tailscale DaemonSet namespace/name in `clusters/hop/apps/headscale/manifests/` before running.)
 - number: 3
   title: Switch Hop's Caddy to JSON access logs
   steps:
   - id: P1.T3.S1
     text: |-
-      Read `clusters/hop/apps/caddy/manifests/configmap.yaml` to confirm
-      current structure. Add a global `log access` directive:
+      Read `clusters/hop/apps/caddy/manifests/configmap.yaml` to confirm current structure. Add a global `log access` directive at the top of the `data.Caddyfile` block:
 
       ```caddyfile
       {
@@ -159,11 +143,10 @@ tasks:
       }
       ```
 
-      Place at the top of the file's `data.Caddyfile` block, before any
-      site definitions.
+      Place before any site definitions.
   - id: P1.T3.S2
     text: |-
-      Commit and push. Hop's ArgoCD picks up the ConfigMap change.
+      Commit and push:
 
       ```bash
       git add clusters/hop/apps/caddy/manifests/configmap.yaml
@@ -171,15 +154,14 @@ tasks:
       git push origin HEAD
       ```
 
-      Wait for sync (Hop's ArgoCD is separate from Frank's):
+      Wait for Hop's ArgoCD sync (Hop's ArgoCD is separate from Frank's):
 
       ```bash
       source .env_hop
-      kubectl get application caddy -n argocd -o jsonpath='{.status.sync.status}'
-      # Expected: Synced
+      kubectl -n argocd get application caddy -o jsonpath='{.status.sync.status}'  # Expected: Synced
       ```
 
-      Wait for ConfigMap projection (~30–60s) then restart Caddy:
+      ConfigMap projection takes ~30–60s. Restart Caddy (note: existing strategy is `Recreate` per the hop-gotcha — hostPort + RollingUpdate would deadlock; do not change strategy):
 
       ```bash
       kubectl rollout restart deploy/caddy -n caddy-system
@@ -193,203 +175,185 @@ tasks:
       kubectl logs -n caddy-system deploy/caddy --tail 20 | grep -E '"msg":"handled request"' | head -3
       ```
 
-      Expected: lines like
-      `{"level":"info","ts":..,"logger":"http.log.access","msg":"handled request","request":{"remote_ip":"...","host":"blog.derio.net","uri":"/frank/..."},"status":200,...}`.
+      Expected output shape:
+      `{"level":"info","ts":..,"logger":"http.log.access","msg":"handled request","request":{"remote_ip":"...","host":"blog.derio.net","uri":"/frank/..."},"status":200,...}`
 
-      From an external machine, hit the blog:
+      From an external machine:
 
       ```bash
       curl -sI https://blog.derio.net/frank/ | head -1
       ```
 
-      Confirm the access log line appears in Caddy's stdout.
+      Confirm the corresponding access log line appears in Caddy's stdout.
 - number: 4
-  title: Deploy vlagent DaemonSet on Hop
+  title: Deploy fluent-bit on Hop targeting Frank's VictoriaLogs LB
   steps:
   - id: P1.T4.S1
     text: |-
-      Research the VictoriaLogs vlagent (vlogs-agent) Helm chart or
-      manifest pattern. The official path is `vm/victoria-logs-vlogsagent`
-      or the equivalent in `vm-operator`. Confirm chart name:
+      Read Frank's existing fluent-bit config — we mirror it with one output URL change:
 
       ```bash
-      helm search repo vm | grep -i 'log.*agent\|vlogs'
+      cat apps/fluent-bit/values.yaml
+      cat apps/root/templates/fluent-bit.yaml
       ```
 
-      Pick the canonical chart and pin a version.
+      The proven pattern: chart `fluent/fluent-bit` version `0.56.0`, release `fluent-bit`, namespace `monitoring`, DaemonSet that tails `/var/log/containers/*.log` and writes via HTTP to the VictoriaLogs `/insert/jsonline` endpoint.
   - id: P1.T4.S2
     text: |-
-      Create `clusters/hop/apps/observability/values.yaml` with the
-      DaemonSet configuration. Acquisition: tail Caddy stdout via
-      `/var/log/pods/caddy-system_caddy-*/caddy/*.log` (kubelet path);
-      destination: the Frank VictoriaLogs ClusterIP via Tailscale subnet
-      route.
+      Create `clusters/hop/apps/fluent-bit/values.yaml`. Copy Frank's config verbatim except the output Host points at the LB IP:
 
-      Key settings:
+      BEGIN clusters/hop/apps/fluent-bit/values.yaml
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
 
-      ```yaml
-      deployment:
-        kind: DaemonSet
-      remoteWrite:
-        url: http://<frank-vlogs-clusterip>:9428/insert/jsonline
-        extraHeaders:
-          AccountID: "0"
-          ProjectID: "0"
-      scrape:
-        files:
-          - /var/log/pods/caddy-system_caddy-*/caddy/*.log
-          - /var/log/pods/crowdsec-system_*/agent/*.log
-          - /var/log/pods/falco-system_*/falco/*.log
-      volumeMounts:
-        - name: varlogpods
-          mountPath: /var/log/pods
-          readOnly: true
-      volumes:
-        - name: varlogpods
-          hostPath: { path: /var/log/pods, type: Directory }
+      config:
+        inputs: |
+          [INPUT]
+              Name              tail
+              Path              /var/log/containers/*.log
+              multiline.parser  docker, cri
+              Tag               kube.*
+              Mem_Buf_Limit     5MB
+              Skip_Long_Lines   On
+
+        filters: |
+          [FILTER]
+              Name                kubernetes
+              Match               kube.*
+              Kube_URL            https://kubernetes.default.svc:443
+              Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+              Kube_Tag_Prefix     kube.var.log.containers.
+              Merge_Log           On
+              Keep_Log            Off
+              K8S-Logging.Parser  On
+              K8S-Logging.Exclude On
+
+        outputs: |
+          [OUTPUT]
+              Name            http
+              Match           kube.*
+              Host            192.168.55.225
+              Port            9428
+              URI             /insert/jsonline?_stream_fields=stream,kubernetes_pod_name,kubernetes_namespace_name,kubernetes_container_name&_msg_field=log&_time_field=time
+              Format          json_lines
+              Json_Date_Key   time
+              Json_Date_Format iso8601
+              Retry_Limit     False
+
       resources:
-        requests: {cpu: 10m, memory: 32Mi}
-        limits: {memory: 64Mi}
-      ```
-
-      The exact key names depend on the chart — adapt from the values
-      dump in S1.
+        requests:
+          cpu: 10m
+          memory: 40Mi
+        limits:
+          memory: 80Mi
+      END clusters/hop/apps/fluent-bit/values.yaml
   - id: P1.T4.S3
     text: |-
-      Create `clusters/hop/apps/observability/manifests/` only if there are
-      raw manifests beyond Helm values (e.g., a Tailscale-routed Endpoint
-      stub if vlagent can't resolve a cross-cluster ClusterIP). Most
-      likely not needed.
+      Create the Application CR by copying Frank's pattern. New file `clusters/hop/apps/root/templates/fluent-bit.yaml`:
 
-      Create `clusters/hop/apps/root/templates/observability.yaml`
-      (Application CR). Adapt the multi-source pattern. Namespace:
-      `observability`. Add `ns-observability.yaml` if missing.
+      BEGIN clusters/hop/apps/root/templates/fluent-bit.yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: fluent-bit
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: default
+        sources:
+          - repoURL: https://fluent.github.io/helm-charts
+            chart: fluent-bit
+            targetRevision: "0.56.0"
+            helm:
+              releaseName: fluent-bit
+              valueFiles:
+                - $values/clusters/hop/apps/fluent-bit/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: monitoring
+        syncPolicy:
+          automated:
+            selfHeal: true
+          syncOptions:
+            - ServerSideApply=true
+            - CreateNamespace=true
+      END clusters/hop/apps/root/templates/fluent-bit.yaml
+
+      Verify the `monitoring` namespace block — Hop doesn't currently have one, so `CreateNamespace=true` is correct.
   - id: P1.T4.S4
     text: |-
-      Commit and push:
+      Commit and push. Hop's ArgoCD picks it up:
 
       ```bash
-      git add clusters/hop/apps/observability/ clusters/hop/apps/root/templates/observability.yaml clusters/hop/apps/root/templates/ns-observability.yaml
-      git commit -m "feat(obs): deploy vlagent daemonset on hop"
+      git add clusters/hop/apps/fluent-bit/ clusters/hop/apps/root/templates/fluent-bit.yaml
+      git commit -m "feat(obs): deploy fluent-bit on hop shipping to frank vlogs"
       git push origin HEAD
       ```
 
-      Wait for Hop's ArgoCD sync:
+      Wait for sync:
 
       ```bash
       source .env_hop
-      kubectl get application observability -n argocd
-      kubectl get pods -n observability -w
-      ```
+      kubectl get application fluent-bit -n argocd -o jsonpath='{.status.sync.status} {.status.health.status}'
+      # Expected: Synced Healthy
 
-      Expected: vlagent Pod Running on hop-1.
+      kubectl -n monitoring get pods -l app.kubernetes.io/name=fluent-bit -w
+      # Expected: fluent-bit-* Pod Running on hop-1
+      ```
   - id: P1.T4.S5
     text: |-
-      Verify logs reach Frank's VictoriaLogs. From a workstation with
-      Frank's kubeconfig:
+      Verify logs reach Frank's VictoriaLogs. From Frank:
 
       ```bash
       source .env
-      kubectl exec -n observability deploy/grafana -- \
-        curl -sG http://victoria-logs-single-server.observability.svc:9428/select/logsql/query \
-        --data-urlencode 'query=_time:5m caddy' --data-urlencode 'limit=5'
+      kubectl exec -n monitoring deploy/grafana -- \
+        curl -sG http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428/select/logsql/query \
+        --data-urlencode 'query=_time:5m _msg:caddy AND kubernetes_namespace_name:caddy-system' \
+        --data-urlencode 'limit=5'
       ```
 
-      Expected: JSON output with at least 1 hit containing
-      `"host":"blog.derio.net"`. If empty, check vlagent's logs on Hop:
+      Expected: at least 1 JSON line containing `"host":"blog.derio.net"`. If empty, check Hop's fluent-bit:
 
       ```bash
       source .env_hop
-      kubectl logs -n observability ds/vlagent --tail 50
+      kubectl logs -n monitoring ds/fluent-bit --tail 50 | grep -E 'error|http|connect'
       ```
 
-      Common failures: cross-cluster DNS resolution (use the Frank
-      ClusterIP directly, not the FQDN), missing hostPath mount, JSON
-      parse errors (Caddy log format mismatch).
+      Common failures: cannot reach 192.168.55.225 (subnet route issue — see P1.T2), or the kubernetes filter's RBAC missing (chart usually creates the ServiceAccount + ClusterRoleBinding automatically; verify `kubectl -n monitoring get sa,clusterrolebinding | grep fluent-bit`).
   - id: P1.T4.S6
     text: |-
-      **Memory budget check (Hop).** Mandatory exit step for every
-      Hop-affecting phase per the spec.
+      **Memory budget check (Hop).** Mandatory exit step for every Hop-affecting phase per the spec.
 
       ```bash
       source .env_hop
       kubectl describe node hop-1 | grep -A 5 "Allocated resources"
       ```
 
-      Expected: `memory` limits < 85% of 3263780Ki (~2774 Mi). Pre-phase
-      baseline was 73% — adding ~64 Mi limit pushes to ~75%. If the
-      actual percentage exceeds 85%, raise it as a finding before
-      proceeding to phase 2.
+      Expected memory limits < 85% of 3263780Ki (~2774 Mi). Pre-phase baseline was 73%; adding 80Mi fluent-bit limit moves it to ~75%. If actual % exceeds 85%, raise as a finding before phase 2.
 state:
   steps:
-    P1.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T3.S3:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T4.S2:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T4.S3:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T4.S4:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T4.S5:
-      state: ' '
-      ticked_at: null
-      note: null
-    P1.T4.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+    P1.T1.S1: {state: ' ', ticked_at: null, note: null}
+    P1.T1.S2: {state: ' ', ticked_at: null, note: null}
+    P1.T1.S3: {state: ' ', ticked_at: null, note: null}
+    P1.T1.S4: {state: ' ', ticked_at: null, note: null}
+    P1.T1.S5: {state: ' ', ticked_at: null, note: null}
+    P1.T2.S1: {state: ' ', ticked_at: null, note: null}
+    P1.T3.S1: {state: ' ', ticked_at: null, note: null}
+    P1.T3.S2: {state: ' ', ticked_at: null, note: null}
+    P1.T3.S3: {state: ' ', ticked_at: null, note: null}
+    P1.T4.S1: {state: ' ', ticked_at: null, note: null}
+    P1.T4.S2: {state: ' ', ticked_at: null, note: null}
+    P1.T4.S3: {state: ' ', ticked_at: null, note: null}
+    P1.T4.S4: {state: ' ', ticked_at: null, note: null}
+    P1.T4.S5: {state: ' ', ticked_at: null, note: null}
+    P1.T4.S6: {state: ' ', ticked_at: null, note: null}
   completion:
     at: null
     note: null
