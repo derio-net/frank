@@ -34,7 +34,7 @@ DATA_DIR = REPO_ROOT / "blog" / "data" / "papers"
 def render(sources: list[dict]) -> str:
     """Serialize sources to a stable YAML string."""
     payload = {"primary_sources": sources}
-    return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, width=1000)
+    return yaml.safe_dump(payload, sort_keys=False, allow_unicode=True, width=10**9)
 
 
 def sync_one(slug: str, output: Path | None = None) -> Path:

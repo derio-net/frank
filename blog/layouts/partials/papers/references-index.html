@@ -8,39 +8,40 @@
        per-paper data files have a `primary_sources` key. */}}
   {{ if and (reflect.IsMap $data) (isset $data "primary_sources") }}
   {{ $paperPage := $.Site.GetPage (printf "/docs/papers/%s" $slug) }}
-  {{ $paperTitle := $slug }}
-  {{ $paperNumber := 0 }}
+  {{/* Orphan-dossier guard: skip the entire merge when the paper bundle is
+       missing. Safer failure mode than silently rendering "Paper 0 — <slug>"
+       — the source simply doesn't appear in the cross-series index. */}}
   {{ with $paperPage }}
-    {{ $paperTitle = .Title }}
-    {{ $paperNumber = .Params.paper_number | default 0 }}
-  {{ end }}
-  {{ range $data.primary_sources }}
-    {{ $url := .url }}
-    {{ $existing := index $byUrl $url }}
-    {{ if not $existing }}
-      {{ $byUrl = merge $byUrl (dict $url (dict
-        "title" .title
-        "type" .type
-        "quoted_passages" .quoted_passages
-        "citations" (slice (dict
+    {{ $paperTitle := .Title }}
+    {{ $paperNumber := .Params.paper_number | default 0 }}
+    {{ range $data.primary_sources }}
+      {{ $url := .url }}
+      {{ $existing := index $byUrl $url }}
+      {{ if not $existing }}
+        {{ $byUrl = merge $byUrl (dict $url (dict
+          "title" .title
+          "type" .type
+          "quoted_passages" .quoted_passages
+          "citations" (slice (dict
+            "paper_slug" $slug
+            "paper_title" $paperTitle
+            "paper_number" $paperNumber
+            "relevance" .relevance
+          ))
+        )) }}
+      {{ else }}
+        {{ $merged_quotes := union $existing.quoted_passages .quoted_passages }}
+        {{ $merged_citations := append (dict
           "paper_slug" $slug
           "paper_title" $paperTitle
           "paper_number" $paperNumber
           "relevance" .relevance
-        ))
-      )) }}
-    {{ else }}
-      {{ $merged_quotes := union $existing.quoted_passages .quoted_passages }}
-      {{ $merged_citations := append (dict
-        "paper_slug" $slug
-        "paper_title" $paperTitle
-        "paper_number" $paperNumber
-        "relevance" .relevance
-      ) $existing.citations }}
-      {{ $byUrl = merge $byUrl (dict $url (merge $existing (dict
-        "quoted_passages" $merged_quotes
-        "citations" $merged_citations
-      ))) }}
+        ) $existing.citations }}
+        {{ $byUrl = merge $byUrl (dict $url (merge $existing (dict
+          "quoted_passages" $merged_quotes
+          "citations" $merged_citations
+        ))) }}
+      {{ end }}
     {{ end }}
   {{ end }}
   {{ end }}
