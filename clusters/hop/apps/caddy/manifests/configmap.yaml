@@ -45,6 +45,14 @@ data:
       respond "Coming soon." 200
     }
 
+    # Analytics ingest (public) — reverse-proxies over Tailscale mesh to
+    # GoatCounter on Frank (Cilium L2 LoadBalancer 192.168.55.224).
+    # The mesh-only admin UI lives at https://counter.cluster.derio.net.
+    counter.derio.net {
+      log
+      reverse_proxy 192.168.55.224:8080
+    }
+
     # --- Private routes (Tailscale mesh only) ---
 
     # Headplane (Headscale admin UI — app lives at /admin/ base path)
