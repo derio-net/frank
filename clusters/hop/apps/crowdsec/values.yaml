@@ -17,6 +17,30 @@ lapi:
     # Install Caddy collection + HTTP scenarios on LAPI's bundled agent.
     - name: COLLECTIONS
       value: "crowdsecurity/caddy crowdsecurity/base-http-scenarios crowdsecurity/http-cve crowdsecurity/http-dos"
+    # Bouncer key for the Caddy bouncer, sourced from a Secret in the same
+    # namespace so the postStart hook can register it idempotently after
+    # every LAPI restart (we have no persistent volume).
+    - name: CADDY_HOP_BOUNCER_KEY
+      valueFrom:
+        secretKeyRef:
+          name: crowdsec-bouncer-keys
+          key: caddy-hop
+  lifecycle:
+    postStart:
+      exec:
+        command:
+          - /bin/sh
+          - -c
+          - |
+            # Wait for the LAPI to accept registrations after pod start.
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              if cscli bouncers list >/dev/null 2>&1; then break; fi
+              sleep 2
+            done
+            # Idempotent: if the bouncer already exists, this errors and we
+            # ignore. Otherwise it's added with the fixed key from Secret.
+            cscli bouncers add caddy-hop -k "$CADDY_HOP_BOUNCER_KEY" 2>/dev/null \
+              || echo "bouncer caddy-hop already exists or registration failed"
   resources:
     requests:
       cpu: 25m
