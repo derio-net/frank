@@ -1404,6 +1404,59 @@ images:
       EXACTLY ONE FIGURE — one single Frank. Any visible text in the
       scene must be readable English (no garbled letters).
 
+  - key: building-31-edge-observability
+    series: building
+    torso_variant: 0
+    mood: focused
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-gear-shirt-binoculars.png
+    output: blog/content/docs/building/31-edge-observability/cover.png
+    description: "Building Edge Observability — Frank wiring three watchful instruments into a small edge outpost while a larger homelab tower listens on the other end of a long copper cable"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster crouched at a
+      small wooden workbench on a windswept clifftop. The bench sits
+      atop a tiny single-node edge outpost — a stunted half-rack
+      labelled "HOP" with a single LED blinking on its side. Frank is
+      mounting three small brass instruments onto the side of the
+      outpost, one above the other, each glowing softly: top is a
+      pageview counter (a small odometer-style dial reading "1,593"),
+      middle is a heavy ward-key labelled "CrowdSec" hanging from a
+      hook with a tiny "403" ticket already dangling from it, bottom
+      is a tripwire and a small bell labelled "Falco". A thick coil
+      of copper cable runs from the outpost across the cliff,
+      disappearing toward the horizon where a much larger glowing
+      data-centre tower — labelled "FRANK" — is faintly visible in
+      the dusk, lights on, listening. The cable is tagged
+      "192.168.55.0/24" with a small chalk note. On the workbench:
+      a soldering iron, a coiled schematic with "fluent-bit → Loki"
+      visible, three reject parts stacked off to the side (a tiny
+      bouncer-key card, a Caddy 2.9 plate crossed out, a yaml file
+      stamped "WRONG"). Frank holds a small chrome telescope-monocle
+      in one hand and a wiring diagram in the other; his torso has
+      an open panel showing wires running INTO the instruments —
+      he's not just building, he's wired into the watch. Workshop
+      lamplight on the bench, deep blue dusk sky behind, faint
+      electric-blue rim light on the copper cable and the brass
+      instruments. The ONLY readable text is: "HOP" on the outpost,
+      "FRANK" on the distant tower, "CrowdSec", "Falco", "1,593",
+      "192.168.55.0/24" — no other captions, no watermarks. ONE
+      FIGURE — one single Frank.
+      CRITICAL CHARACTER FIDELITY (match the reference image exactly):
+      Frank's face has NO NOSE — absolutely flat between the eyes and
+      mouth, no nostrils, no nose bridge, no nose shadow. Match the
+      reference. His face has VISIBLE STITCHES AND PATCHES — a prominent
+      vertical Frankenstein-stitch scar running down the center of his
+      forehead, an asymmetric patch of slightly darker green skin on one
+      cheek with a small horizontal stitch line, and a second short
+      stitch near the jaw or temple. Skin is uneven cartoon green, not
+      flat. Messy black hair flat-top with jagged outline. Black eyes
+      with white pupils. Mouth: closed, calm focused expression, NO
+      fangs, NO teeth. RJ45-connector neck bolts (two, one each side
+      of the neck) sparking faint blue electricity. Same chibi
+      proportions and same face design as the reference image — use
+      the reference as a strict character sheet, only change pose,
+      expression, scene, and lighting.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -1974,3 +2027,55 @@ images:
       a capability matrix — the per-paper diagram types. The
       "DOSSIER GATE" sign and the five checklist labels are the only
       writing in the image. ONE figure — one single Frank.
+  - key: ops-26-edge-observability
+    series: operating
+    torso_variant: 1
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-suit.png
+    output: blog/content/docs/operating/26-edge-observability/cover.png
+    description: "Operating Edge Observability — Frank at a three-monitor operations desk inspecting the blog edge layer's live signals"
+    prompt: >-
+      Frank the server-hardware Frankenstein monster seated at a wide
+      operations desk in a dim server room, facing three side-by-side
+      monitors arranged in a shallow arc. The LEFT monitor shows a
+      blog traffic timeseries graph rising and falling smoothly, with
+      a callout "1,593 / 24h" and a small Grafana dashboard title
+      "Blog overview". The CENTER monitor shows a CrowdSec decisions
+      table with several rows of recent bans (small flags next to
+      countries), the title "Security events", and one row
+      highlighted with a flashing yellow "→ 403" tag. The RIGHT
+      monitor shows a stream of Falco event log lines scrolling, with
+      one critical-priority line highlighted in red and a side panel
+      "Falco events by priority". Beneath the monitors, a long
+      terminal window stretches across the desk with a single
+      LogsQL query visible: "_time:5m kubernetes.namespace_name:caddy-system"
+      — and a green prompt cursor at the end. His right hand rests
+      on a small mechanical keyboard, his left hand on a small
+      illuminated dial labelled "ai-alert-helper / digest 08:00 UTC".
+      On the desk: a coffee mug with the Frank Papers logo, a
+      half-eaten sandwich, an open notebook with the page reading
+      "queryType: stats — not instant" underlined twice. A small
+      Telegram chat bubble floats in the upper-right corner showing
+      a recent message preview: "📊 Yesterday on the Frank blog".
+      He wears a dark hoodie and sunglasses pushed up on his
+      forehead — operator on shift. Dark server room with cool
+      teal and amber accent lighting from the racks behind him.
+      Calm operational mood — routine watch, not crisis.
+      CRITICAL CHARACTER FIDELITY (match the reference image exactly):
+      Frank's face has NO NOSE — absolutely flat between the eyes and
+      mouth, no nostrils, no nose bridge, no nose shadow. Match the
+      reference. His face has VISIBLE STITCHES AND PATCHES — a prominent
+      vertical Frankenstein-stitch scar running down the center of his
+      forehead, an asymmetric patch of slightly darker green skin on one
+      cheek with a small horizontal stitch line, and a second short
+      stitch near the jaw or temple. Skin is uneven cartoon green, not
+      flat. Messy black hair flat-top with jagged outline. Black eyes
+      with white pupils. Mouth: closed, calm focused expression, NO
+      fangs, NO teeth. RJ45-connector neck bolts (two, one each side
+      of the neck) sparking faint blue electricity. Same chibi
+      proportions and same face design as the reference image — use
+      the reference as a strict character sheet, only change pose,
+      expression, scene, and lighting. The ONLY readable text is the
+      labels described above — no other captions, no watermarks.
+      ONE FIGURE — one single Frank.
