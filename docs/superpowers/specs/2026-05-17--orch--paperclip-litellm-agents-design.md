@@ -1,6 +1,6 @@
 # Paperclip via LiteLLM (opencode + hermes adapters) — Design
 
-**Status:** Deployed (2026-05-22 — both `opencode_local` and `hermes_local` adapters hired and routing through LiteLLM; gotchas + manual-ops runbook entries synced; building/operating post retroactive updates still pending)
+**Status:** Deployed (2026-05-22 — both `opencode_local` and `hermes_local` adapters hired and routing through LiteLLM; gotchas + manual-ops runbook entries synced. 2026-05-23 — building/15-paperclip + operating/18-paperclip retroactive updates landed, closing the Phase 6 deferral)
 **Layer:** `orch`
 **Spec date:** 2026-05-17
 

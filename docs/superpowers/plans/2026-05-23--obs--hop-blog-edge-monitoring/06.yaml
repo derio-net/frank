@@ -181,10 +181,16 @@ state:
         DNS A record, crowdsec community blocklists, bouncer key, falco telegram secret,
         ai-alert-helper secrets bundle
     P6.T2.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-24T09:08:36+00:00'
+      note: All cluster workload phases (1-5) deployed and verified end-to-end. Paper
+        + blog posts deferred per user instruction (Paper-writing session to follow
+        as a separate PR, not main-commit).
   completion:
-    at: null
-    note: null
+    at: '2026-05-24T09:08:50+00:00'
+    note: 'Cluster-side work complete and verified end-to-end across phases 1-5: log
+      shipping, analytics, edge security, runtime monitoring, AI helper all live.
+      Paper + building/operating posts deferred to a dedicated creative session (user
+      instruction: create a PR for those, not commit to main). README and manual-operations
+      runbook updated inline.'
     observed_prs: []

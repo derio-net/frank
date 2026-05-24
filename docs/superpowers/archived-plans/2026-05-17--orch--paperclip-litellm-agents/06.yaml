@@ -41,14 +41,14 @@ tasks:
 state:
   steps:
     P6.T1.S1:
-      state: '-'
-      ticked_at: '2026-05-22T20:17:08+00:00'
-      note: Sub-step 4 (blog retroactive updates) DEFERRED — building post 15-paperclip
-        + paperclip operating post not yet updated with LiteLLM-backed adapter section.
-        Steps 5 (gotcha), 7 (runbook synced this session), 8 (spec status flipped
-        to Deployed) complete. Steps 1/2/3/6 skipped per fix/extension rules.
+      state: x
+      ticked_at: '2026-05-23T18:44:31+00:00'
+      note: 'Deferred blog retroactive updates (S4) completed: building/15-paperclip
+        + operating/18-paperclip now cover both LiteLLM-backed adapters, the XDG_CONFIG_HOME/HERMES_HOME
+        config-vs-state split, the model-shape divergence, the PR #296 wrapper false-start,
+        and the session-ID truncation bug + persistSession:false workaround.'
   completion:
-    at: '2026-05-22T20:17:09+00:00'
-    note: Most checklist items done (gotcha line, runbook sync, spec Deployed). Blog
-      retroactive updates explicitly deferred — track via the composite step's deferred
-      state.
+    at: '2026-05-23T18:44:58+00:00'
+    note: All checklist items now done. S5 gotcha line, S7 runbook (3 manual-ops),
+      S8 spec=Deployed completed 2026-05-22; S4 building+operating retroactive updates
+      landed 2026-05-23. S1/S2/S3/S6 skipped per fix/extension rules.

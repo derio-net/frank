@@ -1,7 +1,15 @@
 # Hop Blog Edge Monitoring — Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-05-23--obs--hop-blog-edge-monitoring-design.md`
-**Status:** Planning — drafted on top of approved spec.
+**Status:** Deployed — cluster phases 1–5 verified end-to-end on 2026-05-24. Paper + building/operating blog posts deferred to a dedicated creative session.
+
+> **Note for the future Paper-writing session (P6.T1):**
+> Per user instruction (2026-05-24): create a Pull Request for the Paper +
+> building post + operating post. **Do not commit directly to main.**
+> The rest of the obs layer was developed directly on main because
+> ArgoCD only syncs from main — that workflow doesn't apply to the
+> documentation work, which goes through Hugo CI and benefits from PR
+> review before publishing.
 
 Hop (Hetzner CX23) has no observability for the public blog at
 `blog.derio.net/frank`. This plan adds, in six phases, a complete

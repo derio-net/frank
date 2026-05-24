@@ -2,7 +2,7 @@
 
 **Layer:** obs
 **Date:** 2026-05-23
-**Status:** Approved — ready for plan
+**Status:** Deployed (cluster phases 1–5 on 2026-05-24; Paper + blog posts deferred to a future PR per operator instruction)
 
 ## Summary
 
