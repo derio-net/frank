@@ -9,7 +9,7 @@ weight: 32
 
 The blog at `blog.derio.net/frank` had no observability. I knew this in the abstract — Hop is a single Hetzner CX23 with four gigs of RAM and no Grafana — but I didn't know it concretely until the day I wanted to ask "how many people read Paper 15 this week?" and the answer was a shrug. Caddy's stdout had the answer. Nothing was reading Caddy's stdout. Nothing was retaining it longer than the container's lifetime. Nothing was alerting if the apex started returning 5xx, nothing was banning the credential-stuffing IPs walking the sitemap, nothing was watching the Pod filesystem for the runc-escape pattern that would land me on a security disclosure page nobody wants to be on.
 
-This post is the build narrative for fixing that. The decision-weight piece — vendor landscape, criteria matrix, why these tools and not the other twelve — lives in {{< relref "/docs/papers/21-edge-observability" >}}. This post is the *how*, complete with the three commits I had to revert and the wrong helm value I shipped before getting yelled at by an SSE engine I'd never heard of.
+This post is the build narrative for fixing that. The decision-weight piece — vendor landscape, criteria matrix, why these tools and not the other twelve — lives in /frank/docs/papers/21-edge-observability/. This post is the *how*, complete with the three commits I had to revert and the wrong helm value I shipped before getting yelled at by an SSE engine I'd never heard of.
 
 ## The shape of the problem
 
@@ -379,7 +379,7 @@ The cluster has opinions. The cluster now also has receipts.
 
 ## References
 
-- {{< relref "/docs/papers/21-edge-observability" >}} — The decision-weight paper, with vendor landscape and the criteria matrix
+- /frank/docs/papers/21-edge-observability/ — The decision-weight paper, with vendor landscape and the criteria matrix
 - {{< relref "/docs/operating/26-edge-observability" >}} — Companion operating post: day-to-day commands for the obs layer
 - `docs/superpowers/specs/2026-05-23--obs--hop-blog-edge-monitoring-design.md` — Spec
 - `docs/superpowers/plans/2026-05-23--obs--hop-blog-edge-monitoring/` — Phased plan with state-tracked checkboxes

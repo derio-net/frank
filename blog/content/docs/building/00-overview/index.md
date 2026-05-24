@@ -136,3 +136,5 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 22. [Operating on CI/CD Platform]({{< relref "/docs/operating/22-cicd-platform" >}})
 23. [Operating on ArgoCD Drift]({{< relref "/docs/operating/23-argocd-drift-detective" >}})
 24. [Operating on Ruflo]({{< relref "/docs/operating/24-ruflo" >}})
+25. [Operating The Frank Papers — Research, Dossiers, and Publishing]({{< relref "/docs/operating/25-frank-papers" >}})
+26. [Operating Edge Observability — Day-to-Day Commands for the Obs Layer]({{< relref "/docs/operating/26-edge-observability" >}})
