@@ -46,6 +46,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 ### Grafana — `docs/runbooks/frank-gotchas/grafana.md`
 - File-provisioned alerts/dashboards in `apps/grafana-alerting/manifests/` are read-only in UI; edit ConfigMap, push, restart pod (provisioning files are read at boot, not watched).
 - 12.x SSE alert rules need 3-step A→B→C; classic-condition format fails with `sse.parseError`.
+- VictoriaLogs alert rules must set `model.queryType: stats` (hits `/select/logsql/stats_query`, returns wide). Default `instant` hits `/select/logsql/query` which returns a long series of log lines, and SSE `reduce` rejects it with `input data must be a wide series but got type long`.
 - `kube_pod_status_ready{condition="true"}` false-positives in batch namespaces (Tekton, Jobs); use `kube_deployment_status_replicas_unavailable` instead.
 - Provisioning env-var coercion turns numbers into ints — use YAML block scalars to force string.
 - "Cannot change provenance from 'api' to 'file'" → delete the API rows from sqlite first (scale down → DELETE → scale up).
