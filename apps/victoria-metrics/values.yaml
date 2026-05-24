@@ -61,6 +61,7 @@ grafana:
   # Install VictoriaLogs datasource plugin (pre-installs on pod start)
   plugins:
     - victoriametrics-logs-datasource
+    - yesoreyeram-infinity-datasource
   # VictoriaLogs datasource is provisioned declaratively via grafana-victorialogs-ds ConfigMap.
   # extraConfigmapMounts mounts it into /etc/grafana/provisioning/datasources/.
   extraConfigmapMounts:
@@ -68,6 +69,12 @@ grafana:
       mountPath: /etc/grafana/provisioning/datasources/victorialogs.yaml
       subPath: victorialogs-datasource.yaml
       configMap: grafana-victorialogs-datasource
+      readOnly: true
+    # GoatCounter analytics datasource (Infinity HTTP plugin), obs layer
+    - name: goatcounter-datasource
+      mountPath: /etc/grafana/provisioning/datasources/goatcounter.yaml
+      subPath: goatcounter-datasource.yaml
+      configMap: grafana-goatcounter-datasource
       readOnly: true
     # --- Alerting provisioning (rules, contact points, notification policy) ---
     - name: alerting-rules
@@ -112,6 +119,8 @@ grafana:
     - name: grafana-oidc-secret
       optional: false
     - name: grafana-alerting-secrets
+      optional: true
+    - name: grafana-goatcounter-token
       optional: true
   grafana.ini:
     server:

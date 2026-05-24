@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-goatcounter-datasource
+  namespace: monitoring
+data:
+  goatcounter-datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: GoatCounter
+        type: yesoreyeram-infinity-datasource
+        access: proxy
+        url: https://counter.cluster.derio.net
+        isDefault: false
+        version: 1
+        editable: false
+        jsonData:
+          # Default auth: Bearer token from env (provisioned by extraConfigmapMounts).
+          # The GoatCounter API token has count + export + site_read perms.
+          auth_method: bearerToken
+          httpHeaderName1: "Authorization"
+          # Infinity uses tlsSkipVerify=false by default; counter.cluster.derio.net
+          # has a Let's Encrypt cert via Traefik cloudflare resolver.
+        secureJsonData:
+          bearerToken: ${OBS_GOATCOUNTER_API_TOKEN}
