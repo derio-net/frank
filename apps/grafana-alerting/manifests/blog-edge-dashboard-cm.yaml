@@ -1,0 +1,123 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-blog-edge-dashboard
+  namespace: monitoring
+data:
+  blog-edge-provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: blog-edge
+        folder: blog-edge
+        type: file
+        disableDeletion: true
+        editable: false
+        options:
+          path: /var/lib/grafana/dashboards/blog-edge
+  blog-overview.json: |
+    {
+      "uid": "blog-overview",
+      "title": "Blog overview",
+      "tags": ["blog-edge", "obs"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "refresh": "1m",
+      "time": { "from": "now-24h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Requests in window (Caddy access logs)",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "VictoriaLogs" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "kubernetes.namespace_name:caddy-system AND _msg:\"handled request\" AND kubernetes.host:hop-1 | stats count() as count",
+              "queryType": "stats"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": { "unit": "short", "thresholds": { "mode": "absolute", "steps": [{"color":"green","value":null}] } }
+          }
+        },
+        {
+          "id": 2,
+          "type": "timeseries",
+          "title": "Caddy requests per minute (Hop)",
+          "gridPos": { "h": 8, "w": 18, "x": 6, "y": 0 },
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "VictoriaLogs" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "kubernetes.namespace_name:caddy-system AND _msg:\"handled request\" AND kubernetes.host:hop-1 | stats by (_time:1m) count() as requests"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Total pageviews (GoatCounter)",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "GoatCounter" },
+          "targets": [
+            {
+              "refId": "A",
+              "type": "json",
+              "source": "url",
+              "format": "table",
+              "url": "/api/v0/stats/total",
+              "url_options": { "method": "GET" },
+              "root_selector": "",
+              "columns": [
+                { "selector": "total", "text": "Total", "type": "number" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "table",
+          "title": "Top pages (GoatCounter)",
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "GoatCounter" },
+          "targets": [
+            {
+              "refId": "A",
+              "type": "json",
+              "source": "url",
+              "format": "table",
+              "url": "/api/v0/stats/hits",
+              "url_options": { "method": "GET", "params": [{"key":"limit","value":"10"}] },
+              "root_selector": "hits",
+              "columns": [
+                { "selector": "path", "text": "Path", "type": "string" },
+                { "selector": "count", "text": "Hits", "type": "number" }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "table",
+          "title": "Top referrers (GoatCounter)",
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "datasource": { "type": "yesoreyeram-infinity-datasource", "uid": "GoatCounter" },
+          "targets": [
+            {
+              "refId": "A",
+              "type": "json",
+              "source": "url",
+              "format": "table",
+              "url": "/api/v0/stats/refs",
+              "url_options": { "method": "GET", "params": [{"key":"limit","value":"10"}] },
+              "root_selector": "refs",
+              "columns": [
+                { "selector": "name", "text": "Referrer", "type": "string" },
+                { "selector": "count", "text": "Hits", "type": "number" }
+              ]
+            }
+          ]
+        }
+      ]
+    }
