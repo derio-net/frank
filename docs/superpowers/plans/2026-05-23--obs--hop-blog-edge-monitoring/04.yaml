@@ -270,18 +270,19 @@ state:
         on Talos's containerd/runc setup (no Terminal-shell rule firings), but routine
         syscall events confirm e2e via Loki sink anyway.
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T08:19:47+00:00'
       note: null
     P4.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T08:19:50+00:00'
       note: null
     P4.T3.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-24T08:19:52+00:00'
+      note: Hop memory at 89% limits — slightly above 85% target but matches spec's
+        projection for Falco phase; no OOMKilling observed.
   completion:
-    at: null
+    at: '2026-05-24T08:19:54+00:00'
     note: null
     observed_prs: []
