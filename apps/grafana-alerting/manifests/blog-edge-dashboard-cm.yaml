@@ -121,3 +121,68 @@ data:
         }
       ]
     }
+  security-events.json: |
+    {
+      "uid": "blog-edge-security",
+      "title": "Security events",
+      "tags": ["blog-edge", "obs", "security"],
+      "timezone": "browser",
+      "schemaVersion": 39,
+      "refresh": "1m",
+      "time": { "from": "now-24h", "to": "now" },
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "CrowdSec decisions in window",
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "VictoriaLogs" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "kubernetes.namespace_name:crowdsec-system AND log:Adding AND log:decisions | stats count() as count"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Caddy 403s in window",
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "VictoriaLogs" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "kubernetes.namespace_name:caddy-system AND _msg:\"handled request\" AND status:403 | stats count() as count"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "timeseries",
+          "title": "CrowdSec activity rate (decisions / min)",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 4 },
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "VictoriaLogs" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "kubernetes.namespace_name:crowdsec-system AND log:Adding AND log:decisions | stats by (_time:1m) count() as count"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "logs",
+          "title": "Latest CrowdSec lines",
+          "gridPos": { "h": 10, "w": 24, "x": 0, "y": 12 },
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "VictoriaLogs" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "kubernetes.namespace_name:crowdsec-system",
+              "limit": 50
+            }
+          ]
+        }
+      ]
+    }

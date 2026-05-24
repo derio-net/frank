@@ -392,12 +392,12 @@ state:
       note: Bouncer key generated; secret caddy-crowdsec/caddy-system created out-of-band
         (Infisical seed deferred)
     P3.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T07:55:20+00:00'
       note: null
     P3.T3.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T07:55:22+00:00'
       note: null
     P3.T4.S1:
       state: ' '

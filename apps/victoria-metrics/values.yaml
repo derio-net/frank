@@ -120,6 +120,11 @@ grafana:
       subPath: blog-overview.json
       configMap: grafana-blog-edge-dashboard
       readOnly: true
+    - name: blog-edge-security-dashboard-json
+      mountPath: /var/lib/grafana/dashboards/blog-edge/security-events.json
+      subPath: security-events.json
+      configMap: grafana-blog-edge-dashboard
+      readOnly: true
     - name: sap-dashboard-json
       mountPath: /var/lib/grafana/dashboards/secure-agent-pod/secure-agent-pod.json
       subPath: secure-agent-pod.json

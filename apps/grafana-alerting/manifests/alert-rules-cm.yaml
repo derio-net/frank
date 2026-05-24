@@ -1389,3 +1389,46 @@ data:
             annotations:
               summary: "TLS cert for {{ $labels.instance }} expires in <7 days ({{ humanizeDuration $value }} remaining)"
               runbook: "See docs/investigations/2026-05-11--omni--cert-expiry-incident.md for renewal procedure."
+
+      # =====================================================================
+      # blog-edge folder rules (obs layer phase 3+5) — fired alerts route to
+      # the AI Helper Webhook (added in phase 5). For now they route through
+      # the default Telegram contact point.
+      # =====================================================================
+
+      - orgId: 1
+        name: blog-edge-security
+        folder: blog-edge
+        interval: 1m
+        rules:
+          - uid: crowdsec-decision-burst
+            title: CrowdSec decision burst
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 300, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  expr: 'kubernetes.namespace_name:crowdsec-system AND log:Adding AND log:decisions | stats count() as c'
+              - refId: B
+                relativeTimeRange: { from: 300, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 300, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [10] }
+            noDataState: OK
+            execErrState: Error
+            for: 1m
+            labels:
+              severity: warning
+            annotations:
+              summary: ">10 CrowdSec ban decisions in last 5m"
+              runbook: "blog-edge-security dashboard — investigate by source IP."
