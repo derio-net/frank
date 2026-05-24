@@ -58,6 +58,10 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **agent-images** | Shared base image + per-pod children repo — `agent-base` toolchain + `secure-agent-kali` / `vk-local` children, matrix CI, cross-repo `repository_dispatch`, lockstep bumper PR |
 | **Ruflo (claude-flow + ruvocal)** | Swarm-style AI orchestrator — hybrid pod (ruvocal SSR + agent-shell-base sidecar), LiteLLM-only egress, SSH+Mosh shell on `192.168.55.222`, web UI at `ruflo.cluster.derio.net` |
 | **The Frank Papers** | Third blog series — research-grade landscape reviews framed as decisions; dossier gate (`validate-dossier.py` + pre-commit hook), Mermaid Frank theme, five `papers/` shortcodes, render-time cross-series backlinks. **Prologue published 2026-05-18:** [Why Run Your Own Cluster in 2026?]({{< relref "/docs/papers/00-why-homelab-in-2026" >}}) |
+| **GoatCounter** | Cookieless blog analytics — public beacon via Hop's Caddy at `counter.derio.net`, mesh-only admin at `counter.cluster.derio.net` with Authentik forward-auth (`192.168.55.224`) |
+| **CrowdSec + caddy-crowdsec-bouncer** | Edge HTTP security — agent tails Caddy logs on Hop, Caddy bouncer enforces decisions locally without round-tripping to Frank |
+| **Falco (modern_ebpf) + Falcosidekick** | Container runtime security on Talos — Loki output to VictoriaLogs (Loki push protocol) + direct Telegram for `priority:critical` |
+| **ai-alert-helper** | FastAPI service — daily blog digest, alert-time LLM enrichment, surge detection (hour-of-day baseline computed in Python because LogsQL has no `quantile_over_time`); LiteLLM-backed swap contract for future Sympozium |
 
 ## Cluster State
 
@@ -100,6 +104,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 28. [Agent Images and the VK-Local Sidecar — Unbaking VibeKanban]({{< relref "/docs/building/28-agent-images-sidecar" >}})
 29. [Ruflo — A Swarm Orchestrator Next to Paperclip]({{< relref "/docs/building/29-ruflo" >}})
 30. [Building The Frank Papers — Research Infrastructure for a Third Series]({{< relref "/docs/building/30-frank-papers" >}})
+31. [Building Edge Observability — Watching Frank's Edge Without Watching Frank's Edge Burn]({{< relref "/docs/building/31-edge-observability" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
