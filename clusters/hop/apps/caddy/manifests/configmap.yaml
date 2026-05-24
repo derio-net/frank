@@ -17,6 +17,15 @@ data:
         format json
         level INFO
       }
+      # CrowdSec bouncer — runs before reverse_proxy/handle directives.
+      # Polls crowdsec-lapi.crowdsec-system.svc every 10s for decisions
+      # and 403s any matching client IP at the edge.
+      order crowdsec first
+      crowdsec {
+        api_url http://crowdsec-lapi.crowdsec-system.svc:8080
+        api_key {env.CROWDSEC_BOUNCER_API_KEY}
+        ticker_interval 10s
+      }
     }
 
     # --- Public routes ---
@@ -32,6 +41,9 @@ data:
       # logger set in the global block. Fluent-bit on Hop tails these
       # via /var/log/containers/caddy-* and ships to Frank VictoriaLogs.
       log
+      # CrowdSec HTTP handler — blocks before reverse_proxy if the
+      # client IP is currently in an active decision.
+      crowdsec
       handle /frank* {
         reverse_proxy blog.blog-system.svc:8080
       }
