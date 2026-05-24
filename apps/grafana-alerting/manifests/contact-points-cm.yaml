@@ -33,3 +33,11 @@ data:
               httpMethod: POST
               authorization_scheme: Bearer
               authorization_credentials: $HEALTH_BRIDGE_WEBHOOK_SECRET
+      - orgId: 1
+        name: "AI Helper Webhook"
+        receivers:
+          - uid: ai-alert-helper-webhook
+            type: webhook
+            settings:
+              url: "http://ai-alert-helper.ai-alert-helper-system.svc.cluster.local:8080/alert"
+              httpMethod: POST

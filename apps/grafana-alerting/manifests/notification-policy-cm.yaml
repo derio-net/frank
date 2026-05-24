@@ -13,6 +13,14 @@ data:
         group_interval: 3m
         repeat_interval: 3m
         routes:
+          # blog-edge folder alerts go exclusively to the AI helper, which
+          # builds a fact sheet, calls the LLM, and posts to Telegram itself.
+          # Continue:false so the default Telegram contact point doesn't
+          # also fire (avoiding double notifications).
+          - receiver: "AI Helper Webhook"
+            matchers:
+              - grafana_folder="blog-edge"
+            continue: false
           - receiver: "Telegram - Willikins"
             matchers:
               - severity=critical

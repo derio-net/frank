@@ -440,24 +440,25 @@ state:
       ticked_at: '2026-05-24T08:24:49+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T08:29:04+00:00'
       note: null
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-24T08:29:07+00:00'
+      note: Secret seeded out-of-band as ai-alert-helper-secrets from existing Frank
+        secrets; ExternalSecret deferred until Infisical pattern decision
     P5.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T08:29:09+00:00'
       note: null
     P5.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T08:29:11+00:00'
       note: null
     P5.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T08:29:13+00:00'
       note: null
     P5.T4.S1:
       state: ' '
