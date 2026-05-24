@@ -233,4 +233,4 @@ versions.yaml                    # Declarative Talos + K8s version targets
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Safe Update Automation Implementation Plan |  | `docs/superpowers/plans/2026-03-25--repo--safe-update-automation/` | — |
+| Safe Update Automation Implementation Plan | derio-net/frank | `docs/superpowers/plans/2026-03-25--repo--safe-update-automation/` | — |

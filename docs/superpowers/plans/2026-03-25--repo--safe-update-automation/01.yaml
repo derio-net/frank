@@ -3,7 +3,7 @@ phase:
   number: 1
   title: ARC Self-Hosted Runner
   tag: agentic
-  depends_on: []
+  depends_on: [0]
   tracking_issue: null
 tasks:
 - number: 1

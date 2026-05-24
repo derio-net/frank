@@ -3,7 +3,7 @@ phase:
   number: 5
   title: Branch Protection & End-to-End Verification
   tag: manual
-  depends_on: []
+  depends_on: [4]
   tracking_issue: null
 tasks:
 - number: 8
@@ -13,6 +13,31 @@ tasks:
     text: |-
       Apply branch protection after smoke-test workflow is live
 
+
+      The `smoke-test/readiness` status check must be a required status check on `main` so Renovate's auto-merge only fires after the smoke test passes.
+
+      ```yaml
+      # manual-operation
+      id: github-branch-protection-smoke-test
+      layer: repo
+      app: renovate
+      plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation/
+      when: "After smoke-test.yaml workflow exists on main branch and has run at least once successfully"
+      why_manual: "Branch protection rules must be configured via GitHub UI or API. The smoke-test/readiness check must be a required status check so Renovate's automerge only fires after tests pass."
+      commands:
+        - |
+          # Via GitHub CLI — sets branch protection on main requiring smoke-test/readiness
+          gh api repos/:owner/:repo/branches/main/protection \
+            --method PUT \
+            --field required_status_checks='{"strict":false,"checks":[{"context":"smoke-test/readiness"}]}' \
+            --field enforce_admins=false \
+            --field required_pull_request_reviews=null \
+            --field restrictions=null
+      verify:
+        - gh api repos/:owner/:repo/branches/main/protection --jq '.required_status_checks.checks'
+        # Expected: [{"context":"smoke-test/readiness","app_id":null}]
+      status: pending
+      ```
 
       Run the `gh api` command above (after Task 7 is complete and the workflow has run). Replace `:owner/:repo` with your actual values.
 - number: 9
