@@ -561,20 +561,21 @@ state:
       ticked_at: '2026-05-24T07:25:32+00:00'
       note: null
     P2.T5.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T07:35:04+00:00'
       note: null
     P2.T5.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-24T07:35:06+00:00'
+      note: Infisical seed deferred; secret created directly in monitoring ns as grafana-goatcounter-token
+        (runbook entry pending)
     P2.T5.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T07:35:08+00:00'
       note: null
     P2.T5.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T07:35:10+00:00'
       note: null
     P2.T6.S1:
       state: ' '

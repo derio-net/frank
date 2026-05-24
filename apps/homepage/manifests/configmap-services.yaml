@@ -26,6 +26,11 @@ data:
             href: https://grafana.cluster.derio.net
             description: Metrics dashboards and observability
             siteMonitor: http://victoria-metrics-grafana.monitoring:80
+        - GoatCounter:
+            icon: chart-bar
+            href: https://counter.cluster.derio.net
+            description: Blog analytics — blog.derio.net/frank
+            siteMonitor: http://goatcounter.goatcounter-system:8080
         - Infisical:
             icon: infisical
             href: https://infisical.cluster.derio.net
