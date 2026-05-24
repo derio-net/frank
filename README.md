@@ -31,7 +31,11 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | GPU (Intel) | Intel GPU Resource Driver | DRA-based iGPU sharing on mini-1/2/3 (K8s 1.35) |
 | Metrics | VictoriaMetrics | VMSingle + Alertmanager + node/kube-state exporters |
 | Logs | VictoriaLogs + Fluent Bit | Centralised log aggregation and querying |
-| Dashboards | Grafana | Pre-provisioned datasources (VictoriaMetrics, VictoriaLogs), Feature Health dashboard + Telegram alerting |
+| Dashboards | Grafana | Pre-provisioned datasources (VictoriaMetrics, VictoriaLogs, GoatCounter via Infinity), Feature Health + Blog Edge dashboards, Telegram alerting |
+| Blog Analytics | GoatCounter | Cookieless, single-binary; mesh-only admin at counter.cluster.derio.net, public beacon at counter.derio.net (LB 192.168.55.224, Caddy reverse-proxy from Hop) |
+| Edge HTTP Security | CrowdSec | Agent on Hop tailing Caddy access logs; caddy-crowdsec-bouncer enforces decisions at the edge (no Frank dep on request path) |
+| Runtime Security | Falco (modern_ebpf) + Falcosidekick | DaemonSet on Hop; syscall events → VictoriaLogs (Loki protocol) + direct Telegram for priority:critical |
+| AI Alert Helper | ai-alert-helper (FastAPI) | LiteLLM-backed digest/investigate/surge-check; LLM swap contract for future Sympozium move |
 | Health Probes | Blackbox Exporter | HTTP endpoint probing for feature health (n8n, Paperclip, Grafana, Blog) |
 | Heartbeat Ingestion | Pushgateway | Receives heartbeat metrics from cron jobs, scraped by VictoriaMetrics |
 | Alert Bridge | Health Bridge | Grafana webhook → GitHub Project lifecycle state updates (healthy/degraded/dead) |
@@ -203,6 +207,8 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Ruflo Web UI | https://ruflo.cluster.derio.net | (via Traefik) |
 | Ruflo Shell (SSH+Mosh) | ssh agent@192.168.55.222 — mosh UDP 60016-60031 | 192.168.55.222 |
 | GitHub webhook receiver (`el-github-listener`) | reached via `webhooks.hop.derio.net` (Caddy on Hop → Tailscale mesh); receives PR + push events for `agentic-stoa/*` | 192.168.55.223 |
+| GoatCounter | https://counter.cluster.derio.net (mesh) + https://counter.derio.net (public via Hop) | 192.168.55.224 |
+| VictoriaLogs (LB) | http://192.168.55.225:9428 (cross-cluster ingest from Hop fluent-bit) | 192.168.55.225 |
 | VK Remote | https://vk.cluster.derio.net | (via Traefik) |
 | Homepage Dashboard | https://master.cluster.derio.net | (via Traefik) |
 
@@ -284,6 +290,8 @@ argocd app list
 | tekton-dashboard | tekton-pipelines | Tekton Dashboard (192.168.55.217:9097, vendored release) |
 | tekton-extras | tekton-pipelines | CI Tasks, gitea-ci Pipeline, Gitea EventListener, ExternalSecrets, RBAC |
 | longhorn-cicd | longhorn-system | Single-replica StorageClass for CI/CD workloads on pc-1 |
+| goatcounter | goatcounter-system | Blog analytics (arp242/goatcounter:2.7.0); LB 192.168.55.224, mesh-only admin via Authentik forward-auth |
+| ai-alert-helper | ai-alert-helper-system | FastAPI service — daily digest CronJob + surge-check + Grafana webhook receiver |
 
 ### Hop Cluster Applications
 
@@ -296,6 +304,9 @@ argocd app list
 | blog | blog-system | Hugo static site (ghcr.io/derio-net/frank-blog:latest) |
 | landing | landing-system | Private landing page (mesh-only) |
 | storage | kube-system | Local StorageClass + static PVs on Hetzner Volume |
+| fluent-bit | monitoring | Log shipping to Frank VictoriaLogs LB IP (192.168.55.225) via Tailscale subnet route |
+| crowdsec | crowdsec-system | Agent tails Caddy logs + LAPI; caddy-crowdsec-bouncer enforces decisions at edge (postStart re-registers bouncer key from Secret since no PVC) |
+| falco | falco-system | modern_ebpf DaemonSet + Falcosidekick → Loki output to Frank VictoriaLogs + direct Telegram for priority:critical |
 
 ## Adding a New Application
 

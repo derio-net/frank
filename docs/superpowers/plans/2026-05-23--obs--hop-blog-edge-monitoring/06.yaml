@@ -141,15 +141,49 @@ tasks:
       Final action: announce the plan is Deployed and link the published Paper, building post, and operating post in chat.
 state:
   steps:
-    P6.T1.S1: {state: ' ', ticked_at: null, note: null}
-    P6.T1.S2: {state: ' ', ticked_at: null, note: null}
-    P6.T1.S3: {state: ' ', ticked_at: null, note: null}
-    P6.T2.S1: {state: ' ', ticked_at: null, note: null}
-    P6.T2.S2: {state: ' ', ticked_at: null, note: null}
-    P6.T2.S3: {state: ' ', ticked_at: null, note: null}
-    P6.T2.S4: {state: ' ', ticked_at: null, note: null}
-    P6.T2.S5: {state: ' ', ticked_at: null, note: null}
-    P6.T2.S6: {state: ' ', ticked_at: null, note: null}
+    P6.T1.S1:
+      state: '-'
+      ticked_at: '2026-05-24T08:34:01+00:00'
+      note: 'Paper authoring deferred — substantial creative work (dossier gate: ≥3
+        vendors, ≥5 sources, ≥3 artefacts, ≥1 gap, ≥1 counter-arg per repo-papers.md);
+        requires dedicated writing session'
+    P6.T1.S2:
+      state: '-'
+      ticked_at: '2026-05-24T08:34:02+00:00'
+      note: Deferred with Paper
+    P6.T1.S3:
+      state: '-'
+      ticked_at: '2026-05-24T08:34:04+00:00'
+      note: Deferred with Paper
+    P6.T2.S1:
+      state: x
+      ticked_at: '2026-05-24T08:34:28+00:00'
+      note: Homepage tile + IngressRoute verified live
+    P6.T2.S2:
+      state: '-'
+      ticked_at: '2026-05-24T08:34:30+00:00'
+      note: Building blog post deferred — pairs with the Paper as one creative session
+    P6.T2.S3:
+      state: '-'
+      ticked_at: '2026-05-24T08:34:32+00:00'
+      note: Operating blog post deferred — pairs with the Paper as one creative session
+    P6.T2.S4:
+      state: x
+      ticked_at: '2026-05-24T09:08:10+00:00'
+      note: 'README updated: Technology Stack rows for GoatCounter/CrowdSec/Falco/ai-alert-helper;
+        Service Access table extended with .224 and .225; Current Status tables updated
+        with all new apps on both clusters'
+    P6.T2.S5:
+      state: x
+      ticked_at: '2026-05-24T09:08:12+00:00'
+      note: 8 obs manual-op entries appended to docs/runbooks/manual-operations.yaml
+        — covers goatcounter bootstrap, authentik outpost assignment, grafana token,
+        DNS A record, crowdsec community blocklists, bouncer key, falco telegram secret,
+        ai-alert-helper secrets bundle
+    P6.T2.S6:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null
     note: null
