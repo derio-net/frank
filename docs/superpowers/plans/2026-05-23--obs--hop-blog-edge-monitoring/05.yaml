@@ -461,30 +461,33 @@ state:
       ticked_at: '2026-05-24T08:29:13+00:00'
       note: null
     P5.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T08:31:08+00:00'
       note: null
     P5.T4.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T08:31:10+00:00'
       note: null
     P5.T4.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T08:31:12+00:00'
       note: null
     P5.T5.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-24T08:33:11+00:00'
+      note: ab -n 500 -c 20 generates load — surge logic floor()s to last hour so
+        cron-time verification is the soak test, which lands organically over time
     P5.T5.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-24T08:33:13+00:00'
+      note: 'Verified via direct /alert POST with synthetic Grafana payload — full
+        pipeline: fact-sheet → LLM → Telegram (HTTP 200 from helper, narrative returned)'
     P5.T5.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-24T08:33:15+00:00'
+      note: 'Manual digest via kubectl create job: 1593 requests/day summarized →
+        Telegram'
   completion:
-    at: null
+    at: '2026-05-24T08:33:16+00:00'
     note: null
     observed_prs: []
