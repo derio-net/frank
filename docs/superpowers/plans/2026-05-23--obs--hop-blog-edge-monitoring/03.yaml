@@ -412,14 +412,14 @@ state:
       ticked_at: '2026-05-24T07:59:02+00:00'
       note: null
     P3.T5.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-24T08:05:50+00:00'
+      note: 'Self-ban smoke test: 403 during ban window, 200 after expiry'
     P3.T5.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-24T08:05:52+00:00'
+      note: Hop memory check completed earlier (76% limits)
   completion:
-    at: null
+    at: '2026-05-24T08:05:54+00:00'
     note: null
     observed_prs: []
