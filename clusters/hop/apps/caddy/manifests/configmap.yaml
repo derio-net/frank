@@ -18,11 +18,12 @@ data:
         level INFO
       }
       # CrowdSec bouncer — runs before reverse_proxy/handle directives.
-      # Polls crowdsec-lapi.crowdsec-system.svc every 10s for decisions
+      # Polls crowdsec-service.crowdsec-system every 10s for decisions
       # and 403s any matching client IP at the edge.
+      # NOTE: the chart's service name is `crowdsec-service` (not -lapi).
       order crowdsec first
       crowdsec {
-        api_url http://crowdsec-lapi.crowdsec-system.svc:8080
+        api_url http://crowdsec-service.crowdsec-system.svc:8080
         api_key {env.CROWDSEC_BOUNCER_API_KEY}
         ticker_interval 10s
       }
