@@ -582,66 +582,68 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:18+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:20+00:00'
       note: null
     P1.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:21+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:23+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:25+00:00'
       note: null
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:27+00:00'
       note: null
     P1.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:28+00:00'
       note: null
     P1.T3.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:30+00:00'
       note: null
     P1.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:32+00:00'
       note: null
     P1.T4.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:33+00:00'
       note: null
     P1.T5.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:35+00:00'
       note: null
     P1.T5.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:37+00:00'
       note: null
     P1.T6.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:38+00:00'
       note: null
     P1.T6.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:40+00:00'
       note: null
     P1.T6.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T21:09:42+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-24T21:09:43+00:00'
+    note: 'Verified 2026-05-24: 9 parser/sync tests pass, --check drift gate exits
+      0, all artifacts present (lib/dossier_parser.py, sync-dossier-to-data.py, pre-commit
+      wiring)'
     observed_prs: []
