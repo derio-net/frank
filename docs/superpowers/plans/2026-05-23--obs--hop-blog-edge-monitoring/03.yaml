@@ -361,13 +361,14 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T07:37:36+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-24T07:37:38+00:00'
+      note: CI workflow build-caddy.yml triggered by push; image rebuilt and pushed
+        automatically
     P3.T2.S1:
       state: ' '
       ticked_at: null

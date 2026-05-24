@@ -1,0 +1,42 @@
+# Hop's hetzner-volume storage class is manual-provisioning (no
+# provisioner — pre-allocated PVs only). To avoid burning a Hetzner
+# Volume on CrowdSec, we disable persistent volumes and let bouncer
+# API keys + decisions live in emptyDir. The community blocklist is
+# the main value and re-syncs on each agent startup.
+lapi:
+  dashboard:
+    enabled: false
+  persistentVolume:
+    data:
+      enabled: false
+    config:
+      enabled: false
+  service:
+    type: ClusterIP
+  env:
+    # Install Caddy collection + HTTP scenarios on LAPI's bundled agent.
+    - name: COLLECTIONS
+      value: "crowdsecurity/caddy crowdsecurity/base-http-scenarios crowdsecurity/http-cve crowdsecurity/http-dos"
+  resources:
+    requests:
+      cpu: 25m
+      memory: 50Mi
+    limits:
+      memory: 96Mi
+tls:
+  enabled: false
+agent:
+  acquisition:
+    - namespace: caddy-system
+      podName: caddy-*
+      program: caddy
+  env:
+    # Same collections on the agent that tails the Caddy logs.
+    - name: COLLECTIONS
+      value: "crowdsecurity/caddy crowdsecurity/base-http-scenarios crowdsecurity/http-cve crowdsecurity/http-dos"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 80Mi
+    limits:
+      memory: 128Mi

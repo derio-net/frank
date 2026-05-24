@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crowdsec-system
+  labels:
+    # CrowdSec agent needs hostPath /var/log/containers — privileged PSA
+    # required (similar to fluent-bit / caddy-system).
+    pod-security.kubernetes.io/enforce: privileged
