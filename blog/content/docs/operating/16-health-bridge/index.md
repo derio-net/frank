@@ -195,6 +195,25 @@ Bridge logs show `Alert <name> has no github_issue label, skipping`. Add the lab
 
 **Cleanup:** Close duplicates with `gh issue close <number> --repo derio-net/<repo> --comment "Duplicate"`, keeping the earliest one open.
 
+### A Layer flaps to degraded after a Job or one-off pod runs
+
+**Symptom:** A Layer tile goes `degraded` (and an `L<N> ... failing` alert fires) with no real outage. The named `component` is a pod that has already `Completed` — typically a `Job` pod or a one-off `kubectl`-applied debug pod.
+
+**Cause:** A pod reports `kube_pod_status_ready{condition="true"}=0` the instant it terminates. Rules that select a whole namespace — the Layer 8 Observability rule sweeps all of `monitoring` — pick those corpses up as if they were unready workloads.
+
+**Fix:** The Layer 8 rule already excludes terminated pods with `unless on(namespace,pod) kube_pod_status_phase{phase=~"Succeeded|Failed"} == 1`. If a *new* namespace-wide rule shows the same flap, add the same guard. To find the culprit and clear a stray corpse:
+
+```bash
+# Which monitoring pods currently report ready=0?
+kubectl exec -n monitoring deploy/blackbox-exporter -- wget -qO- \
+  'http://vmsingle-victoria-metrics-victoria-metrics-k8s-stack:8428/api/v1/query?query=kube_pod_status_ready{namespace="monitoring",condition="true"}==0'
+
+# Leftover Completed pods in the namespace?
+kubectl get pods -n monitoring --field-selector=status.phase=Succeeded
+# Delete a confirmed corpse:
+kubectl delete pod <name> -n monitoring
+```
+
 ### GitHub API errors
 
 ```bash

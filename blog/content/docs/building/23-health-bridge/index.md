@@ -222,7 +222,9 @@ For the Observability layer itself — which has to alert on *its own absence* �
 ```yaml
 expr: |
   label_replace(
-    kube_pod_status_ready{namespace="monitoring",condition="true"},
+    kube_pod_status_ready{namespace="monitoring",condition="true"}
+      unless on(namespace,pod)
+    kube_pod_status_phase{namespace="monitoring",phase=~"Succeeded|Failed"} == 1,
     "component", "pod/$1", "pod", "(.+)"
   )
   or
@@ -233,6 +235,8 @@ expr: |
 annotations:
   summary: "L8 Observability: {{ $labels.component }} failing"
 ```
+
+The `unless` clause is load-bearing. Unlike the regex-scoped rules, this one sweeps the *entire* `monitoring` namespace — so anything that terminates there trips it. A finished `Job`, or a one-off `kubectl`-applied debug pod, reports `kube_pod_status_ready{condition="true"}=0` the moment it goes `Completed`, and the readiness metric alone can't distinguish that from a Deployment pod that genuinely won't come up. Excluding the `Succeeded`/`Failed` phases keeps the broad sweep — every real monitoring workload stays covered — while ignoring corpses. It's the same `Completed/NotReady` hazard that forced the Layer 12 regex tightening below; the namespace-wide rule just needed a phase filter rather than a name filter.
 
 ### The label-format caveat
 
