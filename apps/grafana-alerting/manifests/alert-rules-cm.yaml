@@ -1401,6 +1401,12 @@ data:
         folder: blog-edge
         interval: 1m
         rules:
+          # queryType: stats hits /select/logsql/stats_query which returns
+          # a Prometheus-style instant vector (wide series). Without it the
+          # default queryType uses /select/logsql/query which returns a
+          # *long* series of log lines, and Grafana's SSE reduce step
+          # rejects it with "input data must be a wide series but got
+          # type long".
           - uid: crowdsec-decision-burst
             title: CrowdSec decision burst
             condition: C
@@ -1410,7 +1416,8 @@ data:
                 datasourceUid: affdoo4s9258gc
                 model:
                   refId: A
-                  expr: 'kubernetes.namespace_name:crowdsec-system AND log:Adding AND log:decisions | stats count() as c'
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:crowdsec-system AND log:Adding AND log:decisions | stats count() as value'
               - refId: B
                 relativeTimeRange: { from: 300, to: 0 }
                 datasourceUid: __expr__
@@ -1442,7 +1449,8 @@ data:
                 datasourceUid: affdoo4s9258gc
                 model:
                   refId: A
-                  expr: '_time:5m priority:Critical | stats count() as c'
+                  queryType: stats
+                  expr: 'priority:Critical | stats count() as value'
               - refId: B
                 relativeTimeRange: { from: 300, to: 0 }
                 datasourceUid: __expr__
