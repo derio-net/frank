@@ -434,3 +434,27 @@ spec:
     certResolver: cloudflare
     domains:
       - main: "*.cluster.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: goatcounter
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`counter.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: goatcounter
+          namespace: goatcounter-system
+          port: 8080
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"

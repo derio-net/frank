@@ -324,3 +324,25 @@ data:
           name: Ruflo (cluster)
           provider: !KeyOf provider-ruflo-cluster
           meta_launch_url: https://ruflo.cluster.derio.net
+
+      # GoatCounter (cluster) proxy provider — obs layer phase 2
+      - model: authentik_providers_proxy.proxyprovider
+        state: present
+        identifiers:
+          name: GoatCounter (cluster)
+        id: provider-goatcounter-cluster
+        attrs:
+          authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
+          authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          mode: forward_single
+          external_host: https://counter.cluster.derio.net
+
+      - model: authentik_core.application
+        state: present
+        identifiers:
+          slug: goatcounter-cluster
+        attrs:
+          name: GoatCounter (cluster)
+          provider: !KeyOf provider-goatcounter-cluster
+          meta_launch_url: https://counter.cluster.derio.net
