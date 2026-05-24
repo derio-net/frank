@@ -1,0 +1,8 @@
+{{/* GoatCounter analytics — only in production builds, never in
+     local hugo server. Beacon goes to counter.derio.net (public Caddy
+     route on Hop), which reverse-proxies over the Tailscale mesh to
+     GoatCounter on Frank at 192.168.55.224:8080. */ -}}
+{{ if eq hugo.Environment "production" -}}
+<script data-goatcounter="https://counter.derio.net/count"
+        async src="https://counter.derio.net/count.js"></script>
+{{- end }}
