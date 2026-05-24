@@ -1,6 +1,33 @@
 ---
-paper: 21-edge-observability
-status: ready
+status: deferred-from-papers-series
+moved_from: docs/papers-dossiers/21-edge-observability/dossier.md
+moved_on: 2026-05-24
+---
+
+# Edge Observability — Research Notes (Deferred from the Papers Series)
+
+> **Why this is here and not under `docs/papers-dossiers/`:** Originally
+> drafted as the dossier for Paper 21 — *Edge Observability*. On review,
+> the operator concluded the paper tried to cover three distinct vendor
+> landscapes (analytics, edge HTTP security, runtime security) plus a
+> bespoke architectural piece (the AI alert helper), which violates the
+> series' single-decision-per-paper shape and produces a paper whose own
+> TL;DR concedes the decision doesn't generalise.
+>
+> The research below is preserved as substrate for **three narrower
+> future papers**:
+>
+> 1. Self-hosted blog analytics — cookieless vs the rest (GoatCounter,
+>    Plausible, Umami, Matomo)
+> 2. Edge HTTP security at small scale (CrowdSec, fail2ban, Cloudflare
+>    WAF, Caddy native rate-limiting)
+> 3. Container runtime security on immutable OS (Falco modern_ebpf,
+>    Tetragon, Wazuh agent)
+>
+> Each candidate is listed in the Deferred section on the Papers landing
+> page (`blog/content/docs/papers/_index.md`). Each will need a fresh
+> dossier with its own soak data when authored.
+
 ---
 
 ## Vendors in scope (≥3, typically 4–6)

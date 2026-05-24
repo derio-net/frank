@@ -436,7 +436,7 @@ This post stays narrowly on the obs layer's own surface. The rest is somebody el
 ## References
 
 - {{< relref "/docs/building/31-edge-observability" >}} — Build narrative
-- /frank/docs/papers/21-edge-observability/ — Decision-weight paper
+- [`docs/investigations/2026-05-24--obs--edge-observability-research.md`](https://github.com/derio-net/frank/blob/main/docs/investigations/2026-05-24--obs--edge-observability-research.md) — Vendor-landscape research substrate (the series-shaped Paper was pulled; three narrower future papers seeded on {{< relref "/docs/papers" >}})
 - `docs/runbooks/manual-operations.yaml` — 8 obs entries (search for `obs-`)
 - `agents/rules/frank-gotchas.md` — Grafana section, with the `queryType: stats` gotcha
 - [LogsQL syntax](https://docs.victoriametrics.com/victorialogs/logsql/) — Query language reference
