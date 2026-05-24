@@ -17,6 +17,12 @@ spec:
       labels:
         app.kubernetes.io/name: goatcounter
     spec:
+      # Kubernetes injects auto-discovery env vars like GOATCOUNTER_PORT,
+      # GOATCOUNTER_SERVICE_HOST for sibling Services. GoatCounter parses
+      # `GOATCOUNTER_*` env vars as overrides for its own flags (e.g.
+      # GOATCOUNTER_PORT → -port), and the injected `tcp://10.x:8080` value
+      # fails its int parser → CrashLoop. Opt out.
+      enableServiceLinks: false
       # GoatCounter image runs as user "goatcounter" (uid 1000 in official
       # image). The official volume path is /home/goatcounter/goatcounter-data.
       securityContext:
