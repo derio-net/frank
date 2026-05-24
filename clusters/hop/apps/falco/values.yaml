@@ -31,6 +31,11 @@ falcosidekick:
   webui:
     enabled: false
   config:
+    # falcosidekick's envFrom mounts BOTH the chart-generated secret
+    # AND this one — additive, not replacement. The falco-telegram
+    # Secret holds TELEGRAM_TOKEN + TELEGRAM_CHATID copied from
+    # Frank's grafana-alerting-secrets.
+    existingSecret: falco-telegram
     customfields: "cluster=hop"
     # VictoriaLogs accepts the Loki push protocol at /insert/loki/api/v1/push,
     # so the chart's loki output ships there directly.
@@ -41,16 +46,9 @@ falcosidekick:
       minimumpriority: "informational"
     # Direct Telegram for critical events (bypasses the AI helper —
     # delivery guarantee even if LiteLLM is slow). Token + chat-id
-    # come from Frank's Telegram bot Infisical secrets, replicated
-    # to Hop via the falco-telegram secret in the same namespace.
+    # supplied by existingSecret above.
     telegram:
       minimumpriority: "critical"
-  # Project the Telegram creds via envFromSecret on the falcosidekick
-  # container. The chart reads TELEGRAM_TOKEN / TELEGRAM_CHATID env
-  # vars and maps them to its config.telegram.token / chatid.
-  envFrom:
-    - secretRef:
-        name: falco-telegram
 
 resources:
   requests:
