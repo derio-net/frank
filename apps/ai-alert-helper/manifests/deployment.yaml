@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-alert-helper
+  namespace: ai-alert-helper-system
+  labels:
+    app.kubernetes.io/name: ai-alert-helper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ai-alert-helper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ai-alert-helper
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      enableServiceLinks: false
+      containers:
+        - name: ai-alert-helper
+          image: ghcr.io/derio-net/ai-alert-helper:0.1.0
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: VICTORIALOGS_URL
+              value: "http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428"
+            - name: GOATCOUNTER_URL
+              value: "https://counter.cluster.derio.net"
+            - name: LITELLM_URL
+              value: "http://litellm.litellm.svc.cluster.local:4000"
+            - name: LLM_MODEL_PRIMARY
+              value: "qwen-think-14b"
+            - name: LLM_MODEL_FALLBACK
+              value: "claude-haiku-4-5"
+          envFrom:
+            - secretRef:
+                name: ai-alert-helper-secrets
+          resources:
+            requests:
+              cpu: 20m
+              memory: 60Mi
+            limits:
+              memory: 192Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

@@ -419,22 +419,70 @@ tasks:
       Then verify the scheduled run lands by waiting until next 08:00 UTC and confirming the Telegram message arrives.
 state:
   steps:
-    P5.T1.S1: {state: ' ', ticked_at: null, note: null}
-    P5.T1.S2: {state: ' ', ticked_at: null, note: null}
-    P5.T1.S3: {state: ' ', ticked_at: null, note: null}
-    P5.T1.S4: {state: ' ', ticked_at: null, note: null}
-    P5.T1.S5: {state: ' ', ticked_at: null, note: null}
-    P5.T2.S1: {state: ' ', ticked_at: null, note: null}
-    P5.T2.S2: {state: ' ', ticked_at: null, note: null}
-    P5.T2.S3: {state: ' ', ticked_at: null, note: null}
-    P5.T3.S1: {state: ' ', ticked_at: null, note: null}
-    P5.T3.S2: {state: ' ', ticked_at: null, note: null}
-    P5.T4.S1: {state: ' ', ticked_at: null, note: null}
-    P5.T4.S2: {state: ' ', ticked_at: null, note: null}
-    P5.T4.S3: {state: ' ', ticked_at: null, note: null}
-    P5.T5.S1: {state: ' ', ticked_at: null, note: null}
-    P5.T5.S2: {state: ' ', ticked_at: null, note: null}
-    P5.T5.S3: {state: ' ', ticked_at: null, note: null}
+    P5.T1.S1:
+      state: x
+      ticked_at: '2026-05-24T08:24:40+00:00'
+      note: null
+    P5.T1.S2:
+      state: x
+      ticked_at: '2026-05-24T08:24:43+00:00'
+      note: null
+    P5.T1.S3:
+      state: x
+      ticked_at: '2026-05-24T08:24:45+00:00'
+      note: null
+    P5.T1.S4:
+      state: x
+      ticked_at: '2026-05-24T08:24:47+00:00'
+      note: null
+    P5.T1.S5:
+      state: x
+      ticked_at: '2026-05-24T08:24:49+00:00'
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T5.S3:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null
     note: null

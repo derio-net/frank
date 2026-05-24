@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-alert-helper
+  namespace: ai-alert-helper-system
+  labels:
+    app.kubernetes.io/name: ai-alert-helper
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: ai-alert-helper
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
