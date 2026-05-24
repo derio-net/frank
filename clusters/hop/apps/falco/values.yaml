@@ -1,0 +1,60 @@
+driver:
+  kind: modern_ebpf
+
+# Tolerate Hop's control-plane node — single-node cluster so the
+# DaemonSet must run there.
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+falco:
+  json_output: true
+  json_include_output_property: true
+  # Tighten priority floor — we don't ship debug/informational events
+  # to Frank's log store. Critical bypasses to Telegram via falcosidekick.
+  priority: notice
+
+# Custom rules override default macros by re-declaring them in a later-
+# loaded file. There is NO `override:` key in the Falco schema — the
+# later definition replaces the earlier one.
+customRules:
+  talos-quiet.yaml: |-
+    # Talos has no auditd / journald / shell on the host. Macros that
+    # check for these never match anyway. The macros we override here
+    # are about reducing false positives from kubelet's own exec activity.
+    - macro: user_known_shell_in_container_activities
+      condition: (k8s.ns.name = "kube-system")
+
+falcosidekick:
+  enabled: true
+  webui:
+    enabled: false
+  config:
+    customfields: "cluster=hop"
+    # VictoriaLogs accepts the Loki push protocol at /insert/loki/api/v1/push,
+    # so the chart's loki output ships there directly.
+    loki:
+      hostport: "http://192.168.55.225:9428"
+      endpoint: "/insert/loki/api/v1/push"
+      format: "json"
+      minimumpriority: "informational"
+    # Direct Telegram for critical events (bypasses the AI helper —
+    # delivery guarantee even if LiteLLM is slow). Token + chat-id
+    # come from Frank's Telegram bot Infisical secrets, replicated
+    # to Hop via the falco-telegram secret in the same namespace.
+    telegram:
+      minimumpriority: "critical"
+  # Project the Telegram creds via envFromSecret on the falcosidekick
+  # container. The chart reads TELEGRAM_TOKEN / TELEGRAM_CHATID env
+  # vars and maps them to its config.telegram.token / chatid.
+  envFrom:
+    - secretRef:
+        name: falco-telegram
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 100Mi
+  limits:
+    memory: 200Mi

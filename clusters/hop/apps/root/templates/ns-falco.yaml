@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: falco-system
+  labels:
+    # Falco DaemonSet hostPath-mounts /sys/kernel, /var/run, /proc, etc.
+    # PodSecurity must be privileged.
+    pod-security.kubernetes.io/enforce: privileged
