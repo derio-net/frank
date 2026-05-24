@@ -49,7 +49,7 @@ Omni/Talos layer (monthly)
 
 A lightweight `actions-runner-controller` (ARC) Deployment pinned to `pc-1` via `nodeSelector: kubernetes.io/hostname: pc-1`. This gives GitHub Actions direct in-cluster `kubectl` access without any network tunneling. Headscale and the subnet router are not in the CI critical path.
 
-- **Location:** `apps/arc/` — new ArgoCD app. Uses the current ARC v2 architecture: two charts installed in sequence — `gha-runner-scale-set-controller` (controller) and `gha-runner-scale-set` (runner set). Do NOT use the legacy `actions-runner-controller` chart (v1, unmaintained).
+- **Location:** `apps/arc-controller/` + `apps/arc-runners/` — two ArgoCD apps. Uses the current ARC v2 architecture: two charts installed in sequence — `gha-runner-scale-set-controller` (controller, sync-wave `-1`) and `gha-runner-scale-set` (runner set). Do NOT use the legacy `actions-runner-controller` chart (v1, unmaintained).
 - **Node binding:** `nodeSelector: kubernetes.io/hostname: pc-1` (label is automatically set by Kubernetes; no Talos patch required)
 - **Runner group:** `self-hosted`, labelled `frank-cluster`
 
@@ -70,8 +70,8 @@ Cluster-scoped resources outside namespace management (ClusterRoles, ClusterRole
 # manual-operation
 id: arc-github-app-secret
 layer: repo
-app: arc
-plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md
+app: arc-runners
+plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation/
 when: "After ARC app is synced by ArgoCD, before runner pod starts"
 why_manual: "GitHub App credentials are a bootstrap secret — ARC must exist to manage itself, and the secret must exist before the runner can register. SOPS-encrypted per repo convention."
 commands:
@@ -132,18 +132,18 @@ Core infra apps are excluded from the smoke test because they install CRDs and r
 
 Triggered on every Renovate PR via `pull_request` event (filter: `paths: ["apps/root/templates/*.yaml"]`). Runs on the self-hosted runner (`runs-on: [self-hosted, frank-cluster]`). Skips if the PR has the `no-smoke-test` label.
 
-**Mechanism:** Direct Helm install into an ephemeral namespace `smoke-test-<pr-number>`. No vCluster — namespace isolation is sufficient for pod readiness checks, and vCluster overhead is unnecessary for this use case.
+**Mechanism:** Direct Helm install into an ephemeral namespace `smoke-test-<pr-number>-<app>`. No vCluster — namespace isolation is sufficient for pod readiness checks, and vCluster overhead is unnecessary for this use case.
 
 **Workflow steps:**
 
 1. Checkout the PR branch
 2. Skip if `no-smoke-test` label is present (exit 0, report skipped status)
 3. Extract app name, chart repo URL, and new `targetRevision` from the changed template file using `yq`. The chart source entry in Application CR templates is a static YAML block (Go template variables only appear in the `ref: values` source, not the helm source) — `yq` can parse it directly: `yq '.spec.sources[] | select(.chart != null) | {name: .chart, repo: .repoURL, version: .targetRevision}' <file>`. If multiple template files changed in one PR (Renovate batch), the workflow runs a smoke test for each changed file sequentially.
-4. Create namespace: `kubectl create namespace smoke-test-<pr-number>`
-5. `helm install <app> <chart-repo>/<chart-name> --version <new-version> -n smoke-test-<pr-number> -f apps/<app>/values.yaml`. If `apps/<app>/smoke-test-values.yaml` exists, append it as an additional `-f` override (used to stub cluster-internal endpoints such as OIDC issuer URLs or LoadBalancer IPs that prevent pod startup in an isolated namespace).
-6. `kubectl wait --for=condition=Ready pod -l <app-label-selector> -n smoke-test-<pr-number> --timeout=120s`
+4. Create namespace: `kubectl create namespace smoke-test-<pr-number>-<app>`
+5. `helm install <app> <chart-repo>/<chart-name> --version <new-version> -n smoke-test-<pr-number>-<app> -f apps/<app>/values.yaml`. If `apps/<app>/smoke-test-values.yaml` exists, append it as an additional `-f` override (used to stub cluster-internal endpoints such as OIDC issuer URLs or LoadBalancer IPs that prevent pod startup in an isolated namespace).
+6. `kubectl wait --for=condition=Ready pod -l <app-label-selector> -n smoke-test-<pr-number>-<app> --timeout=120s`
 7. On timeout/failure: capture `kubectl describe pod` and `kubectl events` output; post as PR comment
-8. `kubectl delete namespace smoke-test-<pr-number>` (always runs — in `finally` block)
+8. `kubectl delete namespace smoke-test-<pr-number>-<app>` (always runs — in `finally` block)
 9. Report pass/fail as GitHub status check `smoke-test/readiness`
 
 **Per-app label selectors** are defined in a lookup table in the workflow YAML (e.g., `grafana: "app.kubernetes.io/name=grafana"`). Apps not in the table use `app=<app-name>` as a fallback.
@@ -188,10 +188,15 @@ Scheduled weekly cron (`0 9 * * 1` — Monday 09:00 UTC). Runs on the self-hoste
 ## File Layout
 
 ```text
-apps/arc/
-  values.yaml                    # ARC Helm values (nodeSelector, RBAC, runner config)
+apps/arc-controller/
+  values.yaml                    # gha-runner-scale-set-controller Helm values
+apps/arc-runners/
+  values.yaml                    # gha-runner-scale-set Helm values (pc-1 pin)
+  manifests/
+    rbac.yaml                    # ClusterRole + ClusterRoleBinding for smoke tests
 apps/root/templates/
-  arc.yaml                       # ArgoCD Application CR for ARC
+  arc-controller.yaml            # Application CR, sync-wave: "-1"
+  arc-runners.yaml               # Application CR, ignoreDifferences on Secrets
 secrets/arc/
   github-app-secret.yaml         # SOPS-encrypted GitHub App credentials (applied out-of-band)
 renovate.json                    # Renovate config (regex manager, packageRules, schedule)

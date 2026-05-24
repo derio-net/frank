@@ -19,7 +19,7 @@ tasks:
       ```json
       {
         "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-        "extends": ["config:base"],
+        "extends": ["config:recommended"],
         "schedule": ["every weekend"],
         "labels": ["renovate"],
         "prCreation": "not-pending",
@@ -27,7 +27,7 @@ tasks:
           {
             "customType": "regex",
             "description": "ArgoCD Application CR Helm chart versions",
-            "fileMatch": ["apps/root/templates/.+\\.yaml"],
+            "managerFilePatterns": ["/apps/root/templates/.+\\.yaml/"],
             "matchStrings": [
               "repoURL: (?<registryUrl>https://[^\\n]+)\\n      chart: (?<depName>[^\\n]+)\\n      targetRevision: \"(?<currentValue>[^\"]+)\""
             ],

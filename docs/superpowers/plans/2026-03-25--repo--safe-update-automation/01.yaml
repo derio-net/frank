@@ -79,7 +79,8 @@ tasks:
           namespace: arc-system
         syncPolicy:
           automated:
-            prune: false
+            # prune omitted intentionally — apps/root/values.yaml documents that
+            # ArgoCD normalizes explicit `prune: false` to absent, causing drift.
             selfHeal: true
           syncOptions:
             - CreateNamespace=true
@@ -136,24 +137,14 @@ tasks:
                   cpu: 2000m
                   memory: 2Gi
               env:
-                - name: ACTIONS_RUNNER_CONTAINER_HOOKS
-                  value: /home/runner/k8s/index.js
-                - name: ACTIONS_RUNNER_POD_NAME
-                  valueFrom:
-                    fieldRef:
-                      fieldPath: metadata.name
+                # Smoke-test jobs run directly on the runner pod (no per-job
+                # `container:`), so they use the pod's ServiceAccount
+                # (frank-cluster-gha-rs-no-permission) + the smoke-test RBAC.
+                # We deliberately do NOT set containerMode.type=kubernetes (which
+                # would bind a different SA, <release>-gha-rs-kube-mode) nor the
+                # DinD sidecar — neither is needed for direct kubectl/helm steps.
                 - name: ACTIONS_RUNNER_REQUIRE_JOB_CONTAINER
                   value: "false"
-          initContainers:
-            - name: init-dind-externals
-              image: ghcr.io/actions/actions-runner:latest
-              command: ["cp", "-r", "-v", "/home/runner/externals/.", "/home/runner/tmpDir/"]
-              volumeMounts:
-                - name: dind-externals
-                  mountPath: /home/runner/tmpDir
-          volumes:
-            - name: dind-externals
-              emptyDir: {}
       ```
 
       Replace `<YOUR_GITHUB_ORG_OR_USER>/<YOUR_REPO>` with the actual repo path (e.g. `derio-net/frank-cluster`).
@@ -251,7 +242,8 @@ tasks:
           namespace: arc-system
         syncPolicy:
           automated:
-            prune: false
+            # prune omitted intentionally — apps/root/values.yaml documents that
+            # ArgoCD normalizes explicit `prune: false` to absent, causing drift.
             selfHeal: true
           syncOptions:
             - CreateNamespace=true

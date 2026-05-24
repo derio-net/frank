@@ -105,9 +105,13 @@ tasks:
                 # Extract current minor from current talos version (e.g. v1.9.3 -> 1.9)
                 CURRENT_TALOS="${{ steps.current.outputs.talos }}"
                 CURRENT_MINOR=$(echo "$CURRENT_TALOS" | grep -oP 'v\d+\.\d+')
-                # Find latest patch within same minor
-                LATEST=$(gh api repos/siderolabs/talos/releases \
-                  --jq "[.[] | select(.prerelease == false) | select(.tag_name | startswith(\"$CURRENT_MINOR.\")) | .tag_name] | first")
+                # Find latest patch within same minor. The releases API is sorted
+                # by publish date (newest first) and paginated, so `| first` can
+                # miss a patch or pick an out-of-order backport. Page through all
+                # releases, emit matching stable tags, and take the highest semver.
+                LATEST=$(gh api --paginate repos/siderolabs/talos/releases \
+                  --jq ".[] | select(.prerelease == false) | select(.tag_name | startswith(\"$CURRENT_MINOR.\")) | .tag_name" \
+                  | sort -V | tail -1)
                 echo "version=$LATEST" >> $GITHUB_OUTPUT
                 echo "release_url=https://github.com/siderolabs/talos/releases/tag/$LATEST" >> $GITHUB_OUTPUT
 
@@ -117,8 +121,13 @@ tasks:
                 GH_TOKEN: ${{ github.token }}
               run: |
                 MINOR="v${{ steps.current.outputs.k8s_minor }}"
-                LATEST=$(gh api repos/kubernetes/kubernetes/releases \
-                  --jq "[.[] | select(.prerelease == false) | select(.tag_name | startswith(\"$MINOR.\")) | .tag_name] | first")
+                # See the Talos step: page through all releases and pick the
+                # highest semver patch, not the most-recently-published one.
+                # kubernetes/kubernetes interleaves many minors, so the target
+                # patch is rarely on the first page.
+                LATEST=$(gh api --paginate repos/kubernetes/kubernetes/releases \
+                  --jq ".[] | select(.prerelease == false) | select(.tag_name | startswith(\"$MINOR.\")) | .tag_name" \
+                  | sort -V | tail -1)
                 echo "version=$LATEST" >> $GITHUB_OUTPUT
                 echo "release_url=https://github.com/kubernetes/kubernetes/releases/tag/$LATEST" >> $GITHUB_OUTPUT
 
