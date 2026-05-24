@@ -167,3 +167,30 @@ entries:
     covers: "Hop + Headscale + Caddy"
     layer: edge
     phase: 1
+
+  - number: 21
+    slug: self-hosted-blog-analytics
+    title: "Self-Hosted Blog Analytics, Cookieless"
+    covers: "GoatCounter + Plausible + Umami + Matomo"
+    layer: obs
+    phase: 2
+    deferred: true
+    deferred_reason: "Need ≥6 months of real visitor data to judge cookieless vs rich-events"
+
+  - number: 22
+    slug: edge-http-security
+    title: "Edge HTTP Security at Small Scale"
+    covers: "CrowdSec + fail2ban + Cloudflare WAF + Caddy rate-limit"
+    layer: edge
+    phase: 2
+    deferred: true
+    deferred_reason: "Need accumulated CrowdSec decisions + a real attack to compare false-positive rates"
+
+  - number: 23
+    slug: runtime-security-immutable-os
+    title: "Container Runtime Security on an Immutable OS"
+    covers: "Falco modern_ebpf + Tetragon + Wazuh agent"
+    layer: obs
+    phase: 2
+    deferred: true
+    deferred_reason: "Need broader Falco rule-tuning experience on Talos"
