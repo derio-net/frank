@@ -578,14 +578,14 @@ state:
       ticked_at: '2026-05-24T07:35:10+00:00'
       note: null
     P2.T6.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T07:35:56+00:00'
       note: null
     P2.T6.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-24T07:35:58+00:00'
       note: null
   completion:
-    at: null
+    at: '2026-05-24T07:36:00+00:00'
     note: null
     observed_prs: []
