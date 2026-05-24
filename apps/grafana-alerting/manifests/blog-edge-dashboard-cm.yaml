@@ -183,6 +183,32 @@ data:
               "limit": 50
             }
           ]
+        },
+        {
+          "id": 5,
+          "type": "timeseries",
+          "title": "Falco events by priority",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "VictoriaLogs" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "source:syscall | stats by (_time:1m, priority) count() as c"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "table",
+          "title": "Top Falco rules (last 24h)",
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
+          "datasource": { "type": "victoriametrics-logs-datasource", "uid": "VictoriaLogs" },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "source:syscall | stats by (rule, priority) count() as Hits | sort by (Hits desc) | limit 10"
+            }
+          ]
         }
       ]
     }

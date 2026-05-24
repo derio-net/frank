@@ -1432,3 +1432,35 @@ data:
             annotations:
               summary: ">10 CrowdSec ban decisions in last 5m"
               runbook: "blog-edge-security dashboard — investigate by source IP."
+
+          - uid: falco-critical-event
+            title: Falco critical event
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 300, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  expr: '_time:5m priority:Critical | stats count() as c'
+              - refId: B
+                relativeTimeRange: { from: 300, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 300, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 0s
+            labels:
+              severity: critical
+            annotations:
+              summary: "Falco fired a critical-severity event"
+              runbook: "blog-edge-security dashboard — inspect rule + container."
