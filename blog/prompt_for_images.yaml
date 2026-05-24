@@ -711,6 +711,35 @@ images:
       request routes through one auth door" rather than "ingress is
       solved".
 
+  - key: paper-21-cover
+    torso_variant: 0
+    mood: weighing
+    references:
+      - .reference-pool/papers/subjects/frank-white-shirt-black-tie-2.png
+    output: blog/content/docs/papers/21-edge-observability/cover.png
+    description: Paper 21 cover — Frank at a glass control panel labelled EDGE, weighing traffic graphs against red dot alerts without burning what he watches
+    prompt: >-
+      Frank stands behind a tall translucent glass control panel
+      labelled in bold black letters "EDGE" along the top edge. The
+      panel shows three columns of small live readouts: a row of
+      smooth traffic sparkline graphs on the left (rising, calm), a
+      small grid of three red dot alerts in the middle that have just
+      lit up (recent activity), and a column of tidy pageview counters
+      on the right. One hand rests on the glass below the red dots,
+      not pressing — measuring. His expression is considered and
+      slightly skeptical — a decision-maker weighing whether the
+      pattern in the dots is benign traffic or something worse. He
+      wears small circular wire-rim reading glasses resting low on his
+      face and a thin black necktie over a white button-down dress
+      shirt. Warm overhead work-lamp light, faint electric-blue rim
+      light on the glass edges and the red alert dots. Deep navy
+      studio-style background. RJ45 neck bolts, green skin, messy
+      black hair, rack-mount torso. The ONLY text in the image is the
+      single word "EDGE" at the top of the glass panel — no captions,
+      no watermarks, no other labels. ONE FIGURE — one single Frank.
+      The framing communicates "watching the edge without watching it
+      burn" rather than "the edge is solved".
+
   # --- Post Covers ------------------------------------------------------------
 
   - key: building-00-overview
