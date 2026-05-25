@@ -1,0 +1,134 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Docs — retro-update blog posts, add gotchas, record parent deviation
+  tag: agentic
+  depends_on: [2]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Retroactively update the obs building + operating posts
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Per the Layer Fix/Extension Workflow (do NOT create a new post), update
+      the existing obs building post
+      `blog/content/docs/building/31-edge-observability/index.md`:
+
+      Add a short "Deviation: the digest was lying" subsection near the AI-helper
+      section. Cover the four bugs and their one root cause — the digest read raw
+      Caddy/Falco logs as a proxy for "blog activity" without the dimensional
+      filters that data needs (vhost via `request.host`, priority breadth) while
+      the purpose-built reader source (GoatCounter) sat wired-but-unused. Note
+      that the tests only asserted the count-parser shape, never the query
+      string, which is why it shipped.
+  - id: P3.T1.S2
+    text: |-
+      Update the operating post
+      `blog/content/docs/operating/26-edge-observability/index.md`:
+
+      - Document how to read the richer digest (blog readers vs edge traffic vs
+        security; that the security window extends past midnight into "today" by
+        design, so an overnight Critical event appears the same morning).
+      - Add the dry-run inspection command
+        (`POST /digest?dry_run=true` via `kubectl exec`) as the canonical way to
+        audit the fact sheet without sending Telegram.
+
+      Rebuild check:
+
+      ```bash
+      cd blog && hugo --minify 2>&1 | tail -5
+      ```
+- number: 2
+  title: Add gotchas (one-liner in hot file + prose in per-topic file)
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Add one-liners to `agents/rules/frank-gotchas.md`. Under the
+      **Networking** section (Caddy access logs):
+
+      - Caddy JSON access logs store the vhost in field `request.host`, NOT in
+        `_msg` (which is literally `"handled request"`). `_msg:"blog.derio.net"`
+        always matches zero — filter `request.host:"blog.derio.net"`. Scope to
+        Hop with `kubernetes.host:hop-1`.
+
+      Under **Grafana** or a short new **Observability digest** note:
+
+      - Falco events reach VictoriaLogs via falcosidekick→Loki-push with fields
+        `source`/`priority`/`rule`/`k8s_ns_name` — NOT `kubernetes.namespace_name`
+        (that's the fluent-bit collector path for Caddy/CrowdSec). Query Falco
+        with `source:syscall`, never a `kubernetes.namespace_name` filter.
+      - The daily digest uses a split window: traffic = prior calendar day,
+        security = yesterday 00:00 → digest run time, so overnight Critical
+        events aren't reported ~24h late.
+  - id: P3.T2.S2
+    text: |-
+      Add the full prose / recovery detail to the matching per-topic file under
+      `docs/runbooks/frank-gotchas/` (see that dir's `README.md` for the
+      topic→file map — `networking.md` for the Caddy `request.host` item; the
+      Falco-fields + split-window items belong with the observability/grafana
+      topic file or a new `obs-digest.md` if none fits). Include the live
+      evidence: edge total 15,717/day vs `request.host:"blog.derio.net"`, and
+      the falco `priority` breakdown shape.
+- number: 3
+  title: Record the deviation against the parent plan
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Add a Deviation note to the parent plan pointing at this rework (do NOT
+      reopen the parent's closed phase Issues — that is the documented
+      `vk apply` archived-plan footgun).
+
+      - In `docs/superpowers/plans/2026-05-23--obs--hop-blog-edge-monitoring/_prose.md`,
+        append a short "## Deviations" entry: "Phase 5's `/digest` shipped with
+        the GoatCounter half unbuilt and an over-broad request count; four bugs
+        fixed in rework-1 (see `..-rework-1/`)."
+      - Optionally add a `note:` on the parent `05.yaml` completion block
+        referencing the rework slug. Do this via the Edit tool on the YAML
+        `completion.note` field — do not re-run `vk apply` on the parent.
+  - id: P3.T3.S2
+    text: |-
+      Commit the docs + deviation:
+
+      ```bash
+      git add blog/content/docs/building/31-edge-observability/ \
+              blog/content/docs/operating/26-edge-observability/ \
+              agents/rules/frank-gotchas.md docs/runbooks/frank-gotchas/ \
+              docs/superpowers/plans/2026-05-23--obs--hop-blog-edge-monitoring/
+      git commit -m "docs(obs): digest-fix retro on building/operating posts + gotchas + parent deviation"
+      git push origin HEAD
+      ```
+
+      Then set this rework plan's status: tick remaining steps and complete each
+      phase via `vk plan edit`. The plan is Complete when the digest message has
+      been observed correct (P2.T3.S2) and docs are pushed.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
