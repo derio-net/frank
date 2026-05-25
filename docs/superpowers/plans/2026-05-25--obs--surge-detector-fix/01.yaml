@@ -1,0 +1,120 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Cluster prep — silence the storm + probe identity (deploy on main)
+  tag: manual
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Silence the surge-check alert declaratively
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Stop the every-15-min false page while we implement the fix. Edit
+      `apps/ai-alert-helper/manifests/cronjob-surge-check.yaml` — add
+      `suspend: true` as a sibling of `schedule:` under `spec:`:
+
+      BEGIN edit (spec block head)
+      spec:
+        schedule: "*/15 * * * *"
+        suspend: true            # TEMPORARY — reverted in P3.T2.S1 after the fix is verified live
+        concurrencyPolicy: Forbid
+      END edit
+
+      This is the declarative "stop the bleeding" — ArgoCD will stop
+      spawning surge-check Jobs. The digest CronJob is untouched.
+  - id: P1.T1.S2
+    text: |-
+      Commit, open a PR, and merge to `main` (ArgoCD only watches main).
+      After merge, wait for the ai-alert-helper app to sync, then verify
+      the CronJob is suspended and no new Jobs spawn:
+
+      source .env
+      kubectl -n ai-alert-helper-system get cronjob surge-check \
+        -o jsonpath='{.spec.suspend}{"\n"}'        # expect: true
+      # Confirm no new surge-check Jobs over ~16 min (count must not grow):
+      kubectl -n ai-alert-helper-system get jobs | grep -c surge-check
+- number: 2
+  title: Tag Frank's uptime probes with a self-controlled identity
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Give Frank's blackbox probes an owned User-Agent so the edge
+      definition can exclude *Frank's probe*, not the vendor default UA.
+      Edit `apps/blackbox-exporter/manifests/configmap.yaml` — add a
+      `headers:` map to the `http:` block of BOTH `http_2xx` and
+      `http_2xx_no_redirect`:
+
+      BEGIN edit (http_2xx)
+            http_2xx:
+              prober: http
+              timeout: 10s
+              http:
+                # User-Agent identifies Frank's own uptime probes so the
+                # edge-traffic definition can exclude them. KEEP IN SYNC
+                # with facts.PROBE_UA_TOKEN in apps/ai-alert-helper.
+                headers:
+                  User-Agent: "Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"
+                valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+                valid_status_codes: [200, 301, 302]
+                follow_redirects: true
+                preferred_ip_protocol: ip4
+      END edit
+
+      Add the same `headers:` block to `http_2xx_no_redirect`. Verified
+      supported: blackbox_exporter's http module accepts `headers:` and
+      User-Agent is overridable (upstream CONFIGURATION.md).
+  - id: P1.T2.S2
+    text: |-
+      Commit + merge to `main`. blackbox-exporter does NOT hot-reload its
+      config file, so after ArgoCD syncs the ConfigMap, restart the pod to
+      pick up the new module config:
+
+      source .env
+      kubectl -n monitoring rollout restart deploy/blackbox-exporter
+      kubectl -n monitoring rollout status  deploy/blackbox-exporter --timeout=120s
+  - id: P1.T2.S3
+    text: |-
+      LOAD-BEARING live verification (the exclusion filter in Phase 2 is
+      only trustworthy once this passes). Wait one probe cycle, then query
+      VictoriaLogs and confirm probe requests to blog.derio.net now carry
+      the new UA and the OLD stock UA is gone:
+
+      source .env
+      VL=http://192.168.55.225:9428
+      curl -s "$VL/select/logsql/stats_query" --data-urlencode \
+        'query=_time:15m kubernetes.host:hop-1 AND _msg:"handled request" AND request.host:"blog.derio.net" | stats by (request.headers.User-Agent) count() as c'
+      # Expect the dominant UA to be ["Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"]
+      # and ["Blackbox Exporter/0.25.0"] absent.
+
+      # Confirm the exclusion query (Phase 2's filter) now bites:
+      curl -s "$VL/select/logsql/stats_query" --data-urlencode \
+        'query=_time:15m kubernetes.host:hop-1 AND _msg:"handled request" AND request.host:"blog.derio.net" AND -`request.headers.User-Agent`:"Frank-Blackbox-Probe" | stats count() as c'
+      # Expect a small count (scanners/humans only), NOT ~the probe volume.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

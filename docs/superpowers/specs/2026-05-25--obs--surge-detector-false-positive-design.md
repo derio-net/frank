@@ -5,6 +5,12 @@
 **Status:** Draft
 **App(s):** `apps/ai-alert-helper`, `apps/blackbox-exporter`
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-05-25--obs--surge-detector-fix | `derio-net/frank` | `docs/superpowers/plans/2026-05-25--obs--surge-detector-fix/` | — |
+
 ## Problem
 
 On 2026-05-25 the `ai-alert-helper` `surge-check` CronJob fired an **URGENT**

@@ -1,0 +1,116 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Build, deploy & end-to-end verify + restore detector (deploy on main)
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Version bump + build/push image
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Bump the version to 0.1.5 in three places and align the stale CI tag:
+      - `apps/ai-alert-helper/src/ai_alert_helper/api.py`: `version="0.1.5"`
+      - `apps/ai-alert-helper/src/pyproject.toml`: `version = "0.1.5"`
+      - `apps/ai-alert-helper/manifests/deployment.yaml`:
+        `image: ghcr.io/derio-net/ai-alert-helper:0.1.5`
+      - `.github/workflows/build-ai-alert-helper.yml`: bump the two
+        hardcoded `0.1.0` tags to `0.1.5` (so the auto-fire on src/** isn't
+        actively mis-tagged; proper version-parametrization is a deferred
+        follow-up, noted in gotchas).
+  - id: P3.T1.S2
+    text: |-
+      manual-operation — build + push the image (needs local docker +
+      GHCR push creds; the CI workflow tag is unreliable):
+
+      docker build -t ghcr.io/derio-net/ai-alert-helper:0.1.5 apps/ai-alert-helper/src/
+      docker push  ghcr.io/derio-net/ai-alert-helper:0.1.5
+- number: 2
+  title: Restore the detector + deploy to main
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Revert Phase 1's silence — set `suspend: false` (or remove the line)
+      in `apps/ai-alert-helper/manifests/cronjob-surge-check.yaml`. The
+      fixed detector is about to go live, so it should run again.
+  - id: P3.T2.S2
+    text: |-
+      Commit + merge ALL Phase 2 + Phase 3 changes to `main`. ArgoCD syncs
+      the new image and un-suspends the CronJob. Verify:
+
+      source .env
+      argocd app wait ai-alert-helper --port-forward --port-forward-namespace argocd --health --timeout 300
+      kubectl -n ai-alert-helper-system get deploy ai-alert-helper -o jsonpath='{..image}{"\n"}'   # expect 0.1.5
+      kubectl -n ai-alert-helper-system get cronjob surge-check -o jsonpath='{.spec.suspend}{"\n"}' # expect false/empty
+- number: 3
+  title: End-to-end verification (not Deployed until observed)
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Live exclusion gate — run the exact edge_filter negation query and
+      assert HTTP 200 + probe excluded:
+
+      source .env
+      VL=http://192.168.55.225:9428
+      curl -s -o /dev/null -w "%{http_code}\n" "$VL/select/logsql/stats_query" --data-urlencode \
+        'query=_time:1h kubernetes.host:hop-1 AND _msg:"handled request" AND request.host:"blog.derio.net" AND -`request.headers.User-Agent`:"Frank-Blackbox-Probe" | stats count() as c'
+      # expect 200, and the count is the small non-probe remainder
+  - id: P3.T3.S2
+    text: |-
+      Trigger the detector once and confirm the probe no longer fires an
+      URGENT (probe-free current < ABS_FLOOR → tier None):
+
+      source .env
+      kubectl -n ai-alert-helper-system delete job surge-verify --ignore-not-found
+      kubectl -n ai-alert-helper-system create job surge-verify --from=cronjob/surge-check
+      kubectl -n ai-alert-helper-system wait --for=condition=complete job/surge-verify --timeout=60s
+      kubectl -n ai-alert-helper-system logs job/surge-verify
+      # expect curl to print {"triggered": false, ... "current": <small>, "tier": null}
+  - id: P3.T3.S3
+    text: |-
+      OPTIONAL live GC-gate test (the unit matrix already covers the logic;
+      this exercises it against the live service). Use the documented
+      suspend-selfHeal → patch → observe → restore pattern (frank-argocd.md)
+      to temporarily set SURGE_ABS_FLOOR=1 on the live Deployment, trigger
+      one surge-check, and confirm a Major-with-no-humans is DOWNGRADED to a
+      non-urgent Notable (urgent flag false). Restore selfHeal + sync to
+      git HEAD afterwards. Skip if not exercising live; note it will be
+      observed on the next genuine surge.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
