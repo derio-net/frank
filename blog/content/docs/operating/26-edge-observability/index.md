@@ -356,6 +356,39 @@ kubectl logs -n ai-alert-helper-system deploy/ai-alert-helper --tail 100 | \
   grep -iE "fallback|timeout|503|retry"
 ```
 
+### Tuning the surge detector
+
+`/surge-check` runs every 15 min, compares the last complete hour of **blog edge requests** against an hour-of-day baseline (median of the same hour over the prior 7 days), and pages if traffic spiked *and* real visitors showed up. Two env knobs on the Deployment tune it:
+
+```
+# Minimum requests/hour for ANY tier — stops a baseline of 1 (quiet hour →
+# median 0 → forced to 1) from turning a trickle into a "surge". Exactly
+# SURGE_ABS_FLOOR fires (the comparison is current < floor → no tier).
+kubectl set env -n ai-alert-helper-system deploy/ai-alert-helper SURGE_ABS_FLOOR=50
+# Minimum GoatCounter pageviews in the window to confirm a Major as URGENT.
+kubectl set env -n ai-alert-helper-system deploy/ai-alert-helper SURGE_VISITOR_FLOOR=10
+```
+
+**Reading a surge message:**
+
+- **`(Major)` + urgent** — edge spiked *and* GoatCounter confirms ≥`SURGE_VISITOR_FLOOR` real pageviews. A genuine human surge (HN/Reddit). Act on it.
+- **`(Major) (visitor data unavailable)` + urgent** — edge spiked but GoatCounter was unreachable; it pages anyway (fail-open) rather than miss a real surge. Check GoatCounter.
+- **`(Notable)` + non-urgent** — edge spiked but GoatCounter shows no humans, so a Major was downgraded: bots/scrapers/scanners, not readers. Informational; cross-check with CrowdSec/Falco if sustained.
+
+Frank's own blackbox uptime probe (~360 req/hr to `blog.derio.net`) is tagged `Frank-Blackbox-Probe` and excluded from the count — it must never read as a surge. If you ever change that User-Agent in `apps/blackbox-exporter/manifests/configmap.yaml`, update `facts.PROBE_UA_TOKEN` to match (a unit test pins it).
+
+**Dry-running a check.** `/surge-check` has no `dry_run` (any computed tier sends Telegram), so to see what it *would* do without sending, replay `surge.compute`'s queries through VictoriaLogs:
+
+```bash
+source .env
+VL=http://192.168.55.225:9428
+# current hour's probe-excluded blog edge count (compare to your baseline mentally)
+curl -s "$VL/select/logsql/stats_query" --data-urlencode \
+  'query=_time:1h kubernetes.host:hop-1 AND _msg:"handled request" AND `request.host`:"blog.derio.net" AND -`request.headers.User-Agent`:"Frank-Blackbox-Probe" | stats count() as c'
+```
+
+> **2026-05-25 worked example.** A `370× baseline (Major)` URGENT fired with GoatCounter flat. The "370" was Frank's own blackbox probe against a baseline forced to 1; no humans. The fix (probe identity + absolute floor + the visitor cross-check above) turns that exact case into *no message*. Note: just after re-tagging the probe, the old-UA hits linger in the 1h window for ~1–2h and can transiently trip a non-urgent Notable until they age out.
+
 ## Alerts — what's there, how to suppress, how to investigate
 
 The two rules in the `blog-edge` folder:

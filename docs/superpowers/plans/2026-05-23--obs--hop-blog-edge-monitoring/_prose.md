@@ -131,6 +131,17 @@ The fix was done as a dedicated rework plan, not an amend here, to avoid
 reopening this plan's hand-closed phase Issues (the documented `vk apply`
 archived-plan footgun).
 
+`/surge-check` (Phase 5) shipped with three latent bugs that produced an URGENT
+false page on 2026-05-25: the hour-of-day baseline forced to 1 manufactured a
+370× ratio, Frank's own blackbox uptime probe was counted as blog traffic, and
+the documented GoatCounter visitor cross-check was never wired into the URGENT
+path. Fixed in `docs/superpowers/plans/2026-05-25--obs--surge-detector-fix/`
+(probe identity via a self-controlled `Frank-Blackbox-Probe` UA + centralized
+`facts.edge_filter`, an absolute floor `SURGE_ABS_FLOOR`, and the visitor gate
+`SURGE_VISITOR_FLOOR` with fail-open). Done as a separate fix plan, not an amend
+here, for the same archived-plan-footgun reason. Image build moved off manual
+docker to the CI workflow (`gh workflow run build-ai-alert-helper.yml`).
+
 Resource budget on Hop:
 
 | Component | Memory limit | Phase |
