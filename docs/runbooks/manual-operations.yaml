@@ -1305,6 +1305,19 @@ operations:
   verify:
   - kubectl get secret -n monitoring grafana-goatcounter-token
   status: done
+- id: obs-goatcounter-token-stats-permission
+  layer: obs
+  app: ai-alert-helper
+  plan: docs/superpowers/plans/2026-05-25--obs--blog-digest-rework-1
+  when: After deploying the digest's GoatCounter reader integration, or whenever the GoatCounter DB is recreated/restored (token permissions are runtime state, not GitOps-managed). Remedies obs-goatcounter-api-token-grafana, which minted the token with -perm count,export,site_read (no stats).
+  why_manual: GoatCounter API tokens and their permission bitfield live in GoatCounter's own sqlite DB (runtime object, originally minted via CLI/UI), not in Git. The stats permission (bit 64) is required for /api/v0/stats/* but the bundled `goatcounter db ... -perm` CLI does not expose `stats` as a name, so the bitfield must be written directly.
+  commands:
+  - DB="sqlite+/home/goatcounter/goatcounter-data/goatcounter.sqlite3"
+  - kubectl -n goatcounter-system exec deploy/goatcounter -- sh -c "goatcounter db query -db '$DB' \"UPDATE api_tokens SET permissions='78' WHERE api_token_id=1\""  # additive 14->78 (adds stats bit 64)
+  - kubectl -n goatcounter-system rollout restart deploy/goatcounter  # token cache read at boot
+  verify:
+  - kubectl -n goatcounter-system exec deploy/goatcounter -- sh -c "goatcounter db query -db '$DB' 'SELECT name,permissions FROM api_tokens' -format json"  # expect permissions "78"; /api/v0/stats/total then returns 200 not 403
+  status: done
 - id: obs-dns-counter-derio-net
   layer: obs
   app: cloudflare-dns

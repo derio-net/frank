@@ -61,3 +61,68 @@ Three phases, TDD-first:
   `vk apply` footgun of reopening the parent's hand-closed phase Issues.
 - The `ai_adapter` swap contract is preserved: `summarize(facts: dict) -> str`
   is unchanged; only the fact dict grows richer.
+
+## Phase 2 Deployment Deviations
+
+End-to-end verification against live data (the whole point of P2.T3) surfaced
+that the planned fix #2 (GoatCounter readers) was broken in **four** ways the
+plan hadn't anticipated — Phase 1 built the query but nothing had ever
+exercised it against the real GoatCounter:
+
+1. **URL behind SSO.** `GOATCOUNTER_URL` pointed at the public
+   `counter.cluster.derio.net` ingress, which sits behind Authentik
+   forward-auth → API token requests `302`-redirect to the SSO login. Fixed:
+   point at the in-cluster Service `goatcounter.goatcounter-system.svc:8080`
+   (deployment env + code default).
+2. **Token missing `stats` permission.** The shared `grafana-readonly` token
+   (`OBS_GOATCOUNTER_API_TOKEN`) had permissions `14` (count+export+site_read)
+   but the `/api/v0/stats/*` endpoints require `APIPermStats` (bit `64`) →
+   `403`. Fixed via the manual-operation below (additive: `14`→`78`).
+3. **Wrong referrer endpoint.** Code queried `/api/v0/stats/refs`, which does
+   not exist in this GoatCounter build (`400`); the real endpoint is
+   `/api/v0/stats/toprefs`, wrapping rows in `stats` not `refs`. Fixed path +
+   parse key; test now asserts the real endpoint/shape.
+4. **Empty date range.** GoatCounter's API range is `[start, end)` with `end`
+   EXCLUSIVE. The code queried `{start: day, end: day}` (empty) → `0` views
+   even on days with traffic (2026-05-24 had 16 views; `start==end` returned
+   `0`). Fixed: `end = until.date()` (next-day midnight).
+
+Also added a `falco_critical_rules` fact (rules filtered to `priority:Critical`)
++ reprompt so the digest **names** the benign Critical rule instead of guessing
+it from `falco_top_rules` (the LLM had mis-attributed it).
+
+**Mechanism deviations:** image built via in-cluster kaniko (no `docker` in the
+agent pod) pushing to GHCR with a `write:packages` token; final tag is `0.1.4`
+(iterated `0.1.1`→`0.1.2`→`0.1.3` as each verification-driven fix landed, then
+`0.1.4` for code-review follow-ups — "direct" referrer label + FastAPI version
+sync). ArgoCD tracks `main`, so the branch push does not auto-deploy —
+verification ran against a standalone pod with production env; prod rolls to
+`0.1.4` when the PR merges.
+
+```yaml
+# manual-operation
+id: obs-goatcounter-token-stats-permission
+layer: obs
+app: ai-alert-helper
+plan: 2026-05-25--obs--blog-digest-rework-1
+when: After deploying the digest's GoatCounter reader integration, or whenever
+  the GoatCounter DB is recreated/restored (token permissions are runtime state,
+  not GitOps-managed).
+why_manual: GoatCounter API tokens and their permission bitfield live in
+  GoatCounter's own sqlite DB (runtime object, originally minted via the UI),
+  not in Git. The `stats` permission (bit 64) is required for `/api/v0/stats/*`
+  but the bundled `goatcounter db ... -perm` CLI does not expose `stats` as a
+  name, so the bitfield must be written directly.
+commands: |
+  DB="sqlite+/home/goatcounter/goatcounter-data/goatcounter.sqlite3"
+  # Grant stats (bit 64) additively to the existing token (14 -> 78):
+  kubectl -n goatcounter-system exec deploy/goatcounter -- sh -c \
+    "goatcounter db query -db '$DB' \"UPDATE api_tokens SET permissions='78' WHERE api_token_id=1\""
+  # Token cache is read at boot — restart to apply:
+  kubectl -n goatcounter-system rollout restart deploy/goatcounter
+verify: |
+  kubectl -n goatcounter-system exec deploy/goatcounter -- sh -c \
+    "goatcounter db query -db '$DB' 'SELECT name,permissions FROM api_tokens' -format json"
+  # expect permissions: "78"; the digest /api/v0/stats/total then returns 200, not 403.
+status: done
+```

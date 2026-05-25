@@ -144,30 +144,37 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-25T15:43:40+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-25T15:43:40+00:00'
       note: null
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-25T15:50:10+00:00'
       note: null
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-25T16:14:41+00:00'
+      note: Image rebuilt via in-cluster kaniko (no docker in pod). ArgoCD tracks
+        main so branch push does not auto-deploy; verified via standalone 0.1.3 pod,
+        prod rolls on merge. Final tag 0.1.3 (0.1.1→0.1.2→0.1.3 across verification-driven
+        fixes).
     P2.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-25T16:14:41+00:00'
+      note: 'Dry-run fact dump confirmed: per-vhost edge breakdown, status classes,
+        all-priority Falco, falco_critical_rules, blog_pageviews=16 + top pages/referrers
+        populated against live data.'
     P2.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-25T16:14:41+00:00'
+      note: 'Real digest triggered: Telegram message sent (200) with correct blog-reader
+        line (16 views, top page/referrer), separate edge line, and security line
+        NAMING the benign Critical rule.'
   completion:
-    at: null
+    at: '2026-05-25T16:15:25+00:00'
     note: null
     observed_prs: []
