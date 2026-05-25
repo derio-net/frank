@@ -46,12 +46,6 @@ def test_build_for_alert_returns_minimal_sheet_for_unknown():
     assert sheet["alertname"] == "Unrecognized"
 
 
-def _captured_query(route):
-    """Pull the `query` param from the last request on a respx route."""
-    req = route.calls.last.request
-    return dict(httpx.QueryParams(req.url.query.decode()))["query"]
-
-
 @respx.mock
 def test_build_for_digest_edge_requests_scoped_to_hop_and_grouped():
     """#1: edge requests use kubernetes.host:hop-1, group by request.host + status, no _msg host filter."""
