@@ -113,6 +113,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 
 ### Process / practice
 - **A layer is not "Deployed" until its workflow has been triggered + observed end-to-end.** ArgoCD Synced/Healthy proves artifacts exist; not that they work. Especially load-bearing for canaries, cron, webhook handlers, gated promotions.
+- **Never `vk apply` a path under `archived-plans/`.** It reopens the plan's already-closed phase-issues: vk projects an agentic phase as CLOSED only when it observes a *live merged PR* on the issue, so inline-executed / hand-closed phases can't satisfy the rule retroactively and apply flips their CLOSED issues back to OPEN. `vk apply --all` is safe — it walks only `plans/`, never `archived-plans/`. To close a lingering archived-plan issue, hand-close it (`gh issue close`); do NOT reconcile via vk. Durable fix tracked in `superpowers-for-vk#246`.
 
 ### Operational reference
 - Telegram alerting bot `@agent_zero_cc_bot`; Infisical keys `FRANK_C2_TELEGRAM_BOT_TOKEN` + `FRANK_C2_TELEGRAM_CHAT_ID`. Grafana contact uid: `efi04e0201jb4f`.
