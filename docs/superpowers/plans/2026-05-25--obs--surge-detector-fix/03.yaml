@@ -83,13 +83,15 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-25T20:13:22+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-25T20:13:28+00:00'
+      note: Built via CI workflow_dispatch on the branch (gh workflow run build-ai-alert-helper.yml
+        --ref obs/surge-detector-fix-p3), run 26417972070 success — the established
+        pattern, not manual docker. Tag aligned 0.1.0->0.1.5.
     P3.T2.S1:
       state: ' '
       ticked_at: null
