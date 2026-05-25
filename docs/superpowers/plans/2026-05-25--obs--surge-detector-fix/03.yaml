@@ -93,9 +93,9 @@ state:
         --ref obs/surge-detector-fix-p3), run 26417972070 success — the established
         pattern, not manual docker. Tag aligned 0.1.0->0.1.5.
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-25T20:37:16+00:00'
+      note: 'Un-suspended via #417; cron suspend=false confirmed.'
     P3.T2.S2:
       state: x
       ticked_at: '2026-05-25T20:31:03+00:00'
@@ -105,14 +105,18 @@ state:
       ticked_at: '2026-05-25T20:31:08+00:00'
       note: null
     P3.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-25T20:37:13+00:00'
+      note: 'Observed live on 0.1.5: triggered, current=300 (residue), tier downgraded,
+        no URGENT.'
     P3.T3.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-25T20:37:15+00:00'
+      note: 'GC gate observed live: visitors=1 < SURGE_VISITOR_FLOOR(10) -> Major
+        downgraded to non-urgent Notable (not fail-open; GC reachable). No page.'
   completion:
-    at: null
-    note: null
+    at: '2026-05-25T20:37:18+00:00'
+    note: 0.1.5 built via CI + deployed; probe exclusion + visitor-gate downgrade
+      observed live end-to-end; cron resumed. Residue ages out ~22:00 UTC -> triggered=false
+      steady state.
     observed_prs: []
