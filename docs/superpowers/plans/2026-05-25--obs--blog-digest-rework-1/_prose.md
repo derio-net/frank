@@ -100,7 +100,7 @@ the PR merges.
 
 ```yaml
 # manual-operation
-id: goatcounter-token-stats-permission
+id: obs-goatcounter-token-stats-permission
 layer: obs
 app: ai-alert-helper
 plan: 2026-05-25--obs--blog-digest-rework-1
