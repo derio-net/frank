@@ -1206,7 +1206,7 @@ operations:
 - id: arc-github-app-secret
   layer: repo
   app: arc-runners
-  plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md
+  plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation/
   when: After arc-controller and arc-runners apps are synced by ArgoCD, before runner pod reaches Running state
   why_manual: GitHub App credentials are a bootstrap secret. The runner cannot register without it, and SOPS+ArgoCD don't mix per repo convention.
   commands:
@@ -1219,7 +1219,7 @@ operations:
 - id: github-branch-protection-smoke-test
   layer: repo
   app: renovate
-  plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation.md
+  plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation/
   when: After smoke-test.yaml workflow exists on main branch and has run at least once successfully
   why_manual: Branch protection rules must be configured via GitHub UI or API. The smoke-test/readiness check must be a required status check so Renovate's automerge only fires after tests pass.
   commands:
@@ -1360,7 +1360,7 @@ operations:
   why_manual: Token replication across Frank secrets (LITELLM_MASTER_KEY from .env, FRANK_C2_TELEGRAM_* from grafana-alerting-secrets, OBS_GOATCOUNTER_API_TOKEN from grafana-goatcounter-token) — Infisical seed deferred
   commands:
   - source .env ; kubectl create ns ai-alert-helper-system ; kubectl label ns ai-alert-helper-system pod-security.kubernetes.io/enforce=restricted --overwrite
-  - 'See commands inline in P5.T2.S2 — apply ai-alert-helper-secrets Secret with FRANK_C2_TELEGRAM_BOT_TOKEN, FRANK_C2_TELEGRAM_CHAT_ID, OBS_GOATCOUNTER_API_TOKEN, LITELLM_API_KEY'
+  - See commands inline in P5.T2.S2 — apply ai-alert-helper-secrets Secret with FRANK_C2_TELEGRAM_BOT_TOKEN, FRANK_C2_TELEGRAM_CHAT_ID, OBS_GOATCOUNTER_API_TOKEN, LITELLM_API_KEY
   verify:
   - kubectl -n ai-alert-helper-system get secret ai-alert-helper-secrets
   - kubectl -n ai-alert-helper-system exec deploy/ai-alert-helper -- env | grep -c TELEGRAM

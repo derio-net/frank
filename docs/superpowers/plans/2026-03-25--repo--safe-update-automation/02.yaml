@@ -3,7 +3,7 @@ phase:
   number: 2
   title: ARC Bootstrap Secret
   tag: manual
-  depends_on: []
+  depends_on: [1]
   tracking_issue: null
 tasks:
 - number: 3
@@ -21,6 +21,37 @@ tasks:
     text: |-
       Apply and encrypt the secret
 
+
+      The GitHub App credentials must exist as a Kubernetes Secret before the runner pod can register. This is a SOPS-encrypted bootstrap secret applied out-of-band.
+
+      ```yaml
+      # manual-operation
+      id: arc-github-app-secret
+      layer: repo
+      app: arc-runners
+      plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation/
+      when: "After arc-controller and arc-runners apps are synced by ArgoCD, before runner pod reaches Running state"
+      why_manual: "GitHub App credentials are a bootstrap secret. The runner cannot register without it, and SOPS+ArgoCD don't mix per repo convention."
+      commands:
+        - |
+          # Create the Secret manifest
+          kubectl create secret generic arc-github-app-secret \
+            --namespace arc-system \
+            --from-literal=github_app_id=<APP_ID> \
+            --from-literal=github_app_installation_id=<INSTALLATION_ID> \
+            --from-literal=github_app_private_key="$(cat path/to/private-key.pem)" \
+            --dry-run=client -o yaml > /tmp/arc-secret.yaml
+          # Encrypt with SOPS (use the same age key as other secrets/)
+          sops --encrypt /tmp/arc-secret.yaml > secrets/arc/github-app-secret.yaml
+          rm /tmp/arc-secret.yaml
+          # Apply to cluster
+          sops --decrypt secrets/arc/github-app-secret.yaml | kubectl apply -f -
+      verify:
+        - kubectl get secret arc-github-app-secret -n arc-system
+        - kubectl get pods -n arc-system   # runner pod should reach Running within ~60s
+        - kubectl get runners -n arc-system  # should show registered runner
+      status: pending
+      ```
 
       Follow the commands in the manual-operation block above. Replace `<APP_ID>`, `<INSTALLATION_ID>`, and `path/to/private-key.pem` with your actual GitHub App values.
   - id: P2.T3.S3
