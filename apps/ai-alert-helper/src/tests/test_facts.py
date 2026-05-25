@@ -4,6 +4,9 @@ Mock VictoriaLogs + GoatCounter responses; check that the right
 dict shape comes out.
 """
 from __future__ import annotations
+import re
+from datetime import datetime, timedelta, timezone
+
 import respx
 import httpx
 from ai_alert_helper import facts
@@ -41,3 +44,73 @@ def test_build_for_alert_returns_minimal_sheet_for_unknown():
     """Unknown alert name → minimal sheet (no crash)."""
     sheet = facts.build_for_alert({"alertname": "Unrecognized"})
     assert sheet["alertname"] == "Unrecognized"
+
+
+@respx.mock
+def test_build_for_digest_edge_requests_scoped_to_hop_and_grouped():
+    """#1: edge requests use kubernetes.host:hop-1, group by request.host + status, no _msg host filter."""
+    route = respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        return_value=httpx.Response(200, json={"data": {"result": [
+            {"metric": {"request.host": "blog.derio.net"}, "value": [0, "120"]},
+            {"metric": {"request.host": "heads.hop.derio.net"}, "value": [0, "900"]},
+        ]}}),
+    )
+    since = datetime(2026, 5, 24, tzinfo=timezone.utc)
+    until = since + timedelta(days=1)
+    sheet = facts.build_for_digest(since, until, until)  # security_until == until for this test
+    # vhost breakdown present, sorted desc, capped
+    assert sheet["edge_requests_by_vhost"][0]["host"] == "heads.hop.derio.net"
+    # at least one query scoped to Hop and grouped by request.host
+    assert any("kubernetes.host:hop-1" in q and "by (request.host)" in q
+               for q in [c.request.url.params.get("query", "") for c in route.calls])
+    # never the broken substring filter
+    assert all('_msg:"blog.derio.net"' not in c.request.url.params.get("query", "")
+               for c in route.calls)
+
+
+@respx.mock
+def test_build_for_digest_pulls_goatcounter_pageviews_and_top_n():
+    """#2: digest queries GoatCounter for total/hits/refs with Bearer auth + day window."""
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        return_value=httpx.Response(200, json={"data": {"result": []}}))
+    total = respx.get(facts.GOATCOUNTER_URL + "/api/v0/stats/total").mock(
+        return_value=httpx.Response(200, json={"total": 42}))
+    hits = respx.get(facts.GOATCOUNTER_URL + "/api/v0/stats/hits").mock(
+        return_value=httpx.Response(200, json={"hits": [{"path": "/frank/x", "count": 30}]}))
+    refs = respx.get(facts.GOATCOUNTER_URL + "/api/v0/stats/refs").mock(
+        return_value=httpx.Response(200, json={"refs": [{"name": "news.ycombinator.com", "count": 12}]}))
+    since = datetime(2026, 5, 24, tzinfo=timezone.utc)
+    until = since + timedelta(days=1)
+    sheet = facts.build_for_digest(since, until, until)
+    assert sheet["blog_pageviews"] == 42
+    assert sheet["blog_top_pages"][0]["path"] == "/frank/x"
+    assert sheet["blog_top_referrers"][0]["name"] == "news.ycombinator.com"
+    # Bearer auth header present on GoatCounter calls
+    assert total.calls.last.request.headers["Authorization"].startswith("Bearer ")
+    # day-scoped window passed as start/end params
+    assert hits.calls.last.request.url.params["start"] == "2026-05-24"
+
+
+@respx.mock
+def test_build_for_digest_falco_all_priorities_and_split_window():
+    """#3: falco grouped by priority (not Critical-only); security window runs to security_until."""
+    captured = []
+    def _cap(request):
+        captured.append(dict(request.url.params)["query"])
+        # priority breakdown response
+        if "by (priority)" in dict(request.url.params)["query"]:
+            return httpx.Response(200, json={"data": {"result": [
+                {"metric": {"priority": "Warning"}, "value": [0, "2"]},
+                {"metric": {"priority": "Notice"}, "value": [0, "1652"]}]}})
+        return httpx.Response(200, json={"data": {"result": []}})
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(side_effect=_cap)
+    respx.get(re.compile(facts.GOATCOUNTER_URL + "/api/v0/.*")).mock(
+        return_value=httpx.Response(200, json={"total": 0, "hits": [], "refs": []}))
+    since = datetime(2026, 5, 24, tzinfo=timezone.utc)
+    until = since + timedelta(days=1)
+    security_until = datetime(2026, 5, 25, 8, 0, tzinfo=timezone.utc)
+    sheet = facts.build_for_digest(since, until, security_until)
+    prios = {row["priority"]: row["count"] for row in sheet["falco_by_priority"]}
+    assert prios == {"Warning": 2, "Notice": 1652}
+    # security query window ends at security_until, NOT until
+    assert any("2026-05-25T08:00:00" in q and "source:syscall" in q for q in captured)

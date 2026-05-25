@@ -17,7 +17,7 @@ def _hour_count(when: datetime) -> int:
     end = when.isoformat()
     query = (
         f'_time:[{start},{end}] AND kubernetes.namespace_name:caddy-system '
-        f'AND _msg:"handled request" AND _msg:"blog.derio.net" | stats count() as c'
+        f'AND _msg:"handled request" AND request.host:"blog.derio.net" | stats count() as c'
     )
     return facts._logsql_count(query)
 
