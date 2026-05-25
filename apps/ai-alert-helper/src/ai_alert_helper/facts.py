@@ -83,8 +83,11 @@ def _goatcounter(path: str, params: dict) -> dict:
 
 def _digest_blog_facts(since: datetime, until: datetime) -> dict:
     """Blog reader metrics from GoatCounter for the calendar day [since, until)."""
-    day = since.date().isoformat()
-    window = {"start": day, "end": day}
+    # GoatCounter's API treats the range as [start, end) — end is EXCLUSIVE.
+    # start==end (e.g. both "2026-05-24") yields an empty range and 0 views;
+    # to capture the full calendar day [since, until) we pass end = until's
+    # date (the next day at midnight).
+    window = {"start": since.date().isoformat(), "end": until.date().isoformat()}
     total = _goatcounter("/api/v0/stats/total", window)
     hits = _goatcounter("/api/v0/stats/hits", {**window, "limit": 10})
     # Top referrers live at /stats/toprefs (one of the {page} stats), NOT

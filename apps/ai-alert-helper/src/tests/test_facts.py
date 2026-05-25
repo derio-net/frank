@@ -94,8 +94,10 @@ def test_build_for_digest_pulls_goatcounter_pageviews_and_top_n():
     assert toprefs.called
     # Bearer auth header present on GoatCounter calls
     assert total.calls.last.request.headers["Authorization"].startswith("Bearer ")
-    # day-scoped window passed as start/end params
+    # day-scoped window: GoatCounter range is [start, end) with end EXCLUSIVE,
+    # so the full calendar day needs end = next day, not start == end.
     assert hits.calls.last.request.url.params["start"] == "2026-05-24"
+    assert hits.calls.last.request.url.params["end"] == "2026-05-25"
 
 
 @respx.mock
