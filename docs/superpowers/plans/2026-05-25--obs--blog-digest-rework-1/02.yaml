@@ -3,8 +3,9 @@ phase:
   number: 2
   title: Wire prompt + api.py, rebuild image, redeploy, verify end-to-end
   tag: agentic
-  depends_on: [1]
-  tracking_issue: null
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/401
 tasks:
 - number: 1
   title: Compute split windows in api.py and rewrite the digest prompt

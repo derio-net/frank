@@ -3,8 +3,9 @@ phase:
   number: 3
   title: Docs — retro-update blog posts, add gotchas, record parent deviation
   tag: agentic
-  depends_on: [2]
-  tracking_issue: null
+  depends_on:
+  - 2
+  tracking_issue: https://github.com/derio-net/frank/issues/402
 tasks:
 - number: 1
   title: Retroactively update the obs building + operating posts
