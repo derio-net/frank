@@ -24,7 +24,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: ai-alert-helper
-          image: ghcr.io/derio-net/ai-alert-helper:0.1.1
+          image: ghcr.io/derio-net/ai-alert-helper:0.1.2
           imagePullPolicy: Always
           ports:
             - name: http

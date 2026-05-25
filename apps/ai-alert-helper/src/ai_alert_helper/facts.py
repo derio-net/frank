@@ -14,7 +14,12 @@ VICTORIALOGS_URL = os.environ.get(
     "VICTORIALOGS_URL",
     "http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428",
 )
-GOATCOUNTER_URL = os.environ.get("GOATCOUNTER_URL", "https://counter.cluster.derio.net")
+# Default to the in-cluster Service: the public counter.cluster.derio.net
+# ingress is behind Authentik forward-auth, which 302-redirects API token
+# requests to the SSO login. Deployments override this via env anyway.
+GOATCOUNTER_URL = os.environ.get(
+    "GOATCOUNTER_URL", "http://goatcounter.goatcounter-system.svc.cluster.local:8080"
+)
 GOATCOUNTER_TOKEN = os.environ.get("OBS_GOATCOUNTER_API_TOKEN", "")
 
 
@@ -82,7 +87,10 @@ def _digest_blog_facts(since: datetime, until: datetime) -> dict:
     window = {"start": day, "end": day}
     total = _goatcounter("/api/v0/stats/total", window)
     hits = _goatcounter("/api/v0/stats/hits", {**window, "limit": 10})
-    refs = _goatcounter("/api/v0/stats/refs", {**window, "limit": 10})
+    # Top referrers live at /stats/toprefs (one of the {page} stats), NOT
+    # /stats/refs — that path is per-page referrers (/stats/hits/{path_id})
+    # and 400s when hit directly. The response wraps rows in "stats".
+    refs = _goatcounter("/api/v0/stats/toprefs", {**window, "limit": 10})
     return {
         "blog_pageviews": int(total.get("total", 0)),
         "blog_top_pages": [
@@ -91,7 +99,7 @@ def _digest_blog_facts(since: datetime, until: datetime) -> dict:
         ],
         "blog_top_referrers": [
             {"name": r.get("name", ""), "count": int(r.get("count", 0))}
-            for r in refs.get("refs", [])
+            for r in refs.get("stats", [])
         ],
     }
 
@@ -105,12 +113,23 @@ def _digest_security_facts(since: datetime, security_until: datetime) -> dict:
     top_rules = _logsql_group(
         f"{sw} source:syscall | stats by (rule) count() as c", "rule", top=5
     )
+    # Critical-priority rules broken out separately: falco_by_priority and
+    # falco_top_rules don't link priority↔rule, so the LLM can't reliably name
+    # WHICH rule was the benign Critical. This gives it the rule names directly.
+    critical_rules = _logsql_group(
+        f"{sw} source:syscall AND priority:Critical | stats by (rule) count() as c",
+        "rule",
+        top=5,
+    )
     return {
         "falco_by_priority": [
             {"priority": r["priority"], "count": r["count"]} for r in by_priority
         ],
         "falco_top_rules": [
             {"rule": r["rule"], "count": r["count"]} for r in top_rules
+        ],
+        "falco_critical_rules": [
+            {"rule": r["rule"], "count": r["count"]} for r in critical_rules
         ],
         "crowdsec_decisions": _logsql_count(
             f"{sw} kubernetes.namespace_name:crowdsec-system "
