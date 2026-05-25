@@ -25,8 +25,8 @@ def healthz() -> dict:
 def digest(dry_run: bool = False) -> dict:
     now = datetime.now(timezone.utc)
     since = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-    until = since + timedelta(days=1)
-    sheet = facts.build_for_digest(since, until)
+    until = since + timedelta(days=1)          # traffic = prior calendar day
+    sheet = facts.build_for_digest(since, until, now)  # security runs to now
     if dry_run:
         return {"facts": sheet, "narrative": None}
     narrative = ai_adapter.summarize(sheet)
