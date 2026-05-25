@@ -33,8 +33,12 @@ spec:
           env:
             - name: VICTORIALOGS_URL
               value: "http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428"
+            # Internal service URL — the public counter.cluster.derio.net
+            # ingress is behind Authentik forward-auth, which 302-redirects
+            # API token requests to the SSO login. The in-cluster digest must
+            # hit the GoatCounter Service directly to reach the /api/v0 stats.
             - name: GOATCOUNTER_URL
-              value: "https://counter.cluster.derio.net"
+              value: "http://goatcounter.goatcounter-system.svc.cluster.local:8080"
             - name: LITELLM_URL
               value: "http://litellm.litellm.svc.cluster.local:4000"
             - name: LLM_MODEL_PRIMARY
