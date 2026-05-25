@@ -65,10 +65,11 @@ state:
       ticked_at: '2026-05-25T20:31:21+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-25T20:37:19+00:00'
+      note: 'Spec set Deployed; plan complete. sync-runbook skipped (no # manual-operation
+        blocks; image build is CI, not a manual op).'
   completion:
-    at: null
+    at: '2026-05-25T20:37:21+00:00'
     note: null
     observed_prs: []

@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-25
 **Layer:** `obs` (fix/extension of the edge-observability layer — `ai-alert-helper`)
-**Status:** Draft
+**Status:** Deployed
 **App(s):** `apps/ai-alert-helper`, `apps/blackbox-exporter`
 
 ## Implementation Plans
