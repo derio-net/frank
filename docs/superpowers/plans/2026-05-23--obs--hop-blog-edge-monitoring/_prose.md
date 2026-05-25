@@ -122,6 +122,15 @@ Success criteria:
   ships.
 - Hop's memory limits stay below 90% allocatable across all phases.
 
+## Deviations
+
+Phase 5's `/digest` shipped with the GoatCounter half unbuilt and an over-broad
+edge request count (every Hop vhost, not just the blog). Four bugs were fixed in
+rework-1 — see `docs/superpowers/plans/2026-05-25--obs--blog-digest-rework-1/`.
+The fix was done as a dedicated rework plan, not an amend here, to avoid
+reopening this plan's hand-closed phase Issues (the documented `vk apply`
+archived-plan footgun).
+
 Resource budget on Hop:
 
 | Component | Memory limit | Phase |

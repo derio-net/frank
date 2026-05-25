@@ -57,11 +57,16 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - VictoriaMetrics chart `genCA` regenerates webhook caBundle — `ignoreDifferences` on the validating webhook caBundle.
 - `ALERTS{}` does NOT exist in VM for Grafana-managed alerts — use `alertlist` panel type.
 
+### Observability digest — `docs/runbooks/frank-gotchas/obs-digest.md`
+- Falco events reach VictoriaLogs via falcosidekick→Loki-push with fields `source`/`priority`/`rule`/`k8s_ns_name` — NOT `kubernetes.namespace_name` (that's the fluent-bit collector path for Caddy/CrowdSec). Query Falco with `source:syscall`, never a `kubernetes.namespace_name` filter.
+- The daily digest uses a split window: traffic = prior calendar day, security = yesterday 00:00 → digest run time, so overnight Critical events aren't reported ~24h late.
+
 ### Networking — `docs/runbooks/frank-gotchas/networking.md`
 - Cilium: `lbipam.cilium.io/ips` alone is NOT a sharing directive — separate Services need matching `lbipam.cilium.io/sharing-key`. Always check `kubectl get svc -A | grep pending` after deploying a chart that splits one service into multiple Services on a shared LB IP.
 - Cilium 1.17 FQDN policies need DNS-proxy initialization on the node first; restart the agent if the LRU isn't ready (stale BPF rules also persist after CNP deletion — agent restart clears them).
 - MixedProtocolLBService (TCP + UDP on one Service) works on Cilium 1.17 + K8s 1.35 — no feature gate needed.
 - mosh: flags only in `--ssh="ssh ..."`; `user@host` positional; pin `--server="mosh-server new -p 60000:60015"` to match the Service's port range. Use the per-shell wrappers in `apps/*/client-setup/laptop/`.
+- Caddy JSON access logs store the vhost in field `request.host`, NOT in `_msg` (which is literally `"handled request"`). `_msg:"blog.derio.net"` always matches zero — filter `request.host:"blog.derio.net"`. Scope edge queries to Hop with `kubernetes.host:hop-1`.
 
 ### gpu-1 specifics — `docs/runbooks/frank-gotchas/gpu-1.md`
 - `kubectl port-forward` flakes regularly with CNI-netns errors on gpu-1 pods only — use `kubectl get application -n argocd -o wide` for argocd-cli replacements; use `kubectl exec ... wget -qO-` for in-pod metrics.

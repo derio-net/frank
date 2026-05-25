@@ -12,6 +12,7 @@ Long-form companion to `agents/rules/frank-gotchas.md`. That hot file is auto-lo
 | [argo-rollouts.md](argo-rollouts.md) | Canary mechanics, AnalysisTemplate, workloadRef, Prometheus provider |
 | [authentik.md](authentik.md) | Blueprints, outpost assignment, API shape (Bearer + 2026.x) |
 | [grafana.md](grafana.md) | Provisioning, alert SSE format, dashboards, false-positive queries |
+| [obs-digest.md](obs-digest.md) | AI digest: Falco Loki-push field names, traffic/security split window, dry-run audit |
 | [networking.md](networking.md) | Cilium L2 IPAM, FQDN policies, MixedProtocolLBService, mosh |
 | [gpu-1.md](gpu-1.md) | Node-pinning idiom, port-forward CNI flake, Ollama cgroup memory |
 | [agent-shells.md](agent-shells.md) | s6-overlay v3, sshd env, `cont-init.d`, tmux-continuum |

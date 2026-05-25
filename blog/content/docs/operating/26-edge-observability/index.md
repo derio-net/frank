@@ -314,7 +314,31 @@ curl -sf -X POST -H 'Content-Type: application/json' -d @/tmp/p.json http://ai-a
 kubectl delete pod -n ai-alert-helper-system alert-test --force --grace-period=0
 ```
 
-The helper's `/digest?dry_run=true` returns the fact sheet without invoking the LLM — useful when you suspect the prompt is producing bad output and want to see the underlying facts first.
+### Reading the digest
+
+The morning digest is three distinct things stacked into one message, and they answer three different questions:
+
+- **Blog readers** — `blog_pageviews`, `blog_top_pages`, `blog_top_referrers`, sourced from GoatCounter. This is "who actually read the blog yesterday." A direct (no-referrer) hit shows up labelled `direct`, not blank.
+- **Edge traffic** — `edge_requests_total` plus the per-vhost and per-status-class breakdown, sourced from Caddy access logs scoped to `kubernetes.host:hop-1`. This is "everything Hop's reverse proxy handled" — Headscale, Headplane, ACME, bots, probes, *and* the blog. Edge total dwarfs blog pageviews (15k+/day vs. low hundreds); the per-vhost line is what tells you how much of that was actually `blog.derio.net`.
+- **Security** — `falco_by_priority` (all priorities, not just Critical), `falco_top_rules`, `falco_critical_rules` (rule names for the Criticals specifically), and `crowdsec_decisions`.
+
+The one window asymmetry worth internalising: **traffic and pageviews cover the prior calendar day, but the security window runs from yesterday 00:00 through the moment the digest runs.** That's deliberate — a benign Critical that fires at 03:00 UTC (e.g. the headscale-backup `sqlite3 .backup`) would otherwise wait ~29h to appear. With the split window it lands in *this* morning's digest, the same day you'd want to glance at it. So an "overnight" Critical event appearing in today's message is by design, not a clock bug.
+
+### Auditing the fact sheet without sending Telegram
+
+`POST /digest?dry_run=true` builds the exact fact sheet the digest would summarise and returns it as JSON **without** calling the LLM or posting to Telegram. This is the canonical way to check what the digest is actually seeing — if a number looks wrong in the morning message, dump the facts first and decide whether the bug is in the data or the prompt:
+
+```
+# Exec into the running helper and hit its own port — no extra pod needed
+kubectl exec -n ai-alert-helper-system deploy/ai-alert-helper -- \
+  curl -sf -X POST "http://localhost:8080/digest?dry_run=true" | jq .
+# → {"facts": {"edge_requests_total": ..., "edge_requests_by_vhost": [...],
+#               "blog_pageviews": ..., "blog_top_pages": [...],
+#               "falco_by_priority": [...], "falco_critical_rules": [...], ...},
+#     "narrative": null}
+```
+
+The `"narrative": null` confirms the LLM was skipped. Cross-check `edge_requests_by_vhost` against `blog_pageviews` here — if edge traffic is high but blog pageviews are zero, the problem is GoatCounter (token permissions, range, SSO redirect), not the prompt.
 
 ### Rotating LLM models
 
