@@ -349,6 +349,19 @@ echo '{"alerts":[{"labels":{"alertname":"CrowdSecDecisionBurst","severity":"warn
 
 Both produced Telegram messages with LLM narratives generated against real fact sheets. The local qwen model on gpu-1 handled both, well under one second of inference. The fallback path is untested in production because LiteLLM hasn't failed yet — but the unit test is enough confidence to leave the path quiet.
 
+### Deviation: the digest was lying
+
+That smoke-test line — *"Yesterday: 1,593 requests, 0 security events"* — read like success. It wasn't. Two days of digests later, on a careful look against live data, the "📊 Yesterday on the Frank blog" message turned out to be wrong in four ways at once:
+
+- **The request count wasn't blog traffic.** `facts.build_for_digest` counted every Caddy `"handled request"` log line with no host filter — 15,717/day across *every* Hop vhost (Headscale, Headplane, the landing page, ACME probes, bots, the blog). Presented as if it were the blog's day.
+- **Top page and top referrer were always blank.** No GoatCounter query existed anywhere in the digest path, even though `GOATCOUNTER_URL` and the API token were wired into the deployment. The prompt asked the LLM for "top page, top referrer" and told it to say so if a fact was missing — so it dutifully said so, every single morning.
+- **Security was nearly blind.** The digest counted only `priority:Critical` over the prior calendar day. A benign overnight Critical (the headscale-backup `sqlite3 .backup` tripping "Drop and execute new binary in container" at 03:00 UTC) showed up ~29h late, and every non-Critical Warning never surfaced at all.
+- **Surge detection was dead for the blog.** `surge.py._hour_count` filtered `_msg:"blog.derio.net"` — but the vhost lives in the `request.host` field; `_msg` is literally the string `"handled request"`. The filter matched zero rows forever, so `surge.compute()` could never fire.
+
+One root cause under all four: the digest read raw Caddy and Falco logs as a *proxy* for "blog activity" without the dimensional filters that data needs — vhost via `request.host`, the full priority breadth — while the purpose-built reader source, GoatCounter, sat wired but unqueried. And it shipped because the tests only asserted the shape of the count *parser*; not one of them checked the query string or the field names the parser was fed. The parser was correct. It was correctly parsing the wrong question.
+
+The fix is its own rework plan (`2026-05-25--obs--blog-digest-rework-1`): a richer per-vhost/per-status edge breakdown scoped to `kubernetes.host:hop-1`, real GoatCounter pageviews/top-pages/top-referrers, an all-priority Falco breakdown over a split window (traffic on the prior calendar day, security running through the digest's run time so overnight Criticals land same-morning), the `request.host` surge fix — and tests that now assert the actual query strings. The lesson rhymes with the chart-key one: a green test that asserts the wrong thing is more dangerous than no test, because it buys false confidence. Assert the question, not just the answer.
+
 ## The DatasourceError storm
 
 The day after deployment, Telegram lit up. Every minute, an URGENT `DatasourceError` alert. The new `blog-edge` rule group was failing on every evaluation cycle:

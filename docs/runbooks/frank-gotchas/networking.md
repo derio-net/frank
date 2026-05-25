@@ -38,3 +38,23 @@ Order of preference for "two ports, one IP":
 - (a) one Service with both ports if the chart allows it (MixedProtocolLBService gotcha above)
 - (b) two Services with matching `sharing-key`
 - (c) accept two distinct LB IPs
+
+## Caddy JSON access logs put the vhost in `request.host`, not `_msg`
+
+Hop's Caddy ships JSON access logs to Frank's VictoriaLogs. Every access-log line shares the same `_msg` value — literally `"handled request"`. The requested host lives in a structured field, `request.host`. This trips anyone who reaches for the obvious substring filter:
+
+```logsql
+# WRONG — matches zero rows, always. _msg is the constant "handled request".
+_time:1d kubernetes.host:hop-1 AND _msg:"blog.derio.net"
+
+# RIGHT — filter the structured field.
+_time:1d kubernetes.host:hop-1 AND request.host:"blog.derio.net"
+```
+
+The failure is silent: a zero-match filter returns `0`, which reads like "no traffic" rather than "wrong field." It bit the AI digest twice — `surge.py._hour_count` filtered `_msg:"blog.derio.net"` and so could never detect a blog surge, and `facts.build_for_digest` omitted any host filter at all, counting *every* Hop vhost.
+
+Live evidence (2026-05-25): the unfiltered edge total was **15,717 requests/day** across all Hop vhosts (Headscale, Headplane, landing, ACME, bots, probes, blog), while `request.host:"blog.derio.net"` was a small fraction of that. Always scope edge queries to the node with `kubernetes.host:hop-1`, then group or filter on `request.host` for a specific vhost:
+
+```logsql
+_time:1d kubernetes.host:hop-1 AND _msg:"handled request" | stats by (request.host) count()
+```
