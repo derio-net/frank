@@ -92,11 +92,12 @@ Also added a `falco_critical_rules` fact (rules filtered to `priority:Critical`)
 it from `falco_top_rules` (the LLM had mis-attributed it).
 
 **Mechanism deviations:** image built via in-cluster kaniko (no `docker` in the
-agent pod) pushing to GHCR with a `write:packages` token; final tag is `0.1.3`
-(iterated `0.1.1`→`0.1.2`→`0.1.3` as each verification-driven fix landed).
-ArgoCD tracks `main`, so the branch push does not auto-deploy — verification ran
-against a standalone `0.1.3` pod with production env; prod rolls to `0.1.3` when
-the PR merges.
+agent pod) pushing to GHCR with a `write:packages` token; final tag is `0.1.4`
+(iterated `0.1.1`→`0.1.2`→`0.1.3` as each verification-driven fix landed, then
+`0.1.4` for code-review follow-ups — "direct" referrer label + FastAPI version
+sync). ArgoCD tracks `main`, so the branch push does not auto-deploy —
+verification ran against a standalone pod with production env; prod rolls to
+`0.1.4` when the PR merges.
 
 ```yaml
 # manual-operation
