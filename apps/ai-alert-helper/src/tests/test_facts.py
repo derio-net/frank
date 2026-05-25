@@ -135,3 +135,66 @@ def test_build_for_digest_falco_all_priorities_and_split_window():
     assert any("priority:Critical" in q and "by (rule)" in q for q in captured)
     # security query window ends at security_until, NOT until
     assert any("2026-05-25T08:00:00" in q and "source:syscall" in q for q in captured)
+
+
+# --- edge_filter (Phase 2: centralized probe-aware edge definition) ---
+
+def test_edge_filter_excludes_probe_by_default():
+    f = facts.edge_filter(host="blog.derio.net")
+    assert "kubernetes.host:hop-1" in f
+    assert '`request.host`:"blog.derio.net"' in f
+    assert '-`request.headers.User-Agent`:"Frank-Blackbox-Probe"' in f
+
+
+def test_edge_filter_no_host_still_excludes_probe():
+    f = facts.edge_filter()
+    assert "request.host" not in f          # all vhosts
+    assert "Frank-Blackbox-Probe" in f       # still probe-excluded
+
+
+def test_edge_filter_can_include_probes():
+    assert "Frank-Blackbox-Probe" not in facts.edge_filter(exclude_probes=False)
+
+
+def test_probe_ua_token_is_pinned():
+    # Drift guard vs apps/blackbox-exporter/manifests/configmap.yaml
+    assert facts.PROBE_UA_TOKEN == "Frank-Blackbox-Probe"
+
+
+# --- GoatCounter reachability + visitor cross-check ---
+
+@respx.mock
+def test_goatcounter_raw_none_on_error():
+    respx.get(re.compile(facts.GOATCOUNTER_URL + "/api/v0/.*")).mock(
+        side_effect=httpx.ConnectError("down"))
+    assert facts._goatcounter_raw("/api/v0/stats/total", {}) is None
+
+
+@respx.mock
+def test_visitor_pageviews_none_when_unreachable():
+    respx.get(re.compile(facts.GOATCOUNTER_URL + "/api/v0/stats/total.*")).mock(
+        side_effect=httpx.ConnectError("down"))
+    s = datetime(2026, 5, 25, 16, tzinfo=timezone.utc); e = s + timedelta(hours=1)
+    assert facts.surge_visitor_pageviews(s, e) is None
+
+
+@respx.mock
+def test_visitor_pageviews_counts_and_uses_hour_window():
+    route = respx.get(re.compile(facts.GOATCOUNTER_URL + "/api/v0/stats/total.*")).mock(
+        return_value=httpx.Response(200, json={"total": 7}))
+    s = datetime(2026, 5, 25, 16, 37, tzinfo=timezone.utc); e = s + timedelta(hours=1)
+    assert facts.surge_visitor_pageviews(s, e) == 7
+    q = dict(httpx.QueryParams(route.calls.last.request.url.query.decode()))
+    assert q["start"].startswith("2026-05-25T16:00")   # rounded to the hour
+    assert q["end"].startswith("2026-05-25T17:00")
+
+
+@respx.mock
+def test_build_for_digest_survives_unreachable_goatcounter():
+    """C1 regression: an unreachable GoatCounter must not crash the daily digest."""
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        return_value=httpx.Response(200, json={"data": {"result": []}}))
+    respx.get(re.compile(facts.GOATCOUNTER_URL + ".*")).mock(side_effect=httpx.ConnectError("down"))
+    since = datetime(2026, 5, 24, tzinfo=timezone.utc); until = since + timedelta(days=1)
+    sheet = facts.build_for_digest(since, until, until)   # must NOT raise
+    assert sheet["blog_pageviews"] == 0

@@ -101,10 +101,39 @@ def test_compute_handles_zero_current_traffic():
 
 
 @respx.mock
-def test_hour_count_filters_on_request_host_field():
+def test_hour_count_filters_on_request_host_field_and_excludes_probe():
     route = respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
         return_value=httpx.Response(200, json={"data": {"result": [{"value": [0, "5"]}]}}))
     surge._hour_count(datetime(2026, 5, 25, 12, tzinfo=timezone.utc))
     q = route.calls.last.request.url.params["query"]
-    assert 'request.host:"blog.derio.net"' in q
-    assert '_msg:"blog.derio.net"' not in q
+    assert '`request.host`:"blog.derio.net"' in q          # backtick-quoted field
+    assert '_msg:"blog.derio.net"' not in q                 # never the broken substring filter
+    assert '-`request.headers.User-Agent`:"Frank-Blackbox-Probe"' in q  # probe excluded
+
+
+@respx.mock
+def test_floor_suppresses_tier_below_abs_floor():
+    """current below SURGE_ABS_FLOOR (default 50) → no tier even at a huge ratio."""
+    counts = [49, 1, 0, 0, 0, 0, 0, 0]    # ratio 49 but below the floor
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        side_effect=[httpx.Response(200, json=_stats_response(c)) for c in counts])
+    assert surge.compute()["tier"] is None
+
+
+@respx.mock
+def test_floor_boundary_fires_at_abs_floor():
+    """exactly SURGE_ABS_FLOOR requests qualifies (>=)."""
+    counts = [50, 1, 0, 0, 0, 0, 0, 0]
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        side_effect=[httpx.Response(200, json=_stats_response(c)) for c in counts])
+    assert surge.compute()["tier"] == "Major"
+
+
+@respx.mock
+def test_empty_baseline_no_crash_below_floor():
+    """Crash-safety on an empty baseline, decoupled from the floor boundary."""
+    counts = [10, 0, 0, 0, 0, 0, 0, 0]
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        side_effect=[httpx.Response(200, json=_stats_response(c)) for c in counts])
+    r = surge.compute()
+    assert r["baseline"] == 1 and r["tier"] is None
