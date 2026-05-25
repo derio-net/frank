@@ -1,0 +1,172 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Wire prompt + api.py, rebuild image, redeploy, verify end-to-end
+  tag: agentic
+  depends_on: [1]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Compute split windows in api.py and rewrite the digest prompt
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Update `apps/ai-alert-helper/src/ai_alert_helper/api.py` `/digest` to
+      compute the split window and pass `security_until=now`:
+
+      BEGIN apps/ai-alert-helper/src/ai_alert_helper/api.py (replace digest body)
+      @app.post("/digest")
+      def digest(dry_run: bool = False) -> dict:
+          now = datetime.now(timezone.utc)
+          since = (now - timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+          until = since + timedelta(days=1)          # traffic = prior calendar day
+          sheet = facts.build_for_digest(since, until, now)  # security runs to now
+          if dry_run:
+              return {"facts": sheet, "narrative": None}
+          narrative = ai_adapter.summarize(sheet)
+          telegram.send(f"📊 Yesterday on the Frank blog\n\n{narrative}")
+          return {"facts": sheet, "narrative": narrative}
+      END snippet
+
+      The fact-sheet shape is the `ai_adapter` swap contract — `summarize()` is
+      unchanged (still `summarize(facts: dict) -> str`), only the dict grows
+      richer. No change to `ai_adapter.py`.
+  - id: P2.T1.S2
+    text: |-
+      Rewrite `apps/ai-alert-helper/src/ai_alert_helper/prompts/digest.txt` to
+      consume the richer fact sheet. Keep the system block ≤150 words for
+      prompt-cache friendliness; keep "never invent numbers"; explicitly
+      separate edge traffic from blog readers and require a security line that
+      reports ALL priorities (so a benign-but-Critical event is named):
+
+      BEGIN apps/ai-alert-helper/src/ai_alert_helper/prompts/digest.txt
+      You are Frank's blog observatory. Produce a short daily digest from the
+      structured facts below. Cap at 180 words. Never invent numbers — if a
+      fact is missing or zero, say so plainly.
+
+      Structure:
+      - One sentence on BLOG READERS (blog_pageviews — real humans via
+        GoatCounter), then top page (blog_top_pages) and top referrer
+        (blog_top_referrers).
+      - One sentence on EDGE TRAFFIC (edge_requests_total across all Hop
+        vhosts — mostly mesh/bots, NOT readers); name the busiest vhost from
+        edge_requests_by_vhost and call out any 4xx/5xx from
+        edge_requests_by_status_class.
+      - One SECURITY line: summarise falco_by_priority (report every priority
+        present, including a single benign Critical by rule name from
+        falco_top_rules) and crowdsec_decisions. The security window may extend
+        past midnight into today — that is intentional.
+
+      Facts:
+      {facts}
+      END digest.txt
+
+      Run `cd apps/ai-alert-helper/src && uv run pytest` once more — still green
+      (prompt is not unit-tested; this confirms no import breakage).
+- number: 2
+  title: Build, push, and redeploy the new image
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Bump the version and image tag to `0.1.1`:
+
+      - `apps/ai-alert-helper/src/pyproject.toml`: `version = "0.1.1"`
+      - `apps/ai-alert-helper/manifests/deployment.yaml`:
+        `image: ghcr.io/derio-net/ai-alert-helper:0.1.1`
+
+      Build + push (same registry as the parent plan P5.T2.S1):
+
+      ```bash
+      docker build -t ghcr.io/derio-net/ai-alert-helper:0.1.1 apps/ai-alert-helper/src/
+      docker push ghcr.io/derio-net/ai-alert-helper:0.1.1
+      ```
+  - id: P2.T2.S2
+    text: |-
+      Commit + push; ArgoCD auto-syncs the helper Deployment:
+
+      ```bash
+      git add apps/ai-alert-helper/
+      git commit -m "fix(obs): enrich digest facts (vhost breakdown, GoatCounter, all-priority Falco, split window) + surge request.host filter"
+      git push origin HEAD
+      argocd app wait ai-alert-helper --port-forward --port-forward-namespace argocd --health --timeout 300
+      ```
+
+      Confirm the new pod is running the 0.1.1 image:
+
+      ```bash
+      kubectl -n ai-alert-helper-system get deploy ai-alert-helper \
+        -o jsonpath='{.spec.template.spec.containers[0].image}'; echo
+      # Expected: ghcr.io/derio-net/ai-alert-helper:0.1.1
+      ```
+- number: 3
+  title: Verify the digest end-to-end against live data (per "test before Deployed")
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Inspect the populated fact sheet via dry-run (no LLM, no Telegram).
+      This is the evidence that #1/#2/#3 are actually fixed against real data:
+
+      ```bash
+      kubectl exec -n ai-alert-helper-system deploy/ai-alert-helper -- \
+        python -c "import httpx,json;print(json.dumps(httpx.post('http://localhost:8080/digest?dry_run=true',timeout=30).json()['facts'],indent=2))"
+      ```
+
+      Expected, against yesterday's data:
+      - `edge_requests_total` ≈ several thousand, `edge_requests_by_vhost`
+        listing heads/headplane/blog/etc. (NOT a single 15k blob).
+      - `blog_pageviews` > 0 and `blog_top_pages` / `blog_top_referrers`
+        populated (the bug was these being absent).
+      - `falco_by_priority` showing Notice/Warning counts; if a Critical fired
+        overnight it appears here because `security_window.until` ≈ now.
+
+      NOTE: this `kubectl exec` is a one-off prod read for verification — it
+      needs operator approval (the auto-classifier blocks remote-shell reads
+      into prod). If denied, run the same query from the operator's shell.
+  - id: P2.T3.S2
+    text: |-
+      Trigger a real digest and confirm the Telegram message is correct:
+
+      ```bash
+      kubectl create job -n ai-alert-helper-system digest-verify --from=cronjob/digest
+      kubectl logs -n ai-alert-helper-system job/digest-verify -f
+      ```
+
+      Confirm the Telegram "📊 Yesterday on the Frank blog" message now contains:
+      a blog-reader line with a real top page + referrer, a separate edge-traffic
+      line, and a security line that names priorities (not silent). Clean up:
+
+      ```bash
+      kubectl delete job -n ai-alert-helper-system digest-verify
+      ```
+
+      Only after observing this message is the fix considered Deployed.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

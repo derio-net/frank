@@ -1,0 +1,371 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Enrich the digest fact sheet (TDD, pure-Python, no deploy)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Red baseline — failing tests that pin query strings, fields, and shape
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Capture the real wire shapes as test fixtures so we never again ship a
+      query whose field names don't match the data. Two sources, two shapes:
+
+      - VictoriaLogs grouped `stats_query` returns
+        `{"data":{"result":[{"metric":{"<label>":"<v>","__name__":"c"},"value":[<ts>,"<count>"]}]}}`.
+        Confirmed live: Falco grouping by `priority` yields
+        `{"metric":{"priority":"Notice"},"value":[..,"1652"]}`.
+      - GoatCounter JSON API (same endpoints the blog-edge dashboard already
+        uses — `apps/grafana-alerting/manifests/blog-edge-dashboard-cm.yaml`):
+        - `GET /api/v0/stats/total`            → `{"total": <int>, ...}`
+        - `GET /api/v0/stats/hits?limit=10`    → `{"hits":[{"path":"/frank/...","count":<int>}, ...]}`
+        - `GET /api/v0/stats/refs?limit=10`    → `{"refs":[{"name":"<ref>","count":<int>}, ...]}`
+
+      No code yet. Just write these fixtures inline in the new tests in the
+      next steps. This step is the design note that anchors them.
+  - id: P1.T1.S2
+    text: |-
+      Add failing tests to `apps/ai-alert-helper/src/tests/test_facts.py` for the
+      new `build_for_digest` shape. These MUST assert the actual query string
+      sent (via `respx` route capture), not just the parsed count — that
+      assertion gap is why the empty-GoatCounter / wrong-host bugs shipped.
+
+      Append:
+
+      BEGIN test snippet
+      import re
+
+      def _captured_query(route):
+          """Pull the `query` param from the last request on a respx route."""
+          req = route.calls.last.request
+          return dict(httpx.QueryParams(req.url.query.decode()))["query"]
+
+
+      @respx.mock
+      def test_build_for_digest_edge_requests_scoped_to_hop_and_grouped():
+          """#1: edge requests use kubernetes.host:hop-1, group by request.host + status, no _msg host filter."""
+          route = respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+              return_value=httpx.Response(200, json={"data": {"result": [
+                  {"metric": {"request.host": "blog.derio.net"}, "value": [0, "120"]},
+                  {"metric": {"request.host": "heads.hop.derio.net"}, "value": [0, "900"]},
+              ]}}),
+          )
+          since = datetime(2026, 5, 24, tzinfo=timezone.utc)
+          until = since + timedelta(days=1)
+          sheet = facts.build_for_digest(since, until, until)  # security_until == until for this test
+          # vhost breakdown present, sorted desc, capped
+          assert sheet["edge_requests_by_vhost"][0]["host"] == "heads.hop.derio.net"
+          # at least one query scoped to Hop and grouped by request.host
+          assert any("kubernetes.host:hop-1" in q and "by (request.host)" in q
+                     for q in [c.request.url.params.get("query", "") for c in route.calls])
+          # never the broken substring filter
+          assert all('_msg:"blog.derio.net"' not in c.request.url.params.get("query", "")
+                     for c in route.calls)
+      END test snippet
+
+      Run `cd apps/ai-alert-helper/src && uv run pytest -k build_for_digest` —
+      fails (current `build_for_digest` takes 2 args, returns flat dict). Red.
+  - id: P1.T1.S3
+    text: |-
+      Add the GoatCounter + Falco-breadth failing tests to `test_facts.py`:
+
+      BEGIN test snippet
+      @respx.mock
+      def test_build_for_digest_pulls_goatcounter_pageviews_and_top_n():
+          """#2: digest queries GoatCounter for total/hits/refs with Bearer auth + day window."""
+          respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+              return_value=httpx.Response(200, json={"data": {"result": []}}))
+          total = respx.get(facts.GOATCOUNTER_URL + "/api/v0/stats/total").mock(
+              return_value=httpx.Response(200, json={"total": 42}))
+          hits = respx.get(facts.GOATCOUNTER_URL + "/api/v0/stats/hits").mock(
+              return_value=httpx.Response(200, json={"hits": [{"path": "/frank/x", "count": 30}]}))
+          refs = respx.get(facts.GOATCOUNTER_URL + "/api/v0/stats/refs").mock(
+              return_value=httpx.Response(200, json={"refs": [{"name": "news.ycombinator.com", "count": 12}]}))
+          since = datetime(2026, 5, 24, tzinfo=timezone.utc)
+          until = since + timedelta(days=1)
+          sheet = facts.build_for_digest(since, until, until)
+          assert sheet["blog_pageviews"] == 42
+          assert sheet["blog_top_pages"][0]["path"] == "/frank/x"
+          assert sheet["blog_top_referrers"][0]["name"] == "news.ycombinator.com"
+          # Bearer auth header present on GoatCounter calls
+          assert total.calls.last.request.headers["Authorization"].startswith("Bearer ")
+          # day-scoped window passed as start/end params
+          assert hits.calls.last.request.url.params["start"] == "2026-05-24"
+
+
+      @respx.mock
+      def test_build_for_digest_falco_all_priorities_and_split_window():
+          """#3: falco grouped by priority (not Critical-only); security window runs to security_until."""
+          captured = []
+          def _cap(request):
+              captured.append(dict(request.url.params)["query"])
+              # priority breakdown response
+              if "by (priority)" in dict(request.url.params)["query"]:
+                  return httpx.Response(200, json={"data": {"result": [
+                      {"metric": {"priority": "Warning"}, "value": [0, "2"]},
+                      {"metric": {"priority": "Notice"}, "value": [0, "1652"]}]}})
+              return httpx.Response(200, json={"data": {"result": []}})
+          respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(side_effect=_cap)
+          respx.get(re.compile(facts.GOATCOUNTER_URL + "/api/v0/.*")).mock(
+              return_value=httpx.Response(200, json={"total": 0, "hits": [], "refs": []}))
+          since = datetime(2026, 5, 24, tzinfo=timezone.utc)
+          until = since + timedelta(days=1)
+          security_until = datetime(2026, 5, 25, 8, 0, tzinfo=timezone.utc)
+          sheet = facts.build_for_digest(since, until, security_until)
+          prios = {row["priority"]: row["count"] for row in sheet["falco_by_priority"]}
+          assert prios == {"Warning": 2, "Notice": 1652}
+          # security query window ends at security_until, NOT until
+          assert any("2026-05-25T08:00:00" in q and "source:syscall" in q for q in captured)
+      END test snippet
+
+      Run pytest — all three new tests fail (red). Commit nothing yet.
+- number: 2
+  title: Implement the Caddy edge-request breakdown (#1)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Add a grouped-stats helper next to `_logsql_count` in `facts.py`:
+
+      BEGIN apps/ai-alert-helper/src/ai_alert_helper/facts.py (insert after _logsql_count)
+      def _logsql_group(query: str, label: str, top: int | None = None) -> list[dict]:
+          """Run a `... | stats by (<label>) count() as c` query.
+
+          Returns `[{label: <value>, "count": <int>}, ...]`, sorted desc.
+          Empty list on any error — fact builders must not crash callers.
+          """
+          try:
+              resp = httpx.get(
+                  f"{VICTORIALOGS_URL}/select/logsql/stats_query",
+                  params={"query": query},
+                  timeout=15,
+              )
+              resp.raise_for_status()
+              result = resp.json().get("data", {}).get("result", [])
+          except Exception:  # noqa: BLE001
+              return []
+          rows = [
+              {label: r["metric"].get(label, ""), "count": int(r["value"][1])}
+              for r in result
+          ]
+          rows.sort(key=lambda r: r["count"], reverse=True)
+          return rows[:top] if top else rows
+      END snippet
+
+      Note: the group label `request.host` contains a dot. LogsQL `stats by
+      (request.host)` is fine; the response `metric` key is the literal
+      `request.host`. The helper reads it via `r["metric"].get(label)`.
+  - id: P1.T2.S2
+    text: |-
+      Rewrite `build_for_digest` signature + edge-request section. The window
+      helper now takes a third arg `security_until` (split-window fix lands in
+      T4 — wire the signature now so tests compile):
+
+      BEGIN apps/ai-alert-helper/src/ai_alert_helper/facts.py (replace build_for_digest)
+      def build_for_digest(since: datetime, until: datetime, security_until: datetime) -> dict:
+          """Daily digest fact sheet.
+
+          Traffic/pageviews cover the calendar day [since, until). Security
+          (Falco/CrowdSec) covers [since, security_until) so an overnight
+          Critical event surfaces same-day rather than ~24h late.
+          """
+          tw = f"_time:[{since.isoformat()},{until.isoformat()}]"
+          # All Hop-edge Caddy requests — scoped to the Hop node, grouped, no host substring filter.
+          edge = f'{tw} kubernetes.host:hop-1 AND _msg:"handled request"'
+          by_vhost = _logsql_group(f"{edge} | stats by (request.host) count() as c", "request.host", top=10)
+          by_status = _logsql_group(f"{edge} | stats by (status) count() as c", "status")
+          status_class: dict[str, int] = {}
+          for row in by_status:
+              cls = (str(row["status"])[:1] or "?") + "xx"
+              status_class[cls] = status_class.get(cls, 0) + row["count"]
+          sheet = {
+              "traffic_window": {"since": since.isoformat(), "until": until.isoformat()},
+              "security_window": {"since": since.isoformat(), "until": security_until.isoformat()},
+              "edge_requests_total": _logsql_count(f"{edge} | stats count() as c"),
+              "edge_requests_by_vhost": [{"host": r["request.host"], "count": r["count"]} for r in by_vhost],
+              "edge_requests_by_status_class": status_class,
+          }
+          sheet.update(_digest_blog_facts(since, until))      # T3 — GoatCounter
+          sheet.update(_digest_security_facts(since, security_until))  # T4 — Falco/CrowdSec
+          return sheet
+      END snippet
+
+      Add stub `_digest_blog_facts` / `_digest_security_facts` returning `{}`
+      for now so the module imports. Make `test_build_for_digest_edge_requests_*`
+      pass: `uv run pytest -k edge_requests`.
+- number: 3
+  title: Implement the GoatCounter integration (#2)
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Add a GoatCounter API helper. Auth + endpoints mirror the working
+      Infinity datasource in `blog-edge-dashboard-cm.yaml`:
+
+      BEGIN apps/ai-alert-helper/src/ai_alert_helper/facts.py (add)
+      def _goatcounter(path: str, params: dict) -> dict:
+          """GET a GoatCounter /api/v0 endpoint with Bearer auth. {} on error."""
+          if not GOATCOUNTER_TOKEN:
+              return {}
+          try:
+              resp = httpx.get(
+                  f"{GOATCOUNTER_URL}{path}",
+                  headers={"Authorization": f"Bearer {GOATCOUNTER_TOKEN}"},
+                  params=params,
+                  timeout=15,
+              )
+              resp.raise_for_status()
+              return resp.json()
+          except Exception:  # noqa: BLE001
+              return {}
+      END snippet
+
+      GoatCounter `start`/`end` accept `YYYY-MM-DD` and `end` is inclusive, so a
+      single calendar day is `start == end == since.date()`.
+  - id: P1.T3.S2
+    text: |-
+      Implement `_digest_blog_facts` (replaces the T2 stub):
+
+      BEGIN apps/ai-alert-helper/src/ai_alert_helper/facts.py
+      def _digest_blog_facts(since: datetime, until: datetime) -> dict:
+          """Blog reader metrics from GoatCounter for the calendar day [since, until)."""
+          day = since.date().isoformat()
+          window = {"start": day, "end": day}
+          total = _goatcounter("/api/v0/stats/total", window)
+          hits = _goatcounter("/api/v0/stats/hits", {**window, "limit": 10})
+          refs = _goatcounter("/api/v0/stats/refs", {**window, "limit": 10})
+          return {
+              "blog_pageviews": int(total.get("total", 0)),
+              "blog_top_pages": [
+                  {"path": h.get("path", ""), "count": int(h.get("count", 0))}
+                  for h in hits.get("hits", [])
+              ],
+              "blog_top_referrers": [
+                  {"name": r.get("name", ""), "count": int(r.get("count", 0))}
+                  for r in refs.get("refs", [])
+              ],
+          }
+      END snippet
+
+      Make `test_build_for_digest_pulls_goatcounter_*` pass:
+      `uv run pytest -k goatcounter`.
+- number: 4
+  title: Implement the all-priority security section + split window (#3)
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Implement `_digest_security_facts` (replaces the T2 stub). Falco events
+      arrive via falcosidekick→Loki-push with fields `source`, `priority`,
+      `rule` (NOT `kubernetes.namespace_name` — that's the Caddy/CrowdSec
+      collector path), so the Falco queries filter on `source:syscall` only:
+
+      BEGIN apps/ai-alert-helper/src/ai_alert_helper/facts.py
+      def _digest_security_facts(since: datetime, security_until: datetime) -> dict:
+          """Falco (all priorities) + CrowdSec over the security window [since, security_until)."""
+          sw = f"_time:[{since.isoformat()},{security_until.isoformat()}]"
+          by_priority = _logsql_group(
+              f"{sw} source:syscall | stats by (priority) count() as c", "priority"
+          )
+          top_rules = _logsql_group(
+              f"{sw} source:syscall | stats by (rule) count() as c", "rule", top=5
+          )
+          return {
+              "falco_by_priority": [
+                  {"priority": r["priority"], "count": r["count"]} for r in by_priority
+              ],
+              "falco_top_rules": [
+                  {"rule": r["rule"], "count": r["count"]} for r in top_rules
+              ],
+              "crowdsec_decisions": _logsql_count(
+                  f"{sw} kubernetes.namespace_name:crowdsec-system "
+                  f"AND log:Adding AND log:decisions | stats count() as c"
+              ),
+          }
+      END snippet
+
+      Make `test_build_for_digest_falco_all_priorities_and_split_window` pass:
+      `uv run pytest -k falco`. Then run the full `test_facts.py` green.
+- number: 5
+  title: Fix surge.py host filter (#4)
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Add a failing test to `apps/ai-alert-helper/src/tests/test_surge.py` that
+      asserts the surge query filters on the `request.host` field, not the
+      `_msg` substring:
+
+      BEGIN test snippet
+      @respx.mock
+      def test_hour_count_filters_on_request_host_field():
+          route = respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+              return_value=httpx.Response(200, json={"data": {"result": [{"value": [0, "5"]}]}}))
+          surge._hour_count(datetime(2026, 5, 25, 12, tzinfo=timezone.utc))
+          q = route.calls.last.request.url.params["query"]
+          assert 'request.host:"blog.derio.net"' in q
+          assert '_msg:"blog.derio.net"' not in q
+      END snippet
+
+      Run `uv run pytest -k request_host` — fails (current filter is `_msg`). Red.
+  - id: P1.T5.S2
+    text: |-
+      Fix the filter in `surge.py:_hour_count`:
+
+      ```
+      -        f'AND _msg:"handled request" AND _msg:"blog.derio.net" | stats count() as c'
+      +        f'AND _msg:"handled request" AND request.host:"blog.derio.net" | stats count() as c'
+      ```
+
+      Make the test pass. Run the FULL suite to confirm no regression:
+
+      ```bash
+      cd apps/ai-alert-helper/src && uv run pytest
+      ```
+
+      All green. This phase touches only Python + tests — no deploy yet.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
