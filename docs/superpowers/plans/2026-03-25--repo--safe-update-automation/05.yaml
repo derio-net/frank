@@ -3,8 +3,9 @@ phase:
   number: 5
   title: Branch Protection & End-to-End Verification
   tag: manual
-  depends_on: [4]
-  tracking_issue: null
+  depends_on:
+  - 4
+  tracking_issue: https://github.com/derio-net/frank/issues/392
 tasks:
 - number: 8
   title: GitHub Branch Protection (Manual Operation)

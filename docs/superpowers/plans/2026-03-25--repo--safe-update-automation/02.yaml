@@ -3,8 +3,9 @@ phase:
   number: 2
   title: ARC Bootstrap Secret
   tag: manual
-  depends_on: [1]
-  tracking_issue: null
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/389
 tasks:
 - number: 3
   title: Bootstrap Secret (Manual Operation)
@@ -78,10 +79,13 @@ tasks:
       # Expected: runner shows as registered
       ```
 
-      Also verify the runner is pinned to pc-1:
+      Verify runner placement on gpu-1. With `minRunners: 0` (scale-to-zero)
+      there is no idle runner pod, so observe one while a job runs — trigger a
+      smoke-test (or temporarily set `minRunners: 1`) and watch:
       ```bash
-      kubectl get pod -n arc-system -o wide | grep runner
-      # EXPECTED: node column shows "pc-1"
+      kubectl get pod -n arc-system -o wide -w | grep runner
+      # EXPECTED: an ephemeral runner pod appears on node "gpu-1" for the
+      # duration of the job, then terminates.
       ```
 
       ---

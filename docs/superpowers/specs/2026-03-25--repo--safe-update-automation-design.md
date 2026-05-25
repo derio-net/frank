@@ -32,7 +32,7 @@ Three pipelines, scoped to their update frequency and risk level:
 ```text
 ArgoCD layer (weekly+)
   Renovate ──► PR (targetRevision bump)
-            ──► GitHub Actions: namespace smoke test (self-hosted runner, pc-1)
+            ──► GitHub Actions: namespace smoke test (self-hosted runner, gpu-1, scale-to-zero)
             ──► auto-merge on green (stateless only) or manual review (stateful/core)
 
 Omni/Talos layer (monthly)
@@ -47,10 +47,13 @@ Omni/Talos layer (monthly)
 
 ### 1. Self-Hosted GitHub Actions Runner (ARC)
 
-A lightweight `actions-runner-controller` (ARC) Deployment pinned to `pc-1` via `nodeSelector: kubernetes.io/hostname: pc-1`. This gives GitHub Actions direct in-cluster `kubectl` access without any network tunneling. Headscale and the subnet router are not in the CI critical path.
+A lightweight `actions-runner-controller` (ARC) runner pinned to `gpu-1` via `nodeSelector: kubernetes.io/hostname: gpu-1`, configured **scale-to-zero** (`minRunners: 0`). In-cluster `kubectl` access comes from the runner pod's ServiceAccount token, which works from any node — no network tunneling, and no need to co-locate with Tekton.
+
+> **Node-placement rationale (revised 2026-05-25):** The original spec pinned the runner to `pc-1` because that's where Tekton lived and it was the path of least resistance when no in-cluster CI yet existed. By the time this layer is built, `pc-1` (a 4-core/32GB edge node on a 2013 BIOS) already runs zot, gitea, and both Tekton EventListeners + PipelineRuns, with AWX likely to land there next. The runner is therefore pinned to `gpu-1` (32-core/128GB worker; its real constraint is VRAM, not RAM/CPU) and scaled to zero so the steady-state footprint is nil — a runner pod exists only while a Renovate-PR smoke-test job runs. A defensive `nvidia.com/gpu:NoSchedule` toleration guards against the GPU operator re-asserting the taint (see `frank-gotchas → gpu-1`).
 
 - **Location:** `apps/arc-controller/` + `apps/arc-runners/` — two ArgoCD apps. Uses the current ARC v2 architecture: two charts installed in sequence — `gha-runner-scale-set-controller` (controller, sync-wave `-1`) and `gha-runner-scale-set` (runner set). Do NOT use the legacy `actions-runner-controller` chart (v1, unmaintained).
-- **Node binding:** `nodeSelector: kubernetes.io/hostname: pc-1` (label is automatically set by Kubernetes; no Talos patch required)
+- **Node binding:** `nodeSelector: kubernetes.io/hostname: gpu-1` + a defensive `nvidia.com/gpu:NoSchedule` toleration (label is automatically set by Kubernetes; no Talos patch required)
+- **Scaling:** `minRunners: 0`, `maxRunners: 3` — scale-to-zero; runner pods are ephemeral, spawned per job
 - **Runner group:** `self-hosted`, labelled `frank-cluster`
 
 **ServiceAccount RBAC** — the runner's ServiceAccount grants:
@@ -191,7 +194,7 @@ Scheduled weekly cron (`0 9 * * 1` — Monday 09:00 UTC). Runs on the self-hoste
 apps/arc-controller/
   values.yaml                    # gha-runner-scale-set-controller Helm values
 apps/arc-runners/
-  values.yaml                    # gha-runner-scale-set Helm values (pc-1 pin)
+  values.yaml                    # gha-runner-scale-set Helm values (gpu-1 pin, scale-to-zero)
   manifests/
     rbac.yaml                    # ClusterRole + ClusterRoleBinding for smoke tests
 apps/root/templates/
