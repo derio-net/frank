@@ -3,7 +3,7 @@ phase:
   number: 4
   title: Core Services (9, 10, 11, 12, 13, 14)
   tag: agentic
-  depends_on: []
+  depends_on: [0]
   tracking_issue: null
 tasks:
 - number: 1

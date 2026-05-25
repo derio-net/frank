@@ -3,7 +3,7 @@ phase:
   number: 6
   title: Delivery, Ingress, CI (19, 24, 25)
   tag: agentic
-  depends_on: []
+  depends_on: [0]
   tracking_issue: null
 tasks:
 - number: 1

@@ -3,7 +3,7 @@ phase:
   number: 8
   title: Post-Deploy Checklist
   tag: manual
-  depends_on: []
+  depends_on: [7]
   tracking_issue: null
 tasks:
 - number: 1
