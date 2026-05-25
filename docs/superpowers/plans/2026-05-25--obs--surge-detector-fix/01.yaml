@@ -99,22 +99,23 @@ state:
       ticked_at: '2026-05-25T19:22:53+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-25T19:52:37+00:00'
       note: null
     P1.T2.S1:
       state: x
       ticked_at: '2026-05-25T19:22:55+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-25T19:52:42+00:00'
       note: null
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-25T19:52:48+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-25T19:53:10+00:00'
+    note: 'Merged #412; verified live: surge-check suspend=true (jobs stopped), blackbox
+      probes now emit Frank-Blackbox-Probe (old UA gone), exclusion filter confirmed.'
     observed_prs: []

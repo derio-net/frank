@@ -45,6 +45,11 @@ spec:
               value: "qwen-think-14b"
             - name: LLM_MODEL_FALLBACK
               value: "claude-haiku-4-5"
+            # Surge detector tuning (read in surge.compute / /surge-check).
+            - name: SURGE_ABS_FLOOR        # min req/hr for any tier (kills baseline-of-1 artifacts)
+              value: "50"
+            - name: SURGE_VISITOR_FLOOR    # min GoatCounter pageviews to confirm a Major as URGENT
+              value: "10"
           envFrom:
             - secretRef:
                 name: ai-alert-helper-secrets

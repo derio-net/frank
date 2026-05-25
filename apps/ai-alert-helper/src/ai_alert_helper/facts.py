@@ -22,6 +22,25 @@ GOATCOUNTER_URL = os.environ.get(
 )
 GOATCOUNTER_TOKEN = os.environ.get("OBS_GOATCOUNTER_API_TOKEN", "")
 
+# Self-controlled User-Agent that Frank's blackbox uptime probes carry. The edge
+# definition excludes Frank's *own probe identity* (not the vendor default UA).
+# MUST match the User-Agent set in
+# apps/blackbox-exporter/manifests/configmap.yaml.
+PROBE_UA_TOKEN = "Frank-Blackbox-Probe"
+
+
+def edge_filter(host: str | None = None, *, exclude_probes: bool = True) -> str:
+    """Canonical Hop-edge Caddy access-log filter — single source of truth so the
+    surge alert, the surge narrative, and the digest agree on what "blog traffic"
+    is. Backtick-quote the dotted/hyphenated field names (verified live against
+    VictoriaLogs; phrase-matches the array-valued User-Agent field)."""
+    f = 'kubernetes.host:hop-1 AND _msg:"handled request"'
+    if host:
+        f += f' AND `request.host`:"{host}"'
+    if exclude_probes:
+        f += f' AND -`request.headers.User-Agent`:"{PROBE_UA_TOKEN}"'
+    return f
+
 
 def _logsql_count(query: str) -> int:
     """Issue a `... | stats count() as c` query and return the integer count."""
@@ -64,10 +83,16 @@ def _logsql_group(query: str, label: str, top: int | None = None) -> list[dict]:
     return rows[:top] if top else rows
 
 
-def _goatcounter(path: str, params: dict) -> dict:
-    """GET a GoatCounter /api/v0 endpoint with Bearer auth. {} on error."""
+def _goatcounter_raw(path: str, params: dict) -> dict | None:
+    """GET a GoatCounter /api/v0 endpoint with Bearer auth.
+
+    Returns the parsed dict on success, or `None` when GoatCounter is
+    unreachable / errors — so callers that must distinguish "down" from
+    "genuinely zero" (the surge cross-check) can. Callers that only need a
+    dict use `_goatcounter`, which coerces `None` to `{}`.
+    """
     if not GOATCOUNTER_TOKEN:
-        return {}
+        return None
     try:
         resp = httpx.get(
             f"{GOATCOUNTER_URL}{path}",
@@ -78,7 +103,31 @@ def _goatcounter(path: str, params: dict) -> dict:
         resp.raise_for_status()
         return resp.json()
     except Exception:  # noqa: BLE001
-        return {}
+        return None
+
+
+def _goatcounter(path: str, params: dict) -> dict:
+    """GET a GoatCounter /api/v0 endpoint with Bearer auth. {} on error/empty.
+
+    Back-compat wrapper for the digest builders, which `.get()` the result.
+    """
+    return _goatcounter_raw(path, params) or {}
+
+
+def surge_visitor_pageviews(window_start: datetime, window_end: datetime) -> int | None:
+    """Human pageviews (GoatCounter, JS-beacon) in the surge window.
+
+    `None` when GoatCounter is unreachable (so /surge-check can fail open).
+    GoatCounter start/end are date-time, "rounded to the hour" (per /api.json).
+    """
+    data = _goatcounter_raw(
+        "/api/v0/stats/total",
+        {
+            "start": window_start.replace(minute=0, second=0, microsecond=0).isoformat(),
+            "end": window_end.replace(minute=0, second=0, microsecond=0).isoformat(),
+        },
+    )
+    return None if data is None else int(data.get("total", 0))
 
 
 def _digest_blog_facts(since: datetime, until: datetime) -> dict:
@@ -151,8 +200,8 @@ def build_for_digest(since: datetime, until: datetime, security_until: datetime)
     Critical event surfaces same-day rather than ~24h late.
     """
     tw = f"_time:[{since.isoformat()},{until.isoformat()}]"
-    # All Hop-edge Caddy requests — scoped to the Hop node, grouped, no host substring filter.
-    edge = f'{tw} kubernetes.host:hop-1 AND _msg:"handled request"'
+    # All Hop-edge Caddy requests — canonical filter, probe-excluded, grouped.
+    edge = f'{tw} {edge_filter()}'
     by_vhost = _logsql_group(f"{edge} | stats by (request.host) count() as c", "request.host", top=10)
     by_status = _logsql_group(f"{edge} | stats by (status) count() as c", "status")
     status_class: dict[str, int] = {}
@@ -178,7 +227,7 @@ def build_for_surge(window_start: datetime, window_end: datetime) -> dict:
         "window_start": window_start.isoformat(),
         "window_end": window_end.isoformat(),
         "total_requests": _logsql_count(
-            f'{window} kubernetes.namespace_name:caddy-system AND _msg:"handled request" | stats count() as c'
+            f'{window} {edge_filter(host="blog.derio.net")} | stats count() as c'
         ),
         # The richer top-N breakdowns (top_referrers, top_pages, geo) would be
         # built here in production; first ship lands with the essential

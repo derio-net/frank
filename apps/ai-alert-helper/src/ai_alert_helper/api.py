@@ -6,6 +6,7 @@
 - POST /surge-check   — 15-min CronJob computes baseline + maybe sends
 """
 from __future__ import annotations
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -54,16 +55,28 @@ def surge_check() -> dict:
     s = surge.compute()
     if s["tier"] is None:
         return {"triggered": False, **s}
-    # Build the surge fact sheet and call investigate
+    # Visitor-side cross-check: an URGENT (Major) page requires real human
+    # pageviews (GoatCounter). Fail OPEN — if GoatCounter is unreachable we
+    # still page, annotated, rather than suppress a possibly-real surge.
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
-    surge_facts = facts.build_for_surge(now - timedelta(hours=1), now)
+    start = now - timedelta(hours=1)
+    visitors = facts.surge_visitor_pageviews(start, now)
+    visitor_floor = int(os.environ.get("SURGE_VISITOR_FLOOR", "10"))
+    if s["tier"] == "Major" and visitors is not None and visitors < visitor_floor:
+        s["tier"] = "Notable"  # edge surge with no visitor confirmation — likely automated
+    urgent = s["tier"] == "Major"
+
+    surge_facts = facts.build_for_surge(start, now)
     surge_facts.update(s)
+    surge_facts["visitor_pageviews"] = visitors
+    surge_facts["visitor_data_available"] = visitors is not None
     narrative = ai_adapter.investigate(
         {"alertname": f"BlogTrafficSurge{s['tier']}"},
         surge_facts,
     )
+    note = "" if visitors is not None else "  (visitor data unavailable)"
     telegram.send(
-        f"📈 Blog traffic surge — {s['ratio']:.1f}× baseline ({s['tier']})\n\n{narrative}",
-        urgent=(s["tier"] == "Major"),
+        f"📈 Blog traffic surge — {s['ratio']:.1f}× baseline ({s['tier']}){note}\n\n{narrative}",
+        urgent=urgent,
     )
-    return {"triggered": True, **s, "narrative": narrative}
+    return {"triggered": True, **s, "visitors": visitors, "narrative": narrative}
