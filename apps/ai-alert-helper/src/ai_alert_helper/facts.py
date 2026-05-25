@@ -101,7 +101,9 @@ def _digest_blog_facts(since: datetime, until: datetime) -> dict:
             for h in hits.get("hits", [])
         ],
         "blog_top_referrers": [
-            {"name": r.get("name", ""), "count": int(r.get("count", 0))}
+            # GoatCounter reports direct/no-referrer traffic with an empty
+            # name; label it "direct" so the digest doesn't render a blank.
+            {"name": r.get("name") or "direct", "count": int(r.get("count", 0))}
             for r in refs.get("stats", [])
         ],
     }

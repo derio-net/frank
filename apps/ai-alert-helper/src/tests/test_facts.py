@@ -83,13 +83,17 @@ def test_build_for_digest_pulls_goatcounter_pageviews_and_top_n():
     hits = respx.get(facts.GOATCOUNTER_URL + "/api/v0/stats/hits").mock(
         return_value=httpx.Response(200, json={"hits": [{"path": "/frank/x", "count": 30}]}))
     toprefs = respx.get(facts.GOATCOUNTER_URL + "/api/v0/stats/toprefs").mock(
-        return_value=httpx.Response(200, json={"stats": [{"name": "news.ycombinator.com", "count": 12}]}))
+        return_value=httpx.Response(200, json={"stats": [
+            {"name": "news.ycombinator.com", "count": 12},
+            {"name": "", "count": 7}]}))
     since = datetime(2026, 5, 24, tzinfo=timezone.utc)
     until = since + timedelta(days=1)
     sheet = facts.build_for_digest(since, until, until)
     assert sheet["blog_pageviews"] == 42
     assert sheet["blog_top_pages"][0]["path"] == "/frank/x"
     assert sheet["blog_top_referrers"][0]["name"] == "news.ycombinator.com"
+    # GoatCounter's empty (direct) referrer name is relabelled, not left blank
+    assert sheet["blog_top_referrers"][1]["name"] == "direct"
     # the toprefs endpoint (not /stats/refs) was actually called
     assert toprefs.called
     # Bearer auth header present on GoatCounter calls
