@@ -204,8 +204,9 @@ spec:
         # Operator's SSH+Mosh entry point. Independent home PVC keeps
         # mise/cargo/pipx state across pod restarts. The cont-init.d
         # inventory installer reconciles the operator's declared toolset
-        # against the home PVC at boot. Image SHA pinned to agent-images
-        # main HEAD (8af0d08) — see plan Deployment Notes.
+        # against the home PVC at boot. Image SHA tracks agent-images main
+        # HEAD (bumped by the agent-images-bump workflow) — the image: tag
+        # below is the live pin; see plan Deployment Notes.
         - name: paperclip-shell
           image: ghcr.io/derio-net/paperclip-shell:165f5eb45d7eae25141461e441f7c7cd56395f00
           imagePullPolicy: IfNotPresent

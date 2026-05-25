@@ -3,10 +3,10 @@
 # workspace and shell-home PVCs are RWO and a rolling update would
 # deadlock waiting for the mount to release (see frank-gotchas.md).
 #
-# Image SHAs reference agent-images main commit
-# 8af32cba360d8bfa86e31fc8fc91e8fc787d55b7 (tip of derio-net/agent-images
-# main as of 2026-05-16; tail of a two-PR fix for the local-model "no
-# response" bug):
+# Image SHAs track agent-images main HEAD, bumped by the agent-images-bump
+# workflow — the `image:` tags below are the live pin. Historical context:
+# the 2026-05-16 bump to agent-images 8af32cb was the tail of a two-PR fix
+# for the local-model "no response" bug:
 #   #77 — patch upstream urlSafety.ts to allow wasm:// URLs (the browser-
 #         local "RVAgent Local (WASM)" MCP server) so autopilot-ON chat
 #         doesn't silently brick when wasm:// is the only selected MCP;
