@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request
 
 from . import ai_adapter, facts, surge, telegram
 
-app = FastAPI(title="ai-alert-helper", version="0.1.4")
+app = FastAPI(title="ai-alert-helper", version="0.1.5")
 
 
 @app.get("/healthz")

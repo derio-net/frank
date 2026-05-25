@@ -5,7 +5,7 @@ metadata:
   namespace: ai-alert-helper-system
 spec:
   schedule: "*/15 * * * *"
-  suspend: true            # TEMPORARY — reverted in surge-detector-fix P3.T2.S1 once the fix is verified live
+  suspend: true            # stays suspended through the 0.1.5 deploy; un-suspended only after live verification (P3.T2.S1)
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 5
