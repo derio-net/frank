@@ -137,3 +137,41 @@ Workarounds, in order of cleanliness:
 - (a) source from `/proc/1/environ` inside the script — see MEMORY.md `pod_env_secrets.md` for the `_env_from_pid1 NAME` helper
 - (b) use `kubectl exec` instead of `ssh` for env-dependent reconcile invocations
 - (c) accept the silence and rely on MOTD as the SSH-path failure surface (the MOTD line is unaffected — it's written from `last-reconcile.motd` regardless of env)
+
+## secure-agent-kali build: pin `kali.download`, never the `http.kali.org` redirector
+
+The `agent-images` kali Dockerfile builds on `debian:bookworm-slim` → `agent-base` → `agent-shell-base`, then adds the kali-rolling repo and `apt-get dist-upgrade`s onto it. The repo URL **must** be the official Cloudflare-backed CDN `https://kali.download/kali`, not `https://http.kali.org/kali`.
+
+`http.kali.org` is a redirector that round-robins to community mirrors of varying freshness. During a fast rolling transition (the GCC-16 toolchain churn of 2026-05), a mirror's `Packages` index can advertise a version whose `.deb` has not propagated to (or was already GC'd from) that mirror's `pool/`. `dist-upgrade` then fails with a hard 404:
+
+```
+E: Failed to fetch .../pool/main/g/gcc-16/gcc-16-base_16-20260322-1_amd64.deb  404  Not Found
+E: Unable to fetch some archives, maybe run apt-get update or try with --fix-missing?
+```
+
+The failure is **non-deterministic and mirror-dependent** — a local build (or a CI retry minutes later) that happens to hit a consistent mirror passes, which makes it look transient. It is not: any community mirror can be index↔pool-skewed at any time. `kali.download` keeps its index and pool consistent. Diagnosis that nails it without a full build: probe the exact 404'd deb on both mirrors —
+
+```bash
+for m in http://http.kali.org/kali https://kali.download/kali; do
+  curl -s -o /dev/null -w "%{http_code} $m\n" -L "$m/pool/main/g/gcc-16/gcc-16-base_16-20260322-1_amd64.deb"
+done
+# http.kali.org → 404, kali.download → 200, while both indexes advertise the same version.
+```
+
+First hit: `agent-images` build for the VK_BRIDGE_PIN v2.2.13 bump (2026-05-25). Fixed in `kali/Dockerfile` in `derio-net/agent-images`.
+
+## v2 vk.bridge logs its banner to stderr — smoke tests must capture `2>&1`
+
+The PVC-resident v2 bridge (`vk.bridge` module, installed by `cont-init.d/55-install-vk-bridge` from a `superpowers-for-vk` git tag) emits its per-tick banner and `dry-run complete` line via Python **logging**, which writes to **stderr**, not stdout:
+
+```
+$ python -m vk.bridge --dry-run 1>/tmp/out 2>/tmp/err   # exits 0
+$ cat /tmp/out      # empty
+$ cat /tmp/err
+[bridge] - v2.2.13 - 2026-05-25 16:26:48 UTC - tick
+vk.bridge: dry-run complete
+```
+
+Any health check or CI smoke test that does `out=$(vk-bridge --dry-run)` captures **stdout only** → `$out` is empty → banner/version assertions fail. Under bash `set -eo pipefail` (GitHub Actions default) the step then aborts before any teardown/diagnostics run, so the log shows the banner printed live (uncaptured stderr) followed immediately by an unexplained exit 1. Always `2>&1` the capture.
+
+This silently broke `agent-images`' `smoke-test-secure-agent-kali` job on **every** build after the 2026-05-19 v2-bridge cutover — the kali image had not published a green build from `main` for a week before it was diagnosed (2026-05-25). The pre-cutover v1 bridge printed to stdout, which is why the same test passed on bridge ≤ v2.1.7.
