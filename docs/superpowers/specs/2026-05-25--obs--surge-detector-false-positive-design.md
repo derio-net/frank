@@ -69,9 +69,14 @@ re-fires ~4×/hour until the trailing-7-day hour-of-day median absorbs the probe
 
 ## Non-goals (YAGNI)
 
-- **No alert de-duplication / cooldown layer.** The 15-min repeat storm is
-  eliminated at the source (probe excluded → `current` near 0 → no tier), so a
-  cooldown is unnecessary now. Noted as a possible future enhancement only.
+- **No alert de-duplication / cooldown layer.** The `surge-check` endpoint is
+  stateless and re-evaluates every 15 minutes, so *any* sustained condition
+  re-notifies while it persists — a confirmed human surge (URGENT) and a
+  downgraded no-visitor bot surge (Notable) alike. This fix eliminates the
+  **specific** storm that was reported (Frank's own probe → `current` near 0 →
+  no tier), but it does not add general repeat-suppression. Genuine sustained
+  surges re-notifying every 15 min is accepted for now; a cooldown/state layer
+  is deferred and tracked as a follow-up (see Risks).
 - **No new app and no metrics-based rearchitecture.** The fix stays in the
   existing `obs` apps and the working LogsQL path. (Rejected alternatives:
   dropping probe logs at ingestion — destroys logs we want and mutates a shared
@@ -107,29 +112,50 @@ considered and rejected (more config, no benefit).
 
 ### Component 2 — Centralized probe-aware edge filter (`facts.py`)
 
-The edge query string is currently built in two places with no probe
-exclusion. Introduce one helper as the single source of truth so the surge
-alert and the digest can never silently disagree about what "blog traffic" is:
+The edge query is currently built in **three** places with no probe exclusion
+and *two different node/namespace selectors* — `surge._hour_count`
+(`surge.py:18-21`, scoped `kubernetes.namespace_name:caddy-system`),
+`facts.build_for_digest` (`facts.py:155`, scoped `kubernetes.host:hop-1`), and
+`facts.build_for_surge` (`facts.py:180-181`, scoped
+`kubernetes.namespace_name:caddy-system`, **no host filter at all**).
+Introduce one helper as the single source of truth so the surge alert, the
+surge narrative, and the digest can never silently disagree about what "blog
+traffic" is, and canonicalize on **one** selector: `kubernetes.host:hop-1`
+(the documented convention in `docs/runbooks/frank-gotchas/networking.md`).
 
 ```python
 # facts.py
-PROBE_UA_TOKEN = "Frank-Blackbox-Probe"   # MUST match the UA in
+PROBE_UA_TOKEN = "Frank-Blackbox-Probe"   # MUST match the User-Agent set in
                                           # apps/blackbox-exporter/manifests/configmap.yaml
+                                          # (cross-system coupling — see Risks)
 
 def edge_filter(host: str | None = None, *, exclude_probes: bool = True) -> str:
+    # Backtick-quote the dotted/hyphenated field names (verified live against
+    # VictoriaLogs; phrase-matches the array-valued UA field correctly).
     f = 'kubernetes.host:hop-1 AND _msg:"handled request"'
     if host:
-        f += f' AND request.host:"{host}"'
+        f += f' AND `request.host`:"{host}"'
     if exclude_probes:
-        f += f' AND -request.headers.User-Agent:"{PROBE_UA_TOKEN}"'
+        f += f' AND -`request.headers.User-Agent`:"{PROBE_UA_TOKEN}"'
     return f
 ```
 
-`surge._hour_count` and `facts.build_for_digest` both call `edge_filter(...)`.
-The exact LogsQL negation syntax for the hyphenated field name
-(`-request.headers.User-Agent:"..."` vs. backtick-quoting) is **pinned by a
-test** before we rely on it — that field returned a 422 during investigation
-when mis-quoted.
+**All three** call sites are migrated to `edge_filter(...)`:
+`surge._hour_count(host="blog.derio.net")`,
+`build_for_surge` (`total_requests` → `edge_filter(host="blog.derio.net")`),
+and `build_for_digest` (grouped/total edge queries → `edge_filter()` with no
+host, i.e. all vhosts, probe-excluded). This also fixes `build_for_surge`
+currently feeding the AI narrative an unfiltered, probe-polluted count.
+
+**LogsQL syntax — verified live, not hand-waved.** Against VictoriaLogs for the
+incident window (total 370, probe 360): every negation form
+(`-request.headers.User-Agent:"..."`, backtick-quoted, and `NOT`) correctly
+returned 10. The 422 seen during investigation was a missing `| stats` pipe,
+not the field name. The future token `Frank-Blackbox-Probe` correctly excludes
+nothing until the probe's live UA changes (confirming the deployment ordering
+below). A `respx`-mocked unit test can only pin the *generated string*, so the
+real query is also exercised by a **live** LogsQL check in the deployment
+verification (not a substitute — an addition).
 
 ### Component 3 — Absolute floor (`surge.py`)
 
@@ -150,18 +176,28 @@ elif ratio >= 3:
 Default **50 req/hour**: organic surges (HN/Reddit) run into the hundreds/hour,
 so 50 sits well below a real event while killing the trickle-ratio artifact.
 The floor is computed on probe-free traffic (Component 2), so Frank's ~360/hr
-probe no longer contributes to it.
+probe no longer contributes to it. **Boundary:** the comparison is
+`current < ABS_FLOOR → tier None`, i.e. exactly `ABS_FLOOR` requests *does*
+qualify (≥50 fires). The operating-post tuning section documents this.
 
 ### Component 4 — GoatCounter cross-check (`api.py` `/surge-check`, `facts.py`)
 
 Implement the missing visitor-side gate.
 
-**4a. Distinguish unreachable from genuinely-zero.** `_goatcounter` currently
-returns `{}` on both error and empty result. Add a reachability signal (return
-`None` on transport/HTTP error; a dict — possibly empty — on success) so
-fail-open can be implemented correctly. Add a `facts.surge_visitor_pageviews(
-window_start, window_end) -> int | None` helper returning human pageviews for
-the surge window (`None` = GoatCounter unreachable).
+**4a. Distinguish unreachable from genuinely-zero — WITHOUT breaking the
+digest.** `_goatcounter` currently returns `{}` on both error and empty result,
+and its only callers (`_digest_blog_facts`, `facts.py:91-96`) immediately
+`.get(...)` the result. Changing `_goatcounter` to return `None` on error would
+throw `AttributeError` and **crash the daily `/digest`** (unwrapped at
+`api.py:29`). So the contract change is additive, not in-place:
+
+- Introduce `_goatcounter_raw(path, params) -> dict | None` — `None` on
+  transport/HTTP error, dict (possibly empty) on success.
+- `_goatcounter` becomes `return _goatcounter_raw(...) or {}` — **digest
+  behaviour and all existing call sites are unchanged.**
+- New `facts.surge_visitor_pageviews(window_start, window_end) -> int | None`
+  uses `_goatcounter_raw` against `/api/v0/stats/total`; returns the human
+  pageview count, or `None` when GoatCounter is unreachable.
 
 **4b. Final-severity decision in `/surge-check`** after `surge.compute()`
 returns a non-`None` tier:
@@ -179,11 +215,13 @@ reachability state) so the AI narrative reflects the real situation instead of
 guessing. Today's incident outcome under this design: probe excluded →
 `current` near 0 → below `ABS_FLOOR` → **no message at all**.
 
-**Open item to verify in implementation:** whether GoatCounter's
-`/api/v0/stats/total` accepts hour-granularity timestamps (the existing digest
-code uses day granularity only). If hour granularity is unsupported, fall back
-to "today's running pageviews" as the human signal (coarser but functional);
-the plan records which path was taken.
+**GoatCounter window granularity — resolved.** GoatCounter's OpenAPI spec
+(`/api.json`) defines `start`/`end` on the stats endpoints as `format:
+date-time` ("*should be rounded to the hour*"), so the cross-check passes the
+**exact 1-hour surge window** as RFC3339 timestamps — no day-granularity
+fallback is needed (the earlier concern about midnight under-count / late-day
+over-confirm does not arise). `_digest_blog_facts` keeps its existing whole-day
+range for the daily digest; only the surge path uses the hour window.
 
 ### Digest consistency
 
@@ -199,31 +237,53 @@ edge totals currently overcount substantially.)
 | `SURGE_ABS_FLOOR` | `50` | Minimum `current` req/hour for any tier |
 | `SURGE_VISITOR_FLOOR` | `10` | Minimum GoatCounter pageviews in window to confirm a Major as a real (URGENT) surge |
 
-Both set on the `surge-check` CronJob (and where relevant the deployment) in
-`apps/ai-alert-helper/manifests/`.
+Both set in the **Deployment**'s `env:` block
+(`apps/ai-alert-helper/manifests/deployment.yaml`) — **not** the CronJobs. The
+`surge-check` and `digest` CronJobs are pure `curlimages/curl` triggers that
+`POST` to the Service; the Python (`surge.compute()`, `/surge-check`) runs only
+in the Deployment pod, so that is the only place `os.environ.get(...)` reads.
+Env on the CronJob would be silently ignored. Both have safe code defaults
+(50 / 10) so unset is non-breaking.
 
 ## Testing
 
 - `edge_filter`: probe exclusion present/absent, host scoping, and the exact
-  LogsQL negation string (regression guard for the 422).
-- `PROBE_UA_TOKEN`: a test pinning the exact token string the filter expects
-  (drift between the two systems fails CI).
+  backtick-quoted negation string the helper generates (string-shape guard).
+  Note: this is a *generated-string* assertion only — it cannot validate the
+  query against VictoriaLogs; that is covered by the live check in Deployment.
+- `PROBE_UA_TOKEN`: a test pinning the exact token string the filter expects.
+  This pins only the **Python side**; the blackbox configmap must carry an
+  inline comment cross-referencing `facts.PROBE_UA_TOKEN` (a configmap edit
+  can still silently desync — the only runtime signal would be a re-fired false
+  page, so the cross-ref comment is the guard).
 - `surge.compute`: floor suppresses tier when `current < ABS_FLOOR`; existing
-  ratio/tier tests updated for the floor.
+  ratio/tier tests updated for the floor. **Split** the current
+  `test_compute_handles_empty_baseline_without_divide_by_zero`
+  (`test_surge.py:74-85`) into two tests — one for crash-safety on an empty
+  baseline, one for the floor boundary (49 → None, 50 → fires) — so the two
+  concerns aren't entangled at the boundary.
 - `/surge-check` decision matrix: each row of the Component-4b table
   (mock GoatCounter ≥floor, <floor, and unreachable/`None`).
-- `_goatcounter` / `surge_visitor_pageviews`: error → `None`, success-empty →
-  `0`, success → integer.
+- `_goatcounter_raw` / `surge_visitor_pageviews`: error → `None`,
+  success-empty → `0`, success → integer.
+- **Digest regression (ties to C1):** `build_for_digest` must survive an
+  unreachable GoatCounter — assert it returns a sheet (probe-excluded edge
+  facts + zeroed blog facts) and does **not** raise, with `_goatcounter_raw`
+  mocked to `None`.
 
 ## Deployment & verification (ordering matters)
 
 1. Deploy the blackbox UA change (`apps/blackbox-exporter`). ArgoCD sync +
    blackbox config reload.
-2. **Verify in live Caddy logs** that probe requests to `blog.derio.net` now
-   carry `Frank-Blackbox-Probe` (VictoriaLogs query). The exact-match exclusion
-   filter is only trustworthy once this is confirmed — flipping the filter
+2. **Verify in live Caddy logs** (VictoriaLogs) that probe requests to
+   `blog.derio.net` now carry `Frank-Blackbox-Probe`, then run the **exact
+   `edge_filter` negation query live** and assert it (a) returns HTTP 200 (not
+   422) and (b) excludes the probe count (blog total drops by ~probe volume).
+   This is the integration check the mocked unit test cannot perform. The
+   exclusion filter is only trustworthy once both pass — flipping the filter
    before the probe's live UA changes would silently re-introduce the false
-   page.
+   page (empirically confirmed: the `Frank-Blackbox-Probe` token excludes 0
+   rows while the probe still sends the stock `Blackbox Exporter` UA).
 3. Deploy the `ai-alert-helper` image + manifest changes.
 4. **End-to-end verification:** trigger `/surge-check` (or wait for the
    CronJob) and confirm `current` for the blog window is now probe-free and
@@ -246,9 +306,16 @@ Both set on the `surge-check` CronJob (and where relevant the deployment) in
 ## Risks
 
 - **Cross-system UA coupling** (blackbox config ↔ `PROBE_UA_TOKEN`): guarded by
-  a pinning test, cross-referencing comments in both files, and the live-log
-  verification step.
+  a Python-side pinning test, a cross-referencing comment in the blackbox
+  configmap, and the live-log + live-query verification step. The remaining
+  exposure is a configmap edit that desyncs without touching `facts.py` — its
+  only runtime signal is a re-fired false page.
 - **Floor too high** masks a genuinely small surge: mitigated by env-tunability
   and the GoatCounter gate (a real surge with humans still pages once it clears
   the floor).
-- **GoatCounter API granularity** (open item above): fallback defined.
+- **Repeat notifications for sustained surges** (deferred follow-up): the
+  stateless 15-min cadence re-notifies for any persistent surge — confirmed
+  human (URGENT) or downgraded bot (Notable). This fix removes the *probe*
+  storm but not this general property; a cooldown/state layer is out of scope
+  (see Non-goals) and should be tracked as a future enhancement if sustained
+  non-probe surges prove noisy in practice.
