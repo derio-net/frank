@@ -1360,7 +1360,7 @@ operations:
   why_manual: Token replication across Frank secrets (LITELLM_MASTER_KEY from .env, FRANK_C2_TELEGRAM_* from grafana-alerting-secrets, OBS_GOATCOUNTER_API_TOKEN from grafana-goatcounter-token) — Infisical seed deferred
   commands:
   - source .env ; kubectl create ns ai-alert-helper-system ; kubectl label ns ai-alert-helper-system pod-security.kubernetes.io/enforce=restricted --overwrite
-  - 'See commands inline in P5.T2.S2 — apply ai-alert-helper-secrets Secret with FRANK_C2_TELEGRAM_BOT_TOKEN, FRANK_C2_TELEGRAM_CHAT_ID, OBS_GOATCOUNTER_API_TOKEN, LITELLM_API_KEY'
+  - See commands inline in P5.T2.S2 — apply ai-alert-helper-secrets Secret with FRANK_C2_TELEGRAM_BOT_TOKEN, FRANK_C2_TELEGRAM_CHAT_ID, OBS_GOATCOUNTER_API_TOKEN, LITELLM_API_KEY
   verify:
   - kubectl -n ai-alert-helper-system get secret ai-alert-helper-secrets
   - kubectl -n ai-alert-helper-system exec deploy/ai-alert-helper -- env | grep -c TELEGRAM
