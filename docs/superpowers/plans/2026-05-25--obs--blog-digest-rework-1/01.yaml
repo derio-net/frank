@@ -4,7 +4,7 @@ phase:
   title: Enrich the digest fact sheet (TDD, pure-Python, no deploy)
   tag: agentic
   depends_on: []
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/400
 tasks:
 - number: 1
   title: Red baseline — failing tests that pin query strings, fields, and shape
