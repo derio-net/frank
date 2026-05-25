@@ -3,7 +3,7 @@ phase:
   number: 2
   title: Update References
   tag: agentic
-  depends_on: []
+  depends_on: [1]
   tracking_issue:
 tasks:
 - number: 1

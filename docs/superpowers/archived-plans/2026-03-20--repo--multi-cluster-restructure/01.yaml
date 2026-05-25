@@ -3,7 +3,7 @@ phase:
   number: 1
   title: ArgoCD Sync
   tag: manual
-  depends_on: []
+  depends_on: [0]
   tracking_issue:
 tasks:
 - number: 1

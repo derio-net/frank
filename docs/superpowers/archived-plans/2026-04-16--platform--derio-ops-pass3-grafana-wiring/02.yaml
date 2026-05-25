@@ -3,7 +3,7 @@ phase:
   number: 2
   title: Priority — Layer 18 Persistent Agent
   tag: agentic
-  depends_on: []
+  depends_on: [0]
   tracking_issue: null
 tasks:
 - number: 1

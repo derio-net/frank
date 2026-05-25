@@ -3,7 +3,7 @@ phase:
   number: 3
   title: Foundation Layers (1–6)
   tag: agentic
-  depends_on: []
+  depends_on: [0]
   tracking_issue: null
 tasks:
 - number: 1
