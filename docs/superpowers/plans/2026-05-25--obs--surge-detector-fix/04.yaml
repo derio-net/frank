@@ -1,0 +1,74 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Docs & close-out
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Deviation note + gotchas
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add a Deviation entry to the parent plan
+      `docs/superpowers/plans/2026-05-23--obs--hop-blog-edge-monitoring/_prose.md`
+      (Deployment Deviations section): root cause (probe-as-traffic +
+      baseline-of-1 + missing GC gate) and the fix summary, linking this
+      plan.
+  - id: P4.T1.S2
+    text: |-
+      Gotcha one-liners in `agents/rules/frank-gotchas.md` under the
+      Observability digest section, full prose in
+      `docs/runbooks/frank-gotchas/obs-digest.md`:
+      - Surge baseline is hour-of-day median forced to 1 on quiet hours →
+        ratio is an artifact unless gated by an absolute floor.
+      - Frank's own blackbox probe hits the public blog edge (~360/hr via
+        the home egress IP) and counted as blog traffic until tagged
+        `Frank-Blackbox-Probe` and excluded; GoatCounter (JS beacon) never
+        saw it — that divergence is the bot-vs-human signal.
+      - surge URGENT now requires a GoatCounter visitor cross-check
+        (fail-open); the cross-check token needs the GoatCounter `stats`
+        permission (manual-op obs-goatcounter-token-stats-permission).
+      - build-ai-alert-helper.yml hardcodes the image tag (stale vs the
+        deployed version) and auto-fires on src/** — builds are manual
+        docker build+push; parametrizing the tag is a deferred follow-up.
+- number: 2
+  title: Operating post + status + runbook
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Add a "Tuning the surge detector" subsection to the obs/edge
+      operating post (locate under `blog/content/docs/operating/` for the
+      hop-blog-edge-monitoring layer): document SURGE_ABS_FLOOR (default 50,
+      >= fires) and SURGE_VISITOR_FLOOR (default 10), how to read a surge
+      alert (Major = humans confirmed/urgent; Notable = edge surge without
+      visitor confirmation), and this incident as a worked example.
+  - id: P4.T2.S2
+    text: |-
+      Run /sync-runbook (the P3.T1.S2 docker build is a manual-operation).
+      Set the spec `Status:` to Deployed and this plan's status. Run
+      scripts/validate-plans.sh.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

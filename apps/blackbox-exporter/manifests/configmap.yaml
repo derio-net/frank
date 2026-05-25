@@ -10,6 +10,11 @@ data:
         prober: http
         timeout: 10s
         http:
+          # User-Agent identifies Frank's own uptime probes so the edge-traffic
+          # definition can exclude them. KEEP IN SYNC with facts.PROBE_UA_TOKEN
+          # in apps/ai-alert-helper/src/ai_alert_helper/facts.py.
+          headers:
+            User-Agent: "Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"
           valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
           valid_status_codes: [200, 301, 302]
           follow_redirects: true
@@ -18,6 +23,9 @@ data:
         prober: http
         timeout: 10s
         http:
+          # See note above — keep in sync with facts.PROBE_UA_TOKEN.
+          headers:
+            User-Agent: "Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"
           valid_status_codes: [200]
           follow_redirects: false
           preferred_ip_protocol: ip4
