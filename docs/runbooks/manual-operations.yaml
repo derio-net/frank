@@ -1348,7 +1348,7 @@ operations:
   when: phase 4, task 1, before falcosidekick can send to Telegram
   why_manual: Falcosidekick reads TELEGRAM_TOKEN + TELEGRAM_CHATID from the falco-telegram Secret; values are replicated from Frank's grafana-alerting-secrets (no shared Infisical key path between clusters)
   commands:
-  - 'source .env ; TOKEN=$(kubectl -n monitoring get secret grafana-alerting-secrets -o jsonpath='"'"'{.data.FRANK_C2_TELEGRAM_BOT_TOKEN}'"'"') ; CHAT=$(kubectl -n monitoring get secret grafana-alerting-secrets -o jsonpath='"'"'{.data.FRANK_C2_TELEGRAM_CHAT_ID}'"'"') ; source .env_hop ; printf '"'"'apiVersion: v1\nkind: Secret\nmetadata:\n  name: falco-telegram\n  namespace: falco-system\ntype: Opaque\ndata:\n  TELEGRAM_TOKEN: %s\n  TELEGRAM_CHATID: %s\n'"'"' "$TOKEN" "$CHAT" | kubectl apply -f -'
+  - 'source .env ; TOKEN=$(kubectl -n monitoring get secret grafana-alerting-secrets -o jsonpath=''{.data.FRANK_C2_TELEGRAM_BOT_TOKEN}'') ; CHAT=$(kubectl -n monitoring get secret grafana-alerting-secrets -o jsonpath=''{.data.FRANK_C2_TELEGRAM_CHAT_ID}'') ; source .env_hop ; printf ''apiVersion: v1\nkind: Secret\nmetadata:\n  name: falco-telegram\n  namespace: falco-system\ntype: Opaque\ndata:\n  TELEGRAM_TOKEN: %s\n  TELEGRAM_CHATID: %s\n'' "$TOKEN" "$CHAT" | kubectl apply -f -'
   verify:
   - kubectl -n falco-system logs deploy/falco-falcosidekick | grep "Enabled Outputs"
   status: done
