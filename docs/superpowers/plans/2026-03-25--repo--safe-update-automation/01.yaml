@@ -112,13 +112,21 @@ tasks:
       # gha-runner-scale-set
       # Chart: oci://ghcr.io/actions/actions-runner-controller-charts/gha-runner-scale-set
       #
-      # Registers a runner pool labelled "frank-cluster" pinned to pc-1.
+      # Registers a runner pool labelled "frank-cluster", pinned to gpu-1.
+      # Pinned OFF pc-1 (which already runs zot/gitea/Tekton on only 4 cores)
+      # to leave headroom for a future AWX. gpu-1 is a 32-core/128GB worker
+      # with spare RAM/CPU — its real constraint is VRAM. In-cluster kubectl
+      # works from any node via the pod ServiceAccount, so co-locating with
+      # Tekton on pc-1 was never required.
       # The GitHub App credentials are in the arc-github-app-secret Secret (applied out-of-band).
 
       githubConfigUrl: "https://github.com/<YOUR_GITHUB_ORG_OR_USER>/<YOUR_REPO>"
       githubConfigSecret: arc-github-app-secret
 
-      minRunners: 1
+      # Scale-to-zero: no idle runner pod. A runner is spawned only when a
+      # Renovate-PR smoke-test job arrives, then torn down. Renovate runs
+      # weekly, so steady-state footprint on gpu-1 is zero.
+      minRunners: 0
       maxRunners: 3
 
       runnerGroup: "Default"
@@ -126,7 +134,14 @@ tasks:
       template:
         spec:
           nodeSelector:
-            kubernetes.io/hostname: pc-1
+            kubernetes.io/hostname: gpu-1
+          tolerations:
+            # Defensive: gpu-1 has no taint today, but GPU-operator driver
+            # re-validation can re-assert nvidia.com/gpu:NoSchedule (see
+            # frank-gotchas → gpu-1). Tolerate it so the runner isn't evicted.
+            - key: nvidia.com/gpu
+              operator: Exists
+              effect: NoSchedule
           containers:
             - name: runner
               image: ghcr.io/actions/actions-runner:latest
