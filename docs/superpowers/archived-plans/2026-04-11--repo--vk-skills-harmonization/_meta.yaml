@@ -1,6 +1,6 @@
 schema_version: 2
 plan: 2026-04-11--repo--vk-skills-harmonization
-spec: willikins/docs/superpowers/specs/2026-04-10-vk-skills-harmonization-design.md
-target_repo: derio-net/superpowers-for-vk
-vk_version: '>=1.0.0,<3.0.0'
+spec: derio-net/willikins:docs/superpowers/specs/2026-04-10-vk-skills-harmonization-design.md
+target_repo: derio-net/frank
+vk_version: '>=2.0.0,<3.0.0'
 created: '2026-04-11'
