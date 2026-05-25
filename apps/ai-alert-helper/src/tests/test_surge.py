@@ -5,6 +5,8 @@ calls (1 for the current hour + 7 for the same hour-of-day across the past
 7 days), then compute the median in Python.
 """
 from __future__ import annotations
+from datetime import datetime, timezone
+
 import respx
 import httpx
 import pytest
@@ -96,3 +98,13 @@ def test_compute_handles_zero_current_traffic():
     assert result["current"] == 0
     assert result["ratio"] == 0.0
     assert result["tier"] is None
+
+
+@respx.mock
+def test_hour_count_filters_on_request_host_field():
+    route = respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        return_value=httpx.Response(200, json={"data": {"result": [{"value": [0, "5"]}]}}))
+    surge._hour_count(datetime(2026, 5, 25, 12, tzinfo=timezone.utc))
+    q = route.calls.last.request.url.params["query"]
+    assert 'request.host:"blog.derio.net"' in q
+    assert '_msg:"blog.derio.net"' not in q
