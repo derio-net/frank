@@ -3,8 +3,9 @@ phase:
   number: 3
   title: Version Tracking
   tag: agentic
-  depends_on: [2]
-  tracking_issue: null
+  depends_on:
+  - 2
+  tracking_issue: https://github.com/derio-net/frank/issues/390
 tasks:
 - number: 4
   title: Create versions.yaml

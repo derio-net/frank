@@ -3,8 +3,9 @@ phase:
   number: 2
   title: ARC Bootstrap Secret
   tag: manual
-  depends_on: [1]
-  tracking_issue: null
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/389
 tasks:
 - number: 3
   title: Bootstrap Secret (Manual Operation)

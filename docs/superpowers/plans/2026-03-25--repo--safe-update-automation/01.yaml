@@ -3,8 +3,9 @@ phase:
   number: 1
   title: ARC Self-Hosted Runner
   tag: agentic
-  depends_on: [0]
-  tracking_issue: null
+  depends_on:
+  - 0
+  tracking_issue: https://github.com/derio-net/frank/issues/388
 tasks:
 - number: 1
   title: ARC Controller ArgoCD App

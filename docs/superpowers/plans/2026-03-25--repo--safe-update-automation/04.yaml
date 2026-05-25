@@ -3,8 +3,10 @@ phase:
   number: 4
   title: Renovate & Smoke Testing
   tag: agentic
-  depends_on: [0, 3]
-  tracking_issue: null
+  depends_on:
+  - 0
+  - 3
+  tracking_issue: https://github.com/derio-net/frank/issues/391
 tasks:
 - number: 6
   title: Renovate Configuration
