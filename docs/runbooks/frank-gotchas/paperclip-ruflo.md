@@ -197,6 +197,8 @@ Examples:
 
 Upstream fix is one line: unwrap the cause chain in `isIssuePrefixConflict`. Worth a PR.
 
+**Update (2026-05-26):** upstream shipped this fix in **v2026.525.0** (PR [#6423](https://github.com/paperclipai/paperclip/pull/6423)) — "the retry detector now walks the Drizzle 0.45.x error cause chain for the `companies_issue_prefix_idx` unique constraint, so generated-prefix collisions retry instead of 500-ing." Deployed to Frank as `ghcr.io/paperclipai/paperclip:sha-60efa38` (commit `3370c41`). **Not yet live-verified** — confirm by importing two companies whose names derive the same 3-char prefix; the second should retry to a new prefix instead of returning a 500. Until then, the rename-at-import workaround above still stands as the safe default.
+
 ## LiteLLM-backed agents (`opencode_local` + `hermes_local`) {#litellm-backed-agents}
 
 Paperclip's local LLM path routes agent runs through Frank's LiteLLM gateway (`litellm.litellm.svc:4000` / `192.168.55.206:4000`) to Ollama models on `gpu-1`. Two adapters implement this:
