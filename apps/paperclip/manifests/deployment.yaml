@@ -94,15 +94,21 @@ spec:
       containers:
         - name: paperclip
           # Upstream public image. Pinned by digest-equivalent sha tag.
-          # sha-93cd933 is release v2026.517.0 (2026-05-17) — adds the
-          # built-in grok_local adapter (#6087) and the i18n foundation.
+          # sha-60efa38 is release v2026.525.0 (2026-05-25) — adds the
+          # first-party Modal sandbox-provider plugin (#6245), a workspace
+          # diff viewer plugin (#6071), routine-scoped secrets (#6212), and
+          # local Cloud Upstream sync (#6548). Notably fixes #6423: the
+          # company-creation retry detector now walks the Drizzle 0.45.x
+          # error cause chain for `companies_issue_prefix_idx`, so
+          # generated-prefix collisions retry instead of 500-ing (the
+          # `createCompanyWithUniquePrefix` gotcha in frank-gotchas.md).
           # Tag scheme is upstream's: only `latest` (master HEAD),
           # `canary`, and `sha-<short>` are published — no semver image
-          # tags. We pin to the sha for traceability: v2026.517.0 →
-          # commit 93cd933f7929eb5c90f4af87685cd733b231f771.
-          # Manifest digest: sha256:eb7259dfbd5c55339bd1a037f35caa28e024af493c31869d90524d292bc7ae15
-          # Bumped from sha-c445e59 (sha256:40f1364fae014a50ad32d47a5f6ba8c267a9e8671d8f4f3dfb205f39bc21039b).
-          image: ghcr.io/paperclipai/paperclip:sha-93cd933
+          # tags. We pin to the sha for traceability: v2026.525.0 →
+          # commit 60efa38f868e838e9af2e2168daf0c70afefb9e6.
+          # Manifest digest: sha256:d9293c26de7c1cbb3e1c5026cced013063408568100684e3d26be0d033fe3997
+          # Bumped from sha-93cd933 (sha256:eb7259dfbd5c55339bd1a037f35caa28e024af493c31869d90524d292bc7ae15).
+          image: ghcr.io/paperclipai/paperclip:sha-60efa38
           ports:
             - name: http
               containerPort: 3100
