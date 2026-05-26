@@ -358,7 +358,7 @@ kubectl logs -n ai-alert-helper-system deploy/ai-alert-helper --tail 100 | \
 
 ### Tuning the surge detector
 
-`/surge-check` runs every 15 min, compares the last complete hour of **blog edge requests** against an hour-of-day baseline (median of the same hour over the prior 7 days), and pages if traffic spiked *and* real visitors showed up. Two env knobs on the Deployment tune it:
+`/surge-check` runs every 15 min, compares the last complete hour of **blog edge requests** against an hour-of-day baseline (median of the same hour over the prior 7 days), and pages if traffic spiked *and* real visitors showed up. Three env knobs on the Deployment tune it:
 
 ```
 # Minimum requests/hour for ANY tier — stops a baseline of 1 (quiet hour →
@@ -367,6 +367,8 @@ kubectl logs -n ai-alert-helper-system deploy/ai-alert-helper --tail 100 | \
 kubectl set env -n ai-alert-helper-system deploy/ai-alert-helper SURGE_ABS_FLOOR=50
 # Minimum GoatCounter pageviews in the window to confirm a Major as URGENT.
 kubectl set env -n ai-alert-helper-system deploy/ai-alert-helper SURGE_VISITOR_FLOOR=10
+# Min hours before re-notifying the SAME tier — de-dups repeat bot-surge Notables.
+kubectl set env -n ai-alert-helper-system deploy/ai-alert-helper SURGE_COOLDOWN_HOURS=6
 ```
 
 **Reading a surge message:**
@@ -374,6 +376,10 @@ kubectl set env -n ai-alert-helper-system deploy/ai-alert-helper SURGE_VISITOR_F
 - **`(Major)` + urgent** — edge spiked *and* GoatCounter confirms ≥`SURGE_VISITOR_FLOOR` real pageviews. A genuine human surge (HN/Reddit). Act on it.
 - **`(Major) (visitor data unavailable)` + urgent** — edge spiked but GoatCounter was unreachable; it pages anyway (fail-open) rather than miss a real surge. Check GoatCounter.
 - **`(Notable)` + non-urgent** — edge spiked but GoatCounter shows no humans, so a Major was downgraded: bots/scrapers/scanners, not readers. Informational; cross-check with CrowdSec/Falco if sustained.
+
+**De-duplication.** `/surge-check` is stateless and runs every 15 min against the same completed hour, so without help it would re-send the same Notable ~4×/hot-hour. It now keeps **in-memory** notification state and only sends on a *rising edge* (a tier first appearing, or escalating Notable→Major); it stays silent while the same-or-lower tier persists, and won't re-notify the same tier again until `SURGE_COOLDOWN_HOURS` (default 6) elapses. Escalation to a confirmed-human URGENT always passes immediately. A pod restart re-arms the state (at most one extra message). To watch it, grep the **helper** Deployment logs (the cron's `curl` discards the body): `kubectl -n ai-alert-helper-system logs deploy/ai-alert-helper | grep -E "surge (sent|suppressed)"`.
+
+**Grounded narrative.** The verdict is now built from `top_referrers` (GoatCounter), `top_paths` and `top_user_agents` (Caddy, probe-excluded) for the window — so it cites real evidence. It names Hacker News *only* if a `news.ycombinator.com` referrer is present, calls a bot-UA-with-no-visitors spike a scraper, and says "Cause: undetermined" when there's nothing to go on. (Previously the prompt pre-seeded "Hacker News" and the fact sheet was empty, so every surge was blamed on HN with zero evidence.)
 
 Frank's own blackbox uptime probe (~360 req/hr to `blog.derio.net`) is tagged `Frank-Blackbox-Probe` and excluded from the count — it must never read as a surge. If you ever change that User-Agent in `apps/blackbox-exporter/manifests/configmap.yaml`, update `facts.PROBE_UA_TOKEN` to match (a unit test pins it).
 

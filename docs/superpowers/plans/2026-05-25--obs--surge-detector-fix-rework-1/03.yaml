@@ -1,42 +1,54 @@
 schema_version: 2
 phase:
   number: 3
-  title: "Docs & close-out"
+  title: Docs & close-out
   tag: agentic
-  depends_on: [2]
+  depends_on:
+  - 2
 tasks:
-  - number: 1
-    title: "Update operating post + gotchas + building-post note"
-    steps:
-      - id: P3.T1.S1
-        text: |-
-          Operating post `blog/content/docs/operating/26-edge-observability`,
-          "Tuning the surge detector" section: document `SURGE_COOLDOWN_HOURS`
-          (default 6) and the edge-triggered dedup semantics (one message per
-          episode; escalation always passes; restart re-arms), and that the
-          narrative now classifies from referrers/UAs/visitors (or says
-          "undetermined") rather than guessing Hacker News.
-      - id: P3.T1.S2
-        text: |-
-          Gotchas: one-liner in `agents/rules/frank-gotchas.md` (Observability
-          digest section) + prose in `docs/runbooks/frank-gotchas/obs-digest.md`:
-          surge notifications are edge-triggered + cooldown'd (stateless endpoint
-          + in-memory state, re-arms on restart); the narrative is evidence-only.
-          Append one sentence to the building post's "the surge that wasn't"
-          deviation noting the rework (cooldown + grounded narrative).
-  - number: 2
-    title: "Status / close-out"
-    steps:
-      - id: P3.T2.S1
-        text: |-
-          Mark all phases complete. Spec stays `Deployed` (this rework extends an
-          already-deployed layer). Run `scripts/validate-plans.sh` (pre-commit
-          hook is authoritative). No `/sync-runbook` (no manual-operation blocks;
-          build is CI).
+- number: 1
+  title: Update operating post + gotchas + building-post note
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Operating post `blog/content/docs/operating/26-edge-observability`,
+      "Tuning the surge detector" section: document `SURGE_COOLDOWN_HOURS`
+      (default 6) and the edge-triggered dedup semantics (one message per
+      episode; escalation always passes; restart re-arms), and that the
+      narrative now classifies from referrers/UAs/visitors (or says
+      "undetermined") rather than guessing Hacker News.
+  - id: P3.T1.S2
+    text: |-
+      Gotchas: one-liner in `agents/rules/frank-gotchas.md` (Observability
+      digest section) + prose in `docs/runbooks/frank-gotchas/obs-digest.md`:
+      surge notifications are edge-triggered + cooldown'd (stateless endpoint
+      + in-memory state, re-arms on restart); the narrative is evidence-only.
+      Append one sentence to the building post's "the surge that wasn't"
+      deviation noting the rework (cooldown + grounded narrative).
+- number: 2
+  title: Status / close-out
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Mark all phases complete. Spec stays `Deployed` (this rework extends an
+      already-deployed layer). Run `scripts/validate-plans.sh` (pre-commit
+      hook is authoritative). No `/sync-runbook` (no manual-operation blocks;
+      build is CI).
 state:
   steps:
-    P3.T1.S1: { state: ' ', ticked_at: null, note: null }
-    P3.T1.S2: { state: ' ', ticked_at: null, note: null }
-    P3.T2.S1: { state: ' ', ticked_at: null, note: null }
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-05-26T19:34:11+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-05-26T19:34:17+00:00'
+      note: 'Also recovered the parent fix''s building-post deviation, which #419''s
+        squash had dropped.'
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-05-26T19:34:23+00:00'
+      note: All phases complete; spec stays Deployed; no manual-op blocks so /sync-runbook
+        skipped.
   completion:
-    at: null
+    at: '2026-05-26T19:34:29+00:00'

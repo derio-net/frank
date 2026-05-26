@@ -149,3 +149,39 @@ the same convention as caddy/openrgb. Bump the hardcoded tag in
 `.github/workflows/build-ai-alert-helper.yml` with the version (`api.py`,
 `pyproject.toml`, `deployment.yaml`). Deferred follow-up: derive the tag from
 `pyproject.toml` so it can't go stale.
+
+## Notification de-dup + grounded narrative (rework-1, 0.1.6)
+
+The parent fix correctly distinguished bots from humans, but in operation the
+blog edge still saw frequent crawler bursts (Baiduspider, wpbot, scrapers) of
+50–270 req/hr — ~10 of 24 hours on 2026-05-26 cleared `SURGE_ABS_FLOOR`. Each is
+an edge-Major that the visitor gate downgrades to a non-urgent Notable, but
+because `/surge-check` is stateless and runs every 15 min against the same
+completed hour, it re-sent the same Notable ~4× per hot hour (~20/night). And
+the narrative blamed "Hacker News" every time — the prompt pre-seeded it and the
+fact sheet carried no referrers/paths/UAs to argue otherwise.
+
+**De-dup.** `/surge-check` keeps an **in-memory** `_last_notify = {tier, at}` and
+gates with `_should_notify = rising or cooled`: `rising` = the final tier
+outranks the last-sent tier (escalation); `cooled` = `SURGE_COOLDOWN_HOURS`
+(default 6) elapsed since the last send. A sustained or flapping bot surge sends
+once per cooldown; a genuine escalation to a confirmed-human URGENT always passes
+immediately. The gate runs **before** `build_for_surge` + the LLM call, so
+suppressed ticks are cheap. State is process-global and safe (single replica,
+one uvicorn worker, cron `concurrencyPolicy: Forbid` → no concurrent
+`/surge-check`); a pod restart re-arms (at most one extra message); not persisted
+(no PVC — a cooldown doesn't warrant one).
+
+Observe it on the **helper Deployment** logs — the cron's `curl -sf` discards the
+response body, so the suppressed JSON only shows where the helper logs it:
+
+```bash
+kubectl -n ai-alert-helper-system logs deploy/ai-alert-helper | grep -E "surge (sent|suppressed)"
+```
+
+**Grounded narrative.** `build_for_surge` now ships `top_referrers` (GoatCounter
+toprefs, hour-window), `top_paths` and `top_user_agents` (Caddy, probe-excluded;
+VictoriaLogs returns the UA as a bracketed `["…"]` string, stripped by
+`_bare_ua`). `prompts/investigate-surge.txt` classifies only from those: Hacker
+News *only* if a `news.ycombinator.com` referrer is present, scraper if the UAs
+are bots with ~0 visitors, "Cause: undetermined" otherwise. No more phantom HN.

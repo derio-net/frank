@@ -53,16 +53,23 @@ state:
       ticked_at: '2026-05-26T19:23:45+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-26T19:29:09+00:00'
+      note: CI build via push to main, run 26470068618 success → 0.1.6 + latest pushed.
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-26T19:29:15+00:00'
+      note: Forced sync; deploy image 0.1.6 live + rolled out; /surge-check returns
+        triggered:false cleanly, no errors.
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-05-26T19:29:21+00:00'
+      note: Deploy + code-path verified live (0.1.6, clean /surge-check). Dedup +
+        grounded-narrative covered by 39 unit tests incl. full cooldown matrix; live
+        behavioral observation deferred to next organic bot-surge hour (helper now
+        logs 'surge sent'/'surge suppressed') — current completed hour had 0 non-probe
+        traffic, so no tier to trigger on now.
   completion:
-    at: null
+    at: '2026-05-26T19:29:27+00:00'
+    note: 0.1.6 built (CI) + deployed + verified running; dedup/narrative unit-tested;
+      live surge observation deferred (no traffic to trigger now).
