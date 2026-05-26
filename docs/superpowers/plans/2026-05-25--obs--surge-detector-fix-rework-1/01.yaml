@@ -1,0 +1,105 @@
+schema_version: 2
+phase:
+  number: 1
+  title: "ai-alert-helper logic — cooldown dedup + enriched facts + grounded prompt (TDD)"
+  tag: agentic
+  depends_on: []
+tasks:
+  - number: 1
+    title: "Edge-triggered notification cooldown (in-memory)"
+    steps:
+      - id: P1.T1.S1
+        text: |-
+          RED. Add tests to `apps/ai-alert-helper/src/tests/test_api.py` for the
+          dedup, using monkeypatch on the in-memory state + a fixed clock:
+          - same tier within cooldown → second call does NOT send (suppressed);
+          - escalation Notable→Major within cooldown → DOES send (rising edge);
+          - same tier after `SURGE_COOLDOWN_HOURS` elapsed → sends again;
+          - tier None → triggered:false, no send, state untouched.
+          Assert `telegram.send` call count, not just response.
+      - id: P1.T1.S2
+        text: |-
+          GREEN. In `api.py` add in-memory state + gate (single replica; re-arms
+          on restart, no PVC):
+
+          BEGIN code
+          _last_notify: dict = {"tier": None, "at": None}
+          _TIER_RANK = {None: 0, "Notable": 1, "Major": 2}
+
+          def _should_notify(tier: str, now: datetime) -> bool:
+              cd = timedelta(hours=float(os.environ.get("SURGE_COOLDOWN_HOURS", "6")))
+              rising = _TIER_RANK[tier] > _TIER_RANK.get(_last_notify["tier"], 0)
+              cooled = _last_notify["at"] is None or (now - _last_notify["at"]) >= cd
+              return rising or cooled
+          END code
+
+          In `/surge-check`, after the visitor gate computes the final tier and
+          before sending: `if not _should_notify(s["tier"], now): return
+          {"triggered": True, "suppressed": True, **s, "visitors": visitors}`.
+          After a successful `telegram.send`, record
+          `_last_notify.update(tier=s["tier"], at=now)`. Do NOT reset on None —
+          the cooldown timer (not the dip) governs re-notification, so a flapping
+          crawler isn't a fresh episode each hour.
+      - id: P1.T1.S3
+        text: "cd apps/ai-alert-helper/src && uv run pytest -q  # green"
+  - number: 2
+    title: "Enrich build_for_surge with referrers / paths / user-agents"
+    steps:
+      - id: P1.T2.S1
+        text: |-
+          RED. Tests in `test_facts.py`: `build_for_surge` returns `top_referrers`
+          (from GoatCounter `/api/v0/stats/toprefs`, empty referrer → "direct"),
+          `top_paths` and `top_user_agents` (Caddy, via `edge_filter(host=...)`
+          so probe-excluded), plus the existing `total_requests`. Assert the
+          Caddy queries carry the probe exclusion and the GoatCounter call uses
+          the hour-rounded window.
+      - id: P1.T2.S2
+        text: |-
+          GREEN. Extend `facts.build_for_surge` to add (alongside `total_requests`,
+          all using `edge_filter(host="blog.derio.net")`):
+
+          BEGIN code
+          ef = edge_filter(host="blog.derio.net")
+          gcw = {"start": window_start.replace(minute=0, second=0, microsecond=0).isoformat(),
+                 "end":   window_end.replace(minute=0, second=0, microsecond=0).isoformat()}
+          refs = _goatcounter("/api/v0/stats/toprefs", {**gcw, "limit": 5})
+          ...
+          "top_paths": [{"path": r["request.uri"], "count": r["count"]}
+                        for r in _logsql_group(f"{window} {ef} | stats by (request.uri) count() as c", "request.uri", top=5)],
+          "top_user_agents": [{"ua": r["request.headers.User-Agent"], "count": r["count"]}
+                        for r in _logsql_group(f'{window} {ef} | stats by (request.headers.User-Agent) count() as c', "request.headers.User-Agent", top=5)],
+          "top_referrers": [{"name": r.get("name") or "direct", "count": int(r.get("count", 0))}
+                        for r in refs.get("stats", [])],
+          END code
+      - id: P1.T2.S3
+        text: "cd apps/ai-alert-helper/src && uv run pytest -q  # green"
+  - number: 3
+    title: "Rewrite the investigate-surge prompt (evidence-only, no HN seeding)"
+    steps:
+      - id: P1.T3.S1
+        text: |-
+          Rewrite `apps/ai-alert-helper/src/ai_alert_helper/prompts/investigate-surge.txt`:
+          - remove "likely a Hacker News hit" pre-seeding;
+          - instruct: classify ONLY from the facts — Hacker News only if
+            `news.ycombinator.com` (or `news.ycombinator`) appears in
+            `top_referrers`; scraper/crawler if `top_user_agents` are bots and
+            `visitor_pageviews` ≈ 0; if no discriminating referrer/path/UA data,
+            output "Cause: undetermined" and do NOT name a specific source;
+          - keep "never invent numbers; cite the referrers/paths/UAs you used."
+      - id: P1.T3.S2
+        text: |-
+          Confirm `ai_adapter.investigate` interpolates the full enriched fact
+          sheet into the prompt (the `{facts}` slot). Run the full suite:
+          cd apps/ai-alert-helper/src && uv run pytest -q
+state:
+  steps:
+    P1.T1.S1: { state: ' ', ticked_at: null, note: null }
+    P1.T1.S2: { state: ' ', ticked_at: null, note: null }
+    P1.T1.S3: { state: ' ', ticked_at: null, note: null }
+    P1.T2.S1: { state: ' ', ticked_at: null, note: null }
+    P1.T2.S2: { state: ' ', ticked_at: null, note: null }
+    P1.T2.S3: { state: ' ', ticked_at: null, note: null }
+    P1.T3.S1: { state: ' ', ticked_at: null, note: null }
+    P1.T3.S2: { state: ' ', ticked_at: null, note: null }
+  completion:
+    at: null
