@@ -33,13 +33,18 @@ tasks:
       - id: P2.T2.S2
         text: |-
           Observe the dedup live (the layer isn't done until the workflow is
-          observed). Across consecutive 15-min ticks of a single hot (crawler)
-          hour, confirm only the FIRST sends and subsequent ticks return
-          `"suppressed": true` (check `kubectl logs` of the surge-check jobs).
-          Trigger one manual `--from=cronjob/surge-check` and confirm the
-          narrative now cites referrers/UAs or says "Cause: undetermined" — NOT a
-          phantom Hacker News. If a real HN referrer is absent, HN must not be
-          named.
+          observed). The cron's `curl -sf` discards the response body, so read
+          the **helper Deployment** logs, not the surge-check Job logs:
+          `kubectl -n ai-alert-helper-system logs deploy/ai-alert-helper | grep -E "surge (suppressed|sent)"`.
+          Across consecutive 15-min ticks of a single hot (crawler) hour, confirm
+          the first tick sends and the rest log "surge suppressed … within
+          cooldown". Then trigger one manual `--from=cronjob/surge-check` and
+          confirm the narrative cites real `top_referrers`/`top_user_agents` or
+          says "Cause: undetermined" — NOT a phantom Hacker News (HN named only
+          if news.ycombinator.com is in the referrers). Also spot-check the
+          toprefs hour-window live: `curl` the GoatCounter toprefs endpoint with
+          hour-rounded start/end and confirm it returns window-scoped referrers
+          (not the whole day).
 state:
   steps:
     P2.T1.S1: { state: ' ', ticked_at: null, note: null }
