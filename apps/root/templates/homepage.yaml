@@ -17,6 +17,13 @@ spec:
   syncPolicy:
     automated:
       selfHeal: true
+      # prune: true is required because the configs use Kustomize
+      # configMapGenerator (hash-suffixed names). Each config edit creates a
+      # new ConfigMap and orphans the old one; without prune the app would
+      # show OutOfSync forever. Safe here — this app holds only a
+      # Deployment/Service/ConfigMaps, none of the Secrets/PVCs the repo-wide
+      # prune:false rule protects.
+      prune: true
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true

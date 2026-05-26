@@ -2,7 +2,7 @@
 
 Long-form companion to the **Other in-cluster apps** section in `agents/rules/frank-gotchas.md`. The hot file has the one-liner index; this file has the full prose, recovery commands, and dated incident notes.
 
-Apps with only one or two gotchas live here together (Sympozium, Zot, Gitea, n8n, VK, curlimages). Apps with larger gotcha clusters get their own file (Authentik, Grafana, Tekton, Argo Rollouts, Paperclip/Ruflo).
+Apps with only one or two gotchas live here together (Sympozium, Zot, Gitea, n8n, VK, curlimages, Homepage). Apps with larger gotcha clusters get their own file (Authentik, Grafana, Tekton, Argo Rollouts, Paperclip/Ruflo).
 
 ## Sympozium
 
@@ -36,3 +36,60 @@ Apps with only one or two gotchas live here together (Sympozium, Zot, Gitea, n8n
 ## curlimages/curl
 
 - Image uses non-numeric user (`curl_user`) — Kubernetes `runAsNonRoot` can't verify non-numeric users are non-root. Add explicit `runAsUser: 100` (curl_user's UID).
+
+## Homepage
+
+### `subPath` ConfigMap mounts are frozen — config edits never reach the running pod
+
+Homepage needs `services.yaml`, `settings.yaml`, and `bookmarks.yaml` to all land in the same `/app/config` directory, but each comes from a separate ConfigMap. The only way to merge multiple ConfigMaps into one directory is a `subPath` volume mount per file:
+
+```yaml
+volumeMounts:
+  - name: config-services
+    mountPath: /app/config/services.yaml
+    subPath: services.yaml
+```
+
+**The trap:** the kubelet live-updates a ConfigMap mounted as a *whole directory* (the ~30–60s projection), but a ConfigMap mounted via **`subPath` is resolved once at pod creation and never updated again**. Homepage's own file-watcher hot-reload is therefore watching a file that can never change. A config-only edit (e.g. fixing a tile icon) produces a green pipeline that lies at every layer:
+
+- ArgoCD shows the app `Synced` / `Healthy` ✅
+- `kubectl get configmap -o yaml` shows the new value ✅
+- …but the rendered tile still serves the old value, because the projected file *inside the pod* is stale.
+
+The only place the staleness is visible is in-pod:
+
+```bash
+source .env
+POD=$(kubectl get pods -n homepage -o name | head -1)
+kubectl exec -n homepage $POD -- cat /app/config/services.yaml | grep -A1 GoatCounter
+# confirm subPath is the mount style:
+kubectl get pod -n homepage $(basename $POD) \
+  -o jsonpath='{range .spec.containers[0].volumeMounts[*]}{.mountPath}{" subPath="}{.subPath}{"\n"}{end}'
+```
+
+First hit: **2026-05-26** — GoatCounter tile icon changed from `chart-bar` to a direct logo URL; ArgoCD synced the ConfigMap but the tile kept rendering `chart-bar` until the pod was restarted.
+
+### Why not switch to a directory mount?
+
+Tempting, but unsafe for Homepage. Its entrypoint `cp -n`'s default config files (`docker.yaml`, `kubernetes.yaml`, `custom.css`, `widgets.yaml`, …) into `/app/config` on boot. A read-only whole-directory ConfigMap mount makes those writes fail and can crash the container. `subPath` is the upstream-recommended pattern — keep it.
+
+### The durable fix: Kustomize `configMapGenerator`
+
+`apps/homepage/manifests/` is a Kustomize package (`kustomization.yaml` present → ArgoCD auto-detects Kustomize; the Application source path is unchanged). The three configs live as plain files under `files/` and are turned into ConfigMaps by `configMapGenerator`, which:
+
+1. Appends a **content-hash suffix** to each ConfigMap name (`homepage-services-b49b7f26k6`).
+2. **Rewrites the volume references** in `deployment.yaml` to the hashed names automatically (Kustomize's nameReference transformer). `subPath` is untouched — it still selects the `services.yaml` key inside the now-hash-named ConfigMap.
+
+Any edit to `files/*.yaml` changes the hash → changes the ConfigMap name → changes the pod spec → ArgoCD rolls the pod. This is the declarative equivalent of Helm's `checksum/config` annotation, which can't exist in static YAML.
+
+**`prune: true` is mandatory for this app.** Each config edit creates a new hash-named ConfigMap and orphans the previous one. With the repo-default `prune: false`, the orphan stays live but drops out of desired state, so ArgoCD shows the app `OutOfSync` forever. Enabling prune is safe here specifically — the app holds only a Deployment/Service/ConfigMaps, none of the SOPS Secrets or RWO PVCs that the repo-wide `prune: false` rule exists to protect.
+
+To edit Homepage config: change `apps/homepage/manifests/files/<name>.yaml`, commit, push. The pod rolls on its own — no `kubectl` needed.
+
+**Manual fallback** (e.g. if someone reverts to a non-generator ConfigMap, or a pod is otherwise stale):
+
+```bash
+source .env
+kubectl rollout restart deployment/homepage -n homepage
+kubectl rollout status deployment/homepage -n homepage --timeout=90s
+```

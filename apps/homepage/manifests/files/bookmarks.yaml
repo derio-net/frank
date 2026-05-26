@@ -1,0 +1,10 @@
+- External:
+    - Lab Landing Page:
+        - icon: mdi-server-network
+          href: https://master.lab.derio.net/
+    - Omni:
+        - icon: mdi-cog-outline
+          href: https://omni.frank.derio.net/
+    - Renovate:
+        - icon: mdi-autorenew
+          href: https://developer.mend.io/github/derio-net

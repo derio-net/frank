@@ -1,0 +1,16 @@
+title: Frank Cluster
+background:
+  opacity: 50
+theme: dark
+color: zinc
+headerStyle: clean
+layout:
+  Infrastructure:
+    style: row
+    columns: 3
+  CI/CD:
+    style: row
+    columns: 3
+  Development:
+    style: row
+    columns: 3

@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: homepage
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+# configMapGenerator appends a content-hash suffix to each ConfigMap name
+# (e.g. homepage-services-<hash>) and rewrites the volume references in
+# deployment.yaml to match. Any edit to a files/*.yaml changes the hash,
+# which changes the pod spec, which makes ArgoCD roll the pod automatically.
+# This is required because the configs are mounted via `subPath` — kubelet
+# never live-updates subPath ConfigMap mounts, so without the rolling name
+# a config edit would never reach the running pod. See
+# docs/runbooks/frank-gotchas/other-apps.md#homepage.
+configMapGenerator:
+  - name: homepage-services
+    files:
+      - services.yaml=files/services.yaml
+  - name: homepage-settings
+    files:
+      - settings.yaml=files/settings.yaml
+  - name: homepage-bookmarks
+    files:
+      - bookmarks.yaml=files/bookmarks.yaml

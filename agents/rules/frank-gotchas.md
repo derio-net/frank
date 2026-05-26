@@ -122,6 +122,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - VK SPAKE2 enrollment codes are one-time-use; "Unauthorized. Please sign in again." actually means the code was consumed.
 - VK relay tunnel exponential backoff (1s → 30s) — restart secure-agent-pod to force immediate reconnect after extended sidecar crashloops.
 - `curlimages/curl` uses non-numeric user (`curl_user`) — set `runAsUser: 100` explicitly or `runAsNonRoot` rejects.
+- Homepage mounts its `{services,settings,bookmarks}.yaml` via `subPath` — kubelet NEVER live-updates subPath ConfigMap mounts, so a config edit never reaches the running pod (ArgoCD `Synced` + the live ConfigMap both look correct — the staleness is only in the projected file inside the pod). The manifests use Kustomize `configMapGenerator` (hash-suffixed names) so any config edit rolls the pod automatically; this needs `prune: true` on the Application. Manual fallback if a pod is stale: `kubectl rollout restart deployment/homepage -n homepage`.
 
 ### Process / practice
 - **A layer is not "Deployed" until its workflow has been triggered + observed end-to-end.** ArgoCD Synced/Healthy proves artifacts exist; not that they work. Especially load-bearing for canaries, cron, webhook handlers, gated promotions.
