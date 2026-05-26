@@ -77,6 +77,11 @@ ArgoCD (root App-of-Apps)
 - The operator generates Kubernetes Secrets for the admin password and Django
   secret key if not supplied. To keep the layer reproducible we supply these via
   SOPS (see Secrets). `ignoreDifferences` on Secret `/data` per repo principle.
+- **CRD-before-CR ordering.** The awx-operator Helm chart installs the `AWX`
+  CRD; the `AWX` CR cannot apply until that CRD exists. With both in one
+  Application this is a first-sync race. Mitigate with ArgoCD sync waves (operator
+  chart in an earlier wave than the CR) and/or `SkipDryRunOnMissingResource=true`
+  on the CR manifest. Confirm a clean first sync on an empty namespace at deploy.
 
 ## Components
 
@@ -86,7 +91,7 @@ ArgoCD (root App-of-Apps)
 | `AWX` CR | ArgoCD (raw manifest) | Declares replicas, `ingress_type: none`, postgres config, OIDC settings refs |
 | awx-web / awx-task Deployments | awx-operator | Reconciled from the CR; not in Git |
 | Postgres StatefulSet + PVC | awx-operator | Operator-managed; Longhorn-backed |
-| awx Service (ClusterIP) | awx-operator | Fronted by Cilium LB Service + Traefik IngressRoute (added by us) |
+| awx Service (ClusterIP) | awx-operator | Fronted by the shared Traefik IngressRoute (added by us); no dedicated LB IP |
 | Bootstrap secrets | **SOPS, out-of-band** | admin password, Django secret key, OIDC client secret |
 | Authentik OIDC provider + Application | ArgoCD (blueprint) | New blueprint in `apps/authentik-extras/` |
 
@@ -98,24 +103,41 @@ middleware that other cluster services use — AWX handles its own login redirec
 which lets Authentik groups map to AWX teams/roles for real RBAC.
 
 - New Authentik **OAuth2/OpenID provider + Application** defined as a blueprint
-  in `apps/authentik-extras/manifests/` and registered in
+  in `apps/authentik-extras/manifests/` (model it on
+  `blueprints-provider-infisical.yaml` — confidential client, `redirect_uris`,
+  scope mappings) and registered in
   `apps/authentik/values.yaml → blueprints.configMaps`.
 - AWX configured (via CR `extra_settings` / a settings ConfigMap or Secret) with
   the Authentik OIDC endpoint, client key, and client secret (secret from SOPS).
+  *Verify at implementation:* confirm the pinned awx-operator/AWX version still
+  drives OIDC via `SOCIAL_AUTH_OIDC_*` in `extra_settings` — recent AWX has been
+  migrating some auth config to the DB-backed Settings → Authentication flow.
 - Authentik group → AWX team mapping so group membership drives AWX RBAC.
 - AWX keeps a local `admin` account for API access and break-glass.
 
+**Host / redirect-URI:** AWX serves at **`awx.cluster.derio.net`** (the domain
+that actually routes — every IngressRoute and homepage tile uses
+`*.cluster.derio.net`). The Authentik provider's `redirect_uris` and
+`meta_launch_url` MUST use this same host so the OAuth callback resolves. Note:
+some existing OIDC blueprints (infisical, argocd) register `*.frank.derio.net`
+callbacks — a pre-existing inconsistency (that domain is not matched by any
+Traefik IngressRoute). AWX deliberately uses `cluster.derio.net` everywhere to
+avoid inheriting that wart; do not copy the `frank.derio.net` host.
+
 **Divergence note:** because this is native OIDC, the Traefik IngressRoute does
-**not** carry the `authentik-forwardauth` middleware. This is intentional and
-should be documented so future readers don't "fix" it by adding forward-auth.
+**not** carry the `authentik-forwardauth` middleware, and there is **no**
+embedded-outpost provider-assignment step (that manual ORM step applies only to
+proxy/forward-auth providers — a pure OIDC provider does not touch the outpost).
+Both are intentional; document so future readers don't "fix" them.
 
 ## Exposure
 
-- Cilium L2 LoadBalancer IP — target **192.168.55.226** (next free after
-  192.168.55.225 VictoriaLogs; confirm against live `kubectl get svc -A` at
-  deploy time, and check the `sharing-key` gotcha if the chart splits Services).
-- Traefik IngressRoute at **`awx.cluster.derio.net`** → AWX Service (no
-  forward-auth middleware, see Auth).
+- **No dedicated LoadBalancer IP.** AWX is a web UI, so it follows the universal
+  Frank pattern: the AWX Service stays `ClusterIP` and is reached through the
+  shared Traefik LB (192.168.55.220). A standalone Cilium LB IP would be
+  redundant (only raw-TCP/non-HTTP services need their own IP).
+- Traefik IngressRoute at **`awx.cluster.derio.net`** → AWX `ClusterIP` Service
+  (no forward-auth middleware, see Auth).
 - Homepage tile in `apps/homepage/manifests/configmap-services.yaml` under an
   Automation category (icon, description, URL).
 - **No public exposure.** AWX is internal/mesh-only; it is never fronted by the
@@ -128,6 +150,12 @@ should be documented so future readers don't "fix" it by adding forward-auth.
   documented as a `# manual-operation` block in the plan (synced to the central
   runbook via `/sync-runbook`). Per repo principle, SOPS secrets are NOT
   ArgoCD-managed.
+- **OIDC client_secret injection (second manual-op).** Authentik blueprints do
+  not carry the OAuth2 `client_secret` (see `blueprints-provider-infisical.yaml`:
+  "client_secret is set via Authentik Admin UI"). So beyond the AWX bootstrap
+  secret, there is a separate manual step to set the provider's `client_secret`
+  in Authentik (UI or API) to match the value AWX reads from SOPS. Document this
+  as its own `# manual-operation` block.
 - **Managed-host credentials** (SSH keys, sudo/become passwords for the devices
   AWX manages) live inside **AWX's own encrypted credential store** (Machine
   Credentials), NOT in SOPS or Kubernetes Secrets. Credential storage is AWX's
