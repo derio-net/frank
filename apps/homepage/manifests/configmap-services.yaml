@@ -27,7 +27,7 @@ data:
             description: Metrics dashboards and observability
             siteMonitor: http://victoria-metrics-grafana.monitoring:80
         - GoatCounter:
-            icon: chart-bar
+            icon: https://raw.githubusercontent.com/arp242/goatcounter/master/public/logo.svg
             href: https://counter.cluster.derio.net
             description: Blog analytics — blog.derio.net/frank
             siteMonitor: http://goatcounter.goatcounter-system:8080
