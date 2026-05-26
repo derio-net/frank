@@ -1,55 +1,68 @@
 schema_version: 2
 phase:
   number: 2
-  title: "Build, deploy & verify on main (0.1.6)"
+  title: Build, deploy & verify on main (0.1.6)
   tag: manual
-  depends_on: [1]
+  depends_on:
+  - 1
 tasks:
-  - number: 1
-    title: "Version bump + CI build"
-    steps:
-      - id: P2.T1.S1
-        text: |-
-          Bump 0.1.5 → 0.1.6 in `api.py` (`version="0.1.6"`), `pyproject.toml`,
-          `deployment.yaml` image tag, and the hardcoded tag in
-          `.github/workflows/build-ai-alert-helper.yml`. Add the
-          `SURGE_COOLDOWN_HOURS=6` env to `deployment.yaml`.
-      - id: P2.T1.S2
-        text: |-
-          Build on demand via CI (no manual docker), from the branch so the
-          image exists before the manifest merge:
-          env -u GITHUB_TOKEN gh workflow run build-ai-alert-helper.yml --ref <branch>
-          env -u GITHUB_TOKEN gh run watch <id> --exit-status
-  - number: 2
-    title: "Deploy + verify live"
-    steps:
-      - id: P2.T2.S1
-        text: |-
-          Merge to main. Force the sync (auto-sync lags; argocd CLI port-forward
-          flakes — use kubectl patch with explicit syncOptions), then confirm the
-          rollout:
-          kubectl -n argocd patch application ai-alert-helper --type=merge -p '{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'
-          kubectl -n ai-alert-helper-system get deploy ai-alert-helper -o jsonpath='{..image}'  # expect 0.1.6
-      - id: P2.T2.S2
-        text: |-
-          Observe the dedup live (the layer isn't done until the workflow is
-          observed). The cron's `curl -sf` discards the response body, so read
-          the **helper Deployment** logs, not the surge-check Job logs:
-          `kubectl -n ai-alert-helper-system logs deploy/ai-alert-helper | grep -E "surge (suppressed|sent)"`.
-          Across consecutive 15-min ticks of a single hot (crawler) hour, confirm
-          the first tick sends and the rest log "surge suppressed … within
-          cooldown". Then trigger one manual `--from=cronjob/surge-check` and
-          confirm the narrative cites real `top_referrers`/`top_user_agents` or
-          says "Cause: undetermined" — NOT a phantom Hacker News (HN named only
-          if news.ycombinator.com is in the referrers). Also spot-check the
-          toprefs hour-window live: `curl` the GoatCounter toprefs endpoint with
-          hour-rounded start/end and confirm it returns window-scoped referrers
-          (not the whole day).
+- number: 1
+  title: Version bump + CI build
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Bump 0.1.5 → 0.1.6 in `api.py` (`version="0.1.6"`), `pyproject.toml`,
+      `deployment.yaml` image tag, and the hardcoded tag in
+      `.github/workflows/build-ai-alert-helper.yml`. Add the
+      `SURGE_COOLDOWN_HOURS=6` env to `deployment.yaml`.
+  - id: P2.T1.S2
+    text: |-
+      Build on demand via CI (no manual docker), from the branch so the
+      image exists before the manifest merge:
+      env -u GITHUB_TOKEN gh workflow run build-ai-alert-helper.yml --ref <branch>
+      env -u GITHUB_TOKEN gh run watch <id> --exit-status
+- number: 2
+  title: Deploy + verify live
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Merge to main. Force the sync (auto-sync lags; argocd CLI port-forward
+      flakes — use kubectl patch with explicit syncOptions), then confirm the
+      rollout:
+      kubectl -n argocd patch application ai-alert-helper --type=merge -p '{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'
+      kubectl -n ai-alert-helper-system get deploy ai-alert-helper -o jsonpath='{..image}'  # expect 0.1.6
+  - id: P2.T2.S2
+    text: |-
+      Observe the dedup live (the layer isn't done until the workflow is
+      observed). The cron's `curl -sf` discards the response body, so read
+      the **helper Deployment** logs, not the surge-check Job logs:
+      `kubectl -n ai-alert-helper-system logs deploy/ai-alert-helper | grep -E "surge (suppressed|sent)"`.
+      Across consecutive 15-min ticks of a single hot (crawler) hour, confirm
+      the first tick sends and the rest log "surge suppressed … within
+      cooldown". Then trigger one manual `--from=cronjob/surge-check` and
+      confirm the narrative cites real `top_referrers`/`top_user_agents` or
+      says "Cause: undetermined" — NOT a phantom Hacker News (HN named only
+      if news.ycombinator.com is in the referrers). Also spot-check the
+      toprefs hour-window live: `curl` the GoatCounter toprefs endpoint with
+      hour-rounded start/end and confirm it returns window-scoped referrers
+      (not the whole day).
 state:
   steps:
-    P2.T1.S1: { state: ' ', ticked_at: null, note: null }
-    P2.T1.S2: { state: ' ', ticked_at: null, note: null }
-    P2.T2.S1: { state: ' ', ticked_at: null, note: null }
-    P2.T2.S2: { state: ' ', ticked_at: null, note: null }
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-05-26T19:23:45+00:00'
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
   completion:
     at: null

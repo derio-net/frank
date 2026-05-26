@@ -1,138 +1,165 @@
 schema_version: 2
 phase:
   number: 1
-  title: "ai-alert-helper logic — cooldown dedup + enriched facts + grounded prompt (TDD)"
+  title: ai-alert-helper logic — cooldown dedup + enriched facts + grounded prompt
+    (TDD)
   tag: agentic
   depends_on: []
 tasks:
-  - number: 1
-    title: "Edge-triggered notification cooldown (in-memory)"
-    steps:
-      - id: P1.T1.S1
-        text: |-
-          RED. Add tests to `apps/ai-alert-helper/src/tests/test_api.py` for the
-          dedup, using monkeypatch on the in-memory state + a fixed clock.
-          Assert `telegram.send` CALL COUNT, not just the response. Full matrix
-          (the four obvious rows plus the three the reviewer flagged as the ones
-          that actually bite):
-          - same tier within cooldown → second call does NOT send (suppressed);
-          - escalation Notable→Major within cooldown → DOES send (rising edge);
-          - same tier after `SURGE_COOLDOWN_HOURS` elapsed → sends again (cooled);
-          - tier None → triggered:false, no send, state untouched;
-          - **de-escalation** Major sent → Notable within cooldown → suppressed
-            (intentional: don't notify a downgrade; documents the decision);
-          - **dip-then-same**: Notable sent → None (untouched) → Notable within
-            cooldown → suppressed (the central crawler-flapping case);
-          - **completed-hour stability**: four ticks with the SAME (tier, visitors)
-            — mirrors reality, since `surge.compute` measures the *previous
-            completed hour* so GoatCounter visitors are stable across an hour's
-            ticks — send exactly once. (This is why the simple `rising or cooled`
-            predicate is sufficient and the intra-hour Major↔Notable oscillation
-            the reviewer raised cannot occur: the visitor count for a finished
-            hour does not change between ticks.)
-      - id: P1.T1.S2
-        text: |-
-          GREEN. In `api.py` add in-memory state + gate (single replica; re-arms
-          on restart, no PVC):
+- number: 1
+  title: Edge-triggered notification cooldown (in-memory)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      RED. Add tests to `apps/ai-alert-helper/src/tests/test_api.py` for the
+      dedup, using monkeypatch on the in-memory state + a fixed clock.
+      Assert `telegram.send` CALL COUNT, not just the response. Full matrix
+      (the four obvious rows plus the three the reviewer flagged as the ones
+      that actually bite):
+      - same tier within cooldown → second call does NOT send (suppressed);
+      - escalation Notable→Major within cooldown → DOES send (rising edge);
+      - same tier after `SURGE_COOLDOWN_HOURS` elapsed → sends again (cooled);
+      - tier None → triggered:false, no send, state untouched;
+      - **de-escalation** Major sent → Notable within cooldown → suppressed
+        (intentional: don't notify a downgrade; documents the decision);
+      - **dip-then-same**: Notable sent → None (untouched) → Notable within
+        cooldown → suppressed (the central crawler-flapping case);
+      - **completed-hour stability**: four ticks with the SAME (tier, visitors)
+        — mirrors reality, since `surge.compute` measures the *previous
+        completed hour* so GoatCounter visitors are stable across an hour's
+        ticks — send exactly once. (This is why the simple `rising or cooled`
+        predicate is sufficient and the intra-hour Major↔Notable oscillation
+        the reviewer raised cannot occur: the visitor count for a finished
+        hour does not change between ticks.)
+  - id: P1.T1.S2
+    text: |-
+      GREEN. In `api.py` add in-memory state + gate (single replica; re-arms
+      on restart, no PVC):
 
-          BEGIN code
-          _last_notify: dict = {"tier": None, "at": None}
-          _TIER_RANK = {None: 0, "Notable": 1, "Major": 2}
+      BEGIN code
+      _last_notify: dict = {"tier": None, "at": None}
+      _TIER_RANK = {None: 0, "Notable": 1, "Major": 2}
 
-          def _should_notify(tier: str, now: datetime) -> bool:
-              cd = timedelta(hours=float(os.environ.get("SURGE_COOLDOWN_HOURS", "6")))
-              rising = _TIER_RANK.get(tier, 0) > _TIER_RANK.get(_last_notify["tier"], 0)
-              cooled = _last_notify["at"] is None or (now - _last_notify["at"]) >= cd
-              return rising or cooled
-          END code
+      def _should_notify(tier: str, now: datetime) -> bool:
+          cd = timedelta(hours=float(os.environ.get("SURGE_COOLDOWN_HOURS", "6")))
+          rising = _TIER_RANK.get(tier, 0) > _TIER_RANK.get(_last_notify["tier"], 0)
+          cooled = _last_notify["at"] is None or (now - _last_notify["at"]) >= cd
+          return rising or cooled
+      END code
 
-          Placement matters (M1): compute the final tier (after the visitor gate
-          + `urgent`) and then gate **before** the expensive work — so a
-          suppressed tick skips `build_for_surge` (3 LogsQL queries + GoatCounter)
-          AND `ai_adapter.investigate` (the ~60s LLM call), every 15 min:
+      Placement matters (M1): compute the final tier (after the visitor gate
+      + `urgent`) and then gate **before** the expensive work — so a
+      suppressed tick skips `build_for_surge` (3 LogsQL queries + GoatCounter)
+      AND `ai_adapter.investigate` (the ~60s LLM call), every 15 min:
 
-          BEGIN code
-          # ... after `urgent = s["tier"] == "Major"` ...
-          if not _should_notify(s["tier"], now):
-              log.info("surge suppressed: tier=%s within cooldown", s["tier"])  # M2: helper logs it
-              return {"triggered": True, "suppressed": True, **s, "visitors": visitors}
-          surge_facts = facts.build_for_surge(start, now)
-          # ... build narrative, telegram.send(...) ...
-          _last_notify.update(tier=s["tier"], at=now)
-          END code
+      BEGIN code
+      # ... after `urgent = s["tier"] == "Major"` ...
+      if not _should_notify(s["tier"], now):
+          log.info("surge suppressed: tier=%s within cooldown", s["tier"])  # M2: helper logs it
+          return {"triggered": True, "suppressed": True, **s, "visitors": visitors}
+      surge_facts = facts.build_for_surge(start, now)
+      # ... build narrative, telegram.send(...) ...
+      _last_notify.update(tier=s["tier"], at=now)
+      END code
 
-          Do NOT reset state on `tier == None` — the cooldown timer (not a dip)
-          governs re-notification, so a flapping crawler isn't a fresh episode
-          each hour. The suppression log line (M2) is the only place the
-          suppressed JSON is observable — the cron's `curl -sf` discards the body.
-      - id: P1.T1.S3
-        text: "cd apps/ai-alert-helper/src && uv run pytest -q  # green"
-  - number: 2
-    title: "Enrich build_for_surge with referrers / paths / user-agents"
-    steps:
-      - id: P1.T2.S1
-        text: |-
-          RED. Tests in `test_facts.py`: `build_for_surge` returns `top_referrers`
-          (from GoatCounter `/api/v0/stats/toprefs`, empty referrer → "direct"),
-          `top_paths` and `top_user_agents` (Caddy, via `edge_filter(host=...)`
-          so probe-excluded), plus the existing `total_requests`. Assert:
-          - the Caddy queries carry the probe exclusion;
-          - the toprefs call sends **hour-rounded** `start`/`end` (confirmed
-            supported: the generic `/api/v0/stats/{page}` params are date-time
-            "rounded to the hour", same as `/stats/total` — I2);
-          - **array-valued UA (I3):** VictoriaLogs groups `request.headers.User-Agent`
-            with the value as a bracketed JSON string (verified live: e.g.
-            `["Baiduspider/2.0; ..."]`). Test with that fixture shape and assert
-            `top_user_agents` carries a readable UA — strip the `["..."]` wrapper
-            in the builder so the model (and the digest) get the bare UA string.
-      - id: P1.T2.S2
-        text: |-
-          GREEN. Extend `facts.build_for_surge` to add (alongside `total_requests`,
-          all using `edge_filter(host="blog.derio.net")`):
+      Do NOT reset state on `tier == None` — the cooldown timer (not a dip)
+      governs re-notification, so a flapping crawler isn't a fresh episode
+      each hour. The suppression log line (M2) is the only place the
+      suppressed JSON is observable — the cron's `curl -sf` discards the body.
+  - id: P1.T1.S3
+    text: |-
+      cd apps/ai-alert-helper/src && uv run pytest -q  # green
+- number: 2
+  title: Enrich build_for_surge with referrers / paths / user-agents
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      RED. Tests in `test_facts.py`: `build_for_surge` returns `top_referrers`
+      (from GoatCounter `/api/v0/stats/toprefs`, empty referrer → "direct"),
+      `top_paths` and `top_user_agents` (Caddy, via `edge_filter(host=...)`
+      so probe-excluded), plus the existing `total_requests`. Assert:
+      - the Caddy queries carry the probe exclusion;
+      - the toprefs call sends **hour-rounded** `start`/`end` (confirmed
+        supported: the generic `/api/v0/stats/{page}` params are date-time
+        "rounded to the hour", same as `/stats/total` — I2);
+      - **array-valued UA (I3):** VictoriaLogs groups `request.headers.User-Agent`
+        with the value as a bracketed JSON string (verified live: e.g.
+        `["Baiduspider/2.0; ..."]`). Test with that fixture shape and assert
+        `top_user_agents` carries a readable UA — strip the `["..."]` wrapper
+        in the builder so the model (and the digest) get the bare UA string.
+  - id: P1.T2.S2
+    text: |-
+      GREEN. Extend `facts.build_for_surge` to add (alongside `total_requests`,
+      all using `edge_filter(host="blog.derio.net")`):
 
-          BEGIN code
-          ef = edge_filter(host="blog.derio.net")
-          gcw = {"start": window_start.replace(minute=0, second=0, microsecond=0).isoformat(),
-                 "end":   window_end.replace(minute=0, second=0, microsecond=0).isoformat()}
-          refs = _goatcounter("/api/v0/stats/toprefs", {**gcw, "limit": 5})
-          ...
-          "top_paths": [{"path": r["request.uri"], "count": r["count"]}
-                        for r in _logsql_group(f"{window} {ef} | stats by (request.uri) count() as c", "request.uri", top=5)],
-          # _bare_ua strips VictoriaLogs' bracketed-array wrapper: ["<ua>"] -> <ua>
-          "top_user_agents": [{"ua": _bare_ua(r["request.headers.User-Agent"]), "count": r["count"]}
-                        for r in _logsql_group(f'{window} {ef} | stats by (request.headers.User-Agent) count() as c', "request.headers.User-Agent", top=5)],
-          "top_referrers": [{"name": r.get("name") or "direct", "count": int(r.get("count", 0))}
-                        for r in refs.get("stats", [])],
-          END code
-      - id: P1.T2.S3
-        text: "cd apps/ai-alert-helper/src && uv run pytest -q  # green"
-  - number: 3
-    title: "Rewrite the investigate-surge prompt (evidence-only, no HN seeding)"
-    steps:
-      - id: P1.T3.S1
-        text: |-
-          Rewrite `apps/ai-alert-helper/src/ai_alert_helper/prompts/investigate-surge.txt`:
-          - remove "likely a Hacker News hit" pre-seeding;
-          - instruct: classify ONLY from the facts — Hacker News only if
-            `news.ycombinator.com` (or `news.ycombinator`) appears in
-            `top_referrers`; scraper/crawler if `top_user_agents` are bots and
-            `visitor_pageviews` ≈ 0; if no discriminating referrer/path/UA data,
-            output "Cause: undetermined" and do NOT name a specific source;
-          - keep "never invent numbers; cite the referrers/paths/UAs you used."
-      - id: P1.T3.S2
-        text: |-
-          Confirm `ai_adapter.investigate` interpolates the full enriched fact
-          sheet into the prompt (the `{facts}` slot). Run the full suite:
-          cd apps/ai-alert-helper/src && uv run pytest -q
+      BEGIN code
+      ef = edge_filter(host="blog.derio.net")
+      gcw = {"start": window_start.replace(minute=0, second=0, microsecond=0).isoformat(),
+             "end":   window_end.replace(minute=0, second=0, microsecond=0).isoformat()}
+      refs = _goatcounter("/api/v0/stats/toprefs", {**gcw, "limit": 5})
+      ...
+      "top_paths": [{"path": r["request.uri"], "count": r["count"]}
+                    for r in _logsql_group(f"{window} {ef} | stats by (request.uri) count() as c", "request.uri", top=5)],
+      # _bare_ua strips VictoriaLogs' bracketed-array wrapper: ["<ua>"] -> <ua>
+      "top_user_agents": [{"ua": _bare_ua(r["request.headers.User-Agent"]), "count": r["count"]}
+                    for r in _logsql_group(f'{window} {ef} | stats by (request.headers.User-Agent) count() as c', "request.headers.User-Agent", top=5)],
+      "top_referrers": [{"name": r.get("name") or "direct", "count": int(r.get("count", 0))}
+                    for r in refs.get("stats", [])],
+      END code
+  - id: P1.T2.S3
+    text: |-
+      cd apps/ai-alert-helper/src && uv run pytest -q  # green
+- number: 3
+  title: Rewrite the investigate-surge prompt (evidence-only, no HN seeding)
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Rewrite `apps/ai-alert-helper/src/ai_alert_helper/prompts/investigate-surge.txt`:
+      - remove "likely a Hacker News hit" pre-seeding;
+      - instruct: classify ONLY from the facts — Hacker News only if
+        `news.ycombinator.com` (or `news.ycombinator`) appears in
+        `top_referrers`; scraper/crawler if `top_user_agents` are bots and
+        `visitor_pageviews` ≈ 0; if no discriminating referrer/path/UA data,
+        output "Cause: undetermined" and do NOT name a specific source;
+      - keep "never invent numbers; cite the referrers/paths/UAs you used."
+  - id: P1.T3.S2
+    text: |-
+      Confirm `ai_adapter.investigate` interpolates the full enriched fact
+      sheet into the prompt (the `{facts}` slot). Run the full suite:
+      cd apps/ai-alert-helper/src && uv run pytest -q
 state:
   steps:
-    P1.T1.S1: { state: ' ', ticked_at: null, note: null }
-    P1.T1.S2: { state: ' ', ticked_at: null, note: null }
-    P1.T1.S3: { state: ' ', ticked_at: null, note: null }
-    P1.T2.S1: { state: ' ', ticked_at: null, note: null }
-    P1.T2.S2: { state: ' ', ticked_at: null, note: null }
-    P1.T2.S3: { state: ' ', ticked_at: null, note: null }
-    P1.T3.S1: { state: ' ', ticked_at: null, note: null }
-    P1.T3.S2: { state: ' ', ticked_at: null, note: null }
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-05-26T19:23:32+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-05-26T19:23:33+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-05-26T19:23:35+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-05-26T19:23:37+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-05-26T19:23:38+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-05-26T19:23:40+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-05-26T19:23:42+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-05-26T19:23:43+00:00'
+      note: null
   completion:
-    at: null
+    at: '2026-05-26T19:23:47+00:00'

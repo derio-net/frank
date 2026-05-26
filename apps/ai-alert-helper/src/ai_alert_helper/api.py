@@ -6,6 +6,7 @@
 - POST /surge-check   — 15-min CronJob computes baseline + maybe sends
 """
 from __future__ import annotations
+import logging
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -14,7 +15,23 @@ from fastapi import FastAPI, Request
 
 from . import ai_adapter, facts, surge, telegram
 
-app = FastAPI(title="ai-alert-helper", version="0.1.5")
+app = FastAPI(title="ai-alert-helper", version="0.1.6")
+
+log = logging.getLogger("ai_alert_helper.surge")
+
+# In-memory surge-notification de-dup. Safe as process-global: the Deployment is
+# single-replica, uvicorn runs one worker, and the cron is concurrencyPolicy
+# Forbid — so no concurrent /surge-check. A pod restart re-arms (at most one
+# extra message). Edge-triggered (notify on a rising tier) + a cooldown floor.
+_last_notify: dict = {"tier": None, "at": None}
+_TIER_RANK = {None: 0, "Notable": 1, "Major": 2}
+
+
+def _should_notify(tier: str, now: datetime) -> bool:
+    cd = timedelta(hours=float(os.environ.get("SURGE_COOLDOWN_HOURS", "6")))
+    rising = _TIER_RANK.get(tier, 0) > _TIER_RANK.get(_last_notify["tier"], 0)
+    cooled = _last_notify["at"] is None or (now - _last_notify["at"]) >= cd
+    return rising or cooled
 
 
 @app.get("/healthz")
@@ -66,6 +83,12 @@ def surge_check() -> dict:
         s["tier"] = "Notable"  # edge surge with no visitor confirmation — likely automated
     urgent = s["tier"] == "Major"
 
+    # De-dup BEFORE the expensive work (build_for_surge = 3 LogsQL + GoatCounter;
+    # investigate = ~60s LLM). A suppressed tick does none of it.
+    if not _should_notify(s["tier"], now):
+        log.info("surge suppressed: tier=%s within cooldown", s["tier"])
+        return {"triggered": True, "suppressed": True, **s, "visitors": visitors}
+
     surge_facts = facts.build_for_surge(start, now)
     surge_facts.update(s)
     surge_facts["visitor_pageviews"] = visitors
@@ -79,4 +102,6 @@ def surge_check() -> dict:
         f"📈 Blog traffic surge — {s['ratio']:.1f}× baseline ({s['tier']}){note}\n\n{narrative}",
         urgent=urgent,
     )
+    _last_notify.update(tier=s["tier"], at=now)
+    log.info("surge sent: tier=%s urgent=%s", s["tier"], urgent)
     return {"triggered": True, **s, "visitors": visitors, "narrative": narrative}

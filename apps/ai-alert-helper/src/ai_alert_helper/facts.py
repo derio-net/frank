@@ -220,18 +220,45 @@ def build_for_digest(since: datetime, until: datetime, security_until: datetime)
     return sheet
 
 
+def _bare_ua(v: str) -> str:
+    """Strip VictoriaLogs' bracketed-array wrapper on the UA group value: `["<ua>"]` -> `<ua>`."""
+    v = v.strip()
+    if v.startswith('["') and v.endswith('"]'):
+        return v[2:-2]
+    return v
+
+
 def build_for_surge(window_start: datetime, window_end: datetime) -> dict:
-    """Surge fact sheet — top_referrers/top_pages/etc. for the surge window."""
+    """Surge fact sheet — counts + top referrers/paths/user-agents for the window.
+
+    These are the facts the investigate prompt classifies from: HN only if a
+    Hacker News referrer is present, scraper if the UAs are bots, etc. Without
+    them the model has nothing to cite and speculates.
+    """
     window = f"_time:[{window_start.isoformat()},{window_end.isoformat()}]"
+    ef = edge_filter(host="blog.derio.net")
+    # GoatCounter toprefs takes hour-rounded date-time start/end (same as /total).
+    gcw = {
+        "start": window_start.replace(minute=0, second=0, microsecond=0).isoformat(),
+        "end": window_end.replace(minute=0, second=0, microsecond=0).isoformat(),
+    }
+    refs = _goatcounter("/api/v0/stats/toprefs", {**gcw, "limit": 5})
     return {
         "window_start": window_start.isoformat(),
         "window_end": window_end.isoformat(),
-        "total_requests": _logsql_count(
-            f'{window} {edge_filter(host="blog.derio.net")} | stats count() as c'
-        ),
-        # The richer top-N breakdowns (top_referrers, top_pages, geo) would be
-        # built here in production; first ship lands with the essential
-        # ratio + count fact sheet so surge.py can call investigate().
+        "total_requests": _logsql_count(f'{window} {ef} | stats count() as c'),
+        "top_paths": [
+            {"path": r["request.uri"], "count": r["count"]}
+            for r in _logsql_group(f'{window} {ef} | stats by (request.uri) count() as c', "request.uri", top=5)
+        ],
+        "top_user_agents": [
+            {"ua": _bare_ua(r["request.headers.User-Agent"]), "count": r["count"]}
+            for r in _logsql_group(f'{window} {ef} | stats by (request.headers.User-Agent) count() as c', "request.headers.User-Agent", top=5)
+        ],
+        "top_referrers": [
+            {"name": r.get("name") or "direct", "count": int(r.get("count", 0))}
+            for r in refs.get("stats", [])
+        ],
     }
 
 

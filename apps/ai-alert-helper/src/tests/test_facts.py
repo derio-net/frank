@@ -198,3 +198,42 @@ def test_build_for_digest_survives_unreachable_goatcounter():
     since = datetime(2026, 5, 24, tzinfo=timezone.utc); until = since + timedelta(days=1)
     sheet = facts.build_for_digest(since, until, until)   # must NOT raise
     assert sheet["blog_pageviews"] == 0
+
+
+# --- build_for_surge enrichment (rework-1) ---
+
+@respx.mock
+def test_build_for_surge_enriched_referrers_paths_uas():
+    captured = []
+    def _vl(request):
+        q = dict(request.url.params)["query"]
+        captured.append(q)
+        if "by (request.uri)" in q:
+            return httpx.Response(200, json={"data": {"result": [
+                {"metric": {"request.uri": "/frank/"}, "value": [0, "120"]}]}})
+        if "by (request.headers.User-Agent)" in q:
+            return httpx.Response(200, json={"data": {"result": [
+                {"metric": {"request.headers.User-Agent": '["Baiduspider/2.0; +http://www.baidu.com/search/spider.html"]'},
+                 "value": [0, "90"]}]}})
+        return httpx.Response(200, json={"data": {"result": [{"value": [0, "300"]}]}})
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(side_effect=_vl)
+    toprefs = respx.get(re.compile(facts.GOATCOUNTER_URL + "/api/v0/stats/toprefs.*")).mock(
+        return_value=httpx.Response(200, json={"stats": [
+            {"name": "news.ycombinator.com", "count": 40}, {"name": "", "count": 5}]}))
+
+    s = datetime(2026, 5, 26, 16, 30, tzinfo=timezone.utc); e = s + timedelta(hours=1)
+    sheet = facts.build_for_surge(s, e)
+
+    assert sheet["total_requests"] == 300
+    assert sheet["top_paths"][0] == {"path": "/frank/", "count": 120}
+    # array-valued UA wrapper stripped to a bare readable string (I3)
+    assert sheet["top_user_agents"][0]["ua"].startswith("Baiduspider")
+    assert "[" not in sheet["top_user_agents"][0]["ua"]
+    # referrers; empty name relabelled "direct"
+    assert sheet["top_referrers"][0]["name"] == "news.ycombinator.com"
+    assert sheet["top_referrers"][1]["name"] == "direct"
+    # toprefs uses the hour-rounded window (I2)
+    q = dict(httpx.QueryParams(toprefs.calls.last.request.url.query.decode()))
+    assert q["start"].startswith("2026-05-26T16:00") and q["end"].startswith("2026-05-26T17:00")
+    # every Caddy query is probe-excluded
+    assert captured and all("Frank-Blackbox-Probe" in c for c in captured)

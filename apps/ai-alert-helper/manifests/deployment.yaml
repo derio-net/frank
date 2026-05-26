@@ -24,7 +24,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: ai-alert-helper
-          image: ghcr.io/derio-net/ai-alert-helper:0.1.5
+          image: ghcr.io/derio-net/ai-alert-helper:0.1.6
           imagePullPolicy: Always
           ports:
             - name: http
@@ -50,6 +50,8 @@ spec:
               value: "50"
             - name: SURGE_VISITOR_FLOOR    # min GoatCounter pageviews to confirm a Major as URGENT
               value: "10"
+            - name: SURGE_COOLDOWN_HOURS   # min hours before re-notifying the same tier (dedup floor)
+              value: "6"
           envFrom:
             - secretRef:
                 name: ai-alert-helper-secrets
