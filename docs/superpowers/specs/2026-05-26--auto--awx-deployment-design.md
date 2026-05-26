@@ -119,10 +119,11 @@ which lets Authentik groups map to AWX teams/roles for real RBAC.
 that actually routes — every IngressRoute and homepage tile uses
 `*.cluster.derio.net`). The Authentik provider's `redirect_uris` and
 `meta_launch_url` MUST use this same host so the OAuth callback resolves. Note:
-some existing OIDC blueprints (infisical, argocd) register `*.frank.derio.net`
-callbacks — a pre-existing inconsistency (that domain is not matched by any
-Traefik IngressRoute). AWX deliberately uses `cluster.derio.net` everywhere to
-avoid inheriting that wart; do not copy the `frank.derio.net` host.
+`*.frank.derio.net` is the **legacy** domain, being deprecated — only
+`omni.frank.derio.net` should keep it. Existing OIDC blueprints (infisical,
+argocd) still register `*.frank.derio.net` callbacks; those are stragglers
+slated for cleanup, not the convention. AWX uses `cluster.derio.net` everywhere;
+do not copy the `frank.derio.net` host.
 
 **Divergence note:** because this is native OIDC, the Traefik IngressRoute does
 **not** carry the `authentik-forwardauth` middleware, and there is **no**
