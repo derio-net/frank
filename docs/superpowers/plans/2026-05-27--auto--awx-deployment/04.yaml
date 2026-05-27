@@ -1,0 +1,45 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Exposure
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: IngressRoute and homepage tile
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Add the Traefik IngressRoute for awx.cluster.derio.net
+
+      Add an IngressRoute entry to `apps/traefik/manifests/ingressroutes.yaml` matching `Host(\`awx.cluster.derio.net\`)` → the `awx-service` ClusterIP Service on its HTTP port (the operator names the Service `awx-service`, port 80). Follow the existing entries' structure. Do NOT attach the `authentik-forwardauth` middleware — AWX does its own OIDC (see spec Auth divergence note).
+
+      Verify: `grep -A6 "awx.cluster.derio.net" apps/traefik/manifests/ingressroutes.yaml` shows the route with no forward-auth middleware; confirm the backend service name against `kubectl -n awx get svc` once AWX is up (Phase 5) and correct if the operator names it differently.
+  - id: P4.T1.S2
+    text: |-
+      Add the homepage tile and commit
+
+      Add an AWX tile to `apps/homepage/manifests/configmap-services.yaml` under an Automation category (icon e.g. `ansible.png`/`awx`, description "Ansible automation controller", href `https://awx.cluster.derio.net`).
+
+      ```bash
+      git add apps/traefik/manifests/ingressroutes.yaml apps/homepage/manifests/configmap-services.yaml
+      git commit -m "feat(auto): expose AWX via Traefik + homepage tile (P4)"
+      ```
+
+      Verify: `grep -i awx apps/homepage/manifests/configmap-services.yaml` shows the tile.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

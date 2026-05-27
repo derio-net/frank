@@ -1,0 +1,83 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Deploy and verify end-to-end (Deployed gate)
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Sync and verify operator reconciliation
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Merge to main, sync, and confirm AWX reconciles to Running
+
+      After the Phase 1/3/4 PRs merge to main (ArgoCD pulls main, not feature branches), sync the awx Application and watch the operator do the real work.
+
+      ```bash
+      argocd app sync awx --port-forward --port-forward-namespace argocd
+      kubectl -n awx get awx awx -o jsonpath='{.status.conditions}' ; echo
+      kubectl -n awx get pods
+      ```
+
+      Expected: the `awx` CR reaches a Successful/Running reconcile; `awx-task` and `awx-web` pods are Running; the operator-managed `awx-postgres-*` StatefulSet pod is Running; migrations complete (check `awx-task` logs for "Migrations complete"). Remember: ArgoCD Synced/Healthy alone does NOT prove this — verify the pods directly.
+  - id: P5.T1.S2
+    text: |-
+      Confirm the UI is reachable
+
+      ```bash
+      curl -skI https://awx.cluster.derio.net/ | head -1
+      ```
+
+      Expected: HTTP 200/302 from the AWX web UI via Traefik. If the backend service name in the IngressRoute was a guess, correct it now against `kubectl -n awx get svc` and re-sync traefik.
+- number: 2
+  title: Verify OIDC and run the smoke playbook
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Verify Authentik OIDC login end-to-end
+
+      In a browser, open https://awx.cluster.derio.net, click the OIDC/SSO login, authenticate through Authentik, and confirm you land in AWX as an SSO user. Verify an Authentik group maps to the expected AWX team/role (configure the group→team mapping in AWX Settings → Authentication if not already driven by claims).
+
+      Expected: SSO round-trip succeeds; the test user's Authentik group grants the intended AWX team membership. The local `admin` remains available as break-glass.
+  - id: P5.T2.S2
+    text: |-
+      Run the smoke playbook against a real non-Talos host (the gate)
+
+      In AWX: create a Machine Credential (SSH key/become) for one real non-Talos
+      home-lab host, an Inventory containing that host, a Project pointing at the
+      Gitea playbooks repo (or an inline ping), and a Job Template running an
+      Ansible `ping`. Launch it.
+
+      Expected: the Job completes with status `successful` and the `ping` task
+      returns `pong` for the target host. THIS is the Deployed gate — until a
+      playbook actually runs green against a host, the layer is not Deployed.
+
+      Verify: AWX Job output shows `ok=1` / `pong`; capture the job URL/screenshot for the operating blog post.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

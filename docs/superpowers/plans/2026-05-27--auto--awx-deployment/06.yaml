@@ -1,0 +1,72 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Document, publish, and finalise the auto layer
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Confirm external exposure is documented
+
+      The IngressRoute + homepage tile were added in Phase 4. Confirm both are live (`awx.cluster.derio.net` reachable, tile visible on master.cluster.derio.net) and that the spec/blog record the domain + native-OIDC auth mode (no forward-auth).
+  - id: P6.T1.S2
+    text: |-
+      Write the building blog post
+
+      Use the `/blog-post` skill to write the "Building Frank" post for the `auto` layer (AWX as the imperative counterweight; the declarative-vs-imperative tension; operator + CR; OIDC). Update the series index in `blog/content/docs/building/00-overview/index.md` and confirm the roadmap shortcode entry from Phase 1.
+  - id: P6.T1.S3
+    text: |-
+      Write the operating blog post
+
+      Use the `/blog-post` skill for the companion operating guide: day-2 commands (sync/verify operator, run a Job Template, OIDC troubleshooting, rotate the OIDC secret, restore from the bootstrap secrets). Update the operating series index.
+  - id: P6.T1.S4
+    text: |-
+      Update the README
+
+      Run `/update-readme` to sync Technology Stack (add AWX/Ansible), Repository Structure (apps/awx), Service Access (awx.cluster.derio.net), and Current Status with the new `auto` layer.
+  - id: P6.T1.S5
+    text: |-
+      Sync the runbook
+
+      Run `/sync-runbook` to pull the two `# manual-operation` blocks (auto-awx-bootstrap-secrets, auto-awx-oidc-client-secret) into `docs/runbooks/manual-operations.yaml`.
+  - id: P6.T1.S6
+    text: |-
+      Set plan + spec status to Deployed
+
+      Set the plan `_prose.md` Status and the spec `**Status:**` to `Deployed`. Add any deployment deviations encountered (e.g. corrected backend Service name, OIDC callback path) to the spec.
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

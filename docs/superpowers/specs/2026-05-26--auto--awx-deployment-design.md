@@ -210,3 +210,9 @@ expose externally (IngressRoute + homepage tile — already in the design),
 building blog post, operating blog post, README update, runbook sync (the SOPS
 bootstrap is a manual-operation), register the `auto` layer in
 `docs/layers.yaml` and the roadmap shortcode, and set Status to Deployed.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-05-27--auto--awx-deployment | `derio-net/frank` | `docs/superpowers/plans/2026-05-27--auto--awx-deployment/` | — |
