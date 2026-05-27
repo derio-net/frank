@@ -5,7 +5,7 @@ phase:
   tag: manual
   depends_on:
   - 1
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/423
 tasks:
 - number: 1
   title: Generate and apply AWX bootstrap secrets

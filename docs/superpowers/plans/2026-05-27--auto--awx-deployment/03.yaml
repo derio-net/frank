@@ -4,7 +4,7 @@ phase:
   title: Authentik OIDC provider
   tag: agentic
   depends_on: []
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/424
 tasks:
 - number: 1
   title: AWX OIDC provider blueprint

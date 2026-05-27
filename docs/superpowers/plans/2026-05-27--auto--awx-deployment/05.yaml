@@ -8,7 +8,7 @@ phase:
   - 2
   - 3
   - 4
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/426
 tasks:
 - number: 1
   title: Sync and verify operator reconciliation
