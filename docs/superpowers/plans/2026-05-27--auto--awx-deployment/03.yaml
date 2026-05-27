@@ -129,6 +129,7 @@ state:
       note: 'Executed in Phase 5 — requires AWX running; manual-op registered in runbook
         (status: pending)'
   completion:
-    at: null
-    note: null
+    at: '2026-05-27T21:08:36+00:00'
+    note: Blueprint authored + registered; client_secret manual-op (auto-awx-oidc-client-secret)
+      registered in runbook, executes in Phase 5
     observed_prs: []
