@@ -108,11 +108,23 @@ tasks:
     text: |-
       Create apps/root/templates/awx.yaml (multi-source Application)
 
-      Copy an existing multi-source template (e.g. apps/root/templates with an
-      upstream chart + $values ref) and adapt. Critical pieces: sync waves so
-      the operator chart (CRD) applies BEFORE the AWX CR, SkipDryRunOnMissingResource
-      on the CR source, ignoreDifferences on operator-generated Secrets, and the
-      standard ServerSideApply / prune:false / selfHeal:true.
+      Copy an existing multi-source template (e.g. apps/root/templates/gitea.yaml
+      or infisical.yaml — upstream chart + $values ref) and adapt. Critical pieces:
+      sync waves so the operator chart (CRD) applies BEFORE the AWX CR,
+      SkipDryRunOnMissingResource on the CR source, ignoreDifferences on
+      operator-generated Secrets, and the standard ServerSideApply / selfHeal:true.
+
+      DEVIATION (implemented): the snippet below was reconciled to repo conventions
+      during implementation, replacing the original draft. Changes vs. the first
+      draft: project is `infrastructure` (all sibling templates use it, never
+      `default`); repoURL/targetRevision/destination are Helm-templated via
+      `{{ .Values.* }}` (App-of-Apps norm) rather than hardcoded; `finalizers`
+      added; `RespectIgnoreDifferences=true` added so the Secret /data ignore holds
+      during sync; `releaseName: awx-operator` set on the chart source; the explicit
+      `prune: false` was DROPPED (apps/root/values.yaml documents it normalizes to
+      absent and causes permanent drift — the schema default already gives
+      manual-only pruning); the Application-level `sync-wave: "0"` annotation was
+      dropped (the within-Application resource waves are what order the CRD vs CR).
 
       BEGIN apps/root/templates/awx.yaml
       apiVersion: argoproj.io/v1alpha1
@@ -120,41 +132,41 @@ tasks:
       metadata:
         name: awx
         namespace: argocd
-        annotations:
-          argocd.argoproj.io/sync-wave: "0"
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
       spec:
-        project: default
-        destination:
-          server: https://kubernetes.default.svc
-          namespace: awx
+        project: infrastructure
         sources:
           # Wave 0: operator chart (installs the AWX CRD + operator Deployment)
           - repoURL: https://ansible-community.github.io/awx-operator-helm/
             chart: awx-operator
-            targetRevision: 3.2.1
+            targetRevision: "3.2.1"
             helm:
+              releaseName: awx-operator
               valueFiles:
                 - $values/apps/awx/values.yaml
-          - repoURL: https://github.com/derio-net/frank.git
-            targetRevision: main
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
             ref: values
           # Wave 1: the AWX CR (needs the CRD from wave 0 to exist first)
-          - repoURL: https://github.com/derio-net/frank.git
-            targetRevision: main
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
             path: apps/awx/manifests
             directory:
               include: 'awx.yaml'
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: awx
         syncPolicy:
           automated:
-            prune: false
             selfHeal: true
           syncOptions:
             - ServerSideApply=true
             - SkipDryRunOnMissingResource=true
             - CreateNamespace=true
+            - RespectIgnoreDifferences=true
         ignoreDifferences:
-          - group: ""
-            kind: Secret
+          - kind: Secret
             jsonPointers:
               - /data
       END apps/root/templates/awx.yaml
