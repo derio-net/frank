@@ -1,0 +1,210 @@
+schema_version: 2
+phase:
+  number: 1
+  title: AWX Operator + AWX CR (ArgoCD app)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Register the auto layer
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Register the `auto` layer (#20) in docs/layers.yaml
+
+      Append a new entry after the `cicd` layer (number 19) in `docs/layers.yaml`:
+
+      ```yaml
+        - code: auto
+          number: 20
+          name: Infrastructure Automation
+          description: AWX Ansible controller for non-Talos / external devices
+      ```
+
+      Verify: `grep -A3 "code: auto" docs/layers.yaml` shows the new entry, and `scripts/validate-plans.sh` still recognises the `auto` code (no "unknown layer" error when this plan is validated).
+  - id: P1.T1.S2
+    text: |-
+      Add the auto layer to the roadmap shortcode
+
+      Add a roadmap entry for the `auto` layer to `blog/layouts/shortcodes/cluster-roadmap.html`, following the existing per-layer pattern (copy the most recent layer block, bump to layer 20 "Infrastructure Automation / AWX", keep status markup consistent with neighbours).
+
+      Verify: `grep -i "automation\|awx" blog/layouts/shortcodes/cluster-roadmap.html` shows the new roadmap line.
+- number: 2
+  title: AWX Operator chart values
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Confirm the awx-operator chart version to pin
+
+      ```bash
+      helm repo add awx-operator https://ansible-community.github.io/awx-operator-helm/ 2>/dev/null
+      helm repo update awx-operator
+      helm search repo awx-operator/awx-operator --versions | head -3
+      ```
+
+      Expected: chart `3.2.1` (appVersion `2.19.1`) is the current stable. Pin `targetRevision: 3.2.1` in the Application (Task 4). If a newer stable exists at implementation time, pin that instead and note it in the prose.
+  - id: P1.T2.S2
+    text: |-
+      Create apps/awx/values.yaml
+
+      The operator chart itself needs almost no overrides (it deploys the operator Deployment; the AWX workload is driven by the separate CR). Create `apps/awx/values.yaml`:
+
+      BEGIN apps/awx/values.yaml
+      # awx-operator Helm chart values.
+      # The operator only runs the controller; the AWX workload is declared
+      # by apps/awx/manifests/awx.yaml (the AWX custom resource).
+      AWX:
+        enabled: false   # we manage the AWX CR ourselves as a raw manifest
+      END apps/awx/values.yaml
+
+      Verify: `test -f apps/awx/values.yaml`. (Setting `AWX.enabled: false` ensures the chart does NOT also template its own AWX CR — we own that manifest.)
+- number: 3
+  title: AWX custom resource
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Create apps/awx/manifests/awx.yaml (the AWX CR)
+
+      Operator-managed Postgres on Longhorn, ClusterIP, no operator ingress
+      (Traefik handles ingress in Phase 4), OIDC non-secret settings inline.
+      The CR carries SkipDryRunOnMissingResource via the Application (Task 4),
+      not here.
+
+      BEGIN apps/awx/manifests/awx.yaml
+      apiVersion: awx.ansible.com/v1beta1
+      kind: AWX
+      metadata:
+        name: awx
+        namespace: awx
+      spec:
+        service_type: ClusterIP
+        ingress_type: none
+        replicas: 1
+        admin_user: admin
+        admin_password_secret: awx-admin-password
+        secret_key_secret: awx-secret-key
+        # Operator-managed Postgres (no postgres_configuration_secret given):
+        postgres_storage_class: longhorn
+        postgres_storage_requirements:
+          requests:
+            storage: 8Gi
+        projects_persistence: false
+        # Non-secret OIDC settings. SOCIAL_AUTH_OIDC_SECRET is set out-of-band
+        # via the AWX Settings API (manual-op in Phase 3) so the secret value
+        # never lands in git.
+        extra_settings:
+          - setting: SOCIAL_AUTH_OIDC_OIDC_ENDPOINT
+            value: "https://auth.cluster.derio.net/application/o/awx/"
+          - setting: SOCIAL_AUTH_OIDC_KEY
+            value: "awx"
+      END apps/awx/manifests/awx.yaml
+
+      Verify: `kubeconform -ignore-missing-schemas apps/awx/manifests/awx.yaml` (or a plain `yq .` parse) succeeds. The CRD is not installed locally, so a schema-less YAML parse is sufficient at author time.
+- number: 4
+  title: ArgoCD Application
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Create apps/root/templates/awx.yaml (multi-source Application)
+
+      Copy an existing multi-source template (e.g. apps/root/templates with an
+      upstream chart + $values ref) and adapt. Critical pieces: sync waves so
+      the operator chart (CRD) applies BEFORE the AWX CR, SkipDryRunOnMissingResource
+      on the CR source, ignoreDifferences on operator-generated Secrets, and the
+      standard ServerSideApply / prune:false / selfHeal:true.
+
+      BEGIN apps/root/templates/awx.yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: awx
+        namespace: argocd
+        annotations:
+          argocd.argoproj.io/sync-wave: "0"
+      spec:
+        project: default
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: awx
+        sources:
+          # Wave 0: operator chart (installs the AWX CRD + operator Deployment)
+          - repoURL: https://ansible-community.github.io/awx-operator-helm/
+            chart: awx-operator
+            targetRevision: 3.2.1
+            helm:
+              valueFiles:
+                - $values/apps/awx/values.yaml
+          - repoURL: https://github.com/derio-net/frank.git
+            targetRevision: main
+            ref: values
+          # Wave 1: the AWX CR (needs the CRD from wave 0 to exist first)
+          - repoURL: https://github.com/derio-net/frank.git
+            targetRevision: main
+            path: apps/awx/manifests
+            directory:
+              include: 'awx.yaml'
+        syncPolicy:
+          automated:
+            prune: false
+            selfHeal: true
+          syncOptions:
+            - ServerSideApply=true
+            - SkipDryRunOnMissingResource=true
+            - CreateNamespace=true
+        ignoreDifferences:
+          - group: ""
+            kind: Secret
+            jsonPointers:
+              - /data
+      END apps/root/templates/awx.yaml
+
+      Note on sync waves with multi-source: ArgoCD sync waves order resources within one Application by the `argocd.argoproj.io/sync-wave` annotation on each *resource*. The operator chart's CRD/Deployment carry wave 0 (chart default); annotate the AWX CR manifest body with `argocd.argoproj.io/sync-wave: "1"` if a clean first-sync needs it. SkipDryRunOnMissingResource is the primary guard against the "CRD not yet present" dry-run failure.
+
+      Verify: `yq '.spec.sources | length' apps/root/templates/awx.yaml` returns 3; `grep -c SkipDryRunOnMissingResource apps/root/templates/awx.yaml` returns 1.
+  - id: P1.T4.S2
+    text: |-
+      Add the sync-wave annotation to the AWX CR and commit Phase 1
+
+      Add `argocd.argoproj.io/sync-wave: "1"` under `metadata.annotations` in `apps/awx/manifests/awx.yaml` so the CR applies after the operator CRD.
+
+      ```bash
+      git add docs/layers.yaml blog/layouts/shortcodes/cluster-roadmap.html apps/awx/ apps/root/templates/awx.yaml
+      git commit -m "feat(auto): AWX operator + CR ArgoCD app (P1)"
+      ```
+
+      Verify: `git show --stat HEAD` lists the layers.yaml, roadmap, values.yaml, awx.yaml CR, and Application template.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
