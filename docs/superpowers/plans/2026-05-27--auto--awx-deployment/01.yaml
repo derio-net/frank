@@ -4,7 +4,7 @@ phase:
   title: AWX Operator + AWX CR (ArgoCD app)
   tag: agentic
   depends_on: []
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/422
 tasks:
 - number: 1
   title: Register the auto layer

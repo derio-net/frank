@@ -5,7 +5,7 @@ phase:
   tag: manual
   depends_on:
   - 5
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/427
 tasks:
 - number: 1
   title: Document, publish, and finalise the auto layer
