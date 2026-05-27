@@ -1,0 +1,176 @@
+schema_version: 2
+phase:
+  number: 1
+  title: 'agent-images: RvfGridFSBucket parity fix + upstream bump'
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Author the GridFS-shim parity patch + contract test (TDD first)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Write the contract test FIRST (it encodes the expected GridFS semantics; already validated in Node).
+
+      Create `ruflo-server/test/rvf-gridfs-contract.test.mjs` in the agent-images repo (`~/Docs/projects/DERIO_NET/agent-images`):
+
+      ```js
+      import { test } from "node:test";
+      import assert from "node:assert/strict";
+      import { Readable, Writable } from "node:stream";
+
+      // Mirrors the patched RvfGridFSBucket contract (in-memory _files store).
+      function makeBucket() {
+        const files = new Map();
+        return {
+          openUploadStream(filename, options) {
+            const id = "id-" + files.size; const chunks = [];
+            const s = new Writable({
+              objectMode: true,
+              write(chunk, _e, cb) { try { chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : Buffer.from(chunk)); cb(); } catch (e) { cb(e); } },
+              final(cb) { try { files.set(id, { _id: id, filename, data: Buffer.concat(chunks).toString("base64"), metadata: options?.metadata ?? {} }); cb(); } catch (e) { cb(e); } },
+            });
+            s.id = id; return s;
+          },
+          openDownloadStream(id) { const f = files.get(String(id)); return Readable.from(f ? [Buffer.from(f.data, "base64")] : []); },
+          find(filter = {}) { const r = [...files.values()].filter(d => !filter.filename || d.filename === filter.filename).map(({ data, ...m }) => m); let i = 0; return { next: async () => (i < r.length ? r[i++] : null), toArray: async () => r }; },
+        };
+      }
+
+      test("upload accepts ArrayBuffer (uploadFile.ts pattern), emits finish", async () => {
+        const b = makeBucket(); const bytes = Buffer.from("hello image");
+        const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+        const up = b.openUploadStream("c-sha", { metadata: { conversation: "c" } });
+        up.write(ab); up.end();
+        await new Promise((res, rej) => { up.once("finish", res); up.once("error", rej); setTimeout(() => rej(new Error("timeout")), 2000); });
+        const cur = b.find({ filename: "c-sha" }); const meta = await cur.next();
+        assert.equal(meta.filename, "c-sha");
+        const dl = b.openDownloadStream(meta._id);
+        const out = await new Promise((res, rej) => { const cs = []; dl.on("data", c => cs.push(c)); dl.on("error", rej); dl.on("end", () => res(Buffer.concat(cs))); });
+        assert.equal(out.toString(), "hello image");
+      });
+
+      test("pipe copy (conversation.ts fork pattern)", async () => {
+        const b = makeBucket();
+        const up = b.openUploadStream("src"); up.write(Buffer.from("payload")); up.end();
+        await new Promise(r => up.once("finish", r));
+        const src = (await b.find({ filename: "src" }).next())._id;
+        const up2 = b.openUploadStream("dst");
+        await new Promise((res, rej) => { b.openDownloadStream(src).on("error", rej).pipe(up2).on("error", rej).on("finish", res); });
+        const dst = (await b.find({ filename: "dst" }).next())._id;
+        const out = await new Promise((res, rej) => { const cs = []; b.openDownloadStream(dst).on("data", c => cs.push(c)).on("end", () => res(Buffer.concat(cs))).on("error", rej); });
+        assert.equal(out.toString(), "payload");
+      });
+      ```
+
+      Run it: `node --test ruflo-server/test/` — expect 2 passing tests.
+  - id: P1.T1.S2
+    text: |-
+      Vendor the original `rvf.ts` at the target ref and write the patched copy.
+
+      ```bash
+      cd ~/Docs/projects/DERIO_NET/agent-images
+      REF=a6dd4ab3d527fbba3e7202741c9479315cc56a0b
+      F=ruflo/src/ruvocal/src/lib/server/database/rvf.ts
+      env -u GITHUB_TOKEN gh api "repos/ruvnet/ruflo/contents/$F?ref=$REF" --jq '.content' | base64 -d > /tmp/rvf.orig.ts
+      cp /tmp/rvf.orig.ts /tmp/rvf.patched.ts
+      ```
+
+      In `/tmp/rvf.patched.ts`: (a) add `import { Readable, Writable } from "node:stream";` near the existing imports, and (b) replace the body of `class RvfGridFSBucket` (the `openUploadStream`, `openDownloadStream`, and `find` methods) with the verified parity implementation from spec §1 (objectMode Writable + Readable.from + sync `find` cursor with `next()`/`toArray()`; leave `delete()` unchanged).
+  - id: P1.T1.S3
+    text: |-
+      Generate the patch file and confirm it applies cleanly against the pristine source.
+
+      ```bash
+      cd ~/Docs/projects/DERIO_NET/agent-images
+      mkdir -p ruflo-server/patches
+      diff -u /tmp/rvf.orig.ts /tmp/rvf.patched.ts \
+        | sed -e 's|/tmp/rvf.orig.ts|a/ruflo/src/ruvocal/src/lib/server/database/rvf.ts|' \
+              -e 's|/tmp/rvf.patched.ts|b/ruflo/src/ruvocal/src/lib/server/database/rvf.ts|' \
+        > ruflo-server/patches/rvf-gridfs-parity.patch
+      # Dry-run apply against a fresh checkout of the original to prove it lands:
+      mkdir -p /tmp/applytest/ruflo/src/ruvocal/src/lib/server/database
+      cp /tmp/rvf.orig.ts /tmp/applytest/ruflo/src/ruvocal/src/lib/server/database/rvf.ts
+      ( cd /tmp/applytest && git init -q && git add -A && git apply --check ../../$(pwd | sed 's|.*/||')/ruflo-server/patches/rvf-gridfs-parity.patch 2>/dev/null \
+        || git -C /tmp/applytest apply --check ~/Docs/projects/DERIO_NET/agent-images/ruflo-server/patches/rvf-gridfs-parity.patch )
+      ```
+
+      Expect `git apply --check` to exit 0 (no output). If it fails, regenerate from the exact `$REF` source.
+- number: 2
+  title: Wire the patch into the Dockerfile + bump RUFLO_GIT_REF
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Bump the upstream ref in `ruflo-server/Dockerfile`:
+
+      ```
+      -ARG RUFLO_GIT_REF=ca0a6fa5cb1678b5c57c9289bc09a036f7308c61
+      +ARG RUFLO_GIT_REF=a6dd4ab3d527fbba3e7202741c9479315cc56a0b
+      ```
+  - id: P1.T2.S2
+    text: |-
+      In the `source` stage of `ruflo-server/Dockerfile`, AFTER the existing `wasm://` sed block, COPY and apply the parity patch with a build-time guard (mirrors the wasm `grep -q` pattern):
+
+      ```dockerfile
+      # Fix the incomplete RvfGridFSBucket shim so file upload/download/copy work
+      # against the RVF backend (upstream uploadFile.ts/downloadFile.ts/conversation.ts
+      # are written for Mongo GridFS streams; the shim must honor that contract).
+      COPY ruflo-server/patches/rvf-gridfs-parity.patch /tmp/rvf-gridfs-parity.patch
+      RUN git apply /tmp/rvf-gridfs-parity.patch \
+       && grep -q 'new Writable' ruflo/src/ruvocal/src/lib/server/database/rvf.ts \
+       && grep -q 'Readable.from'  ruflo/src/ruvocal/src/lib/server/database/rvf.ts \
+       && grep -q 'next:'          ruflo/src/ruvocal/src/lib/server/database/rvf.ts
+      ```
+
+      (Confirm the `COPY` source path is correct relative to the build context used by the image's CI.)
+  - id: P1.T2.S3
+    text: |-
+      Confirm the existing `wasm://` sed + `grep -q 'protocol === "wasm:"'` guard is still present and unchanged in the Dockerfile (urlSafety.ts is unchanged at the new ref, so it will re-apply). No edit needed — just verify it wasn't disturbed.
+- number: 3
+  title: Build the image and record the new SHA
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Commit the patch, test, and Dockerfile changes in agent-images; open/merge a PR; trigger the image build via that repo's CI (e.g. `gh workflow run <ruflo build workflow> --ref main`). Build both `ruflo-server` and `ruflo-shell` (same agent-images SHA tag).
+  - id: P1.T3.S2
+    text: |-
+      Record the resulting agent-images commit SHA (the image tag). Confirm the build succeeded and the guards passed (a failed `git apply` or missing token fails the build). Note the full image refs `ghcr.io/derio-net/ruflo-server:<sha>` and `ghcr.io/derio-net/ruflo-shell:<sha>` for Phase 2.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

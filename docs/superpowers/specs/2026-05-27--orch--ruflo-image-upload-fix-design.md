@@ -220,3 +220,9 @@ and `a6dd4ab`, so it applies cleanly at the new ref.
   still-pending `wasm://` urlSafety PR).
 - Per the layer fix/extension workflow: update the ruflo layer's existing
   building/operating posts if narrative-worthy; no new post.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-05-27--orch--ruflo-upload-fix | `derio-net/frank` | `docs/superpowers/plans/2026-05-27--orch--ruflo-upload-fix/` | — |
