@@ -1,0 +1,5 @@
+# awx-operator Helm chart values.
+# The operator only runs the controller; the AWX workload is declared
+# by apps/awx/manifests/awx.yaml (the AWX custom resource).
+AWX:
+  enabled: false   # we manage the AWX CR ourselves as a raw manifest

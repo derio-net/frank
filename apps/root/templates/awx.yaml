@@ -1,0 +1,42 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: awx
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  sources:
+    # Wave 0: operator chart (installs the AWX CRD + operator Deployment)
+    - repoURL: https://ansible-community.github.io/awx-operator-helm/
+      chart: awx-operator
+      targetRevision: "3.2.1"
+      helm:
+        releaseName: awx-operator
+        valueFiles:
+          - $values/apps/awx/values.yaml
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+    # Wave 1: the AWX CR (needs the CRD from wave 0 to exist first)
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      path: apps/awx/manifests
+      directory:
+        include: 'awx.yaml'
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: awx
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers:
+        - /data

@@ -1,0 +1,29 @@
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+  name: awx
+  namespace: awx
+  annotations:
+    # Apply the CR after the operator chart (CRD + Deployment, wave 0).
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  service_type: ClusterIP
+  ingress_type: none
+  replicas: 1
+  admin_user: admin
+  admin_password_secret: awx-admin-password
+  secret_key_secret: awx-secret-key
+  # Operator-managed Postgres (no postgres_configuration_secret given):
+  postgres_storage_class: longhorn
+  postgres_storage_requirements:
+    requests:
+      storage: 8Gi
+  projects_persistence: false
+  # Non-secret OIDC settings. SOCIAL_AUTH_OIDC_SECRET is set out-of-band
+  # via the AWX Settings API (manual-op in Phase 3) so the secret value
+  # never lands in git.
+  extra_settings:
+    - setting: SOCIAL_AUTH_OIDC_OIDC_ENDPOINT
+      value: "https://auth.cluster.derio.net/application/o/awx/"
+    - setting: SOCIAL_AUTH_OIDC_KEY
+      value: "awx"
