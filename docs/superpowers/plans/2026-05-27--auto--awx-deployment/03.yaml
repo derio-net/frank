@@ -116,17 +116,18 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-27T21:07:42+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-27T21:07:42+00:00'
       note: null
     P3.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-05-27T21:07:43+00:00'
+      note: 'Executed in Phase 5 — requires AWX running; manual-op registered in runbook
+        (status: pending)'
   completion:
     at: null
     note: null
