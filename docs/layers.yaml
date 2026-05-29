@@ -105,6 +105,11 @@ layers:
     name: CI/CD Platform
     description: Gitea, Tekton, Zot registry, supply chain security
 
+  - code: auto
+    number: 20
+    name: Infrastructure Automation
+    description: AWX Ansible controller for non-Talos / external devices
+
   - code: repo
     name: Repository & Tooling
     description: Blog infrastructure, CI, repo restructuring, meta-tasks
