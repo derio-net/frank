@@ -30,8 +30,16 @@ spec:
   # Non-secret OIDC settings. SOCIAL_AUTH_OIDC_SECRET is set out-of-band
   # via the AWX Settings API (manual-op in Phase 3) so the secret value
   # never lands in git.
+  # DEVIATION (P1 fix): extra_settings `value` is injected verbatim as the
+  # right-hand side of a Python assignment in the operator-rendered settings
+  # file (`SETTING = <value>`). String values MUST carry inner Python quotes,
+  # else e.g. `SOCIAL_AUTH_OIDC_OIDC_ENDPOINT = https://...` is a Python
+  # SyntaxError → uwsgi "unable to load app" → awx-web CrashLoop → the
+  # operator's "Check for pending migrations" exec into awx-web fails → DB
+  # never migrates → web/task init `wait-for-migrations` loops forever.
+  # YAML-double-quote wrapping a Python-single-quoted literal (per AWX docs).
   extra_settings:
     - setting: SOCIAL_AUTH_OIDC_OIDC_ENDPOINT
-      value: "https://auth.cluster.derio.net/application/o/awx/"
+      value: "'https://auth.cluster.derio.net/application/o/awx/'"
     - setting: SOCIAL_AUTH_OIDC_KEY
-      value: "awx"
+      value: "'awx'"
