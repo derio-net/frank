@@ -15,6 +15,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - RWO PVC + RollingUpdate deadlocks; use `strategy: Recreate`. Switching strategy via Helm needs a one-time `kubectl patch` to clear the orphan `rollingUpdate:` block.
 - ESO: empty `data: []` is rejected; delete the ExternalSecret if all keys are removed.
 - `envFrom.secretRef` without `optional: true` blocks rolling updates when the Secret is missing.
+- AWX operator-managed Postgres on Longhorn CrashLoops with `mkdir '/var/lib/pgsql/data/userdata': Permission denied` — the `sclorg/postgresql-15` image runs as UID 26 but the fresh PVC mounts root-owned and the operator emits an empty `securityContext`. Set `postgres_data_volume_init: true` in the AWX CR (root init container chowns the volume; storage-agnostic) rather than relying on `fsGroup`.
 - Always `ServerSideApply=true`; always `prune: false`; always `ignoreDifferences` on Secret `/data`.
 
 ### Tekton — `docs/runbooks/frank-gotchas/tekton.md`

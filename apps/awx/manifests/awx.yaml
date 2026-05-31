@@ -18,6 +18,14 @@ spec:
   postgres_storage_requirements:
     requests:
       storage: 8Gi
+  # DEVIATION (P1 fix): the sclorg/postgresql-15 image runs as UID 26, but a
+  # fresh Longhorn PVC mounts root-owned, so the postgres container cannot
+  # create its PGDATA subdir (`mkdir '/var/lib/pgsql/data/userdata': Permission
+  # denied` → CrashLoopBackOff, 696 restarts). The operator emits an empty
+  # securityContext unless told otherwise. postgres_data_volume_init injects a
+  # root init container that chowns the data volume to UID 26 before postgres
+  # starts — storage-agnostic (works regardless of CSI fsGroup support).
+  postgres_data_volume_init: true
   projects_persistence: false
   # Non-secret OIDC settings. SOCIAL_AUTH_OIDC_SECRET is set out-of-band
   # via the AWX Settings API (manual-op in Phase 3) so the secret value

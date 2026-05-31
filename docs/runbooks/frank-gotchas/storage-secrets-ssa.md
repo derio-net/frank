@@ -33,6 +33,46 @@ If all keys are removed, delete the ExternalSecret entirely rather than leaving 
 
 Encrypted secrets must live outside ArgoCD-managed paths (see `secrets/` dir) and be applied out-of-band.
 
+## AWX operator-managed Postgres CrashLoops on Longhorn — volume permissions
+
+**Symptom (2026-05-31, auto layer):** after deploying the `auto` layer (AWX),
+the operator-managed `awx-postgres-15-0` pod sat in CrashLoopBackOff (696
+restarts over ~2.5 days). Single log line:
+
+```
+mkdir: cannot create directory '/var/lib/pgsql/data/userdata': Permission denied
+```
+
+`awx-web` CrashLooped in turn (no reachable DB) and `awx-task` was stuck at
+`Init:0/2` (waiting on DB migrations) — all three symptoms trace to the one DB
+fault.
+
+**Root cause:** the `quay.io/sclorg/postgresql-15-c9s` image has a baked-in
+`USER 26`, but a freshly provisioned Longhorn PVC mounts root-owned (`root:root`,
+mode 755). The AWX operator emits an **empty** pod `securityContext` (no
+`fsGroup`, no init container) unless the CR tells it otherwise — so UID 26 cannot
+create its `PGDATA` subdir (`/var/lib/pgsql/data/userdata`). Confirm with:
+
+```bash
+kubectl -n awx get statefulset awx-postgres-15 -o jsonpath='{.spec.template.spec.securityContext}'   # → {}
+```
+
+**Fix (declarative, in the AWX CR `apps/awx/manifests/awx.yaml`):**
+
+```yaml
+spec:
+  postgres_data_volume_init: true
+```
+
+This makes the operator inject a root init container that `chown`s the data
+volume to UID 26 before postgres starts. Chosen over
+`postgres_security_context_settings: {fsGroup: 26}` because it is
+storage-agnostic — it works regardless of whether the CSI driver honours
+`fsGroup` (Longhorn does, but the init-container route is the AWX-operator's
+purpose-built answer to this exact error and survives a storage-class swap).
+After the CR change syncs, the operator regenerates the StatefulSet with the
+init container and the postgres pod (and then web/task) reconcile to Running.
+
 ## Standing rules
 
 - Always `ServerSideApply=true` in ArgoCD sync options (avoids annotation size limits).
