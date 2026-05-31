@@ -50,10 +50,12 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-05-31T18:24:47+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-05-31T18:24:52+00:00'
+    note: 'Secrets awx-admin-password + awx-secret-key generated, SOPS-encrypted (committed
+      under secrets/awx/), and applied out-of-band to ns awx. Verified live: both
+      secrets present with correct keys (password / secret_key). Runbook id: auto-awx-bootstrap-secrets.'
     observed_prs: []
