@@ -1,0 +1,76 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Rule error semantics — execErrState Error → KeepLast
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Flip execErrState across all feature-health rules
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Baseline assertion FIRST: capture the current count so the change is measurable.
+      ```bash
+      cd <frank-repo>
+      git grep -c "execErrState: Error" apps/grafana-alerting/manifests/alert-rules-cm.yaml
+      ```
+      Record the number (expected ~30). This is the count that must reach 0.
+  - id: P1.T1.S2
+    text: |-
+      In `apps/grafana-alerting/manifests/alert-rules-cm.yaml`, change every
+      `execErrState: Error` → `execErrState: KeepLast`. Leave every
+      `noDataState: OK` unchanged. Do NOT touch the heartbeat thresholds or queries.
+      Verify: `git grep -c "execErrState: Error" apps/grafana-alerting/manifests/alert-rules-cm.yaml` → 0,
+      and `git grep -c "execErrState: KeepLast" ...` equals the Step 1 baseline.
+  - id: P1.T1.S3
+    text: |-
+      Review the single rule with `for: 0m`/`for: 0s`. If it is a testing
+      artifact, set `for:` to match its evaluation cadence; otherwise leave it.
+      Do NOT blanket-change any other `for:` value — they are deliberately tuned
+      (session-manager 5m, audit-digest 1h, etc.).
+- number: 2
+  title: Deploy and verify error-state behavior
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Commit to `main` and let ArgoCD sync the `grafana-alerting` Application,
+      then restart Grafana so provisioning re-reads (read at boot, not watched):
+      `kubectl rollout restart deploy/<grafana-deploy> -n monitoring`.
+      Confirm in the Grafana UI a feature-health rule now shows
+      "Error handling: Keep last state" (provisioned / read-only).
+  - id: P1.T2.S2
+    text: |-
+      Induce an exec error on ONE scratch-duplicated rule via a temporary commit
+      (point its query datasourceUid at a bogus value). After sync+restart, confirm:
+      (a) the rule enters KeepLast (state held, not Error),
+      (b) NO Telegram page,
+      (c) NO Health Bridge call / no GitHub work-item `dead` transition on its `github_issue`.
+      Revert the scratch commit; confirm the rule returns to normal evaluation.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,71 @@
+schema_version: 2
+phase:
+  number: 3
+  title: VM write-path HA — second VMSingle + vmagent dual-write
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Determine the expression mechanism (spike)
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Determine whether `victoria-metrics-k8s-stack` can express a second VMSingle
+      via chart values, or whether it needs a sibling operator `VMSingle` CR under
+      `apps/victoria-metrics/manifests/`. Keep the chart's existing vmsingle as
+      instance A. Record the decision (it drives Phase 4's vmauth wiring too).
+- number: 2
+  title: Stand up VMSingle instance B with anti-affinity
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Define VMSingle instance B with its own Longhorn PVC (20Gi, 1-month
+      retention to match A) and hard `podAntiAffinity`
+      (`requiredDuringSchedulingIgnoredDuringExecution` on `kubernetes.io/hostname`)
+      against A, so they never co-locate on one mini node.
+  - id: P3.T2.S2
+    text: |-
+      Add a second `remoteWrite` URL to `vmagent` (→ instance B's service) so it
+      writes identical data to both A and B. Confirm the existing Longhorn
+      persistent queue (1Gi) is retained.
+- number: 3
+  title: Deploy and verify dual-write + placement
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Commit to `main`; ArgoCD sync. Confirm `kubectl get pods -n monitoring -o wide`
+      shows VMSingle A and B `Running` on DIFFERENT nodes.
+  - id: P3.T3.S2
+    text: |-
+      Query each VMSingle directly
+      (`kubectl exec ... wget -qO- :8428/api/v1/query?query=up`) — both return the
+      same recent series (dual-write working). Then `kubectl delete pod` instance B
+      and confirm vmagent's queue backfills it on return (no permanent gap vs A
+      for the deletion window).
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

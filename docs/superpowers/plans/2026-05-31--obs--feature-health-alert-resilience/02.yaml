@@ -1,0 +1,78 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Deadman watchdog (monitoring-meta) + Telegram-only route
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Author the watchdog rule in a non-feature folder
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Confirm the exact always-present VM health series in the running cluster
+      (so the query is real, not a placeholder):
+      `kubectl exec -n monitoring deploy/<grafana> -- wget -qO- 'http://<vmsingle-svc>:8428/api/v1/query?query=vm_app_uptime_seconds'`
+      Prefer `vm_app_uptime_seconds{job=~"vmsingle.*"}`; fallback `up{job=~".*vmsingle.*"}`.
+      Record the chosen series name.
+  - id: P2.T1.S2
+    text: |-
+      Add a new rule group in `apps/grafana-alerting/manifests/alert-rules-cm.yaml`
+      with `folder: monitoring-meta` containing ONE watchdog rule:
+      - Query (A) = the chosen VM health series; condition: live-single count `< 1`.
+      - `noDataState: Alerting`, `execErrState: Alerting`, `for: 2m`.
+      - label `severity=critical`. NO `github_issue` label.
+      Use the Grafana 12.x SSE 3-step A→B→C shape (classic condition fails with sse.parseError).
+- number: 2
+  title: Route the watchdog to Telegram only
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      In `apps/grafana-alerting/manifests/notification-policy-cm.yaml`, add a route:
+      `grafana_folder=monitoring-meta` → `Telegram - Willikins`, `continue: false`,
+      own `group_by: [alertname]`, `repeat_interval: 15m` (longer than the 3m
+      feature-health default). Leave all existing feature-health routes untouched.
+  - id: P2.T2.S2
+    text: |-
+      Commit to `main`; ArgoCD sync; Grafana pod restart. Confirm the watchdog
+      rule appears under `monitoring-meta` (provisioned) and evaluates `Normal`
+      while VM is healthy.
+- number: 3
+  title: Verify single-page-on-outage behavior
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Scale the (pre-HA single) VMSingle to 0 briefly. Confirm:
+      (a) EXACTLY ONE Telegram page from the watchdog within ~2m,
+      (b) feature-health rules stay silent (KeepLast from Phase 1),
+      (c) NO Health Bridge call and no `github_issue` on the watchdog alert
+          (check the Health Bridge webhook logs show nothing for it).
+      Restore the replica; confirm the watchdog auto-resolves.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

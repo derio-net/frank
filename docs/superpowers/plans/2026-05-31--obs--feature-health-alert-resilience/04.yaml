@@ -1,0 +1,72 @@
+schema_version: 2
+phase:
+  number: 4
+  title: VM read-path HA — vmauth + datasource repoint
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Deploy vmauth in front of both stores
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Deploy `vmauth` (stateless Deployment, 2 replicas, NO PVC, anti-affinity)
+      with one route listing both VMSingle backends,
+      `load_balancing_policy: first_available` (sticky to A, fail over to B),
+      retry on connection failure / 5xx. Express it via the same mechanism chosen
+      in P3.T1.S1.
+- number: 2
+  title: Repoint the Grafana datasource (UID preserved)
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      In `apps/victoria-metrics/values.yaml`, repoint the VictoriaMetrics
+      datasource URL from the vmsingle service to the vmauth service DNS.
+      KEEP UID `P4169E866C3094E38`. Commit to `main`; ArgoCD sync; Grafana restart.
+  - id: P4.T2.S2
+    text: |-
+      Confirm the datasource UID is still `P4169E866C3094E38` and all
+      feature-health rules + dashboards render unchanged (no rule/dashboard edits
+      were needed because they key off the stable UID).
+- number: 3
+  title: End-to-end failover verification (the original incident, now a non-event)
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      FAILOVER: with both singles healthy, `kubectl delete pod` the VMSingle vmauth
+      is currently sticky to. Confirm Grafana queries keep returning data
+      (no DatasourceError, no watchdog page) — i.e. the 2026-05-31 incident is now
+      a non-event. Then kill one vmauth replica; confirm reads continue via the other.
+  - id: P4.T3.S2
+    text: |-
+      PVC-loss-as-non-event: delete one VMSingle PVC; confirm the operator + ArgoCD
+      reconcile it back with ZERO manual API calls, and metrics keep serving from
+      the survivor throughout (honors the original spec's PVC-loss spirit).
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

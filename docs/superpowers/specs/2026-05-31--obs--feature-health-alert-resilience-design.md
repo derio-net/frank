@@ -173,3 +173,9 @@ End-to-end, in order:
 ## Open Questions
 
 None blocking. Plan-time confirmations: exact VM health-metric series name for the watchdog query; whether the 2nd VMSingle + vmauth are chart-values or sibling CRs.
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-05-31--obs--feature-health-alert-resilience | `derio-net/frank` | `docs/superpowers/plans/2026-05-31--obs--feature-health-alert-resilience/` | — |

@@ -1,0 +1,66 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Post-deploy (reduced — extension plan)
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Update existing posts, gotchas, README, status
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Update the existing observability/health-monitoring OPERATING post
+      (`blog/content/operating/15-health-monitoring/`): add the KeepLast rule
+      behavior, the monitoring-meta deadman watchdog, and VM HA operational
+      commands (which single vmauth is serving, manual failover, backfill check).
+      (Extension plan → update existing posts, do NOT create new blog posts.)
+  - id: P5.T1.S2
+    text: |-
+      Update the related BUILDING post if the architecture diagram changed
+      (vmsingle → HA pair + vmauth); add an incident-narrative gotcha callout if useful.
+  - id: P5.T1.S3
+    text: |-
+      Add gotchas: one-liner in `agents/rules/frank-gotchas.md` (Grafana section —
+      execErrState:Error storms on a datasource blip; use KeepLast + a deadman
+      watchdog; vmsingle SPOF → VM HA pair) and full prose in
+      `docs/runbooks/frank-gotchas/grafana.md`.
+  - id: P5.T1.S4
+    text: |-
+      Run `/update-readme` (VictoriaMetrics is now HA — reflect in Technology Stack
+      / Current Status). No `/sync-runbook` needed (no manual-operation blocks).
+  - id: P5.T1.S5
+    text: |-
+      Set the plan `Status` to `Deployed` only after all phases are verified
+      end-to-end live (a layer is not "Deployed" until observed working).
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
