@@ -58,3 +58,21 @@ operator owns the runtime workload), **operator-managed Postgres** on Longhorn,
 Custom Execution Environments, receptor mesh, full device-inventory build-out,
 public exposure, a dedicated `awx-db` app, and AWX DB backups — all deferred per
 the spec.
+
+## Deployment Deviations
+
+- **P1 — managed Postgres CrashLoopBackOff (volume permissions).** After
+  Phases 1–2 the operator-managed `awx-postgres-15-0` pod entered
+  CrashLoopBackOff (696 restarts over ~2.5 days) with
+  `mkdir: cannot create directory '/var/lib/pgsql/data/userdata': Permission
+  denied`. Root cause: the `sclorg/postgresql-15` image runs as UID 26, but a
+  freshly provisioned Longhorn PVC mounts root-owned, and the AWX operator emits
+  an **empty** pod `securityContext` unless told otherwise — so UID 26 cannot
+  create its PGDATA subdir. `awx-web` then CrashLooped (no DB) and `awx-task`
+  stuck at `Init:0/2` (waiting on migrations). **Fix:** added
+  `postgres_data_volume_init: true` to the AWX CR (`apps/awx/manifests/awx.yaml`),
+  which injects a root init container that `chown`s the data volume to the
+  postgres UID before the container starts. Chosen over
+  `postgres_security_context_settings: {fsGroup: 26}` because it is
+  storage-agnostic (works regardless of CSI fsGroup support). Gotcha recorded
+  under Storage / Secrets / SSA.
