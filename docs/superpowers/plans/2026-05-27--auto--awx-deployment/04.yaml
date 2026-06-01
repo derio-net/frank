@@ -32,14 +32,17 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-01T05:09:04+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-01T05:13:38+00:00'
+      note: Tile landed in apps/homepage/manifests/files/services.yaml — the path
+        in the plan body (apps/homepage/manifests/configmap-services.yaml) is wrong;
+        the real ConfigMap is built by Kustomize configMapGenerator from files/services.yaml
+        (see apps/homepage/manifests/kustomization.yaml).
   completion:
-    at: null
+    at: '2026-06-01T05:09:05+00:00'
     note: null
     observed_prs: []
