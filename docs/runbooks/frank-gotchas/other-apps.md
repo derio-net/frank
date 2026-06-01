@@ -93,3 +93,42 @@ source .env
 kubectl rollout restart deployment/homepage -n homepage
 kubectl rollout status deployment/homepage -n homepage --timeout=90s
 ```
+
+## AWX `extra_settings` string values need inner Python quotes
+
+**Symptom (2026-05-31, auto layer):** with Postgres healthy, `awx-web` CrashLooped:
+
+```
+SOCIAL_AUTH_OIDC_OIDC_ENDPOINT = https://auth.cluster.derio.net/application/o/awx/
+                                       ^ SyntaxError: invalid syntax
+unable to load app 0 (mountpoint='/') (callable not found or import error)
+```
+
+and the operator reconcile failed at `installer : Check for pending migrations`:
+
+```
+fatal: [localhost]: FAILED! => Failed to execute on pod awx-web-... :
+  ... b'container not found ("awx-web")'
+```
+
+**Root cause:** the AWX operator writes each `spec.extra_settings` entry verbatim as the right-hand side of a Python assignment into the rendered settings ConfigMap (`awx-awx-configmap`): `{{ setting }} = {{ value }}`. A bare URL or word is not a valid Python literal, so Django/uwsgi fails to import the settings module → `awx-web` never starts. Confirm the rendered file:
+
+```bash
+kubectl -n awx get configmap awx-awx-configmap -o jsonpath='{.data}' | grep -oE 'SOCIAL_AUTH_OIDC[^\\]*'
+# BAD:  SOCIAL_AUTH_OIDC_KEY = awx
+# GOOD: SOCIAL_AUTH_OIDC_KEY = 'awx'
+```
+
+**Cascade:** the operator runs migrations by `kubectl exec`-ing `awx-manage` *inside* `awx-web`. With `awx-web` crashlooping, that exec fails, so the DB is never migrated, and the `wait-for-migrations` init containers in `awx-task`/`awx-web` loop forever (`Init:0/2`). One malformed setting → web crash + no migrations + stuck task. Postgres being healthy is a red herring here.
+
+**Fix (AWX CR `apps/awx/manifests/awx.yaml`):** wrap string values in inner Python quotes — YAML-double-quoted wrapping a Python-single-quoted literal:
+
+```yaml
+extra_settings:
+  - setting: SOCIAL_AUTH_OIDC_OIDC_ENDPOINT
+    value: "'https://auth.cluster.derio.net/application/o/awx/'"
+  - setting: SOCIAL_AUTH_OIDC_KEY
+    value: "'awx'"
+```
+
+Numeric values (`value: "500"`) are fine bare because they are valid Python. After the CR syncs, the operator re-renders the ConfigMap, `awx-web` starts, migrations run, and `awx-task` reaches `4/4`.
