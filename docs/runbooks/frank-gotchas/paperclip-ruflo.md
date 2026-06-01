@@ -12,6 +12,59 @@ If ENOSPC returns, clear the cache inside the `paperclip` container:
 rm -rf /paperclip/.npm/_cacache
 ```
 
+## Verifying a Paperclip image bump (monthly upstream-watcher PR)
+
+The upstream-watcher routine opens image-bump PRs as **drafts** carrying a pre-deploy checklist (snapshot, env vars, DB extensions, breaking config, imagePullSecret). The checklist is real work, not a rubber stamp — Paperclip is a stateful app (`paperclip-db-postgresql` on Longhorn) that auto-runs Drizzle migrations on boot, so a bad bump can wedge the DB. Verify against the upstream `<oldsha>...<newsha>` diff before marking ready. Upstream is the **public** repo `github.com/paperclipai/paperclip`; releases are calver tags `v2026.<MMDD>.0`, images are `latest`/`canary`/`sha-<short>` only (no semver image tags).
+
+```bash
+OLD=60efa38 NEW=911a1e8   # the bump's two short shas
+# 1. Which migrations will run? (the load-bearing check)
+env -u GITHUB_TOKEN gh api repos/paperclipai/paperclip/compare/$OLD...$NEW \
+  --jq '.files[].filename' | grep 'migrations/.*\.sql$'
+# Read each new SQL — fetch with a QUOTED url (the ?ref= trips zsh globbing):
+env -u GITHUB_TOKEN gh api "repos/paperclipai/paperclip/contents/packages/db/src/migrations/<file>.sql?ref=$NEW" \
+  --jq '.content' | base64 -d
+# 2. New process.env.* reads added in range (required-env signal):
+env -u GITHUB_TOKEN gh api repos/paperclipai/paperclip/compare/$OLD...$NEW \
+  --jq '.files[]|select(.patch!=null)|.patch' | grep '^+' | grep -oE 'process\.env\.[A-Z_]+' | sort -u
+```
+
+What to look for in the migrations:
+- **`CREATE EXTENSION`** → must be pre-created in the DB (the bootstrap user may lack `CREATE EXTENSION`). The live DB currently has `pg_trgm` (1.6), `fuzzystrmatch` (1.2), `plpgsql`. Migrations using `gin_trgm_ops` need `pg_trgm` (already present). `gen_random_uuid()` is PG-core (PG13+), not pgcrypto.
+- **Unguarded `DROP CONSTRAINT` / `ALTER`** (no `IF EXISTS`) → will *crash the pod on boot* if the named object doesn't exist. Verify it exists in the live DB before merging:
+  ```bash
+  source .env
+  kubectl exec -n paperclip-system paperclip-db-postgresql-0 -c postgresql -- bash -lc \
+    'PGPASSWORD="$POSTGRES_PASSWORD" psql -U "$POSTGRES_USER" -d "$POSTGRES_DATABASE" \
+     -tAc "SELECT conname FROM pg_constraint WHERE conname IN ('\''<name>'\'')"'
+  # psql lives at /opt/bitnami/postgresql/bin/psql; PGPASSWORD from $POSTGRES_PASSWORD inside the pod.
+  ```
+- New env reads are usually **adapter/CLI-side and optional** (e.g. Claude-adapter `ANTHROPIC_*`, skills-CLI `PAPERCLIP_API_*`/`PAPERCLIP_COMPANY_ID` set at invocation) — the *server* rarely gains a required var. Only add to `apps/paperclip/manifests/configmap.yaml` if the server boot path reads it.
+
+Snapshot the **Postgres** PVC, not `paperclip-data` (migrations land in Postgres):
+```bash
+# data-paperclip-db-postgresql-0 → its Longhorn volume == the PV name (spec.volumeName)
+VOL=$(kubectl get pvc data-paperclip-db-postgresql-0 -n paperclip-system -o jsonpath='{.spec.volumeName}')
+cat <<EOF | kubectl apply -f -
+apiVersion: longhorn.io/v1beta2
+kind: Snapshot
+metadata: { name: paperclip-db-pre-<ver>-$(date +%Y%m%d-%H%M%S), namespace: longhorn-system, labels: { longhornvolume: $VOL } }
+spec: { volume: $VOL, createSnapshot: true }
+EOF
+# This is an in-volume snapshot (lives in the replica chain), not an S3 Backup — fine as a
+# bad-migration rollback since the bump doesn't delete the volume. Delete once confident.
+```
+
+Then merge → ArgoCD syncs (`kubectl annotate application paperclip -n argocd argocd.argoproj.io/refresh=hard --overwrite` to skip the ~3min poll). Strategy is **`Recreate`** (RWO PVC), so the old pod dies before the new one pulls — the whole downtime window is the first-time image pull of the new sha onto its node, not the migration (which is <1s). Confirm end-to-end, not just `Synced/Healthy`:
+```bash
+kubectl logs deploy/paperclip -n paperclip-system -c paperclip | grep -iE 'pendingMigrations|Migrations|listening'
+# expect: "Applying N pending migrations" listing exactly the SQL files from step 1, then "applied"
+kubectl exec deploy/paperclip -n paperclip-system -c paperclip -- wget -qO- localhost:3100/api/health
+# expect: {"status":"ok",...,"bootstrapStatus":"ready","bootstrapInviteActive":false}
+```
+
+Trap: `__drizzle_migrations` row count does **not** map to the highest migration file index (its `id` is a plain serial and `created_at` is a journal artifact — seen as id 93 timestamped before file `0093` existed). To know whether a migration already ran, query for its **tables**, not the count. First field-tested on the v2026.525.0→v2026.529.0 bump (PR #437, 2026-06-01): 4 additive migrations (0090–0093), `0093` an unguarded company-FK `ON DELETE cascade` swap — applied clean.
+
 ## Paperclip's "Test environment" runs in the app container, NOT the shell sidecar
 
 And so does every other agent-CLI invocation paperclip spawns at runtime. Both containers live in the same pod, but they don't share a rootfs and they don't share a PID namespace (the latter forced by the `shareProcessNamespace` gotcha — see `agent-shells.md`). So `gemini`/`codex`/etc. installed via the `paperclip-shell-inventory` ConfigMap — which targets `/home/agent` on the shell's PV — are reachable over SSH but invisible to paperclip's `child_process.spawn()`.
