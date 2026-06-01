@@ -25,11 +25,15 @@ data:
         attrs:
           authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
           authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
+          # invalidation_flow is REQUIRED on Authentik 2026.x oauth2provider entries.
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
           client_type: confidential
           client_id: awx
           # client_secret is set via Authentik Admin UI (from SOPS secret)
-          redirect_uris: |
-            https://awx.cluster.derio.net/sso/complete/oidc/
+          # 2026.x: redirect_uris must be an object list, NOT a newline string.
+          redirect_uris:
+            - matching_mode: strict
+              url: https://awx.cluster.derio.net/sso/complete/oidc/
           signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
