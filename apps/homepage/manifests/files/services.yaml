@@ -91,3 +91,9 @@
         href: https://ruflo.cluster.derio.net
         description: Ruvocal multi-agent orchestrator
         siteMonitor: http://ruflo-web.ruflo-system:80
+- Automation:
+    - AWX:
+        icon: ansible
+        href: https://awx.cluster.derio.net
+        description: Ansible automation controller
+        siteMonitor: http://awx-service.awx:80
