@@ -75,6 +75,7 @@ blueprints:
     - authentik-blueprints-provider-argocd
     - authentik-blueprints-provider-grafana
     - authentik-blueprints-provider-infisical
+    - authentik-blueprints-provider-awx
     - authentik-blueprints-proxy-providers
     - authentik-blueprints-cluster-proxy-providers
     - authentik-blueprints-agent-auth
