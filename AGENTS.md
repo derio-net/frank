@@ -18,6 +18,8 @@ Before making non-trivial changes, agents should read these files in order:
      `agents/rules/frank-argocd.md`, `agents/rules/frank-gotchas.md`
    - Hop: `agents/rules/hop-infrastructure.md`, `agents/rules/hop-commands.md`,
      `agents/rules/hop-gotchas.md`
+   - Browser automation: `agents/rules/browser-harness.md` (machine-global
+     browser-harness setup + the uv-clobber self-repair caveat).
 7. Task-specific skills or reviewer profiles from `agents/skills/`,
    `agents/reviewers/`, and `agents/commands/`.
 
@@ -25,6 +27,7 @@ Before making non-trivial changes, agents should read these files in order:
 
 Agent-neutral rules live in `agents/rules/`:
 
+- `browser-harness.md`
 - `frank-argocd.md`
 - `frank-commands.md`
 - `frank-gotchas.md`
