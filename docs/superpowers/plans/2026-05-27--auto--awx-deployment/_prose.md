@@ -76,3 +76,18 @@ the spec.
   `postgres_security_context_settings: {fsGroup: 26}` because it is
   storage-agnostic (works regardless of CSI fsGroup support). Gotcha recorded
   under Storage / Secrets / SSA.
+- **P1 — `extra_settings` Python SyntaxError → web CrashLoop + migrations
+  blocked.** Once Postgres was healthy, `awx-web` CrashLooped with
+  `unable to load app 0 ... callable not found or import error` and the
+  operator reconcile failed at `installer : Check for pending migrations`
+  (`Failed to execute on pod awx-web-... container not found ("awx-web")`).
+  Root cause: AWX-operator injects each `extra_settings.value` verbatim as the
+  RHS of a Python assignment in the rendered settings file — the live
+  `awx-awx-configmap` contained `SOCIAL_AUTH_OIDC_OIDC_ENDPOINT = https://...`
+  (no quotes), a Python SyntaxError that aborts Django/uwsgi startup. Because
+  the operator runs migrations by `exec`-ing `awx-manage` *inside* the
+  crashlooping `awx-web`, the DB never migrated and `awx-task`/`awx-web` init
+  containers looped on `wait-for-migrations` indefinitely — one cause, three
+  symptoms. **Fix:** wrap the string values in inner Python quotes
+  (`value: "'https://...'"`, `value: "'awx'"`) per AWX `extra_settings` docs.
+  Gotcha recorded under Other in-cluster apps.
