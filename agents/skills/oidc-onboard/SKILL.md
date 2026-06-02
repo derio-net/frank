@@ -103,8 +103,26 @@ Confirm the discovery URL by matching a peer's values, not from memory:
 `https://<authentik-host>/application/o/$ARGUMENTS.service/.well-known/openid-configuration`
 
 **`inject-mode=api`** (AWX and other apps with no OIDC config file):
-PATCH the running app's settings API. The reference implementation is
-`scripts/tmp/awx-oidc-set-secret.sh` — read it, adapt the endpoint, re-run.
+PATCH the app's settings API after the pod is up, using `$CLIENT_SECRET` from
+step 4. Worked example for AWX (confirm the deploy/container/secret names against
+the live app first):
+
+```bash
+ADMIN_PW=$(kubectl -n awx get secret awx-admin-password -o jsonpath='{.data.password}' | base64 -d)
+# PATCH the OIDC settings category (payload via stdin so the secret isn't shell-escaped):
+printf '{"SOCIAL_AUTH_OIDC_SECRET":"%s"}' "$CLIENT_SECRET" \
+  | kubectl -n awx exec -i deploy/awx-web -c awx-web -- \
+      curl -sk -u "admin:${ADMIN_PW}" -X PATCH http://localhost:8052/api/v2/settings/oidc/ \
+        -H 'Content-Type: application/json' --data-binary @-
+# verify — expect an $encrypted$-prefixed value back:
+kubectl -n awx exec deploy/awx-web -c awx-web -- \
+  curl -sk -u "admin:${ADMIN_PW}" http://localhost:8052/api/v2/settings/oidc/
+```
+
+The endpoint and setting key are app-specific — for a non-AWX app, find its OIDC
+settings endpoint and secret field name in that app's API docs. (Keep any
+throwaway helper under the gitignored `scripts/tmp/`; do not reference it from
+this skill.)
 
 ### 7. Verify
 

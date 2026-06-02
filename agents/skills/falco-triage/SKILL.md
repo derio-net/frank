@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 arguments:
   - name: rule
-    description: The Falco rule name from the Telegram alert (e.g. "Drop and execute new binary in container")
+    description: The Falco rule name from the Telegram alert (e.g. "Drop and execute new binary in container"). Omit to scan recent Critical events in step 1.
     required: false
 ---
 
