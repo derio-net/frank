@@ -52,8 +52,12 @@ Repo-local skills are stored in `agents/skills/`. When a task matches a skill,
 read that skill's `SKILL.md` before acting.
 
 - `blog-post`: `agents/skills/blog-post/SKILL.md`
+- `bump-image`: `agents/skills/bump-image/SKILL.md`
 - `deploy-app`: `agents/skills/deploy-app/SKILL.md`
+- `expose-service`: `agents/skills/expose-service/SKILL.md`
+- `falco-triage`: `agents/skills/falco-triage/SKILL.md`
 - `media`: `agents/skills/media/SKILL.md`
+- `oidc-onboard`: `agents/skills/oidc-onboard/SKILL.md`
 - `papers`: `agents/skills/papers/SKILL.md`
 - `sync-runbook`: `agents/skills/sync-runbook/SKILL.md`
 - `update-readme`: `agents/skills/update-readme/SKILL.md`
