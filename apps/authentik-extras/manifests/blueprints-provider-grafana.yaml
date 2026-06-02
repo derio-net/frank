@@ -28,8 +28,11 @@ data:
           client_type: confidential
           client_id: grafana
           # client_secret is set via Authentik Admin UI (from SOPS secret)
-          redirect_uris: |
-            https://grafana.frank.derio.net/login/generic_oauth
+          # 2026.x: invalidation_flow required + redirect_uris must be an object list.
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          redirect_uris:
+            - matching_mode: strict
+              url: https://grafana.frank.derio.net/login/generic_oauth
           signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]

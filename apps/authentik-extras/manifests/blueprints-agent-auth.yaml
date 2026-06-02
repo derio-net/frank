@@ -30,7 +30,9 @@ data:
           client_type: confidential
           client_id: k8s-agent
           # client_secret is set via Authentik Admin UI
-          redirect_uris: ""
+          # 2026.x: invalidation_flow required + redirect_uris must be a list (empty here).
+          invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+          redirect_uris: []
           signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
           property_mappings:
             - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
