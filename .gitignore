@@ -71,3 +71,7 @@ blog/themes/
 # --archive-cap entries per key (FIFO by mtime; default 30). Curate by
 # promoting keepers into .reference-pool/<series>/ (which IS tracked).
 .regen-archive/
+
+# Throwaway one-shot operational scripts (OIDC secret-set helpers, etc.)
+# scripts/tmp is the runbook-referenced throwaway convention; never committed.
+scripts/tmp/
