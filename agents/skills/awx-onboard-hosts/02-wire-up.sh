@@ -13,7 +13,7 @@ source "$ENV_FILE"
 ADMIN_PW="$(kubectl -n awx get secret awx-admin-password -o jsonpath='{.data.password}' | base64 -d)"
 BASE="${AWX_API_URL%/}/api/v2"
 
-api()  { curl -sk -u "admin:${ADMIN_PW}" "$@"; }                       # generic
+api()  { curl -s -u "admin:${ADMIN_PW}" "$@"; }                        # generic (TLS verified — Let's Encrypt)
 getj() { api "$BASE/$1"; }                                            # GET
 postj(){ api -H 'Content-Type: application/json' -X POST "$BASE/$1" --data-binary @-; }  # POST stdin
 patchj(){ api -H 'Content-Type: application/json' -X PATCH "$BASE/$1" --data-binary @-; } # PATCH stdin
@@ -50,7 +50,10 @@ INV_ID="$(get_or_create inventories "$AWX_INVENTORY" <<<"$INV_PAYLOAD")"
 echo "    inventory id=${INV_ID}"
 
 echo "==> setting inventory vars (skip host-key prompt on first contact)…"
-INV_VARS_PAYLOAD="$(python3 -c 'import json;print(json.dumps({"variables":"ansible_ssh_common_args: \"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null\""}))')"
+# TOFU host keys: accept-new pins the key on first contact and REJECTS a changed
+# key afterward (vs StrictHostKeyChecking=no which never verifies). For stricter
+# setups, pre-seed the credential's ssh public host keys instead — see SKILL.md.
+INV_VARS_PAYLOAD="$(python3 -c 'import json;print(json.dumps({"variables":"ansible_ssh_common_args: \"-o StrictHostKeyChecking=accept-new\""}))')"
 printf '%s' "$INV_VARS_PAYLOAD" | patchj "inventories/${INV_ID}/" >/dev/null && echo "    ok"
 
 echo "==> Hosts:"

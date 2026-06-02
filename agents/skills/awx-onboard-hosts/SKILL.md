@@ -63,10 +63,22 @@ runs an **ad-hoc `ansible -m ping`** and reports per-host `pong`. This alone sat
 the gate's intent ("a play runs green against a real host").
 
 ### 3. Formalize: Gitea Project + Job Template  →  `bash 03-formalize.sh [env-file]`
-Creates a Gitea repo with `ping.yml`, an AWX Project pointing at the in-cluster Gitea
-URL (`gitea-http.gitea.svc.cluster.local:3000`), waits for project sync, creates the
-Job Template with the credential attached, launches it, and reports the `PLAY RECAP`.
-This is the reusable artifact (nicer job URL for the blog).
+Creates a **private** Gitea repo with `ping.yml`, an AWX **Source Control credential**
+(`frank-gitea-scm`) so the clone authenticates, an AWX Project pointing at the in-cluster
+Gitea URL (`gitea-http.gitea.svc.cluster.local:3000`), waits for project sync, creates the
+Job Template with the machine credential attached, launches it, and reports the `PLAY
+RECAP`. This is the reusable artifact (nicer job URL for the blog).
+
+## Security posture (baked into the scripts)
+- **TLS verification ON** — `awx.cluster.derio.net` and `gitea.cluster.derio.net` have
+  valid Let's Encrypt certs, so no `curl -k`. Admin password + SSH private key travel
+  verified. (The in-cluster `SCM_URL` is pod→pod http, authenticated by the SCM cred.)
+- **Private playbook repo** — never public; AWX clones it with the SCM credential.
+- **Host keys: `accept-new` TOFU** — pins on first contact and rejects a *changed* key
+  (not blanket `StrictHostKeyChecking=no`). To harden to full verification, pre-seed the
+  Machine Credential's SSH known-hosts (`ssh-keyscan` the hosts) instead of TOFU.
+- Secrets (AWX admin pw, Gitea pw, the private key) are read live at run time and never
+  written into the env file or committed.
 
 ### 4. Verify + capture
 - AWX UI job output: `https://awx.cluster.derio.net/#/jobs/playbook/<id>/output`.
