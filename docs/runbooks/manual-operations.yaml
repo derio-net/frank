@@ -309,23 +309,31 @@ operations:
   plan: docs/superpowers/plans/2026-05-27--auto--awx-deployment
   when: After the AWX blueprint applies (Authentik worker reconciles it) and AWX is up (Phase 5)
   why_manual: >-
-    Authentik blueprints do not carry the OAuth2 client_secret, and AWX's
-    SOCIAL_AUTH_OIDC_SECRET is a sensitive value that must not live in git.
-    Both sides are set out-of-band from the same SOPS-stored secret.
+    Authentik blueprints do not carry the OAuth2 client_secret. The blueprint
+    creates a *confidential* provider, so Authentik AUTO-GENERATES the secret —
+    do NOT mint a new one. Copy that value into AWX's SOCIAL_AUTH_OIDC_SECRET
+    (a sensitive value that must not live in git).
   commands: |
-    # 1. Generate the shared client secret and store in SOPS:
-    CLIENT_SECRET="$(openssl rand -base64 32)"
-    # 2. Authentik: set it on the AWX provider (Admin UI > Providers > AWX,
-    #    or the API). Must equal CLIENT_SECRET.
-    # 3. AWX: set SOCIAL_AUTH_OIDC_SECRET via the Settings API (DB-backed):
-    #    curl -sk -u admin:<admin-pw> -X PATCH \
-    #      https://awx.cluster.derio.net/api/v2/settings/authentication/ \
-    #      -H 'Content-Type: application/json' \
-    #      -d "{\"SOCIAL_AUTH_OIDC_SECRET\": \"$CLIENT_SECRET\"}"
+    # GOTCHA: the secret belongs to AWX settings category "oidc", NOT
+    # "authentication" — a PATCH to the wrong category returns 200 but SILENTLY
+    # drops the key (AWX only registers the OIDC backend once KEY+SECRET+ENDPOINT
+    # are all set, so the SSO button stays missing).
+    ADMIN_PW="$(kubectl -n awx get secret awx-admin-password -o jsonpath='{.data.password}' | base64 -d)"
+    SECRET="$(kubectl exec -n authentik deploy/authentik-worker -- python -c '
+    import os; os.environ.setdefault("DJANGO_SETTINGS_MODULE","authentik.root.settings")
+    import django; django.setup()
+    from authentik.providers.oauth2.models import OAuth2Provider
+    print(OAuth2Provider.objects.get(client_id="awx").client_secret)')"
+    kubectl -n awx exec deploy/awx-web -c awx-web -- curl -s -u "admin:$ADMIN_PW" \
+      -X PATCH http://localhost:8052/api/v2/settings/oidc/ \
+      -H 'Content-Type: application/json' \
+      -d "{\"SOCIAL_AUTH_OIDC_SECRET\": \"$SECRET\"}"
+    # (optional DR) SOPS-store the value at secrets/authentik/awx-oidc-secret.yaml.
   verify: |
-    # OIDC login button appears at https://awx.cluster.derio.net and a
-    # round-trip login through Authentik succeeds (validated in Phase 5).
-  status: pending
+    # `curl -s https://awx.cluster.derio.net/api/v2/auth/` lists an "oidc" login
+    # URL; the SSO button appears and a round-trip login through Authentik
+    # succeeds. Verified 2026-06-02 (Phase 5).
+  status: done
 - id: backup-r2-sops-secret
   layer: backup
   app: longhorn
