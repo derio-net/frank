@@ -78,6 +78,9 @@ state:
       ticked_at: '2026-06-02T19:38:12+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-02T20:14:01+00:00'
+    note: 'Deployed gate GREEN: ad-hoc + Job Template ansible ping successful against
+      raspi-vlan10-D/E (AWX jobs 2 & 4, ok=1/pong); Authentik OIDC SSO round-trip
+      verified; AWX reconciled + UI reachable. Host onboarding codified as the awx-onboard-hosts
+      skill.'
     observed_prs: []
