@@ -47,26 +47,29 @@ state:
       ticked_at: '2026-06-02T20:17:07+00:00'
       note: null
     P6.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-03T07:54:42+00:00'
       note: null
     P6.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-03T07:54:43+00:00'
       note: null
     P6.T1.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-03T07:18:48+00:00'
       note: null
     P6.T1.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-03T07:14:11+00:00'
       note: null
     P6.T1.S6:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-03T07:14:12+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-03T07:55:12+00:00'
+    note: 'Post-Deploy Checklist complete: exposure confirmed (S1), building #32 +
+      operating #27 published (S2/S3), README updated (S4), runbook reconciled incl.
+      the missing auto-awx-bootstrap-secrets entry (S5), spec+plan -> Deployed with
+      deviations (S6).'
     observed_prs: []

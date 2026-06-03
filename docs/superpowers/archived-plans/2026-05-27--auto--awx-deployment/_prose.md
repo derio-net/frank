@@ -1,7 +1,7 @@
 # AWX Deployment Implementation Plan
 
 **Spec:** `docs/superpowers/specs/2026-05-26--auto--awx-deployment-design.md`
-**Status:** Not Started
+**Status:** Deployed
 
 ## Overview
 

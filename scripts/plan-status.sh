@@ -20,22 +20,28 @@ case "${1:-}" in
   --open)    SHOW_OPEN=true ;;
 esac
 
-# Collect plan files from both active and archived directories
+# Collect plans from active + archived dirs. Handles BOTH v1 (loose <slug>.md)
+# and v2 (plan FOLDERS containing _prose.md). STATUS_FILE maps each entry to the
+# file holding its **Status:**/**Spec:** headers — the .md itself for v1, or
+# <folder>/_prose.md for v2.
 declare -a ALL_FILES=()
 declare -A IS_ARCHIVED=()
+declare -A STATUS_FILE=()
 
-for f in "$PLANS_DIR"/*.md; do
-  [ -e "$f" ] || continue
-  ALL_FILES+=("$f")
-  IS_ARCHIVED["$f"]="no"
-done
-if [ -d "$ARCHIVE_DIR" ]; then
-  for f in "$ARCHIVE_DIR"/*.md; do
+collect_dir() {  # $1=dir  $2=archived (yes|no)
+  local dir="$1" arch="$2" f
+  for f in "$dir"/*.md; do            # v1 plans (loose .md)
     [ -e "$f" ] || continue
-    ALL_FILES+=("$f")
-    IS_ARCHIVED["$f"]="yes"
+    ALL_FILES+=("$f"); IS_ARCHIVED["$f"]="$arch"; STATUS_FILE["$f"]="$f"
   done
-fi
+  for f in "$dir"/*/; do              # v2 plans (folders with _prose.md)
+    f="${f%/}"
+    [ -f "$f/_prose.md" ] || continue
+    ALL_FILES+=("$f"); IS_ARCHIVED["$f"]="$arch"; STATUS_FILE["$f"]="$f/_prose.md"
+  done
+}
+collect_dir "$PLANS_DIR" "no"
+[ -d "$ARCHIVE_DIR" ] && collect_dir "$ARCHIVE_DIR" "yes"
 
 # Sort by basename
 mapfile -t SORTED < <(for f in "${ALL_FILES[@]}"; do echo "$(basename "$f")|$f"; done | sort | cut -d'|' -f2)
@@ -65,7 +71,7 @@ for f in "${SORTED[@]}"; do
   fi
 
   # Extract Spec reference from first 20 lines
-  spec_ref=$(head -20 "$f" | sed -n 's/.*\*\*Spec:\*\* `\([^`]*\)`.*/\1/p' | head -1)
+  spec_ref=$(head -20 "${STATUS_FILE[$f]}" | sed -n 's/.*\*\*Spec:\*\* `\([^`]*\)`.*/\1/p' | head -1)
   if [ -z "$spec_ref" ]; then
     spec="no"
     WARNINGS+=("Missing **Spec:** line: $base")
@@ -81,7 +87,7 @@ for f in "${SORTED[@]}"; do
   fi
 
   # Extract Status from first 20 lines (raw for filtering, display version for output)
-  status_raw=$(head -20 "$f" | sed -n 's/.*\*\*Status:\*\* \(.*\)/\1/p' | head -1)
+  status_raw=$(head -20 "${STATUS_FILE[$f]}" | sed -n 's/.*\*\*Status:\*\* \(.*\)/\1/p' | head -1)
   status="$status_raw"
   if [[ "$status" == *" ("* ]]; then
     status="${status%% (*} (...)"
@@ -111,6 +117,13 @@ for f in "${SORTED[@]}"; do
     rel_path="${f#"$REPO_ROOT/"}"
     printf "\n\033[1m%s\033[0m  %s  [%s]\n" "$layer" "$details" "$status"
     printf "\033[2m%s\033[0m\n" "$rel_path"
+
+    # v2 plans keep phase/step state in NN.yaml, not markdown checkboxes — the
+    # task tree below is v1-only. Point at vk for v2 progress and move on.
+    if [[ "${STATUS_FILE[$f]}" == */_prose.md ]]; then
+      printf "  (v2 plan — run \033[1mvk progress\033[0m for phase/step state)\n"
+      continue
+    fi
 
     # Collect tasks with their open steps
     declare -a task_names=()

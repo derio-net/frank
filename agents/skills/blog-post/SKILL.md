@@ -80,19 +80,25 @@ Typical structure:
   - `description` — one-line caption (used for `--list` and humans skimming)
   - `prompt` — **scene only**: form factor / device / clothing-variant specialization + action + composition + lighting cue. Do NOT repeat traits already in `base_character` / `base_atmosphere` / `torso_variants[X]`. Do NOT keyword-spam.
 
-- **Cover image generation**: After the entry is approved:
+- **Cover image generation**: After the entry is approved, **always generate a
+  batch of options** — Frank's look varies run-to-run, so give the user a choice
+  rather than a single take:
   ```bash
   source .env_common && uv run --with pyyaml --with google-genai --with pillow \
-    scripts/generate-all-images.py --only <key>
+    scripts/generate-all-images.py --only <key> --count 8
   ```
-  The script auto-picks the master reference from
+  `--count N` produces N variants, each archived under `.regen-archive/<key>/`
+  (with a sidecar `.txt` recording the recipe); `cover.png` is left as the last
+  one. The script auto-picks the master reference from
   `.reference-pool/<series>/reference-<series>.png` based on the entry's
-  `series:` field (or key prefix). Add 1–2 paths to `references:` on the
-  yaml entry to stack additional anchors from
-  `.reference-pool/<series>/subjects/`. Override the master ref for a
-  one-off run with `-r path.png`.
+  `series:` field (or key prefix). Add 1–2 paths to `references:` on the yaml
+  entry to stack additional anchors from `.reference-pool/<series>/subjects/`.
+  Override the master ref for a one-off run with `-r path.png`.
 
-  Show the generated image to the user for review. If they want a regeneration, run the command again — the previous cover is auto-archived under `.regen-archive/<key>/` (capped at 30 per key, FIFO).
+  **Show the user the variants** (the PNGs under `.regen-archive/<key>/`) and let
+  them pick; copy the chosen one to the entry's `output` path as the final
+  `cover.png`. Want more options? Re-run with `--count N` (FIFO-capped at
+  `--archive-cap`, default 30, per key).
 - Inline images: co-locate in the page bundle directory (NOT in `/static/images/`)
 - Use relative paths: `![Alt text](image.png)`
 

@@ -303,6 +303,32 @@ operations:
   - After login, Longhorn UI loads normally
   - Repeat for https://hubble.frank.derio.net and https://sympozium.frank.derio.net
   status: done
+- id: auto-awx-bootstrap-secrets
+  layer: auto
+  app: awx
+  plan: docs/superpowers/plans/2026-05-27--auto--awx-deployment
+  when: Before/at first ArgoCD sync of the awx Application (Phase 5)
+  why_manual: >-
+    AWX admin password and Django secret key are sensitive and must exist
+    before the operator reconciles the AWX pods. SOPS-encrypted secrets are
+    applied out-of-band, never ArgoCD-managed (repo declarative-only exception).
+  commands: |
+    kubectl create namespace awx --dry-run=client -o yaml | kubectl apply -f -
+    # admin password (key MUST be 'password' per awx-operator)
+    kubectl -n awx create secret generic awx-admin-password \
+      --from-literal=password="$(openssl rand -base64 24)" \
+      --dry-run=client -o yaml > secrets/awx/awx-admin-password.yaml
+    # Django secret key (key MUST be 'secret_key')
+    kubectl -n awx create secret generic awx-secret-key \
+      --from-literal=secret_key="$(openssl rand -base64 48)" \
+      --dry-run=client -o yaml > secrets/awx/awx-secret-key.yaml
+    sops --encrypt --in-place secrets/awx/awx-admin-password.yaml
+    sops --encrypt --in-place secrets/awx/awx-secret-key.yaml
+    sops --decrypt secrets/awx/awx-admin-password.yaml | kubectl apply -f -
+    sops --decrypt secrets/awx/awx-secret-key.yaml | kubectl apply -f -
+  verify: |
+    kubectl -n awx get secret awx-admin-password awx-secret-key
+  status: done
 - id: auto-awx-oidc-client-secret
   layer: auto
   app: awx

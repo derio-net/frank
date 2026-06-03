@@ -3,7 +3,8 @@ name: sync-runbook
 description: >
   Sync the central manual-operations runbook from all plan files.
   Use after writing or editing any plan that contains manual-operation
-  YAML blocks. Scans docs/superpowers/plans/*.md, extracts blocks tagged
+  YAML blocks. Scans docs/superpowers/plans/ — BOTH v1 *.md plans and v2
+  plan folders (*/NN.yaml phase files) — extracts blocks tagged
   "# manual-operation", merges into docs/runbooks/manual-operations.yaml
   (deduplicates by id, preserves status of existing entries), then commits.
 ---
@@ -19,7 +20,12 @@ Invoke `/sync-runbook` after any session that:
 
 ## Process
 
-1. **Scan** all `docs/superpowers/plans/*.md` for fenced code blocks tagged `# manual-operation`
+1. **Scan** for fenced ```` ```yaml ```` blocks whose first line is `# manual-operation`, across BOTH plan formats. Find every candidate file with:
+   ```bash
+   grep -rl '# manual-operation' docs/superpowers/plans/
+   ```
+   - **v1 plans** — `docs/superpowers/plans/*.md`: the block sits at column 0.
+   - **v2 plans** — `docs/superpowers/plans/<slug>/NN.yaml` (phase files): the block is **nested inside a step's `text: |-` field and is therefore indented**. Strip the leading step indentation (dedent) before parsing it as YAML. (This is the case the old `*.md`-only glob silently missed — e.g. the awx-deployment v2 plan's `auto-awx-bootstrap-secrets` op was never synced.)
 2. **Parse** each block as YAML — extract all fields
 3. **Read** existing `docs/runbooks/manual-operations.yaml`
 4. **Merge** — for each extracted entry:
@@ -39,7 +45,7 @@ Invoke `/sync-runbook` after any session that:
 - NEVER change `status` of an existing entry — only new entries get `status: pending`
 - If a block in a plan is malformed YAML, report the file and line number, skip the block, continue
 - If `docs/runbooks/` does not exist, create it before writing
-- Always populate the `plan:` field from the plan filename if the block omits it
+- Always populate the `plan:` field if the block omits it — from the `.md` filename (v1) or the plan FOLDER path `docs/superpowers/plans/<slug>` (v2)
 - Do not touch any other files
 
 ## Manual-operation block format (in plans)

@@ -43,7 +43,7 @@ tasks:
         sops --decrypt secrets/awx/awx-secret-key.yaml | kubectl apply -f -
       verify: |
         kubectl -n awx get secret awx-admin-password awx-secret-key
-      status: pending
+      status: done
       ```
 
       Verify: both secrets exist in the `awx` namespace; the encrypted files are committed under `secrets/awx/`. Record the generated admin password in the operator's password manager (it is the break-glass login).
