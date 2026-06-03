@@ -1,6 +1,6 @@
 # AWX on Frank — Design
 
-**Status:** Draft
+**Status:** Deployed
 **Layer:** `auto` (Infrastructure Automation, number 20 — new layer)
 **Spec date:** 2026-05-26
 
@@ -216,3 +216,45 @@ bootstrap is a manual-operation), register the `auto` layer in
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
 | 2026-05-27--auto--awx-deployment | `derio-net/frank` | `docs/superpowers/plans/2026-05-27--auto--awx-deployment/` | — |
+
+## Deployment deviations (observed)
+
+Deployed 2026-06-02. Gate met: an Ansible `ping` ran green against two real
+non-Talos hosts (`raspi-vlan10-D/E`, VLAN 10) over a dedicated AWX SSH key — both
+via an ad-hoc command and the `smoke-ping` Job Template.
+
+1. **`extra_settings` Python quoting (Phase 1).** AWX CR `extra_settings.value` is
+   injected verbatim as the RHS of a Python assignment in the rendered settings
+   module, so string values MUST carry inner Python quotes (`value: "'…'"`), else a
+   bare URL/word is a `SyntaxError` → `awx-web` "unable to load app" CrashLoop →
+   migrations never run. (PR #434; gotcha recorded.)
+
+2. **Operator-managed Postgres volume perms (Phase 1).** `sclorg/postgresql-15`
+   runs as UID 26 but the fresh Longhorn PVC mounts root-owned and the operator
+   emits an empty `securityContext` → `mkdir userdata: Permission denied`
+   CrashLoop. Fixed with `postgres_data_volume_init: true` on the AWX CR.
+
+3. **OIDC blueprint 2026.x format (Phase 3 — surfaced in Phase 5).** The AWX
+   OAuth2 provider blueprint was authored in pre-2026.x form; Authentik 2026.2.1
+   rejects it (`invalidation_flow` required, `redirect_uris` must be an object
+   list), so the `BlueprintInstance` sat at `status=error` and **the provider was
+   never created** — AWX showed only its local login (no SSO button). Fixed by
+   adding `invalidation_flow` + object `redirect_uris`. The same latent defect
+   affected the `argocd/grafana/infisical/k8s-agent` blueprints (masked by
+   pre-upgrade provider objects); fixed in the same pass. Caught only because the
+   Phase 5 gate actually exercised SSO — "ArgoCD Synced ≠ it works".
+
+4. **OIDC secret settings category (Phase 5).** AWX's confidential provider makes
+   Authentik **auto-generate** the `client_secret` (adopt it; don't mint a new
+   one). It must be PATCHed into the AWX **`oidc`** settings category, NOT
+   `authentication` — the wrong category returns `200` but silently drops the key,
+   so the OIDC backend never registers.
+
+5. **Exposure confirmed, no change.** IngressRoute backend `awx-service:80` and the
+   OIDC callback `/sso/complete/oidc/` were correct as designed; homepage tile lives
+   under `apps/homepage/manifests/files/services.yaml` (Automation → AWX).
+
+6. **Smoke-gate connection detail.** `ansible_ssh_common_args` is prohibited in
+   ad-hoc `extra_vars` (AWX denylist) — set host-key handling as an inventory
+   variable instead. The reusable onboarding flow is codified as the
+   `awx-onboard-hosts` skill.
