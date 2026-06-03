@@ -630,6 +630,13 @@ def main() -> None:
         "--seed", type=int, default=None,
         help="Seed the random source used to sample reference-pool images (default: system entropy)"
     )
+    parser.add_argument(
+        "--count", "-n", type=int, default=1,
+        help="Generate N variants per key. Each generation is archived under "
+             ".regen-archive/<key>/ (sidecar .txt records the recipe) so you "
+             "can pick the best; cover.png is left as the last one. Re-picks "
+             "any random torso/pool selections per variant. Default: 1"
+    )
     args = parser.parse_args()
     rng = random.Random(args.seed) if args.seed is not None else random.Random()
 
@@ -651,6 +658,12 @@ def main() -> None:
         targets = [img for img in images if img["key"] in selected]
     else:
         targets = images
+
+    # --count N: repeat each target N times. The per-key loop below re-picks
+    # random torso/pool selections and archives every generation, so N repeats
+    # yields N variants per key under .regen-archive/<key>/ to choose from.
+    if args.count and args.count > 1:
+        targets = [img for img in targets for _ in range(args.count)]
 
     if args.dry_run:
         print(f"Dry run — would generate {len(targets)} images:\n")
