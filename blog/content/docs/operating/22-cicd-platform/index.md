@@ -187,8 +187,7 @@ Access at `http://192.168.55.217:9097` or `https://tekton.cluster.derio.net` (Au
 
 The dashboard is read-only — it shows PipelineRuns, TaskRuns, and logs. Useful for non-CLI users or quick visual debugging.
 
-<!-- MEDIA: screenshot | Tekton Dashboard PipelineRun history with a successful gitea-ci run open | Navigate to http://192.168.55.217:9097 (or via Authentik at tekton.cluster.derio.net), open a recent gitea-ci PipelineRun, capture the DAG view with all steps green -->
-<!-- {{</* screenshot src="tekton-pipelinerun-history.png" caption="Tekton Dashboard: recent PipelineRuns with a successful gitea-ci run expanded" */>}} -->
+{{< screenshot src="tekton-pipelinerun-history.png" caption="Tekton Dashboard: recent PipelineRuns with a successful gitea-ci run expanded" >}}
 
 ### Common Tekton Issues
 

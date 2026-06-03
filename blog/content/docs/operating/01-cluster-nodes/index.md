@@ -103,8 +103,7 @@ hubble observe --verdict DROPPED
 
 > **Tip:** Hubble UI at `http://192.168.55.202` gives you the same flow data with a visual service map. It is often faster for exploring than the CLI.
 
-<!-- MEDIA: screenshot | Hubble UI service map rendering live pod-to-pod flows | Navigate to http://192.168.55.202 from a machine on the LAN, pick a busy namespace (e.g. monitoring), dark mode preferred -->
-<!-- {{</* screenshot src="hubble-ui-service-map.png" caption="Hubble UI service-map view showing live pod-to-pod flows with verdicts" */>}} -->
+{{< screenshot src="hubble-ui-service-map.png" caption="Hubble UI service-map view showing live pod-to-pod flows with verdicts" >}}
 
 ### Node-Level Diagnostics
 

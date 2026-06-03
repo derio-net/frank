@@ -182,8 +182,7 @@ Health checks use `siteMonitor` (HTTP HEAD/GET to internal ClusterIP URLs), not 
 
 Custom bookmarks link to the Lab landing page, Omni, and Renovate.
 
-<!-- MEDIA: screenshot | Homepage dashboard showing all cluster services organized by category | Navigate to https://master.cluster.derio.net and capture the full dashboard view -->
-<!-- {{</* screenshot src="homepage-dashboard.png" caption="Homepage dashboard at master.cluster.derio.net" */>}} -->
+{{< screenshot src="homepage-dashboard.png" caption="Homepage dashboard at master.cluster.derio.net" >}}
 
 ## Gotchas
 

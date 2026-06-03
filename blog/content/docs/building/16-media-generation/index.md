@@ -81,8 +81,7 @@ Format: `name:namespace:deployment` — so `ollama:ollama:ollama` means "the wor
 
 On each status check, it queries the Kubernetes API for each Deployment's replica count and pod status. The dashboard shows which workload currently owns the GPU. Activating a workload scales it to 1 replica and scales all others to 0.
 
-<!-- MEDIA: screenshot | GPU Switcher web dashboard showing Ollama active and ComfyUI inactive | Open browser to http://192.168.55.214:8080 -->
-<!-- {{</* screenshot src="gpu-switcher-ui.png" caption="GPU Switcher web UI" */>}} -->
+{{< screenshot src="gpu-switcher-ui.png" caption="GPU Switcher web UI" >}}
 
 ### The ArgoCD Problem
 

@@ -68,8 +68,7 @@ kubectl get volume.longhorn.io <volume-name> -n longhorn-system -o yaml
 
 The dashboard at `http://192.168.55.201` gives you a visual overview of volume health, replica distribution, node capacity, and backup status. It is the fastest way to spot problems.
 
-<!-- MEDIA: screenshot | Longhorn UI Volume page showing replica distribution and health | Navigate to http://192.168.55.201/#/volume, dark mode preferred -->
-<!-- {{</* screenshot src="longhorn-ui-volumes.png" caption="Longhorn UI Volume page: replica distribution and robustness at a glance" */>}} -->
+{{< screenshot src="longhorn-ui-volumes.png" caption="Longhorn UI Volume page: replica distribution and robustness at a glance" >}}
 
 ### Backup Jobs
 

@@ -75,8 +75,7 @@ global:
 
 This is set via `global.env` so it applies to both the server and worker deployments.
 
-<!-- MEDIA: screenshot | Authentik login page with branded Frank cluster login form | Navigate to https://auth.frank.derio.net or http://192.168.55.211:9000 -->
-<!-- {{</* screenshot src="authentik-login.png" caption="Authentik login page" */>}} -->
+{{< screenshot src="authentik-login.png" caption="Authentik login page" >}}
 
 ### Pattern 3: Agent Auth (Kubernetes OIDC)
 
