@@ -71,7 +71,10 @@ agent-base
   `cont-init.d/30-authorized-keys` copies `/etc/ssh-keys/authorized_keys` into
   `~/.ssh/authorized_keys` on boot. Reuse the operator public key already paired
   with the other shells. SOPS-bootstrap (not ESO) mirrors `secure-agent-pod`'s
-  `agent-ssh-keys`, `paperclip-shell-ssh-keys`, and `ruflo-shell-ssh-keys`.
+  `agent-ssh-keys`, `paperclip-shell-ssh-keys`, and `ruflo-shell-ssh-keys`. The
+  `optional: true` flag follows **paperclip/ruflo** (their ssh-keys volumes are
+  optional so the pod boots before bootstrap); secure-agent-pod's is *required*,
+  so we deviate from it deliberately here.
 
 ### Services (SSH + Mosh)
 
@@ -99,14 +102,53 @@ Frank manifest and sourced via ESO from Infisical.
 
 - **Dedicated LiteLLM virtual key.** New Infisical entry `HERMES_LITELLM_KEY`,
   backed by its own LiteLLM virtual key (independently observable / revocable in
-  LiteLLM, not entangled with paperclip's `PAPERCLIP_LITELLM_KEY`). ESO
-  `ExternalSecret hermes-agent-shell-llm-key` → Secret exposing `OPENAI_API_KEY`.
-- **Container env:**
-  - `OPENAI_BASE_URL=http://litellm.litellm.svc:4000/v1` — Frank's real
-    in-cluster LiteLLM DNS (the image README's `litellm.litellm-system` is an
-    upstream-generic placeholder; Frank's namespace is `litellm`, confirmed
-    against paperclip/ruflo which both use `litellm.litellm.svc:4000`).
-  - `OPENAI_API_KEY` ← `hermes-agent-shell-llm-key` secret.
+  LiteLLM, not entangled with paperclip's `PAPERCLIP_LITELLM_KEY`).
+- **One ESO secret carries both values** (matches ruflo's
+  `externalsecret-llm.yaml`, which emits base-URL + key from a single
+  `ExternalSecret` template rather than splitting URL into deployment env). ESO
+  `ExternalSecret hermes-agent-shell-llm` → Secret `hermes-agent-shell-llm`
+  with:
+  - `OPENAI_BASE_URL: "http://litellm.litellm.svc:4000/v1"` — a literal in the
+    ESO `template.data` (not a synced key). Frank's real in-cluster LiteLLM DNS:
+    the image README's `litellm.litellm-system` is an upstream-generic
+    placeholder; Frank's namespace is `litellm`, confirmed against
+    paperclip/ruflo which both use `litellm.litellm.svc:4000`. The `/v1` suffix
+    is kept deliberately — the hermes-agent-shell image README's own BYOK table
+    documents `OPENAI_BASE_URL = http://…:4000/v1` (the OpenAI-compatible client
+    appends paths to a `/v1` base). (ruflo omits `/v1` only because its consumer
+    is opencode, not an OpenAI client.)
+  - `OPENAI_API_KEY: "{{ .OPENAI_API_KEY }}"` — synced from Infisical
+    `HERMES_LITELLM_KEY`.
+  The Deployment consumes it via `envFrom: secretRef: name: hermes-agent-shell-llm
+  optional: true` so the pod still boots before the Phase 0 bootstrap (the
+  secret won't exist until ESO syncs the minted key).
+
+- **CRITICAL — sshd scrubs the container env; a profile.d shim re-exports it.**
+  `agent-shell-base`'s sshd runs with `UsePAM no` and **no**
+  `PermitUserEnvironment` (`agent-shell-base/sshd_config`), so the K8s-injected
+  container env (`OPENAI_BASE_URL`/`OPENAI_API_KEY` on PID 1) does **not** reach
+  an interactive SSH/Mosh login shell — the `sshd scrubs container env on login`
+  gotcha (`frank-gotchas.md` → `agent-shells.md`). Because this pod's entire
+  purpose is running `hermes` interactively over SSH, the BYOK env must be
+  re-exported into the login shell or hermes silently can't reach LiteLLM. (The
+  image's own `50-hermes-agent-shell-motd.sh` would otherwise print
+  "OPENAI_BASE_URL not set" on every login despite the manifest setting it.)
+  **Fix (no image change):** mount a profile.d drop-in
+  `/etc/profile.d/35-hermes-agent-shell-byok-env.sh` from a ConfigMap
+  `hermes-agent-shell-env` via `subPath` — exactly the mechanism paperclip uses
+  for its `60-paperclip-shell-tips.sh` (`apps/paperclip/manifests/deployment.yaml:262-264`).
+  The shim sources `OPENAI_BASE_URL`/`OPENAI_API_KEY` from `/proc/1/environ`
+  (readable: the whole container runs as UID 1000, so PID 1 is same-UID — this
+  is the sanctioned escape hatch named in the gotcha) and `export`s them for the
+  login shell, only if unset. Numbered `35-` so it runs before the `50-` MOTD
+  check, suppressing the spurious "not set" note.
+  - *Limitation:* profile.d is sourced by **login** shells (`/etc/profile`), so
+    interactive `ssh agent@…` then `hermes` is covered, but non-interactive
+    `ssh agent@… -- hermes …` is not — for that, use `kubectl exec` or source
+    `/proc/1/environ` manually. The operator runbook drives interactive use, so
+    this matches the primary path; the limitation is documented in the operating
+    post.
+
 - **Telegram alerts** — ESO `ExternalSecret hermes-agent-shell-alerts` syncing
   `FRANK_C2_TELEGRAM_BOT_TOKEN` / `FRANK_C2_TELEGRAM_CHAT_ID`; consumed via
   `envFrom … secretRef … optional: true` (fail-open per the
@@ -117,16 +159,19 @@ Frank manifest and sourced via ESO from Infisical.
 
 ConfigMap `hermes-agent-shell-inventory` mounted at `/etc/hermes-agent-shell/`
 (the image's reconcile reads `/etc/hermes-agent-shell/inventory.yaml`). Ship
-**sparse** for the initial deploy so the boot reconcile is a clean no-op, with
-the multi-harness standard's three keys present:
+**sparse** for the initial deploy so the boot reconcile is a genuine no-op, with
+the multi-harness standard's three keys present but **empty**:
 
 ```yaml
-harnesses:
-  hermes: latest        # float; pin a PyPI version later if desired
-mcp-servers:
-  hermes: []
-skills:
-  hermes: []
+# All three keys empty → reconcile iterates nothing → true no-op boot.
+# NOTE: do NOT seed `harnesses: { hermes: latest }` here. hermes is on PATH
+# (baked at HERMES_VERSION=0.15.2), and install-inventory.sh runs `hermes
+# update` for every populated harness entry on EVERY boot — not a no-op, and a
+# non-zero exit fires a Telegram alert. Leave empty; the operator pins a
+# version later if they want the float behavior.
+harnesses: {}
+mcp-servers: {}
+skills: {}
 ```
 
 ### App CR conventions
@@ -135,13 +180,22 @@ Application CR at `apps/root/templates/hermes-agent-shell.yaml`, namespace via
 `apps/root/templates/ns-hermes-agent-shell.yaml`:
 
 - `project: infrastructure`, single `source` (`path: apps/hermes-agent-shell/manifests`).
-- `syncPolicy.automated.selfHeal: true`, `prune: false`.
+- `syncPolicy.automated.selfHeal: true`, explicit `prune: false`
+  (`frank-argocd.md` guidance; note secure-agent-pod's template omits `prune`
+  and relies on the ArgoCD default — we set it explicitly rather than copy that
+  template verbatim).
 - `syncOptions: ServerSideApply=true`, `RespectIgnoreDifferences=true`,
   `CreateNamespace=false` (namespace templated separately, matching secure-agent-pod).
 - `ignoreDifferences` on Secret `/data`.
 - `resources-finalizer.argocd.argoproj.io` finalizer.
 - ArgoCD Telegram sync-notification annotations (`subscribe.on-sync-running.telegram`,
   `subscribe.on-sync-succeeded.telegram`), mirroring secure-agent-pod.
+
+Namespace `ns-hermes-agent-shell.yaml` carries the Pod Security Admission label
+`pod-security.kubernetes.io/enforce: baseline`, matching the sibling shell
+namespaces (`ns-secure-agent-pod.yaml`, paperclip/ruflo). The container
+(runAsNonRoot, drop ALL caps) actually satisfies `restricted`, but `baseline`
+keeps it consistent with the family.
 
 ## Scope
 
@@ -152,7 +206,10 @@ client-setup helpers, the two manual-operation bootstraps, and the post-deploy
 documentation (blog building+operating posts, README, frank-infrastructure.md
 service-table row, runbook sync).
 
-**Out of scope:** any change to `agent-images` (the image ships as-is);
+**Out of scope:** any change to `agent-images` (the image ships as-is — note the
+BYOK-env profile.d shim is delivered as a **Frank-side ConfigMap mounted via
+`subPath`**, identical to paperclip's existing `60-…-tips.sh` mount, so it
+respects this boundary and needs no image edit);
 exposing the shell on a web domain / homepage tile (it is SSH/Mosh-only);
 cross-harness skill unification; pinning a specific hermes PyPI version or
 pre-loading MCP servers / skills (inventory ships sparse — operator fills later);
@@ -171,11 +228,14 @@ agentic build-out):
      `secrets/hermes-agent-shell/`, and apply it out-of-band.
   Both are `# manual-operation` blocks → synced to the runbook.
 - **Phase 1 — Agentic deploy + verify:** author all manifests, the Application
-  CR + Namespace, ESOs, ConfigMap, client-setup helpers; sync via ArgoCD; verify
-  end-to-end (pod Healthy, ESOs resolved, SSH in, MOTD shows the BYOK row,
-  `hermes --version` runs, `OPENAI_BASE_URL` reachable); then the post-deploy
-  checklist (building+operating blog posts, README, service-table row, runbook
-  sync, status → Deployed).
+  CR + Namespace, both ConfigMaps (inventory + BYOK-env profile.d shim), ESOs,
+  client-setup helpers; sync via ArgoCD; verify end-to-end (pod Healthy, ESOs
+  resolved, SSH in, MOTD shows the BYOK row **without** the "OPENAI_BASE_URL not
+  set" note — proving the profile.d shim re-exported the env, `hermes --version`
+  runs, and `$OPENAI_BASE_URL` is reachable **from an interactive login shell**,
+  not just from `kubectl exec`); then the post-deploy checklist
+  (building+operating blog posts, README, service-table row, runbook sync,
+  status → Deployed).
 
 Both phases depend only on Phase 0 → Phase 1 ordering. The pod boots even if
 Phase 0 is incomplete (both secret volumes/refs are `optional: true`) — it just
@@ -200,8 +260,9 @@ commands:
   - "Mint a virtual key in LiteLLM (admin UI or /key/generate) scoped to the hermes agent."
   - "Store it in Infisical as HERMES_LITELLM_KEY (same project/env the other Frank keys use)."
 verify:
-  - "kubectl -n hermes-agent-shell get externalsecret hermes-agent-shell-llm-key -o jsonpath='{.status.conditions[0].reason}' → SecretSynced"
-  - "kubectl -n hermes-agent-shell get secret hermes-agent-shell-llm-key -o jsonpath='{.data.OPENAI_API_KEY}' | base64 -d | head -c4 → non-empty"
+  - "kubectl -n hermes-agent-shell get externalsecret hermes-agent-shell-llm -o jsonpath='{.status.conditions[0].reason}' → SecretSynced"
+  - "kubectl -n hermes-agent-shell get secret hermes-agent-shell-llm -o jsonpath='{.data.OPENAI_API_KEY}' | base64 -d | head -c4 → non-empty"
+  - "kubectl -n hermes-agent-shell exec deploy/hermes-agent-shell -- sh -lc 'curl -sf -H \"Authorization: Bearer $OPENAI_API_KEY\" $OPENAI_BASE_URL/models >/dev/null && echo reachable' → reachable (exec, NOT port-forward — gpu-1 flakiness gotcha)"
 status: pending
 
 # manual-operation
@@ -221,7 +282,7 @@ commands:
   - "sops --decrypt secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml | kubectl apply -f -"
 verify:
   - "kubectl -n hermes-agent-shell get secret hermes-agent-shell-ssh-keys"
-  - "ssh -p 22 agent@192.168.55.226 'hermes --version' → prints a version"
+  - "ssh -p 22 agent@192.168.55.226 'hermes --version' → prints a version (--version needs no BYOK env; LiteLLM reachability is checked separately via kubectl exec or an interactive login shell, never `ssh host -- cmd` which skips profile.d)"
 status: pending
 ```
 
@@ -232,11 +293,12 @@ apps/hermes-agent-shell/manifests/deployment.yaml
 apps/hermes-agent-shell/manifests/service.yaml                 # combined TCP 22 + UDP 60032-60047
 apps/hermes-agent-shell/manifests/pvc-home.yaml
 apps/hermes-agent-shell/manifests/configmap-inventory.yaml
-apps/hermes-agent-shell/manifests/externalsecret-llm.yaml
+apps/hermes-agent-shell/manifests/configmap-byok-env.yaml      # 35-…-byok-env.sh profile.d shim (C1 fix)
+apps/hermes-agent-shell/manifests/externalsecret-llm.yaml      # OPENAI_BASE_URL + OPENAI_API_KEY
 apps/hermes-agent-shell/manifests/externalsecret-alerts.yaml
 apps/hermes-agent-shell/client-setup/laptop/{ssh-config.snippet,mosh-wrapper.sh,README.md}
 apps/root/templates/hermes-agent-shell.yaml                    # Application CR
-apps/root/templates/ns-hermes-agent-shell.yaml                 # Namespace
+apps/root/templates/ns-hermes-agent-shell.yaml                 # Namespace (PSA enforce: baseline)
 secrets/hermes-agent-shell/README.md                           # SOPS bootstrap runbook
 ```
 
@@ -255,6 +317,12 @@ secrets/hermes-agent-shell/README.md                           # SOPS bootstrap 
 
 ## Risks / open items
 
+- **[RESOLVED in review] sshd env-scrub breaks BYOK over SSH.** The container
+  env (`OPENAI_BASE_URL`/`OPENAI_API_KEY`) does not reach an interactive SSH
+  login shell (`UsePAM no`, no `PermitUserEnvironment`). Resolved by the
+  ConfigMap-mounted `35-…-byok-env.sh` profile.d shim that re-exports from
+  `/proc/1/environ` (see BYOK section). Non-interactive `ssh host -- cmd`
+  remains env-less by design — use `kubectl exec` for that.
 - **Two manual bootstraps gate first-green.** Acceptable: both refs are
   `optional: true`, so the pod boots regardless; hermes simply can't reach
   LiteLLM and sshd accepts no keys until they land. Standard declarative-only
