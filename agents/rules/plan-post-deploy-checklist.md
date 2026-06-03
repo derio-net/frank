@@ -10,7 +10,7 @@ When creating a plan for a **standard layer** (new deployment, not a fix/extensi
 
 - [ ] **Step 1: Expose externally (if user-facing)** — For any new service reachable by humans from outside the cluster (e.g. `vk.cluster.derio.net`):
   - Add a Traefik IngressRoute in `apps/traefik/manifests/ingressroutes.yaml` (with `authentik-forwardauth` middleware if SSO is required — see `frank-argocd.md` for the full forward-auth wiring, including the manual outpost-provider assignment)
-  - Add a tile to the homepage dashboard at `master.cluster.derio.net` via `apps/homepage/manifests/configmap-services.yaml` (icon, category, description, URL)
+  - Add a tile to the homepage dashboard at `master.cluster.derio.net` via `apps/homepage/manifests/files/services.yaml` (icon, category, description, URL)
   - Document the exposure (domain, auth mode, any manual steps) in the plan's deployment section and in the building blog post
 - [ ] **Step 2: Write building blog post** — Use `/blog-post` skill. Update series index in `blog/content/docs/building/00-overview/index.md` and cluster roadmap in `blog/layouts/shortcodes/cluster-roadmap.html`
 - [ ] **Step 3: Write operating blog post** — Use `/blog-post` skill for the companion operating guide. Update operating series index in `blog/content/docs/building/00-overview/index.md`

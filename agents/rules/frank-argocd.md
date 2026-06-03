@@ -17,7 +17,7 @@ Copy an existing template from `apps/root/templates/` and adapt. Key decisions:
 ### Homepage Dashboard
 
 When adding a new outward-facing service with an IngressRoute:
-1. Add the service to `apps/homepage/manifests/configmap-services.yaml` (icon, category, description, URL)
+1. Add the service to `apps/homepage/manifests/files/services.yaml` (icon, category, description, URL)
 2. Add the IngressRoute to `apps/traefik/manifests/ingressroutes.yaml`
 3. If the service uses Authentik forward-auth (`authentik-forwardauth` middleware):
    a. Add a proxy provider entry to `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml` (follow existing pattern: `forward_single` mode, include `invalidation_flow`)
