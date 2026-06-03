@@ -378,8 +378,7 @@ The fix is two layers of path handling:
 
 **What we learned:** `baseURL` in Hugo is for link generation, not for output directory structure. If you need a subpath, handle it at the reverse proxy layer.
 
-<!-- MEDIA: screenshot | Blog as served from the Hop cluster at blog.derio.net/frank | Navigate to https://blog.derio.net/frank in a browser and capture the landing page -->
-<!-- {{</* screenshot src="blog-from-hop.png" caption="Blog served from Hop cluster at blog.derio.net/frank" */>}} -->
+{{< screenshot src="blog-from-hop.png" caption="Blog served from Hop cluster at blog.derio.net/frank" >}}
 
 ## Deviation #7: Control Plane Scheduling
 

@@ -151,8 +151,7 @@ kubectl rollout restart deploy/authentik-worker -n authentik
 
 ## Homepage Dashboard
 
-<!-- MEDIA: screenshot | Homepage dashboard | Navigate to master.cluster.derio.net via Traefik, dark mode -->
-<!-- {{</* screenshot src="homepage-dashboard.png" caption="Homepage dashboard showing all cluster services" */>}} -->
+{{< screenshot src="homepage-dashboard.png" caption="Homepage dashboard showing all cluster services" >}}
 
 ### Restart After ConfigMap Change
 

@@ -191,8 +191,7 @@ The practical recovery story:
 | Full cluster loss | ArgoCD re-applies resources, restore PVCs from R2 | ~30–60 min |
 | NAS + cluster simultaneous loss | Restore from weekly R2 backup (≤7 day RPO) | ~60 min |
 
-<!-- MEDIA: screenshot | Longhorn UI Backup page listing recent R2 backups | Navigate to http://192.168.55.201/#/backup, dark mode preferred -->
-<!-- {{</* screenshot src="longhorn-backups-list.png" caption="Longhorn UI Backup page showing daily R2 snapshots with retention" */>}} -->
+{{< screenshot src="longhorn-backups-list.png" caption="Longhorn UI Backup page showing daily R2 snapshots with retention" >}}
 
 ## References
 

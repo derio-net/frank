@@ -223,8 +223,7 @@ spec:
     - name: report-failure  # When tasks failed
 ```
 
-<!-- MEDIA: screenshot | Tekton Dashboard showing a successful PipelineRun with all task stages | Navigate to http://192.168.55.217:9097, open a recent gitea-ci PipelineRun, capture the DAG view with clone/test/build-push/sign/report steps -->
-<!-- {{</* screenshot src="tekton-pipelinerun.png" caption="Tekton Dashboard: a gitea-ci PipelineRun showing all stages completed" */>}} -->
+{{< screenshot src="tekton-pipelinerun.png" caption="Tekton Dashboard: a gitea-ci PipelineRun showing all stages completed" >}}
 
 ## Zot — OCI Container Registry
 
