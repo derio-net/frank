@@ -66,6 +66,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | CI/CD Platform | Gitea + Tekton + Zot | Self-hosted git forge (GitHub mirror), K8s-native pipelines, OCI registry with cosign signing — all on pc-1 |
 | Cluster Dashboard | gethomepage.dev | Service catalog at `master.cluster.derio.net` with HTTP health indicators and custom bookmarks |
 | The Frank Papers | Third blog series (research) | Hugo section with dossier-gate pre-commit hook, Mermaid Frank theme, five `papers/` shortcodes, render-time cross-series backlinks (zero-retrofit) |
+| Ansible Automation | AWX | Operator-managed upstream Ansible controller (the `auto` layer) — the imperative counterweight reaching non-Talos home-lab hosts; native OIDC SSO via Authentik; Job Templates pull playbooks from a Gitea repo |
 
 ## Repository Structure
 
@@ -119,6 +120,7 @@ frank/
 │   ├── homepage/manifests/                     # gethomepage.dev dashboard (master.cluster.derio.net)
 │   ├── gitea/values.yaml + manifests/          # Gitea git forge (192.168.55.209), GitHub mirrors, Authentik OIDC
 │   ├── zot/values.yaml + manifests/            # Zot OCI registry (192.168.55.210), cert-manager TLS, cosign
+│   ├── awx/values.yaml + manifests/            # AWX Operator + AWX CR — Ansible controller (auto layer), OIDC SSO
 │   └── tekton/                                 # Tekton CI/CD platform on pc-1
 │       ├── vendor/                             # Vendored releases (Pipelines, Triggers, Dashboard)
 │       ├── tasks/                              # CI Tasks (git-clone, run-tests, build-push, cosign-sign, gitea-status)
@@ -211,6 +213,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | VictoriaLogs (LB) | http://192.168.55.225:9428 (cross-cluster ingest from Hop fluent-bit) | 192.168.55.225 |
 | VK Remote | https://vk.cluster.derio.net | (via Traefik) |
 | Homepage Dashboard | https://master.cluster.derio.net | (via Traefik) |
+| AWX | https://awx.cluster.derio.net | (via Traefik) |
 
 ### Hop Cluster (Public Edge)
 
@@ -292,6 +295,7 @@ argocd app list
 | longhorn-cicd | longhorn-system | Single-replica StorageClass for CI/CD workloads on pc-1 |
 | goatcounter | goatcounter-system | Blog analytics (arp242/goatcounter:2.7.0); LB 192.168.55.224, mesh-only admin via Authentik forward-auth |
 | ai-alert-helper | ai-alert-helper-system | FastAPI service — daily digest CronJob + surge-check + Grafana webhook receiver |
+| awx | awx | AWX Operator + AWX CR (Ansible controller); OIDC SSO via Authentik; smoke-ping Job Template green vs non-Talos home-lab hosts |
 
 ### Hop Cluster Applications
 
