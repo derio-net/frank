@@ -1,38 +1,24 @@
 # Browser Automation — browser-harness (machine-global)
 
-Browser automation here uses **browser-harness**, a machine-global skill — not
-anything checked into this repo. Every shell on this Mac (interactive,
-non-interactive, login, and Claude Code subagents alike) has it on `$PATH`, so an
-agent in this repo or any sibling repo gets the identical setup with no extra
-configuration.
+Browser automation in this repo uses **browser-harness**, a machine-global skill on `$PATH` —
+not anything checked into this repo. Any agent runtime, on any clone, gets the identical setup
+with no per-repo configuration.
 
-- **Skill / source of truth:** `~/Developer/browser-harness/SKILL.md`
-  (also `@`-imported by the global `~/.claude/CLAUDE.md`).
-- **How it works:** `browser-harness` is a `$PATH` wrapper that resolves the live
-  CDP WebSocket of the running **Brave-Clawdia** profile on port 9222 and delegates
-  to the uv-installed CLI. Invoke as a heredoc; first navigation is `new_tab(url)`,
-  not `goto_url`. Local = CDP to Brave only; cloud browsers need
-  `BROWSER_USE_API_KEY` (not set on this machine).
+- **Source of truth:** `~/Developer/browser-harness/SKILL.md`. Read it before driving the browser.
+- **Invocation:** call `browser-harness` as a heredoc; the first navigation is `new_tab(url)`,
+  not `goto_url` (which clobbers the operator's active tab).
 
-## Caveat: `uv` can clobber the wrapper — recognize and repair it
+## Transport is injected per environment
 
-`browser-harness` is installed via `uv` (entrypoint at `~/.local/bin/browser-harness`).
-The dotfiles wrapper overrides that entrypoint with a symlink so the CLI attaches to
-Brave instead of auto-launching Chrome. **`uv tool upgrade browser-harness` recreates
-uv's own entrypoint and silently clobbers the override.**
+browser-harness talks to a real browser, but *which* browser depends on where this clone runs.
+That host-specific detail is **not** kept in this always-loaded rule — it is supplied per
+environment so a clone never inherits another host's setup:
 
-- **Symptom:** a bare `browser-harness` call launches **Chrome**, not Brave-Clawdia.
-- **Detect:** `readlink ~/.local/bin/browser-harness` should resolve to
-  `~/.dotfiles/zsh/bin/browser-harness`. If it doesn't, it's clobbered.
-- **Repair:** run `browser-harness-doctor` — idempotent; re-points the wrapper
-  symlinks and reports status. Manual equivalent:
-  `ln -sf ~/.dotfiles/zsh/bin/browser-harness ~/.local/bin/browser-harness`.
+- **Local workstation (macOS):** local CDP to a logged-in **Brave** profile. The Mac-only
+  conventions (the `brave-clawdia` session pair, CDP exposure caveats, the `uv`-clobber repair)
+  are injected into context only on that host. See `agents/browser-harness-mac.md`.
+- **secure-agent-pod / Linux clones:** the remote **Browser Use** cloud browser, via
+  `BROWSER_USE_API_KEY`. No local CDP, no Brave.
 
-If you run any `uv tool upgrade` touching browser-harness, run `browser-harness-doctor`
-afterward.
-
----
-
-*This rule is mirrored in `willikins` and `frank` for in-repo discoverability. The
-canonical source of truth is `~/Developer/browser-harness/SKILL.md`; keep the two
-mirrors in sync with it.*
+If you are unsure which transport is active, check for `BROWSER_USE_API_KEY` (cloud) versus a
+local CDP endpoint (workstation) before assuming.

@@ -19,7 +19,9 @@ Before making non-trivial changes, agents should read these files in order:
    - Hop: `agents/rules/hop-infrastructure.md`, `agents/rules/hop-commands.md`,
      `agents/rules/hop-gotchas.md`
    - Browser automation: `agents/rules/browser-harness.md` (machine-global
-     browser-harness setup + the uv-clobber self-repair caveat).
+     browser-harness setup; host-specific transport injected per environment).
+     On the macOS workstation, the SessionStart adapter also injects the Mac-only
+     overlay `agents/browser-harness-mac.md` (Brave-Clawdia + uv-clobber caveat).
 7. Task-specific skills or reviewer profiles from `agents/skills/`,
    `agents/reviewers/`, and `agents/commands/`.
 
