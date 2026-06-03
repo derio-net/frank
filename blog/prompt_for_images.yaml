@@ -1457,6 +1457,28 @@ images:
       the reference as a strict character sheet, only change pose,
       expression, scene, and lighting.
 
+  - key: building-32-automation
+    series: building
+    torso_variant: 3
+    mood: determined
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-gear-shirt-2.png
+    output: blog/content/docs/building/32-automation/cover.png
+    description: "Building Automation — Frank bolting a long articulated arm onto his shoulder to reach two Raspberry Pis stranded on a separate VLAN-10 island"
+    prompt: >-
+      Frank, overalls under a lab coat, bolting a long articulated mechanical
+      arm onto his right shoulder with a wrench in his free hand. The new arm
+      reaches out across a dark gap toward a small floating island labelled
+      "VLAN 10" holding two tiny Raspberry Pi boards side by side, each with a
+      small green check and a little speech tag reading "pong". The arm's
+      gripper hand holds up a single brass key labelled "awx". An open access
+      panel on Frank's chest shows a small screen reading "AWX" with a green
+      status line "smoke-ping ok". Warm workshop lamplight on Frank at his
+      bench, cool blue rim light on the long reaching arm and the distant
+      island. The ONLY readable text: "VLAN 10", "pong", "awx", "AWX",
+      "smoke-ping" — no other captions, no watermarks. ONE FIGURE — one single
+      Frank.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -2079,3 +2101,24 @@ images:
       expression, scene, and lighting. The ONLY readable text is the
       labels described above — no other captions, no watermarks.
       ONE FIGURE — one single Frank.
+
+  - key: ops-27-automation
+    series: operating
+    torso_variant: 2
+    mood: focused
+    references:
+      - .reference-pool/operating/subjects/frank-coat-overalls.png
+    output: blog/content/docs/operating/27-automation/cover.png
+    description: "Operating Automation — Frank at a console launching an AWX job and watching a green pong come back from two remote Pis"
+    prompt: >-
+      Frank in a t-shirt with rolled-up sleeves, seated at a dim operations
+      console, one hand resting on a large green "Launch" lever he has just
+      pulled. The central monitor shows an AWX job output: a title "smoke-ping"
+      with a green "Successful" badge and two result lines, "raspi-vlan10-D ok"
+      and "raspi-vlan10-E ok", each ending in "pong". Beside the desk a small
+      panel door labelled "SSO" stands ajar with a brass key labelled "awx"
+      hanging in its lock. A thin cable runs from the console off toward two
+      tiny distant Pi lights. Cool monitor glow on Frank's face, a warm key
+      light from the side. The ONLY readable text: "smoke-ping", "Successful",
+      "raspi-vlan10-D", "raspi-vlan10-E", "pong", "SSO", "awx" — no other
+      captions, no watermarks. ONE FIGURE — one single Frank.

@@ -62,6 +62,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **CrowdSec + caddy-crowdsec-bouncer** | Edge HTTP security — agent tails Caddy logs on Hop, Caddy bouncer enforces decisions locally without round-tripping to Frank |
 | **Falco (modern_ebpf) + Falcosidekick** | Container runtime security on Talos — Loki output to VictoriaLogs (Loki push protocol) + direct Telegram for `priority:critical` |
 | **ai-alert-helper** | FastAPI service — daily blog digest, alert-time LLM enrichment, surge detection (hour-of-day baseline computed in Python because LogsQL has no `quantile_over_time`); LiteLLM-backed swap contract for future Sympozium |
+| **AWX** | Ansible automation controller — the imperative arm reaching non-Talos home-lab hosts over SSH; operator + `AWX` CR (two-layer reconcile), native OIDC SSO via Authentik, Gitea-backed Job Templates |
 
 ## Cluster State
 
@@ -105,6 +106,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 29. [Ruflo — A Swarm Orchestrator Next to Paperclip]({{< relref "/docs/building/29-ruflo" >}})
 30. [Building The Frank Papers — Research Infrastructure for a Third Series]({{< relref "/docs/building/30-frank-papers" >}})
 31. [Building Edge Observability — Watching Frank's Edge Without Watching Frank's Edge Burn]({{< relref "/docs/building/31-edge-observability" >}})
+32. [Building Automation — AWX, the Imperative Counterweight]({{< relref "/docs/building/32-automation" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
@@ -138,3 +140,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 24. [Operating on Ruflo]({{< relref "/docs/operating/24-ruflo" >}})
 25. [Operating The Frank Papers — Research, Dossiers, and Publishing]({{< relref "/docs/operating/25-frank-papers" >}})
 26. [Operating Edge Observability — Day-to-Day Commands for the Obs Layer]({{< relref "/docs/operating/26-edge-observability" >}})
+27. [Operating Automation — Day-to-Day Commands for AWX]({{< relref "/docs/operating/27-automation" >}})
