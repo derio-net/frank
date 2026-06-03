@@ -3,9 +3,10 @@
 #
 # This repo is cloned on the secure-agent-pod too, where browser-harness uses the remote cloud
 # browser (not local Brave/CDP). The Mac-specific rule therefore lives OUTSIDE agents/rules/
-# (which .claude/rules symlinks to, and which auto-loads everywhere) and is injected here only
-# when running on this Mac with the Clawdia setup present. On Linux/pod clones, uname != Darwin
-# → skipped, so the rule never pollutes pod context.
+# (the always-loaded shared rule registry) and is injected here only when running on this Mac with
+# the Clawdia setup present. On Linux/pod clones, uname != Darwin → skipped, so the rule never
+# pollutes pod context. The host-neutral browser-harness rule stays in agents/rules/ and loads
+# everywhere.
 set -uo pipefail
 
 REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
