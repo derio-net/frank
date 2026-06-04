@@ -12,7 +12,12 @@ spec:
   sources:
     - repoURL: https://charts.longhorn.io
       chart: longhorn
-      targetRevision: "1.11.0"
+      # 1.11.2: fixes the v1.11.0 instance-manager anonymous-heap leak
+      # (proxy connection leak, longhorn#12575) that wedged raspi-1 on
+      # 2026-06-04 and loaded mini-1/gpu-1 with 48/72 GiB of leaked heap.
+      # NOTE: running engines stay on the old engine image until each
+      # volume is live-upgraded; old IMs (and their heap) retire only then.
+      targetRevision: "1.11.2"
       helm:
         releaseName: longhorn
         valueFiles:
