@@ -136,8 +136,7 @@ curl -sf -X POST "$GITEA_URL/api/v1/repos/migrate" \
 
 A `tekton-bot` service account owns the mirror and has an API token stored in Infisical for pipeline status reporting. The mirror syncs every 10 minutes — fast enough for CI, without hammering GitHub's API.
 
-<!-- MEDIA: screenshot | Gitea repository list showing GitHub pull mirrors | Log in to http://192.168.55.209:3000 as tekton-bot via Authentik SSO, capture the repository list showing the mirror icon on each entry -->
-<!-- {{</* screenshot src="gitea-pull-mirrors.png" caption="Gitea dashboard listing GitHub pull mirrors with their last-sync timestamps" */>}} -->
+{{< screenshot src="gitea-pull-mirrors.png" caption="The tekton-bot/frank pull mirror in Gitea — mirror badge in the title, freshly synced from GitHub" >}}
 
 ## Tekton — Kubernetes-Native Pipelines
 

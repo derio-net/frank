@@ -20,8 +20,7 @@ Paperclip is healthy when:
 
 Paperclip is pinned to gpu-1 (`nodeSelector: kubernetes.io/hostname: gpu-1`) with a defensive `nvidia.com/gpu:NoSchedule` toleration. It does not request a GPU — gpu-1 is the cluster's biggest CPU/RAM box (128GB, ~20% requested) and absorbs the 12Gi memory limit without crowding the core-zone control-plane minis. See the building post's *Memory Tuning and the Move to gpu-1* section for the history.
 
-<!-- MEDIA: screenshot | Paperclip dashboard showing agent overview and recent runs | Navigate to http://192.168.55.212:3100, log in, capture the main dashboard view with at least one agent visible, dark mode preferred -->
-<!-- {{</* screenshot src="paperclip-dashboard.png" caption="Paperclip dashboard: the control plane's view of registered agents and recent runs" */>}} -->
+{{< screenshot src="paperclip-dashboard.png" caption="Paperclip dashboard: the control plane's view of registered agents and recent runs" >}}
 
 Quick health check:
 

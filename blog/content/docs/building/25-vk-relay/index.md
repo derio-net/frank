@@ -113,8 +113,7 @@ The relay requires a one-time cryptographic pairing between the browser and the 
 
 After pairing, the port-forward is never needed again. The relay handles all communication going forward — unless the browser's IndexedDB is cleared, in which case you re-pair.
 
-<!-- MEDIA: screenshot | VK Relay pairing screen showing the 6-digit SPAKE2 code prompt | Open vk.cluster.derio.net → Settings → Pair host in a fresh browser session, capture the pairing modal showing the code input field -->
-<!-- {{</* screenshot src="vk-relay-pairing.png" caption="Browser-side pairing dialog where the SPAKE2 code from the local VK server is entered" */>}} -->
+{{< screenshot src="vk-relay-pairing.png" caption="Browser-side pairing dialog where the SPAKE2 code from the local VK server is entered" >}}
 
 ## Data Flow
 

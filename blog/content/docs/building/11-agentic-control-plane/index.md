@@ -72,8 +72,7 @@ Five components run in the `sympozium-system` namespace:
 
 **API Server** serves the REST API and embeds the web dashboard.
 
-<!-- MEDIA: screenshot | Sympozium web dashboard showing agent status and recent runs | Open browser to http://192.168.55.207:8080 -->
-<!-- {{</* screenshot src="sympozium-dashboard.png" caption="Sympozium web dashboard" */>}} -->
+{{< screenshot src="sympozium-dashboard.png" caption="Sympozium web dashboard" >}}
 
 ## PersonaPacks: Agent Bundles
 
@@ -90,8 +89,7 @@ Three PersonaPacks are deployed:
 
 The SRE agent runs every hour via a SympoziumSchedule. It uses the `k8s-ops` SkillPack to interact with the Kubernetes API — listing nodes, checking pod health, reading logs. The `sre-watchdog` persona also uses the `llmfit` SkillPack for hardware-aware model placement recommendations.
 
-<!-- MEDIA: screenshot | Agent run detail view showing lifecycle states (Pending, Running, Completed) | Open Sympozium dashboard, click on a recent AgentRun to see its detail view -->
-<!-- {{</* screenshot src="agent-run-detail.png" caption="Agent run detail view showing lifecycle states" */>}} -->
+{{< screenshot src="agent-run-detail.png" caption="Agent run detail view showing lifecycle states" >}}
 
 ### DevOps Essentials
 

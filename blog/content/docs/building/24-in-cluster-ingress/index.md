@@ -146,8 +146,7 @@ vk-remote      8d
 zot            12d
 ```
 
-<!-- MEDIA: screenshot | Traefik dashboard showing routers, services, and middleware chains | Navigate to the Traefik dashboard and capture the routers overview page -->
-<!-- {{</* screenshot src="traefik-dashboard.png" caption="Traefik dashboard showing configured routers" */>}} -->
+{{< screenshot src="traefik-dashboard.png" caption="Traefik dashboard showing configured routers" >}}
 
 ## Authentik Blueprints
 
