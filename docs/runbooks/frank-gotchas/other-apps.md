@@ -10,6 +10,28 @@ Apps with only one or two gotchas live here together (Sympozium, Zot, Gitea, n8n
 - Service template doesn't support type/annotations — use a separate LB Service in `extras`.
 - `image.tag` must be overridden (chart appVersion lags behind latest fix releases).
 
+### PersonaPack `model` only applies at SympoziumInstance creation
+
+The PersonaPack controller stamps each persona's `model` into its SympoziumInstance **when the instance is created** — editing the PersonaPack afterwards does NOT reconcile existing instances. Two traps stack on top of each other:
+
+1. **Live edits get healed away.** Patching the PersonaPack on the cluster looks like it worked, but ArgoCD self-heal reverts it to git within the sync window. Merge the manifest change to `main` first.
+2. **Even a synced PersonaPack changes nothing.** After the merge, existing SympoziumInstances still carry the old model. Delete them and let the controller recreate:
+
+```bash
+kubectl delete sympoziuminstances -n sympozium-system --all
+# controller recreates from PersonaPacks within ~30s; verify:
+kubectl get sympoziuminstances -n sympozium-system -o custom-columns=NAME:.metadata.name,MODEL:.spec.model
+```
+
+**Incident (2026-06-04, PR #448):** the LiteLLM alias `qwen3.5` was removed from `apps/litellm/values.yaml`; every scheduled AgentRun failed for ~2 weeks (350 failures) because all SympoziumInstances were created with the dead alias. Fix: `sed` the three PersonaPack manifests to `qwen36-a3b-nothin` (the no-think variant — right choice for agent orchestration), merge, sync, then delete all 8 instances. Validated with a manual AgentRun (`Succeeded` in 273s) and the next hourly scheduled run.
+
+### AgentRun quirks
+
+- `spec.sessionKey` is **required** by schema validation even when unused — set `sessionKey: ""` or creation is rejected.
+- Terminal success phase is **`Succeeded`**, not `Completed` — a poll loop matching `Completed` never exits.
+- The web UI's Runs page defaults to the `default` namespace (empty) — real runs live in `sympozium-system`; the namespace switcher is a custom dropdown, not a `<select>`.
+- UI login is token-only (`#token` input); token lives in the `sympozium-ui-token` secret in `sympozium-system`.
+
 ## Zot
 
 - Helm chart v0.1.0 is too minimal — no support for `mountConfig`, `mountSecret`, `persistence`, or `externalSecrets`. Use v0.1.60+ for TLS, htpasswd auth, and persistent storage.

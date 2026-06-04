@@ -60,3 +60,9 @@ Workarounds:
 - if you need a longer window — patch `apps/root/templates/<app>.yaml` itself on the feature branch so root re-templates with the values you want
 
 Same constraint applies to every leaf under `apps/root/`.
+
+## The UI LoadBalancer is plain HTTP (443→8080 plaintext)
+
+The `argocd-server` LB Service at 192.168.55.200 maps port 443 to the server's plaintext 8080 — ArgoCD runs in `--insecure` mode behind the LB, so there is no TLS listener at all. `https://192.168.55.200` fails with a connection reset that looks like a network problem; the fix is just `http://192.168.55.200`.
+
+Bites automation hardest: blog screenshot placeholders and runbooks that reflexively write `https://` URLs get a reset, and `curl -k` doesn't help (it's not a cert problem — there's no TLS handshake to complete). Also note for captures: the UI ignores `prefers-color-scheme` (own theme system), so dark-mode emulation has no effect.
