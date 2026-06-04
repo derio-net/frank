@@ -45,22 +45,24 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T18:01:57+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T18:01:57+00:00'
       note: null
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T18:01:57+00:00'
       note: null
     P2.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T18:02:15+00:00'
+      note: Committed on phase branch via PR (one-phase-one-PR); ArgoCD syncs from
+        main, so live rollout watch deferred to post-merge — covered by Phase 3 live
+        verification.
   completion:
-    at: null
+    at: '2026-06-04T18:02:19+00:00'
     note: null
     observed_prs: []
