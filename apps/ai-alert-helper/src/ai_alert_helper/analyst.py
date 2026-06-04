@@ -64,6 +64,8 @@ def load_skill() -> str:
         text = open(_SKILL_PATH, encoding="utf-8").read()
         start = text.index("<!-- agent-runtime:begin -->")
         end = text.index("<!-- agent-runtime:end -->")
+        if end <= start:  # reversed markers would slice to "" — fall back loudly
+            raise ValueError("agent-runtime markers reversed")
         return text[start + len("<!-- agent-runtime:begin -->"):end].strip()
     except Exception:  # noqa: BLE001 — a missing skill must not kill the poller
         log.warning("SKILL_PATH %s unreadable — using fallback grounding", _SKILL_PATH)

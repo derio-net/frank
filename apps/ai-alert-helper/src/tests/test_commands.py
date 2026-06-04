@@ -189,3 +189,20 @@ def test_telegram_set_my_commands_posts_botcommands(monkeypatch):
     telegram.set_my_commands([{"command": "help", "description": "list commands"}])
     body = json.loads(route.calls.last.request.read())
     assert body["commands"][0]["command"] == "help"
+
+
+@respx.mock
+def test_telegram_pre_entity_length_is_utf16_units(monkeypatch):
+    """Telegram entities count UTF-16 code units — non-BMP chars (emoji from
+    attacker-controlled UAs) are 2 units each; len() undercounts and Telegram
+    rejects the entity."""
+    monkeypatch.setenv("FRANK_C2_TELEGRAM_BOT_TOKEN", "tok")
+    monkeypatch.setenv("FRANK_C2_TELEGRAM_CHAT_ID", "42")
+    from ai_alert_helper import telegram
+    import importlib; importlib.reload(telegram)
+    route = respx.post("https://api.telegram.org/bottok/sendMessage").mock(
+        return_value=httpx.Response(200, json={"ok": True}))
+    text = "ua: 🤖 scanner"          # 🤖 is non-BMP: 2 UTF-16 units
+    telegram.send(text, pre=True)
+    body = json.loads(route.calls.last.request.read())
+    assert body["entities"][0]["length"] == len(text) + 1   # one astral char

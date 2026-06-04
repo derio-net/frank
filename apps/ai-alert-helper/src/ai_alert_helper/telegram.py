@@ -34,7 +34,11 @@ def send(
     if reply_to is not None:
         payload["reply_to_message_id"] = reply_to
     if pre:
-        payload["entities"] = [{"type": "pre", "offset": 0, "length": len(text)}]
+        # Telegram entity offsets/lengths are UTF-16 code units, not Python
+        # code points — tool output can carry non-BMP chars (emoji in
+        # attacker-controlled UAs/paths) that count as 2 units each.
+        utf16_len = len(text.encode("utf-16-le")) // 2
+        payload["entities"] = [{"type": "pre", "offset": 0, "length": utf16_len}]
     httpx.post(
         f"https://api.telegram.org/bot{_TOKEN}/sendMessage",
         json=payload,

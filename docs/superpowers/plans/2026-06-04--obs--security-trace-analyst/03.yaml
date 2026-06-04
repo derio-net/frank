@@ -166,10 +166,13 @@ state:
       ticked_at: '2026-06-04T22:37:29+00:00'
       note: null
     P3.T5.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:49:09+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-04T22:49:19+00:00'
+    note: 'All 102 tests green. Deviations: num_ctx via OLLAMA_CONTEXT_LENGTH server-side
+      (litellm#12930 — per-request shapes verified non-functional live); review fixes:
+      quoted-string _time bypass closed, generic largest-list cap shrink, UTF-16 entity
+      lengths, reversed-marker fallback.'
     observed_prs: []

@@ -155,3 +155,15 @@ def test_llm_failure_is_loud_but_caught(monkeypatch, tmp_path):
         return_value=httpx.Response(503))
     out = analyst.answer("anything", chat="c5")
     assert "couldn't complete" in out["answer"]
+
+
+def test_load_skill_reversed_markers_fall_back(monkeypatch, tmp_path):
+    bad = tmp_path / "SKILL.md"
+    bad.write_text("<!-- agent-runtime:end -->\nx\n<!-- agent-runtime:begin -->\n")
+    monkeypatch.setenv("SKILL_PATH", str(bad))
+    monkeypatch.setenv("LITELLM_URL", "http://litellm.test")
+    monkeypatch.setenv("LITELLM_API_KEY", "k")
+    from ai_alert_helper import analyst
+    import importlib; importlib.reload(analyst)
+    text = analyst.load_skill()
+    assert text and "agent-runtime" not in text   # non-empty fallback grounding

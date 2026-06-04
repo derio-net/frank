@@ -137,7 +137,11 @@ def _logsql_query(query: str, limit: int = 50) -> dict:
     """Escape hatch. Guards: a `_time:` filter is required (unbounded scans are
     never what anyone wants), the row limit is clamped, and the HTTP layer only
     ever calls /select/* — the read-only guarantee lives there, not in parsing."""
-    if "_time:" not in query:
+    # Check for _time: OUTSIDE quoted strings — `foo:"_time:1h"` is a phrase
+    # match, not a time filter, and would otherwise smuggle an unbounded
+    # 30d scan past the guard (review finding, 2026-06-05).
+    unquoted = re.sub(r'"[^"]*"', '""', query)
+    if "_time:" not in unquoted:
         raise ToolError("query must contain a _time: filter (e.g. _time:1h)")
     limit = max(1, min(int(limit), LOGSQL_MAX_LIMIT))
     try:
@@ -258,11 +262,21 @@ def _cap(result: dict) -> dict:
         result = {**result, "rows": rows[:MAX_ROWS]}
         truncated = True
     while len(json.dumps(result)) > MAX_BYTES:
-        rows = result.get("rows")
-        if isinstance(rows, list) and rows:
-            result = {**result, "rows": rows[: max(1, len(rows) // 2)]}
+        # Shrink the LARGEST list field, wherever it lives — attacker_profile
+        # (paths/status_mix/user_agents), falco_events (by_rule), and
+        # crowdsec_decisions (other_lines) have no top-level "rows", and a
+        # hard-truncated JSON blob is useless to both the LLM and the
+        # operator (review finding, 2026-06-05).
+        list_keys = [k for k, v in result.items() if isinstance(v, list) and v]
+        if list_keys:
+            biggest = max(list_keys, key=lambda k: len(json.dumps(result[k])))
+            shrunk = result[biggest][: max(1, len(result[biggest]) // 2)]
+            if shrunk == result[biggest]:   # single huge element — last resort
+                return {"truncated": True,
+                        "result": json.dumps(result)[: MAX_BYTES - 100]}
+            result = {**result, biggest: shrunk}
             truncated = True
-        else:  # no rows to shrink — hard-truncate the serialized form
+        else:  # nothing shrinkable — hard-truncate the serialized form
             return {"truncated": True,
                     "result": json.dumps(result)[: MAX_BYTES - 100]}
     if truncated:

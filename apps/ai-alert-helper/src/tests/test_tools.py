@@ -139,3 +139,34 @@ def test_attacker_profile_queries_are_ip_scoped():
     assert route.called
     for c in route.calls:
         assert '`request.client_ip`:"203.0.113.7"' in c.request.url.params["query"]
+
+
+# --- review fixes (2026-06-05) ---
+
+def test_logsql_time_filter_inside_quotes_does_not_count():
+    """`foo:"_time:1h"` is a phrase match, not a time filter — must be rejected."""
+    with pytest.raises(tools.ToolError):
+        tools.dispatch("logsql_query", {"query": 'request.uri:"x _time:1h" | stats count()'})
+
+
+@respx.mock
+def test_logsql_time_filter_outside_quotes_still_accepted():
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        return_value=httpx.Response(200, json={"data": {"result": []}}))
+    out = tools.dispatch("logsql_query", {
+        "query": '_time:1h request.uri:"weird _time:99d phrase" | stats count()'})
+    assert out["rows"] == []
+
+
+def test_cap_shrinks_largest_list_field_not_hard_truncate():
+    """Multi-list results (attacker_profile shape) must degrade gracefully."""
+    big = {"ip": "203.0.113.7",
+           "paths": [{"path": f"/{'x'*100}{i}", "count": i} for i in range(60)],
+           "status_mix": [{"status": "404", "count": 9}]}
+    capped = tools._cap(big)
+    assert capped.get("truncated") is True
+    assert "result" not in capped              # NOT the opaque hard-truncate blob
+    assert capped["status_mix"]                # small fields survive
+    assert len(capped["paths"]) < 60
+    import json as _json
+    assert len(_json.dumps(capped)) <= tools.MAX_BYTES + 200
