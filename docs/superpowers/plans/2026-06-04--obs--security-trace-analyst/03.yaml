@@ -1,0 +1,168 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Analyst loop, Telegram poller, API, manifests, image
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Telegram getUpdates plumbing (TDD)
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      RED: tests for telegram.get_updates(offset, timeout=30) → list of update dicts
+      (long-poll param passthrough asserted), telegram.set_my_commands(commands)
+      (posts BotCommand array), both no-op gracefully when token empty. FAIL.
+  - id: P3.T1.S2
+    text: |-
+      GREEN: implement both (httpx, 35s client timeout wrapping the 30s long-poll).
+      pytest green.
+- number: 2
+  title: analyst.py — agent loop with context budget (TDD)
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      RED: `tests/test_analyst.py` with a stubbed LiteLLM transport: (a) question →
+      assistant tool_call → dispatch executed → tool message appended → final answer
+      returned; (b) round cap: model that always tool-calls stops at 6 rounds with a
+      "couldn't complete" message; (c) context budget: oldest tool results evicted
+      when estimated tokens (len//4 heuristic) exceed budget minus reply headroom;
+      (d) system prompt contains the SKILL.md agent-runtime extract AND the
+      data-not-instructions rule wrapping tool results; (e) history: second question
+      carries prior exchange, reset() clears, 30-min idle expiry clears. FAIL.
+  - id: P3.T2.S2
+    text: |-
+      GREEN: implement `analyst.py`: load_skill() extracts the agent-runtime block
+      from SKILL_PATH (env, default /etc/analyst/SKILL.md); answer(question, chat)
+      runs the loop against LITELLM_URL with model LLM_MODEL_ANALYST (default
+      mistral-small-24b), `tools=tools.openai_schemas()`, and num_ctx via the
+      documented pass-through `{"options": {"num_ctx": int(env ANALYST_NUM_CTX,
+      default 16384)}}` in the request body; tool results wrapped in
+      `<tool-result>…</tool-result>` delimiters; per-question wall clock 120s.
+      pytest green.
+  - id: P3.T2.S3
+    text: |-
+      Empirical num_ctx verification (the spec's silently-dropped-param risk): with
+      the branch code running locally against the cluster LiteLLM
+      (`kubectl port-forward` is flaky on gpu-1 pods — call the LB 192.168.55.206:4000
+      directly), send a >5000-token prompt through analyst._call path and confirm
+      `kubectl -n ollama logs deploy/ollama --since=5m | grep truncating` is EMPTY,
+      then `ollama ps` shows the analyst model loaded. Record the CPU/GPU split in
+      the step note via `vk plan edit --note`. If truncation appears, fix the
+      pass-through shape (try top-level num_ctx, then extra_body) until clean.
+- number: 3
+  title: Poller + /ask endpoint (TDD)
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      RED: poller tests: update from wrong chat id → dropped + WARNING log, no reply;
+      command update → command dispatch path (no LLM stub touched); plain question →
+      analyst.answer called, reply sent with reply_to set; poller loop survives a
+      get_updates exception (backoff, continues); offset advances past processed
+      updates. FAIL.
+  - id: P3.T3.S2
+    text: |-
+      GREEN: implement poll_loop() as an asyncio task; register in api.py lifespan
+      (startup: create task + set_my_commands; shutdown: cancel). Add
+      `POST /ask?dry_run=true {question}` returning {answer, tool_trace} without
+      Telegram. App version string aligned in same edit. Full pytest green.
+- number: 4
+  title: 'Manifests: kustomize conversion + analyst wiring'
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Create `apps/ai-alert-helper/kustomization.yaml` (root = apps/ai-alert-helper):
+      resources: manifests/deployment.yaml, manifests/service.yaml,
+      manifests/cronjob-digest.yaml, manifests/cronjob-surge-check.yaml;
+      configMapGenerator: name analyst-skill, namespace ai-alert-helper-system,
+      files: [skill/SKILL.md]. Gate BEFORE proceeding:
+      `kustomize build apps/ai-alert-helper` emits exactly the 4 existing resources +
+      1 hash-suffixed ConfigMap — diff the kinds/names against
+      `kubectl -n ai-alert-helper-system get deploy,svc,cronjob` (everything live must
+      appear in the build; pruning will delete anything missing).
+  - id: P3.T4.S2
+    text: |-
+      manifests/deployment.yaml: strategy: Recreate (getUpdates exclusivity — two
+      pollers during a rolling update would 409); volume from configMap analyst-skill
+      mounted whole-dir at /etc/analyst (NO subPath — kubelet never refreshes subPath
+      mounts); env adds SKILL_PATH=/etc/analyst/SKILL.md,
+      LLM_MODEL_ANALYST=mistral-small-24b, ANALYST_NUM_CTX="16384"; REMOVE
+      LLM_MODEL_FALLBACK (optional since P1.T4; comment WHY removed). Memory limit
+      192Mi→256Mi (poller + history headroom).
+  - id: P3.T4.S3
+    text: |-
+      apps/root/templates/ai-alert-helper.yaml: path apps/ai-alert-helper/manifests →
+      apps/ai-alert-helper, prune: false → true. Paste the S1 kustomize-build diff
+      evidence into the PR description when it opens — this is the reviewed
+      prune-flip gate from spec §7.
+- number: 5
+  title: Version bump + branch image build
+  steps:
+  - id: P3.T5.S1
+    text: |-
+      Bump 0.1.6 → 0.2.0 in: src/pyproject.toml, api.py FastAPI(version=),
+      manifests/deployment.yaml image tag, .github/workflows/build-ai-alert-helper.yml
+      hardcoded tag. `grep -rn "0\.1\.6" apps/ai-alert-helper .github/workflows/build-ai-alert-helper.yml`
+      → zero hits. Full `uv run pytest` green.
+  - id: P3.T5.S2
+    text: |-
+      Push the branch, then `gh workflow run build-ai-alert-helper.yml --ref <branch>`;
+      watch with `gh run watch`; verify the image exists:
+      `docker manifest inspect ghcr.io/derio-net/ai-alert-helper:0.2.0` (or gh api the
+      package versions). Operator-authorized in the vk-goal Q&A.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T5.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

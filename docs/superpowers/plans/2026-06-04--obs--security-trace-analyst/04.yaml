@@ -1,0 +1,47 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Post-merge deployment verification + close-out
+  tag: manual
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Operator merges PR; run the spec §13 Test Plan
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Operator merges the PR. ArgoCD syncs ai-alert-helper (manual sync patch with
+      explicit syncOptions if impatient). Then run the spec's §13 Test Plan items 1-10
+      with the agent driving and the operator confirming the Telegram-client side
+      (command menu, /help, /scan_patterns no-LLM path, parse errors, natural-language
+      question, explain, /reset, foreign-chat probe, num_ctx/VRAM measurement, next
+      morning's digest). Record the ollama ps split and any num_ctx downgrade via
+      `vk plan edit --complete-phase 4 --note`.
+- number: 2
+  title: Post-deploy checklist (extension flavor)
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Extension of the obs layer — per plan-config skip_when: no new blog posts;
+      retro-update the obs digest layer's building/operating posts with the analyst
+      (one section each: what it is, /commands, one screenshot of a Telegram answer).
+      Add any new gotchas as one-liners in agents/rules/frank-gotchas.md + prose in
+      docs/runbooks/frank-gotchas/obs-digest.md. No ingress/homepage (Telegram-only,
+      internal). No manual-operation blocks anticipated → /sync-runbook not needed
+      unless P4.T1 surfaced one. Set plan Status: Deployed.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

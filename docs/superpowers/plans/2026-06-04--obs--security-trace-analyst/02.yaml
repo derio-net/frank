@@ -1,0 +1,124 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Tool registry, caps, and command parsing
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: tools.py — curated registry over facts (TDD)
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      RED: new `tests/test_tools.py`: TOOLS registry exposes exactly
+      edge_traffic, attacker_profile, falco_events, crowdsec_decisions,
+      scan_patterns, logsql_query; `tools.openai_schemas()` returns valid
+      OpenAI tool-call JSON schemas (name, description, parameters with required
+      fields); `tools.parse_window("6h")` → timedelta, rejects "6 fortnights".
+      pytest test_tools.py → FAIL (module missing).
+  - id: P2.T1.S2
+    text: |-
+      GREEN: create `ai_alert_helper/tools.py`. Each entry: {fn, usage, schema,
+      description}. Implementations wrap Phase 1 facts helpers (edge_traffic →
+      _logsql_group over edge_filter with group_by whitelist [host,path,ua,status];
+      attacker_profile → per-IP paths/UAs/status-mix/first-last-seen via two grouped
+      queries + min/max _time; falco_events → grouped by rule with optional
+      priority/rule filter; crowdsec_decisions → crowdsec_decisions_detail;
+      scan_patterns → scan_pattern_counts). pytest green.
+  - id: P2.T1.S3
+    text: |-
+      RED: cap tests — dispatch(name, args) truncates any tool result to ≤50 rows and
+      ≤4096 serialized bytes appending `{"truncated": true}`; unknown tool name →
+      ToolError with usage text; arg validation failure → ToolError naming the bad arg.
+      FAIL first.
+  - id: P2.T1.S4
+    text: |-
+      GREEN: implement `dispatch()` with the caps OUTSIDE the per-tool code (single
+      enforcement point). pytest green.
+  - id: P2.T1.S5
+    text: |-
+      RED: escape-hatch guard tests — logsql_query rejects: missing `_time:` filter;
+      any query when called via dispatch with >limit 200; verify the issued HTTP path
+      is `/select/logsql/query` (never /insert/). Accepts a well-formed
+      `request.host:"blog.derio.net" _time:1h | stats by (status) count()`. FAIL first.
+  - id: P2.T1.S6
+    text: |-
+      GREEN: implement logsql_query with the `_time:` requirement, hard `limit`
+      clamp, fixed /select/logsql/{query,stats_query} base (pick endpoint by presence
+      of `| stats`), row/byte caps via dispatch. pytest green.
+- number: 2
+  title: Slash-command parsing + Telegram formatting (TDD)
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      RED: `tests/test_commands.py`: parse_command maps "/help"→help text containing
+      every registered command+usage; "/tools"→tool table; "/reset"→reset action;
+      "/scan_patterns 6h"→(scan_patterns, {window:"6h"}, explain=False);
+      "/edge_traffic 1h group_by=host"→kwargs parsed; "/scan_patterns 6h explain"→
+      explain=True; "/attacker_profile" (missing required arg)→usage-line error for
+      THAT command; "/nonsense"→help hint; non-command text→None (LLM path). FAIL.
+  - id: P2.T2.S2
+    text: |-
+      GREEN: implement command parsing in tools.py (or commands.py if cleaner):
+      positional args fill schema-required order, key=value fills the rest, trailing
+      literal `explain` pops as flag. Help/tool listings RENDER FROM the registry
+      (single source — same dict that feeds openai_schemas and setMyCommands). pytest green.
+  - id: P2.T2.S3
+    text: |-
+      RED: formatting tests — format_result() renders a dict/list result as an aligned
+      monospace block ≤3500 chars (Telegram 4096 limit headroom) and telegram.send
+      gains `pre: bool` + `chat_id`/`reply_to` params using the entities API
+      (offset/length `pre` entity — NOT parse_mode, which the module deliberately
+      avoids; assert the JSON body shape). FAIL.
+  - id: P2.T2.S4
+    text: |-
+      GREEN: implement format_result + extend telegram.send signature
+      (back-compat: existing callers unchanged). Full pytest green.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -96,9 +96,9 @@ Parse errors reply with that command's usage line, not a generic error.
 
 ## 7. Expertise sharing — one file, two runtimes
 
-`agents/skills/hop-trace-analysis/SKILL.md` is the single source:
+The canonical playbook is `apps/ai-alert-helper/skill/SKILL.md` — it must live *inside* the kustomize root because Kustomize's load restrictor forbids out-of-root file refs and out-of-bounds symlinks are a known GitOps-loop killer in this repo. `agents/skills/hop-trace-analysis/SKILL.md` is the thin registry pointer (frontmatter + "read the canonical file") so skill discovery still works:
 
-- **Claude Code** reads it as a normal repo skill.
+- **Claude Code** discovers the registry skill, which directs it to the canonical playbook.
 - **The analyst** receives it via a Kustomize `configMapGenerator` (hash-suffixed name, whole-file key — the homepage subPath gotcha rules out live-updating subPath mounts; the hash suffix rolls the pod on every content change). `analyst.py` loads it at startup.
 
 **Conversion required (explicit Phase 2 step):** `apps/ai-alert-helper/manifests/` is today a *plain directory* sync (`path:` source, `prune: false` in `apps/root/templates/ai-alert-helper.yaml`). Adopting the generator means (a) adding a `kustomization.yaml` that enumerates all four existing manifests — any manifest left out vanishes from the render — and (b) flipping the Application to `prune: true` so superseded hash-suffixed ConfigMaps are garbage-collected. The prune flip is a real blast-radius change on an app that has never pruned; it gets its own reviewed step with a `kustomize build` diff against the live render before merging.
@@ -146,3 +146,9 @@ Run after the Phase 2 PR merges and ArgoCD syncs. The agent drives; the operator
 8. **Security gate:** a message from a non-allowlisted chat (second Telegram account or group) gets no reply and produces a WARNING log line.
 9. **Context budget:** Ollama logs show NO `truncating input prompt` lines during the above; `ollama ps` during a question shows the analyst model's CPU/GPU split — record it; if KV cache pushes past VRAM at 16384, drop to 8192 per §6 and re-verify.
 10. **Digest regression:** next morning's 08:00 digest still arrives (the poller didn't break the cron path).
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-06-04--obs--security-trace-analyst | `derio-net/frank` | `docs/superpowers/plans/2026-06-04--obs--security-trace-analyst/` | — |
