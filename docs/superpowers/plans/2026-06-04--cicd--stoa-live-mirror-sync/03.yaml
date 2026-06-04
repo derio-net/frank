@@ -91,7 +91,7 @@ tasks:
   steps:
   - id: P3.T4.S1
     text: |-
-      Run /sync-runbook (five manual-operation blocks in this plan), flip their
+      Run /sync-runbook (six manual-operation blocks in this plan), flip their
       `status:` as completed, and set this plan's Status to Deployed. Fix/extension
       workflow: no new blog post; skip homepage/IngressRoute (nothing user-facing);
       README unchanged (no new service/IP).
