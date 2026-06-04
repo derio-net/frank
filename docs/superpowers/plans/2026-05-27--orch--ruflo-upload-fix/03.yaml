@@ -43,30 +43,67 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T18:39:24+00:00'
+      note: 'Upload+read-back verified against the LIVE deployed image (0ff70147,
+        matches Phase-2 pin). Real HTTP route POST /conversation/<id> with a multipart
+        image part -> 200, file persisted (msg.files hash 587188c0...); read back
+        byte-exact via the app''s real downloadFile() (find({filename}).next()+openDownloadStream).
+        Also openUploadStream(Writable,''finish'',ArrayBuffer)+openDownloadStream(Readable)
+        byte-exact via in-pod harness against the live RVF DB. Browser UI not used:
+        edge ip-allowlist is RFC1918-only so the remote Browser-Use cloud browser
+        (public egress IP) is rejected before Authentik SSO, and all deployed models
+        report multimodal:false (UI attach gated off). Logs clean: no upload.once/ERR_INVALID_ARG_TYPE/500.'
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T18:39:54+00:00'
+      note: 'File-storing path verified. It is the same openUploadStream path: a file
+        uploaded through the real HTTP route landed in GridFS (filename <convId>-<sha256>)
+        and is usable (read back byte-exact). The literal ''tool fetches a URL then
+        stores'' trigger could not be exercised because no deployed model reports
+        supportsTools:true ([mcp] ''tools disabled for model; skipping MCP flow''),
+        so the tool loop never runs — but the storage primitive it would call (openUploadStream
+        + scheduleSave) is the exact code proven here and in S1. No 500, no upload.once
+        errors.'
     P3.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T18:39:54+00:00'
+      note: 'Copy-on-fork .pipe() verified by exercising createConversationFromShare''s
+        exact deployed copy block (BBA_Z3mf:64-77) against the live shim: bucket.find({filename:{$regex:''^<id>-''}}).toArray()
+        matched, then downloadStream.on(''error'',reject).pipe(uploadStream).on(''error'',reject).on(''finish'',resolve)
+        completed and the copy was byte-exact. Confirms openDownloadStream returns
+        a real Readable (.on works -> no ''downloadStream.on is not a function''),
+        .pipe works, and openUploadStream emits ''finish''. Full share->fork HTTP
+        dance not run (requires auth + the Elysia share API); the copy code it invokes
+        is unchanged and was exercised directly.'
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T18:39:54+00:00'
+      note: 'Plain chat against local model gemma-12b via real HTTP route (anonymous
+        in-pod session, no MCP): POST /conversation/<id> -> HTTP 200, stream completed
+        (title auto-generated, status ''finished''). No 500.'
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T18:40:06+00:00'
+      note: 'MCP/wasm regression: wasm:// urlSafety allow-line present in deployed
+        bundle (urlSafety-CMNAzyRy.js:31 ''if (url.protocol==="wasm:") return true'').
+        Direct test of the deployed isValidUrl: wasm://* -> true while unsafe URLs
+        still rejected (link-local 169.254/private 10.0/ftp -> false) — fix applied
+        without over-permissive regression. HTTP request carrying a wasm:// MCP server
+        -> 200 with NO ''rejected ... by URL safety'' / ''all selected MCP servers
+        rejected'' warning (note: MCP flow itself skips because no deployed model
+        has supportsTools, so the url-safety filter was proven directly rather than
+        through the request).'
     P3.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T18:40:06+00:00'
+      note: 'Broad smoke (154-commit bump): /api/v2/models -> 200 (7 models listed),
+        /api/v2/feature-flags -> 200, clean boot window (no errors before ''Listening
+        on http://0.0.0.0:3000''), and RVF backend intact (''[RuVocal] Database: /app/db/ruvocal.rvf.json''
+        + ''[RVF] Loaded 10 collections''). Full pod-log scan over all verification
+        activity: no upload.once/ERR_INVALID_ARG_TYPE/downloadStream.on/is-not-a-function/fatal/uncaught
+        signatures.'
   completion:
-    at: null
+    at: '2026-06-04T18:40:11+00:00'
     note: null
     observed_prs: []
