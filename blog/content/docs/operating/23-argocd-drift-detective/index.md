@@ -375,8 +375,7 @@ This is the argument for taking drift seriously. A healthy ArgoCD install isn't 
 Starting point: 20 of 52 apps OutOfSync.
 End state: 2 of 52 OutOfSync. Both Healthy. Both functionally fine.
 
-<!-- MEDIA: screenshot | ArgoCD app list after the drift cleanup — 50/52 Synced | Navigate to https://192.168.55.200, capture the app list view sorted by sync status showing the handful of residual OutOfSync entries alongside the Synced majority, dark mode preferred -->
-<!-- {{</* screenshot src="argocd-post-cleanup-synced.png" caption="ArgoCD app list after the drift cleanup: OutOfSync column becomes a real signal again" */>}} -->
+{{< screenshot src="argocd-post-cleanup-synced.png" caption="ArgoCD app list after the drift cleanup: OutOfSync column becomes a real signal again" >}}
 
 The two residuals:
 
