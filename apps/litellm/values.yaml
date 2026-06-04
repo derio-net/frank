@@ -1,5 +1,6 @@
 # LiteLLM — unified LLM inference gateway
-# Routes between local Ollama models and cloud providers via OpenRouter
+# Routes local Ollama models (OpenRouter free-tier cloud section removed
+# 2026-06-04 — see the lineup note above proxy_config)
 # Exposed at 192.168.55.206:4000 as OpenAI-compatible API
 #
 # ─────────────────────────────────────────────────────────────────────────────

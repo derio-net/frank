@@ -90,7 +90,7 @@ Parse errors reply with that command's usage line, not a generic error.
 ## 6. Model & context strategy
 
 - **Model:** `mistral-small-24b` (function calling, fully VRAM-resident, 128K-capable). Configured as `LLM_MODEL_ANALYST`, independent of the digest's `LLM_MODEL_PRIMARY`.
-- **Context:** Ollama defaults to `num_ctx=4096` and silently truncates (observed live 2026-06-04: `prompt=5691 keep=4 new=4096`). Every analyst request sets `num_ctx` explicitly — target 16384, fallback 8192. The loop tracks (system prompt + history + tool results) against the budget and evicts oldest tool results first; it never relies on server-side truncation.
+- **Context:** Ollama defaults to `num_ctx=4096` and silently truncates (observed live 2026-06-04: `prompt=5691 keep=4 new=4096`). Every analyst request sets `num_ctx` explicitly — target 16384, fallback 8192. The override must travel via LiteLLM's `extra_body` → Ollama `options` pass-through (the same proven path as `qwen36-a3b-nothin`'s `think: false`); a top-level `num_ctx` param is silently dropped. `LLM_MODEL_ANALYST` is net-new env wiring on the Deployment. The loop tracks (system prompt + history + tool results) against the budget and evicts oldest tool results first; it never relies on server-side truncation.
 - **VRAM risk:** KV cache at 16K on the 24B model is the main unknown on a 16 GB card. Phase 2 includes a measurement step (`ollama ps` CPU/GPU split before and after) with the 8192 fallback decision documented in the plan.
 - **No fallback model:** per the local-only policy, an LLM failure produces a loud in-channel error, not a silent cloud retry. Direct commands (§5) remain available throughout.
 
@@ -99,7 +99,9 @@ Parse errors reply with that command's usage line, not a generic error.
 `agents/skills/hop-trace-analysis/SKILL.md` is the single source:
 
 - **Claude Code** reads it as a normal repo skill.
-- **The analyst** receives it via a Kustomize `configMapGenerator` (hash-suffixed name, whole-file key — the homepage subPath gotcha rules out live-updating subPath mounts; the hash suffix rolls the pod on every content change, which requires `prune: true` on the Application). `analyst.py` loads it at startup.
+- **The analyst** receives it via a Kustomize `configMapGenerator` (hash-suffixed name, whole-file key — the homepage subPath gotcha rules out live-updating subPath mounts; the hash suffix rolls the pod on every content change). `analyst.py` loads it at startup.
+
+**Conversion required (explicit Phase 2 step):** `apps/ai-alert-helper/manifests/` is today a *plain directory* sync (`path:` source, `prune: false` in `apps/root/templates/ai-alert-helper.yaml`). Adopting the generator means (a) adding a `kustomization.yaml` that enumerates all four existing manifests — any manifest left out vanishes from the render — and (b) flipping the Application to `prune: true` so superseded hash-suffixed ConfigMaps are garbage-collected. The prune flip is a real blast-radius change on an app that has never pruned; it gets its own reviewed step with a `kustomize build` diff against the live render before merging.
 
 The file carries two marked sections: an **agent-runtime section** (terse, token-budgeted, ~1,500 tokens — field map, query patterns, baselines, classification rules) and a **human section** (full prose, examples, narrative). The loader extracts only the former. Editing expertise = git commit → ArgoCD sync → pod rolls. No image rebuild.
 
