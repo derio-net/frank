@@ -128,58 +128,64 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:48:49+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:48:51+00:00'
       note: null
     P1.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:48:53+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:48:56+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:48:58+00:00'
       note: null
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:49:01+00:00'
       note: null
     P1.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:49:03+00:00'
       note: null
     P1.T2.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:49:06+00:00'
       note: null
     P1.T2.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-06-04T20:49:15+00:00'
+      note: 'Deviation: 30d retention has ZERO local CrowdSec decision lines (''Adding
+        decision'' never observed; only community-blocklist syncs). Implemented crowdsec_activity()
+        instead: parses the OBSERVED blocklist-sync format, passes unrecognized alert/decision
+        lines through raw (a parser against an unobserved format would hide the story).
+        Tests cover both.'
     P1.T2.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-06-04T20:49:17+00:00'
+      note: Superseded by crowdsec_activity (see P1.T2.S6 note).
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:49:08+00:00'
       note: null
     P1.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:49:10+00:00'
       note: null
     P1.T4.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T20:49:12+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-04T20:49:20+00:00'
+    note: 'All green (48 tests). Deviations: crowdsec_decisions_detail -> crowdsec_activity
+      (unobserved log format); client-IP field verified as request.client_ip; playbook
+      gained raw-IP-vhost + blocklist-sync baselines from live validation.'
     observed_prs: []

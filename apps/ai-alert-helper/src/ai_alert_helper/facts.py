@@ -5,7 +5,9 @@ The shape is the swap contract: when the adapter swaps from LiteLLM to
 Sympozium, only ai_adapter.py changes — the fact sheet shape stays put.
 """
 from __future__ import annotations
+import json
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 import httpx
@@ -189,6 +191,10 @@ def _digest_security_facts(since: datetime, security_until: datetime) -> dict:
             f"{sw} kubernetes.namespace_name:crowdsec-system "
             f"AND log:Adding AND log:decisions | stats count() as c"
         ),
+        # Phase 1 trace-analyst enrichment — names attackers instead of counting them.
+        "scan_pattern_counts": scan_pattern_counts(since, security_until),
+        "top_attacker_ips": top_attacker_ips(since, security_until, top=5),
+        "crowdsec_activity": crowdsec_activity(since, security_until),
     }
 
 
@@ -260,6 +266,92 @@ def build_for_surge(window_start: datetime, window_end: datetime) -> dict:
             for r in refs.get("stats", [])
         ],
     }
+
+
+# Classic scan-probe paths. Grouped, not exhaustive — the analyst's escape
+# hatch covers the long tail. Keep in sync with the playbook in
+# apps/ai-alert-helper/skill/SKILL.md.
+SCAN_PROBE_PATHS = [
+    "/wp-login.php", "/xmlrpc.php", "/.env", "/.git/config", "/wp-admin",
+    "/phpmyadmin", "/admin", "/.aws/credentials", "/config.json", "/backup",
+]
+
+
+def _window(since: datetime, until: datetime) -> str:
+    return f"_time:[{since.isoformat()},{until.isoformat()}]"
+
+
+def _error_edge(since: datetime, until: datetime) -> str:
+    """Edge filter scoped to client errors — the attacker/scan aggregations all
+    share this so they can't drift apart."""
+    return f'{_window(since, until)} {edge_filter()} AND status:~"4.."'
+
+
+def scan_pattern_counts(since: datetime, until: datetime) -> list[dict]:
+    """Hit counts for the classic probe paths, probe-excluded, desc-sorted."""
+    uri_filter = " OR ".join(f'`request.uri`:"{p}"' for p in SCAN_PROBE_PATHS)
+    q = f"{_window(since, until)} {edge_filter()} AND ({uri_filter}) | stats by (request.uri) count() as c"
+    rows = _logsql_group(q, "request.uri")
+    return [{"path": r["request.uri"], "count": r["count"]} for r in rows]
+
+
+def top_attacker_ips(since: datetime, until: datetime, top: int = 10) -> list[dict]:
+    """IPs behind the 4xx noise. Field `request.client_ip` verified live
+    2026-06-04 (Caddy emits both client_ip and remote_ip; client_ip respects
+    trusted_proxies)."""
+    q = f"{_error_edge(since, until)} | stats by (request.client_ip) count() as c"
+    rows = _logsql_group(q, "request.client_ip", top=top)
+    return [{"ip": r["request.client_ip"], "count": r["count"]} for r in rows]
+
+
+def top_scanned_paths(since: datetime, until: datetime, top: int = 10) -> list[dict]:
+    """Most-probed paths across all 4xx traffic (not just the classics)."""
+    q = f"{_error_edge(since, until)} | stats by (request.uri) count() as c"
+    rows = _logsql_group(q, "request.uri", top=top)
+    return [{"path": r["request.uri"], "count": r["count"]} for r in rows]
+
+
+# Observed lapi sync line (the ONLY decision-ish phrasing in 30d of retention,
+# verified 2026-06-04): msg="crowdsecurity/community-blocklist : added 900
+# entries, deleted 0 entries (alert:1)"
+_BLOCKLIST_RE = re.compile(
+    r'time="(?P<time>[^"]+)".*community-blocklist : added (?P<added>\d+) entries, '
+    r"deleted (?P<deleted>\d+) entries"
+)
+
+
+def crowdsec_activity(since: datetime, until: datetime, limit: int = 200) -> dict:
+    """CrowdSec activity from the VictoriaLogs trail (Hop's LAPI is unreachable
+    from Frank). Blocklist syncs are parsed (observed format); any OTHER
+    alert/decision-ish line is passed through raw — local scenario triggers have
+    never been observed in retention, so an unrecognized line is the story, and
+    a parser guessed against an unobserved format would hide it."""
+    q = (
+        f"{_window(since, until)} kubernetes.namespace_name:crowdsec-system "
+        f'AND (log:alert OR log:decision OR log:ban) | limit {limit}'
+    )
+    try:
+        resp = httpx.get(
+            f"{VICTORIALOGS_URL}/select/logsql/query",
+            params={"query": q},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        lines = [json.loads(l) for l in resp.text.splitlines() if l.strip()]
+    except Exception:  # noqa: BLE001 — fail-soft like every fact builder
+        return {"blocklist_syncs": [], "other_lines": []}
+    syncs, other = [], []
+    for entry in lines:
+        log = entry.get("log", "")
+        m = _BLOCKLIST_RE.search(log)
+        if m:
+            syncs.append(
+                {"time": m.group("time"), "added": int(m.group("added")),
+                 "deleted": int(m.group("deleted"))}
+            )
+        else:
+            other.append(log[:300])
+    return {"blocklist_syncs": syncs, "other_lines": other[:20]}
 
 
 def build_for_alert(alert: dict) -> dict:

@@ -13,7 +13,11 @@ import httpx
 _LITELLM_URL = os.environ.get("LITELLM_URL", "")
 _LITELLM_KEY = os.environ.get("LITELLM_API_KEY", "")
 _PRIMARY = os.environ.get("LLM_MODEL_PRIMARY", "qwen-think-14b")
-_FALLBACK = os.environ.get("LLM_MODEL_FALLBACK", "claude-haiku-4-5")
+# Empty default = NO fallback (2026-06-04 local-only policy). The old
+# hardcoded claude-haiku-4-5 default pointed at an alias removed from
+# LiteLLM and 400'd on every attempt — a fallback that can't work is
+# worse than failing loud.
+_FALLBACK = os.environ.get("LLM_MODEL_FALLBACK", "")
 _PROMPTS = Path(__file__).parent / "prompts"
 
 
@@ -36,6 +40,11 @@ def _call(prompt: str) -> str:
     try:
         return _call_once(_PRIMARY, prompt)
     except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.HTTPError):
+        # Retry only on a real, distinct fallback — an identical retry adds
+        # latency without resilience (the primary's failure mode, gpu-1
+        # saturation, doesn't clear in seconds).
+        if not _FALLBACK or _FALLBACK == _PRIMARY:
+            raise
         return _call_once(_FALLBACK, prompt)
 
 
