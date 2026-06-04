@@ -175,3 +175,40 @@ inventory (e.g. cluster `192.168.55.x` → host `192.168.10.x`):
 kubectl -n awx exec deploy/awx-task -c awx-task -- \
   python3 -c "import socket;s=socket.socket();s.settimeout(4);s.connect(('<ip>',22));print('OPEN')"
 ```
+
+## LiteLLM `ollama/` vs `ollama_chat/` — streaming + tools leaks scaffold JSON into content
+
+**Symptom (2026-06-04, hermes-agent-shell):** every conversational reply from a
+local model rendered as a fake tool call in the client —
+`{"name": "text_to_speech", "arguments": {...}}`, `{"name": "todo", ...}` —
+instead of plain text. Plain chat without tools was fine; the same request
+non-streamed returned a *correct* native `tool_calls` response.
+
+**Root cause:** LiteLLM's `ollama/` provider implements function calling by
+prompt injection — it renders the `tools` array into the prompt, instructs the
+model to answer with `{"name", "arguments"}` JSON, and re-parses that JSON into
+`tool_calls` on the way back. The re-parse needs the complete response, so it
+only happens non-streamed. Any streaming client that sends `tools`
+(hermes does — `chat_completion_stream_request`) receives the raw scaffold
+JSON as `content` with zero `tool_calls` deltas. Models then also imitate the
+pattern for ordinary replies, wrapping greetings in whatever tool looks
+plausible (tts, todo, image_generate — disabling individual tools is
+whack-a-mole, the envelope just moves).
+
+**Probes (run from any pod with the LiteLLM key):**
+
+- non-stream + tools → `content: None`, proper `tool_calls` — looks healthy
+- `stream: true` + tools → `content: '{"name": "get_weather", ...}'`, `tool_call deltas: 0` — the bug
+- Ollama native `/api/chat` direct with `stream: true` + tools → empty content,
+  proper `message.tool_calls` — proving the fix
+
+**Fix:** use the `ollama_chat/` prefix in `apps/litellm/values.yaml`
+`model_list` (LiteLLM's own recommendation for chat models). It targets
+Ollama's native `/api/chat` tool-calling, which is stream-safe.
+`extra_body: {think: false}` (qwen36-a3b-nothin) is a native `/api/chat`
+parameter and passes through unchanged. Flipped for all 7 local aliases on
+2026-06-04 (hermes-agent-shell deviation follow-up).
+
+**Beware in tests:** a `curl` verification without `"stream": true` CANNOT
+catch this class of bug — always probe the streaming path when validating
+tool-calling through LiteLLM.

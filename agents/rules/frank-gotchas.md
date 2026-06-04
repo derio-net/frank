@@ -120,6 +120,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - TLS cert is NOT renewed by the snap-installed certbot timer (config lives at `/opt/manual_install/certbot/config/`). Use the dedicated systemd unit in `omni/certbot/certbot.md`. Renewal hook MUST `docker restart omni` (no SIGHUP path on v1.5.0).
 
 ### Other in-cluster apps — `docs/runbooks/frank-gotchas/other-apps.md`
+- LiteLLM `ollama/` prefix = PROMPT-based function calling — with `stream: true` + `tools` the scaffolding JSON (`{"name": …, "arguments": …}`) leaks into `content` and `tool_calls` is never populated (non-stream parses fine, which hides the bug in curl tests). Use `ollama_chat/` (native `/api/chat` tool calling, stream-safe; `extra_body.think` passes through).
 - Sympozium chart is Git-sourced (no OCI), service template doesn't take type/annotations (use extras LB), `image.tag` must be overridden.
 - Sympozium PersonaPack per-persona `model` applies only at SympoziumInstance CREATION — PersonaPack edits never propagate to existing instances; merge to git first (ArgoCD heals live PersonaPack edits back), then delete the SympoziumInstances to recreate. A removed LiteLLM alias fails every run (350 failed AgentRuns over 2 weeks on `qwen3.5`; fixed #448).
 - Sympozium AgentRun: `spec.sessionKey` is required (use `""`); terminal success phase is `Succeeded`, NOT `Completed` — poll loops checking `Completed` never exit.
