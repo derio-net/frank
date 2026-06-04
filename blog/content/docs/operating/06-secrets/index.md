@@ -80,8 +80,7 @@ kubectl describe clustersecretstore infisical
 
 The Infisical dashboard at `http://192.168.55.204:8080` shows all secrets in the `frank-cluster` project, organized by environment. The audit log (under Project Settings) records who changed what and when. This is the fastest way to verify a secret's current value or check rotation history.
 
-<!-- MEDIA: screenshot | Infisical secrets dashboard listing the frank-cluster project prod environment | Navigate to http://192.168.55.204:8080, log in, open the frank-cluster project prod environment, dark mode preferred, redact any actual secret values before capture -->
-<!-- {{</* screenshot src="infisical-project-prod.png" caption="Infisical prod environment for the frank-cluster project (secret values redacted)" */>}} -->
+{{< screenshot src="infisical-project-prod.png" caption="Infisical prod environment for the frank-cluster project (secret values redacted)" >}}
 
 ## Routine Operations
 

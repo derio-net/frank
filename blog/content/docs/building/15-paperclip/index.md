@@ -169,8 +169,7 @@ DB Backup       enabled (every 60m, keep 30d)
 
 Database migrations applied on first start. Automatic PostgreSQL backups to `/paperclip/instances/default/data/backups` every hour.
 
-<!-- MEDIA: screenshot | Paperclip orchestrator web UI | Navigate to 192.168.55.212:3100, show agent overview, dark mode -->
-<!-- {{</* screenshot src="paperclip-ui.png" caption="Paperclip orchestrator showing active agents" */>}} -->
+{{< screenshot src="paperclip-ui.png" caption="Paperclip orchestrator showing active agents" >}}
 
 ## Memory Tuning and the Move to gpu-1
 
