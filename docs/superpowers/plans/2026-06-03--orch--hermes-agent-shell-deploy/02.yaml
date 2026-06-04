@@ -1,0 +1,281 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Deploy hermes-agent-shell + verify + post-deploy
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Author the ArgoCD app manifests and supporting files
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Create `apps/root/templates/ns-hermes-agent-shell.yaml` — a
+      Namespace `hermes-agent-shell` with PSA label
+      `pod-security.kubernetes.io/enforce: baseline` (mirrors
+      `ns-secure-agent-pod.yaml` / paperclip / ruflo namespaces).
+  - id: P2.T1.S2
+    text: |-
+      Create `apps/hermes-agent-shell/manifests/pvc-home.yaml` —
+      `hermes-agent-shell-home`, `storageClassName: longhorn`, RWO, 20Gi
+      (matches `paperclip-shell-home` / `ruflo-shell-home`).
+  - id: P2.T1.S3
+    text: |-
+      Create `apps/hermes-agent-shell/manifests/configmap-inventory.yaml`
+      — ConfigMap `hermes-agent-shell-inventory` with key `inventory.yaml`
+      carrying EMPTY maps so boot reconcile is a true no-op:
+      ```yaml
+      harnesses: {}
+      mcp-servers: {}
+      skills: {}
+      ```
+      Do NOT seed `harnesses: { hermes: latest }` — hermes is on PATH
+      (baked at HERMES_VERSION 0.15.2) and install-inventory.sh runs
+      `hermes update` for each populated entry on EVERY boot, which is not
+      a no-op and fires a Telegram alert on non-zero exit.
+  - id: P2.T1.S4
+    text: |-
+      Create `apps/hermes-agent-shell/manifests/configmap-byok-env.yaml` —
+      ConfigMap `hermes-agent-shell-env` with key
+      `35-hermes-agent-shell-byok-env.sh`, a profile.d drop-in that
+      re-exports the BYOK env from `/proc/1/environ` into the interactive
+      login shell (sshd runs `UsePAM no` with no `PermitUserEnvironment`,
+      so the container env never reaches an SSH session otherwise — the
+      "sshd scrubs container env on login" gotcha). Numbered `35-` so it
+      runs before the image's `50-…-motd.sh` auth-status check. Content:
+      ```sh
+      # Re-export BYOK env scrubbed by sshd (UsePAM no, no
+      # PermitUserEnvironment). The container runs as UID 1000 so PID 1 is
+      # same-UID and /proc/1/environ is readable — the sanctioned escape
+      # hatch from frank-gotchas agent-shells.md. Login shells only.
+      [ -r /proc/1/environ ] || return 0 2>/dev/null || true
+      for _v in OPENAI_BASE_URL OPENAI_API_KEY; do
+          eval "_cur=\${$_v:-}"
+          [ -n "$_cur" ] && continue
+          _val=$(tr '\0' '\n' < /proc/1/environ | sed -n "s/^${_v}=//p" | head -n1)
+          [ -n "$_val" ] && export "$_v=$_val"
+      done
+      unset _v _cur _val
+      ```
+      Mount it in the Deployment at
+      `/etc/profile.d/35-hermes-agent-shell-byok-env.sh` via `subPath`
+      (same mechanism as paperclip's `60-…-tips.sh`).
+  - id: P2.T1.S5
+    text: |-
+      Create `apps/hermes-agent-shell/manifests/externalsecret-llm.yaml` —
+      `apiVersion: external-secrets.io/v1`, ExternalSecret
+      `hermes-agent-shell-llm`, `secretStoreRef: { name: infisical, kind:
+      ClusterSecretStore }`, `refreshInterval: 5m`, target
+      `hermes-agent-shell-llm` (`creationPolicy: Owner`,
+      `deletionPolicy: Retain`). `template.data`:
+      `OPENAI_BASE_URL: "http://litellm.litellm.svc:4000/v1"` (literal) and
+      `OPENAI_API_KEY: "{{ .OPENAI_API_KEY }}"`; `data:` maps
+      `OPENAI_API_KEY` ← remoteRef `HERMES_LITELLM_KEY`. Mirror ruflo's
+      `externalsecret-llm.yaml` shape.
+  - id: P2.T1.S6
+    text: |-
+      Create `apps/hermes-agent-shell/manifests/externalsecret-alerts.yaml`
+      — ExternalSecret `hermes-agent-shell-alerts` syncing
+      `FRANK_C2_TELEGRAM_BOT_TOKEN` + `FRANK_C2_TELEGRAM_CHAT_ID` from
+      Infisical (copy `apps/paperclip/manifests/externalsecret-shell-alerts.yaml`,
+      renaming namespace/secret).
+  - id: P2.T1.S7
+    text: |-
+      Create `apps/hermes-agent-shell/manifests/service.yaml` — a single
+      combined LoadBalancer Service on `lbipam.cilium.io/ips:
+      "192.168.55.226"`, selector `app: hermes-agent-shell`, ports
+      TCP `22 → 2222` plus UDP `60032`–`60047` (one port entry each).
+      Model on `apps/ruflo/manifests/service-shell.yaml` (single-IP
+      MixedProtocolLBService, no sharing-key).
+  - id: P2.T1.S8
+    text: |-
+      Create `apps/hermes-agent-shell/manifests/deployment.yaml` — single
+      container `hermes`, image
+      `ghcr.io/derio-net/hermes-agent-shell:95e719b9164e3e16b6e304202ff567f22aeed39c`,
+      `replicas: 1`, `strategy: Recreate`,
+      `terminationGracePeriodSeconds: 45`, `nodeSelector:
+      kubernetes.io/hostname: gpu-1`, toleration `nvidia.com/gpu:NoSchedule`,
+      pod `fsGroup: 1000`, container `runAsUser/Group: 1000`,
+      `runAsNonRoot`, drop ALL caps. Ports: ssh 2222 + mosh 60032–60047.
+      Env: `MOSH_SERVER_NETWORK_TMOUT=3600`;
+      `envFrom: [{secretRef: hermes-agent-shell-llm, optional: true},
+      {secretRef: hermes-agent-shell-alerts, optional: true}]`.
+      Volumes: home PVC → `/home/agent`; ssh-keys secret
+      `hermes-agent-shell-ssh-keys` (optional) → `/etc/ssh-keys` ro;
+      inventory CM → `/etc/hermes-agent-shell`; byok-env CM subPath →
+      `/etc/profile.d/35-hermes-agent-shell-byok-env.sh`. TCP readiness +
+      liveness probes on port 2222. Requests 500m/1Gi, limits 2/4Gi.
+  - id: P2.T1.S9
+    text: |-
+      Create `apps/root/templates/hermes-agent-shell.yaml` — Application CR
+      (`project: infrastructure`, single `source` `path:
+      apps/hermes-agent-shell/manifests`, `selfHeal: true`, explicit
+      `prune: false`, syncOptions `ServerSideApply=true` +
+      `RespectIgnoreDifferences=true` + `CreateNamespace=false`,
+      `ignoreDifferences` on Secret `/data`, resources-finalizer, Telegram
+      sync-notification annotations). Model on
+      `apps/root/templates/secure-agent-pod.yaml`.
+  - id: P2.T1.S10
+    text: |-
+      Create the client-setup helpers under
+      `apps/hermes-agent-shell/client-setup/laptop/`
+      (`ssh-config.snippet`, `mosh-wrapper.sh` pinning
+      `mosh-server new -p 60032:60047` to `192.168.55.226`, `README.md`)
+      and `secrets/hermes-agent-shell/README.md` (SOPS bootstrap runbook,
+      modeled on `secrets/paperclip/README.md`).
+- number: 2
+  title: Deploy via ArgoCD, apply the bootstrap secret, verify end-to-end
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Open a PR with all Phase 2 manifests; on merge to `main` ArgoCD
+      auto-syncs the root App-of-Apps. Confirm the `hermes-agent-shell`
+      Application reaches Synced/Healthy:
+      `kubectl get application hermes-agent-shell -n argocd -o wide`
+      (use this, NOT port-forward — gpu-1 port-forward flakiness gotcha).
+  - id: P2.T2.S2
+    text: |-
+      With the namespace now created, apply the Phase 1 SOPS ssh-keys
+      secret out-of-band:
+      `sops --decrypt secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml | kubectl apply -f -`
+      Restart the pod (or wait for boot) so cont-init.d/30-authorized-keys
+      copies the key. Confirm both ExternalSecrets resolved:
+      `kubectl -n hermes-agent-shell get externalsecret` → both
+      `SecretSynced`.
+  - id: P2.T2.S3
+    text: |-
+      Verify end-to-end. Pod Healthy:
+      `kubectl -n hermes-agent-shell get pod`. SSH in
+      (`ssh -p 22 agent@192.168.55.226`): the MOTD prints the
+      `~ hermes (BYOK — no login flow)` row WITHOUT the
+      "OPENAI_BASE_URL not set" note — proving the 35-…-byok-env.sh shim
+      re-exported the env into the login shell. `hermes --version` runs.
+      From the interactive login shell, confirm LiteLLM reachability:
+      `curl -sf -H "Authorization: Bearer $OPENAI_API_KEY" $OPENAI_BASE_URL/models >/dev/null && echo reachable`.
+      (For any non-interactive check use `kubectl exec`, never
+      `ssh host -- cmd` — that skips profile.d.)
+- number: 3
+  title: Post-deploy checklist
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Step 1 (external web exposure): SKIP — internal SSH/Mosh-only
+      service, no web UI, no homepage tile. But DO add a service-table row
+      to `agents/rules/frank-infrastructure.md`:
+      `Hermes Agent Shell (SSH+Mosh) | 192.168.55.226 | Cilium L2
+      LoadBalancer (port 22/SSH, UDP 60032-60047/Mosh)`.
+  - id: P2.T3.S2
+    text: |-
+      Write the BUILDING blog post (`orch` layer) via the `/blog-post`
+      skill — the hermes-agent-shell deploy narrative (BYOK exception, the
+      sshd env-scrub gotcha + profile.d fix, gpu-1 placement). Update
+      `blog/content/docs/building/00-overview/index.md` (Series Index +
+      Capability Map) and `blog/layouts/shortcodes/cluster-roadmap.html`.
+  - id: P2.T3.S3
+    text: |-
+      Write the OPERATING blog post via `/blog-post` — day-to-day: SSH/Mosh
+      in, run hermes, reconcile inventory, rotate the LiteLLM key + ssh
+      keys, read the MOTD, the `ssh host -- cmd` env limitation. Update the
+      operating series index.
+  - id: P2.T3.S4
+    text: |-
+      Add a gotchas one-liner to `agents/rules/frank-gotchas.md` (Agent
+      shells section) capturing the env-scrub-needs-profile.d-shim pattern
+      for BYOK shells, with full prose in
+      `docs/runbooks/frank-gotchas/agent-shells.md`. Run `/update-readme`
+      to sync Technology Stack / Service Access / Current Status.
+  - id: P2.T3.S5
+    text: |-
+      Run `/sync-runbook` to fold the two Phase 1 `# manual-operation`
+      blocks (the LiteLLM virtual key + the SOPS ssh-keys bootstrap) from
+      the spec into `docs/runbooks/manual-operations.yaml`.
+  - id: P2.T3.S6
+    text: |-
+      Set the plan `Status` to `Deployed` ONLY after the deployment is
+      observed working end-to-end live (pod Healthy, SSH in, hermes reaches
+      LiteLLM from a login shell) — a layer is not "Deployed" until its
+      path is observed working, not merely Synced.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-04T15:02:26+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-04T15:02:26+00:00'
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: '2026-06-04T15:02:26+00:00'
+      note: null
+    P2.T1.S4:
+      state: x
+      ticked_at: '2026-06-04T15:02:26+00:00'
+      note: null
+    P2.T1.S5:
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
+      note: null
+    P2.T1.S6:
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
+      note: null
+    P2.T1.S7:
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
+      note: null
+    P2.T1.S8:
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
+      note: null
+    P2.T1.S9:
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
+      note: null
+    P2.T1.S10:
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

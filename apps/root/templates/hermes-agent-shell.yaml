@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hermes-agent-shell
+  namespace: argocd
+  annotations:
+    # The named webhook in argocd-notifications-cm is `service.webhook.telegram`.
+    # notifications-engine treats the third dotted segment as the service NAME
+    # (so the registered service is `telegram`, of type webhook). Mirrors
+    # secure-agent-pod's subscription annotations.
+    notifications.argoproj.io/subscribe.on-sync-running.telegram: ""
+    notifications.argoproj.io/subscribe.on-sync-succeeded.telegram: ""
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: apps/hermes-agent-shell/manifests
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: hermes-agent-shell
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers:
+        - /data
