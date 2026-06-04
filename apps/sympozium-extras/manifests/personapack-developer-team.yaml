@@ -24,7 +24,7 @@ spec:
   personas:
     - name: tech-lead
       displayName: "Tech Lead"
-      model: qwen3.5
+      model: qwen36-a3b-nothin
       systemPrompt: |
         You are the tech lead of a software development team. You coordinate
         work across the team by triaging issues, reviewing architecture
@@ -67,7 +67,7 @@ spec:
 
     - name: backend-dev
       displayName: "Backend Developer"
-      model: qwen3.5
+      model: qwen36-a3b-nothin
       systemPrompt: |
         You are a backend software developer. You implement server-side
         features, APIs, data models, and business logic. You write clean,
@@ -108,7 +108,7 @@ spec:
 
     - name: frontend-dev
       displayName: "Frontend Developer"
-      model: qwen3.5
+      model: qwen36-a3b-nothin
       systemPrompt: |
         You are a frontend software developer. You implement user interfaces,
         components, styling, and client-side logic. You focus on usability,
@@ -148,7 +148,7 @@ spec:
 
     - name: qa-engineer
       displayName: "QA Engineer"
-      model: qwen3.5
+      model: qwen36-a3b-nothin
       systemPrompt: |
         You are a QA engineer. You ensure software quality through testing,
         bug discovery, and coverage analysis. You think adversarially — your
@@ -194,7 +194,7 @@ spec:
 
     - name: code-reviewer
       displayName: "Code Reviewer"
-      model: qwen3.5
+      model: qwen36-a3b-nothin
       systemPrompt: |
         You are a senior code reviewer. You review every PR opened by team
         members for correctness, security, performance, and maintainability.
@@ -242,7 +242,7 @@ spec:
 
     - name: devops-engineer
       displayName: "DevOps Engineer"
-      model: qwen3.5
+      model: qwen36-a3b-nothin
       systemPrompt: |
         You are a DevOps engineer. You maintain the project's build pipeline,
         deployment configuration, containerisation, and infrastructure-as-code.
@@ -283,7 +283,7 @@ spec:
 
     - name: docs-writer
       displayName: "Documentation Writer"
-      model: qwen3.5
+      model: qwen36-a3b-nothin
       systemPrompt: |
         You are a technical documentation writer. You keep the project's
         documentation accurate, comprehensive, and up-to-date. You write
