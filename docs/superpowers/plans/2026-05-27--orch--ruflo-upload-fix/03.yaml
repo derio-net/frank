@@ -56,15 +56,16 @@ state:
         report multimodal:false (UI attach gated off). Logs clean: no upload.once/ERR_INVALID_ARG_TYPE/500.'
     P3.T1.S2:
       state: x
-      ticked_at: '2026-06-04T18:39:54+00:00'
-      note: 'File-storing path verified. It is the same openUploadStream path: a file
-        uploaded through the real HTTP route landed in GridFS (filename <convId>-<sha256>)
-        and is usable (read back byte-exact). The literal ''tool fetches a URL then
-        stores'' trigger could not be exercised because no deployed model reports
-        supportsTools:true ([mcp] ''tools disabled for model; skipping MCP flow''),
-        so the tool loop never runs — but the storage primitive it would call (openUploadStream
-        + scheduleSave) is the exact code proven here and in S1. No 500, no upload.once
-        errors.'
+      ticked_at: '2026-06-04T20:07:42+00:00'
+      note: 'SCOPE: the literal trigger (a tool fetching a file by URL) was NOT exercised
+        — no deployed model reports supportsTools:true ([mcp] ''tools disabled for
+        model; skipping MCP flow''), a deployment-config limitation unrelated to the
+        fix. PROVEN: the file-storing PRIMITIVE this path calls — openUploadStream
+        + scheduleSave — is exercised end-to-end in P3.T1.S1 (real HTTP multipart
+        upload -> 200, persisted, read back byte-exact) and at the module level (evidence
+        file §2.1, §3.C). The fix lives entirely in that primitive; the tool-fetch
+        caller is an unchanged thin wrapper over it. No 500 / upload.once errors.
+        See phase3-evidence.md.'
     P3.T1.S3:
       state: x
       ticked_at: '2026-06-04T18:39:54+00:00'
@@ -84,16 +85,17 @@ state:
         (title auto-generated, status ''finished''). No 500.'
     P3.T2.S2:
       state: x
-      ticked_at: '2026-06-04T18:40:06+00:00'
-      note: 'MCP/wasm regression: wasm:// urlSafety allow-line present in deployed
-        bundle (urlSafety-CMNAzyRy.js:31 ''if (url.protocol==="wasm:") return true'').
-        Direct test of the deployed isValidUrl: wasm://* -> true while unsafe URLs
-        still rejected (link-local 169.254/private 10.0/ftp -> false) — fix applied
-        without over-permissive regression. HTTP request carrying a wasm:// MCP server
-        -> 200 with NO ''rejected ... by URL safety'' / ''all selected MCP servers
-        rejected'' warning (note: MCP flow itself skips because no deployed model
-        has supportsTools, so the url-safety filter was proven directly rather than
-        through the request).'
+      ticked_at: '2026-06-04T20:07:42+00:00'
+      note: 'SCOPE: the prescribed log-grep-on-MCP-request-flow could NOT fire — the
+        MCP flow skips before url-safety because no deployed model has supportsTools
+        ([mcp] ''tools disabled for model''), so a clean grep there is vacuous, not
+        a pass. PROVEN (the actual regression target): the wasm:// urlSafety allow-line
+        survived the 154-commit bump — deployed isValidUrl(''wasm://...'') returns
+        true while unsafe URLs are still rejected (169.254/10.0/ftp -> false: negative
+        controls confirm no over-permissive regression), bundle line urlSafety-CMNAzyRy.js:31.
+        An HTTP request carrying a wasm:// MCP server returns 200 with no rejection
+        warning. Direct-function proof, not request-flow proof. See phase3-evidence.md
+        §2.5/§3.D.'
     P3.T2.S3:
       state: x
       ticked_at: '2026-06-04T18:40:06+00:00'
