@@ -34,14 +34,24 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T23:42:36+00:00'
+      note: 'Test Plan 1-9 PASSED 2026-06-05 (operator-confirmed Telegram items 2-8;
+        item 9: ctx 16384 live, zero truncation, 18GB 16%/84% CPU/GPU — 8192 fallback
+        NOT needed). Item 10 (08:00 digest regression) observes tomorrow; surge-check
+        cron already proven on 0.2.0. Deploy hiccups fixed: orphan rollingUpdate block
+        (documented gotcha), stale appTree Degraded badge (new gotcha, cosmetic).'
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T23:42:38+00:00'
+      note: Building 31-edge-observability + operating 26-edge-observability retro-updated
+        (analyst sections + dead-fallback correction); 3 hot-file gotchas + prose
+        in obs-digest/argocd/other-apps runbooks; no manual-operation blocks (sync-runbook
+        not needed); no ingress/homepage (Telegram-only).
   completion:
-    at: null
-    note: null
+    at: '2026-06-04T23:43:01+00:00'
+    note: 'Operator merged #469; Test Plan items 1-9 passed 2026-06-05 (operator-confirmed
+      Telegram side; ctx 16384 verified, no truncation, VRAM fits). Item 10 (digest
+      regression) observes 2026-06-06 08:00 — surge cron already proven on 0.2.0.
+      Blogs, gotchas, runbooks updated; plan archived.'
     observed_prs: []

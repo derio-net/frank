@@ -1,7 +1,7 @@
 # Hop Security Trace Analyst
 
 **Spec:** docs/superpowers/specs/2026-06-04--obs--security-trace-analyst-design.md
-**Status:** In Progress
+**Status:** Deployed
 
 ## What this builds
 

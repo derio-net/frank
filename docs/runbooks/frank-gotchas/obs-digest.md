@@ -185,3 +185,36 @@ VictoriaLogs returns the UA as a bracketed `["…"]` string, stripped by
 `_bare_ua`). `prompts/investigate-surge.txt` classifies only from those: Hacker
 News *only* if a `news.ycombinator.com` referrer is present, scraper if the UAs
 are bots with ~0 visitors, "Cause: undetermined" otherwise. No more phantom HN.
+
+## The Telegram analyst (0.2.0)
+
+`/digest`-era ai-alert-helper was one-way. 0.2.0 adds a `getUpdates` long-poll
+poller + a tool-calling loop (`analyst.py`, `tools.py`, `commands.py`,
+`poller.py`). Operational traps:
+
+- **One `getUpdates` consumer per bot token** (Telegram 409s a second poller).
+  The Deployment is `replicas: 1` + `strategy: Recreate` for this; never give
+  it a RollingUpdate or a second replica.
+- **Chat gate:** non-allowlisted chats are dropped + logged WARNING. A "deaf
+  bot" for a foreign account is the gate working.
+- **`POST /ask?dry_run=true` `{"question": …}`** runs the full tool loop
+  without Telegram — the canonical smoke test (returns `answer` + `tool_trace`).
+- **Slash commands bypass the LLM entirely** — they keep working when gpu-1
+  is saturated (the 2026-06-04 starvation scenario).
+- **The playbook is the ConfigMap:** `apps/ai-alert-helper/skill/SKILL.md`,
+  hash-suffixed via kustomize `configMapGenerator` → edits roll the pod. The
+  agent-runtime block between the HTML markers is what the pod loads; the
+  rest is for humans. Same file doubles as the `hop-trace-analysis` Claude
+  Code skill (registry pointer in `agents/skills/`).
+- **Context window is server-side:** LiteLLM drops per-request `num_ctx` for
+  `ollama_chat` (litellm#12930) — `OLLAMA_CONTEXT_LENGTH=16384` on the ollama
+  Deployment is the only effective control; `ANALYST_NUM_CTX` is the client
+  trim budget and must stay equal. Measured 2026-06-05: mistral-small-24b at
+  16384 = 18 GB total, 16%/84% CPU/GPU (vs 16 GB, 11%/89% at 4096) — fits.
+- **CrowdSec reality check:** 30d of retention contains zero local decision
+  lines; only community-blocklist syncs. `crowdsec_activity` parses the sync
+  format and passes anything else through raw — if `other_lines` is non-empty,
+  read it verbatim; that phrasing has never been seen before.
+- **Follow-up (next image bump):** analyst INFO logs (the per-question audit
+  trail) aren't emitted — the app never configures the logging level, so
+  Python's WARNING default swallows them. Configure logging in `api.py`.
