@@ -9,6 +9,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - Manual `kubectl patch application … --type=merge -p '{"operation":{"sync":...}}'` does NOT inherit `spec.syncPolicy.syncOptions` — pass `["ServerSideApply=true","RespectIgnoreDifferences=true"]` explicitly or large CMs blow the 256KB last-applied-config annotation.
 - Out-of-bounds symlinks anywhere in the repo lock the entire GitOps loop into `ComparisonError` — check after symlink commits: `find . -type l -lname '*../../..*'`.
 - Root App-of-Apps re-templates leaf Application specs on every sync; live spec patches (selfHeal off, branch override) are reverted within the sync window.
+- The UI LoadBalancer (192.168.55.200) is plain HTTP — the Service maps 443→8080 *plaintext*, so `https://` gets a TLS reset. Use `http://192.168.55.200`.
 
 ### Storage / Secrets / SSA — `docs/runbooks/frank-gotchas/storage-secrets-ssa.md`
 - SOPS-encrypted secrets must NOT be ArgoCD-managed; apply out-of-band from `secrets/`.
@@ -117,6 +118,8 @@ One-line reminders only. Each section header points at a per-topic file under `d
 
 ### Other in-cluster apps — `docs/runbooks/frank-gotchas/other-apps.md`
 - Sympozium chart is Git-sourced (no OCI), service template doesn't take type/annotations (use extras LB), `image.tag` must be overridden.
+- Sympozium PersonaPack per-persona `model` applies only at SympoziumInstance CREATION — PersonaPack edits never propagate to existing instances; merge to git first (ArgoCD heals live PersonaPack edits back), then delete the SympoziumInstances to recreate. A removed LiteLLM alias fails every run (350 failed AgentRuns over 2 weeks on `qwen3.5`; fixed #448).
+- Sympozium AgentRun: `spec.sessionKey` is required (use `""`); terminal success phase is `Succeeded`, NOT `Completed` — poll loops checking `Completed` never exit.
 - Zot Helm chart v0.1.0 too minimal — use v0.1.60+ for TLS/auth/persistence. htpasswd hash regenerates if `ZOT_PUSH_PASSWORD` rotates.
 - Gitea `webhook.ALLOWED_HOST_LIST` blocks in-cluster delivery — add `*.svc.cluster.local`.
 - n8n CE has no `user:create` CLI (browser wizard only), no SSO (use Authentik forward-auth), needs `N8N_SECURE_COOKIE=false` over plain HTTP.

@@ -2,6 +2,10 @@
 
 ```bash
 # Environment — Frank cluster
+# CAUTION: .env sets KUBECONFIG to a RELATIVE path (.talos/Frank_Kubeconfig.yaml).
+# Always `cd` to the repo root BEFORE sourcing — a shell sourced elsewhere (or a
+# backgrounded job with a different cwd) silently falls back to ~/.kube/config,
+# whose endpoint is dead (192.168.64.2 i/o timeout).
 source .env          # Frank (KUBECONFIG, TALOSCONFIG, OMNICONFIG)
 source .env_devops   # DevOps (OMNI_ENDPOINT, service account key)
 

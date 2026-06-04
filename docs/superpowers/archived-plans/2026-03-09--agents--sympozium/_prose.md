@@ -119,3 +119,16 @@
 - P1.T13.S1: Push all commits
 
 - P1.T13.S2: Full health check
+
+## Deviations
+
+**2026-06-04 — dead LiteLLM model alias broke every AgentRun for ~2 weeks (PR #448).**
+The PersonaPacks pinned `model: qwen3.5`, an alias later removed from
+`apps/litellm/values.yaml`; all 350 scheduled AgentRuns since the removal failed.
+Fix: point all 10 persona `model` fields at `qwen36-a3b-nothin` across the three
+PersonaPack manifests in `apps/sympozium-extras/manifests/`, merge, then **delete
+all SympoziumInstances** — the controller applies a persona's `model` only at
+instance creation, so the merged PersonaPack alone changes nothing (gotcha
+documented in `docs/runbooks/frank-gotchas/other-apps.md#sympozium`). Verified
+with a manual AgentRun (`Succeeded`, 273s; note `spec.sessionKey: ""` is required
+and the terminal phase is `Succeeded`, not `Completed`) and the next hourly run.
