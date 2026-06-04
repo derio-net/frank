@@ -182,8 +182,7 @@ One operational gotcha: if a contact point is re-provisioned (e.g., bot token up
 
 ## The Feature Health Dashboard
 
-<!-- MEDIA: screenshot | Grafana Feature Health dashboard showing all four panels | Navigate to http://192.168.55.203/d/fh-overview/feature-health and capture the full dashboard -->
-<!-- {{</* screenshot src="grafana-feature-health.png" caption="Grafana Feature Health dashboard" */>}} -->
+{{< screenshot src="grafana-feature-health.png" caption="Grafana Feature Health dashboard" >}}
 
 The dashboard at `/d/fh-overview/feature-health` has four panels:
 
