@@ -139,38 +139,43 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T14:58:43+00:00'
+      note: Contract test merged in agent-images PR#96 (ruflo-server/test/rvf-gridfs-contract.test.mjs);
+        passes 3/3 via node --test
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T14:58:44+00:00'
+      note: Patched rvf.ts authored (objectMode Writable + Readable.from + sync find
+        cursor)
     P1.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T14:58:44+00:00'
+      note: patches/rvf-gridfs-parity.patch — git apply --check exit 0 vs pinned ref
+        a6dd4ab
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T14:58:44+00:00'
+      note: Dockerfile RUFLO_GIT_REF bumped ca0a6fa→a6dd4ab
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T14:58:44+00:00'
+      note: COPY+git apply+grep guards wired (Dockerfile:85-89)
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T14:58:44+00:00'
+      note: wasm:// sed guard intact (Dockerfile:62-65)
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T14:58:44+00:00'
+      note: agent-images PR#96 (commit 0ff7014) merged; CI built ruflo-server + ruflo-shell
     P1.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T14:58:44+00:00'
+      note: 'Images: ghcr.io/derio-net/{ruflo-server,ruflo-shell}:0ff701470c7e4dc38c803134a2355b2479ff683b'
   completion:
-    at: null
-    note: null
+    at: '2026-06-04T14:58:50+00:00'
+    note: 'Executed inline by operator; merged in agent-images PR#96 (commit 0ff7014).
+      Verified: contract test 3/3, patch applies clean vs ref a6dd4ab, both images
+      published at ghcr.io/derio-net/{ruflo-server,ruflo-shell}:0ff701470c7e4dc38c803134a2355b2479ff683b'
     observed_prs: []
