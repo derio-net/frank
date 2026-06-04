@@ -1060,6 +1060,62 @@ operations:
     (other consumers may still reference it — verify before deleting).
 
     '
+- id: orch-hermes-config-provider
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-03--orch--hermes-agent-shell-deploy
+  when: After first pod boot, before bare `hermes` works (deployment deviation, 2026-06-04)
+  why_manual: >
+    hermes >=0.15 does not consume OPENAI_BASE_URL/OPENAI_API_KEY for chat
+    inference — provider "auto" resolves to openrouter and 401s. The default
+    provider must be pinned in ~/.hermes/config.yaml, which lives on the home
+    PVC (hermes writes ALL state to HERMES_HOME; a read-only ConfigMap mount is
+    not an option, same constraint as paperclip's hermes_local). Seeded once;
+    survives restarts on the PVC.
+  commands:
+  - "ssh agent@192.168.55.226, edit ~/.hermes/config.yaml:"
+  - "  model: { default: mistral-small-24b, provider: litellm }"
+  - "  providers: { litellm: { base_url: 'http://litellm.litellm.svc:4000/v1', key_env: OPENAI_API_KEY } }"
+  - "Model-string prefixes (litellm/<alias>, custom/<alias>, custom:litellm:<alias>) do NOT pin the provider — only the model: mapping form works (see agent-shells gotcha)."
+  verify:
+  - "ssh agent@192.168.55.226, then from the login shell: hermes chat -Q -q 'What is 2+2?' → answers via LiteLLM (hermes logs show provider=custom base_url=http://litellm.litellm.svc:4000/v1)"
+  status: pending
+- id: orch-hermes-litellm-virtual-key
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-03--orch--hermes-agent-shell-deploy
+  when: Phase 1, before the pod can reach LiteLLM
+  why_manual: >
+    LiteLLM virtual keys are minted via the LiteLLM admin API / UI and stored in
+    Infisical; neither is reconstructable from git. ESO then syncs the key into
+    the cluster. The key is per-agent so its budget/usage is independently
+    observable and revocable.
+  commands:
+  - "Mint a virtual key in LiteLLM (admin UI or /key/generate) scoped to the hermes agent."
+  - "Store it in Infisical as HERMES_LITELLM_KEY (same project/env the other Frank keys use)."
+  verify:
+  - "kubectl -n hermes-agent-shell get externalsecret hermes-agent-shell-llm -o jsonpath='{.status.conditions[0].reason}' → SecretSynced"
+  - "kubectl -n hermes-agent-shell get secret hermes-agent-shell-llm -o jsonpath='{.data.OPENAI_API_KEY}' | base64 -d | head -c4 → non-empty"
+  - "kubectl -n hermes-agent-shell exec deploy/hermes-agent-shell -- sh -lc 'curl -sf -H \"Authorization: Bearer $OPENAI_API_KEY\" $OPENAI_BASE_URL/models >/dev/null && echo reachable' → reachable (exec, NOT port-forward — gpu-1 flakiness gotcha)"
+  status: pending
+- id: orch-hermes-shell-ssh-keys
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-03--orch--hermes-agent-shell-deploy
+  when: Phase 1, before SSH access works
+  why_manual: >
+    SSH authorized_keys is a SOPS-bootstrap Secret applied out-of-band (matching
+    secure-agent-pod / paperclip-shell / ruflo-shell). SOPS secrets must NOT be
+    ArgoCD-managed.
+  commands:
+  - "ssh-keygen or reuse the existing operator key already paired with the other shells."
+  - "kubectl create secret generic hermes-agent-shell-ssh-keys --namespace=hermes-agent-shell --from-file=authorized_keys=<pubkey> --dry-run=client -o yaml > secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml"
+  - "sops --encrypt --in-place secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml"
+  - "sops --decrypt secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml | kubectl apply -f -"
+  verify:
+  - "kubectl -n hermes-agent-shell get secret hermes-agent-shell-ssh-keys"
+  - "ssh -p 22 agent@192.168.55.226 'hermes --version' → prints a version (--version needs no BYOK env; LiteLLM reachability is checked separately via kubectl exec or an interactive login shell, never `ssh host -- cmd` which skips profile.d)"
+  status: pending
 - id: orch-paperclip-hire-hermes-litellm-agent
   layer: orch
   app: paperclip

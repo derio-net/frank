@@ -6,7 +6,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-03--orch--hermes-agent-shell-deploy-design.md`
 **Layer:** `orch` (15 — AI Agent Orchestrator)
-**Status:** In Progress
+**Status:** Deployed
 
 **Goal:** Stand up a standalone, SSH-able shell pod on `gpu-1` running the Nous
 Research `hermes` agent, wired BYOK to Frank's in-cluster LiteLLM gateway, with
@@ -75,3 +75,28 @@ Standard checklist minus Step 1 (the shell is SSH/Mosh-only — no web exposure,
 no homepage tile; the `frank-infrastructure.md` service-table row is still
 added). Building + operating blog posts (`orch` layer), README sync, runbook
 sync, status → Deployed after end-to-end observation.
+
+## Deployment Deviations
+
+### 2026-06-04 — hermes provider pinning (P2.T2.S3 follow-up)
+
+The spec assumed hermes consumes `OPENAI_BASE_URL`/`OPENAI_API_KEY` directly
+(BYOK). On v0.15.2 those env vars do NOT drive chat inference: provider
+`auto` resolves to openrouter and the first real `hermes` run 401'd
+(`Missing Authentication header`, endpoint `https://openrouter.ai/api/v1`).
+The T2.S3 verification (MOTD row + `--version` + `curl $OPENAI_BASE_URL`)
+all passed while the actual inference path was broken — none of the three
+exercised a chat completion.
+
+Fix: pin the default provider in `~/.hermes/config.yaml` (home-PVC state,
+seeded manually — manual-op `orch-hermes-config-provider` in the spec):
+`model:` as a mapping (`default: mistral-small-24b`, `provider: litellm`)
+plus `providers: { litellm: { base_url: http://litellm.litellm.svc:4000/v1,
+key_env: OPENAI_API_KEY } }`. Model-string prefix forms (`litellm/<alias>`,
+`custom/<alias>`, `custom:litellm:<alias>`) do NOT pin the provider on this
+build. Verified live: bare `hermes chat -Q -q …` answers through LiteLLM
+(`provider=custom base_url=http://litellm.litellm.svc:4000/v1` in hermes
+logs). Full prose: `docs/runbooks/frank-gotchas/agent-shells.md` (BYOK
+provider-pinning section). Lesson folded into the verification habit: a
+BYOK layer's e2e check must include one real chat completion, not just
+endpoint reachability.

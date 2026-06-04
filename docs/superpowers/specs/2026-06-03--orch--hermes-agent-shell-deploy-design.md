@@ -290,6 +290,28 @@ verify:
   - "kubectl -n hermes-agent-shell get secret hermes-agent-shell-ssh-keys"
   - "ssh -p 22 agent@192.168.55.226 'hermes --version' → prints a version (--version needs no BYOK env; LiteLLM reachability is checked separately via kubectl exec or an interactive login shell, never `ssh host -- cmd` which skips profile.d)"
 status: pending
+
+# manual-operation
+id: orch-hermes-config-provider
+layer: orch
+app: hermes-agent-shell
+plan: 2026-06-03--orch--hermes-agent-shell-deploy
+when: After first pod boot, before bare `hermes` works (deployment deviation, 2026-06-04)
+why_manual: >
+  hermes >=0.15 does not consume OPENAI_BASE_URL/OPENAI_API_KEY for chat
+  inference — provider "auto" resolves to openrouter and 401s. The default
+  provider must be pinned in ~/.hermes/config.yaml, which lives on the home
+  PVC (hermes writes ALL state to HERMES_HOME; a read-only ConfigMap mount is
+  not an option, same constraint as paperclip's hermes_local). Seeded once;
+  survives restarts on the PVC.
+commands:
+  - "ssh agent@192.168.55.226, edit ~/.hermes/config.yaml:"
+  - "  model: { default: mistral-small-24b, provider: litellm }"
+  - "  providers: { litellm: { base_url: 'http://litellm.litellm.svc:4000/v1', key_env: OPENAI_API_KEY } }"
+  - "Model-string prefixes (litellm/<alias>, custom/<alias>, custom:litellm:<alias>) do NOT pin the provider — only the model: mapping form works (see agent-shells gotcha)."
+verify:
+  - "ssh agent@192.168.55.226, then from the login shell: hermes chat -Q -q 'What is 2+2?' → answers via LiteLLM (hermes logs show provider=custom base_url=http://litellm.litellm.svc:4000/v1)"
+status: applied
 ```
 
 ## Files to create

@@ -175,3 +175,26 @@ vk.bridge: dry-run complete
 Any health check or CI smoke test that does `out=$(vk-bridge --dry-run)` captures **stdout only** → `$out` is empty → banner/version assertions fail. Under bash `set -eo pipefail` (GitHub Actions default) the step then aborts before any teardown/diagnostics run, so the log shows the banner printed live (uncaptured stderr) followed immediately by an unexplained exit 1. Always `2>&1` the capture.
 
 This silently broke `agent-images`' `smoke-test-secure-agent-kali` job on **every** build after the 2026-05-19 v2-bridge cutover — the kali image had not published a green build from `main` for a week before it was diagnosed (2026-05-25). The pre-cutover v1 bridge printed to stdout, which is why the same test passed on bridge ≤ v2.1.7.
+
+## BYOK shells: hermes ≥0.15 ignores OPENAI_* env for chat — pin the provider in config.yaml
+
+The hermes-agent-shell BYOK contract supplies `OPENAI_BASE_URL` + `OPENAI_API_KEY` (ExternalSecret → container env → `/etc/profile.d/35-…-byok-env.sh` shim into login shells). The hermes CLI does **not** consume those for chat inference by itself: provider `auto` resolves to **openrouter** (→ `HTTP 401 Missing Authentication header` against `https://openrouter.ai/api/v1` on first `hermes` run), and the plain `OPENAI_API_KEY` registers only as the STT/TTS key in `hermes config`.
+
+What does and doesn't pin the default provider (verified on v0.15.2, 2026-06-04):
+
+- **Works** — `model:` as a *mapping* in `~/.hermes/config.yaml` (`hermes_cli/auth.py` reads `model_cfg.get("provider")`):
+  ```yaml
+  model:
+    default: mistral-small-24b
+    provider: litellm        # user-defined name from providers:
+  providers:
+    litellm:
+      base_url: http://litellm.litellm.svc:4000/v1
+      key_env: OPENAI_API_KEY   # resolved from the login-shell env (BYOK shim)
+  ```
+- **Works** — explicit flag: `hermes chat --provider litellm -m <alias>` (user-defined names are valid `--provider` values; they normalize to the built-in `custom` path with the entry's `base_url`).
+- **Does NOT work** — every model-string prefix form: `model: litellm/<alias>`, `model: custom/<alias>`, `model: custom:litellm:<alias>`. The model string is opaque in this build; the whole string is sent as the model name to the *default* provider (openrouter). The paperclip-era `ollama-cloud/<alias>` trick worked because `ollama-cloud` is a built-in provider — it does not generalize to user-defined names.
+
+Provider entry schema (`providers:` keyed dict, v12+ config; `custom_providers:` list is the legacy equivalent): `base_url`, `api_key`/`key_env`/`api_key_env`, `api_mode`, `model`/`default_model`/`models`, `extra_body`, … (see `_KNOWN_KEYS` in `hermes_cli/config.py`). Unknown keys log a warning and are ignored.
+
+`~/.hermes/config.yaml` lives on the home PVC — it survives restarts but is **not** declarative; seeding it is a manual operation (`orch-hermes-config-provider` in the runbook). Model-side note: small local models answer hermes's 18-tool prompt imperfectly (JSON-envelope replies, reasoning-only turns from thinking models — `qwen36-a3b` exhausts retries with content-free reasoning). `mistral-small-24b` is the most coherent local default; switch per-session with `/model`. The `hermes-405b` LiteLLM DB alias routes to OpenRouter (`Model Group=hermes-4`) which rejects tool-use requests (404) — dead since the 2026-06-04 cloud-alias purge.
