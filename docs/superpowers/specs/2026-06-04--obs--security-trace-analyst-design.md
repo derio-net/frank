@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-04
 **Layer:** obs (extends the ai-alert-helper observability stack)
-**Status:** Draft — pending operator review
+**Status:** Deployed (2026-06-05, PR #469)
 
 ## 1. Goal & scope
 
@@ -151,4 +151,4 @@ Run after the Phase 2 PR merges and ArgoCD syncs. The agent drives; the operator
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-06-04--obs--security-trace-analyst | `derio-net/frank` | `docs/superpowers/plans/2026-06-04--obs--security-trace-analyst/` | — |
+| 2026-06-04--obs--security-trace-analyst | `derio-net/frank` | `docs/superpowers/archived-plans/2026-06-04--obs--security-trace-analyst/` | — |

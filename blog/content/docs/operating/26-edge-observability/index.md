@@ -277,7 +277,36 @@ If Falco crashloops after the rule change, the most common cause is invalid YAML
 
 ## The ai-alert-helper
 
-Three entrypoints: `/digest` (daily 08:00 UTC), `/alert` (Grafana webhook), `/surge-check` (15-min cron). Triggering any of them by hand is a one-liner:
+Four entrypoints since 0.2.0: `/digest` (daily 08:00 UTC), `/alert` (Grafana webhook), `/surge-check` (15-min cron), and `/ask` (the analyst — also reachable as a two-way Telegram chat, below). Triggering the cron-backed ones by hand is a one-liner:
+
+### The Telegram analyst (0.2.0)
+
+Reply to `@agent_zero_cc_bot` in the alert chat. Two modes:
+
+- **Slash commands — deterministic, no LLM, no GPU dependency.** `/help` lists everything; the Telegram `/` menu autocompletes. The workhorses:
+  ```
+  /scan_patterns 6h                      # probe-path hit counts (wp-login, .env, …)
+  /edge_traffic 1h group_by=host         # who's hitting which vhost
+  /attacker_profile 203.0.113.7 24h      # everything one IP did
+  /falco_events 12h priority=Critical
+  /crowdsec_decisions 24h
+  /logsql <any LogsQL with a _time: filter>
+  ```
+  Append ` explain` to any of them for an LLM narration of the result.
+- **Plain questions — the LLM loop.** "who scanned the blog today and what were they after?" → `mistral-small-24b` calls the same tools (≤6 rounds, 120s cap) and answers in-thread, citing only tool-returned evidence. `/reset` clears the conversation; history expires after 30 idle minutes.
+
+Operational notes: the poller long-polls `getUpdates`, so the Deployment must stay **single-replica with `strategy: Recreate`** (Telegram allows one consumer per bot token). Messages from any chat but the operator's are dropped and logged at WARNING — check `kubectl logs deploy/ai-alert-helper | grep dropped` if the bot seems deaf; that's the gate working. Pre-merge-style verification without Telegram:
+
+```
+kubectl exec -n ai-alert-helper-system deploy/ai-alert-helper -- python -c "
+import urllib.request, json
+r=urllib.request.urlopen(urllib.request.Request('http://localhost:8080/ask?dry_run=true',
+  data=json.dumps({'question':'are we being scanned?'}).encode(),
+  headers={'Content-Type':'application/json'}, method='POST'), timeout=150)
+print(json.loads(r.read())['answer'])"
+```
+
+The analyst's knowledge lives in `apps/ai-alert-helper/skill/SKILL.md` (also a Claude Code skill — one playbook, two readers). Editing it rolls the pod automatically via the hash-suffixed ConfigMap. The model's context window is set server-side (`OLLAMA_CONTEXT_LENGTH` on the Ollama Deployment) because LiteLLM drops per-request `num_ctx` for `ollama_chat` — if answers start missing earlier evidence, check Ollama logs for `truncating input prompt` before blaming the model.
 
 ```
 # Trigger today's digest right now

@@ -66,3 +66,27 @@ Same constraint applies to every leaf under `apps/root/`.
 The `argocd-server` LB Service at 192.168.55.200 maps port 443 to the server's plaintext 8080 — ArgoCD runs in `--insecure` mode behind the LB, so there is no TLS listener at all. `https://192.168.55.200` fails with a connection reset that looks like a network problem; the fix is just `http://192.168.55.200`.
 
 Bites automation hardest: blog screenshot placeholders and runbooks that reflexively write `https://` URLs get a reset, and `curl -k` doesn't help (it's not a cert problem — there's no TLS handshake to complete). Also note for captures: the UI ignores `prefers-color-scheme` (own theme system), so dark-mode emulation has no effect.
+
+## Stale appTree health after a source-path change (2026-06-05)
+
+Converting ai-alert-helper from a plain-directory `path:` to a kustomize root
+left the Application stuck `Degraded` with a `lastTransitionTime` from the
+previous day, while every resource showed Synced and the Deployment was
+Available. `status.resourceHealthSource: appTree` means app-level health comes
+from the controller's live-state (Redis) tree, and that tree held a stale
+node. `argocd.argoproj.io/refresh=hard` did NOT clear it — the cache needs an
+application-controller restart or its natural resync. Cosmetic (the badge
+lies), but it masks real health changes until cleared.
+
+Related: switching a live Deployment to `strategy: Recreate` via git fails
+the sync with `spec.strategy.rollingUpdate: Forbidden` — the live object keeps
+an orphan `rollingUpdate` block from its RollingUpdate past. One-time fix:
+
+```bash
+kubectl -n <ns> patch deployment <name> --type=merge \
+  -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}'
+```
+
+then re-sync (the ArgoCD operation retries 5× and then needs a manual
+re-trigger). Same root cause as the Helm-values variant documented in
+storage-secrets-ssa.md.

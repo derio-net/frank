@@ -212,3 +212,20 @@ parameter and passes through unchanged. Flipped for all 7 local aliases on
 **Beware in tests:** a `curl` verification without `"stream": true` CANNOT
 catch this class of bug — always probe the streaming path when validating
 tool-calling through LiteLLM.
+
+## LiteLLM cannot set Ollama num_ctx per request (2026-06-05)
+
+Verified live against litellm 1.81.13 + ollama_chat: `{"options":
+{"num_ctx": N}}`, top-level `"num_ctx"`, and `"extra_body"` variants are ALL
+silently dropped — the runner stays at its default window and truncates long
+prompts with only a runner-side log line (`truncating input prompt`).
+Upstream: BerriAI/litellm#12930, closed not-planned.
+
+The only effective, declarative control is server-side:
+`OLLAMA_CONTEXT_LENGTH` env on the ollama Deployment
+(`apps/ollama/values.yaml`, currently 16384). It is the default for EVERY
+model load on gpu-1 — KV-cache VRAM scales with it, so check `ollama ps`
+CPU/GPU split after changing (mistral-small-24b: 16 GB @4096 → 18 GB @16384).
+Clients that budget their prompts (ai-alert-helper `ANALYST_NUM_CTX`) must
+keep their budget equal to the server value, because past it the truncation
+is silent.

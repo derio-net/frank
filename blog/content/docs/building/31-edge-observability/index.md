@@ -312,7 +312,7 @@ def investigate(alert: dict, facts: dict) -> str:
     """Alert enrichment — 1-paragraph 'what happened, what's the risk'."""
 ```
 
-`facts.py` produces the structured dicts; `ai_adapter.py` consumes them. The contract is the swap point: today the implementation calls LiteLLM with `qwen-think-14b` (local on the homelab GPU) and falls back to `claude-haiku-4-5` on timeout. Some future day, when [Sympozium]({{< relref "/docs/building/26-vk-remote-self-host" >}}) gets multi-agent debate working, only this module changes. The fact-sheet shape is the contract that survives.
+`facts.py` produces the structured dicts; `ai_adapter.py` consumes them. The contract is the swap point: today the implementation calls LiteLLM with `qwen-think-14b` (local on the homelab GPU). Some future day, when [Sympozium]({{< relref "/docs/building/26-vk-remote-self-host" >}}) gets multi-agent debate working, only this module changes. The fact-sheet shape is the contract that survives. *(The original design also fell back to `claude-haiku-4-5` on timeout — that alias died when the free cloud models were purged in June 2026, and the fallback died with it, deliberately: a fallback that can't work is worse than failing loud. Local-only now, no fallback.)*
 
 TDD got serious on this phase. Twelve tests against `respx`-mocked HTTP:
 
@@ -331,6 +331,16 @@ tests/test_surge.py::test_compute_handles_empty_baseline_without_divide_by_zero 
 tests/test_surge.py::test_compute_handles_zero_current_traffic PASSED
 ============================== 12 passed in 1.13s ==============================
 ```
+
+### Update (June 2026) — it answers back now
+
+The helper grew from a one-way narrator into a two-way security analyst (0.2.0, [PR #469](https://github.com/derio-net/frank/pull/469)). Reply to the same Telegram bot and the local LLM (`mistral-small-24b`) investigates scan traces in VictoriaLogs through six curated read-only tools — edge traffic, attacker profiles by IP, Falco events, CrowdSec activity, scan-probe counts, and a guarded LogsQL escape hatch. Slash commands (`/scan_patterns 6h`, `/attacker_profile <ip> 24h`) invoke the same tools *deterministically* — no LLM in the loop, so the query path keeps working when the GPU is saturated, which is exactly the failure mode that motivated the design: the day this was specced, a fleet of scheduled agents pinned the GPU with a 35B model and starved every digest.
+
+Three things the implementation taught that the design didn't know:
+
+1. **Per-request `num_ctx` does not pass through LiteLLM for `ollama_chat`** — not as `options`, not top-level, not `extra_body` (litellm#12930, closed not-planned). Every shape silently leaves Ollama truncating at 4096. The fix is server-side: `OLLAMA_CONTEXT_LENGTH=16384` on the Ollama Deployment, with the client keeping an equal trim budget.
+2. **CrowdSec had never locally banned anyone.** Thirty days of logs: zero decision lines, only community-blocklist syncs. The planned "parse the decision lines" fact would have parsed a phrasing that has never been observed — so it parses the observed sync format and passes anything unrecognized through *raw*, because an unrecognized CrowdSec line is the story, not noise.
+3. **The expertise is a file, not a prompt.** The analyst's playbook (`apps/ai-alert-helper/skill/SKILL.md`) mounts into the pod via a hash-suffixed Kustomize ConfigMap — edit the markdown, push, the pod rolls with fresh knowledge — and the same file is a Claude Code skill, so the human and the bot literally read the same field guide.
 
 The two tests I'm most proud of are the divide-by-zero one (brand-new blog with no historical data shouldn't crash — baseline forces to 1) and the zero-current-traffic one (no requests this hour shouldn't fire a surge alert about a 0× ratio). Both came from imagining the boring cases first. The fallback-on-5xx test came from imagining LiteLLM's worst day — Telegram still needs the alert, even if it's the fallback model. The fallback model exists so the system can survive its primary failing without me waking up to a silent oncall.
 
