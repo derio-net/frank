@@ -151,3 +151,41 @@ def test_telegram_send_defaults_unchanged(monkeypatch):
     assert body["chat_id"] == "42"
     assert body["text"].startswith("🔥 *URGENT* ")
     assert "entities" not in body and "reply_to_message_id" not in body
+
+
+@respx.mock
+def test_telegram_get_updates_long_polls_with_offset(monkeypatch):
+    monkeypatch.setenv("FRANK_C2_TELEGRAM_BOT_TOKEN", "tok")
+    monkeypatch.setenv("FRANK_C2_TELEGRAM_CHAT_ID", "42")
+    from ai_alert_helper import telegram
+    import importlib; importlib.reload(telegram)
+    route = respx.get("https://api.telegram.org/bottok/getUpdates").mock(
+        return_value=httpx.Response(200, json={"ok": True, "result": [
+            {"update_id": 7, "message": {"chat": {"id": 42}, "text": "hi"}}]}))
+    updates = telegram.get_updates(offset=5)
+    assert updates[0]["update_id"] == 7
+    params = dict(route.calls.last.request.url.params)
+    assert params["offset"] == "5"
+    assert params["timeout"] == "30"          # long-poll
+
+
+@respx.mock
+def test_telegram_get_updates_empty_without_token(monkeypatch):
+    monkeypatch.delenv("FRANK_C2_TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.setenv("FRANK_C2_TELEGRAM_CHAT_ID", "42")
+    from ai_alert_helper import telegram
+    import importlib; importlib.reload(telegram)
+    assert telegram.get_updates(offset=0) == []   # no HTTP call, no crash
+
+
+@respx.mock
+def test_telegram_set_my_commands_posts_botcommands(monkeypatch):
+    monkeypatch.setenv("FRANK_C2_TELEGRAM_BOT_TOKEN", "tok")
+    monkeypatch.setenv("FRANK_C2_TELEGRAM_CHAT_ID", "42")
+    from ai_alert_helper import telegram
+    import importlib; importlib.reload(telegram)
+    route = respx.post("https://api.telegram.org/bottok/setMyCommands").mock(
+        return_value=httpx.Response(200, json={"ok": True}))
+    telegram.set_my_commands([{"command": "help", "description": "list commands"}])
+    body = json.loads(route.calls.last.request.read())
+    assert body["commands"][0]["command"] == "help"

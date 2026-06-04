@@ -1,0 +1,23 @@
+# Kustomize root for ai-alert-helper (converted from a plain-directory sync
+# 2026-06-04, trace-analyst Phase 3). EVERY manifest must be enumerated here:
+# the Application now syncs this root with prune:true, so anything missing
+# from this list gets DELETED from the cluster.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - manifests/deployment.yaml
+  - manifests/service.yaml
+  - manifests/cronjob-digest.yaml
+  - manifests/cronjob-surge-check.yaml
+
+# The analyst's playbook, mounted into the pod. The hash-suffixed name makes
+# any SKILL.md edit roll the Deployment automatically (which is why prune:true
+# is required — superseded ConfigMaps must be garbage-collected). The file
+# lives in-root because kustomize's load restrictor forbids ../ refs and
+# out-of-bounds symlinks break the GitOps loop (see repo gotchas).
+configMapGenerator:
+  - name: analyst-skill
+    namespace: ai-alert-helper-system
+    files:
+      - skill/SKILL.md

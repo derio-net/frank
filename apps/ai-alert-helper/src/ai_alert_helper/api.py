@@ -4,8 +4,14 @@
 - POST /digest        — daily summary (CronJob trigger)
 - POST /alert         — Grafana contact-point webhook
 - POST /surge-check   — 15-min CronJob computes baseline + maybe sends
+- POST /ask           — analyst Q&A (dry_run=true → no Telegram, full trace)
+
+The Telegram analyst poller runs as a lifespan background task — single
+replica only (getUpdates exclusivity; strategy: Recreate on the Deployment).
 """
 from __future__ import annotations
+import asyncio
+import contextlib
 import logging
 import os
 from datetime import datetime, timedelta, timezone
@@ -13,9 +19,19 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 
-from . import ai_adapter, facts, surge, telegram
+from . import ai_adapter, analyst, facts, poller, surge, telegram
 
-app = FastAPI(title="ai-alert-helper", version="0.1.6")
+
+@contextlib.asynccontextmanager
+async def _lifespan(app: FastAPI):
+    task = asyncio.create_task(poller.poll_loop())
+    yield
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+
+app = FastAPI(title="ai-alert-helper", version="0.2.0", lifespan=_lifespan)
 
 log = logging.getLogger("ai_alert_helper.surge")
 
@@ -50,6 +66,18 @@ def digest(dry_run: bool = False) -> dict:
     narrative = ai_adapter.summarize(sheet)
     telegram.send(f"📊 Yesterday on the Frank blog\n\n{narrative}")
     return {"facts": sheet, "narrative": narrative}
+
+
+@app.post("/ask")
+async def ask(request: Request, dry_run: bool = False) -> dict:
+    """Analyst Q&A over HTTP — the pre-merge verification path. dry_run skips
+    Telegram (it always does; the flag is explicit so callers state intent)."""
+    payload: dict[str, Any] = await request.json()
+    question = str(payload.get("question", "")).strip()
+    if not question:
+        return {"error": "body must be {\"question\": \"...\"}"}
+    out = analyst.answer(question, chat="http")
+    return {"question": question, **out, "dry_run": dry_run}
 
 
 @app.post("/alert")

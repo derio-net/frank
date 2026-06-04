@@ -1,6 +1,6 @@
 [project]
 name = "ai-alert-helper"
-version = "0.1.6"
+version = "0.2.0"
 description = "AI-enriched alert helper for Frank's blog edge observability"
 requires-python = ">=3.12"
 dependencies = [
