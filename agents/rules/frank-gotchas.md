@@ -85,6 +85,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - s6-overlay v3 in non-root mode needs `S6_KEEP_ENV=1`, `S6_VERBOSITY=2`, `with-contenv` shebangs (`#!/command/with-contenv bash` — `/command/`, NOT `/usr/bin/`), and `/run` chown'd to AGENT_UID at image build time.
 - `cont-init.d/30-authorized-keys` only fires at pod boot and COPIES (not symlinks) `/etc/ssh-keys/authorized_keys` — re-run by hand or restart pod after adding/rotating SOPS-managed keys.
 - sshd scrubs container env on login — env-dependent commands launched via `ssh agent@host -- cmd` see no `FRANK_C2_*`/`INFISICAL_*`. Use `kubectl exec` or source from `/proc/1/environ`.
+- BYOK shells (env-keyed CLIs like hermes) need a numbered `/etc/profile.d/` shim (ConfigMap + `subPath` mount) re-exporting the keys from `/proc/1/environ` into login shells — number it BELOW the image's `50-…-motd.sh` so the auth-status check sees the env. Verify with `ssh host 'bash -lc …'`, never `ssh host -- cmd` (skips profile.d).
 - `shareProcessNamespace: true` is incompatible with s6-overlay v3 (suexec must be PID 1) — use shared workspace volume + `kubectl exec -c <other>` for cross-container debugging.
 - s6 crashloop bail (5 deaths in 60s) leaves service down silently — `s6-svc -u /run/service/<name>` after fixing the root cause.
 - tmux-continuum auto-restore only fires when the tmux server starts fresh, not on `tmux source-file ~/.tmux.conf`.
