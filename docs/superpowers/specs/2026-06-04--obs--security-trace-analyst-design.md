@@ -48,7 +48,7 @@ Telegram chat ──getUpdates long-poll──▶ poller (asyncio task, chat-ID 
 - New fact builders in `facts.py`:
   - `crowdsec_decisions_detail` — IP, scenario, country, duration per decision, parsed from CrowdSec's log trail in VictoriaLogs (fluent-bit path). The helper runs on Frank and cannot reach Hop's LAPI ClusterIP (Tailscale routes LAN CIDRs only, not the kube service CIDR), so the log trail is the only viable source. If the trail proves too lossy, exposing LAPI read-only over the mesh becomes a named follow-up — not part of this design.
   - `top_attacker_ips` / `top_scanned_paths` — Caddy 4xx/404 aggregations, probe-excluded.
-  - `scan_pattern_counts` — hit counts for known probe paths (`/wp-login.php`, `/xmlrpc.php`, `/.env`, `/.git/`, admin panels).
+  - `scan_pattern_counts` — hit counts for known probe paths (`/wp-login.php`, `/xmlrpc.php`, `/.env`, `/.git/config`, admin panels).
 - Wire the new facts into `prompts/digest.txt` so daily digests name attackers instead of counting them.
 
 **Phase 2 — The analyst.** Poller, command dispatch, agent loop, tools, ConfigMap mount, image bump, deploy. The phase closes only after a real Telegram question about a real scan gets a correct in-thread answer (workflow triggered and observed end-to-end, per house rule).
@@ -90,7 +90,7 @@ Parse errors reply with that command's usage line, not a generic error.
 ## 6. Model & context strategy
 
 - **Model:** `mistral-small-24b` (function calling, fully VRAM-resident, 128K-capable). Configured as `LLM_MODEL_ANALYST`, independent of the digest's `LLM_MODEL_PRIMARY`.
-- **Context:** Ollama defaults to `num_ctx=4096` and silently truncates (observed live 2026-06-04: `prompt=5691 keep=4 new=4096`). Every analyst request sets `num_ctx` explicitly — target 16384, fallback 8192. The override must travel via LiteLLM's `extra_body` → Ollama `options` pass-through (the same proven path as `qwen36-a3b-nothin`'s `think: false`); a top-level `num_ctx` param is silently dropped. `LLM_MODEL_ANALYST` is net-new env wiring on the Deployment. The loop tracks (system prompt + history + tool results) against the budget and evicts oldest tool results first; it never relies on server-side truncation.
+- **Context:** Ollama defaults to `num_ctx=4096` and silently truncates (observed live 2026-06-04: `prompt=5691 keep=4 new=4096`). **Implementation finding (2026-06-05, supersedes the draft's `extra_body` theory):** per-request `num_ctx` does NOT pass through LiteLLM for `ollama_chat` in ANY shape — `options`, top-level, and `extra_body` were all tested live and silently ignored (upstream: BerriAI/litellm#12930, closed not-planned). The server window is therefore set declaratively via `OLLAMA_CONTEXT_LENGTH=16384` on the ollama Deployment (applies to the single loaded model; fallback 8192). `ANALYST_NUM_CTX` remains as the *client-side* trim budget and must stay equal to the server value. The loop tracks (system prompt + history + tool results) against that budget and evicts oldest tool results first; it never relies on server-side truncation.
 - **VRAM risk:** KV cache at 16K on the 24B model is the main unknown on a 16 GB card. Phase 2 includes a measurement step (`ollama ps` CPU/GPU split before and after) with the 8192 fallback decision documented in the plan.
 - **No fallback model:** per the local-only policy, an LLM failure produces a loud in-channel error, not a silent cloud retry. Direct commands (§5) remain available throughout.
 

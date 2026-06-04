@@ -19,6 +19,17 @@ extraEnv:
     value: "24h"
   - name: OLLAMA_MAX_LOADED_MODELS
     value: "1"
+  # Server-side default context window. Per-request num_ctx does NOT pass
+  # through LiteLLM for ollama_chat (BerriAI/litellm#12930, closed
+  # not-planned; verified live 2026-06-05: options / top-level / extra_body
+  # shapes all left the runner ctx at 4096 with silent prompt truncation).
+  # 16384 is the trace-analyst target (spec §6); the KV-cache VRAM cost
+  # applies only to the one loaded model (MAX_LOADED_MODELS=1). If the
+  # Test Plan measurement shows reclaim pressure on the 16GB card, drop
+  # to 8192 here AND in ai-alert-helper's ANALYST_NUM_CTX (client-side
+  # trim budget — keep them equal).
+  - name: OLLAMA_CONTEXT_LENGTH
+    value: "16384"
 
 persistentVolume:
   enabled: true

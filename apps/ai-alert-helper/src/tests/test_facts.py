@@ -237,3 +237,114 @@ def test_build_for_surge_enriched_referrers_paths_uas():
     assert q["start"].startswith("2026-05-26T16:00") and q["end"].startswith("2026-05-26T17:00")
     # every Caddy query is probe-excluded
     assert captured and all("Frank-Blackbox-Probe" in c for c in captured)
+
+
+# --- Phase 1 trace-analyst enrichment: scan patterns, attacker IPs, CrowdSec activity ---
+
+@respx.mock
+def test_scan_pattern_counts_groups_probe_paths_only():
+    route = respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        return_value=httpx.Response(200, json={"data": {"result": [
+            {"metric": {"request.uri": "/wp-login.php"}, "value": [0, "37"]},
+            {"metric": {"request.uri": "/.env"}, "value": [0, "12"]},
+        ]}}))
+    since = datetime(2026, 6, 4, tzinfo=timezone.utc); until = since + timedelta(hours=6)
+    rows = facts.scan_pattern_counts(since, until)
+    assert rows[0] == {"path": "/wp-login.php", "count": 37}
+    assert rows[1] == {"path": "/.env", "count": 12}
+    q = route.calls.last.request.url.params["query"]
+    # probe-excluded edge filter + a uri filter naming the probe list
+    assert "Frank-Blackbox-Probe" in q
+    assert "/wp-login.php" in q and "/xmlrpc.php" in q
+    assert "by (request.uri)" in q
+
+
+def test_scan_probe_paths_constant_covers_classics():
+    for p in ("/wp-login.php", "/xmlrpc.php", "/.env", "/.git/config"):
+        assert p in facts.SCAN_PROBE_PATHS
+
+
+@respx.mock
+def test_top_attacker_ips_groups_client_ip_over_errors():
+    route = respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        return_value=httpx.Response(200, json={"data": {"result": [
+            {"metric": {"request.client_ip": "203.0.113.7"}, "value": [0, "88"]},
+            {"metric": {"request.client_ip": "198.51.100.2"}, "value": [0, "5"]},
+        ]}}))
+    since = datetime(2026, 6, 4, tzinfo=timezone.utc); until = since + timedelta(days=1)
+    rows = facts.top_attacker_ips(since, until)
+    assert rows[0] == {"ip": "203.0.113.7", "count": 88}
+    q = route.calls.last.request.url.params["query"]
+    # 4xx-scoped, probe-excluded, grouped by the verified client-ip field
+    assert 'status:~"4.."' in q
+    assert "Frank-Blackbox-Probe" in q
+    assert "by (request.client_ip)" in q
+
+
+@respx.mock
+def test_top_scanned_paths_groups_uri_over_errors():
+    route = respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        return_value=httpx.Response(200, json={"data": {"result": [
+            {"metric": {"request.uri": "/.aws/credentials"}, "value": [0, "9"]},
+        ]}}))
+    since = datetime(2026, 6, 4, tzinfo=timezone.utc); until = since + timedelta(days=1)
+    rows = facts.top_scanned_paths(since, until)
+    assert rows[0] == {"path": "/.aws/credentials", "count": 9}
+    q = route.calls.last.request.url.params["query"]
+    assert 'status:~"4.."' in q and "by (request.uri)" in q
+
+
+@respx.mock
+def test_crowdsec_activity_parses_blocklist_syncs_and_passes_raw():
+    """v1.7.8 reality (verified 2026-06-04, 30d retention): the ONLY decision-ish
+    lines are lapi community-blocklist syncs; local scenario triggers have never
+    been observed. Parse the observed format; pass anything else through raw."""
+    sync_line = ('time="2026-06-03T06:30:06Z" level=info '
+                 'msg="crowdsecurity/community-blocklist : added 900 entries, '
+                 'deleted 0 entries (alert:1)"')
+    novel_line = ('time="2026-06-04T10:00:00Z" level=info '
+                  'msg="Ip 203.0.113.7 performed crowdsecurity/http-probing (6 events)"')
+    body = "\n".join([
+        '{"log": "%s", "_time": "2026-06-03T06:30:06Z"}' % sync_line.replace('"', '\\"'),
+        '{"log": "%s", "_time": "2026-06-04T10:00:00Z"}' % novel_line.replace('"', '\\"'),
+    ])
+    body += "\nnot-json-at-all{{{"   # corrupt NDJSON row: skipped, not fatal
+    route = respx.get(facts.VICTORIALOGS_URL + "/select/logsql/query").mock(
+        return_value=httpx.Response(200, text=body))
+    since = datetime(2026, 6, 3, tzinfo=timezone.utc); until = since + timedelta(days=2)
+    act = facts.crowdsec_activity(since, until)
+    assert act["blocklist_syncs"][0] == {"time": "2026-06-03T06:30:06Z", "added": 900, "deleted": 0}
+    # the unrecognized detection line is surfaced verbatim — that's news, not noise
+    assert any("203.0.113.7" in r for r in act["other_lines"])
+    # newest-first ordering protects detections from limit-eviction in busy windows
+    q = route.calls.last.request.url.params["query"]
+    assert "sort by (_time desc)" in q and "limit" in q
+
+
+@respx.mock
+def test_crowdsec_activity_empty_and_error_safe():
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/query").mock(
+        side_effect=httpx.ConnectError("down"))
+    since = datetime(2026, 6, 3, tzinfo=timezone.utc); until = since + timedelta(days=1)
+    act = facts.crowdsec_activity(since, until)
+    assert act == {"blocklist_syncs": [], "other_lines": []}
+
+
+@respx.mock
+def test_build_for_digest_includes_trace_analyst_enrichment():
+    """Phase 1 wiring: the digest sheet carries the new attacker/scan facts
+    over the SECURITY window (existing keys untouched — adapter swap contract)."""
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/stats_query").mock(
+        return_value=httpx.Response(200, json={"data": {"result": []}}))
+    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/query").mock(
+        return_value=httpx.Response(200, text=""))
+    respx.get(re.compile(facts.GOATCOUNTER_URL + "/api/v0/.*")).mock(
+        return_value=httpx.Response(200, json={"total": 0, "hits": [], "stats": []}))
+    since = datetime(2026, 6, 4, tzinfo=timezone.utc)
+    until = since + timedelta(days=1)
+    sheet = facts.build_for_digest(since, until, until)
+    for key in ("scan_pattern_counts", "top_attacker_ips", "crowdsec_activity"):
+        assert key in sheet, key
+    # existing contract keys still present
+    for key in ("falco_by_priority", "crowdsec_decisions", "edge_requests_total"):
+        assert key in sheet, key

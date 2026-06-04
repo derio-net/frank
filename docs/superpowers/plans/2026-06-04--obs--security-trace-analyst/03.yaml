@@ -115,54 +115,64 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:37:14+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:37:16+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:37:18+00:00'
       note: null
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:37:19+00:00'
       note: null
     P3.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-04T22:37:31+00:00'
+      note: 'Verification ran and CAUGHT the trap: options/top-level/extra_body num_ctx
+        ALL silently ignored by LiteLLM ollama_chat (litellm#12930, closed not-planned)
+        — runner stayed at ctx 4096, truncation warnings fired. Resolution (deviation):
+        server-side OLLAMA_CONTEXT_LENGTH=16384 on apps/ollama/values.yaml (declarative,
+        single-loaded-model cost); ANALYST_NUM_CTX kept as client-side trim budget,
+        must stay equal. Spec §6 updated. VRAM split measurement deferred to Test
+        Plan item 9 (needs the new server window live). mistral at 4096 measured 11%/89%
+        CPU/GPU.'
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:37:21+00:00'
       note: null
     P3.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:37:23+00:00'
       note: null
     P3.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:37:25+00:00'
       note: null
     P3.T4.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:37:26+00:00'
       note: null
     P3.T4.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:37:28+00:00'
       note: null
     P3.T5.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:37:29+00:00'
       note: null
     P3.T5.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T22:49:09+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-04T22:49:19+00:00'
+    note: 'All 102 tests green. Deviations: num_ctx via OLLAMA_CONTEXT_LENGTH server-side
+      (litellm#12930 — per-request shapes verified non-functional live); review fixes:
+      quoted-string _time bypass closed, generic largest-list cap shrink, UTF-16 entity
+      lengths, reversed-marker fallback.'
     observed_prs: []

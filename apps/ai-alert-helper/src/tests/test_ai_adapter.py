@@ -37,9 +37,10 @@ def test_summarize_calls_primary_model():
 
 
 @respx.mock
-def test_call_falls_back_to_secondary_on_5xx():
-    os.environ["LITELLM_URL"] = "http://litellm.test"
-    os.environ["LITELLM_API_KEY"] = "test-key"
+def test_call_falls_back_to_secondary_on_5xx(monkeypatch):
+    monkeypatch.setenv("LITELLM_URL", "http://litellm.test")
+    monkeypatch.setenv("LITELLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL_FALLBACK", "gemma-12b")   # distinct fallback configured
     from ai_alert_helper import ai_adapter
     import importlib; importlib.reload(ai_adapter)
 
@@ -57,7 +58,45 @@ def test_call_falls_back_to_secondary_on_5xx():
     assert route.call_count == 2
     # Second call should reference the fallback model
     body = route.calls[-1].request.read().decode()
-    assert "claude-haiku-4-5" in body
+    assert "gemma-12b" in body
+
+
+# --- optional fallback (2026-06-04: no-fallback policy, local-only inference) ---
+
+@respx.mock
+def test_no_fallback_env_means_single_attempt_and_loud_failure(monkeypatch):
+    """LLM_MODEL_FALLBACK unset → exactly one attempt; the error propagates.
+    The old hardcoded claude-haiku-4-5 default 400'd silently for weeks."""
+    monkeypatch.setenv("LITELLM_URL", "http://litellm.test")
+    monkeypatch.setenv("LITELLM_API_KEY", "test-key")
+    monkeypatch.delenv("LLM_MODEL_FALLBACK", raising=False)
+    from ai_alert_helper import ai_adapter
+    import importlib; importlib.reload(ai_adapter)
+
+    route = respx.post("http://litellm.test/v1/chat/completions").mock(
+        return_value=httpx.Response(503))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        ai_adapter.summarize({"x": 1})
+    assert route.call_count == 1
+
+
+@respx.mock
+def test_fallback_equal_to_primary_means_single_attempt(monkeypatch):
+    """fallback == primary → no pointless identical retry (doubles latency in
+    the exact gpu-1-saturation scenario the fallback was meant to cover)."""
+    monkeypatch.setenv("LITELLM_URL", "http://litellm.test")
+    monkeypatch.setenv("LITELLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL_FALLBACK", "qwen-think-14b")   # == default primary
+    from ai_alert_helper import ai_adapter
+    import importlib; importlib.reload(ai_adapter)
+
+    route = respx.post("http://litellm.test/v1/chat/completions").mock(
+        return_value=httpx.Response(503))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        ai_adapter.summarize({"x": 1})
+    assert route.call_count == 1
 
 
 @respx.mock
