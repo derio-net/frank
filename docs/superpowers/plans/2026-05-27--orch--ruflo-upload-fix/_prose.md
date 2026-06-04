@@ -3,6 +3,8 @@
 Fix/extension of the existing `orch` layer (ruflo deployment). Spec:
 `docs/superpowers/specs/2026-05-27--orch--ruflo-image-upload-fix-design.md`.
 
+**Status:** Deployed
+
 ## Problem
 
 Attaching an image (or having a tool fetch a file by URL) in the Ruflo ChatUI
