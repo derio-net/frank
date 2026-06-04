@@ -4,7 +4,7 @@ phase:
   title: 'agent-images: RvfGridFSBucket parity fix + upstream bump'
   tag: agentic
   depends_on: []
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/451
 tasks:
 - number: 1
   title: Author the GridFS-shim parity patch + contract test (TDD first)

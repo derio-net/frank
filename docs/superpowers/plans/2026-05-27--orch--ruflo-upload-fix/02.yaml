@@ -5,7 +5,7 @@ phase:
   tag: agentic
   depends_on:
   - 1
-  tracking_issue: null
+  tracking_issue: https://github.com/derio-net/frank/issues/452
 tasks:
 - number: 1
   title: Update apps/ruflo/manifests/deployment.yaml
