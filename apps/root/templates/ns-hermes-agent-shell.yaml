@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: hermes-agent-shell
+  labels:
+    # Matches the sibling shell namespaces (ns-secure-agent-pod, paperclip,
+    # ruflo). The hermes container is runAsNonRoot + drop ALL caps, so it
+    # actually satisfies `restricted`; we enforce `baseline` to stay
+    # consistent with the family and audit/warn at `restricted`.
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

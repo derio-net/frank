@@ -6,7 +6,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-06-03--orch--hermes-agent-shell-deploy-design.md`
 **Layer:** `orch` (15 — AI Agent Orchestrator)
-**Status:** Not Started
+**Status:** In Progress
 
 **Goal:** Stand up a standalone, SSH-able shell pod on `gpu-1` running the Nous
 Research `hermes` agent, wired BYOK to Frank's in-cluster LiteLLM gateway, with

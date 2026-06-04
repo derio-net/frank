@@ -200,44 +200,44 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T15:02:26+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T15:02:26+00:00'
       note: null
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T15:02:26+00:00'
       note: null
     P2.T1.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T15:02:26+00:00'
       note: null
     P2.T1.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
       note: null
     P2.T1.S6:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
       note: null
     P2.T1.S7:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
       note: null
     P2.T1.S8:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
       note: null
     P2.T1.S9:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
       note: null
     P2.T1.S10:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T15:02:27+00:00'
       note: null
     P2.T2.S1:
       state: ' '
