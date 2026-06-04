@@ -131,3 +131,18 @@ Fail loud, in-channel: tool errors and LLM timeouts produce a short "couldn't co
 - **Phase 2:** second image bump (analyst + tools), ConfigMap and Deployment changes in the same PR, ArgoCD sync, verification per §11.
 - **No manual operations anticipated:** the bot token already has the needed scope; `getUpdates` and `setMyCommands` need no BotFather changes.
 - **Rides along:** make `LLM_MODEL_FALLBACK` optional in code, closing the 2026-06-04 workaround that points it at the primary.
+
+## 13. Test Plan (post-merge, operator-driven)
+
+Run after the Phase 2 PR merges and ArgoCD syncs. The agent drives; the operator confirms what the agent can't reach (the Telegram client).
+
+1. **Rollout health:** `ai-alert-helper` Application Synced/Healthy; new pod Running with the analyst ConfigMap mounted (`kubectl describe pod` shows the hash-suffixed name); superseded ConfigMaps pruned.
+2. **Discovery:** in Telegram, `/` shows the command menu (setMyCommands took); `/help` and `/tools` reply with usage and the tool table.
+3. **No-LLM path:** `/scan_patterns 6h` and `/edge_traffic 1h group_by=host` return data in monospace blocks — verify timing feels instant (no GPU dependency).
+4. **Parse errors:** `/attacker_profile` with no args replies with that command's usage line, not a stack trace or generic error.
+5. **LLM path:** one natural-language question about a real recent scan (e.g. "who scanned the blog today and what were they after?") — answer arrives in-thread, cites tool-derived facts (IPs/paths/UAs), and the Deployment log shows the tool-call trace.
+6. **Explain opt-in:** `/scan_patterns 6h explain` returns the LLM narration of the same data.
+7. **State:** follow-up question uses prior context; `/reset` clears it (next question lacks the context).
+8. **Security gate:** a message from a non-allowlisted chat (second Telegram account or group) gets no reply and produces a WARNING log line.
+9. **Context budget:** Ollama logs show NO `truncating input prompt` lines during the above; `ollama ps` during a question shows the analyst model's CPU/GPU split — record it; if KV cache pushes past VRAM at 16384, drop to 8192 per §6 and re-verify.
+10. **Digest regression:** next morning's 08:00 digest still arrives (the poller didn't break the cron path).
