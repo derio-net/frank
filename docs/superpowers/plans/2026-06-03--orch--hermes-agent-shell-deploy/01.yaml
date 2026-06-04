@@ -63,26 +63,28 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T16:07:22+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T16:07:24+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T16:07:26+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T16:07:27+00:00'
       note: null
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-04T16:07:29+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-04T16:07:45+00:00'
+    note: HERMES_LITELLM_KEY minted + stored in Infisical; operator pubkey (raspi-controller@dMac,
+      reused from ruflo-shell) SOPS-committed as hermes-agent-shell-ssh-keys; apply
+      deferred to Phase 2 (namespace not yet created)
     observed_prs: []
