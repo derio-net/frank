@@ -6,6 +6,12 @@
 **Image source:** `derio-net/agent-images` — `hermes-agent-shell` (delivered by the
 `2026-06-01-agent-shells-batch` plan, Phase 2)
 
+## Implementation Plans
+
+| Plan | Repo | Path | Status |
+|------|------|------|--------|
+| 2026-06-03--orch--hermes-agent-shell-deploy | `derio-net/frank` | `docs/superpowers/plans/2026-06-03--orch--hermes-agent-shell-deploy/` | — |
+
 ## Problem
 
 `agent-images` just shipped `hermes-agent-shell`: an SSH-able, single-harness
