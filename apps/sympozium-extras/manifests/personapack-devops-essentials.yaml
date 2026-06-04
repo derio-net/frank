@@ -4,7 +4,9 @@ metadata:
   name: devops-essentials
   namespace: sympozium-system
 spec:
-  enabled: true
+  # Disabled 2026-06-04 alongside developer-team — see that file for rationale
+  # (gpu-1 starvation via qwen36-a3b sweeps).
+  enabled: false
   description: "Development workflow agents for code review and GitOps"
   category: development
   version: "1.0.0"

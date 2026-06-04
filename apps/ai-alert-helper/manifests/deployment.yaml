@@ -43,8 +43,14 @@ spec:
               value: "http://litellm.litellm.svc.cluster.local:4000"
             - name: LLM_MODEL_PRIMARY
               value: "qwen-think-14b"
+            # Fallback must NOT depend on gpu-1 — the primary's failure mode is
+            # gpu-1 saturation, so a local-model fallback would fail with it.
+            # gemma-31b is OpenRouter-backed (:free tier — can 429; tested
+            # responsive 2026-06-04, unlike qwen-next-80b/hermes-405b which
+            # were rate-limited/timing out). claude-haiku-4-5 was removed from
+            # LiteLLM entirely and 400'd on every fallback attempt.
             - name: LLM_MODEL_FALLBACK
-              value: "claude-haiku-4-5"
+              value: "gemma-31b"
             # Surge detector tuning (read in surge.compute / /surge-check).
             - name: SURGE_ABS_FLOOR        # min req/hr for any tier (kills baseline-of-1 artifacts)
               value: "50"

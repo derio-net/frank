@@ -10,7 +10,11 @@ metadata:
   name: developer-team
   namespace: sympozium-system
 spec:
-  enabled: true
+  # Disabled 2026-06-04: with the model alias fixed (#448) the pack's 8 personas
+  # actually ran their 30m-2h sweeps on qwen36-a3b (35B, 26GB, CPU-offloaded),
+  # pinning gpu-1 and starving every other local model (ai-alert-helper digests
+  # failed). Re-enable deliberately, with a model that fits VRAM.
+  enabled: false
   description: "A 2-pizza software development team — tech lead, backend, frontend, QA, reviewer, DevOps, and docs — collaborating on a single GitHub repository."
   category: development
   version: "1.0.0"
