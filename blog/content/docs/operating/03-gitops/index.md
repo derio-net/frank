@@ -13,8 +13,7 @@ This post covers the day-to-day commands for working with ArgoCD on the frank cl
 
 ArgoCD runs at `192.168.55.200` on a Cilium L2 LoadBalancer. It manages itself and every workload on the cluster through the App-of-Apps pattern. A single root Application in `apps/root/` renders child Application CRs for each component — Cilium, Longhorn, the GPU Operator, LiteLLM, Sympozium, and everything else.
 
-<!-- MEDIA: screenshot | ArgoCD web UI showing the App-of-Apps tree at 192.168.55.200 | Navigate to https://192.168.55.200, log in as admin, open the root Application and capture the app tree view, dark mode preferred -->
-<!-- {{</* screenshot src="argocd-app-of-apps-tree.png" caption="ArgoCD UI: the root Application fanning out into every child app on Frank" */>}} -->
+{{< screenshot src="argocd-app-of-apps-tree.png" caption="ArgoCD UI: the root Application fanning out into every child app on Frank" >}}
 
 All ArgoCD CLI commands use port-forwarding since there is no public ingress:
 

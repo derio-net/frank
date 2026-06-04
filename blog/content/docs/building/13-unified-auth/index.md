@@ -127,8 +127,7 @@ server:
 
 The bootstrap password creates an initial `akadmin` user on first boot. After SSO is working, this account becomes a break-glass fallback.
 
-<!-- MEDIA: screenshot | Authentik admin dashboard showing providers, applications, and outpost status | Log in as akadmin at http://192.168.55.211:9000/if/admin/ -->
-<!-- {{</* screenshot src="authentik-admin.png" caption="Authentik admin dashboard" */>}} -->
+{{< screenshot src="authentik-admin.png" caption="Authentik admin dashboard" >}}
 
 ## Blueprints: Declarative in Theory (and Eventually in Practice)
 
@@ -151,8 +150,7 @@ After several attempts, the initial approach shifted to the Authentik REST API. 
 
 Layer 13 is now fully declarative. If Authentik's database is lost, all providers, applications, and group mappings are recreated from blueprints on startup.
 
-<!-- MEDIA: screenshot | Authentik provider configuration showing OIDC and proxy providers | Navigate to Admin > Applications > Providers in the Authentik admin UI -->
-<!-- {{</* screenshot src="authentik-provider-config.png" caption="Provider configuration in Authentik admin" */>}} -->
+{{< screenshot src="authentik-provider-config.png" caption="Provider configuration in Authentik admin" >}}
 
 ## ArgoCD: Self-Management
 
