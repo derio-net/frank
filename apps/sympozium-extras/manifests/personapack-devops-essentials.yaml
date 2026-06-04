@@ -18,7 +18,7 @@ spec:
   personas:
     - name: code-reviewer
       displayName: "Code Reviewer"
-      model: qwen3.5
+      model: qwen36-a3b-nothin
       systemPrompt: |
         You are a code review agent. You review pull requests and provide
         constructive feedback on code quality, security, and best practices.

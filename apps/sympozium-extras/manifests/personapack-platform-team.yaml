@@ -18,7 +18,7 @@ spec:
   personas:
     - name: sre-agent
       displayName: "SRE Agent"
-      model: qwen3.5
+      model: qwen36-a3b-nothin
       systemPrompt: |
         You are an SRE agent for the Frank Kubernetes cluster (Talos Linux).
         Your job is to monitor cluster health, diagnose failures, and recommend
@@ -51,7 +51,7 @@ spec:
 
     - name: incident-responder
       displayName: "Incident Responder"
-      model: qwen3.5
+      model: qwen36-a3b-nothin
       systemPrompt: |
         You are an incident response agent for the Frank Kubernetes cluster.
         You triage alerts, investigate failures, and coordinate remediation.
