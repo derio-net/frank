@@ -107,13 +107,36 @@ physically power-cycle — safe on Talos (immutable OS partitions, journaled
 EPHEMERAL), but confirm Longhorn volumes are healthy elsewhere first:
 `kubectl -n longhorn-system get volumes.longhorn.io | grep -v healthy`.
 
-**Durable fix:** bump the Longhorn chart `1.11.0 → 1.11.2`
-(`apps/root/templates/longhorn.yaml` targetRevision). Note the upgrade alone
-does NOT free leaked memory: existing engines/replicas keep running in the
-**old** IM pods until each volume's engine is live-upgraded to the new engine
-image — only then do the old IMs retire and release the heap. Restarting an
-IM pod directly resets the leak but kills the live engines it hosts (volume
-I/O errors for attached workloads) — drain the node first if you must.
+**Durable fix (EXECUTED 2026-06-04/05, #467):** bump the Longhorn chart
+`1.11.0 → 1.11.2` (`apps/root/templates/longhorn.yaml` targetRevision), then
+per-volume engine live upgrade (`volumes.longhorn.io spec.image` patch) —
+27/27 live-upgraded with zero I/O interruption.
+
+**Old-IM retirement — what actually works (hard-won, three failed attempts):**
+the live upgrade moves *replicas* to the new IM but **engines stay in the old
+IM pod**, and — the key trap — **new engines started on a node JOIN the
+still-existing old IM** on reattach. So plain `rollout restart` retires
+nothing. The working per-node recipe:
+
+1. Suspend **root** app selfHeal FIRST (root re-templates leaf Application
+   specs and silently reverts leaf-level patches within its sync window),
+   then patch each involved leaf app `"syncPolicy":{"automated":null}`
+   (`selfHeal:false` alone did NOT keep scale-to-0 down), and scale operator
+   owners to 0 (awx-operator, victoria-metrics-operator — their Deployments
+   are themselves Argo-healed, so the app suspension must come first).
+2. Scale ALL workloads whose engines live in the node's old IM to 0
+   simultaneously; confirm replicas stay 0 for 30 s (resurrection check).
+3. Wait for **natural** volume detach — it takes seconds once nothing
+   recreates pods. **NEVER force-delete `VolumeAttachment` objects**: that
+   yanks the block device from under a mounted ext4 (`JBD2: I/O error when
+   updating journal superblock`, `EXT4-fs: shut down requested`) — it
+   crash-looped ruflo with `EIO` until a clean reattach fsck'd the volume.
+4. The old IM CR culls itself at 0 instances (delete its empty pod if it
+   lingers); scale everything back; restore root selfHeal + one root sync —
+   that single sync re-templates all suspended leaves back to git truth.
+
+Also: `talosctl memory` rows begin with NODE — AVAILABLE is field `$8`,
+`$7` is CACHE (this off-by-one faked two "memory not freed" scares).
 
 **Defense-in-depth:** replica scheduling is disabled on raspi-1/raspi-2
 (`spec.allowScheduling=false` on `nodes.longhorn.io` — manual op
