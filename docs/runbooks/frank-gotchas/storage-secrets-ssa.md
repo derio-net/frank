@@ -75,12 +75,21 @@ init container and the postgres pod (and then web/task) reconcile to Running.
 
 ## Longhorn instance-manager memory-thrash wedges low-RAM nodes (raspi-1, 2026-06-04)
 
-The instance-manager's `container_memory_working_set_bytes` is dominated by
-**active page cache** from replica/engine I/O (`working_set = usage −
-inactive_file`; Longhorn keeps re-touching the pages, so they never go
-inactive). On a 4 GB Pi the working set can exceed physical RAM while looking
-"reclaimable" — under pressure the kernel thrashes reclaiming pages Longhorn
-immediately re-touches, and **no OOM kill ever fires**. Failure signature:
+**Root cause (corrected 2026-06-04 evening, after cluster-wide forensics):**
+the Longhorn **v1.11.0** instance-manager leaks **anonymous Go heap** — an
+upstream regression where the new Proxy service APIs leak proxy connections
+([longhorn#12575](https://github.com/longhorn/longhorn/issues/12575), also
+reported as #12573/#12643/#12668; **fixed in v1.11.1+**). The leak is linear
+and unbounded (~0.9 GiB/day on busy nodes, proportional to engine activity ×
+pod age, NOT replica count): node-exporter showed `AnonPages` dominating
+(mini-1: 55.6 GiB anon vs 2.7 GiB cached), and IM working sets tracked pod age
+(74d-old IMs: gpu-1 72.5 GiB, mini-1 48.3 GiB; 4–10d-old IMs: 0.2–11.5 GiB).
+Beware metric duplication: `sum by(pod)` over cadvisor series double-counts IM
+memory (two series under the kubelet job) — use `max`.
+
+When the leak exhausts a node, the kernel reclaim-thrashes the little file
+cache that remains rather than OOM-killing the giant anonymous process, and
+**no OOM kill ever fires**. Failure signature:
 
 - Node `NotReady` (`NodeStatusUnknown`), but pings OK and Talos API responsive
 - `talosctl service kubelet` → `HEALTH Fail`, `healthz context deadline exceeded`
@@ -98,14 +107,21 @@ physically power-cycle — safe on Talos (immutable OS partitions, journaled
 EPHEMERAL), but confirm Longhorn volumes are healthy elsewhere first:
 `kubectl -n longhorn-system get volumes.longhorn.io | grep -v healthy`.
 
-**Prevention:** replica scheduling is disabled on raspi-1/raspi-2
+**Durable fix:** bump the Longhorn chart `1.11.0 → 1.11.2`
+(`apps/root/templates/longhorn.yaml` targetRevision). Note the upgrade alone
+does NOT free leaked memory: existing engines/replicas keep running in the
+**old** IM pods until each volume's engine is live-upgraded to the new engine
+image — only then do the old IMs retire and release the heap. Restarting an
+IM pod directly resets the leak but kills the live engines it hosts (volume
+I/O errors for attached workloads) — drain the node first if you must.
+
+**Defense-in-depth:** replica scheduling is disabled on raspi-1/raspi-2
 (`spec.allowScheduling=false` on `nodes.longhorn.io` — manual op
 `stor-longhorn-disable-pi-replica-scheduling`; re-apply when re-adding a Pi).
 Volume *attachment* (e.g. Traefik's ACME PVC engine on the edge zone) remains
-allowed — a single small-volume engine is fine; it's replica data serving that
-balloons the cache. The `layer-1-node-memory-headroom` Grafana alert
-(`MemAvailable < 1 GiB` for 30m) is the early warning — an **absolute** floor,
-not a ratio: 6% of 64 GB (mini) is healthy, 9% of 4 GB (Pi) is pre-wedge.
+allowed. The `layer-1-node-memory-headroom` Grafana alert (`MemAvailable <
+1 GiB` for 30m) is the early warning — an **absolute** floor, not a ratio:
+6% of 64 GB (mini) is healthy, 9% of 4 GB (Pi) is pre-wedge.
 
 Full timeline + forensics: `docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md`.
 
