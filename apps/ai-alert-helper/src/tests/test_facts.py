@@ -308,13 +308,17 @@ def test_crowdsec_activity_parses_blocklist_syncs_and_passes_raw():
         '{"log": "%s", "_time": "2026-06-03T06:30:06Z"}' % sync_line.replace('"', '\\"'),
         '{"log": "%s", "_time": "2026-06-04T10:00:00Z"}' % novel_line.replace('"', '\\"'),
     ])
-    respx.get(facts.VICTORIALOGS_URL + "/select/logsql/query").mock(
+    body += "\nnot-json-at-all{{{"   # corrupt NDJSON row: skipped, not fatal
+    route = respx.get(facts.VICTORIALOGS_URL + "/select/logsql/query").mock(
         return_value=httpx.Response(200, text=body))
     since = datetime(2026, 6, 3, tzinfo=timezone.utc); until = since + timedelta(days=2)
     act = facts.crowdsec_activity(since, until)
     assert act["blocklist_syncs"][0] == {"time": "2026-06-03T06:30:06Z", "added": 900, "deleted": 0}
     # the unrecognized detection line is surfaced verbatim — that's news, not noise
     assert any("203.0.113.7" in r for r in act["other_lines"])
+    # newest-first ordering protects detections from limit-eviction in busy windows
+    q = route.calls.last.request.url.params["query"]
+    assert "sort by (_time desc)" in q and "limit" in q
 
 
 @respx.mock

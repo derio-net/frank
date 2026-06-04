@@ -305,7 +305,9 @@ def top_attacker_ips(since: datetime, until: datetime, top: int = 10) -> list[di
 
 
 def top_scanned_paths(since: datetime, until: datetime, top: int = 10) -> list[dict]:
-    """Most-probed paths across all 4xx traffic (not just the classics)."""
+    """Most-probed paths across all 4xx traffic (not just the classics).
+
+    Not wired into the digest — it backs the Phase 2 analyst tools."""
     q = f"{_error_edge(since, until)} | stats by (request.uri) count() as c"
     rows = _logsql_group(q, "request.uri", top=top)
     return [{"path": r["request.uri"], "count": r["count"]} for r in rows]
@@ -326,9 +328,14 @@ def crowdsec_activity(since: datetime, until: datetime, limit: int = 200) -> dic
     alert/decision-ish line is passed through raw — local scenario triggers have
     never been observed in retention, so an unrecognized line is the story, and
     a parser guessed against an unobserved format would hide it."""
+    # sort desc so the NEWEST lines win the limit budget — LogsQL `limit`
+    # without sort is order-unspecified, and a busy window (the exact moment
+    # an operator asks "who got banned?") could otherwise evict a real
+    # detection line in favor of routine syncs (review finding, 2026-06-04).
     q = (
         f"{_window(since, until)} kubernetes.namespace_name:crowdsec-system "
-        f'AND (log:alert OR log:decision OR log:ban) | limit {limit}'
+        f"AND (log:alert OR log:decision OR log:ban) "
+        f"| sort by (_time desc) | limit {limit}"
     )
     try:
         resp = httpx.get(
@@ -337,9 +344,17 @@ def crowdsec_activity(since: datetime, until: datetime, limit: int = 200) -> dic
             timeout=15,
         )
         resp.raise_for_status()
-        lines = [json.loads(l) for l in resp.text.splitlines() if l.strip()]
+        raw_lines = resp.text.splitlines()
     except Exception:  # noqa: BLE001 — fail-soft like every fact builder
         return {"blocklist_syncs": [], "other_lines": []}
+    lines = []
+    for l in raw_lines:  # per-line fault isolation: one corrupt NDJSON row
+        if not l.strip():  # must not blank the whole batch
+            continue
+        try:
+            lines.append(json.loads(l))
+        except ValueError:
+            continue
     syncs, other = [], []
     for entry in lines:
         log = entry.get("log", "")

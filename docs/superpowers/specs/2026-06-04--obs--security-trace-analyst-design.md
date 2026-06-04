@@ -48,7 +48,7 @@ Telegram chat ──getUpdates long-poll──▶ poller (asyncio task, chat-ID 
 - New fact builders in `facts.py`:
   - `crowdsec_decisions_detail` — IP, scenario, country, duration per decision, parsed from CrowdSec's log trail in VictoriaLogs (fluent-bit path). The helper runs on Frank and cannot reach Hop's LAPI ClusterIP (Tailscale routes LAN CIDRs only, not the kube service CIDR), so the log trail is the only viable source. If the trail proves too lossy, exposing LAPI read-only over the mesh becomes a named follow-up — not part of this design.
   - `top_attacker_ips` / `top_scanned_paths` — Caddy 4xx/404 aggregations, probe-excluded.
-  - `scan_pattern_counts` — hit counts for known probe paths (`/wp-login.php`, `/xmlrpc.php`, `/.env`, `/.git/`, admin panels).
+  - `scan_pattern_counts` — hit counts for known probe paths (`/wp-login.php`, `/xmlrpc.php`, `/.env`, `/.git/config`, admin panels).
 - Wire the new facts into `prompts/digest.txt` so daily digests name attackers instead of counting them.
 
 **Phase 2 — The analyst.** Poller, command dispatch, agent loop, tools, ConfigMap mount, image bump, deploy. The phase closes only after a real Telegram question about a real scan gets a correct in-thread answer (workflow triggered and observed end-to-end, per house rule).
