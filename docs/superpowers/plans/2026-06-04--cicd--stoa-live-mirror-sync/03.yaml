@@ -1,0 +1,135 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Post-merge cutover + end-to-end test plan (driven with operator)
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Merge, sync, and steady-state verification
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Merge the PR. Then verify the GitOps chain converges:
+      ```bash
+      source .env
+      kubectl get application -n argocd argocd-extras stoa-live-mirror-sync -o wide   # Synced/Healthy
+      kubectl -n argocd get secret repo-stoa-companies -o jsonpath='{.metadata.labels}'  # repository label
+      kubectl -n tekton-pipelines get externalsecret live-mirror-paperclip live-mirror-gitea-webhook  # SecretSynced
+      kubectl -n tekton-pipelines get el live-mirror-sync                              # Ready
+      kubectl -n tekton-pipelines get svc el-live-mirror-sync                          # ClusterIP :8080
+      ```
+      If `stoa-live-mirror-sync` shows a repo/auth ComparisonError, the
+      argocd-reader credential is the suspect (check repo-server logs).
+  - id: P3.T1.S2
+    text: |-
+      Confirm the four upstream resources landed in tekton-pipelines:
+      `kubectl -n tekton-pipelines get eventlistener,triggerbinding,triggertemplate live-mirror-sync`
+      and `kubectl -n tekton-pipelines get task fire-paperclip-webhook`.
+- number: 2
+  title: Wire the Gitea webhook — deliberately LAST
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      # manual-operation
+      id: cicd-stoa-companies-gitea-webhook
+      layer: cicd
+      app: gitea
+      plan: docs/superpowers/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+      when: "LAST bring-up step, after the EventListener is Ready and the mirror is populated — from this point every mirror push fires Paperclip (by design). Wiring earlier risks a spurious backfill-triggered fire."
+      why_manual: "Gitea repo webhook config is UI/API state"
+      commands:
+        - |
+          # Gitea: agentic-stoa/companies → Settings → Webhooks → Add webhook → Gitea
+          #   Target URL: http://el-live-mirror-sync.tekton-pipelines.svc.cluster.local:8080
+          #   Method: POST, Content type: application/json
+          #   Secret: <the STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET value minted in Phase 2>
+          #   Trigger on: Push events, branch filter main (or all — the cel filter guards ref)
+          # ALLOWED_HOST_LIST already permits *.svc.cluster.local (verified).
+      verify:
+        - "Webhook test-delivery from the Gitea UI returns 2xx"
+      status: pending
+- number: 3
+  title: 'End-to-end acceptance (issue #444 criteria)'
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Drive a test merge to agentic-stoa/companies `main` (coordinate with Stoa —
+      a docs-touch PR is enough). Then observe the full chain:
+      ```bash
+      kubectl -n tekton-pipelines get pipelinerun --sort-by=.metadata.creationTimestamp | tail -3   # agentic-stoa-main-sync-*
+      kubectl -n tekton-pipelines get taskrun --sort-by=.metadata.creationTimestamp | tail -3       # live-mirror-sync-*
+      kubectl -n tekton-pipelines logs -l tekton.dev/taskRun --tail=20 | grep "Paperclip responded" # HTTP 202 + run id
+      ```
+      INTERCEPTOR VERDICT: if the TaskRun never appears, capture
+      `kubectl -n tekton-pipelines logs deploy/el-live-mirror-sync` and diagnose
+      per spec Component B (content-type, secret, cel body.ref) BEFORE touching
+      the upstream manifests. Expected to pass on Gitea 1.25.4.
+  - id: P3.T3.S2
+    text: |-
+      Verify the Paperclip side: a run issue appears under routine `2f4d361b`
+      carrying the changed-file report (Paperclip UI at 192.168.55.212:3100).
+  - id: P3.T3.S3
+    text: |-
+      Record the interceptor verdict by correcting the stale gotcha: in
+      `agents/rules/frank-gotchas.md` (Tekton section) scope the line
+      "Gitea sends X-Gitea-Event (not X-GitHub-Event) — use cel, not github" to
+      its real precondition, and add the dated full prose to
+      `docs/runbooks/frank-gotchas/tekton.md` (Gitea 1.25.4 ships GitHub-compat
+      headers X-GitHub-Event + X-Hub-Signature-256; the github interceptor
+      verifies Gitea HMAC fine). Follow-up commit to main.
+  - id: P3.T3.S4
+    text: |-
+      Report the acceptance signal on derio-net/frank#444: the 202 + run-issue
+      link, per the issue's handback section. Stoa's CTO then retires the
+      `0 6 * * *` cron — the trigger chain is live with no coverage gap.
+- number: 4
+  title: Closeout
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Run /sync-runbook (five manual-operation blocks in this plan), flip their
+      `status:` as completed, and set this plan's Status to Deployed. Fix/extension
+      workflow: no new blog post; skip homepage/IngressRoute (nothing user-facing);
+      README unchanged (no new service/IP).
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

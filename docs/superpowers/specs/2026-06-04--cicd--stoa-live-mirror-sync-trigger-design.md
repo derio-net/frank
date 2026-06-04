@@ -206,6 +206,12 @@ Deployed:
   id, public trigger id, manifest paths); no Stoa business logic is described.
 - **Coverage gap: none** — the cron remains until cutover is confirmed.
 
+## Implementation Plans
+
+| Plan | Repo | Scope | Status |
+|------|------|-------|--------|
+| 2026-06-04--cicd--stoa-live-mirror-sync | `derio-net/frank` | `docs/superpowers/plans/2026-06-04--cicd--stoa-live-mirror-sync/` | — |
+
 ## Post-deploy
 
 Fix/extension workflow: no new blog post; retro-update the Tekton
