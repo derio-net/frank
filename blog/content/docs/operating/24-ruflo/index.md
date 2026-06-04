@@ -244,55 +244,78 @@ The `ruflo-data` PVC is the one to back up religiously — it holds every hive, 
 
 ## Swarm-Run Cookbook
 
-A worked example of running `claude-flow orchestrate` against the live ruvocal. Minimum pieces:
+> **Corrected 2026-06-05, after the first real end-to-end attempt.** The
+> original version of this section described a `claude-flow orchestrate
+> --hive hive.yaml` flow that does not exist in the v3 CLI (`ruflo v3.10.x`),
+> and an env block that belongs to the *ruvocal* container, not the shell
+> sidecar. What follows is what actually works — discovered the honest way,
+> by running it.
 
-1. SSH to the shell.
-2. Confirm the CLI talks to ruvocal.
-3. Define a hive.
-4. Kick a run.
-5. Watch it from the web UI.
+Three facts to internalize before the recipe:
+
+1. **`claude-flow swarm`/`hive-mind` build coordination state only** —
+   topologies, message bus, task queues, consensus. The *workers* that do
+   the actual work are **Claude Code processes** (`hive-mind spawn
+   --claude` / `claude -p`). No authenticated `claude` CLI on the shell =
+   swarms that initialize beautifully and execute nothing.
+2. **Worker tokens bill Anthropic, not LiteLLM.** The zero-direct-key,
+   local-only posture covers ruvocal's chat surface; claude-flow workers
+   ride the `claude` CLI's own auth (subscription OAuth or
+   `ANTHROPIC_BASE_URL` override — see the local-models note below).
+3. **Always use login shells over SSH** (`ssh ruflo` interactive, or
+   `ssh ruflo 'bash -lc ...'`). sshd scrubs container env and only login
+   shells get the `/etc/profile.d/` shims that put the mise-managed
+   `claude-flow` on PATH. `ssh ruflo -- cmd` silently sees neither.
+
+One-time prerequisite (persists on the `ruflo-shell-home` PVC):
+
+```bash
+ssh ruflo
+claude          # then /login — subscription OAuth via browser
+```
+
+The recipe:
 
 ```bash
 ssh ruflo
 
-# 1. Sanity-check the CLI and the gateway path.
-claude-flow --version             # should print: ruflo vX.Y.Z
-claude-flow status                # reaches into ruvocal at http://localhost:3000
+# 1. Sanity checks.
+claude-flow --version             # ruflo v3.10.x
+claude-flow status                # reaches ruvocal at localhost:3000; [STOPPED] pre-run is normal
+claude -p "reply with exactly: AUTH-OK" --model haiku    # must print AUTH-OK
 
-# 2. Verify zero-direct-key egress.
-env | grep -E '^(OPENAI|OPENROUTER|LITELLM)_' | sort
-# expected:
-#   OPENAI_API_KEY=<RUFLO_LITELLM_KEY value, set on the container env>
-#   OPENAI_BASE_URL=http://litellm.litellm.svc:4000
-#   OPENROUTER_API_KEY=<openrouter key, for direct-OpenRouter code paths>
-#   LITELLM_BASE_URL=http://litellm.litellm.svc:4000
+# 2. Work in a real directory — the swarm operates on cwd.
+cd /workspace/projects/<repo>     # or a sandbox
 
-# 3. Define a hive (claude-flow's name for a swarm config) and kick a run.
-mkdir -p /workspace/swarms/hello-swarm && cd /workspace/swarms/hello-swarm
-cat > hive.yaml <<'YAML'
-name: hello-swarm
-goal: "Refactor README.md and open a PR with conventional-commit message."
-agents:
-  - role: writer
-    model: openrouter/x-ai/grok-4-fast
-  - role: reviewer
-    model: openrouter/anthropic/claude-sonnet-4.6
-budget:
-  max_tokens: 200000
-  max_minutes: 15
-YAML
+# 3. Initialize coordination (cap agents — workers bill your subscription).
+claude-flow swarm init -m 3
+claude-flow swarm start -o "Rewrite README.md into a clean structured README and commit on branch swarm/readme" -s development
+# prints agent slots, then tells you execution happens via Claude Code
 
-claude-flow orchestrate --hive hive.yaml --workdir /workspace/projects/<repo>
+# 4. Spawn the actual workers and hand them the task (queen-led variant):
+claude-flow hive-mind init -t hierarchical-mesh
+claude-flow hive-mind spawn --claude --count 2
+claude-flow hive-mind task "Rewrite README.md ... commit on branch swarm/readme"
+
+# 5. Watch.
+claude-flow hive-mind status
+claude-flow swarm status
+# and the run shows up in the web UI at https://ruflo.cluster.derio.net
+
+# 6. Clean up.
+claude-flow hive-mind shutdown
 ```
 
-The run shows up in the ruvocal web UI under the hive name. Tail the run log either through the UI or in the CLI:
+The shell sidecar's own env carries only `LITELLM_BASE_URL` — the
+`OPENAI_API_KEY`/`OPENAI_BASE_URL` pair lives in the **ruvocal** container
+and powers the chat surface, not the swarm workers.
 
-```bash
-claude-flow runs ls
-claude-flow runs tail <run-id>
-```
-
-If the run hangs without producing tokens, the LiteLLM gateway is the most likely culprit — check `kubectl logs -n litellm deploy/litellm | tail -50` for `401`/`429`/quota errors.
+**Local models under the Claude Code harness?** Possible in principle:
+`claude` honors `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`, and LiteLLM
+speaks the Anthropic `/v1/messages` format, so workers *can* be pointed at
+the local qwen lineup. Expect a real quality cliff — the Claude Code harness
+(tool schemas, thinking, edit discipline) is tuned for Claude-family models.
+Tracked as a future experiment, not part of this cookbook.
 
 ## Common Operations
 
