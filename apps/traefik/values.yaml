@@ -69,7 +69,12 @@ env:
         name: traefik-cloudflare-credentials
         key: api-token
 
-# Disable Traefik dashboard (accessed via ArgoCD, not needed)
+# Traefik dashboard — internal entrypoint only (port 8080, `traefik`).
+# Not exposed on the LB or any public domain; reach it via
+#   kubectl port-forward -n traefik-system deploy/traefik 9000:8080
+# then http://localhost:9000/dashboard/ . Enabled for operational
+# visibility of routers/middlewares (and the building/24 blog shots).
 ingressRoute:
   dashboard:
-    enabled: false
+    enabled: true
+    entryPoints: ["traefik"]
