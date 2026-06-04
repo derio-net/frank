@@ -97,15 +97,44 @@ connection leaks ([longhorn#12575](https://github.com/longhorn/longhorn/issues/1
 dupes #12573, #12643, #12668). **Fixed in v1.11.1**; latest 1.11.x chart is
 **1.11.2**.
 
-**Planned remediation (next session):**
-1. Bump `apps/root/templates/longhorn.yaml` targetRevision `1.11.0 → 1.11.2`.
-2. Live-upgrade each volume's engine to the new engine image — the old leaked
-   IM pods keep running (and keep their heap) until no engine/replica
-   references them. Watch `kubectl -n longhorn-system get engineimages.longhorn.io`
-   refcounts drain.
-3. Priority: mini-1 first (3–4 day runway), then gpu-1, then the rest.
-4. Verify: IM working sets reset to <2 GiB; `node_memory_MemAvailable_bytes`
-   recovers on mini-1/gpu-1; headroom alert stays green.
+**Remediation — EXECUTED same night (2026-06-04 21:00 → 2026-06-05 00:20):**
+
+Outcome: every node now runs a single v1.11.2 IM; old engine image gone
+(refcount 169 → 0 → image removed). mini-1: 3.3 → **51.8 GB** available;
+gpu-1: 39.8 → **116.5 GB**. All 27 attached volumes stayed `healthy`
+end-to-end; total workload downtime was per-app pod cycles (~1 min each).
+
+What the plan got right and wrong (full lessons in
+`docs/runbooks/frank-gotchas/storage-secrets-ssa.md`):
+
+1. Chart bump (#467) + per-volume `spec.image` live upgrade: worked exactly
+   as designed — 27/27 live-upgraded with zero interruption, replicas moved
+   to the new IMs immediately.
+2. **Wrong assumption:** engines do NOT move on plain pod restart, and new
+   engines started on a node JOIN the old IM while it exists. Plain
+   `rollout restart` of all 24 volume-owning workloads retired nothing.
+3. **The actual retirement procedure** (now the canonical recipe —
+   `/tmp`-era scripts immortalized as the steps below):
+   a. Suspend **root** app selfHeal FIRST (root re-templates leaf specs and
+      reverts leaf-level patches — argocd gotcha), then suspend the involved
+      leaf apps with `"syncPolicy":{"automated":null}` (selfHeal:false alone
+      proved insufficient), and pause operator owners (awx-operator,
+      victoria-metrics-operator) whose Deployments are themselves
+      Argo-healed.
+   b. Scale the old-IM-engine workloads to 0 **simultaneously per node**;
+      verify no resurrection after 30 s.
+   c. Wait for **natural** volume detach (seconds once nothing recreates
+      pods). NEVER force-delete `VolumeAttachment` objects — doing that
+      yanked mounted ext4 journals mid-write (`JBD2: I/O error`,
+      `EXT4-fs: shut down`) and crash-looped ruflo until a clean
+      reattach fsck'd the volumes.
+   d. Old IM culls itself at 0 instances (delete its pod if the CR lingers
+      empty); scale workloads back; restore root selfHeal + one root sync
+      (re-templates all suspended leaves back to git truth).
+4. GPU note: ollama/comfyui "parking" is just replica counts (gpu-switcher
+   arbitrates the same field) — cycling ollama is safe while comfyui is at 0.
+5. Measurement trap that cost an hour: `talosctl memory` row starts with
+   NODE, so AVAILABLE is `$8`, not `$7` ($7 is CACHE).
 
 ```yaml
 # manual-operation
