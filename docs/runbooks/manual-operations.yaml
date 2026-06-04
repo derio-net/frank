@@ -1491,3 +1491,15 @@ operations:
   - kubectl -n ai-alert-helper-system get secret ai-alert-helper-secrets
   - kubectl -n ai-alert-helper-system exec deploy/ai-alert-helper -- env | grep -c TELEGRAM
   status: done
+- id: stor-longhorn-disable-pi-replica-scheduling
+  layer: stor
+  app: longhorn
+  plan: docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md
+  when: After the 2026-06-04 raspi-1 memory-wedge incident; re-apply if a raspi node is ever re-added/replaced
+  why_manual: nodes.longhorn.io CRs are created and owned by the Longhorn manager, not the Helm chart — replica scheduling intent is stored on the live CR and cannot be expressed declaratively in apps/longhorn
+  commands:
+  - source .env ; kubectl -n longhorn-system patch nodes.longhorn.io raspi-1 --type=merge -p '{"spec":{"allowScheduling":false}}'
+  - source .env ; kubectl -n longhorn-system patch nodes.longhorn.io raspi-2 --type=merge -p '{"spec":{"allowScheduling":false}}'
+  verify:
+  - kubectl -n longhorn-system get nodes.longhorn.io   # raspi-1/raspi-2 ALLOWSCHEDULING=false
+  status: done

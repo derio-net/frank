@@ -73,6 +73,42 @@ purpose-built answer to this exact error and survives a storage-class swap).
 After the CR change syncs, the operator regenerates the StatefulSet with the
 init container and the postgres pod (and then web/task) reconcile to Running.
 
+## Longhorn instance-manager memory-thrash wedges low-RAM nodes (raspi-1, 2026-06-04)
+
+The instance-manager's `container_memory_working_set_bytes` is dominated by
+**active page cache** from replica/engine I/O (`working_set = usage −
+inactive_file`; Longhorn keeps re-touching the pages, so they never go
+inactive). On a 4 GB Pi the working set can exceed physical RAM while looking
+"reclaimable" — under pressure the kernel thrashes reclaiming pages Longhorn
+immediately re-touches, and **no OOM kill ever fires**. Failure signature:
+
+- Node `NotReady` (`NodeStatusUnknown`), but pings OK and Talos API responsive
+- `talosctl service kubelet` → `HEALTH Fail`, `healthz context deadline exceeded`
+- `talosctl memory` → AVAILABLE near zero; `talosctl stats` returns only
+  system-namespace containers (CRI too wedged to answer)
+- dmesg: iSCSI `ping timeout` / `critical medium error` on the Longhorn-attached
+  `sd*` device — these are *downstream symptoms*, not a failing disk
+- One wedged node fires every layer with a DaemonSet pod on it simultaneously
+  (2026-06-04: L3 cilium, L4 longhorn, L5 NFD worker, L8 fluent-bit/node-exporter,
+  L24 traefik — five layers, one root cause)
+
+**Recovery:** `talosctl reboot` wedges in `cleanup/stopAllPods` (the teardown
+needs the dead CRI; D-state I/O ignores SIGKILL). Give it ~5 min, then
+physically power-cycle — safe on Talos (immutable OS partitions, journaled
+EPHEMERAL), but confirm Longhorn volumes are healthy elsewhere first:
+`kubectl -n longhorn-system get volumes.longhorn.io | grep -v healthy`.
+
+**Prevention:** replica scheduling is disabled on raspi-1/raspi-2
+(`spec.allowScheduling=false` on `nodes.longhorn.io` — manual op
+`stor-longhorn-disable-pi-replica-scheduling`; re-apply when re-adding a Pi).
+Volume *attachment* (e.g. Traefik's ACME PVC engine on the edge zone) remains
+allowed — a single small-volume engine is fine; it's replica data serving that
+balloons the cache. The `layer-1-node-memory-headroom` Grafana alert
+(`MemAvailable < 1 GiB` for 30m) is the early warning — an **absolute** floor,
+not a ratio: 6% of 64 GB (mini) is healthy, 9% of 4 GB (Pi) is pre-wedge.
+
+Full timeline + forensics: `docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md`.
+
 ## Standing rules
 
 - Always `ServerSideApply=true` in ArgoCD sync options (avoids annotation size limits).

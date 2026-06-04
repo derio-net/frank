@@ -585,6 +585,53 @@ data:
               summary: "L1 Hardware: node {{ $labels.node }} NotReady"
               runbook: "kubectl describe node {{ $labels.node }}; talosctl -n {{ $labels.node }} health"
 
+      # --- Layer 1 — Node memory headroom (frank-ops#1) ---
+      # Absolute floor, NOT a ratio: 6% of 64GB (mini) is ~4GB and healthy,
+      # while 9% of 4GB (Pi) is ~355MB and one page-cache creep away from a
+      # reclaim-thrash wedge (kubelet unresponsive, no OOM kill — 2026-06-04
+      # raspi-1 incident). 1GiB catches the Pi-class wedge weeks early.
+      - orgId: 1
+        name: layer-1-node-memory-headroom
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-1-node-memory-headroom
+            title: Layer 1 Hardware Node Memory Headroom Low
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  # MemAvailable in bytes, per node-exporter instance.
+                  expr: 'node_memory_MemAvailable_bytes{job="node-exporter"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1073741824] }
+            noDataState: OK
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#1"
+            annotations:
+              summary: "L1 Hardware: node {{ $labels.instance }} has <1GiB memory available for 30m — reclaim-thrash wedge risk (see 2026-06-04 raspi-1 incident)"
+              runbook: "talosctl -n <node-ip> memory; check Longhorn instance-manager working set: container_memory_working_set_bytes{pod=~\"instance-manager.*\"}; docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md"
+
       # --- Layer 2 — OS & Bootstrap (frank-ops#2) ---
       # Per control-plane node only — HA lost = critical.
       - orgId: 1
