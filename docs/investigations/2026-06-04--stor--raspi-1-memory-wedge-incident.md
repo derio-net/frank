@@ -29,12 +29,21 @@ node wedged, every layer's "pod down / target down" rule fired at once.
 
 ## Root-cause anatomy
 
-- `container_memory_working_set = usage − inactive_file`. Longhorn replica/engine
-  I/O keeps page-cache pages **active**, so the instance-manager's working set
-  (4.2 GB) exceeded physical RAM while remaining theoretically reclaimable.
-  Under pressure the kernel thrashed reclaiming pages Longhorn immediately
-  re-touched — **no OOM kill, everything stalls**. This is why the node died
-  silently instead of recovering via the OOM killer.
+> **Corrected (same evening, cluster-wide forensics):** the original
+> page-cache theory below was wrong. The instance-manager memory is
+> **anonymous Go heap** leaked by an upstream Longhorn v1.11.0 regression —
+> proxy connection leaks in the new IM Proxy service APIs
+> ([longhorn#12575](https://github.com/longhorn/longhorn/issues/12575), dupes
+> #12573/#12643/#12668; **fixed in v1.11.1**). See "Evening follow-up" below.
+
+- raspi-1's instance-manager "4.2 GB working set" was double-counted cadvisor
+  series (two series under the kubelet job — use `max`, not `sum`); real value
+  ~2.1 GiB — still >55% of the Pi's RAM, all anonymous heap (`talosctl memory`
+  showed only 159 MB cache).
+- Anonymous memory can't be reclaimed without swap (Talos runs none). The
+  kernel thrashed the *remaining sliver* of file cache instead of OOM-killing
+  the leaking giant — **no OOM kill, everything stalls**. This is why the node
+  died silently instead of recovering via the OOM killer.
 - Graceful `talosctl reboot` cannot recover this state: `stopAllPods` talks to
   the wedged CRI and D-state processes ignore SIGKILL. **Go straight to power.**
   Power-cut is safe: Talos OS partitions are immutable, EPHEMERAL is journaled,
@@ -57,6 +66,46 @@ node wedged, every layer's "pod down / target down" rule fired at once.
    DNS challenge) and is genuinely needed; with replicas banned from the Pis,
    the remaining engine-only footprint is acceptable. Revisit only if the
    headroom alert fires on raspi-2 (where Traefik now runs).
+
+## Evening follow-up — cluster-wide leak audit (the real root cause)
+
+Prompted by "mini-1 only has ~4 GB free", a cluster-wide sweep found the same
+pathology everywhere, scaling with IM pod age:
+
+| Node | IM pod age | IM working set (max, dedup) | Node MemAvailable |
+|------|-----------|------------------------------|-------------------|
+| gpu-1 | 74d (Mar 22) | 72.5 GiB / 128 | 39.8 GiB |
+| mini-1 | 74d (Mar 22) | 48.3 GiB / 64 | **3.3 GiB** |
+| mini-3 | 9d | 11.5 GiB | 40.3 GiB |
+| pc-1 | 28d | 10.2 GiB | 18.0 GiB |
+| mini-2 | 4d | 6.0 GiB | 46.0 GiB |
+| raspi-2 | 10d | 0.2 GiB | 1.4 GiB |
+
+- mini-1 IM trend: 35.4 → 47.5 GiB over 14 days, perfectly linear ≈ **0.9 GiB/day**
+  → projected wedge in ~3–4 days at audit time (and it's an etcd member).
+- Kernel breakdown on mini-1: `AnonPages` 55.6 GiB vs `Cached` 2.7 GiB —
+  anonymous heap, not page cache. Matches upstream issue reports ("Go runtime
+  heap, anonymous private dirty").
+- Leak is NOT proportional to replica count (mini-2: 22 replicas / 6 GiB;
+  mini-1: 18 replicas / 48 GiB) — it tracks engine/proxy activity × pod age.
+- Cluster CPU is idle (≤10% util, load/core ≤0.2) and declared memory requests
+  are 4–23% of allocatable — the cluster is NOT over-scheduled; this is one
+  leaking component.
+
+**Upstream:** Longhorn v1.11.0 IM Proxy service API regression — proxy
+connection leaks ([longhorn#12575](https://github.com/longhorn/longhorn/issues/12575);
+dupes #12573, #12643, #12668). **Fixed in v1.11.1**; latest 1.11.x chart is
+**1.11.2**.
+
+**Planned remediation (next session):**
+1. Bump `apps/root/templates/longhorn.yaml` targetRevision `1.11.0 → 1.11.2`.
+2. Live-upgrade each volume's engine to the new engine image — the old leaked
+   IM pods keep running (and keep their heap) until no engine/replica
+   references them. Watch `kubectl -n longhorn-system get engineimages.longhorn.io`
+   refcounts drain.
+3. Priority: mini-1 first (3–4 day runway), then gpu-1, then the rest.
+4. Verify: IM working sets reset to <2 GiB; `node_memory_MemAvailable_bytes`
+   recovers on mini-1/gpu-1; headroom alert stays green.
 
 ```yaml
 # manual-operation

@@ -587,9 +587,10 @@ data:
 
       # --- Layer 1 — Node memory headroom (frank-ops#1) ---
       # Absolute floor, NOT a ratio: 6% of 64GB (mini) is ~4GB and healthy,
-      # while 9% of 4GB (Pi) is ~355MB and one page-cache creep away from a
-      # reclaim-thrash wedge (kubelet unresponsive, no OOM kill — 2026-06-04
-      # raspi-1 incident). 1GiB catches the Pi-class wedge weeks early.
+      # while 9% of 4GB (Pi) is ~355MB and one slow leak away from a
+      # reclaim-thrash wedge (anonymous heap exhaustion, kubelet unresponsive,
+      # no OOM kill — 2026-06-04 raspi-1 incident, Longhorn IM leak
+      # longhorn#12575). 1GiB catches the wedge days-to-weeks early.
       - orgId: 1
         name: layer-1-node-memory-headroom
         folder: feature-health
