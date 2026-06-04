@@ -100,3 +100,17 @@ logs). Full prose: `docs/runbooks/frank-gotchas/agent-shells.md` (BYOK
 provider-pinning section). Lesson folded into the verification habit: a
 BYOK layer's e2e check must include one real chat completion, not just
 endpoint reachability.
+
+### 2026-06-04 (later) — LiteLLM `ollama/` breaks tools+streaming (cluster-wide fix)
+
+After provider pinning, interactive hermes wrapped EVERY reply in fake
+tool-call JSON (`{"name": "text_to_speech", …}`). Isolation: `-t none` →
+clean text; non-stream curl with tools → proper native `tool_calls`;
+**stream + tools → scaffold JSON leaks into `content`, zero `tool_calls`
+deltas**. Root cause is LiteLLM's `ollama/` provider (prompt-based function
+calling, re-parsed only non-streamed) — hermes always streams. Fixed by
+flipping all 7 local aliases in `apps/litellm/values.yaml` to `ollama_chat/`
+(native /api/chat tool calling, stream-safe). Affects every tool-using
+LiteLLM consumer, not just hermes. Gotcha: LiteLLM entry in
+`docs/runbooks/frank-gotchas/other-apps.md`; testing lesson — always probe
+the STREAMING path when validating tool-calling.
