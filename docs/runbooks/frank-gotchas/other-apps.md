@@ -229,3 +229,23 @@ CPU/GPU split after changing (mistral-small-24b: 16 GB @4096 → 18 GB @16384).
 Clients that budget their prompts (ai-alert-helper `ANALYST_NUM_CTX`) must
 keep their budget equal to the server value, because past it the truncation
 is silent.
+
+## gemma-12b (gemma4:12b) thinking preamble eats small max_tokens (2026-06-05)
+
+The `gemma-12b` alias moved from `gemma3:12b` to `gemma4:12b` (ollama image
+0.30.5 pin required — gemma4 arch support landed in 0.30.3, FPE-crash-free
+from 0.30.5). Gemma 4 12B is a **thinking model**: every response starts with
+a reasoning preamble that LiteLLM/ollama_chat correctly splits into
+`reasoning_content` — but the reasoning tokens count against `max_tokens`
+FIRST. A request with `max_tokens: 60` returned `finish_reason: stop` with an
+**empty `content`** and the whole budget consumed by thinking (verified live
+on the canary pod, 2026-06-05). Symptoms for a consumer: "model returns
+nothing" with small completion budgets, while curl tests with generous
+budgets look fine.
+
+Mitigations: give vision/chat calls a few hundred `max_tokens` of headroom,
+and read `reasoning_content` if the chain-of-thought is wanted. Whether
+gemma4 honors a `think: false` toggle (the qwen3.6 trick) has NOT been
+verified — test before relying on it. Time-to-first-token is also longer
+than gemma3's was; streaming consumers see the gap before `content` deltas
+start.
