@@ -2,6 +2,12 @@
 # Serves models via OpenAI-compatible API on ClusterIP:11434
 # Consumed by LiteLLM gateway, not exposed externally
 
+# Pinned explicitly (chart 1.50.0 defaults to its appVersion, 0.17.7).
+# 0.30.5 is the first release where gemma4:12b works — support landed in
+# 0.30.3 but crashed with a floating-point exception until the 0.30.5 fix.
+image:
+  tag: "0.30.5"
+
 ollama:
   gpu:
     enabled: true
