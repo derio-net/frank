@@ -1,6 +1,6 @@
 # Ruflo File-Upload Fix + Upstream Bump — Design
 
-**Status:** Draft
+**Status:** Deployed
 **Layer:** `orch` (AI Agent Orchestrator — fix/extension of the existing ruflo deployment)
 **Spec date:** 2026-05-27
 

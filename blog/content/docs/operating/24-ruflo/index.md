@@ -384,6 +384,21 @@ kubectl annotate externalsecret ruflo-llm -n ruflo-system \
 kubectl rollout restart deploy/ruflo -n ruflo-system
 ```
 
+### Image / File Upload Returns 500
+
+If attaching an image (or a tool fetching a file by URL) 500s with `TypeError: upload.once is not a function` — or uploads "succeed" but the image renders blank on re-open — the `RvfGridFSBucket` GridFS-shim parity fix is missing from the running bundle. This was fixed in ruflo-server `0ff7014` (frank #464); a regressed or pre-fix image brings it back.
+
+```bash
+# Confirm the fix is present in the deployed bundle:
+kubectl -n ruflo-system exec deploy/ruflo -c ruflo -- \
+  sh -c 'grep -l "objectMode: true" /app/build/server/chunks/database-*.js'
+# expect a match. Then check live logs during an upload attempt:
+kubectl -n ruflo-system logs deploy/ruflo -c ruflo --since=5m | \
+  grep -E 'upload.once|ERR_INVALID_ARG_TYPE|is not a function' && echo PRESENT-BAD || echo CLEAN
+```
+
+If the grep finds no `objectMode` match, the deployed image predates the fix — bump `apps/ruflo/manifests/deployment.yaml` to a ruflo-server SHA ≥ `0ff7014`. Note that no Frank model currently advertises `multimodal:true`, so the UI image-attach control is gated off; the upload path is exercised by tool-fetched files and the HTTP route, not the attach button. See the GridFS-shim section in `docs/runbooks/frank-gotchas/paperclip-ruflo.md`.
+
 ### Telegram Alerts Stop
 
 Check the alert ExternalSecret:
@@ -401,6 +416,7 @@ The alert helper resolves `FRANK_C2_TELEGRAM_BOT_TOKEN` / `FRANK_C2_TELEGRAM_CHA
 - **`/` is the wrong probe path.** ruvocal SSR-renders the model list at request time, so probes against `/` are full upstream-dependency checks. Use `/api/v2/feature-flags` (already configured).
 - **`OPENAI_API_KEY` must be a LiteLLM virtual key**, not the OpenRouter key. LiteLLM authenticates against its own key store. Symptom of a wrong key: 401 on every model-list call, 500 on `/`.
 - **The data layer is RVF, not Postgres.** Mounting a PVC at `/app/db` is essential — without it, every restart starts from a fresh empty `ruvocal.rvf.json` and every hive vanishes.
+- **RVF's `GridFSBucket` is a shim** — its file upload/download/copy-on-fork paths needed a parity fix (real `Writable`/`Readable`/cursor) to stop 500-ing. Carried as a build-time patch, upstreamed as ruvnet/ruflo#2293. A pre-fix image regresses file uploads (see Troubleshooting above).
 - **`mise install` doesn't activate.** Until the upstream `agent-shell-base` fix lands, manual `mise use --global …` after first reconcile is required (see workaround above).
 - **The `cont-init.d/30-authorized-keys` hook only fires at pod boot.** Rotating SSH keys mid-life requires either a `kubectl exec` re-copy or a pod bounce.
 

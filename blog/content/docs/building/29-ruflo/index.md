@@ -87,6 +87,28 @@ Without that PVC, every pod restart starts ruvocal from a fresh empty `ruvocal.r
 
 The general lesson: an env-var inventory tells you what the codebase *can* read; only a runtime trace tells you what it *does* read.
 
+## The RVF Surprise, Part Two: A Shim That Lies About Being a Stream
+
+The RVF backend came back to bite later. Attaching an image in the ChatUI 500'd with `TypeError: upload.once is not a function`. Plain chat worked; MCP tools worked; only the file path was broken.
+
+Because there's no Mongo backend at this revision (`database.ts` hardcodes `new RvfGridFSBucket()`), every file caller in the upstream chat-ui talks to a hand-written shim that *pretends* to be MongoDB's `GridFSBucket`. The shim compiles against the Mongo API surface — but it isn't actually faithful to it, and the chat-ui callers were all written against the real Mongo stream/cursor contract. Three gaps, each independent:
+
+1. **`openUploadStream` returned a plain object, not a `Writable`.** `uploadFile.ts` calls `upload.once("finish", …)` on it — and a plain object has no `.once`. That's the crash users saw.
+2. **It corrupted the data even if you patched (1).** `uploadFile.ts` hands the shim an `ArrayBuffer` (cast to `Buffer` — a TypeScript lie). The old `write()` did `chunk.toString("base64")` on it, which on an `ArrayBuffer` yields the literal string `"[object ArrayBuffer]"`. So uploads were *also* silently storing garbage.
+3. **Reading back and copy-on-fork were broken too.** `openDownloadStream` returned `{ toArray }` (no `.on`/`.pipe`), and `find()` was `async` with no `.next()`. The readers (`downloadFile.ts`, `conversation.ts`) call these as real streams and cursors. So even once uploads worked, *reading* the image back and *forking* a shared conversation with an attachment each 500'd on their own.
+
+(2) and (3) were latent: those paths only run once a file exists, and no file ever uploaded successfully. Fix only the `.once` crash and you'd just surface the next one.
+
+The fix makes the shim tell the truth — in one file, with zero changes to any caller:
+
+- `openUploadStream` returns a real **objectMode** `Writable`. Object mode is the trick that absorbs the `ArrayBuffer` at the boundary: a default-mode `Writable.write()` would throw `ERR_INVALID_ARG_TYPE` on it, but in object mode the chunk arrives intact and `Buffer.from(chunk)` coerces `ArrayBuffer`/`Uint8Array`/`Buffer`/`string` alike. The stream emits `finish`, carries `.id`, and supports `.write()`/`.end()`/`.pipe()`.
+- `openDownloadStream` returns a real `Readable` via `Readable.from`.
+- `find()` is synchronous and returns a cursor exposing both `next()` and `toArray()`.
+
+Storage stays base64, so download decodes and `downloadFile` re-encodes for its `{type:"base64"}` return — round-trip preserved. The whole repair lives in `agent-images/ruflo-server/patches/rvf-gridfs-parity.patch`, applied with a build-time `grep -q` guard, and is upstreamed as [ruvnet/ruflo#2293](https://github.com/ruvnet/ruflo/pull/2293) (the same PR also carries the `wasm://` url-safety allow-line from the earlier autopilot fix).
+
+The lesson echoes Part One: a shim that *compiles* against an interface tells you nothing about whether it *behaves* like that interface at runtime. The callers were honest; the shim wasn't.
+
 ## The LiteLLM Virtual-Key Surprise
 
 The plan's first cut at the LLM secret looked exactly like Paperclip's:
