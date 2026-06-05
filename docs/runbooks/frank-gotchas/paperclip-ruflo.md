@@ -305,7 +305,7 @@ Paperclip's local LLM path routes agent runs through Frank's LiteLLM gateway (`l
         "qwen-think-14b":    { "name": "Qwen3 14B Thinking (local)" },
         "qwen36-a3b":        { "name": "Qwen3.6 35B-A3B MoE (local)" },
         "qwen36-a3b-nothin": { "name": "Qwen3.6 35B-A3B MoE — no-think (local)" },
-        "gemma-12b":         { "name": "Gemma 3 12B multimodal (local)" }
+        "gemma-12b":         { "name": "Gemma 4 12B multimodal (local)" }
       }
     }
   }

@@ -230,6 +230,16 @@ The replacement strategy:
 
 Aliases changed in this refresh — consumers using the old names (`qwen3.5`, `deepseek-coder`, `mistral-small`, `gemma-27b`, `llama-70b`, `step-flash`) need to update to the new ones (`mistral-small-24b`, `qwen-coder-14b`, `gemma-31b`, etc.). The data-policy comments per model are kept and re-verified against each provider's current terms.
 
+## Refresh — June 2026
+
+The multimodal slot moved generations: `gemma3:12b` → `gemma4:12b` (2026-06-05). The alias stayed `gemma-12b`, so no consumer changed a line of config. What the swap actually took:
+
+1. **An Ollama runtime bump first.** The chart's default image (0.17.7) predates the Gemma 4 architecture — `ollama pull gemma4:12b` refuses before downloading a byte. Support landed in Ollama 0.30.3, but 0.30.3/0.30.4 shipped a floating-point-exception crash on exactly this model; the pin went straight to 0.30.5 (`image.tag` in `apps/ollama/values.yaml`).
+2. **Validation before the cutover, on the failure modes that matter:** text generation, vision/OCR against a real dashboard screenshot, and — the one that historically breaks — `stream: true` + `tools` on the native `/api/chat` path. Gemma 4 populated `tool_calls` cleanly with zero scaffolding JSON leaked into `content`.
+3. **One behavioral change to know about:** Gemma 4 12B is a thinking model. The CLI shows a reasoning preamble before the answer; over the API the reasoning stays out of `content`, but time-to-first-token is longer than gemma3's was.
+
+Q4_K_M is 7.6GB on disk (gemma3 was 8.1GB), context ceiling rose from 128K to 256K upstream — still server-capped at 16K by `OLLAMA_CONTEXT_LENGTH` on the 16GB card. `gemma3:12b` was deleted from the PVC after the LiteLLM gateway verified end-to-end on the new backend.
+
 ## What is Next
 
 Any consumer on the network can use `192.168.55.206:4000` today — local GPU models, multimodal vision (local + cloud), and frontier-scale reasoning (cloud) are all operational behind one OpenAI-compatible endpoint.

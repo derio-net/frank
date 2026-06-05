@@ -94,16 +94,22 @@ proxy_config:
         model: ollama_chat/mistral-small3.2:24b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
-    # Gemma 3 12B — multimodal (text + image), 128K context
-    # Best practical local vision model — OCR, charts, screenshot analysis.
-    # Q4_K_M ≈ 8GB + ~1.4GB vision tower.
+    # Gemma 4 12B — multimodal (text + image), 256K context upstream
+    # (server-capped by OLLAMA_CONTEXT_LENGTH=16384). Best practical local
+    # vision model — OCR, charts, screenshot analysis. Q4_K_M ≈ 7.6GB +
+    # vision tower. Replaced gemma3:12b 2026-06-05 (needed the ollama
+    # 0.30.5 image pin — gemma4 arch lands in 0.30.3, FPE-crash-free from
+    # 0.30.5). Thinking model: emits a reasoning preamble before answering
+    # (CLI shows it; API keeps content clean — verified stream+tools on
+    # the native /api/chat path populates tool_calls with zero scaffolding
+    # leak). Alias kept stable so consumers are untouched.
     - model_name: gemma-12b
       litellm_params:
-        model: ollama_chat/gemma3:12b
+        model: ollama_chat/gemma4:12b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
     # Qwen2.5-VL 7B (Q4_K_M) — Qwen-family alternative to gemma-12b for vision
-    # Different model architecture from Gemma3; useful when one struggles on a
+    # Different model architecture from Gemma4; useful when one struggles on a
     # specific input class (handwriting, dense tables, multi-column layouts).
     # Default Q4_K_M ≈ 5.5GB + vision tower + KV cache ≈ 12GB on the 16GB
     # RTX 5070 Ti — comfortable headroom. Q8_0 was tried first but OOMed at
