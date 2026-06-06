@@ -1,0 +1,142 @@
+schema_version: 2
+phase:
+  number: 1
+  title: 64k inference path — ollama derived model + LiteLLM alias pair
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Declare gemma4:12b-64k via chart models.create
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Validation harness FIRST (red): render the ollama chart with the
+      CURRENT values and assert the variant is absent — this is the
+      check that must flip.
+      ```bash
+      helm repo add otwld https://helm.otwld.com/ >/dev/null 2>&1 || true
+      helm template ollama otwld/ollama --version 1.50.0 -f apps/ollama/values.yaml \
+        | grep -c "gemma4:12b-64k"   # expect 0 (red)
+      ```
+  - id: P1.T1.S2
+    text: |-
+      In `apps/ollama/values.yaml`, inside the existing `ollama.models:`
+      block (currently `pull: []` / `run: []` / `clean: false`), replace
+      `create: []`-equivalent state by adding:
+
+      BEGIN VALUES SNIPPET (under ollama.models:)
+          # Derived models created at container startup (chart-managed
+          # `ollama create`). Modelfile PARAMETER num_ctx is the per-model
+          # escape hatch from litellm#12930 (LiteLLM cannot pass num_ctx
+          # per-request; OLLAMA_CONTEXT_LENGTH above stays the server-wide
+          # default for everything else). Measured 2026-06-06 on gpu-1
+          # (RTX 5070 Ti): 64k KV costs +846MiB over the 16k baseline
+          # (9,686 vs 8,840 MiB), 100% GPU. Blob-sharing: the tag adds only
+          # a manifest layer. See spec
+          # docs/superpowers/specs/2026-06-06--orch--hermes-context-survival-design.md
+          create:
+            - name: gemma4:12b-64k
+              template: |
+                FROM gemma4:12b
+                PARAMETER num_ctx 65536
+      END VALUES SNIPPET
+
+      Keep `clean: false` (strays must not be auto-removed).
+  - id: P1.T1.S3
+    text: |-
+      Green + structural validation:
+      ```bash
+      helm template ollama otwld/ollama --version 1.50.0 -f apps/ollama/values.yaml \
+        | grep -c "gemma4:12b-64k"   # expect >=1 (green)
+      uv run --with pyyaml python3 -c "
+      import yaml; v = yaml.safe_load(open('apps/ollama/values.yaml'))
+      c = v['ollama']['models']['create'][0]
+      assert c['name'] == 'gemma4:12b-64k', c
+      assert 'num_ctx 65536' in c['template'], c
+      print('ollama values OK')"
+      ```
+      (uv is guaranteed by the devcontainer profile; yq is not.)
+- number: 2
+  title: LiteLLM aliases gemma-12b-64k + gemma-12b-64k-nothin
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Red check: `grep -c "gemma-12b-64k" apps/litellm/values.yaml` → 0.
+  - id: P1.T2.S2
+    text: |-
+      In `apps/litellm/values.yaml`, immediately after the existing
+      `gemma-12b-nothin` model_list entry (~line 123), add:
+
+      BEGIN VALUES SNIPPET (model_list entries)
+          # Gemma 4 12B with a 64k context window — same weights as
+          # gemma-12b but backed by the derived tag gemma4:12b-64k
+          # (Modelfile num_ctx 65536; created chart-side in
+          # apps/ollama/values.yaml ollama.models.create). Exists because
+          # ollama_chat ignores per-request num_ctx (litellm#12930) and
+          # the server default is 16384. Primary consumer: hermes agent
+          # shell (config.yaml context_length overrides match these
+          # values — keep them in sync).
+          - model_name: gemma-12b-64k
+            litellm_params:
+              model: ollama_chat/gemma4:12b-64k
+              api_base: http://ollama.ollama.svc.cluster.local:11434
+
+          # 64k + thinking disabled (the gemma-12b-nothin pattern at 64k).
+          # Default model of the hermes agent shell.
+          - model_name: gemma-12b-64k-nothin
+            litellm_params:
+              model: ollama_chat/gemma4:12b-64k
+              api_base: http://ollama.ollama.svc.cluster.local:11434
+              extra_body:
+                think: false
+      END VALUES SNIPPET
+  - id: P1.T2.S3
+    text: |-
+      Green + structural validation:
+      ```bash
+      grep -c "model_name: gemma-12b-64k" apps/litellm/values.yaml          # 2 (64k + 64k-nothin)
+      uv run --with pyyaml python3 -c "
+      import yaml, json
+      v = yaml.safe_load(open('apps/litellm/values.yaml'))
+      def walk(o):
+          if isinstance(o, dict):
+              if 'model_name' in o: yield o
+              for x in o.values(): yield from walk(x)
+          elif isinstance(o, list):
+              for x in o: yield from walk(x)
+      m = {e['model_name']: e for e in walk(v)}
+      assert m['gemma-12b-64k']['litellm_params']['model'] == 'ollama_chat/gemma4:12b-64k'
+      assert m['gemma-12b-64k-nothin']['litellm_params']['extra_body']['think'] is False
+      print('litellm aliases OK')"
+      ```
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-06T10:44:32+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-06T10:44:33+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-06-06T10:44:34+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-06T10:44:35+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-06T10:44:35+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-06-06T10:44:36+00:00'
+      note: null
+  completion:
+    at: '2026-06-06T10:44:37+00:00'
+    note: null
+    observed_prs: []

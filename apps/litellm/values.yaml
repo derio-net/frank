@@ -122,6 +122,29 @@ proxy_config:
         extra_body:
           think: false
 
+    # Gemma 4 12B with a 64k context window — same weights as gemma-12b but
+    # backed by the derived tag gemma4:12b-64k (Modelfile num_ctx 65536;
+    # created chart-side in apps/ollama/values.yaml ollama.models.create).
+    # Exists because ollama_chat ignores per-request num_ctx (litellm#12930)
+    # and the server default is 16384. Measured KV cost: +846MiB over the 16k
+    # baseline on gpu-1, 100% GPU. Primary consumer: hermes agent shell
+    # (its config.yaml context_length overrides must match these values —
+    # 64k pair = 65536, everything else = 16384; see manual-op
+    # orch-hermes-context-budgets).
+    - model_name: gemma-12b-64k
+      litellm_params:
+        model: ollama_chat/gemma4:12b-64k
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+
+    # 64k + thinking disabled (the gemma-12b-nothin pattern at 64k).
+    # Default model of the hermes agent shell.
+    - model_name: gemma-12b-64k-nothin
+      litellm_params:
+        model: ollama_chat/gemma4:12b-64k
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+        extra_body:
+          think: false
+
     # Qwen2.5-VL 7B (Q4_K_M) — Qwen-family alternative to gemma-12b for vision
     # Different model architecture from Gemma4; useful when one struggles on a
     # specific input class (handwriting, dense tables, multi-column layouts).

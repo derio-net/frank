@@ -18,6 +18,20 @@ ollama:
   models:
     pull: []
     run: []
+    # Derived models created at container startup (chart-managed
+    # `ollama create`). Modelfile PARAMETER num_ctx is the per-model
+    # escape hatch from litellm#12930 (LiteLLM cannot pass num_ctx
+    # per-request; OLLAMA_CONTEXT_LENGTH below stays the server-wide
+    # default for everything else). Measured 2026-06-06 on gpu-1
+    # (RTX 5070 Ti): 64k KV costs +846MiB over the 16k baseline
+    # (9,686 vs 8,840 MiB), 100% GPU. Blob-sharing: the tag adds only
+    # a manifest layer. See spec
+    # docs/superpowers/specs/2026-06-06--orch--hermes-context-survival-design.md
+    create:
+      - name: gemma4:12b-64k
+        template: |
+          FROM gemma4:12b
+          PARAMETER num_ctx 65536
     clean: false
 
 extraEnv:

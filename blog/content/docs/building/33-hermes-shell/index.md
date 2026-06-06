@@ -111,6 +111,52 @@ Both are now one-liners in `agents/rules/frank-gotchas.md` with full prose in th
 
 The inventory ConfigMap ships deliberately sparse — all three keys empty, so the boot reconcile is a genuine no-op (the image bakes hermes at 0.15.2; a populated harness entry would `hermes update` on *every* boot and page Telegram on any non-zero exit). Pinning versions through it is future work, as is whatever hermes grows into once it's used in anger. For now: SSH in, ask it things, watch LiteLLM's dashboard light up.
 
+## Update (2026-06-06): The Day Hermes Forgot Everything
+
+"Used in anger" took two days to arrive. The operator asked hermes to read one
+of my blog posts — this one, fittingly — and the session died of amnesia in
+four turns.
+
+What happened: hermes has no key-free web-extract backend, so "read this URL"
+became `curl -s` and 208 KB of raw HTML hit the conversation. Hermes
+believed `gemma-12b` had a 256,000-token window — that number is its
+resolver's *default fallback* when a custom LiteLLM alias matches nothing in
+any model registry — so its built-in compressor, armed and ready at 50% of
+context, was waiting for a boundary 8× past the real one. Ollama's actual
+window: 16,384 tokens, server-wide. Past that, Ollama truncates the prompt
+**front-first and silently** — HTTP 200, normal-looking completion, and the
+only witness is a runner log line: `n_tokens = 16383, truncated = 1`. Front of
+the prompt is where the system prompt and chat history live. The model wasn't
+being forgetful; it genuinely never saw the conversation.
+
+The cruelest part: agents re-send full history every turn, so the giant HTML
+blob made *every subsequent turn* over-budget too. One curl, and the session
+is poisoned forever. That is a context-management failure pipeline in which —
+again — every stage reported success.
+
+The fix landed in three layers (plan `2026-06-06--orch--hermes-context-survival`):
+
+1. **Tell hermes the truth.** Per-model `context_length` overrides in its
+   config.yaml, equal to live server reality. The compressor now engages at
+   ~8k on a 16k model instead of never.
+2. **Make the truth bigger.** Gemma 4's sliding-window attention makes KV
+   cache absurdly cheap — measured on the 5070 Ti: a 64k window costs just
+   +846 MiB over the 16k baseline (128k fits too, at +1.6 GB, but prefill
+   latency and 12B long-range recall argue for stopping at 64k). The chart's
+   `ollama.models.create` declares `gemma4:12b-64k` from a two-line Modelfile
+   — `PARAMETER num_ctx` is the per-model escape hatch from the litellm#12930
+   per-request limitation. New default: `gemma-12b-64k-nothin`.
+3. **Stop eating raw HTML.** A stdlib-only `fetch-text` helper (ConfigMap,
+   subPath-mounted into `/usr/local/bin`) turns a web page into ~5k tokens of
+   title + body text instead of ~50 KB of markup, and SOUL.md steers hermes
+   to it.
+
+The measurement table, the resolution-order trace through hermes's source,
+and the recovery commands are in the runbooks (`other-apps.md`,
+`agent-shells.md`). The lesson joins the collection: **a window the client
+believes and a window the server enforces are two different numbers, and
+nothing in the stack will tell you when they disagree.**
+
 ## References
 
 - [Nous Research hermes](https://github.com/NousResearch/hermes)

@@ -1,0 +1,144 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Post-merge cluster verification + hermes PVC config + Test Plan replay
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Verify the deployed inference path
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      After ArgoCD syncs the merge: ollama pod restarts and chart-creates
+      the variant.
+      ```bash
+      kubectl exec -n ollama deploy/ollama -- ollama list | grep gemma4:12b-64k
+      kubectl get rollout -n litellm 2>/dev/null || kubectl get application litellm -n argocd -o wide  # canary Healthy
+      ```
+  - id: P4.T1.S2
+    text: |-
+      Gateway smoke (from a cluster-reachable shell; LiteLLM LB 192.168.55.206):
+      ```bash
+      curl -s http://192.168.55.206:4000/v1/chat/completions \
+        -H "Authorization: Bearer $LITELLM_KEY" -H 'Content-Type: application/json' \
+        -d '{"model":"gemma-12b-64k-nothin","max_tokens":40,"messages":[{"role":"user","content":"Say OK"}]}' \
+        | python3 -c "import sys,json; print(json.load(sys.stdin)['choices'][0]['message']['content'])"
+      kubectl exec -n ollama deploy/ollama -- ollama ps   # CONTEXT column = 65536, 100% GPU
+      ```
+- number: 2
+  title: Hermes PVC config — truthful budgets + SOUL.md steering
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      ```yaml
+      # manual-operation
+      id: orch-hermes-context-budgets
+      layer: orch
+      app: hermes-agent-shell
+      plan: 2026-06-06--orch--hermes-context-survival
+      when: after the 64k aliases are live on the LiteLLM gateway
+      why_manual: config.yaml is hermes PVC state, seeded manually by design
+        (precedent orch-hermes-config-provider); no declarative path into the PVC
+      commands: |
+        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- python3 - <<'EOF'
+        import yaml
+        p = "/home/agent/.hermes/config.yaml"
+        c = yaml.safe_load(open(p))
+        prov = c["providers"]["litellm"]
+        prov["models"] = {
+            "gemma-12b-64k": {"context_length": 65536},
+            "gemma-12b-64k-nothin": {"context_length": 65536},
+            "gemma-12b": {"context_length": 16384},
+            "gemma-12b-nothin": {"context_length": 16384},
+            "mistral-small-24b": {"context_length": 16384},
+            "qwen-think-14b": {"context_length": 16384},
+            "qwen-coder-14b": {"context_length": 16384},
+            "qwen-vl-7b": {"context_length": 16384},
+            "qwen36-a3b": {"context_length": 16384},
+            "qwen36-a3b-nothin": {"context_length": 16384},
+            "all-proxy-models": {"context_length": 16384},
+        }
+        c["model"]["default"] = "gemma-12b-64k-nothin"
+        c.setdefault("tool_output", {})["max_bytes"] = 24000
+        yaml.safe_dump(c, open(p, "w"), sort_keys=False)
+        print("hermes config updated")
+        EOF
+      verify: |
+        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
+          python3 -c "import yaml; c=yaml.safe_load(open('/home/agent/.hermes/config.yaml')); \
+        print(c['model']['default'], \
+              c['providers']['litellm']['models']['gemma-12b-64k-nothin'], \
+              c['tool_output']['max_bytes'])"
+        # expect: gemma-12b-64k-nothin {'context_length': 65536} 24000
+        # then in a NEW hermes session: /info shows context 65,536
+      status: pending
+      ```
+  - id: P4.T2.S2
+    text: |-
+      ```yaml
+      # manual-operation
+      id: orch-hermes-soul-fetch-text
+      layer: orch
+      app: hermes-agent-shell
+      plan: 2026-06-06--orch--hermes-context-survival
+      when: after the fetch-text ConfigMap mount is live (pod restarted post-merge)
+      why_manual: SOUL.md is hermes PVC state (seeded at first boot, then operator-owned)
+      commands: |
+        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- bash -c \
+          'grep -q fetch-text /home/agent/.hermes/SOUL.md || printf "\n## Web reading\nFor web pages, ALWAYS use \`fetch-text <url>\` (size-capped text extraction) instead of raw curl — raw HTML floods your context window.\n" >> /home/agent/.hermes/SOUL.md'
+      verify: |
+        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- grep -A2 "Web reading" /home/agent/.hermes/SOUL.md
+      status: pending
+      ```
+- number: 3
+  title: Test Plan replay (operator-driven, agent-assisted)
+  steps:
+  - id: P4.T3.S1
+    text: |-
+      Full replay per the spec Test Plan: ssh agent@192.168.55.226 →
+      hermes → `/info` shows gemma-12b-64k-nothin @ 65,536 → ask it to
+      read https://blog.derio.net/frank/docs/building/33-hermes-shell/
+      (expect fetch-text, not curl) → follow-up requiring turn-1 memory
+      (expect correct recall) →
+      `kubectl logs -n ollama deploy/ollama --since=30m | grep -c "truncated = 1"` → 0.
+  - id: P4.T3.S2
+    text: |-
+      Close out: tick this phase via `vk plan edit --complete-phase 4
+      --note "<evidence summary>"`, set plan Status: Deployed, run
+      `scripts/plan-status.sh --open` to confirm, archive when ready
+      (git mv to archived-plans/ — plan-status.sh is v1-only).
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
