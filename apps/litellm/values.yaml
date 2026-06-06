@@ -212,6 +212,25 @@ proxy_config:
         extra_body:
           think: false
 
+    # Qwen3.6 35B-A3B with a 64k context window — backed by the derived tag
+    # qwen3.6:35b-a3b-64k (apps/ollama/values.yaml ollama.models.create;
+    # Modelfile num_ctx 65536, the litellm#12930 escape hatch). Hermes
+    # agent-brain candidate (rework-1): hermes hard-requires >=64k context
+    # (its preamble alone is ~15k tokens) and gemma4-12B failed the agentic
+    # gate. Keep hermes config.yaml context_length overrides in sync (65536).
+    - model_name: qwen36-a3b-64k
+      litellm_params:
+        model: ollama_chat/qwen3.6:35b-a3b-64k
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+
+    # 64k + thinking suppressed (the qwen36-a3b-nothin pattern at 64k).
+    - model_name: qwen36-a3b-64k-nothin
+      litellm_params:
+        model: ollama_chat/qwen3.6:35b-a3b-64k
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+        extra_body:
+          think: false
+
   litellm_settings:
     default_model: mistral-small-24b
 
