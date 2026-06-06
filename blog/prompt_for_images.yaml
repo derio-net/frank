@@ -1479,6 +1479,26 @@ images:
       "smoke-ping" — no other captions, no watermarks. ONE FIGURE — one single
       Frank.
 
+  - key: building-33-hermes-shell
+    series: building
+    torso_variant: 3
+    mood: smirking
+    references:
+      - .reference-pool/building/subjects/frank-lab-coat-overalls.png
+    output: blog/content/docs/building/33-hermes-shell/cover.png
+    description: "Hermes Agent Shell — Frank rerouting a glowing key through a copper bypass pipe around a door that shreds envelopes labelled ENV"
+    prompt: >-
+      Frank, overalls under a lab coat, kneeling beside a heavy metal hatch
+      labelled "sshd" that is shredding a paper envelope labelled "ENV" into
+      confetti at its mail slot. Frank is fitting the final joint of a copper
+      bypass pipe labelled "profile.d" that arcs over the hatch and delivers a
+      small glowing brass key tagged "byok" into a tiny terminal pod on the
+      other side, its screen showing a green prompt ">". A crumpled signpost on
+      the floor points the wrong way, reading "openrouter 401". Warm workshop
+      light on Frank and the pipe, cold grey light on the shredding hatch. The
+      ONLY readable text: "sshd", "ENV", "profile.d", "byok", "openrouter 401",
+      ">" — no other captions, no watermarks. ONE FIGURE — one single Frank.
+
   # --- Operating Series Covers ------------------------------------------------
 
   - key: ops-01-cluster-nodes
@@ -2122,3 +2142,23 @@ images:
       light from the side. The ONLY readable text: "smoke-ping", "Successful",
       "raspi-vlan10-D", "raspi-vlan10-E", "pong", "SSO", "awx" — no other
       captions, no watermarks. ONE FIGURE — one single Frank.
+
+  - key: ops-28-hermes-shell
+    series: operating
+    torso_variant: 2
+    mood: satisfied
+    references:
+      - .reference-pool/operating/subjects/frank-work-clothes.png
+    output: blog/content/docs/operating/28-hermes-shell/cover.png
+    description: "Operating on Hermes Agent Shell — Frank at a terminal where a crossed-out 401 gives way to a green 'alive' reply routed through litellm"
+    prompt: >-
+      Frank in a t-shirt with rolled-up sleeves, seated at a terminal in a dim
+      ops room, one hand on the keyboard. The main monitor shows a chat
+      session: a red crossed-out line "401 openrouter" above a green reply
+      bubble reading "alive", with a small routing diagram beneath it — an
+      arrow through a box labelled "litellm". Beside the keyboard an open
+      dog-eared paper manual titled "config.yaml" with a tiny brass key
+      resting on it as a bookmark. Cool monitor glow on Frank's face, warm
+      desk lamp from the side. The ONLY readable text: "401 openrouter",
+      "alive", "litellm", "config.yaml" — no other captions, no watermarks.
+      ONE FIGURE — one single Frank.
