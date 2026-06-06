@@ -206,8 +206,8 @@ state:
       ticked_at: '2026-06-06T18:51:35+00:00'
       note: null
     P1.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-06T18:59:21+00:00'
       note: null
   completion:
     at: null
