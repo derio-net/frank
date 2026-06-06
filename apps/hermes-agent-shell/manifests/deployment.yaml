@@ -96,6 +96,13 @@ spec:
               mountPath: /etc/profile.d/35-hermes-agent-shell-byok-env.sh
               subPath: 35-hermes-agent-shell-byok-env.sh
               readOnly: true
+            # fetch-text context-hygiene helper (same single-file subPath
+            # idiom). Script edits need a pod restart — kubelet never
+            # live-updates subPath mounts.
+            - name: fetch-text
+              mountPath: /usr/local/bin/fetch-text
+              subPath: fetch-text
+              readOnly: true
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -142,3 +149,7 @@ spec:
           configMap:
             name: hermes-agent-shell-env
             defaultMode: 0644
+        - name: fetch-text
+          configMap:
+            name: hermes-agent-shell-fetch-text
+            defaultMode: 0755

@@ -1,0 +1,104 @@
+# fetch-text — context-hygiene web reader for the hermes shell.
+# WHY: hermes v0.15.2 has no key-free native web-extract backend, so
+# the model falls back to `curl -s <url>` and floods its context with
+# raw HTML (the 2026-06-06 session-amnesia incident: 208KB page →
+# silent Ollama truncation at 16384 tokens → permanent history loss).
+# This helper extracts title+body text, capped, stdlib-only (the image
+# carries python3.11 for hermes itself; no extra packages).
+# Mounted at /usr/local/bin/fetch-text via subPath (deployment.yaml).
+# NOTE: kubelet never live-updates subPath mounts — script edits need
+# a pod restart to take effect (rare; acceptable for this helper).
+# SOUL.md steers the agent here (manual-op orch-hermes-soul-fetch-text).
+# Tested by scripts/tests/test_fetch_text.py against these exact bytes.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-agent-shell-fetch-text
+  namespace: hermes-agent-shell
+  labels:
+    app: hermes-agent-shell
+data:
+  fetch-text: |
+    #!/usr/bin/env python3
+    """fetch-text <url> — fetch a web page as size-capped plain text.
+
+    Modes:  fetch-text https://example.com/page
+            cat page.html | fetch-text --stdin
+    Output: final URL (when fetching), title line, extracted body
+            text, truncation notice when capped.
+    """
+    import argparse
+    import html
+    import re
+    import sys
+    import urllib.request
+    from html.parser import HTMLParser
+
+    SKIP = {"script", "style", "noscript", "template", "svg", "head"}
+
+
+    class TextExtractor(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.title = ""
+            self._in_title = False
+            self._skip_depth = 0
+            self.chunks = []
+
+        def handle_starttag(self, tag, attrs):
+            if tag == "title":
+                self._in_title = True
+            if tag in SKIP:
+                self._skip_depth += 1
+
+        def handle_endtag(self, tag):
+            if tag == "title":
+                self._in_title = False
+            if tag in SKIP and self._skip_depth:
+                self._skip_depth -= 1
+
+        def handle_data(self, data):
+            if self._in_title:
+                self.title += data
+                return
+            if self._skip_depth == 0 and data.strip():
+                self.chunks.append(data)
+
+
+    def main():
+        ap = argparse.ArgumentParser()
+        ap.add_argument("url", nargs="?", help="page URL")
+        ap.add_argument("--stdin", action="store_true",
+                        help="read HTML from stdin instead of fetching")
+        ap.add_argument("--max-chars", type=int, default=20000)
+        args = ap.parse_args()
+
+        if args.stdin:
+            raw, final_url = sys.stdin.read(), None
+        elif args.url:
+            req = urllib.request.Request(
+                args.url, headers={"User-Agent": "fetch-text/1.0 (hermes-agent-shell)"})
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                raw = resp.read(5 * 1024 * 1024).decode("utf-8", "replace")
+                final_url = resp.geturl()
+        else:
+            ap.error("need a URL or --stdin")
+
+        p = TextExtractor()
+        p.feed(raw)
+        text = re.sub(r"[ \t]+", " ", html.unescape(" ".join(c.strip() for c in p.chunks)))
+        text = re.sub(r"\s*\n\s*", "\n", text).strip()
+
+        if final_url:
+            print(f"URL: {final_url}")
+        if p.title.strip():
+            print(f"TITLE: {p.title.strip()}\n")
+        if len(text) > args.max_chars:
+            print(text[: args.max_chars])
+            print(f"\n[truncated at {args.max_chars} chars — page continues]")
+        else:
+            print(text)
+
+
+    if __name__ == "__main__":
+        main()
