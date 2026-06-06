@@ -1,0 +1,185 @@
+schema_version: 2
+phase:
+  number: 1
+  title: contact_sheet module (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: build_labels — tests first, then implementation
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create `scripts/tests/test_contact_sheet.py` with the
+      `build_labels` test group (module does not exist yet — these
+      must FAIL with ImportError first):
+
+      BEGIN test_contact_sheet.py (initial)
+      """Tests for scripts/lib/contact_sheet.py — pure PIL, no API."""
+      from pathlib import Path
+      import pytest
+      from PIL import Image
+
+      from scripts.lib.contact_sheet import build_labels, compose_contact_sheet
+
+
+      def test_build_labels_archive_pattern():
+          paths = [
+              Path("building-33-hermes-shell-4fa9ea19ba2f.png"),
+              Path("building-33-hermes-shell-8e62d3bffe90.png"),
+          ]
+          assert build_labels(paths) == ["1 · 4fa9ea", "2 · 8e62d3"]
+
+
+      def test_build_labels_fallback_to_stem():
+          assert build_labels([Path("cover.png")]) == ["1 · cover"]
+
+
+      def test_build_labels_preserves_order():
+          paths = [Path(f"k-{i:012x}.png") for i in (0xb, 0xa, 0xc)]
+          labels = build_labels(paths)
+          assert [l.split(" · ")[0] for l in labels] == ["1", "2", "3"]
+      END test_contact_sheet.py (initial)
+
+      Run `uv run --with pillow --with pytest pytest scripts/tests/test_contact_sheet.py -x`
+      and confirm ImportError (RED).
+  - id: P1.T1.S2
+    text: |-
+      Create `scripts/lib/contact_sheet.py` with `build_labels` only
+      (compose_contact_sheet stub raising NotImplementedError for now):
+
+      - `_ARCHIVE_RE = re.compile(r"^(?P<key>.+)-(?P<sha>[0-9a-f]{12})$")`
+      - `build_labels(paths)` → `"{i} · {sha[:6]}"` (1-based) when the
+        stem matches the archive pattern, else `"{i} · {stem}"`.
+
+      Re-run the test file: the three build_labels tests PASS (GREEN),
+      compose tests not yet written.
+- number: 2
+  title: compose_contact_sheet — tests first, then implementation
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Append the compose test group to `scripts/tests/test_contact_sheet.py`.
+      Helper at top of the group makes synthetic variants:
+
+      BEGIN compose tests
+      def _mk(tmp_path, n, size=(160, 90), name="k-{i:012x}.png"):
+          paths = []
+          for i in range(n):
+              p = tmp_path / name.format(i=i)
+              Image.new("RGB", size, (10 * i % 255, 60, 90)).save(p)
+              paths.append(p)
+          return paths
+
+
+      def test_empty_input_raises(tmp_path):
+          with pytest.raises(ValueError):
+              compose_contact_sheet([])
+
+
+      def test_grid_8_images_4_cols(tmp_path):
+          sheet = compose_contact_sheet(_mk(tmp_path, 8), cols=4, tile_width=160)
+          # 8 thumbs at 160x90 → 2 rows of (90 + LABEL_STRIP_PX)
+          from scripts.lib.contact_sheet import LABEL_STRIP_PX
+          assert sheet.width == 4 * 160
+          assert sheet.height == 2 * (90 + LABEL_STRIP_PX)
+
+
+      def test_grid_5_images_has_blank_cells(tmp_path):
+          sheet = compose_contact_sheet(_mk(tmp_path, 5), cols=4, tile_width=160)
+          from scripts.lib.contact_sheet import LABEL_STRIP_PX, BG
+          assert sheet.height == 2 * (90 + LABEL_STRIP_PX)
+          # cell (row 2, col 4) stays background
+          assert sheet.getpixel((3 * 160 + 80, 90 + LABEL_STRIP_PX + 45)) == BG
+
+
+      def test_mixed_sizes_keep_aspect(tmp_path):
+          wide = _mk(tmp_path, 1, size=(320, 90), name="w-{i:012x}.png")
+          tall = _mk(tmp_path, 1, size=(90, 320), name="t-{i:012x}.png")
+          sheet = compose_contact_sheet(wide + tall, cols=2, tile_width=160)
+          # tall image scaled to width 160 → height 569 dominates the row
+          from scripts.lib.contact_sheet import LABEL_STRIP_PX
+          assert sheet.height == round(320 * 160 / 90) + LABEL_STRIP_PX
+
+
+      def test_label_strip_has_text_pixels(tmp_path):
+          sheet = compose_contact_sheet(_mk(tmp_path, 1), cols=1, tile_width=160)
+          from scripts.lib.contact_sheet import LABEL_STRIP_PX, STRIP_BG
+          strip = sheet.crop((0, 90, 160, 90 + LABEL_STRIP_PX))
+          colors = {c for _, c in strip.getcolors(maxcolors=4096)}
+          assert colors != {STRIP_BG}  # text rendered → not a uniform strip
+      END compose tests
+
+      Run: compose tests FAIL (NotImplementedError) while build_labels
+      stays green (RED for the new group).
+  - id: P1.T2.S2
+    text: |-
+      Implement `compose_contact_sheet` in `scripts/lib/contact_sheet.py`:
+
+      - Module constants: `LABEL_STRIP_PX = 36`, `BG = (24, 24, 28)`,
+        `STRIP_BG = (12, 12, 14)`, `FG = (230, 230, 235)`.
+      - Open each path, `convert("RGB")`, scale to
+        `(tile_width, round(h * tile_width / w))`.
+      - `rows = math.ceil(n / cols)`; per-row height =
+        `max(thumb heights in row) + LABEL_STRIP_PX`.
+      - Canvas `cols * tile_width` × sum(row heights), filled BG.
+      - Paste thumbs top-aligned at `(col * tile_width, row_y)`; draw the
+        STRIP_BG rectangle across the cell's bottom LABEL_STRIP_PX band and
+        the label text at `(x + 8, strip_y + 8)` in FG.
+      - Font: `ImageFont.load_default(size=20)` inside try/except
+        TypeError → `ImageFont.load_default()` (Pillow < 10.1 fallback).
+      - `labels=None` → `build_labels(paths)`; empty `paths` → ValueError.
+
+      Run the full test file: ALL tests PASS (GREEN).
+- number: 3
+  title: FIFO-cap exemption regression guard
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Append the regression test pinning the generator's prune glob to
+      one that can never match `contact-sheet.png`:
+
+      BEGIN cap test
+      def test_contact_sheet_filename_exempt_from_prune_glob(tmp_path):
+          """generate-all-images.py prunes .regen-archive/<key>/ with
+          glob '<key>-*.png'. The composed sheet must never be eligible.
+          Guards the coincidence the wiring relies on."""
+          key = "building-33-hermes-shell"
+          d = tmp_path / key
+          d.mkdir()
+          (d / f"{key}-aaaaaaaaaaaa.png").touch()
+          (d / "contact-sheet.png").touch()
+          assert sorted(p.name for p in d.glob(f"{key}-*.png")) == [
+              f"{key}-aaaaaaaaaaaa.png"
+          ]
+      END cap test
+
+      Run the file once more — all green. Commit Phase 1:
+      `git add scripts/lib/contact_sheet.py scripts/tests/test_contact_sheet.py && git commit -m "feat(scripts): contact_sheet module — labeled variant grids (TDD)"`
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
