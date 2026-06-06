@@ -84,7 +84,11 @@ def test_label_strip_has_text_pixels(tmp_path):
 def test_contact_sheet_filename_exempt_from_prune_glob(tmp_path):
     """generate-all-images.py prunes .regen-archive/<key>/ with glob
     '<key>-*.png'. The composed sheet must never be eligible. Guards
-    the coincidence the generator wiring relies on."""
+    the coincidence the generator wiring relies on.
+
+    MIRROR, not a direct call: the glob string here must match the one
+    in write_archive_entry's FIFO-cap block (generate-all-images.py —
+    see the cross-ref comment there). Change them together."""
     key = "building-33-hermes-shell"
     d = tmp_path / key
     d.mkdir()

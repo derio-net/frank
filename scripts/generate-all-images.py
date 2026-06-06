@@ -246,7 +246,9 @@ def write_archive_entry(
         lines.append(section if section else "(empty)")
     txt_path.write_text("\n".join(lines) + "\n")
 
-    # FIFO cap by file mtime (latest survives).
+    # FIFO cap by file mtime (latest survives). Glob shape '<key>-*.png' is
+    # load-bearing: contact-sheet.png must never match (mirrored by
+    # test_contact_sheet_filename_exempt_from_prune_glob).
     if cap > 0:
         snaps = sorted(
             archive_root.glob(f"{key}-*.png"), key=lambda p: p.stat().st_mtime
@@ -885,6 +887,10 @@ def main() -> None:
     # --no-contact-sheet). contact-sheet.png never matches the FIFO
     # prune glob '<key>-*.png' (regression-tested).
     for sheet_key, archived_paths in sheet_sinks.items():
+        # write_archive_entry is sha-idempotent: identical bytes in one batch
+        # return the SAME path twice. De-dupe so tiles (and the >=2 gate)
+        # count distinct variants.
+        archived_paths = list(dict.fromkeys(archived_paths))
         if should_compose(args.count, args.no_contact_sheet, args.dry_run, len(archived_paths)):
             sheet = write_contact_sheet(
                 archived_paths, ARCHIVE_DIR / sheet_key / "contact-sheet.png"
