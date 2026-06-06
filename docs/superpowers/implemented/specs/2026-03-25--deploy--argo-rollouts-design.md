@@ -271,7 +271,7 @@ kubectl argo rollouts abort sympozium-apiserver -n sympozium-system
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Argo Rollouts — Progressive Delivery Platform Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-25--deploy--argo-rollouts/` | — |
+| Argo Rollouts — Progressive Delivery Platform Implementation Plan | derio-net/superpowers-for-vk | `2026-03-25--deploy--argo-rollouts` | — |
 
 ## Out of Scope
 

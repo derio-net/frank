@@ -404,7 +404,7 @@ status: pending
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Paperclip LiteLLM-Backed Agents Implementation Plan |  | `docs/superpowers/archived-plans/2026-05-17--orch--paperclip-litellm-agents/` | — |
+| Paperclip LiteLLM-Backed Agents Implementation Plan |  | `2026-05-17--orch--paperclip-litellm-agents` | — |
 
 ## References
 

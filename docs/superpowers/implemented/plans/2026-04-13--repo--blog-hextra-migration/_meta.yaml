@@ -1,6 +1,6 @@
 schema_version: 2
 plan: 2026-04-13--repo--blog-hextra-migration
-spec: docs/superpowers/specs/2026-04-13--repo--blog-hextra-migration-design.md
+spec: 2026-04-13--repo--blog-hextra-migration-design.md
 target_repo: derio-net/frank
 vk_version: '>=2.0.0,<3.0.0'
 created: '2026-04-13'

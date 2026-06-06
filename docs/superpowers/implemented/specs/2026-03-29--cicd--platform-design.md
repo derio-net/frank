@@ -491,4 +491,4 @@ status: pending
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| CI/CD Platform Implementation Plan | `derio-net/frank` | `docs/superpowers/implemented/plans/2026-03-29--cicd--platform/` | — |
+| CI/CD Platform Implementation Plan | `derio-net/frank` | `2026-03-29--cicd--platform` | — |

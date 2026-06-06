@@ -197,7 +197,7 @@ status: pending
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Sympozium: Agentic Control Plane Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-09--agents--sympozium/` | — |
+| Sympozium: Agentic Control Plane Implementation Plan | derio-net/superpowers-for-vk | `2026-03-09--agents--sympozium` | — |
 
 ## Out of Scope
 

@@ -256,4 +256,4 @@ None blocking. The top-left panel mechanism is the only TBD, and it's bounded �
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Grafana Alerting as Code Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-04-08--obs--grafana-alerting-as-code/` | — |
+| Grafana Alerting as Code Implementation Plan | derio-net/superpowers-for-vk | `2026-04-08--obs--grafana-alerting-as-code` | — |

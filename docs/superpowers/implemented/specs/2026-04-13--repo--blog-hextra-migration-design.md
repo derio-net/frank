@@ -205,4 +205,4 @@ Pure client-side implementation using localStorage:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Blog Hextra Migration Implementation Plan | `derio-net/frank` | `docs/superpowers/implemented/plans/2026-04-13--repo--blog-hextra-migration/` | — |
+| Blog Hextra Migration Implementation Plan | `derio-net/frank` | `2026-04-13--repo--blog-hextra-migration` | — |

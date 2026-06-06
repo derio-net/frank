@@ -138,4 +138,4 @@ Step 1 is manual/interactive. Steps 2-4 are standard GitOps.
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| OpenRGB LED Control for gpu-1 — Design Document Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-03--fun--openrgb-led-control/` | — |
+| OpenRGB LED Control for gpu-1 — Design Document Implementation Plan | derio-net/superpowers-for-vk | `2026-03-03--fun--openrgb-led-control` | — |

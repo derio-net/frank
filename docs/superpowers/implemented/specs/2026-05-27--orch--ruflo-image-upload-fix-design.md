@@ -225,4 +225,4 @@ and `a6dd4ab`, so it applies cleanly at the new ref.
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-05-27--orch--ruflo-upload-fix | `derio-net/frank` | `docs/superpowers/plans/2026-05-27--orch--ruflo-upload-fix/` | — |
+| 2026-05-27--orch--ruflo-upload-fix | `derio-net/frank` | `2026-05-27--orch--ruflo-upload-fix` | — |

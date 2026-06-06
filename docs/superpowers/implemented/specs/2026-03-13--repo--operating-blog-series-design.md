@@ -290,4 +290,4 @@ be updated:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Operating on Frank — Blog Series Design Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-13--repo--operating-blog-series/` | — |
+| Operating on Frank — Blog Series Design Implementation Plan | derio-net/superpowers-for-vk | `2026-03-13--repo--operating-blog-series` | — |

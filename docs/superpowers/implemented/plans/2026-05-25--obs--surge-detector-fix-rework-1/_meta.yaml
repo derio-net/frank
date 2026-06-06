@@ -1,10 +1,10 @@
 schema_version: 2
 plan: 2026-05-25--obs--surge-detector-fix-rework-1
-spec: docs/superpowers/specs/2026-05-25--obs--surge-detector-false-positive-design.md
+spec: 2026-05-25--obs--surge-detector-false-positive-design.md
 target_repo: derio-net/frank
 vk_version: '>=2.0.0,<3.0.0'
 created: '2026-05-26'
-parent_plan: docs/superpowers/plans/2026-05-25--obs--surge-detector-fix/
+parent_plan: 2026-05-25--obs--surge-detector-fix
 origin_items:
 - id: 1
   item: Bot/crawler surges fire a non-urgent Notable every 15-min tick (no dedup)

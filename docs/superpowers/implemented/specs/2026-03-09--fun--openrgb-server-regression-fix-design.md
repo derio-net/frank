@@ -69,4 +69,4 @@ The ConfigMap is unchanged. Updating LED config remains a one-line git edit + Ar
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Design: OpenRGB Server Regression Fix Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-09--fun--openrgb-server-regression-fix/` | — |
+| Design: OpenRGB Server Regression Fix Implementation Plan | derio-net/superpowers-for-vk | `2026-03-09--fun--openrgb-server-regression-fix` | — |

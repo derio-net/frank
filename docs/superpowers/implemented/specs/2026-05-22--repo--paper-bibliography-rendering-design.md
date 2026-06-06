@@ -212,4 +212,4 @@ Add a job step to the blog CI workflow (alongside `hugo --minify`) that runs `sc
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-05-23--repo--paper-bibliography-rendering | `derio-net/frank` | `docs/superpowers/plans/2026-05-23--repo--paper-bibliography-rendering/` | — |
+| 2026-05-23--repo--paper-bibliography-rendering | `derio-net/frank` | `2026-05-23--repo--paper-bibliography-rendering` | — |

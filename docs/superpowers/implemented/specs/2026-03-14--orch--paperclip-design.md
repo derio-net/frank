@@ -171,7 +171,7 @@ This uses Kubernetes variable expansion (`$(PG_PASSWORD)`) to construct the URL 
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Paperclip AI Orchestrator Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-14--orch--paperclip/` | — |
+| Paperclip AI Orchestrator Implementation Plan | derio-net/superpowers-for-vk | `2026-03-14--orch--paperclip` | — |
 
 ## Out of Scope
 

@@ -162,4 +162,4 @@ tailscale set --exit-node=  # Disconnect exit node
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Subnet Router Auto-Approval + Split DNS Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-21--edge--subnet-router-autoapproval/` | — |
+| Subnet Router Auto-Approval + Split DNS Implementation Plan | derio-net/superpowers-for-vk | `2026-03-21--edge--subnet-router-autoapproval` | — |

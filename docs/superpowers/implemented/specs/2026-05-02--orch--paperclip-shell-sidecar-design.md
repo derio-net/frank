@@ -339,4 +339,4 @@ Rollback at any step: revert the frank PR. The standalone Paperclip container is
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Paperclip Shell Sidecar Implementation Plan |  | `docs/superpowers/archived-plans/2026-05-02--orch--paperclip-shell-sidecar/` | — |
+| Paperclip Shell Sidecar Implementation Plan |  | `2026-05-02--orch--paperclip-shell-sidecar` | — |

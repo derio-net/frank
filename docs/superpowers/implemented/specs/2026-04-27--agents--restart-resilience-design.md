@@ -432,8 +432,8 @@ Items deliberately not included in this plan:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Agent Pod Restart Resilience — Implementation Plan (agent-images side) | `derio-net/agent-images` | `docs/superpowers/implemented/plans/2026-04-27--agents--restart-resilience/` | — |
-| Agent Pod Restart Resilience — Implementation Plan (frank side) | `derio-net/frank` | `docs/superpowers/implemented/plans/2026-04-27--agents--restart-resilience/` | Phases 1-4 of agent-images side (cross-repo) |
+| Agent Pod Restart Resilience — Implementation Plan (agent-images side) | `derio-net/agent-images` | `2026-04-27--agents--restart-resilience` | — |
+| Agent Pod Restart Resilience — Implementation Plan (frank side) | `derio-net/frank` | `2026-04-27--agents--restart-resilience` | Phases 1-4 of agent-images side (cross-repo) |
 
 ## Open questions
 

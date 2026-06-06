@@ -1,10 +1,10 @@
 schema_version: 2
 plan: 2026-05-25--obs--blog-digest-rework-1
-spec: docs/superpowers/specs/2026-05-23--obs--hop-blog-edge-monitoring-design.md
+spec: 2026-05-23--obs--hop-blog-edge-monitoring-design.md
 target_repo: derio-net/frank
 vk_version: '>=2.0.0,<3.0.0'
 created: '2026-05-25'
-parent_plan: docs/superpowers/plans/2026-05-23--obs--hop-blog-edge-monitoring/
+parent_plan: 2026-05-23--obs--hop-blog-edge-monitoring
 origin_items:
 - id: 1
   item: Digest total_requests counts ALL Hop-edge Caddy requests (15,717/day, all

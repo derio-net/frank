@@ -115,4 +115,4 @@ This is an extension of the GPU layer, not a new layer. File naming follows the 
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| GPU Operator Talos Validation Fix Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-10--gpu--operator-talos-fix/` | — |
+| GPU Operator Talos Validation Fix Implementation Plan | derio-net/superpowers-for-vk | `2026-03-10--gpu--operator-talos-fix` | — |

@@ -233,8 +233,8 @@ The critical dependency is whether PyTorch stable (2.6.x) supports sm_120. If no
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Custom ComfyUI Docker Image — Design Spec Implementation Plan (2026-03-16--media--comfyui-custom-image) | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-16--media--comfyui-custom-image/` | — |
-| Custom ComfyUI Docker Image — Design Spec Implementation Plan (2026-03-14--media--comfyui-gpu-switcher) | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-14--media--comfyui-gpu-switcher/` | — |
+| Custom ComfyUI Docker Image — Design Spec Implementation Plan (2026-03-16--media--comfyui-custom-image) | derio-net/superpowers-for-vk | `2026-03-16--media--comfyui-custom-image` | — |
+| Custom ComfyUI Docker Image — Design Spec Implementation Plan (2026-03-14--media--comfyui-gpu-switcher) | derio-net/superpowers-for-vk | `2026-03-14--media--comfyui-gpu-switcher` | — |
 
 ## Out of Scope
 

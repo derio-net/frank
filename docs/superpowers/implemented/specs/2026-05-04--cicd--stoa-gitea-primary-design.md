@@ -552,5 +552,5 @@ status: pending
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Stoa Org Gitea-Primary Implementation Plan | derio-net/frank | `docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary/` | layer 19 (deployed) |
-| Stoa Org Gitea-Primary Implementation Plan — **Rework 1: GitHub-primary** | derio-net/frank | `docs/superpowers/archived-plans/2026-05-05--cicd--stoa-gitea-primary-rework-1/` | parent plan above |
+| Stoa Org Gitea-Primary Implementation Plan | derio-net/frank | `2026-05-05--cicd--stoa-gitea-primary` | layer 19 (deployed) |
+| Stoa Org Gitea-Primary Implementation Plan — **Rework 1: GitHub-primary** | derio-net/frank | `2026-05-05--cicd--stoa-gitea-primary-rework-1` | parent plan above |

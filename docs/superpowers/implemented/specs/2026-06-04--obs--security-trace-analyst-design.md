@@ -151,4 +151,4 @@ Run after the Phase 2 PR merges and ArgoCD syncs. The agent drives; the operator
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-06-04--obs--security-trace-analyst | `derio-net/frank` | `docs/superpowers/archived-plans/2026-06-04--obs--security-trace-analyst/` | — |
+| 2026-06-04--obs--security-trace-analyst | `derio-net/frank` | `2026-06-04--obs--security-trace-analyst` | — |

@@ -364,4 +364,4 @@ When adding a new outward-facing service with an IngressRoute:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| In-Cluster Ingress: Traefik + Authentik Forward-Auth Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-29--net--in-cluster-ingress/` | — |
+| In-Cluster Ingress: Traefik + Authentik Forward-Auth Implementation Plan | derio-net/superpowers-for-vk | `2026-03-29--net--in-cluster-ingress` | — |

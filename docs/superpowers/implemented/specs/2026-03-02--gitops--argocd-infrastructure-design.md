@@ -365,4 +365,4 @@ argocd login localhost:8080 --port-forward --port-forward-namespace argocd
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| ArgoCD-Managed Infrastructure — Design Document Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-02--gitops--argocd-infrastructure/` | — |
+| ArgoCD-Managed Infrastructure — Design Document Implementation Plan | derio-net/superpowers-for-vk | `2026-03-02--gitops--argocd-infrastructure` | — |

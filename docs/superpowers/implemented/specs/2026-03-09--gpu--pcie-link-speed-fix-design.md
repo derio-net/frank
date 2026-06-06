@@ -121,4 +121,4 @@ the Talos `nvidia-open-gpu-kernel-modules-production` extension registry:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Design: RTX 5070 PCIe Link Speed Fix (gpu-1) Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-09--gpu--pcie-link-speed-fix/` | — |
+| Design: RTX 5070 PCIe Link Speed Fix (gpu-1) Implementation Plan | derio-net/superpowers-for-vk | `2026-03-09--gpu--pcie-link-speed-fix` | — |

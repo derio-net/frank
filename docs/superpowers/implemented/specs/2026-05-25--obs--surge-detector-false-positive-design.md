@@ -9,8 +9,8 @@
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-05-25--obs--surge-detector-fix | `derio-net/frank` | `docs/superpowers/plans/2026-05-25--obs--surge-detector-fix/` | — |
-| 2026-05-25--obs--surge-detector-fix-rework-1 | `derio-net/frank` | `docs/superpowers/plans/2026-05-25--obs--surge-detector-fix-rework-1/` | 2026-05-25--obs--surge-detector-fix |
+| 2026-05-25--obs--surge-detector-fix | `derio-net/frank` | `2026-05-25--obs--surge-detector-fix` | — |
+| 2026-05-25--obs--surge-detector-fix-rework-1 | `derio-net/frank` | `2026-05-25--obs--surge-detector-fix-rework-1` | 2026-05-25--obs--surge-detector-fix |
 
 ## Problem
 

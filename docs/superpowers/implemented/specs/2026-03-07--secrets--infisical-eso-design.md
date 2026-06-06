@@ -72,7 +72,7 @@ Infisical's own database credentials and initial admin token are bootstrapped vi
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Secrets Management Implementation Plan |  | `docs/superpowers/archived-plans/2026-03-08--secrets--infisical-eso/` | — |
+| Secrets Management Implementation Plan |  | `2026-03-08--secrets--infisical-eso` | — |
 
 ## Blog Post
 

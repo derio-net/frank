@@ -47,4 +47,4 @@ Seven independent drift classes with different blast radius and fix shape:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| ArgoCD Drift Cleanup Design Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-04-15--gitops--argocd-drift-cleanup/` | — |
+| ArgoCD Drift Cleanup Design Implementation Plan | derio-net/superpowers-for-vk | `2026-04-15--gitops--argocd-drift-cleanup` | — |

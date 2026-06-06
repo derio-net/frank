@@ -222,4 +222,4 @@ K8s Secret → mounted as env vars in LiteLLM pod
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Local Inference Gateway Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-09--infer--ollama-litellm/` | — |
+| Local Inference Gateway Implementation Plan | derio-net/superpowers-for-vk | `2026-03-09--infer--ollama-litellm` | — |

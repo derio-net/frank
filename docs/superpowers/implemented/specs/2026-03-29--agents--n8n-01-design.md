@@ -175,4 +175,4 @@ To add a new instance:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| n8n-01: Per-User Workflow Automation Instance Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-29--agents--n8n-01/` | — |
+| n8n-01: Per-User Workflow Automation Instance Implementation Plan | derio-net/superpowers-for-vk | `2026-03-29--agents--n8n-01` | — |

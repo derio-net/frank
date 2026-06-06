@@ -192,4 +192,4 @@ cd blog && hugo server -D
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Blog Series Design: Building an AI-Hybrid Kubernetes Homelab Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-06--repo--blog-series/` | — |
+| Blog Series Design: Building an AI-Hybrid Kubernetes Homelab Implementation Plan | derio-net/superpowers-for-vk | `2026-03-06--repo--blog-series` | — |

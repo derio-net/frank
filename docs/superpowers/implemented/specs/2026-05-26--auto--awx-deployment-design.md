@@ -215,7 +215,7 @@ bootstrap is a manual-operation), register the `auto` layer in
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-05-27--auto--awx-deployment | `derio-net/frank` | `docs/superpowers/plans/2026-05-27--auto--awx-deployment/` | — |
+| 2026-05-27--auto--awx-deployment | `derio-net/frank` | `2026-05-27--auto--awx-deployment` | — |
 
 ## Deployment deviations (observed)
 

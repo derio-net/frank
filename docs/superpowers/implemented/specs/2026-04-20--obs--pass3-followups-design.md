@@ -70,4 +70,4 @@ Run `/brainstorming` against this spec to:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Obs — Cert-Expiry Alerting Implementation Plan |  | `docs/superpowers/archived-plans/2026-05-11--obs--cert-expiry-alerting/` | — |
+| Obs — Cert-Expiry Alerting Implementation Plan |  | `2026-05-11--obs--cert-expiry-alerting` | — |

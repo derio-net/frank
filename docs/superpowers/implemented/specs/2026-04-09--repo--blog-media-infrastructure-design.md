@@ -223,4 +223,4 @@ The agent records asciinema sessions itself when asked:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Blog Media Infrastructure Implementation Plan |  | `docs/superpowers/archived-plans/2026-04-09--repo--blog-media-infrastructure/` | — |
+| Blog Media Infrastructure Implementation Plan |  | `2026-04-09--repo--blog-media-infrastructure` | — |

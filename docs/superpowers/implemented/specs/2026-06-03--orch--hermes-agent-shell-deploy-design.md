@@ -10,7 +10,7 @@
 
 | Plan | Repo | Path | Status |
 |------|------|------|--------|
-| 2026-06-03--orch--hermes-agent-shell-deploy | `derio-net/frank` | `docs/superpowers/plans/2026-06-03--orch--hermes-agent-shell-deploy/` | — |
+| 2026-06-03--orch--hermes-agent-shell-deploy | `derio-net/frank` | `2026-06-03--orch--hermes-agent-shell-deploy` | — |
 
 ## Problem
 

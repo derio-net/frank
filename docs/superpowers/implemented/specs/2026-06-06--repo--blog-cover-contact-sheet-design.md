@@ -76,4 +76,4 @@ Generator wiring is verified by a thin integration test that monkeypatches the g
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-06-06--repo--blog-cover-contact-sheet | `derio-net/frank` | `docs/superpowers/plans/2026-06-06--repo--blog-cover-contact-sheet/` | — |
+| 2026-06-06--repo--blog-cover-contact-sheet | `derio-net/frank` | `2026-06-06--repo--blog-cover-contact-sheet` | — |

@@ -565,8 +565,8 @@ Frank has multi-GB headroom across worker nodes — this is rounding error.
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-05-23--obs--hop-blog-edge-monitoring | `derio-net/frank` | `docs/superpowers/plans/2026-05-23--obs--hop-blog-edge-monitoring/` | — |
-| 2026-05-25--obs--blog-digest-rework-1 | `derio-net/frank` | `docs/superpowers/plans/2026-05-25--obs--blog-digest-rework-1/` | 2026-05-23--obs--hop-blog-edge-monitoring |
+| 2026-05-23--obs--hop-blog-edge-monitoring | `derio-net/frank` | `2026-05-23--obs--hop-blog-edge-monitoring` | — |
+| 2026-05-25--obs--blog-digest-rework-1 | `derio-net/frank` | `2026-05-25--obs--blog-digest-rework-1` | 2026-05-23--obs--hop-blog-edge-monitoring |
 
 ## Open questions
 

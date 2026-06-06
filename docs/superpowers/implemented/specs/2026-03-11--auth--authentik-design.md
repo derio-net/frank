@@ -253,7 +253,7 @@ Authentik requires several secrets that must exist before the application starts
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Unified Authentication & Authorization Design Implementation Plan | derio-net/superpowers-for-vk | `docs/superpowers/archived-plans/2026-03-11--auth--authentik/` | — |
+| Unified Authentication & Authorization Design Implementation Plan | derio-net/superpowers-for-vk | `2026-03-11--auth--authentik` | — |
 
 ## Migration Path
 

@@ -141,7 +141,7 @@ No data migration needed. The old cloud projects/issues are lost (cloud is dying
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| VK Remote Self-Host Implementation Plan | `derio-net/frank` | `docs/superpowers/implemented/plans/2026-04-12--agents--vk-remote-self-host/` | — |
+| VK Remote Self-Host Implementation Plan | `derio-net/frank` | `2026-04-12--agents--vk-remote-self-host` | — |
 
 ## What Stays Unchanged
 
