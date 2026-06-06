@@ -1,0 +1,45 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Release health-bridge v0.3.0
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Merge, tag, verify GHCR build
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      ```yaml
+      # manual-operation
+      id: obs-health-bridge-release-v030
+      layer: obs
+      app: health-bridge
+      plan: 2026-06-06--obs--health-bridge-bug-auto-close
+      when: After reviewing/merging the health-bridge PR (Phase 1)
+      why_manual: PR merge is operator-gated; release is tag-driven (GitHub Actions on tag push builds GHCR image)
+      commands: |
+        # merge the PR (review first)
+        env -u GITHUB_TOKEN gh pr merge <PR#> -R derio-net/health-bridge --squash
+        # tag the release
+        cd ~/Docs/projects/DERIO_NET/health-bridge
+        git checkout main && git pull
+        git tag v0.3.0 && git push origin v0.3.0
+      verify: |
+        env -u GITHUB_TOKEN gh run list -R derio-net/health-bridge --limit 1   # release workflow green
+        # image exists:
+        docker manifest inspect ghcr.io/derio-net/health-bridge:v0.3.0 >/dev/null && echo OK
+      status: pending
+      ```
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -75,7 +75,7 @@ self-cleaning end to end: dead → bug filed → healed → bug closed.
 All changes in `bridge.go` / `github.go` / `bridge_test.go`, following the
 existing httptest-mock + `setGitHubURLs` test pattern.
 
-**1. `FindOpenBugs(repo, alertName, featureRef string) ([]int, error)`**
+**1. `FindOpenBugs(repo, alertName string, featureNumber int) ([]int, error)`**
 (github.go) — replaces `HasOpenBug` as the single bug-matching primitive:
 
 - `GET /repos/{org}/{repo}/issues?labels=bug&state=open&per_page=50`
@@ -112,7 +112,7 @@ lifecycle update — **before** the `lastState` dedup early-return — when
 `alert.Status == "resolved"`:
 
 ```go
-for _, n := range FindOpenBugs(repo, alertName, featureRef) {
+for _, n := range FindOpenBugs(repo, alertName, number) {
     CloseBugIssue(repo, n, FormatHealComment(alert))
 }
 ```

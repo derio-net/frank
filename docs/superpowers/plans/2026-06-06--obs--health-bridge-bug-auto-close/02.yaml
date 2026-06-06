@@ -1,0 +1,84 @@
+schema_version: 2
+phase:
+  number: 2
+  title: frank — image bump v0.3.0 + docs updates
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Bump health-bridge image
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      In `apps/health-bridge/manifests/deployment.yaml` change
+      `image: ghcr.io/derio-net/health-bridge:v0.2.0` →
+      `image: ghcr.io/derio-net/health-bridge:v0.3.0`.
+      Verify: `git grep -n "health-bridge:v" apps/` shows only `v0.3.0`.
+      (The tag exists only after manual Phase 3 — merge order is documented
+      in the PR body and _prose.md.)
+- number: 2
+  title: Update existing Layer 23 posts (fix/extension — no new post)
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      `blog/content/docs/operating/16-health-bridge/index.md`:
+      add an "Auto-close of healed bug issues (v0.3.0)" section after
+      "Verifying GitHub Integration": behavior (resolved alert → matching open
+      `[Bug] <alertname> is dead` issues closed with heal comment +
+      `state_reason: completed`), matching rules (title prefix AND
+      `**Feature Issue:**` body ref — shared alertnames like `DatasourceError`
+      cannot cross-close layers), and a verify command
+      (`gh issue list -R derio-net/frank-ops --label bug --state closed --limit 5`).
+  - id: P2.T2.S2
+    text: |-
+      Same file, "Duplicate bug issues appearing" troubleshooting section:
+      note that v0.3.0 replaced `HasOpenBug` with `FindOpenBugs` (feature-ref
+      aware) — creation dedup no longer collides across layers sharing an
+      alertname, and auto-close clears all historical duplicates for an alert
+      when it resolves.
+  - id: P2.T2.S3
+    text: |-
+      `blog/content/docs/building/23-health-bridge/index.md`: short retroactive
+      addendum (2-3 paragraphs max, Frank voice) — the loop the original design
+      left open (bugs filed on dead, never closed on heal), the #38/#39 evidence,
+      and the v0.3.0 close: webhook-close only, no reconciler (YAGNI — resolved
+      webhooks proved reliable), feature-ref matching for shared alertnames.
+- number: 3
+  title: Commit frank changes
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Commit on the isolation branch `feat/ops-issue-auto-close`:
+      ```bash
+      git add apps/health-bridge/manifests/deployment.yaml blog/content/docs/operating/16-health-bridge/index.md blog/content/docs/building/23-health-bridge/index.md
+      git commit -m "feat(obs): health-bridge v0.3.0 — auto-close healed bug issues"
+      ```
+      (PR opened at vk-goal delivery, carrying spec + plan + these changes.)
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
