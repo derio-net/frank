@@ -210,6 +210,7 @@ New `configmap-fetch-text.yaml` + deployment mount:
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
 | 2026-06-06--orch--hermes-context-survival | `derio-net/frank` | `2026-06-06--orch--hermes-context-survival` | — |
+| 2026-06-06--orch--hermes-ctx-rework-1 | `derio-net/frank` | `2026-06-06--orch--hermes-ctx-rework-1` | 2026-06-06--orch--hermes-context-survival |
 
 ## Test Plan (post-merge — operator-driven, agent-assisted)
 

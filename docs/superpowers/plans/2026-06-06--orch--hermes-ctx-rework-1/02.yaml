@@ -1,0 +1,135 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Post-merge gate test + conditional brain transplant
+  tag: manual
+  depends_on: [1]
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Verify deployed variant + aliases
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      After ArgoCD sync (litellm rides the canary — promote its pause gates):
+      ```bash
+      kubectl exec -n ollama deploy/ollama -- ollama list | grep qwen3.6:35b-a3b-64k
+      # gateway smoke from the hermes pod (its own key):
+      # model=qwen36-a3b-64k-nothin, "Say OK" → content present
+      # then: kubectl exec -n ollama deploy/ollama -- ollama ps  → CONTEXT 65536
+      ```
+- number: 2
+  title: Hermes context budgets for the qwen 64k pair
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      ```yaml
+      # manual-operation
+      id: orch-hermes-qwen64k-budgets
+      layer: orch
+      app: hermes-agent-shell
+      plan: 2026-06-06--orch--hermes-ctx-rework-1
+      when: after qwen36-a3b-64k aliases are live on the gateway, BEFORE the gate test
+      why_manual: config.yaml is hermes PVC state (precedent orch-hermes-context-budgets)
+      commands: |
+        kubectl exec -i -n hermes-agent-shell deploy/hermes-agent-shell -- python3 - <<'EOF'
+        import yaml
+        p = "/home/agent/.hermes/config.yaml"
+        c = yaml.safe_load(open(p))
+        c["providers"]["litellm"]["models"]["qwen36-a3b-64k"] = {"context_length": 65536}
+        c["providers"]["litellm"]["models"]["qwen36-a3b-64k-nothin"] = {"context_length": 65536}
+        yaml.safe_dump(c, open(p, "w"), sort_keys=False)
+        print("qwen 64k budgets added")
+        EOF
+      verify: |
+        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
+          python3 -c "import yaml; print(yaml.safe_load(open('/home/agent/.hermes/config.yaml'))['providers']['litellm']['models']['qwen36-a3b-64k'])"
+        # expect {'context_length': 65536}
+      status: pending
+      ```
+- number: 3
+  title: Agentic gate test (the probes gemma4 failed)
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Through hermes, model `qwen36-a3b-64k` (thinking ON first):
+      1. `hermes chat -Q -m qwen36-a3b-64k -q "Please read
+         https://blog.derio.net/frank/docs/building/33-hermes-shell/ and give
+         me a 3-bullet summary."` → MUST use fetch-text via terminal, summary
+         must match the real post (BYOK pod / SSH / LiteLLM keys — NOT a
+         generic confabulation).
+      2. `hermes chat -Q --continue -q "What URL did I ask you to read, and
+         which tool did you use?"` → correct recall of turn 1.
+      3. `hermes chat -Q -m qwen36-a3b-64k -q "Run the shell command hostname
+         in your terminal and tell me its exact output."` → real pod hostname,
+         no max-iterations warning, ≤ a handful of tool turns.
+      4. `kubectl logs -n ollama deploy/ollama --since=30m | grep -c
+         "truncated = 1"` → 0.
+      PASS = all four. Record evidence in the completion note.
+- number: 4
+  title: Conditional default flip + close-out
+  steps:
+  - id: P2.T4.S1
+    text: |-
+      IF gate PASSED:
+      ```yaml
+      # manual-operation
+      id: orch-hermes-default-qwen64k
+      layer: orch
+      app: hermes-agent-shell
+      plan: 2026-06-06--orch--hermes-ctx-rework-1
+      when: after the agentic gate test passes
+      why_manual: config.yaml is hermes PVC state
+      commands: |
+        kubectl exec -i -n hermes-agent-shell deploy/hermes-agent-shell -- python3 - <<'EOF'
+        import yaml
+        p = "/home/agent/.hermes/config.yaml"
+        c = yaml.safe_load(open(p))
+        c["model"]["default"] = "qwen36-a3b-64k"
+        yaml.safe_dump(c, open(p, "w"), sort_keys=False)
+        print("default -> qwen36-a3b-64k")
+        EOF
+      verify: |
+        new hermes session: /info shows qwen36-a3b-64k @ 65,536
+      status: pending
+      ```
+      IF gate FAILED: leave default gemma-12b-64k-nothin (chat), document the
+      BYOK-frontier posture for agentic work in operating-28.
+  - id: P2.T4.S2
+    text: |-
+      Update `blog/content/docs/operating/28-hermes-shell/index.md` with the
+      gate outcome (default model row, agent-brain guidance) — tiny docs-only
+      follow-up commit/PR. Run /sync-runbook (new manual-op blocks in this
+      phase). Complete phase, archive rework (`vk archive`), `vk isolation
+      down`.
+- number: 5
+  title: Post-Deploy Checklist (fix/extension disposition)
+  steps:
+  - id: P2.T5.S1
+    text: |-
+      Per agents/rules/plan-post-deploy-checklist.md, fix/extension plan:
+      - [ ] Step 1 expose externally — SKIP (no new user-facing service;
+        aliases are gateway-internal)
+      - [ ] Step 2/3 blog posts — covered as RETROACTIVE updates to the
+        existing layer posts: building-33 updated by the parent plan;
+        operating-28 gate-outcome update in P2.T4.S2 (no new posts per
+        fix/extension workflow)
+      - [ ] Step 4 README — check `grep -n "gemma-12b\|qwen36" README.md`;
+        update model-lineup mentions only if present (run /update-readme if
+        Current Status drifted)
+      - [ ] Step 5 runbook sync — P2.T4.S2 (/sync-runbook; this phase carries
+        two new manual-op blocks)
+      - [ ] Step 6 plan status — `vk plan edit --complete-phase 2 --note
+        "<gate evidence>"`, then archive (P2.T4.S2)
+state:
+  steps:
+    P2.T1.S1: {state: ' ', ticked_at: null, note: null}
+    P2.T2.S1: {state: ' ', ticked_at: null, note: null}
+    P2.T3.S1: {state: ' ', ticked_at: null, note: null}
+    P2.T4.S1: {state: ' ', ticked_at: null, note: null}
+    P2.T4.S2: {state: ' ', ticked_at: null, note: null}
+    P2.T5.S1: {state: ' ', ticked_at: null, note: null}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

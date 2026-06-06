@@ -1,0 +1,111 @@
+schema_version: 2
+phase:
+  number: 1
+  title: qwen36-a3b-64k inference path + deviation codification
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Declare qwen3.6:35b-a3b-64k via chart models.create
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Red: `helm template ollama otwld/ollama --version 1.50.0 -f apps/ollama/values.yaml | grep -c "qwen3.6:35b-a3b-64k"` → 0.
+  - id: P1.T1.S2
+    text: |-
+      In `apps/ollama/values.yaml` `ollama.models.create`, append after the
+      gemma4 entry:
+
+      BEGIN VALUES SNIPPET
+          - name: qwen3.6:35b-a3b-64k
+            template: |
+              FROM qwen3.6:35b-a3b
+              PARAMETER num_ctx 65536
+      END VALUES SNIPPET
+
+      Comment block: designated hermes agent brain (gemma4-12B failed the
+      agentic gate — parent plan P4); measured 2026-06-06: 24GB total,
+      39%/61% CPU/GPU hybrid (MoE 3B-active), 61 t/s generation,
+      1,792 t/s long-prompt prefill (14k tokens in 7.8s); native ceiling
+      262,144 so num_ctx 65536 is honored (NOT clamped — contrast
+      qwen3:14b which clamps to 40,960).
+  - id: P1.T1.S3
+    text: |-
+      Green: helm template grep → ≥1; uv run --with pyyaml python3 asserts
+      `create[1].name == "qwen3.6:35b-a3b-64k"` and `"num_ctx 65536" in template`.
+- number: 2
+  title: LiteLLM aliases qwen36-a3b-64k + qwen36-a3b-64k-nothin
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Red: `grep -c "qwen36-a3b-64k" apps/litellm/values.yaml` → 0.
+      Then mirror the existing `qwen36-a3b` / `qwen36-a3b-nothin` pair
+      (copy their exact litellm_params shape incl. the nothin extra_body),
+      pointing model at `ollama_chat/qwen3.6:35b-a3b-64k`. Comment: hermes
+      agent-brain candidate, 64k floor context, keep hermes config.yaml
+      context_length overrides in sync (65536).
+  - id: P1.T2.S2
+    text: |-
+      Green: grep count = 2; uv run pyyaml walk asserts both aliases map to
+      `ollama_chat/qwen3.6:35b-a3b-64k` and the nothin variant carries the
+      same think-disable extra_body as `qwen36-a3b-nothin`.
+- number: 3
+  title: Codify deviations — gotchas, runbook, spec addendum
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      `agents/rules/frank-gotchas.md`:
+      (a) Other-apps section, after the hermes 256K-fallback line:
+      "hermes hard-requires a ≥64k context window (its preamble alone is
+      ~15k tokens) — with truthful budgets it REFUSES every 16k model;
+      derived-tag num_ctx silently CLAMPS to the model's trained ceiling
+      (qwen3:14b → 40960, below the floor) and only `ollama ps` CONTEXT
+      reveals it. gemma4-12B failed the hermes agentic gate (degenerate
+      tool loops, confabulation) — qwen36-a3b-64k is the designated agent
+      brain; gemma-12b-64k pair stays for chat/vision."
+      (b) Agent shells section: extend the budget-mirror line with the two
+      qwen36 64k aliases (65536) and `tool_loop_guardrails.hard_stop_enabled:
+      true` (kills degenerate loops at ~5 iterations; was 90).
+  - id: P1.T3.S2
+    text: |-
+      `docs/runbooks/manual-operations.yaml`:
+      (a) `orch-hermes-context-budgets`: commands gain the two qwen36-a3b-64k
+      entries at 65536 + `tool_loop_guardrails.hard_stop_enabled = True`;
+      verify gains the loop-guard key; `status: done` (executed + verified
+      2026-06-06, evidence in parent plan P4).
+      (b) `orch-hermes-soul-fetch-text`: commands updated to the hardened
+      wording ("run the SHELL COMMAND `fetch-text <url>` via your terminal
+      tool — NOT a function/tool to call directly"); `status: done`.
+      Mirror both updates into the parent plan's archived 04.yaml blocks?
+      NO — archived plans are immutable history; the runbook is the living
+      registry (this divergence is by design; note it in the runbook entry).
+  - id: P1.T3.S3
+    text: |-
+      Spec `2026-06-06--orch--hermes-context-survival-design.md`: append
+      "## Addendum (rework-1, 2026-06-06)" — the hermes 64k floor discovery,
+      the gemma4 agentic-gate failure evidence, the candidate measurement
+      table (qwen3:14b clamp / mistral 33GB 15t/s / qwen36 24GB 61t/s
+      1792t/s prefill), and the brain-transplant decision.
+  - id: P1.T3.S4
+    text: |-
+      `docs/runbooks/frank-gotchas/agent-shells.md`: extend the 2026-06-06
+      hermes section with the floor, the clamp, the gate-test results, and
+      the qwen36 designation. Run the full validation sweep:
+      `uv run --with pyyaml --with pytest pytest scripts/tests/ -q` (all
+      green) + runbook YAML parse check.
+state:
+  steps:
+    P1.T1.S1: {state: ' ', ticked_at: null, note: null}
+    P1.T1.S2: {state: ' ', ticked_at: null, note: null}
+    P1.T1.S3: {state: ' ', ticked_at: null, note: null}
+    P1.T2.S1: {state: ' ', ticked_at: null, note: null}
+    P1.T2.S2: {state: ' ', ticked_at: null, note: null}
+    P1.T3.S1: {state: ' ', ticked_at: null, note: null}
+    P1.T3.S2: {state: ' ', ticked_at: null, note: null}
+    P1.T3.S3: {state: ' ', ticked_at: null, note: null}
+    P1.T3.S4: {state: ' ', ticked_at: null, note: null}
+  completion:
+    at: null
+    note: null
+    observed_prs: []

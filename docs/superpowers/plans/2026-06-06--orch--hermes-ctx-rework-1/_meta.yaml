@@ -1,0 +1,30 @@
+schema_version: 2
+plan: 2026-06-06--orch--hermes-ctx-rework-1
+spec: docs/superpowers/specs/2026-06-06--orch--hermes-context-survival-design.md
+target_repo: derio-net/frank
+vk_version: '>=2.0.0,<3.0.0'
+created: '2026-06-06'
+parent_plan: docs/superpowers/implemented/plans/2026-06-06--orch--hermes-context-survival/
+origin_items:
+- id: 1
+  item: 'gemma4-12B agentically incompetent in hermes harness: invalid tool-call names,
+    90-iteration degenerate loop on trivial command, tool-skipping confabulation (both
+    think variants)'
+  source: parent P4 Test Plan replay 2026-06-06
+  track: operations → development
+- id: 2
+  item: 'hermes hard-requires >=64k context (preamble ~15k tokens); refuses all 16k
+    models once budgets are truthful — qwen36-a3b-64k is the only viable local agent
+    brain (measured: 61 t/s gen, 1792 t/s prefill, 39/61 hybrid)'
+  source: parent P4 replay + 2026-06-06 measurements
+  track: decision → development
+- id: 3
+  item: ollama derived-tag num_ctx silently clamps to the model trained ceiling (qwen3:14b
+    -> 40960); only ollama ps CONTEXT reveals it
+  source: qwen3:14b-64k measurement
+  track: development
+- id: 4
+  item: 'live deviations to codify: SOUL.md shell-command wording, tool_loop_guardrails.hard_stop_enabled=true,
+    runbook statuses for executed manual-ops'
+  source: parent P4 deviations
+  track: operations
