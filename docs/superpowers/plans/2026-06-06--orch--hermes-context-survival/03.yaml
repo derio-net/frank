@@ -1,0 +1,101 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Documentation — gotchas, runbook prose, blog retro-updates
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gotchas one-liners + per-topic runbook prose
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      `agents/rules/frank-gotchas.md` — add one-liners:
+      (a) "Other in-cluster apps" section, after the existing gemma-12b line:
+      "hermes resolves a custom LiteLLM alias's context window to a 256K
+      DEFAULT FALLBACK when every probe fails — set
+      `providers.<p>.models.<alias>.context_length` in config.yaml (v0.15.2
+      honors it, upstream #15779) or the compressor engages 8× past the
+      real 16384 boundary; Ollama truncates oversized prompts FRONT-FIRST
+      and silently (only signal: runner `truncated = 1`) and the giant
+      tool result stays in session history, so one 200KB curl poisons
+      every later turn ('session amnesia', 2026-06-06)."
+      (b) "Agent shells" section:
+      "`gemma4:12b-64k` (chart-side `ollama.models.create`, Modelfile
+      num_ctx) is the per-model escape hatch from litellm#12930 — server
+      default stays 16384; keep hermes config.yaml context_length
+      overrides equal to the live values (64k pair = 65536, rest = 16384)."
+  - id: P3.T1.S2
+    text: |-
+      Full prose + recovery commands in
+      `docs/runbooks/frank-gotchas/other-apps.md` (incident chain, the
+      five-step resolution order trace, recovery = new session, log
+      verification one-liner) and `docs/runbooks/frank-gotchas/agent-shells.md`
+      (fetch-text helper, subPath staleness note, config sync rule).
+      Mirror the existing entry style of each file.
+- number: 2
+  title: Blog retro-updates (fix/extension workflow — no new posts)
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      `blog/content/docs/building/33-hermes-shell/index.md`: append an
+      "Update (2026-06-06): the day Hermes forgot everything" section —
+      incident narrative (the truncation kill chain), the measurement
+      table, the three-layer fix. Frank voice, failure treated with the
+      same weight as success.
+  - id: P3.T2.S2
+    text: |-
+      `blog/content/docs/operating/28-hermes-shell/index.md` (operating
+      companion): new default model `gemma-12b-64k-nothin`, `/mode` row
+      for the 64k pair, fetch-text usage, the
+      "switching to a 16k model mid-session compacts aggressively"
+      caveat, ollama truncation log check command.
+  - id: P3.T2.S3
+    text: |-
+      Build check (best-effort in this container): if `hugo` is on PATH,
+      `cd blog && hugo --minify` must exit 0. Otherwise note that the
+      deploy-blog CI workflow validates on merge — do NOT install hugo
+      ad hoc here.
+- number: 3
+  title: Runbook sync
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Run the /sync-runbook skill (scans v2 plan phase files for
+      `# manual-operation` blocks — phase 4 of this plan carries two).
+      Verify `docs/runbooks/manual-operations.yaml` gains
+      `orch-hermes-context-budgets` and `orch-hermes-soul-fetch-text`
+      with `status: pending`.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

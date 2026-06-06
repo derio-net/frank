@@ -205,6 +205,12 @@ New `configmap-fetch-text.yaml` + deployment mount:
   fetch-text guidance.
 - `/sync-runbook` after plan lands (manual-operation blocks in D3/D4).
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-06-06--orch--hermes-context-survival | `derio-net/frank` | `docs/superpowers/plans/2026-06-06--orch--hermes-context-survival/` | — |
+
 ## Test Plan (post-merge — operator-driven, agent-assisted)
 
 1. `ssh agent@192.168.55.226` → start hermes → confirm default model is
