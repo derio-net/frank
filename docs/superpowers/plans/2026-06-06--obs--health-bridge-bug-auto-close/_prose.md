@@ -1,7 +1,7 @@
 # Health Bridge — Auto-Close Healed Bug Issues
 
 **Spec:** `docs/superpowers/specs/2026-06-06--obs--health-bridge-bug-auto-close-design.md`
-**Status:** In Progress
+**Status:** Deployed
 
 ## What this is
 
