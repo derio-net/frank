@@ -4,15 +4,19 @@
 # Exposed at 192.168.55.206:4000 as OpenAI-compatible API
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# TODO ON NEXT IMAGE BUMP — fold in the chart-config improvements PR #210
-# discovered we don't have. Don't ship a bump without these:
+# TODO ON NEXT IMAGE BUMP — chart-config improvements PR #210 discovered we
+# didn't have. Items 1–3 below are now shipped/resolved; the one remainder
+# before the next bump is item 1's `resources` requests/limits:
 #
-# 1. Pod-template `affinity` requiring amd64. PR #210's final promote landed
-#    one of 5 pods on raspi-1 (RPi 4, ARM, low-power) by scheduler tiebreaker
-#    — there's NO config protecting LiteLLM from the slow ARM node, every
-#    prior amd64 placement was luck. T2 documented this in
+# 1. ✅ affinity SHIPPED 2026-06-06 (#478) — top-level `affinity:` block below
+#    requires amd64 on the pod template. Background: PR #210's final promote
+#    landed one of 5 pods on raspi-1 (RPi 4, ARM, low-power) by scheduler
+#    tiebreaker — every prior amd64 placement was luck. T2 documented this in
 #    docs/agentic-discussion/2026-05-04--litellm-canary-for-real/terminal-2.md.
-#    Suggested block (verify cpu/memory numbers from `kubectl top pod` first):
+#    STILL TODO: `resources` requests/limits — blocked on the dead Metrics
+#    API (#394; `kubectl top` unavailable). Verify numbers from
+#    VictoriaMetrics (container_memory_working_set_bytes / CPU rate for the
+#    litellm pods) before setting. Draft from PR #210:
 #
 #      resources:
 #        requests:
@@ -20,22 +24,16 @@
 #          memory: 512Mi
 #        limits:
 #          memory: 1Gi
-#      affinity:
-#        nodeAffinity:
-#          requiredDuringSchedulingIgnoredDuringExecution:
-#            nodeSelectorTerms:
-#            - matchExpressions:
-#              - key: kubernetes.io/arch
-#                operator: In
-#                values: [amd64]
 #
-# 2. PreSync migration Job pinned to amd64 (separate from the main pod
-#    template — chart may need migrationJob.nodeSelector or equivalent).
-#    PR #220 had to bump v1.83.14-stable → v1.83.14-stable.patch.1 because
-#    the upstream arm64 layer for v1.83.14-stable was broken, and the Job
-#    landed on raspi-1 by default. T2 flagged this in the rehearsal as
-#    optimization (avoid the 4-7 min cold-pull tax on raspi-1); PR #210
-#    promoted it to "would have prevented an entire class of failure mode."
+# 2. ✅ RESOLVED 2026-06-06 (#478) — the same top-level `affinity:` covers the
+#    PreSync migration Job: chart 1.81.13 templates `.Values.affinity` and
+#    `.Values.tolerations` into BOTH the Deployment (deployment.yaml:226/:230)
+#    and the migrations Job (migrations-job.yaml:106/:110). Issue #478's
+#    premise ("no scheduling support on the Job") only holds for
+#    `nodeSelector` / migrationJob-scoped values. Background: PR #220 had to
+#    bump v1.83.14-stable → .patch.1 because the upstream arm64 layer was
+#    broken and the Job landed on raspi-1 by default; on 2026-06-04 the Job
+#    hit raspi-1 minutes before the node wedged (7+ min Prisma run on a Pi).
 #
 # 3. ✅ DONE in this PR — qwen-vl-7b dropped from q8_0 to default Q4_K_M.
 #    The Q8_0 tag was 9.4GB on disk; once loaded with 128K-context KV cache
@@ -66,6 +64,21 @@ environmentSecrets:
 
 envVars:
   STORE_MODEL_IN_DB: "True"
+
+# Keep LiteLLM off the ARM Pi nodes — gateway pods AND the PreSync Prisma
+# migrations Job (#478). Chart 1.81.13 templates this top-level value into
+# both pod templates (deployment.yaml:226, migrations-job.yaml:106).
+# amd64 = mini-1/2/3, gpu-1, pc-1; excludes raspi-1/raspi-2. Arch (not
+# hostname) is the real constraint: broken upstream arm64 image layers were
+# a prior failure mode (PR #220).
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/arch
+          operator: In
+          values: [amd64]
 
 # LiteLLM proxy configuration (rendered as config.yaml)
 #

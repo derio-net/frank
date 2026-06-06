@@ -35,15 +35,15 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Blog Analytics | GoatCounter | Cookieless, single-binary; mesh-only admin at counter.cluster.derio.net, public beacon at counter.derio.net (LB 192.168.55.224, Caddy reverse-proxy from Hop) |
 | Edge HTTP Security | CrowdSec | Agent on Hop tailing Caddy access logs; caddy-crowdsec-bouncer enforces decisions at the edge (no Frank dep on request path) |
 | Runtime Security | Falco (modern_ebpf) + Falcosidekick | DaemonSet on Hop; syscall events → VictoriaLogs (Loki protocol) + direct Telegram for priority:critical |
-| AI Alert Helper | ai-alert-helper (FastAPI) | LiteLLM-backed digest/investigate/surge-check; LLM swap contract for future Sympozium move |
+| AI Alert Helper | ai-alert-helper (FastAPI) | LiteLLM-backed digest/investigate/surge-check + Telegram trace-analyst (0.2.0): ad-hoc security Q&A over VictoriaLogs/CrowdSec evidence, allowlisted chat, long-poll consumer |
 | Health Probes | Blackbox Exporter | HTTP endpoint probing for feature health (n8n, Paperclip, Grafana, Blog) |
 | Heartbeat Ingestion | Pushgateway | Receives heartbeat metrics from cron jobs, scraped by VictoriaMetrics |
-| Alert Bridge | Health Bridge | Grafana webhook → GitHub Project lifecycle state updates (healthy/degraded/dead) |
+| Alert Bridge | Health Bridge | Grafana webhook → GitHub Project lifecycle state updates (healthy/degraded/dead); v0.3.0 auto-closes healed bug issues |
 | Backup | Longhorn → Cloudflare R2 | Daily + weekly PVC backup, SOPS-encrypted credentials |
 | Secrets | Infisical + External Secrets Operator | Self-hosted secret store, ExternalSecret → K8s Secret sync |
 | RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID (IT5701 V3.5.14.0 firmware lock under investigation) |
-| Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 Ti 16GB — multimodal (Gemma 3 12B, Qwen2.5-VL 7B), general (Mistral Small 3.2 24B, Qwen3 14B), code (Qwen2.5-Coder 14B) |
-| API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to Ollama + OpenRouter cloud models |
+| Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 Ti 16GB — multimodal (Gemma 4 12B, Qwen2.5-VL 7B), general (Mistral Small 3.2 24B, Qwen3 14B), code (Qwen2.5-Coder 14B), MoE flagship (Qwen3.6 35B-A3B, CPU-offloaded experts) |
+| API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to local Ollama models (local-only since 2026-06-04; 12 aliases incl. 64k-context + no-think variants), amd64-pinned pods + migrations Job |
 | Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
 | Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
 | Multi-tenancy | vCluster | Virtual K8s clusters inside Frank — disposable sandboxes via ArgoCD |
@@ -90,6 +90,7 @@ frank/
 │   ├── pushgateway/manifests/                     # Heartbeat metric ingestion from cron jobs
 │   ├── grafana-alerting/manifests/                  # File-provisioned alerting (rules, contacts, policy, dashboard)
 │   ├── health-bridge/manifests/                   # Grafana alert → GitHub lifecycle bridge
+│   ├── ai-alert-helper/manifests/                 # LLM digest/surge-check + Telegram trace-analyst
 │   ├── fluent-bit/values.yaml                     # Log shipping
 │   ├── external-secrets/values.yaml              # ESO operator
 │   ├── infisical/values.yaml + manifests/         # Infisical + ClusterSecretStore
@@ -153,8 +154,8 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (Hextra theme)
 │   ├── hugo.toml
-│   ├── content/docs/building/       # 30 posts documenting the build
-│   ├── content/docs/operating/      # 25 companion operations guides
+│   ├── content/docs/building/       # 33 posts documenting the build
+│   ├── content/docs/operating/      # 28 companion operations guides
 │   ├── content/docs/papers/         # Frank Papers — research-grade landscape reviews (gated)
 │   ├── assets/js/mermaid-frank.js   # Mermaid Frank theme (loads on .paper-post pages)
 │   ├── layouts/partials/papers-*    # papers-backlink + papers-forwardlinks (cross-series)
@@ -284,7 +285,7 @@ argocd app list
 | blackbox-exporter | monitoring | HTTP endpoint probes for feature health (VMProbe → VictoriaMetrics) |
 | pushgateway | monitoring | Heartbeat metric ingestion from Willikins cron jobs (VMServiceScrape) |
 | grafana-alerting | monitoring | File-provisioned alerting: 5 rules, 2 contact points, notification policy, Feature Health dashboard |
-| health-bridge | monitoring | Grafana webhook → GitHub Project lifecycle updates (ghcr.io/derio-net/health-bridge:v0.1.0) |
+| health-bridge | monitoring | Grafana webhook → GitHub Project lifecycle updates + healed-issue auto-close (ghcr.io/derio-net/health-bridge:v0.3.0) |
 | traefik | traefik-system | In-cluster ingress controller (192.168.55.220), ACME wildcard TLS for `*.cluster.derio.net` |
 | traefik-extras | traefik-system | Middleware CRDs (security headers, IP allowlist, Authentik forward-auth) + 16 IngressRoutes |
 | homepage | homepage | Cluster dashboard at `master.cluster.derio.net`, HTTP health indicators, service catalog |
@@ -298,7 +299,7 @@ argocd app list
 | tekton-extras | tekton-pipelines | CI Tasks, gitea-ci Pipeline, Gitea EventListener, ExternalSecrets, RBAC |
 | longhorn-cicd | longhorn-system | Single-replica StorageClass for CI/CD workloads on pc-1 |
 | goatcounter | goatcounter-system | Blog analytics (arp242/goatcounter:2.7.0); LB 192.168.55.224, mesh-only admin via Authentik forward-auth |
-| ai-alert-helper | ai-alert-helper-system | FastAPI service — daily digest CronJob + surge-check + Grafana webhook receiver |
+| ai-alert-helper | ai-alert-helper-system | FastAPI service (0.2.0) — daily digest CronJob + surge-check + Grafana webhook receiver + Telegram trace-analyst (single replica, Recreate — one getUpdates consumer per bot token) |
 | awx | awx | AWX Operator + AWX CR (Ansible controller); OIDC SSO via Authentik; smoke-ping Job Template green vs non-Talos home-lab hosts |
 
 ### Hop Cluster Applications
