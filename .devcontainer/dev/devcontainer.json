@@ -6,7 +6,7 @@
     "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
     "ghcr.io/devcontainers/features/node:1": {}
   },
-  "postCreateCommand": "uv tool install 'git+https://github.com/derio-net/superpowers-for-vk@9fd7b777702efaf0506025c7714e33cbb723513f'; ARCH=$(dpkg --print-architecture); HUGO_V=0.157.0; case \"$ARCH\" in amd64) HUGO_SHA=5b2fdfe4646a48ee98107035024fd6640299bff31c4486c259eeeb9f4c822492;; arm64) HUGO_SHA=398efd55428589b928afc65df2410f97efc83608f7a3324d1435196f17adaa0a;; *) echo \"unsupported arch $ARCH\" >&2; exit 1;; esac; curl -fsSL \"https://github.com/gohugoio/hugo/releases/download/v${HUGO_V}/hugo_extended_${HUGO_V}_linux-${ARCH}.tar.gz\" -o /tmp/hugo.tgz; echo \"${HUGO_SHA}  /tmp/hugo.tgz\" | sha256sum -c -; sudo tar -xz -C /usr/local/bin -f /tmp/hugo.tgz hugo; rm /tmp/hugo.tgz",
+  "postCreateCommand": "uv tool install --python 3.13 'git+https://github.com/derio-net/superpowers-for-vk@9fd7b777702efaf0506025c7714e33cbb723513f'; ARCH=$(dpkg --print-architecture); HUGO_V=0.157.0; case \"$ARCH\" in amd64) HUGO_SHA=5b2fdfe4646a48ee98107035024fd6640299bff31c4486c259eeeb9f4c822492;; arm64) HUGO_SHA=398efd55428589b928afc65df2410f97efc83608f7a3324d1435196f17adaa0a;; *) echo \"unsupported arch $ARCH\" >&2; exit 1;; esac; curl -fsSL \"https://github.com/gohugoio/hugo/releases/download/v${HUGO_V}/hugo_extended_${HUGO_V}_linux-${ARCH}.tar.gz\" -o /tmp/hugo.tgz; echo \"${HUGO_SHA}  /tmp/hugo.tgz\" | sha256sum -c -; sudo tar -xz -C /usr/local/bin -f /tmp/hugo.tgz hugo; rm /tmp/hugo.tgz",
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
   "workspaceFolder": "${localWorkspaceFolder}",
   "runArgs": [
