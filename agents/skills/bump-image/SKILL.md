@@ -5,7 +5,7 @@ user-invocable: true
 disable-model-invocation: false
 arguments:
   - name: app
-    description: App to bump (e.g. "paperclip", "ai-alert-helper", "blog", "vk-bridge")
+    description: App to bump (e.g. "paperclip", "ai-alert-helper", "blog", "fr-bridge")
     required: true
   - name: target
     description: New tag / SHA / version to pin to (omit to pick the latest upstream)
@@ -29,7 +29,7 @@ GitOps "image bump" task — distinct from `/deploy-app` (new app).
 Pins live in one of:
 - `apps/<app>/manifests/deployment.yaml` or `clusters/hop/apps/<app>/manifests/deployment.yaml` — `image:` with a SHA tag (e.g. `ghcr.io/derio-net/blog:<sha>`)
 - `apps/<app>/values.yaml` — `image.tag`
-- an env `*_PIN` (e.g. `VK_BRIDGE_PIN`) in a deployment/secret
+- an env `*_PIN` (e.g. `FR_BRIDGE_PIN`) in a deployment/secret
 
 ```bash
 grep -rn "image:\|image.tag\|_PIN" apps/$ARGUMENTS.app clusters/hop/apps/$ARGUMENTS.app 2>/dev/null
@@ -81,7 +81,7 @@ ArgoCD `Synced`/`Healthy` proves the artifact deployed, not that it works
 (`frank-gotchas.md` → Process/practice). So:
 
 - **Smoke test** the app's real entrypoint. Watch for the stderr-banner trap:
-  health checks capturing `$(... --dry-run)` must use `2>&1` (the v2 vk.bridge
+  health checks capturing `$(... --dry-run)` must use `2>&1` (the `fr_vk.bridge`
   banner goes to stderr — `agent-shells` gotcha).
 - **DB apps:** confirm the migration's *tables* exist (do **not** trust the
   `__drizzle_migrations` row count — it doesn't map to file index).
