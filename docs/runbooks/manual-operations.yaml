@@ -1592,6 +1592,49 @@ operations:
   - kubectl -n ai-alert-helper-system get secret ai-alert-helper-secrets
   - kubectl -n ai-alert-helper-system exec deploy/ai-alert-helper -- env | grep -c TELEGRAM
   status: done
+- id: obs-frank-ops-stale-bug-cleanup
+  layer: obs
+  app: health-bridge
+  plan: docs/superpowers/implemented/plans/2026-06-06--obs--health-bridge-bug-auto-close
+  when: Once, after the v0.3.1 auto-close smoke test passed (2026-06-06)
+  why_manual: Issues #38/#39 predate the auto-close path; their alerts already resolved (2026-06-04), so no future resolved webhook will arrive for them
+  commands:
+  - env -u GITHUB_TOKEN gh issue close 38 -R derio-net/frank-ops --reason completed --comment "System healed 2026-06-04 16:55 UTC (alert resolved — see frank-ops#24 tracker comments). Closed manually as one-time cleanup."
+  - env -u GITHUB_TOKEN gh issue close 39 -R derio-net/frank-ops --reason completed --comment "System healed 2026-06-04 17:38 UTC (alert resolved — see frank-ops#8 tracker comments). Closed manually as one-time cleanup."
+  verify:
+  - env -u GITHUB_TOKEN gh issue list -R derio-net/frank-ops --label bug --state open   # → empty
+  status: done
+- id: obs-health-bridge-release-v030
+  layer: obs
+  app: health-bridge
+  plan: docs/superpowers/implemented/plans/2026-06-06--obs--health-bridge-bug-auto-close
+  when: After reviewing/merging the health-bridge auto-close PR (derio-net/health-bridge#1)
+  why_manual: PR merge is operator-gated; release is tag-driven (GitHub Actions on tag push builds the GHCR image)
+  commands:
+  - env -u GITHUB_TOKEN gh pr merge <PR#> -R derio-net/health-bridge --squash
+  - cd ~/Docs/projects/DERIO_NET/health-bridge ; git checkout main ; git pull
+  - 'MERGE_SHA=$(git rev-parse main)  # DEVIATION 2026-06-06: v0.3.0 was tagged from a stale local main (pre-merge SHA) so the image lacked the feature; superseded by v0.3.1 at the merge commit. ALWAYS verify the tag tree contains the new symbol before pushing.'
+  - git grep -q "FindOpenBugs" "$MERGE_SHA" -- github.go && git tag v0.3.1 "$MERGE_SHA" && git push origin v0.3.1
+  verify:
+  - env -u GITHUB_TOKEN gh run list -R derio-net/health-bridge --limit 1   # release workflow green, headSha = merge commit
+  - docker manifest inspect ghcr.io/derio-net/health-bridge:v0.3.1 >/dev/null && echo OK
+  status: done
+- id: obs-health-bridge-v030-smoke-auto-close
+  layer: obs
+  app: health-bridge
+  plan: docs/superpowers/implemented/plans/2026-06-06--obs--health-bridge-bug-auto-close
+  when: After the frank image-bump PR merged and ArgoCD synced the v0.3.1 image (2026-06-06)
+  why_manual: End-to-end verification needs the live cluster, the real GitHub repo, and operator confirmation (a layer is not Deployed until its workflow is observed end-to-end)
+  commands:
+  - source .env ; kubectl get pods -n monitoring -l app=health-bridge   # Running, image v0.3.1
+  - source .env ; kubectl port-forward -n monitoring svc/health-bridge 18080:8080 &
+  - 'WEBHOOK_SECRET=$(kubectl get secret -n monitoring health-bridge-secrets -o jsonpath=''{.data.WEBHOOK_SECRET}'' | base64 -d)'
+  - 'curl -s -X POST http://localhost:18080/webhook -H "Authorization: Bearer $WEBHOOK_SECRET" -H "Content-Type: application/json" -d ''{"status":"firing","alerts":[{"status":"firing","labels":{"alertname":"smoke-auto-close","severity":"critical","github_issue":"frank-ops#13"},"annotations":{"summary":"Auto-close smoke test"},"startsAt":"2026-06-06T19:50:00Z"}]}''   # creates a bug issue'
+  - 'curl -s -X POST http://localhost:18080/webhook -H "Authorization: Bearer $WEBHOOK_SECRET" -H "Content-Type: application/json" -d ''{"status":"resolved","alerts":[{"status":"resolved","labels":{"alertname":"smoke-auto-close","severity":"critical","github_issue":"frank-ops#13"},"annotations":{"summary":"Auto-close smoke test"},"startsAt":"2026-06-06T19:50:00Z","endsAt":"2026-06-06T19:55:00Z"}]}''   # auto-closes it'
+  verify:
+  - source .env ; kubectl logs -n monitoring -l app=health-bridge --tail=20 | grep "Closed bug issue"
+  - env -u GITHUB_TOKEN gh issue list -R derio-net/frank-ops --label bug --state closed --limit 3   # smoke bug CLOSED with heal comment, state_reason completed
+  status: done
 - id: stor-longhorn-disable-pi-replica-scheduling
   layer: stor
   app: longhorn

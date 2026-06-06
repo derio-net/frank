@@ -1,6 +1,6 @@
 schema_version: 2
 plan: 2026-06-06--obs--health-bridge-bug-auto-close
-spec: docs/superpowers/specs/2026-06-06--obs--health-bridge-bug-auto-close-design.md
+spec: 2026-06-06--obs--health-bridge-bug-auto-close-design.md
 target_repo: derio-net/frank
 vk_version: '>=2.0.0,<3.0.0'
 created: '2026-06-06'

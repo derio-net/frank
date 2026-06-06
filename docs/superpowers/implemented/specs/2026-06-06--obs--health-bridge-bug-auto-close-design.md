@@ -188,4 +188,4 @@ After both PRs merge and ArgoCD rolls the new image:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-06-06--obs--health-bridge-bug-auto-close | `derio-net/frank` (hosts plan; phases target both repos) | `docs/superpowers/plans/2026-06-06--obs--health-bridge-bug-auto-close/` | — |
+| 2026-06-06--obs--health-bridge-bug-auto-close | `derio-net/frank` (hosts plan; phases target both repos) | `2026-06-06--obs--health-bridge-bug-auto-close` | — |
