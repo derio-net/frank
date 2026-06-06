@@ -243,8 +243,10 @@ incident (full chain in other-apps.md).
   names + a 90-iteration identical-call loop on `hostname`, confabulated
   answer; think on: skipped tools, confabulated a summary from the URL slug).
   Plain chat/vision is fine — keep `gemma-12b-64k-nothin` for that.
-- **`qwen36-a3b-64k` is the designated agent brain** (gate test pending,
-  rework-1 phase 2). Measured: 24 GB total, 39/61 CPU/GPU hybrid (MoE
+- **`qwen36-a3b-64k` is the hermes default and agent brain** — gate PASSED
+  2026-06-06 (4/4): grounded fetch-text summary of the killer blog post,
+  exact URL+command recall in a continued session, `hostname` in ONE tool
+  call (gemma4 took 90 and confabulated), 0 ollama truncations. Measured: 24 GB total, 39/61 CPU/GPU hybrid (MoE
   3B-active), 61 t/s generation, 1,792 t/s long prefill — hermes's preamble
   costs ~8 s cold, then ollama prefix-caches across session turns.
 - Loop insurance: `tool_loop_guardrails.hard_stop_enabled: true` in hermes

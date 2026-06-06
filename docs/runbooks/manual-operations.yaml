@@ -1143,7 +1143,7 @@ operations:
     EOF
   verify:
   - "new hermes session: /info shows qwen36-a3b-64k @ 65,536"
-  status: pending
+  status: done
 - id: orch-hermes-litellm-virtual-key
   layer: orch
   app: hermes-agent-shell
@@ -1183,7 +1183,7 @@ operations:
     EOF
   verify:
   - "kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- python3 -c \"import yaml; print(yaml.safe_load(open('/home/agent/.hermes/config.yaml'))['providers']['litellm']['models']['qwen36-a3b-64k'])\" → {'context_length': 65536}"
-  status: pending
+  status: done
 - id: orch-hermes-shell-ssh-keys
   layer: orch
   app: hermes-agent-shell

@@ -3,7 +3,8 @@ phase:
   number: 2
   title: Post-merge gate test + conditional brain transplant
   tag: manual
-  depends_on: [1]
+  depends_on:
+  - 1
   tracking_issue: null
 tasks:
 - number: 1
@@ -123,13 +124,41 @@ tasks:
         "<gate evidence>"`, then archive (P2.T4.S2)
 state:
   steps:
-    P2.T1.S1: {state: ' ', ticked_at: null, note: null}
-    P2.T2.S1: {state: ' ', ticked_at: null, note: null}
-    P2.T3.S1: {state: ' ', ticked_at: null, note: null}
-    P2.T4.S1: {state: ' ', ticked_at: null, note: null}
-    P2.T4.S2: {state: ' ', ticked_at: null, note: null}
-    P2.T5.S1: {state: ' ', ticked_at: null, note: null}
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-06T17:55:22+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-06-06T17:55:22+00:00'
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: '2026-06-06T17:55:23+00:00'
+      note: 'GATE PASSED 4/4 (2026-06-06 ~17:51-17:54 UTC): (1) fetch+summarize via
+        fetch-text (18,931-char capped extraction), summary grounded in the real post
+        incl. the update section; (2) exact URL+command recall in continued session
+        175114_2ea3a2; (3) hostname = hermes-agent-shell-5ffdf75bbf-cw5rk in ONE terminal
+        call (gemma4: 90 calls + confabulation); (4) 0 truncated=1 in ollama logs.
+        qwen serving CONTEXT 65536 at 39/61 hybrid.'
+    P2.T4.S1:
+      state: x
+      ticked_at: '2026-06-06T17:55:24+00:00'
+      note: Gate passed -> default flipped to qwen36-a3b-64k and live-verified (new
+        session answered on new default).
+    P2.T4.S2:
+      state: x
+      ticked_at: '2026-06-06T17:55:24+00:00'
+      note: null
+    P2.T5.S1:
+      state: x
+      ticked_at: '2026-06-06T17:55:25+00:00'
+      note: 'Checklist: Step1 skip (no new user-facing service); Steps2/3 = retroactive
+        post updates (operating-28 in this closeout); Step4 README grep clean, skip;
+        Step5 registry current (statuses flipped in closeout, ops were spliced in
+        P1); Step6 this completion.'
   completion:
-    at: null
-    note: null
+    at: '2026-06-06T17:55:25+00:00'
+    note: Gate 4/4, default flipped, all manual-ops executed+verified. Brain transplant
+      complete.
     observed_prs: []
