@@ -60,17 +60,21 @@ kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- bash -lc '<cmd>'
 The provider is pinned to LiteLLM in `~/.hermes/config.yaml` (home PVC, seeded manually — manual-op `orch-hermes-config-provider`):
 
 ```bash
-hermes                      # interactive; default model gemma-12b-64k-nothin
+hermes                      # interactive; default model qwen36-a3b-64k
 hermes chat -Q -q "..."     # one-shot
 /model                      # switch model in-session (any LiteLLM alias)
 /info                       # shows the model's context window — should read 65,536 on the default
 ```
 
-Useful aliases on the gateway: `gemma-12b-64k-nothin` (64k window, no
-thinking-token tax — the default since 2026-06-06), `gemma-12b-64k` (same
-window, thinking on — budget several hundred `max_tokens`),
-`mistral-small-24b` (strongest local function calling, 16k window),
-`qwen-think-14b`. Avoid editing the `model:` mapping into prefix forms
+Useful aliases on the gateway: `qwen36-a3b-64k` (**the default and agent
+brain** since 2026-06-06 evening — passed the 4-probe agentic gate that
+gemma4-12B failed: grounded fetch-text summaries, exact recall, single-call
+tool use, zero truncations; 61 t/s at 39/61 CPU/GPU hybrid),
+`qwen36-a3b-64k-nothin` (same, thinking off), `gemma-12b-64k-nothin` (fast
+100%-GPU chat/vision — NOT for agentic work: degenerate tool loops),
+`gemma-12b-64k` (same, thinking on). **Note:** hermes refuses every 16k
+model (hard 64k floor — its preamble alone is ~15k tokens), so
+`mistral-small-24b`/`qwen-think-14b` are no longer selectable here. Avoid editing the `model:` mapping into prefix forms
 (`litellm/<alias>` etc.) — they silently unpin the provider and route to
 openrouter (401).
 
@@ -122,7 +126,8 @@ kubectl -n hermes-agent-shell rollout restart deploy/hermes-agent-shell
 | MOTD: "OPENAI_BASE_URL not set" | sshd env-scrub; shim ConfigMap not mounted or secret not yet synced | Check `hermes-agent-shell-env` ConfigMap mount + `kubectl get externalsecret -n hermes-agent-shell` |
 | `401 Missing Authentication header` from `openrouter.ai` | Provider unpinned — config.yaml missing/malformed (`model:` must be a *mapping* with `provider:`) | Re-seed `~/.hermes/config.yaml` per `orch-hermes-config-provider` |
 | Every reply is `{"name": "text_to_speech", ...}` JSON | A LiteLLM alias reverted to `ollama/` prefix (prompt-based tools break under streaming) | Aliases must be `ollama_chat/` in `apps/litellm/values.yaml` |
-| Reasoning-only empty replies | Thinking model exhausted `max_tokens` on reasoning | Raise the budget or switch model (`/model gemma-12b-64k-nothin`) |
+| Reasoning-only empty replies | Thinking model exhausted `max_tokens` on reasoning | Raise the budget or switch model (`/model qwen36-a3b-64k-nothin`) |
+| Hermes refuses a model at init ("minimum 64,000") | Truthful budget below hermes's hard 64k context floor | Use a 64k alias; do NOT lie in `context_length` — that re-opens silent-truncation amnesia |
 | Model "forgets" earlier turns mid-session | Prompt exceeds the real server window; Ollama truncates front-first, silently | New session. Verify budgets: config.yaml `context_length` = live reality; check `kubectl logs -n ollama deploy/ollama \| grep "truncated = 1"` |
 | `fetch-text: command not found` | ConfigMap mount missing or pod predates it | `kubectl -n hermes-agent-shell rollout restart deploy/hermes-agent-shell` (subPath mounts never live-update) |
 | Mosh hangs on connect | Port range mismatch or all 16 ports held by stale sessions | Use `-p 60032:60047`; stale servers reap after 1h |
