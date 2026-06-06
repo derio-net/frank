@@ -115,30 +115,38 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-06T11:47:32+00:00'
       note: null
     P4.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-06T11:47:32+00:00'
       note: null
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-06T11:47:33+00:00'
       note: null
     P4.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-06T11:47:34+00:00'
       note: null
     P4.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-06-06T16:35:48+00:00'
+      note: 'Infra replay complete: fetch-text live-verified on the killer page, 0
+        truncations across all post-fix traffic, 64k serving 100% GPU. Recall test
+        NOT completable: gemma4-12B agentically incompetent in hermes (invalid tool
+        calls, 90-iter degenerate loop, confabulation) + hermes hard 64k floor refuses
+        all 16k models. Both findings -> rework plan (qwen36-a3b-64k brain transplant).
+        Deviations applied live: SOUL.md wording hardened (shell command not function),
+        tool_loop_guardrails.hard_stop_enabled=true.'
     P4.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-06T16:35:49+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-06T16:35:50+00:00'
+    note: Shipped scope fully verified; model-competence gap spawned rework-1. Manual-ops
+      orch-hermes-context-budgets + orch-hermes-soul-fetch-text executed and verified
+      2026-06-06.
     observed_prs: []
