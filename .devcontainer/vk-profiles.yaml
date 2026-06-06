@@ -1,0 +1,17 @@
+profiles:
+  dev:
+    purpose: "day-to-day docs/skills/blog/plan work \u2014 checks: cd blog && hugo\
+      \ --minify; scripts/validate-plans.sh; uv run scripts/validate-papers.py; uv\
+      \ run scripts/validate-dossier.py; pytest scripts/tests/; node scripts/validate-mermaid.mjs"
+    secrets:
+    - GH_TOKEN
+    notes:
+    - "tool 'hugo' has no known devcontainer feature \u2014 wire it via postCreateCommand"
+  cluster-admin:
+    purpose: "cluster-touching runs (kubectl/talosctl from inside isolation) \u2014\
+      \ non-default, operator-selected only"
+    secrets:
+    - GH_TOKEN
+    - KUBECONFIG_B64
+    - TALOSCONFIG_B64
+default: dev

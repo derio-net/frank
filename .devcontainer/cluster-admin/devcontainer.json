@@ -1,0 +1,23 @@
+{
+  "name": "frank \u2014 cluster-admin",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
+  },
+  "postCreateCommand": "pipx install uv 2>/dev/null || true; uv tool install git+https://github.com/derio-net/superpowers-for-vk || true",
+  "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  "runArgs": [
+    "--env-file",
+    "${localEnv:HOME}/.config/vk/secrets/frank/cluster-admin.env"
+  ],
+  "customizations": {
+    "vk": {
+      "profile": "cluster-admin",
+      "purpose": "cluster-touching runs (kubectl/talosctl from inside isolation) \u2014 non-default, operator-selected only"
+    }
+  }
+}

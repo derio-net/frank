@@ -1,0 +1,22 @@
+{
+  "name": "frank \u2014 dev",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
+    "ghcr.io/devcontainers/features/node:1": {}
+  },
+  "postCreateCommand": "pipx install uv 2>/dev/null || true; uv tool install git+https://github.com/derio-net/superpowers-for-vk || true; ARCH=$(dpkg --print-architecture); HUGO_V=0.157.0; curl -fsSL \"https://github.com/gohugoio/hugo/releases/download/v${HUGO_V}/hugo_extended_${HUGO_V}_linux-${ARCH}.tar.gz\" | sudo tar -xz -C /usr/local/bin hugo || true",
+  "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  "runArgs": [
+    "--env-file",
+    "${localEnv:HOME}/.config/vk/secrets/frank/dev.env"
+  ],
+  "customizations": {
+    "vk": {
+      "profile": "dev",
+      "purpose": "day-to-day docs/skills/blog/plan work \u2014 checks: cd blog && hugo --minify; scripts/validate-plans.sh; uv run scripts/validate-papers.py; uv run scripts/validate-dossier.py; pytest scripts/tests/; node scripts/validate-mermaid.mjs"
+    }
+  }
+}
