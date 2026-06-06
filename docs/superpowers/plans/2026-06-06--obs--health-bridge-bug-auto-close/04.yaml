@@ -1,0 +1,77 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Deploy verification + stale-issue cleanup
+  tag: manual
+  depends_on:
+  - 2
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: ArgoCD rollout + auto-close smoke test
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      ```yaml
+      # manual-operation
+      id: obs-health-bridge-v030-smoke-auto-close
+      layer: obs
+      app: health-bridge
+      plan: 2026-06-06--obs--health-bridge-bug-auto-close
+      when: After the frank PR merges and ArgoCD syncs the v0.3.0 image
+      why_manual: End-to-end verification needs the live cluster, the real GitHub repo, and operator confirmation (a layer is not Deployed until its workflow is observed end-to-end)
+      commands: |
+        kubectl get pods -n monitoring -l app=health-bridge   # Running, image v0.3.0
+        export WEBHOOK_SECRET=$(kubectl get secret -n monitoring health-bridge-secrets -o jsonpath='{.data.WEBHOOK_SECRET}' | base64 -d)
+        kubectl port-forward -n monitoring svc/health-bridge 8080:8080 &
+        # fire: creates a bug issue in frank-ops
+        curl -s -X POST http://localhost:8080/webhook -H "Authorization: Bearer $WEBHOOK_SECRET" -H "Content-Type: application/json" \
+          -d '{"status":"firing","alerts":[{"status":"firing","labels":{"alertname":"smoke-auto-close","severity":"critical","github_issue":"frank-ops#13"},"annotations":{"summary":"Auto-close smoke test"},"startsAt":"2026-06-06T00:00:00Z"}]}'
+        # confirm bug created, then heal:
+        curl -s -X POST http://localhost:8080/webhook -H "Authorization: Bearer $WEBHOOK_SECRET" -H "Content-Type: application/json" \
+          -d '{"status":"resolved","alerts":[{"status":"resolved","labels":{"alertname":"smoke-auto-close","severity":"critical","github_issue":"frank-ops#13"},"annotations":{"summary":"Auto-close smoke test"},"startsAt":"2026-06-06T00:00:00Z","endsAt":"2026-06-06T00:05:00Z"}]}'
+      verify: |
+        # bug issue auto-closed with heal comment (state_reason completed):
+        env -u GITHUB_TOKEN gh issue list -R derio-net/frank-ops --label bug --state closed --limit 3
+        kubectl logs -n monitoring -l app=health-bridge --tail=20 | grep "Closed bug issue"
+        # tracker frank-ops#13 Lifecycle back to healthy
+      status: pending
+      ```
+- number: 2
+  title: One-time cleanup of pre-fix stale issues
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      ```yaml
+      # manual-operation
+      id: obs-frank-ops-stale-bug-cleanup
+      layer: obs
+      app: health-bridge
+      plan: 2026-06-06--obs--health-bridge-bug-auto-close
+      when: Once, after the smoke test passes
+      why_manual: Issues #38/#39 predate the auto-close path; their alerts already resolved (2026-06-04), so no future resolved webhook will arrive for them
+      commands: |
+        env -u GITHUB_TOKEN gh issue close 38 -R derio-net/frank-ops --reason completed \
+          --comment "System healed 2026-06-04 16:55 UTC (alert resolved — see frank-ops#24 tracker comments). Closed manually as one-time cleanup; bugs filed after health-bridge v0.3.0 auto-close on heal. Spec: frank docs/superpowers/specs/2026-06-06--obs--health-bridge-bug-auto-close-design.md"
+        env -u GITHUB_TOKEN gh issue close 39 -R derio-net/frank-ops --reason completed \
+          --comment "System healed 2026-06-04 17:38 UTC (alert resolved — see frank-ops#8 tracker comments). Closed manually as one-time cleanup; bugs filed after health-bridge v0.3.0 auto-close on heal. Spec: frank docs/superpowers/specs/2026-06-06--obs--health-bridge-bug-auto-close-design.md"
+      verify: |
+        env -u GITHUB_TOKEN gh issue list -R derio-net/frank-ops --label bug --state open
+        # → empty (no stale transient bugs)
+      status: pending
+      ```
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

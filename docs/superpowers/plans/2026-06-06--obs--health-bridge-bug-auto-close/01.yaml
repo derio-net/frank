@@ -1,0 +1,215 @@
+schema_version: 2
+phase:
+  number: 1
+  title: health-bridge v0.3.0 — auto-close healed bug issues (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: FindOpenBugs replaces HasOpenBug as the bug-matching primitive
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Working copy: `~/Docs/projects/DERIO_NET/health-bridge` (clone of
+      `derio-net/health-bridge`), branch `feat/auto-close-healed-bugs` off `main`.
+      ```bash
+      cd ~/Docs/projects/DERIO_NET/health-bridge
+      git checkout -b feat/auto-close-healed-bugs
+      go test ./...   # baseline: all green on main
+      ```
+  - id: P1.T1.S2
+    text: |-
+      RED: in `bridge_test.go` add `TestFindOpenBugs` using the existing
+      httptest-mock + `setGitHubURLs` pattern. Mock
+      `GET /repos/derio-net/frank-ops/issues` returning fixtures:
+      - #38 title `[Bug] DatasourceError is dead — L24…`, body contains
+        `**Feature Issue:** derio-net/frank-ops#24\n**Alert:** …`
+      - #39 title `[Bug] DatasourceError is dead — L8…`, body contains
+        `**Feature Issue:** derio-net/frank-ops#8\n**Alert:** …`
+      - #41 title `[Bug] DatasourceError is dead — L2x…`, body contains
+        `**Feature Issue:** derio-net/frank-ops#2\n**Alert:** …`
+      Assert:
+      - `FindOpenBugs("frank-ops", "DatasourceError", 24)` → `[38]` only
+        (shared-alertname disambiguation via feature ref).
+      - `FindOpenBugs("frank-ops", "DatasourceError", 2)` → `[41]` only
+        (newline-terminated needle — `#2` must NOT match `#24`).
+      - `FindOpenBugs("frank-ops", "OtherAlert", 24)` → `[]`.
+      - Two fixtures with the SAME alertname + feature ref → both numbers
+        returned (historical duplicates all close).
+      `go test ./...` → FAIL (FindOpenBugs undefined).
+  - id: P1.T1.S3
+    text: |-
+      GREEN: in `github.go` implement
+      `func (c *GitHubClient) FindOpenBugs(repo, alertName string, featureNumber int) ([]int, error)`:
+      same `GET /repos/{org}/{repo}/issues?labels=bug&state=open&per_page=50`
+      call as `HasOpenBug`, but parse `number`, `title`, `body` and match BOTH:
+      ```go
+      titlePrefix := fmt.Sprintf("[Bug] %s is dead", alertName)
+      refNeedle := fmt.Sprintf("**Feature Issue:** %s/%s#%d\n", c.org, repo, featureNumber)
+      // match: strings.HasPrefix(issue.Title, titlePrefix) && strings.Contains(issue.Body, refNeedle)
+      ```
+      The trailing `\n` in `refNeedle` is guaranteed by `CreateBugIssue`'s body
+      template (`#%d` is followed by `\n**Alert:**`) and prevents `#2` matching `#24`.
+      `go test ./...` → PASS.
+  - id: P1.T1.S4
+    text: |-
+      Switch the creation-dedup in `bridge.go` `processAlert` (the
+      `newState == "dead"` branch) from `HasOpenBug(repo, alertName)` to
+      `FindOpenBugs(repo, alertName, number)` (exists ⇔ `len > 0`), then DELETE
+      `HasOpenBug` from `github.go`. This fixes the latent shared-alertname
+      suppression bug (an open L24 `DatasourceError` bug no longer suppresses a
+      legitimate L8 one). Keep the existing fail-open posture: on lookup error,
+      log a warning and fall through to create.
+      `go test ./...` → PASS (the existing dedup test's mock GET returns `[]`,
+      so it exercises the new path unchanged).
+- number: 2
+  title: FormatHealComment + CloseBugIssue
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      RED: add `TestFormatHealComment` to `bridge_test.go`:
+      - alert with `StartsAt: "2026-06-04T16:52:58Z"`, `EndsAt: "2026-06-04T17:38:03Z"`
+        → comment contains `## Health Bridge: auto-close`, the alertname, the
+        EndsAt timestamp, a duration containing `45m`, and the
+        `*Automated by health-bridge*` footer.
+      - alert with unparseable `StartsAt` → comment still renders, duration line omitted.
+      `go test ./...` → FAIL.
+  - id: P1.T2.S2
+    text: |-
+      GREEN: implement `FormatHealComment(alert Alert) string` in `bridge.go`:
+      parse both timestamps with `time.Parse(time.RFC3339, …)`; on success include
+      `**Outage duration:** <d>` where `d = end.Sub(start).Round(time.Minute)`;
+      on any parse error omit the duration line. Body: alert name, severity,
+      summary, `**Resolved:** <EndsAt>`, closing line
+      `System healed — closing this bug automatically.` + standard footer.
+      `go test ./...` → PASS.
+  - id: P1.T2.S3
+    text: |-
+      RED: add `TestCloseBugIssue`: mock server asserts
+      (a) `POST /repos/derio-net/frank-ops/issues/38/comments` arrives first with
+      the heal comment, then
+      (b) `PATCH /repos/derio-net/frank-ops/issues/38` with JSON body
+      `{"state":"closed","state_reason":"completed"}`.
+      Also: comment endpoint returning 500 must NOT abort the close — PATCH still
+      sent (warn-and-continue, mirroring tracker-comment tolerance).
+      `go test ./...` → FAIL.
+  - id: P1.T2.S4
+    text: |-
+      GREEN: implement
+      `func (c *GitHubClient) CloseBugIssue(repo string, number int, comment string) error`
+      in `github.go`: call `AddIssueComment` (log warning on error, continue), then
+      `PATCH {rest}/repos/{org}/{repo}/issues/{number}` with
+      `{"state":"closed","state_reason":"completed"}`, expect 200.
+      `go test ./...` → PASS.
+- number: 3
+  title: Wire auto-close into processAlert
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      RED: add `TestProcessAlert_ResolvedClosesOpenBugs`:
+      mock GH where `GET …/issues` returns one matching open bug (#38, feature ref
+      `…#11` to reuse the willikins#11 alert fixture shape). Send a `resolved`
+      alert → assert exactly one heal-comment POST on #38 and one close PATCH.
+      Send the SAME resolved alert again (lastState dedup now says repeat) with the
+      mock now returning `[]` → assert NO further PATCH (idempotent no-op) and no
+      error. Send a resolved alert for an alertname with no open bugs → no PATCH.
+      `go test ./...` → FAIL.
+  - id: P1.T3.S2
+    text: |-
+      GREEN: in `processAlert`, immediately after the `UpdateLifecycleState` call
+      and BEFORE the `lastState` dedup early-return, add:
+      ```go
+      if alert.Status == "resolved" {
+          bugs, err := b.github.FindOpenBugs(repo, alert.Labels["alertname"], number)
+          if err != nil {
+              log.Printf("Warning: failed to find open bugs for %s: %v", issueRef, err)
+          }
+          for _, n := range bugs {
+              if err := b.github.CloseBugIssue(repo, n, FormatHealComment(alert)); err != nil {
+                  log.Printf("Warning: failed to close bug %s#%d: %v", repo, n, err)
+              } else {
+                  log.Printf("Closed bug issue %s#%d (alert %s resolved)", repo, n, alert.Labels["alertname"])
+              }
+          }
+      }
+      ```
+      Placement rationale (from spec): not gated by lastState dedup (dedup is
+      per-tracker, close must survive repeats — idempotent), not gated by severity
+      (a severity-label edit between fire and resolve must not strand a bug).
+      `go test ./...` → PASS.
+  - id: P1.T3.S3
+    text: |-
+      Full verification: `go test -v ./...` all green, `go vet ./...` clean,
+      `gofmt -l .` empty.
+- number: 4
+  title: Open the health-bridge PR
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Commit and open the PR (do NOT merge — operator gate):
+      ```bash
+      cd ~/Docs/projects/DERIO_NET/health-bridge
+      git add -A && git commit -m "feat: auto-close healed bug issues on resolved alerts"
+      git push -u origin feat/auto-close-healed-bugs
+      env -u GITHUB_TOKEN gh pr create -R derio-net/health-bridge \
+        --title "feat: auto-close healed bug issues on resolved alerts (v0.3.0)" \
+        --body "<summary + spec ref derio-net/frank:docs/superpowers/specs/2026-06-06--obs--health-bridge-bug-auto-close-design.md + test output>"
+      ```
+      PR body must list: the FindOpenBugs matching rules (title prefix + newline-
+      terminated feature-ref), the HasOpenBug collision fix, and the full
+      `go test` output.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-06T18:51:18+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-06T18:51:19+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-06-06T18:51:21+00:00'
+      note: null
+    P1.T1.S4:
+      state: x
+      ticked_at: '2026-06-06T18:51:23+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-06T18:51:25+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-06T18:51:26+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-06-06T18:51:28+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-06-06T18:51:30+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-06-06T18:51:31+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-06-06T18:51:33+00:00'
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: '2026-06-06T18:51:35+00:00'
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: '2026-06-06T18:59:21+00:00'
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

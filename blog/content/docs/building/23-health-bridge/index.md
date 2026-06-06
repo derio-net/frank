@@ -266,6 +266,14 @@ The Derio Ops board now self-updates. Every layer's tile shows its real, current
 
 Zero manual triage. And because the board finally reflects reality, it's useful again — which was the original point.
 
+## Closing the loop's other half (2026-06-06, v0.3.0)
+
+The original design had a blind spot I lived with for two months before admitting it: the Bridge files `[Bug] <alertname> is dead` issues when a layer dies, but when the layer heals, only the *tracker* gets the good news. The Lifecycle tile flips back to `healthy`, a comment lands on the tracker — and the bug issue sits there, open, forever. After a transient Traefik blip and a fluent-bit restart in early June, my frank-ops repo had accumulated a small graveyard of bugs for problems that had healed themselves within minutes (#38 resolved in 3 minutes, #39 in 45). I was the automatic issue *creator* and the manual issue *closer*.
+
+v0.3.0 makes the resolved webhook do the symmetric work: find every open bug matching the resolved alert, post a heal comment (resolution time, outage duration), close with `state_reason: completed`. No reconciler, no Grafana polling, no new credentials — the tracker comment history proved every resolved notification had arrived reliably, so a webhook-only close was the proportionate fix. If a stale bug ever survives a bridge-pod restart, the reconciler is the documented follow-up, not a speculative build-now.
+
+The interesting bug was in the *matching*. Grafana's synthetic `DatasourceError` alertname is shared by every rule whose datasource errors — L8 and L24 had both filed `[Bug] DatasourceError is dead` issues. Matching by title alone would let Traefik's recovery close Observability's bug. The fix rides on something v0.1.0 accidentally got right: every bug body embeds `**Feature Issue:** derio-net/frank-ops#24`, so close (and the creation dedup, which had the same collision lurking) now requires both the title prefix *and* that body ref — newline-terminated, because `#2` is a prefix of `#24` and substring matching is a liar.
+
 <!-- MEDIA: screenshot | Telegram alert from @agent_zero_cc_bot showing a per-pod labelled Layer failure | Screenshot a real alert message in the Telegram chat showing a message like "L3 Cilium: pod cilium-94msf NotReady" with severity tag -->
 <!-- {{</* screenshot src="telegram-per-pod-layer-alert.png" caption="Telegram notification from the Bridge: per-pod label makes the alert actionable" */>}} -->
 

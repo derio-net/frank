@@ -144,6 +144,44 @@ gh issue view 11 --repo derio-net/willikins --json comments \
   --jq '.comments[] | select(.body | contains("health-bridge")) | {createdAt, body}'
 ```
 
+## Auto-Close of Healed Bug Issues (v0.3.0)
+
+Since v0.3.0, the loop closes itself. When an alert **resolves**, the bridge
+finds every open `[Bug] <alertname> is dead — …` issue it created for that
+alert and closes it (`state_reason: completed`) with a heal comment carrying
+the resolution time and outage duration. A transient incident is now fully
+self-cleaning: dead → bug filed → healed → bug closed, no operator touch.
+
+Matching is deliberately strict — **both** conditions must hold:
+
+1. Title prefix: `[Bug] <alertname> is dead`
+2. Body contains the newline-terminated feature ref the bug was created
+   with: `**Feature Issue:** derio-net/<repo>#<N>`
+
+The second condition exists because Grafana's synthetic `DatasourceError`
+alertname is shared across layers — title-only matching would let an L24
+resolve close an L8 bug. The newline termination stops `#2` from matching
+`#24`.
+
+Operational notes:
+
+- The close path keys purely on `status: resolved` — it is **not** gated by
+  the per-tracker dedup (a repeated resolved notification is an idempotent
+  no-op) and **not** gated by severity (editing a rule's severity label
+  between fire and resolve won't strand a bug).
+- All matching open bugs close at once, which also sweeps historical
+  duplicates from the pre-dedup era.
+- A resolved webhook missed while the bridge pod is down means that bug
+  stays open — close it by hand. There is deliberately no Grafana-state
+  reconciler (resolved delivery has been reliable in practice); if stale
+  bugs recur, that's the documented follow-up.
+
+```bash
+# Verify recent auto-closes
+kubectl logs -n monitoring -l app=health-bridge --tail=50 | grep "Closed bug issue"
+gh issue list -R derio-net/frank-ops --label bug --state closed --limit 5
+```
+
 ## Troubleshooting
 
 ### Bridge not processing alerts
@@ -193,7 +231,9 @@ Bridge logs show `Alert <name> has no github_issue label, skipping`. Add the lab
 
 **If running v0.2.0+:** This can happen once after a pod restart (in-memory state is lost). The GitHub search safety net should prevent all but the first duplicate. If duplicates persist, check pod restart frequency.
 
-**Cleanup:** Close duplicates with `gh issue close <number> --repo derio-net/<repo> --comment "Duplicate"`, keeping the earliest one open.
+**v0.3.0 changes the search semantics:** the safety net (`FindOpenBugs`, replacing `HasOpenBug`) matches the title prefix **and** the `**Feature Issue:**` body ref. Two consequences: layers sharing an alertname (`DatasourceError`) no longer suppress each other's legitimate bugs, and any duplicates that do slip through are all closed together the next time the alert resolves.
+
+**Cleanup:** usually unnecessary on v0.3.0+ — wait for the resolve. To close by hand: `gh issue close <number> --repo derio-net/<repo> --comment "Duplicate"`, keeping the earliest one open.
 
 ### A Layer flaps to degraded after a Job or one-off pod runs
 
