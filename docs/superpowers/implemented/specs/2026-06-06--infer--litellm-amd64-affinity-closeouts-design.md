@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-06
 **Layer:** infer (primary), obs/orch (close-out only)
-**Status:** Draft
+**Status:** Complete
 **Issues:** [#478](https://github.com/derio-net/frank/issues/478), [#476](https://github.com/derio-net/frank/issues/476), [#474](https://github.com/derio-net/frank/issues/474)
 **Branch:** `feat/issue-cleanup-474-476-478`
 

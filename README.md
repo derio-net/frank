@@ -38,7 +38,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | AI Alert Helper | ai-alert-helper (FastAPI) | LiteLLM-backed digest/investigate/surge-check + Telegram trace-analyst (0.2.0): ad-hoc security Q&A over VictoriaLogs/CrowdSec evidence, allowlisted chat, long-poll consumer |
 | Health Probes | Blackbox Exporter | HTTP endpoint probing for feature health (n8n, Paperclip, Grafana, Blog) |
 | Heartbeat Ingestion | Pushgateway | Receives heartbeat metrics from cron jobs, scraped by VictoriaMetrics |
-| Alert Bridge | Health Bridge | Grafana webhook → GitHub Project lifecycle state updates (healthy/degraded/dead); v0.3.0 auto-closes healed bug issues |
+| Alert Bridge | Health Bridge | Grafana webhook → GitHub Project lifecycle state updates (healthy/degraded/dead); auto-closes healed bug issues since v0.3.0 |
 | Backup | Longhorn → Cloudflare R2 | Daily + weekly PVC backup, SOPS-encrypted credentials |
 | Secrets | Infisical + External Secrets Operator | Self-hosted secret store, ExternalSecret → K8s Secret sync |
 | RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID (IT5701 V3.5.14.0 firmware lock under investigation) |
@@ -285,7 +285,7 @@ argocd app list
 | blackbox-exporter | monitoring | HTTP endpoint probes for feature health (VMProbe → VictoriaMetrics) |
 | pushgateway | monitoring | Heartbeat metric ingestion from Willikins cron jobs (VMServiceScrape) |
 | grafana-alerting | monitoring | File-provisioned alerting: 5 rules, 2 contact points, notification policy, Feature Health dashboard |
-| health-bridge | monitoring | Grafana webhook → GitHub Project lifecycle updates + healed-issue auto-close (ghcr.io/derio-net/health-bridge:v0.3.0) |
+| health-bridge | monitoring | Grafana webhook → GitHub Project lifecycle updates + healed-issue auto-close (ghcr.io/derio-net/health-bridge:v0.3.1) |
 | traefik | traefik-system | In-cluster ingress controller (192.168.55.220), ACME wildcard TLS for `*.cluster.derio.net` |
 | traefik-extras | traefik-system | Middleware CRDs (security headers, IP allowlist, Authentik forward-auth) + 16 IngressRoutes |
 | homepage | homepage | Cluster dashboard at `master.cluster.derio.net`, HTTP health indicators, service catalog |
