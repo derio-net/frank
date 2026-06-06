@@ -198,3 +198,32 @@ What does and doesn't pin the default provider (verified on v0.15.2, 2026-06-04)
 Provider entry schema (`providers:` keyed dict, v12+ config; `custom_providers:` list is the legacy equivalent): `base_url`, `api_key`/`key_env`/`api_key_env`, `api_mode`, `model`/`default_model`/`models`, `extra_body`, … (see `_KNOWN_KEYS` in `hermes_cli/config.py`). Unknown keys log a warning and are ignored.
 
 `~/.hermes/config.yaml` lives on the home PVC — it survives restarts but is **not** declarative; seeding it is a manual operation (`orch-hermes-config-provider` in the runbook). Model-side note: the "every reply is a fake tool-call JSON" symptom (`{"name": "text_to_speech", …}`) was NOT a model quirk — it was LiteLLM's `ollama/` prefix breaking tools+streaming; fixed cluster-wide by switching the lineup to `ollama_chat/` (see the LiteLLM entry in `other-apps.md`). Residual genuine model quirks: thinking models can return reasoning-only turns (`qwen36-a3b` exhausted retries with content-free reasoning). `mistral-small-24b` is the most coherent local default; switch per-session with `/model`. The `hermes-405b` LiteLLM DB alias routes to OpenRouter (`Model Group=hermes-4`) which rejects tool-use requests (404) — dead since the 2026-06-04 cloud-alias purge.
+
+## hermes shell: fetch-text for web pages + context budgets must mirror the server (2026-06-06)
+
+Hermes v0.15.2 has **no key-free native web-extract backend** (firecrawl /
+tavily / exa / parallel / xai need paid keys; ddgs and searxng are
+search-only), so "read this URL" degrades to terminal `curl -s` and floods the
+context window with raw HTML — the trigger of the 2026-06-06 session-amnesia
+incident (full chain in other-apps.md).
+
+- `fetch-text <url>` — ConfigMap-mounted stdlib-only extractor at
+  `/usr/local/bin/fetch-text` (`apps/hermes-agent-shell/manifests/
+  configmap-fetch-text.yaml`, subPath mount, 0755). Title + body text,
+  20k-char default cap (`--max-chars`), `--stdin` mode for tests
+  (`scripts/tests/test_fetch_text.py` runs the exact ConfigMap bytes).
+  kubelet never live-updates subPath mounts — script edits need a pod
+  restart. SOUL.md carries the steering line (manual-op
+  `orch-hermes-soul-fetch-text`).
+- Context budgets live in the hermes config.yaml on the PVC
+  (`providers.litellm.models.<alias>.context_length`) and MUST mirror live
+  server reality: 64k pair = 65536, all other aliases =
+  `OLLAMA_CONTEXT_LENGTH` = 16384 (manual-op `orch-hermes-context-budgets`).
+  When the gateway lineup changes, update both together — a believed window
+  larger than the real one re-opens the silent-truncation amnesia hole; the
+  resolver's fallback for unknown aliases is 256K.
+- `tool_output.max_bytes` is 24000 (was 50000): the largest single tool
+  result that still leaves >50% of a 16k window when the operator `/mode`s
+  to a non-64k model.
+- Default model is `gemma-12b-64k-nothin`; `/mode gemma-12b-64k` re-enables
+  thinking when reasoning depth is worth the latency.

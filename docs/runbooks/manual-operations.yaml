@@ -1080,6 +1080,48 @@ operations:
   verify:
   - "ssh agent@192.168.55.226, then from the login shell: hermes chat -Q -q 'What is 2+2?' → answers via LiteLLM (hermes logs show provider=custom base_url=http://litellm.litellm.svc:4000/v1)"
   status: pending
+- id: orch-hermes-context-budgets
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-06--orch--hermes-context-survival
+  when: after the 64k aliases are live on the LiteLLM gateway (plan phase 4)
+  why_manual: >
+    config.yaml is hermes PVC state, seeded manually by design (precedent
+    orch-hermes-config-provider); no declarative path into the PVC. The
+    per-model context_length overrides MUST mirror live server reality
+    (64k pair = 65536, everything else = OLLAMA_CONTEXT_LENGTH = 16384) —
+    hermes's resolver falls back to a fantasy 256K for unknown aliases and
+    Ollama then truncates prompts front-first and silently (the 2026-06-06
+    session-amnesia incident).
+  commands:
+  - |
+    kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- python3 - <<'EOF'
+    import yaml
+    p = "/home/agent/.hermes/config.yaml"
+    c = yaml.safe_load(open(p))
+    prov = c["providers"]["litellm"]
+    prov["models"] = {
+        "gemma-12b-64k": {"context_length": 65536},
+        "gemma-12b-64k-nothin": {"context_length": 65536},
+        "gemma-12b": {"context_length": 16384},
+        "gemma-12b-nothin": {"context_length": 16384},
+        "mistral-small-24b": {"context_length": 16384},
+        "qwen-think-14b": {"context_length": 16384},
+        "qwen-coder-14b": {"context_length": 16384},
+        "qwen-vl-7b": {"context_length": 16384},
+        "qwen36-a3b": {"context_length": 16384},
+        "qwen36-a3b-nothin": {"context_length": 16384},
+        "all-proxy-models": {"context_length": 16384},
+    }
+    c["model"]["default"] = "gemma-12b-64k-nothin"
+    c.setdefault("tool_output", {})["max_bytes"] = 24000
+    yaml.safe_dump(c, open(p, "w"), sort_keys=False)
+    print("hermes config updated")
+    EOF
+  verify:
+  - "kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- python3 -c \"import yaml; c=yaml.safe_load(open('/home/agent/.hermes/config.yaml')); print(c['model']['default'], c['providers']['litellm']['models']['gemma-12b-64k-nothin'], c['tool_output']['max_bytes'])\" → gemma-12b-64k-nothin {'context_length': 65536} 24000"
+  - "in a NEW hermes session: /info shows context 65,536"
+  status: pending
 - id: orch-hermes-litellm-virtual-key
   layer: orch
   app: hermes-agent-shell
@@ -1115,6 +1157,21 @@ operations:
   verify:
   - "kubectl -n hermes-agent-shell get secret hermes-agent-shell-ssh-keys"
   - "ssh -p 22 agent@192.168.55.226 'hermes --version' → prints a version (--version needs no BYOK env; LiteLLM reachability is checked separately via kubectl exec or an interactive login shell, never `ssh host -- cmd` which skips profile.d)"
+  status: pending
+- id: orch-hermes-soul-fetch-text
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-06--orch--hermes-context-survival
+  when: after the fetch-text ConfigMap mount is live (pod restarted post-merge)
+  why_manual: >
+    SOUL.md is hermes PVC state (seeded at first boot, then operator-owned);
+    the steering line keeps the agent off raw `curl` for HTML pages.
+  commands:
+  - |
+    kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- bash -c \
+      'grep -q fetch-text /home/agent/.hermes/SOUL.md || printf "\n## Web reading\nFor web pages, ALWAYS use \`fetch-text <url>\` (size-capped text extraction) instead of raw curl — raw HTML floods your context window.\n" >> /home/agent/.hermes/SOUL.md'
+  verify:
+  - kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- grep -A2 "Web reading" /home/agent/.hermes/SOUL.md
   status: pending
 - id: orch-paperclip-hire-hermes-litellm-agent
   layer: orch

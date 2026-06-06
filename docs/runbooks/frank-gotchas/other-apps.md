@@ -257,3 +257,46 @@ the LiteLLM gateway):
   tokens or turn it off.
 - Read `reasoning_content` if the chain-of-thought is wanted; streaming
   consumers see a time-to-first-token gap before `content` deltas start.
+
+## Hermes "session amnesia" — believed-vs-real context window mismatch (2026-06-06)
+
+A hermes shell session on `gemma-12b` was asked to read a blog URL; the model
+ran `curl -s` (208 KB raw HTML), hermes capped it at `tool_output.max_bytes:
+50000` (~15k tokens — still a full real window), and every subsequent turn
+came back wrong: continuation-loop `finish_reason='length'` errors, then total
+loss of conversation memory.
+
+Mechanism, each link verified live:
+
+1. **Hermes believed the window was 256,000 tokens.** Its resolver
+   (`agent/model_metadata.py:get_model_context_length`) probes caches, the
+   endpoint, models.dev, and family patterns — a custom LiteLLM alias like
+   `gemma-12b` matches nothing and falls through to step 9: *"Default
+   fallback (256K)"*. The compressor (`compression.threshold: 0.5`) therefore
+   waits for ~128k believed tokens; the real boundary was 16,384.
+2. **Ollama truncates front-first and silently.** Past
+   `OLLAMA_CONTEXT_LENGTH`, the runner keeps the prompt tail (HTTP 200, normal
+   completion); the ONLY signal is the runner log: `n_tokens = 16383,
+   truncated = 1`. System prompt and chat history are at the FRONT — they're
+   what gets dropped. The model genuinely never sees earlier turns.
+3. **The session is poisoned permanently.** Agents re-send full history every
+   turn, so the giant tool result makes every later turn over-budget too.
+   Recovery is a NEW session only.
+
+Fixes shipped (plan `2026-06-06--orch--hermes-context-survival`):
+
+- Per-model truth: `providers.litellm.models.<alias>.context_length` in the
+  hermes config.yaml (v0.15.2 honors it on startup, `/model` switch, and
+  `/info` — upstream #15779; manual-op `orch-hermes-context-budgets`). Keep
+  these equal to live server reality: 64k pair = 65536, everything else =
+  `OLLAMA_CONTEXT_LENGTH` = 16384.
+- `gemma4:12b-64k` derived model (`apps/ollama/values.yaml`
+  `ollama.models.create`, Modelfile `PARAMETER num_ctx 65536`) — the
+  per-model escape hatch from litellm#12930. Measured KV cost on gpu-1:
+  +846 MiB over the 16k baseline, 100% GPU. Aliases `gemma-12b-64k` /
+  `gemma-12b-64k-nothin`; the latter is the hermes default.
+- `fetch-text` helper (see agent-shells.md) so web pages enter context as
+  ~5k tokens of text, not 50KB of HTML.
+
+Verification one-liner after any long hermes session:
+`kubectl logs -n ollama deploy/ollama --since=1h | grep -c "truncated = 1"` → 0.
