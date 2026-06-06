@@ -93,6 +93,11 @@ dossier gate and correct section skeleton.
      scripts/generate-all-images.py --only <key>
    ```
 
+   Generating a batch instead (`--count N>1`) leaves a labeled grid at
+   `.regen-archive/<key>/contact-sheet.png` — follow the blog-post skill's
+   pick flow (Read the sheet, AskUserQuestion with tile indices, copy the
+   chosen variant to the entry's `output` path).
+
 8. **Review** — verify TL;DR ≤150 words, voice pass, dossier-link renders.
 
 9. **Publish** — set `draft: false`, `status: published`.

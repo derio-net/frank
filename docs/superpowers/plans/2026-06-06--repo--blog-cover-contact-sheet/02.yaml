@@ -1,0 +1,112 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Generator wiring — auto sheet on --count > 1
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Pure gate helper + writer, tests first
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Append wiring-gate tests to `scripts/tests/test_contact_sheet.py`
+      (these target two NEW functions in contact_sheet.py so the main()
+      wiring stays a 3-line reviewed change):
+
+      BEGIN gate tests
+      from scripts.lib.contact_sheet import should_compose, write_contact_sheet
+
+
+      @pytest.mark.parametrize(
+          "count,opt_out,dry_run,n,expected",
+          [
+              (8, False, False, 8, True),
+              (1, False, False, 1, False),   # count gate
+              (8, True, False, 8, False),    # --no-contact-sheet
+              (8, False, True, 0, False),    # --dry-run
+              (8, False, False, 1, False),   # < 2 archived (failures)
+          ],
+      )
+      def test_should_compose(count, opt_out, dry_run, n, expected):
+          assert should_compose(count, opt_out, dry_run, n) is expected
+
+
+      def test_write_contact_sheet(tmp_path):
+          paths = _mk(tmp_path, 3)
+          dest = tmp_path / "contact-sheet.png"
+          out = write_contact_sheet(paths, dest)
+          assert out == dest and dest.exists()
+          assert Image.open(dest).width == 4 * 480  # default cols/tile_width
+      END gate tests
+
+      Run → RED (functions missing).
+  - id: P2.T1.S2
+    text: |-
+      Implement in `scripts/lib/contact_sheet.py`:
+
+      BEGIN helpers
+      def should_compose(count: int, opt_out: bool, dry_run: bool, n_archived: int) -> bool:
+          """Gate for the generator's auto contact sheet."""
+          return count > 1 and not opt_out and not dry_run and n_archived >= 2
+
+
+      def write_contact_sheet(paths: list[Path], dest: Path, cols: int = 4, tile_width: int = 480) -> Path:
+          compose_contact_sheet(paths, cols=cols, tile_width=tile_width).save(dest)
+          return dest
+      END helpers
+
+      Run → GREEN (full file).
+- number: 2
+  title: Wire into generate-all-images.py
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      In `scripts/generate-all-images.py`:
+      1. Add `from lib.contact_sheet import should_compose, write_contact_sheet`
+         (match the script's existing import style for scripts/lib —
+         check how other scripts import it; the script runs via
+         `uv run scripts/generate-all-images.py` from repo root, so a
+         `sys.path` shim may already exist — follow it).
+      2. Add argparse flag:
+         `parser.add_argument("--no-contact-sheet", action="store_true", help="Skip composing .regen-archive/<key>/contact-sheet.png after a --count>1 batch")`.
+      3. In the per-key `--count` variant loop, collect the Path returned
+         by each `write_archive_entry(...)` call into
+         `archived_this_run: list[Path]`.
+      4. After the loop for that key:
+         `if should_compose(args.count, args.no_contact_sheet, args.dry_run, len(archived_this_run)):`
+         `    sheet = write_contact_sheet(archived_this_run, ARCHIVE_DIR / key / "contact-sheet.png")`
+         `    print(f"  Contact sheet: {sheet}")`
+      Compose from `archived_this_run` ONLY — never glob the archive dir
+      (it may hold older variants from previous runs).
+  - id: P2.T2.S2
+    text: |-
+      Verify end-to-end without the API:
+      `uv run --with pyyaml --with google-genai --with pillow scripts/generate-all-images.py --only building-33-hermes-shell --count 2 --dry-run`
+      → no sheet (dry-run gate), no crash.
+      Then run the full pytest file once more (all green) and commit:
+      `git add scripts/ && git commit -m "feat(scripts): auto contact sheet on --count>1 batches"`
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-06T09:34:59+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-06T09:35:02+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-06-06T09:35:04+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-06-06T09:35:07+00:00'
+      note: null
+  completion:
+    at: '2026-06-06T09:35:10+00:00'
+    note: null
+    observed_prs: []
