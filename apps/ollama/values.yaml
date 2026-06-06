@@ -32,6 +32,18 @@ ollama:
         template: |
           FROM gemma4:12b
           PARAMETER num_ctx 65536
+      # Designated hermes agent brain (rework-1): gemma4-12B failed the
+      # hermes agentic gate (degenerate tool loops, confabulation — parent
+      # plan P4 evidence). Measured 2026-06-06: 24GB total, 39%/61% CPU/GPU
+      # hybrid (MoE 3B-active), 61 t/s generation, 1,792 t/s long-prompt
+      # prefill (14k tokens in 7.8s). Native ceiling 262,144 so num_ctx
+      # 65536 is honored — contrast qwen3:14b, which silently CLAMPS to its
+      # 40,960 trained ceiling (below hermes's 64k floor; only `ollama ps`
+      # CONTEXT reveals a clamp).
+      - name: qwen3.6:35b-a3b-64k
+        template: |
+          FROM qwen3.6:35b-a3b
+          PARAMETER num_ctx 65536
     clean: false
 
 extraEnv:

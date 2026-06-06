@@ -244,3 +244,52 @@ New `configmap-fetch-text.yaml` + deployment mount:
 | 64k prefill latency on long sessions (~15-20s worst case) | Accepted in Q&A; compressor keeps typical prompts far below max |
 | Hermes `providers.<p>.models` schema drift across hermes upgrades | Override read path verified in v0.15.2 source (config.py `get_custom_provider_context_length`); pin noted in manual-op block |
 | `/mode` to a 16k model mid-session that already grew past 16k | Truthful budgets make hermes compress on switch; residual risk documented in operating-28 |
+
+## Addendum (rework-1, 2026-06-06) — what the Test Plan replay surfaced
+
+The parent plan's infrastructure all verified (0 truncations, 64k @ 100% GPU,
+fetch-text live on the killer page). The replay then surfaced two findings the
+original design did not anticipate:
+
+### Hermes hard-requires ≥64k context
+
+With truthful budgets, hermes **refuses** every 16k model: *"below the minimum
+64,000 required by Hermes Agent."* Its own system prompt + skills preamble
+measured ~15k tokens (every API call `in≈15,030` on a trivial task) — a full
+16k window before the user types a word. The pre-fix shell only ever worked
+because of the 256K resolver fallback. Consequence: the 64k pair became the
+only local lineup hermes accepts.
+
+### gemma4-12B fails the agentic gate
+
+- think off (`-nothin`): hallucinated tool names (`fetch-text`/`fetch_text` as
+  functions), then a **90-iteration degenerate loop** on `hostname` — the
+  identical 13-token terminal call repeated with the correct output in
+  context; final answer confabulated ("talos").
+- think on: skipped tools entirely, confabulated a plausible summary from the
+  URL slug.
+- Plain chat: fast and correct. The failure is agentic discipline, not the
+  model per se.
+
+Mitigations applied live (codified in the runbook): SOUL.md wording hardened
+("run the SHELL COMMAND … via your terminal tool"); `tool_loop_guardrails.
+hard_stop_enabled: true` (kills degenerate loops at ~5 iterations).
+
+### Brain-candidate measurements (64k derived tags, gpu-1)
+
+| Candidate | CONTEXT honored | Footprint | Split | Gen | Long prefill |
+|---|---|---|---|---|---|
+| qwen3:14b | ❌ clamps to 40,960 (trained ceiling < floor) | 14.7 GB | 8% CPU | — | — |
+| mistral-small3.2:24b | ✅ 65536 | 33 GB (dense KV) | 56% CPU | 15 t/s | — |
+| **qwen3.6:35b-a3b** | ✅ 65536 (native 262,144) | 24 GB | 39% CPU | **61 t/s** | **1,792 t/s** (14k tok / 7.8 s) |
+
+New gotcha: derived-tag `num_ctx` silently **clamps** to the model's trained
+ceiling; only `ollama ps` CONTEXT reveals it.
+
+### Decision (rework-1)
+
+`qwen3.6:35b-a3b-64k` becomes the declarative agent-brain candidate
+(`qwen36-a3b-64k` / `-nothin` aliases). The hermes default flips **only after
+it passes the agentic gate test** — the same probes gemma4 failed. On a fail,
+the BYOK-frontier posture is documented as the honest answer for agentic work.
+The gemma-12b-64k pair remains the fast chat/vision option either way.

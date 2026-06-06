@@ -227,3 +227,25 @@ incident (full chain in other-apps.md).
   to a non-64k model.
 - Default model is `gemma-12b-64k-nothin`; `/mode gemma-12b-64k` re-enables
   thinking when reasoning depth is worth the latency.
+
+### Rework-1 addendum (2026-06-06): the 64k floor, the clamp, and the brain transplant
+
+- **hermes hard-requires ≥64k context** — its preamble alone is ~15k tokens
+  (`in≈15,030` per API call on a trivial task). With truthful budgets it
+  refuses every 16k model at init: *"below the minimum 64,000 required."*
+  Don't "fix" this with a lying `context_length` override — that re-opens the
+  silent-truncation amnesia hole.
+- **Derived-tag `num_ctx` silently clamps to the trained ceiling** —
+  `qwen3:14b` requested at 65536 loads at 40,960; the Modelfile accepts the
+  value, `ollama create` succeeds, and only `ollama ps` CONTEXT shows the
+  truth. Check it for every new derived tag.
+- **gemma4-12B failed the hermes agentic gate** (think off: hallucinated tool
+  names + a 90-iteration identical-call loop on `hostname`, confabulated
+  answer; think on: skipped tools, confabulated a summary from the URL slug).
+  Plain chat/vision is fine — keep `gemma-12b-64k-nothin` for that.
+- **`qwen36-a3b-64k` is the designated agent brain** (gate test pending,
+  rework-1 phase 2). Measured: 24 GB total, 39/61 CPU/GPU hybrid (MoE
+  3B-active), 61 t/s generation, 1,792 t/s long prefill — hermes's preamble
+  costs ~8 s cold, then ollama prefix-caches across session turns.
+- Loop insurance: `tool_loop_guardrails.hard_stop_enabled: true` in hermes
+  config.yaml (default thresholds stop identical no-progress tool calls at 5).

@@ -70,10 +70,15 @@ tasks:
   - id: P1.T3.S2
     text: |-
       `docs/runbooks/manual-operations.yaml`:
-      (a) `orch-hermes-context-budgets`: commands gain the two qwen36-a3b-64k
-      entries at 65536 + `tool_loop_guardrails.hard_stop_enabled = True`;
-      verify gains the loop-guard key; `status: done` (executed + verified
-      2026-06-06, evidence in parent plan P4).
+      (a) `orch-hermes-context-budgets`: commands gain
+      `tool_loop_guardrails.hard_stop_enabled = True` (applied live during
+      P4); verify gains the loop-guard key; `status: done` (executed +
+      verified 2026-06-06, evidence in parent plan P4). The qwen 64k entries
+      are NOT folded in here — they are the separate pending op
+      `orch-hermes-qwen64k-budgets` (phase 2), so each op's status stays
+      truthful. Also splice the two phase-2 ops (`orch-hermes-qwen64k-budgets`,
+      `orch-hermes-default-qwen64k`) into the registry as `pending`
+      (surgical insert, what /sync-runbook would do).
       (b) `orch-hermes-soul-fetch-text`: commands updated to the hardened
       wording ("run the SHELL COMMAND `fetch-text <url>` via your terminal
       tool — NOT a function/tool to call directly"); `status: done`.
@@ -96,16 +101,43 @@ tasks:
       green) + runbook YAML parse check.
 state:
   steps:
-    P1.T1.S1: {state: ' ', ticked_at: null, note: null}
-    P1.T1.S2: {state: ' ', ticked_at: null, note: null}
-    P1.T1.S3: {state: ' ', ticked_at: null, note: null}
-    P1.T2.S1: {state: ' ', ticked_at: null, note: null}
-    P1.T2.S2: {state: ' ', ticked_at: null, note: null}
-    P1.T3.S1: {state: ' ', ticked_at: null, note: null}
-    P1.T3.S2: {state: ' ', ticked_at: null, note: null}
-    P1.T3.S3: {state: ' ', ticked_at: null, note: null}
-    P1.T3.S4: {state: ' ', ticked_at: null, note: null}
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-06T16:49:05+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-06T16:49:06+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-06-06T16:49:06+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-06T16:49:07+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-06T16:49:07+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-06-06T16:49:08+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-06-06T16:49:08+00:00'
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: '2026-06-06T16:49:09+00:00'
+      note: null
+    P1.T3.S4:
+      state: x
+      ticked_at: '2026-06-06T16:49:10+00:00'
+      note: null
   completion:
-    at: null
+    at: '2026-06-06T16:49:10+00:00'
     note: null
     observed_prs: []
