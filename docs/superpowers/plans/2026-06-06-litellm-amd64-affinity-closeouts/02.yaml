@@ -1,0 +1,31 @@
+schema_version: 2
+phase:
+  number: 2
+  title: README sync — trace-analyst close-out remainder (#476)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Run /update-readme and commit
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Follow agents/skills/update-readme/SKILL.md in the worktree: sync README.md Technology Stack, Service Access, and Current Status against repo state — the ai-alert-helper 0.2.0 Telegram analyst (PR #469) is the known-stale item; sweep for anything else stale since (hermes shell .226 row, gemma alias work).
+  - id: P2.T1.S2
+    text: |-
+      Review git diff README.md — only intended sections changed, no masked-identifier or stale-IP regressions. Commit: "docs(repo): update-readme — trace-analyst close-out remainder (#476)".
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,65 @@
+schema_version: 2
+phase:
+  number: 1
+  title: LiteLLM amd64 affinity — Deployment + migrations Job (#478)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Red — render-check harness proves no affinity today
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Write scripts/tmp/litellm-render-check.sh (gitignored scratch): set -euo pipefail; helm pull oci://docker.litellm.ai/berriai/litellm-helm --version 1.81.13 into a mktemp dir; helm template litellm <chart> -f apps/litellm/values.yaml; assert via yq/python that BOTH the rendered Deployment (name litellm) and the migrations Job carry spec.template.spec.affinity.nodeAffinity requiring kubernetes.io/arch In [amd64]. Print PASS/FAIL per object; exit non-zero on any FAIL.
+  - id: P1.T1.S2
+    text: |-
+      Run bash scripts/tmp/litellm-render-check.sh — expect RED: both objects report FAIL (no affinity rendered). Capture output.
+- number: 2
+  title: Green — add top-level affinity + rewrite TODO block
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Edit apps/litellm/values.yaml: add the top-level affinity block from the spec (nodeAffinity requiredDuringSchedulingIgnoredDuringExecution requiring kubernetes.io/arch In [amd64]), placed with the other top-level chart values (not under proxy_config).
+  - id: P1.T2.S2
+    text: |-
+      Rewrite the "TODO ON NEXT IMAGE BUMP" comment block in apps/litellm/values.yaml: item 1 affinity = SHIPPED 2026-06-06 (#478) with resources still deferred — blocked on dead Metrics API (#394), note VictoriaMetrics as the verification path; item 2 migration-Job pinning = RESOLVED by the same top-level block — cite chart 1.81.13 templates/migrations-job.yaml:106 (affinity) and :110 (tolerations) as evidence correcting issue #478's premise.
+  - id: P1.T2.S3
+    text: |-
+      Re-run bash scripts/tmp/litellm-render-check.sh — expect GREEN: both Deployment and migrations Job PASS. Capture output.
+- number: 3
+  title: Commit
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      git add apps/litellm/values.yaml and commit: "fix(infer): pin litellm pods + migrations Job to amd64 via top-level affinity (#478)". Body notes the chart-1.81.13 template finding and the gated-canary consequence.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
