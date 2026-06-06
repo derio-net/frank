@@ -50,6 +50,21 @@ Phase 4 smoke.
   severity — it keys purely on `alert.Status == "resolved"` and is
   idempotent (no open bugs ⇒ no-op).
 
+## Deployment Deviations
+
+- **2026-06-06 — v0.3.0 tag pushed at a stale SHA; superseded by v0.3.1.**
+  Phase 3's `git tag v0.3.0` ran from a local main that predated the PR merge
+  (tag → `460ab79c`, the pre-merge base), so GHCR's `v0.3.0` image was built
+  WITHOUT the auto-close code (verified: `git grep FindOpenBugs v0.3.0` is
+  empty; the release workflow's headSha matched the stale commit). Fix:
+  `v0.3.1` tagged at the merge commit `b6f9fe4` + a follow-up frank PR bumping
+  the Deployment `v0.3.0 → v0.3.1`. Re-pointing `v0.3.0` was rejected — with
+  the default `imagePullPolicy: IfNotPresent`, a node that had already pulled
+  the bad image would silently keep serving it under the same tag.
+  Lesson for the runbook: tag from `git rev-parse` of the **merge commit**
+  (or `git pull` first and verify `git grep <new-symbol> <tag>` non-empty
+  before pushing).
+
 ## Post-deploy checklist
 
 This is a **fix/extension** of deployed Layer 23 — per plan-config
