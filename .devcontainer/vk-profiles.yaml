@@ -6,7 +6,9 @@ profiles:
     secrets:
     - GH_TOKEN
     notes:
-    - "tool 'hugo' has no known devcontainer feature \u2014 wire it via postCreateCommand"
+    - "tool 'hugo' has no known devcontainer feature \u2014 wired via postCreateCommand (version + sha256 pinned to the CI version in .github/workflows/deploy-blog.yml; bump both together)"
+    - "GH_TOKEN: use a fine-grained token scoped to derio-net/frank with contents:write + pull_requests:write only \u2014 the dev checks themselves need no token"
+    - "supply-chain: superpowers-for-vk install is pinned to a full commit SHA; bump deliberately (uv tool install git+...@<sha>). postCreate fails LOUDLY by design \u2014 no || true (a silent vk-install failure cost a debugging round on 2026-06-06)"
   cluster-admin:
     purpose: "cluster-touching runs (kubectl/talosctl from inside isolation) \u2014\
       \ non-default, operator-selected only"
