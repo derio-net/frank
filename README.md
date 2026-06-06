@@ -43,7 +43,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Secrets | Infisical + External Secrets Operator | Self-hosted secret store, ExternalSecret → K8s Secret sync |
 | RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID (IT5701 V3.5.14.0 firmware lock under investigation) |
 | Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 Ti 16GB — multimodal (Gemma 4 12B, Qwen2.5-VL 7B), general (Mistral Small 3.2 24B, Qwen3 14B), code (Qwen2.5-Coder 14B), MoE flagship (Qwen3.6 35B-A3B, CPU-offloaded experts) |
-| API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to local Ollama models (local-only since 2026-06-04; 14 aliases incl. 64k-context + no-think variants), amd64-pinned pods + migrations Job |
+| API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to local Ollama models (local-only since 2026-06-04; 12 aliases incl. 64k-context + no-think variants), amd64-pinned pods + migrations Job |
 | Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
 | Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
 | Multi-tenancy | vCluster | Virtual K8s clusters inside Frank — disposable sandboxes via ArgoCD |

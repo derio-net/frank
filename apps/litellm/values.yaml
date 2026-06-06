@@ -4,8 +4,9 @@
 # Exposed at 192.168.55.206:4000 as OpenAI-compatible API
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# TODO ON NEXT IMAGE BUMP — fold in the chart-config improvements PR #210
-# discovered we don't have. Don't ship a bump without these:
+# TODO ON NEXT IMAGE BUMP — chart-config improvements PR #210 discovered we
+# didn't have. Items 1–3 below are now shipped/resolved; the one remainder
+# before the next bump is item 1's `resources` requests/limits:
 #
 # 1. ✅ affinity SHIPPED 2026-06-06 (#478) — top-level `affinity:` block below
 #    requires amd64 on the pod template. Background: PR #210's final promote
