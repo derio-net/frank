@@ -90,3 +90,16 @@ def compose_contact_sheet(
             draw.text((x + 8, strip_y + 8), labels[r * cols + c], fill=FG, font=font)
         y += row_heights[r]
     return sheet
+
+
+def should_compose(count: int, opt_out: bool, dry_run: bool, n_archived: int) -> bool:
+    """Gate for the generator's auto contact sheet (--count>1 batches)."""
+    return count > 1 and not opt_out and not dry_run and n_archived >= 2
+
+
+def write_contact_sheet(
+    paths: list[Path], dest: Path, cols: int = 4, tile_width: int = 480
+) -> Path:
+    """Compose and save; returns dest for the caller's console line."""
+    compose_contact_sheet(paths, cols=cols, tile_width=tile_width).save(dest)
+    return dest

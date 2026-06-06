@@ -38,6 +38,8 @@ import yaml
 from google import genai
 from PIL import Image
 
+from lib.contact_sheet import should_compose, write_contact_sheet
+
 MODEL = "gemini-3-pro-image-preview"
 FALLBACK_MODEL = "gemini-2.5-flash-image"
 # Per-request timeout in milliseconds (genai SDK convention). The default
@@ -362,6 +364,7 @@ def generate_one(
     pool_refs: list[Path] | None = None,
     archive_cap: int = ARCHIVE_DEFAULT_CAP,
     request_timeout_ms: int = REQUEST_TIMEOUT_MS,
+    archived_sink: "list[Path] | None" = None,
 ) -> "bool | str":
     """Generate one image.
 
@@ -507,6 +510,8 @@ def generate_one(
                         extra_meta=extra_meta,
                     )
                     print(f"  Archived: {archived.relative_to(REPO_ROOT)}")
+                    if archived_sink is not None:
+                        archived_sink.append(archived)
                 return True
             elif part.text is not None:
                 print(f"  Model text: {part.text[:200]}", file=sys.stderr)
@@ -631,6 +636,10 @@ def main() -> None:
         help="Seed the random source used to sample reference-pool images (default: system entropy)"
     )
     parser.add_argument(
+        "--no-contact-sheet", action="store_true",
+        help="Skip composing .regen-archive/<key>/contact-sheet.png after a --count>1 batch"
+    )
+    parser.add_argument(
         "--count", "-n", type=int, default=1,
         help="Generate N variants per key. Each generation is archived under "
              ".regen-archive/<key>/ (sidecar .txt records the recipe) so you "
@@ -706,6 +715,10 @@ def main() -> None:
     failed = []
     timeout_ms = args.timeout_seconds * 1000
     fallback_model = args.fallback_model.strip() or None
+
+    # Per-key collection of THIS RUN's archived variants (never glob the
+    # archive dir — it holds older variants from previous runs).
+    sheet_sinks: dict[str, list[Path]] = {}
 
     for i, img in enumerate(targets):
         key = img["key"]
@@ -829,6 +842,7 @@ def main() -> None:
             pool_refs=pool_refs,
             archive_cap=args.archive_cap,
             request_timeout_ms=timeout_ms,
+            archived_sink=sheet_sinks.setdefault(key, []),
         )
 
         # Fallback path: when the primary model stalls or 5xxs, retry once
@@ -850,6 +864,7 @@ def main() -> None:
                 pool_refs=pool_refs,
                 archive_cap=args.archive_cap,
                 request_timeout_ms=timeout_ms,
+                archived_sink=sheet_sinks.setdefault(key, []),
             )
 
         if result is True:
@@ -865,6 +880,16 @@ def main() -> None:
         if i < len(targets) - 1:
             print(f"  Waiting {args.delay}s before next request...")
             time.sleep(args.delay)
+
+    # Auto contact sheet per key on --count>1 batches (opt out with
+    # --no-contact-sheet). contact-sheet.png never matches the FIFO
+    # prune glob '<key>-*.png' (regression-tested).
+    for sheet_key, archived_paths in sheet_sinks.items():
+        if should_compose(args.count, args.no_contact_sheet, args.dry_run, len(archived_paths)):
+            sheet = write_contact_sheet(
+                archived_paths, ARCHIVE_DIR / sheet_key / "contact-sheet.png"
+            )
+            print(f"  Contact sheet: {sheet.relative_to(REPO_ROOT)}")
 
     print(f"\n{'='*60}")
     print(f"  Done: {succeeded}/{len(targets)} succeeded")

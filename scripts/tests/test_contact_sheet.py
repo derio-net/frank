@@ -4,7 +4,12 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-from scripts.lib.contact_sheet import build_labels, compose_contact_sheet
+from scripts.lib.contact_sheet import (
+    build_labels,
+    compose_contact_sheet,
+    should_compose,
+    write_contact_sheet,
+)
 
 
 def test_build_labels_archive_pattern():
@@ -88,3 +93,25 @@ def test_contact_sheet_filename_exempt_from_prune_glob(tmp_path):
     assert sorted(p.name for p in d.glob(f"{key}-*.png")) == [
         f"{key}-aaaaaaaaaaaa.png"
     ]
+
+
+@pytest.mark.parametrize(
+    "count,opt_out,dry_run,n,expected",
+    [
+        (8, False, False, 8, True),
+        (1, False, False, 1, False),  # count gate
+        (8, True, False, 8, False),  # --no-contact-sheet
+        (8, False, True, 0, False),  # --dry-run
+        (8, False, False, 1, False),  # < 2 archived (failures)
+    ],
+)
+def test_should_compose(count, opt_out, dry_run, n, expected):
+    assert should_compose(count, opt_out, dry_run, n) is expected
+
+
+def test_write_contact_sheet(tmp_path):
+    paths = _mk(tmp_path, 3)
+    dest = tmp_path / "contact-sheet.png"
+    out = write_contact_sheet(paths, dest)
+    assert out == dest and dest.exists()
+    assert Image.open(dest).width == 4 * 480  # default cols/tile_width
