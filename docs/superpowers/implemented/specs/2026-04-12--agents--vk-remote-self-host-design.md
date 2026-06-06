@@ -141,11 +141,8 @@ No data migration needed. The old cloud projects/issues are lost (cloud is dying
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| VK Remote Self-Host | `derio-net/frank` | `docs/superpowers/plans/2026-04-12--agents--vk-remote-self-host.md` | — |
-| Component | CPU | `Memory` |  |
-| vk-remote | 100m/500m | `128Mi/256Mi` |  |
-| electric | 50m/200m | `64Mi/128Mi` |  |
-| VK Remote Self-Host Implementation Plan |  | `docs/superpowers/plans/2026-04-12--agents--vk-remote-self-host.md` | — |
+| VK Remote Self-Host Implementation Plan | `derio-net/frank` | `docs/superpowers/implemented/plans/2026-04-12--agents--vk-remote-self-host/` | — |
+
 ## What Stays Unchanged
 
 - VK local binary (workspaces, sessions, agent spawning) — untouched

@@ -121,5 +121,5 @@ These tables are NOT auto-migrated by the relay server — it expects them to ex
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| VK Relay Deployment | `derio-net/frank` | `docs/superpowers/archived-plans/2026-04-13--agents--vk-relay-deployment/` | VK Relay Binary |
-| VK Relay Binary | `derio-net/vibe-kanban` | `docs/superpowers/plans/2026-04-13-vk-relay-binary.md` | — |
+| VK Relay Deployment | `derio-net/frank` | `docs/superpowers/implemented/plans/2026-04-13--agents--vk-relay-deployment/` | VK Relay Binary |
+| VK Relay Binary | `derio-net/vibe-kanban` | `docs/superpowers/plans/2026-04-13-vk-relay-binary/` | — |

@@ -432,8 +432,9 @@ Items deliberately not included in this plan:
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| Agent Pod Restart Resilience — Implementation Plan (frank side) | `derio-net/agent-images` | `docs/superpowers/archived-plans/2026-04-27--agents--restart-resilience/` | — |
-| Agent Pod Restart Resilience — Implementation Plan (frank side) | `derio-net/frank` | `docs/superpowers/plans/2026-04-27--agents--restart-resilience.md` | Phases 1-4 of agent-images side (cross-repo) |
+| Agent Pod Restart Resilience — Implementation Plan (agent-images side) | `derio-net/agent-images` | `docs/superpowers/implemented/plans/2026-04-27--agents--restart-resilience/` | — |
+| Agent Pod Restart Resilience — Implementation Plan (frank side) | `derio-net/frank` | `docs/superpowers/implemented/plans/2026-04-27--agents--restart-resilience/` | Phases 1-4 of agent-images side (cross-repo) |
+
 ## Open questions
 
 None blocking. Items resolved during the brainstorming:
@@ -449,7 +450,7 @@ None blocking. Items resolved during the brainstorming:
 
 ## References
 
-- [Incident 1 audit log entry](https://github.com/derio-net/frank/blob/main/docs/superpowers/archived-plans/2026-04-26--agents--secure-pod-tmux-mosh.md#appendix-client-side-configuration--debug-journey) — supercronic SIGHUP at 21:27:35 UTC
+- [Incident 1 audit log entry](https://github.com/derio-net/frank/blob/main/docs/superpowers/implemented/plans/2026-04-26--agents--secure-pod-tmux-mosh.md.v1-archive#appendix-client-side-configuration--debug-journey) — supercronic SIGHUP at 21:27:35 UTC
 - [PR #126](https://github.com/derio-net/frank/pull/126) — mosh tuning, 16 ports + 1h server timeout
 - [PR #127](https://github.com/derio-net/frank/pull/127) — Phase 4 docs + wezterm Cmd+Shift+{1,2} re-spawn
 - [PR #128](https://github.com/derio-net/frank/pull/128) — agent-images bump that re-killed the post-Incident-1 mosh session
