@@ -243,9 +243,17 @@ on the canary pod, 2026-06-05). Symptoms for a consumer: "model returns
 nothing" with small completion budgets, while curl tests with generous
 budgets look fine.
 
-Mitigations: give vision/chat calls a few hundred `max_tokens` of headroom,
-and read `reasoning_content` if the chain-of-thought is wanted. Whether
-gemma4 honors a `think: false` toggle (the qwen3.6 trick) has NOT been
-verified — test before relying on it. Time-to-first-token is also longer
-than gemma3's was; streaming consumers see the gap before `content` deltas
-start.
+Mitigations (verified live 2026-06-06, both native /api/chat and through
+the LiteLLM gateway):
+- `"think": false` in the request body (top-level or `extra_body`) fully
+  disables thinking — empty `reasoning_content`, immediate `content`, and
+  the small-budget trap disappears (`max_tokens: 60` returns a complete
+  answer). Measured 0.7s/22 completion tokens vs 4.1s/300-token cap-out
+  with thinking on, same one-sentence question.
+- `"think": "low"`/level syntax is ACCEPTED but ignored — gemma4 thinking
+  is binary on/off, no gpt-oss-style levels.
+- With thinking on, even `max_tokens: 300` can be fully consumed by the
+  preamble (empty content, `finish_reason: stop`) — budget several hundred
+  tokens or turn it off.
+- Read `reasoning_content` if the chain-of-thought is wanted; streaming
+  consumers see a time-to-first-token gap before `content` deltas start.
