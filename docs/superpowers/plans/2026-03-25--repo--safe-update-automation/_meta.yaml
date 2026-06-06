@@ -3,4 +3,5 @@ plan: 2026-03-25--repo--safe-update-automation
 spec: 2026-03-25--repo--safe-update-automation-design.md
 target_repo: derio-net/frank
 vk_version: '>=2.0.0,<3.0.0'
+fr_version: '>=3.0.0,<4.0.0'
 created: '2026-03-25'

@@ -3,4 +3,5 @@ plan: 2026-05-31--obs--feature-health-alert-resilience
 spec: 2026-05-31--obs--feature-health-alert-resilience-design.md
 target_repo: derio-net/frank
 vk_version: '>=2.0.0,<3.0.0'
+fr_version: '>=3.0.0,<4.0.0'
 created: '2026-05-31'

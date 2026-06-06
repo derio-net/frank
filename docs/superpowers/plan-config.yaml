@@ -41,5 +41,5 @@ dispatch:
   project_board: "Derio Ops"
   default_repo: derio-net/frank
   labels:
-    agentic: vk-ready
+    agentic: fr:ready
     manual: manual

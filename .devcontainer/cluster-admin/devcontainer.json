@@ -7,7 +7,7 @@
     "ghcr.io/devcontainers/features/node:1": {},
     "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
   },
-  "postCreateCommand": "uv tool install --python 3.13 'git+https://github.com/derio-net/superpowers-for-vk@9fd7b777702efaf0506025c7714e33cbb723513f'; mkdir -p ~/.kube ~/.talos; if [ -n \"$KUBECONFIG_B64\" ]; then echo \"$KUBECONFIG_B64\" | base64 -d > ~/.kube/config && chmod 600 ~/.kube/config; fi; if [ -n \"$TALOSCONFIG_B64\" ]; then echo \"$TALOSCONFIG_B64\" | base64 -d > ~/.talos/config && chmod 600 ~/.talos/config; fi",
+  "postCreateCommand": "uv tool install --python 3.13 'git+https://github.com/derio-net/super-fr#subdirectory=packages/fr'; mkdir -p ~/.kube ~/.talos; if [ -n \"$KUBECONFIG_B64\" ]; then echo \"$KUBECONFIG_B64\" | base64 -d > ~/.kube/config && chmod 600 ~/.kube/config; fi; if [ -n \"$TALOSCONFIG_B64\" ]; then echo \"$TALOSCONFIG_B64\" | base64 -d > ~/.talos/config && chmod 600 ~/.talos/config; fi",
   "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
   "workspaceFolder": "${localWorkspaceFolder}",
   "runArgs": [

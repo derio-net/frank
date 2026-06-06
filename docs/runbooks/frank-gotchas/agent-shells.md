@@ -121,9 +121,9 @@ ls -la /var/tmp/vibe-kanban/worktrees/<hash>-<name>/frank/
 cd /var/tmp/vibe-kanban/worktrees/<hash>-<name>/frank && git status && git log --oneline -5
 ```
 
-**Durable fix** lives upstream of frank — in the bridge code being migrated from `derio-net/agent-images` to `derio-net/superpowers-for-vk` (mid-migration as of 2026-05-18). Two changes are needed there:
-1. Bump `vk_mcp_client.py` `_recv` default timeout from `30.0` to `180.0`.
-2. Wrap `sync_issue()` invocation in `vk-issue-bridge.py:main()` with `try/except TimeoutError: continue` so a single slow call doesn't kill the whole cycle.
+**Durable fix** lives upstream of frank — in the bridge code, migrated from `derio-net/agent-images` to `derio-net/super-fr` (the `fr_vk.bridge` module). Two changes are needed there:
+1. Bump the MCP client's `_recv` default timeout from `30.0` to `180.0`.
+2. Wrap the `sync_issue()` invocation in the bridge `main()` with `try/except TimeoutError: continue` so a single slow call doesn't kill the whole cycle.
 
 There's also an upstream `vibe-kanban` server-side bug — the request-handler future should not own the `Child::wait()` lifetime; child processes should be tracked in a global registry with a background reaper. That's a forked-fork change in `derio-net/vibe-kanban`, lower priority once the timeout is bumped.
 
@@ -160,19 +160,19 @@ done
 
 First hit: `agent-images` build for the VK_BRIDGE_PIN v2.2.13 bump (2026-05-25). Fixed in `kali/Dockerfile` in `derio-net/agent-images`.
 
-## v2 vk.bridge logs its banner to stderr — smoke tests must capture `2>&1`
+## The `fr_vk.bridge` daemon logs its banner to stderr — smoke tests must capture `2>&1`
 
-The PVC-resident v2 bridge (`vk.bridge` module, installed by `cont-init.d/55-install-vk-bridge` from a `superpowers-for-vk` git tag) emits its per-tick banner and `dry-run complete` line via Python **logging**, which writes to **stderr**, not stdout:
+The PVC-resident bridge (`fr_vk.bridge` module — formerly v2 `vk.bridge` — installed by `cont-init.d/55-install-fr-bridge` from a `super-fr` git tag) emits its per-tick banner and `dry-run complete` line via Python **logging**, which writes to **stderr**, not stdout:
 
 ```
-$ python -m vk.bridge --dry-run 1>/tmp/out 2>/tmp/err   # exits 0
+$ python -m fr_vk.bridge --dry-run 1>/tmp/out 2>/tmp/err   # exits 0
 $ cat /tmp/out      # empty
 $ cat /tmp/err
 [bridge] - v2.2.13 - 2026-05-25 16:26:48 UTC - tick
-vk.bridge: dry-run complete
+fr_vk.bridge: dry-run complete
 ```
 
-Any health check or CI smoke test that does `out=$(vk-bridge --dry-run)` captures **stdout only** → `$out` is empty → banner/version assertions fail. Under bash `set -eo pipefail` (GitHub Actions default) the step then aborts before any teardown/diagnostics run, so the log shows the banner printed live (uncaptured stderr) followed immediately by an unexplained exit 1. Always `2>&1` the capture.
+Any health check or CI smoke test that does `out=$(fr-bridge --dry-run)` captures **stdout only** → `$out` is empty → banner/version assertions fail. Under bash `set -eo pipefail` (GitHub Actions default) the step then aborts before any teardown/diagnostics run, so the log shows the banner printed live (uncaptured stderr) followed immediately by an unexplained exit 1. Always `2>&1` the capture.
 
 This silently broke `agent-images`' `smoke-test-secure-agent-kali` job on **every** build after the 2026-05-19 v2-bridge cutover — the kali image had not published a green build from `main` for a week before it was diagnosed (2026-05-25). The pre-cutover v1 bridge printed to stdout, which is why the same test passed on bridge ≤ v2.1.7.
 

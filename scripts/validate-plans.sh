@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Thin wrapper — delegates to the canonical validator from superpowers-for-vk.
+# Thin wrapper — delegates to the canonical validator from super-fr.
 # Falls back to minimal local validation if the plugin validator is not found.
 set -euo pipefail
 
 PLUGIN_VALIDATOR=""
 for candidate in \
-  "$HOME/.claude/plugins/cache/derio-net/superpowers-for-vk/"*/scripts/validate-plans.sh \
-  "$HOME/repos/superpowers-for-vk/scripts/validate-plans.sh"; do
+  "$HOME/.claude/plugins/cache/derio-net/super-fr/"*/scripts/validate-plans.sh \
+  "$HOME/repos/super-fr/scripts/validate-plans.sh"; do
   if [ -x "$candidate" ]; then
     PLUGIN_VALIDATOR="$candidate"
     break
@@ -17,7 +17,7 @@ if [ -n "$PLUGIN_VALIDATOR" ]; then
   exec "$PLUGIN_VALIDATOR" "$@"
 fi
 
-echo "WARNING: superpowers-for-vk validator not found — running minimal checks" >&2
+echo "WARNING: super-fr validator not found — running minimal checks" >&2
 ERRORS=()
 for f in "$@"; do
   [ -f "$f" ] || continue
