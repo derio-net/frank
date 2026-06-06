@@ -108,6 +108,20 @@ proxy_config:
         model: ollama_chat/gemma4:12b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
+    # Gemma 4 12B (no-think) — same backend as gemma-12b but with the
+    # reasoning preamble disabled via extra_body (the qwen36-a3b-nothin
+    # pattern). For consumers that can't set request-body params (UIs,
+    # n8n nodes, model dropdowns) and want fast multimodal answers:
+    # verified 0.7s/22 completion tokens vs 4.1s/300-token cap-out with
+    # thinking on. gemma4 thinking is binary — "think": "low" levels are
+    # accepted but ignored, so false is the only useful override.
+    - model_name: gemma-12b-nothin
+      litellm_params:
+        model: ollama_chat/gemma4:12b
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+        extra_body:
+          think: false
+
     # Qwen2.5-VL 7B (Q4_K_M) — Qwen-family alternative to gemma-12b for vision
     # Different model architecture from Gemma4; useful when one struggles on a
     # specific input class (handwriting, dense tables, multi-column layouts).
