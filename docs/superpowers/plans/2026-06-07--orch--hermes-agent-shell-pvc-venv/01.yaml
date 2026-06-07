@@ -121,42 +121,45 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T22:15:33+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T22:15:35+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T22:15:37+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T22:15:38+00:00'
       note: null
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T22:15:40+00:00'
       note: null
     P1.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T22:15:41+00:00'
       note: null
     P1.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T22:15:43+00:00'
       note: null
     P1.T5.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T22:15:44+00:00'
       note: null
     P1.T5.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T22:15:46+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-07T22:15:47+00:00'
+    note: 'agent-images PR #110 open. Deviations: patch test = build git-apply + smoke
+      grep (not a network wheel-download bats); seed-hook bats is a local dev test,
+      CI teeth via the docker smoke test; build uses git apply (patch not in base
+      image). Real-package relocatable seed+cp+run verified locally.'
     observed_prs: []
