@@ -1,5 +1,5 @@
 {
-  "name": "frank \u2014 cluster-admin",
+  "name": "frank — cluster-admin",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {},
@@ -17,7 +17,7 @@
   "customizations": {
     "fr": {
       "profile": "cluster-admin",
-      "purpose": "cluster-touching runs (kubectl/talosctl from inside isolation) \u2014 non-default, operator-selected only"
+      "purpose": "cluster-touching runs (kubectl/talosctl from inside isolation) — non-default, operator-selected only"
     }
   }
 }
