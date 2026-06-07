@@ -244,7 +244,11 @@ cert rules where it papers over a missing metric.
    `probe_success{canary="true"}` → 1.
 5. Verify provisioning landed: Grafana API — notification policy shows the two
    new first-position routes + `perma-mute` interval; rule
-   `tls-cert-canary-absent` present, `health=ok`.
+   `tls-cert-canary-absent` present, `health=ok`. Once instances exist,
+   confirm via `/api/alertmanager/grafana/api/v2/alerts` that the canary
+   instances are actually matched/suppressed by the mute route — they carry
+   `grafana_folder="feature-health"`, so a route-match failure would
+   double-route them to health-bridge (review finding).
 6. Watch `tls-cert-expiring-14d`/`-7d` canary instances: `Pending` within ~1h,
    `Firing` within ~2.5h (`/api/prometheus/grafana/api/v1/rules`).
 7. Confirm silence: no Telegram message for the canary; no new comment on

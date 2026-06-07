@@ -28,7 +28,7 @@ tasks:
       Verify metric in VictoriaMetrics: `probe_ssl_earliest_cert_expiry{canary="true"}` ≈ 1.428883199e9 and `probe_success{canary="true"}` == 1.
   - id: P3.T2.S2
     text: |-
-      Verify provisioning via Grafana API: notification policy shows the two new first-position routes + `perma-mute` interval; rule `tls-cert-canary-absent` present with `health=ok`.
+      Verify provisioning via Grafana API: notification policy shows the two new first-position routes + `perma-mute` interval; rule `tls-cert-canary-absent` present with `health=ok`. Once the canary instances exist, also confirm via `/api/alertmanager/grafana/api/v2/alerts` that they are matched by the mute route (suppressed/muted state), not merely that the routes exist — the canary instances carry `grafana_folder="feature-health"`, so a route-match failure would double-route them to health-bridge (review finding).
   - id: P3.T2.S3
     text: |-
       Watch the canary instances of `tls-cert-expiring-14d` / `tls-cert-expiring-7d` reach `Pending` (≤ ~1h) then `Firing` (≤ ~2.5h) via `/api/prometheus/grafana/api/v1/rules`.

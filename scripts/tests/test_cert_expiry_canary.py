@@ -74,6 +74,10 @@ def test_canary_vmprobe_shape():
     assert static["labels"]["canary"] == "true"
     assert static["labels"]["probe_group"] == "cert_canary"
     assert spec["module"] == "http_2xx_insecure_tls"
+    # cross-file invariant: the probe's module must actually exist in the
+    # blackbox config — a rename on either side would otherwise pass both
+    # single-file tests yet emit nothing
+    assert spec["module"] in _blackbox_modules()
     assert spec["vmProberSpec"]["url"] == "blackbox-exporter.monitoring.svc:9115"
 
 
@@ -129,6 +133,9 @@ def test_canary_mute_route_is_second():
 
 
 def test_existing_routes_preserved_in_order():
+    # pin the total so a stray route inserted between the canary pair and the
+    # tail can't hide in the [2:] slice
+    assert len(_routes()) == 6
     tail = _routes()[2:]
     expected = [
         ("AI Helper Webhook", ['grafana_folder="blog-edge"'], False),
