@@ -1,5 +1,5 @@
 {
-  "name": "frank — dev",
+  "name": "frank \u2014 dev",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {},
@@ -11,12 +11,12 @@
   "workspaceFolder": "${localWorkspaceFolder}",
   "runArgs": [
     "--env-file",
-    "${localEnv:HOME}/.config/vk/secrets/frank/dev.env"
+    "${localEnv:HOME}/.config/fr/secrets/frank/dev.env"
   ],
   "customizations": {
-    "vk": {
+    "fr": {
       "profile": "dev",
-      "purpose": "day-to-day docs/skills/blog/plan work — checks: cd blog && hugo --minify; scripts/validate-plans.sh; uv run scripts/validate-papers.py; uv run scripts/validate-dossier.py; pytest scripts/tests/; node scripts/validate-mermaid.mjs"
+      "purpose": "day-to-day docs/skills/blog/plan work \u2014 checks: cd blog && hugo --minify; scripts/validate-plans.sh; uv run scripts/validate-papers.py; uv run scripts/validate-dossier.py; pytest scripts/tests/; node scripts/validate-mermaid.mjs"
     }
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "frank — cluster-admin",
+  "name": "frank \u2014 cluster-admin",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
   "features": {
     "ghcr.io/devcontainers/features/github-cli:1": {},
@@ -12,12 +12,12 @@
   "workspaceFolder": "${localWorkspaceFolder}",
   "runArgs": [
     "--env-file",
-    "${localEnv:HOME}/.config/vk/secrets/frank/cluster-admin.env"
+    "${localEnv:HOME}/.config/fr/secrets/frank/cluster-admin.env"
   ],
   "customizations": {
-    "vk": {
+    "fr": {
       "profile": "cluster-admin",
-      "purpose": "cluster-touching runs (kubectl/talosctl from inside isolation) — non-default, operator-selected only"
+      "purpose": "cluster-touching runs (kubectl/talosctl from inside isolation) \u2014 non-default, operator-selected only"
     }
   }
 }
