@@ -12,10 +12,10 @@
   "workspaceFolder": "${localWorkspaceFolder}",
   "runArgs": [
     "--env-file",
-    "${localEnv:HOME}/.config/vk/secrets/frank/cluster-admin.env"
+    "${localEnv:HOME}/.config/fr/secrets/frank/cluster-admin.env"
   ],
   "customizations": {
-    "vk": {
+    "fr": {
       "profile": "cluster-admin",
       "purpose": "cluster-touching runs (kubectl/talosctl from inside isolation) — non-default, operator-selected only"
     }

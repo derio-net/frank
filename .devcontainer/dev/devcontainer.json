@@ -11,10 +11,10 @@
   "workspaceFolder": "${localWorkspaceFolder}",
   "runArgs": [
     "--env-file",
-    "${localEnv:HOME}/.config/vk/secrets/frank/dev.env"
+    "${localEnv:HOME}/.config/fr/secrets/frank/dev.env"
   ],
   "customizations": {
-    "vk": {
+    "fr": {
       "profile": "dev",
       "purpose": "day-to-day docs/skills/blog/plan work — checks: cd blog && hugo --minify; scripts/validate-plans.sh; uv run scripts/validate-papers.py; uv run scripts/validate-dossier.py; pytest scripts/tests/; node scripts/validate-mermaid.mjs"
     }
