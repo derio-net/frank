@@ -210,7 +210,7 @@ spec:
         # HEAD (bumped by the agent-images-bump workflow) — the image: tag
         # below is the live pin; see plan Deployment Notes.
         - name: paperclip-shell
-          image: ghcr.io/derio-net/paperclip-shell:4b83b4da7149e14b2b0c12f0670e997018b98eb0
+          image: ghcr.io/derio-net/paperclip-shell:389ddffcd36f863403831f03e209d355a8f3e2a8
           imagePullPolicy: IfNotPresent
           ports:
             - { name: ssh,         containerPort: 2222,  protocol: TCP }
