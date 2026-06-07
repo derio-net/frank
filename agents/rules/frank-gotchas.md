@@ -63,6 +63,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - OIDC: secret key must be `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` for `envFromSecret`.
 - VictoriaMetrics chart `genCA` regenerates webhook caBundle — `ignoreDifferences` on the validating webhook caBundle.
 - `ALERTS{}` does NOT exist in VM for Grafana-managed alerts — use `alertlist` panel type.
+- A route `mute_time_intervals` mute leaves the alert `state: active` (only silences/inhibitions flip it to `suppressed`) and Grafana 12's v2 `/alerts` API has NO `mutedBy` field — so neither proves a mute worked. Verify a mute by the metric gap: `grafana_alerting_dispatcher_alert_processing_duration_seconds_count` increments (alert dispatched) while `grafana_alerting_notification_latency_seconds_count` stays 0 (nothing delivered), with `grafana_alerting_silences{state="active"}=0` ruling out a silence. The v2 `receivers[]` list reflects ROUTING not delivery; a single entry (no second receiver) confirms `continue:false` stopped evaluation at that route. Used to prove the cert-expiry canary's perma-mute (issue #251).
 
 ### Observability digest — `docs/runbooks/frank-gotchas/obs-digest.md`
 - Falco events reach VictoriaLogs via falcosidekick→Loki-push with fields `source`/`priority`/`rule`/`k8s_ns_name` — NOT `kubernetes.namespace_name` (that's the fluent-bit collector path for Caddy/CrowdSec). Query Falco with `source:syscall`, never a `kubernetes.namespace_name` filter.
