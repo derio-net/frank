@@ -5,7 +5,7 @@ phase:
   tag: manual
   depends_on:
   - 2
-  tracking_issue: https://github.com/derio-net/frank/issues/389
+  tracking_issue: null
 tasks:
 - number: 3
   title: Bootstrap Secret (Manual Operation)

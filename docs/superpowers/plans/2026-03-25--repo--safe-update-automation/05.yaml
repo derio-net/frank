@@ -6,7 +6,7 @@ phase:
   depends_on:
   - 1
   - 4
-  tracking_issue: https://github.com/derio-net/frank/issues/391
+  tracking_issue: null
 tasks:
 - number: 6
   title: Renovate Configuration
