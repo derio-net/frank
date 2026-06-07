@@ -253,6 +253,12 @@ the operator.
 
 ---
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-06-07--orch--hermes-agent-shell-pvc-venv | `derio-net/frank` | `2026-06-07--orch--hermes-agent-shell-pvc-venv` | — |
+
 ## Test Plan (post-merge — operator-driven)
 
 Run after the frank pin-bump rolls the new image onto the pod.
