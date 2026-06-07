@@ -4,6 +4,7 @@
 **Parent plan:** `docs/superpowers/implemented/plans/2026-05-11--obs--cert-expiry-alerting/` (Deployed, with documented verification gap)
 **Layer:** obs (extension — Layer 08, tracker `frank-ops#8`)
 **Date:** 2026-06-07
+**Status:** Deployed (verified live 2026-06-07 — canary Firing, Telegram + health-bridge silence proven via dispatcher-vs-notification metrics)
 
 ## Problem
 

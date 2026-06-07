@@ -41,38 +41,43 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T20:41:48+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T20:41:49+00:00'
       note: null
     P3.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T20:41:51+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T20:41:52+00:00'
       note: null
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T20:41:54+00:00'
       note: null
     P3.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T20:41:55+00:00'
       note: null
     P3.T2.S4:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T20:41:57+00:00'
       note: null
     P3.T2.S5:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T20:41:58+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-07T20:42:00+00:00'
+    note: 'Verified live 2026-06-07: both canary instances Pending(19:12Z)→Firing;
+      dispatcher processed 2 alerts, notify pipeline sent 0 (notification_latency_seconds_count=0),
+      silences{active}=0 → mute timing suppressed delivery; receivers=[Telegram-Willikins]
+      only (no Health Bridge, continue:false held); frank-ops#8 unchanged + 0 new
+      bug issues; watchdog tls-cert-canary-absent inactive/ok with metric flowing;
+      operator confirmed Telegram silence.'
     observed_prs: []

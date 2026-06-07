@@ -51,3 +51,23 @@ Discovered 2026-05-14 in `layer-25-cicd-down`. Two fixes:
 - (b) add a TTL GC for old PipelineRuns/Jobs (we shipped `apps/tekton/manifests/pipelinerun-ttl-gc.yaml` — daily 04:30 UTC, 7-day TTL)
 
 Both fixes belong together — the query rewrite stops the false positive, the TTL keeps the namespace from accumulating clutter.
+
+## Verifying a `mute_time_intervals` mute actually suppressed delivery
+
+A time-interval mute on a notification-policy route does NOT surface the way silences do, so the obvious checks mislead:
+
+- The alert's v2 `/api/alertmanager/grafana/api/v2/alerts` status stays `state: active` — only **silences** (`silencedBy`) and **inhibitions** (`inhibitedBy`) flip an alert to `suppressed`. A time-interval mute is applied at the *notify* stage, leaving `state: active`.
+- Grafana 12's v2 alert `status` object has **no `mutedBy` field at all** (`{state, silencedBy, inhibitedBy}` only) — querying `.status.mutedBy` yields `null` whether or not the mute is active. It proves nothing.
+
+Verify the mute by the **dispatcher-vs-notification metric gap** on the Grafana `/metrics` endpoint (`kubectl exec deploy/victoria-metrics-grafana -c grafana -- wget -qO- http://127.0.0.1:3000/metrics`):
+
+- `grafana_alerting_dispatcher_alert_processing_duration_seconds_count` increments — the alert reached the dispatcher and matched a route.
+- `grafana_alerting_notification_latency_seconds_count` stays **0** — the notify stage sent nothing.
+- `grafana_alerting_silences{state="active"} 0` — rules out a silence, leaving the mute timing as the only suppression mechanism.
+
+Two corroborating signals from the v2 `/alerts` API:
+
+- `receivers[]` reflects ROUTING, not delivery. A canary route whose receiver is set to a real contact point (e.g. `Telegram - Willikins`) still lists that name even when fully muted — the mute, not the receiver, stops delivery.
+- A **single** entry in `receivers[]` confirms `continue: false` stopped route evaluation at that route. If the alert had continued, downstream matching routes (e.g. `grafana_folder="feature-health"` → `Health Bridge Webhook`) would appear as additional receivers. For the cert-expiry canary this is the proof that health-bridge never sees the canary (no never-closing bug issue).
+
+Established 2026-06-07 proving the cert-expiry canary's perma-mute (issue #251, `apps/grafana-alerting/manifests/notification-policy-cm.yaml`). The canary's two instances (warning 14d + critical 7d) fired, dispatcher count = 2, notification latency count = 0, single receiver — Telegram and health-bridge both silent, operator confirmed no Telegram message.
