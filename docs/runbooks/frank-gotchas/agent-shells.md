@@ -251,3 +251,46 @@ incident (full chain in other-apps.md).
   costs ~8 s cold, then ollama prefix-caches across session turns.
 - Loop insurance: `tool_loop_guardrails.hard_stop_enabled: true` in hermes
   config.yaml (default thresholds stop identical no-progress tool calls at 5).
+
+## `claude install` group-OOMs 4Gi shell pods — Bun HTTP buffering (~17×), all SSH sessions drop at once
+
+**Incident (2026-06-07, hermes-agent-shell):** operator ran `claude install` in an SSH session;
+every SSH connection to the pod closed simultaneously and the pod went CrashLoopBackOff-ish
+(4 restarts across the incident, including diagnosis re-runs).
+
+**Mechanism.** The container cgroup has `memory.oom.group` set, so the kernel kills *every*
+task in the cgroup when one process trips the limit — sshd included. That's the "all sessions
+die at the same instant" signature, distinct from a single killed session. The tripping
+process: `claude install` downloads the ~245 MB native build **in-process** via Bun's HTTP
+client, which buffers the artifact ~17× in anonymous memory (kernel killed it at anon-rss
+4,172,660 kB ≈ 4.17 GiB; 17 × 245 MB ≈ 4.16 GiB — near-exact match). Kernel evidence
+(`talosctl -n <node> dmesg`): `claude` with thread "HTTP Client", `total-vm` ~73 GB (normal
+JSC reservation, ignore it), anon-rss ≈ the pod limit, then `memory.oom.group` kill list.
+
+**What does NOT work:**
+- `BUN_JSC_forceRAMSize` — the buffering is in Bun's native HTTP layer, below JSC GC. Tested, OOM'd identically.
+- `curl -fsSL https://claude.ai/install.sh | bash` — the script's *download* is plain curl
+  (fine), but its last step runs `"$binary" install`, and `claude install` **re-downloads via
+  the same Bun path even when the running binary IS the target version**. Tested, OOM'd identically.
+- Upstream: claude-code#22536, closed not-planned.
+
+**Memory-safe install (constant-memory, what the installer would have produced):**
+
+```bash
+DL=https://downloads.claude.ai/claude-code-releases
+version=$(curl -fsSL "$DL/latest")
+checksum=$(curl -fsSL "$DL/$version/manifest.json" | jq -r '.platforms["linux-x64"].checksum')
+vdir="$HOME/.local/share/claude/versions"
+mkdir -p "$vdir" "$HOME/.local/bin"
+curl -fsSL -o "$vdir/$version.tmp" "$DL/$version/linux-x64/claude"
+echo "$checksum  $vdir/$version.tmp" | sha256sum -c
+chmod +x "$vdir/$version.tmp" && mv "$vdir/$version.tmp" "$vdir/$version"
+ln -sfn "$vdir/$version" "$HOME/.local/bin/claude"
+claude --version   # login shells resolve ~/.local/bin ahead of the baked /usr/bin/claude
+```
+
+**Durable fix:** hermes-agent-shell limit raised 4Gi → 8Gi (peak ~4.2–4.5 GiB fits; kali's
+32Gi is why the same install always worked there). Residual risk at 4Gi-class pods: the
+native build's **background auto-updater** uses the same download path — i.e. a pod can
+group-OOM mid-session with no operator action; either give the pod ≥8Gi or set
+`DISABLE_AUTOUPDATER=1`.

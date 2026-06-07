@@ -117,8 +117,12 @@ spec:
             limits:
               # A single interactive hermes process + the s6 supervision tree.
               # No vk-local executor fleet, so far lighter than secure-agent-pod.
+              # 8Gi (was 4Gi): `claude install` / the native build's auto-updater
+              # buffers its 245MB download ~17x in anon memory (Bun HTTP client,
+              # upstream claude-code#22536) peaking ~4.2GiB — at 4Gi the group-OOM
+              # killed sshd and dropped every SSH session (2026-06-07 incident).
               cpu: "2"
-              memory: 4Gi
+              memory: 8Gi
           readinessProbe:
             tcpSocket:
               port: ssh
