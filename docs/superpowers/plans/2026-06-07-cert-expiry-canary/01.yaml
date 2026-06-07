@@ -30,26 +30,27 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T17:05:42+00:00'
       note: null
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T17:05:54+00:00'
       note: null
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T17:06:04+00:00'
       note: null
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T17:06:18+00:00'
       note: null
     P1.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-07T17:05:11+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-07T17:06:33+00:00'
+    note: 'TDD inline under fr-goal: 4 tests (2 red→green, 2 guards), module + VMProbe
+      landed, commit 0281371b'
     observed_prs: []
