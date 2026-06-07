@@ -1444,6 +1444,54 @@ data:
               summary: "TLS cert for {{ $labels.instance }} expires in <7 days ({{ humanizeDuration $value }} remaining)"
               runbook: "See docs/investigations/2026-05-11--omni--cert-expiry-incident.md for renewal procedure."
 
+          # Watchdog for the expired-cert canary (issue #251): the canary's
+          # perpetually-firing alert instances are the heartbeat for the two
+          # rules above; this rule notices when the heartbeat metric itself
+          # disappears (badssl unreachable, module broken, VMProbe deleted).
+          # absent() returns EMPTY when the metric exists → noData is the
+          # HEALTHY path here (inverted vs the rules above). severity=critical
+          # + github_issue drive health-bridge's dead→bug-issue lifecycle
+          # (auto-closed on heal); canary_watchdog="true" is caught by the
+          # first-position notification-policy route so critical never reaches
+          # Telegram. Spec:
+          # docs/superpowers/specs/2026-06-07--obs--cert-expiry-canary-design.md
+          - uid: tls-cert-canary-absent
+            title: TLS cert-expiry canary absent
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'absent(probe_ssl_earliest_cert_expiry{canary="true"})'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 3h
+            labels:
+              severity: critical
+              github_issue: "frank-ops#8"
+              canary_watchdog: "true"
+            annotations:
+              summary: "Cert-expiry canary heartbeat lost: probe_ssl_earliest_cert_expiry{canary=\"true\"} absent >3h"
+              runbook: "Check https://expired.badssl.com/ reachability, the blackbox-exporter http_2xx_insecure_tls module, and VMProbe expired-cert-canary. Spec: docs/superpowers/specs/2026-06-07--obs--cert-expiry-canary-design.md"
+
       # =====================================================================
       # blog-edge folder rules (obs layer phase 3+5) — fired alerts route to
       # the AI Helper Webhook (added in phase 5). For now they route through

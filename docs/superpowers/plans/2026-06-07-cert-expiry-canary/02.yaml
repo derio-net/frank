@@ -1,0 +1,56 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Alerting config — watchdog rule + notification-policy mute (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Failing tests for routing order, mute interval, and watchdog rule
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Extend `scripts/tests/test_cert_expiry_canary.py` with alerting assertions per spec §3–4: (a) notification-policy provisioning file declares mute time interval `perma-mute` (orgId 1, times 00:00–24:00); (b) route[0] matches `canary_watchdog="true"` → receiver `Health Bridge Webhook`, `continue: false`; (c) route[1] matches `canary="true"`, has `mute_time_intervals: [perma-mute]`, `continue: false`; (d) all pre-existing routes follow unchanged and in order (blog-edge, severity=critical, severity=warning, feature-health); (e) rule group `tls-cert-expiry-1h` contains rule uid `tls-cert-canary-absent` with expr `absent(probe_ssl_earliest_cert_expiry{canary="true"})`, `noDataState: OK`, `for: 3h`, labels `severity: critical`, `github_issue: "frank-ops#8"`, `canary_watchdog: "true"`, datasource `P4169E866C3094E38`, and 3-step A→B→C SSE shape (reduce last/dropNN, threshold gt 0).
+  - id: P2.T1.S2
+    text: |-
+      Run the pytest command and confirm the new alerting tests FAIL while the phase-1 probe-path tests still PASS.
+- number: 2
+  title: Implement notification-policy mute + watchdog rule
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Edit `apps/grafana-alerting/manifests/notification-policy-cm.yaml`: add the `muteTimes` section (`perma-mute`, 00:00–24:00) and PREPEND the two routes from spec §3b in exact order — watchdog route FIRST (the watchdog alert also carries `canary="true"` from absent()'s selector; the mute route would swallow it), then the perma-muted `canary="true"` route. Existing routes unchanged below.
+  - id: P2.T2.S2
+    text: |-
+      Add rule `tls-cert-canary-absent` to the `tls-cert-expiry-1h` group in `apps/grafana-alerting/manifests/alert-rules-cm.yaml` per spec §4, following the existing 3-step A→B→C model of the neighbouring tls-cert rules (threshold `gt 0` instead of `lt`), `for: 3h`, the three labels, and the summary/runbook annotations.
+  - id: P2.T2.S3
+    text: |-
+      Re-run the full pytest file and confirm ALL tests PASS. Sanity-parse both CM payloads (`uv run --with pyyaml python3 -c` round-trip) to catch YAML indentation slips inside the `data:` block strings. Commit: `feat(obs): cert-expiry canary watchdog rule + perma-muted routing (#251)`.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-07T17:10:31+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-07T17:10:38+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-06-07T17:10:44+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-06-07T17:10:50+00:00'
+      note: null
+    P2.T2.S3:
+      state: x
+      ticked_at: '2026-06-07T17:10:56+00:00'
+      note: null
+  completion:
+    at: '2026-06-07T17:11:02+00:00'
+    note: 'TDD inline under fr-goal: 8 new tests (7 red→green, 1 guard), muteTimes
+      + 2 prepended routes + tls-cert-canary-absent rule, 12/12 passing, commit 47abcca6'
+    observed_prs: []

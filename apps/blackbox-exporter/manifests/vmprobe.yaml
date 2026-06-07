@@ -34,3 +34,27 @@ spec:
   module: http_2xx
   vmProberSpec:
     url: blackbox-exporter.monitoring.svc:9115
+---
+# Cert-expiry canary (issue #251, option 1): perpetually-expired cert keeps the
+# tls-cert-expiring-{14d,7d} rules exercised end-to-end. canary="true" flows
+# into the alert instance labels and is caught by the perma-muted first-position
+# notification-policy route — no Telegram, no health-bridge. The firing alert
+# instances in the Grafana alert list ARE the heartbeat; the
+# tls-cert-canary-absent watchdog covers metric disappearance.
+# Spec: docs/superpowers/specs/2026-06-07--obs--cert-expiry-canary-design.md
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: expired-cert-canary
+  namespace: monitoring
+spec:
+  targets:
+    staticConfig:
+      targets:
+        - https://expired.badssl.com/
+      labels:
+        probe_group: cert_canary   # distinct group — keeps feature-health dashboards clean
+        canary: "true"
+  module: http_2xx_insecure_tls
+  vmProberSpec:
+    url: blackbox-exporter.monitoring.svc:9115
