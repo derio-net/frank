@@ -87,7 +87,7 @@ spec:
       containers:
         # ----- ruvocal (the multi-agent web server) ------------------
         - name: ruflo
-          image: ghcr.io/derio-net/ruflo-server:83bdab4aa0a75e5d6c2bbbc5541d2714cb148b8e
+          image: ghcr.io/derio-net/ruflo-server:c084c4f1f29b3a81fd353c753af0fb3447334b9a
           imagePullPolicy: IfNotPresent
           ports:
             - { name: http, containerPort: 3000, protocol: TCP }
@@ -151,7 +151,7 @@ spec:
 
         # ----- ruflo-shell (interactive maintainer sidecar) ----------
         - name: ruflo-shell
-          image: ghcr.io/derio-net/ruflo-shell:83bdab4aa0a75e5d6c2bbbc5541d2714cb148b8e
+          image: ghcr.io/derio-net/ruflo-shell:c084c4f1f29b3a81fd353c753af0fb3447334b9a
           imagePullPolicy: IfNotPresent
           ports:
             - { name: ssh,         containerPort: 2222,  protocol: TCP }
