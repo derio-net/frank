@@ -294,3 +294,60 @@ claude --version   # login shells resolve ~/.local/bin ahead of the baked /usr/b
 native build's **background auto-updater** uses the same download path — i.e. a pod can
 group-OOM mid-session with no operator action; either give the pod ≥8Gi or set
 `DISABLE_AUTOUPDATER=1`.
+
+## hermes-agent-shell: Hermes venv is PVC-resident, seeded from a relocatable image seed (frank#496)
+
+The `agent` user (uid 1000) in `hermes-agent-shell` cannot patch image-baked
+files: the pod is `runAsNonRoot` + `allowPrivilegeEscalation: false` +
+`capabilities.drop: ["ALL"]`, and `fsGroup: 1000` only re-groups *mounted
+volumes*, never image layers. The old image baked the Hermes venv `root:root`
+at `/opt/hermes-agent`, so maintaining Hermes in-pod (`hermes update`,
+hot-patching `site-packages`) was impossible — the frank#496 incident.
+
+**Design (image `agent-images@83bdab4`+):**
+
+- The image bakes a **relocatable** seed venv at `/opt/hermes-agent`
+  (`uv venv --relocatable` — console scripts get a `#!/bin/sh` polyglot
+  shebang that re-execs python by *relative* path, so the venv runs from any
+  directory after a copy). It is a read-only build artifact, NOT the live
+  runtime. The auto-continue patch (below) is `git apply`'d into it at build,
+  and `/opt/hermes-agent/.seed-version` is stamped `<HERMES_VERSION>+autocontinueN`.
+- On first boot, `cont-init.d/35-hermes-venv-seed` (runs as uid 1000, before
+  `40-shell-inventory`) `cp -a`'s the seed onto the `/home/agent` PVC at
+  **`/home/agent/.local/opt/hermes-agent`** — the **live** venv, uid-1000-owned
+  and writable. The launcher `/usr/local/bin/hermes` points at the PVC venv.
+  In-pod patches / `hermes update` now persist across pod restarts.
+- **Version-gated re-seed:** the hook compares `$SEED/.seed-version` vs the live
+  marker. Mismatch (first boot, or an image/Hermes bump) → replace the live
+  venv (superseding any in-pod patches with the new image's). Match → no-op,
+  **preserving** in-pod hot-patches. So an image bump cleanly rolls forward;
+  a plain restart keeps the operator's edits.
+- The venv cannot be baked directly at the PVC path — the PVC mount at
+  `/home/agent` **shadows** anything baked under it (see the "PVC mounts hide
+  image-baked files" gotcha above).
+
+**Manual re-seed:** the hook's shebang is `#!/command/with-contenv bash` (s6
+execline wrapper, only resolves inside supervised cont-init). To re-run it by
+hand, invoke via bash — a bare `docker exec`/`kubectl exec
+.../35-hermes-venv-seed` hits `execlineb: fatal: unable to exec ifelse` (exit
+127) because the execline env isn't set up:
+
+```bash
+kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
+  bash /etc/cont-init.d/35-hermes-venv-seed
+```
+
+**Auto-continue patch (baked):** `agent-images/hermes-agent-shell/patches/hermes-autocontinue-chat-completions.patch`
+widens one gate in Hermes' `agent/conversation_loop.py`. Hermes v0.15.2 ships a
+countermeasure for the "announce-only turn" failure (a planning/ack message
+with `finish_reason=stop` and no tool call — endemic to `qwen36-a3b` at ~16k
+ctx): it injects `[System: Continue now. Execute the required tool calls…]` and
+loops. But it was gated on `api_mode == "codex_responses"`, so it never fired
+on Frank's OpenAI-compatible LiteLLM path (`api_mode == "chat_completions"`,
+the `determine_api_mode` default for a custom provider on
+`http://litellm.litellm.svc:4000/v1`). The patch widens the gate to
+`in ("codex_responses", "chat_completions")`; the detection heuristic
+(`looks_like_codex_intermediate_ack`) is provider-agnostic. Applied at build
+with `git apply` (zero fuzz → the build fails if the hunk drifts on a
+`HERMES_VERSION` bump; refresh the patch then, and bump the `+autocontinueN`
+seed-version suffix so live pods re-seed).

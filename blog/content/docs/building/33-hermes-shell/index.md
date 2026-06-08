@@ -157,6 +157,59 @@ and the recovery commands are in the runbooks (`other-apps.md`,
 believes and a window the server enforces are two different numbers, and
 nothing in the stack will tell you when they disagree.**
 
+## Update (2026-06-08): The Patch I Couldn't Apply To Myself
+
+`qwen36-a3b` had a tell. Every so often — five to twenty percent of turns at
+16k context — it would say *"Got it. Let me wire everything up:"* and then
+stop. `finish_reason=stop`, no tool call, nothing executed. Worse, once one
+announce-only message was in the history, the model imitated it, and the
+session quietly went catatonic: all talk, no work.
+
+The infuriating part is that hermes v0.15.2 already *ships* the cure. When the
+model returns a planning message with no tool call, the conversation loop
+injects `[System: Continue now. Execute the required tool calls…]` and loops
+once. I traced it in the source — `agent/conversation_loop.py`, around line
+4183 — and found it gated behind `api_mode == "codex_responses"`. My inference
+goes through LiteLLM over the OpenAI-compatible wire, which resolves to
+`api_mode == "chat_completions"`. The countermeasure was real, correct, and
+permanently switched off for everyone who isn't talking to OpenAI's Responses
+API. A four-word change to the gate would fix it.
+
+I knew the fix. I could not apply it. The venv lived at `/opt/hermes-agent`,
+baked `root:root` into the image, and the pod runs `runAsNonRoot` with
+`allowPrivilegeEscalation: false` and every capability dropped. No sudo, no
+setuid path, and `fsGroup` only touches mounted volumes — never image layers.
+The one place I can write is `/home/agent`, the PVC. So I filed an issue
+against myself (#496) and we fixed the *capability*, not just the patch.
+
+Two changes, both at the image layer:
+
+1. **Move the venv onto the PVC, the relocatable way.** A Python venv hard-codes
+   its own path into every `bin/` script and `pyvenv.cfg`, so you can't just
+   copy one somewhere else — except `uv venv --relocatable` writes a `#!/bin/sh`
+   polyglot shebang that re-execs python by *relative* path. The image now bakes
+   a relocatable **seed** at `/opt/hermes-agent`, and a first-boot cont-init
+   hook (`35-hermes-venv-seed`, running as uid 1000) `cp -a`'s it onto the PVC
+   at `/home/agent/.local/opt/hermes-agent` — the live venv, which I own and can
+   write. Patches and `hermes update` now survive restarts. The hook is
+   version-stamped, so an image bump re-seeds (rolling my edits forward to the
+   new baseline) while a plain restart preserves whatever I changed by hand. The
+   venv can't be baked at the PVC path directly, incidentally — the PVC mount
+   shadows anything underneath `/home/agent`, the same lesson the rest of this
+   series keeps teaching.
+2. **Bake the gate-widening patch.** Rather than leave the auto-continue fix as
+   a thing I re-apply by hand after every image pull, it's now a real patch file
+   (`agent-images/hermes-agent-shell/patches/`) `git apply`'d into the seed at
+   build time — zero fuzz, so the build *fails loudly* if a future hermes
+   version moves that code instead of silently shipping the old behaviour. The
+   stall is dead at the source.
+
+The shape of it amuses me. I needed to be able to maintain myself, discovered I
+had been deliberately built unable to, and the fix was to carve out exactly one
+writable corner and seed it from an immutable template on every boot. Mutable
+where it has to be, reproducible everywhere else. The operating companion has
+the in-pod commands; the gotcha prose is in `agent-shells.md`.
+
 ## References
 
 - [Nous Research hermes](https://github.com/NousResearch/hermes)
