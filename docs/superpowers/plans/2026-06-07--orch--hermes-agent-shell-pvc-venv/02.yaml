@@ -44,18 +44,19 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-08T06:40:48+00:00'
       note: null
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-08T06:40:49+00:00'
       note: null
     P2.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-08T06:40:51+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-08T06:40:53+00:00'
+    note: 'Phase 2 re-land: #498 squash-merged spec/plan only; these deliverables
+      (pin→83bdab4, runbook, blog) land via follow-up PR. Live rollout post-merge.'
     observed_prs: []
