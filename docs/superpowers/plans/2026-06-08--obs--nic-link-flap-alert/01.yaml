@@ -1,0 +1,162 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Add NIC link-flap alert rule + validate (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Baseline — assert the rule is absent and the file is valid
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Establish the RED baseline in the worktree
+      (/Users/derio/.cache/fr/worktrees/frank/feat__nic-link-flap-alert).
+      Confirm the alert-rules ConfigMap parses as valid YAML today AND
+      that the new rule group is NOT yet present:
+
+        python3 -c "import yaml,sys; list(yaml.safe_load_all(open('apps/grafana-alerting/manifests/alert-rules-cm.yaml')))" && echo "YAML OK"
+        grep -c 'layer-1-nic-link-flap' apps/grafana-alerting/manifests/alert-rules-cm.yaml
+
+      Expected: "YAML OK" then "0" (rule group absent = RED).
+  - id: P1.T1.S2
+    text: |
+      Read the sibling rule `layer-1-hardware-down` (group
+      `name: layer-1-hardware-down`) and `layer-1-node-memory-headroom`
+      in apps/grafana-alerting/manifests/alert-rules-cm.yaml. The new
+      rule MUST be structurally identical: the SSE A→B→C shape (refId A
+      query with datasourceUid P4169E866C3094E38 + instant:true; refId B
+      reduce/last/dropNN with datasourceUid __expr__; refId C
+      threshold/expression B with datasourceUid __expr__),
+      condition: C, noDataState: OK, execErrState: Error, interval 1m,
+      labels.severity + labels.github_issue, annotations.summary +
+      annotations.runbook. The ONLY differences are: refId A expr, the
+      threshold evaluator params, relativeTimeRange (1800, not 600),
+      for: 0m, and the annotation text.
+- number: 2
+  title: Add the rule group
+  steps:
+  - id: P1.T2.S1
+    text: |
+      In apps/grafana-alerting/manifests/alert-rules-cm.yaml, insert the
+      new rule group immediately AFTER the `layer-1-node-memory-headroom`
+      group and BEFORE the `# --- Layer 2 — OS & Bootstrap (frank-ops#2) ---`
+      comment. Match the existing 6-space group indentation exactly.
+      Insert verbatim (between the markers, do NOT include the markers):
+
+      ===BEGIN rule group===
+      # --- Layer 1 — NIC link flap (frank-ops#1) ---
+      # Carrier-change RATE, not a down-state: a flapping NIC is
+      # up-on-average and never sustains a `for: 5m` down window, so the
+      # NotReady / Cilium-Down rules miss it by construction (2026-06-08
+      # gpu-1 enp3s0 incident — 76 carrier changes, 0 alerts, ~8h blind).
+      # Counter is reset-safe: a reboot zeroes it (node-exporter restart)
+      # and increase() accounts for the reset, so reboots (~1 change) and
+      # cable replugs (<=2) stay under the >6/30m threshold.
+      - orgId: 1
+        name: layer-1-nic-link-flap
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-1-nic-link-flap
+            title: Layer 1 Hardware NIC Link Flapping
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  # carrier-change counter increase over 30m, physical NICs only
+                  # (en*/eth*); excludes cilium_*, lxc*, veth*, lo.
+                  expr: 'increase(node_network_carrier_changes_total{device=~"en.*|eth.*"}[30m])'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [6] }
+            noDataState: OK
+            execErrState: Error
+            for: 0m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#1"
+            annotations:
+              summary: "L1 Hardware: NIC {{ $labels.device }} on {{ $labels.instance }} link-flapping (>6 carrier changes/30m) — Cilium datapath risk (2026-06-08 enp3s0 incident)"
+              runbook: "talosctl -n <node-ip> dmesg | grep 'Link is'; reseat cable / switch-end port; durable fix pcie_aspm=off — docs/runbooks/frank-gotchas/networking.md"
+      ===END rule group===
+- number: 3
+  title: Validate — GREEN
+  steps:
+  - id: P1.T3.S1
+    text: |
+      YAML + presence (GREEN):
+
+        python3 -c "import yaml; list(yaml.safe_load_all(open('apps/grafana-alerting/manifests/alert-rules-cm.yaml')))" && echo "YAML OK"
+        grep -c 'layer-1-nic-link-flap' apps/grafana-alerting/manifests/alert-rules-cm.yaml
+
+      Expected: "YAML OK" then "2" (group name + rule uid).
+  - id: P1.T3.S2
+    text: |
+      Structural parity with the sibling. Load the ConfigMap's embedded
+      rules YAML and assert the new rule's data[] refIds, datasourceUids,
+      and model.type values match layer-1-hardware-down's; and that
+      condition=C, noDataState=OK, execErrState=Error, for=0m,
+      labels.severity=warning, labels.github_issue="frank-ops#1",
+      folder=feature-health, evaluator params=[6], expr contains
+      `increase(node_network_carrier_changes_total` and
+      `device=~"en.*|eth.*"` and `[30m]`. A small python assertion script
+      is acceptable; paste its PASS output for the PR.
+  - id: P1.T3.S3
+    text: |
+      Label-template + threshold sanity (no cluster mutation; read-only
+      against the live VM datasource via an in-cluster pod is OPTIONAL —
+      the metric was already confirmed present, gpu-1 enp3s0=76 over the
+      incident). Assert from the incident evidence in the spec/runbook:
+      (a) the metric carries `instance` + `device` labels (NOT `node`) —
+      so the annotation templates are correct; (b) the storm window
+      (>dozens/30m) exceeds 6 ⇒ would fire; (c) a single reboot/replug
+      (<=2 changes, counter reset-safe) stays under 6 ⇒ would not fire.
+      Record these three confirmations in the PR description.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

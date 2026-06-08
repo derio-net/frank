@@ -1,0 +1,76 @@
+schema_version: 2
+phase:
+  number: 2
+  title: '[manual] Post-merge deploy + synthetic-import Telegram test'
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Deploy and confirm the rule loads
+  steps:
+  - id: P2.T1.S1
+    text: |
+      # manual-operation
+      After the PR merges, ArgoCD syncs the grafana-alerting app, then
+      RESTART the Grafana pod (file-provisioned alert rules are read at
+      boot, not watched):
+        source .env
+        kubectl rollout restart deploy/$(kubectl get deploy -n monitoring -o name | grep -i grafana | head -1 | cut -d/ -f2) -n monitoring
+      Confirm in Grafana → Alerting → Alert rules that
+      "Layer 1 Hardware NIC Link Flapping" is present under the
+      feature-health folder in state Normal.
+- number: 2
+  title: Prove the Telegram chain (synthetic import)
+  steps:
+  - id: P2.T2.S1
+    text: |
+      # manual-operation
+      Import a rising synthetic carrier-changes counter into vmsingle
+      spanning the 30m eval window so increase[30m] > 6, against a
+      synthetic instance/device (no real NIC touched). vmsingle ClusterIP
+      is reachable from an in-cluster pod (e.g. exec the hermes pod);
+      POST to /api/v1/import/prometheus with two timestamped samples
+      (value 0 at now-1800s, value 99 at now) for series
+      node_network_carrier_changes_total{device="en-test",
+      instance="synthetic:9100",job="node-exporter"}. Within one 1m eval
+      the rule transitions to Firing.
+  - id: P2.T2.S2
+    text: |
+      # manual-operation
+      Confirm a Telegram message arrives at "Telegram - Willikins" with
+      {{ $labels.device }}=en-test and {{ $labels.instance }}=synthetic:9100
+      templated correctly. Confirm the Health Bridge route also fires for
+      frank-ops#1 WITHOUT creating a spurious new tracker beyond the
+      expected Layer-1 lifecycle (the rule reuses the existing L1 work
+      item, like its sibling hardware rules).
+  - id: P2.T2.S3
+    text: |
+      # manual-operation
+      Clean up: delete the synthetic series (or let it age out of the 30m
+      window). Confirm the rule returns to Normal and a resolved
+      notification is delivered. Record the message_id / screenshot as
+      deployment evidence and set the plan Status to Deployed.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
