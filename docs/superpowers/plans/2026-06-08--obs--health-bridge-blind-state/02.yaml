@@ -1,0 +1,30 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Release health-bridge v0.4.0
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Merge, tag, verify GHCR build
+  steps:
+  - id: P2.T1.S1
+    text: |
+      After PR CI is green and the PR is merged to main, tag the MERGE
+      commit `v0.4.0` and verify the tag tree actually contains the new
+      code BEFORE relying on the build (stale-tag gotcha):
+      `git fetch && git tag v0.4.0 <merge-sha> && git grep -q isBlindAlert v0.4.0 && git grep -q FindOpenBugsByFeature v0.4.0`
+      (both must exit 0). Then `git push origin v0.4.0` and watch the GHCR
+      build action publish `ghcr.io/derio-net/health-bridge:v0.4.0`.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

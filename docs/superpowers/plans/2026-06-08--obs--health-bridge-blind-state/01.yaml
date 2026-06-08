@@ -1,0 +1,158 @@
+schema_version: 2
+phase:
+  number: 1
+  title: health-bridge v0.4.0 — blind-state + alertname-agnostic heal (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Failing tests first
+  steps:
+  - id: P1.T1.S1
+    text: |
+      In the sibling repo, branch and confirm a green baseline.
+      `cd ~/Docs/projects/DERIO_NET/health-bridge && git checkout -b feat/blind-state-handling && go test ./...`
+      Expected: all existing tests PASS (baseline green before adding new tests).
+  - id: P1.T1.S2
+    text: |
+      Add failing tests to `bridge_test.go`. Use the existing test harness
+      (the suite already fakes the GitHub client — mirror how the
+      auto-close tests assert on CreateBugIssue / Close calls). Add:
+      (a) TestProcessAlert_DatasourceError_Degraded_NoBug — firing,
+          labels{alertname:"DatasourceError",severity:"critical",
+          github_issue:"frank-ops#99"} ⇒ lifecycle set to "degraded" AND
+          CreateBugIssue NOT called.
+      (b) TestProcessAlert_NoData_Degraded_NoBug — same with
+          alertname:"NoData".
+      (c) TestProcessAlert_RealCritical_Dead_WithBug — firing,
+          alertname:"Agent Pod Not Running",severity:"critical" ⇒
+          lifecycle "dead" AND CreateBugIssue called once (regression
+          guard; behaviour unchanged).
+      (d) TestProcessAlert_CrossAlertnameHeal — given an open bug titled
+          "[Bug] DatasourceError is dead — …" whose body refs
+          frank-ops#99, a resolved alert with
+          alertname:"Layer 18 Persistent Agent Heartbeat Stale",
+          github_issue:"frank-ops#99" ⇒ that bug is closed (via the new
+          feature-ref matcher).
+  - id: P1.T1.S3
+    text: |
+      Run `go test ./...` and confirm the four new tests FAIL (RED) for the
+      right reasons (current code: (a)/(b) map critical→dead + create bug;
+      (d) FindOpenBugs keys on alertname so the DatasourceError bug is not
+      found). Paste the failing output into the PR description later.
+- number: 2
+  title: Source fix — blindness ⇒ degraded, no bug
+  steps:
+  - id: P1.T2.S1
+    text: |
+      In `bridge.go`, add the helper:
+      ```go
+      // isBlindAlert reports whether the alert means "monitoring cannot
+      // see this layer" (Grafana built-ins) rather than a real fault.
+      func isBlindAlert(alertname string) bool {
+          switch alertname {
+          case "DatasourceError", "NoData":
+              return true
+          }
+          return false
+      }
+      ```
+  - id: P1.T2.S2
+    text: |
+      In `processAlert`, after computing `newState` (line ~103), cap blind
+      alerts at degraded and remember the flag for the bug-create guard:
+      ```go
+      blind := isBlindAlert(alert.Labels["alertname"])
+      if alert.Status == "firing" && blind && newState == "dead" {
+          newState = "degraded" // blindness ≠ death
+      }
+      ```
+      Then gate the `newState == "dead"` bug-creation block (line ~147) so
+      it is skipped when `blind` (already guaranteed non-dead above, but
+      keep the guard explicit for clarity and NoData-as-degraded inputs).
+  - id: P1.T2.S3
+    text: |
+      Run `go test -run 'DatasourceError|NoData|RealCritical' ./...`.
+      Expected: tests (a), (b), (c) now PASS. Test (d) still FAILS (heal
+      matcher not yet changed).
+- number: 3
+  title: Safety net — heal by feature-ref alone
+  steps:
+  - id: P1.T3.S1
+    text: |
+      In `github.go`, add `FindOpenBugsByFeature(repo string, number int)
+      ([]int, error)`. Reuse the existing open-bug search but match ONLY on
+      the body feature ref — extract the shared body-contains check from
+      `FindOpenBugs` into a helper, then: FindOpenBugs = title-prefix AND
+      feature-ref; FindOpenBugsByFeature = feature-ref only. Keep the
+      newline-terminated ref string `fmt.Sprintf("**Feature Issue:** %s/%s#%d\n", org, repo, number)`
+      so `#2` never matches `#24`.
+  - id: P1.T3.S2
+    text: |
+      In `bridge.go` `processAlert`, change the `status == "resolved"`
+      branch (line ~118) to call `b.github.FindOpenBugsByFeature(repo,
+      number)` instead of `FindOpenBugs(repo, alertName, number)`. Leave
+      the create-dedup call (line ~152, the `newState == "dead"` block)
+      on the alertname-aware `FindOpenBugs` unchanged.
+  - id: P1.T3.S3
+    text: |
+      Run `go test ./...` (all) + `go vet ./...`. Expected: ALL tests PASS
+      (a,b,c,d + pre-existing). Confirm no other test regressed.
+- number: 4
+  title: Open the health-bridge PR
+  steps:
+  - id: P1.T4.S1
+    text: |
+      Commit (`fix: treat DatasourceError/NoData as degraded (blindness ≠
+      death) + heal bugs by feature-ref`), push `feat/blind-state-handling`,
+      and open the PR against derio-net/health-bridge main. Include the
+      RED→GREEN test output and a link to the frank spec
+      (docs/superpowers/specs/2026-06-08--obs--health-bridge-blind-state-design.md)
+      and this incident in the body.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-08T05:19:36+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-08T05:19:39+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-06-08T05:19:42+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-08T05:26:35+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-08T05:26:42+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-06-08T05:26:48+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-06-08T05:26:54+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-06-08T05:27:02+00:00'
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: '2026-06-08T05:27:09+00:00'
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: '2026-06-08T05:30:08+00:00'
+      note: null
+  completion:
+    at: '2026-06-08T05:30:14+00:00'
+    note: null
+    observed_prs: []

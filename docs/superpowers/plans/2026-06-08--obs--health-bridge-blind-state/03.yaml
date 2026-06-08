@@ -1,0 +1,73 @@
+schema_version: 2
+phase:
+  number: 3
+  title: frank — image bump v0.4.0 + retro docs
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Bump the image pin
+  steps:
+  - id: P3.T1.S1
+    text: |
+      In frank, edit `apps/health-bridge/manifests/deployment.yaml`: change
+      `image: ghcr.io/derio-net/health-bridge:v0.3.1` →
+      `:v0.4.0`. (Single-line change; ArgoCD will sync on merge.)
+- number: 2
+  title: Retro-update Layer 23/16 posts (fix/extension — no new post)
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Update `blog/content/docs/building/23-health-bridge/index.md`: add a
+      short "blindness ≠ death" gotcha/correction subsection — the
+      power-outage DatasourceError storm, why the bridge now maps
+      DatasourceError/NoData → degraded with no bug, and why heal closes by
+      feature-ref. Keep the narrative voice.
+  - id: P3.T2.S2
+    text: |
+      Update `blog/content/docs/operating/16-health-bridge/index.md`: add
+      the operational note + the synthetic-resolve replay recipe (the
+      scripts/tmp/replay-datasourceerror-resolve.sh pattern) as the manual
+      recovery for any future stranded board states / bugs.
+  - id: P3.T2.S3
+    text: |
+      Add a gotcha one-liner to `agents/rules/frank-gotchas.md` under the
+      Observability digest section (DatasourceError/NoData = blindness not
+      death → degraded + no bug since v0.4.0; heal closes bugs by
+      feature-ref, alertname-agnostic), and the full prose/recovery to
+      `docs/runbooks/frank-gotchas/obs-digest.md`.
+- number: 3
+  title: Commit frank changes
+  steps:
+  - id: P3.T3.S1
+    text: |
+      Commit on a branch (`fix(obs): health-bridge v0.4.0 — blindness ≠
+      death`) and open the frank PR. Do NOT push to main directly.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
