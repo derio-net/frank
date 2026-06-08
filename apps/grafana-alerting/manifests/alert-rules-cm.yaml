@@ -681,8 +681,12 @@ data:
               severity: warning
               github_issue: "frank-ops#1"
             annotations:
-              summary: "L1 Hardware: NIC {{ $labels.device }} on {{ $labels.instance }} link-flapping (>6 carrier changes/30m) — Cilium datapath risk (2026-06-08 enp3s0 incident)"
-              runbook: "talosctl -n <node-ip> dmesg | grep 'Link is'; reseat cable / switch-end port; durable fix pcie_aspm=off — docs/runbooks/frank-gotchas/networking.md"
+              # NOTE: no < > & in annotations — Grafana's Telegram contact point
+              # sends HTML parse_mode, so '<node-ip>' / bare '>' render as invalid
+              # HTML tags and Telegram rejects the message with 400 Bad Request
+              # (silent non-delivery; logged as ngalert.notifier error). 2026-06-08.
+              summary: "L1 Hardware: NIC {{ $labels.device }} on {{ $labels.instance }} link-flapping (6+ carrier changes/30m) — Cilium datapath risk (2026-06-08 enp3s0 incident)"
+              runbook: "talosctl -n NODE_IP dmesg | grep 'Link is'; reseat cable / switch-end port; durable fix pcie_aspm=off — docs/runbooks/frank-gotchas/networking.md"
 
       # --- Layer 2 — OS & Bootstrap (frank-ops#2) ---
       # Per control-plane node only — HA lost = critical.

@@ -143,6 +143,10 @@ Verifies the full chain end-to-end — rule evaluation → notification policy r
 
 None blocking.
 
+## Deployment Deviations
+
+- **2026-06-08 — Telegram 400 (silent non-delivery), fixed post-merge.** The post-merge Test Plan caught the rule firing correctly on a *real* gpu-1 `enp3s0` flap (the reseat from the original incident had not fully held), but **every Telegram page failed with `400 Bad Request`**. Root cause: Grafana's Telegram contact point sends HTML `parse_mode`, and the annotations carried `talosctl -n <node-ip> dmesg` and `(>6 …)` — Telegram's HTML parser rejected `<node-ip>` as an invalid tag. The Health Bridge webhook (raw JSON) delivered fine, so `frank-ops#1` lifecycle worked; only Telegram was affected, and `grafana_alerting_notification_errors_total` did not surface it. Fix: strip `<`/`>`/`&` from the annotation values (`<node-ip>`→`NODE_IP`, `>6`→`6+`); gotcha recorded in `agents/rules/frank-gotchas.md` (Grafana) + `docs/runbooks/frank-gotchas/grafana.md`. This is the textbook payoff of the "not Deployed until the workflow is observed end-to-end" rule — static validation passed; only a live firing exposed it. (gpu-1 NIC durable fix — `pcie_aspm=off` Talos patch — tracked separately as hardware ops.)
+
 ## Implementation Plans
 
 | Plan | Repo | File | Depends on |
