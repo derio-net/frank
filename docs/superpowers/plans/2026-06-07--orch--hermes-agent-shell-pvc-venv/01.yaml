@@ -1,0 +1,165 @@
+schema_version: 2
+phase:
+  number: 1
+  title: 'agent-images: PVC-resident Hermes venv + baked auto-continue patch (TDD)'
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Auto-continue gate-widening patch (chat_completions)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      In the agent-images repo, create a failing test
+      `hermes-agent-shell/tests/test_autocontinue_patch.bats` that: (a)
+      curls the pinned Hermes wheel
+      `hermes_agent-0.15.2-py3-none-any.whl` from the stable pythonhosted
+      URL (files.pythonhosted.org/packages/71/20/…/hermes_agent-0.15.2-py3-none-any.whl)
+      into `$BATS_TMPDIR`, unzips it, (b) applies
+      `hermes-agent-shell/patches/hermes-autocontinue-chat-completions.patch`
+      with `patch -p1 --forward` against the unpacked tree, and (c)
+      asserts the patched `agent/conversation_loop.py` contains the exact
+      string `in ("codex_responses", "chat_completions")`. Run it and
+      confirm it FAILS (patch file does not exist yet).
+  - id: P1.T1.S2
+    text: |-
+      Create `hermes-agent-shell/patches/hermes-autocontinue-chat-completions.patch`
+      (unified diff, `-p1`) that widens the single gate in
+      `agent/conversation_loop.py` from `agent.api_mode == "codex_responses"`
+      to `agent.api_mode in ("codex_responses", "chat_completions")` in the
+      auto-continue block (the `codex_ack_continuations < 2` /
+      `_looks_like_codex_intermediate_ack(...)` condition, ~line 4183).
+      Include ≥3 lines of context so it applies unambiguously. Header
+      comment block in the patch explains why (LiteLLM path resolves to
+      api_mode `chat_completions` via `determine_api_mode`'s default; the
+      ack heuristic is provider-agnostic). Re-run the bats test from
+      P1.T1.S1 and confirm it now PASSES.
+- number: 2
+  title: First-boot seed hook + bats unit test (PVC venv)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create a failing bats test
+      `hermes-agent-shell/tests/test_venv_seed.bats` driving the seed
+      hook logic against fake `$SEED`/`$LIVE` tmpdirs (no Docker): (1)
+      first boot with no `$LIVE` → hook copies seed and writes the
+      version marker; (2) same-version re-run → no-op AND a sentinel file
+      written into `$LIVE` survives (in-pod patch preserved); (3)
+      version-mismatch re-run → `$LIVE` replaced and sentinel gone. The
+      hook script is parameterised by `SEED`/`LIVE` env (default to the
+      real paths) so the test can point them at tmpdirs. Run it; confirm
+      FAIL (hook script absent).
+  - id: P1.T2.S2
+    text: |-
+      Create `hermes-agent-shell/rootfs/etc/cont-init.d/35-hermes-venv-seed`
+      with shebang `#!/command/with-contenv bash` implementing the
+      version-aware seed: `SEED=${SEED:-/opt/hermes-agent}`,
+      `LIVE=${LIVE:-/home/agent/.local/opt/hermes-agent}`; compare
+      `$SEED/.seed-version` vs `$LIVE/.seed-version`; on mismatch `mkdir -p
+      $(dirname $LIVE)`, `cp -a $SEED $LIVE.new`, `rm -rf $LIVE`, `mv
+      $LIVE.new $LIVE`; fail-loud (non-zero + log) if `cp` fails; no-op on
+      match. Re-run test_venv_seed.bats and confirm PASS.
+- number: 3
+  title: Dockerfile — relocatable seed venv, apply patch, version marker, repoint
+    launcher
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Edit `hermes-agent-shell/Dockerfile` venv RUN (lines ~44-48): use
+      `uv venv --relocatable --python 3.11 /opt/hermes-agent`; keep `uv
+      pip install hermes-agent==${HERMES_VERSION}`; `COPY patches/` into
+      the build and `patch -p1 --forward` the installed
+      site-packages/agent/conversation_loop.py (build FAILS if it does not
+      apply); write `/opt/hermes-agent/.seed-version` =
+      `${HERMES_VERSION}+autocontinue1`; repoint
+      `ln -sf /home/agent/.local/opt/hermes-agent/bin/hermes
+      /usr/local/bin/hermes`; `chown -R ${AGENT_UID}:${AGENT_GID}
+      /opt/hermes-agent` in the SAME RUN; replace the build-time
+      `/usr/local/bin/hermes --version` check with
+      `/opt/hermes-agent/bin/hermes --version` (the symlink target is the
+      not-yet-seeded PVC path at build time).
+  - id: P1.T3.S2
+    text: |-
+      Add `chmod +x /etc/cont-init.d/35-hermes-venv-seed` to the
+      Dockerfile's existing chmod block (alongside the
+      `40-shell-inventory` chmod), so the new hook is executable in the
+      image. Confirm the patches dir is in the COPY/build context.
+- number: 4
+  title: Extend CI smoke test for the PVC venv + live patch
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      In `.github/workflows/build.yaml`, extend
+      `smoke-test-hermes-agent-shell` (after cont-init has run): assert
+      (a) `test -w /home/agent/.local/opt/hermes-agent/bin/python` and
+      `test -O .../bin/hermes` (uid-1000 writable+owned); (b) `hermes
+      --version` resolves through the symlink to the PVC venv and runs;
+      (c) the live `conversation_loop.py` under the PVC venv contains
+      `("codex_responses", "chat_completions")` (baked patch present); (d)
+      a re-seed check: overwrite the live `.seed-version`, re-run
+      `/etc/cont-init.d/35-hermes-venv-seed`, assert the venv was
+      replaced. Keep the existing inventory/MOTD assertions.
+- number: 5
+  title: README — document PVC-resident venv + seed model
+  steps:
+  - id: P1.T5.S1
+    text: |-
+      Update `hermes-agent-shell/README.md`: the live Hermes venv is now
+      PVC-resident at `/home/agent/.local/opt/hermes-agent`, seeded on
+      first boot from a relocatable image seed at `/opt/hermes-agent`,
+      version-gated re-seed on image bump, uid-1000-writable (so `hermes
+      update` / in-pod patches work and persist). Note the baked
+      auto-continue patch. Update the layer-1 baseline row accordingly.
+  - id: P1.T5.S2
+    text: |-
+      Open the agent-images PR (`feat/hermes-pvc-venv-496`): commit all
+      Phase-1 changes, push, `gh pr create`. PR body: summary, link to
+      frank#496, the spec design decisions, and the post-merge note that
+      frank's image pin must be bumped (frank Phase 2). This PR is the
+      primary deliverable.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-07T22:15:33+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-07T22:15:35+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-07T22:15:37+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-07T22:15:38+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-06-07T22:15:40+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-06-07T22:15:41+00:00'
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: '2026-06-07T22:15:43+00:00'
+      note: null
+    P1.T5.S1:
+      state: x
+      ticked_at: '2026-06-07T22:15:44+00:00'
+      note: null
+    P1.T5.S2:
+      state: x
+      ticked_at: '2026-06-07T22:15:46+00:00'
+      note: null
+  completion:
+    at: '2026-06-07T22:15:47+00:00'
+    note: 'agent-images PR #110 open. Deviations: patch test = build git-apply + smoke
+      grep (not a network wheel-download bats); seed-hook bats is a local dev test,
+      CI teeth via the docker smoke test; build uses git apply (patch not in base
+      image). Real-package relocatable seed+cp+run verified locally.'
+    observed_prs: []
