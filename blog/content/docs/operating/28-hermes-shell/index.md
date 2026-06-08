@@ -119,6 +119,40 @@ kubectl -n hermes-agent-shell rollout restart deploy/hermes-agent-shell
 
 `apps/hermes-agent-shell/manifests/configmap-inventory.yaml` ships **sparse** (all keys empty) so the boot reconcile is a genuine no-op. Do not seed `harnesses: { hermes: latest }` — the image bakes hermes at 0.15.2, and a populated entry runs `hermes update` on every boot (non-zero exit pages Telegram). Pin an explicit version only when you mean to float.
 
+## Patching Hermes In-Pod (PVC venv)
+
+Since `agent-images@83bdab4` (frank#496) the live Hermes venv is **PVC-resident** at `/home/agent/.local/opt/hermes-agent`, uid-1000-owned and writable. The image bakes a relocatable *seed* at `/opt/hermes-agent`; `cont-init.d/35-hermes-venv-seed` copies it onto the PVC on first boot. So you can edit `site-packages` in place and the change **persists across pod restarts** — no `PYTHONPATH` shadow-copy, no fragility.
+
+```bash
+# Where the live venv lives (NOT /opt — that's the read-only seed):
+kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
+  readlink -f "$(command -v hermes)"
+#   → /home/agent/.local/opt/hermes-agent/bin/hermes
+
+# Patch a site-packages file in place (survives restarts):
+LIVE=/home/agent/.local/opt/hermes-agent/lib/python3.11/site-packages
+kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
+  sed -i 's/old/new/' "$LIVE/agent/conversation_loop.py"
+```
+
+The seed is **version-gated**: an image bump (new `/opt/hermes-agent/.seed-version`) re-seeds on next boot, *overwriting* in-pod patches with the new image's venv — so bake durable fixes into `agent-images/hermes-agent-shell/patches/` rather than hand-patching. A plain `rollout restart` (same version) preserves your edits.
+
+To force a re-seed by hand (e.g. after corrupting the live venv), invoke the hook **via `bash`** — its `#!/command/with-contenv` shebang only resolves inside supervised cont-init, so a bare exec fails with `execlineb: unable to exec ifelse`:
+
+```bash
+kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
+  bash /etc/cont-init.d/35-hermes-venv-seed
+```
+
+The baked **auto-continue patch** widens hermes' announce-only countermeasure to fire on the LiteLLM `chat_completions` path — it's what stops `qwen36-a3b` from saying "Let me wire everything up:" and then going idle. Confirm it's live:
+
+```bash
+kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
+  grep -c '"codex_responses", "chat_completions"' \
+  /home/agent/.local/opt/hermes-agent/lib/python3.11/site-packages/agent/conversation_loop.py
+#   → 1
+```
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -129,6 +163,7 @@ kubectl -n hermes-agent-shell rollout restart deploy/hermes-agent-shell
 | Reasoning-only empty replies | Thinking model exhausted `max_tokens` on reasoning | Raise the budget or switch model (`/model qwen36-a3b-64k-nothin`) |
 | Hermes refuses a model at init ("minimum 64,000") | Truthful budget below hermes's hard 64k context floor | Use a 64k alias; do NOT lie in `context_length` — that re-opens silent-truncation amnesia |
 | Model "forgets" earlier turns mid-session | Prompt exceeds the real server window; Ollama truncates front-first, silently | New session. Verify budgets: config.yaml `context_length` = live reality; check `kubectl logs -n ollama deploy/ollama \| grep "truncated = 1"` |
+| Agent announces ("Let me wire everything up:") then goes idle | Announce-only turn (no tool call); auto-continue countermeasure not firing | Confirm the baked patch is live (see *Patching Hermes In-Pod*); pre-`83bdab4` images lack it — bump the image pin |
 | `fetch-text: command not found` | ConfigMap mount missing or pod predates it | `kubectl -n hermes-agent-shell rollout restart deploy/hermes-agent-shell` (subPath mounts never live-update) |
 | Mosh hangs on connect | Port range mismatch or all 16 ports held by stale sessions | Use `-p 60032:60047`; stale servers reap after 1h |
 | Env present in `kubectl exec` but not over SSH | Using `ssh -- cmd` (non-interactive skips profile.d) | `bash -lc` via kubectl exec, or interactive SSH |
