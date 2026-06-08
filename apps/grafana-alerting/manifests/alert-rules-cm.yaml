@@ -633,6 +633,57 @@ data:
               summary: "L1 Hardware: node {{ $labels.instance }} has <1GiB memory available for 30m — reclaim-thrash wedge risk (see 2026-06-04 raspi-1 incident)"
               runbook: "talosctl -n <node-ip> memory; check Longhorn instance-manager working set: container_memory_working_set_bytes{pod=~\"instance-manager.*\"}; docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md"
 
+      # --- Layer 1 — NIC link flap (frank-ops#1) ---
+      # Carrier-change RATE, not a down-state: a flapping NIC is up-on-average
+      # and never sustains a `for: 5m` down window, so the NotReady / Cilium-Down
+      # rules miss it by construction (2026-06-08 gpu-1 enp3s0 incident — 76
+      # carrier changes, 0 alerts, ~8h blind). Counter is reset-safe: a reboot
+      # zeroes it (node-exporter restart) and increase() accounts for the reset,
+      # so reboots (~1 change) and cable replugs (<=2) stay under the >6/30m
+      # threshold. See docs/runbooks/frank-gotchas/networking.md.
+      - orgId: 1
+        name: layer-1-nic-link-flap
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-1-nic-link-flap
+            title: Layer 1 Hardware NIC Link Flapping
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  # carrier-change counter increase over 30m, physical NICs only
+                  # (en*/eth*); excludes cilium_*, lxc*, veth*, lo.
+                  expr: 'increase(node_network_carrier_changes_total{device=~"en.*|eth.*"}[30m])'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [6] }
+            noDataState: OK
+            execErrState: Error
+            for: 0m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#1"
+            annotations:
+              summary: "L1 Hardware: NIC {{ $labels.device }} on {{ $labels.instance }} link-flapping (>6 carrier changes/30m) — Cilium datapath risk (2026-06-08 enp3s0 incident)"
+              runbook: "talosctl -n <node-ip> dmesg | grep 'Link is'; reseat cable / switch-end port; durable fix pcie_aspm=off — docs/runbooks/frank-gotchas/networking.md"
+
       # --- Layer 2 — OS & Bootstrap (frank-ops#2) ---
       # Per control-plane node only — HA lost = critical.
       - orgId: 1
