@@ -371,3 +371,36 @@ kubectl exec -n monitoring "$GRAFANA_POD" -c grafana -- \
   | jq '{uid, title, labels, annotations}'
 ```
 
+### Recovering stranded board tiles / bugs after an outage
+
+Since **v0.4.0** the Bridge maps `DatasourceError`/`NoData` to `degraded` with no bug (a blind sensor isn't a corpse), and the heal path closes bugs by feature-ref regardless of alertname — so a recovery resolve closes a bug even when its firing alertname differed. That removes the usual stranding.
+
+It can still happen, though, when **Grafana is replaced by a fresh pod mid-incident** (a power outage is the classic case): the new process never fired the alert, so it never sends the `resolved`. The tile stays `dead`/`degraded` and any bug stays open, because the Bridge only ever knows what a webhook tells it. The cure is to *tell* it — replay the missing `resolved` against the Bridge's own idempotent path. It will flip the tiles to `healthy` and close the matching bugs with proper heal comments.
+
+First confirm the underlying services are actually healthy (don't paper over a real outage), then:
+
+```bash
+cd <frank-repo> && source .env   # KUBECONFIG is a relative path — cd first
+
+# Webhook secret, read live (never inline it):
+SECRET=$(kubectl get secret -n monitoring health-bridge-secrets \
+  -o jsonpath='{.data.WEBHOOK_SECRET}' | openssl base64 -d -A)
+
+# The frank-ops# trackers that are stuck (from the bridge logs / board):
+ISSUES="18 1 12 13 15 24 3 5 6 8"
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+alerts=""
+for n in $ISSUES; do
+  alerts="${alerts}{\"status\":\"resolved\",\"labels\":{\"alertname\":\"DatasourceError\",\"github_issue\":\"frank-ops#${n}\",\"severity\":\"critical\"},\"annotations\":{\"summary\":\"Outage recovery\"},\"startsAt\":\"${NOW}\",\"endsAt\":\"${NOW}\"},"
+done
+payload="{\"status\":\"resolved\",\"alerts\":[${alerts%,}]}"
+
+kubectl port-forward -n monitoring svc/health-bridge 18080:8080 >/tmp/hb-pf.log 2>&1 &
+PF=$!; trap 'kill $PF 2>/dev/null' EXIT; sleep 3
+curl -sS -X POST http://127.0.0.1:18080/webhook \
+  -H "Authorization: Bearer ${SECRET}" -H "Content-Type: application/json" \
+  -d "${payload}"
+```
+
+`alertname: DatasourceError` is the key: it makes the bridge match the `[Bug] DatasourceError is dead` titles for the create-era bugs, while the feature-ref close (v0.4.0) handles anything titled differently. The whole thing is idempotent — re-running on already-healthy tiles with no open bugs is a no-op. Verify with `kubectl logs -n monitoring -l app=health-bridge --tail=40 | grep -E 'Closed bug|→ healthy'`.
+

@@ -218,3 +218,61 @@ poller + a tool-calling loop (`analyst.py`, `tools.py`, `commands.py`,
 - **Follow-up (next image bump):** analyst INFO logs (the per-question audit
   trail) aren't emitted — the app never configures the logging level, so
   Python's WARNING default swallows them. Configure logging in `api.py`.
+
+## Health Bridge — blindness ≠ death (2026-06-08 power-outage incident)
+
+> Health Bridge (Grafana-alerting → Derio Ops board + frank-ops bug issues) is
+> a separate service from the ai-alert-helper digest above; this section lives
+> here because both are observability plumbing. Building/operating posts:
+> `building/23-health-bridge`, `operating/16-health-bridge`.
+
+**Symptom.** After a whole-cluster power outage, the Derio Ops board stayed red
+and `[Bug] DatasourceError is dead — …` issues (`frank-ops#44–48`, every
+summary `[no value]`) stayed open long after the alerts stopped firing. Giving
+it time did NOT help — the bridge had nothing left to receive.
+
+**Root cause (two defects).**
+1. *Blindness treated as death.* When the datasource was unreachable, Grafana
+   fired its built-in `DatasourceError` alert, which inherits the `github_issue`
+   label of every rule whose query errored (~10 layers). The bridge mapped a
+   critical-severity `DatasourceError` → `dead`, set those trackers
+   dead/degraded, and created a bug per layer. None described a real fault.
+2. *No resolve ever arrives.* Grafana came back as a **fresh pod**
+   (`restarts=0`, started *after* the firing). A new Grafana process has no
+   in-flight `DatasourceError` instance to clear, so the matching `resolved`
+   webhook is never sent. Compounded by the pre-v0.4.0 close path keying on
+   *alertname*: even the real per-rule resolves that did arrive
+   (e.g. `Layer 18 …`) could not match a `[Bug] DatasourceError is dead` title.
+
+**Fix (health-bridge v0.4.0).**
+- `isBlindAlert()` — firing `DatasourceError`/`NoData` caps at `degraded`, no
+  bug created.
+- `FindOpenBugsByFeature()` — the heal path closes open bugs by the
+  `**Feature Issue:** <org>/<repo>#<n>` body ref alone, alertname-agnostic.
+  `FindOpenBugs` (title-prefix + ref) stays for the create-dedup path.
+
+**Recovery for an already-stranded board / bugs** (e.g. a future fresh-pod
+outage, or pre-v0.4.0 residue). First confirm the affected services are
+actually healthy (don't mask a real outage), then replay the missing resolve —
+the bridge's own idempotent path flips tiles to `healthy` and closes the
+matching bugs with heal comments:
+
+```bash
+cd <frank-repo> && source .env            # KUBECONFIG is relative — cd first
+SECRET=$(kubectl get secret -n monitoring health-bridge-secrets \
+  -o jsonpath='{.data.WEBHOOK_SECRET}' | openssl base64 -d -A)
+ISSUES="18 1 12 13 15 24 3 5 6 8"          # stuck frank-ops# trackers (from logs/board)
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ); alerts=""
+for n in $ISSUES; do
+  alerts="${alerts}{\"status\":\"resolved\",\"labels\":{\"alertname\":\"DatasourceError\",\"github_issue\":\"frank-ops#${n}\",\"severity\":\"critical\"},\"annotations\":{\"summary\":\"Outage recovery\"},\"startsAt\":\"${NOW}\",\"endsAt\":\"${NOW}\"},"
+done
+payload="{\"status\":\"resolved\",\"alerts\":[${alerts%,}]}"
+kubectl port-forward -n monitoring svc/health-bridge 18080:8080 >/tmp/hb-pf.log 2>&1 &
+PF=$!; trap 'kill $PF 2>/dev/null' EXIT; sleep 3
+curl -sS -X POST http://127.0.0.1:18080/webhook \
+  -H "Authorization: Bearer ${SECRET}" -H "Content-Type: application/json" -d "${payload}"
+```
+
+`alertname: DatasourceError` makes the create-era bugs match by title; the
+v0.4.0 feature-ref close handles any other titles. Idempotent. Verify:
+`kubectl logs -n monitoring -l app=health-bridge --tail=40 | grep -E 'Closed bug|→ healthy'`.
