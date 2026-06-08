@@ -37,6 +37,7 @@ Add a single declarative alert rule that pages Telegram when a node's physical N
 
 **In scope:**
 - One new rule group + rule in `apps/grafana-alerting/manifests/alert-rules-cm.yaml`.
+- The incident + monitoring-gap documentation the rule's `runbook` annotation references — full prose in `docs/runbooks/frank-gotchas/networking.md` and a one-liner + gpu-1 cross-ref in `agents/rules/frank-gotchas.md` (drafted during the 2026-06-08 incident response; carried here so the annotation resolves and the rule ships self-contained, per the repo's Layer Fix/Extension workflow step 5).
 
 **Out of scope (explicitly):**
 - `execErrState`/`noDataState` semantics changes (the `Error → KeepLast` rework proposed in `2026-05-31--obs--feature-health-alert-resilience-design.md` is a separate, not-yet-deployed spec — this rule matches the **prevailing** file convention `execErrState: Error` / `noDataState: OK`).
