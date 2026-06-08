@@ -43,6 +43,17 @@ spec:
           secret:
             secretName: agent-ssh-keys
             defaultMode: 0400
+        # Short-lived GitHub App installation token, minted by ESO
+        # (clustergenerator-github-app.yaml → externalsecret-github-app-token.yaml).
+        # Mounted as a whole-secret volume (NOT subPath) so kubelet live-updates
+        # the file as ESO rotates it. optional: true so the pod still starts
+        # before ESO first materializes the Secret. 0440 + fsGroup 1000 → readable
+        # by the uid-1000 agent process; the private key is never on the pod.
+        - name: github-token
+          secret:
+            secretName: agent-github-token
+            optional: true
+            defaultMode: 0440
       containers:
         - name: kali
           image: ghcr.io/derio-net/secure-agent-kali:c084c4f1f29b3a81fd353c753af0fb3447334b9a
@@ -92,6 +103,9 @@ spec:
               readOnly: true
             - name: ssh-keys
               mountPath: /etc/ssh-keys
+              readOnly: true
+            - name: github-token
+              mountPath: /var/run/github
               readOnly: true
           securityContext:
             runAsUser: 1000
@@ -156,6 +170,11 @@ spec:
           volumeMounts:
             - name: agent-home
               mountPath: /home/claude
+            # vk-local also runs git (worktrees) as uid 1000 against the shared
+            # ~/.gitconfig credential helper, so it needs the token file present too.
+            - name: github-token
+              mountPath: /var/run/github
+              readOnly: true
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000

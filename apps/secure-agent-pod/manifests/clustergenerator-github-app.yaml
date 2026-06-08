@@ -1,0 +1,29 @@
+# GitHub App installation-token generator (derio-fr-automation, App 3994132).
+#
+# Least-privilege identity that REPLACES the clawdia org-owner PAT for agent git/gh.
+# The App private key lives ONLY in the external-secrets namespace (read by the ESO
+# controller); it is NEVER delivered to an agent pod. ESO mints a short-lived (~1h)
+# installation token; an ExternalSecret writes it into a Secret that the pod mounts
+# as a live-updated file. Compromising a pod yields at most a ~1h token, not the key.
+#
+# Cluster-scoped (ClusterGenerator) so the private-key Secret can stay in a controlled
+# namespace and be referenced cross-namespace.
+#
+# To tighten further, scope the minted token with `repositories:` / `permissions:`
+# (omitted here = the App's full install: 10 repos, contents/issues/PRs/workflows).
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-derio
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "3994132"
+      installID: "138773908"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-derio-key
+            key: key
+            namespace: external-secrets
