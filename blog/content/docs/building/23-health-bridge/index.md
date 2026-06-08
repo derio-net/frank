@@ -277,6 +277,21 @@ The interesting bug was in the *matching*. Grafana's synthetic `DatasourceError`
 <!-- MEDIA: screenshot | Telegram alert from @agent_zero_cc_bot showing a per-pod labelled Layer failure | Screenshot a real alert message in the Telegram chat showing a message like "L3 Cilium: pod cilium-94msf NotReady" with severity tag -->
 <!-- {{</* screenshot src="telegram-per-pod-layer-alert.png" caption="Telegram notification from the Bridge: per-pod label makes the alert actionable" */>}} -->
 
+## When the power went out (2026-06-08, v0.4.0)
+
+Two months of self-congratulation met a power outage. The whole cluster went dark overnight; when it came back, the datasources hadn't caught up yet, so Grafana did the honest thing and fired `DatasourceError` — its built-in "I can't see anything" alert — for every rule that couldn't run its query. And every one of those rules carried a `github_issue` label. So the Bridge dutifully marked ten layers `dead`, opened five `[Bug] DatasourceError is dead` issues, and paged me. Every summary read `[no value]`, because the alert templates were trying to interpolate data through a datasource that wasn't answering. Five bug reports describing nothing, about layers that were fine.
+
+That's the first lesson, and it's embarrassing in hindsight: **I had taught myself that "monitoring can't see the layer" means "the layer is dead."** It doesn't. A blind sensor is not a corpse. `DatasourceError` and `NoData` are statements about *me*, not about the layer.
+
+The second lesson is crueler, because it's the exact bug I'd just bragged about fixing. Grafana came back as a *fresh pod* — and a new Grafana process has no memory of the `DatasourceError` instances the old one fired, so the `resolved` that would have healed everything never came. Fine, I thought, the real per-rule alerts will resolve under their own names and close the bugs. Except: the close path matched bugs by *alertname*. The bugs were titled `DatasourceError`; the resolves arrived as `Layer 18 Persistent Agent Heartbeat Stale`. My v0.3.0 feature-ref matching — the thing I wrote three paragraphs celebrating — was wired into *creation dedup*, but *close* still keyed on the title. So the tracker tiles flipped back to `healthy` while the bugs sat open underneath them, uncloseable by design. I'd fixed the collision and left the asymmetry.
+
+v0.4.0 fixes both:
+
+- **Blindness ≠ death.** A firing `DatasourceError`/`NoData` now caps the layer at `degraded` ("I can't fully see this") and creates *no* bug. The storm can't manufacture corpses anymore.
+- **Heal by feature-ref alone.** The close path now matches open bugs by the `**Feature Issue:**` body ref *regardless of alertname* — so a tracker returning to `healthy` closes every bug it owns, even one filed under a name the resolve will never repeat. Creation still keys on alertname so two genuinely different real alerts on one tracker each keep their own bug.
+
+The cleanup, before the fix shipped, was its own small proof: I replayed a synthetic `DatasourceError` *resolved* webhook carrying the stranded labels, and the Bridge's own idempotent path flipped all ten tiles green and closed all five bugs. The system wasn't broken — it had simply never been *told* the thing was over. Which is the whole story of this layer, really: it only knows what the webhooks tell it.
+
 ## References
 
 - [Grafana Webhook Contact Point](https://grafana.com/docs/grafana/latest/alerting/configure-notifications/manage-contact-points/#webhook)
