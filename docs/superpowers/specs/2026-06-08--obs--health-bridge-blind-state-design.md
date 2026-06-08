@@ -2,7 +2,7 @@
 
 **Layer:** obs (fix/extension of the health-bridge layer)
 **Date:** 2026-06-08
-**Status:** ready
+**Status:** Deployed
 **Code repo:** `derio-net/health-bridge` (Go) — `bridge.go`, `github.go`, `bridge_test.go`
 **Deploy/docs repo:** `derio-net/frank` — `apps/health-bridge/`, blog Layer 23/16
 
@@ -10,7 +10,7 @@
 
 | Plan | Target repo | Slug | Status |
 |------|-------------|------|--------|
-| 2026-06-08--obs--health-bridge-blind-state | `derio-net/frank` | `2026-06-08--obs--health-bridge-blind-state` | — |
+| 2026-06-08--obs--health-bridge-blind-state | `derio-net/frank` | `2026-06-08--obs--health-bridge-blind-state` | Deployed |
 
 ## Motivation — 2026-06-08 power-outage incident
 
