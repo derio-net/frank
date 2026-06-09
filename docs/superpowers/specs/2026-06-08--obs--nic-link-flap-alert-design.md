@@ -1,7 +1,7 @@
 # NIC Link-Flap Alert — Design
 
 **Date:** 2026-06-08
-**Status:** Spec
+**Status:** Deployed
 **Repo:** frank
 **Layer:** obs
 **Related:**

@@ -55,22 +55,24 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-09T16:26:37+00:00'
       note: null
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-09T16:26:38+00:00'
       note: null
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-09T16:26:40+00:00'
       note: null
     P2.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-09T16:26:41+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-09T16:26:43+00:00'
+    note: 'Verified 2026-06-09: rule loads, fired on a real gpu-1 enp3s0 flap AND
+      on synthetic import; Telegram delivery confirmed working after the #513 HTML-400
+      fix (0 errors, 0 400s, 2 deliveries). Durable NIC fix prepped as PR #515 (pcie_aspm=off).'
     observed_prs: []
