@@ -1647,3 +1647,42 @@ operations:
   verify:
   - kubectl -n longhorn-system get nodes.longhorn.io   # raspi-1/raspi-2 ALLOWSCHEDULING=false
   status: done
+- id: agents-github-app-provision
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/runbooks/frank-gotchas/agent-shells.md
+  when: One-time least-privilege migration off the clawdia org-owner PAT (2026-06-08); repeat per new App/org
+  why_manual: GitHub App creation, permissions, repo install-scope, and private-key generation are UI-only (org Developer settings); the private key downloads once and cannot be expressed declaratively
+  commands:
+  - 'UI (org Settings -> Developer settings -> GitHub Apps -> New): repo perms Contents/Issues/Pull requests/Workflows = Read&write, Metadata = Read (+ Commit statuses = Read&write for CI that posts commit status); org perms none; webhook off; install on SELECTED repos (every repo the consumer touches, per-org); generate the private key.'
+  - 'Apps: derio-fr-automation (App 3994132, derio-net) -> secure-agent-pod; stoa-fr-automation (App 3994156) -> tekton CI of a separate org.'
+  verify:
+  - "env -u GITHUB_TOKEN gh api orgs/<org>/installations --jq '.installations[]|select(.app_slug==\"<app>\")|{repository_selection,permissions}'   # selected + exactly the intended perms"
+  status: done
+- id: agents-github-app-key-apply
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/runbooks/frank-gotchas/agent-shells.md
+  when: After App creation / key rotation; before the consuming ExternalSecret can mint
+  why_manual: bootstrap secret applied out-of-band (SOPS, not ArgoCD-managed); ESO's GithubAccessToken generator reads the key from the CONSUMING namespace, so the Secret must live there
+  commands:
+  - source .env ; sops -d secrets/github-app/github-app-derio-key.yaml | kubectl apply -f -   # -> ns secure-agent-pod
+  - source .env ; sops -d secrets/github-app/github-app-stoa-key.yaml | kubectl apply -f -    # -> ns tekton-pipelines
+  - 'If it stays SecretSyncedError (cached generatorState): source .env ; kubectl -n <ns> annotate externalsecret <name> force-sync="$(date +%s)" --overwrite'
+  verify:
+  - source .env ; kubectl -n secure-agent-pod get externalsecret agent-github-token   # READY=True
+  - source .env ; kubectl -n tekton-pipelines get externalsecret stoa-github-mirror    # READY=True
+  status: done
+- id: agents-clawdia-retire
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/runbooks/frank-gotchas/agent-shells.md
+  when: ONLY after every PAT consumer is migrated to App tokens AND verified against a PRIVATE repo (git) + a real run (gh/CI)
+  why_manual: org membership role changes, PAT revocation, and Infisical key deletion are UI/console-only
+  commands:
+  - 'UI: both orgs -> People -> clawdia-ai-assistant -> Role -> Member (a human owner MUST remain, else org lockout).'
+  - 'UI: clawdia account -> Settings -> Developer settings -> Personal access tokens -> revoke the classic PAT.'
+  - 'Infisical (192.168.55.204): delete /agentic-stoa/STOA_GITHUB_MIRROR_TOKEN once the stoa CI ExternalSecret sources from the App generator (now unused).'
+  verify:
+  - "env -u GITHUB_TOKEN gh api 'orgs/<org>/members?role=admin' --jq '.[].login'   # clawdia-ai-assistant absent"
+  status: done

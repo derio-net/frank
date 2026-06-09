@@ -29,6 +29,36 @@ Same root cause for the more general SSA case: Helm charts with `strategy` value
 
 If all keys are removed, delete the ExternalSecret entirely rather than leaving an empty data array.
 
+## ESO `GithubAccessToken` generator resolves `secretRef` in the consuming namespace (2026-06-08)
+
+ESO's `GithubAccessToken` generator (used to mint short-lived GitHub App
+installation tokens — e.g. for the secure-agent-pod and the tekton CI mirror)
+resolves its `auth.privateKey.secretRef` **in the namespace of the consuming
+ExternalSecret**, and **ignores the `secretRef.namespace` field** — even when the
+generator is a cluster-scoped `ClusterGenerator`. Put the private-key Secret in
+the *consumer's* namespace, not a central one:
+
+- Symptom: the ExternalSecret is `SecretSyncedError` with
+  `error using generator: ... error getting GH pem from secret: secrets "<name>" not found`,
+  while the key plainly exists — just in the wrong namespace.
+- Fix: SOPS the key into the consuming ns (e.g. `secure-agent-pod`,
+  `tekton-pipelines`) and drop the misleading `secretRef.namespace`.
+- Note: the agent pod's ServiceAccount is cluster-admin anyway, so the key's
+  namespace is moot for that threat model — the real protection is that the key
+  is **never mounted into a container** (only the rotating token is).
+
+**Cached generatorState.** After moving/fixing the key, the ExternalSecret stays
+`SecretSyncedError` because ESO caches the prior generator failure in a
+`generatorstates.generators.external-secrets.io` object. Force a re-run:
+
+```bash
+kubectl -n <ns> annotate externalsecret <name> force-sync="$(date +%s)" --overwrite
+```
+
+(Separately, an App-token installation is **per-repo + per-org** — a minted token
+404s on repos not added to the App install; see `agent-shells.md` for the git/gh
+credential-delivery side.)
+
 ## SOPS + ArgoCD ServerSideApply don't mix
 
 Encrypted secrets must live outside ArgoCD-managed paths (see `secrets/` dir) and be applied out-of-band.

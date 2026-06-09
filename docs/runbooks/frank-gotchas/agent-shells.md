@@ -351,3 +351,81 @@ the `determine_api_mode` default for a custom provider on
 with `git apply` (zero fuzz → the build fails if the hunk drifts on a
 `HERMES_VERSION` bump; refresh the patch then, and bump the `+autocontinueN`
 seed-version suffix so live pods re-seed).
+
+## Agent GitHub auth: rotating App installation token — git helper + gh wrapper, not a PAT (2026-06-08)
+
+The secure-agent-pod authenticates to GitHub with a short-lived **GitHub App
+installation token** (App `derio-fr-automation`), not a personal access token.
+ESO's `GithubAccessToken` ClusterGenerator mints a ~1 h token; an ExternalSecret
+writes it to the `agent-github-token` Secret, mounted as a **live-updated volume**
+at `/var/run/github/token` (kubelet refreshes the file as ESO rotates it; the App
+private key never reaches the pod). This replaced the `clawdia-ai-assistant`
+org-owner PAT, which was then demoted to member + revoked.
+
+Two consumers, two shims — both read the mounted token file:
+
+- **git** — the `~/.gitconfig` credential helper (baked at `/opt/gitconfig`,
+  seeded to the PVC on first boot, upgraded in place by `02-credential-migrate`).
+  username is `x-access-token` (the App-token convention; also accepted with a
+  PAT). It MUST read the token with `$(cat "$t")`: **git runs credential helpers
+  via `/bin/sh` = dash**, where the bash-only `$(< file)` read shortcut yields an
+  EMPTY string → `password=` → GitHub rejects auth on PRIVATE repos with
+  *"Invalid username or token. Password authentication is not supported for Git
+  operations."* PUBLIC repos read with no auth and **mask** the bug — so a
+  public-repo check is a false pass. **Always verify against a private repo.**
+
+- **gh** — the `/usr/local/bin/gh` wrapper (ahead of the apt `/usr/bin/gh` in
+  PATH) injects the current token per call:
+  `if [ -r /var/run/github/token ]; then exec env GH_TOKEN="$(cat /var/run/github/token)" /usr/bin/gh "$@"; fi`.
+  Needed because App tokens **rotate** (a long-lived process's captured env token
+  goes stale) and gh otherwise falls back to a stale value or the revoked
+  `~/.config/gh/hosts.yml` PAT → *"Bad credentials"* (the fr-bridge's GraphQL
+  plan-discovery surfaced this). App tokens also lack **user-context**:
+  `gh auth status` / `gh api user` report "invalid", but repo/issue/PR/GraphQL
+  ops (what `fr apply` + the bridge need) work fine.
+
+### Two traps that masked/broke this
+
+1. **`gh auth setup-git` host override.** A past `gh auth setup-git` leaves
+   `credential.https://github.com.helper = !/usr/bin/gh auth git-credential` on
+   the PVC. Git makes the **host-specific** helper win for github.com (an empty
+   `credential.https://github.com.helper=` line first RESETS the list), so the
+   generic App-token helper is ignored and git asks gh for the password — getting
+   gh's stored (revoked) token → 401. `02-credential-migrate` now re-seeds
+   `/opt/gitconfig` (which has no host override) whenever it finds
+   `gh auth git-credential` in the PVC gitconfig.
+2. **Per-repo + per-org install coverage.** An installation token only covers
+   the repos added to the App install, in that org. Repos not in the install 404
+   ("Repository not found"); repos in another org aren't covered at all. The
+   fr-bridge tracks repos across orgs, so each needs coverage (add to the install)
+   or its own App/token — or drop it from the bridge's repo list.
+
+### Recovery — live stopgap before the fixed image rolls
+
+Durable fix is in `agent-images` (gitconfig `$(cat)`, the gh wrapper,
+`02-credential-migrate` upgrades). To patch a running pod immediately
+(`/usr/local/bin` is root-owned, so write the gh wrapper to `~/.local/bin`, which
+is first in PATH):
+
+```bash
+kubectl -n secure-agent-pod exec -i deploy/secure-agent-pod -c kali -- bash -s <<'EOF'
+git config --global --unset-all 'credential.https://github.com.helper' 2>/dev/null || true
+git config --global credential.helper '!f() { for t in /var/run/github/token /run/s6/basedir/env/GITHUB_TOKEN; do [ -r "$t" ] || continue; echo username=x-access-token; printf "password=%s\n" "$(cat "$t")"; return; done; }; f'
+mkdir -p "$HOME/.local/bin"
+cat > "$HOME/.local/bin/gh" <<'WRAP'
+#!/bin/sh
+_tok="${GH_APP_TOKEN_FILE:-/var/run/github/token}"; _real="${GH_REAL_BIN:-/usr/bin/gh}"
+if [ -r "$_tok" ]; then exec env GH_TOKEN="$(cat "$_tok")" "$_real" "$@"; fi
+exec "$_real" "$@"
+WRAP
+chmod +x "$HOME/.local/bin/gh"
+EOF
+```
+
+Verify against a PRIVATE repo (public ones false-pass):
+`git ls-remote https://github.com/derio-net/willikins HEAD` and
+`gh api graphql -f query='{repository(owner:"derio-net",name:"willikins"){name}}'`.
+
+The same App pattern backs other CI on the cluster via per-app `GithubAccessToken`
+generators (e.g. tekton mirror pipelines for a separate org), with the key in the
+consuming namespace — see `storage-secrets-ssa.md` for the generator gotcha.
