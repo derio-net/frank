@@ -21,6 +21,7 @@
 | `402-gpu1-nvidia-extensions.yaml` | omnictl | Adds nvidia extensions to gpu-1 (includes iscsi-tools — see note below) |
 | `04-gpu-nvidia-modules.yaml` | omnictl | Loads nvidia kernel modules on gpu-1 |
 | `gpu-operator-values.yaml` | helm | GPU Operator Helm values (driver/toolkit disabled — Talos provides them) |
+| `403-gpu1-pcie-aspm.yaml` | omnictl | Disables PCIe ASPM (`pcie_aspm=off`) to stop the enp3s0/r8169 NIC link-flap (reboots gpu-1; operator-applied — see file header + `docs/runbooks/frank-gotchas/networking.md`) |
 
 ## Apply
 
