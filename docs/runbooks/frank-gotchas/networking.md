@@ -106,7 +106,14 @@ curl -sG 'http://<vmsingle>:8428/api/v1/query' \
 **Recovery.** Nothing in software — Cilium retries every 10s and self-heals the instant the link is *stably* up. **Do not drain gpu-1**: it is the only GPU node (ollama/litellm/comfyui live there) and both agent pods are hard-pinned (`nodeSelector: kubernetes.io/hostname: gpu-1`), so they'd go `Pending`, not migrate. Fix is physical:
 
 1. **Reseat (or replace) the Ethernet cable; move the *switch-end* port** (host has one port only). Reseating resolved the 2026-06-08 incident — link went quiet, Cilium reloaded the BPF datapath onto `enp3s0` (`cil_from_netdev`/`cil_to_netdev`) within seconds, `cilium-dbg status --brief` → `OK`. Reconnect SSH afterward.
-2. **If it recurs after a cable swap → durable driver/power mitigation.** `r8169` flapping is classically PCIe **ASPM** / **EEE** instability that survives reboots (unlike a reseat). Add `pcie_aspm=off` to gpu-1's Talos kernel args via machine config, and/or cap the link to 1G if 2.5G negotiation is the unstable part.
+2. **It recurred after the cable reseat → durable driver/power mitigation.** The reseat only downgraded the continuous storm to intermittent flapping (recurred 2026-06-08 13:18/13:30/13:49/20:45, caught by the `layer-1-nic-link-flap` alert). `r8169` flapping is classically PCIe **ASPM** / **EEE** instability that survives reboots (unlike a reseat). The durable fix is prepped as an Omni ConfigPatch: **`patches/phase04-gpu/403-gpu1-pcie-aspm.yaml`** (`machine.install.extraKernelArgs: [pcie_aspm=off]`, gpu-1 machine UUID). Apply in a maintenance window — it reboots the only GPU node:
+   ```bash
+   omnictl apply -f patches/phase04-gpu/403-gpu1-pcie-aspm.yaml
+   talosctl -n 192.168.55.31 read /proc/cmdline | grep -o 'pcie_aspm=off'   # verify after reboot
+   # then watch the flap counter go quiet:
+   # increase(node_network_carrier_changes_total{instance="192.168.55.31:9100",device="enp3s0"}[30m])
+   ```
+   If `pcie_aspm=off` doesn't hold, escalate: switch-end cable + different switch port → cap the link to 1G (2.5G negotiation) → NIC replacement (one chassis port, no host-side failover).
 
 **Likely the real cause of the long-standing gpu-1 flakiness.** The `gpu-1.md` gotcha "`kubectl port-forward` flakes regularly with CNI-netns errors on gpu-1 pods only" is very plausibly chronic low-grade link instability on this same NIC, now gone acute. Re-attribute once a durable fix (cable + ASPM) is proven to hold.
 
