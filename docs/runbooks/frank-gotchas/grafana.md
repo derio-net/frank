@@ -71,3 +71,30 @@ Two corroborating signals from the v2 `/alerts` API:
 - A **single** entry in `receivers[]` confirms `continue: false` stopped route evaluation at that route. If the alert had continued, downstream matching routes (e.g. `grafana_folder="feature-health"` → `Health Bridge Webhook`) would appear as additional receivers. For the cert-expiry canary this is the proof that health-bridge never sees the canary (no never-closing bug issue).
 
 Established 2026-06-07 proving the cert-expiry canary's perma-mute (issue #251, `apps/grafana-alerting/manifests/notification-policy-cm.yaml`). The canary's two instances (warning 14d + critical 7d) fired, dispatcher count = 2, notification latency count = 0, single receiver — Telegram and health-bridge both silent, operator confirmed no Telegram message.
+
+## Telegram contact point uses HTML parse_mode — `<>&` in annotations → 400 Bad Request, silent non-delivery
+
+The `Telegram - Willikins` contact point sends messages with Telegram's **HTML `parse_mode`**. Grafana renders the alert's `summary`/`runbook` annotations into the message body **without HTML-escaping**, so any of these in an annotation value breaks Telegram's HTML parser:
+
+- `<…>` that looks like a tag — e.g. a `<node-ip>` placeholder, `<pod>`, `<name>`
+- a bare `<` or `>` (including `>6`, `<1GiB` written literally)
+- a bare `&`
+
+Telegram's Bot API rejects the malformed message with **`400 Bad Request`**, and Grafana's notifier aborts the send. The failure is **silent end-to-end**:
+
+- The rule still evaluates, fires, and dispatches (`ngalert ... "Sending alerts to local notifier" count=1`).
+- **Other receivers on the same alert deliver fine** — e.g. a `feature-health` alert still reaches the Health Bridge webhook (which sends raw JSON, no HTML), so `frank-ops#N` lifecycle works. Only Telegram is affected.
+- `grafana_alerting_notification_latency_seconds_count` keeps incrementing (other alerts/receivers), and in practice `grafana_alerting_notification_errors_total` did **not** surface this — so the metrics look healthy.
+
+The only reliable signal is the notifier log:
+
+```
+kubectl logs -n monitoring deploy/victoria-metrics-grafana -c grafana \
+  | grep -iE 'ngalert.notifier.*level=error.*telegram'
+# ... err="Telegram - Willikins/telegram[0]: ... failed to send telegram message:
+#         webhook response status 400 Bad Request"
+```
+
+**Rule:** keep `<`, `>`, `&` out of `summary`/`runbook` annotation *values*. Use `6+` not `>6`, a bracket-free placeholder like `NODE_IP` not `<node-ip>`, and `{{ $labels.* }}` templates for real values. YAML **comments** (`#`) in the rule are safe — Grafana strips them at provisioning, so they never reach the message.
+
+**Why static checks miss it:** the YAML is valid, the rule provisions cleanly, routing/labels are correct — the rule looks perfect until it actually tries to *deliver*. Only an end-to-end firing (real or synthetic-metric-import) exercises the Telegram send path. Caught 2026-06-08 on the `layer-1-nic-link-flap` rule: it fired correctly on a real gpu-1 `enp3s0` flap but its annotations carried `talosctl -n <node-ip> dmesg` and `(>6 carrier changes/30m)`, so every page 400'd and the operator got nothing — discovered only by driving the post-merge Test Plan. This is the concrete proof of the repo rule "a layer is not Deployed until its workflow has been triggered + observed end-to-end."
