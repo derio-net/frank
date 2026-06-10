@@ -113,9 +113,9 @@ curl -s http://192.168.55.206:4000/v1/chat/completions \
 kubectl get configmap -n litellm litellm-config -o yaml | grep -A 5 'model_name'
 ```
 
-### Update OpenRouter Free Models
+### OpenRouter Free Models (retired)
 
-OpenRouter's free model list shifts frequently. Use the `/update-openrouter-models` skill or manually update the LiteLLM config to reflect current free models.
+The cluster no longer routes to OpenRouter free models — the policy is local Ollama or a paid frontier key only. The `/update-openrouter-models` command that used to refresh the free-model list has been retired with them. If you are reading this with a config that still lists `openrouter/*:free` models, it predates the purge: remove them rather than refresh them.
 
 ## Debugging
 
