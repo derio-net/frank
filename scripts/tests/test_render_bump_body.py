@@ -122,6 +122,19 @@ def test_all_docs_only_range_shows_note_not_count():
     assert f"https://github.com/{REPO}/compare/" in out
 
 
+# --- truncation note (no silent caps) --------------------------------------
+
+def test_truncated_range_surfaces_a_note():
+    b = bump(prs=[pr(number=88)])
+    b["truncated"] = 5
+    out = render(b)
+    assert "5 earlier commit" in out  # don't silently drop beyond the API page
+
+
+def test_no_truncation_note_when_zero():
+    assert "earlier commit" not in render(bump())
+
+
 # --- optional pieces -------------------------------------------------------
 
 def test_empty_body_omits_summary_blockquote():

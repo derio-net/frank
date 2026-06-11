@@ -92,6 +92,12 @@ def render(bump: dict) -> str:
             lines.append(f"### Upstream changes ({n} PR{'s' if n != 1 else ''})")
             for p in reversed(kept):  # prs arrive oldest->newest; show newest first
                 lines.append(_bullet(p, repo))
+            dropped = bump.get("truncated") or 0
+            if dropped:  # no silent caps — the compare API pages at 250 commits
+                lines.append(
+                    f"\n_…and {dropped} earlier commit(s) beyond the compare API page — "
+                    f"see the compare link above._"
+                )
         else:
             lines.append("_No image-affecting changes (docs-only upstream)._")
 
@@ -143,8 +149,12 @@ def collect(old: str, new: str, vkr: str, repo: str = DEFAULT_REPO) -> dict:
     can fall back.
     """
     cmp = _gh_json(f"/repos/{repo}/compare/{old}...{new}")
+    commits = cmp.get("commits", [])
+    # compare returns at most 250 commits; surface any overflow rather than
+    # silently listing a subset (frank "no silent caps" principle).
+    truncated = max(0, (cmp.get("total_commits") or 0) - len(commits))
     prs = []
-    for c in cmp.get("commits", []):
+    for c in commits:
         sha = c.get("sha", "")
         message = (c.get("commit") or {}).get("message") or ""
         subject = message.splitlines()[0] if message else ""
@@ -164,7 +174,7 @@ def collect(old: str, new: str, vkr: str, repo: str = DEFAULT_REPO) -> dict:
                 "sha": sha,
             }
         )
-    return {"old": old, "new": new, "vkr": vkr, "repo": repo, "prs": prs}
+    return {"old": old, "new": new, "vkr": vkr, "repo": repo, "prs": prs, "truncated": truncated}
 
 
 # --- CLI -------------------------------------------------------------------

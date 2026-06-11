@@ -186,6 +186,7 @@ vk-remote: `<vkr>`        # second line only when vkr present
 | PR with empty body | bullet without the `>` summary line |
 | commit with no `(#NN)` | short-SHA-link bullet, no summary |
 | author null | bullet without `(@…)` |
+| range > 250 commits (compare API page) | `collect()` sets `truncated = total_commits − len(commits)`; `render()` appends a "_…and N earlier commit(s) beyond the compare API page_" note — no silent cap |
 
 ### Workflow wiring: `.github/workflows/agent-images-bump.yml`
 
