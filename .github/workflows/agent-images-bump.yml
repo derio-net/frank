@@ -37,9 +37,15 @@ jobs:
           VKR_SHA=$(gh api /orgs/derio-net/packages/container/vk-remote/versions \
             --jq '.[0].metadata.container.tags[] | select(. != "latest")' 2>/dev/null || true)
 
-          echo "ai_sha=$AI_SHA"   >> "$GITHUB_OUTPUT"
-          echo "vkr_sha=$VKR_SHA" >> "$GITHUB_OUTPUT"
-          echo "Resolved: AI_SHA=$AI_SHA VKR_SHA=$VKR_SHA"
+          # Capture the CURRENT (pre-bump) agent-images pin BEFORE the next step's
+          # sed overwrites it — render_bump_body.py diffs old...new for the body.
+          OLD_AI_SHA=$(grep -oE 'secure-agent-kali:[a-f0-9]+' \
+            apps/secure-agent-pod/manifests/deployment.yaml | head -1 | cut -d: -f2)
+
+          echo "ai_sha=$AI_SHA"         >> "$GITHUB_OUTPUT"
+          echo "vkr_sha=$VKR_SHA"       >> "$GITHUB_OUTPUT"
+          echo "old_ai_sha=$OLD_AI_SHA" >> "$GITHUB_OUTPUT"
+          echo "Resolved: OLD_AI_SHA=$OLD_AI_SHA AI_SHA=$AI_SHA VKR_SHA=$VKR_SHA"
 
       - name: Update manifests
         env:
@@ -73,6 +79,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_SHA: ${{ steps.shas.outputs.ai_sha }}
           VKR_SHA: ${{ steps.shas.outputs.vkr_sha }}
+          OLD_AI_SHA: ${{ steps.shas.outputs.old_ai_sha }}
         run: |
           git config user.name  "clawdia-bumper[bot]"
           git config user.email "clawdia-bumper[bot]@users.noreply.github.com"
@@ -100,13 +107,17 @@ jobs:
           git checkout -b "$BRANCH"
 
           git add apps/
-          BODY="agent-images: \`$AI_SHA\`"
           if [ -n "$VKR_SHA" ]; then
             git commit -m "chore(agents): bump agent-images to ${AI_SHA:0:7}, vk-remote to ${VKR_SHA:0:7}"
-            BODY="$BODY"$'\n'"vk-remote: \`$VKR_SHA\`"
           else
             git commit -m "chore(agents): bump agent-images to ${AI_SHA:0:7}"
           fi
+
+          # Enriched body: names the upstream agent-images PR(s) + a summary.
+          # Best-effort — render_bump_body.py falls back to the two-line body if
+          # the agent-images gh-api lookup fails, so the PR always opens.
+          BODY=$(python3 scripts/render_bump_body.py \
+            --old "$OLD_AI_SHA" --new "$AI_SHA" --vkr "$VKR_SHA")
 
           git push origin "$BRANCH"
           gh pr create --base main --head "$BRANCH" \
