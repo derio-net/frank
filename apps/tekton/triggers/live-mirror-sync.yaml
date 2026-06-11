@@ -1,0 +1,118 @@
+# Live-mirror sync — gitea push (agentic-stoa/companies mirror, main) ->
+# Tekton TaskRun -> Paperclip hmac_sha256 webhook on routine 2f4d361b
+# (frank#444, Stoa-side STO-72/STO-75).
+#
+# Vendored from agentic-stoa/companies@b61b374d stoa/ci/tekton/live-mirror-sync/
+# {eventlistener,triggerbinding,triggertemplate}.yaml. Divergences from the
+# Stoa-canonical manifests (all frank-side, field-tested constraints):
+#   - namespace tekton-pipelines (this cluster's Tekton namespace; the issue
+#     guessed "tekton-triggers").
+#   - cel interceptor instead of the github interceptor: this gitea sends
+#     X-Gitea-Event, and the github ClusterInterceptor silently drops its
+#     webhooks (see frank-gotchas Tekton section + gitea-listener above it
+#     in this directory).
+#   - incoming-webhook HMAC verification omitted: the github interceptor was
+#     the only HMAC-capable interceptor and it can't be used (above). The
+#     EventListener service is ClusterIP-only — reachable only from inside
+#     the cluster — which is the same documented posture as the existing
+#     gitea-listener. The OUTGOING Paperclip HMAC signing is untouched.
+#     Consequence: the `live-mirror-gitea-webhook` secret from the upstream
+#     README is not needed; set a webhook secret on the gitea side anyway if
+#     you like — it is simply not validated here.
+#   - explicit repo filter (body.repository.full_name) since this listener
+#     exists only for the companies mirror; the shared gitea-listener
+#     deliberately excludes agentic-stoa/* (CI for those repos moved to the
+#     github-listener — this trigger is push-driven sync, not CI).
+#   - kubernetesResource nodeSelector pc-1, matching the other listeners.
+#
+# A separate EventListener (rather than a new trigger on gitea-listener)
+# keeps the Stoa-routed concern isolated and matches the upstream design.
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: live-mirror-sync
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: stoa
+    stoa.routine/id: "2f4d361b"
+spec:
+  serviceAccountName: tekton-triggers-sa
+  triggers:
+    - name: companies-main-push
+      interceptors:
+        # Only fire on pushes to main of the companies mirror. Path-level
+        # filtering is intentionally omitted — the sync is idempotent and
+        # cheap, so firing on every main push is harmless (a clean sync
+        # reports "Would update: 0").
+        - ref:
+            name: "cel"
+          params:
+            - name: "filter"
+              value: >-
+                header.match('X-Gitea-Event', 'push') &&
+                body.repository.full_name == 'agentic-stoa/companies' &&
+                body.ref == 'refs/heads/main'
+      bindings:
+        - ref: live-mirror-sync
+      template:
+        ref: live-mirror-sync
+  resources:
+    kubernetesResource:
+      spec:
+        template:
+          spec:
+            nodeSelector:
+              kubernetes.io/hostname: pc-1
+---
+# Extracts the merge commit + ref + repo from the gitea push payload.
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: live-mirror-sync
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: stoa
+spec:
+  params:
+    - name: gitsha
+      value: $(body.after)
+    - name: gitref
+      value: $(body.ref)
+    - name: reponame
+      value: $(body.repository.full_name)
+---
+# Spawns a one-shot TaskRun that fires the Paperclip webhook.
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: live-mirror-sync
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: stoa
+spec:
+  params:
+    - name: gitsha
+      description: Merge commit SHA on companies/main
+    - name: gitref
+      description: Pushed ref (refs/heads/main)
+    - name: reponame
+      description: Repository full name
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: TaskRun
+      metadata:
+        generateName: live-mirror-sync-
+        labels:
+          app.kubernetes.io/part-of: stoa
+          stoa.routine/id: "2f4d361b"
+      spec:
+        taskRef:
+          name: fire-paperclip-webhook
+        params:
+          - name: gitsha
+            value: $(tt.params.gitsha)
+          - name: gitref
+            value: $(tt.params.gitref)
+          - name: reponame
+            value: $(tt.params.reponame)
+        timeout: "0h5m0s"

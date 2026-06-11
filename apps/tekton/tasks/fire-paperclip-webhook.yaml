@@ -1,0 +1,113 @@
+# Signs and POSTs the Paperclip hmac_sha256 webhook fire request (frank#444).
+#
+# Vendored from agentic-stoa/companies@b61b374d stoa/ci/tekton/live-mirror-sync/
+# task-fire-webhook.yaml — that repo stays the Stoa-canonical source of truth
+# for the *contract*; this copy is the cluster-deployable adaptation.
+#
+# Divergences from upstream (all frank-side constraints):
+#   - python:3.12-alpine + stdlib instead of wolfi-base + runtime `apk add
+#     jq openssl curl`: runtime package installs write to the container upper
+#     layer and trip Falco's Critical "Drop and execute new binary in
+#     container" rule on every TaskRun (pages Telegram). Python stdlib covers
+#     json/hmac/http with zero installs.
+#   - hardened securityContext per this repo's task convention; HOME set
+#     explicitly (runAsUser 65534 resolves HOME=/, read-only — see
+#     frank-gotchas Tekton section).
+#
+# Signing contract (matches Paperclip firePublicTrigger, unchanged):
+#   X-Paperclip-Signature = "sha256=" + hex HMAC-SHA256(secret, "<ts>." + rawBody)
+#   X-Paperclip-Timestamp = unix seconds   (replay window 300 s)
+# The signature MUST cover the exact request body bytes (server HMACs rawBody).
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: fire-paperclip-webhook
+  namespace: tekton-pipelines
+  labels:
+    app.kubernetes.io/part-of: stoa
+spec:
+  params:
+    - name: gitsha
+      type: string
+    - name: gitref
+      type: string
+    - name: reponame
+      type: string
+  steps:
+    - name: fire
+      image: python:3.12-alpine
+      env:
+        - name: HOME
+          value: /tekton/home
+        - name: FIRE_URL
+          valueFrom:
+            secretKeyRef:
+              name: live-mirror-paperclip
+              key: fireUrl
+        - name: WEBHOOK_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: live-mirror-paperclip
+              key: webhookSecret
+        - name: GIT_SHA
+          value: $(params.gitsha)
+        - name: GIT_REF
+          value: $(params.gitref)
+        - name: REPO_NAME
+          value: $(params.reponame)
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        runAsUser: 65534
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+      script: |
+        #!/usr/bin/env python3
+        import hashlib, hmac, json, os, sys, time, urllib.error, urllib.request
+
+        fire_url = os.environ["FIRE_URL"]
+        secret = os.environ["WEBHOOK_SECRET"].encode()
+
+        ts = str(int(time.time()))
+        # Compact separators => stable raw bytes; the signature covers exactly
+        # what is sent.
+        body = json.dumps(
+            {
+                "source": "gitea-tekton",
+                "repo": os.environ["REPO_NAME"],
+                "ref": os.environ["GIT_REF"],
+                "sha": os.environ["GIT_SHA"],
+            },
+            separators=(",", ":"),
+        ).encode()
+
+        sig = hmac.new(secret, ts.encode() + b"." + body, hashlib.sha256).hexdigest()
+
+        print(f"Firing live-mirror sync for {os.environ['GIT_SHA']} on {os.environ['GIT_REF']}")
+        req = urllib.request.Request(
+            fire_url,
+            data=body,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "X-Paperclip-Timestamp": ts,
+                "X-Paperclip-Signature": f"sha256={sig}",
+                "Idempotency-Key": f"live-mirror-{os.environ['GIT_SHA']}",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                code, payload = resp.status, resp.read()
+        except urllib.error.HTTPError as e:
+            code, payload = e.code, e.read()
+
+        print(f"Paperclip responded HTTP {code}")
+        if code != 202:
+            print(f"ERROR: webhook fire failed (HTTP {code})", file=sys.stderr)
+            sys.stderr.buffer.write(payload + b"\n")
+            sys.exit(1)
+
+        run = json.loads(payload)
+        print(f"run={run.get('id')} status={run.get('status')} issue={run.get('linkedIssueId')}")

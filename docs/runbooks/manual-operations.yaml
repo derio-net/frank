@@ -486,6 +486,31 @@ operations:
   verify:
   - Infisical → ZOT_PUSH_PASSWORD exists
   status: pending
+- id: cicd-live-mirror-gitea-webhook
+  layer: cicd
+  app: tekton
+  plan: docs/superpowers/plans/2026-06-11--cicd--live-mirror-sync-trigger.md
+  when: After the live-mirror-sync EventListener is Synced/Healthy (el-live-mirror-sync Service exists)
+  why_manual: Gitea repo webhooks are instance state, not declarative; created via UI or API token
+  commands:
+  - 'Gitea (192.168.55.209:3000) → agentic-stoa/companies mirror → Settings → Webhooks → Add webhook → Gitea'
+  - 'Target URL: http://el-live-mirror-sync.tekton-pipelines.svc.cluster.local:8080 — POST, application/json, Push events, branch filter main'
+  - 'NOTE: webhook.ALLOWED_HOST_LIST must include *.svc.cluster.local (already required by gitea-listener). A webhook secret MAY be set but is not validated cluster-side (cel interceptor cannot HMAC; EventListener is ClusterIP-only).'
+  verify:
+  - kubectl -n tekton-pipelines get svc el-live-mirror-sync
+  - Gitea webhook delivery log shows 2xx from the EventListener on a real main push
+  status: pending
+- id: cicd-live-mirror-paperclip-secret
+  layer: cicd
+  app: tekton
+  plan: docs/superpowers/plans/2026-06-11--cicd--live-mirror-sync-trigger.md
+  when: Before first webhook fire — TaskRuns fail env resolution until the secret exists
+  why_manual: Secret value is rotated Stoa-side and delivered out-of-band (frank#444 §3a); bootstrap secrets are never ArgoCD-managed
+  commands:
+  - kubectl -n tekton-pipelines create secret generic live-mirror-paperclip --from-literal=fireUrl='http://192.168.55.212:3100/api/routine-triggers/public/31cbc6fb3c8ac34e3f25d677/fire' --from-literal=webhookSecret='<VALUE DELIVERED OUT-OF-BAND — DO NOT PASTE ANYWHERE>'
+  verify:
+  - kubectl -n tekton-pipelines get secret live-mirror-paperclip -o jsonpath='{.data.fireUrl}' | base64 -d
+  status: pending
 - id: cicd-pc1-role-label
   layer: cicd
   app: longhorn
