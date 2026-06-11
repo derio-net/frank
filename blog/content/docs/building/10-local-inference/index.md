@@ -103,7 +103,9 @@ The data policy column matters. Some free providers train on prompts. The config
 
 ### Keeping the List Current
 
-We built a `/update-openrouter-models` command that automates the refresh cycle: query the OpenRouter API for current free models, compare against the config, replace retired ones, deploy, and verify. Run it when models start returning 404s.
+We built a `/update-openrouter-models` command that automated the refresh cycle: query the OpenRouter API for current free models, compare against the config, replace retired ones, deploy, and verify. Run it when models start returning 404s — for as long as that lasted.
+
+> **Retired.** The cluster later dropped OpenRouter free models entirely (local Ollama or a paid frontier key only — the free tier's churn and data-policy fine print stopped being worth the maintenance), and the command went with them. That is a five-stage pipeline that terminates in nothing; we keep this section because the *pattern* — verify against the provider's live API, not its marketing page — outlived the command.
 
 ## Deploying Ollama
 

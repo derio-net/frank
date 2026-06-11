@@ -75,9 +75,9 @@ Reusable reviewer profiles live in `agents/reviewers/`:
 - `code-reviewer.md`
 - `k8s-manifest-reviewer.md`
 
-Reusable command runbooks live in `agents/commands/`:
-
-- `update-openrouter-models.md`
+Reusable command runbooks live in `agents/commands/` (currently empty —
+`update-openrouter-models.md` was retired when the cluster went local-only
+inference, see #461 and derio-net/agent-skills#1).
 
 ## Machine-Readable Configuration
 
