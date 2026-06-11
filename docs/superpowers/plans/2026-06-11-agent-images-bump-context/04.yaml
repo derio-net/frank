@@ -1,0 +1,41 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Post-deploy docs
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gotcha + record post-deploy skips
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Add a one-line gotcha under the CI/CD-relevant section of
+      agents/rules/frank-gotchas.md: the bump PR body is rendered by
+      scripts/render_bump_body.py; enrichment is best-effort and falls back
+      to the two-line body if the agent-images gh-api lookup fails (never
+      blocks a bump); the docs-only filter mirrors agent-images build.yaml
+      `paths-ignore: docs/**`.
+  - id: P4.T1.S2
+    text: |
+      Record the Post-Deploy skips in _prose.md and set the plan Status to
+      Complete once Phase 3 merges: internal CI plumbing — no homepage tile
+      / IngressRoute (Step 1), no building/operating blog posts (Steps 2-3),
+      no README change (Step 4), no manual-operation blocks so no
+      /sync-runbook (Step 5).
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

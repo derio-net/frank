@@ -1,0 +1,54 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Wire the workflow
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Capture OLD agent-images SHA and call the renderer
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Edit .github/workflows/agent-images-bump.yml — in the *Resolve SHAs*
+      step (runs after checkout, before *Update manifests* sed), capture the
+      live pin BEFORE it is overwritten:
+        OLD_AI_SHA=$(grep -oE 'secure-agent-kali:[a-f0-9]+'
+          apps/secure-agent-pod/manifests/deployment.yaml | head -1 | cut -d: -f2)
+        echo "old_ai_sha=$OLD_AI_SHA" >> "$GITHUB_OUTPUT"
+  - id: P3.T1.S2
+    text: |
+      In the *Open PR* step, replace the inline `BODY=...` construction
+      (the `agent-images:`/`vk-remote:` lines) with:
+        BODY=$(python3 scripts/render_bump_body.py
+          --old "${{ steps.shas.outputs.old_ai_sha }}"
+          --new "$AI_SHA" --vkr "$VKR_SHA")
+      Leave `git commit -m` messages, branch naming, the `git diff --quiet`
+      guard, and the open-PR dedup UNCHANGED. Keep `gh pr create --body "$BODY"`.
+  - id: P3.T1.S3
+    text: |
+      Static validation of the edited workflow: `python3 -c "import yaml;
+      yaml.safe_load(open('.github/workflows/agent-images-bump.yml'))"` parses
+      clean, and `grep -n 'render_bump_body.py\|old_ai_sha'
+      .github/workflows/agent-images-bump.yml` shows both wirings. Commit:
+      `feat(cicd): bump PR body shows upstream agent-images PRs`.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

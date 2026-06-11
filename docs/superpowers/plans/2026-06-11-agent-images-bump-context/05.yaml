@@ -1,0 +1,35 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Post-merge live verification (Test Plan)
+  tag: manual
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Operator triggers a real bump and confirms the body
+  steps:
+  - id: P5.T1.S1
+    text: |
+      POST-MERGE, operator-driven — the workflow is only proven by a live
+      run (a workflow is not "Deployed" until triggered + observed
+      end-to-end). Either observe the next natural agent-images bump PR, or
+      once agent-images main is ahead of frank's current pin:
+        env -u GITHUB_TOKEN gh workflow run agent-images-bump.yml
+          --ref main -f agent_images_sha=<sha-newer-than-current-pin>
+      Open the PR the run produces; confirm the `OLD -> NEW . compare` line,
+      the `### Upstream changes` bullet(s) with title/@author/summary, the
+      docs-only filter applied, and the `**vk-remote:**` line intact. Close
+      any throwaway PR (it is real against main). Not agent-completable
+      pre-merge; left unchecked for the operator.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

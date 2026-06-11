@@ -5,6 +5,12 @@
 **Status:** draft
 **Slug:** `agent-images-bump-context`
 
+## Implementation Plans
+
+| Plan | Target repo | Slug | Status |
+|------|-------------|------|--------|
+| 2026-06-11-agent-images-bump-context | `derio-net/frank` | `2026-06-11-agent-images-bump-context` | — |
+
 ## Problem
 
 The `agent-images-bump.yml` workflow opens an automated PR every time
