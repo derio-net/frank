@@ -51,3 +51,19 @@ checklist.
   no /sync-runbook. Only a one-line gotcha is added.
 - The live workflow run is the post-merge, operator-driven Test Plan (a
   workflow is only "Deployed" once triggered + observed end-to-end).
+
+## Post-Deploy Checklist disposition
+
+- **Step 1 (expose externally):** skipped — internal CI plumbing, no
+  user-facing service, IngressRoute, or homepage tile.
+- **Steps 2–3 (building / operating blog posts):** skipped — enriches an
+  existing CI workflow's output; no new layer narrative.
+- **Step 4 (README):** skipped — no Technology Stack / Service Access change.
+- **Step 5 (sync runbook):** skipped — no `# manual-operation` blocks.
+- **Gotcha:** added to `agents/rules/frank-gotchas.md` (Agent shells section)
+  per the fix/extension workflow.
+- **Step 6 (status):** set the spec table row + plan to **Complete** at
+  post-merge close-out (Phase 3 is the shippable unit; the bump workflow
+  already exists — this only enriches its output).
+- **Phase 5 (manual):** the post-merge live verification — operator-driven,
+  left unchecked until a real bump is observed.
