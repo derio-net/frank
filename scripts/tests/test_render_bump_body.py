@@ -8,6 +8,9 @@ feed crafted dicts and assert on the markdown.
 Contract source of truth:
 docs/superpowers/specs/2026-06-11-agent-images-bump-context-design.md
 """
+import pytest
+
+import scripts.render_bump_body as rbb
 from scripts.render_bump_body import render
 
 REPO = "derio-net/agent-images"
@@ -60,7 +63,7 @@ def test_compare_line_uses_short_shas_and_full_url():
 def test_single_pr_bullet_full_shape():
     out = render(bump())
     assert "### Upstream changes (1 PR)" in out
-    assert f"[agent-images#88](https://github.com/{REPO}/pull/88)" in out
+    assert f"[agent-images#88](https://github.com/{REPO}/issues/88)" in out
     assert "feat(kali): rotate remote-control sessions past max uptime + debug logs" in out
     assert "(@YiannisDermitzakis)" in out
     assert "> Rotates the wrap-claude session once it exceeds max uptime." in out
@@ -147,3 +150,61 @@ def test_old_equals_new_shows_unchanged_note_no_compare():
     assert "### Upstream changes" not in out
     assert "compare" not in out
     assert "**vk-remote:** `7cebcbb`" in out  # vk-remote line still shown
+
+
+# --- _summary_from_message: derive the "what it did" from the commit body --
+
+def test_summary_takes_first_paragraph_of_commit_body():
+    # Real agent-images 8606edf shape: subject, blank, first paragraph, blank, more.
+    msg = (
+        "feat(kali): rotate remote-control sessions past max uptime + debug logs (#88)\n"
+        "\n"
+        "The 2026-05-23 incident: a 5d4h-old claude remote-control parent looked\n"
+        "healthy while every App-attach child crashed.\n"
+        "\n"
+        "session-manager.sh now refuses to treat a session as 'already running'.\n"
+    )
+    s = rbb._summary_from_message(msg)
+    assert s.startswith("The 2026-05-23 incident:")
+    assert "every App-attach child crashed." in s  # first paragraph joined
+    assert "already running" not in s  # second paragraph excluded
+
+
+def test_summary_empty_for_subject_only_commit():
+    assert rbb._summary_from_message("chore: bump deps") == ""
+
+
+def test_summary_truncates_long_paragraph():
+    s = rbb._summary_from_message("subj\n\n" + "x" * 500)
+    assert len(s) == 200 and s.endswith("…")
+
+
+# --- main(): best-effort fallback (enrichment never blocks a bump) ---------
+
+def _raise(*_a, **_k):
+    raise RuntimeError("gh unavailable")
+
+
+def test_main_falls_back_to_legacy_on_collect_error(monkeypatch, capsys):
+    monkeypatch.setattr(rbb, "collect", _raise)
+    rc = rbb.main(["--old", OLD, "--new", NEW, "--vkr", "7cebcbb"])
+    assert rc == 0
+    assert capsys.readouterr().out == f"agent-images: `{NEW}`\nvk-remote: `7cebcbb`\n"
+
+
+def test_main_fallback_when_old_missing_does_not_call_collect(monkeypatch, capsys):
+    monkeypatch.setattr(rbb, "collect", _raise)  # would raise AssertionError-style if reached
+    rc = rbb.main(["--old", "", "--new", NEW, "--vkr", ""])
+    assert rc == 0
+    # no vk-remote line when vkr empty
+    assert capsys.readouterr().out == f"agent-images: `{NEW}`\n"
+
+
+def test_main_old_equals_new_renders_unchanged_note(monkeypatch, capsys):
+    # old==new must short-circuit collect() and render the note, not fall back.
+    monkeypatch.setattr(rbb, "collect", _raise)
+    rc = rbb.main(["--old", NEW, "--new", NEW, "--vkr", "7cebcbb"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "_agent-images unchanged._" in out
+    assert "**vk-remote:** `7cebcbb`" in out

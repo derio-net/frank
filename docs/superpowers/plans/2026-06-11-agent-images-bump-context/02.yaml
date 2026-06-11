@@ -42,17 +42,21 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-11T11:41:39+00:00'
       note: null
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-11T11:41:44+00:00'
       note: null
     P2.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-11T11:41:49+00:00'
+      note: 'Live check passed: single-PR range (439a6ef..8606edf) and 2-PR range
+        (c084c4f..8606edf) both render compare link + newest-first bullets + commit-body
+        summaries + /issues links. Discovered (#NN) can be an issue (8606edf->#88
+        issue, PR was #114); redesigned to source summary from commit body and link
+        /issues/NN (universal). 20 tests pass.'
   completion:
     at: null
     note: null

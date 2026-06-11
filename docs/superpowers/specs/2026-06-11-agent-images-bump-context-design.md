@@ -85,25 +85,40 @@ no `uv`/pip step. Three layers:
 1. **`collect(old, new, vkr, repo="derio-net/agent-images") -> dict`** —
    the network layer. Shells out to `gh api` (the workflow already uses
    `gh`, and `GH_TOKEN` is in scope):
-   - `gh api /repos/{repo}/compare/{old}...{new}` → `commits[]`.
+   - `gh api /repos/{repo}/compare/{old}...{new}` → `commits[]`, each with the
+     **full** `.commit.message` and `.author.login`.
    - For each commit: `gh api /repos/{repo}/commits/{sha}` → `files[].filename`
      (per-PR paths — squash-merge means 1 commit == 1 PR).
-   - Parse the PR number from the commit subject's trailing `(#NN)`.
-     For each PR number: `gh api /repos/{repo}/pulls/{NN}` → body.
+   - `number` = the trailing `(#NN)` parsed from the commit subject (or
+     `None`). `title` = subject minus that suffix. `summary` = the first
+     meaningful paragraph of the **commit body**.
    - Returns a plain dict:
      ```python
      {
        "old": old, "new": new, "vkr": vkr, "repo": repo,
        "prs": [
          {"number": 88, "title": "feat(kali): rotate …",
-          "author": "YiannisDermitzakis",
+          "author": "YiannisDermitzakis", "sha": "8606edf…",
           "paths": ["kali/wrap-claude.py", "kali/tests/…"],
-          "summary": "Rotates the wrap-claude session once it exceeds max uptime."},
+          "summary": "The 2026-05-23 incident: a 5d4h-old remote-control parent…"},
          …  # oldest→newest as GitHub returns them
        ],
      }
      ```
    - **Raises** on any gh failure (caller decides the fallback).
+
+> **Why the summary comes from the commit body, and why `#NN` links to
+> `/issues/`.** A squash-merge subject's `(#NN)` is *not* reliably a PR:
+> e.g. agent-images `8606edf` ends `(#88)` but #88 is the planning **issue**
+> (`Closes #88`); its PR was #114, and `/pulls/88` 404s. `/commits/{sha}/pulls`
+> is no better — it returns PRs whose branch merely *contains* the commit
+> (it returned the still-open #114, whose merge sha ≠ the commit). The
+> reliable source is the **commit itself**: GitHub copies the PR body into the
+> squash commit body, so title/author/summary/files all come from `compare` +
+> `/commits/{sha}`. The `#NN` reference is rendered as a link to
+> `…/issues/{NN}` — GitHub's own canonical reference form, which shows the
+> issue or 302-redirects to the PR when `NN` is one (so it is correct for
+> both, unlike a hard-coded `/pull/{NN}` that 404s on an issue ref).
 
 2. **`render(bump: dict) -> str`** — the pure, deterministic formatter.
    **All inclusion logic lives here so it is unit-tested**:
@@ -114,8 +129,10 @@ no `uv`/pip step. Three layers:
 
 3. **`main()`** — wires argv → `collect()` → `render()` → `print`. Wraps
    `collect()` in `try/except`: on **any** exception (or `old`/`new`
-   missing/equal) it prints the **legacy minimal body** so the bump PR
-   still opens. Enrichment is best-effort, never blocking.
+   missing) it prints the **legacy minimal body** so the bump PR still
+   opens. `old == new` is *not* a fallback — it short-circuits `collect()`
+   and renders the "_agent-images unchanged._" note directly (vk-remote-only
+   bump). Enrichment is best-effort, never blocking.
 
 ### Rendered body format (Q2 depth)
 
@@ -137,10 +154,10 @@ Formatting rules (each a test case):
 - `### Upstream changes (N PR[s])` — N = count *after* the docs-only filter;
   singular/plural agree.
 - One bullet per PR: `agent-images#<n> — <title> (@<author>)`.
-  - `#<n>` links via GitHub's auto-reference to `derio-net/agent-images`?
-    No — cross-repo `#N` does not autolink in another repo's PR body, so the
-    number is rendered as an explicit markdown link to the upstream PR URL:
-    `[agent-images#88](https://github.com/derio-net/agent-images/pull/88)`.
+  - Cross-repo `#N` does not autolink in another repo's PR body, so the
+    number is rendered as an explicit markdown link to the **canonical
+    reference** URL (issue-or-PR, redirecting):
+    `[agent-images#88](https://github.com/derio-net/agent-images/issues/88)`.
   - `@<author>` omitted if author is null/empty.
   - The `> summary` blockquote line is omitted when the PR body is empty.
   - A range commit with **no** `(#NN)` (a direct push) renders as a short-SHA
