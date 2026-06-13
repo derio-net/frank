@@ -144,12 +144,11 @@ state:
         UI; the fresh webhookSecret went straight into Infisical (frank-cluster-iwpg/prod,
         /agentic-stoa/STOA_LIVE_MIRROR_HMAC_SECRET).
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: 'Partial (2/4 keys): STOA_LIVE_MIRROR_HMAC_SECRET placed + verified SecretSynced
-        2026-06-13; STOA_LIVE_MIRROR_FIRE_URL already present. Remaining: STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET
-        (mint here) and STOA_GITEA_ARGOCD_TOKEN (from manual-op cicd-stoa-argocd-gitea-reader,
-        Task 2). Tick when all four are in.'
+      state: x
+      ticked_at: '2026-06-13T14:53:27+00:00'
+      note: 'All 4 keys in Infisical /agentic-stoa (frank-cluster-iwpg/prod), each
+        ESO-verified SecretSynced 2026-06-13: STOA_LIVE_MIRROR_FIRE_URL, STOA_LIVE_MIRROR_HMAC_SECRET
+        (rotated in Paperclip), STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET, STOA_GITEA_ARGOCD_TOKEN.'
     P2.T2.S1:
       state: x
       ticked_at: '2026-06-13T11:59:26+00:00'
@@ -174,9 +173,15 @@ state:
         SECURITY NOTE: a leak of STOA_GITEA_ARGOCD_TOKEN exposes ALL agentic-stoa
         private mirrors.'
     P2.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-13T14:57:10+00:00'
+      note: 'Backfilled agentic-stoa/companies: cloned GitHub main (HEAD b61b374dce64,
+        private) bare, pushed --all to the Gitea mirror as stoa-bot (STOA_GITEA_TOKEN,
+        auth via header). Verified: Gitea main HEAD == GitHub b61b374dce64; repo private;
+        the manifests path stoa/ci/tekton/live-mirror-sync IS present at the full
+        pinned revision b61b374dce649744a914dfd2626c450c66fea8eb (200). NB: Gitea''s
+        contents API 404s on ABBREVIATED SHA refs — the #456 Application correctly
+        pins the FULL SHA. 2026-06-13.'
     P2.T3.S1:
       state: ' '
       ticked_at: null
