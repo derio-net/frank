@@ -138,27 +138,40 @@ state:
     P2.T1.S1:
       state: '-'
       ticked_at: '2026-06-13T00:00:00+00:00'
-      note: 'Skipped the external CTO-handoff path — Frank owns BOTH sides (the
-        Paperclip routine-trigger that verifies, and the Tekton task that signs),
-        so no out-of-band handoff was needed. Rotated the live-mirror-sync trigger
-        secret in the Paperclip UI; the fresh webhookSecret went straight into
-        Infisical (frank-cluster-iwpg/prod, /agentic-stoa/STOA_LIVE_MIRROR_HMAC_SECRET).'
+      note: Skipped the external CTO-handoff path — Frank owns BOTH sides (the Paperclip
+        routine-trigger that verifies, and the Tekton task that signs), so no out-of-band
+        handoff was needed. Rotated the live-mirror-sync trigger secret in the Paperclip
+        UI; the fresh webhookSecret went straight into Infisical (frank-cluster-iwpg/prod,
+        /agentic-stoa/STOA_LIVE_MIRROR_HMAC_SECRET).
     P2.T1.S2:
       state: ' '
       ticked_at: null
-      note: 'Partial (2/4 keys): STOA_LIVE_MIRROR_HMAC_SECRET placed + verified
-        SecretSynced 2026-06-13; STOA_LIVE_MIRROR_FIRE_URL already present.
-        Remaining: STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET (mint here) and
-        STOA_GITEA_ARGOCD_TOKEN (from manual-op cicd-stoa-argocd-gitea-reader,
+      note: 'Partial (2/4 keys): STOA_LIVE_MIRROR_HMAC_SECRET placed + verified SecretSynced
+        2026-06-13; STOA_LIVE_MIRROR_FIRE_URL already present. Remaining: STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET
+        (mint here) and STOA_GITEA_ARGOCD_TOKEN (from manual-op cicd-stoa-argocd-gitea-reader,
         Task 2). Tick when all four are in.'
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-13T11:59:26+00:00'
+      note: agentic-stoa/companies created PRIVATE + empty (default main). Operator
+        created the empty repo in the Gitea UI — stoa-bot is an org member with repo-admin
+        but NOT an org Owner, so it 403s on org-repo creation (org creation is Owner-gated).
+        Visibility corrected to private via stoa-bot token PATCH (created public,
+        but empty → no exposure). stoa-bot push+admin confirmed via org team membership
+        = the documented sibling-mirror mechanism. 2026-06-13.
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-13T14:47:33+00:00'
+      note: 'argocd-reader (id 7) created; READ collaborator on agentic-stoa/companies
+        (204); read:repository token minted + placed in Infisical /agentic-stoa/STOA_GITEA_ARGOCD_TOKEN
+        (verified SecretSynced; reads companies HTTP 200). DEVIATION (operator-accepted
+        2026-06-13): argocd-reader was ALSO made a MEMBER of the agentic-stoa org,
+        giving its token ORG-WIDE read — it reads hum/stoa-blog/content-factory too
+        (all private, verified HTTP 200), not just companies. This supersedes the
+        plan''s per-repo least-privilege intent; the op''s verify ''hum -> 404'' no
+        longer holds (hum -> 200). Operator chose org-wide permissions + document
+        rather than restrict. SECURITY NOTE: a leak of STOA_GITEA_ARGOCD_TOKEN exposes
+        ALL agentic-stoa private mirrors, not only companies.'
     P2.T2.S3:
       state: ' '
       ticked_at: null
