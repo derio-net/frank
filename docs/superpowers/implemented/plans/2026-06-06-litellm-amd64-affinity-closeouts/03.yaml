@@ -1,0 +1,86 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Post-merge verification + issue close-outs
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Canary rollout to Healthy on amd64
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      After merge + root sync: kubectl argo rollouts get rollout litellm -n litellm --watch (or kubectl get rollout litellm -n litellm -o wide). The values change triggers a canary. Evidence- gate: kubectl get pod -n litellm -o wide — canary pod is on an amd64 node (mini-*/gpu-1/pc-1, NOT raspi-*).
+  - id: P3.T1.S2
+    text: |-
+      Operator promotes both indefinite manual gates (kubectl argo rollouts promote litellm -n litellm, twice as gated; or the status-subresource patch recipe if the plugin is absent). Rollout reaches Healthy; all stable pods on amd64.
+- number: 2
+  title: Migrations Job placement
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      On the post-merge sync, confirm the PreSync migrations Job pod scheduled non-Pi: kubectl get pods -n litellm -o wide --selector=job-name --sort-by=.metadata.creationTimestamp | tail — NODE column must be amd64. If no fresh Job ran, trigger a no-op sync of the litellm Application and re-check.
+- number: 3
+  title: README + ArgoCD cosmetic
+  steps:
+  - id: P3.T3.S1
+    text: |-
+      Confirm README.md renders correctly on main (GitHub UI) — tables intact, no broken anchors.
+  - id: P3.T3.S2
+    text: |-
+      Check ai-alert-helper Application health (kubectl get application ai-alert-helper -n argocd -o wide). If still stale Degraded (appTree cache gotcha, docs/runbooks/frank-gotchas/argocd.md): kubectl rollout restart statefulset argocd-application-controller -n argocd, then confirm Healthy.
+- number: 4
+  title: Close issues with evidence
+  steps:
+  - id: P3.T4.S1
+    text: |-
+      Close #474: cite commit ce2fcd9e (building 33-hermes-shell, operating 28-hermes-shell, series index, cluster-roadmap entries all shipped).
+  - id: P3.T4.S2
+    text: |-
+      Close #476: cite operator-confirmed 2026-06-06 08:00 digest arrival in Telegram (item 10), the merged README sync commit, and the P3.T3.S2 ArgoCD-health result.
+  - id: P3.T4.S3
+    text: |-
+      Close #478: cite the chart-1.81.13 template finding (affinity/ tolerations ARE templated into migrations-job.yaml — premise correction), the merged values change, and the observed P3.T1/ P3.T2 placements.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-06-06T20:37:54+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-06-06T20:37:55+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-06-06T20:37:57+00:00'
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: '2026-06-06T20:37:59+00:00'
+      note: null
+    P3.T3.S2:
+      state: x
+      ticked_at: '2026-06-06T20:38:00+00:00'
+      note: null
+    P3.T4.S1:
+      state: x
+      ticked_at: '2026-06-06T20:38:02+00:00'
+      note: null
+    P3.T4.S2:
+      state: x
+      ticked_at: '2026-06-06T20:38:03+00:00'
+      note: null
+    P3.T4.S3:
+      state: x
+      ticked_at: '2026-06-06T20:38:05+00:00'
+      note: null
+  completion:
+    at: '2026-06-06T20:38:07+00:00'
+    note: 'Canary promoted (2 gates), Rollout Healthy all-amd64; migrations Job on
+      gpu-1; README on main verified; ai-alert-helper Degraded self-cleared; #474
+      pre-closed, #476/#478 closed with evidence 2026-06-06'
+    observed_prs: []

@@ -1,0 +1,57 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Post-merge deployment verification + close-out
+  tag: manual
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Operator merges PR; run the spec §13 Test Plan
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Operator merges the PR. ArgoCD syncs ai-alert-helper (manual sync patch with
+      explicit syncOptions if impatient). Then run the spec's §13 Test Plan items 1-10
+      with the agent driving and the operator confirming the Telegram-client side
+      (command menu, /help, /scan_patterns no-LLM path, parse errors, natural-language
+      question, explain, /reset, foreign-chat probe, num_ctx/VRAM measurement, next
+      morning's digest). Record the ollama ps split and any num_ctx downgrade via
+      `vk plan edit --complete-phase 4 --note`.
+- number: 2
+  title: Post-deploy checklist (extension flavor)
+  steps:
+  - id: P4.T2.S1
+    text: |-
+      Extension of the obs layer — per plan-config skip_when: no new blog posts;
+      retro-update the obs digest layer's building/operating posts with the analyst
+      (one section each: what it is, /commands, one screenshot of a Telegram answer).
+      Add any new gotchas as one-liners in agents/rules/frank-gotchas.md + prose in
+      docs/runbooks/frank-gotchas/obs-digest.md. No ingress/homepage (Telegram-only,
+      internal). No manual-operation blocks anticipated → /sync-runbook not needed
+      unless P4.T1 surfaced one. Set plan Status: Deployed.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-06-04T23:42:36+00:00'
+      note: 'Test Plan 1-9 PASSED 2026-06-05 (operator-confirmed Telegram items 2-8;
+        item 9: ctx 16384 live, zero truncation, 18GB 16%/84% CPU/GPU — 8192 fallback
+        NOT needed). Item 10 (08:00 digest regression) observes tomorrow; surge-check
+        cron already proven on 0.2.0. Deploy hiccups fixed: orphan rollingUpdate block
+        (documented gotcha), stale appTree Degraded badge (new gotcha, cosmetic).'
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-06-04T23:42:38+00:00'
+      note: Building 31-edge-observability + operating 26-edge-observability retro-updated
+        (analyst sections + dead-fallback correction); 3 hot-file gotchas + prose
+        in obs-digest/argocd/other-apps runbooks; no manual-operation blocks (sync-runbook
+        not needed); no ingress/homepage (Telegram-only).
+  completion:
+    at: '2026-06-04T23:43:01+00:00'
+    note: 'Operator merged #469; Test Plan items 1-9 passed 2026-06-05 (operator-confirmed
+      Telegram side; ctx 16384 verified, no truncation, VRAM fits). Item 10 (digest
+      regression) observes 2026-06-06 08:00 — surge cron already proven on 0.2.0.
+      Blogs, gotchas, runbooks updated; plan archived.'
+    observed_prs: []

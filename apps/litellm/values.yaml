@@ -1,17 +1,22 @@
 # LiteLLM — unified LLM inference gateway
-# Routes between local Ollama models and cloud providers via OpenRouter
+# Routes local Ollama models (OpenRouter free-tier cloud section removed
+# 2026-06-04 — see the lineup note above proxy_config)
 # Exposed at 192.168.55.206:4000 as OpenAI-compatible API
 #
 # ─────────────────────────────────────────────────────────────────────────────
-# TODO ON NEXT IMAGE BUMP — fold in the chart-config improvements PR #210
-# discovered we don't have. Don't ship a bump without these:
+# TODO ON NEXT IMAGE BUMP — chart-config improvements PR #210 discovered we
+# didn't have. Items 1–3 below are now shipped/resolved; the one remainder
+# before the next bump is item 1's `resources` requests/limits:
 #
-# 1. Pod-template `affinity` requiring amd64. PR #210's final promote landed
-#    one of 5 pods on raspi-1 (RPi 4, ARM, low-power) by scheduler tiebreaker
-#    — there's NO config protecting LiteLLM from the slow ARM node, every
-#    prior amd64 placement was luck. T2 documented this in
+# 1. ✅ affinity SHIPPED 2026-06-06 (#478) — top-level `affinity:` block below
+#    requires amd64 on the pod template. Background: PR #210's final promote
+#    landed one of 5 pods on raspi-1 (RPi 4, ARM, low-power) by scheduler
+#    tiebreaker — every prior amd64 placement was luck. T2 documented this in
 #    docs/agentic-discussion/2026-05-04--litellm-canary-for-real/terminal-2.md.
-#    Suggested block (verify cpu/memory numbers from `kubectl top pod` first):
+#    STILL TODO: `resources` requests/limits — blocked on the dead Metrics
+#    API (#394; `kubectl top` unavailable). Verify numbers from
+#    VictoriaMetrics (container_memory_working_set_bytes / CPU rate for the
+#    litellm pods) before setting. Draft from PR #210:
 #
 #      resources:
 #        requests:
@@ -19,22 +24,16 @@
 #          memory: 512Mi
 #        limits:
 #          memory: 1Gi
-#      affinity:
-#        nodeAffinity:
-#          requiredDuringSchedulingIgnoredDuringExecution:
-#            nodeSelectorTerms:
-#            - matchExpressions:
-#              - key: kubernetes.io/arch
-#                operator: In
-#                values: [amd64]
 #
-# 2. PreSync migration Job pinned to amd64 (separate from the main pod
-#    template — chart may need migrationJob.nodeSelector or equivalent).
-#    PR #220 had to bump v1.83.14-stable → v1.83.14-stable.patch.1 because
-#    the upstream arm64 layer for v1.83.14-stable was broken, and the Job
-#    landed on raspi-1 by default. T2 flagged this in the rehearsal as
-#    optimization (avoid the 4-7 min cold-pull tax on raspi-1); PR #210
-#    promoted it to "would have prevented an entire class of failure mode."
+# 2. ✅ RESOLVED 2026-06-06 (#478) — the same top-level `affinity:` covers the
+#    PreSync migration Job: chart 1.81.13 templates `.Values.affinity` and
+#    `.Values.tolerations` into BOTH the Deployment (deployment.yaml:226/:230)
+#    and the migrations Job (migrations-job.yaml:106/:110). Issue #478's
+#    premise ("no scheduling support on the Job") only holds for
+#    `nodeSelector` / migrationJob-scoped values. Background: PR #220 had to
+#    bump v1.83.14-stable → .patch.1 because the upstream arm64 layer was
+#    broken and the Job landed on raspi-1 by default; on 2026-06-04 the Job
+#    hit raspi-1 minutes before the node wedged (7+ min Prisma run on a Pi).
 #
 # 3. ✅ DONE in this PR — qwen-vl-7b dropped from q8_0 to default Q4_K_M.
 #    The Q8_0 tag was 9.4GB on disk; once loaded with 128K-context KV cache
@@ -66,16 +65,34 @@ environmentSecrets:
 envVars:
   STORE_MODEL_IN_DB: "True"
 
+# Keep LiteLLM off the ARM Pi nodes — gateway pods AND the PreSync Prisma
+# migrations Job (#478). Chart 1.81.13 templates this top-level value into
+# both pod templates (deployment.yaml:226, migrations-job.yaml:106).
+# amd64 = mini-1/2/3, gpu-1, pc-1; excludes raspi-1/raspi-2. Arch (not
+# hostname) is the real constraint: broken upstream arm64 image layers were
+# a prior failure mode (PR #220).
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        - key: kubernetes.io/arch
+          operator: In
+          values: [amd64]
+
 # LiteLLM proxy configuration (rendered as config.yaml)
 #
-# Lineup refresh — 2026-05-03 (qwen3.6:35b-a3b added 2026-05-06)
+# Lineup refresh — 2026-05-03 (qwen3.6:35b-a3b added 2026-05-06; OpenRouter
+# free-tier cloud section removed 2026-06-04 — rate limits made every cloud
+# alias unreliable (429s/timeouts), and an unreliable model is worse than a
+# missing one for anything automated. Local inference only; if frontier-scale
+# is ever needed, add a PAID provider entry + key, never a :free one.)
 # Sized for gpu-1's RTX 5070 Ti (16GB GDDR7). With OLLAMA_MAX_LOADED_MODELS=1,
 # only one model loads at a time. Most entries are dense and fully resident
 # in VRAM (≤14GB after KV cache + multimodal overhead); qwen36-a3b is the
 # exception — MoE 35B-A3B that relies on partial CPU offload of inactive
 # experts to gpu-1's 128GB host RAM. Local covers default + multimodal +
-# coding + reasoning + MoE-flagship; cloud covers frontier-scale, video,
-# and 200B+-class reasoning.
+# coding + reasoning + MoE-flagship.
 proxy_config:
   model_list:
     # ──────────────────────────────────────────────
@@ -87,19 +104,62 @@ proxy_config:
     # Replaces qwen3.5:9b as default.
     - model_name: mistral-small-24b
       litellm_params:
-        model: ollama/mistral-small3.2:24b
+        model: ollama_chat/mistral-small3.2:24b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
-    # Gemma 3 12B — multimodal (text + image), 128K context
-    # Best practical local vision model — OCR, charts, screenshot analysis.
-    # Q4_K_M ≈ 8GB + ~1.4GB vision tower.
+    # Gemma 4 12B — multimodal (text + image), 256K context upstream
+    # (server-capped by OLLAMA_CONTEXT_LENGTH=16384). Best practical local
+    # vision model — OCR, charts, screenshot analysis. Q4_K_M ≈ 7.6GB +
+    # vision tower. Replaced gemma3:12b 2026-06-05 (needed the ollama
+    # 0.30.5 image pin — gemma4 arch lands in 0.30.3, FPE-crash-free from
+    # 0.30.5). Thinking model: emits a reasoning preamble before answering
+    # (CLI shows it; API keeps content clean — verified stream+tools on
+    # the native /api/chat path populates tool_calls with zero scaffolding
+    # leak). Alias kept stable so consumers are untouched.
     - model_name: gemma-12b
       litellm_params:
-        model: ollama/gemma3:12b
+        model: ollama_chat/gemma4:12b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
+    # Gemma 4 12B (no-think) — same backend as gemma-12b but with the
+    # reasoning preamble disabled via extra_body (the qwen36-a3b-nothin
+    # pattern). For consumers that can't set request-body params (UIs,
+    # n8n nodes, model dropdowns) and want fast multimodal answers:
+    # verified 0.7s/22 completion tokens vs 4.1s/300-token cap-out with
+    # thinking on. gemma4 thinking is binary — "think": "low" levels are
+    # accepted but ignored, so false is the only useful override.
+    - model_name: gemma-12b-nothin
+      litellm_params:
+        model: ollama_chat/gemma4:12b
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+        extra_body:
+          think: false
+
+    # Gemma 4 12B with a 64k context window — same weights as gemma-12b but
+    # backed by the derived tag gemma4:12b-64k (Modelfile num_ctx 65536;
+    # created chart-side in apps/ollama/values.yaml ollama.models.create).
+    # Exists because ollama_chat ignores per-request num_ctx (litellm#12930)
+    # and the server default is 16384. Measured KV cost: +846MiB over the 16k
+    # baseline on gpu-1, 100% GPU. Primary consumer: hermes agent shell
+    # (its config.yaml context_length overrides must match these values —
+    # 64k pair = 65536, everything else = 16384; see manual-op
+    # orch-hermes-context-budgets).
+    - model_name: gemma-12b-64k
+      litellm_params:
+        model: ollama_chat/gemma4:12b-64k
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+
+    # 64k + thinking disabled (the gemma-12b-nothin pattern at 64k).
+    # Default model of the hermes agent shell.
+    - model_name: gemma-12b-64k-nothin
+      litellm_params:
+        model: ollama_chat/gemma4:12b-64k
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+        extra_body:
+          think: false
+
     # Qwen2.5-VL 7B (Q4_K_M) — Qwen-family alternative to gemma-12b for vision
-    # Different model architecture from Gemma3; useful when one struggles on a
+    # Different model architecture from Gemma4; useful when one struggles on a
     # specific input class (handwriting, dense tables, multi-column layouts).
     # Default Q4_K_M ≈ 5.5GB + vision tower + KV cache ≈ 12GB on the 16GB
     # RTX 5070 Ti — comfortable headroom. Q8_0 was tried first but OOMed at
@@ -107,7 +167,7 @@ proxy_config:
     # postmortem for the canary-day discovery.
     - model_name: qwen-vl-7b
       litellm_params:
-        model: ollama/qwen2.5vl:7b
+        model: ollama_chat/qwen2.5vl:7b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
     # Qwen2.5-Coder 14B (Q6) — code generation and completion
@@ -116,7 +176,7 @@ proxy_config:
     # carstenuhlig/omnicoder-9b with a single stronger model.
     - model_name: qwen-coder-14b
       litellm_params:
-        model: ollama/qwen2.5-coder:14b-instruct-q6_K
+        model: ollama_chat/qwen2.5-coder:14b-instruct-q6_K
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
     # Qwen3 14B — reasoning model with native thinking mode, 32K context
@@ -124,7 +184,7 @@ proxy_config:
     # Q4_K_M ≈ 9GB VRAM.
     - model_name: qwen-think-14b
       litellm_params:
-        model: ollama/qwen3:14b
+        model: ollama_chat/qwen3:14b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
     # Qwen3.6 35B-A3B — MoE reasoning/general flagship, 256K context
@@ -149,7 +209,7 @@ proxy_config:
     # tokens before the answer.
     - model_name: qwen36-a3b
       litellm_params:
-        model: ollama/qwen3.6:35b-a3b
+        model: ollama_chat/qwen3.6:35b-a3b
         api_base: http://ollama.ollama.svc.cluster.local:11434
 
     # Qwen3.6 35B-A3B (no-think) — same backend as qwen36-a3b but with
@@ -160,67 +220,29 @@ proxy_config:
     # hard math or multi-step planning where thinking earns its keep.
     - model_name: qwen36-a3b-nothin
       litellm_params:
-        model: ollama/qwen3.6:35b-a3b
+        model: ollama_chat/qwen3.6:35b-a3b
         api_base: http://ollama.ollama.svc.cluster.local:11434
         extra_body:
           think: false
 
-    # ──────────────────────────────────────────────
-    # CLOUD MODELS — Free tier via OpenRouter
-    # Rate limit: 20 req/min, 200 req/day per model
-    # Slugs verified live against /api/v1/models on 2026-05-03 — refresh
-    # via /update-openrouter-models when entries start 404'ing.
-    # ──────────────────────────────────────────────
-
-    # Gemma 4 31B Instruct — flagship free multimodal, 256K context
-    # Text + image + video input, function calling, 140+ languages.
-    # ✅ Data: Open-weight, served by third-party
-    - model_name: gemma-31b
+    # Qwen3.6 35B-A3B with a 64k context window — backed by the derived tag
+    # qwen3.6:35b-a3b-64k (apps/ollama/values.yaml ollama.models.create;
+    # Modelfile num_ctx 65536, the litellm#12930 escape hatch). Hermes
+    # agent-brain candidate (rework-1): hermes hard-requires >=64k context
+    # (its preamble alone is ~15k tokens) and gemma4-12B failed the agentic
+    # gate. Keep hermes config.yaml context_length overrides in sync (65536).
+    - model_name: qwen36-a3b-64k
       litellm_params:
-        model: openrouter/google/gemma-4-31b-it:free
-        api_key: os.environ/OPENROUTER_API_KEY
+        model: ollama_chat/qwen3.6:35b-a3b-64k
+        api_base: http://ollama.ollama.svc.cluster.local:11434
 
-    # NVIDIA Nemotron Nano 2 VL — 12B multimodal, 128K context
-    # Video understanding + document intelligence; the smaller, faster
-    # video-capable companion to Gemma 4 31B.
-    # ✅ Data: Open-weight, served by third-party
-    - model_name: nemotron-vl-12b
+    # 64k + thinking suppressed (the qwen36-a3b-nothin pattern at 64k).
+    - model_name: qwen36-a3b-64k-nothin
       litellm_params:
-        model: openrouter/nvidia/nemotron-nano-12b-v2-vl:free
-        api_key: os.environ/OPENROUTER_API_KEY
-
-    # NVIDIA Nemotron 3 Nano Omni 30B — multimodal + reasoning, 256K context
-    # Accepts text/image/video/audio; reasoning mode. Largest free omni model.
-    # ✅ Data: Open-weight, served by third-party
-    - model_name: nemotron-omni-30b
-      litellm_params:
-        model: openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free
-        api_key: os.environ/OPENROUTER_API_KEY
-
-    # Qwen3 Next 80B A3B Instruct — top free general/reasoning, 262K context
-    # MoE (3B active), strong on coding + math + general knowledge.
-    # Replaces step-flash slot.
-    # ⚠ Data: Alibaba Cloud; prompts may be retained
-    - model_name: qwen-next-80b
-      litellm_params:
-        model: openrouter/qwen/qwen3-next-80b-a3b-instruct:free
-        api_key: os.environ/OPENROUTER_API_KEY
-
-    # Qwen3 Coder — 480B MoE (35B active), 262K context
-    # Frontier free coding model — for cases the local 14B coder isn't enough.
-    # ⚠ Data: Alibaba Cloud; prompts may be retained
-    - model_name: qwen-coder-480b
-      litellm_params:
-        model: openrouter/qwen/qwen3-coder:free
-        api_key: os.environ/OPENROUTER_API_KEY
-
-    # Hermes 3 405B — NousResearch fine-tune of Llama 3.1 405B, 131K context
-    # Largest free open-weight model; backstop for general-purpose at scale.
-    # ✅ Data: Open-weight, served by third-party
-    - model_name: hermes-405b
-      litellm_params:
-        model: openrouter/nousresearch/hermes-3-llama-3.1-405b:free
-        api_key: os.environ/OPENROUTER_API_KEY
+        model: ollama_chat/qwen3.6:35b-a3b-64k
+        api_base: http://ollama.ollama.svc.cluster.local:11434
+        extra_body:
+          think: false
 
   litellm_settings:
     default_model: mistral-small-24b

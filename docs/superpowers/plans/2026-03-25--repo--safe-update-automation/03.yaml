@@ -1,237 +1,109 @@
 schema_version: 2
 phase:
   number: 3
-  title: Version Tracking
-  tag: agentic
+  title: ARC Bootstrap Secret
+  tag: manual
   depends_on:
   - 2
-  tracking_issue: https://github.com/derio-net/frank/issues/390
+  tracking_issue: null
 tasks:
-- number: 4
-  title: Create versions.yaml
+- number: 3
+  title: Bootstrap Secret (Manual Operation)
   steps:
-  - id: P3.T4.S1
+  - id: P3.T3.S1
     text: |-
-      Check current cluster versions
+      Create secrets directory
 
 
       ```bash
+      mkdir -p secrets/arc
+      ```
+  - id: P3.T3.S2
+    text: |-
+      Apply and encrypt the secret
+
+
+      The GitHub App credentials must exist as a Kubernetes Secret before the runner pod can register. This is a SOPS-encrypted bootstrap secret applied out-of-band.
+
+      ```yaml
+      # manual-operation
+      id: arc-github-app-secret
+      layer: repo
+      app: arc-runners
+      plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation/
+      when: "After arc-controller and arc-runners apps are synced by ArgoCD, before runner pod reaches Running state"
+      why_manual: "GitHub App credentials are a bootstrap secret. The runner cannot register without it, and SOPS+ArgoCD don't mix per repo convention."
+      commands:
+        - |
+          # Create the Secret manifest
+          kubectl create secret generic arc-github-app-secret \
+            --namespace arc-system \
+            --from-literal=github_app_id=<APP_ID> \
+            --from-literal=github_app_installation_id=<INSTALLATION_ID> \
+            --from-literal=github_app_private_key="$(cat path/to/private-key.pem)" \
+            --dry-run=client -o yaml > /tmp/arc-secret.yaml
+          # Encrypt with SOPS (use the same age key as other secrets/)
+          sops --encrypt /tmp/arc-secret.yaml > secrets/arc/github-app-secret.yaml
+          rm /tmp/arc-secret.yaml
+          # Apply to cluster
+          sops --decrypt secrets/arc/github-app-secret.yaml | kubectl apply -f -
+      verify:
+        - kubectl get secret arc-github-app-secret -n arc-system
+        - kubectl get pods -n arc-system   # runner pod should reach Running within ~60s
+        - kubectl get runners -n arc-system  # should show registered runner
+      status: pending
+      ```
+
+      Follow the commands in the manual-operation block above. Replace `<APP_ID>`, `<INSTALLATION_ID>`, and `path/to/private-key.pem` with your actual GitHub App values.
+  - id: P3.T3.S3
+    text: |-
+      Commit the encrypted secret
+
+
+      ```bash
+      git add secrets/arc/github-app-secret.yaml
+      git commit -m "feat(repo): add SOPS-encrypted ARC GitHub App secret"
+      ```
+  - id: P3.T3.S4
+    text: |-
+      Push and verify runner registers
+
+
+      ```bash
+      git push
+      # Wait for ArgoCD to sync arc-controller (wave -1) then arc-runners (wave 0)
       source .env
-      omnictl get cluster frank -o yaml | grep -E 'talosVersion|kubernetesVersion'
-      # Note the current running versions
+      kubectl get pods -n arc-system -w
+      # Expected: arc-controller pod Running, frank-cluster-* runner pod Running
+      kubectl get runners -n arc-system
+      # Expected: runner shows as registered
       ```
-  - id: P3.T4.S2
-    text: |-
-      Create versions.yaml
 
-
-      Create `versions.yaml` at repo root with the actual running versions from step 1:
-
-      ```yaml
-      # versions.yaml
-      # Declarative record of target cluster versions for Frank.
-      # Updated by .github/workflows/version-check.yaml when new stable patch releases exist.
-      # K8s minor version is pinned — update manually when Omni supports a new minor.
-      # Omni applies the actual upgrade; this file is the audit trail and PR review trigger.
-
-      talos: v1.9.x          # replace x with actual patch from omnictl output
-      kubernetes:
-        minor: "1.32"        # pinned — only patch bumps are automated
-        patch: v1.32.x       # replace x with actual patch from omnictl output
-      ```
-  - id: P3.T4.S3
-    text: |-
-      Commit
-
-
+      Verify runner placement on gpu-1. With `minRunners: 0` (scale-to-zero)
+      there is no idle runner pod, so observe one while a job runs — trigger a
+      smoke-test (or temporarily set `minRunners: 1`) and watch:
       ```bash
-      git add versions.yaml
-      git commit -m "feat(repo): add versions.yaml for Talos/K8s version tracking"
-      ```
-
-      ---
-- number: 5
-  title: Omni/Talos Version Check Workflow
-  steps:
-  - id: P3.T5.S1
-    text: |-
-      Create the workflow
-
-
-      Create `.github/workflows/version-check.yaml`:
-
-      ```yaml
-      name: Version Check
-
-      on:
-        schedule:
-          - cron: "0 9 * * 1"   # Monday 09:00 UTC
-        workflow_dispatch:        # allow manual trigger
-
-      permissions:
-        contents: write
-        pull-requests: write
-
-      jobs:
-        check-versions:
-          # Runs on GitHub-hosted runner — only needs GitHub API and git, no cluster access.
-          # This keeps version detection independent of the ARC runner being healthy.
-          runs-on: ubuntu-latest
-          steps:
-            - name: Checkout
-              uses: actions/checkout@v4
-
-            - name: Install yq
-              run: |
-                if ! command -v yq &>/dev/null; then
-                  wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-                  chmod +x /usr/local/bin/yq
-                fi
-
-            - name: Read current versions
-              id: current
-              run: |
-                TALOS=$(yq '.talos' versions.yaml)
-                K8S_MINOR=$(yq '.kubernetes.minor' versions.yaml)
-                K8S_PATCH=$(yq '.kubernetes.patch' versions.yaml)
-                echo "talos=$TALOS" >> $GITHUB_OUTPUT
-                echo "k8s_minor=$K8S_MINOR" >> $GITHUB_OUTPUT
-                echo "k8s_patch=$K8S_PATCH" >> $GITHUB_OUTPUT
-
-            - name: Get latest stable Talos release
-              id: latest_talos
-              env:
-                GH_TOKEN: ${{ github.token }}
-              run: |
-                # Extract current minor from current talos version (e.g. v1.9.3 -> 1.9)
-                CURRENT_TALOS="${{ steps.current.outputs.talos }}"
-                CURRENT_MINOR=$(echo "$CURRENT_TALOS" | grep -oP 'v\d+\.\d+')
-                # Find latest patch within same minor. The releases API is sorted
-                # by publish date (newest first) and paginated, so `| first` can
-                # miss a patch or pick an out-of-order backport. Page through all
-                # releases, emit matching stable tags, and take the highest semver.
-                LATEST=$(gh api --paginate repos/siderolabs/talos/releases \
-                  --jq ".[] | select(.prerelease == false) | select(.tag_name | startswith(\"$CURRENT_MINOR.\")) | .tag_name" \
-                  | sort -V | tail -1)
-                echo "version=$LATEST" >> $GITHUB_OUTPUT
-                echo "release_url=https://github.com/siderolabs/talos/releases/tag/$LATEST" >> $GITHUB_OUTPUT
-
-            - name: Get latest stable K8s release
-              id: latest_k8s
-              env:
-                GH_TOKEN: ${{ github.token }}
-              run: |
-                MINOR="v${{ steps.current.outputs.k8s_minor }}"
-                # See the Talos step: page through all releases and pick the
-                # highest semver patch, not the most-recently-published one.
-                # kubernetes/kubernetes interleaves many minors, so the target
-                # patch is rarely on the first page.
-                LATEST=$(gh api --paginate repos/kubernetes/kubernetes/releases \
-                  --jq ".[] | select(.prerelease == false) | select(.tag_name | startswith(\"$MINOR.\")) | .tag_name" \
-                  | sort -V | tail -1)
-                echo "version=$LATEST" >> $GITHUB_OUTPUT
-                echo "release_url=https://github.com/kubernetes/kubernetes/releases/tag/$LATEST" >> $GITHUB_OUTPUT
-
-            - name: Check for updates
-              id: updates
-              run: |
-                TALOS_CHANGED=false
-                K8S_CHANGED=false
-                if [ "${{ steps.latest_talos.outputs.version }}" != "${{ steps.current.outputs.talos }}" ]; then
-                  TALOS_CHANGED=true
-                fi
-                if [ "${{ steps.latest_k8s.outputs.version }}" != "${{ steps.current.outputs.k8s_patch }}" ]; then
-                  K8S_CHANGED=true
-                fi
-                echo "talos_changed=$TALOS_CHANGED" >> $GITHUB_OUTPUT
-                echo "k8s_changed=$K8S_CHANGED" >> $GITHUB_OUTPUT
-
-            - name: Update versions.yaml
-              if: steps.updates.outputs.talos_changed == 'true' || steps.updates.outputs.k8s_changed == 'true'
-              run: |
-                if [ "${{ steps.updates.outputs.talos_changed }}" == "true" ]; then
-                  yq -i '.talos = "${{ steps.latest_talos.outputs.version }}"' versions.yaml
-                fi
-                if [ "${{ steps.updates.outputs.k8s_changed }}" == "true" ]; then
-                  yq -i '.kubernetes.patch = "${{ steps.latest_k8s.outputs.version }}"' versions.yaml
-                fi
-
-            - name: Open PR
-              if: steps.updates.outputs.talos_changed == 'true' || steps.updates.outputs.k8s_changed == 'true'
-              env:
-                GH_TOKEN: ${{ github.token }}
-              run: |
-                BRANCH="update/cluster-versions-$(date +%Y%m%d)"
-                git config user.name "github-actions[bot]"
-                git config user.email "github-actions[bot]@users.noreply.github.com"
-                git checkout -b "$BRANCH"
-                git add versions.yaml
-                git commit -m "chore(os): update cluster versions"
-                git push origin "$BRANCH"
-
-                BODY="## Cluster Version Updates\n\n"
-                if [ "${{ steps.updates.outputs.talos_changed }}" == "true" ]; then
-                  BODY+="- **Talos:** ${{ steps.current.outputs.talos }} → ${{ steps.latest_talos.outputs.version }} ([release notes](${{ steps.latest_talos.outputs.release_url }}))\n"
-                fi
-                if [ "${{ steps.updates.outputs.k8s_changed }}" == "true" ]; then
-                  BODY+="- **Kubernetes:** ${{ steps.current.outputs.k8s_patch }} → ${{ steps.latest_k8s.outputs.version }} ([release notes](${{ steps.latest_k8s.outputs.release_url }}))\n"
-                fi
-                BODY+="\n### Before merging\n- [ ] Review release notes for breaking changes\n- [ ] Verify Omni supports this Talos/K8s combination\n\n### After merging\n\`\`\`bash\nomnictl patch cluster frank --patch '[{\"op\":\"replace\",\"path\":\"/spec/talosVersion\",\"value\":\"${{ steps.latest_talos.outputs.version }}\"}]'\n\`\`\`\n"
-
-                gh pr create \
-                  --title "chore(os): update cluster versions" \
-                  --body "$(printf '%b' "$BODY")" \
-                  --base main \
-                  --head "$BRANCH"
-      ```
-  - id: P3.T5.S2
-    text: |-
-      Test by triggering manually
-
-
-      After the runner is live (Task 3 complete), trigger the workflow manually:
-
-      ```bash
-      # In GitHub UI: Actions → Version Check → Run workflow
-      # Or via CLI:
-      gh workflow run version-check.yaml
-      ```
-
-      Expected: workflow runs, reads `versions.yaml`, checks releases API, exits without opening a PR if already on latest.
-  - id: P3.T5.S3
-    text: |-
-      Commit
-
-
-      ```bash
-      git add .github/workflows/version-check.yaml
-      git commit -m "feat(repo): add Talos/K8s version check workflow"
+      kubectl get pod -n arc-system -o wide -w | grep runner
+      # EXPECTED: an ephemeral runner pod appears on node "gpu-1" for the
+      # duration of the job, then terminates.
       ```
 
       ---
 state:
   steps:
-    P3.T4.S1:
+    P3.T3.S1:
       state: ' '
       ticked_at: null
       note: null
-    P3.T4.S2:
+    P3.T3.S2:
       state: ' '
       ticked_at: null
       note: null
-    P3.T4.S3:
+    P3.T3.S3:
       state: ' '
       ticked_at: null
       note: null
-    P3.T5.S1:
-      state: ' '
-      ticked_at: null
-      note: null
-    P3.T5.S2:
-      state: ' '
-      ticked_at: null
-      note: null
-    P3.T5.S3:
+    P3.T3.S4:
       state: ' '
       ticked_at: null
       note: null

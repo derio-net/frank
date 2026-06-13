@@ -1,0 +1,63 @@
+schema_version: 2
+phase:
+  number: 2
+  title: gh-api collection + best-effort fallback
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: collect() and main() with non-blocking fallback
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Add a fallback test to test_render_bump_body.py: monkeypatch
+      `collect` to raise, assert `main()` prints the LEGACY two-line body
+      (`agent-images: \`<new>\`` + `vk-remote: \`<vkr>\`` when vkr set),
+      and that empty `--old` also yields the fallback. Run pytest (red for
+      the new cases).
+  - id: P2.T1.S2
+    text: |
+      Implement `collect(old,new,vkr,repo='derio-net/agent-images')`
+      shelling out to `gh api`: compare old...new -> commits[]; per commit
+      `gh api /repos/<repo>/commits/<sha>` -> files (paths); parse `(#NN)`
+      from the commit subject; per PR `gh api /repos/<repo>/pulls/<NN>` ->
+      body, take the first meaningful line (skip blank, `#`-heading and
+      `<!-- -->` lines), truncate ~200 chars. Build the `bump` dict.
+      Implement `main()` (argparse --old/--new/--vkr) wrapping collect in
+      try/except: on ANY exception, or missing/equal old, print the legacy
+      fallback body via a `legacy_body()` helper. Run pytest: all green.
+  - id: P2.T1.S3
+    text: |
+      Live integration check (de-risk the API path pre-merge), via the
+      isolation container/host gh token — NOT a unit test:
+      `GH_TOKEN=$(gh auth token) python3 scripts/render_bump_body.py
+        --old 439a6ef7e269401062b9be1fff5e6b972acc9f1f
+        --new 8606edfa9c104460fec5805c476cff7162da399c --vkr 7cebcbb`
+      Confirm the printed body shows the compare link + the
+      `agent-images#88` bullet with title/@author/summary + vk-remote line.
+      Paste the output into the step note. Commit:
+      `feat(cicd): gh-api collection + non-blocking fallback for bump body`.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-11T11:41:39+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-11T11:41:44+00:00'
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: '2026-06-11T11:41:49+00:00'
+      note: 'Live check passed: single-PR range (439a6ef..8606edf) and 2-PR range
+        (c084c4f..8606edf) both render compare link + newest-first bullets + commit-body
+        summaries + /issues links. Discovered (#NN) can be an issue (8606edf->#88
+        issue, PR was #114); redesigned to source summary from commit body and link
+        /issues/NN (universal). 20 tests pass.'
+  completion:
+    at: null
+    note: null
+    observed_prs: []

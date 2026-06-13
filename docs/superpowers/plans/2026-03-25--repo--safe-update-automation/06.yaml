@@ -1,0 +1,111 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Branch Protection & End-to-End Verification
+  tag: manual
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 8
+  title: GitHub Branch Protection (Manual Operation)
+  steps:
+  - id: P6.T8.S1
+    text: |-
+      Apply branch protection after smoke-test workflow is live
+
+
+      The `smoke-test/readiness` status check must be a required status check on `main` so Renovate's auto-merge only fires after the smoke test passes.
+
+      ```yaml
+      # manual-operation
+      id: github-branch-protection-smoke-test
+      layer: repo
+      app: renovate
+      plan: docs/superpowers/plans/2026-03-25--repo--safe-update-automation/
+      when: "After smoke-test.yaml workflow exists on main branch and has run at least once successfully"
+      why_manual: "Branch protection rules must be configured via GitHub UI or API. The smoke-test/readiness check must be a required status check so Renovate's automerge only fires after tests pass."
+      commands:
+        - |
+          # Via GitHub CLI — sets branch protection on main requiring smoke-test/readiness
+          gh api repos/:owner/:repo/branches/main/protection \
+            --method PUT \
+            --field required_status_checks='{"strict":false,"checks":[{"context":"smoke-test/readiness"}]}' \
+            --field enforce_admins=false \
+            --field required_pull_request_reviews=null \
+            --field restrictions=null
+      verify:
+        - gh api repos/:owner/:repo/branches/main/protection --jq '.required_status_checks.checks'
+        # Expected: [{"context":"smoke-test/readiness","app_id":null}]
+      status: pending
+      ```
+
+      Run the `gh api` command above (after Task 7 is complete and the workflow has run). Replace `:owner/:repo` with your actual values.
+- number: 9
+  title: Verify Renovate Onboarding
+  steps:
+  - id: P6.T9.S1
+    text: |-
+      Confirm Renovate GitHub App is installed
+
+
+      Go to your GitHub repo → Settings → GitHub Apps. Confirm Renovate is installed with access to this repo.
+  - id: P6.T9.S2
+    text: |-
+      Trigger Renovate onboarding
+
+
+      Renovate will open an onboarding PR called "Configure Renovate" on first run if it detects no `renovate.json`. Since you already committed `renovate.json`, it will skip onboarding and go straight to dependency scanning. Trigger a run from [Renovate's dashboard](https://developer.mend.io) or wait for the scheduled weekend run.
+  - id: P6.T9.S3
+    text: |-
+      Verify Renovate finds chart versions
+
+
+      After first run, check if Renovate opens PRs for any outdated chart versions. Confirm the regex manager is matching correctly — if no PRs appear but charts are outdated, the regex likely has an indentation mismatch (re-run the python3 test from Task 6 Step 2).
+  - id: P6.T9.S4
+    text: |-
+      Verify auto-merge fires on green for stateless app
+
+
+      Wait for a Renovate PR on a stateless app (or create one manually). Confirm: smoke test runs → passes → Renovate auto-merges. If auto-merge doesn't fire, check that branch protection requires `smoke-test/readiness` and that the check status is `success` not just `skipped`.
+
+      ---
+
+      ## Deployment Deviations
+
+      _Record any deviations from the plan here as they occur._
+
+      ---
+
+      ## Notes
+
+      - **ARC ServiceAccount name:** ARC v2 names the runner ServiceAccount `<release-name>-gha-rs-no-permission`. If the release name in `values.yaml` differs from `frank-cluster`, update the RBAC manifest subject name accordingly.
+      - **OCI chart registry auth:** `oci://ghcr.io/actions/...` is public — no Helm registry credentials needed.
+      - **Renovate packageNames:** The `matchPackageNames` in `renovate.json` must match the `chart:` field values exactly as they appear in the Application CRs. Verify these match after Renovate's first scan.
+      - **yq version:** The runner image may not have `yq` pre-installed. The version-check workflow installs it on first run; the smoke-test workflow uses only `grep`/`awk`/`jq` which are typically pre-installed in the ARC runner image.
+state:
+  steps:
+    P6.T8.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T9.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T9.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T9.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T9.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

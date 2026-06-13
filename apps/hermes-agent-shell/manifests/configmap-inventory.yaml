@@ -1,0 +1,24 @@
+# Layer-2 inventory for the hermes-agent-shell pod.
+# `cont-init.d/40-shell-inventory` reconciles this against the home PVC at boot,
+# and again whenever the operator runs `hermes-agent-shell-reconcile`.
+#
+# Shipped sparse so the boot reconcile is a genuine no-op. All three
+# multi-harness keys are present but EMPTY.
+#
+# Do NOT seed `harnesses: { hermes: latest }` here: hermes is already on PATH
+# (baked into the image at HERMES_VERSION=0.15.2), and install-inventory.sh
+# runs `hermes update` for every populated harness entry on EVERY boot — that
+# is not a no-op, and a non-zero exit fires a Telegram alert. Leave it empty;
+# pin a PyPI version later (or float it) by adding `hermes: <ver|latest>` once
+# you actually want the reconcile to manage the harness.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-agent-shell-inventory
+  namespace: hermes-agent-shell
+data:
+  inventory.yaml: |
+    # Multi-harness standard keys (empty → reconcile iterates nothing).
+    harnesses: {}
+    mcp-servers: {}
+    skills: {}

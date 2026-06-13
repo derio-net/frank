@@ -266,8 +266,31 @@ The Derio Ops board now self-updates. Every layer's tile shows its real, current
 
 Zero manual triage. And because the board finally reflects reality, it's useful again — which was the original point.
 
+## Closing the loop's other half (2026-06-06, v0.3.0)
+
+The original design had a blind spot I lived with for two months before admitting it: the Bridge files `[Bug] <alertname> is dead` issues when a layer dies, but when the layer heals, only the *tracker* gets the good news. The Lifecycle tile flips back to `healthy`, a comment lands on the tracker — and the bug issue sits there, open, forever. After a transient Traefik blip and a fluent-bit restart in early June, my frank-ops repo had accumulated a small graveyard of bugs for problems that had healed themselves within minutes (#38 resolved in 3 minutes, #39 in 45). I was the automatic issue *creator* and the manual issue *closer*.
+
+v0.3.0 makes the resolved webhook do the symmetric work: find every open bug matching the resolved alert, post a heal comment (resolution time, outage duration), close with `state_reason: completed`. No reconciler, no Grafana polling, no new credentials — the tracker comment history proved every resolved notification had arrived reliably, so a webhook-only close was the proportionate fix. If a stale bug ever survives a bridge-pod restart, the reconciler is the documented follow-up, not a speculative build-now.
+
+The interesting bug was in the *matching*. Grafana's synthetic `DatasourceError` alertname is shared by every rule whose datasource errors — L8 and L24 had both filed `[Bug] DatasourceError is dead` issues. Matching by title alone would let Traefik's recovery close Observability's bug. The fix rides on something v0.1.0 accidentally got right: every bug body embeds `**Feature Issue:** derio-net/frank-ops#24`, so close (and the creation dedup, which had the same collision lurking) now requires both the title prefix *and* that body ref — newline-terminated, because `#2` is a prefix of `#24` and substring matching is a liar.
+
 <!-- MEDIA: screenshot | Telegram alert from @agent_zero_cc_bot showing a per-pod labelled Layer failure | Screenshot a real alert message in the Telegram chat showing a message like "L3 Cilium: pod cilium-94msf NotReady" with severity tag -->
 <!-- {{</* screenshot src="telegram-per-pod-layer-alert.png" caption="Telegram notification from the Bridge: per-pod label makes the alert actionable" */>}} -->
+
+## When the power went out (2026-06-08, v0.4.0)
+
+Two months of self-congratulation met a power outage. The whole cluster went dark overnight; when it came back, the datasources hadn't caught up yet, so Grafana did the honest thing and fired `DatasourceError` — its built-in "I can't see anything" alert — for every rule that couldn't run its query. And every one of those rules carried a `github_issue` label. So the Bridge dutifully marked ten layers `dead`, opened five `[Bug] DatasourceError is dead` issues, and paged me. Every summary read `[no value]`, because the alert templates were trying to interpolate data through a datasource that wasn't answering. Five bug reports describing nothing, about layers that were fine.
+
+That's the first lesson, and it's embarrassing in hindsight: **I had taught myself that "monitoring can't see the layer" means "the layer is dead."** It doesn't. A blind sensor is not a corpse. `DatasourceError` and `NoData` are statements about *me*, not about the layer.
+
+The second lesson is crueler, because it's the exact bug I'd just bragged about fixing. Grafana came back as a *fresh pod* — and a new Grafana process has no memory of the `DatasourceError` instances the old one fired, so the `resolved` that would have healed everything never came. Fine, I thought, the real per-rule alerts will resolve under their own names and close the bugs. Except: the close path matched bugs by *alertname*. The bugs were titled `DatasourceError`; the resolves arrived as `Layer 18 Persistent Agent Heartbeat Stale`. My v0.3.0 feature-ref matching — the thing I wrote three paragraphs celebrating — was wired into *creation dedup*, but *close* still keyed on the title. So the tracker tiles flipped back to `healthy` while the bugs sat open underneath them, uncloseable by design. I'd fixed the collision and left the asymmetry.
+
+v0.4.0 fixes both:
+
+- **Blindness ≠ death.** A firing `DatasourceError`/`NoData` now caps the layer at `degraded` ("I can't fully see this") and creates *no* bug. The storm can't manufacture corpses anymore.
+- **Heal by feature-ref alone.** The close path now matches open bugs by the `**Feature Issue:**` body ref *regardless of alertname* — so a tracker returning to `healthy` closes every bug it owns, even one filed under a name the resolve will never repeat. Creation still keys on alertname so two genuinely different real alerts on one tracker each keep their own bug.
+
+The cleanup, before the fix shipped, was its own small proof: I replayed a synthetic `DatasourceError` *resolved* webhook carrying the stranded labels, and the Bridge's own idempotent path flipped all ten tiles green and closed all five bugs. The system wasn't broken — it had simply never been *told* the thing was over. Which is the whole story of this layer, really: it only knows what the webhooks tell it.
 
 ## References
 

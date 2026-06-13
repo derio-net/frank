@@ -61,7 +61,8 @@ data:
                          Model shape:    --provider ollama-cloud --model <alias>
                          Aliases:        qwen-coder-14b, qwen-think-14b,
                                          mistral-small-24b, qwen36-a3b,
-                                         qwen36-a3b-nothin, gemma-12b
+                                         qwen36-a3b-nothin, gemma-12b,
+                                         gemma-12b-nothin
                          Install check:  ls /paperclip/agent-bin/bin/hermes
                          Reconcile:      paperclip-shell-reconcile
 

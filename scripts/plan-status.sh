@@ -119,9 +119,9 @@ for f in "${SORTED[@]}"; do
     printf "\033[2m%s\033[0m\n" "$rel_path"
 
     # v2 plans keep phase/step state in NN.yaml, not markdown checkboxes — the
-    # task tree below is v1-only. Point at vk for v2 progress and move on.
+    # task tree below is v1-only. Point at fr for v2 progress and move on.
     if [[ "${STATUS_FILE[$f]}" == */_prose.md ]]; then
-      printf "  (v2 plan — run \033[1mvk progress\033[0m for phase/step state)\n"
+      printf "  (v2 plan — run \033[1mfr status\033[0m for phase/step state)\n"
       continue
     fi
 

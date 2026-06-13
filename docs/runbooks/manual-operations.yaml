@@ -1060,6 +1060,163 @@ operations:
     (other consumers may still reference it — verify before deleting).
 
     '
+- id: orch-hermes-config-provider
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-03--orch--hermes-agent-shell-deploy
+  when: After first pod boot, before bare `hermes` works (deployment deviation, 2026-06-04)
+  why_manual: >
+    hermes >=0.15 does not consume OPENAI_BASE_URL/OPENAI_API_KEY for chat
+    inference — provider "auto" resolves to openrouter and 401s. The default
+    provider must be pinned in ~/.hermes/config.yaml, which lives on the home
+    PVC (hermes writes ALL state to HERMES_HOME; a read-only ConfigMap mount is
+    not an option, same constraint as paperclip's hermes_local). Seeded once;
+    survives restarts on the PVC.
+  commands:
+  - "ssh agent@192.168.55.226, edit ~/.hermes/config.yaml:"
+  - "  model: { default: mistral-small-24b, provider: litellm }"
+  - "  providers: { litellm: { base_url: 'http://litellm.litellm.svc:4000/v1', key_env: OPENAI_API_KEY } }"
+  - "Model-string prefixes (litellm/<alias>, custom/<alias>, custom:litellm:<alias>) do NOT pin the provider — only the model: mapping form works (see agent-shells gotcha)."
+  verify:
+  - "ssh agent@192.168.55.226, then from the login shell: hermes chat -Q -q 'What is 2+2?' → answers via LiteLLM (hermes logs show provider=custom base_url=http://litellm.litellm.svc:4000/v1)"
+  status: pending
+- id: orch-hermes-context-budgets
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-06--orch--hermes-context-survival
+  when: after the 64k aliases are live on the LiteLLM gateway (plan phase 4)
+  why_manual: >
+    config.yaml is hermes PVC state, seeded manually by design (precedent
+    orch-hermes-config-provider); no declarative path into the PVC. The
+    per-model context_length overrides MUST mirror live server reality
+    (64k pair = 65536, everything else = OLLAMA_CONTEXT_LENGTH = 16384) —
+    hermes's resolver falls back to a fantasy 256K for unknown aliases and
+    Ollama then truncates prompts front-first and silently (the 2026-06-06
+    session-amnesia incident).
+  commands:
+  - |
+    kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- python3 - <<'EOF'
+    import yaml
+    p = "/home/agent/.hermes/config.yaml"
+    c = yaml.safe_load(open(p))
+    prov = c["providers"]["litellm"]
+    prov["models"] = {
+        "gemma-12b-64k": {"context_length": 65536},
+        "gemma-12b-64k-nothin": {"context_length": 65536},
+        "gemma-12b": {"context_length": 16384},
+        "gemma-12b-nothin": {"context_length": 16384},
+        "mistral-small-24b": {"context_length": 16384},
+        "qwen-think-14b": {"context_length": 16384},
+        "qwen-coder-14b": {"context_length": 16384},
+        "qwen-vl-7b": {"context_length": 16384},
+        "qwen36-a3b": {"context_length": 16384},
+        "qwen36-a3b-nothin": {"context_length": 16384},
+        "all-proxy-models": {"context_length": 16384},
+    }
+    c["model"]["default"] = "gemma-12b-64k-nothin"
+    c.setdefault("tool_output", {})["max_bytes"] = 24000
+    c.setdefault("tool_loop_guardrails", {})["hard_stop_enabled"] = True
+    yaml.safe_dump(c, open(p, "w"), sort_keys=False)
+    print("hermes config updated")
+    EOF
+  verify:
+  - "kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- python3 -c \"import yaml; c=yaml.safe_load(open('/home/agent/.hermes/config.yaml')); print(c['model']['default'], c['providers']['litellm']['models']['gemma-12b-64k-nothin'], c['tool_output']['max_bytes'], c['tool_loop_guardrails']['hard_stop_enabled'])\" → gemma-12b-64k-nothin {'context_length': 65536} 24000"
+  - "in a NEW hermes session: /info shows context 65,536"
+  status: done
+- id: orch-hermes-default-qwen64k
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-06--orch--hermes-ctx-rework-1
+  when: after the rework-1 agentic gate test PASSES (phase 2)
+  why_manual: >
+    config.yaml is hermes PVC state. Default flips to the qwen 64k brain only
+    on gate evidence — gemma4-12B failed the same gate (parent P4).
+  commands:
+  - |
+    kubectl exec -i -n hermes-agent-shell deploy/hermes-agent-shell -- python3 - <<'EOF'
+    import yaml
+    p = "/home/agent/.hermes/config.yaml"
+    c = yaml.safe_load(open(p))
+    c["model"]["default"] = "qwen36-a3b-64k"
+    yaml.safe_dump(c, open(p, "w"), sort_keys=False)
+    print("default -> qwen36-a3b-64k")
+    EOF
+  verify:
+  - "new hermes session: /info shows qwen36-a3b-64k @ 65,536"
+  status: done
+- id: orch-hermes-litellm-virtual-key
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-03--orch--hermes-agent-shell-deploy
+  when: Phase 1, before the pod can reach LiteLLM
+  why_manual: >
+    LiteLLM virtual keys are minted via the LiteLLM admin API / UI and stored in
+    Infisical; neither is reconstructable from git. ESO then syncs the key into
+    the cluster. The key is per-agent so its budget/usage is independently
+    observable and revocable.
+  commands:
+  - "Mint a virtual key in LiteLLM (admin UI or /key/generate) scoped to the hermes agent."
+  - "Store it in Infisical as HERMES_LITELLM_KEY (same project/env the other Frank keys use)."
+  verify:
+  - "kubectl -n hermes-agent-shell get externalsecret hermes-agent-shell-llm -o jsonpath='{.status.conditions[0].reason}' → SecretSynced"
+  - "kubectl -n hermes-agent-shell get secret hermes-agent-shell-llm -o jsonpath='{.data.OPENAI_API_KEY}' | base64 -d | head -c4 → non-empty"
+  - "kubectl -n hermes-agent-shell exec deploy/hermes-agent-shell -- sh -lc 'curl -sf -H \"Authorization: Bearer $OPENAI_API_KEY\" $OPENAI_BASE_URL/models >/dev/null && echo reachable' → reachable (exec, NOT port-forward — gpu-1 flakiness gotcha)"
+  status: pending
+- id: orch-hermes-qwen64k-budgets
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-06--orch--hermes-ctx-rework-1
+  when: after qwen36-a3b-64k aliases are live on the gateway, BEFORE the gate test
+  why_manual: >
+    config.yaml is hermes PVC state (precedent orch-hermes-context-budgets);
+    without the override hermes resolves the new aliases to its 256K fallback.
+  commands:
+  - |
+    kubectl exec -i -n hermes-agent-shell deploy/hermes-agent-shell -- python3 - <<'EOF'
+    import yaml
+    p = "/home/agent/.hermes/config.yaml"
+    c = yaml.safe_load(open(p))
+    c["providers"]["litellm"]["models"]["qwen36-a3b-64k"] = {"context_length": 65536}
+    c["providers"]["litellm"]["models"]["qwen36-a3b-64k-nothin"] = {"context_length": 65536}
+    yaml.safe_dump(c, open(p, "w"), sort_keys=False)
+    print("qwen 64k budgets added")
+    EOF
+  verify:
+  - "kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- python3 -c \"import yaml; print(yaml.safe_load(open('/home/agent/.hermes/config.yaml'))['providers']['litellm']['models']['qwen36-a3b-64k'])\" → {'context_length': 65536}"
+  status: done
+- id: orch-hermes-shell-ssh-keys
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-03--orch--hermes-agent-shell-deploy
+  when: Phase 1, before SSH access works
+  why_manual: >
+    SSH authorized_keys is a SOPS-bootstrap Secret applied out-of-band (matching
+    secure-agent-pod / paperclip-shell / ruflo-shell). SOPS secrets must NOT be
+    ArgoCD-managed.
+  commands:
+  - "ssh-keygen or reuse the existing operator key already paired with the other shells."
+  - "kubectl create secret generic hermes-agent-shell-ssh-keys --namespace=hermes-agent-shell --from-file=authorized_keys=<pubkey> --dry-run=client -o yaml > secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml"
+  - "sops --encrypt --in-place secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml"
+  - "sops --decrypt secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml | kubectl apply -f -"
+  verify:
+  - "kubectl -n hermes-agent-shell get secret hermes-agent-shell-ssh-keys"
+  - "ssh -p 22 agent@192.168.55.226 'hermes --version' → prints a version (--version needs no BYOK env; LiteLLM reachability is checked separately via kubectl exec or an interactive login shell, never `ssh host -- cmd` which skips profile.d)"
+  status: pending
+- id: orch-hermes-soul-fetch-text
+  layer: orch
+  app: hermes-agent-shell
+  plan: docs/superpowers/plans/2026-06-06--orch--hermes-context-survival
+  when: after the fetch-text ConfigMap mount is live (pod restarted post-merge)
+  why_manual: >
+    SOUL.md is hermes PVC state (seeded at first boot, then operator-owned);
+    the steering line keeps the agent off raw `curl` for HTML pages.
+  commands:
+  - |
+    kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- bash -c \
+      'grep -q fetch-text /home/agent/.hermes/SOUL.md || printf "\n## Web reading\nFor web pages, ALWAYS run the SHELL COMMAND \`fetch-text <url>\` via your terminal tool (a program on \$PATH, NOT a function/tool to call directly) — size-capped text extraction. Never curl raw HTML; it floods your context window.\n" >> /home/agent/.hermes/SOUL.md'
+  verify:
+  - kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- grep -A2 "Web reading" /home/agent/.hermes/SOUL.md
+  status: done
 - id: orch-paperclip-hire-hermes-litellm-agent
   layer: orch
   app: paperclip
@@ -1434,4 +1591,98 @@ operations:
   verify:
   - kubectl -n ai-alert-helper-system get secret ai-alert-helper-secrets
   - kubectl -n ai-alert-helper-system exec deploy/ai-alert-helper -- env | grep -c TELEGRAM
+  status: done
+- id: obs-frank-ops-stale-bug-cleanup
+  layer: obs
+  app: health-bridge
+  plan: docs/superpowers/implemented/plans/2026-06-06--obs--health-bridge-bug-auto-close
+  when: Once, after the v0.3.1 auto-close smoke test passed (2026-06-06)
+  why_manual: Issues #38/#39 predate the auto-close path; their alerts already resolved (2026-06-04), so no future resolved webhook will arrive for them
+  commands:
+  - env -u GITHUB_TOKEN gh issue close 38 -R derio-net/frank-ops --reason completed --comment "System healed 2026-06-04 16:55 UTC (alert resolved — see frank-ops#24 tracker comments). Closed manually as one-time cleanup."
+  - env -u GITHUB_TOKEN gh issue close 39 -R derio-net/frank-ops --reason completed --comment "System healed 2026-06-04 17:38 UTC (alert resolved — see frank-ops#8 tracker comments). Closed manually as one-time cleanup."
+  verify:
+  - env -u GITHUB_TOKEN gh issue list -R derio-net/frank-ops --label bug --state open   # → empty
+  status: done
+- id: obs-health-bridge-release-v030
+  layer: obs
+  app: health-bridge
+  plan: docs/superpowers/implemented/plans/2026-06-06--obs--health-bridge-bug-auto-close
+  when: After reviewing/merging the health-bridge auto-close PR (derio-net/health-bridge#1)
+  why_manual: PR merge is operator-gated; release is tag-driven (GitHub Actions on tag push builds the GHCR image)
+  commands:
+  - env -u GITHUB_TOKEN gh pr merge <PR#> -R derio-net/health-bridge --squash
+  - cd ~/Docs/projects/DERIO_NET/health-bridge ; git checkout main ; git pull
+  - 'MERGE_SHA=$(git rev-parse main)  # DEVIATION 2026-06-06: v0.3.0 was tagged from a stale local main (pre-merge SHA) so the image lacked the feature; superseded by v0.3.1 at the merge commit. ALWAYS verify the tag tree contains the new symbol before pushing.'
+  - git grep -q "FindOpenBugs" "$MERGE_SHA" -- github.go && git tag v0.3.1 "$MERGE_SHA" && git push origin v0.3.1
+  verify:
+  - env -u GITHUB_TOKEN gh run list -R derio-net/health-bridge --limit 1   # release workflow green, headSha = merge commit
+  - docker manifest inspect ghcr.io/derio-net/health-bridge:v0.3.1 >/dev/null && echo OK
+  status: done
+- id: obs-health-bridge-v030-smoke-auto-close
+  layer: obs
+  app: health-bridge
+  plan: docs/superpowers/implemented/plans/2026-06-06--obs--health-bridge-bug-auto-close
+  when: After the frank image-bump PR merged and ArgoCD synced the v0.3.1 image (2026-06-06)
+  why_manual: End-to-end verification needs the live cluster, the real GitHub repo, and operator confirmation (a layer is not Deployed until its workflow is observed end-to-end)
+  commands:
+  - source .env ; kubectl get pods -n monitoring -l app=health-bridge   # Running, image v0.3.1
+  - source .env ; kubectl port-forward -n monitoring svc/health-bridge 18080:8080 &
+  - 'WEBHOOK_SECRET=$(kubectl get secret -n monitoring health-bridge-secrets -o jsonpath=''{.data.WEBHOOK_SECRET}'' | base64 -d)'
+  - 'curl -s -X POST http://localhost:18080/webhook -H "Authorization: Bearer $WEBHOOK_SECRET" -H "Content-Type: application/json" -d ''{"status":"firing","alerts":[{"status":"firing","labels":{"alertname":"smoke-auto-close","severity":"critical","github_issue":"frank-ops#13"},"annotations":{"summary":"Auto-close smoke test"},"startsAt":"2026-06-06T19:50:00Z"}]}''   # creates a bug issue'
+  - 'curl -s -X POST http://localhost:18080/webhook -H "Authorization: Bearer $WEBHOOK_SECRET" -H "Content-Type: application/json" -d ''{"status":"resolved","alerts":[{"status":"resolved","labels":{"alertname":"smoke-auto-close","severity":"critical","github_issue":"frank-ops#13"},"annotations":{"summary":"Auto-close smoke test"},"startsAt":"2026-06-06T19:50:00Z","endsAt":"2026-06-06T19:55:00Z"}]}''   # auto-closes it'
+  verify:
+  - source .env ; kubectl logs -n monitoring -l app=health-bridge --tail=20 | grep "Closed bug issue"
+  - env -u GITHUB_TOKEN gh issue list -R derio-net/frank-ops --label bug --state closed --limit 3   # smoke bug CLOSED with heal comment, state_reason completed
+  status: done
+- id: stor-longhorn-disable-pi-replica-scheduling
+  layer: stor
+  app: longhorn
+  plan: docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md
+  when: After the 2026-06-04 raspi-1 memory-wedge incident; re-apply if a raspi node is ever re-added/replaced
+  why_manual: nodes.longhorn.io CRs are created and owned by the Longhorn manager, not the Helm chart — replica scheduling intent is stored on the live CR and cannot be expressed declaratively in apps/longhorn
+  commands:
+  - source .env ; kubectl -n longhorn-system patch nodes.longhorn.io raspi-1 --type=merge -p '{"spec":{"allowScheduling":false}}'
+  - source .env ; kubectl -n longhorn-system patch nodes.longhorn.io raspi-2 --type=merge -p '{"spec":{"allowScheduling":false}}'
+  verify:
+  - kubectl -n longhorn-system get nodes.longhorn.io   # raspi-1/raspi-2 ALLOWSCHEDULING=false
+  status: done
+- id: agents-github-app-provision
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/runbooks/frank-gotchas/agent-shells.md
+  when: One-time least-privilege migration off the clawdia org-owner PAT (2026-06-08); repeat per new App/org
+  why_manual: GitHub App creation, permissions, repo install-scope, and private-key generation are UI-only (org Developer settings); the private key downloads once and cannot be expressed declaratively
+  commands:
+  - 'UI (org Settings -> Developer settings -> GitHub Apps -> New): repo perms Contents/Issues/Pull requests/Workflows = Read&write, Metadata = Read (+ Commit statuses = Read&write for CI that posts commit status); org perms none; webhook off; install on SELECTED repos (every repo the consumer touches, per-org); generate the private key.'
+  - 'Apps: derio-fr-automation (App 3994132, derio-net) -> secure-agent-pod; stoa-fr-automation (App 3994156) -> tekton CI of a separate org.'
+  verify:
+  - "env -u GITHUB_TOKEN gh api orgs/<org>/installations --jq '.installations[]|select(.app_slug==\"<app>\")|{repository_selection,permissions}'   # selected + exactly the intended perms"
+  status: done
+- id: agents-github-app-key-apply
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/runbooks/frank-gotchas/agent-shells.md
+  when: After App creation / key rotation; before the consuming ExternalSecret can mint
+  why_manual: bootstrap secret applied out-of-band (SOPS, not ArgoCD-managed); ESO's GithubAccessToken generator reads the key from the CONSUMING namespace, so the Secret must live there
+  commands:
+  - source .env ; sops -d secrets/github-app/github-app-derio-key.yaml | kubectl apply -f -   # -> ns secure-agent-pod
+  - source .env ; sops -d secrets/github-app/github-app-stoa-key.yaml | kubectl apply -f -    # -> ns tekton-pipelines
+  - 'If it stays SecretSyncedError (cached generatorState): source .env ; kubectl -n <ns> annotate externalsecret <name> force-sync="$(date +%s)" --overwrite'
+  verify:
+  - source .env ; kubectl -n secure-agent-pod get externalsecret agent-github-token   # READY=True
+  - source .env ; kubectl -n tekton-pipelines get externalsecret stoa-github-mirror    # READY=True
+  status: done
+- id: agents-clawdia-retire
+  layer: agents
+  app: secure-agent-pod
+  plan: docs/runbooks/frank-gotchas/agent-shells.md
+  when: ONLY after every PAT consumer is migrated to App tokens AND verified against a PRIVATE repo (git) + a real run (gh/CI)
+  why_manual: org membership role changes, PAT revocation, and Infisical key deletion are UI/console-only
+  commands:
+  - 'UI: both orgs -> People -> clawdia-ai-assistant -> Role -> Member (a human owner MUST remain, else org lockout).'
+  - 'UI: clawdia account -> Settings -> Developer settings -> Personal access tokens -> revoke the classic PAT.'
+  - 'Infisical (192.168.55.204): delete /agentic-stoa/STOA_GITHUB_MIRROR_TOKEN once the stoa CI ExternalSecret sources from the App generator (now unused).'
+  verify:
+  - "env -u GITHUB_TOKEN gh api 'orgs/<org>/members?role=admin' --jq '.[].login'   # clawdia-ai-assistant absent"
   status: done

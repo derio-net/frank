@@ -1,0 +1,215 @@
+# Frank Stickers — prompt set (mirrors blog/prompt_for_images.yaml)
+#
+# Per-sticker prompt is composed in this fixed order:
+#   base_character + sticker_atmosphere + reference_guidance + face_pins
+#   + clothing + "Frank's expression: <mood>." + scene + border_spec
+#
+# References sent with each sticker (order matters — first = face authority):
+#   references.canon_face, then references.style_anchors (09 & 20 head/hair),
+#   then the per-sticker clothing subject from references.subjects_dir.
+# All reference paths resolve against the repo root.
+#
+# `sheet` + `pos` drive build-sheets.py (2 x A4, 3x3 each).
+# Regenerate one sticker: ./generate-stickers.py --only <key>
+
+base_character: |-
+  Frank — a chibi-proportioned green Frankenstein monster. Uneven cartoon-green skin with brown / reddish-tan sewn-on patches across the cheek and jaw (horizontal stitch lines crossing each; brown against green, NOT mechanical implants). Each eye is a solid BLACK circle with a single small WHITE pupil-dot — no glow. No nose. His head is slightly ROUNDED and softened — NOT a hard blocky / square flat-top Frankenstein head, NOT an angular jaw. Hair is messy and spiky with jagged peaks and is DARK (dark charcoal, near-black) — clearly DARKER than and visually DISTINCT from his green skin; it is NOT green or olive hair. Only a faint green GLOW / sheen sits on the spiky edges (matching the attached 09 & 20 sticker anchors); the bulk of the hair stays dark. Thick raised brow ridge, no eyebrows. A horizontal stitched scar across the upper forehead with a small rectangular RED bandage over it above the right eye. Two symmetric RJ45-connector bolts on the temples, each sparking faint blue. Hands stitched onto the arms with visible scar lines around the wrists. Cartoon illustration, thick outlines, vibrant colours.
+sticker_atmosphere: |-
+  This is a die-cut character STICKER, not a scene. Frank stands alone on a FLAT, PURE-WHITE (#FFFFFF) background with absolutely NO environment, NO server room, NO furniture, NO background props, NO text, NO drop shadow on the background. Bright, even, cheerful studio lighting on the figure — vibrant saturated cartoon colours, crisp thick black outlines, clean cel shading. The ONLY objects allowed in the frame are Frank himself and the clothes, accessories and hand tools described below.
+reference_guidance: |-
+  The reference images attached to this request are ANCHORS, not subjects to render.
+  The FIRST reference image is the canonical character-design sheet. All of Frank's signature face features — chibi head proportions, solid BLACK eyes with a single small WHITE pupil-dot (no white sclera), no nose, jagged flat-top hair, brown sewn-on cheek and jaw patches, the red forehead bandage — come from THIS image and ONLY this image. If any additional reference image shows Frank with different face proportions, white eyes, an over-detailed face, or a "classic Frankenstein" square-jaw look, IGNORE those facial details — they are leftover from older iterations.
+  Any ADDITIONAL reference images are clothing/pose anchors. Use them ONLY to match the clothing variant, accessories, and rough posture of the Frank you draw. Do NOT render them as separate figures, do NOT copy face details from them, and do NOT interpret their cropping or empty regions as compositional cues for the output frame.
+  There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+  Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn, and body language to fit the scene's action.
+face_pins: |-
+  IDENTITY LOCK — Frank's face MUST match the FIRST reference (the canonical character sheet): NO nose at all; NO fangs and NO visible teeth (mouth is a simple closed or flat line); NO eyebrows and NO unibrow — only a thick green brow RIDGE. EYES ARE CRITICAL: each eye is a SOLID BLACK oval that fills the eye opening, with absolutely NO white sclera and NO coloured iris — the ONLY white is a single tiny round pupil highlight dot. Do NOT draw large round cartoon/anime eyes with white around the pupil. ALWAYS render both temple bolts as RJ45 network connectors (modular-jack shape with visible gold pin contacts — NOT plain hex bolts), sparking faint blue. ALWAYS include the small RED rectangular bandage over the forehead scar above the right eye. Keep the brown sewn-on patches on the cheek and jaw.
+border_spec: |-
+  STICKER FINISH: render Frank as a glossy die-cut sticker. Around the whole figure draw a thick, even WHITE die-cut margin (a wide white 'sticker bleed' that hugs the outline of the figure and everything he holds). Immediately outside that white margin draw a single clean DARK-GREEN (#1b4332) keyline stroke of even, medium thickness that follows the same silhouette — this is the cut line. Outside the green keyline is nothing but the pure-white background. Keep the figure COMPACT and centered with generous even padding so the whole sticker (white bleed + green keyline) sits fully inside the square frame with room to spare. Pose must be tidy with NO thin trailing protrusions (no loose dangling cables, no sprawled limbs) so the green cut-line stays a simple, easy-to-cut closed shape.
+defaults:
+  aspect_ratio: '1:1'
+references:
+  canon_face: .reference-pool/building/reference-building.png
+  style_anchors:
+  - blog/_private/frank-stickers/images/sticker-09-server-blade.png
+  - blog/_private/frank-stickers/images/sticker-20-tinkering.png
+  subjects_dir: .reference-pool/building/subjects
+stickers:
+- key: 05-golden-key
+  slug: golden-key
+  description: Frank holds his golden SSO key
+  clothing: Frank wears his white lab coat over a shirt.
+  mood: satisfied — soft closed-mouth smile, eyes relaxed
+  scene: Frank proudly holds up a large ornate GOLDEN KEY in both hands in front of his chest
+    (his signature access key).
+  clothing_anchor: frank-lab-coat-shirt.png
+  sheet: 1
+  pos: 1
+- key: 01-wave
+  slug: wave
+  description: Frank waves hello
+  clothing: Frank wears his white lab coat over a patched work shirt.
+  mood: small friendly grin, eyes bright
+  scene: Frank stands facing forward and raises one stitched hand in a cheerful hello wave,
+    the other hand relaxed at his side.
+  clothing_anchor: frank-lab-coat-shirt.png
+  sheet: 1
+  pos: 2
+- key: 17-heart-hands
+  slug: heart-hands
+  description: Frank makes a heart with his hands
+  clothing: Frank wears a plain t-shirt.
+  mood: amused — warm happy grin, eyes bright
+  scene: Frank makes a small cute heart shape with both hands together in front of his chest,
+    a friendly affectionate pose.
+  clothing_anchor: null
+  sheet: 1
+  pos: 3
+- key: 03-arms-crossed
+  slug: arms-crossed
+  description: Frank stands with arms crossed
+  clothing: Frank wears his white lab coat over a shirt.
+  mood: smirking — one corner of the mouth pulled up, eyes narrowed, dry amusement
+  scene: Frank stands with both arms confidently crossed over his chest.
+  clothing_anchor: frank-lab-coat-shirt.png
+  sheet: 1
+  pos: 4
+- key: 10-idea
+  slug: idea
+  description: Frank has a lightbulb idea
+  clothing: Frank wears his white lab coat over a shirt.
+  mood: curious — head tilted, brow lifted, eyes wide and attentive
+  scene: Frank points one finger straight up with a little glowing lightbulb just above the
+    fingertip — a bright idea moment.
+  clothing_anchor: frank-lab-coat-shirt.png
+  sheet: 1
+  pos: 5
+- key: 16-clipboard
+  slug: clipboard
+  description: Frank checks items on a clipboard
+  clothing: Frank wears his white lab coat over a shirt.
+  mood: focused — brow lowered, eyes down on his work, mouth still
+  scene: Frank holds a clipboard in one arm and a pen in the other hand, checking items off
+    a list.
+  clothing_anchor: frank-lab-coat-shirt.png
+  sheet: 1
+  pos: 6
+- key: 09-server-blade
+  slug: server-blade
+  description: Frank inspects a server blade
+  clothing: Frank's torso is exposed server hardware; he wears an open work shirt.
+  mood: focused — brow lowered in concentration, eyes on his work
+  scene: Frank holds a small green circuit board / server blade flat in both hands in front
+    of him, examining it.
+  clothing_anchor: null
+  sheet: 1
+  pos: 7
+- key: 20-tinkering
+  slug: tinkering
+  description: Frank tinkers with a gadget, sitting cross-legged
+  clothing: Frank wears patched work clothes.
+  mood: focused — brow lowered in concentration, eyes on his work
+  scene: Frank sits cross-legged, hunched slightly forward, tinkering with a small handheld
+    gadget held in both hands in his lap.
+  clothing_anchor: null
+  sheet: 1
+  pos: 8
+- key: 22-coffee-b
+  slug: coffee-b
+  description: Frank relaxes cross-legged with a coffee mug
+  clothing: Frank wears a cozy hoodie.
+  mood: satisfied — sleepy half-smile, eyes half closed
+  scene: Frank sits cross-legged on the ground, holding a steaming mug in one hand resting
+    on his knee, totally relaxed.
+  clothing_anchor: null
+  sheet: 1
+  pos: 9
+- key: 02-thumbs-up
+  slug: thumbs-up
+  description: Frank gives a thumbs-up
+  clothing: Frank wears denim overalls over a shirt.
+  mood: approving — a small contented smile, eyes calm and pleased
+  scene: Frank gives a big enthusiastic thumbs-up with one hand, held close to his chest,
+    looking straight ahead.
+  clothing_anchor: frank-leather-overalls.png
+  sheet: 2
+  pos: 1
+- key: 04-wrench
+  slug: wrench
+  description: Frank holds up a wrench
+  clothing: Frank wears patched work clothes.
+  mood: determined — jaw set, brow level, eyes forward
+  scene: Frank holds a chunky cartoon wrench upright in one hand, close to his body, like
+    he's ready to fix something.
+  clothing_anchor: frank-work-clothes-1.png
+  sheet: 2
+  pos: 2
+- key: 07-salute
+  slug: salute
+  description: Frank salutes
+  clothing: Frank wears a work apron with small tools in the pockets.
+  mood: determined — jaw set, eyes forward
+  scene: Frank gives a crisp salute, one hand to his forehead, standing upright.
+  clothing_anchor: frank-work-clothes-1.png
+  sheet: 2
+  pos: 3
+- key: 13-cable-coil
+  slug: cable-coil
+  description: Frank holds a coil of network cable
+  clothing: Frank wears patched work clothes.
+  mood: cautious — alert but calm, brow level, eyes scanning
+  scene: Frank holds a neat small coil of network cable in one hand at his side (coil kept
+    tidy and round, not dangling).
+  clothing_anchor: frank-work-clothes-1.png
+  sheet: 2
+  pos: 4
+- key: 14-presenting
+  slug: presenting
+  description: Frank presents with an open-palm gesture
+  clothing: Frank wears his white lab coat over a shirt.
+  mood: smirking — one corner of the mouth up, dry amusement
+  scene: Frank gestures to the side with one open hand, palm up, like a game-show host presenting
+    something, body turned slightly.
+  clothing_anchor: frank-lab-coat-shirt.png
+  sheet: 2
+  pos: 5
+- key: 18-raspberry-pi
+  slug: raspberry-pi
+  description: Frank cradles a Raspberry Pi board
+  clothing: Frank wears patched work clothes.
+  mood: curious — head tilted, brow lifted, eyes wide
+  scene: Frank cradles a tiny single-board computer (Raspberry-Pi-style green board) flat
+    in both cupped palms, looking at it fondly.
+  clothing_anchor: frank-work-clothes-1.png
+  sheet: 2
+  pos: 6
+- key: 19-fist-pump
+  slug: fist-pump
+  description: Frank celebrates with a fist-pump
+  clothing: Frank wears denim overalls over a shirt.
+  mood: determined and joyful — wide open grin, eyes bright
+  scene: Frank throws one fist up in a celebratory victory fist-pump, the other arm bent at
+    his side, full of energy.
+  clothing_anchor: frank-leather-overalls.png
+  sheet: 2
+  pos: 7
+- key: 23-coffee-c
+  slug: coffee-c
+  description: Frank sips coffee with his hood up
+  clothing: Frank wears a cozy hoodie with the hood up.
+  mood: approving — small calm smile, brow relaxed
+  scene: Frank stands holding a steaming mug up near his face in one hand about to sip, the
+    other hand tucked in the hoodie pocket.
+  clothing_anchor: null
+  sheet: 2
+  pos: 8
+- key: 24-coffee-d
+  slug: coffee-d
+  description: Frank cradles a steaming mug (close-up)
+  clothing: Frank wears a cozy hoodie.
+  mood: amused — small grin, eyes bright
+  scene: Upper-body / bust framing of Frank holding a large steaming mug in both hands just
+    below his chin, steam curling up, peeking over the rim.
+  clothing_anchor: null
+  sheet: 2
+  pos: 9

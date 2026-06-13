@@ -144,6 +144,44 @@ gh issue view 11 --repo derio-net/willikins --json comments \
   --jq '.comments[] | select(.body | contains("health-bridge")) | {createdAt, body}'
 ```
 
+## Auto-Close of Healed Bug Issues (v0.3.0)
+
+Since v0.3.0, the loop closes itself. When an alert **resolves**, the bridge
+finds every open `[Bug] <alertname> is dead — …` issue it created for that
+alert and closes it (`state_reason: completed`) with a heal comment carrying
+the resolution time and outage duration. A transient incident is now fully
+self-cleaning: dead → bug filed → healed → bug closed, no operator touch.
+
+Matching is deliberately strict — **both** conditions must hold:
+
+1. Title prefix: `[Bug] <alertname> is dead`
+2. Body contains the newline-terminated feature ref the bug was created
+   with: `**Feature Issue:** derio-net/<repo>#<N>`
+
+The second condition exists because Grafana's synthetic `DatasourceError`
+alertname is shared across layers — title-only matching would let an L24
+resolve close an L8 bug. The newline termination stops `#2` from matching
+`#24`.
+
+Operational notes:
+
+- The close path keys purely on `status: resolved` — it is **not** gated by
+  the per-tracker dedup (a repeated resolved notification is an idempotent
+  no-op) and **not** gated by severity (editing a rule's severity label
+  between fire and resolve won't strand a bug).
+- All matching open bugs close at once, which also sweeps historical
+  duplicates from the pre-dedup era.
+- A resolved webhook missed while the bridge pod is down means that bug
+  stays open — close it by hand. There is deliberately no Grafana-state
+  reconciler (resolved delivery has been reliable in practice); if stale
+  bugs recur, that's the documented follow-up.
+
+```bash
+# Verify recent auto-closes
+kubectl logs -n monitoring -l app=health-bridge --tail=50 | grep "Closed bug issue"
+gh issue list -R derio-net/frank-ops --label bug --state closed --limit 5
+```
+
 ## Troubleshooting
 
 ### Bridge not processing alerts
@@ -193,7 +231,9 @@ Bridge logs show `Alert <name> has no github_issue label, skipping`. Add the lab
 
 **If running v0.2.0+:** This can happen once after a pod restart (in-memory state is lost). The GitHub search safety net should prevent all but the first duplicate. If duplicates persist, check pod restart frequency.
 
-**Cleanup:** Close duplicates with `gh issue close <number> --repo derio-net/<repo> --comment "Duplicate"`, keeping the earliest one open.
+**v0.3.0 changes the search semantics:** the safety net (`FindOpenBugs`, replacing `HasOpenBug`) matches the title prefix **and** the `**Feature Issue:**` body ref. Two consequences: layers sharing an alertname (`DatasourceError`) no longer suppress each other's legitimate bugs, and any duplicates that do slip through are all closed together the next time the alert resolves.
+
+**Cleanup:** usually unnecessary on v0.3.0+ — wait for the resolve. To close by hand: `gh issue close <number> --repo derio-net/<repo> --comment "Duplicate"`, keeping the earliest one open.
 
 ### A Layer flaps to degraded after a Job or one-off pod runs
 
@@ -330,4 +370,37 @@ kubectl exec -n monitoring "$GRAFANA_POD" -c grafana -- \
   http://localhost:3000/api/v1/provisioning/alert-rules/layer-13-auth-down \
   | jq '{uid, title, labels, annotations}'
 ```
+
+### Recovering stranded board tiles / bugs after an outage
+
+Since **v0.4.0** the Bridge maps `DatasourceError`/`NoData` to `degraded` with no bug (a blind sensor isn't a corpse), and the heal path closes bugs by feature-ref regardless of alertname — so a recovery resolve closes a bug even when its firing alertname differed. That removes the usual stranding.
+
+It can still happen, though, when **Grafana is replaced by a fresh pod mid-incident** (a power outage is the classic case): the new process never fired the alert, so it never sends the `resolved`. The tile stays `dead`/`degraded` and any bug stays open, because the Bridge only ever knows what a webhook tells it. The cure is to *tell* it — replay the missing `resolved` against the Bridge's own idempotent path. It will flip the tiles to `healthy` and close the matching bugs with proper heal comments.
+
+First confirm the underlying services are actually healthy (don't paper over a real outage), then:
+
+```bash
+cd <frank-repo> && source .env   # KUBECONFIG is a relative path — cd first
+
+# Webhook secret, read live (never inline it):
+SECRET=$(kubectl get secret -n monitoring health-bridge-secrets \
+  -o jsonpath='{.data.WEBHOOK_SECRET}' | openssl base64 -d -A)
+
+# The frank-ops# trackers that are stuck (from the bridge logs / board):
+ISSUES="18 1 12 13 15 24 3 5 6 8"
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+alerts=""
+for n in $ISSUES; do
+  alerts="${alerts}{\"status\":\"resolved\",\"labels\":{\"alertname\":\"DatasourceError\",\"github_issue\":\"frank-ops#${n}\",\"severity\":\"critical\"},\"annotations\":{\"summary\":\"Outage recovery\"},\"startsAt\":\"${NOW}\",\"endsAt\":\"${NOW}\"},"
+done
+payload="{\"status\":\"resolved\",\"alerts\":[${alerts%,}]}"
+
+kubectl port-forward -n monitoring svc/health-bridge 18080:8080 >/tmp/hb-pf.log 2>&1 &
+PF=$!; trap 'kill $PF 2>/dev/null' EXIT; sleep 3
+curl -sS -X POST http://127.0.0.1:18080/webhook \
+  -H "Authorization: Bearer ${SECRET}" -H "Content-Type: application/json" \
+  -d "${payload}"
+```
+
+`alertname: DatasourceError` is the key: it makes the bridge match the `[Bug] DatasourceError is dead` titles for the create-era bugs, while the feature-ref close (v0.4.0) handles anything titled differently. The whole thing is idempotent — re-running on already-healthy tiles with no open bugs is a no-op. Verify with `kubectl logs -n monitoring -l app=health-bridge --tail=40 | grep -E 'Closed bug|→ healthy'`.
 

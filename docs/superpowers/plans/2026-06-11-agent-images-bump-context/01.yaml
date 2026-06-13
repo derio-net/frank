@@ -1,0 +1,61 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Pure renderer + fixture tests (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: render() with the docs-only filter and Q2 formatting, test-first
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Write scripts/tests/test_render_bump_body.py FIRST (red). Cover the
+      full contract against crafted `bump` dicts (no network):
+      - single non-docs PR -> bullet `[agent-images#88](.../pull/88) — <title> (@author)` + `> summary`
+      - multi-PR range rendered newest-first; header `### Upstream changes (N PRs)` plural agrees
+      - docs-only PR (all paths under `docs/`) is FILTERED OUT and excluded from the count (Q1)
+      - mixed PR (one `docs/**` path + one code path) is KEPT (paths-ignore semantics)
+      - all-docs range -> `_No image-affecting changes (docs-only upstream)._` note, compare link still shown
+      - PR with empty body -> no `>` line
+      - commit with no `(#NN)` -> short-SHA-link bullet, no summary
+      - author null/empty -> no `(@...)`
+      - vkr empty -> no `**vk-remote:**` line; vkr present -> line shown
+      - old == new -> `_agent-images unchanged._`, vk-remote line only
+      - header `## agent-images bump` + the ``OLD7 -> NEW7 . [compare](URL)`` line (7-char SHAs, full SHAs in URL)
+      Run: `uv run --with pytest pytest scripts/tests/test_render_bump_body.py -v`
+      Expected: import/attribute errors or failures (render not implemented yet).
+  - id: P1.T1.S2
+    text: |
+      Implement scripts/render_bump_body.py with the pure `render(bump: dict) -> str`
+      (stdlib only: json/re/argparse). Apply the docs-only filter
+      (drop PRs whose `paths` are all under `docs/`), newest-first order,
+      singular/plural header, explicit cross-repo markdown links
+      `[agent-images#N](https://github.com/derio-net/agent-images/pull/N)`,
+      optional `@author` and `> summary`, the vk-remote line, and the
+      `old==new` / all-docs notes. No network in render().
+      Run the same pytest command. Expected: all tests pass (green).
+  - id: P1.T1.S3
+    text: |
+      Refactor pass — dedupe formatting helpers, ensure the short-SHA and
+      pluralize helpers are clean. Re-run pytest; still green. Commit:
+      `test(cicd): render_bump_body renderer + fixtures (TDD)`.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-11T11:31:15+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-11T11:31:18+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-06-11T11:31:23+00:00'
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

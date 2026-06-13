@@ -146,11 +146,39 @@ kubectl -n ruflo-system logs deploy/ruflo -c ruflo --since=2m | \
 
 ### Upstreaming
 
-The allow-line is straightforwardly upstreamable to ruvnet/ruflo; file a PR there so we can drop the local sed on the next agent-images bump.
+Filed upstream as [ruvnet/ruflo#2293](https://github.com/ruvnet/ruflo/pull/2293) (same PR as the `RvfGridFSBucket` GridFS-shim parity fix — two independent commits). Drop the local `sed` once it merges.
 
 ### Related: autopilot's silent-block UX
 
 Upstream commit `9cfba12` ("autopilot AUTO toggle is silent + autopilotMaxSteps setting was dead wiring", ruvnet/ruflo#1742) made the visible AUTO/MANUAL state legible (previously both branches rendered the same "AUTO" label, so users had no UI signal that the toggle did anything). That fix is included in the `ca0a6fa` bump but doesn't address the underlying "autopilot + zero valid MCPs → silent submit block" interaction; the wasm:// allowance does, by ensuring the WASM MCP is no longer the zeroth case.
+
+## `RvfGridFSBucket` is an incomplete GridFS shim — file upload/download/fork all 500
+
+Discovered 2026-05-27, fixed + deployed 2026-06-04 (agent-images [PR #96](https://github.com/derio-net/agent-images/pull/96) → ruflo-server `0ff7014`; frank [PR #464](https://github.com/derio-net/frank/pull/464)). **Symptom:** attaching an image (or having a tool fetch a file by URL) in the Ruflo ChatUI 500s with `TypeError: upload.once is not a function`. Plain chat, MCP tools, and inline text-URL fetch all work — only the file storage/retrieval path is broken.
+
+### Why it happens
+
+ruvocal (a HuggingFace chat-ui fork) hardcodes its storage layer to the RVF file backend — `src/lib/server/database.ts` does `const bucket = new RvfGridFSBucket()`. That class (`database/rvf.ts`) is a **shim** that mimics MongoDB's `GridFSBucket` so the Mongo-era chat-ui callers keep compiling, but the mimicry is incomplete in **three** independent ways, and the callers were all written against the real Mongo stream/cursor contract:
+
+1. **`openUploadStream` was not a `Writable`** — it returned a plain `{ id, write(), end() }` object with no `.once()`. `uploadFile.ts` does `upload.once("finish"/"error", …)` → `TypeError: upload.once is not a function` → 500. *(The originally-reported crash.)*
+2. **Data corruption even if (1) were patched** — `uploadFile.ts` passes an `ArrayBuffer` (`upload.write((await file.arrayBuffer()) as unknown as Buffer)` — the cast is a TS lie). The old shim did `chunk.toString("base64")` on it, yielding the literal string `"[object ArrayBuffer]"`. A *naïve* `Writable` fix would instead throw `ERR_INVALID_ARG_TYPE`, since a default-mode `Writable.write()` rejects `ArrayBuffer`.
+3. **`openDownloadStream` was not a `Readable` and `find()` was mis-shaped** — `openDownloadStream` returned `{ async toArray() }` (no `.on()`/`.pipe()`); `find()` was `async` and returned `{ toArray }` with **no `.next()`**. The readers call these as real streams/cursors *without awaiting `find`* — so even after uploads work, **reading a file back** (`downloadFile.ts`: `bucket.find(...).next()` + `openDownloadStream(...).on("data"/"end")`) and **copy-on-fork from a shared conversation** (`conversation.ts`: `bucket.find(...).toArray()` + `.pipe()`) 500 independently.
+
+Bugs (2) and (3) were latent because the file paths only execute once files exist, and uploads never succeeded — so fixing only `openUploadStream` would have surfaced the next crash rather than working.
+
+### Fix
+
+Make `RvfGridFSBucket` faithfully implement the GridFS contract in **one file, with zero caller patches**: a real `Writable` in **objectMode** (so it absorbs the `ArrayBuffer`/`Uint8Array`/`Buffer`/string at the shim boundary via `Buffer.from`, fixing both the `.once` crash *and* the corruption), a real `Readable` via `Readable.from`, and a **synchronous** cursor exposing both `next()` and `toArray()`. Storage stays base64 (download decodes → `downloadFile` re-encodes for its `{type:"base64"}` return; round-trip preserved). Applied as a `git apply` patch in `agent-images/ruflo-server/patches/rvf-gridfs-parity.patch`, guarded by a build-time `grep -q`. Verified end-to-end against the live deployed bundle + RVF store (`docs/superpowers/plans/2026-05-27--orch--ruflo-upload-fix/phase3-evidence.md`): ArrayBuffer upload → `finish` → byte-exact base64 round-trip → `.pipe()` copy-on-fork, plus HTTP-route multipart upload + `downloadFile()` read-back.
+
+Filed upstream as [ruvnet/ruflo#2293](https://github.com/ruvnet/ruflo/pull/2293) (target file was unchanged for 150+ commits, so it applies on current `main`); the same PR also carries the `wasm://` allow-line below. Once it merges, drop both local patches on the next agent-images bump.
+
+### Why we don't just switch backends
+
+ruvocal is **RVF-only** at this revision — there is no Mongo `GridFSBucket` to switch to (`database/` holds only `rvf.ts` + a `postgres.ts` that isn't wired into `collections`). That's *why* the shim must be repaired in place. `DATABASE_URL` is set on the deployment but silently ignored (see "ruvocal stores state in RVF JSON, NOT Postgres" above — same root: the RVF backend is hardcoded). Boot log confirms: `[RuVocal] Database: /app/db/ruvocal.rvf.json`.
+
+### MCP tools only load for a model with `supportsTools` / `forceTools`
+
+Per-model toggle gotcha surfaced while verifying the wasm/MCP regression. ruvocal's MCP flow (`runMcpFlow`) **skips entirely** — before it ever reaches the `wasm://` url-safety guard — for any model that does not declare `supportsTools: true` (or have `forceTools` set). The log line is `[mcp] tools disabled for model`. On Frank, **no deployed model reports `supportsTools:true`**, so RVAgent Local (the WASM MCP) and any other MCP server never load through the normal request path, and a clean `rejected.*wasm` grep on a live request is *vacuous* (the flow short-circuits earlier) rather than proof the url-safety allow-line works — that allow-line must be proven directly against `isValidUrl`. If you need MCP tools to actually load in the ChatUI, the model entry must carry the per-model tools toggle.
 
 ## Company import from GitHub is unauthenticated upstream
 
@@ -277,7 +305,8 @@ Paperclip's local LLM path routes agent runs through Frank's LiteLLM gateway (`l
         "qwen-think-14b":    { "name": "Qwen3 14B Thinking (local)" },
         "qwen36-a3b":        { "name": "Qwen3.6 35B-A3B MoE (local)" },
         "qwen36-a3b-nothin": { "name": "Qwen3.6 35B-A3B MoE — no-think (local)" },
-        "gemma-12b":         { "name": "Gemma 3 12B multimodal (local)" }
+        "gemma-12b":         { "name": "Gemma 4 12B multimodal (local)" },
+        "gemma-12b-nothin":  { "name": "Gemma 4 12B multimodal — no-think (local)" }
       }
     }
   }

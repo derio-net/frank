@@ -1,0 +1,90 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Manual bootstrap — LiteLLM virtual key + SOPS ssh-keys
+  tag: manual
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Mint LiteLLM virtual key and store it in Infisical
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Mint a dedicated LiteLLM virtual key for the hermes agent (LiteLLM
+      admin UI, or `POST /key/generate` against the gateway at
+      192.168.55.206 / `litellm.litellm.svc:4000`). Scope it to the hermes
+      agent so its budget/usage is independently observable and revocable
+      — do NOT reuse paperclip's `PAPERCLIP_LITELLM_KEY`.
+      Capture the returned `sk-...` value.
+  - id: P1.T1.S2
+    text: |-
+      Store the key in Infisical as `HERMES_LITELLM_KEY` (same
+      project/environment the other Frank keys live in — the one the
+      `infisical` ClusterSecretStore points at). This is what the Phase 2
+      `externalsecret-llm` resolves into `OPENAI_API_KEY`.
+      Verify the entry exists (Infisical UI or CLI). Cluster-side
+      verification (`externalsecret … SecretSynced`) happens in Phase 2
+      once the ExternalSecret object exists.
+- number: 2
+  title: Prepare and commit the SOPS-encrypted ssh-keys secret
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Reuse the operator SSH public key already paired with the other
+      shells (secure-agent-pod / paperclip-shell / ruflo-shell) so one
+      private key opens every shell, or generate a fresh keypair. You only
+      need the PUBLIC key for the secret.
+  - id: P1.T2.S2
+    text: |-
+      Build the Secret manifest (namespace `hermes-agent-shell`, key
+      `authorized_keys`):
+      ```bash
+      kubectl create secret generic hermes-agent-shell-ssh-keys \
+        --namespace=hermes-agent-shell \
+        --from-file=authorized_keys=<path-to-operator.pub> \
+        --dry-run=client -o yaml \
+        > secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml
+      ```
+      (The `secrets/hermes-agent-shell/` dir + its README are authored in
+      Phase 2; create the dir here if it does not exist yet.)
+  - id: P1.T2.S3
+    text: |-
+      SOPS-encrypt in place (recipients resolve from the repo-root
+      `.sops.yaml` `path_regex` — `encrypted_regex: ^(data|stringData)$`):
+      ```bash
+      sops --encrypt --in-place secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml
+      git add secrets/hermes-agent-shell/hermes-agent-shell-ssh-keys.yaml
+      ```
+      Commit it. Do NOT apply yet — the `hermes-agent-shell` namespace does
+      not exist until ArgoCD creates it in Phase 2, so the
+      `kubectl apply` of this secret is deferred to Phase 2 / T2.
+      (SOPS secrets are applied out-of-band and are never ArgoCD-managed.)
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-04T16:07:22+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-04T16:07:24+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-04T16:07:26+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-04T16:07:27+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-06-04T16:07:29+00:00'
+      note: null
+  completion:
+    at: '2026-06-04T16:07:45+00:00'
+    note: HERMES_LITELLM_KEY minted + stored in Infisical; operator pubkey (raspi-controller@dMac,
+      reused from ruflo-shell) SOPS-committed as hermes-agent-shell-ssh-keys; apply
+      deferred to Phase 2 (namespace not yet created)
+    observed_prs: []

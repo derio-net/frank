@@ -1,0 +1,20 @@
+schema_version: 2
+plan: 2026-05-25--obs--surge-detector-fix-rework-1
+spec: 2026-05-25--obs--surge-detector-false-positive-design.md
+target_repo: derio-net/frank
+vk_version: '>=2.0.0,<3.0.0'
+created: '2026-05-26'
+parent_plan: 2026-05-25--obs--surge-detector-fix
+origin_items:
+- id: 1
+  item: Bot/crawler surges fire a non-urgent Notable every 15-min tick (no dedup)
+    — ~4 messages per hot hour, ~20/night; the deferred cooldown non-goal made real
+  source: operator report 2026-05-26 + code-review finding I2 (downgrade path is a
+    repeat-message source)
+  track: development
+- id: 2
+  item: investigate-surge prompt pre-seeds 'likely a Hacker News hit' and build_for_surge
+    ships no referrers/paths/UAs, so the narrative names HN with zero evidence every
+    time
+  source: operator report 2026-05-26
+  track: development

@@ -1,0 +1,62 @@
+schema_version: 2
+phase:
+  number: 2
+  title: '[manual] frank: bump image pin + runbook + blog (post-merge, operator)'
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Bump the hermes-agent-shell image pin to the new agent-images SHA
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      AFTER the agent-images PR merges and CI publishes
+      `ghcr.io/derio-net/hermes-agent-shell:<new-agent-images-sha>`, run
+      `/bump-image hermes-agent-shell <new-sha>` — updates
+      `apps/hermes-agent-shell/manifests/deployment.yaml:38`, watches the
+      ArgoCD `Recreate` rollout, and verifies the pod comes up and `hermes
+      --version` works. (Manual: depends on a merged cross-repo PR + CI
+      artifact that does not exist until then.)
+- number: 2
+  title: Runbook gotcha — PVC-resident venv
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Add a one-liner to `agents/rules/frank-gotchas.md` (Agent shells
+      section) and full prose to
+      `docs/runbooks/frank-gotchas/agent-shells.md`: Hermes venv is
+      PVC-resident (`/home/agent/.local/opt/hermes-agent`), seeded from a
+      relocatable image seed on first boot, version-gated re-seed on image
+      bump; in-pod patches persist across restart but are superseded by an
+      image bump; the auto-continue patch (chat_completions gate) is baked
+      in. Run `/sync-runbook` if any manual-operation blocks were added.
+- number: 3
+  title: Retroactive blog update (fix/extension — no new post)
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Update the existing hermes-agent-shell building + operating posts
+      with the PVC-venv note and the auto-continue fix (gotcha/correction
+      in building; new operational note in operating). No new post per the
+      fix/extension workflow. Push to the same frank PR branch.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-08T06:40:48+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-06-08T06:40:49+00:00'
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: '2026-06-08T06:40:51+00:00'
+      note: null
+  completion:
+    at: '2026-06-08T06:40:53+00:00'
+    note: 'Phase 2 re-land: #498 squash-merged spec/plan only; these deliverables
+      (pin→83bdab4, runbook, blog) land via follow-up PR. Live rollout post-merge.'
+    observed_prs: []

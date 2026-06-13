@@ -35,15 +35,15 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Blog Analytics | GoatCounter | Cookieless, single-binary; mesh-only admin at counter.cluster.derio.net, public beacon at counter.derio.net (LB 192.168.55.224, Caddy reverse-proxy from Hop) |
 | Edge HTTP Security | CrowdSec | Agent on Hop tailing Caddy access logs; caddy-crowdsec-bouncer enforces decisions at the edge (no Frank dep on request path) |
 | Runtime Security | Falco (modern_ebpf) + Falcosidekick | DaemonSet on Hop; syscall events → VictoriaLogs (Loki protocol) + direct Telegram for priority:critical |
-| AI Alert Helper | ai-alert-helper (FastAPI) | LiteLLM-backed digest/investigate/surge-check; LLM swap contract for future Sympozium move |
+| AI Alert Helper | ai-alert-helper (FastAPI) | LiteLLM-backed digest/investigate/surge-check + Telegram trace-analyst (0.2.0): ad-hoc security Q&A over VictoriaLogs/CrowdSec evidence, allowlisted chat, long-poll consumer |
 | Health Probes | Blackbox Exporter | HTTP endpoint probing for feature health (n8n, Paperclip, Grafana, Blog) |
 | Heartbeat Ingestion | Pushgateway | Receives heartbeat metrics from cron jobs, scraped by VictoriaMetrics |
-| Alert Bridge | Health Bridge | Grafana webhook → GitHub Project lifecycle state updates (healthy/degraded/dead) |
+| Alert Bridge | Health Bridge | Grafana webhook → GitHub Project lifecycle state updates (healthy/degraded/dead); auto-closes healed bug issues (v0.3.0); treats DatasourceError/NoData as degraded not dead + heals bugs by feature-ref (v0.4.0) |
 | Backup | Longhorn → Cloudflare R2 | Daily + weekly PVC backup, SOPS-encrypted credentials |
 | Secrets | Infisical + External Secrets Operator | Self-hosted secret store, ExternalSecret → K8s Secret sync |
 | RGB | OpenRGB | GitOps-managed LED control on gpu-1 via USB HID (IT5701 V3.5.14.0 firmware lock under investigation) |
-| Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 Ti 16GB — multimodal (Gemma 3 12B, Qwen2.5-VL 7B), general (Mistral Small 3.2 24B, Qwen3 14B), code (Qwen2.5-Coder 14B) |
-| API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to Ollama + OpenRouter cloud models |
+| Local Inference | Ollama | LLM serving on gpu-1's RTX 5070 Ti 16GB — multimodal (Gemma 4 12B, Qwen2.5-VL 7B), general (Mistral Small 3.2 24B, Qwen3 14B), code (Qwen2.5-Coder 14B), MoE flagship (Qwen3.6 35B-A3B, CPU-offloaded experts) |
+| API Gateway | LiteLLM | Unified OpenAI-compatible proxy routing to local Ollama models (local-only since 2026-06-04; 12 aliases incl. 64k-context + no-think variants), amd64-pinned pods + migrations Job |
 | Agentic Control Plane | Sympozium | K8s-native agents — every agent is a Pod, every policy a CRD, every execution a Job |
 | Identity & Auth | Authentik | Self-hosted IdP — OIDC SSO for ArgoCD, Grafana; forward-auth proxy for Longhorn, Hubble, Sympozium |
 | Multi-tenancy | vCluster | Virtual K8s clusters inside Frank — disposable sandboxes via ArgoCD |
@@ -57,8 +57,9 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Edge Ingress | Caddy | Automatic TLS (Cloudflare DNS challenge), public/mesh routing on Hop |
 | Progressive Delivery | Argo Rollouts | Canary (LiteLLM, replica-count weighting, manual pause gating; metric-source replacement spec'd at `docs/superpowers/specs/2026-05-04--deploy--litellm-canary-metric-source-design.md`), blue-green (Sympozium + HTTP healthcheck) |
 | Workflow Automation | n8n | Per-user instances on gpu-1, Authentik forward-auth, dedicated PostgreSQL, Prometheus metrics |
-| Secure Agent Pod | Kali Linux (sidecar: VibeKanban) | Hardened non-root coding agent workstation on gpu-1; two-container pod (kali + vk-local) sharing `/home/claude` PVC; **s6-overlay-supervised** sshd + supercronic, **tmux-continuum-restored** layout across restarts; Cilium egress, ESO secrets, SSH + VibeKanban UI + mosh/tmux persistent shells (UDP 60000-60015 on a sibling LB IP) |
+| Secure Agent Pod | Kali Linux (sidecar: VibeKanban) | Hardened non-root coding agent workstation on gpu-1; two-container pod (kali + vk-local) sharing `/home/claude` PVC; **s6-overlay-supervised** sshd + supercronic, **tmux-continuum-restored** layout across restarts; Cilium egress, ESO secrets, SSH + VibeKanban UI + mosh/tmux persistent shells (UDP 60000-60015 on a sibling LB IP); GitHub auth via a **least-privilege GitHub App** installation token (ESO-minted, rotating, key never on the pod) for git + gh — replacing the org-owner PAT |
 | Agent Images | `derio-net/agent-images` (shared base) | Multi-image repo: `agent-base` (debian:bookworm + common toolchain) → `agent-shell-base` (s6-overlay v3 + sshd + supercronic + tmux/mosh + tmux-resurrect/continuum) → `secure-agent-kali`; sibling `vk-local` from `agent-base`; matrix CI + cross-repo `repository_dispatch` → frank lockstep bumper |
+| Hermes Agent Shell | Hermes Agent (Nous Research) | Standalone SSH/Mosh shell pod on gpu-1 (`hermes-agent-shell` image), BYOK → in-cluster LiteLLM virtual key; sshd env-scrub bridged via profile.d shim; provider pinned in `~/.hermes/config.yaml` (PVC state, manual-op) |
 | ArgoCD Notifications | Native ArgoCD subsystem | Telegram alerts on agent-pod sync events (image bumps, manual rollouts) — operator gets ~30s heads-up before mosh sessions die |
 | VK Remote (self-hosted) | PostgreSQL 16 + ElectricSQL + Rust/Axum | Self-hosted VibeKanban kanban API server, local JWT auth, Authentik SSO via Traefik |
 | VK Relay | VK Relay Server (sidecar) | WebSocket relay tunneling browser API calls to local VK agent server via yamux multiplexing, SPAKE2 pairing |
@@ -89,6 +90,7 @@ frank/
 │   ├── pushgateway/manifests/                     # Heartbeat metric ingestion from cron jobs
 │   ├── grafana-alerting/manifests/                  # File-provisioned alerting (rules, contacts, policy, dashboard)
 │   ├── health-bridge/manifests/                   # Grafana alert → GitHub lifecycle bridge
+│   ├── ai-alert-helper/manifests/                 # LLM digest/surge-check + Telegram trace-analyst
 │   ├── fluent-bit/values.yaml                     # Log shipping
 │   ├── external-secrets/values.yaml              # ESO operator
 │   ├── infisical/values.yaml + manifests/         # Infisical + ClusterSecretStore
@@ -115,6 +117,7 @@ frank/
 │   ├── n8n-01/manifests/                       # n8n workflow automation (gpu-1, 192.168.55.216)
 │   ├── n8n-01-postgresql/values.yaml           # Bitnami PostgreSQL for n8n-01
 │   ├── secure-agent-pod/manifests/             # Secure coding agent pod (gpu-1, SSH + VibeKanban)
+│   ├── hermes-agent-shell/manifests/           # Standalone hermes agent shell pod (gpu-1, SSH+Mosh, BYOK → LiteLLM)
 │   ├── vk-remote/manifests/                   # VK remote web UI + relay sidecar (agents namespace)
 │   ├── traefik/values.yaml + manifests/        # Traefik ingress (192.168.55.220), middlewares, IngressRoutes
 │   ├── homepage/manifests/                     # gethomepage.dev dashboard (master.cluster.derio.net)
@@ -151,8 +154,8 @@ frank/
 ├── secrets/                   # SOPS/age-encrypted bootstrap secrets (applied out-of-band)
 ├── blog/                      # Hugo blog (Hextra theme)
 │   ├── hugo.toml
-│   ├── content/docs/building/       # 30 posts documenting the build
-│   ├── content/docs/operating/      # 25 companion operations guides
+│   ├── content/docs/building/       # 33 posts documenting the build
+│   ├── content/docs/operating/      # 28 companion operations guides
 │   ├── content/docs/papers/         # Frank Papers — research-grade landscape reviews (gated)
 │   ├── assets/js/mermaid-frank.js   # Mermaid Frank theme (loads on .paper-post pages)
 │   ├── layouts/partials/papers-*    # papers-backlink + papers-forwardlinks (cross-series)
@@ -211,6 +214,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | GitHub webhook receiver (`el-github-listener`) | reached via `webhooks.hop.derio.net` (Caddy on Hop → Tailscale mesh); receives PR + push events for `agentic-stoa/*` | 192.168.55.223 |
 | GoatCounter | https://counter.cluster.derio.net (mesh) + https://counter.derio.net (public via Hop) | 192.168.55.224 |
 | VictoriaLogs (LB) | http://192.168.55.225:9428 (cross-cluster ingest from Hop fluent-bit) | 192.168.55.225 |
+| Hermes Agent Shell (SSH+Mosh) | ssh agent@192.168.55.226 — mosh UDP 60032-60047 | 192.168.55.226 |
 | VK Remote | https://vk.cluster.derio.net | (via Traefik) |
 | Homepage Dashboard | https://master.cluster.derio.net | (via Traefik) |
 | AWX | https://awx.cluster.derio.net | (via Traefik) |
@@ -273,6 +277,7 @@ argocd app list
 | gpu-switcher | gpu-switcher | GPU time-sharing dashboard (192.168.55.214:8080), custom Go app (ghcr.io/derio-net/gpu-switcher:v0.1.1) |
 | secure-agent-pod | secure-agent-pod | Hardened coding agent workstation on gpu-1: 2-container pod (kali + vk-local sidecar) sharing `/home/claude` PVC, SSH :22, VibeKanban :8081, non-root, Cilium egress, ESO secrets |
 | vk-remote | agents | Self-hosted VK kanban API (PG 16 + ElectricSQL + Rust/Axum) + relay sidecar (vk.cluster.derio.net), Authentik SSO |
+| hermes-agent-shell | hermes-agent-shell | Standalone hermes agent shell on gpu-1 (SSH :22 + mosh UDP 60032-60047 on 192.168.55.226), BYOK → LiteLLM, home PVC |
 | argo-rollouts | argo-rollouts | Progressive delivery controller (no traffic-router plugin; replica-count canary for LiteLLM, blue-green for Sympozium) |
 | argo-rollouts-extras | argo-rollouts | Currently empty — held the broken Cilium plugin config + CiliumEnvoyConfig RBAC, both removed 2026-05-04 |
 | n8n-01 | n8n-01 | n8n workflow automation on gpu-1 (192.168.55.216:5678), Authentik forward-auth |
@@ -280,7 +285,7 @@ argocd app list
 | blackbox-exporter | monitoring | HTTP endpoint probes for feature health (VMProbe → VictoriaMetrics) |
 | pushgateway | monitoring | Heartbeat metric ingestion from Willikins cron jobs (VMServiceScrape) |
 | grafana-alerting | monitoring | File-provisioned alerting: 5 rules, 2 contact points, notification policy, Feature Health dashboard |
-| health-bridge | monitoring | Grafana webhook → GitHub Project lifecycle updates (ghcr.io/derio-net/health-bridge:v0.1.0) |
+| health-bridge | monitoring | Grafana webhook → GitHub Project lifecycle updates + healed-issue auto-close; blindness-aware (DatasourceError/NoData → degraded) (ghcr.io/derio-net/health-bridge:v0.4.0) |
 | traefik | traefik-system | In-cluster ingress controller (192.168.55.220), ACME wildcard TLS for `*.cluster.derio.net` |
 | traefik-extras | traefik-system | Middleware CRDs (security headers, IP allowlist, Authentik forward-auth) + 16 IngressRoutes |
 | homepage | homepage | Cluster dashboard at `master.cluster.derio.net`, HTTP health indicators, service catalog |
@@ -294,7 +299,7 @@ argocd app list
 | tekton-extras | tekton-pipelines | CI Tasks, gitea-ci Pipeline, Gitea EventListener, ExternalSecrets, RBAC |
 | longhorn-cicd | longhorn-system | Single-replica StorageClass for CI/CD workloads on pc-1 |
 | goatcounter | goatcounter-system | Blog analytics (arp242/goatcounter:2.7.0); LB 192.168.55.224, mesh-only admin via Authentik forward-auth |
-| ai-alert-helper | ai-alert-helper-system | FastAPI service — daily digest CronJob + surge-check + Grafana webhook receiver |
+| ai-alert-helper | ai-alert-helper-system | FastAPI service (0.2.0) — daily digest CronJob + surge-check + Grafana webhook receiver + Telegram trace-analyst (single replica, Recreate — one getUpdates consumer per bot token) |
 | awx | awx | AWX Operator + AWX CR (Ansible controller); OIDC SSO via Authentik; smoke-ping Job Template green vs non-Talos home-lab hosts |
 
 ### Hop Cluster Applications

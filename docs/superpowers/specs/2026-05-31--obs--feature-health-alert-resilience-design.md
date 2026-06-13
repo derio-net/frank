@@ -178,4 +178,4 @@ None blocking. Plan-time confirmations: exact VM health-metric series name for t
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-05-31--obs--feature-health-alert-resilience | `derio-net/frank` | `docs/superpowers/plans/2026-05-31--obs--feature-health-alert-resilience/` | — |
+| 2026-05-31--obs--feature-health-alert-resilience | `derio-net/frank` | `2026-05-31--obs--feature-health-alert-resilience` | — |

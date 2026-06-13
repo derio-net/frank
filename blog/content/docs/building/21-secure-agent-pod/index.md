@@ -179,10 +179,29 @@ No credential touches disk as a plaintext file. The approach uses two tiers:
 
 **Tier 2: Manual K8s Secrets** — for bootstrap secrets (SOPS-encrypted, applied out-of-band):
 - `agent-ssh-keys` — SSH authorized_keys
-- `agent-secrets-tier2` — GitHub token, other manual credentials
+- `agent-secrets-tier2` — manual credentials (Telegram, etc.)
 - `agent-configs` — talosconfig, kubeconfig, omniconfig (mounted at `~/.kube/configs/`)
 
 All secrets referenced by `envFrom` use `optional: true`, so the pod starts even if some secrets are missing.
+
+### GitHub: a least-privilege App token, not a PAT
+
+The pod's GitHub identity is a **GitHub App installation token**, not a personal
+access token. A `GithubAccessToken` ExternalSecret generator mints a short-lived
+(~1 h) token, written to a Secret mounted as a **live-updated file** at
+`/var/run/github/token` that kubelet refreshes as the generator rotates it. The
+App **private key never reaches the pod** — a filesystem compromise yields at most
+a ~1 h token, not a reusable credential. The token carries scoped permissions
+(contents / issues / pull-requests / workflows on selected repos), **not** the
+org-owner powers the previous shared PAT held — the whole point of the move.
+
+git reads it via the `~/.gitconfig` credential helper, and `gh` via a
+`/usr/local/bin/gh` wrapper (App tokens rotate and have no user identity, so gh
+needs the current token injected per call). The day-to-day commands and the sharp
+edges — git helpers run under dash, always verify against a *private* repo,
+per-repo/per-org install coverage — live in the
+[operating post]({{< relref "/docs/operating/14-secure-agent-pod" >}}) and
+`docs/runbooks/frank-gotchas/agent-shells.md`.
 
 ## Network Egress Control (Cilium)
 

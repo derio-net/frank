@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-agent-shell-home
+  namespace: hermes-agent-shell
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      # Holds ~/.hermes/ (config, sessions, skills, memories) plus any
+      # inventory-installed toolchain under $HOME. Matches paperclip-shell-home
+      # / ruflo-shell-home (20Gi).
+      storage: 20Gi

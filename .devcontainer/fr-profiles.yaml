@@ -1,0 +1,19 @@
+profiles:
+  dev:
+    purpose: "day-to-day docs/skills/blog/plan work \u2014 checks: cd blog && hugo\
+      \ --minify; scripts/validate-plans.sh; uv run scripts/validate-papers.py; uv\
+      \ run scripts/validate-dossier.py; pytest scripts/tests/; node scripts/validate-mermaid.mjs"
+    secrets:
+    - GH_TOKEN
+    notes:
+    - "tool 'hugo' has no known devcontainer feature \u2014 wired via postCreateCommand (version + sha256 pinned to the CI version in .github/workflows/deploy-blog.yml; bump both together)"
+    - "GH_TOKEN: use a fine-grained token scoped to derio-net/frank with contents:write + pull_requests:write only \u2014 the dev checks themselves need no token"
+    - "supply-chain: super-fr (fr CLI) is installed from the repo's packages/fr subdirectory (uv tool install git+https://github.com/derio-net/super-fr#subdirectory=packages/fr). postCreate fails LOUDLY by design \u2014 no || true (a silent fr-install failure cost a debugging round on 2026-06-06)"
+  cluster-admin:
+    purpose: "cluster-touching runs (kubectl/talosctl from inside isolation) \u2014\
+      \ non-default, operator-selected only"
+    secrets:
+    - GH_TOKEN
+    - KUBECONFIG_B64
+    - TALOSCONFIG_B64
+default: dev

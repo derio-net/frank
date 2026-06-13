@@ -123,31 +123,24 @@ spec:
               - {name: HOME, value: /tekton/home}
               - {name: npm_config_cache, value: /tekton/home/.npm}
             computeResources:
-              requests: {cpu: 500m, memory: 1Gi}
-              limits:   {memory: 2Gi}
+              # The @hum/mobile workspace runs an RN/jest-expo suite: heavier
+              # transforms than the node workspaces (jest maxWorkers is capped
+              # at 2 in-repo for exactly this footprint).
+              requests: {cpu: "1", memory: 2Gi}
+              limits:   {memory: 4Gi}
             script: |
               #!/bin/sh
-              # `set -eu` doesn't propagate into && / || chains. We use
-              # `npm run <script> --if-present`, npm's canonical "run if
-              # defined, succeed silently otherwise" flag. This avoids the
-              # previous `has_script` heuristic which returned true for
-              # entries like `scripts.test: ""` and then crashed on
-              # "Missing script: test" — surfaced in the 2026-05-13 rework
-              # smoke against the @hum/shared workspace.
+              # npm-workspace monorepo: ONE root install, then the repo's own
+              # `check` gate (typecheck && lint && test fanned out via
+              # `--workspaces --if-present`). The previous per-directory
+              # `npm ci` shape built nested node_modules inside each
+              # workspace and could not resolve workspace deps like
+              # @hum/shared — the @hum/mobile workspace (added 2026-06-11)
+              # surfaces that immediately. `--if-present` remains the guard
+              # against empty script entries (2026-05-13 rework smoke).
               set -eu
-              run_in() {
-                d="$1"
-                echo "=== $d ==="
-                cd "$d"
-                if [ -f package-lock.json ]; then npm ci; else npm install; fi
-                npm run typecheck --if-present
-                npm run test --if-present
-                cd - >/dev/null
-              }
-              run_in .
-              for ws in backend shared; do
-                [ -f "$ws/package.json" ] && run_in "$ws"
-              done
+              npm ci
+              npm run check
   finally:
     # github-status — MANDATORY post (fails the run if the API call fails).
     - name: github-status-success

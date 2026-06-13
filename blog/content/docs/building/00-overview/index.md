@@ -63,6 +63,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **Falco (modern_ebpf) + Falcosidekick** | Container runtime security on Talos — Loki output to VictoriaLogs (Loki push protocol) + direct Telegram for `priority:critical` |
 | **ai-alert-helper** | FastAPI service — daily blog digest, alert-time LLM enrichment, surge detection (hour-of-day baseline computed in Python because LogsQL has no `quantile_over_time`); LiteLLM-backed swap contract for future Sympozium |
 | **AWX** | Ansible automation controller — the imperative arm reaching non-Talos home-lab hosts over SSH; operator + `AWX` CR (two-layer reconcile), native OIDC SSO via Authentik, Gitea-backed Job Templates |
+| **hermes (Nous Research)** | Terminal-native agent CLI in a dedicated `agent-shell-base` pod on gpu-1 — BYOK to LiteLLM (provider pinned via `config.yaml` mapping), profile.d shim defeating the sshd env-scrub, SSH+Mosh on `192.168.55.226` |
 
 ## Cluster State
 
@@ -107,6 +108,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 30. [Building The Frank Papers — Research Infrastructure for a Third Series]({{< relref "/docs/building/30-frank-papers" >}})
 31. [Building Edge Observability — Watching Frank's Edge Without Watching Frank's Edge Burn]({{< relref "/docs/building/31-edge-observability" >}})
 32. [Building Automation — AWX, the Imperative Counterweight]({{< relref "/docs/building/32-automation" >}})
+33. [Hermes Agent Shell — A BYOK Pod That Ignored Its Own Keys]({{< relref "/docs/building/33-hermes-shell" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
 
@@ -141,3 +143,4 @@ Companion series with day-to-day commands, health checks, and debugging guides.
 25. [Operating The Frank Papers — Research, Dossiers, and Publishing]({{< relref "/docs/operating/25-frank-papers" >}})
 26. [Operating Edge Observability — Day-to-Day Commands for the Obs Layer]({{< relref "/docs/operating/26-edge-observability" >}})
 27. [Operating Automation — Day-to-Day Commands for AWX]({{< relref "/docs/operating/27-automation" >}})
+28. [Operating on Hermes Agent Shell]({{< relref "/docs/operating/28-hermes-shell" >}})

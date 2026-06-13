@@ -121,9 +121,9 @@ ls -la /var/tmp/vibe-kanban/worktrees/<hash>-<name>/frank/
 cd /var/tmp/vibe-kanban/worktrees/<hash>-<name>/frank && git status && git log --oneline -5
 ```
 
-**Durable fix** lives upstream of frank — in the bridge code being migrated from `derio-net/agent-images` to `derio-net/superpowers-for-vk` (mid-migration as of 2026-05-18). Two changes are needed there:
-1. Bump `vk_mcp_client.py` `_recv` default timeout from `30.0` to `180.0`.
-2. Wrap `sync_issue()` invocation in `vk-issue-bridge.py:main()` with `try/except TimeoutError: continue` so a single slow call doesn't kill the whole cycle.
+**Durable fix** lives upstream of frank — in the bridge code, migrated from `derio-net/agent-images` to `derio-net/super-fr` (the `fr_vk.bridge` module). Two changes are needed there:
+1. Bump the MCP client's `_recv` default timeout from `30.0` to `180.0`.
+2. Wrap the `sync_issue()` invocation in the bridge `main()` with `try/except TimeoutError: continue` so a single slow call doesn't kill the whole cycle.
 
 There's also an upstream `vibe-kanban` server-side bug — the request-handler future should not own the `Child::wait()` lifetime; child processes should be tracked in a global registry with a background reaper. That's a forked-fork change in `derio-net/vibe-kanban`, lower priority once the timeout is bumped.
 
@@ -160,18 +160,272 @@ done
 
 First hit: `agent-images` build for the VK_BRIDGE_PIN v2.2.13 bump (2026-05-25). Fixed in `kali/Dockerfile` in `derio-net/agent-images`.
 
-## v2 vk.bridge logs its banner to stderr — smoke tests must capture `2>&1`
+## The `fr_vk.bridge` daemon logs its banner to stderr — smoke tests must capture `2>&1`
 
-The PVC-resident v2 bridge (`vk.bridge` module, installed by `cont-init.d/55-install-vk-bridge` from a `superpowers-for-vk` git tag) emits its per-tick banner and `dry-run complete` line via Python **logging**, which writes to **stderr**, not stdout:
+The PVC-resident bridge (`fr_vk.bridge` module — formerly v2 `vk.bridge` — installed by `cont-init.d/55-install-fr-bridge` from a `super-fr` git tag) emits its per-tick banner and `dry-run complete` line via Python **logging**, which writes to **stderr**, not stdout:
 
 ```
-$ python -m vk.bridge --dry-run 1>/tmp/out 2>/tmp/err   # exits 0
+$ python -m fr_vk.bridge --dry-run 1>/tmp/out 2>/tmp/err   # exits 0
 $ cat /tmp/out      # empty
 $ cat /tmp/err
 [bridge] - v2.2.13 - 2026-05-25 16:26:48 UTC - tick
-vk.bridge: dry-run complete
+fr_vk.bridge: dry-run complete
 ```
 
-Any health check or CI smoke test that does `out=$(vk-bridge --dry-run)` captures **stdout only** → `$out` is empty → banner/version assertions fail. Under bash `set -eo pipefail` (GitHub Actions default) the step then aborts before any teardown/diagnostics run, so the log shows the banner printed live (uncaptured stderr) followed immediately by an unexplained exit 1. Always `2>&1` the capture.
+Any health check or CI smoke test that does `out=$(fr-bridge --dry-run)` captures **stdout only** → `$out` is empty → banner/version assertions fail. Under bash `set -eo pipefail` (GitHub Actions default) the step then aborts before any teardown/diagnostics run, so the log shows the banner printed live (uncaptured stderr) followed immediately by an unexplained exit 1. Always `2>&1` the capture.
 
 This silently broke `agent-images`' `smoke-test-secure-agent-kali` job on **every** build after the 2026-05-19 v2-bridge cutover — the kali image had not published a green build from `main` for a week before it was diagnosed (2026-05-25). The pre-cutover v1 bridge printed to stdout, which is why the same test passed on bridge ≤ v2.1.7.
+
+## BYOK shells: hermes ≥0.15 ignores OPENAI_* env for chat — pin the provider in config.yaml
+
+The hermes-agent-shell BYOK contract supplies `OPENAI_BASE_URL` + `OPENAI_API_KEY` (ExternalSecret → container env → `/etc/profile.d/35-…-byok-env.sh` shim into login shells). The hermes CLI does **not** consume those for chat inference by itself: provider `auto` resolves to **openrouter** (→ `HTTP 401 Missing Authentication header` against `https://openrouter.ai/api/v1` on first `hermes` run), and the plain `OPENAI_API_KEY` registers only as the STT/TTS key in `hermes config`.
+
+What does and doesn't pin the default provider (verified on v0.15.2, 2026-06-04):
+
+- **Works** — `model:` as a *mapping* in `~/.hermes/config.yaml` (`hermes_cli/auth.py` reads `model_cfg.get("provider")`):
+  ```yaml
+  model:
+    default: mistral-small-24b
+    provider: litellm        # user-defined name from providers:
+  providers:
+    litellm:
+      base_url: http://litellm.litellm.svc:4000/v1
+      key_env: OPENAI_API_KEY   # resolved from the login-shell env (BYOK shim)
+  ```
+- **Works** — explicit flag: `hermes chat --provider litellm -m <alias>` (user-defined names are valid `--provider` values; they normalize to the built-in `custom` path with the entry's `base_url`).
+- **Does NOT work** — every model-string prefix form: `model: litellm/<alias>`, `model: custom/<alias>`, `model: custom:litellm:<alias>`. The model string is opaque in this build; the whole string is sent as the model name to the *default* provider (openrouter). The paperclip-era `ollama-cloud/<alias>` trick worked because `ollama-cloud` is a built-in provider — it does not generalize to user-defined names.
+
+Provider entry schema (`providers:` keyed dict, v12+ config; `custom_providers:` list is the legacy equivalent): `base_url`, `api_key`/`key_env`/`api_key_env`, `api_mode`, `model`/`default_model`/`models`, `extra_body`, … (see `_KNOWN_KEYS` in `hermes_cli/config.py`). Unknown keys log a warning and are ignored.
+
+`~/.hermes/config.yaml` lives on the home PVC — it survives restarts but is **not** declarative; seeding it is a manual operation (`orch-hermes-config-provider` in the runbook). Model-side note: the "every reply is a fake tool-call JSON" symptom (`{"name": "text_to_speech", …}`) was NOT a model quirk — it was LiteLLM's `ollama/` prefix breaking tools+streaming; fixed cluster-wide by switching the lineup to `ollama_chat/` (see the LiteLLM entry in `other-apps.md`). Residual genuine model quirks: thinking models can return reasoning-only turns (`qwen36-a3b` exhausted retries with content-free reasoning). `mistral-small-24b` is the most coherent local default; switch per-session with `/model`. The `hermes-405b` LiteLLM DB alias routes to OpenRouter (`Model Group=hermes-4`) which rejects tool-use requests (404) — dead since the 2026-06-04 cloud-alias purge.
+
+## hermes shell: fetch-text for web pages + context budgets must mirror the server (2026-06-06)
+
+Hermes v0.15.2 has **no key-free native web-extract backend** (firecrawl /
+tavily / exa / parallel / xai need paid keys; ddgs and searxng are
+search-only), so "read this URL" degrades to terminal `curl -s` and floods the
+context window with raw HTML — the trigger of the 2026-06-06 session-amnesia
+incident (full chain in other-apps.md).
+
+- `fetch-text <url>` — ConfigMap-mounted stdlib-only extractor at
+  `/usr/local/bin/fetch-text` (`apps/hermes-agent-shell/manifests/
+  configmap-fetch-text.yaml`, subPath mount, 0755). Title + body text,
+  20k-char default cap (`--max-chars`), `--stdin` mode for tests
+  (`scripts/tests/test_fetch_text.py` runs the exact ConfigMap bytes).
+  kubelet never live-updates subPath mounts — script edits need a pod
+  restart. SOUL.md carries the steering line (manual-op
+  `orch-hermes-soul-fetch-text`).
+- Context budgets live in the hermes config.yaml on the PVC
+  (`providers.litellm.models.<alias>.context_length`) and MUST mirror live
+  server reality: 64k pair = 65536, all other aliases =
+  `OLLAMA_CONTEXT_LENGTH` = 16384 (manual-op `orch-hermes-context-budgets`).
+  When the gateway lineup changes, update both together — a believed window
+  larger than the real one re-opens the silent-truncation amnesia hole; the
+  resolver's fallback for unknown aliases is 256K.
+- `tool_output.max_bytes` is 24000 (was 50000): the largest single tool
+  result that still leaves >50% of a 16k window when the operator `/mode`s
+  to a non-64k model.
+- Default model is `gemma-12b-64k-nothin`; `/mode gemma-12b-64k` re-enables
+  thinking when reasoning depth is worth the latency.
+
+### Rework-1 addendum (2026-06-06): the 64k floor, the clamp, and the brain transplant
+
+- **hermes hard-requires ≥64k context** — its preamble alone is ~15k tokens
+  (`in≈15,030` per API call on a trivial task). With truthful budgets it
+  refuses every 16k model at init: *"below the minimum 64,000 required."*
+  Don't "fix" this with a lying `context_length` override — that re-opens the
+  silent-truncation amnesia hole.
+- **Derived-tag `num_ctx` silently clamps to the trained ceiling** —
+  `qwen3:14b` requested at 65536 loads at 40,960; the Modelfile accepts the
+  value, `ollama create` succeeds, and only `ollama ps` CONTEXT shows the
+  truth. Check it for every new derived tag.
+- **gemma4-12B failed the hermes agentic gate** (think off: hallucinated tool
+  names + a 90-iteration identical-call loop on `hostname`, confabulated
+  answer; think on: skipped tools, confabulated a summary from the URL slug).
+  Plain chat/vision is fine — keep `gemma-12b-64k-nothin` for that.
+- **`qwen36-a3b-64k` is the hermes default and agent brain** — gate PASSED
+  2026-06-06 (4/4): grounded fetch-text summary of the killer blog post,
+  exact URL+command recall in a continued session, `hostname` in ONE tool
+  call (gemma4 took 90 and confabulated), 0 ollama truncations. Measured: 24 GB total, 39/61 CPU/GPU hybrid (MoE
+  3B-active), 61 t/s generation, 1,792 t/s long prefill — hermes's preamble
+  costs ~8 s cold, then ollama prefix-caches across session turns.
+- Loop insurance: `tool_loop_guardrails.hard_stop_enabled: true` in hermes
+  config.yaml (default thresholds stop identical no-progress tool calls at 5).
+
+## `claude install` group-OOMs 4Gi shell pods — Bun HTTP buffering (~17×), all SSH sessions drop at once
+
+**Incident (2026-06-07, hermes-agent-shell):** operator ran `claude install` in an SSH session;
+every SSH connection to the pod closed simultaneously and the pod went CrashLoopBackOff-ish
+(4 restarts across the incident, including diagnosis re-runs).
+
+**Mechanism.** The container cgroup has `memory.oom.group` set, so the kernel kills *every*
+task in the cgroup when one process trips the limit — sshd included. That's the "all sessions
+die at the same instant" signature, distinct from a single killed session. The tripping
+process: `claude install` downloads the ~245 MB native build **in-process** via Bun's HTTP
+client, which buffers the artifact ~17× in anonymous memory (kernel killed it at anon-rss
+4,172,660 kB ≈ 4.17 GiB; 17 × 245 MB ≈ 4.16 GiB — near-exact match). Kernel evidence
+(`talosctl -n <node> dmesg`): `claude` with thread "HTTP Client", `total-vm` ~73 GB (normal
+JSC reservation, ignore it), anon-rss ≈ the pod limit, then `memory.oom.group` kill list.
+
+**What does NOT work:**
+- `BUN_JSC_forceRAMSize` — the buffering is in Bun's native HTTP layer, below JSC GC. Tested, OOM'd identically.
+- `curl -fsSL https://claude.ai/install.sh | bash` — the script's *download* is plain curl
+  (fine), but its last step runs `"$binary" install`, and `claude install` **re-downloads via
+  the same Bun path even when the running binary IS the target version**. Tested, OOM'd identically.
+- Upstream: claude-code#22536, closed not-planned.
+
+**Memory-safe install (constant-memory, what the installer would have produced):**
+
+```bash
+DL=https://downloads.claude.ai/claude-code-releases
+version=$(curl -fsSL "$DL/latest")
+checksum=$(curl -fsSL "$DL/$version/manifest.json" | jq -r '.platforms["linux-x64"].checksum')
+vdir="$HOME/.local/share/claude/versions"
+mkdir -p "$vdir" "$HOME/.local/bin"
+curl -fsSL -o "$vdir/$version.tmp" "$DL/$version/linux-x64/claude"
+echo "$checksum  $vdir/$version.tmp" | sha256sum -c
+chmod +x "$vdir/$version.tmp" && mv "$vdir/$version.tmp" "$vdir/$version"
+ln -sfn "$vdir/$version" "$HOME/.local/bin/claude"
+claude --version   # login shells resolve ~/.local/bin ahead of the baked /usr/bin/claude
+```
+
+**Durable fix:** hermes-agent-shell limit raised 4Gi → 8Gi (peak ~4.2–4.5 GiB fits; kali's
+32Gi is why the same install always worked there). Residual risk at 4Gi-class pods: the
+native build's **background auto-updater** uses the same download path — i.e. a pod can
+group-OOM mid-session with no operator action; either give the pod ≥8Gi or set
+`DISABLE_AUTOUPDATER=1`.
+
+## hermes-agent-shell: Hermes venv is PVC-resident, seeded from a relocatable image seed (frank#496)
+
+The `agent` user (uid 1000) in `hermes-agent-shell` cannot patch image-baked
+files: the pod is `runAsNonRoot` + `allowPrivilegeEscalation: false` +
+`capabilities.drop: ["ALL"]`, and `fsGroup: 1000` only re-groups *mounted
+volumes*, never image layers. The old image baked the Hermes venv `root:root`
+at `/opt/hermes-agent`, so maintaining Hermes in-pod (`hermes update`,
+hot-patching `site-packages`) was impossible — the frank#496 incident.
+
+**Design (image `agent-images@83bdab4`+):**
+
+- The image bakes a **relocatable** seed venv at `/opt/hermes-agent`
+  (`uv venv --relocatable` — console scripts get a `#!/bin/sh` polyglot
+  shebang that re-execs python by *relative* path, so the venv runs from any
+  directory after a copy). It is a read-only build artifact, NOT the live
+  runtime. The auto-continue patch (below) is `git apply`'d into it at build,
+  and `/opt/hermes-agent/.seed-version` is stamped `<HERMES_VERSION>+autocontinueN`.
+- On first boot, `cont-init.d/35-hermes-venv-seed` (runs as uid 1000, before
+  `40-shell-inventory`) `cp -a`'s the seed onto the `/home/agent` PVC at
+  **`/home/agent/.local/opt/hermes-agent`** — the **live** venv, uid-1000-owned
+  and writable. The launcher `/usr/local/bin/hermes` points at the PVC venv.
+  In-pod patches / `hermes update` now persist across pod restarts.
+- **Version-gated re-seed:** the hook compares `$SEED/.seed-version` vs the live
+  marker. Mismatch (first boot, or an image/Hermes bump) → replace the live
+  venv (superseding any in-pod patches with the new image's). Match → no-op,
+  **preserving** in-pod hot-patches. So an image bump cleanly rolls forward;
+  a plain restart keeps the operator's edits.
+- The venv cannot be baked directly at the PVC path — the PVC mount at
+  `/home/agent` **shadows** anything baked under it (see the "PVC mounts hide
+  image-baked files" gotcha above).
+
+**Manual re-seed:** the hook's shebang is `#!/command/with-contenv bash` (s6
+execline wrapper, only resolves inside supervised cont-init). To re-run it by
+hand, invoke via bash — a bare `docker exec`/`kubectl exec
+.../35-hermes-venv-seed` hits `execlineb: fatal: unable to exec ifelse` (exit
+127) because the execline env isn't set up:
+
+```bash
+kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
+  bash /etc/cont-init.d/35-hermes-venv-seed
+```
+
+**Auto-continue patch (baked):** `agent-images/hermes-agent-shell/patches/hermes-autocontinue-chat-completions.patch`
+widens one gate in Hermes' `agent/conversation_loop.py`. Hermes v0.15.2 ships a
+countermeasure for the "announce-only turn" failure (a planning/ack message
+with `finish_reason=stop` and no tool call — endemic to `qwen36-a3b` at ~16k
+ctx): it injects `[System: Continue now. Execute the required tool calls…]` and
+loops. But it was gated on `api_mode == "codex_responses"`, so it never fired
+on Frank's OpenAI-compatible LiteLLM path (`api_mode == "chat_completions"`,
+the `determine_api_mode` default for a custom provider on
+`http://litellm.litellm.svc:4000/v1`). The patch widens the gate to
+`in ("codex_responses", "chat_completions")`; the detection heuristic
+(`looks_like_codex_intermediate_ack`) is provider-agnostic. Applied at build
+with `git apply` (zero fuzz → the build fails if the hunk drifts on a
+`HERMES_VERSION` bump; refresh the patch then, and bump the `+autocontinueN`
+seed-version suffix so live pods re-seed).
+
+## Agent GitHub auth: rotating App installation token — git helper + gh wrapper, not a PAT (2026-06-08)
+
+The secure-agent-pod authenticates to GitHub with a short-lived **GitHub App
+installation token** (App `derio-fr-automation`), not a personal access token.
+ESO's `GithubAccessToken` ClusterGenerator mints a ~1 h token; an ExternalSecret
+writes it to the `agent-github-token` Secret, mounted as a **live-updated volume**
+at `/var/run/github/token` (kubelet refreshes the file as ESO rotates it; the App
+private key never reaches the pod). This replaced the `clawdia-ai-assistant`
+org-owner PAT, which was then demoted to member + revoked.
+
+Two consumers, two shims — both read the mounted token file:
+
+- **git** — the `~/.gitconfig` credential helper (baked at `/opt/gitconfig`,
+  seeded to the PVC on first boot, upgraded in place by `02-credential-migrate`).
+  username is `x-access-token` (the App-token convention; also accepted with a
+  PAT). It MUST read the token with `$(cat "$t")`: **git runs credential helpers
+  via `/bin/sh` = dash**, where the bash-only `$(< file)` read shortcut yields an
+  EMPTY string → `password=` → GitHub rejects auth on PRIVATE repos with
+  *"Invalid username or token. Password authentication is not supported for Git
+  operations."* PUBLIC repos read with no auth and **mask** the bug — so a
+  public-repo check is a false pass. **Always verify against a private repo.**
+
+- **gh** — the `/usr/local/bin/gh` wrapper (ahead of the apt `/usr/bin/gh` in
+  PATH) injects the current token per call:
+  `if [ -r /var/run/github/token ]; then exec env GH_TOKEN="$(cat /var/run/github/token)" /usr/bin/gh "$@"; fi`.
+  Needed because App tokens **rotate** (a long-lived process's captured env token
+  goes stale) and gh otherwise falls back to a stale value or the revoked
+  `~/.config/gh/hosts.yml` PAT → *"Bad credentials"* (the fr-bridge's GraphQL
+  plan-discovery surfaced this). App tokens also lack **user-context**:
+  `gh auth status` / `gh api user` report "invalid", but repo/issue/PR/GraphQL
+  ops (what `fr apply` + the bridge need) work fine.
+
+### Two traps that masked/broke this
+
+1. **`gh auth setup-git` host override.** A past `gh auth setup-git` leaves
+   `credential.https://github.com.helper = !/usr/bin/gh auth git-credential` on
+   the PVC. Git makes the **host-specific** helper win for github.com (an empty
+   `credential.https://github.com.helper=` line first RESETS the list), so the
+   generic App-token helper is ignored and git asks gh for the password — getting
+   gh's stored (revoked) token → 401. `02-credential-migrate` now re-seeds
+   `/opt/gitconfig` (which has no host override) whenever it finds
+   `gh auth git-credential` in the PVC gitconfig.
+2. **Per-repo + per-org install coverage.** An installation token only covers
+   the repos added to the App install, in that org. Repos not in the install 404
+   ("Repository not found"); repos in another org aren't covered at all. The
+   fr-bridge tracks repos across orgs, so each needs coverage (add to the install)
+   or its own App/token — or drop it from the bridge's repo list.
+
+### Recovery — live stopgap before the fixed image rolls
+
+Durable fix is in `agent-images` (gitconfig `$(cat)`, the gh wrapper,
+`02-credential-migrate` upgrades). To patch a running pod immediately
+(`/usr/local/bin` is root-owned, so write the gh wrapper to `~/.local/bin`, which
+is first in PATH):
+
+```bash
+kubectl -n secure-agent-pod exec -i deploy/secure-agent-pod -c kali -- bash -s <<'EOF'
+git config --global --unset-all 'credential.https://github.com.helper' 2>/dev/null || true
+git config --global credential.helper '!f() { for t in /var/run/github/token /run/s6/basedir/env/GITHUB_TOKEN; do [ -r "$t" ] || continue; echo username=x-access-token; printf "password=%s\n" "$(cat "$t")"; return; done; }; f'
+mkdir -p "$HOME/.local/bin"
+cat > "$HOME/.local/bin/gh" <<'WRAP'
+#!/bin/sh
+_tok="${GH_APP_TOKEN_FILE:-/var/run/github/token}"; _real="${GH_REAL_BIN:-/usr/bin/gh}"
+if [ -r "$_tok" ]; then exec env GH_TOKEN="$(cat "$_tok")" "$_real" "$@"; fi
+exec "$_real" "$@"
+WRAP
+chmod +x "$HOME/.local/bin/gh"
+EOF
+```
+
+Verify against a PRIVATE repo (public ones false-pass):
+`git ls-remote https://github.com/derio-net/willikins HEAD` and
+`gh api graphql -f query='{repository(owner:"derio-net",name:"willikins"){name}}'`.
+
+The same App pattern backs other CI on the cluster via per-app `GithubAccessToken`
+generators (e.g. tekton mirror pipelines for a separate org), with the key in the
+consuming namespace — see `storage-secrets-ssa.md` for the generator gotcha.

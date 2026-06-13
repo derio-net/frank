@@ -1,0 +1,53 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Deploy verification + plan close
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: ArgoCD rollout + cross-alertname heal smoke test
+  steps:
+  - id: P4.T1.S1
+    text: |
+      After the frank PR merges, confirm ArgoCD syncs health-bridge and the
+      pod is Running on `:v0.4.0`:
+      `kubectl get pods -n monitoring -l app=health-bridge -o jsonpath='{.items[0].status.containerStatuses[0].image}'`
+      (expect v0.4.0) and `/readyz` 200 (project metadata loaded).
+  - id: P4.T1.S2
+    text: |
+      End-to-end smoke (a layer is not Deployed until the workflow is
+      observed): create a throwaway bug titled
+      `[Bug] smoke-blind is dead — smoke` whose body refs a smoke tracker,
+      then POST a `resolved` webhook with a DIFFERENT alertname
+      (e.g. "Layer XX smoke") for that same feature ref (reuse the
+      scripts/tmp/replay pattern, webhook secret read live). Confirm the
+      bridge log shows `Closed bug issue …` for it (cross-alertname heal)
+      and the tracker → healthy. Clean up the smoke tracker state.
+- number: 2
+  title: Update plan status
+  steps:
+  - id: P4.T2.S1
+    text: |
+      Set the spec/plan Status to `Deployed`. Run `/sync-runbook` if any
+      manual-operation blocks were added. Confirm bugs/board are clean.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-06-08T06:44:33+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-06-08T06:44:35+00:00'
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-06-08T06:44:37+00:00'
+      note: null
+  completion:
+    at: '2026-06-08T06:44:38+00:00'
+    note: null
+    observed_prs: []

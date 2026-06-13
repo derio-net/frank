@@ -1,0 +1,111 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Verify end-to-end (cluster + browser)
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: https://github.com/derio-net/frank/issues/453
+tasks:
+- number: 1
+  title: Upload paths
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      Image round-trip + READ-BACK. In the ChatUI (`ruflo.cluster.derio.net`) with `gemma-12b` selected and the per-model tools toggle on, attach an image and send. Expect a normal multimodal response, NO 500. Then re-open the conversation and confirm the image renders (exercises downloadFile.ts). Confirm clean logs:
+
+      ```bash
+      source .env
+      kubectl -n ruflo-system logs deploy/ruflo -c ruflo --since=5m | grep -iE "upload.once|ERR_INVALID_ARG_TYPE|500|error" || echo "PASS: no upload errors"
+      ```
+  - id: P3.T1.S2
+    text: |-
+      Tool URL file-fetch: trigger a tool that fetches a file by URL and stores it; confirm no 500 and the file is usable. (Inline text-URL fetch already works — this is the file-storing path.)
+  - id: P3.T1.S3
+    text: |-
+      Copy-on-fork: from a shared/continued conversation that has a file attachment, fork/continue it; confirm success (exercises conversation.ts `.pipe()`), no `downloadStream.on is not a function` / 500 in logs.
+- number: 2
+  title: Regression + broad smoke (154-commit bump)
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Plain chat against a local model still responds (no MCP). Confirm 200 on `/conversation/...`.
+  - id: P3.T2.S2
+    text: |-
+      MCP/wasm regression: with the tools toggle on, RVAgent Local tools load; confirm NO `rejected.*wasm` / `all selected MCP servers rejected` warnings:
+
+      ```bash
+      kubectl -n ruflo-system logs deploy/ruflo -c ruflo --since=5m | grep -iE "rejected.*wasm|all selected MCP servers rejected" && echo FAIL || echo PASS
+      ```
+  - id: P3.T2.S3
+    text: |-
+      Broad smoke: model list loads (`/api/v2/models` 200), `/api/v2/feature-flags` 200, no new boot errors in the first 2m of pod logs. Confirm `[RuVocal] Database: /app/db/ruvocal.rvf.json` still present (RVF backend intact).
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-06-04T18:39:24+00:00'
+      note: 'Upload+read-back verified against the LIVE deployed image (0ff70147,
+        matches Phase-2 pin). Real HTTP route POST /conversation/<id> with a multipart
+        image part -> 200, file persisted (msg.files hash 587188c0...); read back
+        byte-exact via the app''s real downloadFile() (find({filename}).next()+openDownloadStream).
+        Also openUploadStream(Writable,''finish'',ArrayBuffer)+openDownloadStream(Readable)
+        byte-exact via in-pod harness against the live RVF DB. Browser UI not used:
+        edge ip-allowlist is RFC1918-only so the remote Browser-Use cloud browser
+        (public egress IP) is rejected before Authentik SSO, and all deployed models
+        report multimodal:false (UI attach gated off). Logs clean: no upload.once/ERR_INVALID_ARG_TYPE/500.'
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-06-04T20:07:42+00:00'
+      note: 'SCOPE: the literal trigger (a tool fetching a file by URL) was NOT exercised
+        — no deployed model reports supportsTools:true ([mcp] ''tools disabled for
+        model; skipping MCP flow''), a deployment-config limitation unrelated to the
+        fix. PROVEN: the file-storing PRIMITIVE this path calls — openUploadStream
+        + scheduleSave — is exercised end-to-end in P3.T1.S1 (real HTTP multipart
+        upload -> 200, persisted, read back byte-exact) and at the module level (evidence
+        file §2.1, §3.C). The fix lives entirely in that primitive; the tool-fetch
+        caller is an unchanged thin wrapper over it. No 500 / upload.once errors.
+        See phase3-evidence.md.'
+    P3.T1.S3:
+      state: x
+      ticked_at: '2026-06-04T18:39:54+00:00'
+      note: 'Copy-on-fork .pipe() verified by exercising createConversationFromShare''s
+        exact deployed copy block (BBA_Z3mf:64-77) against the live shim: bucket.find({filename:{$regex:''^<id>-''}}).toArray()
+        matched, then downloadStream.on(''error'',reject).pipe(uploadStream).on(''error'',reject).on(''finish'',resolve)
+        completed and the copy was byte-exact. Confirms openDownloadStream returns
+        a real Readable (.on works -> no ''downloadStream.on is not a function''),
+        .pipe works, and openUploadStream emits ''finish''. Full share->fork HTTP
+        dance not run (requires auth + the Elysia share API); the copy code it invokes
+        is unchanged and was exercised directly.'
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-06-04T18:39:54+00:00'
+      note: 'Plain chat against local model gemma-12b via real HTTP route (anonymous
+        in-pod session, no MCP): POST /conversation/<id> -> HTTP 200, stream completed
+        (title auto-generated, status ''finished''). No 500.'
+    P3.T2.S2:
+      state: x
+      ticked_at: '2026-06-04T20:07:42+00:00'
+      note: 'SCOPE: the prescribed log-grep-on-MCP-request-flow could NOT fire — the
+        MCP flow skips before url-safety because no deployed model has supportsTools
+        ([mcp] ''tools disabled for model''), so a clean grep there is vacuous, not
+        a pass. PROVEN (the actual regression target): the wasm:// urlSafety allow-line
+        survived the 154-commit bump — deployed isValidUrl(''wasm://...'') returns
+        true while unsafe URLs are still rejected (169.254/10.0/ftp -> false: negative
+        controls confirm no over-permissive regression), bundle line urlSafety-CMNAzyRy.js:31.
+        An HTTP request carrying a wasm:// MCP server returns 200 with no rejection
+        warning. Direct-function proof, not request-flow proof. See phase3-evidence.md
+        §2.5/§3.D.'
+    P3.T2.S3:
+      state: x
+      ticked_at: '2026-06-04T18:40:06+00:00'
+      note: 'Broad smoke (154-commit bump): /api/v2/models -> 200 (7 models listed),
+        /api/v2/feature-flags -> 200, clean boot window (no errors before ''Listening
+        on http://0.0.0.0:3000''), and RVF backend intact (''[RuVocal] Database: /app/db/ruvocal.rvf.json''
+        + ''[RVF] Loaded 10 collections''). Full pod-log scan over all verification
+        activity: no upload.once/ERR_INVALID_ARG_TYPE/downloadStream.on/is-not-a-function/fatal/uncaught
+        signatures.'
+  completion:
+    at: '2026-06-04T18:40:11+00:00'
+    note: null
+    observed_prs: []

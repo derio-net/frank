@@ -6,6 +6,17 @@ metadata:
 data:
   notification-policy.yaml: |
     apiVersion: 1
+    # Always-active interval used to permanently silence the cert-expiry canary
+    # route below (Grafana has no null receiver; an always-muted route is the
+    # idiomatic permanent mute). Spec:
+    # docs/superpowers/specs/2026-06-07--obs--cert-expiry-canary-design.md
+    muteTimes:
+      - orgId: 1
+        name: perma-mute
+        time_intervals:
+          - times:
+              - start_time: "00:00"
+                end_time: "24:00"
     policies:
       - orgId: 1
         receiver: "Telegram - Willikins"
@@ -13,6 +24,29 @@ data:
         group_interval: 3m
         repeat_interval: 3m
         routes:
+          # ROUTE ORDER IS LOAD-BEARING (issue #251 canary). The two canary
+          # routes must precede the severity routes (the canary fires BOTH
+          # tls-cert rules: warning + critical) and the feature-health route
+          # (health-bridge would mint a never-closing bug issue). The watchdog
+          # route must precede the mute route — the watchdog alert ALSO
+          # carries canary="true" (absent() propagates its selector's equality
+          # matchers) and would otherwise be swallowed by the mute.
+          #
+          # 1. Canary watchdog — health-bridge ONLY. severity=critical is
+          #    required for health-bridge's dead→bug-issue lifecycle (auto-
+          #    closed on heal) but must never reach Telegram.
+          - receiver: "Health Bridge Webhook"
+            matchers:
+              - canary_watchdog="true"
+            continue: false
+          # 2. Canary heartbeat instances — permanently muted, still visible
+          #    in the Grafana alert list (that visibility IS the heartbeat).
+          - receiver: "Telegram - Willikins"   # explicit for readability — never delivers (perma-muted)
+            matchers:
+              - canary="true"
+            mute_time_intervals:
+              - perma-mute
+            continue: false
           # blog-edge folder alerts go exclusively to the AI helper, which
           # builds a fact sheet, calls the LLM, and posts to Telegram itself.
           # Continue:false so the default Telegram contact point doesn't

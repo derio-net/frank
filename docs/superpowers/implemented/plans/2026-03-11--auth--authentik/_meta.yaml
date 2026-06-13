@@ -1,0 +1,6 @@
+schema_version: 2
+plan: 2026-03-11--auth--authentik
+spec: 2026-03-11--auth--authentik-design.md
+target_repo: derio-net/frank
+vk_version: '>=2.0.0,<3.0.0'
+created: '2026-03-11'

@@ -43,9 +43,20 @@ spec:
           secret:
             secretName: agent-ssh-keys
             defaultMode: 0400
+        # Short-lived GitHub App installation token, minted by ESO
+        # (clustergenerator-github-app.yaml → externalsecret-github-app-token.yaml).
+        # Mounted as a whole-secret volume (NOT subPath) so kubelet live-updates
+        # the file as ESO rotates it. optional: true so the pod still starts
+        # before ESO first materializes the Secret. 0440 + fsGroup 1000 → readable
+        # by the uid-1000 agent process; the private key is never on the pod.
+        - name: github-token
+          secret:
+            secretName: agent-github-token
+            optional: true
+            defaultMode: 0440
       containers:
         - name: kali
-          image: ghcr.io/derio-net/secure-agent-kali:95e719b9164e3e16b6e304202ff567f22aeed39c
+          image: ghcr.io/derio-net/secure-agent-kali:f1d58d75eb34996210683c8f8cd21e8200065d57
           ports:
             - name: ssh
               containerPort: 2222  # Non-root sshd; Service maps 22→2222
@@ -93,6 +104,9 @@ spec:
             - name: ssh-keys
               mountPath: /etc/ssh-keys
               readOnly: true
+            - name: github-token
+              mountPath: /var/run/github
+              readOnly: true
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
@@ -117,7 +131,7 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 60
         - name: vk-local
-          image: ghcr.io/derio-net/vk-local:95e719b9164e3e16b6e304202ff567f22aeed39c
+          image: ghcr.io/derio-net/vk-local:f1d58d75eb34996210683c8f8cd21e8200065d57
           ports:
             - name: vk-http
               containerPort: 8081
@@ -156,6 +170,11 @@ spec:
           volumeMounts:
             - name: agent-home
               mountPath: /home/claude
+            # vk-local also runs git (worktrees) as uid 1000 against the shared
+            # ~/.gitconfig credential helper, so it needs the token file present too.
+            - name: github-token
+              mountPath: /var/run/github
+              readOnly: true
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000

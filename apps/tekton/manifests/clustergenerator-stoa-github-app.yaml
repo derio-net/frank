@@ -1,0 +1,32 @@
+# GitHub App installation-token generator (stoa-fr-automation, App 3994156)
+# for the agentic-stoa CI/mirror pipelines. Replaces the clawdia-era PAT
+# (Infisical /agentic-stoa/STOA_GITHUB_MIRROR_TOKEN).
+#
+# ESO mints a short-lived (~1h) installation token; the stoa-github-mirror
+# ExternalSecret writes it into the `token` key the tekton pipelines already
+# consume. Tekton tasks are short-lived and read the Secret per run, so the
+# 45m refresh keeps every run on a valid token (no live-file mount needed,
+# unlike the long-running secure-agent-pod).
+#
+# NOTE: ESO resolves auth.privateKey.secretRef in the CONSUMING ExternalSecret's
+# namespace (tekton-pipelines) and IGNORES secretRef.namespace — so the key
+# Secret (github-app-stoa-key) lives in tekton-pipelines.
+#
+# The minted token inherits the App's install scope: contents/issues/PRs/
+# workflows + (once added) commit statuses, on hum/content-factory/stoa-blog/
+# companies. github-status posting REQUIRES `statuses:write` on the App.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-stoa
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "3994156"
+      installID: "138773982"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-stoa-key
+            key: key

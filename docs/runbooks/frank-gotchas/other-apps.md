@@ -175,3 +175,128 @@ inventory (e.g. cluster `192.168.55.x` → host `192.168.10.x`):
 kubectl -n awx exec deploy/awx-task -c awx-task -- \
   python3 -c "import socket;s=socket.socket();s.settimeout(4);s.connect(('<ip>',22));print('OPEN')"
 ```
+
+## LiteLLM `ollama/` vs `ollama_chat/` — streaming + tools leaks scaffold JSON into content
+
+**Symptom (2026-06-04, hermes-agent-shell):** every conversational reply from a
+local model rendered as a fake tool call in the client —
+`{"name": "text_to_speech", "arguments": {...}}`, `{"name": "todo", ...}` —
+instead of plain text. Plain chat without tools was fine; the same request
+non-streamed returned a *correct* native `tool_calls` response.
+
+**Root cause:** LiteLLM's `ollama/` provider implements function calling by
+prompt injection — it renders the `tools` array into the prompt, instructs the
+model to answer with `{"name", "arguments"}` JSON, and re-parses that JSON into
+`tool_calls` on the way back. The re-parse needs the complete response, so it
+only happens non-streamed. Any streaming client that sends `tools`
+(hermes does — `chat_completion_stream_request`) receives the raw scaffold
+JSON as `content` with zero `tool_calls` deltas. Models then also imitate the
+pattern for ordinary replies, wrapping greetings in whatever tool looks
+plausible (tts, todo, image_generate — disabling individual tools is
+whack-a-mole, the envelope just moves).
+
+**Probes (run from any pod with the LiteLLM key):**
+
+- non-stream + tools → `content: None`, proper `tool_calls` — looks healthy
+- `stream: true` + tools → `content: '{"name": "get_weather", ...}'`, `tool_call deltas: 0` — the bug
+- Ollama native `/api/chat` direct with `stream: true` + tools → empty content,
+  proper `message.tool_calls` — proving the fix
+
+**Fix:** use the `ollama_chat/` prefix in `apps/litellm/values.yaml`
+`model_list` (LiteLLM's own recommendation for chat models). It targets
+Ollama's native `/api/chat` tool-calling, which is stream-safe.
+`extra_body: {think: false}` (qwen36-a3b-nothin) is a native `/api/chat`
+parameter and passes through unchanged. Flipped for all 7 local aliases on
+2026-06-04 (hermes-agent-shell deviation follow-up).
+
+**Beware in tests:** a `curl` verification without `"stream": true` CANNOT
+catch this class of bug — always probe the streaming path when validating
+tool-calling through LiteLLM.
+
+## LiteLLM cannot set Ollama num_ctx per request (2026-06-05)
+
+Verified live against litellm 1.81.13 + ollama_chat: `{"options":
+{"num_ctx": N}}`, top-level `"num_ctx"`, and `"extra_body"` variants are ALL
+silently dropped — the runner stays at its default window and truncates long
+prompts with only a runner-side log line (`truncating input prompt`).
+Upstream: BerriAI/litellm#12930, closed not-planned.
+
+The only effective, declarative control is server-side:
+`OLLAMA_CONTEXT_LENGTH` env on the ollama Deployment
+(`apps/ollama/values.yaml`, currently 16384). It is the default for EVERY
+model load on gpu-1 — KV-cache VRAM scales with it, so check `ollama ps`
+CPU/GPU split after changing (mistral-small-24b: 16 GB @4096 → 18 GB @16384).
+Clients that budget their prompts (ai-alert-helper `ANALYST_NUM_CTX`) must
+keep their budget equal to the server value, because past it the truncation
+is silent.
+
+## gemma-12b (gemma4:12b) thinking preamble eats small max_tokens (2026-06-05)
+
+The `gemma-12b` alias moved from `gemma3:12b` to `gemma4:12b` (ollama image
+0.30.5 pin required — gemma4 arch support landed in 0.30.3, FPE-crash-free
+from 0.30.5). Gemma 4 12B is a **thinking model**: every response starts with
+a reasoning preamble that LiteLLM/ollama_chat correctly splits into
+`reasoning_content` — but the reasoning tokens count against `max_tokens`
+FIRST. A request with `max_tokens: 60` returned `finish_reason: stop` with an
+**empty `content`** and the whole budget consumed by thinking (verified live
+on the canary pod, 2026-06-05). Symptoms for a consumer: "model returns
+nothing" with small completion budgets, while curl tests with generous
+budgets look fine.
+
+Mitigations (verified live 2026-06-06, both native /api/chat and through
+the LiteLLM gateway):
+- `"think": false` in the request body (top-level or `extra_body`) fully
+  disables thinking — empty `reasoning_content`, immediate `content`, and
+  the small-budget trap disappears (`max_tokens: 60` returns a complete
+  answer). Measured 0.7s/22 completion tokens vs 4.1s/300-token cap-out
+  with thinking on, same one-sentence question.
+- `"think": "low"`/level syntax is ACCEPTED but ignored — gemma4 thinking
+  is binary on/off, no gpt-oss-style levels.
+- With thinking on, even `max_tokens: 300` can be fully consumed by the
+  preamble (empty content, `finish_reason: stop`) — budget several hundred
+  tokens or turn it off.
+- Read `reasoning_content` if the chain-of-thought is wanted; streaming
+  consumers see a time-to-first-token gap before `content` deltas start.
+
+## Hermes "session amnesia" — believed-vs-real context window mismatch (2026-06-06)
+
+A hermes shell session on `gemma-12b` was asked to read a blog URL; the model
+ran `curl -s` (208 KB raw HTML), hermes capped it at `tool_output.max_bytes:
+50000` (~15k tokens — still a full real window), and every subsequent turn
+came back wrong: continuation-loop `finish_reason='length'` errors, then total
+loss of conversation memory.
+
+Mechanism, each link verified live:
+
+1. **Hermes believed the window was 256,000 tokens.** Its resolver
+   (`agent/model_metadata.py:get_model_context_length`) probes caches, the
+   endpoint, models.dev, and family patterns — a custom LiteLLM alias like
+   `gemma-12b` matches nothing and falls through to step 9: *"Default
+   fallback (256K)"*. The compressor (`compression.threshold: 0.5`) therefore
+   waits for ~128k believed tokens; the real boundary was 16,384.
+2. **Ollama truncates front-first and silently.** Past
+   `OLLAMA_CONTEXT_LENGTH`, the runner keeps the prompt tail (HTTP 200, normal
+   completion); the ONLY signal is the runner log: `n_tokens = 16383,
+   truncated = 1`. System prompt and chat history are at the FRONT — they're
+   what gets dropped. The model genuinely never sees earlier turns.
+3. **The session is poisoned permanently.** Agents re-send full history every
+   turn, so the giant tool result makes every later turn over-budget too.
+   Recovery is a NEW session only.
+
+Fixes shipped (plan `2026-06-06--orch--hermes-context-survival`):
+
+- Per-model truth: `providers.litellm.models.<alias>.context_length` in the
+  hermes config.yaml (v0.15.2 honors it on startup, `/model` switch, and
+  `/info` — upstream #15779; manual-op `orch-hermes-context-budgets`). Keep
+  these equal to live server reality: 64k pair = 65536, everything else =
+  `OLLAMA_CONTEXT_LENGTH` = 16384.
+- `gemma4:12b-64k` derived model (`apps/ollama/values.yaml`
+  `ollama.models.create`, Modelfile `PARAMETER num_ctx 65536`) — the
+  per-model escape hatch from litellm#12930. Measured KV cost on gpu-1:
+  +846 MiB over the 16k baseline, 100% GPU. Aliases `gemma-12b-64k` /
+  `gemma-12b-64k-nothin`; the latter is the hermes default.
+- `fetch-text` helper (see agent-shells.md) so web pages enter context as
+  ~5k tokens of text, not 50KB of HTML.
+
+Verification one-liner after any long hermes session:
+`kubectl logs -n ollama deploy/ollama --since=1h | grep -c "truncated = 1"` → 0.

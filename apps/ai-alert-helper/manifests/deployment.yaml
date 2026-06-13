@@ -7,6 +7,11 @@ metadata:
     app.kubernetes.io/name: ai-alert-helper
 spec:
   replicas: 1
+  # Recreate, NOT RollingUpdate: the analyst poller long-polls Telegram
+  # getUpdates, and Telegram allows exactly ONE consumer per bot token —
+  # a rolling update would briefly run two pollers (409 conflict).
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: ai-alert-helper
@@ -24,7 +29,7 @@ spec:
       enableServiceLinks: false
       containers:
         - name: ai-alert-helper
-          image: ghcr.io/derio-net/ai-alert-helper:0.1.6
+          image: ghcr.io/derio-net/ai-alert-helper:0.2.0
           imagePullPolicy: Always
           ports:
             - name: http
@@ -43,8 +48,26 @@ spec:
               value: "http://litellm.litellm.svc.cluster.local:4000"
             - name: LLM_MODEL_PRIMARY
               value: "qwen-think-14b"
-            - name: LLM_MODEL_FALLBACK
-              value: "claude-haiku-4-5"
+            # LLM_MODEL_FALLBACK deliberately ABSENT (no-fallback policy,
+            # 2026-06-04): the 0.2.0 adapter treats the empty default as
+            # "no fallback, fail loud" — local inference only, and an
+            # identical-model retry adds latency without resilience.
+            # Analyst (Telegram Q&A) model + client-side context budget.
+            # ANALYST_NUM_CTX does NOT reach Ollama (LiteLLM drops num_ctx
+            # for ollama_chat — litellm#12930); the SERVER window is
+            # OLLAMA_CONTEXT_LENGTH on apps/ollama/values.yaml. Keep the two
+            # EQUAL: this value drives prompt-eviction so requests stay under
+            # the server window (Ollama truncates silently past it). Drop
+            # both to 8192 if the Test Plan VRAM measurement shows pressure.
+            - name: LLM_MODEL_ANALYST
+              value: "mistral-small-24b"
+            - name: ANALYST_NUM_CTX
+              value: "16384"
+            # Canonical playbook, mounted whole-dir from the kustomize
+            # configMapGenerator (hash-suffixed name -> pod rolls on edit;
+            # never subPath — kubelet doesn't refresh subPath mounts).
+            - name: SKILL_PATH
+              value: "/etc/analyst/SKILL.md"
             # Surge detector tuning (read in surge.compute / /surge-check).
             - name: SURGE_ABS_FLOOR        # min req/hr for any tier (kills baseline-of-1 artifacts)
               value: "50"
@@ -60,7 +83,7 @@ spec:
               cpu: 20m
               memory: 60Mi
             limits:
-              memory: 192Mi
+              memory: 256Mi   # poller + per-chat history headroom (0.2.0)
           readinessProbe:
             httpGet:
               path: /healthz
@@ -78,3 +101,11 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+          volumeMounts:
+            - name: analyst-skill
+              mountPath: /etc/analyst
+              readOnly: true
+      volumes:
+        - name: analyst-skill
+          configMap:
+            name: analyst-skill   # kustomize rewrites to the hash-suffixed name

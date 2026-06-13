@@ -4,7 +4,7 @@
 **Layer:** deploy
 **Filed:** 2026-05-04
 **Filed by:** Terminal #1 (canary-rehearsal coordinator), with input from Terminal #2 (data-plane observer) and Terminal #3 (synthetic traffic driver)
-**Related:** `docs/superpowers/archived-plans/2026-03-25--deploy--argo-rollouts.md` (original layer plan), `docs/runbooks/litellm-canary-observation.md` (operating runbook), `apps/litellm/manifests/rollout.yaml` (currently pause-only canary), `apps/litellm/manifests/analysis-template.yaml` (orphaned scaffold)
+**Related:** `docs/superpowers/implemented/plans/2026-03-25--deploy--argo-rollouts/` (original layer plan), `docs/runbooks/litellm-canary-observation.md` (operating runbook), `apps/litellm/manifests/rollout.yaml` (currently pause-only canary), `apps/litellm/manifests/analysis-template.yaml` (orphaned scaffold)
 
 ---
 

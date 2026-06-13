@@ -1,379 +1,235 @@
 schema_version: 2
 phase:
   number: 4
-  title: Renovate & Smoke Testing
+  title: Version Tracking
   tag: agentic
   depends_on:
-  - 0
   - 3
-  tracking_issue: https://github.com/derio-net/frank/issues/391
+  tracking_issue: null
 tasks:
-- number: 6
-  title: Renovate Configuration
+- number: 4
+  title: Create versions.yaml
   steps:
-  - id: P4.T6.S1
+  - id: P4.T4.S1
     text: |-
-      Create renovate.json
-
-
-      Create `renovate.json` at repo root:
-
-      ```json
-      {
-        "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-        "extends": ["config:recommended"],
-        "schedule": ["every weekend"],
-        "labels": ["renovate"],
-        "prCreation": "not-pending",
-        "customManagers": [
-          {
-            "customType": "regex",
-            "description": "ArgoCD Application CR Helm chart versions",
-            "managerFilePatterns": ["/apps/root/templates/.+\\.yaml/"],
-            "matchStrings": [
-              "repoURL: (?<registryUrl>https://[^\\n]+)\\n      chart: (?<depName>[^\\n]+)\\n      targetRevision: \"(?<currentValue>[^\"]+)\""
-            ],
-            "datasourceTemplate": "helm"
-          }
-        ],
-        "packageRules": [
-          {
-            "description": "Stateless apps — auto-merge on green smoke test",
-            "matchFileNames": ["apps/root/templates/*.yaml"],
-            "matchPackageNames": [
-              "grafana",
-              "hubble-ui",
-              "gpu-switcher"
-            ],
-            "automerge": true,
-            "automergeType": "pr",
-            "automergeStrategy": "squash"
-          },
-          {
-            "description": "Stateful apps — manual review required",
-            "matchFileNames": ["apps/root/templates/*.yaml"],
-            "matchPackageNames": [
-              "authentik",
-              "infisical",
-              "paperclip",
-              "postgresql",
-              "redis"
-            ],
-            "automerge": false
-          },
-          {
-            "description": "Core infra — manual only, skip smoke test",
-            "matchFileNames": ["apps/root/templates/*.yaml"],
-            "matchPackageNames": [
-              "cilium",
-              "argo-cd",
-              "cert-manager",
-              "gpu-operator",
-              "longhorn",
-              "external-secrets",
-              "fluent-bit",
-              "victoria-metrics-k8s-stack",
-              "victoria-logs-single"
-            ],
-            "automerge": false,
-            "labels": ["renovate", "no-smoke-test"]
-          },
-          {
-            "description": "ARC charts — manual only, skip smoke test",
-            "matchPackageNames": [
-              "gha-runner-scale-set-controller",
-              "gha-runner-scale-set"
-            ],
-            "automerge": false,
-            "labels": ["renovate", "no-smoke-test"]
-          }
-        ]
-      }
-      ```
-  - id: P4.T6.S2
-    text: |-
-      Validate the regex against a real template
+      Check current cluster versions
 
 
       ```bash
-      # Install yq and test the regex extracts correctly from cert-manager.yaml
-      python3 -c "
-      import re
-      with open('apps/root/templates/cert-manager.yaml') as f:
-          content = f.read()
-      pattern = r'repoURL: (?P<registryUrl>https://[^\n]+)\n      chart: (?P<depName>[^\n]+)\n      targetRevision: \"(?P<currentValue>[^\"]+)\"'
-      m = re.search(pattern, content)
-      if m:
-          print('Match found:', m.groupdict())
-      else:
-          print('NO MATCH — check indentation in regex')
-      "
+      source .env
+      omnictl get cluster frank -o yaml | grep -E 'talosVersion|kubernetesVersion'
+      # Note the current running versions
       ```
+  - id: P4.T4.S2
+    text: |-
+      Create versions.yaml
 
-      Expected output: `Match found: {'registryUrl': 'https://charts.jetstack.io', 'depName': 'cert-manager', 'currentValue': '1.17.1'}`
 
-      If no match, inspect the actual indentation with:
-      ```bash
-      cat -A apps/root/templates/cert-manager.yaml | head -20
+      Create `versions.yaml` at repo root with the actual running versions from step 1:
+
+      ```yaml
+      # versions.yaml
+      # Declarative record of target cluster versions for Frank.
+      # Updated by .github/workflows/version-check.yaml when new stable patch releases exist.
+      # K8s minor version is pinned — bump it when Omni supports a new minor (operator decision).
+      # Omni applies the actual upgrade; this file is the audit trail and PR review trigger.
+
+      talos: v1.9.x          # replace x with actual patch from omnictl output
+      kubernetes:
+        minor: "1.32"        # pinned — only patch bumps are automated
+        patch: v1.32.x       # replace x with actual patch from omnictl output
       ```
-  - id: P4.T6.S3
+  - id: P4.T4.S3
     text: |-
       Commit
 
 
       ```bash
-      git add renovate.json
-      git commit -m "feat(repo): add Renovate config for automated chart version PRs"
+      git add versions.yaml
+      git commit -m "feat(repo): add versions.yaml for Talos/K8s version tracking"
       ```
 
       ---
-- number: 7
-  title: Smoke Test GitHub Actions Workflow
+- number: 5
+  title: Omni/Talos Version Check Workflow
   steps:
-  - id: P4.T7.S1
+  - id: P4.T5.S1
     text: |-
       Create the workflow
 
 
-      Create `.github/workflows/smoke-test.yaml`:
+      Create `.github/workflows/version-check.yaml`:
 
       ```yaml
-      name: Smoke Test
+      name: Version Check
 
       on:
-        pull_request:
-          branches: [main]
-          paths:
-            - "apps/root/templates/*.yaml"
+        schedule:
+          - cron: "0 9 * * 1"   # Monday 09:00 UTC
+        workflow_dispatch:        # allow manual trigger
 
       permissions:
-        contents: read
+        contents: write
         pull-requests: write
-        statuses: write
-
-      concurrency:
-        group: smoke-test-${{ github.event.pull_request.number }}
-        cancel-in-progress: true
 
       jobs:
-        smoke-test:
-          runs-on: [self-hosted, frank-cluster]
+        check-versions:
+          # Runs on GitHub-hosted runner — only needs GitHub API and git, no cluster access.
+          # This keeps version detection independent of the ARC runner being healthy.
+          runs-on: ubuntu-latest
           steps:
-            - name: Checkout PR branch
+            - name: Checkout
               uses: actions/checkout@v4
 
-            - name: Skip if no-smoke-test label
-              id: check_label
-              run: |
-                LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
-                if echo "$LABELS" | grep -q "no-smoke-test"; then
-                  echo "skip=true" >> $GITHUB_OUTPUT
-                  echo "Skipping smoke test — no-smoke-test label present"
-                else
-                  echo "skip=false" >> $GITHUB_OUTPUT
-                fi
-
             - name: Install yq
-              if: steps.check_label.outputs.skip == 'false'
               run: |
                 if ! command -v yq &>/dev/null; then
                   wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
                   chmod +x /usr/local/bin/yq
                 fi
 
-            - name: Get changed template files
-              if: steps.check_label.outputs.skip == 'false'
-              id: changed
+            - name: Read current versions
+              id: current
               run: |
-                # Find .yaml files in apps/root/templates/ changed in this PR
-                FILES=$(git diff --name-only origin/main...HEAD -- 'apps/root/templates/*.yaml' | tr '\n' ' ')
-                echo "files=$FILES" >> $GITHUB_OUTPUT
-                echo "Changed template files: $FILES"
+                TALOS=$(yq '.talos' versions.yaml)
+                K8S_MINOR=$(yq '.kubernetes.minor' versions.yaml)
+                K8S_PATCH=$(yq '.kubernetes.patch' versions.yaml)
+                echo "talos=$TALOS" >> $GITHUB_OUTPUT
+                echo "k8s_minor=$K8S_MINOR" >> $GITHUB_OUTPUT
+                echo "k8s_patch=$K8S_PATCH" >> $GITHUB_OUTPUT
 
-            - name: Extract chart info from changed files
-              if: steps.check_label.outputs.skip == 'false'
-              id: charts
+            - name: Get latest stable Talos release
+              id: latest_talos
+              env:
+                GH_TOKEN: ${{ github.token }}
               run: |
-                # Use yq to extract from the helm source entry (the one with chart: set).
-                # repoURL comes BEFORE chart: in the template, so grep-based approaches
-                # that search after chart: fail. yq handles this correctly.
-                CHARTS_JSON="[]"
-                for FILE in ${{ steps.changed.outputs.files }}; do
-                  # Skip files with no helm chart source (raw manifests, Git-sourced charts, ref-only)
-                  if ! yq '.spec.sources[] | select(.chart != null)' "$FILE" 2>/dev/null | grep -q "chart:"; then
-                    echo "Skipping $FILE — no helm chart source"
-                    continue
-                  fi
-                  APP=$(basename "$FILE" .yaml)
-                  REGISTRY=$(yq '.spec.sources[] | select(.chart != null) | .repoURL' "$FILE" | head -1)
-                  CHART=$(yq '.spec.sources[] | select(.chart != null) | .chart' "$FILE" | head -1)
-                  VERSION=$(yq '.spec.sources[] | select(.chart != null) | .targetRevision' "$FILE" | head -1)
-                  CHARTS_JSON=$(echo "$CHARTS_JSON" | jq --arg app "$APP" --arg reg "$REGISTRY" --arg chart "$CHART" --arg ver "$VERSION" \
-                    '. += [{"app": $app, "registry": $reg, "chart": $chart, "version": $ver}]')
-                done
-                echo "charts=$CHARTS_JSON" >> $GITHUB_OUTPUT
+                # Extract current minor from current talos version (e.g. v1.9.3 -> 1.9)
+                CURRENT_TALOS="${{ steps.current.outputs.talos }}"
+                CURRENT_MINOR=$(echo "$CURRENT_TALOS" | grep -oP 'v\d+\.\d+')
+                # Find latest patch within same minor. The releases API is sorted
+                # by publish date (newest first) and paginated, so `| first` can
+                # miss a patch or pick an out-of-order backport. Page through all
+                # releases, emit matching stable tags, and take the highest semver.
+                LATEST=$(gh api --paginate repos/siderolabs/talos/releases \
+                  --jq ".[] | select(.prerelease == false) | select(.tag_name | startswith(\"$CURRENT_MINOR.\")) | .tag_name" \
+                  | sort -V | tail -1)
+                echo "version=$LATEST" >> $GITHUB_OUTPUT
+                echo "release_url=https://github.com/siderolabs/talos/releases/tag/$LATEST" >> $GITHUB_OUTPUT
 
-            - name: Run smoke tests
-              if: steps.check_label.outputs.skip == 'false'
-              id: smoke
+            - name: Get latest stable K8s release
+              id: latest_k8s
+              env:
+                GH_TOKEN: ${{ github.token }}
               run: |
-                # Label selector lookup table — maps app name to pod label selector
-                declare -A SELECTORS
-                SELECTORS[grafana]="app.kubernetes.io/name=grafana"
-                SELECTORS[victoria-metrics]="app.kubernetes.io/name=victoria-metrics-k8s-stack"
-                SELECTORS[longhorn]="app=longhorn-manager"
-                SELECTORS[cert-manager]="app=cert-manager"
-                SELECTORS[cilium]="k8s-app=cilium"
-                SELECTORS[fluent-bit]="app.kubernetes.io/name=fluent-bit"
-                SELECTORS[ollama]="app.kubernetes.io/name=ollama"
-                SELECTORS[litellm]="app.kubernetes.io/name=litellm"
+                MINOR="v${{ steps.current.outputs.k8s_minor }}"
+                # See the Talos step: page through all releases and pick the
+                # highest semver patch, not the most-recently-published one.
+                # kubernetes/kubernetes interleaves many minors, so the target
+                # patch is rarely on the first page.
+                LATEST=$(gh api --paginate repos/kubernetes/kubernetes/releases \
+                  --jq ".[] | select(.prerelease == false) | select(.tag_name | startswith(\"$MINOR.\")) | .tag_name" \
+                  | sort -V | tail -1)
+                echo "version=$LATEST" >> $GITHUB_OUTPUT
+                echo "release_url=https://github.com/kubernetes/kubernetes/releases/tag/$LATEST" >> $GITHUB_OUTPUT
 
-                PR_NUM="${{ github.event.pull_request.number }}"
-                FAILED=false
-                RESULTS=""
+            - name: Check for updates
+              id: updates
+              run: |
+                TALOS_CHANGED=false
+                K8S_CHANGED=false
+                if [ "${{ steps.latest_talos.outputs.version }}" != "${{ steps.current.outputs.talos }}" ]; then
+                  TALOS_CHANGED=true
+                fi
+                if [ "${{ steps.latest_k8s.outputs.version }}" != "${{ steps.current.outputs.k8s_patch }}" ]; then
+                  K8S_CHANGED=true
+                fi
+                echo "talos_changed=$TALOS_CHANGED" >> $GITHUB_OUTPUT
+                echo "k8s_changed=$K8S_CHANGED" >> $GITHUB_OUTPUT
 
-                for CHART_JSON in $(echo '${{ steps.charts.outputs.charts }}' | jq -c '.[]'); do
-                  APP=$(echo "$CHART_JSON" | jq -r '.app')
-                  REGISTRY=$(echo "$CHART_JSON" | jq -r '.registry')
-                  CHART=$(echo "$CHART_JSON" | jq -r '.chart')
-                  VERSION=$(echo "$CHART_JSON" | jq -r '.version')
-                  NS="smoke-test-${PR_NUM}-${APP}"
-
-                  echo "=== Smoke testing $APP $VERSION ==="
-
-                  # Get label selector (fall back to app=<name>)
-                  SELECTOR="${SELECTORS[$APP]:-app=$APP}"
-
-                  # Add helm repo
-                  helm repo add "${APP}-repo" "$REGISTRY" 2>/dev/null || true
-                  helm repo update "${APP}-repo" 2>/dev/null || true
-
-                  # Create namespace
-                  kubectl create namespace "$NS" --dry-run=client -o yaml | kubectl apply -f -
-
-                  # Build helm install args
-                  HELM_ARGS="-f apps/${APP}/values.yaml"
-                  if [ -f "apps/${APP}/smoke-test-values.yaml" ]; then
-                    HELM_ARGS="$HELM_ARGS -f apps/${APP}/smoke-test-values.yaml"
-                  fi
-
-                  # Install chart
-                  if helm install "$APP" "${APP}-repo/$CHART" \
-                      --version "$VERSION" \
-                      --namespace "$NS" \
-                      $HELM_ARGS \
-                      --timeout 30s \
-                      --wait=false 2>&1; then
-
-                    # Wait for pod readiness
-                    if kubectl wait --for=condition=Ready pod \
-                        -l "$SELECTOR" \
-                        -n "$NS" \
-                        --timeout=120s 2>&1; then
-                      echo "✅ $APP $VERSION — PASSED"
-                      RESULTS+="✅ **$APP** \`$VERSION\` — pod ready\n"
-                    else
-                      echo "❌ $APP $VERSION — pod not ready"
-                      RESULTS+="❌ **$APP** \`$VERSION\` — pod readiness timeout\n"
-                      # Capture diagnostics
-                      kubectl describe pods -l "$SELECTOR" -n "$NS" >> /tmp/diag-${APP}.txt 2>&1 || true
-                      kubectl get events -n "$NS" --sort-by='.lastTimestamp' >> /tmp/diag-${APP}.txt 2>&1 || true
-                      FAILED=true
-                    fi
-                  else
-                    echo "❌ $APP $VERSION — helm install failed"
-                    RESULTS+="❌ **$APP** \`$VERSION\` — helm install failed\n"
-                    FAILED=true
-                  fi
-
-                  # Cleanup namespace
-                  kubectl delete namespace "$NS" --ignore-not-found --wait=false || true
-                done
-
-                echo "results=$RESULTS" >> $GITHUB_OUTPUT
-                if [ "$FAILED" = "true" ]; then
-                  exit 1
+            - name: Update versions.yaml
+              if: steps.updates.outputs.talos_changed == 'true' || steps.updates.outputs.k8s_changed == 'true'
+              run: |
+                if [ "${{ steps.updates.outputs.talos_changed }}" == "true" ]; then
+                  yq -i '.talos = "${{ steps.latest_talos.outputs.version }}"' versions.yaml
+                fi
+                if [ "${{ steps.updates.outputs.k8s_changed }}" == "true" ]; then
+                  yq -i '.kubernetes.patch = "${{ steps.latest_k8s.outputs.version }}"' versions.yaml
                 fi
 
-            - name: Post results comment
-              if: always() && steps.check_label.outputs.skip == 'false'
-              uses: actions/github-script@v7
-              with:
-                script: |
-                  const results = `${{ steps.smoke.outputs.results }}`;
-                  const status = '${{ steps.smoke.outcome }}' === 'success' ? '✅ Smoke test passed' : '❌ Smoke test failed';
-                  const body = `## ${status}\n\n${results || 'No charts to test.'}\n\n<details><summary>Diagnostics</summary>\n\nCheck the workflow run for full logs.\n</details>`;
-                  github.rest.issues.createComment({
-                    issue_number: context.issue.number,
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    body
-                  });
+            - name: Open PR
+              if: steps.updates.outputs.talos_changed == 'true' || steps.updates.outputs.k8s_changed == 'true'
+              env:
+                GH_TOKEN: ${{ github.token }}
+              run: |
+                BRANCH="update/cluster-versions-$(date +%Y%m%d)"
+                git config user.name "github-actions[bot]"
+                git config user.email "github-actions[bot]@users.noreply.github.com"
+                git checkout -b "$BRANCH"
+                git add versions.yaml
+                git commit -m "chore(os): update cluster versions"
+                git push origin "$BRANCH"
 
-            - name: Set commit status
-              if: always()
-              uses: actions/github-script@v7
-              with:
-                script: |
-                  const state = '${{ steps.check_label.outputs.skip }}' === 'true' ? 'success' :
-                                '${{ steps.smoke.outcome }}' === 'success' ? 'success' : 'failure';
-                  const description = '${{ steps.check_label.outputs.skip }}' === 'true' ? 'Skipped (no-smoke-test)' :
-                                       state === 'success' ? 'All pods ready' : 'Pod readiness check failed';
-                  github.rest.repos.createCommitStatus({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    sha: context.payload.pull_request.head.sha,
-                    state,
-                    context: 'smoke-test/readiness',
-                    description
-                  });
+                BODY="## Cluster Version Updates\n\n"
+                if [ "${{ steps.updates.outputs.talos_changed }}" == "true" ]; then
+                  BODY+="- **Talos:** ${{ steps.current.outputs.talos }} → ${{ steps.latest_talos.outputs.version }} ([release notes](${{ steps.latest_talos.outputs.release_url }}))\n"
+                fi
+                if [ "${{ steps.updates.outputs.k8s_changed }}" == "true" ]; then
+                  BODY+="- **Kubernetes:** ${{ steps.current.outputs.k8s_patch }} → ${{ steps.latest_k8s.outputs.version }} ([release notes](${{ steps.latest_k8s.outputs.release_url }}))\n"
+                fi
+                BODY+="\n### Before merging\n- [ ] Review release notes for breaking changes\n- [ ] Verify Omni supports this Talos/K8s combination\n\n### After merging\n\`\`\`bash\nomnictl patch cluster frank --patch '[{\"op\":\"replace\",\"path\":\"/spec/talosVersion\",\"value\":\"${{ steps.latest_talos.outputs.version }}\"}]'\n\`\`\`\n"
+
+                gh pr create \
+                  --title "chore(os): update cluster versions" \
+                  --body "$(printf '%b' "$BODY")" \
+                  --base main \
+                  --head "$BRANCH"
       ```
-  - id: P4.T7.S2
+  - id: P4.T5.S2
+    text: |-
+      Test by triggering a run
+
+
+      After the runner is live (Task 3 complete), trigger the workflow:
+
+      ```bash
+            gh workflow run version-check.yaml
+      ```
+
+      Expected: workflow runs, reads `versions.yaml`, checks releases API, exits without opening a PR if already on latest.
+  - id: P4.T5.S3
     text: |-
       Commit
 
 
       ```bash
-      git add .github/workflows/smoke-test.yaml
-      git commit -m "feat(repo): add Helm smoke test workflow for Renovate PRs"
+      git add .github/workflows/version-check.yaml
+      git commit -m "feat(repo): add Talos/K8s version check workflow"
       ```
-  - id: P4.T7.S3
-    text: |-
-      Push and trigger a test run
-
-
-      ```bash
-      git push
-      ```
-
-      Create a test PR that bumps a chart version manually (e.g., increment `cert-manager` version by one patch in `apps/root/templates/cert-manager.yaml`) to verify the smoke test workflow fires. Since cert-manager is in the `no-smoke-test` list, the workflow should report "Skipped" rather than attempting a Helm install.
-
-      Then test with a stateless app: create a PR bumping a grafana version to confirm full pipeline runs.
 
       ---
 state:
   steps:
-    P4.T6.S1:
+    P4.T4.S1:
       state: ' '
       ticked_at: null
       note: null
-    P4.T6.S2:
+    P4.T4.S2:
       state: ' '
       ticked_at: null
       note: null
-    P4.T6.S3:
+    P4.T4.S3:
       state: ' '
       ticked_at: null
       note: null
-    P4.T7.S1:
+    P4.T5.S1:
       state: ' '
       ticked_at: null
       note: null
-    P4.T7.S2:
+    P4.T5.S2:
       state: ' '
       ticked_at: null
       note: null
-    P4.T7.S3:
+    P4.T5.S3:
       state: ' '
       ticked_at: null
       note: null

@@ -1,0 +1,191 @@
+schema_version: 2
+phase:
+  number: 1
+  title: hop-trace-analysis skill + enriched security facts
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Author the hop-trace-analysis skill (canonical playbook + registry pointer)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create `apps/ai-alert-helper/skill/SKILL.md` — the canonical trace-analysis
+      playbook (this path is INSIDE the future kustomize root; agents/skills/ gets a
+      pointer in S3 — kustomize load restrictions forbid out-of-root files and the
+      repo bans ../../.. symlinks). Structure:
+      - frontmatter: name hop-trace-analysis, description (scan/attack trace analysis
+        for Hop edge via VictoriaLogs)
+      - `<!-- agent-runtime:begin -->` … `<!-- agent-runtime:end -->` (~1500 tokens, terse):
+        field-schema table (fluent-bit path: kubernetes.namespace_name/kubernetes.host/
+        request.host/request.uri/request.headers.User-Agent/status vs falcosidekick
+        Loki-push: source/priority/rule/k8s_ns_name); canonical LogsQL patterns per
+        question type (edge traffic, attacker profile by IP, Falco by priority/rule,
+        CrowdSec "Adding decisions" lines, scan-probe paths); known-baseline table
+        (ArgoCD "Contact K8S API Server From Container" Notice, Frank-Blackbox-Probe UA
+        ~360/hr excluded by edge_filter, headscale-backup 03:00 Critical now image-baked);
+        scan-classification playbook (scanner: many 404s/known probe paths/no referrer;
+        crawler: bot UA + robots.txt + steady rate; targeted: focused paths + parameter
+        probing).
+      - Human section below the end marker: full prose, worked examples, links to
+        docs/runbooks/frank-gotchas/obs-digest.md and networking.md.
+  - id: P1.T1.S2
+    text: |-
+      Validate the playbook's queries against live VictoriaLogs before they ossify:
+      run 3 canonical queries from the agent-runtime section via
+      `curl -s 'http://192.168.55.225:9428/select/logsql/stats_query?query=<q>'`
+      (repo-root `source .env` first; VL is LB-exposed): (1) edge requests by host 1h,
+      (2) falco by priority 24h, (3) scan-probe paths 24h. Each must return a non-error
+      shape; fix any field-name drift in the skill text now.
+  - id: P1.T1.S3
+    text: |-
+      Create `agents/skills/hop-trace-analysis/SKILL.md` — the registry entry Claude
+      Code discovers. Frontmatter (name, description with trigger phrases: "analyse the
+      scan", "who is hitting the blog", "trace analysis") + body: one-paragraph summary,
+      then "Read `apps/ai-alert-helper/skill/SKILL.md` for the full playbook — it is the
+      single source of truth (also mounted into the analyst pod)." Plus the 3 most-used
+      query one-liners inline for fast paths.
+- number: 2
+  title: Enriched security fact builders (TDD)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Verify the Caddy client-IP field name empirically BEFORE writing tests: query
+      `_time:1h kubernetes.host:hop-1 _msg:"handled request" | limit 1` via
+      /select/logsql/query and inspect the JSON for the remote-address field
+      (expected `request.remote_ip` or `request.client_ip` — Caddy JSON emits both in
+      recent versions; prefer client_ip which respects trusted_proxies). Record the
+      exact name; it parameterizes the next steps.
+  - id: P1.T2.S2
+    text: |-
+      RED: in `apps/ai-alert-helper/src/tests/test_facts.py`, mirroring the existing
+      fixture pattern (monkeypatched httpx via conftest), add failing tests for
+      `facts.scan_pattern_counts(since, until)`: stats_query response fixture with
+      request.uri groups for /wp-login.php, /xmlrpc.php, /.env → expect
+      `[{"path": "/wp-login.php", "count": N}, ...]` desc-sorted, only paths from
+      SCAN_PROBE_PATHS, probe-excluded filter present in the issued query (assert on
+      the captured query string: contains `Frank-Blackbox-Probe` exclusion and a
+      `request.uri` IN-filter). `cd apps/ai-alert-helper/src && uv run pytest -k scan_pattern -x` → FAIL.
+  - id: P1.T2.S3
+    text: |-
+      GREEN: implement `SCAN_PROBE_PATHS` (wp-login.php, xmlrpc.php, .env, .git/config,
+      wp-admin, phpmyadmin, /admin, /.aws/credentials, /config.json, /backup) and
+      `scan_pattern_counts()` in facts.py using `_logsql_group` with an
+      `request.uri:in(...)`-style OR filter over edge_filter(). Tests pass.
+  - id: P1.T2.S4
+    text: |-
+      RED: failing tests for `facts.top_attacker_ips(since, until, top=10)` (group by
+      the S1-verified client-IP field over edge_filter() AND status 4xx/404) and
+      `facts.top_scanned_paths(since, until, top=10)` (group request.uri over the same
+      error filter). Fixtures + query-string assertions as S2. pytest -k attacker → FAIL.
+  - id: P1.T2.S5
+    text: |-
+      GREEN: implement both builders. Shared private helper `_error_edge(since, until)`
+      composes the window + edge_filter() + `status:~"4.."` filter so the two builders
+      can't drift. pytest -k "attacker or scanned" passes.
+  - id: P1.T2.S6
+    text: |-
+      RED: failing tests for `facts.crowdsec_decisions_detail(since, until, top=10)`:
+      fixture of CrowdSec agent log lines from VictoriaLogs
+      (`kubernetes.namespace_name:crowdsec-system AND log:Adding AND log:decisions`),
+      e.g. `... msg="Adding decision: Ip:1.2.3.4 ... scenario:crowdsecurity/http-probing
+      ... duration:4h"`; expect parsed `[{"ip": "1.2.3.4", "scenario":
+      "crowdsecurity/http-probing", "duration": "4h", "count": N}]`. Include a
+      malformed-line fixture → skipped, not crashed. pytest -k decisions_detail → FAIL.
+  - id: P1.T2.S7
+    text: |-
+      GREEN: implement with a compiled regex over the raw log lines (fetch via
+      /select/logsql/query with `| limit 200`, parse client-side — stats_query can't
+      extract embedded fields). Empty list on any error, matching the module's
+      fail-soft convention. Full file pytest passes.
+- number: 3
+  title: Wire enriched facts into the digest
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Extend `_digest_security_facts` to add `crowdsec_decisions_detail`,
+      `top_attacker_ips`, `scan_pattern_counts` (keep the existing keys untouched —
+      the fact-sheet shape is the adapter swap contract). Update
+      `prompts/digest.txt`: security paragraph instructs naming the top attacker IP +
+      scenario when decisions exist, and citing scan-probe counts. Update any test_api
+      digest fixture expectations. `uv run pytest` → all green.
+- number: 4
+  title: Make LLM_MODEL_FALLBACK optional (closes 2026-06-04 workaround)
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      RED: in test_ai_adapter.py add: (a) `LLM_MODEL_FALLBACK` unset/empty → `_call`
+      attempts the primary exactly once and the underlying httpx error propagates;
+      (b) fallback == primary → also exactly one attempt (no pointless identical retry);
+      (c) distinct fallback set → two attempts as today. Use the existing adapter test
+      seam (monkeypatched _call_once / httpx). pytest -k fallback → FAIL.
+  - id: P1.T4.S2
+    text: |-
+      GREEN: `_FALLBACK = os.environ.get("LLM_MODEL_FALLBACK", "")` (empty default —
+      removes the dead claude-haiku-4-5 hardcode) and `_call` retries only when
+      `_FALLBACK and _FALLBACK != _PRIMARY`. Full pytest green.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-04T20:48:49+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-04T20:48:51+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-06-04T20:48:53+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-04T20:48:56+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-04T20:48:58+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-06-04T20:49:01+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-06-04T20:49:03+00:00'
+      note: null
+    P1.T2.S5:
+      state: x
+      ticked_at: '2026-06-04T20:49:06+00:00'
+      note: null
+    P1.T2.S6:
+      state: '-'
+      ticked_at: '2026-06-04T20:49:15+00:00'
+      note: 'Deviation: 30d retention has ZERO local CrowdSec decision lines (''Adding
+        decision'' never observed; only community-blocklist syncs). Implemented crowdsec_activity()
+        instead: parses the OBSERVED blocklist-sync format, passes unrecognized alert/decision
+        lines through raw (a parser against an unobserved format would hide the story).
+        Tests cover both.'
+    P1.T2.S7:
+      state: '-'
+      ticked_at: '2026-06-04T20:49:17+00:00'
+      note: Superseded by crowdsec_activity (see P1.T2.S6 note).
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-06-04T20:49:08+00:00'
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: '2026-06-04T20:49:10+00:00'
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: '2026-06-04T20:49:12+00:00'
+      note: null
+  completion:
+    at: '2026-06-04T20:49:20+00:00'
+    note: 'All green (48 tests). Deviations: crowdsec_decisions_detail -> crowdsec_activity
+      (unobserved log format); client-IP field verified as request.client_ip; playbook
+      gained raw-IP-vhost + blocklist-sync baselines from live validation.'
+    observed_prs: []

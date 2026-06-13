@@ -1,0 +1,83 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Post-merge deploy verification (Test Plan)
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Sync + restarts
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      After PR merge: confirm ArgoCD synced `blackbox-exporter` and `grafana-alerting` apps — `kubectl get application -n argocd blackbox-exporter grafana-alerting -o wide`.
+  - id: P3.T1.S2
+    text: |-
+      `kubectl rollout restart deployment/blackbox-exporter -n monitoring` (config is loaded at startup only; no reloader sidecar). Wait Ready.
+  - id: P3.T1.S3
+    text: |-
+      Restart the Grafana pod (provisioning files are read at boot; subPath mounts never live-update). Wait Ready.
+- number: 2
+  title: Pipeline verification
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      Verify metric in VictoriaMetrics: `probe_ssl_earliest_cert_expiry{canary="true"}` ≈ 1.428883199e9 and `probe_success{canary="true"}` == 1.
+  - id: P3.T2.S2
+    text: |-
+      Verify provisioning via Grafana API: notification policy shows the two new first-position routes + `perma-mute` interval; rule `tls-cert-canary-absent` present with `health=ok`. Once the canary instances exist, also confirm via `/api/alertmanager/grafana/api/v2/alerts` that they are matched by the mute route (suppressed/muted state), not merely that the routes exist — the canary instances carry `grafana_folder="feature-health"`, so a route-match failure would double-route them to health-bridge (review finding).
+  - id: P3.T2.S3
+    text: |-
+      Watch the canary instances of `tls-cert-expiring-14d` / `tls-cert-expiring-7d` reach `Pending` (≤ ~1h) then `Firing` (≤ ~2.5h) via `/api/prometheus/grafana/api/v1/rules`.
+  - id: P3.T2.S4
+    text: |-
+      Confirm silence: no Telegram message for the canary instances; no new health-bridge comment on `frank-ops#8`; no new bug issue in `frank-ops`.
+  - id: P3.T2.S5
+    text: |-
+      Watchdog negative check: `tls-cert-canary-absent` evaluates `Normal` (absent() returns empty while the metric flows). Optional ≥3h destructive fire-test deferred per spec Test Plan step 9.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-06-07T20:41:48+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-06-07T20:41:49+00:00'
+      note: null
+    P3.T1.S3:
+      state: x
+      ticked_at: '2026-06-07T20:41:51+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-06-07T20:41:52+00:00'
+      note: null
+    P3.T2.S2:
+      state: x
+      ticked_at: '2026-06-07T20:41:54+00:00'
+      note: null
+    P3.T2.S3:
+      state: x
+      ticked_at: '2026-06-07T20:41:55+00:00'
+      note: null
+    P3.T2.S4:
+      state: x
+      ticked_at: '2026-06-07T20:41:57+00:00'
+      note: null
+    P3.T2.S5:
+      state: x
+      ticked_at: '2026-06-07T20:41:58+00:00'
+      note: null
+  completion:
+    at: '2026-06-07T20:42:00+00:00'
+    note: 'Verified live 2026-06-07: both canary instances Pending(19:12Z)→Firing;
+      dispatcher processed 2 alerts, notify pipeline sent 0 (notification_latency_seconds_count=0),
+      silences{active}=0 → mute timing suppressed delivery; receivers=[Telegram-Willikins]
+      only (no Health Bridge, continue:false held); frank-ops#8 unchanged + 0 new
+      bug issues; watchdog tls-cert-canary-absent inactive/ok with metric flowing;
+      operator confirmed Telegram silence.'
+    observed_prs: []

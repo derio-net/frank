@@ -1,0 +1,6 @@
+schema_version: 2
+plan: 2026-03-08--secrets--infisical-eso
+spec: 2026-03-07--secrets--infisical-eso-design.md
+target_repo: derio-net/frank
+vk_version: '>=2.0.0,<3.0.0'
+created: '2026-03-08'

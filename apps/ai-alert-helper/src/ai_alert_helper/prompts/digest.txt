@@ -15,6 +15,12 @@ Structure:
   falco_critical_rules — do NOT guess the rule from falco_top_rules. Also
   report crowdsec_decisions. The security window may extend past midnight
   into today — that is intentional.
+- If scan_pattern_counts is non-empty, add one SCANNING sentence naming the
+  top probed path and, from top_attacker_ips, the busiest source IP with its
+  count. If crowdsec_activity.other_lines is non-empty, quote the first line
+  verbatim — an unrecognized CrowdSec detection is news. Blocklist syncs in
+  crowdsec_activity.blocklist_syncs are routine; do not report them unless
+  nothing else is worth saying ("blocklist current"). Cite only listed values.
 
 Facts:
 {facts}

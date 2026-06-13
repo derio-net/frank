@@ -1,0 +1,56 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Canary probe path — blackbox module + VMProbe (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Failing manifest-invariant tests for the probe path
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create `scripts/tests/test_cert_expiry_canary.py` (pytest, pyyaml) with probe-path assertions per spec §1–2: (a) `blackbox.yml` in `apps/blackbox-exporter/manifests/configmap.yaml` parses and contains module `http_2xx_insecure_tls` with `http.tls_config.insecure_skip_verify == True`, `valid_status_codes == [200]`, `follow_redirects == False`, and the `Frank-Blackbox-Probe/1.0` User-Agent header (sync with facts.PROBE_UA_TOKEN); (b) `apps/blackbox-exporter/manifests/vmprobe.yaml` contains a VMProbe named `expired-cert-canary` in `monitoring` with target `https://expired.badssl.com/`, staticConfig labels `canary: "true"` and `probe_group: cert_canary`, `module: http_2xx_insecure_tls`, and `vmProberSpec.url: blackbox-exporter.monitoring.svc:9115`.
+  - id: P1.T1.S2
+    text: |-
+      Run `fr isolation exec --branch feat/cert-expiry-canary-251 -- uv run --with pyyaml --with pytest pytest scripts/tests/test_cert_expiry_canary.py -q` and confirm the probe-path tests FAIL (module and VMProbe not yet present).
+- number: 2
+  title: Implement blackbox module + canary VMProbe
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Add the `http_2xx_insecure_tls` module to `apps/blackbox-exporter/manifests/configmap.yaml` exactly as in spec §1 (clone of `http_2xx_no_redirect` + `tls_config.insecure_skip_verify: true`), keeping the User-Agent sync comment.
+  - id: P1.T2.S2
+    text: |-
+      Append the `expired-cert-canary` VMProbe as a third document in `apps/blackbox-exporter/manifests/vmprobe.yaml` exactly as in spec §2 (labels `probe_group: cert_canary`, `canary: "true"`; module `http_2xx_insecure_tls`).
+  - id: P1.T2.S3
+    text: |-
+      Re-run the pytest command from P1.T1.S2 and confirm the probe-path tests PASS. Commit: `feat(obs): add http_2xx_insecure_tls module + expired-cert-canary VMProbe (#251)`.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-07T17:05:42+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-07T17:05:54+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-07T17:06:04+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-07T17:06:18+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-06-07T17:05:11+00:00'
+      note: null
+  completion:
+    at: '2026-06-07T17:06:33+00:00'
+    note: 'TDD inline under fr-goal: 4 tests (2 red→green, 2 guards), module + VMProbe
+      landed, commit 0281371b'
+    observed_prs: []

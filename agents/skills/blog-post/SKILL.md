@@ -95,10 +95,23 @@ Typical structure:
   entry to stack additional anchors from `.reference-pool/<series>/subjects/`.
   Override the master ref for a one-off run with `-r path.png`.
 
-  **Show the user the variants** (the PNGs under `.regen-archive/<key>/`) and let
-  them pick; copy the chosen one to the entry's `output` path as the final
-  `cover.png`. Want more options? Re-run with `--count N` (FIFO-capped at
-  `--archive-cap`, default 30, per key).
+  **Pick via the contact sheet.** A `--count N>1` batch automatically leaves
+  `.regen-archive/<key>/contact-sheet.png` — a labeled grid where each tile
+  reads `<index> · <hash>` (1-based tile index + the archive-filename hash
+  prefix, so tile "3 · 8e62d3" is `<key>-8e62d3….png`). The pick flow:
+
+  1. **Read the contact sheet** with the Read tool to pre-screen the variants
+     yourself.
+  2. Present an **AskUserQuestion** with the top 3–4 candidates as options —
+     each label carries the tile index + short hash, each description says
+     what visually distinguishes that variant. Include the sheet's path in
+     the question text so the user can open it directly.
+  3. Copy the chosen `.regen-archive/<key>/<key>-<sha>.png` to the entry's
+     `output` path as the final `cover.png`.
+
+  Want more options? Re-run with `--count N` (the sheet is recomposed from
+  the new batch; archives FIFO-capped at `--archive-cap`, default 30, per
+  key). `--no-contact-sheet` skips composition.
 - Inline images: co-locate in the page bundle directory (NOT in `/static/images/`)
 - Use relative paths: `![Alt text](image.png)`
 

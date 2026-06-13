@@ -61,8 +61,7 @@ for path in \
   agents/skills/sync-runbook/SKILL.md \
   agents/skills/update-readme/SKILL.md \
   agents/reviewers/code-reviewer.md \
-  agents/reviewers/k8s-manifest-reviewer.md \
-  agents/commands/update-openrouter-models.md; do
+  agents/reviewers/k8s-manifest-reviewer.md; do
   require_file "$path"
 done
 

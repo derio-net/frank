@@ -585,6 +585,109 @@ data:
               summary: "L1 Hardware: node {{ $labels.node }} NotReady"
               runbook: "kubectl describe node {{ $labels.node }}; talosctl -n {{ $labels.node }} health"
 
+      # --- Layer 1 — Node memory headroom (frank-ops#1) ---
+      # Absolute floor, NOT a ratio: 6% of 64GB (mini) is ~4GB and healthy,
+      # while 9% of 4GB (Pi) is ~355MB and one slow leak away from a
+      # reclaim-thrash wedge (anonymous heap exhaustion, kubelet unresponsive,
+      # no OOM kill — 2026-06-04 raspi-1 incident, Longhorn IM leak
+      # longhorn#12575). 1GiB catches the wedge days-to-weeks early.
+      - orgId: 1
+        name: layer-1-node-memory-headroom
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-1-node-memory-headroom
+            title: Layer 1 Hardware Node Memory Headroom Low
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  # MemAvailable in bytes, per node-exporter instance.
+                  expr: 'node_memory_MemAvailable_bytes{job="node-exporter"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1073741824] }
+            noDataState: OK
+            execErrState: Error
+            for: 30m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#1"
+            annotations:
+              summary: "L1 Hardware: node {{ $labels.instance }} has <1GiB memory available for 30m — reclaim-thrash wedge risk (see 2026-06-04 raspi-1 incident)"
+              runbook: "talosctl -n <node-ip> memory; check Longhorn instance-manager working set: container_memory_working_set_bytes{pod=~\"instance-manager.*\"}; docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md"
+
+      # --- Layer 1 — NIC link flap (frank-ops#1) ---
+      # Carrier-change RATE, not a down-state: a flapping NIC is up-on-average
+      # and never sustains a `for: 5m` down window, so the NotReady / Cilium-Down
+      # rules miss it by construction (2026-06-08 gpu-1 enp3s0 incident — 76
+      # carrier changes, 0 alerts, ~8h blind). Counter is reset-safe: a reboot
+      # zeroes it (node-exporter restart) and increase() accounts for the reset,
+      # so reboots (~1 change) and cable replugs (<=2) stay under the >6/30m
+      # threshold. See docs/runbooks/frank-gotchas/networking.md.
+      - orgId: 1
+        name: layer-1-nic-link-flap
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-1-nic-link-flap
+            title: Layer 1 Hardware NIC Link Flapping
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  # carrier-change counter increase over 30m, physical NICs only
+                  # (en*/eth*); excludes cilium_*, lxc*, veth*, lo.
+                  expr: 'increase(node_network_carrier_changes_total{device=~"en.*|eth.*"}[30m])'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 1800, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [6] }
+            noDataState: OK
+            execErrState: Error
+            for: 0m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#1"
+            annotations:
+              # NOTE: no < > & in annotations — Grafana's Telegram contact point
+              # sends HTML parse_mode, so '<node-ip>' / bare '>' render as invalid
+              # HTML tags and Telegram rejects the message with 400 Bad Request
+              # (silent non-delivery; logged as ngalert.notifier error). 2026-06-08.
+              summary: "L1 Hardware: NIC {{ $labels.device }} on {{ $labels.instance }} link-flapping (6+ carrier changes/30m) — Cilium datapath risk (2026-06-08 enp3s0 incident)"
+              runbook: "talosctl -n NODE_IP dmesg | grep 'Link is'; reseat cable / switch-end port; durable fix pcie_aspm=off — docs/runbooks/frank-gotchas/networking.md"
+
       # --- Layer 2 — OS & Bootstrap (frank-ops#2) ---
       # Per control-plane node only — HA lost = critical.
       - orgId: 1
@@ -1395,6 +1498,54 @@ data:
             annotations:
               summary: "TLS cert for {{ $labels.instance }} expires in <7 days ({{ humanizeDuration $value }} remaining)"
               runbook: "See docs/investigations/2026-05-11--omni--cert-expiry-incident.md for renewal procedure."
+
+          # Watchdog for the expired-cert canary (issue #251): the canary's
+          # perpetually-firing alert instances are the heartbeat for the two
+          # rules above; this rule notices when the heartbeat metric itself
+          # disappears (badssl unreachable, module broken, VMProbe deleted).
+          # absent() returns EMPTY when the metric exists → noData is the
+          # HEALTHY path here (inverted vs the rules above). severity=critical
+          # + github_issue drive health-bridge's dead→bug-issue lifecycle
+          # (auto-closed on heal); canary_watchdog="true" is caught by the
+          # first-position notification-policy route so critical never reaches
+          # Telegram. Spec:
+          # docs/superpowers/specs/2026-06-07--obs--cert-expiry-canary-design.md
+          - uid: tls-cert-canary-absent
+            title: TLS cert-expiry canary absent
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'absent(probe_ssl_earliest_cert_expiry{canary="true"})'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 3600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 3h
+            labels:
+              severity: critical
+              github_issue: "frank-ops#8"
+              canary_watchdog: "true"
+            annotations:
+              summary: "Cert-expiry canary heartbeat lost: probe_ssl_earliest_cert_expiry{canary=\"true\"} absent >3h"
+              runbook: "Check https://expired.badssl.com/ reachability, the blackbox-exporter http_2xx_insecure_tls module, and VMProbe expired-cert-canary. Spec: docs/superpowers/specs/2026-06-07--obs--cert-expiry-canary-design.md"
 
       # =====================================================================
       # blog-edge folder rules (obs layer phase 3+5) — fired alerts route to

@@ -1,0 +1,17 @@
+# Append to ~/.ssh/config (or include from a modular ~/.ssh/config.d/).
+# Substitute the IdentityFile path for the private key whose public half is
+# mounted into the hermes-agent-shell container via the
+# hermes-agent-shell-ssh-keys Secret (see secrets/hermes-agent-shell/README.md
+# for rotation). Reuse the same key paired with the other shells if you keep
+# one private key for every shell.
+
+Host hermes
+    HostName 192.168.55.226
+    Port 22
+    User agent
+    IdentityFile ~/.ssh/<your_private_key>
+    # The container's SSH host keys live on the home PVC, so they're stable
+    # across restarts; on the rare PVC-rebuild event clear the old known_hosts
+    # entry.
+    UserKnownHostsFile ~/.ssh/known_hosts
+    StrictHostKeyChecking accept-new

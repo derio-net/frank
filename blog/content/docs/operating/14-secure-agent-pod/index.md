@@ -343,11 +343,45 @@ kubectl get secret agent-secrets-tier2 -n secure-agent-pod -o jsonpath='{.data}'
 
 # Update a secret value
 kubectl patch secret agent-secrets-tier2 -n secure-agent-pod \
-  --type merge -p '{"stringData":{"GITHUB_TOKEN":"new-token-here"}}'
+  --type merge -p '{"stringData":{"TELEGRAM_BOT_TOKEN":"new-token-here"}}'
 
 # Restart to pick up changes
 kubectl rollout restart deployment/secure-agent-pod -n secure-agent-pod
 ```
+
+> GitHub auth is **not** a tier-2 secret anymore — it's a rotating App
+> installation token (next section). Don't put a `GITHUB_TOKEN` here.
+
+### GitHub authentication: App installation token (git + gh)
+
+The agent authenticates to GitHub with a **rotating GitHub App installation
+token** (App `derio-fr-automation`), not a PAT. ESO's `GithubAccessToken`
+generator mints a ~1 h token into the `agent-github-token` Secret, mounted
+live-updated at `/var/run/github/token`; the App **private key never touches the
+pod**. Two shims read that file: the `~/.gitconfig` credential helper (git) and
+the `/usr/local/bin/gh` wrapper (gh). This replaced the old org-owner PAT.
+
+```bash
+# Is ESO minting?  (want READY=True)
+kubectl -n secure-agent-pod get externalsecret agent-github-token
+
+# In-pod: token present + git/gh auth. Verify against a PRIVATE repo — public
+# repos auth with no token and give a false pass.
+kubectl exec -n secure-agent-pod deploy/secure-agent-pod -c kali -- bash -lc '
+  wc -c < /var/run/github/token
+  git ls-remote https://github.com/derio-net/willikins HEAD >/dev/null && echo git-OK
+  gh api graphql -f query="{repository(owner:\"derio-net\",name:\"willikins\"){name}}" >/dev/null && echo gh-OK'
+```
+
+To grant access to a new repo, add it to the App's install (org → Developer
+settings → GitHub Apps → `derio-fr-automation` → repository access); the next ESO
+refresh (≤45 m) mints a token covering it. `gh auth status` calling the token
+"invalid" is **expected** — App installation tokens have no user identity, but
+repo/issue/PR/GraphQL ops still work. If git/gh fail after a token or identity
+change, see the credential-helper + gh-wrapper gotchas in
+[`docs/runbooks/frank-gotchas/agent-shells.md`](https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/agent-shells.md)
+(the dash `$(cat)` rule, the `gh auth setup-git` host-override) and the live-patch
+stopgap there.
 
 ### Config Files (talosconfig, kubeconfig, omniconfig)
 

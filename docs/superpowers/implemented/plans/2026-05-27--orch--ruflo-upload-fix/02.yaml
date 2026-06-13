@@ -1,0 +1,68 @@
+schema_version: 2
+phase:
+  number: 2
+  title: 'frank: bump deployment image + resources'
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: https://github.com/derio-net/frank/issues/452
+tasks:
+- number: 1
+  title: Update apps/ruflo/manifests/deployment.yaml
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Bump the `ruflo` container image to the new agent-images SHA from P1.T3.S2:
+      `image: ghcr.io/derio-net/ruflo-server:<new-sha>` (currently `165f5eb45d7eae25141461e441f7c7cd56395f00`).
+  - id: P2.T1.S2
+    text: |-
+      Bump the `ruflo-shell` container image to the SAME new SHA:
+      `image: ghcr.io/derio-net/ruflo-shell:<new-sha>`.
+  - id: P2.T1.S3
+    text: |-
+      Bump the `ruflo` container resource requests (leave limits at cpu "4" / memory 8Gi):
+
+      ```yaml
+      resources:
+        requests:
+          cpu: "1"        # was 500m
+          memory: 2Gi     # was 1Gi
+        limits:
+          cpu: "4"
+          memory: 8Gi
+      ```
+  - id: P2.T1.S4
+    text: |-
+      Commit (`fix(orch): repair ruflo RVF GridFS shim for file uploads; bump image + resources`) and push to main. Then watch ArgoCD reconcile:
+
+      ```bash
+      source .env
+      kubectl -n argocd get application ruflo -o wide
+      kubectl -n ruflo-system rollout status deploy/ruflo --timeout=180s
+      ```
+
+      Expect Synced/Healthy and a fresh pod on the new image. (Recreate strategy: brief downtime as the RWO PVCs detach/attach.)
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-04T18:01:57+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-04T18:01:57+00:00'
+      note: null
+    P2.T1.S3:
+      state: x
+      ticked_at: '2026-06-04T18:01:57+00:00'
+      note: null
+    P2.T1.S4:
+      state: x
+      ticked_at: '2026-06-04T18:02:15+00:00'
+      note: Committed on phase branch via PR (one-phase-one-PR); ArgoCD syncs from
+        main, so live rollout watch deferred to post-merge — covered by Phase 3 live
+        verification.
+  completion:
+    at: '2026-06-04T18:02:19+00:00'
+    note: null
+    observed_prs: []

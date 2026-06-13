@@ -1,0 +1,23 @@
+{
+  "name": "frank — cluster-admin",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+  "features": {
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/jsburckhardt/devcontainer-features/uv:1": {},
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
+  },
+  "postCreateCommand": "uv tool install --python 3.13 'git+https://github.com/derio-net/super-fr#subdirectory=packages/fr'; mkdir -p ~/.kube ~/.talos; if [ -n \"$KUBECONFIG_B64\" ]; then echo \"$KUBECONFIG_B64\" | base64 -d > ~/.kube/config && chmod 600 ~/.kube/config; fi; if [ -n \"$TALOSCONFIG_B64\" ]; then echo \"$TALOSCONFIG_B64\" | base64 -d > ~/.talos/config && chmod 600 ~/.talos/config; fi",
+  "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+  "workspaceFolder": "${localWorkspaceFolder}",
+  "runArgs": [
+    "--env-file",
+    "${localEnv:HOME}/.config/fr/secrets/frank/cluster-admin.env"
+  ],
+  "customizations": {
+    "fr": {
+      "profile": "cluster-admin",
+      "purpose": "cluster-touching runs (kubectl/talosctl from inside isolation) — non-default, operator-selected only"
+    }
+  }
+}
