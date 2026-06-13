@@ -136,13 +136,21 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-06-13T00:00:00+00:00'
+      note: 'Skipped the external CTO-handoff path — Frank owns BOTH sides (the
+        Paperclip routine-trigger that verifies, and the Tekton task that signs),
+        so no out-of-band handoff was needed. Rotated the live-mirror-sync trigger
+        secret in the Paperclip UI; the fresh webhookSecret went straight into
+        Infisical (frank-cluster-iwpg/prod, /agentic-stoa/STOA_LIVE_MIRROR_HMAC_SECRET).'
     P2.T1.S2:
       state: ' '
       ticked_at: null
-      note: null
+      note: 'Partial (2/4 keys): STOA_LIVE_MIRROR_HMAC_SECRET placed + verified
+        SecretSynced 2026-06-13; STOA_LIVE_MIRROR_FIRE_URL already present.
+        Remaining: STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET (mint here) and
+        STOA_GITEA_ARGOCD_TOKEN (from manual-op cicd-stoa-argocd-gitea-reader,
+        Task 2). Tick when all four are in.'
     P2.T2.S1:
       state: ' '
       ticked_at: null
