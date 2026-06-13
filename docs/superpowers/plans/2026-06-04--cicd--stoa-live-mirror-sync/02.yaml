@@ -183,10 +183,20 @@ state:
         contents API 404s on ABBREVIATED SHA refs — the #456 Application correctly
         pins the FULL SHA. 2026-06-13.'
     P2.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-13T15:00:46+00:00'
+      note: 'GitHub push webhook created on agentic-stoa/companies (hook id 640896644)
+        -> https://webhooks.hop.derio.net, content_type=json, push events only, secret=existing
+        stoa-github-webhook-secret, active. Verified registered. NB: GitHub''s auto-ping
+        at creation is filtered/rejected pre-merge (github-listener cel filter accepts
+        companies only after #456 merges); the end-to-end 202 is the Phase 3 post-merge
+        test.'
   completion:
-    at: null
-    note: null
+    at: '2026-06-13T15:00:48+00:00'
+    note: 'Pre-merge provisioning complete (#456 merge gate satisfied). Runbook ops
+      done: cicd-stoa-live-mirror-infisical-keys (4/4 keys, HMAC via in-cluster Paperclip
+      rotate), cicd-stoa-companies-gitea-mirror (private, stoa-bot push via org team),
+      cicd-stoa-argocd-gitea-reader (org-wide read deviation, documented + forward-compat),
+      cicd-stoa-companies-backfill (mirror at b61b374d), cicd-stoa-companies-github-webhook.
+      Phase 3 (end-to-end) is the post-merge test plan.'
     observed_prs: []
