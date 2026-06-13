@@ -11,13 +11,17 @@ data:
   PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
   PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
   PAPERCLIP_PUBLIC_URL: "http://192.168.55.212:3100"
-  # Allow the in-cluster service FQDN through the private-hostname guard so the
-  # live-mirror-sync Tekton Task (gh #444) can POST to the routine-trigger fire
-  # endpoint via service DNS. The guard (enabled for private+authenticated mode)
-  # otherwise 403s any Host not in {public-URL host, loopback} — the Task signs
-  # correctly but never reaches firePublicTrigger. envFrom CM change does NOT
-  # auto-roll the pod; a rollout restart is required after sync.
-  PAPERCLIP_ALLOWED_HOSTNAMES: "paperclip-lb.paperclip-system.svc.cluster.local"
+  # private-hostname guard allow-list (enabled for private+authenticated mode):
+  # any inbound Host not listed here gets 403'd before the route handler runs.
+  # This env var REPLACES (does not extend) the fileConfig server.allowedHostnames,
+  # so it must enumerate EVERY host Paperclip is served on:
+  #   - paperclip.cluster.derio.net      Traefik IngressRoute (canonical UI domain)
+  #   - paperclip.frank.derio.net        legacy domain (still probed by blackbox)
+  #   - 192.168.55.212                   LB IP / PAPERCLIP_PUBLIC_URL host
+  #   - paperclip-lb...svc.cluster.local internal service DNS (live-mirror-sync
+  #                                      Tekton Task -> routine-trigger fire, gh #444)
+  # envFrom CM change does NOT auto-roll the pod; rollout restart required after sync.
+  PAPERCLIP_ALLOWED_HOSTNAMES: "192.168.55.212,paperclip.cluster.derio.net,paperclip.frank.derio.net,paperclip-lb.paperclip-system.svc.cluster.local"
   # Opt out of upstream telemetry added in v2026.403.0.
   DO_NOT_TRACK: "1"
   PAPERCLIP_TELEMETRY_DISABLED: "1"
