@@ -98,17 +98,22 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-13T15:19:11+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-13T15:19:12+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-13T15:32:39+00:00'
+      note: 'Webhook id=3 created on agentic-stoa/companies via Gitea API (stoa-bot,
+        repo admin); target el-live-mirror-sync.tekton-pipelines.svc:8080, push/main,
+        content_type=json. Verified non-firing: valid-HMAC non-main push -> github
+        interceptor Continue:true + cel drop (no TaskRun); invalid-HMAC main push
+        -> ''payload signature check failed''. Real main-branch fire deferred to T3
+        (Stoa coordination).'
     P3.T3.S1:
       state: ' '
       ticked_at: null
