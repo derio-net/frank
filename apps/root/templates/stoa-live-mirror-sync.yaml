@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: stoa-live-mirror-sync
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    # Stoa-canonical Tekton manifests (EventListener / TriggerBinding /
+    # TriggerTemplate / Task), pulled from the in-cluster Gitea mirror of
+    # agentic-stoa/companies — never vendored into frank (issue #444 hard
+    # constraint). SHA-pinned: upstream changes land only via an explicit
+    # pin-bump PR here, so the third-party org never gains unattended
+    # apply-to-cluster rights. Credential: repo-stoa-companies (argocd-extras).
+    # Spec: docs/superpowers/specs/2026-06-04--cicd--stoa-live-mirror-sync-
+    # trigger-design.md
+    repoURL: http://gitea-http.gitea.svc.cluster.local:3000/agentic-stoa/companies.git
+    targetRevision: b61b374dce649744a914dfd2626c450c66fea8eb
+    path: stoa/ci/tekton/live-mirror-sync
+    directory:
+      # Cosmetic — ArgoCD ignores non-manifest files anyway.
+      exclude: README.md
+  destination:
+    server: {{ .Values.destination.server }}
+    # The upstream manifests carry no namespace; this places them alongside
+    # tekton-triggers-sa (which already has taskruns-create RBAC via the
+    # vendored tekton-triggers-eventlistener-roles ClusterRole).
+    namespace: tekton-pipelines
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

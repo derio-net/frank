@@ -1,0 +1,199 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Frank manifests — repo credential, pinned Application, mirror-sync extension,
+    secrets
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: ArgoCD repo credential for the private Gitea mirror (new argocd-extras app)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Create `apps/argocd-extras/manifests/externalsecret-repo-stoa-companies.yaml`.
+      ESO materializes Frank's FIRST ArgoCD repository credential (verified: zero
+      `argocd.argoproj.io/secret-type` secrets exist today). The label on the
+      target template is what makes ArgoCD pick it up.
+
+      ```yaml
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: repo-stoa-companies
+        namespace: argocd
+      spec:
+        refreshInterval: 1h
+        secretStoreRef:
+          name: infisical
+          kind: ClusterSecretStore
+        target:
+          name: repo-stoa-companies
+          creationPolicy: Owner
+          deletionPolicy: Retain
+          template:
+            metadata:
+              labels:
+                argocd.argoproj.io/secret-type: repository
+            data:
+              type: git
+              name: stoa-companies
+              url: http://gitea-http.gitea.svc.cluster.local:3000/agentic-stoa/companies.git
+              username: argocd-reader
+              password: "{{ .token }}"
+        data:
+          - secretKey: token
+            remoteRef:
+              # Absolute path: stoa-org secrets live under /agentic-stoa
+              # (see externalsecret-stoa-github-mirror.yaml for rationale).
+              key: /agentic-stoa/STOA_GITEA_ARGOCD_TOKEN
+              conversionStrategy: Default
+              decodingStrategy: None
+              metadataPolicy: None
+      ```
+      `password: "{{ .token }}"` is an ESO Go-template (resolved by
+      external-secrets from the `data` section), NOT Helm — the file lives in a
+      raw-manifests dir so nothing else interpolates it.
+  - id: P1.T1.S2
+    text: |-
+      Create `apps/root/templates/argocd-extras.yaml` — Application CR for the new
+      manifests dir. Copy the `argocd-notifications.yaml` template pattern exactly
+      (project `infrastructure`, path `apps/argocd-extras/manifests`, destination
+      namespace `argocd`, `ServerSideApply=true`, automated selfHeal) and add the
+      conventional `ignoreDifferences` on Secret `/data` (the ESO-materialized
+      repo secret is in this app's purview).
+- number: 2
+  title: Pinned Application sourcing the upstream live-mirror-sync manifests
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Create `apps/root/templates/stoa-live-mirror-sync.yaml`:
+
+      ```yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: stoa-live-mirror-sync
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        source:
+          # Stoa-canonical manifests, pulled from the in-cluster Gitea mirror —
+          # never vendored (issue #444 hard constraint). SHA-pinned so upstream
+          # changes only land via an explicit pin-bump PR in frank.
+          repoURL: http://gitea-http.gitea.svc.cluster.local:3000/agentic-stoa/companies.git
+          targetRevision: b61b374dce649744a914dfd2626c450c66fea8eb
+          path: stoa/ci/tekton/live-mirror-sync
+          directory:
+            exclude: README.md
+        destination:
+          server: <same Helm expression as every sibling template: .Values.destination.server>
+          namespace: tekton-pipelines
+        syncPolicy:
+          automated:
+            selfHeal: true
+          syncOptions:
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+      ```
+      (Write the destination.server line as the literal Helm expression every
+      other template in apps/root/templates uses — placeholder shown above only
+      to keep this plan file Helm-free.)
+      The upstream manifests carry no `namespace:` so the destination namespace
+      places them; `tekton-triggers-sa` and TaskRun-create RBAC already exist
+      there (verified — vendored ClusterRole grants `taskruns` create).
+- number: 3
+  title: Mirror-sync filter extension + the two Tekton ExternalSecrets
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      In `apps/tekton/triggers/eventlistener-github.yaml`, trigger
+      `agentic-stoa-main-sync`: extend the cel filter in-list — ADDITIVE ONLY,
+      the existing three entries stay:
+      ```
+      body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies']
+      ```
+  - id: P1.T3.S2
+    text: |-
+      Create `apps/tekton/manifests/externalsecret-live-mirror-paperclip.yaml` —
+      Secret `live-mirror-paperclip`, keys `fireUrl` ←
+      `/agentic-stoa/STOA_LIVE_MIRROR_FIRE_URL` and `webhookSecret` ←
+      `/agentic-stoa/STOA_LIVE_MIRROR_HMAC_SECRET`. Follow the
+      `externalsecret-stoa-github-webhook-secret.yaml` pattern verbatim
+      (refreshInterval 1h, ClusterSecretStore `infisical`, deletionPolicy Retain,
+      absolute-path comment). Namespace `tekton-pipelines`. The upstream Task
+      consumes exactly these two key names — do not rename.
+  - id: P1.T3.S3
+    text: |-
+      Create `apps/tekton/manifests/externalsecret-live-mirror-gitea-webhook.yaml`
+      — Secret `live-mirror-gitea-webhook`, key `webhookSecret` ←
+      `/agentic-stoa/STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET`. Same pattern. The
+      upstream EventListener's github interceptor reads
+      `secretName: live-mirror-gitea-webhook, secretKey: webhookSecret` — do not
+      rename.
+- number: 4
+  title: Render validation + PR assembly
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      Validation BEFORE commit: render the root chart and assert both new
+      Applications appear and parse:
+      ```bash
+      helm template apps/root --set repoURL=https://example/frank.git \
+        --set targetRevision=main --set destination.server=https://kubernetes.default.svc \
+        | yq 'select(.kind == "Application") | .metadata.name' | sort
+      ```
+      Expect `argocd-extras` and `stoa-live-mirror-sync` in the list (plus all
+      existing). Match the --set flags to whatever apps/root/values.yaml actually
+      requires (inspect it first). Also yamllint / kubectl-validate the three new
+      ExternalSecrets (`kubectl apply --dry-run=client -f <file>` is enough).
+  - id: P1.T4.S2
+    text: |-
+      Commit on branch `cicd/stoa-live-mirror-sync` (spec + plan already there)
+      and open the PR to main:
+      `feat(cicd): stoa live-mirror-sync trigger chain (gh #444)`.
+      PR body: link spec + plan, state that MERGE GATES on Phase 2 (manual
+      provisioning) being complete — merging earlier leaves the new Application
+      Degraded (missing repo/secret) — and that Phase 3 of the plan IS the test
+      plan, driven together post-merge. Do NOT merge in this phase.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-04T10:37:59+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-04T10:38:01+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-04T10:38:03+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-06-04T10:38:05+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-06-04T10:38:08+00:00'
+      note: null
+    P1.T3.S3:
+      state: x
+      ticked_at: '2026-06-04T10:38:10+00:00'
+      note: null
+    P1.T4.S1:
+      state: x
+      ticked_at: '2026-06-04T10:38:13+00:00'
+      note: null
+    P1.T4.S2:
+      state: x
+      ticked_at: '2026-06-04T10:47:38+00:00'
+      note: null
+  completion:
+    at: '2026-06-04T10:47:40+00:00'
+    note: null
+    observed_prs: []

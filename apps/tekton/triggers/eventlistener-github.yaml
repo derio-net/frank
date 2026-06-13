@@ -107,9 +107,11 @@ spec:
         ref: stoa-blog-ci-github-template
 
     # ──────────────────────────────────────────────────────────────────
-    # Push-to-main trigger (Phase 5) — single trigger for all 3 repos.
+    # Push-to-main trigger (Phase 5) — single trigger for all 4 repos.
     # Fires github-pull-sync (just the pull-and-push, no CI) so Gitea's
     # main branch catches up to GitHub's after a PR is merged.
+    # `companies` (added 2026-06-04, gh #444) has no CI pipeline — its mirror
+    # feeds the live-mirror-sync EventListener (stoa-live-mirror-sync app).
     # ──────────────────────────────────────────────────────────────────
     - name: agentic-stoa-main-sync
       interceptors:
@@ -127,7 +129,7 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog']
+                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies']
                 && body.ref == 'refs/heads/main'
             - name: overlays
               value:

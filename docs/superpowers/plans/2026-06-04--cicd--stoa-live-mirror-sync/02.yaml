@@ -1,0 +1,202 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Pre-merge provisioning (operator manual ops)
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: CTO secret handoff + Infisical inserts
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Comment on derio-net/frank#444 requesting the contact path for the
+      HMAC-secret handoff, e.g.: "Frank-side provisioning is in PR <link>.
+      Ready to receive the rotated trigger secret — please route the contact
+      path for the out-of-band handoff. The value will live only in our secret
+      store; never in an issue/PR/chat."
+  - id: P2.T1.S2
+    text: |-
+      # manual-operation
+      id: cicd-stoa-live-mirror-infisical-keys
+      layer: cicd
+      app: tekton
+      plan: docs/superpowers/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+      when: "Before merging the live-mirror-sync PR — ESO must be able to materialize all three Secrets on first sync"
+      why_manual: "Secret VALUES cannot live in git. The HMAC secret arrives out-of-band from Stoa's CTO; the gitea webhook secret is minted locally; the ArgoCD reader token is minted in Gitea."
+      commands:
+        - |
+          # In Infisical (192.168.55.204), folder /agentic-stoa, add:
+          #   STOA_LIVE_MIRROR_FIRE_URL =
+          #     http://paperclip-lb.paperclip-system.svc.cluster.local:3100/api/routine-triggers/public/31cbc6fb3c8ac34e3f25d677/fire
+          #   STOA_LIVE_MIRROR_HMAC_SECRET = <value received out-of-band from Stoa CTO>
+          #   STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET = <openssl rand -hex 32; keep a copy for the Gitea webhook form in Phase 3>
+          #   STOA_GITEA_ARGOCD_TOKEN = <minted in manual-op cicd-stoa-argocd-gitea-reader>
+          openssl rand -hex 32
+      verify:
+        - "All four keys present under /agentic-stoa in Infisical"
+      status: pending
+- number: 2
+  title: Gitea mirror repo + least-privilege ArgoCD reader
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      # manual-operation
+      id: cicd-stoa-companies-gitea-mirror
+      layer: cicd
+      app: gitea
+      plan: docs/superpowers/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+      when: "Before merging the live-mirror-sync PR (the pinned Application sources this repo) and before the GitHub webhook is added"
+      why_manual: "Gitea org/repo administration is UI/API state, not ArgoCD-managed (same as the existing hum/content-factory/stoa-blog mirrors)"
+      commands:
+        - |
+          # As a gitea admin (or org owner) — create the private mirror repo:
+          curl -sS -X POST "http://192.168.55.209:3000/api/v1/orgs/agentic-stoa/repos" \
+            -H "Authorization: token $GITEA_ADMIN_TOKEN" -H "Content-Type: application/json" \
+            -d '{"name":"companies","private":true,"auto_init":false}'
+          # Grant stoa-bot push — match EXACTLY how hum/content-factory/stoa-blog
+          # grant it (org team vs collaborator); inspect one of those repos first:
+          curl -sS "http://192.168.55.209:3000/api/v1/repos/agentic-stoa/hum/collaborators" \
+            -H "Authorization: token $GITEA_ADMIN_TOKEN"
+      verify:
+        - "GET /api/v1/repos/agentic-stoa/companies returns 200, private:true, empty:true"
+        - "stoa-bot has push permission (same mechanism as the sibling mirrors)"
+      status: pending
+  - id: P2.T2.S2
+    text: |-
+      # manual-operation
+      id: cicd-stoa-argocd-gitea-reader
+      layer: cicd
+      app: gitea
+      plan: docs/superpowers/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+      when: "Before merging the live-mirror-sync PR — ArgoCD needs the token to clone the mirror"
+      why_manual: "Gitea 1.25 token scopes are repo-coarse (read:repository grants read on ALL repos the user sees), so least-privilege requires a dedicated user whose only visibility is this one repo"
+      commands:
+        - |
+          # 1. Create user `argocd-reader` (gitea admin UI or API), strong random
+          #    password, no email notifications, NOT an org member.
+          # 2. Add argocd-reader as a collaborator on agentic-stoa/companies with
+          #    READ permission only.
+          # 3. As argocd-reader, mint a token scoped read:repository.
+          # 4. Store it in Infisical as /agentic-stoa/STOA_GITEA_ARGOCD_TOKEN.
+          curl -sS "http://192.168.55.209:3000/api/v1/repos/agentic-stoa/companies" \
+            -H "Authorization: token $ARGOCD_READER_TOKEN"   # expect 200
+          curl -sS "http://192.168.55.209:3000/api/v1/repos/agentic-stoa/hum" \
+            -H "Authorization: token $ARGOCD_READER_TOKEN"   # expect 404 (no visibility)
+      verify:
+        - "Token reads companies (200) but cannot see hum (404)"
+      status: pending
+  - id: P2.T2.S3
+    text: |-
+      # manual-operation
+      id: cicd-stoa-companies-backfill
+      layer: cicd
+      app: gitea
+      plan: docs/superpowers/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+      when: "Immediately after cicd-stoa-companies-gitea-mirror, BEFORE the GitHub webhook is added (bring-up ordering: the sync pipeline force-pushes a single ref and assumes an existing populated repo)"
+      why_manual: "One-time seed of the empty mirror; the recurring path is the github-pull-sync pipeline"
+      commands:
+        - |
+          git clone --bare git@github.com:agentic-stoa/companies.git /tmp/companies-seed
+          cd /tmp/companies-seed
+          git push http://stoa-bot:$STOA_BOT_TOKEN@192.168.55.209:3000/agentic-stoa/companies.git --all
+          git push http://stoa-bot:$STOA_BOT_TOKEN@192.168.55.209:3000/agentic-stoa/companies.git --tags
+          rm -rf /tmp/companies-seed
+      verify:
+        - "Gitea agentic-stoa/companies `main` HEAD sha == GitHub `main` HEAD sha"
+        - "stoa/ci/tekton/live-mirror-sync/ visible in the Gitea UI at commit b61b374d"
+      status: pending
+- number: 3
+  title: GitHub push webhook on agentic-stoa/companies
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      # manual-operation
+      id: cicd-stoa-companies-github-webhook
+      layer: cicd
+      app: tekton
+      plan: docs/superpowers/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+      when: "After cicd-stoa-companies-backfill (so the first delivery hits a populated mirror); safe before or after PR merge — the cel filter change only ACCEPTS the new repo"
+      why_manual: "GitHub repo webhook config lives in a third-party org's repo settings"
+      commands:
+        - |
+          # agentic-stoa/companies → Settings → Webhooks → Add webhook
+          #   Payload URL: https://webhooks.hop.derio.net
+          #   Content type: application/json
+          #   Secret: <the existing stoa-github-webhook-secret value — same as the
+          #           other three agentic-stoa repos; read it from the cluster:>
+          kubectl -n tekton-pipelines get secret stoa-github-webhook-secret \
+            -o jsonpath='{.data.secret}' | base64 -d
+          #   Events: just the push event
+      verify:
+        - "GitHub webhook 'Recent Deliveries' shows a ping with HTTP 202 from the EventListener"
+      status: pending
+state:
+  steps:
+    P2.T1.S1:
+      state: '-'
+      ticked_at: '2026-06-13T00:00:00+00:00'
+      note: Skipped the external CTO-handoff path — Frank owns BOTH sides (the Paperclip
+        routine-trigger that verifies, and the Tekton task that signs), so no out-of-band
+        handoff was needed. Rotated the live-mirror-sync trigger secret in the Paperclip
+        UI; the fresh webhookSecret went straight into Infisical (frank-cluster-iwpg/prod,
+        /agentic-stoa/STOA_LIVE_MIRROR_HMAC_SECRET).
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-13T14:53:27+00:00'
+      note: 'All 4 keys in Infisical /agentic-stoa (frank-cluster-iwpg/prod), each
+        ESO-verified SecretSynced 2026-06-13: STOA_LIVE_MIRROR_FIRE_URL, STOA_LIVE_MIRROR_HMAC_SECRET
+        (rotated in Paperclip), STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET, STOA_GITEA_ARGOCD_TOKEN.'
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-06-13T11:59:26+00:00'
+      note: agentic-stoa/companies created PRIVATE + empty (default main). Operator
+        created the empty repo in the Gitea UI — stoa-bot is an org member with repo-admin
+        but NOT an org Owner, so it 403s on org-repo creation (org creation is Owner-gated).
+        Visibility corrected to private via stoa-bot token PATCH (created public,
+        but empty → no exposure). stoa-bot push+admin confirmed via org team membership
+        = the documented sibling-mirror mechanism. 2026-06-13.
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-06-13T14:48:59+00:00'
+      note: 'argocd-reader (id 7) created; READ collaborator on agentic-stoa/companies
+        (204); read:repository token minted + in Infisical /agentic-stoa/STOA_GITEA_ARGOCD_TOKEN
+        (verified reads companies 200). DESIGN CHOICE (operator, 2026-06-13): argocd-reader
+        is also an agentic-stoa ORG MEMBER, so its token has ORG-WIDE read across
+        all mirrors (hum/stoa-blog/content-factory, all private, verified 200) — NOT
+        the plan''s per-repo least-privilege. RATIONALE: live-mirror-sync will likely
+        extend to the other agentic-stoa mirrors, so one org-member reader serves
+        them all without per-repo re-grants; superseding the per-repo reader avoids
+        that churn. The op''s verify ''hum -> 404'' is intentionally void (now 200).
+        SECURITY NOTE: a leak of STOA_GITEA_ARGOCD_TOKEN exposes ALL agentic-stoa
+        private mirrors.'
+    P2.T2.S3:
+      state: x
+      ticked_at: '2026-06-13T14:57:10+00:00'
+      note: 'Backfilled agentic-stoa/companies: cloned GitHub main (HEAD b61b374dce64,
+        private) bare, pushed --all to the Gitea mirror as stoa-bot (STOA_GITEA_TOKEN,
+        auth via header). Verified: Gitea main HEAD == GitHub b61b374dce64; repo private;
+        the manifests path stoa/ci/tekton/live-mirror-sync IS present at the full
+        pinned revision b61b374dce649744a914dfd2626c450c66fea8eb (200). NB: Gitea''s
+        contents API 404s on ABBREVIATED SHA refs — the #456 Application correctly
+        pins the FULL SHA. 2026-06-13.'
+    P2.T3.S1:
+      state: x
+      ticked_at: '2026-06-13T15:00:46+00:00'
+      note: 'GitHub push webhook created on agentic-stoa/companies (hook id 640896644)
+        -> https://webhooks.hop.derio.net, content_type=json, push events only, secret=existing
+        stoa-github-webhook-secret, active. Verified registered. NB: GitHub''s auto-ping
+        at creation is filtered/rejected pre-merge (github-listener cel filter accepts
+        companies only after #456 merges); the end-to-end 202 is the Phase 3 post-merge
+        test.'
+  completion:
+    at: '2026-06-13T15:00:48+00:00'
+    note: 'Pre-merge provisioning complete (#456 merge gate satisfied). Runbook ops
+      done: cicd-stoa-live-mirror-infisical-keys (4/4 keys, HMAC via in-cluster Paperclip
+      rotate), cicd-stoa-companies-gitea-mirror (private, stoa-bot push via org team),
+      cicd-stoa-argocd-gitea-reader (org-wide read deviation, documented + forward-compat),
+      cicd-stoa-companies-backfill (mirror at b61b374d), cicd-stoa-companies-github-webhook.
+      Phase 3 (end-to-end) is the post-merge test plan.'
+    observed_prs: []
