@@ -37,7 +37,7 @@ tasks:
           openssl rand -hex 32
       verify:
         - "All four keys present under /agentic-stoa in Infisical"
-      status: pending
+      status: done
 - number: 2
   title: Gitea mirror repo + least-privilege ArgoCD reader
   steps:
@@ -63,7 +63,7 @@ tasks:
       verify:
         - "GET /api/v1/repos/agentic-stoa/companies returns 200, private:true, empty:true"
         - "stoa-bot has push permission (same mechanism as the sibling mirrors)"
-      status: pending
+      status: done
   - id: P2.T2.S2
     text: |-
       # manual-operation
@@ -87,7 +87,7 @@ tasks:
             -H "Authorization: token $ARGOCD_READER_TOKEN"   # expect 404 (no visibility)
       verify:
         - "Token reads companies (200) but cannot see hum (404)"
-      status: pending
+      status: done
   - id: P2.T2.S3
     text: |-
       # manual-operation
@@ -107,7 +107,7 @@ tasks:
       verify:
         - "Gitea agentic-stoa/companies `main` HEAD sha == GitHub `main` HEAD sha"
         - "stoa/ci/tekton/live-mirror-sync/ visible in the Gitea UI at commit b61b374d"
-      status: pending
+      status: done
 - number: 3
   title: GitHub push webhook on agentic-stoa/companies
   steps:
@@ -132,7 +132,7 @@ tasks:
           #   Events: just the push event
       verify:
         - "GitHub webhook 'Recent Deliveries' shows a ping with HTTP 202 from the EventListener"
-      status: pending
+      status: done
 state:
   steps:
     P2.T1.S1:

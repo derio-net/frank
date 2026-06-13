@@ -51,7 +51,7 @@ tasks:
           # ALLOWED_HOST_LIST already permits *.svc.cluster.local (verified).
       verify:
         - "Webhook test-delivery from the Gitea UI returns 2xx"
-      status: pending
+      status: done
 - number: 3
   title: 'End-to-end acceptance (issue #444 criteria)'
   steps:
@@ -115,8 +115,8 @@ state:
         -> ''payload signature check failed''. Real main-branch fire deferred to T3
         (Stoa coordination).'
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-13T18:08:13+00:00'
       note: null
     P3.T3.S2:
       state: ' '
@@ -135,6 +135,11 @@ state:
       ticked_at: null
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-13T18:08:15+00:00'
+    note: 'End-to-end acceptance green on Stoa''s 2nd test merge: agentic-stoa-main-sync
+      (GitHub→Gitea) → Gitea webhook id=3 → EventListener → TaskRun live-mirror-sync-pcb2c
+      (Succeeded) → HMAC POST → Paperclip HTTP 202, run=fd7485d9 issue=f9a1b148. Two
+      Frank-side fixes surfaced by the live fire: #534 (allow internal svc FQDN through
+      privateHostnameGuard) + #535 (restore UI domains in that allowlist). Webhook
+      wired via Gitea API (manual-op cicd-stoa-companies-gitea-webhook).'
     observed_prs: []

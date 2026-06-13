@@ -1686,3 +1686,107 @@ operations:
   verify:
   - "env -u GITHUB_TOKEN gh api 'orgs/<org>/members?role=admin' --jq '.[].login'   # clawdia-ai-assistant absent"
   status: done
+- id: cicd-stoa-live-mirror-infisical-keys
+  layer: cicd
+  app: tekton
+  plan: docs/superpowers/implemented/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+  when: Before merging the live-mirror-sync PR — ESO must be able to materialize all three Secrets on first sync
+  why_manual: Secret VALUES cannot live in git. The HMAC secret arrives out-of-band from Stoa's CTO; the gitea webhook secret is minted locally; the ArgoCD reader token is minted in Gitea.
+  commands:
+  - '# In Infisical (192.168.55.204), folder /agentic-stoa, add:
+
+    #   STOA_LIVE_MIRROR_FIRE_URL =
+
+    #     http://paperclip-lb.paperclip-system.svc.cluster.local:3100/api/routine-triggers/public/31cbc6fb3c8ac34e3f25d677/fire
+
+    #   STOA_LIVE_MIRROR_HMAC_SECRET = <value received out-of-band from Stoa CTO>
+
+    #   STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET = <openssl rand -hex 32; keep a copy for the Gitea webhook form in Phase 3>
+
+    #   STOA_GITEA_ARGOCD_TOKEN = <minted in manual-op cicd-stoa-argocd-gitea-reader>
+
+    openssl rand -hex 32
+
+    '
+  verify:
+  - All four keys present under /agentic-stoa in Infisical
+  status: done
+- id: cicd-stoa-companies-gitea-mirror
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/implemented/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+  when: Before merging the live-mirror-sync PR (the pinned Application sources this repo) and before the GitHub webhook is added
+  why_manual: Gitea org/repo administration is UI/API state, not ArgoCD-managed (same as the existing hum/content-factory/stoa-blog mirrors)
+  commands:
+  - "# As a gitea admin (or org owner) — create the private mirror repo:\ncurl -sS -X POST \"http://192.168.55.209:3000/api/v1/orgs/agentic-stoa/repos\" \\\n  -H \"Authorization: token $GITEA_ADMIN_TOKEN\" -H \"Content-Type: application/json\" \\\n  -d '{\"name\":\"companies\",\"private\":true,\"auto_init\":false}'\n# Grant stoa-bot push — match EXACTLY how hum/content-factory/stoa-blog\n# grant it (org team vs collaborator); inspect one of those repos first:\ncurl -sS \"http://192.168.55.209:3000/api/v1/repos/agentic-stoa/hum/collaborators\" \\\n  -H \"Authorization: token $GITEA_ADMIN_TOKEN\"\n"
+  verify:
+  - GET /api/v1/repos/agentic-stoa/companies returns 200, private:true, empty:true
+  - stoa-bot has push permission (same mechanism as the sibling mirrors)
+  status: done
+- id: cicd-stoa-argocd-gitea-reader
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/implemented/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+  when: Before merging the live-mirror-sync PR — ArgoCD needs the token to clone the mirror
+  why_manual: Gitea 1.25 token scopes are repo-coarse (read:repository grants read on ALL repos the user sees), so least-privilege requires a dedicated user whose only visibility is this one repo
+  commands:
+  - "# 1. Create user `argocd-reader` (gitea admin UI or API), strong random\n#    password, no email notifications, NOT an org member.\n# 2. Add argocd-reader as a collaborator on agentic-stoa/companies with\n#    READ permission only.\n# 3. As argocd-reader, mint a token scoped read:repository.\n# 4. Store it in Infisical as /agentic-stoa/STOA_GITEA_ARGOCD_TOKEN.\ncurl -sS \"http://192.168.55.209:3000/api/v1/repos/agentic-stoa/companies\" \\\n  -H \"Authorization: token $ARGOCD_READER_TOKEN\"   # expect 200\ncurl -sS \"http://192.168.55.209:3000/api/v1/repos/agentic-stoa/hum\" \\\n  -H \"Authorization: token $ARGOCD_READER_TOKEN\"   # expect 404 (no visibility)\n"
+  verify:
+  - Token reads companies (200) but cannot see hum (404)
+  status: done
+- id: cicd-stoa-companies-backfill
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/implemented/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+  when: 'Immediately after cicd-stoa-companies-gitea-mirror, BEFORE the GitHub webhook is added (bring-up ordering: the sync pipeline force-pushes a single ref and assumes an existing populated repo)'
+  why_manual: One-time seed of the empty mirror; the recurring path is the github-pull-sync pipeline
+  commands:
+  - 'git clone --bare git@github.com:agentic-stoa/companies.git /tmp/companies-seed
+
+    cd /tmp/companies-seed
+
+    git push http://stoa-bot:$STOA_BOT_TOKEN@192.168.55.209:3000/agentic-stoa/companies.git --all
+
+    git push http://stoa-bot:$STOA_BOT_TOKEN@192.168.55.209:3000/agentic-stoa/companies.git --tags
+
+    rm -rf /tmp/companies-seed
+
+    '
+  verify:
+  - Gitea agentic-stoa/companies `main` HEAD sha == GitHub `main` HEAD sha
+  - stoa/ci/tekton/live-mirror-sync/ visible in the Gitea UI at commit b61b374d
+  status: done
+- id: cicd-stoa-companies-github-webhook
+  layer: cicd
+  app: tekton
+  plan: docs/superpowers/implemented/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+  when: After cicd-stoa-companies-backfill (so the first delivery hits a populated mirror); safe before or after PR merge — the cel filter change only ACCEPTS the new repo
+  why_manual: GitHub repo webhook config lives in a third-party org's repo settings
+  commands:
+  - "# agentic-stoa/companies → Settings → Webhooks → Add webhook\n#   Payload URL: https://webhooks.hop.derio.net\n#   Content type: application/json\n#   Secret: <the existing stoa-github-webhook-secret value — same as the\n#           other three agentic-stoa repos; read it from the cluster:>\nkubectl -n tekton-pipelines get secret stoa-github-webhook-secret \\\n  -o jsonpath='{.data.secret}' | base64 -d\n#   Events: just the push event\n"
+  verify:
+  - GitHub webhook 'Recent Deliveries' shows a ping with HTTP 202 from the EventListener
+  status: done
+- id: cicd-stoa-companies-gitea-webhook
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/implemented/plans/2026-06-04--cicd--stoa-live-mirror-sync/
+  when: LAST bring-up step, after the EventListener is Ready and the mirror is populated — from this point every mirror push fires Paperclip (by design). Wiring earlier risks a spurious backfill-triggered fire.
+  why_manual: Gitea repo webhook config is UI/API state
+  commands:
+  - '# Gitea: agentic-stoa/companies → Settings → Webhooks → Add webhook → Gitea
+
+    #   Target URL: http://el-live-mirror-sync.tekton-pipelines.svc.cluster.local:8080
+
+    #   Method: POST, Content type: application/json
+
+    #   Secret: <the STOA_LIVE_MIRROR_GITEA_WEBHOOK_SECRET value minted in Phase 2>
+
+    #   Trigger on: Push events, branch filter main (or all — the cel filter guards ref)
+
+    # ALLOWED_HOST_LIST already permits *.svc.cluster.local (verified).
+
+    '
+  verify:
+  - Webhook test-delivery from the Gitea UI returns 2xx
+  status: done
