@@ -26,8 +26,8 @@
 #   forcing a local `npm run check` repro to find which gate failed. Two fixes:
 #     1. target-url: every status now deep-links to the PipelineRun page on the
 #        Tekton dashboard (see dashboard-base-url param), so a red check is one
-#        click from the step logs. (LAN-only URL — reachable on the homelab
-#        net/mesh, which is where the operator debugs from.)
+#        click from the step logs. (Reachable over Tailscale — the derio
+#        tailnet — not public; that's where the operator debugs from.)
 #     2. The monolithic `npm run check` step is split into named steps
 #        (install / typecheck / lint / test) so the dashboard shows WHICH gate
 #        failed at a glance, before opening any log.
@@ -53,8 +53,8 @@ spec:
       description: "Destination ref on Gitea (e.g. refs/heads/sync-pr-12 for PR-time runs)"
     - name: dashboard-base-url
       type: string
-      default: "http://192.168.55.217:9097"
-      description: "Tekton dashboard base URL (LAN). CI statuses deep-link to the PipelineRun page here so a red check links straight to the step logs."
+      default: "https://tekton.cluster.derio.net"
+      description: "Tekton dashboard base URL (reachable over Tailscale). CI statuses deep-link to the PipelineRun page here so a red check links straight to the step logs."
   workspaces:
     - name: shared-workspace
     - name: ssh-creds

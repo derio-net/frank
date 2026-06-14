@@ -39,11 +39,11 @@ Any time `tekton/ci` is red (or stuck) on a hum PR.
 ## How to read a failed run
 
 1. On the PR, click **Details** next to the red `tekton/ci` check. It links to
-   `http://192.168.55.217:9097/#/namespaces/tekton-pipelines/pipelineruns/<run>`.
-   - **LAN-only:** the dashboard is a LoadBalancer on `192.168.55.217:9097`
-     (`apps/tekton/manifests/dashboard-service.yaml`), reachable on the homelab
-     net / mesh — which is where debugging happens. Off-net, see "Reproduce
-     locally" below.
+   `https://tekton.cluster.derio.net/#/namespaces/tekton-pipelines/pipelineruns/<run>`.
+   - **Over Tailscale:** the dashboard (`tekton.cluster.derio.net`, a
+     LoadBalancer — `apps/tekton/manifests/dashboard-service.yaml`) is reachable
+     over the derio tailnet, not public — which is where debugging happens.
+     Without Tailscale, see "Reproduce locally" below.
 2. In the run graph, find the red node:
    - **`pull-and-push`** red → infra (GitHub fetch / Gitea push / SSH), not your
      code. Check the step log; usually a token/SSH or Gitea-membership issue.
@@ -55,7 +55,7 @@ Any time `tekton/ci` is red (or stuck) on a hum PR.
        slow one).
 3. The step log is the same output `npm run <gate>` prints locally.
 
-## Reproduce locally (off-LAN, or to fix)
+## Reproduce locally (no Tailscale, or to fix)
 
 CI runs exactly this, so it reproduces 1:1:
 
@@ -69,7 +69,7 @@ npm run lint
 ## What's wired up
 
 - **Pipeline:** `apps/tekton/pipelines/hum-ci.yaml`
-  - `params.dashboard-base-url` (default `http://192.168.55.217:9097`) — base
+  - `params.dashboard-base-url` (default `https://tekton.cluster.derio.net`) — base
     for the `target_url` deep-link; override per-run if the dashboard moves.
   - `check` task: `stepTemplate` carries the shared image/securityContext/env;
     steps `install/typecheck/lint/test` share the workspace PVC (one `npm ci`,
