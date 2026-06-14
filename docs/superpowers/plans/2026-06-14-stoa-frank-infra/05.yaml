@@ -36,10 +36,12 @@ tasks:
     text: |
       [manual] MO-5 — Live contract verification (the Phase-2 S2 checks):
       (a) in-cluster POST comfyui.comfyui.svc:8188/prompt with a stoa graph →
-      prompt_id + node_errors {}; GET /history/{id} → status.completed true with
-      outputs.<node>.gifs[]; GET /view → bytes.
-      (b) `agent-session send` for session stoa-script-claude → {status:ok,
-      turn:N, payload:{…}}; a second send → turn:N+1; `tmux attach` works.
+      prompt_id + node_errors {}; GET /history/{prompt_id} → body keyed by
+      prompt_id, body[prompt_id].status.completed true with outputs.<node>.gifs[];
+      GET /view → bytes.
+      (b) POST http://localhost:8765/session/send (n8n AGENT_SIDECAR_URL) →
+      {status:ok, turn:N, payload:{…}}; a second send → turn:N+1; `tmux attach`
+      to the session works.
   - id: P5.T1.S6
     text: |
       [manual] MO-6 — Second-repo writeback (agentic-stoa/content-factory,
@@ -47,14 +49,6 @@ tasks:
       Frank-request runbook; tick the Phase-2 steps in the content-factory pipeline
       plan; close content-factory#55. Technical only — no business context leaves
       into frank.
-  - id: P5.T1.S7
-    text: |
-      [manual] MO-7 — n8n→sidecar transport keypair (prerequisite for MO-5b).
-      Create the SOPS-managed Secret `n8n-01-agent-ssh` (ssh keypair); mount the
-      public key into the sidecar's /etc/ssh-keys/authorized_keys and the private
-      key into the n8n container; verify n8n can `ssh agent@127.0.0.1 'bash -lc
-      "/opt/stoa-bin/agent-session send …"'`. See the agent-session.README in the
-      driver ConfigMap.
 state:
   steps:
     P5.T1.S1:
@@ -78,10 +72,6 @@ state:
       ticked_at: null
       note: null
     P5.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
-    P5.T1.S7:
       state: ' '
       ticked_at: null
       note: null

@@ -1,7 +1,10 @@
 # agent-session driver — n8n's pod-local interface to the persistent claude
-# session. Mounted into the multi-agent-shell sidecar at /opt/stoa-bin; n8n
-# invokes it by absolute path over the sidecar's localhost sshd (see
-# agent-session.README in this ConfigMap).
+# session. Mounted into the multi-agent-shell sidecar at /opt/stoa-bin.
+#
+# Two entry points, ONE send() core:
+#   * `agent-session serve` — a tiny HTTP server on 127.0.0.1 serving
+#     POST /session/send (what content-factory's n8n httpRequest node calls).
+#   * `agent-session send '<json>'` — the same logic as a CLI (debug/manual).
 #
 # It drives the RUNNING interactive session (never `claude -p`): send a message,
 # wait for a NEW fenced-JSON reply (not a prior turn's), emit the
@@ -21,12 +24,15 @@ data:
 
     Never `claude -p`: feed a message to the long-lived interactive session and
     read the reply, emitting {session_id, agent, status, turn, payload} with a
-    per-session turn counter (evidence of continuity). n8n calls this over the
-    sidecar's local sshd in a LOGIN shell (so PATH/mise are set).
+    per-session turn counter (evidence of continuity).
 
-    Stale-reply safety: the session pane already holds PRIOR turns' fenced-JSON
-    replies, so we baseline the count of complete ```json blocks BEFORE sending
-    and only accept a reply once a NEW block appears — then take the newest one.
+    `serve` runs the HTTP endpoint n8n calls (POST /session/send); `send` is the
+    same core as a CLI. The session is auto-created for whatever session_id
+    arrives, so the driver is agnostic to the caller's chosen name.
+
+    Stale-reply safety: the pane already holds PRIOR turns' fenced-JSON replies,
+    so we baseline the count of complete ```json blocks BEFORE sending and only
+    accept a reply once a NEW block appears — then take the newest one.
     """
     import fcntl
     import json
@@ -40,9 +46,10 @@ data:
         "STOA_TURN_DIR", os.path.join(os.path.expanduser("~"), ".stoa")
     )
     POLL_S = float(os.environ.get("STOA_POLL_S", "2"))
-    # How much scrollback to scan — bounded so a long session stays cheap, but
-    # deep enough that a multi-clip shot-list's closing fence isn't missed.
+    # Bounded scrollback: deep enough for a multi-clip shot-list's closing fence,
+    # cheap enough on a long session.
     SCROLLBACK = os.environ.get("STOA_SCROLLBACK", "-2000")
+    PORT = int(os.environ.get("STOA_SESSION_PORT", "8765"))
 
     JSON_BLOCK = re.compile(r"```json\s*(.*?)```", re.DOTALL)
 
@@ -51,8 +58,15 @@ data:
         return subprocess.run(["tmux", *args], capture_output=True, text=True)
 
 
+    def ensure_session(session_id):
+        # Auto-create the session (interactive claude, never -p) if absent, so
+        # the caller's session_id drives whatever it names. Unauthenticated until
+        # the operator runs `claude login` (MO-4).
+        if tmux("has-session", "-t", session_id).returncode != 0:
+            tmux("new-session", "-d", "-s", session_id, "claude")
+
+
     def capture(session):
-        # Include scrollback (-S): a long reply can scroll past the viewport.
         r = tmux("capture-pane", "-p", "-S", SCROLLBACK, "-t", session)
         return r.stdout if r.returncode == 0 else ""
 
@@ -101,8 +115,7 @@ data:
         message = req["message"]
         timeout_s = float(req.get("timeout_s", 300))
 
-        if tmux("has-session", "-t", session_id).returncode != 0:
-            return response(session_id, agent, "no_session", read_turn(session_id), None)
+        ensure_session(session_id)
 
         # Baseline BEFORE sending so we can tell this turn's reply from prior ones.
         baseline = len(json_blocks(capture(session_id)))
@@ -112,7 +125,6 @@ data:
         while time.monotonic() < deadline:
             blocks = json_blocks(capture(session_id))
             if len(blocks) > baseline:
-                # A NEW complete block exists — the newest is this turn's reply.
                 try:
                     payload = json.loads(blocks[-1].strip())
                 except json.JSONDecodeError:
@@ -125,35 +137,74 @@ data:
         return response(session_id, agent, "timeout", read_turn(session_id), None)
 
 
+    def serve():
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+
+        class Handler(BaseHTTPRequestHandler):
+            def _json(self, code, obj):
+                body = json.dumps(obj).encode()
+                self.send_response(code)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def do_GET(self):
+                if self.path == "/healthz":
+                    self._json(200, {"status": "ok"})
+                else:
+                    self._json(404, {"status": "error", "error": "not found"})
+
+            def do_POST(self):
+                if self.path != "/session/send":
+                    self._json(404, {"status": "error", "error": "not found"})
+                    return
+                n = int(self.headers.get("Content-Length", "0") or 0)
+                try:
+                    req = json.loads(self.rfile.read(n) or b"{}")
+                except json.JSONDecodeError:
+                    self._json(400, {"status": "error", "error": "bad json"})
+                    return
+                self._json(200, send(req))
+
+            def log_message(self, *a):  # quiet
+                pass
+
+        # Pod-local only: n8n is in the same pod (shared netns) — bind loopback,
+        # never the wildcard address.
+        HTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+
+
     def main(argv):
         cmd = argv[1] if len(argv) > 1 else ""
-        if cmd != "send":
-            print(json.dumps({"status": "error", "error": "usage: agent-session send '<json>'"}))
-            return 2
-        raw = argv[2] if len(argv) > 2 else sys.stdin.read()
-        print(json.dumps(send(json.loads(raw))))
-        return 0
+        if cmd == "serve":
+            serve()
+            return 0
+        if cmd == "send":
+            raw = argv[2] if len(argv) > 2 else sys.stdin.read()
+            print(json.dumps(send(json.loads(raw))))
+            return 0
+        print(json.dumps({"status": "error", "error": "usage: agent-session serve|send"}))
+        return 2
 
 
     if __name__ == "__main__":
         sys.exit(main(sys.argv))
   agent-session.README: |
-    Pod-local transport (Option 1 — script over exec, NO long-running server).
+    Pod-local transport (HTTP — matches content-factory's n8n httpRequest node).
 
-    n8n and this sidecar share the pod's network namespace (n8n binds 5678, the
-    sidecar's sshd binds 22), so n8n drives the session by invoking the script
-    over the sidecar's OWN sshd on localhost, via n8n's SSH node:
+    n8n and this sidecar share the pod's network namespace, so the sidecar runs a
+    tiny HTTP server on 127.0.0.1:${STOA_SESSION_PORT:-8765} (started by the
+    session bootstrap in a tmux restart-loop). n8n's httpRequest node calls:
 
-      ssh -i <key> agent@127.0.0.1 \
-        'bash -lc "/opt/stoa-bin/agent-session send <json>"'
+      POST http://localhost:8765/session/send
+      body: {session_id, agent, message, expect?, timeout_s?}
+      -> {session_id, agent, status, turn, payload}
 
-    - A LOGIN shell (`bash -lc`) is REQUIRED so PATH/mise (python3) are set — a
-      bare `ssh host -- cmd` skips profile.d (agent-shells gotcha).
-    - The keypair is a SOPS-managed bootstrap Secret `n8n-01-agent-ssh`: public
-      key -> the sidecar's /etc/ssh-keys/authorized_keys, private key -> the n8n
-      container. Secrets are NOT ArgoCD-managed, so this is a manual op (MO-7).
+    Set the workflow's AGENT_SIDECAR_URL=http://localhost:8765. There is no
+    Service and no SSH keypair — localhost-only, in-pod. `GET /healthz` returns
+    200. The session named by session_id is auto-created on first send (so the
+    caller's chosen name just works); the operator attaches with
+    `tmux attach -t <session_id>` (or the pre-warmed default session).
 
-    Fallback (only if localhost-sshd proves unworkable): a shared-volume
-    file-drop — n8n writes the request JSON to a shared emptyDir; a small
-    supercronic job in the sidecar runs `agent-session send` and writes the
-    response file. Heavier; still Option-1-shaped (no network server).
+    `agent-session send '<json>'` is the same logic as a CLI for debug/manual use.

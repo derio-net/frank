@@ -63,9 +63,9 @@ this repo.
   P3–P7 in `content-factory`, built against the fixtures, not here.
 - **Quality calibration** of the models (does LTX-2 look good, is the audio acceptable) —
   measured at the content-factory manual gates (G2/G3/G5), not asserted here.
-- A standalone **agent-session HTTP server** image in `agent-images` (the rejected Option 2).
-  The driver is a thin frank-side script over the established `tmux send-keys`/`capture-pane`
-  pattern.
+- A separate **agent-session image/build in `agent-images`**. The HTTP `/session/send` server
+  is a thin **frank-side ConfigMap script** over the established `tmux send-keys`/`capture-pane`
+  pattern — no new upstream image.
 - Deploying / depending on **`runs-fr`** (Component C is a walking skeleton, not yet deployed
   — runs-fr#9). It is the *future* browser-attach path; operator-attach here is SSH/`kubectl
   exec` + `tmux attach`.
@@ -179,21 +179,28 @@ implementing the `agent_session.*` contract:
 - **send**: input `{session_id, agent, message, expect?, timeout_s?}` → selects the tmux
   session, `tmux send-keys` the message, waits (bounded by `timeout_s`) for the reply marker.
 - **receive**: `tmux capture-pane` the reply, extract the structured `payload` (the shot-list
-  JSON the agent emits), increment a **persisted per-session turn counter** (`$HOME/.stoa/
-  <session_id>.turn`), emit `{session_id, agent, status:"ok", turn, payload}`.
+  JSON the agent emits), increment a **persisted, locked, atomic per-session turn counter**
+  (`$HOME/.stoa/<session_id>.turn`), emit `{session_id, agent, status:"ok", turn, payload}`.
+- **Stale-reply safety:** the pane already holds prior turns' fenced-JSON, so the driver
+  baselines the `json`-block count **before** sending and only accepts a **new** block.
+- **Auto-create:** the session named by `session_id` is created on first send if absent, so the
+  driver is agnostic to the caller's chosen name (content-factory sends its own `session_id`;
+  Frank never hard-codes it).
 - The driver matches `agent_session_send_request.json` / `agent_session_receive_response.json`
   exactly. The `turn` increment across calls is the evidence-of-persistence the contract wants
   (a fresh `claude -p` could never advance it).
 
-**2d. Pod-local interface n8n reaches (your choice: Option 1 — script over exec, no HTTP
-server).** n8n and the sidecar share the pod (and its network namespace). n8n drives the driver
-over the sidecar's **own `sshd` on `localhost:22`** using the **n8n SSH node**: n8n SSHes to
-`localhost` (the sidecar, since n8n's container binds 5678 not 22) and runs
-`agent-session send …`, receiving the JSON on stdout. Auth via a key on the agent PVC. This
-keeps the interface a **script invocation** (Option 1), not a long-running HTTP service.
+**2d. Pod-local interface n8n reaches — HTTP (`POST /session/send`).** content-factory's merged
+n8n workflow drives the session with an **httpRequest node** → `POST {AGENT_SIDECAR_URL}/session/send`,
+so Frank exposes exactly that: `agent-session serve` runs a tiny HTTP server bound to
+**`127.0.0.1:${STOA_SESSION_PORT:-8765}`** (started by the bootstrap in a tmux restart-loop),
+serving `POST /session/send` (same `send()` core as the CLI) + `GET /healthz`. n8n and the
+sidecar share the pod's network namespace, so `AGENT_SIDECAR_URL=http://localhost:8765` reaches
+it directly — **no Service, no SSH keypair** (this supersedes the earlier script-over-SSH
+option once the other half committed to HTTP).
 - *Constraint:* `shareProcessNamespace` is **incompatible with the image's s6-overlay v3**
-  (PID-1 must be `suexec`) — so cross-container drive uses the shared **network** namespace
-  (localhost sshd) or a shared workspace volume, **never** `shareProcessNamespace`.
+  (PID-1 must be `suexec`) — the HTTP server reaches the tmux session within the **same
+  container**, so no cross-container namespace sharing is needed.
 
 **2e. Operator-attach.** `kubectl exec -it -c multi-agent-shell n8n-01-… -- tmux attach -t
 stoa-script-claude`, or `ssh` into the sidecar (image is SSH-able) + `tmux attach`. The
@@ -208,12 +215,12 @@ credential on `n8n-01-agent-home`; survives restarts. `# manual-operation`.
 
 The live infra is conformant when, run from inside the cluster:
 1. `POST comfyui.comfyui.svc:8188/prompt` with a stoa graph returns `prompt_id` +
-   `node_errors: {}`; `GET /history/{id}` reaches `status.completed: true` with an
-   `outputs.<node>.gifs[]` descriptor; `GET /view?…` returns the clip bytes. (Models LTX-2 /
-   Wan 2.2 / LTX-Video / Kokoro / Fish present; target list visible.)
-2. `agent-session send {session_id:"stoa-script-claude", agent:"claude", message:"…",
+   `node_errors: {}`; `GET /history/{prompt_id}` returns a body **keyed by `prompt_id`** with
+   `body[prompt_id].status.completed: true` and an `outputs.<node>.gifs[]` descriptor; `GET
+   /view?…` returns the clip bytes. (Models LTX-2 / Wan 2.2 / LTX-Video / Kokoro / Fish present.)
+2. `POST http://localhost:8765/session/send {session_id, agent:"claude", message:"…",
    expect:"shotlist"}` returns `{status:"ok", turn:N, payload:{…}}`; a **second** call returns
-   `turn:N+1` (persistence proof); the operator can `tmux attach` to the same session.
+   `turn:N+1` (persistence proof); the operator can `tmux attach` to the session.
 
 These are the content-factory Phase-2 S2 checks; their results + the live endpoints/route get
 recorded back in the **Frank-request runbook** in content-factory (private), and #55 closed.
@@ -230,13 +237,14 @@ the live box and push to the same PR / drive post-merge:
 - **MO-3 Authentik outpost assignment** — add the ComfyUI proxy provider to the embedded
   outpost (Django ORM).
 - **MO-4 claude OAuth login** — `claude login` in the sidecar; credential on the PVC.
-- **MO-5 Live contract verification** — run the two conformance checks above end-to-end.
+- **MO-5 Live contract verification** — run the two conformance checks above end-to-end (the
+  ComfyUI submit→poll→fetch keyed by `prompt_id`, and `POST /session/send` returning an advancing
+  `turn`). Set the n8n workflow's `AGENT_SIDECAR_URL=http://localhost:8765`.
 - **MO-6 content-factory writeback** — record endpoints/route + Frank PR URL in the
   Frank-request runbook (content-factory, private); mark Phase-2 steps; close content-factory#55.
-- **MO-7 n8n→sidecar transport keypair** — SOPS-managed `n8n-01-agent-ssh` Secret (public key
-  → sidecar `authorized_keys`, private key → n8n container) so n8n's SSH node can reach the
-  driver on localhost. Prerequisite for MO-5b. Secrets aren't ArgoCD-managed (declarative-only
-  exception), hence manual.
+
+The HTTP transport is pod-local (n8n → `localhost:8765`), so **no SSH keypair / Secret is
+needed** — the earlier MO-7 was dropped when the transport moved to HTTP.
 
 ## Test plan (post-merge, operator-driven)
 

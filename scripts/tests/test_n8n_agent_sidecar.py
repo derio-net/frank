@@ -137,18 +137,34 @@ def test_driver_mounted_into_sidecar():
     assert cm_vols & mounts, "sidecar must mount the agent-session-driver ConfigMap"
 
 
-def test_transport_is_script_not_a_server():
-    # Option 1 (script over exec), NOT a long-running HTTP session server:
-    # the sidecar exposes no extra container port for this.
+def test_session_server_is_pod_local():
+    # The HTTP server binds 127.0.0.1 (n8n is in the same pod) — never 0.0.0.0,
+    # and no Service/containerPort exposes it beyond the pod.
+    driver = _driver_cm()["data"]["agent-session"]
+    assert '"127.0.0.1"' in driver, "session HTTP server must bind 127.0.0.1 (pod-local)"
+    assert "0.0.0.0" not in driver, "session HTTP server must not bind 0.0.0.0"
     c, _ = _sidecar()
-    assert not c.get("ports"), "sidecar must not expose a session-server port (Option 1)"
+    assert not c.get("ports"), "no containerPort — the server is localhost-only, not a Service"
 
 
-def test_transport_documented():
-    data = _driver_cm()["data"]
-    doc = "\n".join(data.values())
-    # The pod-local transport (n8n SSH node -> localhost sshd -> login shell)
-    # and a fallback must be documented somewhere in the driver ConfigMap.
-    assert "ssh" in doc.lower(), "must document the localhost-sshd transport"
-    assert "agent-session send" in doc, "must document the driver invocation"
-    assert "bash -lc" in doc, "must document the LOGIN-shell call (PATH/mise)"
+def test_transport_documented_as_http():
+    doc = "\n".join(_driver_cm()["data"].values())
+    # content-factory's n8n httpRequest node posts to /session/send on localhost.
+    assert "/session/send" in doc, "must document the POST /session/send endpoint"
+    assert "127.0.0.1" in doc or "localhost" in doc, "must document the pod-local host"
+    assert "AGENT_SIDECAR_URL" in doc, "must document the n8n env var it satisfies"
+
+
+def test_bootstrap_starts_http_server():
+    script = "\n".join(_bootstrap_cm()["data"].values())
+    assert "agent-session serve" in script, "bootstrap must start the HTTP session server"
+
+
+def test_n8n_container_points_at_sidecar_url():
+    # The n8n container must expose AGENT_SIDECAR_URL so the workflow's
+    # httpRequest node resolves it to the sidecar's pod-local endpoint.
+    pod = _deploy()["spec"]["template"]["spec"]
+    n8n = next(c for c in pod["containers"] if c["name"] == "n8n")
+    env = {e["name"]: e.get("value") for e in n8n.get("env", [])}
+    assert "AGENT_SIDECAR_URL" in env, "n8n must set AGENT_SIDECAR_URL"
+    assert "localhost" in env["AGENT_SIDECAR_URL"] or "127.0.0.1" in env["AGENT_SIDECAR_URL"]

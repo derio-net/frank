@@ -75,6 +75,11 @@ spec:
               value: "https://n8n-01.frank.derio.net/"
             - name: N8N_SECURE_COOKIE
               value: "false"
+            # The stoa workflow's httpRequest node posts to
+            # $AGENT_SIDECAR_URL/session/send — the multi-agent-shell sidecar's
+            # HTTP server on pod-localhost (same pod, shared netns).
+            - name: AGENT_SIDECAR_URL
+              value: "http://localhost:8765"
           resources:
             requests:
               cpu: 500m

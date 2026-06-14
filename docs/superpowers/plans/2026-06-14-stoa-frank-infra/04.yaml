@@ -43,24 +43,24 @@ tasks:
       turn counter, jq/python to extract the fenced JSON payload). Re-run pytest
       → green. Refactor for clarity; still green.
 - number: 2
-  title: Wire the driver into the sidecar + n8n pod-local transport
+  title: Wire the driver into the sidecar + n8n pod-local HTTP transport
   steps:
   - id: P4.T2.S1
     text: |
       Extend test_agent_session_driver.py / test_n8n_agent_sidecar.py (red):
-      assert the driver is mounted into the sidecar (ConfigMap files entry +
-      volumeMount, on PATH), and that the n8n→driver transport is wired pod-local
-      WITHOUT a long-running server: the sidecar's sshd reachable on localhost
-      (shared netns) with an authorized key sourced from the agent-home PVC / a
-      Secret, documented for n8n's SSH node to run `agent-session send`. Assert no
-      new Service/port is exposed for this (local only). Run pytest → red.
+      assert the driver is mounted into the sidecar (ConfigMap volumeMount at
+      /opt/stoa-bin), and that the n8n→driver transport is a pod-local HTTP server
+      matching content-factory's n8n httpRequest node: `agent-session serve` binds
+      127.0.0.1 (never the wildcard) and answers POST /session/send (+ /healthz);
+      the bootstrap starts it; no Service/containerPort (localhost only); the
+      README documents AGENT_SIDECAR_URL=http://localhost:8765. Run pytest → red.
+      [Deviation: supersedes the original script-over-SSH transport — the other
+      half (content-factory PR #67) committed to HTTP POST /session/send.]
   - id: P4.T2.S2
     text: |
-      Add the ConfigMap files entry + volumeMount for the driver, and the
-      localhost-sshd transport wiring (authorized-key wiring; a short
-      `apps/n8n-01/manifests/files/agent-session.README` documenting the exact
-      n8n SSH-node call, with a shared-volume file-drop noted as the fallback).
-      Re-run pytest → green. Commit:
+      Add the driver ConfigMap volumeMount + the `serve` HTTP entry point (reuses
+      send()), start it from the bootstrap (tmux restart-loop), and document the
+      HTTP transport in the driver ConfigMap README. Re-run pytest → green. Commit:
       `feat(n8n): agent-session send/receive driver + pod-local transport (TDD)`.
 state:
   steps:

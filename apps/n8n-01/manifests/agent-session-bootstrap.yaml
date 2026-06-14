@@ -31,21 +31,26 @@ metadata:
 data:
   session-bootstrap.sh: |
     #!/usr/bin/env bash
-    # Ensure the persistent stoa script-gen session exists. Always exit 0 so a
-    # postStart hiccup never blocks the pod. Retries because postStart has no
-    # ordering guarantee with the container ENTRYPOINT (tmux may not be ready).
+    # Start the agent-session HTTP server + pre-warm the script-gen session.
+    # Always exit 0 so a postStart hiccup never blocks the pod. Retries because
+    # postStart has no ordering guarantee with the container ENTRYPOINT.
     set -u
     SESSION="${STOA_SESSION_NAME:-stoa-script-claude}"
+    SERVER="stoa-session-server"
+    # The HTTP server n8n calls (POST 127.0.0.1/session/send), supervised by a
+    # restart-loop in its own tmux session. bash -lc so python3/mise are on PATH.
+    if ! tmux has-session -t "$SERVER" 2>/dev/null; then
+      tmux new-session -d -s "$SERVER" \
+        "bash -lc 'while true; do python3 /opt/stoa-bin/agent-session serve; sleep 2; done'" || true
+    fi
+    # Pre-warm an attachable default claude session. Interactive claude — never
+    # `claude -p`. n8n's session_id is auto-created on first send, so this is
+    # convenience (a known attach target) rather than load-bearing.
     for _ in $(seq 1 10); do
       if tmux has-session -t "$SESSION" 2>/dev/null; then
-        exit 0
+        break
       fi
-      # Interactive claude — continuity lives in-session, never `claude -p`.
-      # Unauthenticated on first boot: the session shows the login prompt until
-      # the operator attaches and runs `claude login` (MO-4).
-      if tmux new-session -d -s "$SESSION" "claude" 2>/dev/null; then
-        exit 0
-      fi
+      tmux new-session -d -s "$SESSION" "bash -lc claude" 2>/dev/null && break
       sleep 2
     done
     exit 0
