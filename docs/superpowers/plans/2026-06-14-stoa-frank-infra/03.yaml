@@ -1,0 +1,68 @@
+schema_version: 2
+phase:
+  number: 3
+  title: n8n-01 multi-agent-shell sidecar + persistent claude tmux session (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Sidecar container + agent-home PVC, test-first
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Write scripts/tests/test_n8n_agent_sidecar.py FIRST (red), pyyaml. Assert
+      apps/n8n-01/manifests/deployment.yaml:
+      - has a second container named `multi-agent-shell`, image
+        `ghcr.io/derio-net/multi-agent-shell:<sha-or-pin>` (NOT :latest).
+      - that container has NO ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY
+        in env (subscription OAuth per the multi-harness standard), sets an
+        explicit HOME, and mounts a volume `agent-home` at that HOME.
+      - the pod does NOT set shareProcessNamespace: true (s6 incompatibility).
+      - a PVC manifest apps/n8n-01/manifests/pvc-agent-home.yaml exists (longhorn,
+        RWO).
+      Run pytest → red.
+  - id: P3.T1.S2
+    text: |
+      Add the sidecar container + agent-home volume to the n8n-01 Deployment and
+      write apps/n8n-01/manifests/pvc-agent-home.yaml. Bound the sidecar's
+      resources (requests/limits) so it can't starve n8n; keep strategy Recreate.
+      Re-run → green.
+- number: 2
+  title: Persistent session bootstrap (interactive claude in tmux, never -p)
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Extend test_n8n_agent_sidecar.py (red): assert a ConfigMap manifest
+      apps/n8n-01/manifests/agent-session-bootstrap.yaml mounts a script that
+      ensures a tmux session named `stoa-script-claude` running INTERACTIVE
+      `claude` (assert the script starts `claude` with NO `-p`/`--print`, and
+      creates/guards the named tmux session idempotently). Assert the sidecar
+      container references the ConfigMap + runs the bootstrap. Run pytest → red.
+  - id: P3.T2.S2
+    text: |
+      Write the bootstrap ConfigMap + wire it (volume + mount + an init/command
+      that runs it under the image's shell). Re-run → green. Commit:
+      `feat(n8n): multi-agent-shell sidecar + persistent claude tmux session (TDD)`.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-06-14T20:17:51+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-06-14T20:17:53+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-06-14T20:17:55+00:00'
+      note: null
+    P3.T2.S2:
+      state: x
+      ticked_at: '2026-06-14T20:20:01+00:00'
+      note: null
+  completion:
+    at: '2026-06-14T20:20:06+00:00'
+    note: null
+    observed_prs: []
