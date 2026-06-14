@@ -13,6 +13,25 @@
 #     Gitea hold byte-identical commits for the same content).
 #   - github-status is mandatory (failure of the post fails the run);
 #     gitea-status is best-effort (failure-tolerant).
+#
+# Correctness (2026-06-14): pull-and-push now `git checkout --detach`es the
+# PR sha after cloning. Previously the clone left the working tree on the
+# default branch (main) and only the gitea PUSH used the sha — so the gates
+# ran against main, never the PR's own changes. Every PR check reflected
+# main's state. The checkout realigns the tested tree with the sha.
+#
+# Observability (2026-06-14, hum-ci-observability):
+#   The status the contributor sees on the PR was a bare `tekton/ci` =
+#   success/failure with NO link — a red check gave zero path to the logs,
+#   forcing a local `npm run check` repro to find which gate failed. Two fixes:
+#     1. target-url: every status now deep-links to the PipelineRun page on the
+#        Tekton dashboard (see dashboard-base-url param), so a red check is one
+#        click from the step logs. (LAN-only URL — reachable on the homelab
+#        net/mesh, which is where the operator debugs from.)
+#     2. The monolithic `npm run check` step is split into named steps
+#        (install / typecheck / lint / test) so the dashboard shows WHICH gate
+#        failed at a glance, before opening any log.
+#   See docs/runbooks/ci-observability.md.
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -32,6 +51,10 @@ spec:
     - name: ref-to
       type: string
       description: "Destination ref on Gitea (e.g. refs/heads/sync-pr-12 for PR-time runs)"
+    - name: dashboard-base-url
+      type: string
+      default: "http://192.168.55.217:9097"
+      description: "Tekton dashboard base URL (LAN). CI statuses deep-link to the PipelineRun page here so a red check links straight to the step logs."
   workspaces:
     - name: shared-workspace
     - name: ssh-creds
@@ -79,9 +102,16 @@ spec:
               git config --global --add safe.directory '*'
 
               cd "$(workspaces.source.path)"
-              # Clone into ./repo — the test task uses this same subdir.
+              # Clone into ./repo — the check task uses this same subdir.
               git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/$(params.github-repo).git" repo
               cd repo
+
+              # Test the PR commit, not the default branch. `git clone` lands on
+              # the default-branch HEAD; without this checkout the gates ran
+              # against main and a PR's OWN changes were never exercised (the
+              # check would pass/fail purely on main's state). `clone` fetches
+              # all branch refs, so the PR head sha is already local.
+              git checkout --detach "$(params.sha)"
 
               REPO_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $NF}')"
               ORG_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $1}')"
@@ -97,7 +127,7 @@ spec:
         - {name: gitea-repo,  value: "$(params.gitea-repo)"}
         - {name: sha,         value: "$(params.sha)"}
         - {name: ref-to,      value: "$(params.ref-to)"}
-    - name: test
+    - name: check
       runAfter: [pull-and-push]
       workspaces:
         - name: source
@@ -105,42 +135,64 @@ spec:
       taskSpec:
         workspaces:
           - name: source
+        # The monorepo `check` gate (typecheck && lint && test) is split into
+        # named steps so a red run names the FAILING gate at a glance in the
+        # dashboard, instead of one opaque `npm run check` you must open and
+        # read. Steps share the workspace, so the single `npm ci` in `install`
+        # persists node_modules to the gate steps. stepTemplate carries the
+        # common image/securityContext/env so each step stays a one-liner.
+        #
+        # npm-workspace monorepo: ONE root install (the previous per-directory
+        # `npm ci` shape built nested node_modules and could not resolve
+        # workspace deps like @hum/shared — the @hum/mobile workspace, added
+        # 2026-06-11, surfaces that immediately). The gates fan out via
+        # `--workspaces --if-present`, the guard against empty script entries.
+        stepTemplate:
+          image: node:22-alpine
+          workingDir: $(workspaces.source.path)/repo
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            # Match pull-and-push (UID 65534) to avoid cross-UID handoff on the
+            # shared RWO PVC. fsGroup (TriggerTemplate PodTemplate) also = 65534,
+            # so writes by either task are group-readable.
+            runAsUser: 65534
+            capabilities: {drop: ["ALL"]}
+            seccompProfile: {type: RuntimeDefault}
+          env:
+            - {name: HOME, value: /tekton/home}
+            - {name: npm_config_cache, value: /tekton/home/.npm}
         steps:
-          - name: npm-test
-            image: node:22-alpine
-            workingDir: $(workspaces.source.path)/repo
-            securityContext:
-              allowPrivilegeEscalation: false
-              runAsNonRoot: true
-              # Match pull-and-push (UID 65534) to avoid cross-UID handoff on
-              # the shared RWO PVC. fsGroup (set on the TriggerTemplate's
-              # PodTemplate) also = 65534, so writes by either step are
-              # group-readable.
-              runAsUser: 65534
-              capabilities: {drop: ["ALL"]}
-              seccompProfile: {type: RuntimeDefault}
-            env:
-              - {name: HOME, value: /tekton/home}
-              - {name: npm_config_cache, value: /tekton/home/.npm}
+          - name: install
+            computeResources:
+              requests: {cpu: "1", memory: 1Gi}
+              limits:   {memory: 2Gi}
+            script: |
+              #!/bin/sh
+              set -eu
+              npm ci
+          - name: typecheck
+            script: |
+              #!/bin/sh
+              set -eu
+              npm run typecheck
+          - name: lint
+            script: |
+              #!/bin/sh
+              set -eu
+              npm run lint
+          - name: test
             computeResources:
               # The @hum/mobile workspace runs an RN/jest-expo suite: heavier
               # transforms than the node workspaces (jest maxWorkers is capped
-              # at 2 in-repo for exactly this footprint).
+              # at 2 in-repo for exactly this footprint). Pod requests/limits
+              # are the max across steps, so this sets the task's footprint.
               requests: {cpu: "1", memory: 2Gi}
               limits:   {memory: 4Gi}
             script: |
               #!/bin/sh
-              # npm-workspace monorepo: ONE root install, then the repo's own
-              # `check` gate (typecheck && lint && test fanned out via
-              # `--workspaces --if-present`). The previous per-directory
-              # `npm ci` shape built nested node_modules inside each
-              # workspace and could not resolve workspace deps like
-              # @hum/shared — the @hum/mobile workspace (added 2026-06-11)
-              # surfaces that immediately. `--if-present` remains the guard
-              # against empty script entries (2026-05-13 rework smoke).
               set -eu
-              npm ci
-              npm run check
+              npm run test
   finally:
     # github-status — MANDATORY post (fails the run if the API call fails).
     - name: github-status-success
@@ -155,6 +207,7 @@ spec:
         - {name: state,          value: "success"}
         - {name: description,    value: "All checks passed"}
         - {name: context,        value: "tekton/ci"}
+        - {name: target-url,     value: "$(params.dashboard-base-url)/#/namespaces/tekton-pipelines/pipelineruns/$(context.pipelineRun.name)"}
     - name: github-status-failure
       when:
         - input: $(tasks.status)
@@ -165,8 +218,9 @@ spec:
         - {name: repo-full-name, value: $(params.github-repo)}
         - {name: revision,       value: $(params.sha)}
         - {name: state,          value: "failure"}
-        - {name: description,    value: "CI failed"}
+        - {name: description,    value: "CI failed — click Details for the failing gate"}
         - {name: context,        value: "tekton/ci"}
+        - {name: target-url,     value: "$(params.dashboard-base-url)/#/namespaces/tekton-pipelines/pipelineruns/$(context.pipelineRun.name)"}
     # gitea-status — best-effort secondary. `onError: continue` means a
     # failure here (e.g. tekton-bot not yet member of agentic-stoa Gitea
     # org, or Gitea API transient-down) does NOT fail the overall pipeline.
