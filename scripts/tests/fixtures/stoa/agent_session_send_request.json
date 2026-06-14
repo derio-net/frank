@@ -1,0 +1,7 @@
+{
+  "session_id": "stoa-script-claude",
+  "agent": "claude",
+  "message": "Write the next episode from the series bible and current series-state, then decompose it into a clip-granular shot-list conforming to shotlist.schema.json v1.0.",
+  "expect": "shotlist",
+  "timeout_s": 300
+}

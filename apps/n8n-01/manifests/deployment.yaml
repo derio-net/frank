@@ -106,7 +106,49 @@ spec:
             periodSeconds: 5
             timeoutSeconds: 3
             failureThreshold: 3
+        # multi-agent-shell sidecar — hosts the persistent, operator-attachable
+        # `claude` session that n8n drives (never `claude -p`). Subscription
+        # OAuth only: NO API keys here; the credential lands on the agent-home
+        # PVC at first `claude login` (MO-4). s6-overlay v3 runs sshd + tmux.
+        - name: multi-agent-shell
+          image: ghcr.io/derio-net/multi-agent-shell:9635df9a0984b5bc1155a043d3a872bb3403524a
+          env:
+            - name: HOME
+              value: /home/agent
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              cpu: 1000m
+              memory: 4Gi
+          volumeMounts:
+            - name: agent-home
+              mountPath: /home/agent
+            - name: agent-session-bootstrap
+              mountPath: /opt/stoa-bootstrap
+            - name: agent-session-driver
+              mountPath: /opt/stoa-bin
+          # Ensure the persistent stoa script-gen tmux session on (re)start.
+          lifecycle:
+            postStart:
+              exec:
+                command:
+                  - /bin/sh
+                  - -c
+                  - /opt/stoa-bootstrap/session-bootstrap.sh
       volumes:
         - name: data
           persistentVolumeClaim:
             claimName: n8n-01-data
+        - name: agent-home
+          persistentVolumeClaim:
+            claimName: n8n-01-agent-home
+        - name: agent-session-bootstrap
+          configMap:
+            name: agent-session-bootstrap
+            defaultMode: 0755
+        - name: agent-session-driver
+          configMap:
+            name: agent-session-driver
+            defaultMode: 0755
