@@ -6,9 +6,13 @@
 #     POST /session/send (what content-factory's n8n httpRequest node calls).
 #   * `agent-session send '<json>'` — the same logic as a CLI (debug/manual).
 #
-# It drives the RUNNING interactive session (never `claude -p`): send a message,
-# wait for a NEW fenced-JSON reply (not a prior turn's), emit the
-# agent_session.receive.response shape with a per-session turn counter.
+# It drives the RUNNING interactive claude session (never `claude -p`):
+#   submit via BRACKETED PASTE (load-buffer + paste-buffer -p + a SEPARATE Enter
+#   — a one-shot `send-keys <text> Enter` has its Enter swallowed, and bracketed
+#   paste is multi-line safe), and read the reply from a FILE the agent writes
+#   (claude's TUI doesn't emit literal ```json fences and soft-wraps long output,
+#   so pane-scraping the payload is unreliable). A unique per-turn nonce path
+#   makes a prior turn's reply impossible to mistake for this one.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -22,58 +26,53 @@ data:
     #!/usr/bin/env python3
     """agent-session — drive the persistent claude tmux session (send/receive).
 
-    Never `claude -p`: feed a message to the long-lived interactive session and
-    read the reply, emitting {session_id, agent, status, turn, payload} with a
-    per-session turn counter (evidence of continuity).
-
-    `serve` runs the HTTP endpoint n8n calls (POST /session/send); `send` is the
-    same core as a CLI. The session is auto-created for whatever session_id
-    arrives, so the driver is agnostic to the caller's chosen name.
-
-    Stale-reply safety: the pane already holds PRIOR turns' fenced-JSON replies,
-    so we baseline the count of complete ```json blocks BEFORE sending and only
-    accept a reply once a NEW block appears — then take the newest one.
+    Never `claude -p`. Submit via bracketed paste; receive the structured payload
+    from a per-turn file the agent writes (the file appearing + parsing is the
+    completion signal). Emits {session_id, agent, status, turn, payload} with a
+    locked, atomic per-session turn counter (continuity evidence). `serve` runs
+    the HTTP endpoint n8n calls; `send` is the same core as a CLI.
     """
     import fcntl
     import json
     import os
-    import re
+    import secrets
     import subprocess
     import sys
     import time
 
-    TURN_DIR = os.environ.get(
-        "STOA_TURN_DIR", os.path.join(os.path.expanduser("~"), ".stoa")
-    )
+    HOME = os.path.expanduser("~")
+    TURN_DIR = os.environ.get("STOA_TURN_DIR", os.path.join(HOME, ".stoa"))
+    OUT_DIR = os.environ.get("STOA_OUT_DIR", os.path.join(HOME, ".stoa", "out"))
     POLL_S = float(os.environ.get("STOA_POLL_S", "2"))
-    # Bounded scrollback: deep enough for a multi-clip shot-list's closing fence,
-    # cheap enough on a long session.
-    SCROLLBACK = os.environ.get("STOA_SCROLLBACK", "-2000")
+    # Delay between pasting the message and pressing Enter — the TUI needs to
+    # render the paste before the submit, or the Enter is dropped.
+    SETTLE_S = float(os.environ.get("STOA_SETTLE_S", "0.5"))
     PORT = int(os.environ.get("STOA_SESSION_PORT", "8765"))
 
-    JSON_BLOCK = re.compile(r"```json\s*(.*?)```", re.DOTALL)
 
-
-    def tmux(*args):
-        return subprocess.run(["tmux", *args], capture_output=True, text=True)
+    def tmux(*args, stdin=None):
+        return subprocess.run(["tmux", *args], input=stdin, capture_output=True, text=True)
 
 
     def ensure_session(session_id):
         # Auto-create the session (interactive claude, never -p) if absent, so
         # the caller's session_id drives whatever it names. Unauthenticated until
-        # the operator runs `claude login` (MO-4). Concurrency-safe under threading:
-        # a racing duplicate `new-session` errors harmlessly (tmux refuses the dup).
+        # the operator runs `claude login` (MO-4). `--permission-mode auto` lets the
+        # session auto-approve safe operations (incl. writing its per-turn output
+        # file) without a prompt, short of a full permissions bypass. Concurrency-
+        # safe: a racing dup new-session errors harmlessly.
         if tmux("has-session", "-t", session_id).returncode != 0:
-            tmux("new-session", "-d", "-s", session_id, "claude")
+            tmux("new-session", "-d", "-s", session_id,
+                 "claude --permission-mode auto")
 
 
-    def capture(session):
-        r = tmux("capture-pane", "-p", "-S", SCROLLBACK, "-t", session)
-        return r.stdout if r.returncode == 0 else ""
-
-
-    def json_blocks(pane):
-        return JSON_BLOCK.findall(pane)
+    def submit(session_id, text):
+        # Bracketed paste so a multi-line message lands without premature submit,
+        # then a SEPARATE Enter after the paste renders.
+        tmux("load-buffer", "-b", "stoa-msg", "-", stdin=text)
+        tmux("paste-buffer", "-d", "-p", "-b", "stoa-msg", "-t", session_id)
+        time.sleep(SETTLE_S)
+        tmux("send-keys", "-t", session_id, "Enter")
 
 
     def read_turn(session_id):
@@ -86,8 +85,7 @@ data:
 
 
     def bump_turn(session_id):
-        # Atomic + locked: the turn counter is the contract's continuity
-        # evidence, so a concurrent/aborted write must not corrupt it.
+        # Atomic + locked: the turn counter is the contract's continuity evidence.
         os.makedirs(TURN_DIR, exist_ok=True)
         path = os.path.join(TURN_DIR, session_id + ".turn")
         with open(path + ".lock", "w") as lk:
@@ -101,13 +99,8 @@ data:
 
 
     def response(session_id, agent, status, turn, payload):
-        return {
-            "session_id": session_id,
-            "agent": agent,
-            "status": status,
-            "turn": turn,
-            "payload": payload,
-        }
+        return {"session_id": session_id, "agent": agent, "status": status,
+                "turn": turn, "payload": payload}
 
 
     def send(req):
@@ -118,20 +111,38 @@ data:
 
         ensure_session(session_id)
 
-        # Baseline BEFORE sending so we can tell this turn's reply from prior ones.
-        baseline = len(json_blocks(capture(session_id)))
-        tmux("send-keys", "-t", session_id, message, "Enter")
+        # Per-turn output file (unique nonce → no stale-reply ambiguity).
+        os.makedirs(OUT_DIR, exist_ok=True)
+        nonce = secrets.token_hex(4)
+        outfile = os.path.join(OUT_DIR, "{}.{}.json".format(session_id, nonce))
+        try:
+            os.remove(outfile)
+        except OSError:
+            pass
 
+        driven = (
+            message
+            + "\n\n[stoa] When done, write ONLY the JSON result to the file "
+            + outfile
+            + " — raw JSON, overwrite it, nothing else in that file."
+        )
+        submit(session_id, driven)
+
+        # The file appearing + parsing IS the completion signal (robust to TUI
+        # rendering / soft-wrapping). Tolerate a partial write by retrying.
         deadline = time.monotonic() + timeout_s
         while time.monotonic() < deadline:
-            blocks = json_blocks(capture(session_id))
-            if len(blocks) > baseline:
+            if os.path.exists(outfile):
                 try:
-                    payload = json.loads(blocks[-1].strip())
-                except json.JSONDecodeError:
-                    return response(
-                        session_id, agent, "bad_payload", read_turn(session_id), None
-                    )
+                    with open(outfile) as fh:
+                        payload = json.load(fh)
+                except (OSError, json.JSONDecodeError):
+                    time.sleep(POLL_S)
+                    continue
+                try:
+                    os.remove(outfile)
+                except OSError:
+                    pass
                 return response(session_id, agent, "ok", bump_turn(session_id), payload)
             time.sleep(POLL_S)
 
@@ -172,13 +183,13 @@ data:
                 pass
 
         # Pod-local only: n8n is in the same pod (shared netns) — bind loopback,
-        # never the wildcard address. Threaded so a long send() (up to timeout_s)
-        # never head-of-line-blocks /healthz or a concurrent request.
+        # never the wildcard address. Threaded so a long send() never head-of-line-
+        # blocks /healthz or a concurrent request.
         try:
             server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
         except OSError as exc:
-            # Surface bind failures (the bootstrap restart-loop silences handler
-            # logs, not stderr): inspect via `tmux capture-pane -t stoa-session-server`.
+            # Surface bind failures (handler logs are silenced, not stderr):
+            # inspect via `tmux capture-pane -t stoa-session-server`.
             print(f"agent-session serve: bind 127.0.0.1:{PORT} failed: {exc}", file=sys.stderr)
             raise
         server.daemon_threads = True
@@ -215,6 +226,10 @@ data:
     Service and no SSH keypair — localhost-only, in-pod. `GET /healthz` returns
     200. The session named by session_id is auto-created on first send (so the
     caller's chosen name just works); the operator attaches with
-    `tmux attach -t <session_id>` (or the pre-warmed default session).
+    `tmux attach -t <session_id>`.
+
+    Internally the driver asks the agent to write its JSON reply to a per-turn
+    file and reads that file (claude's TUI doesn't emit literal ```json fences) —
+    invisible to the caller, which only sees the response payload.
 
     `agent-session send '<json>'` is the same logic as a CLI for debug/manual use.

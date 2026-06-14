@@ -1,16 +1,24 @@
 """Unit tests for the agent-session send/receive driver.
 
-The driver drives the persistent claude tmux session (never `claude -p`): it
-sends a message, waits for a NEW fenced-JSON reply (not a prior turn's), and
-emits the agent_session.receive.response shape with a per-session turn counter.
-It exposes the same core as `agent-session serve` (HTTP POST /session/send, what
-content-factory's n8n calls) and `agent-session send` (CLI).
+The driver drives a persistent claude TUI session (never `claude -p`). Live
+verification (MO-5b) showed two realities the old mock missed:
+  * claude's TUI does NOT echo literal ```json fences — replies render inline
+    after a `●`, and a large payload soft-wraps. Pane-scraping the JSON is
+    unreliable.
+  * `send-keys <text> Enter` in ONE call types the text but the Enter is
+    swallowed (bracketed-paste). The message must be pasted, then submitted.
 
-tmux is mocked: send-keys makes the agent "respond" (the reply pane replaces the
-baseline pane); has-session is controllable so auto-create can be exercised.
+So the driver now:
+  * submits via bracketed paste — `load-buffer` (stdin) + `paste-buffer -p` +
+    a SEPARATE `send-keys Enter` after a settle delay (multi-line safe).
+  * tells the agent to WRITE the JSON to a per-turn file (unique nonce path);
+    the driver polls for that file to exist + parse, and that IS the payload.
+    The unique path makes a prior turn's reply structurally impossible to
+    mistake for this one.
 
-Contract source of truth:
-docs/superpowers/specs/2026-06-14-stoa-frank-infra-design.md
+The fake tmux below models that: paste stages the message, `send-keys Enter`
+makes the "agent" write the file the message names.
+
 Shape fixtures: scripts/tests/fixtures/stoa/
 """
 import json
@@ -21,7 +29,6 @@ import subprocess
 import sys
 import time
 import types
-import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -35,93 +42,84 @@ FIXTURES = REPO / "scripts/tests/fixtures/stoa"
 SEND_REQ = json.loads((FIXTURES / "agent_session_send_request.json").read_text())
 RECV_KEYS = set(json.loads((FIXTURES / "agent_session_receive_response.json").read_text()))
 
-NEW_REPLY = """\
-I'll write the episode and decompose it.
+PAYLOAD = {"schema_version": "1.0", "series_id": "series-x", "episode_id": "ep-012",
+           "characters": ["char-a", "char-b"], "clips": []}
 
-```json
-{"schema_version": "1.0", "series_id": "series-x", "episode_id": "ep-012",
- "characters": ["char-a", "char-b"], "clips": []}
-```
-Done.
-"""
-
-PRIOR_TURN = """\
-(previous turn still in the pane)
-```json
-{"schema_version": "1.0", "episode_id": "ep-OLD", "clips": []}
-```
-"""
+# Fake tmux: load-buffer stages the message, paste-buffer holds it, send-keys
+# Enter makes the "agent" write FAKE_PAYLOAD to the file the message names.
+FAKE_TMUX = r'''#!/usr/bin/env python3
+import sys, os, re
+D = os.environ["FAKE_DIR"]
+def p(n): return os.path.join(D, n)
+a = sys.argv[1:]
+cmd = a[0] if a else ""
+open(p("calls.log"), "a").write(cmd + " " + " ".join(a[1:]) + "\n")
+if cmd == "has-session":
+    try: code = int((open(p("has.code")).read().strip() or "0"))
+    except Exception: code = 0
+    sys.exit(code)
+if cmd == "new-session":
+    open(p("new.log"), "a").write(" ".join(a) + "\n"); sys.exit(0)
+if cmd == "load-buffer":
+    open(p("buffer.txt"), "w").write(sys.stdin.read()); sys.exit(0)
+if cmd == "paste-buffer":
+    buf = open(p("buffer.txt")).read() if os.path.exists(p("buffer.txt")) else ""
+    open(p("pending.txt"), "w").write(buf); sys.exit(0)
+if cmd == "send-keys":
+    if "Enter" in a and os.environ.get("FAKE_NO_REPLY") != "1":
+        msg = open(p("pending.txt")).read() if os.path.exists(p("pending.txt")) else ""
+        m = re.search(r"to the file (\S+)", msg)
+        if m:
+            outfile = m.group(1)
+            os.makedirs(os.path.dirname(outfile), exist_ok=True)
+            open(outfile, "w").write(os.environ.get("FAKE_PAYLOAD", "{}"))
+    sys.exit(0)
+if cmd == "capture-pane":
+    sys.stdout.write(open(p("pane.txt")).read() if os.path.exists(p("pane.txt")) else "")
+    sys.exit(0)
+sys.exit(0)
+'''
 
 
 def _driver_script() -> str:
-    doc = next(
-        d for d in yaml.safe_load_all(DRIVER_CM.read_text())
-        if d and d.get("kind") == "ConfigMap"
-    )
+    doc = next(d for d in yaml.safe_load_all(DRIVER_CM.read_text())
+               if d and d.get("kind") == "ConfigMap")
     return doc["data"]["agent-session"]
 
 
 def _free_port() -> int:
-    s = socket.socket()
-    s.bind(("127.0.0.1", 0))
-    port = s.getsockname()[1]
-    s.close()
+    s = socket.socket(); s.bind(("127.0.0.1", 0)); port = s.getsockname()[1]; s.close()
     return port
 
 
 @pytest.fixture
 def harness(tmp_path):
-    """Materialize the driver + a controllable fake tmux on PATH."""
-    bindir = tmp_path / "bin"
-    bindir.mkdir()
-    drv = bindir / "agent-session"
-    drv.write_text(_driver_script())
+    bindir = tmp_path / "bin"; bindir.mkdir()
+    drv = bindir / "agent-session"; drv.write_text(_driver_script())
     drv.chmod(drv.stat().st_mode | stat.S_IEXEC)
-
-    pane = tmp_path / "pane.txt"
-    reply = tmp_path / "reply.txt"
-    sendlog = tmp_path / "sendkeys.log"
-    newlog = tmp_path / "newsession.log"
-    hasfile = tmp_path / "has.code"  # exit code for has-session (default 0)
-    faketmux = bindir / "tmux"
-    faketmux.write_text(
-        "#!/usr/bin/env bash\n"
-        "case \"$1\" in\n"
-        f"  has-session) exit $(cat '{hasfile}' 2>/dev/null || echo 0) ;;\n"
-        f"  new-session) shift; echo \"$*\" >> '{newlog}' ;;\n"
-        f"  send-keys) shift; echo \"$*\" >> '{sendlog}'; cat '{reply}' > '{pane}' ;;\n"
-        f"  capture-pane) cat '{pane}' 2>/dev/null ;;\n"
-        "  *) exit 0 ;;\n"
-        "esac\n"
-    )
+    faketmux = bindir / "tmux"; faketmux.write_text(FAKE_TMUX)
     faketmux.chmod(faketmux.stat().st_mode | stat.S_IEXEC)
-    turns = tmp_path / "turns"
+    fdir = tmp_path / "fake"; fdir.mkdir()
 
     env = dict(os.environ)
     env["PATH"] = f"{bindir}:{env['PATH']}"
-    env["STOA_TURN_DIR"] = str(turns)
+    env["FAKE_DIR"] = str(fdir)
+    env["STOA_TURN_DIR"] = str(tmp_path / "turns")
+    env["STOA_OUT_DIR"] = str(tmp_path / "out")
     env["STOA_POLL_S"] = "0.05"
+    env["STOA_SETTLE_S"] = "0"
+    env["FAKE_PAYLOAD"] = json.dumps(PAYLOAD)
 
-    def run(req, initial_pane="", reply_pane=NEW_REPLY, session_exists=True):
-        pane.write_text(initial_pane)
-        reply.write_text(reply_pane)
-        hasfile.write_text("0" if session_exists else "1")
-        p = subprocess.run(
-            [sys.executable, str(drv), "send", json.dumps(req)],
-            capture_output=True, text=True, env=env, timeout=30,
-        )
+    def run(req, session_exists=True, no_reply=False):
+        (fdir / "has.code").write_text("0" if session_exists else "1")
+        e = dict(env)
+        if no_reply:
+            e["FAKE_NO_REPLY"] = "1"
+        p = subprocess.run([sys.executable, str(drv), "send", json.dumps(req)],
+                           capture_output=True, text=True, env=e, timeout=30)
         return p
 
-    return types.SimpleNamespace(
-        drv=drv, env=env, pane=pane, reply=reply, sendlog=sendlog,
-        newlog=newlog, hasfile=hasfile, run=run,
-    )
-
-
-def test_send_keys_carries_the_message(harness):
-    p = harness.run(SEND_REQ)
-    assert p.returncode == 0, p.stderr
-    assert "decompose" in harness.sendlog.read_text()
+    return types.SimpleNamespace(drv=drv, env=env, fdir=fdir, run=run)
 
 
 def test_receive_shape_matches_contract(harness):
@@ -130,77 +128,74 @@ def test_receive_shape_matches_contract(harness):
     assert out["status"] == "ok"
     assert out["session_id"] == SEND_REQ["session_id"]
     assert out["agent"] == "claude"
-    assert out["payload"]["episode_id"] == "ep-012"
+    assert out["payload"] == PAYLOAD, "payload must come from the file the agent wrote"
 
 
-def test_returns_new_reply_not_prior_turn(harness):
-    """C1 regression: a prior turn's json is already in the pane; the driver
-    must wait for and return THIS turn's reply, not the stale one."""
-    out = json.loads(
-        harness.run(SEND_REQ, initial_pane=PRIOR_TURN, reply_pane=PRIOR_TURN + NEW_REPLY).stdout
-    )
-    assert out["status"] == "ok"
-    assert out["payload"]["episode_id"] == "ep-012", "must not return the prior turn's payload"
+def test_submits_via_bracketed_paste_not_send_keys_text(harness):
+    harness.run(SEND_REQ)
+    calls = (harness.fdir / "calls.log").read_text()
+    assert "load-buffer" in calls and "paste-buffer" in calls, "must paste the message"
+    # The message must NOT be typed as send-keys literal text (the swallowed-Enter
+    # bug): the only send-keys call is the bare Enter submit.
+    sk_lines = [l for l in calls.splitlines() if l.startswith("send-keys")]
+    assert sk_lines, "must submit with send-keys Enter"
+    assert all("Enter" in l for l in sk_lines), f"send-keys must only send Enter, got {sk_lines}"
+
+
+def test_payload_from_file_not_pane(harness):
+    # The driver never depends on ```json fences (real claude renders inline) —
+    # the payload comes from the file. No pane content is needed for success.
+    out = json.loads(harness.run(SEND_REQ).stdout)
+    assert out["status"] == "ok" and out["payload"] == PAYLOAD
+
+
+def test_unique_file_per_turn(harness):
+    # Each turn names a fresh nonce'd outfile, so a prior turn's reply can't be
+    # mistaken for this one. Both succeed; the turn advances.
+    a = json.loads(harness.run(SEND_REQ).stdout)
+    b = json.loads(harness.run(SEND_REQ).stdout)
+    assert a["status"] == "ok" and b["status"] == "ok"
+    assert b["turn"] == a["turn"] + 1
 
 
 def test_auto_creates_missing_session(harness):
-    """The session_id the caller sends (e.g. content-factory's name) is
-    auto-created if absent — the driver is agnostic to the chosen name."""
     out = json.loads(harness.run(SEND_REQ, session_exists=False).stdout)
     assert out["status"] == "ok"
-    newlog = harness.newlog.read_text()
-    assert SEND_REQ["session_id"] in newlog, "missing session must be auto-created"
+    newlog = (harness.fdir / "new.log").read_text()
+    assert SEND_REQ["session_id"] in newlog
+    # The session must be able to write its output file unprompted (auto-approve
+    # safe ops — not a full permissions bypass).
+    assert "--permission-mode auto" in newlog
 
 
-def test_turn_counter_persists_and_increments(harness):
-    t1 = json.loads(harness.run(SEND_REQ).stdout)["turn"]
-    t2 = json.loads(harness.run(SEND_REQ).stdout)["turn"]
-    assert t2 == t1 + 1, f"turn must advance across calls (got {t1} then {t2})"
-
-
-def test_timeout_when_no_new_reply(harness):
-    req = dict(SEND_REQ, timeout_s=0.2)
-    out = json.loads(
-        harness.run(req, initial_pane="thinking...", reply_pane="thinking... still no json").stdout
-    )
-    assert out["status"] != "ok", "no new reply within timeout must NOT be ok"
+def test_timeout_when_no_file(harness):
+    req = dict(SEND_REQ, timeout_s=0.3)
+    out = json.loads(harness.run(req, no_reply=True).stdout)
+    assert out["status"] != "ok"
 
 
 def test_http_server_serves_session_send(harness):
-    """`agent-session serve` answers POST /session/send — the shape n8n calls."""
     port = _free_port()
-    harness.pane.write_text("")
-    harness.reply.write_text(NEW_REPLY)
-    harness.hasfile.write_text("0")
-    env = dict(harness.env)
-    env["STOA_SESSION_PORT"] = str(port)
-    proc = subprocess.Popen(
-        [sys.executable, str(harness.drv), "serve"],
-        env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
+    (harness.fdir / "has.code").write_text("0")
+    env = dict(harness.env); env["STOA_SESSION_PORT"] = str(port)
+    proc = subprocess.Popen([sys.executable, str(harness.drv), "serve"],
+                            env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     try:
         base = f"http://127.0.0.1:{port}"
-        # Wait for readiness via /healthz.
         for _ in range(50):
             try:
                 with urllib.request.urlopen(base + "/healthz", timeout=1) as r:
                     if r.status == 200:
                         break
-            except (urllib.error.URLError, ConnectionError):
+            except Exception:
                 time.sleep(0.1)
         else:
             raise AssertionError("server did not become ready")
-        # POST a send-request like the n8n httpRequest node does.
         body = json.dumps(SEND_REQ).encode()
-        req = urllib.request.Request(
-            base + "/session/send", data=body,
-            headers={"Content-Type": "application/json"}, method="POST",
-        )
+        req = urllib.request.Request(base + "/session/send", data=body,
+                                     headers={"Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(req, timeout=10) as r:
             out = json.loads(r.read())
-        assert set(out) == RECV_KEYS
-        assert out["status"] == "ok"
-        assert out["payload"]["episode_id"] == "ep-012"
+        assert out["status"] == "ok" and out["payload"] == PAYLOAD
     finally:
-        proc.terminate()
-        proc.wait(timeout=5)
+        proc.terminate(); proc.wait(timeout=5)
