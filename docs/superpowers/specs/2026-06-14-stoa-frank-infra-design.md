@@ -176,13 +176,22 @@ tmux session" shape the k8s-native-runs design uses.
 
 **2c. Send/receive driver (the EXTEND).** A ConfigMap-mounted script `agent-session`
 implementing the `agent_session.*` contract:
-- **send**: input `{session_id, agent, message, expect?, timeout_s?}` → selects the tmux
-  session, `tmux send-keys` the message, waits (bounded by `timeout_s`) for the reply marker.
-- **receive**: `tmux capture-pane` the reply, extract the structured `payload` (the shot-list
-  JSON the agent emits), increment a **persisted, locked, atomic per-session turn counter**
-  (`$HOME/.stoa/<session_id>.turn`), emit `{session_id, agent, status:"ok", turn, payload}`.
-- **Stale-reply safety:** the pane already holds prior turns' fenced-JSON, so the driver
-  baselines the `json`-block count **before** sending and only accepts a **new** block.
+- **send**: input `{session_id, agent, message, expect?, timeout_s?}` → submit the message to
+  the tmux session via **bracketed paste** (`load-buffer` + `paste-buffer -p` + a SEPARATE
+  `send-keys Enter` after a settle delay — a one-shot `send-keys <text> Enter` has its Enter
+  swallowed, and bracketed paste is multi-line safe).
+- **receive**: the driver appends an instruction to **write the JSON reply to a per-turn file**
+  (a unique nonce path under `$HOME/.stoa/out/`) and reads that file — the file appearing +
+  parsing IS the completion signal. It then increments a **persisted, locked, atomic per-session
+  turn counter** (`$HOME/.stoa/<session_id>.turn`) and emits `{session_id, agent, status:"ok",
+  turn, payload}`.
+  > **Live correction (MO-5b):** the original design scraped a `` ```json `` fence from
+  > `capture-pane`, but claude's TUI renders replies **inline after `●` with no literal fences**
+  > and soft-wraps long output — pane-scraping the payload is unreliable. The file-based delivery
+  > is robust and invisible to the caller (content-factory still POSTs a message and reads
+  > `payload`).
+- **Stale-reply safety:** the unique per-turn nonce **filename** makes a prior turn's reply
+  structurally impossible to mistake for this one.
 - **Auto-create:** the session named by `session_id` is created on first send if absent, so the
   driver is agnostic to the caller's chosen name (content-factory sends its own `session_id`;
   Frank never hard-codes it).

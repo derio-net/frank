@@ -95,6 +95,9 @@ def test_bootstrap_starts_interactive_claude_in_named_tmux():
     # Interactive claude — NEVER print mode.
     assert "claude" in script
     assert "-p " not in script and "--print" not in script, "never `claude -p`"
+    # Must be able to write its per-turn output file without a permission prompt
+    # (file writes only — not a full permissions bypass).
+    assert "acceptEdits" in script
     # Idempotent: don't double-create the session.
     assert "has-session" in script, "bootstrap must be idempotent (has-session guard)"
 

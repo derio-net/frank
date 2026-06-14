@@ -52,7 +52,8 @@ data:
       if tmux has-session -t "$SESSION" 2>/dev/null; then
         break
       fi
-      tmux new-session -d -s "$SESSION" "bash -lc claude" 2>/dev/null && break
+      tmux new-session -d -s "$SESSION" \
+        "bash -lc 'claude --permission-mode acceptEdits'" 2>/dev/null && break
       sleep 2
     done
     exit 0
