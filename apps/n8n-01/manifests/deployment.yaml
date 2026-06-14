@@ -117,11 +117,10 @@ spec:
               value: /home/agent
           resources:
             requests:
-              cpu: 250m
-              memory: 1Gi
+              cpu: "1000m"
+              memory: 2Gi
             limits:
-              cpu: 1000m
-              memory: 4Gi
+              memory: 8Gi
           volumeMounts:
             - name: agent-home
               mountPath: /home/agent
