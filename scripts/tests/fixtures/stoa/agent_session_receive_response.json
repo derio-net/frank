@@ -1,0 +1,13 @@
+{
+  "session_id": "stoa-script-claude",
+  "agent": "claude",
+  "status": "ok",
+  "turn": 37,
+  "payload": {
+    "schema_version": "1.0",
+    "series_id": "series-x",
+    "episode_id": "ep-012",
+    "characters": ["char-a", "char-b"],
+    "clips": []
+  }
+}

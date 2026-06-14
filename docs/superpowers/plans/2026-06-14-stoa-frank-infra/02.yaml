@@ -1,0 +1,68 @@
+schema_version: 2
+phase:
+  number: 2
+  title: ComfyUI VRAM flags + Authentik-gated Traefik route + homepage tile (TDD)
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: VRAM/offload launch flags on the Deployment, test-first
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Write scripts/tests/test_comfyui_stoa_route.py FIRST (red), pyyaml:
+      assert apps/comfyui/manifests/deployment.yaml container `command`/`args`
+      include a 16GB-bounding offload flag (one of --reserve-vram / --lowvram /
+      --cache-none) AND keeps --listen 0.0.0.0 --port 8188. Run pytest → red.
+  - id: P2.T1.S2
+    text: |
+      Edit apps/comfyui/manifests/deployment.yaml: set the container args to the
+      existing listen/port flags PLUS the offload flag(s) (comment: final values
+      tuned at MO-2). Re-run → green.
+- number: 2
+  title: Traefik IngressRoute + Authentik proxy provider + homepage tile
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Extend scripts/tests/test_comfyui_stoa_route.py (red): assert
+      - apps/traefik/manifests/ingressroutes.yaml has an IngressRoute for host
+        `comfyui.cluster.derio.net` routing to the comfyui Service:8188 with the
+        `authentik-forwardauth` middleware referenced and a tls section.
+      - apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml
+        gained a proxy provider entry for comfyui (mode forward_single, external
+        host comfyui.cluster.derio.net, has invalidation_flow) following the
+        existing entries' shape.
+      - apps/homepage/manifests/files/services.yaml has a ComfyUI tile (href
+        https://comfyui.cluster.derio.net, an icon, a description, in a category).
+      Run pytest → red.
+  - id: P2.T2.S2
+    text: |
+      Implement the three edits matching existing siblings in each file (copy an
+      adjacent IngressRoute / provider / tile and adapt). Do NOT touch the
+      embedded-outpost assignment (that is MO-3, manual). Re-run → green. Commit:
+      `feat(comfyui): VRAM flags + Authentik-gated comfyui.cluster.derio.net route + tile (TDD)`.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-14T20:14:17+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-14T20:14:22+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-06-14T20:14:29+00:00'
+      note: null
+    P2.T2.S2:
+      state: '-'
+      ticked_at: '2026-06-14T20:14:37+00:00'
+      note: route + Authentik provider + homepage tile already present in repo; replaced
+        implement step with a presence/shape regression guard test
+  completion:
+    at: '2026-06-14T20:14:46+00:00'
+    note: null
+    observed_prs: []

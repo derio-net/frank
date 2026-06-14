@@ -1,0 +1,90 @@
+schema_version: 2
+phase:
+  number: 4
+  title: agent-session send/receive driver + n8n pod-local transport (TDD)
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Vendor fixtures + driver unit tests (tmux mocked), test-first
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Vendor the two technical fixtures into
+      scripts/tests/fixtures/stoa/agent_session_send_request.json and
+      agent_session_receive_response.json (copy the shapes from the content-factory
+      agent_session fixtures; strip `_note`/`_contract` if noisy but keep the field
+      set; use a generic session id like `stoa-script-claude`). Add a README line:
+      source-of-truth is content-factory (private); these pin the SHAPE frank's
+      driver must emit (no business context — technical only).
+  - id: P4.T1.S2
+    text: |
+      Write scripts/tests/test_agent_session_driver.py FIRST (red). Put a FAKE
+      `tmux` on PATH (a temp script) that records send-keys args and, on
+      capture-pane, prints a canned claude reply containing a fenced JSON
+      shot-list. Drive apps/n8n-01/manifests/files/agent-session (the driver).
+      Assert:
+      - `agent-session send '<json>'` issues a tmux send-keys to session
+        stoa-script-claude with the message text.
+      - `agent-session receive` (or the send→reply round-trip) emits JSON with
+        EXACTLY keys {session_id, agent, status, turn, payload}; status=="ok";
+        payload == the parsed shot-list object.
+      - the turn counter persists across two invocations (turn N then N+1) under
+        $HOME/.stoa/<session_id>.turn.
+      - a no-reply/timeout path emits status!="ok" (not a crash).
+      Run: `uv run --with pytest pytest scripts/tests/test_agent_session_driver.py -v`
+      Expected: red.
+  - id: P4.T1.S3
+    text: |
+      Implement the driver script apps/n8n-01/manifests/files/agent-session
+      (bash; uses tmux send-keys + capture-pane, a reply-end marker, a persisted
+      turn counter, jq/python to extract the fenced JSON payload). Re-run pytest
+      → green. Refactor for clarity; still green.
+- number: 2
+  title: Wire the driver into the sidecar + n8n pod-local HTTP transport
+  steps:
+  - id: P4.T2.S1
+    text: |
+      Extend test_agent_session_driver.py / test_n8n_agent_sidecar.py (red):
+      assert the driver is mounted into the sidecar (ConfigMap volumeMount at
+      /opt/stoa-bin), and that the n8n→driver transport is a pod-local HTTP server
+      matching content-factory's n8n httpRequest node: `agent-session serve` binds
+      127.0.0.1 (never the wildcard) and answers POST /session/send (+ /healthz);
+      the bootstrap starts it; no Service/containerPort (localhost only); the
+      README documents AGENT_SIDECAR_URL=http://localhost:8765. Run pytest → red.
+      [Deviation: supersedes the original script-over-SSH transport — the other
+      half (content-factory PR #67) committed to HTTP POST /session/send.]
+  - id: P4.T2.S2
+    text: |
+      Add the driver ConfigMap volumeMount + the `serve` HTTP entry point (reuses
+      send()), start it from the bootstrap (tmux restart-loop), and document the
+      HTTP transport in the driver ConfigMap README. Re-run pytest → green. Commit:
+      `feat(n8n): agent-session send/receive driver + pod-local transport (TDD)`.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-06-14T20:30:01+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-06-14T20:30:03+00:00'
+      note: null
+    P4.T1.S3:
+      state: x
+      ticked_at: '2026-06-14T20:30:04+00:00'
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-06-14T20:33:45+00:00'
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: '2026-06-14T20:33:49+00:00'
+      note: null
+  completion:
+    at: '2026-06-14T20:33:54+00:00'
+    note: null
+    observed_prs: []

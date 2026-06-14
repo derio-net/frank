@@ -6,6 +6,15 @@ ARG MANAGER_REF=4.0.5
 ARG PYTORCH_VERSION=2.10.0
 ARG CUDA_VERSION_PIP=cu128
 
+# ── stoa custom-node refs ──────────────────────────────────────────
+# Pinned to commit SHAs (these repos publish no release tags) so the image is
+# reproducible. Bump deliberately + bump STOA_NODES with it.
+ARG LTXVIDEO_REF=229437c6b65796d6a7a63ae34be2bd5ba31fa543
+ARG GGUF_REF=6ea2651e7df66d7585f6ffee804b20e92fb38b8a
+ARG WANVIDEO_REF=088128b224242e110d3906c6750e9a3a348a659b
+ARG KOKORO_REF=cfb59b5605b351e196182c836f0b48c1a784e52f
+ARG FISHSPEECH_REF=6d6cd7c0b00f07a057d9b799eeca80866a0d5ff7
+
 # Prevent interactive prompts during apt-get
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -43,6 +52,28 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Manager 4.x doesn't have. Pip install makes it globally importable.
 RUN pip install --no-cache-dir \
     comfyui-manager==${MANAGER_REF}
+
+# ── stoa custom nodes (baked to a staging dir; entrypoint seeds PVC) ─
+# The runtime mounts the comfyui-custom-nodes PVC at /app/custom_nodes, which
+# SHADOWS anything baked there — so stage under /opt and have entrypoint.sh
+# seed the PVC on boot. Python deps install into the image env here; only the
+# node FILES are seeded at runtime. Refs pinned via ARGs (CONFIRM-AT-CI).
+RUN mkdir -p /opt/stoa-custom-nodes && cd /opt/stoa-custom-nodes \
+    && git clone https://github.com/Lightricks/ComfyUI-LTXVideo.git \
+    && git -C ComfyUI-LTXVideo checkout ${LTXVIDEO_REF} \
+    && pip install --no-cache-dir -r ComfyUI-LTXVideo/requirements.txt \
+    && git clone https://github.com/city96/ComfyUI-GGUF.git \
+    && git -C ComfyUI-GGUF checkout ${GGUF_REF} \
+    && pip install --no-cache-dir -r ComfyUI-GGUF/requirements.txt \
+    && git clone https://github.com/kijai/ComfyUI-WanVideoWrapper.git \
+    && git -C ComfyUI-WanVideoWrapper checkout ${WANVIDEO_REF} \
+    && pip install --no-cache-dir -r ComfyUI-WanVideoWrapper/requirements.txt \
+    && git clone https://github.com/stavsap/comfyui-kokoro.git ComfyUI-Kokoro \
+    && git -C ComfyUI-Kokoro checkout ${KOKORO_REF} \
+    && pip install --no-cache-dir -r ComfyUI-Kokoro/requirements.txt \
+    && git clone https://github.com/AIFSH/ComfyUI-FishSpeech.git \
+    && git -C ComfyUI-FishSpeech checkout ${FISHSPEECH_REF} \
+    && pip install --no-cache-dir -r ComfyUI-FishSpeech/requirements.txt
 
 # ── Non-root user ───────────────────────────────────────────────────
 RUN groupadd -g 1000 comfyui \

@@ -1,0 +1,92 @@
+schema_version: 2
+phase:
+  number: 1
+  title: ComfyUI image — bake stoa custom nodes + model-download Job (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Tag-consistency + Dockerfile node-pin guards, test-first
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Write scripts/tests/test_comfyui_stoa_image.py FIRST (red), pyyaml + re,
+      no network. Assert:
+      - .github/workflows/build-comfyui.yml exposes a stoa node-set dimension
+        (env var, e.g. STOA_NODES_REF) AND the produced image tag string
+        embeds it (e.g. ...-cu128-stoa<N>).
+      - apps/comfyui/manifests/deployment.yaml image tag == the tag the workflow
+        renders from its env (parse both; assert equality — the health-bridge
+        tag-drift guard).
+      - apps/comfyui/docker/Dockerfile contains a PINNED `git clone` + `git
+        checkout <ref>` (or `--branch <ref>`) for each required node repo:
+        Lightricks/ComfyUI-LTXVideo, city96/ComfyUI-GGUF,
+        kijai/ComfyUI-WanVideoWrapper, a Kokoro TTS node, a Fish-Speech TTS node;
+        and a `pip install -r requirements.txt` per node (no floating `main`).
+      Run: `uv run --with pytest --with pyyaml pytest scripts/tests/test_comfyui_stoa_image.py -v`
+      Expected: failures (image not updated yet).
+  - id: P1.T1.S2
+    text: |
+      Edit apps/comfyui/docker/Dockerfile: after the ComfyUI clone, add a
+      `# stoa custom nodes` block cloning each node repo into custom_nodes/ at
+      a PINNED ref via build ARGs (LTXVIDEO_REF, GGUF_REF, WANVIDEO_REF,
+      KOKORO_REF, FISHSPEECH_REF — real upstream tags/commits, locked here), each
+      followed by its `pip install --no-cache-dir -r requirements.txt`. Keep the
+      non-root chown after.
+  - id: P1.T1.S3
+    text: |
+      Edit .github/workflows/build-comfyui.yml: add the node-ref ARGs to env +
+      build-args, and add a STOA_NODES rev (e.g. STOA_NODES: "1") embedded in
+      the pushed tag (`...-cu128-stoa${{ env.STOA_NODES }}`). Edit
+      apps/comfyui/manifests/deployment.yaml image: to the SAME new tag.
+      Re-run the pytest. Expected: green.
+- number: 2
+  title: Model-download Job manifest (idempotent, gpu-1, PVC)
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Extend scripts/tests/test_comfyui_stoa_image.py (red): assert
+      apps/comfyui/manifests/job-model-download.yaml is a batch/v1 Job in ns
+      comfyui with: nodeSelector kubernetes.io/hostname=gpu-1, the nvidia.com/gpu
+      NoSchedule toleration, a volume binding claimName comfyui-models mounted at
+      /app/models, restartPolicy OnFailure, and a command whose script is
+      IDEMPOTENT (contains a skip-if-present guard, e.g. `[ -f "$dest" ] && continue`
+      or an `if [ ! -f ]` wrapper) downloading the five model artefacts (LTX-2
+      NVFP8, Wan 2.2 14B Q8 GGUF, LTX-Video 0.9.x, Kokoro, Fish-Speech S2) into
+      the model subdirs. Run pytest → red.
+  - id: P1.T2.S2
+    text: |
+      Write apps/comfyui/manifests/job-model-download.yaml. Use a small image
+      with curl/python (e.g. the comfyui image itself or curlimages/curl with
+      runAsUser 100). Each artefact: `dest=...; url="..." # CONFIRM-LIVE; mkdir
+      -p; [ -f "$dest" ] || curl -fSL "$url" -o "$dest"`. Add a header comment:
+      weight source URLs are confirmed on gpu-1 at MO-1 (Phase 5); the run is a
+      manual op. BEGIN/END nothing — plain YAML. Re-run pytest → green. Commit:
+      `feat(comfyui): bake stoa nodes + model-download Job (TDD)`.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-14T19:58:42+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-06-14T20:00:59+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-06-14T20:01:01+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-14T20:01:02+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-14T20:08:49+00:00'
+      note: null
+  completion:
+    at: '2026-06-14T20:08:51+00:00'
+    note: null
+    observed_prs: []

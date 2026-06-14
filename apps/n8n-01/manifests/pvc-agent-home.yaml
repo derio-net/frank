@@ -1,0 +1,15 @@
+# PV-resident $HOME for the multi-agent-shell sidecar — holds the per-harness
+# OAuth credentials (claude login, MO-4), tmux-resurrect session state, and the
+# stoa session turn-counter. Kept off the image so secrets never bake in.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-01-agent-home
+  namespace: n8n-01
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi

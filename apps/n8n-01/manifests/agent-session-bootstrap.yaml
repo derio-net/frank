@@ -1,0 +1,58 @@
+# Bootstrap for the persistent stoa script-gen session in the sidecar.
+#
+# Ensures a long-lived, interactive `claude` session in a named tmux session —
+# NEVER `claude -p` (print mode throws away the continuity the serialized
+# pipeline depends on). Idempotent: a restart that finds the session already
+# running is a no-op (tmux-resurrect also restores it).
+#
+# Invoked from the sidecar's postStart hook. The session name is generic /
+# configurable (STOA_SESSION_NAME); n8n drives whatever session_id it sends.
+#
+# KNOWN LIMITATION: a postStart hook has no ordering guarantee with the image's
+# own ENTRYPOINT, so tmux may not be usable the instant it fires. The script
+# retries (below) and always exit-0s, so a transient miss never blocks the pod.
+# send() auto-creates the script-gen session on demand, so the residual risk is
+# the HTTP SERVER not coming up. Diagnose / recover:
+#   kubectl exec -n n8n-01 deploy/n8n-01 -c multi-agent-shell -- \
+#     tmux capture-pane -pt stoa-session-server   # why the serve loop is spinning
+#   kubectl exec -n n8n-01 deploy/n8n-01 -c multi-agent-shell -- \
+#     /opt/stoa-bootstrap/session-bootstrap.sh    # re-run the bootstrap
+# (The operator attaches anyway at MO-4 to `claude login`, so this is benign on
+# first boot.)
+#
+# NOTE: this is a raw (non-Kustomize) ConfigMap — editing the script needs a
+# `kubectl rollout restart deployment/n8n-01 -n n8n-01` to reach the pod.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-session-bootstrap
+  namespace: n8n-01
+  labels:
+    app.kubernetes.io/name: n8n-01
+    app.kubernetes.io/component: agent-session
+data:
+  session-bootstrap.sh: |
+    #!/usr/bin/env bash
+    # Start the agent-session HTTP server + pre-warm the script-gen session.
+    # Always exit 0 so a postStart hiccup never blocks the pod. Retries because
+    # postStart has no ordering guarantee with the container ENTRYPOINT.
+    set -u
+    SESSION="${STOA_SESSION_NAME:-stoa-script-claude}"
+    SERVER="stoa-session-server"
+    # The HTTP server n8n calls (POST 127.0.0.1/session/send), supervised by a
+    # restart-loop in its own tmux session. bash -lc so python3/mise are on PATH.
+    if ! tmux has-session -t "$SERVER" 2>/dev/null; then
+      tmux new-session -d -s "$SERVER" \
+        "bash -lc 'while true; do python3 /opt/stoa-bin/agent-session serve; sleep 2; done'" || true
+    fi
+    # Pre-warm an attachable default claude session. Interactive claude — never
+    # `claude -p`. n8n's session_id is auto-created on first send, so this is
+    # convenience (a known attach target) rather than load-bearing.
+    for _ in $(seq 1 10); do
+      if tmux has-session -t "$SESSION" 2>/dev/null; then
+        break
+      fi
+      tmux new-session -d -s "$SESSION" "bash -lc claude" 2>/dev/null && break
+      sleep 2
+    done
+    exit 0

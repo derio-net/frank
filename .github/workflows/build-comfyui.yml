@@ -14,6 +14,15 @@ env:
   MANAGER_REF: "4.0.5"
   PYTORCH_VERSION: "2.10.0"
   CUDA_VERSION_PIP: "cu128"
+  # stoa node-set revision — bump when the baked custom-node set changes so
+  # the image tag (and the Deployment pin) move together. Node refs are pinned
+  # to commit SHAs (these repos publish no release tags) for reproducibility.
+  STOA_NODES: "1"
+  LTXVIDEO_REF: "229437c6b65796d6a7a63ae34be2bd5ba31fa543"
+  GGUF_REF: "6ea2651e7df66d7585f6ffee804b20e92fb38b8a"
+  WANVIDEO_REF: "088128b224242e110d3906c6750e9a3a348a659b"
+  KOKORO_REF: "cfb59b5605b351e196182c836f0b48c1a784e52f"
+  FISHSPEECH_REF: "6d6cd7c0b00f07a057d9b799eeca80866a0d5ff7"
 
 jobs:
   build:
@@ -48,12 +57,17 @@ jobs:
           context: apps/comfyui/docker
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:comfyui-${{ env.COMFYUI_REF }}-pt${{ env.PYTORCH_VERSION }}-${{ env.CUDA_VERSION_PIP }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:comfyui-${{ env.COMFYUI_REF }}-pt${{ env.PYTORCH_VERSION }}-${{ env.CUDA_VERSION_PIP }}-stoa${{ env.STOA_NODES }}
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           build-args: |
             COMFYUI_REF=${{ env.COMFYUI_REF }}
             MANAGER_REF=${{ env.MANAGER_REF }}
             PYTORCH_VERSION=${{ env.PYTORCH_VERSION }}
             CUDA_VERSION_PIP=${{ env.CUDA_VERSION_PIP }}
+            LTXVIDEO_REF=${{ env.LTXVIDEO_REF }}
+            GGUF_REF=${{ env.GGUF_REF }}
+            WANVIDEO_REF=${{ env.WANVIDEO_REF }}
+            KOKORO_REF=${{ env.KOKORO_REF }}
+            FISHSPEECH_REF=${{ env.FISHSPEECH_REF }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
