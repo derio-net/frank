@@ -40,10 +40,10 @@ Any time `tekton/ci` is red (or stuck) on a hum PR.
 
 1. On the PR, click **Details** next to the red `tekton/ci` check. It links to
    `https://tekton.cluster.derio.net/#/namespaces/tekton-pipelines/pipelineruns/<run>`.
-   - **LAN-only:** the dashboard is a LoadBalancer on `tekton.cluster.derio.net`
-     (`apps/tekton/manifests/dashboard-service.yaml`), reachable on the homelab
-     net / mesh — which is where debugging happens. Off-net, see "Reproduce
-     locally" below.
+   - **Over Tailscale:** the dashboard (`tekton.cluster.derio.net`, a
+     LoadBalancer — `apps/tekton/manifests/dashboard-service.yaml`) is reachable
+     over the derio tailnet, not public — which is where debugging happens.
+     Without Tailscale, see "Reproduce locally" below.
 2. In the run graph, find the red node:
    - **`pull-and-push`** red → infra (GitHub fetch / Gitea push / SSH), not your
      code. Check the step log; usually a token/SSH or Gitea-membership issue.
@@ -55,7 +55,7 @@ Any time `tekton/ci` is red (or stuck) on a hum PR.
        slow one).
 3. The step log is the same output `npm run <gate>` prints locally.
 
-## Reproduce locally (off-LAN, or to fix)
+## Reproduce locally (no Tailscale, or to fix)
 
 CI runs exactly this, so it reproduces 1:1:
 
