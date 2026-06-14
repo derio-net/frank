@@ -10,11 +10,13 @@
 #
 # KNOWN LIMITATION: a postStart hook has no ordering guarantee with the image's
 # own ENTRYPOINT, so tmux may not be usable the instant it fires. The script
-# retries (below) and always exit-0s, so a transient miss never blocks the pod —
-# but if the session is still absent after boot, the first `agent-session send`
-# returns `no_session`. Recovery: re-run by hand —
+# retries (below) and always exit-0s, so a transient miss never blocks the pod.
+# send() auto-creates the script-gen session on demand, so the residual risk is
+# the HTTP SERVER not coming up. Diagnose / recover:
 #   kubectl exec -n n8n-01 deploy/n8n-01 -c multi-agent-shell -- \
-#     /opt/stoa-bootstrap/session-bootstrap.sh
+#     tmux capture-pane -pt stoa-session-server   # why the serve loop is spinning
+#   kubectl exec -n n8n-01 deploy/n8n-01 -c multi-agent-shell -- \
+#     /opt/stoa-bootstrap/session-bootstrap.sh    # re-run the bootstrap
 # (The operator attaches anyway at MO-4 to `claude login`, so this is benign on
 # first boot.)
 #

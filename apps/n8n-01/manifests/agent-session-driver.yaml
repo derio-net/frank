@@ -61,7 +61,8 @@ data:
     def ensure_session(session_id):
         # Auto-create the session (interactive claude, never -p) if absent, so
         # the caller's session_id drives whatever it names. Unauthenticated until
-        # the operator runs `claude login` (MO-4).
+        # the operator runs `claude login` (MO-4). Concurrency-safe under threading:
+        # a racing duplicate `new-session` errors harmlessly (tmux refuses the dup).
         if tmux("has-session", "-t", session_id).returncode != 0:
             tmux("new-session", "-d", "-s", session_id, "claude")
 
@@ -138,7 +139,7 @@ data:
 
 
     def serve():
-        from http.server import BaseHTTPRequestHandler, HTTPServer
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
         class Handler(BaseHTTPRequestHandler):
             def _json(self, code, obj):
@@ -171,8 +172,17 @@ data:
                 pass
 
         # Pod-local only: n8n is in the same pod (shared netns) — bind loopback,
-        # never the wildcard address.
-        HTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+        # never the wildcard address. Threaded so a long send() (up to timeout_s)
+        # never head-of-line-blocks /healthz or a concurrent request.
+        try:
+            server = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+        except OSError as exc:
+            # Surface bind failures (the bootstrap restart-loop silences handler
+            # logs, not stderr): inspect via `tmux capture-pane -t stoa-session-server`.
+            print(f"agent-session serve: bind 127.0.0.1:{PORT} failed: {exc}", file=sys.stderr)
+            raise
+        server.daemon_threads = True
+        server.serve_forever()
 
 
     def main(argv):
