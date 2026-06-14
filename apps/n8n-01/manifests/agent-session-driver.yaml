@@ -57,14 +57,13 @@ data:
     def ensure_session(session_id):
         # Auto-create the session (interactive claude, never -p) if absent, so
         # the caller's session_id drives whatever it names. Unauthenticated until
-        # the operator runs `claude login` (MO-4). `--permission-mode acceptEdits`
-        # auto-accepts FILE WRITES only (so the session writes its per-turn output
-        # file unprompted) while still gating bash/other tools — narrower than a
-        # full permissions bypass. Concurrency-safe: a racing dup new-session errors
-        # harmlessly.
+        # the operator runs `claude login` (MO-4). `--permission-mode auto` lets the
+        # session auto-approve safe operations (incl. writing its per-turn output
+        # file) without a prompt, short of a full permissions bypass. Concurrency-
+        # safe: a racing dup new-session errors harmlessly.
         if tmux("has-session", "-t", session_id).returncode != 0:
             tmux("new-session", "-d", "-s", session_id,
-                 "claude --permission-mode acceptEdits")
+                 "claude --permission-mode auto")
 
 
     def submit(session_id, text):

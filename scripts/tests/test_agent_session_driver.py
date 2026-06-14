@@ -163,9 +163,9 @@ def test_auto_creates_missing_session(harness):
     assert out["status"] == "ok"
     newlog = (harness.fdir / "new.log").read_text()
     assert SEND_REQ["session_id"] in newlog
-    # The session must be able to write its output file unprompted (file writes
-    # only — not a full permissions bypass).
-    assert "acceptEdits" in newlog
+    # The session must be able to write its output file unprompted (auto-approve
+    # safe ops — not a full permissions bypass).
+    assert "--permission-mode auto" in newlog
 
 
 def test_timeout_when_no_file(harness):

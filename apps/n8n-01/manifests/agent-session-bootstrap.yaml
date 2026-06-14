@@ -53,7 +53,7 @@ data:
         break
       fi
       tmux new-session -d -s "$SESSION" \
-        "bash -lc 'claude --permission-mode acceptEdits'" 2>/dev/null && break
+        "bash -lc 'claude --permission-mode auto'" 2>/dev/null && break
       sleep 2
     done
     exit 0
