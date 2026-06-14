@@ -53,7 +53,7 @@ spec:
       description: "Destination ref on Gitea (e.g. refs/heads/sync-pr-12 for PR-time runs)"
     - name: dashboard-base-url
       type: string
-      default: "http://192.168.55.217:9097"
+      default: "https://tekton.cluster.derio.net"
       description: "Tekton dashboard base URL (LAN). CI statuses deep-link to the PipelineRun page here so a red check links straight to the step logs."
   workspaces:
     - name: shared-workspace
