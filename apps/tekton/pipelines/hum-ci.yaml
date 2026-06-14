@@ -14,6 +14,12 @@
 #   - github-status is mandatory (failure of the post fails the run);
 #     gitea-status is best-effort (failure-tolerant).
 #
+# Correctness (2026-06-14): pull-and-push now `git checkout --detach`es the
+# PR sha after cloning. Previously the clone left the working tree on the
+# default branch (main) and only the gitea PUSH used the sha — so the gates
+# ran against main, never the PR's own changes. Every PR check reflected
+# main's state. The checkout realigns the tested tree with the sha.
+#
 # Observability (2026-06-14, hum-ci-observability):
 #   The status the contributor sees on the PR was a bare `tekton/ci` =
 #   success/failure with NO link — a red check gave zero path to the logs,
@@ -96,9 +102,16 @@ spec:
               git config --global --add safe.directory '*'
 
               cd "$(workspaces.source.path)"
-              # Clone into ./repo — the test task uses this same subdir.
+              # Clone into ./repo — the check task uses this same subdir.
               git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/$(params.github-repo).git" repo
               cd repo
+
+              # Test the PR commit, not the default branch. `git clone` lands on
+              # the default-branch HEAD; without this checkout the gates ran
+              # against main and a PR's OWN changes were never exercised (the
+              # check would pass/fail purely on main's state). `clone` fetches
+              # all branch refs, so the PR head sha is already local.
+              git checkout --detach "$(params.sha)"
 
               REPO_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $NF}')"
               ORG_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $1}')"

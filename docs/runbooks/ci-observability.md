@@ -12,8 +12,18 @@ the PR branch and reproduce `npm run check` locally. That's the systematic cost
 of an opaque pass/fail: every contributor re-derives what the pipeline already
 knew.
 
-Fixed 2026-06-14 (`hum-ci-observability`) with two changes to
+While wiring this up we also found a **correctness** bug it had been masking:
+`pull-and-push` cloned the repo (landing on the **default branch, main**) and
+only used the PR `sha` for the Gitea mirror push — it never checked the sha out.
+So the gates ran against **main**, not the PR's changes, and every PR's
+`tekton/ci` reflected main's state. (Concretely: hum#120's lint fix kept showing
+red because CI was linting main, which still had the errors the PR fixed.) Now
+`pull-and-push` does `git checkout --detach "$(params.sha)"` after cloning.
+
+Fixed 2026-06-14 (`hum-ci-observability`) with three changes to
 `apps/tekton/pipelines/hum-ci.yaml`:
+
+0. **Test the PR commit** (correctness, above) — checkout the sha after clone.
 
 1. **Deep-link the status.** Every `tekton/ci` status now sets `target_url` to
    the PipelineRun page on the Tekton dashboard. The "Details" link on the PR
