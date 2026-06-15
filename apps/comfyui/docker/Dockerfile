@@ -6,6 +6,10 @@ ARG MANAGER_REF=4.0.5
 ARG PYTORCH_VERSION=2.10.0
 ARG TORCHVISION_VERSION=0.25.0
 ARG CUDA_VERSION_PIP=cu128
+# Seed-version key — entrypoint re-seeds baked custom nodes into the PVC when
+# this differs from the PVC's recorded marker (so a node patch reaches the PVC
+# on an image bump). Bump STOA_NODES (or COMFYUI_REF) => re-seed on next boot.
+ARG STOA_NODES=5
 
 # ── stoa custom-node refs ──────────────────────────────────────────
 # Pinned to commit SHAs (these repos publish no release tags) so the image is
@@ -83,6 +87,10 @@ RUN mkdir -p /opt/stoa-custom-nodes && cd /opt/stoa-custom-nodes \
     && git clone https://github.com/AIFSH/ComfyUI-FishSpeech.git \
     && git -C ComfyUI-FishSpeech checkout ${FISHSPEECH_REF} \
     && pip install --no-cache-dir -r ComfyUI-FishSpeech/requirements.txt
+
+# Record the seed-version so entrypoint.sh re-seeds these baked nodes into the
+# PVC when the image is bumped (COMFYUI_REF or STOA_NODES change).
+RUN printf '%s\n' "${COMFYUI_REF}-stoa${STOA_NODES}" > /opt/stoa-custom-nodes/.seed-version
 
 # ── Non-root user ───────────────────────────────────────────────────
 RUN groupadd -g 1000 comfyui \

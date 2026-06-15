@@ -53,3 +53,14 @@ the RTX 5070 Ti is Blackwell → native NVFP4 matmul, lower VRAM than fp8.
   pre-bumped; fix the offender as a fast-follow. The kornia-`pad` Dockerfile
   patch is keyed to kornia, not ComfyUI core — carries forward unchanged.
 - **Job immutability** → re-hydration is delete+apply (operator, Phase 4).
+
+## Deployment deviation (2026-06-15)
+
+Phase 4 verification surfaced the flagged "core jump breaks a pinned node" risk:
+on `v0.24.0` the bundled **kornia 0.8.3** dropped `pad`, so `ComfyUI-LTXVideo`
+hit `ImportError`. Root cause was NOT a bad node ref but the **seed-if-absent**
+custom-node seeding: the Dockerfile's rev-3 kornia patch never reached the
+already-seeded PVC (a stale unpatched copy shadowed it). Fixed as a fast-follow
+(`fix/comfyui-node-reseed-versiongate`): version-gate the entrypoint seed
+(`.seed-version` marker, `STOA_NODES 4→5`) so an image-rev bump re-seeds baked
+nodes. See `docs/runbooks/frank-gotchas/gpu-1.md` (ComfyUI custom-node PVC seed).
