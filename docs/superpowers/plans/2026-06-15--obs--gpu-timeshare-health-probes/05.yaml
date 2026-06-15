@@ -1,0 +1,46 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Honest-but-quiet notification route
+  tag: agentic
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Add the gpu_timeshare → Health Bridge route
+  steps:
+  - id: P5.T1.S1
+    text: |
+      In `apps/grafana-alerting/manifests/notification-policy-cm.yaml`, insert a
+      route BEFORE the `severity=` routes (order is load-bearing — cert-canary
+      reason):
+      ```
+      # GPU time-share tiles (L11/16): one is always down by design.
+      # Health-bridge ONLY (degraded tile, no page). continue:false so it never
+      # reaches the severity→Telegram routes. gpu-node-both-down is the pager.
+      - receiver: "Health Bridge Webhook"
+        matchers:
+          - gpu_timeshare="true"
+        continue: false
+      ```
+      Place it after the `grafana_folder="blog-edge"` route, before the first
+      `severity=` route.
+  - id: P5.T1.S2
+    text: |
+      Validate route ordering with yq: index of the gpu_timeshare route < index
+      of the first `severity=` route; full yaml parses. Expected: ordering holds.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

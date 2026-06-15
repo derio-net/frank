@@ -1,0 +1,54 @@
+schema_version: 2
+phase:
+  number: 8
+  title: '[manual] Mint LiteLLM probe virtual key + Infisical'
+  tag: manual
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Operator-only secret provisioning
+  steps:
+  - id: P8.T1.S1
+    text: |
+      # manual-operation
+      id: obs-litellm-probe-virtual-key
+      layer: obs
+      app: blackbox-exporter
+      plan: 2026-06-15--obs--gpu-timeshare-health-probes
+      when: post-merge, before the live-flip test
+      why_manual: LiteLLM virtual keys are minted via API/DB, not declaratively;
+        the key is a secret and must not be committed.
+      commands: |
+        curl -s -X POST http://192.168.55.206:4000/key/generate \
+          -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+          -H 'Content-Type: application/json' \
+          -d '{"models":["gemma-12b-nothin"],"key_alias":"blackbox-probe","max_budget":1}'
+        # Store the returned key in Infisical as LITELLM_PROBE_VIRTUAL_KEY
+        # (same project/env the litellm ExternalSecret reads). ESO syncs it to
+        # secret monitoring/litellm-probe-key; blackbox-exporter picks it up.
+      verify: |
+        kubectl -n monitoring get secret litellm-probe-key -o jsonpath='{.data.litellm-probe-key}' | base64 -d | head -c6
+        # then confirm probe_success{layer="11"} reflects real auth (1 when Ollama
+        # holds the GPU, 0 — not auth-error — when ComfyUI holds it).
+      status: pending
+  - id: P8.T1.S2
+    text: |
+      Operator implements this phase and pushes to the same PR
+      (`fr plan edit --complete-phase 8 --note "..."`). NEVER agent-implemented.
+      Nothing agentic depends on this phase (key mount is optional:true).
+state:
+  steps:
+    P8.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

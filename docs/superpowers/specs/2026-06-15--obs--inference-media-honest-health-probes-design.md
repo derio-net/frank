@@ -6,6 +6,12 @@
 **Related:** frank-ops#11 (Layer 11 Local Inference), frank-ops#16 (Layer 16 Media Generation)
 **Supersedes behaviour of:** PR #550 (Layer 16 `replicas_unavailable` rule — folded into this design)
 
+## Implementation Plans
+
+| Plan | Target repo | Slug | Status |
+|------|-------------|------|--------|
+| 2026-06-15--obs--gpu-timeshare-health-probes | `derio-net/frank` | `2026-06-15--obs--gpu-timeshare-health-probes` | — |
+
 ## Problem
 
 The Derio Ops dashboard showed **all green** while local inference was **completely down**

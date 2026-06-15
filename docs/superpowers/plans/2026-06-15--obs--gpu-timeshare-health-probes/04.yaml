@@ -1,0 +1,74 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Alert rules — probe_success rewrite + combined paging rule (TDD)
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Failing rule-logic assertion first
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Create `apps/grafana-alerting/tests/assert-gpu-timeshare-rules.sh` asserting:
+      (a) layer-11 rule expr uses `probe_success` not `kube_pod_status_ready`;
+      (b) layer-16 rule expr uses `probe_success` not
+          `kube_deployment_status_replicas_unavailable`;
+      (c) a rule `gpu-node-both-down` exists with `sum(probe_success` + `severity: critical`;
+      (d) layer-11/16 rules carry `gpu_timeshare: "true"` + `severity: warning`;
+      (e) layer-11/16 use `noDataState: Alerting`; both-down uses `noDataState: OK`.
+      Run it — expected RED (rules still use old queries).
+- number: 2
+  title: Rewrite L11 + L16, add combined rule
+  steps:
+  - id: P4.T2.S1
+    text: |
+      In `apps/grafana-alerting/manifests/alert-rules-cm.yaml`, rewrite Layer 11:
+      refId A expr `probe_success{layer="11"}`; reduce(last); threshold C `lt 1`.
+      Labels `severity: warning`, `gpu_timeshare: "true"`, `github_issue: "frank-ops#11"`.
+      `noDataState: Alerting`. Keep annotations free of `<`/`>`/`&` (Telegram HTML-400).
+  - id: P4.T2.S2
+    text: |
+      Rewrite Layer 16 (replacing the #550 replicas_unavailable query): expr
+      `probe_success{layer="16"}`, same shape, `gpu_timeshare: "true"`,
+      `github_issue: "frank-ops#16"`, `noDataState: Alerting`. Update the comment
+      block to describe the end-to-end /object_info probe.
+  - id: P4.T2.S3
+    text: |
+      Add rule group `gpu-node-both-down` (folder feature-health): refId A expr
+      `sum(probe_success{probe_group="gpu_timeshare"})`, reduce(last), threshold
+      `lt 1`. Labels `severity: critical`, `github_issue: "frank-ops#5"`, NO
+      gpu_timeshare label. `for: 10m`. `noDataState: OK` (both-absent = scrape gap,
+      do not page). Summary: "GPU node serving NEITHER inference nor media".
+  - id: P4.T2.S4
+    text: |
+      Run `bash apps/grafana-alerting/tests/assert-gpu-timeshare-rules.sh`.
+      Expected GREEN: all five assertions pass.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

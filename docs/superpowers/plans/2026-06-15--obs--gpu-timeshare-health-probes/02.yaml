@@ -1,0 +1,72 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Probe virtual-key ExternalSecret + optional mount
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: ExternalSecret for the probe key (monitoring ns)
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Mirror `apps/litellm/manifests/external-secret.yaml`. Create
+      `apps/blackbox-exporter/manifests/external-secret-probe-key.yaml`:
+      an ExternalSecret in ns `monitoring` named `litellm-probe-key`,
+      syncing Infisical key `LITELLM_PROBE_VIRTUAL_KEY` → secret key
+      `litellm-probe-key`. Use the SAME secretStoreRef the litellm
+      ExternalSecret uses (copy refreshInterval, secretStoreRef verbatim).
+  - id: P2.T1.S2
+    text: |
+      Confirm the ArgoCD blackbox-exporter Application source path globs
+      `apps/blackbox-exporter/manifests/` (so the new manifest is picked up).
+      Verify by grepping `apps/root/templates/` for the blackbox-exporter app
+      path. No Application CR edit expected.
+- number: 2
+  title: Mount the key into blackbox-exporter (optional)
+  steps:
+  - id: P2.T2.S1
+    text: |
+      In `apps/blackbox-exporter/manifests/deployment.yaml`, add a volume from
+      secret `litellm-probe-key` with `optional: true` and a volumeMount at
+      `/etc/blackbox-secrets` (readOnly). CRITICAL: optional:true so the pod
+      (which runs the blog uptime probe) starts even before the key is minted.
+      ```
+      volumes:
+        - name: litellm-probe-key
+          secret:
+            secretName: litellm-probe-key
+            optional: true
+      # container.volumeMounts:
+        - name: litellm-probe-key
+          mountPath: /etc/blackbox-secrets
+          readOnly: true
+      ```
+  - id: P2.T2.S2
+    text: |
+      Sanity-render the deployment YAML (`yq . apps/blackbox-exporter/manifests/deployment.yaml >/dev/null && echo OK`);
+      confirm volume + mount present with optional:true.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

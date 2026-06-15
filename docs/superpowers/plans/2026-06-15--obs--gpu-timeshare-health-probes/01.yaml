@@ -1,0 +1,110 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Blackbox modules — litellm_chat + comfyui_object_info (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Failing config-check first
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Establish baseline: the current blackbox config is valid. The config
+      lives INSIDE configmap.yaml under data["blackbox.yml"]; extract then check:
+      `yq '.data["blackbox.yml"]' apps/blackbox-exporter/manifests/configmap.yaml > /tmp/bb.yml`
+      `docker run --rm -v /tmp/bb.yml:/c.yml prom/blackbox-exporter:v0.25.0 --config.check --config.file=/c.yml`
+      Expected: "Config file is ok".
+  - id: P1.T1.S2
+    text: |
+      Write the assertion that FAILS until the modules exist. Create
+      `apps/blackbox-exporter/tests/assert-modules.sh`:
+      ```
+      #!/usr/bin/env bash
+      set -euo pipefail
+      yq '.data["blackbox.yml"]' apps/blackbox-exporter/manifests/configmap.yaml > /tmp/bb.yml
+      for m in litellm_chat comfyui_object_info; do
+        yq -e ".modules.$m" /tmp/bb.yml >/dev/null || { echo "MISSING module: $m"; exit 1; }
+      done
+      docker run --rm -v /tmp/bb.yml:/c.yml prom/blackbox-exporter:v0.25.0 --config.check --config.file=/c.yml
+      echo "OK: both modules present and config valid"
+      ```
+  - id: P1.T1.S3
+    text: |
+      Run `bash apps/blackbox-exporter/tests/assert-modules.sh`. Expected FAIL:
+      "MISSING module: litellm_chat" (RED).
+- number: 2
+  title: Add the two modules
+  steps:
+  - id: P1.T2.S1
+    text: |
+      In `apps/blackbox-exporter/manifests/configmap.yaml`, under `modules:`,
+      add the LiteLLM end-to-end completion probe. bearer_token_file points at
+      the optional secret mount added in Phase 2 (probe fails auth until the key
+      lands — by design). Body targets the fast think:false alias.
+      ```
+      litellm_chat:
+        prober: http
+        timeout: 25s
+        http:
+          method: POST
+          valid_status_codes: [200]
+          bearer_token_file: /etc/blackbox-secrets/litellm-probe-key
+          headers:
+            Content-Type: application/json
+          body: |
+            {"model":"gemma-12b-nothin","max_tokens":4,"messages":[{"role":"user","content":"reply with the single word: ok"}]}
+          fail_if_body_not_matches_regexp:
+            - '"choices"'
+          preferred_ip_protocol: ip4
+      ```
+  - id: P1.T2.S2
+    text: |
+      Add the ComfyUI API-liveness probe (proves server up AND core nodes
+      imported — catches custom-node import failures, not just liveness):
+      ```
+      comfyui_object_info:
+        prober: http
+        timeout: 10s
+        http:
+          method: GET
+          valid_status_codes: [200]
+          fail_if_body_not_matches_regexp:
+            - 'KSampler'
+          preferred_ip_protocol: ip4
+      ```
+  - id: P1.T2.S3
+    text: |
+      Run `bash apps/blackbox-exporter/tests/assert-modules.sh`. Expected GREEN:
+      "OK: both modules present and config valid".
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

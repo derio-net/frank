@@ -1,0 +1,54 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Documentation — gotcha + operating touch-up
+  tag: agentic
+  depends_on:
+  - 4
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gotcha one-liner + full prose
+  steps:
+  - id: P6.T1.S1
+    text: |
+      Add a one-liner to the Grafana section of `agents/rules/frank-gotchas.md`:
+      GPU-switch to ComfyUI silently kills all Ollama-backed LiteLLM models
+      (litellm 500, Cilium EPERM = ClusterIP w/ no endpoints);
+      `kube_pod_status_ready` is blind to scale-to-0 (`replicas_unavailable` too
+      — 0 desired); use blackbox end-to-end completion + `/object_info` probes;
+      `gpu_timeshare` route = degraded tile, no page; `gpu-node-both-down` is the
+      only pager.
+  - id: P6.T1.S2
+    text: |
+      Add full prose to `docs/runbooks/frank-gotchas/grafana.md`: the incident
+      (green board while inference down), the per-pod-metric blind spot, the
+      time-share truth table, probe design, the quiet-route mechanism, and VMUI
+      verification queries (`probe_success{probe_group="gpu_timeshare"}`).
+- number: 2
+  title: Operating post touch-up
+  steps:
+  - id: P6.T2.S1
+    text: |
+      If an inference/media operating post documents health checks, add the new
+      VMUI probe queries + "which layer has the GPU" check. If none exists,
+      record N/A in the plan (fix/extension — no new blog post).
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
