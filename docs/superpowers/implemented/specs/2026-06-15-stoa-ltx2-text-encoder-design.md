@@ -4,7 +4,7 @@
 **Layer:** `comfy` (extension of the 2026-06-14 stoa-frank-infra ComfyUI hydration)
 **Target repo:** derio-net/frank
 **Upstream request:** agentic-stoa/content-factory#69
-**Status:** draft
+**Status:** Deployed
 
 > **Codename / OPSEC.** The upstream issue describes the **stoa** content
 > pipeline. The upstream repo is private; in *our* (frank) deliverables —
@@ -136,4 +136,4 @@ deploy fresh).
 
 | Plan | Target repo | Status | Notes |
 |------|-------------|--------|-------|
-| `2026-06-15-stoa-ltx2-text-encoder` | derio-net/frank | Planned | Encoder + upscaler + camera LoRAs; live hydration + /object_info verify + close content-factory#69 |
+| `2026-06-15-stoa-ltx2-text-encoder` | derio-net/frank | Deployed | Encoder + upscaler + camera LoRAs; live hydration + /object_info verify + close content-factory#69 |
