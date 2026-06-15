@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: staging-gate
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    # ONLY the tekton/ subdir is applied (Tasks, Pipeline, Triggers, RBAC).
+    # apps/staging-gate/{registry,runs-fr,README.md} are data consumed by the pipeline /
+    # the <app>-staging app — NOT Kubernetes objects.
+    path: apps/staging-gate/tekton
+    directory:
+      recurse: true
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: tekton-pipelines
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
