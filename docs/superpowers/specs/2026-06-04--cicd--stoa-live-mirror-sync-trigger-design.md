@@ -210,7 +210,7 @@ Deployed:
 
 | Plan | Repo | Scope | Status |
 |------|------|-------|--------|
-| 2026-06-04--cicd--stoa-live-mirror-sync | `derio-net/frank` | `docs/superpowers/plans/2026-06-04--cicd--stoa-live-mirror-sync/` | — |
+| 2026-06-04--cicd--stoa-live-mirror-sync | `derio-net/frank` | `2026-06-04--cicd--stoa-live-mirror-sync` | — |
 
 ## Post-deploy
 
