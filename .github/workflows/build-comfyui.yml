@@ -20,7 +20,9 @@ env:
   # repos publish no release tags) for reproducibility.
   # rev 2: pin torchaudio==torch (was resolving 2.11.0 vs torch 2.10.0, breaking
   #        libtorchaudio -> audio nodes + WanVideoWrapper + FishSpeech failed to load).
-  STOA_NODES: "2"
+  # rev 3: patch ComfyUI-LTXVideo's kornia `pad` import (kornia 0.8.3 dropped it);
+  #        pre-create FishSpeech's site-packages .pth as comfyui-owned.
+  STOA_NODES: "3"
   LTXVIDEO_REF: "229437c6b65796d6a7a63ae34be2bd5ba31fa543"
   GGUF_REF: "6ea2651e7df66d7585f6ffee804b20e92fb38b8a"
   WANVIDEO_REF: "088128b224242e110d3906c6750e9a3a348a659b"

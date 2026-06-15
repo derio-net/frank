@@ -65,6 +65,11 @@ RUN pip install --no-cache-dir \
 RUN mkdir -p /opt/stoa-custom-nodes && cd /opt/stoa-custom-nodes \
     && git clone https://github.com/Lightricks/ComfyUI-LTXVideo.git \
     && git -C ComfyUI-LTXVideo checkout ${LTXVIDEO_REF} \
+    # kornia 0.8.3 dropped `pad` from kornia.geometry.transform.pyramid; the node
+    # still imports it (upstream bug) -> ImportError. Its calls match torch's
+    # F.pad signature, so source `pad` from torch instead.
+    && sed -i '/^    pad,$/d' ComfyUI-LTXVideo/pyramid_blending.py \
+    && sed -i '/^import torch.nn.functional as F$/a from torch.nn.functional import pad' ComfyUI-LTXVideo/pyramid_blending.py \
     && pip install --no-cache-dir -r ComfyUI-LTXVideo/requirements.txt \
     && git clone https://github.com/city96/ComfyUI-GGUF.git \
     && git -C ComfyUI-GGUF checkout ${GGUF_REF} \
@@ -83,6 +88,13 @@ RUN mkdir -p /opt/stoa-custom-nodes && cd /opt/stoa-custom-nodes \
 RUN groupadd -g 1000 comfyui \
     && useradd -u 1000 -g comfyui -d /app -s /bin/bash comfyui \
     && chown -R comfyui:comfyui /app
+
+# ComfyUI-FishSpeech's __init__.py writes a `fish_speech.pth` into site-packages
+# at import — fails as the non-root comfyui user (root-owned dir). Pre-create the
+# file owned by comfyui so the runtime open("w") (rewrite) succeeds.
+RUN SP="$(python -c 'import site; print(site.getsitepackages()[0])')" \
+    && touch "$SP/fish_speech.pth" \
+    && chown comfyui:comfyui "$SP/fish_speech.pth"
 
 # ── Entrypoint ──────────────────────────────────────────────────────
 COPY entrypoint.sh /app/entrypoint.sh
