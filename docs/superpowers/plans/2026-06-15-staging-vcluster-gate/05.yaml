@@ -43,38 +43,41 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-15T20:12:24+00:00'
       note: null
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-15T20:12:25+00:00'
       note: null
     P5.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-15T20:12:25+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-15T20:12:26+00:00'
       note: null
     P5.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-15T20:12:26+00:00'
       note: null
     P5.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-15T20:12:27+00:00'
       note: null
     P5.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-15T20:12:27+00:00'
       note: null
     P5.T3.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-06-15T20:12:28+00:00'
+      note: 'Deferred to manual P7: wiring the trigger into the SHARED live github-listener
+        EventListener is runtime-coupled (webhook secret + CEL) and risks the other
+        triggers on it. Binding+template authored + validated; listener edit done
+        in P7 (noted in triggers.yaml).'
   completion:
-    at: null
+    at: '2026-06-15T20:12:29+00:00'
     note: null
     observed_prs: []

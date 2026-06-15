@@ -1,0 +1,101 @@
+# staging-gate Pipeline (tekton.dev/v1). Reusable across apps: params are just {app, sha};
+# resolve-contract reads apps/staging-gate/registry/<app>.yaml and emits the rest as results.
+# RUNTIME verified in the manual phase (P7). promote runs ONLY when smoke passed; reset always.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: staging-gate
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: app
+      type: string
+    - name: sha
+      type: string
+  workspaces:
+    - name: ssh-creds
+    - name: vcluster-kubeconfig
+  tasks:
+    - name: resolve-contract
+      params:
+        - name: app
+          value: $(params.app)
+      taskSpec:
+        params:
+          - name: app
+            type: string
+        results:
+          - name: stagingApp
+          - name: stagingValuesPath
+          - name: smokeImage
+          - name: smokeNamespace
+          - name: prodValuesPath
+          - name: prodValuesKey
+        steps:
+          - name: resolve
+            image: python:3.12-alpine@sha256:9c51ecce261773a684c8345b2d4673700055c513b4d54bc0719337d3e4ee552e
+            env:
+              - name: HOME
+                value: /tekton/home
+            computeResources:
+              requests: {cpu: 50m, memory: 64Mi}
+              limits: {memory: 128Mi}
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65532
+              seccompProfile: {type: RuntimeDefault}
+            script: |
+              #!/bin/sh
+              set -eu
+              apk add --no-cache git >/dev/null
+              git clone --depth 1 https://github.com/derio-net/frank.git /tmp/frank
+              python3 - <<PY
+              import yaml
+              c = yaml.safe_load(open("/tmp/frank/apps/staging-gate/registry/$(params.app).yaml"))
+              for k in ("stagingApp","stagingValuesPath","smokeImage","smokeNamespace","prodValuesPath","prodValuesKey"):
+                  open(f"$(results.{k}.path)".replace("{k}",k), "w").write(str(c[k]))
+              PY
+    - name: bump-staging
+      runAfter: [resolve-contract]
+      taskRef: {name: staging-gate-bump-staging}
+      params:
+        - {name: sha, value: $(params.sha)}
+        - {name: stagingValuesPath, value: $(tasks.resolve-contract.results.stagingValuesPath)}
+      workspaces:
+        - {name: ssh-creds, workspace: ssh-creds}
+    - name: await-sync
+      runAfter: [bump-staging]
+      taskRef: {name: staging-gate-await-sync}
+      params:
+        - {name: stagingApp, value: $(tasks.resolve-contract.results.stagingApp)}
+    - name: run-smoke
+      runAfter: [await-sync]
+      taskRef: {name: staging-gate-run-smoke}
+      params:
+        - {name: app, value: $(params.app)}
+        - {name: smokeImage, value: $(tasks.resolve-contract.results.smokeImage)}
+        - {name: smokeNamespace, value: $(tasks.resolve-contract.results.smokeNamespace)}
+        - {name: sha, value: $(params.sha)}
+      workspaces:
+        - {name: vcluster-kubeconfig, workspace: vcluster-kubeconfig}
+    - name: promote
+      runAfter: [run-smoke]
+      when:
+        - input: "$(tasks.run-smoke.status)"
+          operator: in
+          values: ["Succeeded"]
+      taskRef: {name: staging-gate-promote}
+      params:
+        - {name: sha, value: $(params.sha)}
+        - {name: prodValuesPath, value: $(tasks.resolve-contract.results.prodValuesPath)}
+        - {name: prodValuesKey, value: $(tasks.resolve-contract.results.prodValuesKey)}
+      workspaces:
+        - {name: ssh-creds, workspace: ssh-creds}
+  finally:
+    - name: reset
+      taskRef: {name: staging-gate-reset}
+      params:
+        - {name: smokeNamespace, value: $(tasks.resolve-contract.results.smokeNamespace)}
+      workspaces:
+        - {name: vcluster-kubeconfig, workspace: vcluster-kubeconfig}

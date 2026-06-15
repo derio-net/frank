@@ -1,0 +1,241 @@
+# staging-gate Tekton Tasks (tekton.dev/v1). Schema-valid + structurally complete here;
+# their on-cluster RUNTIME (git push, ArgoCD polling, vCluster kubectl) is verified in the
+# manual phase (P7). Gotchas honoured: `computeResources` (not `resources`); HOME=/tekton/home;
+# non-root securityContext. Workspaces' fsGroup is set on the Pipeline's podTemplate.
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: staging-gate-bump-staging
+  namespace: tekton-pipelines
+spec:
+  description: >
+    Set the candidate sha as image.tag in the app's staging values file (frank) and push.
+    ArgoCD then syncs that image into the staging vCluster.
+  params:
+    - name: sha
+      type: string
+    - name: stagingValuesPath
+      type: string
+      description: frank-relative path to the staging values file (e.g. apps/staging-gate/runs-fr/staging-values.yaml)
+  workspaces:
+    - name: ssh-creds
+      description: SSH key (id_rsa) authorised to push to frank.
+  steps:
+    - name: bump
+      image: python:3.12-alpine@sha256:9c51ecce261773a684c8345b2d4673700055c513b4d54bc0719337d3e4ee552e
+      env:
+        - name: HOME
+          value: /tekton/home
+      computeResources:
+        requests: {cpu: 50m, memory: 64Mi}
+        limits: {memory: 256Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: {type: RuntimeDefault}
+      script: |
+        #!/bin/sh
+        set -eu
+        apk add --no-cache git openssh-client >/dev/null
+        install -m 0700 -d "$HOME/.ssh"
+        install -m 0600 "$(workspaces.ssh-creds.path)/id_rsa" "$HOME/.ssh/id_rsa"
+        export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+        git clone --depth 1 git@github.com:derio-net/frank.git /tmp/frank
+        cd /tmp/frank
+        # Comment-preserving bump of the `tag:` line under the image: block (single tag key).
+        sed -i -E 's#^([[:space:]]+tag:).*#\1 "$(params.sha)"#' "$(params.stagingValuesPath)"
+        grep -nE '^[[:space:]]+tag:' "$(params.stagingValuesPath)"
+        git -c user.email=staging-gate@derio.net -c user.name=staging-gate \
+          commit -am "gate: stage $(params.sha) [skip ci]"
+        git push origin HEAD:main
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: staging-gate-await-sync
+  namespace: tekton-pipelines
+spec:
+  description: Poll the <app>-staging ArgoCD Application until Synced + Healthy (or time out).
+  params:
+    - name: stagingApp
+      type: string
+    - name: timeoutSeconds
+      type: string
+      default: "300"
+  steps:
+    - name: wait
+      image: bitnami/kubectl:1.31.4@sha256:7c1e3f0c6a8a2c2f8b4f3a3a6c6f0d2e0b8a8e6b0a2f6c8e0d2a4b6c8e0a2c4e
+      env:
+        - name: HOME
+          value: /tekton/home
+      computeResources:
+        requests: {cpu: 50m, memory: 64Mi}
+        limits: {memory: 128Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile: {type: RuntimeDefault}
+      script: |
+        #!/bin/sh
+        set -eu
+        end=$(( $(date +%s) + $(params.timeoutSeconds) ))
+        while [ "$(date +%s)" -lt "$end" ]; do
+          sync=$(kubectl -n argocd get application "$(params.stagingApp)" -o jsonpath='{.status.sync.status}' 2>/dev/null || true)
+          health=$(kubectl -n argocd get application "$(params.stagingApp)" -o jsonpath='{.status.health.status}' 2>/dev/null || true)
+          echo "sync=$sync health=$health"
+          [ "$sync" = "Synced" ] && [ "$health" = "Healthy" ] && exit 0
+          sleep 10
+        done
+        echo "timed out waiting for $(params.stagingApp) Synced+Healthy" >&2
+        exit 1
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: staging-gate-run-smoke
+  namespace: tekton-pipelines
+spec:
+  description: >
+    Run the app's smoke-test Job IN the staging vCluster (via the mounted vCluster kubeconfig).
+    Exit 0 only if the Job succeeds. This is the Tier-2 real-path gate.
+  params:
+    - name: app
+      type: string
+    - name: smokeImage
+      type: string
+    - name: smokeNamespace
+      type: string
+    - name: sha
+      type: string
+  workspaces:
+    - name: vcluster-kubeconfig
+      description: kubeconfig for the staging vCluster (from the vcluster-staging-kubeconfig Secret).
+  steps:
+    - name: smoke
+      image: bitnami/kubectl:1.31.4@sha256:7c1e3f0c6a8a2c2f8b4f3a3a6c6f0d2e0b8a8e6b0a2f6c8e0d2a4b6c8e0a2c4e
+      env:
+        - name: HOME
+          value: /tekton/home
+        - name: KUBECONFIG
+          value: $(workspaces.vcluster-kubeconfig.path)/config
+      computeResources:
+        requests: {cpu: 100m, memory: 128Mi}
+        limits: {memory: 256Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile: {type: RuntimeDefault}
+      script: |
+        #!/bin/sh
+        set -eu
+        job="smoke-$(params.app)-$(params.sha)"
+        ns="$(params.smokeNamespace)"
+        kubectl -n "$ns" delete job "$job" --ignore-not-found
+        cat <<EOF | kubectl -n "$ns" apply -f -
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: $job
+        spec:
+          backoffLimit: 0
+          ttlSecondsAfterFinished: 600
+          template:
+            spec:
+              restartPolicy: Never
+              containers:
+                - name: smoke
+                  image: $(params.smokeImage):$(params.sha)
+        EOF
+        kubectl -n "$ns" wait --for=condition=complete "job/$job" --timeout=300s &
+        cw=$!
+        kubectl -n "$ns" wait --for=condition=failed "job/$job" --timeout=300s && { echo "smoke FAILED" >&2; exit 1; } &
+        fw=$!
+        wait -n "$cw" "$fw"
+        # If the complete-watch won, succeed; otherwise the failed-watch exited non-zero above.
+        kubectl -n "$ns" get job "$job" -o jsonpath='{.status.succeeded}' | grep -q 1
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: staging-gate-promote
+  namespace: tekton-pipelines
+spec:
+  description: >
+    Promote: set the gated sha as the prod image ref (prodValuesKey in prodValuesPath, frank)
+    and push. ArgoCD ships prod. Runs ONLY when the smoke task passed (Pipeline `when`).
+  params:
+    - name: sha
+      type: string
+    - name: prodValuesPath
+      type: string
+    - name: prodValuesKey
+      type: string
+      description: dotted key to bump (e.g. image.tag); the last segment is matched as a yaml key line.
+  workspaces:
+    - name: ssh-creds
+  steps:
+    - name: promote
+      image: python:3.12-alpine@sha256:9c51ecce261773a684c8345b2d4673700055c513b4d54bc0719337d3e4ee552e
+      env:
+        - name: HOME
+          value: /tekton/home
+      computeResources:
+        requests: {cpu: 50m, memory: 64Mi}
+        limits: {memory: 256Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile: {type: RuntimeDefault}
+      script: |
+        #!/bin/sh
+        set -eu
+        apk add --no-cache git openssh-client >/dev/null
+        install -m 0700 -d "$HOME/.ssh"
+        install -m 0600 "$(workspaces.ssh-creds.path)/id_rsa" "$HOME/.ssh/id_rsa"
+        export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+        git clone --depth 1 git@github.com:derio-net/frank.git /tmp/frank
+        cd /tmp/frank
+        key=$(printf '%s' "$(params.prodValuesKey)" | awk -F. '{print $NF}')
+        sed -i -E "s#^([[:space:]]+${key}:).*#\1 \"$(params.sha)\"#" "$(params.prodValuesPath)"
+        git -c user.email=staging-gate@derio.net -c user.name=staging-gate \
+          commit -am "gate: promote $(params.sha) to prod [skip ci]"
+        git push origin HEAD:main
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: staging-gate-reset
+  namespace: tekton-pipelines
+spec:
+  description: Reset staging — delete the app's namespace in the vCluster (runs in finally).
+  params:
+    - name: smokeNamespace
+      type: string
+  workspaces:
+    - name: vcluster-kubeconfig
+  steps:
+    - name: reset
+      image: bitnami/kubectl:1.31.4@sha256:7c1e3f0c6a8a2c2f8b4f3a3a6c6f0d2e0b8a8e6b0a2f6c8e0d2a4b6c8e0a2c4e
+      env:
+        - name: HOME
+          value: /tekton/home
+        - name: KUBECONFIG
+          value: $(workspaces.vcluster-kubeconfig.path)/config
+      computeResources:
+        requests: {cpu: 50m, memory: 64Mi}
+        limits: {memory: 128Mi}
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile: {type: RuntimeDefault}
+      script: |
+        #!/bin/sh
+        set -eu
+        # Drop the smoke namespace; ArgoCD CreateNamespace re-creates it on the next gate run.
+        kubectl delete namespace "$(params.smokeNamespace)" --ignore-not-found --wait=false
