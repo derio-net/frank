@@ -1,0 +1,36 @@
+schema_version: 2
+phase:
+  number: 4
+  title: grafana-webhook receiver (TDD)
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Receiver test-first then implement
+  steps:
+  - id: P4.T1.S1
+    text: |
+      `apps/alert-agent/handlers/` — `test_webhook.py` first: a POSTed Grafana alert webhook
+      → builds the alert fact sheet (`frank-facts alert`), POSTs a triage prompt to
+      /session/send, delivers the narrative via the bridge; a malformed body → 400, no
+      delivery; `/healthz` → 200 (used by the cutover receiver-health check). RED.
+  - id: P4.T1.S2
+    text: |
+      Implement the receiver (stdlib http.server, like agent-session serve). Run. Expected:
+      GREEN. Keep summary/runbook free of `<>&` (Telegram HTML-400 gotcha) in any default text.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

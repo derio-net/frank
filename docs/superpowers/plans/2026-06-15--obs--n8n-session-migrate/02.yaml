@@ -1,0 +1,38 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Post-Deploy verification (content-factory drives)
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Checklist + status
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Steps 1-4 (expose/blog/README) — N/A (internal infra migration; no user-facing change).
+      Step 5 `/sync-runbook` — no `# manual-operation` blocks in this plan (the baked s6 service
+      auto-starts; n8n's `claude login` was its own MO-4, unaffected). Record N/A.
+  - id: P2.T1.S2
+    text: |
+      Step 6: set `**Status:**` to Deployed once merged + ArgoCD-synced. Post-merge,
+      operator-driven verification (the remaining gate): content-factory's n8n session still
+      drives a script-gen turn end-to-end through the BAKED driver (POST localhost:8765
+      /session/send returns a payload; a content-factory run completes). A layer is not
+      Deployed until this is observed.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

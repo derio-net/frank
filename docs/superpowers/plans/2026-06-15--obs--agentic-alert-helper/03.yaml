@@ -1,0 +1,42 @@
+schema_version: 2
+phase:
+  number: 3
+  title: surge-gate + digest orchestration (TDD)
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gate logic test-first
+  steps:
+  - id: P3.T1.S1
+    text: |
+      `apps/alert-agent/handlers/` — `test_orchestration.py` first: (a) surge-gate runs
+      `frank-facts surge-compute`; on a NON-escalating verdict the agent is NOT woken (no
+      /session/send); (b) on an escalating tier past cooldown, the agent IS woken once and the
+      narrative delivered; (c) the same tier within `SURGE_COOLDOWN_HOURS` is suppressed
+      (edge-trigger + cooldown, mirroring the old surge semantics); (d) digest always wakes
+      once/run and delivers (with the timeout→deterministic-render fallback from P2). Run.
+      Expected: FAIL (RED).
+  - id: P3.T1.S2
+    text: |
+      Implement `surge-gate` + `digest` handler scripts: call frank-facts, apply the
+      edge-trigger+cooldown gate (in-memory state is fine — single replica, like the old
+      design), POST the trigger prompt to /session/send on escalation, deliver via the bridge
+      with fallback. Run. Expected: GREEN.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

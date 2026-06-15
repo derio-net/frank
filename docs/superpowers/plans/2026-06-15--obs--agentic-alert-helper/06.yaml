@@ -1,0 +1,41 @@
+schema_version: 2
+phase:
+  number: 6
+  title: Cutover — re-point Grafana, retire old app (ORDER MATTERS)
+  tag: agentic
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Re-point then retire (old app removed LAST)
+  steps:
+  - id: P6.T1.S1
+    text: |
+      In `apps/grafana-alerting/manifests/contact-points-cm.yaml`, re-point the "AI Helper
+      Webhook" (uid `ai-alert-helper-webhook`) url from
+      `http://ai-alert-helper.ai-alert-helper-system.svc.cluster.local:8080/alert` to the new
+      alert-agent receiver Service. (Deploy-time: the cutover verifies the receiver answers
+      /healthz BEFORE this flip — see the spec Cutover order; that verification is operator-run
+      post-deploy.)
+  - id: P6.T1.S2
+    text: |
+      ONLY in the same change after the re-point: remove `apps/ai-alert-helper/`,
+      `apps/root/templates/ai-alert-helper.yaml`, `apps/root/templates/ns-ai-alert-helper.yaml`.
+      Update `agents/rules/frank-gotchas.md` (obs-digest section) + `docs/runbooks/frank-gotchas/
+      obs-digest.md` + the inference/operating posts to point at alert-agent. The namespace
+      delete + old-Service removal are the LAST steps (operator confirms the flip serves first).
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
