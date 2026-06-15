@@ -9,7 +9,7 @@
 
 | Plan | Repo | Status |
 |------|------|--------|
-| _TBD — fr-plan_ | `derio-net/frank` | Planned |
+| [2026-06-15-staging-vcluster-gate](../plans/2026-06-15-staging-vcluster-gate) | `derio-net/frank` | Planned |
 
 ## Context
 

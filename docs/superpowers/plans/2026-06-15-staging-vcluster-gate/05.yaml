@@ -1,0 +1,80 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Tekton gate Pipeline + Tasks + trigger
+  tag: agentic
+  depends_on:
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gate Tasks (TDD)
+  steps:
+  - id: P5.T1.S1
+    text: |
+      RED — kubeconform (with Tekton CRD schemas via `-schema-location`) over `apps/staging-gate/tekton/tasks/`. Expected NOW: no task files — RED.
+  - id: P5.T1.S2
+    text: |
+      GREEN — author `tekton.dev/v1` Tasks under `apps/staging-gate/tekton/tasks/` (`computeResources` not `resources`; `HOME=/tekton/home`; non-root securityContext; workspaces with fsGroup set at podTemplate in the Pipeline): `bump-staging` (clone frank via ssh-creds, set `image.tag` in the app's stagingValuesPath to the gated sha with a yaml-safe edit, commit+push main); `await-argocd-sync` (argocd app wait `<stagingApp>` --health --sync via the argocd CLI + in-cluster creds, OR poll the Application status to Synced+Healthy); `run-smoke` (apply the smoke Job from the contract's smokeImage INTO the staging vCluster — using the registered cluster kubeconfig — wait Completion, fail on non-zero); `promote` (clone frank, set prodValuesKey in prodValuesPath to the gated sha, commit+push); `reset-staging` (delete the app's staging namespace in the vCluster). Each Task validated by kubeconform.
+  - id: P5.T1.S3
+    text: |
+      Note RUNTIME deps inline in each Task (RBAC, argocd creds, the vCluster cluster Secret) — these are exercised in the manual phase 7; this step only authors + schema-validates. Re-run kubeconform over all tasks → pass.
+- number: 2
+  title: Gate Pipeline (TDD)
+  steps:
+  - id: P5.T2.S1
+    text: |
+      RED — kubeconform over `apps/staging-gate/tekton/pipeline-staging-gate.yaml` + a python assertion that `promote` has a `when` guard on the smoke result and that `reset-staging` is in `finally`. Expected NOW: absent — RED.
+  - id: P5.T2.S2
+    text: |
+      GREEN — author the `staging-gate` Pipeline (tekton.dev/v1): params {app, repo, sha}; tasks bump-staging → await-argocd-sync → run-smoke, then `promote` with `when` (smoke result == "passed"), and `reset-staging` in `finally` (always). It looks up the contract entry for `app` (passed as params or mounted). Validate kubeconform + the python assertion → pass.
+- number: 3
+  title: Gate trigger on the github-listener (TDD)
+  steps:
+  - id: P5.T3.S1
+    text: |
+      RED — kubeconform over `apps/staging-gate/tekton/triggers-staging-gate.yaml` (TriggerBinding + TriggerTemplate). Expected NOW: absent — RED.
+  - id: P5.T3.S2
+    text: |
+      GREEN — author the gate's `triggers.tekton.dev/v1beta1` TriggerBinding (extract `app`, `repo`, `sha` from the GHA `repository_dispatch` payload — `client_payload.app/.sha`, `repository.full_name`) and TriggerTemplate (a `staging-gate` PipelineRun with `shared-workspace` PVC + `ssh-creds`, nodeSelector per the hum example). Validate kubeconform.
+  - id: P5.T3.S3
+    text: |
+      GREEN — wire a new trigger into the existing `github-listener` EventListener (`apps/tekton/triggers/eventlistener-github.yaml`): a trigger with a `github` interceptor (validate secret) → `cel` filter on `header.match('X-GitHub-Event','repository_dispatch') && body.action == 'staging-gate'`, referencing the new binding+template. `helm template`/kubeconform the edited file; `yamllint`. Expected: pass.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

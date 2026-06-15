@@ -1,0 +1,40 @@
+schema_version: 2
+phase:
+  number: 3
+  title: runs-fr-staging ArgoCD Application
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Staging Application + values (TDD)
+  steps:
+  - id: P3.T1.S1
+    text: |
+      RED — assert `helm template apps/root` renders a `runs-fr-staging` Application whose `destination.server` is the staging vCluster API and whose first source is the runs-fr chart. python check over the rendered output. Expected NOW: absent — RED.
+  - id: P3.T1.S2
+    text: |
+      GREEN — create `apps/staging-gate/runs-fr/staging-values.yaml` (image.repository `ghcr.io/derio-net/runs-fr`, `image.tag: "staging"` — the gate bumps this; namespace `runs-fr`; authHeader default; service ClusterIP) and `apps/root/templates/runs-fr-staging.yaml`: a multi-source Application — source1 = runs-fr chart (`repoURL https://github.com/derio-net/frank.git`? NO — chart lives in runs-fr: `repoURL https://github.com/derio-net/runs-fr.git`, `path charts/runs-fr`, `targetRevision main`, helm valueFiles `$values/apps/staging-gate/runs-fr/staging-values.yaml`); source2 = `$values` ref (frank repo); `destination.server` `https://staging.vcluster-staging.svc:443`, namespace `runs-fr`; syncPolicy automated selfHeal + CreateNamespace; ignoreDifferences Secret `/data`.
+  - id: P3.T1.S3
+    text: |
+      GREEN-verify — `helm template apps/root` exits 0, the runs-fr-staging Application renders with the staging destination; `yamllint` the two new files; python check passes.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
