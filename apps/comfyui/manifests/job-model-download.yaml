@@ -1,13 +1,17 @@
 # Declarative model hydration for the stoa pipeline.
 #
-# Idempotent (skip-if-present) download of the stoa model weights into the
+# Idempotent (skip-if-present) download of the stoa model stack into the
 # comfyui-models PVC. Runs on gpu-1 (where the PVC binds) using the comfyui
 # image (curl + the comfyui uid that owns the PVC); requests NO GPU.
 #
-# MANUAL (MO-1, Phase 5): the weight source URLs below are CONFIRM-LIVE —
-# HuggingFace repo paths / quant filenames drift, and gated repos need a token.
-# Confirm + lock the URLs on gpu-1, then run this Job. A re-run is a no-op for
-# artefacts already present.
+# All URLs verified downloadable (HTTP 302, no HF token) on 2026-06-15. A k8s
+# Job is immutable, so re-hydrate by `kubectl delete job comfyui-stoa-model-
+# download -n comfyui && kubectl apply -f` (or let ArgoCD recreate on change).
+# Re-runs are no-ops for artefacts already present.
+#
+# NOTE: LTX-2's text-encoder wiring (Gemma-3 base + embeddings connector) is the
+# best-known set for the ComfyUI LTX-2 nodes; confirm against the live nodes at
+# activation (MO-2) and adjust if a node expects a different format.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -17,9 +21,8 @@ metadata:
     app.kubernetes.io/name: comfyui
     app.kubernetes.io/component: model-download
 spec:
-  # Re-runnable: delete + re-apply to fetch newly-added artefacts.
-  backoffLimit: 2
-  ttlSecondsAfterFinished: 86400
+  backoffLimit: 4
+  ttlSecondsAfterFinished: 172800
   template:
     metadata:
       labels:
@@ -34,8 +37,8 @@ spec:
           operator: Exists
           effect: NoSchedule
       securityContext:
-        # Must match the comfyui Deployment's fsGroup (1000) — both write the
-        # shared comfyui-models PVC; a mismatch would EACCES the curl writes.
+        # Match the comfyui Deployment's fsGroup (1000) — both write the PVC;
+        # a mismatch would EACCES the curl writes.
         fsGroup: 1000
       containers:
         - name: download
@@ -44,38 +47,64 @@ spec:
             - /bin/bash
             - -ec
             - |
-              # download <dest-relative-to-/app/models> <url>
-              # Skip-if-present keeps the Job idempotent.
+              # download <dest-relative-to-/app/models> <url>  (skip-if-present, resumable)
               download() {
                 local dest="/app/models/$1" url="$2"
-                if [ -f "$dest" ]; then
-                  echo "skip (present): $1"
-                  return 0
-                fi
+                if [ -f "$dest" ]; then echo "skip (present): $1"; return 0; fi
                 echo "fetch: $1"
                 mkdir -p "$(dirname "$dest")"
-                curl -fSL --retry 3 "$url" -o "$dest.part"
+                curl -fSL --retry 5 --retry-delay 10 -C - "$url" -o "$dest.part"
                 mv "$dest.part" "$dest"
+                echo "done: $1 ($(du -h "$dest" | cut -f1))"
               }
+              HF=https://huggingface.co
 
-              # --- stoa model artefacts (CONFIRM-LIVE URLs at MO-1) ---------
-              # LTX-2 NVFP8 (video)
-              download "checkpoints/ltx-2-nvfp8.safetensors" \
-                "https://huggingface.co/Lightricks/LTX-2/resolve/main/ltx-2-nvfp8.safetensors"   # CONFIRM-LIVE
-              # LTX-Video 0.9.x (video)
-              download "checkpoints/ltx-video-0.9.safetensors" \
-                "https://huggingface.co/Lightricks/LTX-Video/resolve/main/ltx-video-0.9.safetensors"  # CONFIRM-LIVE
-              # Wan 2.2 14B Q8 GGUF (video)
-              download "unet/wan2.2-14b-Q8_0.gguf" \
-                "https://huggingface.co/city96/Wan2.2-14B-gguf/resolve/main/wan2.2-14b-Q8_0.gguf"  # CONFIRM-LIVE
-              # Kokoro (TTS)
-              download "tts/kokoro/kokoro-v1.0.onnx" \
-                "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v1_0.onnx"  # CONFIRM-LIVE
-              # Fish-Speech S2 (TTS)
-              download "tts/fish-speech/fish-speech-s2.safetensors" \
-                "https://huggingface.co/fishaudio/fish-speech-1.5/resolve/main/model.safetensors"  # CONFIRM-LIVE
+              # ── LTX-Video 0.9.8 (self-contained checkpoint + T5 encoder) ──
+              download "checkpoints/ltxv-13b-0.9.8-distilled-fp8.safetensors" \
+                "$HF/Lightricks/LTX-Video/resolve/main/ltxv-13b-0.9.8-distilled-fp8.safetensors"
+              download "text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors" \
+                "$HF/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn_scaled.safetensors"
+
+              # ── LTX-2 (NVFP8 fp8 + GGUF Q3_K_S) + Gemma-3 encoder + VAEs ──
+              download "checkpoints/ltx-2.3-22b-distilled-fp8.safetensors" \
+                "$HF/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-distilled-fp8.safetensors"
+              download "unet/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf" \
+                "$HF/QuantStack/LTX-2.3-GGUF/resolve/main/LTX-2.3-distilled-1.1/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf"
+              download "text_encoders/gemma-3-12b-it-Q4_K_S.gguf" \
+                "$HF/unsloth/gemma-3-12b-it-GGUF/resolve/main/gemma-3-12b-it-Q4_K_S.gguf"
+              download "text_encoders/ltx-2-19b-embeddings_connector_distill_bf16.safetensors" \
+                "$HF/Kijai/LTXV2_comfy/resolve/main/text_encoders/ltx-2-19b-embeddings_connector_distill_bf16.safetensors"
+              download "vae/LTX2_video_vae_bf16.safetensors" \
+                "$HF/Kijai/LTXV2_comfy/resolve/main/VAE/LTX2_video_vae_bf16.safetensors"
+              download "vae/LTX2_audio_vae_bf16.safetensors" \
+                "$HF/Kijai/LTXV2_comfy/resolve/main/VAE/LTX2_audio_vae_bf16.safetensors"
+
+              # ── Wan 2.2 T2V A14B Q8 GGUF (MoE: high + low noise experts) ──
+              download "unet/Wan2.2-T2V-A14B-HighNoise-Q8_0.gguf" \
+                "$HF/QuantStack/Wan2.2-T2V-A14B-GGUF/resolve/main/HighNoise/Wan2.2-T2V-A14B-HighNoise-Q8_0.gguf"
+              download "unet/Wan2.2-T2V-A14B-LowNoise-Q8_0.gguf" \
+                "$HF/QuantStack/Wan2.2-T2V-A14B-GGUF/resolve/main/LowNoise/Wan2.2-T2V-A14B-LowNoise-Q8_0.gguf"
+              download "text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors" \
+                "$HF/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors"
+              download "vae/Wan2.1_VAE.pth" \
+                "$HF/Wan-AI/Wan2.2-T2V-A14B/resolve/main/Wan2.1_VAE.pth"
+
+              # ── TTS: Kokoro (ungated) + Fish-Speech 1.5 ──
+              download "tts/kokoro/model_fp16.onnx" \
+                "$HF/onnx-community/Kokoro-82M-v1.0-ONNX/resolve/main/onnx/model_fp16.onnx"
+              download "tts/fish-speech/model.pth" \
+                "$HF/fishaudio/fish-speech-1.5/resolve/main/model.pth"
+              download "tts/fish-speech/firefly-gan-vq-fsq-8x1024-21hz-generator.pth" \
+                "$HF/fishaudio/fish-speech-1.5/resolve/main/firefly-gan-vq-fsq-8x1024-21hz-generator.pth"
+              download "tts/fish-speech/config.json" \
+                "$HF/fishaudio/fish-speech-1.5/resolve/main/config.json"
+              download "tts/fish-speech/tokenizer.tiktoken" \
+                "$HF/fishaudio/fish-speech-1.5/resolve/main/tokenizer.tiktoken"
+              download "tts/fish-speech/special_tokens.json" \
+                "$HF/fishaudio/fish-speech-1.5/resolve/main/special_tokens.json"
 
               echo "stoa model hydration complete"
+              du -sh /app/models 2>/dev/null || true
           volumeMounts:
             - name: models
               mountPath: /app/models
