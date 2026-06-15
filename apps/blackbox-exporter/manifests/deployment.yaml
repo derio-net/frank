@@ -26,6 +26,11 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
+            # Dedicated LiteLLM probe virtual key (bearer_token_file for the
+            # litellm_chat module). optional via the volume below.
+            - name: litellm-probe-key
+              mountPath: /etc/blackbox-secrets
+              readOnly: true
           resources:
             requests:
               cpu: 10m
@@ -36,6 +41,13 @@ spec:
         - name: config
           configMap:
             name: blackbox-exporter-config
+        # optional:true — the Secret is absent until the probe virtual key is
+        # minted (manual phase). The pod (and the blog uptime probe) must start
+        # regardless; only the litellm_chat probe fails auth until the key lands.
+        - name: litellm-probe-key
+          secret:
+            secretName: litellm-probe-key
+            optional: true
 ---
 apiVersion: v1
 kind: Service
