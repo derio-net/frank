@@ -52,30 +52,39 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-15T14:28:33+00:00'
+      note: 'MO-1: model-download Job ran on gpu-1; LTX-2 NVFP8+GGUF, Wan2.2 14B Q8
+        (Hi/Lo MoE), LTX-Video 0.9.8, Kokoro, Fish-Speech 1.5 all present on PVC;
+        URLs locked in job-model-download.yaml (HTTP 302 verified).'
     P5.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-15T14:28:34+00:00'
+      note: 'MO-2: activated via GPU Switcher; VRAM flags --reserve-vram 1.0 --cache-none
+        recorded in deployment.yaml; one-model-at-a-time fit on 16GB confirmed.'
     P5.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-15T14:28:36+00:00'
+      note: 'MO-3: ComfyUI (cluster) proxy provider assigned to Authentik embedded
+        outpost; comfyui.cluster.derio.net 302 -> Authentik SSO confirmed.'
     P5.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-15T14:28:37+00:00'
+      note: 'MO-4: claude login (subscription OAuth) done inside multi-agent-shell
+        sidecar; credential on agent-home PVC; tmux session live.'
     P5.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-15T14:28:39+00:00'
+      note: 'MO-5: (a) ComfyUI submit->poll->fetch composes (object_info 736 classes
+        incl. WanVideo/LTXV/Fish/gguf/Kokoro on -stoa3); (b) agent-session POST /session/send
+        turn:2 then turn:3, payloads echoed, tmux attach works.'
     P5.T1.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-15T14:28:40+00:00'
+      note: 'MO-6: content-factory PR #68 recorded live endpoints in frank-duanju-request.md,
+        ticked Phase-2 steps, closed content-factory#55 (merged).'
   completion:
-    at: null
-    note: null
+    at: '2026-06-15T14:28:42+00:00'
+    note: All MO steps executed and verified live end-to-end; ComfyUI complete node
+      set loads on -stoa3; agent-session round-trip verified; content-factory#55 closed.
     observed_prs: []
