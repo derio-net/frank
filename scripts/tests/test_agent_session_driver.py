@@ -100,9 +100,11 @@ def harness(tmp_path):
     faketmux = bindir / "tmux"; faketmux.write_text(FAKE_TMUX)
     faketmux.chmod(faketmux.stat().st_mode | stat.S_IEXEC)
     fdir = tmp_path / "fake"; fdir.mkdir()
+    home = tmp_path / "home"; home.mkdir()  # isolate HOME so pretrust() never touches real ~/.claude.json
 
     env = dict(os.environ)
     env["PATH"] = f"{bindir}:{env['PATH']}"
+    env["HOME"] = str(home)
     env["FAKE_DIR"] = str(fdir)
     env["STOA_TURN_DIR"] = str(tmp_path / "turns")
     env["STOA_OUT_DIR"] = str(tmp_path / "out")
@@ -119,7 +121,7 @@ def harness(tmp_path):
                            capture_output=True, text=True, env=e, timeout=30)
         return p
 
-    return types.SimpleNamespace(drv=drv, env=env, fdir=fdir, run=run)
+    return types.SimpleNamespace(drv=drv, env=env, fdir=fdir, home=home, run=run)
 
 
 def test_receive_shape_matches_contract(harness):
@@ -166,6 +168,16 @@ def test_auto_creates_missing_session(harness):
     # The session must be able to write its output file unprompted (auto-approve
     # safe ops — not a full permissions bypass).
     assert "--permission-mode auto" in newlog
+
+
+def test_auto_create_pretrusts_workspace(harness):
+    # Creating a session pre-trusts $HOME in ~/.claude.json so claude never
+    # blocks on the folder-trust gate (verified live, MO-5b).
+    harness.run(SEND_REQ, session_exists=False)
+    cfg = harness.home / ".claude.json"
+    assert cfg.exists(), "pretrust must write ~/.claude.json"
+    proj = json.loads(cfg.read_text()).get("projects", {})
+    assert proj.get(str(harness.home), {}).get("hasTrustDialogAccepted") is True
 
 
 def test_timeout_when_no_file(harness):

@@ -54,6 +54,24 @@ data:
         return subprocess.run(["tmux", *args], input=stdin, capture_output=True, text=True)
 
 
+    def pretrust():
+        # Mark the workspace trusted in ~/.claude.json so claude never blocks on
+        # the folder-trust gate (an abrupt kill never flushes an acceptance, so
+        # it would otherwise re-appear and hang the session). Idempotent.
+        path = os.path.expanduser("~/.claude.json")
+        try:
+            d = json.load(open(path)) if os.path.exists(path) else {}
+        except (OSError, json.JSONDecodeError):
+            d = {}
+        home = os.path.expanduser("~")
+        d.setdefault("projects", {}).setdefault(home, {})["hasTrustDialogAccepted"] = True
+        try:
+            with open(path, "w") as fh:
+                json.dump(d, fh)
+        except OSError:
+            pass
+
+
     def ensure_session(session_id):
         # Auto-create the session (interactive claude, never -p) if absent, so
         # the caller's session_id drives whatever it names. Unauthenticated until
@@ -62,6 +80,7 @@ data:
         # file) without a prompt, short of a full permissions bypass. Concurrency-
         # safe: a racing dup new-session errors harmlessly.
         if tmux("has-session", "-t", session_id).returncode != 0:
+            pretrust()
             tmux("new-session", "-d", "-s", session_id,
                  "claude --permission-mode auto")
 
