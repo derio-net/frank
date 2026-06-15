@@ -111,6 +111,12 @@ All paths under `apps/comfyui/` unless noted.
    completes (e.g. 544×960, ~97 frames / 8n+1, 8 distilled steps) — the real G2
    proof that native audio works.
 
+## Implementation Plans
+
+| Plan | Target repo | Slug | Status |
+|------|-------------|------|--------|
+| 2026-06-15-gpu-comfyui-ltx23-dev | `derio-net/frank` | `2026-06-15-gpu-comfyui-ltx23-dev` | — |
+
 ## Manual phases (back-loaded)
 
 Steps 2–5 of the Test Plan touch the live gpu-1 cluster, ~50 GB of HF downloads,

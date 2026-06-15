@@ -1,0 +1,77 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Image bump — ComfyUI core v0.9.2 → v0.24.0
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Bump COMFYUI_REF + STOA_NODES and re-pin the image tag
+  steps:
+  - id: P1.T1.S1
+    text: |
+      **Write tag-consistency assertion (RED).** Throwaway check that the
+      new image tag is consistent across all three files and the old tag is
+      gone. Must FAIL before edits.
+
+      ```bash
+      cd "$WT"   # isolation worktree root
+      OLD=comfyui-v0.9.2-pt2.10.0-cu128-stoa3
+      NEW=comfyui-v0.24.0-pt2.10.0-cu128-stoa4
+      ! grep -rq "$OLD" apps/comfyui/ \
+        && grep -q 'COMFYUI_REF=v0.24.0' apps/comfyui/docker/Dockerfile \
+        && grep -q 'COMFYUI_REF: "v0.24.0"' .github/workflows/build-comfyui.yml \
+        && grep -q 'STOA_NODES: "4"' .github/workflows/build-comfyui.yml \
+        && [ "$(grep -rl "$NEW" apps/comfyui/manifests | wc -l)" = "2" ]
+      ```
+      Expected NOW: non-zero exit (RED — old tag still present).
+  - id: P1.T1.S2
+    text: |
+      **Bump Dockerfile ARG.** In `apps/comfyui/docker/Dockerfile`:
+      `ARG COMFYUI_REF=v0.9.2` → `ARG COMFYUI_REF=v0.24.0`.
+  - id: P1.T1.S3
+    text: |
+      **Bump workflow COMFYUI_REF + STOA_NODES.** In
+      `.github/workflows/build-comfyui.yml`:
+      - `COMFYUI_REF: "v0.9.2"` → `"v0.24.0"`
+      - `STOA_NODES: "3"` → `"4"`
+      - Add a `# rev 4:` comment above STOA_NODES documenting the core bump
+        (v0.9.2→v0.24.0, LTX-2.3 a/v fixes + NVFP4 load support).
+  - id: P1.T1.S4
+    text: |
+      **Re-pin image tag (×2).** Replace
+      `comfyui-v0.9.2-pt2.10.0-cu128-stoa3` →
+      `comfyui-v0.24.0-pt2.10.0-cu128-stoa4` in both
+      `apps/comfyui/manifests/deployment.yaml` and
+      `apps/comfyui/manifests/job-model-download.yaml`.
+  - id: P1.T1.S5
+    text: |
+      **Run assertion (GREEN) + commit.** Re-run the S1 check — expect exit
+      0. Then `git commit` (feat(gpu): bump ComfyUI core to v0.24.0).
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

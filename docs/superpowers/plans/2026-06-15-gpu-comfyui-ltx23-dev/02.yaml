@@ -1,0 +1,78 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Hydration Job — LTX-2.3 dev model set
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Rewrite the LTX-2 download block + remove the wrong checkpoint
+  steps:
+  - id: P2.T1.S1
+    text: |
+      **Write model-inventory assertion (RED).** Check over
+      `apps/comfyui/manifests/job-model-download.yaml`: three new artefacts
+      referenced, old distilled-fp8 download line gone, `rm -f` present.
+
+      ```bash
+      J=apps/comfyui/manifests/job-model-download.yaml
+      grep -q 'checkpoints/ltx-2.3-22b-dev-fp8.safetensors' "$J" \
+        && grep -q 'checkpoints/ltx-2.3-22b-dev-nvfp4.safetensors' "$J" \
+        && grep -q 'loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors' "$J" \
+        && grep -q 'rm -f .*ltx-2.3-22b-distilled-fp8.safetensors' "$J" \
+        && ! grep -q 'download "checkpoints/ltx-2.3-22b-distilled-fp8.safetensors"' "$J"
+      ```
+      Expected NOW: non-zero (RED).
+  - id: P2.T1.S2
+    text: |
+      **Edit the hydration Job download block.** In the LTX-2 section of
+      the Job command:
+      - Add `rm -f /app/models/checkpoints/ltx-2.3-22b-distilled-fp8.safetensors`
+        before the download() calls (idempotent cleanup of the wrong file).
+      - Remove the `download "checkpoints/ltx-2.3-22b-distilled-fp8.safetensors" …` line.
+      - Add three download() calls (verified URLs, 2026-06-15):
+        - `checkpoints/ltx-2.3-22b-dev-fp8.safetensors`
+          ← `$HF/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-dev-fp8.safetensors`
+        - `checkpoints/ltx-2.3-22b-dev-nvfp4.safetensors`
+          ← `$HF/Lightricks/LTX-2.3-nvfp4/resolve/main/ltx-2.3-22b-dev-nvfp4.safetensors`
+        - `loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors`
+          ← `$HF/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors`
+      - Update the header comment block (model inventory + 2026-06-15 note;
+        NVFP4 is Blackwell-native for the RTX 5070 Ti).
+  - id: P2.T1.S3
+    text: |
+      **Refresh pvc.yaml capacity comment.** Update
+      `apps/comfyui/manifests/pvc.yaml` comment to reflect the dev
+      checkpoints (fp8 ~29GB + NVFP4 ~21.7GB) replacing the removed
+      distilled-fp8. No size change (stays 200Gi).
+  - id: P2.T1.S4
+    text: |
+      **Run assertion + yamllint + URL check (GREEN) + commit.** Re-run the
+      S1 check (exit 0); `yamllint apps/comfyui/manifests/job-model-download.yaml`;
+      verify the three HF URLs resolve (302) via
+      `curl -sI -o /dev/null -w '%{http_code}'`. Then `git commit`
+      (feat(gpu): hydrate LTX-2.3 dev model set).
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
