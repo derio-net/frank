@@ -1,0 +1,52 @@
+schema_version: 2
+phase:
+  number: 8
+  title: '[manual] claude login on the alert-agent shell'
+  tag: manual
+  depends_on:
+  - 5
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Operator-only subscription auth (PVC-resident)
+  steps:
+  - id: P8.T1.S1
+    text: |
+      # manual-operation
+      id: obs-alert-agent-claude-login
+      layer: obs
+      app: alert-agent
+      plan: 2026-06-15--obs--agentic-alert-helper
+      when: post-merge, after the Deployment is Running; before the four-trigger verification
+      why_manual: the multi-agent-shell agent uses an Anthropic subscription; first `claude
+        login` is interactive and its credential persists on the PVC (cannot be committed)
+      commands: |
+        # attach to the persistent session and authenticate (mirrors n8n MO-4):
+        kubectl exec -n alert-agent deploy/alert-agent -it -- tmux attach -t <default-session>
+        #   then run:  claude   ->  /login   (complete the OAuth flow)
+        # verify the session can complete a turn:
+        kubectl exec -n alert-agent deploy/alert-agent -- \
+          /usr/local/bin/agent-session send '{"session_id":"smoke","agent":"claude","message":"reply OK as JSON {\"ok\":true}"}'
+      verify: |
+        # the send returns status:ok with a payload (not timeout); a manual /digest POST then
+        # posts to Telegram. Confirm all four triggers deliver end-to-end (digest, a synthetic
+        # surge escalation, a test Grafana alert, an inbound allowlisted DM).
+      status: pending
+  - id: P8.T1.S2
+    text: |
+      Operator implements this phase and pushes to the same PR (`fr plan edit --complete-phase
+      8 --note`). NEVER agent-implemented. Nothing agentic depends on this phase.
+state:
+  steps:
+    P8.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P8.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

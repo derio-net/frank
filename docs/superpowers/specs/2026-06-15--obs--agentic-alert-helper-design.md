@@ -10,6 +10,9 @@
 
 | Plan | Target repo | Slug | Status |
 |------|-------------|------|--------|
+| 2026-06-15-agent-session-extract (Part A, **gating**) | `derio-net/agent-images` | `2026-06-15-agent-session-extract` | — |
+| 2026-06-15--obs--agentic-alert-helper (Part B) | `derio-net/frank` | `2026-06-15--obs--agentic-alert-helper` | — |
+| 2026-06-15--obs--n8n-session-migrate (Part C) | `derio-net/frank` | `2026-06-15--obs--n8n-session-migrate` | — |
 
 > Multi-repo, **three plans**. The **agent-images** plan (Part A — bake the `agent-session`
 > interface into the `multi-agent-shell` image) **gates** two **frank** plans that both consume the

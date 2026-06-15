@@ -1,0 +1,39 @@
+schema_version: 2
+phase:
+  number: 7
+  title: Post-Deploy Checklist
+  tag: agentic
+  depends_on:
+  - 6
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Checklist (replacement of a deployed app)
+  steps:
+  - id: P7.T1.S1
+    text: |
+      Step 1 expose — the grafana-webhook receiver is internal (Grafana→receiver in-cluster);
+      no public ingress / homepage tile unless you want an ops endpoint. Record decision.
+      Steps 2-3 blog — update the existing inference/obs operating post (no new post; this is a
+      re-platforming of an existing capability). Step 4 `/update-readme` if Service Access
+      changed (new alert-agent Service; old ai-alert-helper removed). Record outcomes.
+  - id: P7.T1.S2
+    text: |
+      Step 5 `/sync-runbook` — Phase 8 has a `# manual-operation` (claude login); sync it.
+      Step 6 set the plan `**Status:**` to Deployed once agentic phases merge + ArgoCD-syncs
+      (the manual claude-login + the four-trigger end-to-end verification are post-merge,
+      operator-driven — note as the remaining gate).
+state:
+  steps:
+    P7.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P7.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,67 @@
+schema_version: 2
+phase:
+  number: 1
+  title: frank-facts CLI — port facts.py/surge.py to stdlib (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Rewrite tests off respx (stdlib urllib)
+  steps:
+  - id: P1.T1.S1
+    text: |
+      New app dir `apps/alert-agent/frank-facts/`. Copy `apps/ai-alert-helper/src/
+      ai_alert_helper/{facts.py,surge.py}` in as the starting point. Copy the existing tests
+      `apps/ai-alert-helper/src/tests/{test_facts.py,test_surge.py}` to
+      `apps/alert-agent/frank-facts/tests/`. Establish a green baseline against the original
+      (httpx + respx) code: `cd apps/alert-agent/frank-facts && uv run --with httpx --with
+      respx --with pytest pytest tests/ -q`. Expected: PASS (baseline before the stdlib port).
+  - id: P1.T1.S2
+    text: |
+      Rewrite the tests to NOT use respx/httpx — drive the HTTP boundary with a stdlib
+      `unittest.mock` patch of `urllib.request.urlopen` (a small fake returning canned
+      JSON/bytes per URL). Keep every assertion (surge tiers, edge_filter, digest/alert fact
+      shapes, GoatCounter parsing). Run `uv run --with pytest pytest tests/ -q`. Expected:
+      FAIL (RED — facts.py still imports httpx / calls httpx.Client).
+- number: 2
+  title: Port facts.py + surge.py to stdlib urllib
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Replace httpx in `facts.py` with `urllib.request`/`urllib.parse` (GET with query params,
+      POST LogsQL form bodies, JSON parse). Preserve every public function signature
+      (`build_for_digest`, `build_for_surge`, `build_for_alert`, `surge_visitor_pageviews`,
+      `scan_pattern_counts`, `top_attacker_ips`, `top_scanned_paths`, `crowdsec_activity`,
+      `edge_filter`). `surge.py compute()` is pure logic over facts — leave its shape. Run
+      `uv run --with pytest pytest tests/ -q`. Expected: GREEN.
+  - id: P1.T2.S2
+    text: |
+      Add a thin CLI `apps/alert-agent/frank-facts/frank-facts` (argparse): subcommands
+      `surge-compute` (prints surge.compute() JSON — the gate), `digest`, `surge`, `alert`
+      (reads alert JSON on stdin), + granular `top-attacker-ips` / `top-scanned-paths` /
+      `crowdsec` / `scan-patterns`. Each prints JSON to stdout. stdlib-only (runs on the
+      image's python3). Add a `test_cli.py` asserting `surge-compute` emits the gate verdict.
+      Run the suite. Expected: GREEN.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

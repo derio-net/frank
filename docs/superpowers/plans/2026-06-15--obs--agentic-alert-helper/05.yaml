@@ -1,0 +1,54 @@
+schema_version: 2
+phase:
+  number: 5
+  title: alert-agent Deployment + ArgoCD app
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Manifests (consumes Plan A image; HTTP-only, no RBAC)
+  steps:
+  - id: P5.T1.S1
+    text: |
+      `apps/alert-agent/manifests/`: Deployment on `ghcr.io/derio-net/multi-agent-shell:<Plan-A
+      tag>` (CROSS-REPO: pin the new tag once Plan A's image is built), `replicas:1`,
+      `strategy:Recreate`, PVC for `~/.claude` + agent-session turn state, env
+      `AGENT_SESSION_SERVE=1`, **default ServiceAccount, NO Role/ClusterRole** (HTTP-only
+      posture). Mount frank-facts CLI + bridge + handlers (ConfigMaps, like fetch-text). LB or
+      ClusterIP for the grafana-webhook receiver.
+  - id: P5.T1.S2
+    text: |
+      ESO ExternalSecret(s) for `FRANK_C2_TELEGRAM_BOT_TOKEN`/`_CHAT_ID` + the GoatCounter
+      stats token (mirror `apps/ai-alert-helper`'s secret keys). supercronic crontab ConfigMap:
+      surge-gate `*/15`, digest daily. A `SKILL.md`/SOUL ConfigMap teaching the agent its job,
+      the frank-facts tool catalog, the HTTP-only/read-only boundary, and the output-payload
+      contract.
+  - id: P5.T1.S3
+    text: |
+      `apps/root/templates/alert-agent.yaml` (+ `ns-alert-agent.yaml`) Application CR
+      (ServerSideApply=true, prune:true so hash-suffixed ConfigMaps roll the pod, selfHeal).
+      Validate: `kustomize build apps/alert-agent/manifests >/dev/null && echo OK` (or yq
+      parse each). Expected: valid YAML.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

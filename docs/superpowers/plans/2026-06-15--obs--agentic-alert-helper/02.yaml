@@ -1,0 +1,44 @@
+schema_version: 2
+phase:
+  number: 2
+  title: telegram-bridge — single-consumer + deterministic fallback (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Failing tests for allowlist + fallback + single-consumer
+  steps:
+  - id: P2.T1.S1
+    text: |
+      `apps/alert-agent/telegram-bridge/` (stdlib python). Write `tests/test_bridge.py` first
+      (mock urlopen for getUpdates/sendMessage): (a) an allowlisted chat message → one
+      /session/send call + one sendMessage reply; (b) a non-allowlisted chat → dropped (WARN,
+      no /session/send); (c) outbound helper posts a given narrative to the configured chat;
+      (d) the cron/webhook path: when /session/send returns `{"status":"timeout","payload":
+      null}`, the caller posts the deterministic `frank-facts` render instead (fallback).
+      Run `uv run --with pytest pytest -q`. Expected: FAIL (RED — bridge not written).
+- number: 2
+  title: Implement the bridge
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Implement `telegram-bridge` (stdlib): long-poll getUpdates with an allowlist
+      (TELEGRAM_CHAT_ID allowlist), route allowlisted messages → POST localhost
+      /session/send → post the payload reply via sendMessage; expose a `send(text)` used by
+      the cron/webhook handlers; single process = single getUpdates consumer (document the
+      replicas:1/Recreate requirement in a header comment). Run the suite. Expected: GREEN.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
