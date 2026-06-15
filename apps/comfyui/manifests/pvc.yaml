@@ -1,8 +1,10 @@
 # Persistent storage for ComfyUI models (checkpoints, GGUF, VAEs, text encoders).
-# 200Gi holds the stoa video stack: LTX-Video 0.9.8 + LTX-2 (NVFP8 ~29.5GB +
-# GGUF Q3_K_S ~14GB) + Wan 2.2 (2x ~15GB MoE experts) + text encoders + Kokoro/
-# Fish TTS (~110GB of weights) plus headroom for outputs/cache. Longhorn online
-# expansion (allowVolumeExpansion=true); never shrink (k8s rejects it).
+# 200Gi holds the stoa video stack: LTX-Video 0.9.8 + LTX-2.3 "dev" set (fp8
+# ~29GB + nvfp4 ~21.7GB checkpoints + distilled-1.1 LoRA; the wrong-lineage
+# distilled-fp8 ~29.5GB was removed) + GGUF Q3_K_S ~14GB + Wan 2.2 (2x ~15GB MoE
+# experts) + text encoders + Kokoro/Fish TTS (~130GB of weights) plus headroom
+# for outputs/cache. Longhorn online expansion (allowVolumeExpansion=true);
+# never shrink (k8s rejects it).
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

@@ -9,9 +9,11 @@
 # download -n comfyui && kubectl apply -f` (or let ArgoCD recreate on change).
 # Re-runs are no-ops for artefacts already present.
 #
-# NOTE: LTX-2's text-encoder wiring (Gemma-3 base + embeddings connector) is the
-# best-known set for the ComfyUI LTX-2 nodes; confirm against the live nodes at
-# activation (MO-2) and adjust if a node expects a different format.
+# LTX-2.3 native audio: the on-box `ltx-2.3-22b-distilled-fp8.safetensors` baked
+# a 2048-dim audio connector and is the wrong lineage for the Gemma-3-12B encoder
+# (needs 3840-dim) — it is rm -f'd below and replaced by the "dev" checkpoint set:
+# dev-fp8 + dev-nvfp4 (Blackwell-native) checkpoints + the distilled-1.1 LoRA
+# (the audio path is dev checkpoint + LoRA, not the single-file distilled).
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -75,9 +77,19 @@ spec:
               download "text_encoders/t5xxl_fp8_e4m3fn_scaled.safetensors" \
                 "$HF/comfyanonymous/flux_text_encoders/resolve/main/t5xxl_fp8_e4m3fn_scaled.safetensors"
 
-              # ── LTX-2 (NVFP8 fp8 + GGUF Q3_K_S) + Gemma-3 encoder + VAEs ──
-              download "checkpoints/ltx-2.3-22b-distilled-fp8.safetensors" \
-                "$HF/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-distilled-fp8.safetensors"
+              # ── LTX-2.3 "dev" set (Gemma-3-paired native audio) + GGUF + VAEs ──
+              # The Gemma-3-12B encoder needs the 3840-dim "dev" checkpoint; the
+              # old single-file `distilled-fp8` baked a 2048-dim audio connector
+              # (wrong lineage) and is removed here. Native audio uses the dev
+              # checkpoint + the distilled-1.1 LoRA. NVFP4 is Blackwell-native for
+              # the RTX 5070 Ti (lower VRAM than fp8); needs ComfyUI >= v0.24.
+              rm -f /app/models/checkpoints/ltx-2.3-22b-distilled-fp8.safetensors
+              download "checkpoints/ltx-2.3-22b-dev-fp8.safetensors" \
+                "$HF/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-dev-fp8.safetensors"
+              download "checkpoints/ltx-2.3-22b-dev-nvfp4.safetensors" \
+                "$HF/Lightricks/LTX-2.3-nvfp4/resolve/main/ltx-2.3-22b-dev-nvfp4.safetensors"
+              download "loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors" \
+                "$HF/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors"
               download "unet/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf" \
                 "$HF/QuantStack/LTX-2.3-GGUF/resolve/main/LTX-2.3-distilled-1.1/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf"
               download "text_encoders/gemma-3-12b-it-Q4_K_S.gguf" \
