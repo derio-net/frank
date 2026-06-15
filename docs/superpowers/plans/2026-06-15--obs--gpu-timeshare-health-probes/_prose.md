@@ -1,8 +1,10 @@
 # Honest Health Probes for GPU-Time-Shared Layers
 
-**Status:** Planned
+**Status:** Implemented — agentic phases 1-7 complete; remaining gate (post-merge, operator-driven): mint the probe virtual key (Phase 8 manual-op `obs-litellm-probe-virtual-key`) + run the live GPU-switch-flip Test Plan. Set to **Deployed** after that.
 **Spec:** `docs/superpowers/specs/2026-06-15--obs--inference-media-honest-health-probes-design.md`
 **Layer:** obs (fix/extension — grafana-alerting + blackbox-exporter)
+
+> **Post-Deploy Checklist outcomes (fix/extension scope):** Step 1 (expose) — N/A (internal monitoring, no user-facing service). Steps 2-3 (blog posts) — N/A (fix/extension; covered by the gotcha + operating-post updates). Step 4 (README) — no change (no Service Access / Current Status delta). Step 5 (sync-runbook) — done (`obs-litellm-probe-virtual-key` added to `docs/runbooks/manual-operations.yaml`). Step 6 (status) — set post-merge.
 
 ## Why
 

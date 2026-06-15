@@ -1790,3 +1790,15 @@ operations:
   verify:
   - Webhook test-delivery from the Gitea UI returns 2xx
   status: done
+- id: obs-litellm-probe-virtual-key
+  layer: obs
+  app: blackbox-exporter
+  plan: docs/superpowers/plans/2026-06-15--obs--gpu-timeshare-health-probes/
+  when: post-merge, before the live GPU-switch-flip test; the litellm_chat probe fails auth until this is done (pod + blog probe unaffected — mount is optional:true)
+  why_manual: LiteLLM virtual keys are minted via the LiteLLM API/DB, not declaratively; the key is a secret and must not be committed
+  commands:
+  - "# 1. Mint a least-privilege virtual key scoped to the probe alias:\nLITELLM_MASTER_KEY=$(kubectl -n litellm get secret litellm-api-keys -o jsonpath='{.data.LITELLM_MASTER_KEY}' | base64 -d)\ncurl -s -X POST http://192.168.55.206:4000/key/generate \\\n  -H \"Authorization: Bearer $LITELLM_MASTER_KEY\" -H 'Content-Type: application/json' \\\n  -d '{\"models\":[\"gemma-12b-nothin\"],\"key_alias\":\"blackbox-probe\",\"max_budget\":1}'\n# 2. Store the returned key in Infisical as LITELLM_PROBE_VIRTUAL_KEY (same\n#    project/env the litellm ExternalSecret reads). ESO syncs it to\n#    secret monitoring/litellm-probe-key; blackbox-exporter picks it up\n#    (refreshInterval 5m, or restart the pod to pick it up immediately).\n"
+  verify:
+  - "kubectl -n monitoring get secret litellm-probe-key  # exists after ESO sync"
+  - "probe_success{layer=\"11\"} in VMUI reflects real auth: 1 when Ollama holds gpu-1, 0 (not an auth error) when ComfyUI holds it"
+  status: pending
