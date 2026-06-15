@@ -2,6 +2,9 @@
 .env
 *.env.local
 
+# staging-gate: locally-provisioned manifest-validation tooling (ensure-tools.sh)
+/.bin/
+
 # Talos configs (contain sensitive cluster info)
 .talos/
 
