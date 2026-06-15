@@ -51,6 +51,8 @@ spec:
           - name: vcluster-kubeconfig
             secret:
               secretName: vcluster-staging-kubeconfig
+          - name: scratch
+            emptyDir: {}
 ---
 # NOTE (manual P7): add a Trigger to the existing github-listener EventListener
 # (apps/tekton/triggers/eventlistener-github.yaml) referencing the binding+template above,

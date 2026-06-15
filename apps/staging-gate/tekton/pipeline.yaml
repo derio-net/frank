@@ -1,6 +1,6 @@
-# staging-gate Pipeline (tekton.dev/v1). Reusable across apps: params are just {app, sha};
-# resolve-contract reads apps/staging-gate/registry/<app>.yaml and emits the rest as results.
-# RUNTIME verified in the manual phase (P7). promote runs ONLY when smoke passed; reset always.
+# staging-gate Pipeline (tekton.dev/v1). Reusable: params are {app, sha}; resolve-contract reads
+# apps/staging-gate/registry/<app>.yaml (ssh-cloned — frank is private) and emits each field as a
+# result. promote runs ONLY when run-smoke Succeeded; reset always (finally). RUNTIME → P7.
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -8,38 +8,37 @@ metadata:
   namespace: tekton-pipelines
 spec:
   params:
-    - name: app
-      type: string
-    - name: sha
-      type: string
+    - {name: app, type: string}
+    - {name: sha, type: string}
   workspaces:
-    - name: ssh-creds
-    - name: vcluster-kubeconfig
+    - {name: ssh-creds}
+    - {name: vcluster-kubeconfig}
+    - {name: scratch}
   tasks:
     - name: resolve-contract
       params:
-        - name: app
-          value: $(params.app)
+        - {name: app, value: $(params.app)}
+      workspaces:
+        - {name: ssh-creds, workspace: ssh-creds}
+        - {name: scratch, workspace: scratch}
       taskSpec:
         params:
-          - name: app
-            type: string
+          - {name: app, type: string}
+        workspaces:
+          - {name: ssh-creds}
+          - {name: scratch}
         results:
-          - name: stagingApp
-          - name: stagingValuesPath
-          - name: smokeImage
-          - name: smokeNamespace
-          - name: prodValuesPath
-          - name: prodValuesKey
+          - {name: stagingApp}
+          - {name: stagingValuesPath}
+          - {name: smokeImage}
+          - {name: smokeNamespace}
+          - {name: prodValuesPath}
+          - {name: prodValuesKey}
         steps:
-          - name: resolve
-            image: python:3.12-alpine@sha256:9c51ecce261773a684c8345b2d4673700055c513b4d54bc0719337d3e4ee552e
-            env:
-              - name: HOME
-                value: /tekton/home
-            computeResources:
-              requests: {cpu: 50m, memory: 64Mi}
-              limits: {memory: 128Mi}
+          - name: clone
+            image: alpine/git:2.45.2
+            env: [{name: HOME, value: /tekton/home}]
+            computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
             securityContext:
               allowPrivilegeEscalation: false
               runAsNonRoot: true
@@ -48,14 +47,30 @@ spec:
             script: |
               #!/bin/sh
               set -eu
-              apk add --no-cache git >/dev/null
-              git clone --depth 1 https://github.com/derio-net/frank.git /tmp/frank
-              python3 - <<PY
-              import yaml
-              c = yaml.safe_load(open("/tmp/frank/apps/staging-gate/registry/$(params.app).yaml"))
-              for k in ("stagingApp","stagingValuesPath","smokeImage","smokeNamespace","prodValuesPath","prodValuesKey"):
-                  open(f"$(results.{k}.path)".replace("{k}",k), "w").write(str(c[k]))
-              PY
+              install -m 0700 -d "$HOME/.ssh"
+              install -m 0600 "$(workspaces.ssh-creds.path)/id_rsa" "$HOME/.ssh/id_rsa"
+              export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+              rm -rf "$(workspaces.scratch.path)/frank"
+              git clone --depth 1 git@github.com:derio-net/frank.git "$(workspaces.scratch.path)/frank"
+          - name: read
+            image: mikefarah/yq:4.44.3
+            computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65532
+              seccompProfile: {type: RuntimeDefault}
+            script: |
+              #!/bin/sh
+              set -eu
+              f="$(workspaces.scratch.path)/frank/apps/staging-gate/registry/$(params.app).yaml"
+              # Each result path is a genuine Tekton substitution; values written newline-free.
+              printf '%s' "$(yq '.stagingApp' "$f")" > "$(results.stagingApp.path)"
+              printf '%s' "$(yq '.stagingValuesPath' "$f")" > "$(results.stagingValuesPath.path)"
+              printf '%s' "$(yq '.smokeImage' "$f")" > "$(results.smokeImage.path)"
+              printf '%s' "$(yq '.smokeNamespace' "$f")" > "$(results.smokeNamespace.path)"
+              printf '%s' "$(yq '.prodValuesPath' "$f")" > "$(results.prodValuesPath.path)"
+              printf '%s' "$(yq '.prodValuesKey' "$f")" > "$(results.prodValuesKey.path)"
     - name: bump-staging
       runAfter: [resolve-contract]
       taskRef: {name: staging-gate-bump-staging}
@@ -64,6 +79,7 @@ spec:
         - {name: stagingValuesPath, value: $(tasks.resolve-contract.results.stagingValuesPath)}
       workspaces:
         - {name: ssh-creds, workspace: ssh-creds}
+        - {name: scratch, workspace: scratch}
     - name: await-sync
       runAfter: [bump-staging]
       taskRef: {name: staging-gate-await-sync}
@@ -92,6 +108,7 @@ spec:
         - {name: prodValuesKey, value: $(tasks.resolve-contract.results.prodValuesKey)}
       workspaces:
         - {name: ssh-creds, workspace: ssh-creds}
+        - {name: scratch, workspace: scratch}
   finally:
     - name: reset
       taskRef: {name: staging-gate-reset}
