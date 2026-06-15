@@ -1,0 +1,69 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Drive the live hydration and verify /object_info
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Run a one-off hydration Job for the new models
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Build a one-off, differently-named Job (comfyui-stoa-ltx2-encoder-
+      hydrate) from the edited download script — ArgoCD does not manage
+      this name, so no self-heal conflict and root GitOps is untouched.
+      Pin nodeSelector gpu-1 + the nvidia toleration + fsGroup 1000, mount
+      comfyui-models at /app/models (co-locates with the serving pod on
+      gpu-1; RWO multi-mount on one node is allowed). Apply it from the
+      cluster-admin container.
+  - id: P2.T1.S2
+    text: |
+      Watch to completion (the new files are ~12.8 GB; existing files
+      skip-if-present):
+        kubectl wait --for=condition=complete job/comfyui-stoa-ltx2-encoder-hydrate -n comfyui --timeout=2400s
+      Tail logs; expect "done: text_encoders/gemma_3_12B_it_fp4_mixed..."
+      etc. and a clean exit. On failure, read the log, fix, re-run.
+- number: 2
+  title: Verify the new files surface in ComfyUI node enums
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Force a fresh folder re-scan (mtime-bumped dirs re-scan on a new
+      /object_info; if stale, rollout-restart comfyui). Then assert all
+      three node enums:
+        - LTXAVTextEncoderLoader.text_encoder  includes gemma_3_12B_it_fp4_mixed.safetensors
+        - LatentUpscaleModelLoader.model_name   includes ltx-2.3-spatial-upscaler-x2-1.1.safetensors
+        - LoraLoader.lora_name                  includes all 7 camera-control LoRAs
+      Print the matched options. ALL must be present — this is the pass
+      gate for #69. Capture the output as evidence.
+  - id: P2.T2.S2
+    text: |
+      Delete the one-off hydration Job (cleanup; the canonical Job in the
+      PR reproduces the files declaratively):
+        kubectl delete job comfyui-stoa-ltx2-encoder-hydrate -n comfyui
+      Confirm the serving comfyui pod is still 1/1 Running.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-15T18:32:15+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-15T18:32:17+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-06-15T18:32:18+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-06-15T18:32:20+00:00'
+      note: null
+  completion:
+    at: '2026-06-15T18:32:21+00:00'
+    note: null
+    observed_prs: []

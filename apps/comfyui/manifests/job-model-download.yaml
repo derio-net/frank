@@ -89,6 +89,40 @@ spec:
               download "vae/LTX2_audio_vae_bf16.safetensors" \
                 "$HF/Kijai/LTXV2_comfy/resolve/main/VAE/LTX2_audio_vae_bf16.safetensors"
 
+              # ── LTX-2 native-audio text encoder (Gemma-3-12B fp4) — content-factory#69 ──
+              # The audio-capable ltx-2.3-22b checkpoint conditions on Gemma-3-12B
+              # embeddings (hidden dim 3840). The native ComfyUI LTXAVTextEncoderLoader
+              # reads a SAFETENSORS encoder from text_encoders/ — the Gemma GGUF above
+              # does NOT surface in that node. t5xxl/umt5 dimension-mismatch (2048 vs 3840).
+              download "text_encoders/gemma_3_12B_it_fp4_mixed.safetensors" \
+                "$HF/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors"
+
+              # ── LTX-2.3 latent spatial upscaler (two-stage 720p+ quality path) ──
+              # LatentUpscaleModelLoader scans the SEPARATE latent_upscale_models/ folder
+              # (NOT upscale_models/ — they are distinct folder_paths registrations).
+              # Version-matched to the deployed ltx-2.3 checkpoint (x2-1.1 long-video hotfix).
+              download "latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors" \
+                "$HF/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"
+
+              # ── LTX-2 camera-control LoRAs (cinematic directability; optional) ──
+              # 19B-trained; surface in LoraLoader. Clean cross-apply to the 22B-2.3
+              # distilled checkpoint is a pipeline-activation concern, not gated here.
+              # One repo per move: Lightricks/LTX-2-19b-LoRA-Camera-Control-<TitleCase>.
+              download "loras/ltx-2-19b-lora-camera-control-static.safetensors" \
+                "$HF/Lightricks/LTX-2-19b-LoRA-Camera-Control-Static/resolve/main/ltx-2-19b-lora-camera-control-static.safetensors"
+              download "loras/ltx-2-19b-lora-camera-control-dolly-left.safetensors" \
+                "$HF/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Left/resolve/main/ltx-2-19b-lora-camera-control-dolly-left.safetensors"
+              download "loras/ltx-2-19b-lora-camera-control-dolly-right.safetensors" \
+                "$HF/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Right/resolve/main/ltx-2-19b-lora-camera-control-dolly-right.safetensors"
+              download "loras/ltx-2-19b-lora-camera-control-dolly-in.safetensors" \
+                "$HF/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-In/resolve/main/ltx-2-19b-lora-camera-control-dolly-in.safetensors"
+              download "loras/ltx-2-19b-lora-camera-control-dolly-out.safetensors" \
+                "$HF/Lightricks/LTX-2-19b-LoRA-Camera-Control-Dolly-Out/resolve/main/ltx-2-19b-lora-camera-control-dolly-out.safetensors"
+              download "loras/ltx-2-19b-lora-camera-control-jib-up.safetensors" \
+                "$HF/Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Up/resolve/main/ltx-2-19b-lora-camera-control-jib-up.safetensors"
+              download "loras/ltx-2-19b-lora-camera-control-jib-down.safetensors" \
+                "$HF/Lightricks/LTX-2-19b-LoRA-Camera-Control-Jib-Down/resolve/main/ltx-2-19b-lora-camera-control-jib-down.safetensors"
+
               # ── Wan 2.2 T2V A14B Q8 GGUF (MoE: high + low noise experts) ──
               download "unet/Wan2.2-T2V-A14B-HighNoise-Q8_0.gguf" \
                 "$HF/QuantStack/Wan2.2-T2V-A14B-GGUF/resolve/main/HighNoise/Wan2.2-T2V-A14B-HighNoise-Q8_0.gguf"

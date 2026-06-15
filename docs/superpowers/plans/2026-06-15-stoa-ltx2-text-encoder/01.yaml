@@ -1,0 +1,99 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Add LTX-2 model files to the stoa ComfyUI hydration Job
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Pre-flight verify HF source URLs are downloadable
+  steps:
+  - id: P1.T1.S1
+    text: |
+      From inside the cluster (gpu-1 comfyui pod, which has curl + the
+      HF reachability the Job relies on), HEAD-check every new URL and
+      assert HTTP 302 (downloadable, no token). Fail fast on any gated /
+      moved weight before baking it into the manifest.
+
+      POD=$(kubectl get pod -n comfyui -l app.kubernetes.io/name=comfyui -o jsonpath='{.items[0].metadata.name}')
+      HF=https://huggingface.co
+      urls=(
+        "$HF/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors"
+        "$HF/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"
+      )
+      for m in static dolly-left dolly-right dolly-in dolly-out jib-up jib-down; do
+        R=$(echo "$m" | sed 's/.*/\u&/; s/-\(.\)/-\U\1/g')   # Static, Dolly-Left, ...
+        urls+=("$HF/Lightricks/LTX-2-19b-LoRA-Camera-Control-$R/resolve/main/ltx-2-19b-lora-camera-control-$m.safetensors")
+      done
+      for u in "${urls[@]}"; do
+        code=$(kubectl exec -n comfyui $POD -- curl -s -o /dev/null -w '%{http_code}' -I -L --max-redirs 0 "$u")
+        echo "$code  $u"
+      done
+
+      Expected: every line starts with 302 (or 200 on a HEAD that
+      resolves). Any 401/403/404 → stop and resolve the URL before
+      editing the manifest. Record the actual codes.
+- number: 2
+  title: Add the three model groups to job-model-download.yaml
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Edit apps/comfyui/manifests/job-model-download.yaml. After the
+      existing LTX-2 block (the gemma GGUF + embeddings connector + VAEs),
+      append the new downloads using the EXISTING download() helper and
+      $HF variable. Placements verified against the live ComfyUI node
+      source (folder_paths.get_filename_list):
+        - text_encoders/         -> LTXAVTextEncoderLoader
+        - latent_upscale_models/ -> LatentUpscaleModelLoader  (NOT upscale_models)
+        - loras/                 -> LoraLoader
+
+      Insert:
+
+        # ── LTX-2 native-audio text encoder (Gemma-3-12B fp4) — content-factory#69 ──
+        # LTXAVTextEncoderLoader reads a SAFETENSORS encoder from text_encoders/;
+        # the Gemma GGUF above does not surface in that node. hidden dim 3840.
+        download "text_encoders/gemma_3_12B_it_fp4_mixed.safetensors" \
+          "$HF/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors"
+
+        # ── LTX-2.3 latent spatial upscaler (two-stage 720p+ quality path) ──
+        # LatentUpscaleModelLoader scans the SEPARATE latent_upscale_models/ folder
+        # (not upscale_models/). Version-matched to the deployed ltx-2.3 checkpoint.
+        download "latent_upscale_models/ltx-2.3-spatial-upscaler-x2-1.1.safetensors" \
+          "$HF/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"
+
+        # ── LTX-2 camera-control LoRAs (directability; optional) ──
+        # 19B-trained LoRAs; surface in LoraLoader. Cross-apply to the 22B-2.3
+        # distilled checkpoint is a pipeline-activation concern, not gated here.
+        for MOVE in static dolly-left dolly-right dolly-in dolly-out jib-up jib-down; do
+          REPO=$(echo "$MOVE" | sed 's/.*/\u&/; s/-\(.\)/-\U\1/g')
+          download "loras/ltx-2-19b-lora-camera-control-$MOVE.safetensors" \
+            "$HF/Lightricks/LTX-2-19b-LoRA-Camera-Control-$REPO/resolve/main/ltx-2-19b-lora-camera-control-$MOVE.safetensors"
+        done
+
+      Only include URLs that returned 302 in P1.T1.S1.
+  - id: P1.T2.S2
+    text: |
+      Validate the edited manifest parses and the bash heredoc is intact:
+        cd <worktree>
+        kubectl apply --dry-run=client -f apps/comfyui/manifests/job-model-download.yaml
+      Expected: "job.batch/comfyui-stoa-model-download configured (dry run)"
+      with no YAML/parse error.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-15T17:36:11+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-15T17:36:13+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-06-15T17:36:14+00:00'
+      note: null
+  completion:
+    at: '2026-06-15T17:36:16+00:00'
+    note: null
+    observed_prs: []

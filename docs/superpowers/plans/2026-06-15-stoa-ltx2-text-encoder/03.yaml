@@ -1,0 +1,48 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Close the upstream issue and ship the PR
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Close content-factory#69 with verification evidence
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Comment + close agentic-stoa/content-factory#69. The comment stays
+      technical (model files, folders, /object_info evidence) and uses the
+      stoa codename only — no private codename. Include: the three files
+      installed, the latent_upscale_models folder correction, the 2.3
+      upscaler version match, the 19B-LoRA caveat, and the /object_info
+      enum confirmation. Note the full G2 audio render is pipeline-
+      activation scope, not this gate.
+        env -u GITHUB_TOKEN gh issue close 69 --repo agentic-stoa/content-factory --comment "<evidence>"
+- number: 2
+  title: Open the frank PR
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Commit the manifest + spec + plan on feat/stoa-ltx2-text-encoder and
+      open a PR to derio-net/frank. Branch/commit/PR all use stoa
+      terminology. PR body: summary, spec/plan paths, the live
+      /object_info evidence, the folder + version decisions, and the
+      19B-LoRA caveat. Note the live hydration was already driven and
+      verified (issue #69 closed); the PR lands the same change
+      declaratively so ArgoCD reproduces it.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-06-15T18:34:46+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-06-15T18:36:04+00:00'
+      note: null
+  completion:
+    at: '2026-06-15T18:36:06+00:00'
+    note: null
+    observed_prs: []
