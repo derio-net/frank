@@ -1,6 +1,6 @@
 # Honest Health Probes for GPU-Time-Shared Layers
 
-**Status:** Implemented — fully agentic (7 phases), no manual gate. The probe uses the LiteLLM master key (already in Infisical → ESO syncs on deploy). Set to **Deployed** after merge + ArgoCD sync. The live GPU-switch-flip behavioural test needs Ollama active (it is intentionally down for the foreseeable future) and is deferred to a follow-up issue.
+**Status:** Deployed — merged in PR #552 (2026-06-15), ArgoCD auto-syncs the grafana-alerting + blackbox-exporter apps. Fully agentic (7 phases), no manual gate; the probe uses the existing LiteLLM master key. The live GPU-switch-flip behavioural test needs Ollama active (intentionally down for now) and is tracked in follow-up issue #554.
 **Spec:** `docs/superpowers/specs/2026-06-15--obs--inference-media-honest-health-probes-design.md`
 **Layer:** obs (fix/extension — grafana-alerting + blackbox-exporter)
 
