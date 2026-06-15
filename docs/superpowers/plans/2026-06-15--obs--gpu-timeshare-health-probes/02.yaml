@@ -13,11 +13,13 @@ tasks:
   - id: P2.T1.S1
     text: |
       Mirror `apps/litellm/manifests/external-secret.yaml`. Create
-      `apps/blackbox-exporter/manifests/external-secret-probe-key.yaml`:
-      an ExternalSecret in ns `monitoring` named `litellm-probe-key`,
-      syncing Infisical key `LITELLM_PROBE_VIRTUAL_KEY` → secret key
-      `litellm-probe-key`. Use the SAME secretStoreRef the litellm
+      `apps/blackbox-exporter/manifests/external-secret-litellm-key.yaml`:
+      an ExternalSecret in ns `monitoring` named `litellm-master-key`,
+      syncing the existing Infisical key `LITELLM_MASTER_KEY` → secret key
+      `litellm-master-key`. Use the SAME secretStoreRef the litellm
       ExternalSecret uses (copy refreshInterval, secretStoreRef verbatim).
+      (Master key chosen over a dedicated virtual key — no manual mint; the
+      key already exists in Infisical so ESO syncs it on deploy.)
   - id: P2.T1.S2
     text: |
       Confirm the ArgoCD blackbox-exporter Application source path globs
@@ -30,17 +32,17 @@ tasks:
   - id: P2.T2.S1
     text: |
       In `apps/blackbox-exporter/manifests/deployment.yaml`, add a volume from
-      secret `litellm-probe-key` with `optional: true` and a volumeMount at
+      secret `litellm-master-key` with `optional: true` and a volumeMount at
       `/etc/blackbox-secrets` (readOnly). CRITICAL: optional:true so the pod
-      (which runs the blog uptime probe) starts even before the key is minted.
+      (which runs the blog uptime probe) starts even if the key is briefly unsynced.
       ```
       volumes:
-        - name: litellm-probe-key
+        - name: litellm-master-key
           secret:
-            secretName: litellm-probe-key
+            secretName: litellm-master-key
             optional: true
       # container.volumeMounts:
-        - name: litellm-probe-key
+        - name: litellm-master-key
           mountPath: /etc/blackbox-secrets
           readOnly: true
       ```

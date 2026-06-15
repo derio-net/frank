@@ -23,7 +23,7 @@ if missing:
 # Guard the high-risk silent-inversion bugs:
 errs = []
 lc = mods["litellm_chat"]["http"]
-if lc.get("bearer_token_file") != "/etc/blackbox-secrets/litellm-probe-key":
+if lc.get("bearer_token_file") != "/etc/blackbox-secrets/litellm-master-key":
     errs.append(f"litellm_chat bearer_token_file mismatch: {lc.get('bearer_token_file')}")
 # fail_if_body_not_matches_regexp (fail when the expected token is ABSENT). The
 # inverse field name, fail_if_body_matches_regexp, would pass on a 500-error body

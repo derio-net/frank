@@ -41,8 +41,8 @@ tasks:
     text: |
       In `apps/blackbox-exporter/manifests/configmap.yaml`, under `modules:`,
       add the LiteLLM end-to-end completion probe. bearer_token_file points at
-      the optional secret mount added in Phase 2 (probe fails auth until the key
-      lands — by design). Body targets the fast think:false alias.
+      the optional secret mount added in Phase 2 (the LiteLLM master key, ESO-synced).
+      Body targets the fast think:false alias.
       ```
       litellm_chat:
         prober: http
@@ -50,7 +50,7 @@ tasks:
         http:
           method: POST
           valid_status_codes: [200]
-          bearer_token_file: /etc/blackbox-secrets/litellm-probe-key
+          bearer_token_file: /etc/blackbox-secrets/litellm-master-key
           headers:
             Content-Type: application/json
           body: |

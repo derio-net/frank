@@ -125,9 +125,10 @@ Every Ollama-backed LiteLLM model was returning **500**.
 
 **Fix — synthetic end-to-end probes (plan `2026-06-15--obs--gpu-timeshare-health-probes`).**
 Two blackbox-exporter modules + VMProbes produce `probe_success{layer="11"|"16"}`:
-- `litellm_chat` — a real `POST /v1/chat/completions` (fast `gemma-12b-nothin` alias), auth via a
-  dedicated least-privilege virtual key (`bearer_token_file`, mounted `optional:true` so the pod —
-  and the blog uptime probe — start before the key is minted).
+- `litellm_chat` — a real `POST /v1/chat/completions` (fast `gemma-12b-nothin` alias), auth via the
+  LiteLLM master key (`bearer_token_file`, ESO-synced from the existing Infisical
+  `LITELLM_MASTER_KEY` to the `monitoring` ns; mounted `optional:true` so the pod — and the blog
+  uptime probe — survive a brief unsynced window).
 - `comfyui_object_info` — `GET /object_info` asserting a core node (`KSampler`) is loaded, so it
   catches custom-node import failures, not just liveness.
 

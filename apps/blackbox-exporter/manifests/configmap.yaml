@@ -57,15 +57,16 @@ data:
       # docs/superpowers/plans/2026-06-15--obs--gpu-timeshare-health-probes
       #
       # Layer 11: a real chat completion through LiteLLM. bearer_token_file is the
-      # dedicated probe virtual key, mounted optional:true (probe fails auth, not
-      # the pod, until the key is minted — see the plan's manual phase).
+      # LiteLLM master key (synced from Infisical to the monitoring ns by ESO;
+      # mounted optional:true so a brief unsynced window fails the probe, not the
+      # pod). See apps/blackbox-exporter/manifests/external-secret-litellm-key.yaml.
       litellm_chat:
         prober: http
         timeout: 25s
         http:
           method: POST
           valid_status_codes: [200]
-          bearer_token_file: /etc/blackbox-secrets/litellm-probe-key
+          bearer_token_file: /etc/blackbox-secrets/litellm-master-key
           headers:
             Content-Type: application/json
           body: |

@@ -131,8 +131,7 @@ proxy_config:
     # KEEP IN SYNC: the blackbox litellm_chat probe (apps/blackbox-exporter/
     # manifests/configmap.yaml) hardcodes this alias for the Layer 11 inference
     # health probe. Renaming/removing it makes probe_success{layer="11"} read
-    # permanently degraded — update the probe body + the obs-litellm-probe-virtual-key
-    # manual-op together.
+    # permanently degraded — update the probe body too.
     - model_name: gemma-12b-nothin
       litellm_params:
         model: ollama_chat/gemma4:12b

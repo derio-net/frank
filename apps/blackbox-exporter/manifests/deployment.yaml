@@ -26,9 +26,8 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
-            # Dedicated LiteLLM probe virtual key (bearer_token_file for the
-            # litellm_chat module). optional via the volume below.
-            - name: litellm-probe-key
+            # LiteLLM master key (bearer_token_file for the litellm_chat module).
+            - name: litellm-master-key
               mountPath: /etc/blackbox-secrets
               readOnly: true
           resources:
@@ -41,12 +40,13 @@ spec:
         - name: config
           configMap:
             name: blackbox-exporter-config
-        # optional:true — the Secret is absent until the probe virtual key is
-        # minted (manual phase). The pod (and the blog uptime probe) must start
-        # regardless; only the litellm_chat probe fails auth until the key lands.
-        - name: litellm-probe-key
+        # optional:true defensively — LITELLM_MASTER_KEY already exists in
+        # Infisical so ESO syncs this on deploy, but if it were ever briefly
+        # unsynced the pod (and the blog uptime probe) must still start; only the
+        # litellm_chat probe would fail auth in that window.
+        - name: litellm-master-key
           secret:
-            secretName: litellm-probe-key
+            secretName: litellm-master-key
             optional: true
 ---
 apiVersion: v1

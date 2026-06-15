@@ -1,10 +1,10 @@
 # Honest Health Probes for GPU-Time-Shared Layers
 
-**Status:** Implemented — agentic phases 1-7 complete; remaining gate (post-merge, operator-driven): mint the probe virtual key (Phase 8 manual-op `obs-litellm-probe-virtual-key`) + run the live GPU-switch-flip Test Plan. Set to **Deployed** after that.
+**Status:** Implemented — fully agentic (7 phases), no manual gate. The probe uses the LiteLLM master key (already in Infisical → ESO syncs on deploy). Set to **Deployed** after merge + ArgoCD sync. The live GPU-switch-flip behavioural test needs Ollama active (it is intentionally down for the foreseeable future) and is deferred to a follow-up issue.
 **Spec:** `docs/superpowers/specs/2026-06-15--obs--inference-media-honest-health-probes-design.md`
 **Layer:** obs (fix/extension — grafana-alerting + blackbox-exporter)
 
-> **Post-Deploy Checklist outcomes (fix/extension scope):** Step 1 (expose) — N/A (internal monitoring, no user-facing service). Steps 2-3 (blog posts) — N/A (fix/extension; covered by the gotcha + operating-post updates). Step 4 (README) — no change (no Service Access / Current Status delta). Step 5 (sync-runbook) — done (`obs-litellm-probe-virtual-key` added to `docs/runbooks/manual-operations.yaml`). Step 6 (status) — set post-merge.
+> **Post-Deploy Checklist outcomes (fix/extension scope):** Step 1 (expose) — N/A (internal monitoring, no user-facing service). Steps 2-3 (blog posts) — N/A (fix/extension; covered by the gotcha + operating-post updates). Step 4 (README) — no change (no Service Access / Current Status delta). Step 5 (sync-runbook) — N/A (no `# manual-operation` blocks remain — the probe uses the existing master key). Step 6 (status) — set post-merge.
 
 ## Why
 
@@ -42,24 +42,25 @@ genuinely broken or the switcher is stuck.
 ## Phase map
 
 1. **Blackbox modules** — `litellm_chat` + `comfyui_object_info` (TDD via `--config.check`).
-2. **Probe key** — ESO ExternalSecret + **optional** mount (blog probe must not break pre-key).
+2. **Probe key** — ESO ExternalSecret syncing the existing `LITELLM_MASTER_KEY` + **optional** mount (blog probe must not break if briefly unsynced).
 3. **VMProbes** — inference + media, `probe_group: gpu_timeshare`, `layer` labels.
 4. **Alert rules** — rewrite L11 + L16 to `probe_success`; add `gpu-node-both-down` (TDD).
 5. **Quiet route** — `gpu_timeshare="true"` → Health Bridge only, before the severity routes.
 6. **Docs** — gotcha one-liner + full prose; operating touch-up.
 7. **Post-Deploy Checklist** — fix/extension scope (most steps skip).
-8. **[manual]** — operator mints the LiteLLM probe virtual key + Infisical (back-loaded; nothing
-   agentic depends on it because the key mount is `optional:true`).
 
-## Post-merge Test Plan (operator-driven — live GPU-switch flip)
+## Deferred — live GPU-switch flip test (follow-up issue)
 
-1. After merge + sync + key mint: with ComfyUI holding the GPU → **media green, inference
-   degraded, NO Telegram**; confirm `probe_success{layer="11"}=0`, `{layer="16"}=1` in VMUI.
-2. Operator flips the GPU to Ollama → tiles **swap**, still no page.
+The behavioural test needs Ollama active (currently down for the foreseeable future), so it is
+tracked in a separate follow-up issue, to run when the GPU is handed back to Ollama:
+1. ComfyUI holding the GPU → **media green, inference degraded, NO Telegram**; confirm
+   `probe_success{layer="11"}=0`, `{layer="16"}=1` in VMUI.
+2. Flip the GPU to Ollama → tiles **swap**, still no page.
 3. `gpu-node-both-down` paging leg verified by synthetic webhook replay (or a brief real
    both-down), respecting `for: 10m`.
 
 ## Non-goals
 
 No health-bridge code change (pure routing + labels); no full ComfyUI generation probe; no
-gpu-switcher change; Ollama is **not** re-enabled (operator keeps the GPU on ComfyUI).
+gpu-switcher change; Ollama is **not** re-enabled (operator keeps the GPU on ComfyUI). Probe auth
+uses the existing LiteLLM master key (no dedicated virtual key / manual mint).

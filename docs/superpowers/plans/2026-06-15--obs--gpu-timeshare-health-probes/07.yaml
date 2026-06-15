@@ -20,13 +20,13 @@ tasks:
       changed (likely no — record outcome).
   - id: P7.T1.S3
     text: |
-      Step 5: run `/sync-runbook` — Phase 8 has a `# manual-operation` block
-      (probe key mint); sync it into `docs/runbooks/manual-operations.yaml`.
+      Step 5: `/sync-runbook` — N/A. No `# manual-operation` blocks remain (the
+      probe uses the existing LiteLLM master key, ESO-synced on deploy).
   - id: P7.T1.S4
     text: |
-      Step 6: set the plan `**Status:**` to Deployed once agentic phases are
-      merged + ArgoCD-synced (manual key + live-flip are post-merge,
-      operator-driven — note as the remaining gate).
+      Step 6: set the plan `**Status:**` to Deployed once the phases are merged +
+      ArgoCD-synced. The live GPU-switch-flip behavioural test needs Ollama active
+      (down for now) and is deferred to a follow-up issue, not a merge gate.
 state:
   steps:
     P7.T1.S1:

@@ -60,8 +60,8 @@ modules** to `apps/blackbox-exporter/manifests/configmap.yaml`:
 - **`litellm_chat`** (Layer 11) — `prober: http`, `method: POST` to
   `http://litellm.litellm.svc.cluster.local:4000/v1/chat/completions`. Static JSON body: a
   trivial prompt against a **fast** Ollama-backed alias (`gemma-12b-nothin` — `think:false`,
-  sub-second), `max_tokens` small. Auth via **`bearer_token_file`** (dedicated probe virtual key,
-  §3). `fail_if_body_not_matches_regexp: ['"choices"']` so a real completion is required (a 500
+  sub-second), `max_tokens` small. Auth via **`bearer_token_file`** (the LiteLLM master key, §4).
+  `fail_if_body_not_matches_regexp: ['"choices"']` so a real completion is required (a 500
   or an error body fails the probe). `valid_status_codes: [200]`.
 - **`comfyui_object_info`** (Layer 16) — `prober: http`, GET
   `http://comfyui.comfyui.svc.cluster.local:8188/object_info`, `valid_status_codes: [200]`,
@@ -134,19 +134,22 @@ frank-ops#11|#16` keys the correct tile (feature-ref). When the GPU is handed ba
 passes, the alert resolves, and the tile **auto-greens** (health-bridge heal-by-feature-ref).
 **No health-bridge code change — pure routing + labels, single-repo (frank).**
 
-### 4. Probe virtual key (dedicated, least-privilege)
+### 4. Probe key — the LiteLLM master key (no manual step)
 
-A dedicated LiteLLM **virtual key** for the probe (operator decision — not the master key).
-LiteLLM virtual keys are minted via API/DB, not declaratively → a **`# manual-operation`** block.
-Flow, reusing the existing ESO/Infisical pattern (`apps/litellm/manifests/external-secret.yaml`):
+The probe authenticates with the existing LiteLLM **master key** (operator decision — chosen over a
+dedicated virtual key to avoid an out-of-band mint). `LITELLM_MASTER_KEY` already lives in Infisical
+(the litellm app's `external-secret.yaml` reads the same key), so the flow is **fully declarative**:
 
-1. Operator mints a virtual key in LiteLLM scoped to the probe model alias.
-2. Store it in Infisical as `LITELLM_PROBE_VIRTUAL_KEY`.
-3. New `ExternalSecret` (ns `monitoring`) syncs it to a Secret, mounted into the blackbox-exporter
-   Deployment at `/etc/blackbox-secrets/litellm-probe-key` as **`optional: true`** — so
-   blackbox-exporter (which runs the **blog uptime probe**) starts even before the key exists; the
-   `litellm_chat` probe simply fails auth until the key lands. **No agentic phase depends on the
-   key** → the manual step **back-loads** to the last phase.
+1. New `ExternalSecret` (ns `monitoring`, `external-secret-litellm-key.yaml`) syncs Infisical
+   `LITELLM_MASTER_KEY` → Secret `litellm-master-key`, reusing the existing ESO/Infisical pattern.
+2. Mounted into the blackbox-exporter Deployment at `/etc/blackbox-secrets/litellm-master-key` as
+   **`optional: true`** — so blackbox-exporter (which runs the **blog uptime probe**) still starts
+   if the secret is ever briefly unsynced; only the `litellm_chat` probe would fail auth in that
+   window. **No manual phase** — the key already exists, so ESO syncs it on deploy.
+
+**Trade-off:** the probe carries full LiteLLM admin privilege. Accepted for simplicity — it is
+read-only in practice (one chat completion), namespace-scoped to `monitoring`, and mounted
+read-only. A future least-privilege follow-up could swap in a dedicated virtual key.
 
 ## Truth table (what the board shows)
 
