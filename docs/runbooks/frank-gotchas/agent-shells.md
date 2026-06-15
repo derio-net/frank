@@ -429,3 +429,83 @@ Verify against a PRIVATE repo (public ones false-pass):
 The same App pattern backs other CI on the cluster via per-app `GithubAccessToken`
 generators (e.g. tekton mirror pipelines for a separate org), with the key in the
 consuming namespace — see `storage-secrets-ssa.md` for the generator gotcha.
+
+## shell-inventory npm-global dist-tag guard → reinstall-every-boot → `ENOTEMPTY` deadlock on the PVC
+
+**Incident 2026-06-06 → 2026-06-15 (ruflo-shell).** Telegram fired
+`ruflo-shell: 1 install(s) failed on boot — npm i -g claude-flow@alpha` on
+*every* pod restart for ~9 days before it was investigated.
+
+### Two bugs, one symptom
+
+The Layer-2 inventory reconciler (`/usr/local/lib/<shell>/install-inventory.sh`,
+run by `cont-init.d/40-shell-inventory`) installs declared npm-global packages
+and is meant to **skip ones already present at any version**. The guard was:
+
+```bash
+if npm ls -g "$pkg" --depth=0 >/dev/null 2>&1; then   # $pkg = "claude-flow@alpha"
+```
+
+**Bug A — the guard never matches a dist-tagged spec.** It passed the *full*
+spec, including the `@alpha` dist-tag, to `npm ls`. `npm ls` can't resolve a
+dist-tag locally, so it exits non-zero even when the package IS installed:
+
+```
+npm ls -g claude-flow@alpha   → exit 1   (guard fails → install attempted)
+npm ls -g claude-flow         → exit 0
+npm ls -g @openai/codex       → exit 0   (scoped NAME, not a version selector — skipped fine)
+```
+
+So `claude-flow` was the only package that re-ran `npm i -g` on every boot
+(codex and the scoped `@anthropic-ai/...` entries skip correctly). This alone
+silently auto-pulls a new alpha on every bounce — contradicting the inventory
+ConfigMap's own comment that "pod bounces don't auto-pull new alphas."
+
+**Bug B — the reinstall deadlocks on a stale npm retired dir.** npm replaces a
+global package by renaming the old dir to a hidden *retired* path
+`.{name}-{hash}`, installing the new one, then deleting the retired dir. **That
+hash is deterministic per install path** — so the retired name is *stable*
+across runs. An interrupted reinstall (pod killed mid-install) left
+`.claude-flow-ufsFGjVA` behind, non-empty. Every later install then tried to
+rename the live `claude-flow` onto that same already-occupied name →
+`ENOTEMPTY: directory not empty, rename 'claude-flow' -> '.claude-flow-ufsFGjVA'`
+→ abort. Permanent, because the mise node tree lives under
+`/home/agent/.local/share/mise/...` = the **home PVC**, so the orphan survives
+restarts (an image-baked node tree would reset every boot).
+
+Diagnostic tell: the orphan and the failing rename target share the *same* hash
+suffix. `npm ls -g claude-flow` (bare) exits 0 and looks healthy — the breakage
+is only visible by listing the `node_modules` dir and seeing the `.claude-flow-*`
+sibling, or by running the guard's exact tagged command.
+
+### Recovery (live, wedged PVC)
+
+```bash
+# cd to repo root first (relative KUBECONFIG), then source .env
+P=$(kubectl get pod -n ruflo-system -l app=ruflo -o name | head -1 | cut -d/ -f2)
+D=/home/agent/.local/share/mise/installs/node/20.20.2/lib/node_modules
+# Remove ONLY the stale retired dir (explicit name — never a wildcard, never the real `claude-flow`):
+kubectl exec "$P" -c ruflo-shell -n ruflo-system -- sh -c "rm -rf $D/.claude-flow-<hash>"
+# Re-run the reconcile and confirm failed=0:
+kubectl exec "$P" -c ruflo-shell -n ruflo-system -- sh -lc '/usr/local/lib/ruflo-shell/install-inventory.sh' \
+  | grep -E 'claude-flow|summary'
+# Expect: ✓ npm i -g claude-flow@alpha  /  === summary: ... failed=0 ===  /  MOTD warning clears.
+```
+
+### Durable fix (agent-images#124)
+
+Derive the bare package **name** before the presence check — strip a trailing
+`@version`/`@tag`, preserving a leading `@scope` — and `npm ls -g "$name"`;
+install still uses the full `$pkg`:
+
+```bash
+name="$pkg"
+[[ "${pkg#@}" == *@* ]] && name="${pkg%@*}"
+if npm ls -g "$name" --depth=0 >/dev/null 2>&1; then ...
+```
+
+`claude-flow@alpha`→`claude-flow`, `@openai/codex`→`@openai/codex`,
+`@scope/pkg@1.2.3`→`@scope/pkg`. Applied to all 5 shell images (ruflo, hermes,
+multi-agent, infra, paperclip — identical guard) with a bats regression in
+`hermes-agent-shell/tests/test_install_inventory.bats`. Lands in the cluster on
+the next ruflo image bump in `frank`.
