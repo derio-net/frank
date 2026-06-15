@@ -1227,13 +1227,51 @@ data:
               runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
 
       # --- Layer 16 — Media Generation (frank-ops#16) ---
-      # DEFERRED (Pass 3+): Layer is currently `blocked` pending Traefik route +
-      # model downloads. Once unblocked, add a rule that checks:
-      #   - ComfyUI pod readiness (namespace=comfyui)
-      #   - GPU Switcher pod readiness (namespace=gpu-switcher)
-      # Label: github_issue=frank-ops#16, severity=warning.
-      # Until that rule exists, frank-ops#16's Lifecycle field must be managed
-      # manually (left at `blocked`).
+      # ComfyUI is GPU-time-shared (normally 0 replicas) and its namespace runs
+      # batch model-download Jobs, so kube_pod_status_ready false-positives — use
+      # kube_deployment_status_replicas_unavailable: 0 when intentionally scaled to
+      # 0 (desired=0), fires only when a DESIRED replica is actually down. Covers
+      # ComfyUI + the always-on GPU Switcher orchestrator.
+      - orgId: 1
+        name: layer-16-media-gen-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: layer-16-media-gen-down
+            title: Layer 16 Media Generation Degraded
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'kube_deployment_status_replicas_unavailable{namespace=~"comfyui|gpu-switcher",deployment=~"comfyui|gpu-switcher"}'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0] }
+            noDataState: OK
+            execErrState: Error
+            for: 5m
+            labels:
+              severity: warning
+              github_issue: "frank-ops#16"
+            annotations:
+              summary: "L16 Media Gen: {{ $labels.namespace }}/{{ $labels.deployment }} has unavailable replicas"
+              runbook: "kubectl -n {{ $labels.namespace }} describe deploy {{ $labels.deployment }}"
 
       # --- Layer 17 — Public Edge / Hop (frank-ops#17) ---
       # Blackbox probe on blog.derio.net (already in VMProbe).
