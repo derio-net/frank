@@ -98,6 +98,8 @@ def test_bootstrap_starts_interactive_claude_in_named_tmux():
     # Must be able to write its per-turn output file without a permission prompt
     # (auto-approve safe ops — not a full permissions bypass).
     assert "--permission-mode auto" in script
+    # Pre-trust the workspace so claude never blocks on the folder-trust gate.
+    assert "hasTrustDialogAccepted" in script, "bootstrap must pre-trust the workspace"
     # Idempotent: don't double-create the session.
     assert "has-session" in script, "bootstrap must be idempotent (has-session guard)"
 

@@ -45,6 +45,11 @@ data:
       tmux new-session -d -s "$SERVER" \
         "bash -lc 'while true; do python3 /opt/stoa-bin/agent-session serve; sleep 2; done'" || true
     fi
+    # Pre-trust the workspace in ~/.claude.json so claude never blocks on the
+    # folder-trust gate — an abrupt `tmux kill-session` never lets claude flush
+    # an acceptance, so the gate would otherwise re-appear and hang the
+    # autonomous session (verified live, MO-5b 2026-06-15).
+    python3 -c 'import json,os; p=os.path.expanduser("~/.claude.json"); d=(json.load(open(p)) if os.path.exists(p) else {}); d.setdefault("projects",{}).setdefault(os.path.expanduser("~"),{})["hasTrustDialogAccepted"]=True; json.dump(d,open(p,"w"))' 2>/dev/null || true
     # Pre-warm an attachable default claude session. Interactive claude — never
     # `claude -p`. n8n's session_id is auto-created on first send, so this is
     # convenience (a known attach target) rather than load-bearing.
