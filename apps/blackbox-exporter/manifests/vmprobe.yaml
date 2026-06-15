@@ -58,3 +58,42 @@ spec:
   module: http_2xx_insecure_tls
   vmProberSpec:
     url: blackbox-exporter.monitoring.svc:9115
+---
+# GPU time-share end-to-end probes (Layers 11/16). gpu-1 time-shares its single
+# GPU between Ollama (inference) and ComfyUI (media) — exactly one is ever live,
+# so probe_success flips between the two. The per-layer alert rules read these
+# as probe_success{layer="11"|"16"}; gpu-node-both-down reads the group.
+# Plan: docs/superpowers/plans/2026-06-15--obs--gpu-timeshare-health-probes
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: inference-probe
+  namespace: monitoring
+spec:
+  targets:
+    staticConfig:
+      targets:
+        - http://litellm.litellm.svc.cluster.local:4000/v1/chat/completions
+      labels:
+        probe_group: gpu_timeshare
+        layer: "11"
+  module: litellm_chat
+  vmProberSpec:
+    url: blackbox-exporter.monitoring.svc:9115
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: media-probe
+  namespace: monitoring
+spec:
+  targets:
+    staticConfig:
+      targets:
+        - http://comfyui.comfyui.svc.cluster.local:8188/object_info
+      labels:
+        probe_group: gpu_timeshare
+        layer: "16"
+  module: comfyui_object_info
+  vmProberSpec:
+    url: blackbox-exporter.monitoring.svc:9115
