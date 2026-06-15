@@ -61,15 +61,23 @@ the existing `/usr/local/lib/multi-agent-shell/notify-telegram.sh`.
   (config-selectable; verifying each is a follow-up). The profile table lives in the image so every
   consumer inherits new agents on image bump.
 - **Bootstrap becomes a baked s6 service** (improvement over n8n's postStart hook, which has no
-  ordering guarantee with the ENTRYPOINT): an s6-overlay service starts the `serve` restart-loop +
-  pre-trusts the workspace, **gated on `AGENT_SESSION_SERVE=1`** (default off — a plain interactive
-  shell is unaffected; consumers opt in).
-- **Genericize naming:** `STOA_*` env → `AGENT_SESSION_*` (`_TURN_DIR`, `_OUT_DIR`, `_PORT`,
-  `_POLL_S`, `_SETTLE_S`, `_SESSION_NAME`). The interface is generic infra, not stoa-specific (and
-  shouldn't carry a private codename). Keep `STOA_*` as **deprecated aliases** (read if the new var
-  is unset) for one cycle so a consumer mid-migration never breaks.
-- **Tests:** port `scripts/tests/test_agent_session_driver.py` (mock tmux: paste + file-write flow,
-  turn counter, timeout, per-agent dispatch) into the image's `tests/`.
+  ordering guarantee with the ENTRYPOINT): an s6-overlay **longrun** (`/etc/services.d/<svc>/run`)
+  runs `agent-session serve` **directly** — s6 supervises restarts, so the n8n bootstrap's
+  `while true … sleep 2` loop (needed only inside a tmux pane) is dropped. It also pre-trusts the
+  workspace, **gated on `AGENT_SESSION_SERVE=1`** (default off — a plain interactive shell is
+  unaffected; consumers opt in).
+- **Genericize naming:** rename to `AGENT_SESSION_*` with the REAL source vars (verified against the
+  driver + tests): `AGENT_SESSION_TURN_DIR ← STOA_TURN_DIR`, `_OUT_DIR ← STOA_OUT_DIR`,
+  `_PORT ← STOA_SESSION_PORT`, `_POLL_S ← STOA_POLL_S`, `_SETTLE_S ← STOA_SETTLE_S`,
+  `_NAME ← STOA_SESSION_NAME` (the last lives in the bootstrap, not the driver). The interface is
+  generic infra, not stoa-specific (and shouldn't carry a private codename). Keep each `STOA_*` as a
+  **deprecated alias** (read if the new var is unset) for one cycle so a consumer mid-migration never
+  breaks.
+- **Tests:** port the existing tmux-mock tests from `scripts/tests/test_agent_session_driver.py`
+  (paste + file-write flow, turn counter, timeout, HTTP serve) into the image's `tests/`, **adding**
+  new per-agent-dispatch tests for the launch-profile table (none exist today — the driver hardcodes
+  claude). Re-point the test's driver-source fixture from the n8n ConfigMap path
+  (`apps/n8n-01/manifests/agent-session-driver.yaml`) to the baked image file.
 - **Output:** a new `multi-agent-shell` image tag carrying the baked `agent-session`.
 
 This is the **gating deliverable** — frank consumes the new tag.
@@ -113,7 +121,9 @@ cooldown (preserving `SURGE_ABS_FLOOR` / `SURGE_VISITOR_FLOOR` / `SURGE_COOLDOWN
 **Delivery is orchestration-owned (deterministic), not agent-owned.** Cron/webhook handlers
 `POST /session/send`, get the `payload`, and hand it to `telegram-bridge` to send — the daily
 digest is *guaranteed* to post even if the agent is terse. The agent returns a structured payload;
-it never owns the bot token.
+it never owns the bot token. **Fallback:** if `/session/send` returns `status:timeout` or an empty
+payload (the driver's nonce-file never appeared), the handler posts the deterministic `frank-facts`
+render instead — so a stuck or unauthenticated agent never *silences* the digest.
 
 ### Components
 
@@ -124,12 +134,17 @@ it never owns the bot token.
    non-allowlisted chats (WARN), route allowlisted messages → `/session/send` → reply; the
    deterministic outbound sender for cron/webhook narratives. `replicas:1` + `Recreate` mandatory
    (one getUpdates consumer per token — the old analyst gotcha).
-3. **frank-facts CLI** — `facts.py`/`surge.py` repackaged as a mounted script (like `fetch-text`):
-   `surge-compute` (the gate), `digest`, `surge`, `alert`, + granular `top-attacker-ips` /
-   `top-scanned-paths` / `crowdsec` / `scan-patterns` for ad-hoc investigation. Pure deterministic
-   HTTP data access; no LLM, no kube.
+3. **frank-facts CLI** — `facts.py`/`surge.py` repackaged: `surge-compute` (the gate), `digest`,
+   `surge`, `alert`, + granular `top-attacker-ips` / `top-scanned-paths` / `crowdsec` /
+   `scan-patterns` for ad-hoc investigation. Pure deterministic HTTP data access; no LLM, no kube.
+   **Dependency decision (settle in the plan):** `facts.py` imports `httpx` + needs Python ≥3.12, so
+   it is NOT a drop-in bare-ConfigMap script like `fetch-text` (which is stdlib `urllib` precisely so
+   it runs on the image's `python3`). Either (a) port `facts.py` to stdlib `urllib.request` — then
+   `tests/test_facts.py` (currently `respx`-based) is rewritten too — or (b) ship it against a baked
+   httpx / venv. Recommend (a) for parity with the fetch-text precedent and zero image change.
 4. **grafana-webhook receiver** — re-point `apps/grafana-alerting/manifests/contact-points-cm.yaml`
-   "AI Helper Webhook" from `ai-alert-helper.ai-alert-helper-system.svc:8080/alert` to this.
+   "AI Helper Webhook" (uid `ai-alert-helper-webhook`) from
+   `http://ai-alert-helper.ai-alert-helper-system.svc.cluster.local:8080/alert` to this.
 5. **agent guidance** — a `SKILL.md`/SOUL: the job, the tool catalog, the HTTP-only/read-only
    boundary, the output-payload contract.
 
@@ -148,6 +163,11 @@ any read primitive is also an exfil primitive. Therefore:
   (currently inactive) — a different, more carefully-scoped slice of the cluster. The alert-agent
   does not annex it. (Documented-and-deferred, not silently dropped.)
 - Read-only safety = no kube credential + stats-scoped GoatCounter token + query-only log/metric APIs.
+- **Named residual — exfil-via-narration.** No-kube bounds the *kube* blast radius, but a successful
+  prompt injection can still reflect read-plane data (logs/metrics) into the *outbound narrative* —
+  the allowlist gates who can DM the bot, not what the bot says back. Accepted because outbound goes
+  only to the allowlisted operator chat, and the read planes carry no secrets beyond observability
+  data the operator already sees. (If outbound ever fans out beyond the operator, revisit.)
 
 ### Boundaries vs Grafana alerting + health-bridge
 
@@ -174,8 +194,11 @@ ConfigMaps. Migrate it onto the image-baked `agent-session`:
 - Bump `apps/n8n-01` multi-agent-shell sidecar image to the new tag.
 - Set `AGENT_SESSION_SERVE=1` on the sidecar (the baked s6 service replaces the postStart bootstrap).
 - Remove the `agent-session-driver` + `agent-session-bootstrap` ConfigMaps and their mounts/hook.
-- Keep n8n's `AGENT_SIDECAR_URL=http://localhost:8765` (unchanged contract) and `STOA_SESSION_NAME`
-  (honored via the deprecated alias) — verify content-factory's session still drives end-to-end.
+- n8n's only session config is `AGENT_SIDECAR_URL=http://localhost:8765` (the driver's default port)
+  — **unchanged**. n8n sets none of the `STOA_*` vars itself (it relied on driver/bootstrap
+  defaults), so the migration is config-clean; the deprecated aliases are belt-and-suspenders, not
+  load-bearing for n8n. Verify content-factory's session still drives end-to-end after the swap.
+  (Alias coverage is proven by the ported unit tests, not by n8n's live behaviour.)
 
 This proves the extraction against its original client and removes the duplicate.
 
@@ -183,11 +206,19 @@ This proves the extraction against its original client and removes the duplicate
 
 ## Multi-repo sequencing
 
+0. **fr-enablement pre-step (agent-images).** agent-images has a `docs/superpowers/` tree but **no
+   `.devcontainer/` profile**, so fr-isolation/fr-brainstorming hard-stop there. Before the
+   agent-session plan, either run `fr-init` to scaffold a devcontainer profile for agent-images, or
+   execute Part A as a plain (non-fr) PR with the shared spec as the source of truth. Decide at
+   planning; it does not change the design.
 1. **agent-images plan** merges first → CI builds the new `multi-agent-shell` image tag.
-   (agent-images CI builds on push:main; validate a branch via `gh workflow run build.yaml --ref`.)
+   (agent-images CI builds on `push:main`, paths-ignore `docs/**`; validate a branch via
+   `gh workflow run build.yaml --ref <branch>` — **confirm in the plan that the dispatch build
+   publishes a BRANCH-tagged image** to consume, not a main tag, since the whole gate depends on it.)
 2. **frank plan** bumps the image SHA in both `apps/n8n-01` (Part C) and the new `apps/alert-agent`
-   (Part B), then proceeds. Front-load nothing in frank that needs the baked driver before the
-   agent-images tag exists.
+   (Part B), then proceeds. n8n stays on its current pinned SHA (with its existing ConfigMap driver)
+   until Part C explicitly bumps it — so there is no window where n8n is broken. Front-load nothing in
+   frank that needs the baked driver before the agent-images tag exists.
 
 ## Secrets / manual operations
 
@@ -207,10 +238,12 @@ This proves the extraction against its original client and removes the duplicate
 
 ## Testing
 
-- **agent-images:** ported driver tests (mock tmux: paste + file-write, turn counter, timeout,
-  per-agent dispatch); CI smoke that `agent-session --help` / `serve` bind works in the image.
-- **frank (deterministic, no LLM):** `frank-facts` unit tests (port existing `facts.py`/`surge.py`
-  tests), surge gate escalate/cooldown, telegram-bridge allowlist + single-consumer invariant.
+- **agent-images:** ported tmux-mock driver tests (paste + file-write, turn counter, timeout) **plus
+  new per-agent-dispatch tests** (none exist today); CI smoke that `agent-session serve` binds in the
+  image.
+- **frank (deterministic, no LLM):** `frank-facts` unit tests (port `facts.py`/`surge.py` tests —
+  rewritten off `respx` if I-1 chooses the stdlib `urllib` port), surge gate escalate/cooldown,
+  telegram-bridge allowlist + single-consumer invariant + the timeout→deterministic-render fallback.
 - **End-to-end (post-deploy, operator-driven — needs `claude login`):** all four alert-agent
   triggers deliver to Telegram and the agent demonstrably investigates (cites a tool it ran); n8n's
   content-factory session still drives after migration. A layer is not Deployed until observed.
