@@ -88,7 +88,8 @@ In `apps/grafana-alerting/manifests/alert-rules-cm.yaml`:
 - **Layer 16** — same shape, `probe_success{layer="16"}`, `gpu_timeshare: "true"`,
   `github_issue: "frank-ops#16"`. Replaces the #550 `replicas_unavailable` query.
 - **NEW `gpu-node-both-down`** (paging) — fires when **both** probes are down:
-  `sum(probe_success{probe_group="gpu_timeshare"}) == 0` (neither inference nor media works →
+  `sum(probe_success{probe_group="gpu_timeshare"}) < 1` (Grafana threshold `lt 1`, the idiom used
+  by every other rule in the file; neither inference nor media works →
   gpu-1/driver dead, or both scaled to 0, or switcher stuck mid-transition). Labels
   `severity: critical`, `github_issue: "frank-ops#5"` (GPU layer), **no** `gpu_timeshare` label
   → routes normally → **pages Telegram + health-bridge files a bug.** `for: 10m` to ride out the

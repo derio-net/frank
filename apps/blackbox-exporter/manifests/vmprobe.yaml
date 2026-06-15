@@ -78,6 +78,13 @@ spec:
         probe_group: gpu_timeshare
         layer: "11"
   module: litellm_chat
+  # scrapeTimeout (30s) MUST exceed the litellm_chat module timeout (25s) so a
+  # slow-but-real completion (cold model load when Ollama just got the GPU, or a
+  # queued request) returns probe_success=0 — NOT a scrape-layer NoData. A NoData
+  # would read as noDataState:OK on gpu-node-both-down and could fail to PAGE a
+  # genuinely wedged GPU node. interval >= scrapeTimeout (operator constraint).
+  interval: 60s
+  scrapeTimeout: 30s
   vmProberSpec:
     url: blackbox-exporter.monitoring.svc:9115
 ---
@@ -95,5 +102,10 @@ spec:
         probe_group: gpu_timeshare
         layer: "16"
   module: comfyui_object_info
+  # scrapeTimeout (15s) > comfyui_object_info module timeout (10s), same NoData-vs-0
+  # reasoning as inference-probe. Kept symmetric so the gpu_timeshare group has a
+  # consistent cadence feeding gpu-node-both-down's for:10m window.
+  interval: 60s
+  scrapeTimeout: 15s
   vmProberSpec:
     url: blackbox-exporter.monitoring.svc:9115

@@ -63,11 +63,25 @@ routes = yaml.safe_load(routes)["policies"][0]["routes"]
 def has_matcher(r, needle):
     return any(needle in m for m in r.get("matchers", []))
 gi = next((i for i,r in enumerate(routes) if has_matcher(r, "gpu_timeshare")), None)
-si = next((i for i,r in enumerate(routes) if has_matcher(r, "severity=")), None)
+si = next((i for i,r in enumerate(routes) if has_matcher(r, "severity=critical")), None)
+fhi = next((i for i,r in enumerate(routes) if has_matcher(r, 'grafana_folder="feature-health"')), None)
 if gi is None: errs.append("gpu_timeshare route missing")
 elif si is not None and gi >= si: errs.append(f"gpu_timeshare route (idx {gi}) must precede severity route (idx {si})")
-elif gi is not None and routes[gi].get("continue") is not False:
+elif routes[gi].get("continue") is not False:
     errs.append("gpu_timeshare route must be continue:false")
+# the feature-health catch-all must come AFTER the gpu_timeshare route, else a
+# time-share alert would hit health-bridge via the catch-all and stop early in
+# the wrong place (and a moved route could re-expose the Telegram path).
+if fhi is not None and gi is not None and fhi <= gi:
+    errs.append(f"feature-health route (idx {fhi}) must come AFTER gpu_timeshare route (idx {gi})")
+# positive-pager path: the both-down rule (severity=critical, NO gpu_timeshare
+# label) must reach a severity=critical → Telegram route. Assert such a route
+# exists and that the both-down rule carries no gpu_timeshare label (else it
+# would be swallowed by the quiet route and never page).
+if si is None:
+    errs.append("no severity=critical route — gpu-node-both-down could not page")
+if both and "gpu_timeshare" in both.get("labels", {}):
+    errs.append("gpu-node-both-down carries gpu_timeshare — would be routed quiet and never page")
 
 if errs:
     print("FAIL:")

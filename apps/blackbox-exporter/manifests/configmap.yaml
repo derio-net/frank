@@ -76,7 +76,10 @@ data:
       # Layer 16: ComfyUI API liveness. /object_info returns the loaded node set;
       # matching a core node (KSampler) proves the server is up AND custom nodes
       # imported — catches node-import failures, not just liveness. No auth
-      # in-cluster (SSO is ingress-only).
+      # in-cluster (SSO is ingress-only). NOTE: /object_info is a large
+      # (hundreds-of-KB) JSON doc — blackbox reads the whole body for the regexp;
+      # fine at 10s, but a future blackbox `body_size_limit` would truncate and
+      # break the match, so do not set one for this module.
       comfyui_object_info:
         prober: http
         timeout: 10s
