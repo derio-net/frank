@@ -11,9 +11,12 @@
 | Plan | Target repo | Slug | Status |
 |------|-------------|------|--------|
 
-> Multi-repo. The **agent-images** plan (bake the `agent-session` interface into the
-> `multi-agent-shell` image) **gates** the **frank** plan (alert-agent + n8n migration consume the
-> image-built-in driver). Sequence: agent-images merges → image builds → frank bumps the image SHA.
+> Multi-repo, **three plans**. The **agent-images** plan (Part A — bake the `agent-session`
+> interface into the `multi-agent-shell` image) **gates** two **frank** plans that both consume the
+> new image but are **independent of each other**: the **alert-agent** plan (Part B, greenfield) and
+> the **n8n-migration** plan (Part C). Splitting Part C off keeps a live content-factory prod-path
+> migration out of the greenfield build's review/rollback blast radius (they share no dependency).
+> Sequence: agent-images merges → image builds → each frank plan bumps the image SHA independently.
 
 ## Problem
 
@@ -65,7 +68,10 @@ the existing `/usr/local/lib/multi-agent-shell/notify-telegram.sh`.
   runs `agent-session serve` **directly** — s6 supervises restarts, so the n8n bootstrap's
   `while true … sleep 2` loop (needed only inside a tmux pane) is dropped. It also pre-trusts the
   workspace, **gated on `AGENT_SESSION_SERVE=1`** (default off — a plain interactive shell is
-  unaffected; consumers opt in).
+  unaffected; consumers opt in). Follow the image's existing **sshd** s6 precedent exactly
+  (`#!/command/with-contenv bash` shebang, a `finish` script, and the Dockerfile
+  `chmod +x /etc/services.d/*/run` line) — the image is s6-overlay v3 using the v2-compat
+  `/etc/services.d/<svc>/run` convention; mirror it rather than inventing an s6-rc layout.
 - **Genericize naming:** rename to `AGENT_SESSION_*` with the REAL source vars (verified against the
   driver + tests): `AGENT_SESSION_TURN_DIR ← STOA_TURN_DIR`, `_OUT_DIR ← STOA_OUT_DIR`,
   `_PORT ← STOA_SESSION_PORT`, `_POLL_S ← STOA_POLL_S`, `_SETTLE_S ← STOA_SETTLE_S`,
@@ -73,11 +79,15 @@ the existing `/usr/local/lib/multi-agent-shell/notify-telegram.sh`.
   generic infra, not stoa-specific (and shouldn't carry a private codename). Keep each `STOA_*` as a
   **deprecated alias** (read if the new var is unset) for one cycle so a consumer mid-migration never
   breaks.
-- **Tests:** port the existing tmux-mock tests from `scripts/tests/test_agent_session_driver.py`
-  (paste + file-write flow, turn counter, timeout, HTTP serve) into the image's `tests/`, **adding**
-  new per-agent-dispatch tests for the launch-profile table (none exist today — the driver hardcodes
+- **Tests:** port the existing tmux-mock tests from frank `scripts/tests/test_agent_session_driver.py`
+  (paste + file-write flow, turn counter, timeout, HTTP serve) into the image, **adding** new
+  per-agent-dispatch tests for the launch-profile table (none exist today — the driver hardcodes
   claude). Re-point the test's driver-source fixture from the n8n ConfigMap path
   (`apps/n8n-01/manifests/agent-session-driver.yaml`) to the baked image file.
+  **Test-infra reality:** `multi-agent-shell/tests/` is **bats-only** today, but the repo already has
+  pytest (`pyproject.toml` + `kali/tests/test_*.py`; the `dev` profile runs "pytest locally"). So add
+  a `multi-agent-shell/tests/test_agent_session.py` modeled on the existing `kali/tests/` pytest
+  setup and wire it into the image's CI — extend the existing pytest facility, don't stand one up.
 - **Output:** a new `multi-agent-shell` image tag carrying the baked `agent-session`.
 
 This is the **gating deliverable** — frank consumes the new tag.
@@ -175,25 +185,34 @@ Grafana = detection. health-bridge = tile/bug lifecycle. **alert-agent = human-f
 investigation / digest.** It consumes Grafana alerts (the re-pointed webhook) to *explain* them; it
 does not manage tiles or issues. No overlap.
 
-### Cutover (clean replace)
+### Cutover (clean replace — ORDER MATTERS, no dropped alerts)
 
 1. Stand up the alert-agent (manifests + ArgoCD app on the new image), `claude login` (manual op).
-2. Re-point the Grafana "AI Helper Webhook" contact point.
-3. Move GoatCounter + Telegram secret refs to the new app's ESO.
-4. Verify all four triggers end-to-end.
-5. Remove `apps/ai-alert-helper/` + its root Application; delete `ai-alert-helper-system`; update
-   the obs-digest gotchas + operating post.
+2. Move GoatCounter + Telegram secret refs to the new app's ESO.
+3. **Verify the `grafana-webhook` receiver answers** (a `/healthz` or test POST) — BEFORE touching the
+   contact point. A fired alert between the flip and a reachable receiver is a dropped triage.
+4. Re-point the Grafana "AI Helper Webhook" contact point to the new receiver (only after step 3).
+5. Verify all four triggers end-to-end.
+6. **LAST, only after the flip is verified serving:** remove `apps/ai-alert-helper/` + its root
+   Application (`apps/root/templates/ai-alert-helper.yaml`, `ns-ai-alert-helper.yaml`); delete the
+   `ai-alert-helper-system` namespace; update the obs-digest gotchas + operating post. (The old
+   Service stays alive through the flip so nothing is in-flight-dropped.)
 
 ---
 
-## Part C — n8n migration (frank)
+## Part C — n8n migration (frank — SEPARATE plan)
 
+A standalone frank plan (not bundled with the alert-agent — see the Implementation Plans note).
 n8n-01 currently bolts the driver on via the `agent-session-driver` / `agent-session-bootstrap`
 ConfigMaps. Migrate it onto the image-baked `agent-session`:
 
 - Bump `apps/n8n-01` multi-agent-shell sidecar image to the new tag.
 - Set `AGENT_SESSION_SERVE=1` on the sidecar (the baked s6 service replaces the postStart bootstrap).
-- Remove the `agent-session-driver` + `agent-session-bootstrap` ConfigMaps and their mounts/hook.
+- Remove BOTH ConfigMaps **and the container-spec wiring they require**: the `volumeMounts` at
+  `/opt/stoa-bin` (driver) and `/opt/stoa-bootstrap` (bootstrap), the matching `volumes`, **and the
+  `lifecycle.postStart` hook** that runs `session-bootstrap.sh`. Leaving a postStart pointing at a
+  deleted ConfigMap, or a dangling mount, crashloops the sidecar — so this touches the Deployment's
+  container spec, not just the two ConfigMaps.
 - n8n's only session config is `AGENT_SIDECAR_URL=http://localhost:8765` (the driver's default port)
   — **unchanged**. n8n sets none of the `STOA_*` vars itself (it relied on driver/bootstrap
   defaults), so the migration is config-clean; the deprecated aliases are belt-and-suspenders, not
@@ -206,19 +225,22 @@ This proves the extraction against its original client and removes the duplicate
 
 ## Multi-repo sequencing
 
-0. **fr-enablement (agent-images) — already done.** agent-images is fr-enabled: it has
-   `docs/superpowers/{specs,plans}`, an existing v2 plan with `vk_version`, and a
-   `.devcontainer/dev/` profile (`fr-profiles.yaml` default `dev`). So the agent-session plan is
-   authored + dispatched exactly like a frank plan — **no `fr-init` needed**. (An earlier review
-   flagged a missing profile; verified false against the live checkout.)
+0. **fr-enablement (agent-images) — already done (verified twice, direct).** agent-images is
+   fr-enabled: `.devcontainer/fr-profiles.yaml` defines profile `dev` (default), `.devcontainer/dev/
+   devcontainer.json` exists, and `docs/superpowers/plans/2026-06-01-agent-shells-batch/` is a real
+   v2 plan (`01/02/03.yaml` + `_meta.yaml` `schema_version:2`, `vk_version`). So the agent-session
+   plan is authored + dispatched exactly like a frank plan — **no `fr-init` needed**. (TWO reviews
+   claimed a missing profile / "empty placeholder dirs"; both refuted by direct `ls`/`cat` of the
+   live checkout — do not re-dispute without re-running those reads.)
 1. **agent-images plan** merges first → CI builds the new `multi-agent-shell` image tag.
    (agent-images CI builds on `push:main`, paths-ignore `docs/**`; validate a branch via
    `gh workflow run build.yaml --ref <branch>` — **confirm in the plan that the dispatch build
    publishes a BRANCH-tagged image** to consume, not a main tag, since the whole gate depends on it.)
-2. **frank plan** bumps the image SHA in both `apps/n8n-01` (Part C) and the new `apps/alert-agent`
-   (Part B), then proceeds. n8n stays on its current pinned SHA (with its existing ConfigMap driver)
-   until Part C explicitly bumps it — so there is no window where n8n is broken. Front-load nothing in
-   frank that needs the baked driver before the agent-images tag exists.
+2. **Two frank plans** then consume the new tag independently: the **alert-agent** plan creates
+   `apps/alert-agent` on it (Part B); the **n8n-migration** plan bumps `apps/n8n-01` to it (Part C).
+   n8n stays on its current pinned SHA (with its existing ConfigMap driver) until the n8n-migration
+   plan explicitly bumps it — so there is no window where n8n is broken. Front-load nothing in either
+   frank plan that needs the baked driver before the agent-images tag exists.
 
 ## Secrets / manual operations
 
