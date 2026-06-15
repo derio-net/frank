@@ -13,11 +13,14 @@ env:
   COMFYUI_REF: "v0.9.2"
   MANAGER_REF: "4.0.5"
   PYTORCH_VERSION: "2.10.0"
+  TORCHVISION_VERSION: "0.25.0"
   CUDA_VERSION_PIP: "cu128"
-  # stoa node-set revision — bump when the baked custom-node set changes so
-  # the image tag (and the Deployment pin) move together. Node refs are pinned
-  # to commit SHAs (these repos publish no release tags) for reproducibility.
-  STOA_NODES: "1"
+  # stoa image revision — bump to move the image tag (and the Deployment pin)
+  # together so a rebuild redeploys. Node refs are pinned to commit SHAs (these
+  # repos publish no release tags) for reproducibility.
+  # rev 2: pin torchaudio==torch (was resolving 2.11.0 vs torch 2.10.0, breaking
+  #        libtorchaudio -> audio nodes + WanVideoWrapper + FishSpeech failed to load).
+  STOA_NODES: "2"
   LTXVIDEO_REF: "229437c6b65796d6a7a63ae34be2bd5ba31fa543"
   GGUF_REF: "6ea2651e7df66d7585f6ffee804b20e92fb38b8a"
   WANVIDEO_REF: "088128b224242e110d3906c6750e9a3a348a659b"
@@ -63,6 +66,7 @@ jobs:
             COMFYUI_REF=${{ env.COMFYUI_REF }}
             MANAGER_REF=${{ env.MANAGER_REF }}
             PYTORCH_VERSION=${{ env.PYTORCH_VERSION }}
+            TORCHVISION_VERSION=${{ env.TORCHVISION_VERSION }}
             CUDA_VERSION_PIP=${{ env.CUDA_VERSION_PIP }}
             LTXVIDEO_REF=${{ env.LTXVIDEO_REF }}
             GGUF_REF=${{ env.GGUF_REF }}

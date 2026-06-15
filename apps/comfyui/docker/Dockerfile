@@ -4,6 +4,7 @@ FROM nvidia/cuda:12.8.0-devel-ubuntu22.04
 ARG COMFYUI_REF=v0.9.2
 ARG MANAGER_REF=4.0.5
 ARG PYTORCH_VERSION=2.10.0
+ARG TORCHVISION_VERSION=0.25.0
 ARG CUDA_VERSION_PIP=cu128
 
 # ── stoa custom-node refs ──────────────────────────────────────────
@@ -31,10 +32,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ── PyTorch (cached layer — only rebuilds on version/CUDA change) ───
+# Pin torchaudio to torch's version — unpinned, pip resolves a NEWER torchaudio
+# (e.g. 2.11.0 vs torch 2.10.0) whose libtorchaudio.abi3.so fails to load,
+# silently breaking ComfyUI's audio nodes + WanVideoWrapper + FishSpeech.
 RUN pip install --no-cache-dir \
     torch==${PYTORCH_VERSION} \
-    torchvision \
-    torchaudio \
+    torchvision==${TORCHVISION_VERSION} \
+    torchaudio==${PYTORCH_VERSION} \
     --index-url https://download.pytorch.org/whl/${CUDA_VERSION_PIP}
 
 # ── ComfyUI ──────────────────────────────────────────────────────────
