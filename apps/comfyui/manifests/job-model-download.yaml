@@ -44,7 +44,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: download
-          image: ghcr.io/derio-net/comfyui:comfyui-v0.24.0-pt2.10.0-cu128-stoa4
+          image: ghcr.io/derio-net/comfyui:comfyui-v0.24.0-pt2.10.0-cu128-stoa5
           env:
             # Optional: lifts the anonymous-download throttle + reaches gated
             # weights. Absent Secret -> empty -> anonymous download still works.
