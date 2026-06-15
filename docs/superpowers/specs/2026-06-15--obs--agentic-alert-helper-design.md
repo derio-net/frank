@@ -206,11 +206,11 @@ This proves the extraction against its original client and removes the duplicate
 
 ## Multi-repo sequencing
 
-0. **fr-enablement pre-step (agent-images).** agent-images has a `docs/superpowers/` tree but **no
-   `.devcontainer/` profile**, so fr-isolation/fr-brainstorming hard-stop there. Before the
-   agent-session plan, either run `fr-init` to scaffold a devcontainer profile for agent-images, or
-   execute Part A as a plain (non-fr) PR with the shared spec as the source of truth. Decide at
-   planning; it does not change the design.
+0. **fr-enablement (agent-images) — already done.** agent-images is fr-enabled: it has
+   `docs/superpowers/{specs,plans}`, an existing v2 plan with `vk_version`, and a
+   `.devcontainer/dev/` profile (`fr-profiles.yaml` default `dev`). So the agent-session plan is
+   authored + dispatched exactly like a frank plan — **no `fr-init` needed**. (An earlier review
+   flagged a missing profile; verified false against the live checkout.)
 1. **agent-images plan** merges first → CI builds the new `multi-agent-shell` image tag.
    (agent-images CI builds on `push:main`, paths-ignore `docs/**`; validate a branch via
    `gh workflow run build.yaml --ref <branch>` — **confirm in the plan that the dispatch build
