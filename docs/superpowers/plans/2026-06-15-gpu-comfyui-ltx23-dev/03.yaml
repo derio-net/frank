@@ -1,0 +1,42 @@
+schema_version: 2
+phase:
+  number: 3
+  title: CI build validation (branch)
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Validate the v0.24.0 image builds on the feature branch
+  steps:
+  - id: P3.T1.S1
+    text: |
+      **Trigger the build on the branch.** Push the branch, then dispatch
+      (workflow runs on push:main docker/** OR workflow_dispatch; dispatch
+      validates the branch without merging):
+      ```bash
+      gh workflow run build-comfyui.yml --ref feat/stoa-comfyui-models-70
+      ```
+  - id: P3.T1.S2
+    text: |
+      **Watch the run to completion.** `gh run watch <id>` (or poll
+      `gh run list --workflow=build-comfyui.yml`). Expected: build succeeds,
+      pushes `comfyui-v0.24.0-pt2.10.0-cu128-stoa4` to GHCR. A FAILURE means
+      the core jump broke a custom node → bump that node ref (fast-follow)
+      and re-run. Record the run URL in the PR body.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-06-15T21:24:21+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-06-15T21:24:22+00:00'
+      note: null
+  completion:
+    at: '2026-06-15T21:24:24+00:00'
+    note: null
+    observed_prs: []

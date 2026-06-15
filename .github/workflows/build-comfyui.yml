@@ -10,7 +10,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/comfyui
-  COMFYUI_REF: "v0.9.2"
+  COMFYUI_REF: "v0.24.0"
   MANAGER_REF: "4.0.5"
   PYTORCH_VERSION: "2.10.0"
   TORCHVISION_VERSION: "0.25.0"
@@ -22,7 +22,10 @@ env:
   #        libtorchaudio -> audio nodes + WanVideoWrapper + FishSpeech failed to load).
   # rev 3: patch ComfyUI-LTXVideo's kornia `pad` import (kornia 0.8.3 dropped it);
   #        pre-create FishSpeech's site-packages .pth as comfyui-owned.
-  STOA_NODES: "3"
+  # rev 4: bump ComfyUI core v0.9.2 -> v0.24.0 (v0.23.0 fixed two LTX audio-video
+  #        correctness bugs; v0.24.x adds NVFP4 weight-loading for the LTX-2.3
+  #        dev NVFP4 checkpoint). Custom-node SHAs unchanged.
+  STOA_NODES: "4"
   LTXVIDEO_REF: "229437c6b65796d6a7a63ae34be2bd5ba31fa543"
   GGUF_REF: "6ea2651e7df66d7585f6ffee804b20e92fb38b8a"
   WANVIDEO_REF: "088128b224242e110d3906c6750e9a3a348a659b"

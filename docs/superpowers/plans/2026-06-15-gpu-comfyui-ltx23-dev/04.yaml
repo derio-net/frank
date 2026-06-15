@@ -1,0 +1,36 @@
+schema_version: 2
+phase:
+  number: 4
+  title: '[manual] Cluster re-hydration + render verification'
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Operator-driven post-merge Test Plan
+  steps:
+  - id: P4.T1.S1
+    text: |
+      **MANUAL — operator-driven, post-merge.** Touches live gpu-1, ~50GB
+      HF downloads, the stoa runner. The agent does NOT run this; it ships
+      unimplemented for the operator, who pushes evidence to the PR.
+
+      Per the spec `## Test Plan`:
+      1. CI build green (validated on branch in Phase 3; re-runs on merge, cache-hit).
+      2. ArgoCD syncs the deployment image pin (replicas:0 by design — GPU time-share).
+      3. `kubectl delete job comfyui-stoa-model-download -n comfyui` + re-apply; watch logs (new models in, old distilled-fp8 removed).
+      4. GPU switcher (192.168.55.214:8080) → ComfyUI up; `GET /object_info` lists dev-fp8 + dev-nvfp4 checkpoints + distilled LoRA.
+      5. Small LTX-2.3 audio+video render via the stoa runner completes (G2 proof).
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
