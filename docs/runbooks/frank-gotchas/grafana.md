@@ -98,3 +98,54 @@ kubectl logs -n monitoring deploy/victoria-metrics-grafana -c grafana \
 **Rule:** keep `<`, `>`, `&` out of `summary`/`runbook` annotation *values*. Use `6+` not `>6`, a bracket-free placeholder like `NODE_IP` not `<node-ip>`, and `{{ $labels.* }}` templates for real values. YAML **comments** (`#`) in the rule are safe — Grafana strips them at provisioning, so they never reach the message.
 
 **Why static checks miss it:** the YAML is valid, the rule provisions cleanly, routing/labels are correct — the rule looks perfect until it actually tries to *deliver*. Only an end-to-end firing (real or synthetic-metric-import) exercises the Telegram send path. Caught 2026-06-08 on the `layer-1-nic-link-flap` rule: it fired correctly on a real gpu-1 `enp3s0` flap but its annotations carried `talosctl -n <node-ip> dmesg` and `(>6 carrier changes/30m)`, so every page 400'd and the operator got nothing — discovered only by driving the post-merge Test Plan. This is the concrete proof of the repo rule "a layer is not Deployed until its workflow has been triggered + observed end-to-end."
+
+## GPU-time-shared layers: probe end-to-end, not pod existence (2026-06-15)
+
+**Symptom.** The Derio Ops board was **all green** while local inference was **down
+cluster-wide**: `ai-alert-helper` was the only App showing trouble (Degraded — its `digest`/
+`surge-check` CronJobs `curl -f`'d the helper → the helper's LiteLLM call 500'd → `curl` exit 22).
+Every Ollama-backed LiteLLM model was returning **500**.
+
+**Root cause (two layers).**
+1. **The outage.** gpu-1 holds the cluster's only GPU; the `gpu-switcher` hands it to **one**
+   workload at a time — Ollama (Layer 11 inference) **or** ComfyUI (Layer 16 media). When the GPU
+   went to ComfyUI, the `ollama` Deployment scaled to `replicas:0` (its App has
+   `ignoreDifferences` on `/spec/replicas`, so it stays **Synced/Healthy with 0 pods**). LiteLLM
+   completions to `ollama.ollama.svc:11434` then failed with `APIConnectionError ... [Operation
+   not permitted]` — **EPERM is Cilium socket-LB's response to a ClusterIP with no endpoints**, NOT
+   a dead backend (a dead backend gives ECONNREFUSED). This is a *red herring* that points at a
+   network policy; it's actually "zero pods behind the Service."
+2. **The blind dashboard.** The `Layer 11 Local Inference Degraded` rule queried the **per-pod**
+   `kube_pod_status_ready{namespace=~"ollama|litellm"}` and fired if `< 1`. With 0 Ollama pods
+   there are **0 series** — nothing `< 1` to fire on. The rule can only catch "a pod that exists
+   but is NotReady," never "the pod was scaled away." `kube_deployment_status_replicas_unavailable`
+   is **also** 0 (0 desired → 0 unavailable). LiteLLM emits **no** Prometheus metrics (OSS —
+   Enterprise-only). So inference was un-monitored end-to-end, and the alerter that should have
+   reported it (`ai-alert-helper`) was itself a victim of the same outage.
+
+**Fix — synthetic end-to-end probes (plan `2026-06-15--obs--gpu-timeshare-health-probes`).**
+Two blackbox-exporter modules + VMProbes produce `probe_success{layer="11"|"16"}`:
+- `litellm_chat` — a real `POST /v1/chat/completions` (fast `gemma-12b-nothin` alias), auth via the
+  LiteLLM master key (`bearer_token_file`, ESO-synced from the existing Infisical
+  `LITELLM_MASTER_KEY` to the `monitoring` ns; mounted `optional:true` so the pod — and the blog
+  uptime probe — survive a brief unsynced window).
+- `comfyui_object_info` — `GET /object_info` asserting a core node (`KSampler`) is loaded, so it
+  catches custom-node import failures, not just liveness.
+
+**Honest-but-quiet routing.** Exactly one of inference/media is **always down by design** (whoever
+lacks the GPU), so paging on either is pure noise → it'd get muted → silent again. The per-layer
+rules carry `gpu_timeshare: "true"` and an **early `continue:false` route to Health Bridge only**
+(degraded tile, **no Telegram**; ORDER IS LOAD-BEARING — it must precede the `severity=*` →
+Telegram routes, same reason as the cert-canary watchdog). `noDataState: Alerting` so a vanished
+probe reads as down, not the old silent `OK`. The **only** pager is `gpu-node-both-down`:
+`sum(probe_success{probe_group="gpu_timeshare"}) < 1` (both down → gpu-1/driver dead, both scaled
+to 0, or switcher stuck), `severity:critical`, **no** `gpu_timeshare` label (routes normally →
+Telegram + health-bridge bug), `for:10m` to ride out the switch-over gap, `noDataState: OK` (both
+series absent = scrape gap = monitoring blindness, not a confirmed GPU death).
+
+**Truth table.** Ollama owns GPU → L11 green, L16 degraded(quiet). ComfyUI owns GPU → L11
+degraded(quiet), L16 green. Neither → both degraded **+ PAGE**.
+
+**Verify (VMUI, datasource VictoriaMetrics):** `probe_success{probe_group="gpu_timeshare"}` — one
+series 1, one series 0 in steady state. Which workload holds the GPU: `kubectl -n ollama get deploy
+ollama` vs `kubectl -n comfyui get deploy comfyui` (the `0/0` one yielded the GPU).

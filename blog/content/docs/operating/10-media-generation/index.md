@@ -18,6 +18,15 @@ The media generation stack is healthy when:
 - The other GPU workload has `replicas: 0`
 - When ComfyUI is active, its UI is accessible at `192.168.55.213:8188`
 
+> **Canonical health signal — the end-to-end probe.** The Ops board reads media health from a
+> blackbox probe of ComfyUI's `GET /object_info` that asserts a core node (`KSampler`) is loaded —
+> so it catches custom-node import failures, not just "is the pod up." `probe_success{layer="16"}`
+> (VMUI, VictoriaMetrics datasource) is `1` only when ComfyUI can actually serve. Because the GPU
+> is time-shared, a `0` while Ollama holds the GPU is the expected quiet-degraded tile (not an
+> outage); only **both** `gpu_timeshare` probes at `0` pages (`gpu-node-both-down`). Note:
+> `replicas: 1` alone does **not** prove media works — a running-but-broken ComfyUI (failed node
+> import) still reads `replicas_unavailable: 0`; the probe is the real signal.
+
 ## Observing State
 
 ### GPU Switcher Dashboard

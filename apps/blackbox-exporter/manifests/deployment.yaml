@@ -26,6 +26,10 @@ spec:
           volumeMounts:
             - name: config
               mountPath: /config
+            # LiteLLM master key (bearer_token_file for the litellm_chat module).
+            - name: litellm-master-key
+              mountPath: /etc/blackbox-secrets
+              readOnly: true
           resources:
             requests:
               cpu: 10m
@@ -36,6 +40,14 @@ spec:
         - name: config
           configMap:
             name: blackbox-exporter-config
+        # optional:true defensively — LITELLM_MASTER_KEY already exists in
+        # Infisical so ESO syncs this on deploy, but if it were ever briefly
+        # unsynced the pod (and the blog uptime probe) must still start; only the
+        # litellm_chat probe would fail auth in that window.
+        - name: litellm-master-key
+          secret:
+            secretName: litellm-master-key
+            optional: true
 ---
 apiVersion: v1
 kind: Service

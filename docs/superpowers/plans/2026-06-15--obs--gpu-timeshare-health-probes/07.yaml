@@ -1,0 +1,51 @@
+schema_version: 2
+phase:
+  number: 7
+  title: Post-Deploy Checklist
+  tag: agentic
+  depends_on:
+  - 6
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Checklist (fix/extension scope)
+  steps:
+  - id: P7.T1.S1
+    text: |
+      Step 1 (expose) — SKIP: internal monitoring only. Record skip reason.
+  - id: P7.T1.S2
+    text: |
+      Steps 2-3 (blog posts) — SKIP (fix/extension; gotcha docs cover it).
+      Step 4: run `/update-readme` only if Current Status / Service Access
+      changed (likely no — record outcome).
+  - id: P7.T1.S3
+    text: |
+      Step 5: `/sync-runbook` — N/A. No `# manual-operation` blocks remain (the
+      probe uses the existing LiteLLM master key, ESO-synced on deploy).
+  - id: P7.T1.S4
+    text: |
+      Step 6: set the plan `**Status:**` to Deployed once the phases are merged +
+      ArgoCD-synced. The live GPU-switch-flip behavioural test needs Ollama active
+      (down for now) and is deferred to a follow-up issue, not a merge gate.
+state:
+  steps:
+    P7.T1.S1:
+      state: '-'
+      ticked_at: '2026-06-15T13:25:16+00:00'
+      note: N/A — internal monitoring, no user-facing service
+    P7.T1.S2:
+      state: x
+      ticked_at: '2026-06-15T13:25:17+00:00'
+      note: null
+    P7.T1.S3:
+      state: x
+      ticked_at: '2026-06-15T13:25:18+00:00'
+      note: null
+    P7.T1.S4:
+      state: x
+      ticked_at: '2026-06-15T13:25:19+00:00'
+      note: null
+  completion:
+    at: '2026-06-15T13:25:20+00:00'
+    note: null
+    observed_prs: []

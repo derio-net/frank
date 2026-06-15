@@ -55,6 +55,16 @@ data:
             matchers:
               - grafana_folder="blog-edge"
             continue: false
+          # GPU time-share tiles (Layers 11/16): exactly one of inference/media is
+          # always down by design (whoever lacks gpu-1). Route to health-bridge
+          # ONLY — degraded tile, NO Telegram. ORDER IS LOAD-BEARING: must precede
+          # the severity routes (continue:true → Telegram) or these warning-level
+          # alerts would page on every GPU switch. The genuine-fault pager is the
+          # gpu-node-both-down rule (severity=critical, no gpu_timeshare label).
+          - receiver: "Health Bridge Webhook"
+            matchers:
+              - gpu_timeshare="true"
+            continue: false
           - receiver: "Telegram - Willikins"
             matchers:
               - severity=critical

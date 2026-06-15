@@ -1,0 +1,46 @@
+schema_version: 2
+phase:
+  number: 3
+  title: VMProbes — inference + media (gpu_timeshare group)
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Add two VMProbe CRs
+  steps:
+  - id: P3.T1.S1
+    text: |
+      In `apps/blackbox-exporter/manifests/vmprobe.yaml`, append VMProbe
+      `inference-probe` (module litellm_chat) targeting
+      `http://litellm.litellm.svc.cluster.local:4000/v1/chat/completions`,
+      labels `probe_group: gpu_timeshare`, `layer: "11"`, same vmProberSpec.url
+      (`blackbox-exporter.monitoring.svc:9115`).
+  - id: P3.T1.S2
+    text: |
+      Append VMProbe `media-probe` (module comfyui_object_info) targeting
+      `http://comfyui.comfyui.svc.cluster.local:8188/object_info`, labels
+      `probe_group: gpu_timeshare`, `layer: "16"`.
+  - id: P3.T1.S3
+    text: |
+      Validate with yq: both new VMProbe docs parse, reference the correct
+      modules, and carry the gpu_timeshare label + correct layer. Expected: present.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-06-15T12:50:13+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-06-15T12:50:15+00:00'
+      note: null
+    P3.T1.S3:
+      state: x
+      ticked_at: '2026-06-15T12:50:16+00:00'
+      note: null
+  completion:
+    at: '2026-06-15T12:50:18+00:00'
+    note: null
+    observed_prs: []

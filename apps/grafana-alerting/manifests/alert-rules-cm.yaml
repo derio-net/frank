@@ -1007,6 +1007,13 @@ data:
               runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
 
       # --- Layer 11 — Local Inference (frank-ops#11) ---
+      # End-to-end: probe_success{layer="11"} comes from the blackbox litellm_chat
+      # VMProbe — a REAL chat completion through LiteLLM. The old per-pod query
+      # (kube_pod_status_ready) was blind to scale-to-0: when the gpu-switcher
+      # hands gpu-1 to ComfyUI, Ollama has 0 pods => 0 series => the rule could
+      # never fire while every local model returned 500. gpu_timeshare="true"
+      # routes this to health-bridge ONLY (degraded tile, no Telegram) — one of
+      # inference/media is always down by design; gpu-node-both-down is the pager.
       - orgId: 1
         name: layer-11-inference-down
         folder: feature-health
@@ -1021,7 +1028,7 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_pod_status_ready{namespace=~"ollama|litellm",condition="true"}'
+                  expr: 'probe_success{layer="11"}'
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1038,15 +1045,18 @@ data:
                   expression: B
                   conditions:
                     - evaluator: { type: lt, params: [1] }
-            noDataState: OK
+            # Alerting (not OK): a vanished probe series means the probe is broken,
+            # which is NOT healthy — the inverse of the old silent noDataState:OK.
+            noDataState: Alerting
             execErrState: Error
             for: 5m
             labels:
               severity: warning
+              gpu_timeshare: "true"
               github_issue: "frank-ops#11"
             annotations:
-              summary: "L11 Inference: {{ $labels.namespace }}/{{ $labels.pod }} NotReady"
-              runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
+              summary: "L11 Inference: LiteLLM chat-completion probe failing (Ollama-backed models unreachable)"
+              runbook: "Check which workload holds gpu-1; probe_success{layer=11} in VMUI; kubectl -n ollama get deploy ollama"
 
       # --- Layer 12 — Agentic Control Plane (frank-ops#12) ---
       # Restricted to Sympozium control-plane pods. Sympozium also spawns
@@ -1227,11 +1237,13 @@ data:
               runbook: "kubectl -n {{ $labels.namespace }} describe pod {{ $labels.pod }}"
 
       # --- Layer 16 — Media Generation (frank-ops#16) ---
-      # ComfyUI is GPU-time-shared (normally 0 replicas) and its namespace runs
-      # batch model-download Jobs, so kube_pod_status_ready false-positives — use
-      # kube_deployment_status_replicas_unavailable: 0 when intentionally scaled to
-      # 0 (desired=0), fires only when a DESIRED replica is actually down. Covers
-      # ComfyUI + the always-on GPU Switcher orchestrator.
+      # End-to-end: probe_success{layer="16"} comes from the blackbox
+      # comfyui_object_info VMProbe — a GET /object_info that asserts a core node
+      # (KSampler) is loaded, so it catches custom-node import failures, not just
+      # liveness (replicas_unavailable, the #550 query, stayed green through a
+      # broken-but-running ComfyUI). gpu_timeshare="true" routes to health-bridge
+      # ONLY (degraded tile, no Telegram) — ComfyUI is down by design whenever the
+      # gpu-switcher gives gpu-1 to Ollama; gpu-node-both-down is the pager.
       - orgId: 1
         name: layer-16-media-gen-down
         folder: feature-health
@@ -1246,7 +1258,7 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'kube_deployment_status_replicas_unavailable{namespace=~"comfyui|gpu-switcher",deployment=~"comfyui|gpu-switcher"}'
+                  expr: 'probe_success{layer="16"}'
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200
@@ -1262,16 +1274,67 @@ data:
                   type: threshold
                   expression: B
                   conditions:
-                    - evaluator: { type: gt, params: [0] }
-            noDataState: OK
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: Alerting
             execErrState: Error
             for: 5m
             labels:
               severity: warning
+              gpu_timeshare: "true"
               github_issue: "frank-ops#16"
             annotations:
-              summary: "L16 Media Gen: {{ $labels.namespace }}/{{ $labels.deployment }} has unavailable replicas"
-              runbook: "kubectl -n {{ $labels.namespace }} describe deploy {{ $labels.deployment }}"
+              summary: "L16 Media Gen: ComfyUI /object_info probe failing (server down or core nodes not loaded)"
+              runbook: "Check which workload holds gpu-1; probe_success{layer=16} in VMUI; kubectl -n comfyui get deploy comfyui"
+
+      # --- GPU node both-down — the ONLY pager for the time-share (frank-ops#5) ---
+      # One of inference/media is always down by design (whoever lacks gpu-1), so
+      # the per-layer rules above are tile-only/quiet. This fires only when BOTH
+      # probes are down: gpu-1/driver dead, both scaled to 0, or switcher stuck.
+      # severity=critical + NO gpu_timeshare label => routes normally => Telegram
+      # + health-bridge bug. for:10m rides out the brief both-down switch-over gap.
+      # noDataState:OK — both series absent = blackbox/VMProbe scrape gap
+      # (monitoring blindness, not a confirmed GPU death); the per-layer rules'
+      # noDataState:Alerting already surfaces that as visible degraded tiles.
+      - orgId: 1
+        name: gpu-node-both-down
+        folder: feature-health
+        interval: 1m
+        rules:
+          - uid: gpu-node-both-down
+            title: GPU Node Serving Neither Inference Nor Media
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: 'sum(probe_success{probe_group="gpu_timeshare"})'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 10m
+            labels:
+              severity: critical
+              github_issue: "frank-ops#5"
+            annotations:
+              summary: "GPU node serving NEITHER inference nor media — gpu-1 down, both scaled to 0, or switcher stuck"
+              runbook: "kubectl get nodes gpu-1; kubectl -n ollama get deploy ollama; kubectl -n comfyui get deploy comfyui; probe_success{probe_group=gpu_timeshare} in VMUI"
 
       # --- Layer 17 — Public Edge / Hop (frank-ops#17) ---
       # Blackbox probe on blog.derio.net (already in VMProbe).

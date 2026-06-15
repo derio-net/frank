@@ -128,6 +128,10 @@ proxy_config:
     # verified 0.7s/22 completion tokens vs 4.1s/300-token cap-out with
     # thinking on. gemma4 thinking is binary — "think": "low" levels are
     # accepted but ignored, so false is the only useful override.
+    # KEEP IN SYNC: the blackbox litellm_chat probe (apps/blackbox-exporter/
+    # manifests/configmap.yaml) hardcodes this alias for the Layer 11 inference
+    # health probe. Renaming/removing it makes probe_success{layer="11"} read
+    # permanently degraded — update the probe body too.
     - model_name: gemma-12b-nothin
       litellm_params:
         model: ollama_chat/gemma4:12b

@@ -49,3 +49,44 @@ data:
       tcp_connect:
         prober: tcp
         timeout: 5s
+      # --- GPU time-share end-to-end probes (Layers 11/16) -------------------
+      # gpu-1 hosts the only GPU and time-shares it between Ollama (inference)
+      # and ComfyUI (media) — exactly one is ever live. These probes assert the
+      # workload can actually DO ITS JOB, not just that pods exist (pod-existence
+      # metrics are blind to scale-to-0). Plan:
+      # docs/superpowers/plans/2026-06-15--obs--gpu-timeshare-health-probes
+      #
+      # Layer 11: a real chat completion through LiteLLM. bearer_token_file is the
+      # LiteLLM master key (synced from Infisical to the monitoring ns by ESO;
+      # mounted optional:true so a brief unsynced window fails the probe, not the
+      # pod). See apps/blackbox-exporter/manifests/external-secret-litellm-key.yaml.
+      litellm_chat:
+        prober: http
+        timeout: 25s
+        http:
+          method: POST
+          valid_status_codes: [200]
+          bearer_token_file: /etc/blackbox-secrets/litellm-master-key
+          headers:
+            Content-Type: application/json
+          body: |
+            {"model":"gemma-12b-nothin","max_tokens":4,"messages":[{"role":"user","content":"reply with the single word: ok"}]}
+          fail_if_body_not_matches_regexp:
+            - '"choices"'
+          preferred_ip_protocol: ip4
+      # Layer 16: ComfyUI API liveness. /object_info returns the loaded node set;
+      # matching a core node (KSampler) proves the server is up AND custom nodes
+      # imported — catches node-import failures, not just liveness. No auth
+      # in-cluster (SSO is ingress-only). NOTE: /object_info is a large
+      # (hundreds-of-KB) JSON doc — blackbox reads the whole body for the regexp;
+      # fine at 10s, but a future blackbox `body_size_limit` would truncate and
+      # break the match, so do not set one for this module.
+      comfyui_object_info:
+        prober: http
+        timeout: 10s
+        http:
+          method: GET
+          valid_status_codes: [200]
+          fail_if_body_not_matches_regexp:
+            - 'KSampler'
+          preferred_ip_protocol: ip4

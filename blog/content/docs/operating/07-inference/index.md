@@ -13,6 +13,16 @@ This is the operational companion to [Local Inference — Ollama, LiteLLM, and O
 
 The inference stack is healthy when Ollama is running on gpu-1 with at least one model loaded, LiteLLM at `192.168.55.206:4000` is responding to health checks, and requests route correctly to either the local GPU or OpenRouter cloud models depending on the model name.
 
+> **Canonical health signal — the end-to-end probe.** gpu-1 time-shares its single GPU between
+> Ollama (inference) and ComfyUI (media), so inference is **down by design** whenever the GPU is
+> handed to ComfyUI — that is not an outage. The Ops board reads the real state from a blackbox
+> probe that runs an actual chat completion through LiteLLM: `probe_success{layer="11"}` (VMUI,
+> VictoriaMetrics datasource) is `1` only when a completion truly succeeds. A `0` with ComfyUI
+> holding the GPU is the expected quiet-degraded tile; a `0` with **both** `gpu_timeshare` probes
+> at `0` is the only condition that pages (`gpu-node-both-down`). Check ownership with
+> `kubectl -n ollama get deploy ollama` (`0/0` = it yielded the GPU). Note: `kube_pod_status_ready`
+> is *not* a valid inference health check — it is blind to Ollama scaled to 0.
+
 ## Observing State
 
 ### Ollama Status
