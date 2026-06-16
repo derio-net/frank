@@ -95,7 +95,9 @@ def process_update(update: dict) -> bool:
         print(f"WARN telegram-bridge: dropped message from non-allowlisted chat {chat_id}",
               file=sys.stderr)
         return False
-    resp = session_send(text, session_id=f"{SESSION_ID}-tg-{chat_id}")
+    # Shorter timeout for an interactive DM than the cron 300s — a stuck turn
+    # must not freeze the single getUpdates consumer for 5 minutes.
+    resp = session_send(text, session_id=f"{SESSION_ID}-tg-{chat_id}", timeout_s=120)
     reply = render_payload(resp) or "(the agent did not return a reply — it may be busy or unauthenticated)"
     tg_send(reply, str(chat_id))
     return True

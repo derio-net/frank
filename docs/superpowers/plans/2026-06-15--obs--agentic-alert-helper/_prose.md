@@ -1,6 +1,6 @@
 # Agentic Alert-Helper (frank — Plan B)
 
-**Status:** Planned
+**Status:** Implemented (agentic phases 1-7) — pending merge. Remaining gate (post-merge, operator-driven): Phase 8 manual `claude login` (manual-op `obs-alert-agent-claude-login`) + the four-trigger end-to-end verification. Set to **Deployed** after that. Consumes the agent-images `multi-agent-shell@56c652e` image (Plan A, merged).
 **Spec:** `docs/superpowers/specs/2026-06-15--obs--agentic-alert-helper-design.md` (Part B + Cutover)
 **Layer:** obs (replaces the retired `apps/ai-alert-helper`)
 

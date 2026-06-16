@@ -30,7 +30,7 @@ def handle_alert(alert_labels: dict) -> None:
     prompt = ("A Grafana alert is firing. Investigate and explain what it means + likely cause, "
               "using ONLY the facts below. Reply as JSON {\"text\": \"<narrative>\"}.\n\n"
               f"alert={json.dumps(alert_labels)}\nfacts={json.dumps(sheet)}")
-    resp = bridge.session_send(prompt, session_id="alert-agent-grafana")
+    resp = bridge.session_send(prompt, session_id="alert-agent-ops")
     bridge.deliver(resp, fallback)
 
 
@@ -50,7 +50,8 @@ def process_request(method: str, path: str, body: bytes) -> tuple[int, dict]:
     """Pure request core (testable without a socket)."""
     if method == "GET" and path == "/healthz":
         return 200, {"status": "ok"}
-    if method != "POST":
+    # Pin to the contact point's path; a stray POST elsewhere is not a webhook.
+    if method != "POST" or path.rstrip("/") not in ("/alert", ""):
         return 404, {"error": "not found"}
     try:
         payload = json.loads(body or b"{}")

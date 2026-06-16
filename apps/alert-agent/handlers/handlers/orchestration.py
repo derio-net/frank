@@ -81,7 +81,7 @@ def run_surge(now: datetime | None = None) -> bool:
               "(is it Hacker News, a scraper, a real story?) using ONLY the facts below; cite "
               "specifics. Reply as JSON {\"text\": \"<your narrative>\"}.\n\n"
               f"verdict={json.dumps(verdict)}\nfacts={json.dumps(sheet)}")
-    resp = bridge.session_send(prompt, session_id="alert-agent-surge")
+    resp = bridge.session_send(prompt, session_id="alert-agent-ops")
     bridge.deliver(resp, fallback)
     return True
 
@@ -105,5 +105,5 @@ def run_digest(now: datetime | None = None) -> None:
     prompt = ("Write the daily Frank digest (traffic + security) from ONLY the facts below — "
               "concise, notable items only, no speculation. Reply as JSON {\"text\": \"<digest>\"}.\n\n"
               f"facts={json.dumps(sheet)}")
-    resp = bridge.session_send(prompt, session_id="alert-agent-digest")
+    resp = bridge.session_send(prompt, session_id="alert-agent-ops")
     bridge.deliver(resp, fallback)

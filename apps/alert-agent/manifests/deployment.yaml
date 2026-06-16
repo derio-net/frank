@@ -60,7 +60,9 @@ spec:
             - { name: skill, mountPath: /home/agent/SKILL.md, subPath: SKILL.md }
           resources:
             requests: { cpu: 50m, memory: 256Mi }
-            limits: { memory: 2Gi }   # claude TUI + tmux + the cron handlers
+            # claude TUI + tmux: one shared "alert-agent-ops" session for surge/
+            # digest/grafana + one per inbound chat. Headroom for ~2-3 live sessions.
+            limits: { memory: 3Gi }
         # --- sidecar: inbound Telegram (single getUpdates consumer) ------------
         - name: telegram-bridge
           image: ghcr.io/derio-net/multi-agent-shell:56c652ede9414152ec12b068f271b160937b52cf

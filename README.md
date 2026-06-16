@@ -35,7 +35,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | Blog Analytics | GoatCounter | Cookieless, single-binary; mesh-only admin at counter.cluster.derio.net, public beacon at counter.derio.net (LB 192.168.55.224, Caddy reverse-proxy from Hop) |
 | Edge HTTP Security | CrowdSec | Agent on Hop tailing Caddy access logs; caddy-crowdsec-bouncer enforces decisions at the edge (no Frank dep on request path) |
 | Runtime Security | Falco (modern_ebpf) + Falcosidekick | DaemonSet on Hop; syscall events → VictoriaLogs (Loki protocol) + direct Telegram for priority:critical |
-| AI Alert Helper | ai-alert-helper (FastAPI) | LiteLLM-backed digest/investigate/surge-check + Telegram trace-analyst (0.2.0): ad-hoc security Q&A over VictoriaLogs/CrowdSec evidence, allowlisted chat, long-poll consumer |
+| Alert Agent | alert-agent (multi-agent-shell) | Autonomous `claude` agent (cloud brain, no local-inference dependency): daily digest + traffic-surge + Grafana-alert triage + inbound Telegram Q&A. Deterministic `frank-facts` CLI for facts; HTTP-only, no kube credential. Replaces the retired ai-alert-helper |
 | Health Probes | Blackbox Exporter | HTTP endpoint probing for feature health (n8n, Paperclip, Grafana, Blog) |
 | Heartbeat Ingestion | Pushgateway | Receives heartbeat metrics from cron jobs, scraped by VictoriaMetrics |
 | Alert Bridge | Health Bridge | Grafana webhook → GitHub Project lifecycle state updates (healthy/degraded/dead); auto-closes healed bug issues (v0.3.0); treats DatasourceError/NoData as degraded not dead + heals bugs by feature-ref (v0.4.0) |
@@ -90,7 +90,7 @@ frank/
 │   ├── pushgateway/manifests/                     # Heartbeat metric ingestion from cron jobs
 │   ├── grafana-alerting/manifests/                  # File-provisioned alerting (rules, contacts, policy, dashboard)
 │   ├── health-bridge/manifests/                   # Grafana alert → GitHub lifecycle bridge
-│   ├── ai-alert-helper/manifests/                 # LLM digest/surge-check + Telegram trace-analyst
+│   ├── alert-agent/                               # Agentic digest/surge/triage on multi-agent-shell
 │   ├── fluent-bit/values.yaml                     # Log shipping
 │   ├── external-secrets/values.yaml              # ESO operator
 │   ├── infisical/values.yaml + manifests/         # Infisical + ClusterSecretStore
@@ -299,7 +299,7 @@ argocd app list
 | tekton-extras | tekton-pipelines | CI Tasks, gitea-ci Pipeline, Gitea EventListener, ExternalSecrets, RBAC |
 | longhorn-cicd | longhorn-system | Single-replica StorageClass for CI/CD workloads on pc-1 |
 | goatcounter | goatcounter-system | Blog analytics (arp242/goatcounter:2.7.0); LB 192.168.55.224, mesh-only admin via Authentik forward-auth |
-| ai-alert-helper | ai-alert-helper-system | FastAPI service (0.2.0) — daily digest CronJob + surge-check + Grafana webhook receiver + Telegram trace-analyst (single replica, Recreate — one getUpdates consumer per bot token) |
+| alert-agent | alert-agent | Autonomous `claude` agent on multi-agent-shell — daily digest + surge gate + Grafana webhook triage + inbound Telegram Q&A (single replica, Recreate — one getUpdates consumer per bot token; cloud brain, HTTP-only, no kube RBAC) |
 | awx | awx | AWX Operator + AWX CR (Ansible controller); OIDC SSO via Authentik; smoke-ping Job Template green vs non-Talos home-lab hosts |
 
 ### Hop Cluster Applications
