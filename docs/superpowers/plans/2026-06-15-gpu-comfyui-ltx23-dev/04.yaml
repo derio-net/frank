@@ -27,10 +27,14 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-16T21:08:27+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-06-16T21:08:34+00:00'
+    note: 'Cluster verification done end-to-end (deploy stoa5, re-hydrate dev-fp8+nvfp4+LoRA,
+      old checkpoint removed, /object_info lists LTXAVTextEncoderLoader + dev checkpoints
+      + LoRA). Two fast-follows: #562 (LTXVideo seed version-gate, kornia regression)
+      + #566 (persist output/user PVCs). G2 audio+video render DEFERRED to content-factory
+      runner graph (P8) per operator.'
     observed_prs: []

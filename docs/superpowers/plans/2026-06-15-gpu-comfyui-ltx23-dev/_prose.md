@@ -64,3 +64,16 @@ already-seeded PVC (a stale unpatched copy shadowed it). Fixed as a fast-follow
 (`fix/comfyui-node-reseed-versiongate`): version-gate the entrypoint seed
 (`.seed-version` marker, `STOA_NODES 4→5`) so an image-rev bump re-seeds baked
 nodes. See `docs/runbooks/frank-gotchas/gpu-1.md` (ComfyUI custom-node PVC seed).
+
+Second deviation: the redeploys also exposed that `/app/output` (renders) and
+`/app/user` (saved workflows) were **ephemeral** — a pod recreate (image bump /
+GPU-time-share scale 0→1) wiped them (cost an early set of stoa-agent test
+assets). Fixed in `fix/comfyui-persist-output-user` (PR #566): added
+`comfyui-output` (50Gi) + `comfyui-user` (2Gi) PVCs + mounts; manifest-only.
+
+**G2 status:** frank's deliverable is Deployed and verified end-to-end via
+`/object_info` (v0.24.0 + dev-fp8/dev-nvfp4 checkpoints + distilled LoRA +
+`LTXAVTextEncoderLoader` and the native-audio node set all load). The actual
+audio+video render is **deferred** — the content-factory runner's real LTX-2.3
+graph (the P8 "live phase"; `build_prompt` is still a placeholder) isn't built
+yet, which is out of this frank ticket's scope.
