@@ -48,7 +48,10 @@ def tg_react(chat_id, message_id, emoji: str) -> None:
     """Set a single emoji reaction on a message — best-effort feedback (⚡ on
     receipt, 👍/🤔 on completion). A reaction failure must NEVER block or delay
     the reply, so any error is swallowed with a WARN. setMessageReaction REPLACES
-    the reaction set, so ⚡ → 👍/🤔 reads as 'working → done'."""
+    the reaction set, so ⚡ → 👍/🤔 reads as 'working → done'.
+
+    NOTE: `emoji` MUST be from Telegram's fixed reaction allowlist (⚡ 👍 🤔 are);
+    an off-list emoji 400s and — by design — fails silently here."""
     try:
         _tg("setMessageReaction", {"chat_id": chat_id, "message_id": message_id,
                                    "reaction": [{"type": "emoji", "emoji": emoji}]})
@@ -118,13 +121,14 @@ def expand_command(text: str):
     kind 'prompt'  → payload is the agent instruction (template + operator args + defaults).
     kind 'unknown' → payload is the not-found reply.
     """
-    word, _, rest = text.strip().partition(" ")
+    parts = text.strip().split(None, 1)   # split on any whitespace run, not just " "
+    word = parts[0] if parts else ""
     spec = COMMANDS.get(word)
     if spec is None:
         return "unknown", "Unknown command — try /help"
     if spec["kind"] == "static":
         return "static", _help_text()
-    args = rest.strip()
+    args = parts[1].strip() if len(parts) > 1 else ""
     instruction = spec["template"] + ((" " + args) if args else "") + _DEFAULTS_SUFFIX
     return "prompt", instruction
 
