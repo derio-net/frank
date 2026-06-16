@@ -1,0 +1,44 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: alert-agent
+
+# Kustomize root lives at apps/alert-agent/ (NOT manifests/) so the
+# configMapGenerator can read the sibling code packages — kustomize's load
+# restrictor forbids `../` file sources above the kustomization dir.
+resources:
+  - manifests/pvc.yaml
+  - manifests/externalsecret.yaml
+  - manifests/deployment.yaml
+  - manifests/service.yaml
+
+# Code mounted from ConfigMaps (stdlib-only, like fetch-text). Hash-suffixed
+# names → any edit rolls the pod (needs prune:true on the Application).
+configMapGenerator:
+  - name: alert-agent-frankfacts
+    files:
+      - frank-facts/frank_facts/__init__.py
+      - frank-facts/frank_facts/facts.py
+      - frank-facts/frank_facts/surge.py
+      - frank-facts/frank_facts/cli.py
+  - name: alert-agent-bridge
+    files:
+      - telegram-bridge/tg_bridge/__init__.py
+      - telegram-bridge/tg_bridge/bridge.py
+  - name: alert-agent-handlers
+    files:
+      - handlers/handlers/__init__.py
+      - handlers/handlers/orchestration.py
+      - handlers/handlers/webhook.py
+  - name: alert-agent-bin
+    files:
+      - frank-facts=frank-facts/frank-facts
+      - telegram-bridge=telegram-bridge/telegram-bridge
+      - surge-gate=handlers/surge-gate
+      - digest=handlers/digest
+      - grafana-webhook=handlers/grafana-webhook
+  - name: alert-agent-crontab
+    files:
+      - manifests/files/.crontab
+  - name: alert-agent-skill
+    files:
+      - SKILL.md=manifests/files/SKILL.md
