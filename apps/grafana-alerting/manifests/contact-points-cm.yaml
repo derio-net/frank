@@ -38,6 +38,9 @@ data:
         receivers:
           - uid: ai-alert-helper-webhook
             type: webhook
+            # Re-pointed from the retired ai-alert-helper to the new alert-agent's
+            # grafana-webhook receiver (2026-06-16). Cutover order: verify the new
+            # receiver answers /healthz BEFORE this flip, remove the old app AFTER.
             settings:
-              url: "http://ai-alert-helper.ai-alert-helper-system.svc.cluster.local:8080/alert"
+              url: "http://alert-agent.alert-agent.svc.cluster.local:8080/alert"
               httpMethod: POST
