@@ -52,27 +52,50 @@ jobs:
           AI_SHA: ${{ steps.shas.outputs.ai_sha }}
           VKR_SHA: ${{ steps.shas.outputs.vkr_sha }}
         run: |
-          sed -i "s|ghcr.io/derio-net/secure-agent-kali:[a-f0-9]\+|ghcr.io/derio-net/secure-agent-kali:$AI_SHA|g" \
-            apps/secure-agent-pod/manifests/deployment.yaml
-          sed -i "s|ghcr.io/derio-net/vk-local:[a-f0-9]\+|ghcr.io/derio-net/vk-local:$AI_SHA|g" \
-            apps/secure-agent-pod/manifests/deployment.yaml
-
-          # paperclip-shell + ruflo-server + ruflo-shell ride the same agent-images
-          # SHA (CI builds them all from the same commit). Bump them in lockstep
-          # so the orch pods stay in sync with the secure-agent kali sidecar.
-          for f in apps/paperclip/manifests/deployment.yaml apps/ruflo/manifests/deployment.yaml; do
-            [ -f "$f" ] || continue
-            sed -i "s|ghcr.io/derio-net/paperclip-shell:[a-f0-9]\+|ghcr.io/derio-net/paperclip-shell:$AI_SHA|g" "$f"
-            sed -i "s|ghcr.io/derio-net/ruflo-server:[a-f0-9]\+|ghcr.io/derio-net/ruflo-server:$AI_SHA|g" "$f"
-            sed -i "s|ghcr.io/derio-net/ruflo-shell:[a-f0-9]\+|ghcr.io/derio-net/ruflo-shell:$AI_SHA|g" "$f"
+          # Every image built from the agent-images repo rides the SAME commit
+          # SHA (CI builds them all from one commit). Bump EVERY pin of each
+          # across apps/ — no per-file allowlist, so a new app pinning any of
+          # them is covered automatically (the old hardcoded sed list silently
+          # skipped alert-agent / n8n-01 / hermes-agent-shell). Keep this list in
+          # sync with agent-images' build matrix; the Verify-coverage step below
+          # fails loudly if a pinned agent-image is missing here, and
+          # scripts/tests/test_agent_images_bump_coverage.py guards it locally.
+          # `{ grep || true; }` so a listed-but-unpinned image (e.g. infra-shell)
+          # — grep exit 1 — doesn't trip `bash -eo pipefail`; `xargs -r` no-ops on
+          # empty input.
+          AGENT_IMAGES="secure-agent-kali vk-local paperclip-shell ruflo-server ruflo-shell multi-agent-shell hermes-agent-shell infra-shell"
+          for img in $AGENT_IMAGES; do
+            { grep -rlZ "ghcr.io/derio-net/$img:[a-f0-9]" apps/ 2>/dev/null || true; } \
+              | xargs -0 -r sed -i "s|ghcr.io/derio-net/$img:[a-f0-9]\+|ghcr.io/derio-net/$img:$AI_SHA|g"
           done
 
+          # vk-remote rides a DIFFERENT build (separate repo) → its own SHA.
           if [ -n "$VKR_SHA" ]; then
-            sed -i "s|ghcr.io/derio-net/vk-remote:[a-f0-9]\+|ghcr.io/derio-net/vk-remote:$VKR_SHA|g" \
-              apps/vk-remote/manifests/deployment.yaml
+            { grep -rlZ "ghcr.io/derio-net/vk-remote:" apps/ 2>/dev/null || true; } \
+              | xargs -0 -r sed -i "s|ghcr.io/derio-net/vk-remote:[a-zA-Z0-9._-]\+|ghcr.io/derio-net/vk-remote:$VKR_SHA|g"
           else
             echo "::warning::Could not resolve vk-remote SHA — skipping vk-remote bump"
           fi
+
+      - name: Verify coverage
+        env:
+          AI_SHA: ${{ steps.shas.outputs.ai_sha }}
+        run: |
+          # Guard against a NEW app pinning an agent-image the AGENT_IMAGES list
+          # above does not cover (the silent-skip bug that stranded alert-agent /
+          # n8n-01 / hermes-agent-shell). After the bump, every 40-hex
+          # ghcr.io/derio-net/* pin in apps/ must equal AI_SHA — any other value
+          # is an uncovered agent-image. vk-remote uses a short tag (not 40-hex)
+          # so it is out of scope; `blog` is built by frank, not agent-images.
+          stale=$(grep -rEo "ghcr.io/derio-net/[a-z0-9-]+:[a-f0-9]{40}" apps/ \
+                    | grep -vE ":${AI_SHA}\$" \
+                    | grep -vE "derio-net/blog:" || true)
+          if [ -n "$stale" ]; then
+            echo "::error::agent-image pin(s) not bumped to ${AI_SHA} — add the image name to AGENT_IMAGES in .github/workflows/agent-images-bump.yml:"
+            printf '%s\n' "$stale" | sort -u
+            exit 1
+          fi
+          echo "coverage OK: all agent-image pins in apps/ are at ${AI_SHA}"
 
       - name: Open PR
         env:
