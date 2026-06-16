@@ -1,0 +1,3 @@
+#!/usr/bin/env python3
+from handlers.orchestration import run_digest
+run_digest()

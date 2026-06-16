@@ -1,9 +1,19 @@
 # Frank Gotchas — Observability Digest
 
 Long-form companion to the **Observability digest** section in
-`agents/rules/frank-gotchas.md`. Covers the `ai-alert-helper` daily digest's
+`agents/rules/frank-gotchas.md`. Covers the daily digest's
 log-field and time-window traps. The hot file has the one-liners; this file has
 the prose, the field maps, and the live evidence.
+
+> **2026-06-16 — `ai-alert-helper` retired, replaced by `apps/alert-agent`.** The old
+> FastAPI app made one LiteLLM→Ollama call per narrative, so it died with local inference
+> (a circular dependency the GPU-timeshare exposed). The replacement is an autonomous
+> `claude` agent on the **multi-agent-shell** image (cloud brain, no local-inference
+> dependency) that can actually investigate, with the deterministic data plumbing preserved
+> as the stdlib **`frank-facts`** CLI. The field-map / time-window / surge traps below are
+> unchanged (the queries are the same); only the runtime moved. Watch via the alert-agent
+> Deployment logs (`kubectl -n alert-agent logs deploy/alert-agent -c <agent|telegram-bridge|grafana-webhook>`).
+> Design: `docs/superpowers/specs/2026-06-15--obs--agentic-alert-helper-design.md`.
 
 ## Falco events use Loki-push field names, not the fluent-bit ones
 

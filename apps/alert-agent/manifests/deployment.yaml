@@ -1,0 +1,123 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alert-agent
+  namespace: alert-agent
+  labels:
+    app.kubernetes.io/name: alert-agent
+spec:
+  replicas: 1
+  # Single Telegram getUpdates consumer + single persistent tmux session — both
+  # require exactly one pod; Recreate so a roll never runs two consumers at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: alert-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: alert-agent
+    spec:
+      # Default ServiceAccount, NO RBAC — HTTP-only posture (matches the old
+      # helper). Investigation is over VictoriaLogs/VictoriaMetrics/Grafana/
+      # GoatCounter only; the agent never gets a kube credential.
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        # --- main: the persistent agent session + the surge/digest cron --------
+        - name: agent
+          image: ghcr.io/derio-net/multi-agent-shell:56c652ede9414152ec12b068f271b160937b52cf
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          ports:
+            - { name: ssh, containerPort: 2222 }
+          env:
+            - { name: AGENT_SESSION_SERVE, value: "1" }            # bake the serve endpoint
+            - { name: AGENT_SESSION_URL, value: "http://localhost:8765" }
+            - { name: PYTHONPATH, value: "/opt/pylib" }
+            - { name: VICTORIALOGS_URL, value: "http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428" }
+            - { name: GOATCOUNTER_URL, value: "http://goatcounter.goatcounter-system.svc.cluster.local:8080" }
+            - { name: SURGE_ABS_FLOOR, value: "50" }
+            - { name: SURGE_VISITOR_FLOOR, value: "10" }
+            - { name: SURGE_COOLDOWN_HOURS, value: "6" }
+            - { name: SURGE_STATE_PATH, value: "/home/agent/.alert-agent/surge-state.json" }
+          envFrom:
+            - secretRef: { name: alert-agent-secrets }   # FRANK_C2_TELEGRAM_* + OBS_GOATCOUNTER_API_TOKEN
+          volumeMounts:
+            - { name: home, mountPath: /home/agent }
+            - { name: pylib-frankfacts, mountPath: /opt/pylib/frank_facts }
+            - { name: pylib-bridge, mountPath: /opt/pylib/tg_bridge }
+            - { name: pylib-handlers, mountPath: /opt/pylib/handlers }
+            - { name: bin, mountPath: /opt/alert-agent-bin }
+            - { name: crontab, mountPath: /home/agent/.crontab, subPath: .crontab }
+            - { name: skill, mountPath: /home/agent/SKILL.md, subPath: SKILL.md }
+          resources:
+            requests: { cpu: 50m, memory: 256Mi }
+            # claude TUI + tmux: one shared "alert-agent-ops" session for surge/
+            # digest/grafana + one per inbound chat. Headroom for ~2-3 live sessions.
+            limits: { memory: 3Gi }
+        # --- sidecar: inbound Telegram (single getUpdates consumer) ------------
+        - name: telegram-bridge
+          image: ghcr.io/derio-net/multi-agent-shell:56c652ede9414152ec12b068f271b160937b52cf
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          command: ["/opt/alert-agent-bin/telegram-bridge"]
+          env:
+            - { name: PYTHONPATH, value: "/opt/pylib" }
+            - { name: AGENT_SESSION_URL, value: "http://localhost:8765" }   # shared pod netns
+          envFrom:
+            - secretRef: { name: alert-agent-secrets }
+          volumeMounts:
+            - { name: pylib-frankfacts, mountPath: /opt/pylib/frank_facts }
+            - { name: pylib-bridge, mountPath: /opt/pylib/tg_bridge }
+            - { name: pylib-handlers, mountPath: /opt/pylib/handlers }
+            - { name: bin, mountPath: /opt/alert-agent-bin }
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 96Mi }
+        # --- sidecar: grafana-webhook receiver (the re-pointed contact point) --
+        - name: grafana-webhook
+          image: ghcr.io/derio-net/multi-agent-shell:56c652ede9414152ec12b068f271b160937b52cf
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          command: ["/opt/alert-agent-bin/grafana-webhook"]
+          ports:
+            - { name: webhook, containerPort: 8090 }
+          env:
+            - { name: PYTHONPATH, value: "/opt/pylib" }
+            - { name: AGENT_SESSION_URL, value: "http://localhost:8765" }
+            - { name: GRAFANA_WEBHOOK_PORT, value: "8090" }
+            - { name: VICTORIALOGS_URL, value: "http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428" }
+          envFrom:
+            - secretRef: { name: alert-agent-secrets }
+          volumeMounts:
+            - { name: pylib-frankfacts, mountPath: /opt/pylib/frank_facts }
+            - { name: pylib-bridge, mountPath: /opt/pylib/tg_bridge }
+            - { name: pylib-handlers, mountPath: /opt/pylib/handlers }
+            - { name: bin, mountPath: /opt/alert-agent-bin }
+          readinessProbe:
+            httpGet: { path: /healthz, port: webhook }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: { cpu: 10m, memory: 32Mi }
+            limits: { memory: 96Mi }
+      volumes:
+        - name: home
+          persistentVolumeClaim: { claimName: alert-agent-home }
+        - { name: pylib-frankfacts, configMap: { name: alert-agent-frankfacts } }
+        - { name: pylib-bridge, configMap: { name: alert-agent-bridge } }
+        - { name: pylib-handlers, configMap: { name: alert-agent-handlers } }
+        - name: bin
+          configMap: { name: alert-agent-bin, defaultMode: 0755 }
+        - { name: crontab, configMap: { name: alert-agent-crontab } }
+        - { name: skill, configMap: { name: alert-agent-skill } }

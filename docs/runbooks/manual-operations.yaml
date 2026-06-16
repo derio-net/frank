@@ -1790,3 +1790,14 @@ operations:
   verify:
   - Webhook test-delivery from the Gitea UI returns 2xx
   status: done
+- id: obs-alert-agent-claude-login
+  layer: obs
+  app: alert-agent
+  plan: docs/superpowers/plans/2026-06-15--obs--agentic-alert-helper/
+  when: post-merge, after the Deployment is Running; before the four-trigger verification
+  why_manual: the multi-agent-shell agent uses an Anthropic subscription; first `claude login` is interactive and its credential persists on the PVC (cannot be committed)
+  commands:
+  - "kubectl exec -n alert-agent deploy/alert-agent -c agent -it -- tmux attach\n#   then in the session: run `claude`, complete `/login` (OAuth). Detach (Ctrl-b d).\n# Smoke the session can complete a turn:\nkubectl exec -n alert-agent deploy/alert-agent -c agent -- /usr/local/bin/agent-session send '{\"session_id\":\"smoke\",\"agent\":\"claude\",\"message\":\"reply OK as JSON {\\\"text\\\":\\\"ok\\\"}\"}'\n"
+  verify:
+  - "agent-session send returns status:ok with a payload (not timeout); then all four triggers deliver to Telegram (digest, a synthetic surge, a test Grafana alert, an inbound allowlisted DM)"
+  status: pending

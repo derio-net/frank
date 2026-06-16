@@ -1,0 +1,3 @@
+#!/usr/bin/env python3
+from frank_facts.cli import main
+import sys; sys.exit(main())

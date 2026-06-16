@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: alert-agent
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    # Kustomize root: kustomization.yaml enumerates the resources and generates
+    # the hash-suffixed code/crontab/skill ConfigMaps. Root is apps/alert-agent/
+    # (not manifests/) so the generator can read the sibling code packages.
+    path: apps/alert-agent
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: alert-agent
+  syncPolicy:
+    automated:
+      # prune:true REQUIRED by configMapGenerator — every code/crontab/skill edit
+      # mints a new hash-suffixed ConfigMap; the superseded one must be GC'd (the
+      # mechanism that rolls the pod on a code change). Safe: kustomization.yaml
+      # enumerates all resources.
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - CreateNamespace=false
