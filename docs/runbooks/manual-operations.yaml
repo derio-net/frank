@@ -1801,3 +1801,15 @@ operations:
   verify:
   - "agent-session send returns status:ok with a payload (not timeout); then all four triggers deliver to Telegram (digest, a synthetic surge, a test Grafana alert, an inbound allowlisted DM)"
   status: pending
+- id: obs-alert-agent-goatcounter-infisical-seed
+  layer: obs
+  app: alert-agent
+  plan: docs/superpowers/plans/2026-06-15--obs--agentic-alert-helper/
+  when: anytime — restores GoatCounter facts (digest pageviews + surge visitor cross-check); the agent runs without it (fail-open) until then
+  why_manual: OBS_GOATCOUNTER_API_TOKEN was never seeded into Infisical (the seed was deferred in the hop-blog-edge-monitoring plan); the token value lives only as the grafana-goatcounter-token Secret in the monitoring ns
+  commands:
+  - "# Read the existing token value:\nkubectl get secret grafana-goatcounter-token -n monitoring -o jsonpath='{.data.*}' | base64 -d; echo\n# (Infisical UI, project frank-cluster, env prod, path /) add secret:\n#   OBS_GOATCOUNTER_API_TOKEN = <that value>\n# Then force the ExternalSecret to re-sync:\nkubectl -n alert-agent annotate externalsecret alert-agent-goatcounter force-sync=$(date +%s) --overwrite\n"
+  verify:
+  - "kubectl -n alert-agent get externalsecret alert-agent-goatcounter  # READY=True, SecretSynced"
+  - "kubectl -n alert-agent get secret alert-agent-goatcounter  # exists"
+  status: pending
