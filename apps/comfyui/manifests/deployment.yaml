@@ -65,6 +65,14 @@ spec:
               mountPath: /app/models
             - name: custom-nodes
               mountPath: /app/custom_nodes
+            # Persist generated assets + saved workflows/settings. /app/output and
+            # /app/user are ephemeral by default, so a pod recreate (image bump or
+            # GPU-time-share scale 0->1) wipes renders and UI workflows. PVC-back
+            # them so they survive restarts.
+            - name: output
+              mountPath: /app/output
+            - name: user
+              mountPath: /app/user
           startupProbe:
             httpGet:
               path: /
@@ -93,3 +101,9 @@ spec:
         - name: custom-nodes
           persistentVolumeClaim:
             claimName: comfyui-custom-nodes
+        - name: output
+          persistentVolumeClaim:
+            claimName: comfyui-output
+        - name: user
+          persistentVolumeClaim:
+            claimName: comfyui-user

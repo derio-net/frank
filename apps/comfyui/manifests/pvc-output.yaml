@@ -1,0 +1,16 @@
+# Persistent storage for ComfyUI generated assets (/app/output).
+# Ephemeral by default — a pod recreate (image bump or GPU-time-share scale
+# 0->1) wipes renders. 50Gi holds many LTX-2.3 / Wan video test outputs;
+# Longhorn online expansion (allowVolumeExpansion=true).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comfyui-output
+  namespace: comfyui
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 50Gi

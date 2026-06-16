@@ -1,0 +1,15 @@
+# Persistent storage for ComfyUI user state (/app/user): saved workflows,
+# settings, and the workflow browser. Ephemeral by default — a pod recreate
+# wipes saved workflows. Small (workflows are JSON); 2Gi is generous.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: comfyui-user
+  namespace: comfyui
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 2Gi
