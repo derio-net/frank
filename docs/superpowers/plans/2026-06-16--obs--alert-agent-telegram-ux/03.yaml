@@ -1,0 +1,53 @@
+schema_version: 2
+phase:
+  number: 3
+  title: '[manual] Image SHA bump + post-merge Test Plan'
+  tag: manual
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Bump multi-agent-shell image SHA (operator-gated — agent-images merges first)
+  steps:
+  - id: P3.T1.S1
+    text: |
+      BACK-LOADED / MANUAL — do NOT implement during the agentic run; ships unimplemented
+      in the PR. The new image tag does not exist until the agent-images Thread A PR
+      (`2026-06-16-agent-session-coldstart`) merges and CI builds a fresh
+      `ghcr.io/derio-net/multi-agent-shell` tag. Once the operator reports that tag, bump
+      every `multi-agent-shell:<sha>` occurrence in
+      `apps/alert-agent/manifests/deployment.yaml` (currently
+      `56c652ede9414152ec12b068f271b160937b52cf`) to the new SHA and push to THIS PR's
+      branch. ArgoCD rolls the pod (3-container deployment) onto the fixed driver. Record
+      via `fr plan edit --complete-phase 3 --note "<old>…<new>"`.
+- number: 2
+  title: Post-merge Test Plan (operator-driven verification)
+  steps:
+  - id: P3.T2.S1
+    text: |
+      MANUAL / post-merge (both PRs merged, ArgoCD rolled the new image). Operator-driven:
+        1. Cold-start answered — `kubectl -n alert-agent rollout restart deploy/alert-agent`
+           (cold session); from Telegram send a free-text DM ("what's the cluster status?").
+           Expect ⚡ within ~1s, a real agent answer within seconds, reaction flips to 👍 —
+           NOT the "(the agent did not return a reply…)" fallback.
+        2. Argless slash — tap `/edge-traffic` from the Telegram menu (sent bare). Expect
+           ⚡ → a defaults-based edge summary stating the default window used → 👍.
+        3. Static `/help` — tap `/help`. Expect an immediate bridge-rendered command list
+           (no agent latency), ⚡→👍.
+        4. Fallback reaction (optional) — if any turn times out, terminal reaction is 🤔.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-06-16T22:04:10+00:00'
+      note: bumped multi-agent-shell 56c652e->c946a672 (=#129 merge commit, cold-start
+        fix verified in tag tree)
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

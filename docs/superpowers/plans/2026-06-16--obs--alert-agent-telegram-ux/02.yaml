@@ -1,0 +1,69 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Thread C — ack/answer reactions (TDD)
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: RED+GREEN — tg_react best-effort helper
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED — add tests: `test_tg_react_posts_reaction` asserts `bridge.tg_react("100", 7,
+      "⚡")` makes one `/setMessageReaction` call with `chat_id=="100"`, `message_id==7`,
+      and `reaction==[{"type":"emoji","emoji":"⚡"}]`. `test_tg_react_swallows_failure`:
+      monkeypatch `_http_post_json` to raise, assert `tg_react(...)` returns without raising
+      (best-effort). Run the suite. Expected: FAIL (RED — `tg_react` undefined).
+  - id: P2.T1.S2
+    text: |
+      GREEN — add `tg_react(chat_id, message_id, emoji)` to `bridge.py`: calls `_tg(
+      "setMessageReaction", {"chat_id": chat_id, "message_id": message_id, "reaction":
+      [{"type":"emoji","emoji": emoji}]})` inside try/except → on exception print a WARN to
+      stderr and return (never propagate). Run the suite. Expected: GREEN.
+- number: 2
+  title: Wire ⚡-on-receipt / 👍|🤔-on-answer into process_update (TDD)
+  steps:
+  - id: P2.T2.S1
+    text: |
+      RED — reaction-ordering tests (the `calls` fixture records order):
+        * `test_reaction_ack_then_thumbsup`: free-text + `/session/send` ok payload →
+          `/setMessageReaction` calls in order emoji `⚡` then `👍`, message_id threaded from
+          the update (`{"message":{"message_id":42,"chat":{"id":100},"text":"hi"}}`).
+        * `test_reaction_ack_then_thinking`: `/session/send` returns `{"status":"timeout",
+          "payload":None}` → reactions `⚡` then `🤔` (fallback path).
+        * `test_reaction_on_slash_prompt`: `text:"/digest"`, ok payload → `⚡` then `👍`.
+      Run the suite. Expected: FAIL (RED — no reactions emitted).
+  - id: P2.T2.S2
+    text: |
+      GREEN — thread `message_id = msg.get("message_id")` through `process_update`. After
+      the allowlist gate (and only when `message_id` is present) call `tg_react(chat_id,
+      message_id, "⚡")` BEFORE any `session_send`. After producing the reply, pick the
+      terminal reaction: `render_payload(resp) is not None` → `"👍"`, else `"🤔"`; for the
+      static/unknown slash replies (which always "succeed") use `"👍"`. Emit the terminal
+      `tg_react` after `tg_send`. All reaction calls are best-effort (tg_react already
+      swallows). Run the suite — all reaction + routing + legacy tests GREEN.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-16T21:07:49+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-16T21:07:55+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-06-16T21:08:01+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-06-16T21:08:07+00:00'
+      note: null
+  completion:
+    at: '2026-06-16T21:08:14+00:00'
+    note: null
+    observed_prs: []
