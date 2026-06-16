@@ -1,0 +1,97 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Thread B — Telegram slash commands (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: RED — tests for COMMANDS registry + expand_command
+  steps:
+  - id: P1.T1.S1
+    text: |
+      In `apps/alert-agent/telegram-bridge/tests/test_bridge.py` add tests for a new pure
+      `bridge.expand_command(text) -> (kind, payload)`. Cover all four kinds:
+        * `expand_command("/help")` → `("static", help_text)` where `help_text` mentions
+          every catalog command (`/digest`, `/surge`, `/edge-traffic`, `/security`,
+          `/status`, `/help`).
+        * `expand_command("/digest")` → `("prompt", s)` where `s` contains `frank-facts`
+          AND the Defaults-&-proceed suffix substring `"sensible defaults"`.
+        * `expand_command("/edge-traffic hop-1")` → `("prompt", s)` where `s` ends with /
+          contains the operator-typed arg `"hop-1"` (args appended to the template).
+        * `expand_command("/foo")` → `("unknown", "Unknown command — try /help")`.
+      Also assert the registry shape: `bridge.COMMANDS` is a dict whose keys are the six
+      `/`-prefixed commands and whose values carry a menu description string (the
+      `setMyCommands` source). Run `cd apps/alert-agent/telegram-bridge && uv run --with
+      pytest pytest tests/ -q`. Expected: FAIL (RED — `expand_command`/`COMMANDS` undefined).
+- number: 2
+  title: GREEN — COMMANDS registry + expand_command
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Add to `tg_bridge/bridge.py` a `COMMANDS` dict — the single source of truth for both
+      the Telegram menu and routing. Each entry: `{"desc": <menu text>, "kind":
+      "static"|"prompt", "template": <str for prompt kind>}`. Catalog (templates map to
+      `frank-facts` subcommands the agent has as a shell tool):
+        /help         static
+        /digest       "Run the daily digest (`frank-facts digest`) and summarize for the operator."
+        /surge        "Report current surge status (`frank-facts surge`)."
+        /edge-traffic "Summarize Hop edge traffic — top scanned paths and attacker IPs (`frank-facts top-scanned-paths`, `top-attacker-ips`), last 24h by default."
+        /security     "Summarize the security picture — CrowdSec decisions and scan patterns (`frank-facts crowdsec`, `scan-patterns`) plus any notable Falco events."
+        /status       "Give a short cluster + alert-agent health snapshot from the HTTP probes you can reach (Derio Ops / blackbox)."
+      Implement `_help_text()` (renders the command list from `COMMANDS`) and
+      `expand_command(text)`: split first whitespace token as the command word + remainder
+      as operator args; `/help` → `("static", _help_text())`; known template → `("prompt",
+      template + (" " + args if args) + " Use sensible defaults and answer now; if a
+      parameter is truly needed, pick the obvious default and state which you used.")`;
+      unknown → `("unknown", "Unknown command — try /help")`. The Defaults-&-proceed suffix
+      lives in exactly one place. Run the suite. Expected: GREEN.
+- number: 3
+  title: Route slash commands in process_update (TDD)
+  steps:
+  - id: P1.T3.S1
+    text: |
+      RED — add routing tests to `test_bridge.py` using the existing `calls` fixture:
+        * `test_slash_help_no_agent`: `process_update({"message":{"chat":{"id":100},
+          "text":"/help"}})` → `_sent(calls,"/session/send") == []` (agent NOT driven) and
+          one `/sendMessage` whose text contains `/digest` (the help body).
+        * `test_slash_prompt_drives_agent`: `text:"/digest"` → exactly one `/session/send`
+          whose payload `message` contains `frank-facts` and `sensible defaults`; one reply.
+        * `test_slash_unknown_replies_directly`: `text:"/nope"` → no `/session/send`; one
+          `/sendMessage` text == `"Unknown command — try /help"`.
+        * `test_freetext_still_drives_agent`: the existing free-text assertion still holds
+          (no leading `/` → verbatim `/session/send`).
+      Run the suite. Expected: FAIL (RED — process_update doesn't branch on `/`).
+  - id: P1.T3.S2
+    text: |
+      GREEN — in `process_update`, after the allowlist gate, if `text.startswith("/")`
+      dispatch via `expand_command`: `static`/`unknown` → `tg_send(payload, str(chat_id))`
+      and return True WITHOUT calling `session_send`; `prompt` → `session_send(payload, …)`
+      then reply (reuse the existing render_payload+fallback line). No leading `/` → the
+      unchanged free-text path. Add `set_my_commands()` (best-effort: POST `setMyCommands`
+      with `[{"command": k.lstrip("/"), "description": v["desc"]} for k,v in COMMANDS]`,
+      wrapped try/except → WARN on failure) and call it once at `poll_loop` entry
+      (`poll_loop` stays `# pragma: no cover`). Run the suite. Expected: GREEN.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-06-16T21:05:02+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-06-16T21:05:04+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-06-16T21:05:06+00:00'
+      note: null
+    P1.T3.S2:
+      state: x
+      ticked_at: '2026-06-16T21:05:07+00:00'
+      note: null
+  completion:
+    at: '2026-06-16T21:05:09+00:00'
+    note: null
+    observed_prs: []

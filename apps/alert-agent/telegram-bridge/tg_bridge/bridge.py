@@ -44,6 +44,79 @@ def is_allowed(chat_id) -> bool:
     return str(chat_id) in ALLOWED_CHATS
 
 
+# --- Slash commands ------------------------------------------------------------
+# COMMANDS is the SINGLE source of truth for both the Telegram menu (setMyCommands)
+# and routing. A command is never argument-parsed: a templated command becomes one
+# English instruction for the agent (which has the frank-facts CLI as a shell tool),
+# carrying a "use sensible defaults" suffix — so the argless-from-menu trap (Telegram
+# sends a menu command bare) simply has no positional arg to be missing.
+_DEFAULTS_SUFFIX = (
+    " Use sensible defaults and answer now; if a parameter is truly needed, pick the "
+    "obvious default and state which you used."
+)
+
+COMMANDS = {
+    "/help": {"desc": "List the available commands", "kind": "static"},
+    "/digest": {
+        "desc": "On-demand daily digest",
+        "kind": "prompt",
+        "template": "Run the daily digest (`frank-facts digest`) and summarize for the operator.",
+    },
+    "/surge": {
+        "desc": "Current traffic-surge status",
+        "kind": "prompt",
+        "template": "Report current surge status (`frank-facts surge`).",
+    },
+    "/edge-traffic": {
+        "desc": "Hop edge traffic summary",
+        "kind": "prompt",
+        "template": (
+            "Summarize Hop edge traffic — top scanned paths and attacker IPs "
+            "(`frank-facts top-scanned-paths`, `top-attacker-ips`), last 24h by default."
+        ),
+    },
+    "/security": {
+        "desc": "Security picture (CrowdSec/Falco/scans)",
+        "kind": "prompt",
+        "template": (
+            "Summarize the security picture — CrowdSec decisions and scan patterns "
+            "(`frank-facts crowdsec`, `scan-patterns`) plus any notable Falco events."
+        ),
+    },
+    "/status": {
+        "desc": "Cluster + alert-agent health snapshot",
+        "kind": "prompt",
+        "template": (
+            "Give a short cluster + alert-agent health snapshot from the HTTP probes you "
+            "can reach (Derio Ops / blackbox)."
+        ),
+    },
+}
+
+
+def _help_text() -> str:
+    lines = ["Commands:"] + [f"{cmd} — {spec['desc']}" for cmd, spec in COMMANDS.items()]
+    return "\n".join(lines)
+
+
+def expand_command(text: str):
+    """Map a leading-slash message to (kind, payload).
+
+    kind 'static'  → payload is text the bridge replies with directly (no agent).
+    kind 'prompt'  → payload is the agent instruction (template + operator args + defaults).
+    kind 'unknown' → payload is the not-found reply.
+    """
+    word, _, rest = text.strip().partition(" ")
+    spec = COMMANDS.get(word)
+    if spec is None:
+        return "unknown", "Unknown command — try /help"
+    if spec["kind"] == "static":
+        return "static", _help_text()
+    args = rest.strip()
+    instruction = spec["template"] + ((" " + args) if args else "") + _DEFAULTS_SUFFIX
+    return "prompt", instruction
+
+
 def session_send(message: str, session_id: str | None = None, timeout_s: float = 300) -> dict:
     """Drive the persistent agent session. Returns the agent-session response
     {session_id, agent, status, turn, payload}; status 'timeout' → payload None."""
@@ -95,16 +168,38 @@ def process_update(update: dict) -> bool:
         print(f"WARN telegram-bridge: dropped message from non-allowlisted chat {chat_id}",
               file=sys.stderr)
         return False
+    # Slash command? Static/unknown are answered by the bridge directly (so /help
+    # works even when the agent is cold); a prompt command expands to an agent
+    # instruction. No leading slash → the unchanged free-text Q&A path.
+    if text.startswith("/"):
+        kind, payload = expand_command(text)
+        if kind in ("static", "unknown"):
+            tg_send(payload, str(chat_id))
+            return True
+        message = payload
+    else:
+        message = text
     # Shorter timeout for an interactive DM than the cron 300s — a stuck turn
     # must not freeze the single getUpdates consumer for 5 minutes.
-    resp = session_send(text, session_id=f"{SESSION_ID}-tg-{chat_id}", timeout_s=120)
+    resp = session_send(message, session_id=f"{SESSION_ID}-tg-{chat_id}", timeout_s=120)
     reply = render_payload(resp) or "(the agent did not return a reply — it may be busy or unauthenticated)"
     tg_send(reply, str(chat_id))
     return True
 
 
+def set_my_commands() -> None:
+    """Register the Telegram command menu from COMMANDS (best-effort — a failure
+    logs a WARN and the bridge runs anyway; the menu is a nicety, not a dependency)."""
+    try:
+        cmds = [{"command": c.lstrip("/"), "description": s["desc"]} for c, s in COMMANDS.items()]
+        _tg("setMyCommands", {"commands": cmds})
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARN telegram-bridge: setMyCommands failed: {exc}", file=sys.stderr)
+
+
 def poll_loop(poll_timeout: int = 30) -> None:  # pragma: no cover - network loop
     """Long-poll getUpdates forever (single consumer per bot token)."""
+    set_my_commands()
     offset = 0
     while True:
         try:

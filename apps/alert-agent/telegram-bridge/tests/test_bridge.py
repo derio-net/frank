@@ -67,3 +67,73 @@ def test_deliver_uses_agent_payload_when_present(calls):
     resp = {"status": "ok", "payload": {"text": "agent narrative"}}
     bridge.deliver(resp, fallback_text="fallback")
     assert _sent(calls, "/sendMessage")[0]["text"] == "agent narrative"
+
+
+# --- Thread B: slash commands (expand_command + COMMANDS registry) -------------
+
+CATALOG = ["/help", "/digest", "/surge", "/edge-traffic", "/security", "/status"]
+
+
+def test_commands_registry_shape():
+    # COMMANDS is the single source of truth for setMyCommands AND routing: a
+    # dict keyed by the six /-prefixed commands, each with a menu description.
+    assert set(bridge.COMMANDS) == set(CATALOG)
+    for spec in bridge.COMMANDS.values():
+        assert spec["desc"]  # non-empty menu text
+
+
+def test_expand_command_help_is_static_and_lists_catalog():
+    kind, payload = bridge.expand_command("/help")
+    assert kind == "static"
+    for cmd in CATALOG:
+        assert cmd in payload   # the help body names every command
+
+
+def test_expand_command_prompt_carries_defaults_suffix():
+    kind, payload = bridge.expand_command("/digest")
+    assert kind == "prompt"
+    assert "frank-facts" in payload
+    assert "sensible defaults" in payload   # Defaults-&-proceed, encoded once
+
+
+def test_expand_command_appends_operator_args():
+    kind, payload = bridge.expand_command("/edge-traffic hop-1")
+    assert kind == "prompt"
+    assert "hop-1" in payload   # operator-typed trailing args reach the agent
+
+
+def test_expand_command_unknown():
+    kind, payload = bridge.expand_command("/foo")
+    assert kind == "unknown"
+    assert payload == "Unknown command — try /help"
+
+
+def test_slash_help_no_agent(calls):
+    drove = bridge.process_update({"message": {"chat": {"id": 100}, "text": "/help"}})
+    assert drove is True
+    assert _sent(calls, "/session/send") == []          # static — agent NOT driven
+    replies = _sent(calls, "/sendMessage")
+    assert len(replies) == 1 and "/digest" in replies[0]["text"]
+
+
+def test_slash_prompt_drives_agent(calls):
+    calls.canned["/session/send"] = {"status": "ok", "payload": {"text": "digest narrative"}}
+    bridge.process_update({"message": {"chat": {"id": 100}, "text": "/digest"}})
+    sent = _sent(calls, "/session/send")
+    assert len(sent) == 1
+    assert "frank-facts" in sent[0]["message"] and "sensible defaults" in sent[0]["message"]
+    assert _sent(calls, "/sendMessage")[0]["text"] == "digest narrative"
+
+
+def test_slash_unknown_replies_directly(calls):
+    bridge.process_update({"message": {"chat": {"id": 100}, "text": "/nope"}})
+    assert _sent(calls, "/session/send") == []          # unknown — agent NOT driven
+    assert _sent(calls, "/sendMessage")[0]["text"] == "Unknown command — try /help"
+
+
+def test_freetext_still_drives_agent(calls):
+    # No leading slash → the unchanged free-text Q&A path forwards verbatim.
+    calls.canned["/session/send"] = {"status": "ok", "payload": {"text": "free answer"}}
+    bridge.process_update({"message": {"chat": {"id": 100}, "text": "why is X firing?"}})
+    sent = _sent(calls, "/session/send")
+    assert len(sent) == 1 and sent[0]["message"] == "why is X firing?"
