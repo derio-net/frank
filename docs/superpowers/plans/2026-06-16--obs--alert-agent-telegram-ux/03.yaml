@@ -39,9 +39,10 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-16T22:04:10+00:00'
+      note: bumped multi-agent-shell 56c652e->c946a672 (=#129 merge commit, cold-start
+        fix verified in tag tree)
     P3.T2.S1:
       state: ' '
       ticked_at: null
