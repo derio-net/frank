@@ -49,7 +49,12 @@ spec:
             - { name: SURGE_COOLDOWN_HOURS, value: "6" }
             - { name: SURGE_STATE_PATH, value: "/home/agent/.alert-agent/surge-state.json" }
           envFrom:
-            - secretRef: { name: alert-agent-secrets }   # FRANK_C2_TELEGRAM_* + OBS_GOATCOUNTER_API_TOKEN
+            # optional:true so a missing/lagging Secret never blocks the pod
+            # (the gotcha: a non-optional envFrom secretRef wedges it on a missing
+            # Secret). Telegram is required-but-present; GoatCounter may be absent
+            # until seeded (facts.py is fail-open).
+            - secretRef: { name: alert-agent-secrets, optional: true }       # FRANK_C2_TELEGRAM_*
+            - secretRef: { name: alert-agent-goatcounter, optional: true }   # OBS_GOATCOUNTER_API_TOKEN
           volumeMounts:
             - { name: home, mountPath: /home/agent }
             - { name: pylib-frankfacts, mountPath: /opt/pylib/frank_facts }
@@ -74,7 +79,8 @@ spec:
             - { name: PYTHONPATH, value: "/opt/pylib" }
             - { name: AGENT_SESSION_URL, value: "http://localhost:8765" }   # shared pod netns
           envFrom:
-            - secretRef: { name: alert-agent-secrets }
+            - secretRef: { name: alert-agent-secrets, optional: true }
+            - secretRef: { name: alert-agent-goatcounter, optional: true }
           volumeMounts:
             - { name: pylib-frankfacts, mountPath: /opt/pylib/frank_facts }
             - { name: pylib-bridge, mountPath: /opt/pylib/tg_bridge }
@@ -98,7 +104,8 @@ spec:
             - { name: GRAFANA_WEBHOOK_PORT, value: "8090" }
             - { name: VICTORIALOGS_URL, value: "http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428" }
           envFrom:
-            - secretRef: { name: alert-agent-secrets }
+            - secretRef: { name: alert-agent-secrets, optional: true }
+            - secretRef: { name: alert-agent-goatcounter, optional: true }
           volumeMounts:
             - { name: pylib-frankfacts, mountPath: /opt/pylib/frank_facts }
             - { name: pylib-bridge, mountPath: /opt/pylib/tg_bridge }
