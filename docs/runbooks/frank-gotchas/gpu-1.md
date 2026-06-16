@@ -65,6 +65,14 @@ the PVC and restart so the entrypoint re-seeds the patched copy —
 `kubectl -n comfyui exec deploy/comfyui -- rm -rf /app/custom_nodes/<NodeName>`
 then `kubectl -n comfyui rollout restart deploy/comfyui`.
 
+**Persistence (which dirs survive a restart).** Only `/app/models`
+(`comfyui-models`), `/app/custom_nodes` (`comfyui-custom-nodes`), `/app/output`
+(`comfyui-output`) and `/app/user` (`comfyui-user`) are PVC-backed. `output`
+(generated assets) and `user` (saved workflows/settings) were added later — they
+were ephemeral originally, so a pod recreate (image bump or GPU-time-share scale
+0→1) silently wiped renders and saved workflows (cost an early set of stoa-agent
+test assets). Anything ComfyUI writes elsewhere in `/app` is still ephemeral.
+
 ## Intel GPU Resource Driver (separate from gpu-1)
 
 Uses a vendored chart with K8s 1.35 DRA patches. Lives in `patches/phase05-mini-config/` for the iGPUs on the mini-* nodes — distinct from gpu-1's NVIDIA stack.
