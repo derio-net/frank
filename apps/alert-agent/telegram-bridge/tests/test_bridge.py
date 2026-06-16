@@ -30,6 +30,11 @@ def _sent(rec, method):
     return [p for (u, p) in rec.calls if u.endswith(method)]
 
 
+def _reactions(rec):
+    """Emoji set on each setMessageReaction call, in call order."""
+    return [p["reaction"][0]["emoji"] for (u, p) in rec.calls if u.endswith("/setMessageReaction")]
+
+
 def test_allowlisted_message_drives_agent_and_replies(calls):
     calls.canned["/session/send"] = {"status": "ok", "payload": {"text": "inference is on gpu-1"}}
     drove = bridge.process_update({"message": {"chat": {"id": 100}, "text": "why is X firing?"}})
@@ -137,3 +142,45 @@ def test_freetext_still_drives_agent(calls):
     bridge.process_update({"message": {"chat": {"id": 100}, "text": "why is X firing?"}})
     sent = _sent(calls, "/session/send")
     assert len(sent) == 1 and sent[0]["message"] == "why is X firing?"
+
+
+# --- Thread C: ack/answer reactions -------------------------------------------
+
+def test_tg_react_posts_reaction(calls):
+    bridge.tg_react("100", 7, "⚡")
+    sent = _sent(calls, "/setMessageReaction")
+    assert len(sent) == 1
+    assert sent[0]["chat_id"] == "100" and sent[0]["message_id"] == 7
+    assert sent[0]["reaction"] == [{"type": "emoji", "emoji": "⚡"}]
+
+
+def test_tg_react_swallows_failure(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("api down")
+    monkeypatch.setattr(bridge, "_http_post_json", boom)
+    monkeypatch.setattr(bridge, "BOT_TOKEN", "T")
+    bridge.tg_react("100", 7, "⚡")   # best-effort: must NOT raise
+
+
+def test_reaction_ack_then_thumbsup(calls):
+    calls.canned["/session/send"] = {"status": "ok", "payload": {"text": "ok"}}
+    bridge.process_update({"message": {"message_id": 42, "chat": {"id": 100}, "text": "hi"}})
+    assert _reactions(calls) == ["⚡", "👍"]
+
+
+def test_reaction_ack_then_thinking(calls):
+    calls.canned["/session/send"] = {"status": "timeout", "payload": None}
+    bridge.process_update({"message": {"message_id": 42, "chat": {"id": 100}, "text": "hi"}})
+    assert _reactions(calls) == ["⚡", "🤔"]   # fallback → thinking-face, not thumbs-up
+
+
+def test_reaction_on_slash_prompt(calls):
+    calls.canned["/session/send"] = {"status": "ok", "payload": {"text": "d"}}
+    bridge.process_update({"message": {"message_id": 9, "chat": {"id": 100}, "text": "/digest"}})
+    assert _reactions(calls) == ["⚡", "👍"]
+
+
+def test_reaction_on_static_help(calls):
+    # /help never touches the agent but still gets receipt → done reactions.
+    bridge.process_update({"message": {"message_id": 3, "chat": {"id": 100}, "text": "/help"}})
+    assert _reactions(calls) == ["⚡", "👍"]

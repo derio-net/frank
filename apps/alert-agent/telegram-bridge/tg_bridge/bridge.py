@@ -44,6 +44,18 @@ def is_allowed(chat_id) -> bool:
     return str(chat_id) in ALLOWED_CHATS
 
 
+def tg_react(chat_id, message_id, emoji: str) -> None:
+    """Set a single emoji reaction on a message — best-effort feedback (⚡ on
+    receipt, 👍/🤔 on completion). A reaction failure must NEVER block or delay
+    the reply, so any error is swallowed with a WARN. setMessageReaction REPLACES
+    the reaction set, so ⚡ → 👍/🤔 reads as 'working → done'."""
+    try:
+        _tg("setMessageReaction", {"chat_id": chat_id, "message_id": message_id,
+                                   "reaction": [{"type": "emoji", "emoji": emoji}]})
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARN telegram-bridge: setMessageReaction failed: {exc}", file=sys.stderr)
+
+
 # --- Slash commands ------------------------------------------------------------
 # COMMANDS is the SINGLE source of truth for both the Telegram menu (setMyCommands)
 # and routing. A command is never argument-parsed: a templated command becomes one
@@ -161,6 +173,7 @@ def process_update(update: dict) -> bool:
     are dropped with a WARN (the gate working, not the bot broken)."""
     msg = update.get("message") or update.get("edited_message") or {}
     chat_id = (msg.get("chat") or {}).get("id")
+    message_id = msg.get("message_id")
     text = (msg.get("text") or "").strip()
     if chat_id is None or not text:
         return False
@@ -168,6 +181,12 @@ def process_update(update: dict) -> bool:
         print(f"WARN telegram-bridge: dropped message from non-allowlisted chat {chat_id}",
               file=sys.stderr)
         return False
+
+    def react(emoji):
+        if message_id is not None:
+            tg_react(str(chat_id), message_id, emoji)
+
+    react("⚡")   # receipt — fired BEFORE the (possibly slow) turn so feedback is instant
     # Slash command? Static/unknown are answered by the bridge directly (so /help
     # works even when the agent is cold); a prompt command expands to an agent
     # instruction. No leading slash → the unchanged free-text Q&A path.
@@ -175,6 +194,7 @@ def process_update(update: dict) -> bool:
         kind, payload = expand_command(text)
         if kind in ("static", "unknown"):
             tg_send(payload, str(chat_id))
+            react("👍")
             return True
         message = payload
     else:
@@ -182,8 +202,10 @@ def process_update(update: dict) -> bool:
     # Shorter timeout for an interactive DM than the cron 300s — a stuck turn
     # must not freeze the single getUpdates consumer for 5 minutes.
     resp = session_send(message, session_id=f"{SESSION_ID}-tg-{chat_id}", timeout_s=120)
-    reply = render_payload(resp) or "(the agent did not return a reply — it may be busy or unauthenticated)"
-    tg_send(reply, str(chat_id))
+    rendered = render_payload(resp)
+    tg_send(rendered or "(the agent did not return a reply — it may be busy or unauthenticated)",
+            str(chat_id))
+    react("👍" if rendered is not None else "🤔")   # 🤔 = only the deterministic fallback was posted
     return True
 
 
