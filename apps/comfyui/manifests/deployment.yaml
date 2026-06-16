@@ -34,6 +34,11 @@ spec:
       containers:
         - name: comfyui
           image: ghcr.io/derio-net/comfyui:comfyui-v0.24.0-pt2.10.0-cu128-stoa5
+          # IfNotPresent (not Always): the tag is unique per image rev
+          # (…-stoaN), so a genuinely-new image still pulls, while restarts /
+          # GPU-time-share switches reuse the node cache instead of re-pulling
+          # ~20GB over gpu-1's slow NIC every time.
+          imagePullPolicy: IfNotPresent
           # Overrides the image CMD to add VRAM/offload flags for the 16GB
           # RTX 5070 Ti. The stoa runner drives one clip at a time, so models
           # load serially: reserve a little VRAM for the OS and don't cache
