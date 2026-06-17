@@ -7,9 +7,14 @@ endpoint) the tests patch. Telegram messages are sent as PLAIN TEXT (no parse_mo
 from __future__ import annotations
 import json
 import os
+import re
 import sys
 import time
 import urllib.request
+
+# Telegram's command-id rule: lowercase letters, digits, underscore; 1–32 chars
+# (NO hyphens). One invalid id makes setMyCommands 400 and rejects the WHOLE menu.
+_TG_COMMAND_ID_RE = re.compile(r"^[a-z0-9_]{1,32}$")
 
 BOT_TOKEN = os.environ.get("FRANK_C2_TELEGRAM_BOT_TOKEN", "")
 # Allowlist of chat ids permitted to drive the agent (comma-separated). The
@@ -82,7 +87,7 @@ COMMANDS = {
         "kind": "prompt",
         "template": "Report current surge status (`frank-facts surge`).",
     },
-    "/edge-traffic": {
+    "/edge_traffic": {
         "desc": "Hop edge traffic summary",
         "kind": "prompt",
         "template": (
@@ -217,7 +222,16 @@ def set_my_commands() -> None:
     """Register the Telegram command menu from COMMANDS (best-effort — a failure
     logs a WARN and the bridge runs anyway; the menu is a nicety, not a dependency)."""
     try:
-        cmds = [{"command": c.lstrip("/"), "description": s["desc"]} for c, s in COMMANDS.items()]
+        cmds = []
+        for c, s in COMMANDS.items():
+            ident = c.lstrip("/")
+            if not _TG_COMMAND_ID_RE.match(ident):
+                # Skip (don't send) an invalid id — a single bad one would 400 the
+                # whole menu. Fail-soft: that command is just absent from the menu.
+                print(f"WARN telegram-bridge: skipping invalid command id {c!r} "
+                      f"(not {_TG_COMMAND_ID_RE.pattern})", file=sys.stderr)
+                continue
+            cmds.append({"command": ident, "description": s["desc"]})
         _tg("setMyCommands", {"commands": cmds})
     except Exception as exc:  # noqa: BLE001
         print(f"WARN telegram-bridge: setMyCommands failed: {exc}", file=sys.stderr)

@@ -1,11 +1,14 @@
 """telegram-bridge: allowlist, single-consumer routing, deterministic fallback."""
 from __future__ import annotations
 import json
+import re
 from types import SimpleNamespace
 
 import pytest
 
 from tg_bridge import bridge
+
+_TG_ID_RE = re.compile(r"^[a-z0-9_]{1,32}$")
 
 
 @pytest.fixture
@@ -76,7 +79,7 @@ def test_deliver_uses_agent_payload_when_present(calls):
 
 # --- Thread B: slash commands (expand_command + COMMANDS registry) -------------
 
-CATALOG = ["/help", "/digest", "/surge", "/edge-traffic", "/security", "/status"]
+CATALOG = ["/help", "/digest", "/surge", "/edge_traffic", "/security", "/status"]
 
 
 def test_commands_registry_shape():
@@ -102,7 +105,7 @@ def test_expand_command_prompt_carries_defaults_suffix():
 
 
 def test_expand_command_appends_operator_args():
-    kind, payload = bridge.expand_command("/edge-traffic hop-1")
+    kind, payload = bridge.expand_command("/edge_traffic hop-1")
     assert kind == "prompt"
     assert "hop-1" in payload   # operator-typed trailing args reach the agent
 
@@ -184,3 +187,29 @@ def test_reaction_on_static_help(calls):
     # /help never touches the agent but still gets receipt → done reactions.
     bridge.process_update({"message": {"message_id": 3, "chat": {"id": 100}, "text": "/help"}})
     assert _reactions(calls) == ["⚡", "👍"]
+
+
+# --- Fix A: Telegram menu command ids (the setMyCommands 400) -------------------
+
+def test_command_ids_are_valid_telegram():
+    # Every COMMANDS key (sans leading /) must be a valid Telegram command id —
+    # no hyphens. One invalid id makes setMyCommands 400 and rejects the WHOLE menu.
+    for cmd in bridge.COMMANDS:
+        ident = cmd.lstrip("/")
+        assert _TG_ID_RE.match(ident), f"invalid Telegram command id: {cmd!r}"
+
+
+def test_set_my_commands_sends_only_valid_ids(calls):
+    # An invalid id must be SKIPPED (logged), never sent — so a single bad id can
+    # never reject the whole batch (fail-soft: the menu just lacks that command).
+    bridge.COMMANDS["/bad-id"] = {"desc": "temp invalid", "kind": "static"}
+    try:
+        bridge.set_my_commands()
+    finally:
+        del bridge.COMMANDS["/bad-id"]
+    sent = _sent(calls, "/setMyCommands")
+    assert len(sent) == 1
+    ids = [c["command"] for c in sent[0]["commands"]]
+    assert ids, "must still register the valid commands"
+    assert all(_TG_ID_RE.match(i) for i in ids), f"setMyCommands sent an invalid id: {ids}"
+    assert "bad-id" not in ids, "the invalid id must be skipped, not sent"
