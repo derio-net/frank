@@ -1,0 +1,48 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Telegram menu command ids — fix the setMyCommands 400 (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: RED — tests for valid command ids + filtered registration
+  steps:
+  - id: P1.T1.S1
+    text: |
+      In `apps/alert-agent/telegram-bridge/tests/test_bridge.py` add:
+        * `test_command_ids_are_valid_telegram`: every `bridge.COMMANDS` key with the leading `/`
+          stripped matches `^[a-z0-9_]{1,32}$` (Telegram's rule — no hyphens). This FAILS today on
+          `/edge-traffic`.
+        * `test_set_my_commands_sends_only_valid_ids`: with the `calls` fixture, call
+          `bridge.set_my_commands()`; the `setMyCommands` payload's `commands[].command` are all
+          valid ids; inject a temporary invalid key into a copy and assert it is SKIPPED (not sent),
+          so one bad id can't reject the whole batch.
+      Run `cd apps/alert-agent/telegram-bridge && uv run --with pytest python -m pytest tests/ -q`.
+      Expected: FAIL (RED — `/edge-traffic` hyphen + no filter).
+- number: 2
+  title: GREEN — rename + validity filter
+  steps:
+  - id: P1.T2.S1
+    text: |
+      In `tg_bridge/bridge.py`: rename the `COMMANDS` key `"/edge-traffic"` → `"/edge_traffic"`
+      (routing follows the key; the template text is unchanged). In `set_my_commands()`, build the
+      list only from keys whose stripped id matches `^[a-z0-9_]{1,32}$`, and `print` a WARN to
+      stderr for any skipped key — so a future invalid id degrades to "missing from the menu"
+      instead of a 400 that nukes the whole menu. Run the suite. Expected: GREEN (incl. the
+      existing routing/expand tests — `/edge_traffic` still routes).
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

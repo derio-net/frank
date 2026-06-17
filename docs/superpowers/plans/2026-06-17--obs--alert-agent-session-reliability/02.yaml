@@ -1,0 +1,52 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Thread agent turns off the poll loop (TDD)
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: RED — tests for non-blocking dispatch + per-session serialization
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Add tests driving a new `dispatch_update(update)` (the threaded entry the poll loop will
+      call) over the patched seam:
+        * `test_slow_turn_does_not_block_static`: a free-text DM whose `session_send` blocks on an
+          Event, dispatched on session A; a `/help` dispatched immediately after returns its static
+          reply WITHOUT waiting for A's turn (assert the `/sendMessage` for `/help` lands before A's
+          Event is released).
+        * `test_same_session_turns_serialize`: two turns for the SAME session_id run under a
+          per-session lock — the second `session_send` does not start until the first returns
+          (assert ordering via a shared list).
+        * `test_reaction_order_preserved_per_message`: for a threaded turn, ⚡ precedes 👍/🤔 on that
+          message (reuse `_reactions`).
+      Run the suite. Expected: FAIL (RED — no threaded dispatch / lock).
+- number: 2
+  title: GREEN — worker threads + per-session lock
+  steps:
+  - id: P2.T2.S1
+    text: |
+      In `bridge.py`: keep the single getUpdates consumer, but `poll_loop` hands each update to
+      `dispatch_update`, which runs the turn in a worker thread. Static `/help`/unknown replies are
+      answered inline (no thread). A module-level `dict` of per-`session_id` `threading.Lock`
+      (guarded by a registry lock) serializes same-session turns; ⚡ fires before acquiring/​running,
+      👍/🤔 from the worker after. Keep one getUpdates consumer (replicas:1 unchanged). Run the
+      suite. Expected: GREEN (incl. legacy process_update tests, or refactor them onto
+      dispatch_update). RED-verify by stash.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
