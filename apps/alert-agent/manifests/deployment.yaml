@@ -32,7 +32,7 @@ spec:
       containers:
         # --- main: the persistent agent session + the surge/digest cron --------
         - name: agent
-          image: ghcr.io/derio-net/multi-agent-shell:bb8be72f6479a850968fa4e374f58cf2c668c4db
+          image: ghcr.io/derio-net/multi-agent-shell:9ed77051510f570a3e9d87f2ee7f642f86cac093
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
@@ -90,7 +90,7 @@ spec:
             limits: { memory: 8Gi }
         # --- sidecar: inbound Telegram (single getUpdates consumer) ------------
         - name: telegram-bridge
-          image: ghcr.io/derio-net/multi-agent-shell:bb8be72f6479a850968fa4e374f58cf2c668c4db
+          image: ghcr.io/derio-net/multi-agent-shell:9ed77051510f570a3e9d87f2ee7f642f86cac093
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }
@@ -111,7 +111,7 @@ spec:
             limits: { memory: 96Mi }
         # --- sidecar: grafana-webhook receiver (the re-pointed contact point) --
         - name: grafana-webhook
-          image: ghcr.io/derio-net/multi-agent-shell:bb8be72f6479a850968fa4e374f58cf2c668c4db
+          image: ghcr.io/derio-net/multi-agent-shell:9ed77051510f570a3e9d87f2ee7f642f86cac093
           securityContext:
             allowPrivilegeEscalation: false
             capabilities: { drop: ["ALL"] }

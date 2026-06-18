@@ -116,7 +116,7 @@ spec:
         # OAuth only: NO API keys here; the credential lands on the agent-home
         # PVC at first `claude login` (MO-4). s6-overlay v3 runs sshd + tmux.
         - name: multi-agent-shell
-          image: ghcr.io/derio-net/multi-agent-shell:bb8be72f6479a850968fa4e374f58cf2c668c4db
+          image: ghcr.io/derio-net/multi-agent-shell:9ed77051510f570a3e9d87f2ee7f642f86cac093
           env:
             - name: HOME
               value: /home/agent
