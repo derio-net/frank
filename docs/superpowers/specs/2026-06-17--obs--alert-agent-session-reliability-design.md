@@ -1,7 +1,7 @@
 # Alert-Agent Persistent-Session Reliability + Telegram UX Hardening
 
 **Layers:** obs (frank — `apps/alert-agent`, `apps/n8n-01`) + agent-images (the `agent-session` driver + `agent-shell-base` tmux config)
-**Status:** Draft
+**Status:** Deployed (live 2026-06-18 on `multi-agent-shell:9ed7705`; free-text DMs verified end-to-end)
 **Date:** 2026-06-17
 **Repos:** `derio-net/frank`, `derio-net/agent-images` (multi-repo)
 **Extends:** `2026-06-16--obs--alert-agent-telegram-ux-design.md` (the cold-start fix this supersedes-by-completing) + `2026-06-15--obs--agentic-alert-helper-design.md`
@@ -10,8 +10,8 @@
 
 | Plan | Target repo | Slug | Status |
 |------|-------------|------|--------|
-| agent-session-persistence (C+E+continuum, **gating**) | `derio-net/agent-images` | `2026-06-17-agent-session-persistence` | — |
-| 2026-06-17--obs--alert-agent-session-reliability (A+D+env+bump) | `derio-net/frank` | `2026-06-17--obs--alert-agent-session-reliability` | — |
+| agent-session-persistence (C+E+continuum, **gating**) | `derio-net/agent-images` | `2026-06-17-agent-session-persistence` | Deployed (#130/#131/#132/#133) |
+| 2026-06-17--obs--alert-agent-session-reliability (A+D+env+bump) | `derio-net/frank` | `2026-06-17--obs--alert-agent-session-reliability` | Deployed (#571/#573/#575/#576/#578/#579) |
 
 > Multi-repo, two plans. The **agent-images** plan (driver liveness + `--session-id` persistence +
 > the `agent-shell-base` continuum conditional) gates the **frank** plan (bridge menu/threading + the

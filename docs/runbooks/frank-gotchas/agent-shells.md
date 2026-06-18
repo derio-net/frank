@@ -509,3 +509,40 @@ if npm ls -g "$name" --depth=0 >/dev/null 2>&1; then ...
 multi-agent, infra, paperclip — identical guard) with a bats regression in
 `hermes-agent-shell/tests/test_install_inventory.bats`. Lands in the cluster on
 the next ruflo image bump in `frank`.
+
+## Driving claude inside a multi-agent-shell agent (alert-agent saga, 2026-06-18)
+
+The agentic alert-agent's "DMs aren't answered" was **seven stacked root causes**, each
+masking the next. The durable, reusable lessons (not the per-incident details):
+
+- **Agent instructions must be a file the harness auto-loads — NOT `SKILL.md`.** claude Code
+  auto-loads **`CLAUDE.md` only** (cwd + `~/.claude/CLAUDE.md`); it never reads a file named
+  `SKILL.md`. codex/opencode/antigravity/pi read **`AGENTS.md`** (the agents.md standard);
+  Copilot reads `.github/copilot-instructions.md`; **not** `GEMINI.md` (antigravity uses
+  AGENTS.md). A deployment mounting agent instructions at `~/SKILL.md` loads them into NOTHING —
+  on a free-text turn the model has no tools/boundary and fumbles (reaches for `kubectl`,
+  times out). Provide a canonical **`AGENTS.md`** + a `CLAUDE.md`; multi-agent-shell's
+  `cont-init.d/46-agent-instructions` fans `~/AGENTS.md` out to the per-harness filenames
+  (idempotent, fail-open, never clobbers a real mounted file; `AGENT_INSTRUCTION_LINKS`-overridable).
+- **The non-login s6 driver's PATH must track `$AGENT_HOME`.** `base/Dockerfile` hardcodes
+  `PATH=/home/claude/.local/bin:…`; `agent-shell-base` overrode HOME/AGENT_HOME to `/home/agent`
+  but (until #132) NOT PATH — so the agent-session driver (launches `claude` via tmux with the
+  baked PATH, not a login shell, so the profile.d `~/.local/bin` shim doesn't apply) resolved the
+  npm `/usr/bin/claude`, not the PV-native build → `Auto-update failed: no write permission to npm
+  prefix` forever. agent-shell-base now re-sets `PATH=${AGENT_HOME}/.local/bin:…`.
+- **Native claude install is memory-safe-curl, never `claude install`** (the latter buffers ~4 GiB
+  → `exit 137` on a memory-capped pod). Baked at `cont-init.d/45-native-harnesses`
+  (`install-native-harness.sh`, idempotent/fail-open). The native **auto-updater** uses the same
+  ~4.2 GiB path → the agent container needs **≥8 Gi** (alert-agent raised 3→8, frank#575).
+- **`claude --session-id <uuid>` REJECTS a session left "in use" by a HARD kill** (`Error: Session
+  ID … is already in use`, exit 1) — a graceful SIGTERM (normal pod stop) releases it, an **OOM
+  SIGKILL does not**. `claude --resume <uuid>` recovers the stuck session. The driver picks by
+  transcript existence: glob `~/.claude/projects/*/<uuid>.jsonl` → exists ⇒ `--resume`, else
+  `--session-id` (so `--resume`-on-missing never picker-hangs). The "in use" marker lives in the
+  jsonl/store, not a lockfile, and survives the process.
+- **claude's MOTD auth check / credential path is `~/.claude/.credentials.json`** (leading dot).
+  A check for `credentials.json` (no dot) always reads "✗ not logged in" despite valid auth.
+- **A thorough chat answer can take ~5 min** (claude sweeping every probe). Don't cap an
+  interactive DM at 2 min: with threaded turns (per-session lock) a long turn doesn't block the
+  consumer, so the bridge uses `DM_TIMEOUT_S=600`; pair with a SKILL "answer fast/focused, lead
+  with the pre-computed facts" nudge so most answers finish in well under a minute.
