@@ -68,7 +68,17 @@ spec:
             - { name: pylib-handlers, mountPath: /opt/pylib/handlers }
             - { name: bin, mountPath: /opt/alert-agent-bin }
             - { name: crontab, mountPath: /home/agent/.crontab, subPath: .crontab }
-            - { name: skill, mountPath: /home/agent/SKILL.md, subPath: SKILL.md }
+            # Load the agent instructions as the harness context file(s) — NOT
+            # SKILL.md, which no harness auto-loads. claude reads CLAUDE.md ONLY
+            # (never AGENTS.md natively); codex/opencode/antigravity read AGENTS.md
+            # (the cross-tool standard). Mount the same ConfigMap content under both
+            # so whichever harness the driver launches picks it up. The driver runs
+            # claude with cwd /home/agent (WORKDIR), so ./CLAUDE.md auto-loads —
+            # without it a free-text DM has no tools/boundary and reaches for kubectl
+            # (absent here), burning the timeout. (The multi-agent-shell image also
+            # fans AGENTS.md out to GEMINI.md / .github/copilot-instructions.md.)
+            - { name: skill, mountPath: /home/agent/AGENTS.md, subPath: SKILL.md }
+            - { name: skill, mountPath: /home/agent/CLAUDE.md, subPath: SKILL.md }
           resources:
             requests: { cpu: 50m, memory: 256Mi }
             # claude TUI + tmux: one shared "alert-agent-ops" session for surge/
