@@ -40,6 +40,12 @@ spec:
             - { name: ssh, containerPort: 2222 }
           env:
             - { name: AGENT_SESSION_SERVE, value: "1" }            # bake the serve endpoint
+            # Disable tmux-continuum auto-restore: the driver owns sessions, so
+            # continuum must never resurrect a DEAD bash shell that ensure_session
+            # would reuse (the DM-into-bash failure). Honored by agent-shell-base's
+            # tmux-resurrect.conf if-shell (Fix B). Fix C is the load-bearing guard;
+            # this is defence + cleanliness (stops the 5-min save/restore churn).
+            - { name: AGENT_TMUX_RESTORE, value: "off" }
             - { name: AGENT_SESSION_URL, value: "http://localhost:8765" }
             - { name: PYTHONPATH, value: "/opt/pylib" }
             - { name: VICTORIALOGS_URL, value: "http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428" }

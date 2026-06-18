@@ -120,6 +120,10 @@ spec:
           env:
             - name: HOME
               value: /home/agent
+            # Disable tmux-continuum auto-restore (Fix B / agent-shell-base): the
+            # driver owns sessions; continuum must not resurrect dead bash shells.
+            - name: AGENT_TMUX_RESTORE
+              value: "off"
           resources:
             requests:
               cpu: "1000m"
