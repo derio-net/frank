@@ -35,7 +35,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: hermes
-          image: ghcr.io/derio-net/hermes-agent-shell:31c8a0381a9b4f4fce578e03d687d009628f7486
+          image: ghcr.io/derio-net/hermes-agent-shell:df0eaba0b92cdc1c119d739397c8e8744bdcd731
           imagePullPolicy: IfNotPresent
           ports:
             - name: ssh
