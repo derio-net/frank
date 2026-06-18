@@ -424,6 +424,40 @@ curl -s "$VL/select/logsql/stats_query" --data-urlencode \
 
 > **2026-05-25 worked example.** A `370× baseline (Major)` URGENT fired with GoatCounter flat. The "370" was Frank's own blackbox probe against a baseline forced to 1; no humans. The fix (probe identity + absolute floor + the visitor cross-check above) turns that exact case into *no message*. Note: just after re-tagging the probe, the old-UA hits linger in the 1h window for ~1–2h and can transiently trip a non-urgent Notable until they age out.
 
+### The agentic rewrite (June 2026) — namespace `alert-agent`
+
+The FastAPI analyst above was retired and rebuilt as an autonomous `claude` session on the `multi-agent-shell` image (namespace `alert-agent`). Same bot `@agent_zero_cc_bot`, same `frank-facts` tools (now a stdlib CLI), but the brain is a persistent cloud-claude driven over a pod-local HTTP endpoint — no LiteLLM, no GPU dependency. The slash commands and free-text Q&A above still apply; what's new is the agent *runtime*. Same single-consumer constraint as before — `replicas: 1`, `strategy: Recreate` (one `getUpdates` consumer, one persistent tmux session per chat).
+
+**Re-authenticate claude when DMs start returning the fallback.** The agent is a Max-OAuth `claude`; the token lives on the `alert-agent-home` PV at `~/.claude/.credentials.json` and auto-refreshes, but it can expire or get rotated out (one account, several `claude_code` sessions). Re-login interactively, then clear the stale sessions so the driver recreates them on the fresh creds:
+
+```bash
+kubectl -n alert-agent exec -it deploy/alert-agent -c agent -- claude   # /login, open the URL, paste the code, exit
+kubectl -n alert-agent exec deploy/alert-agent -c agent -- tmux kill-server
+# the next DM lazy-creates an authenticated session
+```
+
+**Debug a non-answering DM by reading the session pane** — the agent is a real claude REPL, and the pane shows exactly what it's doing (working, stuck, at a login screen, or fumbling for `kubectl`):
+
+```bash
+P=$(kubectl -n alert-agent get pod -l app.kubernetes.io/name=alert-agent -o jsonpath='{.items[0].metadata.name}')
+kubectl -n alert-agent exec $P -c agent -- bash -lc 'tmux ls'                       # alert-agent-ops + alert-agent-tg-<chat>
+kubectl -n alert-agent exec $P -c agent -- bash -lc 'tmux capture-pane -t alert-agent-tg-<chat> -p | tail -30'
+kubectl -n alert-agent exec $P -c agent -- bash -lc 'which -a claude'               # MUST resolve ~/.local/bin/claude (native)
+```
+
+Read the pane: a turn churning past ~2 min but still answering is just *slow* — raise `DM_TIMEOUT_S` (default 600s) on the `agent` container. A `claude.com/cai/oauth` login screen means re-auth (above). A *bash* pane, or `which claude` resolving `/usr/bin/claude` instead of `~/.local/bin/claude`, means an image regression (continuum restore, or the `$AGENT_HOME` PATH / native-install) — full prose in `docs/runbooks/frank-gotchas/agent-shells.md`.
+
+**Drive a turn without Telegram** (pre-Telegram smoke test — the agent is HTTP-only, no kube creds):
+
+```bash
+kubectl -n alert-agent exec $P -c agent -- sh -c \
+  'curl -s localhost:8765/session/send -H "Content-Type: application/json" \
+   -d "{\"session_id\":\"smoke\",\"agent\":\"claude\",\"message\":\"what is the cluster status?\",\"timeout_s\":600}"'
+# → {"status":"ok","turn":1,"payload":{"text":"…"}}  — a fresh session answers in ~30s
+```
+
+The agent's instructions (tools + the HTTP-only/no-kubectl boundary) mount as `~/AGENTS.md` + `~/CLAUDE.md`; the image fans the canonical `AGENTS.md` out to every harness's context filename. If you change the mounted instructions file, it MUST be one a harness loads — claude reads `CLAUDE.md` **only**, never `SKILL.md` — or free-text DMs go blind. `AGENT_TMUX_RESTORE=off` keeps tmux-continuum from resurrecting dead sessions on the agent pod.
+
 ## Alerts — what's there, how to suppress, how to investigate
 
 The two rules in the `blog-edge` folder:
