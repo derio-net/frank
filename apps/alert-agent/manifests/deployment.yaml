@@ -72,8 +72,12 @@ spec:
           resources:
             requests: { cpu: 50m, memory: 256Mi }
             # claude TUI + tmux: one shared "alert-agent-ops" session for surge/
-            # digest/grafana + one per inbound chat. Headroom for ~2-3 live sessions.
-            limits: { memory: 3Gi }
+            # digest/grafana + one per inbound chat. 8Gi (not 3Gi) so the NATIVE
+            # claude build's background auto-updater — which buffers the ~245MB
+            # download ~17x in anon memory, peaking ~4.2-4.5GiB — fits without a
+            # group-OOM (frank-gotchas/agent-shells.md; hermes was raised 4->8 for
+            # the same reason). Request stays low; this only permits the spike.
+            limits: { memory: 8Gi }
         # --- sidecar: inbound Telegram (single getUpdates consumer) ------------
         - name: telegram-bridge
           image: ghcr.io/derio-net/multi-agent-shell:df0eaba0b92cdc1c119d739397c8e8744bdcd731
