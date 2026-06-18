@@ -7,9 +7,15 @@ endpoint) the tests patch. Telegram messages are sent as PLAIN TEXT (no parse_mo
 from __future__ import annotations
 import json
 import os
+import re
 import sys
+import threading
 import time
 import urllib.request
+
+# Telegram's command-id rule: lowercase letters, digits, underscore; 1–32 chars
+# (NO hyphens). One invalid id makes setMyCommands 400 and rejects the WHOLE menu.
+_TG_COMMAND_ID_RE = re.compile(r"^[a-z0-9_]{1,32}$")
 
 BOT_TOKEN = os.environ.get("FRANK_C2_TELEGRAM_BOT_TOKEN", "")
 # Allowlist of chat ids permitted to drive the agent (comma-separated). The
@@ -82,7 +88,7 @@ COMMANDS = {
         "kind": "prompt",
         "template": "Report current surge status (`frank-facts surge`).",
     },
-    "/edge-traffic": {
+    "/edge_traffic": {
         "desc": "Hop edge traffic summary",
         "kind": "prompt",
         "template": (
@@ -171,53 +177,123 @@ def deliver(resp: dict, fallback_text: str, chat_id: str | None = None) -> dict:
     return tg_send(text, chat_id)
 
 
-def process_update(update: dict) -> bool:
-    """Handle one getUpdates entry. Allowlisted message → agent → reply.
-    Returns True if it drove the agent, False if dropped. Non-allowlisted chats
-    are dropped with a WARN (the gate working, not the bot broken)."""
+# Per-session_id locks serialize same-session agent turns so two DMs never
+# interleave pastes into one tmux session. A registry lock guards lazy creation.
+# Different sessions and static commands never contend.
+_session_locks: dict[str, threading.Lock] = {}
+_session_locks_registry = threading.Lock()
+
+
+def _session_lock(session_id: str) -> threading.Lock:
+    with _session_locks_registry:
+        lock = _session_locks.get(session_id)
+        if lock is None:
+            lock = threading.Lock()
+            _session_locks[session_id] = lock
+        return lock
+
+
+def _react_fn(chat_id, message_id):
+    def react(emoji):
+        if message_id is not None:
+            tg_react(str(chat_id), message_id, emoji)
+    return react
+
+
+def _prepare(update: dict):
+    """Parse + allowlist one getUpdates entry. Returns (chat_id, message_id, text)
+    or None if the update is empty / from a non-allowlisted chat (dropped, WARNed)."""
     msg = update.get("message") or update.get("edited_message") or {}
     chat_id = (msg.get("chat") or {}).get("id")
     message_id = msg.get("message_id")
     text = (msg.get("text") or "").strip()
     if chat_id is None or not text:
-        return False
+        return None
     if not is_allowed(chat_id):
         print(f"WARN telegram-bridge: dropped message from non-allowlisted chat {chat_id}",
               file=sys.stderr)
-        return False
+        return None
+    return chat_id, message_id, text
 
-    def react(emoji):
-        if message_id is not None:
-            tg_react(str(chat_id), message_id, emoji)
 
+def _receipt_and_route(chat_id, message_id, text):
+    """Fire the ⚡ receipt and answer static/unknown slash commands INLINE (so /help
+    works even when the agent is cold/slow). Returns the agent instruction to run,
+    or None when the update was already fully handled inline."""
+    react = _react_fn(chat_id, message_id)
     react("⚡")   # receipt — fired BEFORE the (possibly slow) turn so feedback is instant
-    # Slash command? Static/unknown are answered by the bridge directly (so /help
-    # works even when the agent is cold); a prompt command expands to an agent
-    # instruction. No leading slash → the unchanged free-text Q&A path.
     if text.startswith("/"):
         kind, payload = expand_command(text)
         if kind in ("static", "unknown"):
             tg_send(payload, str(chat_id))
             react("👍")
-            return True
-        message = payload
-    else:
-        message = text
-    # Shorter timeout for an interactive DM than the cron 300s — a stuck turn
-    # must not freeze the single getUpdates consumer for 5 minutes.
-    resp = session_send(message, session_id=f"{SESSION_ID}-tg-{chat_id}", timeout_s=120)
+            return None
+        return payload
+    return text   # no leading slash → free-text Q&A verbatim
+
+
+def _run_agent_turn(chat_id, message_id, message) -> None:
+    """Drive the agent for one turn under the per-session lock, reply, react 👍/🤔.
+    The lock serializes same-session turns (no interleaved pastes); the wait spans
+    only session_send so a finished turn frees the session immediately."""
+    react = _react_fn(chat_id, message_id)
+    session_id = f"{SESSION_ID}-tg-{chat_id}"
+    with _session_lock(session_id):
+        # Shorter timeout for an interactive DM than the cron 300s — a stuck turn
+        # must not hold the session lock for 5 minutes.
+        resp = session_send(message, session_id=session_id, timeout_s=120)
     rendered = render_payload(resp)
     tg_send(rendered or "(the agent did not return a reply — it may be busy or unauthenticated)",
             str(chat_id))
     react("👍" if rendered is not None else "🤔")   # 🤔 = only the deterministic fallback was posted
+
+
+def process_update(update: dict) -> bool:
+    """Synchronous handler (one update end-to-end) — the inline core and the unit
+    contract. poll_loop uses dispatch_update for non-blocking turns. Returns True
+    if handled (driven or static reply), False if dropped."""
+    prepared = _prepare(update)
+    if prepared is None:
+        return False
+    chat_id, message_id, text = prepared
+    message = _receipt_and_route(chat_id, message_id, text)
+    if message is not None:
+        _run_agent_turn(chat_id, message_id, message)
     return True
+
+
+def dispatch_update(update: dict):
+    """Non-blocking entry the poll loop calls. ⚡ receipt + static/unknown replies
+    are answered INLINE in the single getUpdates consumer; an agent turn runs in a
+    per-session-serialized worker thread so a slow/stuck turn never head-of-line-
+    blocks the consumer (or a static /help). Returns the worker Thread for an agent
+    turn, else None (handled inline / dropped)."""
+    prepared = _prepare(update)
+    if prepared is None:
+        return None
+    chat_id, message_id, text = prepared
+    message = _receipt_and_route(chat_id, message_id, text)
+    if message is None:
+        return None
+    t = threading.Thread(target=_run_agent_turn, args=(chat_id, message_id, message), daemon=True)
+    t.start()
+    return t
 
 
 def set_my_commands() -> None:
     """Register the Telegram command menu from COMMANDS (best-effort — a failure
     logs a WARN and the bridge runs anyway; the menu is a nicety, not a dependency)."""
     try:
-        cmds = [{"command": c.lstrip("/"), "description": s["desc"]} for c, s in COMMANDS.items()]
+        cmds = []
+        for c, s in COMMANDS.items():
+            ident = c.lstrip("/")
+            if not _TG_COMMAND_ID_RE.match(ident):
+                # Skip (don't send) an invalid id — a single bad one would 400 the
+                # whole menu. Fail-soft: that command is just absent from the menu.
+                print(f"WARN telegram-bridge: skipping invalid command id {c!r} "
+                      f"(not {_TG_COMMAND_ID_RE.pattern})", file=sys.stderr)
+                continue
+            cmds.append({"command": ident, "description": s["desc"]})
         _tg("setMyCommands", {"commands": cmds})
     except Exception as exc:  # noqa: BLE001
         print(f"WARN telegram-bridge: setMyCommands failed: {exc}", file=sys.stderr)
@@ -237,6 +313,6 @@ def poll_loop(poll_timeout: int = 30) -> None:  # pragma: no cover - network loo
         for upd in resp.get("result", []):
             offset = max(offset, upd.get("update_id", 0) + 1)
             try:
-                process_update(upd)
+                dispatch_update(upd)   # non-blocking: agent turn threads, consumer keeps reading
             except Exception as exc:  # noqa: BLE001 — one bad update must not kill the loop
                 print(f"WARN telegram-bridge: update handling failed: {exc}", file=sys.stderr)

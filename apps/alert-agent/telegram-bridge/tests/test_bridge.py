@@ -1,11 +1,16 @@
 """telegram-bridge: allowlist, single-consumer routing, deterministic fallback."""
 from __future__ import annotations
 import json
+import re
+import threading
+import time
 from types import SimpleNamespace
 
 import pytest
 
 from tg_bridge import bridge
+
+_TG_ID_RE = re.compile(r"^[a-z0-9_]{1,32}$")
 
 
 @pytest.fixture
@@ -76,7 +81,7 @@ def test_deliver_uses_agent_payload_when_present(calls):
 
 # --- Thread B: slash commands (expand_command + COMMANDS registry) -------------
 
-CATALOG = ["/help", "/digest", "/surge", "/edge-traffic", "/security", "/status"]
+CATALOG = ["/help", "/digest", "/surge", "/edge_traffic", "/security", "/status"]
 
 
 def test_commands_registry_shape():
@@ -102,7 +107,7 @@ def test_expand_command_prompt_carries_defaults_suffix():
 
 
 def test_expand_command_appends_operator_args():
-    kind, payload = bridge.expand_command("/edge-traffic hop-1")
+    kind, payload = bridge.expand_command("/edge_traffic hop-1")
     assert kind == "prompt"
     assert "hop-1" in payload   # operator-typed trailing args reach the agent
 
@@ -183,4 +188,98 @@ def test_reaction_on_slash_prompt(calls):
 def test_reaction_on_static_help(calls):
     # /help never touches the agent but still gets receipt → done reactions.
     bridge.process_update({"message": {"message_id": 3, "chat": {"id": 100}, "text": "/help"}})
+    assert _reactions(calls) == ["⚡", "👍"]
+
+
+# --- Fix A: Telegram menu command ids (the setMyCommands 400) -------------------
+
+def test_command_ids_are_valid_telegram():
+    # Every COMMANDS key (sans leading /) must be a valid Telegram command id —
+    # no hyphens. One invalid id makes setMyCommands 400 and rejects the WHOLE menu.
+    for cmd in bridge.COMMANDS:
+        ident = cmd.lstrip("/")
+        assert _TG_ID_RE.match(ident), f"invalid Telegram command id: {cmd!r}"
+
+
+def test_set_my_commands_sends_only_valid_ids(calls):
+    # An invalid id must be SKIPPED (logged), never sent — so a single bad id can
+    # never reject the whole batch (fail-soft: the menu just lacks that command).
+    bridge.COMMANDS["/bad-id"] = {"desc": "temp invalid", "kind": "static"}
+    try:
+        bridge.set_my_commands()
+    finally:
+        del bridge.COMMANDS["/bad-id"]
+    sent = _sent(calls, "/setMyCommands")
+    assert len(sent) == 1
+    ids = [c["command"] for c in sent[0]["commands"]]
+    assert ids, "must still register the valid commands"
+    assert all(_TG_ID_RE.match(i) for i in ids), f"setMyCommands sent an invalid id: {ids}"
+    assert "bad-id" not in ids, "the invalid id must be skipped, not sent"
+
+
+# --- Fix D: threaded turns off the poll loop (per-session lock) -----------------
+
+def _gated_session_send(calls, monkeypatch, on_send):
+    """Wrap the fixture's recording fake so /session/send runs `on_send(payload)`
+    (e.g. block on an Event) before returning the canned response. Other calls
+    (sendMessage / setMessageReaction) pass through to the recorder unchanged."""
+    base = bridge._http_post_json
+    def gated(url, payload, timeout=310):
+        if url.endswith("/session/send"):
+            on_send(payload)
+        return base(url, payload, timeout)
+    monkeypatch.setattr(bridge, "_http_post_json", gated)
+
+
+def _texts(rec):
+    return [p.get("text") for (u, p) in list(rec.calls) if u.endswith("/sendMessage")]
+
+
+def test_slow_turn_does_not_block_static(calls, monkeypatch):
+    # A slow free-text turn (blocks in session_send) must NOT head-of-line-block a
+    # /help dispatched right after — /help is answered inline by the consumer.
+    release = threading.Event()
+    calls.canned["/session/send"] = {"status": "ok", "payload": {"text": "A answer"}}
+    _gated_session_send(calls, monkeypatch, lambda payload: release.wait(5))
+
+    t = bridge.dispatch_update({"message": {"message_id": 1, "chat": {"id": 100}, "text": "slow question"}})
+    bridge.dispatch_update({"message": {"message_id": 2, "chat": {"id": 100}, "text": "/help"}})
+
+    # /help's static reply lands while A is still blocked.
+    assert any("/digest" in (txt or "") for txt in _texts(calls)), "/help must reply, not wait for the turn"
+    assert "A answer" not in _texts(calls), "the blocked turn's reply must not have landed yet"
+
+    release.set()
+    t.join(5)
+    assert "A answer" in _texts(calls), "the turn's reply lands once unblocked"
+
+
+def test_same_session_turns_serialize(calls, monkeypatch):
+    # Two turns for the SAME session_id serialize under a per-session lock — the
+    # second session_send does not start until the first returns.
+    order = []
+    gate = threading.Event()
+    calls.canned["/session/send"] = {"status": "ok", "payload": {"text": "x"}}
+
+    def on_send(payload):
+        order.append("start:" + payload["message"])
+        if payload["message"] == "first":
+            gate.wait(5)
+        order.append("end:" + payload["message"])
+    _gated_session_send(calls, monkeypatch, on_send)
+
+    t1 = bridge.dispatch_update({"message": {"message_id": 1, "chat": {"id": 100}, "text": "first"}})
+    t2 = bridge.dispatch_update({"message": {"message_id": 2, "chat": {"id": 100}, "text": "second"}})
+    time.sleep(0.15)
+    assert "start:second" not in order, "the second same-session turn must wait for the lock"
+    gate.set()
+    t1.join(5); t2.join(5)
+    assert order == ["start:first", "end:first", "start:second", "end:second"]
+
+
+def test_reaction_order_preserved_per_message(calls):
+    # A threaded turn still reacts ⚡ before 👍/🤔 on its own message.
+    calls.canned["/session/send"] = {"status": "ok", "payload": {"text": "ok"}}
+    t = bridge.dispatch_update({"message": {"message_id": 42, "chat": {"id": 100}, "text": "hi"}})
+    t.join(5)
     assert _reactions(calls) == ["⚡", "👍"]

@@ -1,0 +1,53 @@
+schema_version: 2
+phase:
+  number: 3
+  title: '[manual] Env on both agent pods + image bump + post-merge double-restart
+    test'
+  tag: manual
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: AGENT_TMUX_RESTORE env + multi-agent-shell SHA bump (operator-gated)
+  steps:
+  - id: P3.T1.S1
+    text: |
+      BACK-LOADED / MANUAL — ships unimplemented; the new image tag does not exist until the
+      agent-images plan (`2026-06-17-agent-session-persistence`) merges + CI builds it. Then:
+        1. Add `AGENT_TMUX_RESTORE=off` to the agent container env in
+           `apps/alert-agent/manifests/deployment.yaml` and to the `multi-agent-shell` sidecar in
+           `apps/n8n-01/manifests/deployment.yaml` (driver-managed pods; human shells stay unset).
+        2. Bump `multi-agent-shell:<sha>` in BOTH deployments to the new tag (alert-agent off
+           c946a672; n8n-01 off the stranded 9635df9a — this also unstrands n8n). All multi-agent-
+           shell pins must move (alert-agent has 3 containers).
+      Push to THIS PR's branch; ArgoCD rolls both pods. Record via `fr plan edit --complete-phase 3
+      --note "<old>…<new> + env"`.
+- number: 2
+  title: Post-merge double-cold-restart Test Plan (operator-driven)
+  steps:
+  - id: P3.T2.S1
+    text: |
+      MANUAL / post-merge (both PRs merged, ArgoCD rolled the new image). Operator-driven:
+        1. **Cold restart #1** — `kubectl -n alert-agent rollout restart deploy/alert-agent`. From
+           Telegram: `what's the cluster status?` → ⚡ within ~1s → real answer → 👍 (no fallback).
+           `/help` instant + NOT blocked behind the turn (threading). Command menu populated;
+           `/edge_traffic` works argless.
+        2. **Cold restart #2** — restart again; DM a follow-up referencing the prior turn → the
+           session RESUMES with memory (`--session-id` persistence). `tmux ls` shows only live
+           claude REPLs (no `smoke-*` / dead shells); the chat's
+           `~/.claude/projects/.../<uuid>.jsonl` exists and grew.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
