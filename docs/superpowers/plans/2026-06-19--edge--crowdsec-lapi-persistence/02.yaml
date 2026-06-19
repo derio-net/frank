@@ -50,22 +50,26 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-19T13:27:02+00:00'
       note: null
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-19T13:28:08+00:00'
       note: null
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-06-19T13:28:58+00:00'
       note: null
     P2.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-06-19T13:30:52+00:00'
+      note: 'Annotated both CrowdSec manual-ops as durable directly in manual-operations.yaml;
+        intentionally did NOT run /sync-runbook — this plan introduces zero # manual-operation
+        blocks (post-deploy rule scopes sync-runbook to plans that do), and a re-sync
+        would regenerate entries from the old source-plan blocks and drop the durability
+        note.'
   completion:
-    at: null
+    at: '2026-06-19T13:30:53+00:00'
     note: null
     observed_prs: []

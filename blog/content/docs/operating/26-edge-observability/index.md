@@ -203,6 +203,35 @@ kubectl rollout restart -n caddy-system deploy/caddy
 
 This is documented in the manual-operations runbook as `obs-crowdsec-bouncer-api-key`.
 
+### Update (June 2026) — LAPI state is now persistent
+
+The emptyDir story above had a worse failure mode than a de-synced bouncer key. The CrowdSec *agent* registers itself as a machine in the LAPI's SQLite DB; that DB was emptyDir too, so every LAPI restart wiped the agent's machine row and the agent crashlooped with `ent: machine not found` — parsing zero logs and banning nothing, while the dashboard stayed green. A live scan-trace (scanners throwing hundreds of webshell/`.env` probes, none banned) surfaced it.
+
+The LAPI `data` and `config` folders now live on two static `hostPath` PVs (`clusters/hop/apps/storage/manifests/pv-crowdsec-{data,config}.yaml`, subdirectories of the already-mounted Hetzner Volume — no new volume). Consequences for operations:
+
+- The bouncer registration and the community-blocklist enrollment **survive restarts**. The `obs-crowdsec-bouncer-api-key` and `obs-crowdsec-community-blocklists` manual ops are now **one-time setup**, not after-every-restart chores. The `postStart` hook stays as a belt-and-suspenders seed for a first-deploy (empty) DB.
+- After any LAPI restart, the agent stays validated instead of crashlooping.
+
+Verify the pipeline is actually alive (do this, don't trust the tile):
+
+```
+# PVs bound to the chart's claims
+kubectl get pv crowdsec-data crowdsec-config          # both Bound → crowdsec-system/crowdsec-{db,config}-pvc
+
+# Agent validated, not crashlooping
+kubectl -n crowdsec-system get pods                   # crowdsec-agent Running, restarts not climbing
+kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli machines list   # agent present + validated (✔)
+
+# Persistence survives a restart
+kubectl -n crowdsec-system rollout restart deploy/crowdsec-lapi
+# …wait Ready, then re-check machines list → still validated, no "machine not found" in agent logs
+
+# End-to-end: a real scan must produce a real ban (the only proof that counts)
+#   from a disposable/VPN egress (NOT your own IP):
+#   for p in .env .git/config .env.production; do curl -s -o /dev/null https://blog.derio.net/$p; done  (×~15)
+kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli decisions list   # a ban for the scan source IP
+```
+
 ## Falco — tuning out the noise
 
 Most of Falco's default rule set on Talos is quiet. The exception is `Contact K8S API Server From Container` (priority `Notice`), which fires constantly because every Kubernetes-native workload talks to the API server. Below `Critical` priority, falcosidekick ships events to Loki (silently) but skips Telegram — exactly what we want.
