@@ -1,42 +1,50 @@
 ## Disable PCIe ASPM on gpu-1 to stop the onboard Realtek r8169 (enp3s0) NIC
-## link-flap. The 2.5GbE NIC flaps (link up/down every few seconds, stripping
+## link-flap. The 2.5GbE NIC flaps (link up/down every minute or two, stripping
 ## the node IP off Cilium's direct-routing device → datapath collapse → all
 ## gpu-1 pod traffic drops) — a classic r8169 PCIe Active State Power Management
 ## instability. A cable reseat on 2026-06-08 only downgraded a continuous storm
-## to intermittent flapping (recurred 2026-06-08 13:18/13:30/13:49/20:45); this
-## is the durable fix that survives reboots, unlike a reseat. Detected by the
-## layer-1-nic-link-flap Grafana alert (frank#510/#513).
+## to intermittent flapping; pcie_aspm=off is the durable fix that survives
+## reboots. Detected by the layer-1-nic-link-flap Grafana alert (frank#510/#513).
 ##
-## Full incident + monitoring gap: docs/runbooks/frank-gotchas/networking.md
+## ── MECHANISM (this is the load-bearing correction) ───────────────────────────
+## Frank is an Omni-managed cluster whose machines boot a UKI (grubUseUKICmdline:
+## true). On a UKI machine the kernel cmdline is baked into the signed image, so
+## kernel args MUST go through Omni's SCHEMATIC, which Omni recomputes from the
+## KernelArgs.omni.sidero.dev resource (the kernel-arg analogue of the
+## ExtensionsConfigurations used by 402). Changing it triggers an Omni-driven
+## image rebuild + reboot — declarative, Omni-managed, no break-glass, no taint.
 ##
-## ⚠ MANUAL / DISRUPTIVE: changing install.extraKernelArgs reboots gpu-1 — the
-## ONLY GPU node (ollama / litellm / comfyui) and host of hard-pinned agent pods
-## (hermes-agent-shell, secure-agent-pod). Apply in a maintenance window; the
-## pods come back when gpu-1 rejoins. If pcie_aspm=off does NOT hold the link,
-## escalate to: switch-end cable + different switch port, then cap the link to
-## 1G (enp3s0 ethtool / 2.5G negotiation), then NIC replacement (one chassis
-## port only — no host-side failover).
+## The PREVIOUS revision of this file used a ConfigPatches resource with
+## machine.install.extraKernelArgs. That is the WRONG mechanism here: it does not
+## change the schematic ID, so Omni reported configuptodate:true and never
+## reinstalled — the arg was INERT from PR #515 (2026-06-09) until corrected here.
+## (Also: a plain reboot can't apply it — UKI cmdline is fixed until the installer
+## reruns; and `talosctl upgrade` is refused by Omni's API proxy for every role,
+## so the only direct-talosctl path is break-glass, which taints the cluster.)
 ##
-## Apply:
+## ⚠ DISRUPTIVE: reboots gpu-1 — the ONLY GPU node (ollama / litellm / comfyui)
+## and host of single-replica workloads (infisical) + the agent pods
+## (hermes-agent-shell, secure-agent-pod, n8n, paperclip). Longhorn volumes stay
+## up (replicas on other nodes). Pods come back when gpu-1 rejoins (~3-5 min).
+## If pcie_aspm=off does NOT hold the link, escalate to: switch-end cable +
+## different switch port, then cap the link to 1G (enp3s0 ethtool / 2.5G
+## negotiation), then NIC replacement (one chassis port only — no host failover).
+##
+## Apply (Omni rebuilds the schematic and reboots gpu-1 with its own authority):
+##   omnictl delete configpatch 403-gpu1-pcie-aspm   # remove the old inert resource, if present
 ##   omnictl apply -f patches/phase04-gpu/403-gpu1-pcie-aspm.yaml
-##   # Omni reconciles the machine config; gpu-1 reboots to pick up the boot arg.
 ## Verify:
-##   talosctl -n 192.168.55.31 read /proc/cmdline | grep -o 'pcie_aspm=off'
+##   talosctl -n 192.168.55.31 read /proc/cmdline | tr ' ' '\n' | grep pcie_aspm=off
+##   omnictl get kernelargsstatus 03ff0210-04e0-05b0-ab06-300700080009
 ##   # then watch the flap counter go quiet over the next day:
 ##   #   increase(node_network_carrier_changes_total{instance="192.168.55.31:9100",device="enp3s0"}[30m])
-##   # If /proc/cmdline lacks the arg after the reboot, force a bootloader
-##   # rewrite with a same-version upgrade:
-##   #   talosctl -n 192.168.55.31 upgrade --image <current-schematic-image>
 metadata:
     namespace: default
-    type: ConfigPatches.omni.sidero.dev
-    id: 403-gpu1-pcie-aspm
+    type: KernelArgs.omni.sidero.dev
+    id: 03ff0210-04e0-05b0-ab06-300700080009
     labels:
         omni.sidero.dev/cluster: frank
         omni.sidero.dev/cluster-machine: 03ff0210-04e0-05b0-ab06-300700080009
 spec:
-    data: |
-        machine:
-            install:
-                extraKernelArgs:
-                    - pcie_aspm=off
+    args:
+        - pcie_aspm=off
