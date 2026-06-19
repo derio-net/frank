@@ -135,10 +135,14 @@ def test_canary_mute_route_is_second():
 def test_existing_routes_preserved_in_order():
     # pin the total so a stray route inserted between the canary pair and the
     # tail can't hide in the [2:] slice
-    assert len(_routes()) == 6
+    assert len(_routes()) == 7
     tail = _routes()[2:]
     expected = [
         ("AI Helper Webhook", ['grafana_folder="blog-edge"'], False),
+        # GPU-timeshare feature-health: early continue:false to Health Bridge only
+        # (degraded tile, no Telegram) — must precede the severity routes so a
+        # gpu_timeshare alert never pages. See frank-gotchas "gpu_timeshare".
+        ("Health Bridge Webhook", ['gpu_timeshare="true"'], False),
         ("Telegram - Willikins", ["severity=critical"], True),
         ("Telegram - Willikins", ["severity=warning"], True),
         ("Health Bridge Webhook", ['grafana_folder="feature-health"'], False),
