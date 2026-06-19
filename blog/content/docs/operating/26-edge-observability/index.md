@@ -210,7 +210,15 @@ The emptyDir story above had a worse failure mode than a de-synced bouncer key. 
 The LAPI `data` and `config` folders now live on two static `hostPath` PVs (`clusters/hop/apps/storage/manifests/pv-crowdsec-{data,config}.yaml`, subdirectories of the already-mounted Hetzner Volume — no new volume). Consequences for operations:
 
 - The bouncer registration and the community-blocklist enrollment **survive restarts**. The `obs-crowdsec-bouncer-api-key` and `obs-crowdsec-community-blocklists` manual ops are now **one-time setup**, not after-every-restart chores. The `postStart` hook stays as a belt-and-suspenders seed for a first-deploy (empty) DB.
-- After any LAPI restart, the agent stays validated instead of crashlooping.
+- **Once the agent's machine row is in the persistent DB, every later LAPI restart keeps it** — the agent stays validated, no crashloop. The catch is the *cutover itself* (see below).
+
+**Cutover gotcha — roll the agent once.** The agent is a *DaemonSet* that registers its machine **only in an initContainer** (`cscli lapi register`). On the emptyDir→persistent switch the new LAPI DB is fresh-empty, and the running agent keeps its old creds. A crashlooping container does **not** re-run its initContainer, and nothing changed the agent's pod template, so kubelet won't recreate it — the agent is stuck `ent: machine not found` until you roll it by hand. One-time, at cutover (and any time the agent's emptyDir creds ever diverge from the DB):
+
+```
+kubectl -n crowdsec-system rollout restart daemonset/crowdsec-agent   # re-runs the register initContainer
+```
+
+**Single-node assumption.** These PVs use `hostPath` with `DirectoryOrCreate` and the inherited `nodeAffinity: hostname Exists` (a tautology — matches any node). On Hop's one node that's fine, but if Hop ever gains a second node and the LAPI pod schedules there, `DirectoryOrCreate` silently makes a *fresh empty* dir and you lose the DB again — silently. Pin the LAPI pod (and these PVs) to `hop-1` before adding a node.
 
 Verify the pipeline is actually alive (do this, don't trust the tile):
 
@@ -218,11 +226,14 @@ Verify the pipeline is actually alive (do this, don't trust the tile):
 # PVs bound to the chart's claims
 kubectl get pv crowdsec-data crowdsec-config          # both Bound → crowdsec-system/crowdsec-{db,config}-pvc
 
+# (first deploy only) re-register the agent against the fresh persistent LAPI
+kubectl -n crowdsec-system rollout restart daemonset/crowdsec-agent
+
 # Agent validated, not crashlooping
 kubectl -n crowdsec-system get pods                   # crowdsec-agent Running, restarts not climbing
 kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli machines list   # agent present + validated (✔)
 
-# Persistence survives a restart
+# Persistence survives a restart — WITHOUT re-registering the agent this time
 kubectl -n crowdsec-system rollout restart deploy/crowdsec-lapi
 # …wait Ready, then re-check machines list → still validated, no "machine not found" in agent logs
 
@@ -231,6 +242,9 @@ kubectl -n crowdsec-system rollout restart deploy/crowdsec-lapi
 #   for p in .env .git/config .env.production; do curl -s -o /dev/null https://blog.derio.net/$p; done  (×~15)
 kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli decisions list   # a ban for the scan source IP
 ```
+
+> **Static-PV recovery note.** Reclaim policy is `Retain`, so if either PVC is ever deleted (e.g. a chart uninstall) the PV goes `Released`, not `Available`, and won't rebind to a freshly-recreated same-name PVC until you clear the stale binding:
+> `kubectl patch pv crowdsec-data -p '{"spec":{"claimRef":{"uid":null}}}'` (data is preserved on disk).
 
 ## Falco — tuning out the noise
 

@@ -44,10 +44,14 @@ from the Application CR and asserts each `claimRef.name` matches the derived cha
 
 ## Verification
 
-- **In-PR:** the Phase 1 pytest (CI).
+- **In-PR:** the Phase 1 pytest, run locally (`uv run --with pytest --with pyyaml python -m
+  pytest scripts/tests/test_crowdsec_lapi_persistence.py -q`). The repo has no general CI job
+  for `scripts/tests/`, so this is a developer/local guard, not a PR gate.
 - **Post-merge (operator-driven, agent runs the checks):** the spec's `## Test Plan` — PVs
-  Bound, agent Running with no `machine not found`, `cscli machines list` validated, persistence
-  survives a `rollout restart`, and the real end-to-end proof: replay sensitive-file probes from
+  Bound; the **mandatory one-time agent DaemonSet roll** at cutover (the agent registers only in
+  an initContainer, so it does NOT self-heal the emptyDir→persistent transition); then agent
+  Running with no `machine not found`, `cscli machines list` validated, persistence survives a
+  `rollout restart` of the LAPI, and the real end-to-end proof: replay sensitive-file probes from
   an allowed source → a `ban` appears in `cscli decisions list` and the Caddy bouncer returns
   403. Only then is the layer marked **Deployed**.
 

@@ -4,6 +4,8 @@ metadata:
   name: crowdsec-config
 spec:
   capacity:
+    # Label only — hetzner-volume is no-provisioner + hostPath, so capacity is
+    # not enforced; it just needs to be >= the chart PVC's 100Mi request to bind.
     storage: 128Mi
   accessModes:
     - ReadWriteOnce

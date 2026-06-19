@@ -116,10 +116,13 @@ A chart bump that renames the PVC, or a change to `releaseName`, silently breaks
   become **one-time / durable** rather than "re-run after every restart." Update their notes;
   run `/sync-runbook` if any block text changes.
 
-## Verification (TDD test — runs in CI)
+## Verification (TDD test — developer/local guard)
 
 `scripts/tests/test_crowdsec_lapi_persistence.py` (pytest, mirrors existing `scripts/tests/`
-style) parses the YAML and asserts:
+style — **note:** the repo has no general CI job running `scripts/tests/`, so this is a
+local/manual regression guard, run via
+`uv run --with pytest --with pyyaml python -m pytest scripts/tests/test_crowdsec_lapi_persistence.py -q`,
+not a PR gate). It parses the YAML and asserts:
 
 - Both PV manifests: `kind: PersistentVolume`, `hostPath.type == DirectoryOrCreate`,
   `storageClassName == hetzner-volume`, `persistentVolumeReclaimPolicy == Retain`,
@@ -139,27 +142,40 @@ After the operator merges and ArgoCD syncs the storage + crowdsec apps on Hop
 
 1. **PVs bind:** `kubectl get pv crowdsec-data crowdsec-config` → both `Bound` to
    `crowdsec-system/crowdsec-db-pvc` / `-config-pvc`.
-2. **Agent healthy:** `kubectl -n crowdsec-system get pods` → agent `Running`, restart count
-   stops climbing; `kubectl -n crowdsec-system logs deploy/crowdsec-agent | grep -i "machine not found"`
-   → empty after the convergence restart.
-3. **Machine validated:** `kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli machines list`
+2. **MANDATORY cutover step — re-register the agent.** The CrowdSec agent is a **DaemonSet**
+   that registers its machine **only in an initContainer** (`cscli lapi register`). On the
+   emptyDir→persistent cutover the new LAPI DB is fresh-empty and the running agent keeps stale
+   creds → it crashloops `ent: machine not found` and does **not** self-heal (a container
+   crash-restart never re-runs initContainers; the agent pod template is unchanged so kubelet
+   won't recreate it). Force the re-registration once:
+   `kubectl -n crowdsec-system rollout restart daemonset/crowdsec-agent`.
+3. **Agent healthy:** `kubectl -n crowdsec-system get pods` → agent `Running`, restart count
+   stops climbing; `kubectl -n crowdsec-system logs daemonset/crowdsec-agent | grep -i "machine not found"`
+   → empty after the step-2 restart.
+4. **Machine validated:** `kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli machines list`
    → the agent machine present and **validated** (`✔`).
-4. **Persistence survives restart:** `kubectl -n crowdsec-system rollout restart deploy/crowdsec-lapi`,
-   wait Ready, re-run step 2/3 → still validated, agent does **not** crashloop.
-5. **End-to-end ban (the real proof):** from an allowed test source, replay a burst of
+5. **Persistence survives restart:** `kubectl -n crowdsec-system rollout restart deploy/crowdsec-lapi`,
+   wait Ready, re-run step 3/4 → still validated, agent does **not** crashloop (this time WITHOUT
+   an agent restart — proving the machine row now persists, which step 2 did not exercise).
+6. **End-to-end ban (the real proof):** from an allowed test source, replay a burst of
    sensitive-file probes against the public edge (e.g. ~15× `curl -s https://blog.derio.net/.env`,
    `/.git/config`, `/.env.production`), then
    `kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli decisions list` → a `ban`
    decision for the test source IP; a follow-up request from that IP returns **403** at the
    Caddy bouncer. (Use a disposable/VPN egress so the operator's own IP isn't banned.)
-6. **Community blocklist intact:** `cscli decisions list` still shows community-blocklist
-   entries after the LAPI restart in step 4 (proves config persistence).
+7. **Community blocklist intact:** `cscli decisions list` still shows community-blocklist
+   entries after the LAPI restart in step 5 (proves config persistence).
 
-Only after steps 1–6 pass is the layer marked **Deployed**.
+Only after steps 1–7 pass is the layer marked **Deployed**.
 
 ## Out of scope
 
-- Persisting the **agent** config (`agent.persistentVolume.config` stays `false`; the agent
-  re-registers cleanly against the now-durable LAPI).
+- Persisting the **agent** config (`agent.persistentVolume.config` stays `false`). The agent
+  re-registers via its initContainer when the DaemonSet is rolled — required **once** at cutover
+  (Test Plan step 2); thereafter the machine row is durable in the persistent LAPI DB and
+  survives every later LAPI restart with no agent action.
+- Wiring `scripts/tests/` into a CI job (no general test workflow exists today; a repo-wide job
+  would also surface a pre-existing unrelated failure first). The guard is a developer/local
+  TDD check — worthwhile follow-up, out of scope here.
 - Tuning scenario capacities / adding new collections.
 - Migrating Hop to a dynamic storage provisioner.

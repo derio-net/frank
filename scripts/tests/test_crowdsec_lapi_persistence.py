@@ -2,8 +2,7 @@ import re
 from pathlib import Path
 
 import pytest
-
-yaml = pytest.importorskip("yaml")
+import yaml  # hard dep (pyproject) — a missing yaml must ERROR, not silently skip the guard
 
 REPO = Path(__file__).resolve().parents[2]
 STORAGE = REPO / "clusters/hop/apps/storage/manifests"
@@ -62,7 +61,9 @@ def test_claimref_matches_chart_pvc_names():
         PV_CONFIG: f"{release}-config-pvc",
     }
     for path, pvc_name in expected.items():
-        cr = _load(path)["spec"]["claimRef"]
+        spec = _load(path)["spec"]
+        assert "claimRef" in spec, f"{path.name} must pin its chart PVC via claimRef"
+        cr = spec["claimRef"]
         assert cr["namespace"] == "crowdsec-system"
         assert cr["name"] == pvc_name, (
             f"{path.name} claimRef.name={cr['name']!r} != chart PVC {pvc_name!r}; "
