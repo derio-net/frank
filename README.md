@@ -314,7 +314,7 @@ argocd app list
 | landing | landing-system | Private landing page (mesh-only) |
 | storage | kube-system | Local StorageClass + static PVs on Hetzner Volume |
 | fluent-bit | monitoring | Log shipping to Frank VictoriaLogs LB IP (192.168.55.225) via Tailscale subnet route |
-| crowdsec | crowdsec-system | Agent tails Caddy logs + LAPI; caddy-crowdsec-bouncer enforces decisions at edge (postStart re-registers bouncer key from Secret since no PVC) |
+| crowdsec | crowdsec-system | Agent tails Caddy logs (`container_runtime: containerd` for Talos CRI parsing) + LAPI on persistent hostPath PVs; caddy-crowdsec-bouncer enforces decisions at edge; postStart re-registers the bouncer key from Secret as a first-deploy seed |
 | falco | falco-system | modern_ebpf DaemonSet + Falcosidekick → Loki output to Frank VictoriaLogs + direct Telegram for priority:critical |
 
 ## Adding a New Application
