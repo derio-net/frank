@@ -16,6 +16,27 @@ Workarounds:
 - For metrics endpoints (blackbox `/probe`, pushgateway `/metrics`, etc.): `kubectl exec deploy/<target> -- wget -qO- localhost:<port>/<path>` instead of port-forward + local curl. The exec path uses the pod's own network namespace cleanly.
 - Pods on mini-1/2/3 are unaffected — only gpu-1's netns has the issue.
 
+## enp3s0/r8169 link-flap — `pcie_aspm=off` suppresses it (KernelArgs, not ConfigPatch)
+
+gpu-1's onboard 2.5GbE NIC (`enp3s0`, Realtek r8169) chronically link-flaps — `Link is Down`/`Up` every minute or two — which strips the node IP off Cilium's direct-routing device and collapses the datapath (mass SSH/pod-traffic drop; watched by the `layer-1-nic-link-flap` Grafana alert, `increase(node_network_carrier_changes_total[30m]) > 6`). It's a classic r8169 PCIe Active State Power Management instability: the link drops into L1 during an idle lull and the PHY mishandles the wake.
+
+### The fix that worked — and how to apply kernel args on this cluster
+
+`pcie_aspm=off` (boot arg, pins the PCIe link at L0 so the broken L1-wake path is never exercised). On Frank this is **#582** — and the *mechanism* is the load-bearing lesson:
+
+- **Use a `KernelArgs.omni.sidero.dev` resource, NOT a `ConfigPatches` `machine.install.extraKernelArgs`.** Frank's machines boot a UKI (`grubUseUKICmdline: true`), so the cmdline is baked into the signed image — kernel args must flow through the Omni **schematic**. `machine.install.extraKernelArgs` does *not* change the schematic id, so Omni reports `configuptodate: true` and never reinstalls; the arg is inert (this is why `#515`, merged 2026-06-09, never applied). The `KernelArgs` resource (keyed by machine-id, the kernel-arg analogue of `402`'s `ExtensionsConfigurations`) folds the arg into the schematic → Omni recomputes the install image → Omni-managed reinstall + reboot. Declarative, no break-glass, no taint. Resource lives at `patches/phase04-gpu/403-gpu1-pcie-aspm.yaml`.
+- `talosctl upgrade` (the old patch's documented fallback) is **refused by Omni's API proxy for every role** including Admin — the only direct-talosctl path is `--break-glass`, which taints the cluster (and was disabled for the devops SA anyway). Don't go there; the `KernelArgs` route is the supported one.
+- Omni **v1.5.0 has no UI surface** for kernel args (the machine page shows extensions + config-patches only). Inspect via `omnictl get kernelargs <machine-id> -o yaml` and `omnictl get kernelargsstatus <machine-id>` (the latter's `CURRENT ARGS` flips to the applied value, and `CURRENT CMDLINE` shows the live cmdline once the reboot lands).
+- **Verify live** (UI/status can lag): `talosctl -n 192.168.55.31 dmesg | grep pcie_aspm=off` (the kernel `Kernel command line:` boot line). The Omni-issued reader talosconfig may lack `os:admin` for `talosctl read /proc/cmdline` (esp. after an `omni` restart rotates certs) — `dmesg` works at a lower role.
+
+### Suppresses, does not cure
+
+Post-deploy (#582, 2026-06-19): flap rate dropped from ~every 1–2 min (138 events accrued) to **~1 flap in 6 hours** — far below the alert threshold, so the notification storm is gone, but the NIC is **not 100% stable**. If isolated blips keep recurring (even without paging), escalate per the patch header: switch-end cable + a different switch port → cap `enp3s0` to 1G (disable 2.5G negotiation via ethtool/Talos network config — runtime config Omni *can* apply hot) → NIC replacement (gpu-1 has one chassis port, no host-side failover).
+
+### Incident note
+
+The fix was delayed not just by the wrong mechanism but by a **wedged Omni control plane** — after a power-outage cold boot, Omni's reconcile runtime had silently deadlocked on a clock-jump and applied nothing for days (see `omni.md`). The `KernelArgs` resource only reconciled and rebooted gpu-1 *after* `docker restart omni` revived the runtime.
+
 ## Ollama "system memory" errors mean container cgroup RAM, not VRAM
 
 When Ollama returns `model requires more system memory (X GiB) than is available (Y MiB)`, "system memory" means container RAM, not GPU VRAM. With `OLLAMA_KEEP_ALIVE=24h` page cache from previously-loaded models pins the cgroup near its `resources.limits.memory` ceiling, so a 15 GB model can fail to load even when `nvidia-smi` shows ~15 GB of VRAM free and the host has 60 GB of RAM idle — the gpu-1 container was simply at 31/32 GiB.
