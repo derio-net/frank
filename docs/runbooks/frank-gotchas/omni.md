@@ -19,3 +19,50 @@ That error comes from **Traefik's outbound TLS verify** rejecting Omni's expired
 Run the manual renew + install the dedicated `omni-cert-renew.{service,timer}` unit, both documented in `omni/certbot/certbot.md`. The `--deploy-hook 'docker restart omni'` is mandatory — Omni v1.5.0 reads `/tls.crt` once at process start and has no SIGHUP cert-reload path.
 
 Discovered 2026-05-11 when the cert expired 2026-05-09.
+
+## Omni wedges SILENTLY after a cold-boot clock-jump (reconcile death)
+
+After a power outage (whole-infra cold boot), the on-prem `omni` container can come up **running and serving the API but with its reconcile runtime dead** — it accepts desired-state writes and answers reads from cached state, yet performs **zero reconciliation**. Every install-level change queues forever against a runtime that never acts.
+
+### Symptom
+
+- UI and `omnictl` look completely healthy: cluster `Running`, all machines `Running`/`connected`, `configuptodate: true`, no error banners, no taint warnings.
+- But a **just-applied** `KernelArgs` / `ExtensionsConfigurations` / Talos-version change **never reboots or reinstalls its machine** — the node's live state never moves toward desired (e.g. `omnictl get kernelargsstatus <id>` stays `CURRENT ARGS: []`).
+- `docker logs omni` is **frozen** — `docker logs omni 2>&1 | wc -l` is static over several seconds, and the newest line's timestamp is days/weeks old (often *older* than the container's `StartedAt`, an impossible ordering that confirms the clock chaos).
+- The omni process is up (`docker top omni` shows `/omni …`), low CPU, not OOM-killed.
+
+### Cause
+
+The Omni host is a Raspberry Pi with **no battery-backed RTC**. On a cold boot it starts with a stale clock; the `omni` container launches and begins logging/operating against that wrong time. NTP later corrects the clock by a large forward jump (weeks/months). A big monotonic-time discontinuity wedges embedded etcd / raft leases and Go context timers — the controller runtime (`omni_runtime` / `qruntime`) deadlocks and goes quiet, while the gRPC read path keeps serving from cached/sqlite state. `docker logs` can also freeze because the json-file writer's view is stuck behind the jump.
+
+This is why the gpu-1 NIC-flap fix sat un-applied for so long: `#515`'s `ConfigPatch` was the wrong mechanism (see `gpu-1.md`), **and** even the correct `KernelArgs` resource (#582) only reconciled *after* the runtime was revived.
+
+### Recovery
+
+```bash
+ssh frank-omni
+docker restart omni        # clock is NTP-synced now → clean re-init, reconciles the whole backlog
+```
+
+Confirm the runtime is alive again by the **functional** signal, not the logs (which may stay stale post-restart — a json-file attach quirk): re-check from the workstation that a pending change now reconciles, e.g. `omnictl get kernelargsstatus <machine-id>` shows `CURRENT ARGS` flipping to the desired value, and the target machine performs its reboot/upgrade.
+
+Two side effects of the restart:
+- It **rotates the Talos API certs**, so the stored talosconfig loses elevated reads (`talosctl read …` → `PermissionDenied`). Refresh it: `omnictl talosconfig .talos/Frank_Talos_Config.yaml -c frank -f --merge=false` (or download from the Omni UI). Reads route through the Omni proxy afterward — restores reads/dmesg/exec, but `talosctl upgrade` stays proxy-refused by design.
+- Omni works through a **backlog** of un-reconciled desired-state — watch the first minutes for any *unexpected* machine reboots beyond the one you intended.
+
+### Durable fix (Omni host, not this repo)
+
+The `omni/` dir in this repo is a **copy** of the live Pi config — editing it does nothing to the running host. Apply on the Pi: gate the container start on time-sync so a cold boot can never operate with a stale clock. Either add a systemd drop-in to the unit that runs the compose stack:
+
+```ini
+# /etc/systemd/system/<omni-compose-unit>.service.d/wait-time-sync.conf
+[Unit]
+After=time-sync.target systemd-timesyncd.service
+Wants=time-sync.target
+```
+
+…or ensure `fake-hwclock` + `systemd-timesyncd` are enabled (raspbian default) and add a `chronyc waitsync` / `systemctl is-active time-sync.target` gate to the container's start command, plus consider a hardware RTC module on the Pi for a clock that survives power loss outright.
+
+### Incident
+
+2026-06-19 — power outage ~10 days prior cold-booted the whole infra; Omni came up with a stale clock and wedged (last `omni` log line ~61 days old by its frozen clock; `wc -l` static; gpu-1's `KernelArgs` never applied). Found while deploying the gpu-1 `pcie_aspm=off` fix (#582). `docker restart omni` revived the runtime, which immediately reconciled the pending `KernelArgs` and applied the arg.
