@@ -251,6 +251,34 @@ curl -s -o /dev/null -w '%{http_code}\n' https://blog.derio.net/frank/   # 200
 
 403 during the window, 200 after. It works. A real future-Frank concern: if I want this resilient through a Hetzner Volume migration, I need to actually buy another Hetzner Volume. €1/month. I haven't yet. The postStart hook is the workaround that survives most failure modes but not all of them.
 
+### Update (June 2026) — the postStart hook was treating a symptom
+
+A live trace caught four scanners hammering the edge — one threw 300 WordPress-webshell probes in 81 seconds, another 53 `.env`/`.git` reads in a single second. Textbook `http-sensitive-files` triggers. Zero bans. The pipeline had been dead, quietly, and ArgoCD had been calling it Synced/Healthy the entire time.
+
+Two things I got wrong above. First: the postStart hook re-registers the *bouncer*, but the CrowdSec *agent* is a separate machine that registers itself in the LAPI's SQLite DB. That DB lived in emptyDir. Every LAPI restart wiped the agent's machine row, so the still-running agent's next call failed with `ent: machine not found` and it crashlooped — parsing zero Caddy logs, firing zero scenarios, writing zero decisions. I had patched the visible failure (the bouncer's `access forbidden` retry loop) and left the invisible one (a crashlooping agent that bans nothing) running for weeks.
+
+Second: "buy another Hetzner Volume, €1/month" was just wrong. The Caddy and Headscale PVs aren't separate volumes — they're *subdirectories* of the one Hetzner Volume already mounted at `/var/mnt/hop-data`. CrowdSec needed its own subdirectory, which costs nothing.
+
+The fix persists both LAPI volumes (`data` keeps the machine/bouncer/decision rows; `config` keeps the community-blocklist enrollment) onto two static PVs:
+
+```yaml
+# clusters/hop/apps/storage/manifests/pv-crowdsec-data.yaml
+spec:
+  storageClassName: hetzner-volume     # MANDATORY — Hop has no default SC; unset → PVC Pending forever
+  claimRef:                            # the chart PVC template has no volumeName, so pin from the PV side
+    namespace: crowdsec-system
+    name: crowdsec-db-pvc              # == "<releaseName>-db-pvc"; drift here = silent Pending
+  hostPath:
+    path: /var/mnt/hop-data/crowdsec/data
+    type: DirectoryOrCreate            # kubelet makes the dir — fully declarative, no manual mkdir
+```
+
+`hostPath` with `DirectoryOrCreate` is a deliberate trade: it diverges from the `local:` PVs the other two apps use (which need a directory created on the node by hand), but it keeps the whole fix in Git with no manual step — and on a single-node edge cluster the distinction is academic. (On a *second* node it stops being academic: `DirectoryOrCreate` would happily make a fresh empty dir wherever the pod lands and lose the DB again, silently — so this PV is single-node until I pin it to `hop-1`.) The load-bearing line is `claimRef.name`: it has to match the Helm chart's `<releaseName>-db-pvc` naming exactly, or the PVC hangs Pending and the agent stays down — the same silent failure, dressed differently. A unit test (`scripts/tests/test_crowdsec_lapi_persistence.py`) pins that coupling so a chart bump that renames the PVCs trips a guard instead of silently breaking the binding — though I'll be honest, the repo has no CI job running `scripts/tests/` yet, so for now it's a guard you have to remember to run.
+
+One more honesty note: persisting the volumes doesn't make the *cutover* self-healing. The agent registers its machine only in an initContainer, and a crashlooping container never re-runs its init steps — so after the switch I had to roll the agent DaemonSet once (`rollout restart daemonset/crowdsec-agent`) to re-register it against the fresh persistent DB. After that one nudge it's durable through every later LAPI restart. The operating post has the verification dance.
+
+The lesson, again: *a green dashboard proves the artifacts exist, not that the workflow runs.* I never triggered a real scan and watched a ban land. The scanners did it for me.
+
 ## Phase 4 — Falco on a no-userland kernel
 
 Falco DaemonSet, `driver.kind: modern_ebpf`. This is the only viable driver on Talos because Talos has no kernel headers and no userland to load eBPF the legacy way. The `modern_ebpf` driver attaches CO-RE programs via the kernel ABI directly.

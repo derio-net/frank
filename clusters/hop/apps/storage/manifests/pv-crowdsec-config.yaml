@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: crowdsec-config
+spec:
+  capacity:
+    # Label only — hetzner-volume is no-provisioner + hostPath, so capacity is
+    # not enforced; it just needs to be >= the chart PVC's 100Mi request to bind.
+    storage: 128Mi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: hetzner-volume
+  # Binds the chart's LAPI config PVC. Holds online_api_credentials.yaml — the
+  # community-blocklist console enrollment — so it survives LAPI restarts.
+  claimRef:
+    namespace: crowdsec-system
+    name: crowdsec-config-pvc
+  hostPath:
+    path: /var/mnt/hop-data/crowdsec/config
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: Exists

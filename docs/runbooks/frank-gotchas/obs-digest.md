@@ -224,7 +224,13 @@ poller + a tool-calling loop (`analyst.py`, `tools.py`, `commands.py`,
 - **CrowdSec reality check:** 30d of retention contains zero local decision
   lines; only community-blocklist syncs. `crowdsec_activity` parses the sync
   format and passes anything else through raw — if `other_lines` is non-empty,
-  read it verbatim; that phrasing has never been seen before.
+  read it verbatim; that phrasing has never been seen before. **Caveat (until
+  2026-06-19):** "zero local decisions" was partly a *broken pipeline*, not a
+  quiet edge — the LAPI ran on emptyDir, so every restart wiped the agent's
+  machine row and crashlooped the agent (`ent: machine not found`), parsing zero
+  Caddy logs. Fixed by persisting LAPI `data`+`config` on static hostPath PVs
+  (see `agents/rules/hop-gotchas.md`); local `ban` decisions should now appear
+  when scanners trip `crowdsecurity/http-sensitive-files`.
 - **Follow-up (next image bump):** analyst INFO logs (the per-question audit
   trail) aren't emitted — the app never configures the logging level, so
   Python's WARNING default swallows them. Configure logging in `api.py`.

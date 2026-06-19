@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: crowdsec-data
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: hetzner-volume
+  # Pin this static PV to the chart-created LAPI data PVC. The CrowdSec chart names
+  # it "<releaseName>-db-pvc" (releaseName=crowdsec) and its PVC template has no
+  # volumeName field, so we bind from the PV side. claimRef name MUST track the chart.
+  claimRef:
+    namespace: crowdsec-system
+    name: crowdsec-db-pvc
+  hostPath:
+    # Subdir on the already-attached Hetzner Volume (/var/mnt/hop-data). No new
+    # volume. DirectoryOrCreate makes this fully declarative — no manual mkdir.
+    path: /var/mnt/hop-data/crowdsec/data
+    type: DirectoryOrCreate
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: Exists

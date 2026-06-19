@@ -1,0 +1,75 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Docs — fix/extension of the edge-observability layer
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gotcha one-liner + per-topic runbook prose
+  steps:
+  - id: P2.T1.S1
+    text: |
+      CrowdSec runs on Hop, so add a one-liner to `agents/rules/hop-gotchas.md` (the flat
+      Hop gotcha list): CrowdSec LAPI `data`+`config` were emptyDir → every LAPI restart
+      wiped the agent's machine row (`ent: machine not found` crashloop → no logs parsed →
+      no bans) AND the community-blocklist enrollment; fixed by two static hostPath PVs
+      (`DirectoryOrCreate`, subdirs of /var/mnt/hop-data/crowdsec) bound to the chart PVCs
+      via `claimRef`; `storageClassName: hetzner-volume` is mandatory (no default SC).
+      Also add a brief note to `docs/runbooks/frank-gotchas/obs-digest.md` cross-referencing
+      it (CrowdSec decisions section), since that file already documents CrowdSec behavior.
+- number: 2
+  title: Retroactive blog updates (building + operating)
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Update `blog/content/docs/building/31-edge-observability/index.md`: add a short
+      correction/gotcha subsection — the original emptyDir choice silently broke the ban
+      pipeline; the fix (persist LAPI data+config on static hostPath PVs, claimRef-pinned)
+      and why no new Hetzner Volume was needed. Keep Frank's voice. Do NOT change `weight`.
+  - id: P2.T2.S2
+    text: |
+      Update `blog/content/docs/operating/26-edge-observability/index.md`: document that
+      LAPI state is now durable (the bouncer-key and community-blocklist enrollment manual
+      ops are now one-time, not per-restart) and add the operational verification commands
+      from the spec's Test Plan (PV bound, `cscli machines list`, `cscli decisions list`,
+      restart-survival check).
+- number: 3
+  title: Manual-op note refresh + runbook sync
+  steps:
+  - id: P2.T3.S1
+    text: |
+      In `docs/runbooks/manual-operations.yaml`, refresh the `verify`/notes on
+      `obs-crowdsec-bouncer-api-key` and `obs-crowdsec-community-blocklists` to note they
+      are now durable across LAPI restarts (one-time, not per-restart). No new manual op is
+      introduced (hostPath DirectoryOrCreate removes the only candidate). Then run the
+      `/sync-runbook` skill to reconcile the runbook from plan files (it dedups by id and
+      preserves status). Commit any changes it makes.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-19T13:27:02+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-06-19T13:28:08+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-06-19T13:28:58+00:00'
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: '2026-06-19T13:30:52+00:00'
+      note: 'Annotated both CrowdSec manual-ops as durable directly in manual-operations.yaml;
+        intentionally did NOT run /sync-runbook — this plan introduces zero # manual-operation
+        blocks (post-deploy rule scopes sync-runbook to plans that do), and a re-sync
+        would regenerate entries from the old source-plan blocks and drop the durability
+        note.'
+  completion:
+    at: '2026-06-19T13:30:53+00:00'
+    note: null
+    observed_prs: []
