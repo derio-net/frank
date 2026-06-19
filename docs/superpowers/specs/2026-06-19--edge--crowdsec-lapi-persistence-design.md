@@ -6,6 +6,12 @@
 **Repo:** `derio-net/frank` (single-repo)
 **Extends:** Layer 31 edge-observability (`blog/content/docs/building/31-edge-observability`, `operating/26-edge-observability`)
 
+## Implementation Plans
+
+| Plan | Target repo | Slug | Status |
+|------|-------------|------|--------|
+| 2026-06-19--edge--crowdsec-lapi-persistence | `derio-net/frank` | `2026-06-19--edge--crowdsec-lapi-persistence` | — |
+
 ## Problem — proven live, today
 
 Malicious scanners hitting the public blog edge are **not being banned**, despite CrowdSec

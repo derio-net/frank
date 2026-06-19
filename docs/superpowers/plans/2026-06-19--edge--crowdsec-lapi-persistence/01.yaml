@@ -1,0 +1,260 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Persist LAPI data + config (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: RED — guard for PV shape, values, and the claimRef↔chart-PVC coupling
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Create `scripts/tests/test_crowdsec_lapi_persistence.py` (pytest, mirrors the
+      existing `scripts/tests/` style; PyYAML is already a test dep). It parses the YAML
+      and asserts (a) both new PV manifests' shape, (b) `values.yaml` enables persistence
+      with the right StorageClass, (c) requested sizes fit PV capacity, and (d) THE
+      load-bearing coupling: each PV's `claimRef.name` equals the chart-derived PVC name
+      `<releaseName>-db-pvc` / `-config-pvc`, with `releaseName` read live from the
+      Application CR. The Application CR is Helm-templated (not valid YAML) so releaseName
+      is extracted by regex.
+
+      --- BEGIN scripts/tests/test_crowdsec_lapi_persistence.py ---
+      import re
+      from pathlib import Path
+
+      import pytest
+
+      yaml = pytest.importorskip("yaml")
+
+      REPO = Path(__file__).resolve().parents[2]
+      STORAGE = REPO / "clusters/hop/apps/storage/manifests"
+      VALUES = REPO / "clusters/hop/apps/crowdsec/values.yaml"
+      APP_CR = REPO / "clusters/hop/apps/root/templates/crowdsec.yaml"
+
+      PV_DATA = STORAGE / "pv-crowdsec-data.yaml"
+      PV_CONFIG = STORAGE / "pv-crowdsec-config.yaml"
+
+      _UNITS = {"Ki": 2**10, "Mi": 2**20, "Gi": 2**30, "Ti": 2**40}
+
+
+      def _load(p):
+          return yaml.safe_load(p.read_text())
+
+
+      def _release_name():
+          # The Application CR contains Helm `{{ .Values... }}` templating and is NOT valid
+          # YAML, so we regex out releaseName — the value that drives the chart's PVC names
+          # the claimRefs must match.
+          m = re.search(r"releaseName:\s*(\S+)", APP_CR.read_text())
+          assert m, "releaseName not found in crowdsec Application CR"
+          return m.group(1).strip()
+
+
+      def _bytes(s):
+          s = str(s).strip()
+          for u, mult in _UNITS.items():
+              if s.endswith(u):
+                  return int(float(s[: -len(u)]) * mult)
+          return int(s)
+
+
+      @pytest.mark.parametrize("path", [PV_DATA, PV_CONFIG])
+      def test_pv_file_exists(path):
+          assert path.is_file(), f"missing PV manifest {path}"
+
+
+      @pytest.mark.parametrize("path", [PV_DATA, PV_CONFIG])
+      def test_pv_shape(path):
+          pv = _load(path)
+          assert pv["kind"] == "PersistentVolume"
+          spec = pv["spec"]
+          assert spec["storageClassName"] == "hetzner-volume"
+          assert spec["persistentVolumeReclaimPolicy"] == "Retain"
+          assert spec["accessModes"] == ["ReadWriteOnce"]
+          hp = spec["hostPath"]
+          assert hp["type"] == "DirectoryOrCreate", "auto-create the dir (zero manual step)"
+          assert hp["path"].startswith("/var/mnt/hop-data/crowdsec/")
+
+
+      def test_claimref_matches_chart_pvc_names():
+          release = _release_name()
+          expected = {
+              PV_DATA: f"{release}-db-pvc",
+              PV_CONFIG: f"{release}-config-pvc",
+          }
+          for path, pvc_name in expected.items():
+              cr = _load(path)["spec"]["claimRef"]
+              assert cr["namespace"] == "crowdsec-system"
+              assert cr["name"] == pvc_name, (
+                  f"{path.name} claimRef.name={cr['name']!r} != chart PVC {pvc_name!r}; "
+                  "binding hangs Pending → LAPI down → no bans"
+              )
+
+
+      def test_values_enable_persistence():
+          pvc = _load(VALUES)["lapi"]["persistentVolume"]
+          for key in ("data", "config"):
+              assert pvc[key]["enabled"] is True, f"lapi.persistentVolume.{key} not enabled"
+              assert pvc[key]["storageClassName"] == "hetzner-volume", (
+                  f"{key} needs explicit StorageClass (Hop has no default SC → PVC Pending)"
+              )
+
+
+      def test_requested_sizes_fit_pv_capacity():
+          pvc = _load(VALUES)["lapi"]["persistentVolume"]
+          assert _bytes(pvc["data"]["size"]) <= _bytes(
+              _load(PV_DATA)["spec"]["capacity"]["storage"]
+          )
+          assert _bytes(pvc["config"]["size"]) <= _bytes(
+              _load(PV_CONFIG)["spec"]["capacity"]["storage"]
+          )
+      --- END scripts/tests/test_crowdsec_lapi_persistence.py ---
+
+      Run: `uv run --with pytest --with pyyaml python -m pytest scripts/tests/test_crowdsec_lapi_persistence.py -q`
+      Expected: FAIL/ERROR (RED) — the PV files don't exist and values still disable persistence.
+- number: 2
+  title: GREEN — add the two hostPath PVs (make the PV-shape + coupling assertions
+    pass)
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Create `clusters/hop/apps/storage/manifests/pv-crowdsec-data.yaml`. hostPath +
+      `DirectoryOrCreate` so kubelet creates the dir on first mount (no manual step);
+      `claimRef` pre-binds it to the chart's `crowdsec-db-pvc` (the chart PVC template
+      does not support `volumeName`). `sync-wave: -1` on the storage app means this PV
+      exists before the chart's PVC is created.
+
+      --- BEGIN clusters/hop/apps/storage/manifests/pv-crowdsec-data.yaml ---
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: crowdsec-data
+      spec:
+        capacity:
+          storage: 1Gi
+        accessModes:
+          - ReadWriteOnce
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: hetzner-volume
+        # Pin this static PV to the chart-created LAPI data PVC. The CrowdSec chart names
+        # it "<releaseName>-db-pvc" (releaseName=crowdsec) and its PVC template has no
+        # volumeName field, so we bind from the PV side. claimRef name MUST track the chart.
+        claimRef:
+          namespace: crowdsec-system
+          name: crowdsec-db-pvc
+        hostPath:
+          # Subdir on the already-attached Hetzner Volume (/var/mnt/hop-data). No new
+          # volume. DirectoryOrCreate makes this fully declarative — no manual mkdir.
+          path: /var/mnt/hop-data/crowdsec/data
+          type: DirectoryOrCreate
+        nodeAffinity:
+          required:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: Exists
+      --- END clusters/hop/apps/storage/manifests/pv-crowdsec-data.yaml ---
+  - id: P1.T2.S2
+    text: |
+      Create `clusters/hop/apps/storage/manifests/pv-crowdsec-config.yaml` — same shape,
+      binds the chart's `crowdsec-config-pvc` (holds `online_api_credentials.yaml`, the
+      community-blocklist enrollment).
+
+      --- BEGIN clusters/hop/apps/storage/manifests/pv-crowdsec-config.yaml ---
+      apiVersion: v1
+      kind: PersistentVolume
+      metadata:
+        name: crowdsec-config
+      spec:
+        capacity:
+          storage: 128Mi
+        accessModes:
+          - ReadWriteOnce
+        persistentVolumeReclaimPolicy: Retain
+        storageClassName: hetzner-volume
+        claimRef:
+          namespace: crowdsec-system
+          name: crowdsec-config-pvc
+        hostPath:
+          path: /var/mnt/hop-data/crowdsec/config
+          type: DirectoryOrCreate
+        nodeAffinity:
+          required:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: Exists
+      --- END clusters/hop/apps/storage/manifests/pv-crowdsec-config.yaml ---
+- number: 3
+  title: GREEN — enable LAPI persistence in values (make remaining assertions pass)
+  steps:
+  - id: P1.T3.S1
+    text: |
+      Edit `clusters/hop/apps/crowdsec/values.yaml`. Replace the leading comment block
+      (the "avoid burning a Hetzner Volume" rationale) and the
+      `lapi.persistentVolume.{data,config}` block. New comment + block:
+
+      --- BEGIN values.yaml fragment (replaces the top comment + lapi.persistentVolume) ---
+      # Hop's hetzner-volume StorageClass is no-provisioner (static PVs only) and there is
+      # no default StorageClass. We persist LAPI state onto two static hostPath PVs carved
+      # as subdirectories of the already-attached Hetzner Volume
+      # (clusters/hop/apps/storage/manifests/pv-crowdsec-{data,config}.yaml) — no new
+      # Hetzner Volume. WHY this matters: with the data DB in emptyDir, every LAPI restart
+      # wiped the agent's registered-machine row, crashlooping the agent with
+      # "ent: machine not found" → zero logs parsed → zero bans. Persisting `data` keeps
+      # the machine/bouncer/decision rows; persisting `config` keeps the community-blocklist
+      # console enrollment (online_api_credentials.yaml) across restarts. storageClassName
+      # MUST be set explicitly (no default SC, else the PVC hangs Pending forever).
+      lapi:
+        dashboard:
+          enabled: false
+        persistentVolume:
+          data:
+            enabled: true
+            storageClassName: hetzner-volume
+            size: 1Gi
+          config:
+            enabled: true
+            storageClassName: hetzner-volume
+            size: 100Mi
+      --- END values.yaml fragment ---
+
+      Leave the rest of the `lapi:` block (service, env, lifecycle.postStart bouncer
+      re-registration, resources), `tls:`, and `agent:` UNCHANGED. The postStart hook
+      stays — it is idempotent and still seeds the bouncer on a fresh (first-deploy)
+      persistent DB. Do NOT enable `agent.persistentVolume` (out of scope; the agent
+      re-registers cleanly against the now-durable LAPI).
+  - id: P1.T3.S2
+    text: |
+      Run `uv run --with pytest --with pyyaml python -m pytest scripts/tests/test_crowdsec_lapi_persistence.py -q`.
+      Expected: GREEN (all assertions pass). Then run the full repo test suite touching
+      scripts/tests to confirm no regression:
+      `uv run --with pytest --with pyyaml python -m pytest scripts/tests/ -q`.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
