@@ -74,16 +74,31 @@ Two side effects of the restart:
 
 ### Durable fix (Omni host, not this repo)
 
-The `omni/` dir in this repo is a **copy** of the live Pi config — editing it does nothing to the running host. Apply on the Pi: gate the container start on time-sync so a cold boot can never operate with a stale clock. Either add a systemd drop-in to the unit that runs the compose stack:
+The `omni/` dir in this repo is a **copy** of the live Pi config — editing it does nothing to the running host. NOTE the omni container is **not** managed by a systemd unit (there is no compose unit to hang an ordering drop-in off): it autostarts purely via Docker's `restart: unless-stopped` policy, and `docker.service` is ordered only `After=network-online.target` — NOT time-sync. So at cold boot dockerd starts omni *before* the clock is corrected. Verified on the live Pi 2026-06-19: `systemd-timesyncd` (no chrony), **no RTC, no `fake-hwclock`** (`/etc/fake-hwclock.data` absent → nothing restores the clock at boot). Two host-level mitigations (applied 2026-06-20):
 
-```ini
-# /etc/systemd/system/<omni-compose-unit>.service.d/wait-time-sync.conf
-[Unit]
-After=time-sync.target systemd-timesyncd.service
-Wants=time-sync.target
-```
+1. **`fake-hwclock`** — restores the last-saved time at boot so the NTP correction is a *nudge*, not a multi-week *jump* (the jump is what wedges etcd/timers). Root-cause mitigation.
+   ```bash
+   apt-get install -y fake-hwclock && fake-hwclock save
+   ```
+2. **Restart omni once the clock is CONFIRMED synced** — enable `systemd-time-wait-sync.service` so `time-sync.target` actually blocks on synchronization, then a oneshot unit that restarts omni after it (harmless if the clock was already fine):
+   ```bash
+   systemctl enable systemd-time-wait-sync.service
+   cat > /etc/systemd/system/omni-restart-after-timesync.service <<'UNIT'
+   [Unit]
+   Description=Restart omni once the clock is NTP-synced (prevents reconcile wedge)
+   After=time-sync.target docker.service
+   Wants=time-sync.target
+   Requires=docker.service
+   [Service]
+   Type=oneshot
+   ExecStart=/usr/bin/docker restart omni
+   [Install]
+   WantedBy=multi-user.target
+   UNIT
+   systemctl daemon-reload && systemctl enable omni-restart-after-timesync.service
+   ```
 
-…or ensure `fake-hwclock` + `systemd-timesyncd` are enabled (raspbian default) and add a `chronyc waitsync` / `systemctl is-active time-sync.target` gate to the container's start command, plus consider a hardware RTC module on the Pi for a clock that survives power loss outright.
+Strongest fix would be a hardware RTC module on the Pi so the clock survives power loss outright. (Compose + container live at `/opt/manual_install/omni/compose.yaml`, container name `omni`.)
 
 ### Incident
 
