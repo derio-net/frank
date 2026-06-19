@@ -20,6 +20,28 @@ Run the manual renew + install the dedicated `omni-cert-renew.{service,timer}` u
 
 Discovered 2026-05-11 when the cert expired 2026-05-09.
 
+### The renewer itself can silently break (cert ages to expiry with NO alert)
+
+The `omni-cert-renew.{service,timer}` from the fix above is the *only* thing renewing this cert (the snap timer is a no-op for it). So if the **renewer script** breaks, the cert silently ages to expiry and **nothing pages** — the failing unit is invisible until `https://omni.frank.derio.net` starts 500-ing (the symptom above). The cert is a separate object from the unit; a `failed` renewer doesn't surface as a cluster/health alert.
+
+**Seen 2026-06-20:** `/usr/local/sbin/omni-cert-renew.sh` had drifted from the canonical version in `omni/certbot/certbot.md` — it lost the `/snap/bin/certbot renew \` + `--config-dir` + `--work-dir` lines and started mid-command at `--logs-dir`, so the shell ran `--logs-dir …` as a command → `status=127` in **~8 ms, before doing anything**. It had failed daily since at least Jun 12 (the timer fires nightly). Nothing was half-renewed; it just never renewed. Caught with runway (cert valid to Aug 9, renewal window opens ~Jul 10) while investigating the wedge below.
+
+**Detect:**
+```bash
+ssh frank-omni
+systemctl is-failed omni-cert-renew.service           # "failed" = broken renewer
+journalctl -u omni-cert-renew.service -n 20            # the actual error (e.g. 127 / command not found)
+sudo openssl x509 -enddate -noout -in /opt/manual_install/certbot/config/live/omni.frank.derio.net/cert.pem   # runway
+```
+
+**Fix:** restore the canonical script (the full `/snap/bin/certbot renew …` block in `omni/certbot/certbot.md`), then validate + clear the failed state:
+```bash
+/snap/bin/certbot renew --config-dir /opt/manual_install/certbot/config \
+  --work-dir /opt/manual_install/certbot/work --logs-dir /opt/manual_install/certbot/logs --dry-run   # staging, no rate limit
+systemctl reset-failed omni-cert-renew.service && systemctl start omni-cert-renew.service             # no-op until the 30-day window → exit 0
+```
+A clean run logs `Deactivated successfully` / `status=0/SUCCESS`; the dry-run prints `all simulated renewals succeeded`. Worth a periodic eyeball (or a real monitor) on `systemctl is-failed omni-cert-renew.service` — a broken renewer is the kind of thing you only discover at expiry.
+
 ## Omni wedges SILENTLY after a cold-boot clock-jump (reconcile death)
 
 After a power outage (whole-infra cold boot), the on-prem `omni` container can come up **running and serving the API but with its reconcile runtime dead** — it accepts desired-state writes and answers reads from cached state, yet performs **zero reconciliation**. Every install-level change queues forever against a runtime that never acts.
