@@ -1,16 +1,25 @@
-# Hop's hetzner-volume storage class is manual-provisioning (no
-# provisioner — pre-allocated PVs only). To avoid burning a Hetzner
-# Volume on CrowdSec, we disable persistent volumes and let bouncer
-# API keys + decisions live in emptyDir. The community blocklist is
-# the main value and re-syncs on each agent startup.
+# Hop's hetzner-volume StorageClass is no-provisioner (static PVs only) and there
+# is no default StorageClass. We persist LAPI state onto two static hostPath PVs
+# carved as subdirectories of the already-attached Hetzner Volume
+# (clusters/hop/apps/storage/manifests/pv-crowdsec-{data,config}.yaml) — no new
+# Hetzner Volume. WHY: with the data DB in emptyDir, every LAPI restart wiped the
+# agent's registered-machine row, crashlooping the agent with "ent: machine not
+# found" → zero logs parsed → zero bans. Persisting `data` keeps the
+# machine/bouncer/decision rows; persisting `config` keeps the community-blocklist
+# console enrollment (online_api_credentials.yaml) across restarts. storageClassName
+# MUST be set explicitly (no default SC, else the PVC hangs Pending forever).
 lapi:
   dashboard:
     enabled: false
   persistentVolume:
     data:
-      enabled: false
+      enabled: true
+      storageClassName: hetzner-volume
+      size: 1Gi
     config:
-      enabled: false
+      enabled: true
+      storageClassName: hetzner-volume
+      size: 100Mi
   service:
     type: ClusterIP
   env:
