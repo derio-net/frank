@@ -1,3 +1,13 @@
+# Talos runs containerd, which writes CRI-format container logs
+# (`<ts> stdout F {json}`). The chart default `docker` labels the agent
+# acquisition `type: docker` → the docker-logs parser extracts an empty message
+# from a CRI line → caddy-logs never parses → scenarios never fire → NOTHING is
+# banned. `containerd` routes logs through cri-logs (strips the envelope), and the
+# acquisition's `program: caddy` label still reaches caddy-logs. Proven end-to-end
+# with `cscli explain --type containerd --labels program:caddy` (cri-logs →
+# caddy-logs → scenarios fire). Guarded by scripts/tests/test_crowdsec_cri_logs.py.
+container_runtime: containerd
+
 # Hop's hetzner-volume StorageClass is no-provisioner (static PVs only) and there
 # is no default StorageClass. We persist LAPI state onto two static hostPath PVs
 # carved as subdirectories of the already-attached Hetzner Volume

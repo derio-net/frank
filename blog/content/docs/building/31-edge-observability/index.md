@@ -279,6 +279,8 @@ One more honesty note: persisting the volumes doesn't make the *cutover* self-he
 
 The lesson, again: *a green dashboard proves the artifacts exist, not that the workflow runs.* I never triggered a real scan and watched a ban land. The scanners did it for me.
 
+And the moment I *did* finally watch — right after fixing the crashloop — I found the agent banning nothing anyway. It was reading the Caddy logs and parsing exactly zero of them: Talos runs containerd (CRI log format), but the chart defaulted to `container_runtime: docker`, so the `docker-logs` parser pulled an empty message out of every CRI line and `caddy-logs` never fired. Two bugs stacked, the second hidden behind the first — the crashloop had never let anything reach the parser, so the parser being misconfigured was invisible. One line, `container_runtime: containerd`, and `cscli explain` finally walked a real access log all the way to a scenario. The dashboard had been green through both bugs. *Watch the workflow run.*
+
 ## Phase 4 — Falco on a no-userland kernel
 
 Falco DaemonSet, `driver.kind: modern_ebpf`. This is the only viable driver on Talos because Talos has no kernel headers and no userland to load eBPF the legacy way. The `modern_ebpf` driver attaches CO-RE programs via the kernel ABI directly.
