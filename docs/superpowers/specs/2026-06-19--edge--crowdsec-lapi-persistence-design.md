@@ -1,7 +1,7 @@
 # CrowdSec LAPI Persistence — Fix the Broken Ban Pipeline on Hop
 
 **Layer:** edge (Hop — `clusters/hop/apps/crowdsec`, `clusters/hop/apps/storage`)
-**Status:** Draft
+**Status:** Deployed (verified end-to-end 2026-06-19 — PR #583 persistence + #584 `container_runtime: containerd` together fixed the broken ban pipeline; a real scan now produces a local ban, bouncer-enforced)
 **Date:** 2026-06-19
 **Repo:** `derio-net/frank` (single-repo)
 **Extends:** Layer 31 edge-observability (`blog/content/docs/building/31-edge-observability`, `operating/26-edge-observability`)

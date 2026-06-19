@@ -281,6 +281,8 @@ The lesson, again: *a green dashboard proves the artifacts exist, not that the w
 
 And the moment I *did* finally watch — right after fixing the crashloop — I found the agent banning nothing anyway. It was reading the Caddy logs and parsing exactly zero of them: Talos runs containerd (CRI log format), but the chart defaulted to `container_runtime: docker`, so the `docker-logs` parser pulled an empty message out of every CRI line and `caddy-logs` never fired. Two bugs stacked, the second hidden behind the first — the crashloop had never let anything reach the parser, so the parser being misconfigured was invisible. One line, `container_runtime: containerd`, and `cscli explain` finally walked a real access log all the way to a scenario. The dashboard had been green through both bugs. *Watch the workflow run.*
 
+So I did watch it run. A phone on cellular tapped a handful of `/.env?n` probes (cache-busted — the `permanent` redirect is a 301 the browser otherwise caches, so a plain reload never re-hits the server), the bucket overflowed, and `crowdsecurity/http-probing` produced a real `ban` on the phone's IP — geoip and all — with the Caddy bouncer already holding the decision. Two bugs, two PRs, and the first scanner I deliberately pointed at the edge got turned away. That's the whole point of the layer, finally true.
+
 ## Phase 4 — Falco on a no-userland kernel
 
 Falco DaemonSet, `driver.kind: modern_ebpf`. This is the only viable driver on Talos because Talos has no kernel headers and no userland to load eBPF the legacy way. The `modern_ebpf` driver attaches CO-RE programs via the kernel ABI directly.

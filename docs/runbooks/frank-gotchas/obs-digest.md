@@ -224,13 +224,19 @@ poller + a tool-calling loop (`analyst.py`, `tools.py`, `commands.py`,
 - **CrowdSec reality check:** 30d of retention contains zero local decision
   lines; only community-blocklist syncs. `crowdsec_activity` parses the sync
   format and passes anything else through raw — if `other_lines` is non-empty,
-  read it verbatim; that phrasing has never been seen before. **Caveat (until
-  2026-06-19):** "zero local decisions" was partly a *broken pipeline*, not a
-  quiet edge — the LAPI ran on emptyDir, so every restart wiped the agent's
-  machine row and crashlooped the agent (`ent: machine not found`), parsing zero
-  Caddy logs. Fixed by persisting LAPI `data`+`config` on static hostPath PVs
-  (see `agents/rules/hop-gotchas.md`); local `ban` decisions should now appear
-  when scanners trip `crowdsecurity/http-sensitive-files`.
+  read it verbatim; that phrasing has never been seen before. **RESOLVED
+  2026-06-19 — "zero local decisions" was a doubly-broken pipeline, not a quiet
+  edge.** Two stacked bugs (both masked by the first): (1) the LAPI ran on
+  emptyDir → every restart wiped the agent's machine row → agent crashlooped
+  `ent: machine not found`, parsing zero Caddy logs (fixed by persisting LAPI
+  `data`+`config` on static hostPath PVs, #583); (2) even healthy, the agent
+  parsed nothing because Talos=containerd (CRI logs) but the chart defaulted
+  `container_runtime: docker` → `docker-logs` yielded an empty message → no
+  scenario fired (fixed by `container_runtime: containerd`, #584). Both fixed +
+  verified end-to-end: a real scan now overflows a scenario and produces a local
+  `ban` (proven 2026-06-19 — http-probing ban on a phone IP, bouncer enforced).
+  So **local `ban` decisions now DO appear** — `crowdsec_activity` should start
+  logging them; full prose in `agents/rules/hop-gotchas.md`.
 - **Follow-up (next image bump):** analyst INFO logs (the per-question audit
   trail) aren't emitted — the app never configures the logging level, so
   Python's WARNING default swallows them. Configure logging in `api.py`.

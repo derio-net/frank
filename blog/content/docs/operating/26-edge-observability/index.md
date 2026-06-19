@@ -266,7 +266,9 @@ kubectl -n crowdsec-system exec daemonset/crowdsec-agent -c crowdsec-agent -- sh
 #   expect: cri-logs 🟢 → caddy-logs 🟢 → enrichers 🟢 → parser success → scenarios fire
 ```
 
-After it's parsing, `Lines parsed` climbs and a sensitive-files scan produces a real `cscli decisions list` ban. (`cscli explain --type cri` is a red herring — the parser's filter is `type == 'containerd'`, not `cri`.)
+After it's parsing, `Lines parsed` climbs and a real scan produces a real ban. Confirmed end-to-end on 2026-06-19: a phone hit a handful of sensitive paths, overflowed `crowdsecurity/http-probing`, and `cscli decisions list` showed `Ip:<phone> · ban · 15 events` — geoip-enriched, and the `caddy-hop` bouncer had already pulled it. (`cscli explain --type cri` is a red herring — the parser's filter is `type == 'containerd'`, not `cri`.)
+
+> **Testing trap — the 301 redirect is cached.** Caddy `redir … permanent` is a **301**, which browsers cache. Reloading `https://blog.derio.net/.env` only hits the server once; every reload after that jumps straight to the cached `/frank/.env` (which doesn't match the scenario), so the bucket never fills. Bust the cache with query strings — `…/.env?1`, `…/.env?2`, … — each a distinct URL the browser can't cache but CrowdSec still matches on the path. Fire 5+ within ~10s (bucket capacity 4, leakspeed 5s). And scan from a **non-home egress** (a phone on cellular), because the home IP also serves Frank's blackbox uptime probe — then `cscli decisions delete --ip <ip>` to release it.
 
 ## Falco — tuning out the noise
 
