@@ -246,6 +246,28 @@ kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli decisions list   #
 > **Static-PV recovery note.** Reclaim policy is `Retain`, so if either PVC is ever deleted (e.g. a chart uninstall) the PV goes `Released`, not `Available`, and won't rebind to a freshly-recreated same-name PVC until you clear the stale binding:
 > `kubectl patch pv crowdsec-data -p '{"spec":{"claimRef":{"uid":null}}}'` (data is preserved on disk).
 
+### Update (June 2026, part 2) — the agent has to actually *parse* the logs
+
+Fixing the crashloop got the agent running, but the first real ban test found it still banned nothing. The agent reads the Caddy logs but parses **zero** of them — because Talos runs containerd (CRI log format) while the chart defaulted `container_runtime: docker`. The `docker-logs` parser expects Docker json-file format and extracts an empty message from a CRI line, so `caddy-logs` never engages. The tell is in `cscli metrics`:
+
+```
+# On the agent — the smoking gun:
+kubectl -n crowdsec-system exec daemonset/crowdsec-agent -c crowdsec-agent -- cscli metrics
+#   Acquisition Metrics: Lines read > 0  but  Lines parsed = 0   (everything "unparsed")
+#   Parser Metrics:      only crowdsecurity/docker-logs — NO crowdsecurity/caddy-logs hits
+```
+
+The fix is the chart's own knob — `container_runtime: containerd` in `clusters/hop/apps/crowdsec/values.yaml`. That routes logs through `cri-logs` (which strips the `<ts> stdout F` envelope), and the acquisition's `program: caddy` label still reaches `caddy-logs`. Verify the whole chain on one real line without sending any traffic:
+
+```
+kubectl -n crowdsec-system exec daemonset/crowdsec-agent -c crowdsec-agent -- sh -c \
+  'grep -m1 http.log.access /var/log/containers/caddy-*_caddy-system_*.log > /tmp/one.log; \
+   cscli explain -f /tmp/one.log --type containerd --labels program:caddy'
+#   expect: cri-logs 🟢 → caddy-logs 🟢 → enrichers 🟢 → parser success → scenarios fire
+```
+
+After it's parsing, `Lines parsed` climbs and a sensitive-files scan produces a real `cscli decisions list` ban. (`cscli explain --type cri` is a red herring — the parser's filter is `type == 'containerd'`, not `cri`.)
+
 ## Falco — tuning out the noise
 
 Most of Falco's default rule set on Talos is quiet. The exception is `Contact K8S API Server From Container` (priority `Notice`), which fires constantly because every Kubernetes-native workload talks to the API server. Below `Critical` priority, falcosidekick ships events to Loki (silently) but skips Telegram — exactly what we want.
