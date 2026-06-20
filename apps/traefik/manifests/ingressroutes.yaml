@@ -91,6 +91,39 @@ spec:
     domains:
       - main: "*.cluster.derio.net"
 ---
+# Incident 2026-06-20: the frank-omni Pi (192.168.55.10) that fronted
+# auth.frank.derio.net died (hardware; replacement ETA ~5 days). The Authentik
+# pod is alive and already served at auth.cluster.derio.net — but every consumer
+# hard-codes the legacy auth.frank.derio.net name: the kube-apiserver OIDC issuer
+# (patches/phase13-auth/oidc-apiserver.yaml — unchangeable while Omni is down),
+# AUTHENTIK_HOST, Grafana/ArgoCD OAuth, and the forward-auth browser redirect.
+# Re-front that name on the surviving in-cluster Traefik so all of them heal with
+# zero consumer edits. Pair with a DNS flip: auth.frank.derio.net A -> 192.168.55.220.
+# TEMPORARY — revert when the replacement host restores the original edge, or fold
+# into the frank.derio.net retirement (docs/superpowers/specs/2026-06-01--net--*).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: authentik-frank
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`auth.frank.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+      services:
+        - name: authentik-server
+          namespace: authentik
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "auth.frank.derio.net"
+---
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
