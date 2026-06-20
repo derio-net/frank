@@ -516,3 +516,215 @@ spec:
     certResolver: cloudflare
     domains:
       - main: "*.cluster.derio.net"
+---
+# ============================================================================
+# Incident 2026-06-20 — legacy *.frank.derio.net re-front (frank-omni Pi dead)
+# ----------------------------------------------------------------------------
+# The frank-omni Pi (192.168.55.10) was the edge AND cert-minter for every
+# *.frank.derio.net name. It died (hardware; replacement ETA ~5 days). DNS for
+# these names already points at the in-cluster Traefik (192.168.55.220), but
+# Traefik had no routes for them, so it served its self-signed TRAEFIK DEFAULT
+# CERT -> ERR_CERT_AUTHORITY_INVALID, hard-blocked by HSTS (no click-through).
+#
+# These apps hard-code their *.frank.derio.net name (e.g. Grafana root_url,
+# OAuth redirect_uris), so they can't simply use the *.cluster.derio.net alias.
+# Each route below mirrors its working *.cluster counterpart (same backend, same
+# middlewares) but matches the legacy Host and serves a *.frank.derio.net cert
+# that Traefik mints via the existing Cloudflare DNS-01 resolver (derio.net zone
+# covers it — proven by the auth.frank route above).
+#
+# TEMPORARY — revert when the replacement host restores the original edge, or
+# fold into the frank.derio.net retirement
+# (docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md).
+# omni.frank.derio.net is intentionally absent: Omni ran ON the dead Pi, so
+# there is no in-cluster backend to route it to.
+# ============================================================================
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: grafana-frank
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`grafana.frank.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: victoria-metrics-grafana
+          namespace: monitoring
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.frank.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: argocd-frank
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`argocd.frank.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+      services:
+        - name: argocd-server
+          namespace: argocd
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.frank.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: longhorn-frank
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`longhorn.frank.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: longhorn-frontend
+          namespace: longhorn-system
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.frank.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: hubble-frank
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`hubble.frank.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: hubble-ui
+          namespace: kube-system
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.frank.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: infisical-frank
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`infisical.frank.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: infisical-infisical-standalone-infisical
+          namespace: infisical
+          port: 8080
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.frank.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: paperclip-frank
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`paperclip.frank.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: paperclip-lb
+          namespace: paperclip-system
+          port: 3100
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.frank.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sympozium-frank
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`sympozium.frank.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+      services:
+        - name: sympozium-apiserver
+          namespace: sympozium-system
+          port: 8080
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.frank.derio.net"
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: n8n-01-frank
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`n8n-01.frank.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: n8n-01
+          namespace: n8n-01
+          port: 5678
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.frank.derio.net"
