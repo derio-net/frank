@@ -550,10 +550,13 @@ spec:
   routes:
     - match: Host(`grafana.frank.derio.net`)
       kind: Rule
+      # No forward-auth: Grafana self-auths via its own Authentik OAuth
+      # (generic_oauth). The forward-auth proxy providers are *.cluster-scoped,
+      # so Authentik 404s on the .frank host (incident 2026-06-20). LAN-only
+      # via ip-allowlist; SSO gate restored when the .frank edge returns.
       middlewares:
         - name: ip-allowlist
         - name: security-headers
-        - name: authentik-forwardauth
       services:
         - name: victoria-metrics-grafana
           namespace: monitoring
@@ -645,10 +648,12 @@ spec:
   routes:
     - match: Host(`infisical.frank.derio.net`)
       kind: Rule
+      # No forward-auth: Infisical has its own login. .cluster-scoped proxy
+      # providers 404 on the .frank host (incident 2026-06-20). LAN-only via
+      # ip-allowlist; SSO gate restored when the .frank edge returns.
       middlewares:
         - name: ip-allowlist
         - name: security-headers
-        - name: authentik-forwardauth
       services:
         - name: infisical-infisical-standalone-infisical
           namespace: infisical
@@ -669,10 +674,12 @@ spec:
   routes:
     - match: Host(`paperclip.frank.derio.net`)
       kind: Rule
+      # No forward-auth: Paperclip self-auths (better-auth session). .cluster-scoped
+      # proxy providers 404 on the .frank host (incident 2026-06-20). LAN-only via
+      # ip-allowlist; SSO gate restored when the .frank edge returns.
       middlewares:
         - name: ip-allowlist
         - name: security-headers
-        - name: authentik-forwardauth
       services:
         - name: paperclip-lb
           namespace: paperclip-system
@@ -716,10 +723,12 @@ spec:
   routes:
     - match: Host(`n8n-01.frank.derio.net`)
       kind: Rule
+      # No forward-auth: n8n has its own owner-account login. .cluster-scoped
+      # proxy providers 404 on the .frank host (incident 2026-06-20). LAN-only via
+      # ip-allowlist; SSO gate restored when the .frank edge returns.
       middlewares:
         - name: ip-allowlist
         - name: security-headers
-        - name: authentik-forwardauth
       services:
         - name: n8n-01
           namespace: n8n-01
