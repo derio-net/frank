@@ -103,3 +103,34 @@ Strongest fix would be a hardware RTC module on the Pi so the clock survives pow
 ### Incident
 
 2026-06-19 — power outage ~10 days prior cold-booted the whole infra; Omni came up with a stale clock and wedged (last `omni` log line ~61 days old by its frozen clock; `wc -l` static; gpu-1's `KernelArgs` never applied). Found while deploying the gpu-1 `pcie_aspm=off` fix (#582). `docker restart omni` revived the runtime, which immediately reconciled the pending `KernelArgs` and applied the arg.
+
+## frank-omni Pi DIED (hardware) — distinct from the wedge; the Pi was a 3-role SPOF
+
+2026-06-20 — the frank-omni **Pi 5 died outright** (hardware: `ssh frank-omni` + both public vhosts time out — *not* the silent **wedge** above, which is a live-but-frozen runtime that `docker restart omni` fixes). Worst case, because that one un-HA'd Pi carried **three roles**:
+
+1. the on-prem **Omni** control plane — the kubectl + talosctl access path;
+2. the **public edge** (a Docker Traefik on the Pi) for every `*.frank.derio.net` name (`omni.`, `auth.`, and the legacy service aliases);
+3. the **Let's Encrypt cert-minter** for the `frank.derio.net` zone.
+
+### What survives, what dies
+
+The **cluster keeps running** — control plane (mini-1/2/3) and workers boot independently of Omni, so every in-cluster workload (the Authentik pod, Grafana, …) and the LAN service IPs (192.168.55.2xx) stay up. What you lose:
+
+- **kubectl / talosctl.** The stored kubeconfig points at `https://omni.frank.derio.net:8100/` (the dead Omni k8s proxy) with OIDC-via-Omni; the talosconfig routes through the same proxy. The **real apiserver (`192.168.55.21:6443`) and Talos API (`:50000`) stay reachable on the LAN**, but there is no non-Omni credential for them — no break-glass talosconfig is saved, and Omni (which mints them) is dead, so you can't make one. **ArgoCD (git → sync) becomes the only "apply" path.**
+- **Everything on `*.frank.derio.net`** — Omni's own UI, plus the auth and legacy-service edges.
+
+### Recovery (2026-06-20)
+
+Omni itself can't be revived without hardware. But the *services* it fronted are re-frontable from **inside** the cluster, because DNS for `*.frank.derio.net` already points at the in-cluster Traefik (`192.168.55.220`) — they were merely missing routes. Full playbook in **`networking.md` → "External-edge death: re-front orphaned `*.frank` names on in-cluster Traefik"** (#590 / #591 / #592). Key point: in-cluster Traefik **re-mints the `frank.derio.net` certs itself** via its Cloudflare DNS-01 resolver — the `CF_DNS_API_TOKEN` is scoped to the whole `derio.net` zone, so it issues `frank.` certs exactly as it does `cluster.` ones — so the dead Pi's cert-minter role transfers cleanly. `auth.frank.derio.net` also needs an operator DNS flip (`.10 → .220`, it was a dedicated A record at the Pi); the other names already resolved to `.220`.
+
+### The monitoring blind spot — Omni death does NOT page (a Layer 2 gap)
+
+The Pi death was **near-silent across the whole stack**: the Derio Ops board stayed all-green and Telegram carried only the by-design canaries. Why:
+
+- The board's layer-health is **in-cluster pod / ClusterIP** based (VictoriaMetrics, which stayed up because the cluster stayed up). Every workload was genuinely `Ready`, so nothing flipped — *correct* (no workload died), but it means the board is blind to an edge / management-plane death **by construction**.
+- **Omni has no alert rule.** The blackbox `management_plane_probes` VMProbe (`apps/blackbox-exporter/manifests/vmprobe.yaml`) scrapes `probe_success{instance=~"https://omni.frank.derio.net.*"}`, but **nothing in `alert-rules-cm.yaml` consumes it** — no `github_issue` label, no card, no page. Omni is a **Layer 2 (OS & Bootstrap)** concern (the layer mentions Omni); it can die and the only signal is a human noticing `omni.frank.derio.net` 500s.
+- **Fix (deferred until Omni is back):** add a Grafana rule on that existing metric — `severity: critical`, route to Telegram and/or `github_issue: frank-ops#2` (Layer 2). The data is already scraped; it's purely a missing rule.
+
+### The durable fix — rebuild off the Pi
+
+The root problem is the un-HA'd single-Pi SPOF, not this one death. The replacement is **not another Pi**: Omni is being rehomed onto an **Ansible-managed Proxmox host with HA + UPS** for the whole homelab. That migration is its own Layer 2 build/operating post (this incident is its cold open), and it also retires the **wedge** gotcha above — a UPS plus a real RTC end the cold-boot clock-jump class outright. Until then the temporary `*.frank` re-fronting (`networking.md`) carries the services.
