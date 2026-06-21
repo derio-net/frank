@@ -97,6 +97,15 @@ def test_evaluate_bootstrap_no_prev_is_ok():
     assert v.get("bootstrap") is True
 
 
+def test_evaluate_counter_reset_is_ok_not_acquisition_fail():
+    # agent restart / Caddy pod roll -> cumulative counter goes backwards.
+    # Must re-baseline (OK), NOT report a frozen acquisition.
+    v = canary.evaluate(_sig(5000, 4800), _sig(30, 28))
+    assert v["ok"] is True
+    assert v["failed_checks"] == []
+    assert v.get("reset") is True
+
+
 # --- consecutive-fail gate -------------------------------------------------
 
 def test_gate_pages_only_on_second_consecutive_fail():

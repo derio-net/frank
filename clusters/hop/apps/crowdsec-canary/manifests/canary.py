@@ -80,6 +80,15 @@ def evaluate(prev, cur):
         return {"ok": False, "failed_checks": ["agent_alive"], "deltas": {}}
     fs_delta = cur["filesource"] - prev.get("filesource", 0)
     parsed_delta = cur["caddy_parsed"] - prev.get("caddy_parsed", 0)
+    if fs_delta < 0 or parsed_delta < 0:
+        # A NEGATIVE delta means a cumulative counter went backwards: the agent
+        # restarted (counters reset to 0) or the Caddy pod rolled (new container-id
+        # -> new source path -> this run's sum starts low). That is a re-baseline,
+        # NOT a frozen pipeline -> return OK so a benign restart never pages.
+        return {
+            "ok": True, "failed_checks": [], "reset": True,
+            "deltas": {"filesource": fs_delta, "caddy_parsed": parsed_delta},
+        }
     failed = []
     if fs_delta <= 0:
         # no new lines read at all while the blog edge is always being probed -> acquisition hung
