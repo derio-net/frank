@@ -13,6 +13,11 @@ data:
           # User-Agent identifies Frank's own uptime probes so the edge-traffic
           # definition can exclude them. KEEP IN SYNC with facts.PROBE_UA_TOKEN
           # in apps/ai-alert-helper/src/ai_alert_helper/facts.py.
+          # NOTE: this ~360/hr probe of blog.derio.net is ALSO the guaranteed Caddy
+          # traffic floor the Hop CrowdSec ban-pipeline canary relies on (it reads
+          # "0 lines in 5m" as broken, not idle). Retiring/re-pointing this probe
+          # away from the blog would make that canary false-positive — see the
+          # reciprocal note in docs/runbooks/frank-gotchas/obs-digest.md.
           headers:
             User-Agent: "Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"
           valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
