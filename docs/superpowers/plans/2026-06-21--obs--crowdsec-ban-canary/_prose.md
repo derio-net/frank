@@ -68,10 +68,7 @@ plan: 2026-06-21--obs--crowdsec-ban-canary
 when: After the crowdsec-canary Application syncs; before relying on FAIL pages.
 why_manual: Secret material (Telegram bot token + chat id) — cannot be declarative in git.
 commands: |
-  # ALL of this runs against HOP. Use the Hop kubeconfig, NOT `.env`/`.env_devops`
-  # (those point KUBECONFIG at Frank via Omni's OIDC — unreachable while the Omni Pi
-  # is down → `oidc discovery error: ... omni.frank.derio.net ... network unreachable`).
-  cd <repo-root> && source .env_hop      # Hop is standalone talosctl, unaffected by Omni
+  # Target the Hop cluster (NOT Frank) before running these.
   # Same bot/chat as falco-telegram (which lives in falco-system; secrets are
   # namespace-scoped, so the canary needs its own copy in crowdsec-system).
   # Source the values from the existing falco secret rather than retyping:
