@@ -1769,6 +1769,13 @@ data:
             for: 1m
             labels:
               severity: critical
+              # This rule lives in the blog-edge folder, whose notification policy
+              # routes EXCLUSIVELY to the AI Helper Webhook (continue:false). A
+              # dead-man's switch must NOT be mediated by the LLM agent (it can give
+              # stale/wrong triage — proven 2026-06-21: it reported the resolved #594
+              # incident as current). This label hits a dedicated top-of-policy route
+              # that pages Telegram DIRECTLY, bypassing the agent.
+              telegram_direct: "true"
             annotations:
               summary: "CrowdSec ban-pipeline canary heartbeat stale: no verdict line in crowdsec-system for 20m. The canary is dead/suspended and the Hop ban pipeline is unwatched."
               runbook: "Check the canary CronJob on Hop: kubectl -n crowdsec-system get cronjob,jobs,pods -l app=crowdsec-ban-canary; unsuspend if suspended; inspect the last Job pod logs. Spec: docs/superpowers/specs/2026-06-21--obs--crowdsec-ban-pipeline-canary-design.md"

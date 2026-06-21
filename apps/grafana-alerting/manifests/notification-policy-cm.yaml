@@ -47,6 +47,17 @@ data:
             mute_time_intervals:
               - perma-mute
             continue: false
+          # Dead-man's-switch direct-page: an alert that means "the monitoring
+          # canary itself died" must page Telegram DIRECTLY, never via the AI
+          # Helper (an LLM that can give stale/wrong triage — on 2026-06-21 it
+          # turned the canary-heartbeat-stale test alert into a FALSE "CrowdSec
+          # blind since yesterday" report while CrowdSec was actively banning).
+          # MUST precede the blog-edge route below, else that swallows it
+          # (the rule lives in the blog-edge folder). continue:false → Telegram only.
+          - receiver: "Telegram - Willikins"
+            matchers:
+              - telegram_direct="true"
+            continue: false
           # blog-edge folder alerts go exclusively to the AI helper, which
           # builds a fact sheet, calls the LLM, and posts to Telegram itself.
           # Continue:false so the default Telegram contact point doesn't

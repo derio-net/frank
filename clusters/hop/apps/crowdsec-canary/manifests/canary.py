@@ -127,8 +127,21 @@ def build_message(verdict, fail_count):
     )
 
 
+def _clean_cred(s):
+    """Strip whitespace/newlines from a secret value; empty -> None.
+
+    A `kubectl create secret --from-literal` (or a hand-built secret) easily picks
+    up a TRAILING NEWLINE. An unstripped token makes the URL `.../bot<token>\\n/sendMessage`
+    -> Telegram 404 -> the canary silently fails to page (the very failure it exists to
+    catch). Caught live 2026-06-21. Strip defensively so a dirty secret can't recur it.
+    """
+    s = (s or "").strip()
+    return s or None
+
+
 def telegram_notify(token, chat_id, text):
     """POST to Telegram (plain text). Missing creds -> skip, return False, never raise."""
+    token, chat_id = _clean_cred(token), _clean_cred(chat_id)
     if not token or not chat_id:
         print("crowdsec-ban-canary telegram skipped (no creds)", file=sys.stderr)
         return False
