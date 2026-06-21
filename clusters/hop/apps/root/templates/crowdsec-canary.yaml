@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crowdsec-canary
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: hop-infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: clusters/hop/apps/crowdsec-canary/manifests
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: crowdsec-system
+  syncPolicy:
+    automated:
+      # prune:true so the kustomize configMapGenerator's superseded hash-suffixed
+      # ConfigMaps are garbage-collected when canary.py changes.
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true

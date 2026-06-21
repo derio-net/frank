@@ -14,7 +14,7 @@ import importlib.util
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-CANARY = REPO / "clusters/hop/apps/crowdsec-canary/canary.py"
+CANARY = REPO / "clusters/hop/apps/crowdsec-canary/manifests/canary.py"
 
 _spec = importlib.util.spec_from_file_location("canary", CANARY)
 canary = importlib.util.module_from_spec(_spec)
