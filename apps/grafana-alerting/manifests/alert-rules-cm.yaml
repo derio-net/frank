@@ -1730,3 +1730,45 @@ data:
             annotations:
               summary: "Falco fired a critical-severity event"
               runbook: "blog-edge-security dashboard — inspect rule + container."
+
+          # Dead-man's switch for the CrowdSec ban-pipeline canary. The in-cluster Hop
+          # CronJob emits a "crowdsec-ban-canary verdict=..." heartbeat to stdout every
+          # run (*/5) -> fluent-bit -> VictoriaLogs. If the heartbeat goes stale (canary
+          # crashed / suspended / image broken) NOTHING watches the ban pipeline, so this
+          # fires. `stats count() as value` WITHOUT a `by()` returns a guaranteed single
+          # 0-row when no heartbeat matches -> threshold lt 1 fires; a VictoriaLogs outage
+          # yields noData -> OK (blindness != death). Mirrors the cert-expiry watchdog
+          # (#251) but pages Telegram (NO canary_watchdog label — silence is the enemy
+          # here). Spec: docs/superpowers/specs/2026-06-21--obs--crowdsec-ban-pipeline-canary-design.md
+          - uid: crowdsec-canary-heartbeat-stale
+            title: CrowdSec ban-pipeline canary heartbeat stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:crowdsec-system AND log:"crowdsec-ban-canary verdict" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 1200, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 1m
+            labels:
+              severity: critical
+            annotations:
+              summary: "CrowdSec ban-pipeline canary heartbeat stale: no verdict line in crowdsec-system for 20m. The canary is dead/suspended and the Hop ban pipeline is unwatched."
+              runbook: "Check the canary CronJob on Hop: kubectl -n crowdsec-system get cronjob,jobs,pods -l app=crowdsec-ban-canary; unsuspend if suspended; inspect the last Job pod logs. Spec: docs/superpowers/specs/2026-06-21--obs--crowdsec-ban-pipeline-canary-design.md"
