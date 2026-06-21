@@ -1,0 +1,32 @@
+schema_version: 2
+phase:
+  number: 2
+  title: ArgoCD external-cluster destination enablement
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Widen the infrastructure AppProject (TDD)
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED — assert the `infrastructure` AppProject permits the staging vCluster as a destination. Via exec: `PATH=$PWD/.bin:$PATH helm template apps/root` then a small python check (yaml.safe_load_all) that an AppProject named `infrastructure` has a `spec.destinations` entry with server `https://staging.vcluster-staging.svc:443`. Expected NOW: absent — RED.
+  - id: P2.T1.S2
+    text: |
+      GREEN — edit `apps/root/templates/project.yaml`: add `{server: https://staging.vcluster-staging.svc:443, namespace: '*'}` to `spec.destinations`. Keep the existing in-cluster destination. Re-run the python check → present; `helm template apps/root` exits 0. (The out-of-band cluster credential that makes this server reachable is created later in the manual phase — reference it as a comment in the template.)
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-15T19:58:07+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-15T19:58:07+00:00'
+      note: null
+  completion:
+    at: '2026-06-15T19:58:08+00:00'
+    note: null
+    observed_prs: []
