@@ -71,9 +71,11 @@ commands: |
   # Target the Hop cluster (NOT Frank) before running these.
   # Same bot/chat as falco-telegram (which lives in falco-system; secrets are
   # namespace-scoped, so the canary needs its own copy in crowdsec-system).
-  # Source the values from the existing falco secret rather than retyping:
-  TOKEN=$(kubectl -n falco-system get secret falco-telegram -o jsonpath='{.data.TELEGRAM_TOKEN}' | base64 -d)
-  CHATID=$(kubectl -n falco-system get secret falco-telegram -o jsonpath='{.data.TELEGRAM_CHATID}' | base64 -d)
+  # Source the values from the existing falco secret rather than retyping. tr -d
+  # strips any stray whitespace/newline — a trailing newline 404s the Telegram URL
+  # (the canary strips defensively too, but keep the secret clean).
+  TOKEN=$(kubectl -n falco-system get secret falco-telegram -o jsonpath='{.data.TELEGRAM_TOKEN}' | base64 -d | tr -d '[:space:]')
+  CHATID=$(kubectl -n falco-system get secret falco-telegram -o jsonpath='{.data.TELEGRAM_CHATID}' | base64 -d | tr -d '[:space:]')
   kubectl -n crowdsec-system create secret generic crowdsec-canary-telegram \
     --from-literal=TELEGRAM_TOKEN="$TOKEN" --from-literal=TELEGRAM_CHATID="$CHATID"
 verify: |

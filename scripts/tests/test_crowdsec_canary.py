@@ -134,3 +134,16 @@ def test_build_message_has_no_html_special_chars():
 def test_telegram_notify_skips_when_creds_absent():
     # missing creds → no send, returns False, never raises
     assert canary.telegram_notify(None, None, "hi") is False
+
+
+def test_clean_cred_strips_whitespace_and_newlines():
+    # a trailing newline in a secret would 404 the Telegram URL (caught live 2026-06-21)
+    assert canary._clean_cred("123456:ABCdef\n") == "123456:ABCdef"
+    assert canary._clean_cred("  -1001234567  ") == "-1001234567"
+    assert canary._clean_cred("\n \t") is None
+    assert canary._clean_cred(None) is None
+
+
+def test_telegram_notify_treats_whitespace_only_token_as_absent():
+    # a whitespace-only token must not produce a bot<token>\n/sendMessage 404 — skip instead
+    assert canary.telegram_notify("  \n", "123", "hi") is False
