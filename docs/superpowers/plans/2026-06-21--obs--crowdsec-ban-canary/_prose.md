@@ -53,3 +53,41 @@ acquisition check leans on Frank's ~360/hr blackbox edge probe as a guaranteed t
 
 Per "not Deployed until the workflow runs": phases 1–3 carry guard tests; phase 5's break-injection
 proves the page end-to-end. ArgoCD-green is not proof — the Telegram `message_id`s are.
+
+## Phase 5 — manual operation (operator, post-merge)
+
+The canary deploys and runs heartbeat-only **without** this secret (the env is `optional`); creating
+it only unlocks the direct Telegram page. Back-loaded — no agentic phase depends on it.
+
+```yaml
+# manual-operation
+id: obs-crowdsec-canary-telegram-secret
+layer: obs
+app: crowdsec-canary
+plan: 2026-06-21--obs--crowdsec-ban-canary
+when: After the crowdsec-canary Application syncs; before relying on FAIL pages.
+why_manual: Secret material (Telegram bot token + chat id) — cannot be declarative in git.
+commands: |
+  # Same bot/chat as falco-telegram (which lives in falco-system; secrets are
+  # namespace-scoped, so the canary needs its own copy in crowdsec-system).
+  # Source the values from the existing falco secret rather than retyping:
+  TOKEN=$(kubectl -n falco-system get secret falco-telegram -o jsonpath='{.data.TELEGRAM_TOKEN}' | base64 -d)
+  CHATID=$(kubectl -n falco-system get secret falco-telegram -o jsonpath='{.data.TELEGRAM_CHATID}' | base64 -d)
+  kubectl -n crowdsec-system create secret generic crowdsec-canary-telegram \
+    --from-literal=TELEGRAM_TOKEN="$TOKEN" --from-literal=TELEGRAM_CHATID="$CHATID"
+verify: |
+  # next canary run should NOT log "telegram skipped (no creds)"
+  kubectl -n crowdsec-system logs -l app=crowdsec-ban-canary --tail=20 | grep -i "no creds" && echo "STILL MISSING" || echo "creds present"
+status: pending
+```
+
+### Post-merge Test Plan (operator-driven — ArgoCD-green is not proof)
+
+1. **agent-alive break** → make the agent `/metrics` unreachable (e.g. patch the agent DaemonSet
+   nodeSelector to an impossible label so the pod is removed); wait ~2 canary runs (gate=2);
+   CONFIRM a Telegram FAIL page; capture `message_id`; restore the DaemonSet.
+2. **dead-man's switch** → `kubectl -n crowdsec-system patch cronjob crowdsec-ban-canary -p
+   '{"spec":{"suspend":true}}'`; wait ~20–25 m; CONFIRM the Frank `crowdsec-canary-heartbeat-stale`
+   alert pages Telegram; capture `message_id`; unsuspend.
+3. **steady-state** → confirm `verdict=ok` heartbeats each run in VictoriaLogs and NO false pages
+   over ~30 m. Record the `message_id`s + the VictoriaLogs query; only then mark the layer Deployed.
