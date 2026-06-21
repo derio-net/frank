@@ -1581,7 +1581,7 @@ operations:
   when: After the crowdsec-canary Application syncs; before relying on FAIL pages.
   why_manual: Secret material (Telegram bot token + chat id) — cannot be declarative in git. The canary runs heartbeat-only without it (the env is optional).
   commands:
-  - "# Same bot/chat as falco-telegram (in falco-system; secrets are ns-scoped, so the\n# canary needs its own copy in crowdsec-system). Source from the existing secret:\nTOKEN=$(kubectl -n falco-system get secret falco-telegram -o jsonpath='{.data.TELEGRAM_TOKEN}' | base64 -d)\nCHATID=$(kubectl -n falco-system get secret falco-telegram -o jsonpath='{.data.TELEGRAM_CHATID}' | base64 -d)\nkubectl -n crowdsec-system create secret generic crowdsec-canary-telegram --from-literal=TELEGRAM_TOKEN=\"$TOKEN\" --from-literal=TELEGRAM_CHATID=\"$CHATID\""
+  - "# Target the Hop cluster (NOT Frank) before running these.\n# Same bot/chat as falco-telegram (in falco-system; secrets are ns-scoped, so the\n# canary needs its own copy in crowdsec-system). Source from the existing secret:\nTOKEN=$(kubectl -n falco-system get secret falco-telegram -o jsonpath='{.data.TELEGRAM_TOKEN}' | base64 -d)\nCHATID=$(kubectl -n falco-system get secret falco-telegram -o jsonpath='{.data.TELEGRAM_CHATID}' | base64 -d)\nkubectl -n crowdsec-system create secret generic crowdsec-canary-telegram --from-literal=TELEGRAM_TOKEN=\"$TOKEN\" --from-literal=TELEGRAM_CHATID=\"$CHATID\""
   verify:
   - "kubectl -n crowdsec-system logs -l app=crowdsec-ban-canary --tail=20 | grep -i 'no creds' && echo STILL-MISSING || echo creds-present"
   status: pending

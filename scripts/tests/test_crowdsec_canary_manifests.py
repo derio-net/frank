@@ -47,6 +47,19 @@ def test_telegram_secret_ref_is_optional():
         assert ref.get("optional") is True
 
 
+def test_cronjob_chowns_state_dir_via_init_container():
+    # The hostPath state PV mounts root-owned and kubelet ignores fsGroup for
+    # hostPath, so the non-root canary can't write /state without a root chown.
+    cj = _load(MANIFESTS / "cronjob.yaml")
+    spec = cj["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+    inits = spec.get("initContainers", [])
+    chown = [c for c in inits if "chown" in " ".join(c.get("command", []))]
+    assert chown, "a root init container must chown the hostPath state dir (fsGroup is ignored for hostPath)"
+    c = chown[0]
+    assert c["securityContext"]["runAsUser"] == 0
+    assert any(m["mountPath"] == "/state" for m in c["volumeMounts"])
+
+
 def test_cronjob_mounts_state_and_script():
     cj = _load(MANIFESTS / "cronjob.yaml")
     spec = cj["spec"]["jobTemplate"]["spec"]["template"]["spec"]
