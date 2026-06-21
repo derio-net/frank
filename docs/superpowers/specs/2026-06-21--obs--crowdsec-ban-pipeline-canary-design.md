@@ -88,34 +88,39 @@ Two independent failure detectors, defense-in-depth:
 
 ### The three checks (passive)
 
-The canary scrapes the agent's Prometheus endpoint (`:6060/metrics`, enabled by default in
-CrowdSec `config.yaml`) twice within one run, ~120 s apart, and evaluates deltas. No persistent
-state needed — the deltas are computed in-run.
+**Sampling: persisted cross-run delta (single scrape per run).** Each run scrapes the agent's
+Prometheus endpoint (`:6060/metrics`, enabled by default) **once**, then compares against the
+**previous run's** sample stored on a tiny state volume — the delta is over the ~5 min between runs.
+Chosen over an in-run two-sample window specifically for hop-1's resource budget: the pod runs ~5 s
+and exits (~2 % duty cycle) instead of staying awake ~120 s (~40 %). It also implements the
+**consecutive-fail gate naturally**: the state file carries a fail-counter (reset on OK, increment on
+FAIL); the canary pages only when it reaches **2**. First run after a state reset has no previous
+sample → it bootstraps (stores the sample, verdict `ok`, no page).
 
 **Metric names pinned against the live agent (`v1.7.8`, 2026-06-21) — the agent does NOT expose
 `cs_reader_hits_total`/`cs_parser_hits_total` rates or any `cs_lapi_*`; use the families below:**
 
 | Check | Signal | FAIL when | Catches |
 |-------|--------|-----------|---------|
-| **Acquisition live** | `cs_filesource_hits_total{source="…caddy…log"}` (lines read from the file) | delta == 0 over the window | rotation-blindness (#594) |
+| **Acquisition live** | `cs_filesource_hits_total{source="…caddy…log"}` (lines read from the file) | delta == 0 over the ~5-min cross-run interval | rotation-blindness (#594) |
 | **Parsing live** | `cs_node_hits_ok_total{name="crowdsecurity/caddy-logs"}` (the parsed-as-Caddy count) | delta == 0 **while** `cs_filesource_hits_total` delta > 0 | wrong runtime (docker → all unparsed: caddy-logs `ok` frozen, `cs_node_hits_ko_total` climbs) |
 | **Agent alive** | agent `:6060/metrics` returns HTTP 200 with `cs_` series | scrape fails / empty | lost persistence (#583): a not-registered agent crashloops → no metrics |
 
 The agent has no `cs_lapi_*`, so "agent↔LAPI connected" collapses to "is `/metrics` scrapable at all" —
 a #583 crashloop (machine-not-found) produces no metrics endpoint, which the alive-check catches.
 
-**Why the 120 s in-run window is enough (no quiet-period false positive):** Frank's own blackbox
+**Why a frozen counter is unambiguous (no quiet-period false positive):** Frank's own blackbox
 uptime probe hits the public blog edge **~360/hr (~6/min)** via the home egress IP
 (`Frank-Blackbox-Probe`, documented in `obs-digest.md`). So Caddy is *never* idle — a healthy
-acquisition counter advances by ≳10 over 120 s. A frozen counter is therefore unambiguous, with no
-separate "is there traffic?" query.
+acquisition counter advances by ≳30 over the ~5-min interval. A frozen counter is therefore
+unambiguous, with no separate "is there traffic?" query.
 **Cross-ref hazard:** this assumption is load-bearing. If the blackbox probe is ever retired or
 re-pointed, this canary loses its guaranteed traffic floor and the acquisition check could
 false-positive in a genuinely idle window. Add a reciprocal comment in the blackbox-exporter config
 and in `obs-digest.md`.
 
-**False-positive guard:** require **2 consecutive failed runs** (or in-run re-sampling) before
-paging, so a one-off 120 s network blip doesn't page. The heartbeat is still emitted every run.
+**False-positive guard:** page only after **2 consecutive failed runs** (the persisted fail-counter,
+~10 min), so a one-off scrape blip doesn't page. The heartbeat is still emitted every run regardless.
 
 ### Signalling
 
@@ -138,17 +143,26 @@ values ref, no raw-manifests path), so raw CronJob manifests have no natural hom
 bolting on a second ArgoCD source. A small sibling Application (`clusters/hop/apps/root/templates/
 crowdsec-canary.yaml` → `path: clusters/hop/apps/crowdsec-canary/manifests`) is the conventional fit
 and lets the canary be suspended/synced/tested independently of the pipeline it watches.
-**Duty-cycle note (constrained node):** the 120 s two-sample window means the pod is awake ~40 % of
-each interval. That's fine for a tiny curl/jq pod on hop-1, but if it ever matters the documented
-fallback is a single-sample + persisted-delta variant (state on a small PV → pod runs ~5 s/run).
+**Duty-cycle note (constrained node):** the persisted-delta design keeps the pod awake ~5 s/run
+(~2 % duty cycle), chosen for hop-1's budget over the ~40 % of an in-run 120 s window.
 
 New, under `clusters/hop/apps/crowdsec-canary/manifests/`:
 - `cronjob-ban-canary.yaml` — `*/5 * * * *`, `concurrencyPolicy: Forbid`, restartPolicy `Never`,
   small resources. Image: a **stock, digest-pinned `python:3-alpine`** — no custom build. Python
   stdlib does the HTTP scrape, Prometheus-text parse, and Telegram POST, so there's no Dockerfile /
   CI / bump-image machinery. Falco `EXE_UPPER_LAYER` only fires on *runtime* installs; a stock
-  baked image with the script mounted from a ConfigMap is fine (no `apk add`).
-- `canary.py` in a ConfigMap (mounted, run by the stock python image) — the scrape/eval/page logic.
+  baked image with the script mounted from a ConfigMap is fine (no `apk add`). Mounts the state PV
+  (below) at e.g. `/state`.
+- `canary.py` in a ConfigMap (mounted, run by the stock python image) — scrape → parse →
+  compare-to-prev-sample → eval → persist {sample, fail-counter} → page-on-2nd-fail / heartbeat.
+  **Telegram creds are optional**: if the secret is absent, the canary still scrapes, evaluates, and
+  emits the heartbeat — it just skips the direct page (so the CronJob is healthy *before* the manual
+  secret phase; the secret only unlocks paging). Env via `secretKeyRef … optional: true`.
+- A small **state PV** for the persisted sample + fail-counter — a static `hostPath`
+  (`DirectoryOrCreate`, subdir of the already-attached Hetzner Volume `/var/mnt/hop-data/…`, pinned
+  to `hop-1`), mirroring the crowdsec LAPI persistence pattern (`clusters/hop/apps/storage/manifests/`),
+  bound to a `crowdsec-canary-state-pvc` via `claimRef`, `storageClassName: hetzner-volume`
+  (MANDATORY — no default SC). State loss → the canary bootstraps (no false page).
 - A **dedicated `crowdsec-canary-telegram` Secret in `crowdsec-system`** (`TELEGRAM_TOKEN` +
   `TELEGRAM_CHATID`). `falco-telegram` lives in `falco-system` and Secrets are namespace-scoped, so
   the canary can't reference it cross-namespace. Created out-of-band (Hop = plain `kubectl create
@@ -171,9 +185,9 @@ Guard tests (`scripts/tests/`, the local pytest pattern alongside the existing
 
 | Param | Default | Note |
 |-------|---------|------|
-| Canary cadence | `*/5 * * * *` | every 5 min |
-| In-run freeze window | ~120 s, 2 samples | blackbox floor → ≳10 expected reader hits |
-| Consecutive fails before page | 2 | blip suppression |
+| Canary cadence | `*/5 * * * *` | every 5 min; also the cross-run delta interval |
+| Delta interval | ~5 min (= cadence) | blackbox floor → ≳30 expected filesource hits |
+| Consecutive fails before page | 2 (persisted counter) | blip suppression; ~10 min to page |
 | Dead-man's-switch staleness | 20 min | ~4 missed runs |
 
 ## Failure-mode coverage
