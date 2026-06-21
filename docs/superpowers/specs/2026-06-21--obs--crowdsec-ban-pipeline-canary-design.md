@@ -92,11 +92,17 @@ The canary scrapes the agent's Prometheus endpoint (`:6060/metrics`, enabled by 
 CrowdSec `config.yaml`) twice within one run, ~120 s apart, and evaluates deltas. No persistent
 state needed — the deltas are computed in-run.
 
+**Metric names pinned against the live agent (`v1.7.8`, 2026-06-21) — the agent does NOT expose
+`cs_reader_hits_total`/`cs_parser_hits_total` rates or any `cs_lapi_*`; use the families below:**
+
 | Check | Signal | FAIL when | Catches |
 |-------|--------|-----------|---------|
-| **Acquisition live** | `cs_reader_hits_total{source="file:…caddy…log"}` | delta == 0 over the window | rotation-blindness (#594) |
-| **Parsing live** | `cs_parser_hits_total` (or `cs_node_hits_ok_total`) for caddy-logs | parsed delta == 0 **while** reader delta > 0 | wrong runtime (docker) |
-| **Agent↔LAPI connected** | agent `/metrics` reachable **and** `cs_lapi_*` request metrics show success | metrics unreachable (agent crashloop) or LAPI calls all erroring | lost persistence (#583) |
+| **Acquisition live** | `cs_filesource_hits_total{source="…caddy…log"}` (lines read from the file) | delta == 0 over the window | rotation-blindness (#594) |
+| **Parsing live** | `cs_node_hits_ok_total{name="crowdsecurity/caddy-logs"}` (the parsed-as-Caddy count) | delta == 0 **while** `cs_filesource_hits_total` delta > 0 | wrong runtime (docker → all unparsed: caddy-logs `ok` frozen, `cs_node_hits_ko_total` climbs) |
+| **Agent alive** | agent `:6060/metrics` returns HTTP 200 with `cs_` series | scrape fails / empty | lost persistence (#583): a not-registered agent crashloops → no metrics |
+
+The agent has no `cs_lapi_*`, so "agent↔LAPI connected" collapses to "is `/metrics` scrapable at all" —
+a #583 crashloop (machine-not-found) produces no metrics endpoint, which the alive-check catches.
 
 **Why the 120 s in-run window is enough (no quiet-period false positive):** Frank's own blackbox
 uptime probe hits the public blog edge **~360/hr (~6/min)** via the home egress IP
@@ -138,11 +144,15 @@ fallback is a single-sample + persisted-delta variant (state on a small PV → p
 
 New, under `clusters/hop/apps/crowdsec-canary/manifests/`:
 - `cronjob-ban-canary.yaml` — `*/5 * * * *`, `concurrencyPolicy: Forbid`, restartPolicy `Never`,
-  small resources. Image: a minimal `curl`+`jq` (or `python:slim`) image; **digest-pinned**, baked,
-  not `apk add` at runtime (Falco `EXE_UPPER_LAYER` Critical — `hop-gotchas.md`).
-- `canary.sh` (or `.py`) in a ConfigMap — the scrape/eval/page logic.
-- Reuse the existing `falco-telegram` Secret (already in a Hop namespace — confirm namespace, or
-  mirror it into `crowdsec-system` via the existing secret-management path).
+  small resources. Image: a **stock, digest-pinned `python:3-alpine`** — no custom build. Python
+  stdlib does the HTTP scrape, Prometheus-text parse, and Telegram POST, so there's no Dockerfile /
+  CI / bump-image machinery. Falco `EXE_UPPER_LAYER` only fires on *runtime* installs; a stock
+  baked image with the script mounted from a ConfigMap is fine (no `apk add`).
+- `canary.py` in a ConfigMap (mounted, run by the stock python image) — the scrape/eval/page logic.
+- A **dedicated `crowdsec-canary-telegram` Secret in `crowdsec-system`** (`TELEGRAM_TOKEN` +
+  `TELEGRAM_CHATID`). `falco-telegram` lives in `falco-system` and Secrets are namespace-scoped, so
+  the canary can't reference it cross-namespace. Created out-of-band (Hop = plain `kubectl create
+  secret`, per repo-principles) as a **back-loaded manual-op** — same Telegram bot/chat as falco.
 
 New, under `apps/grafana-alerting/manifests/` (Frank):
 - A VictoriaLogs-backed alert rule in `alert-rules-cm.yaml`: dead-man's switch on the heartbeat
@@ -188,17 +198,23 @@ real break** and observe a page — ArgoCD-green is not proof:
    later; resume.
 Capture the Telegram `message_id`s as evidence.
 
-## Open questions / risks
+## Open questions / risks — RESOLVED (2026-06-21, live)
 
-- **`falco-telegram` secret namespace.** Confirm where it lives; if not in `crowdsec-system`, decide
-  mirror-via-secret-management vs a dedicated canary secret.
-- **fluent-bit capture scope.** Confirm `crowdsec-system` container stdout is shipped to
-  VictoriaLogs (it should be — CrowdSec logs already are), else the heartbeat never reaches Frank.
-- **CrowdSec metric names** (`cs_reader_hits_total`, `cs_parser_hits_total`, `cs_lapi_*`) — pin
-  against the live `:6060/metrics` of the running agent during planning; CrowdSec has renamed
-  metrics across versions.
-- **Image choice** — smallest pinned image that has `curl`+`jq` (or stdlib python) and can reach
-  both the agent metrics port and the Telegram API.
+- ✅ **`falco-telegram` secret namespace** — it's in `falco-system`. Secrets are namespace-scoped →
+  a **dedicated `crowdsec-canary-telegram` Secret in `crowdsec-system`** (back-loaded manual-op).
+- ✅ **fluent-bit capture scope** — fluent-bit tails `/var/log/containers/*.log` across ALL
+  namespaces (`kube.*`) and pushes to VictoriaLogs with `kubernetes.namespace_name`/`pod_name`
+  fields, `_msg_field=msg`. The canary's stdout (in `crowdsec-system`) reaches Frank. The Frank
+  dead-man's-switch LogsQL keys on `kubernetes.namespace_name:crowdsec-system` +
+  `kubernetes.pod_name:crowdsec-ban-canary*` + the `verdict=` heartbeat marker.
+- ✅ **CrowdSec metric names** — pinned live: `cs_filesource_hits_total` (read),
+  `cs_node_hits_ok_total{name="crowdsecurity/caddy-logs"}` (parsed), `cs_node_hits_ko_total`
+  (unparsed). No `cs_reader_hits_total`/`cs_parser_hits_total` rate, no agent-side `cs_lapi_*`.
+- ✅ **Image** — stock digest-pinned `python:3-alpine`, script from ConfigMap, no custom build.
+
+Remaining risk: pin the **exact `python:3-alpine` digest** at implementation time, and re-confirm
+`cs_filesource_hits_total` is present on whatever agent version is live at deploy (re-scrape
+`:6060/metrics`).
 
 ## Future work
 
