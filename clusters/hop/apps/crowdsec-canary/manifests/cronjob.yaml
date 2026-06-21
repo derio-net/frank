@@ -28,6 +28,33 @@ spec:
             fsGroupChangePolicy: OnRootMismatch
             seccompProfile:
               type: RuntimeDefault
+          initContainers:
+            # kubelet creates the hostPath state dir root-owned and does NOT apply
+            # fsGroup to hostPath volumes (they're excluded from SetVolumeOwnership),
+            # so the non-root canary (uid 65532) can't write /state. A root init
+            # container chowns it — same pattern as the AWX postgres volume-init.
+            # crowdsec-system is PodSecurity `privileged`, so root here is allowed.
+            - name: state-perms
+              image: python:3.13-alpine@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "-c", "chown -R 65532:65532 /state"]
+              securityContext:
+                runAsNonRoot: false
+                runAsUser: 0
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+                  add: ["CHOWN"]
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+                limits:
+                  memory: 32Mi
+              volumeMounts:
+                - name: state
+                  mountPath: /state
           containers:
             - name: canary
               # Stock, digest-pinned python — stdlib does scrape + parse + Telegram POST,
