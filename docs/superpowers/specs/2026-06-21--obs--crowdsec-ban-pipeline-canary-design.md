@@ -124,8 +124,19 @@ paging, so a one-off 120 s network blip doesn't page. The heartbeat is still emi
 
 ## Components & files
 
-New, under `clusters/hop/apps/crowdsec/manifests/` (raw manifests added to the existing crowdsec
-Application's source, or a sibling `crowdsec-canary` app — decide at plan time):
+**App structure (settled): a sibling `crowdsec-canary` Application**, not folded into the crowdsec
+app. Rationale: the canary pod is a `CronJob` — its resource cost (one small short-lived pod every
+5 min) is identical whether it's a separate Application or folded in, so this is an ergonomics
+decision, not a resource one. The crowdsec Application is a **pure Helm-chart source** (chart +
+values ref, no raw-manifests path), so raw CronJob manifests have no natural home inside it without
+bolting on a second ArgoCD source. A small sibling Application (`clusters/hop/apps/root/templates/
+crowdsec-canary.yaml` → `path: clusters/hop/apps/crowdsec-canary/manifests`) is the conventional fit
+and lets the canary be suspended/synced/tested independently of the pipeline it watches.
+**Duty-cycle note (constrained node):** the 120 s two-sample window means the pod is awake ~40 % of
+each interval. That's fine for a tiny curl/jq pod on hop-1, but if it ever matters the documented
+fallback is a single-sample + persisted-delta variant (state on a small PV → pod runs ~5 s/run).
+
+New, under `clusters/hop/apps/crowdsec-canary/manifests/`:
 - `cronjob-ban-canary.yaml` — `*/5 * * * *`, `concurrencyPolicy: Forbid`, restartPolicy `Never`,
   small resources. Image: a minimal `curl`+`jq` (or `python:slim`) image; **digest-pinned**, baked,
   not `apk add` at runtime (Falco `EXE_UPPER_LAYER` Critical — `hop-gotchas.md`).
