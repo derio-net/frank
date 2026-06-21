@@ -141,3 +141,62 @@ increase(node_network_carrier_changes_total{device=~"en.*|eth.*"}[30m]) > 6
 ```
 
 The 30m window catches *sustained* flapping (≥6 changes/30m) while staying reboot/replug-safe: `increase()` is counter-reset-aware, so a reboot (~1 boot link-up) and a cable replug (≤2) stay under the threshold. A node-down alert would also help if it triggered faster, but the flap-rate rule is the precise catch — it fires once flapping is sustained, well before a full storm severs connectivity. (A *truly* sparse fault — one flap per ~10 min — stays under threshold by design; no rate threshold can catch that without also flagging routine reboots.)
+
+## External-edge death: re-front orphaned `*.frank.derio.net` names on in-cluster Traefik
+
+When the **external edge** that fronts a domain dies (2026-06-20: the frank-omni Pi 5 — it was Omni + the Docker-Traefik edge + the cert-minter for `*.frank.derio.net`; see `omni.md`), the in-cluster Traefik (`192.168.55.220`) can take the orphaned names over with **zero consumer edits** — the apps hard-code their `*.frank.derio.net` hostnames (Grafana `root_url`, OAuth `redirect_uris`, the kube-apiserver `oidc-issuer-url`, `AUTHENTIK_HOST`) and those resolve by *name*, not by pod.
+
+### Symptom
+
+`*.frank.derio.net` resolves to the in-cluster Traefik LB (`.220`) but the browser gets **`ERR_CERT_AUTHORITY_INVALID`**, and — because the `security-headers` middleware sets **HSTS with `includeSubDomains`** — it's a **hard block with no "proceed" button** (not a normal click-through cert warning). The tell:
+
+```bash
+echo | openssl s_client -connect 192.168.55.220:443 -servername <name>.frank.derio.net 2>/dev/null \
+  | openssl x509 -noout -subject
+# subject=CN=TRAEFIK DEFAULT CERT   ← Traefik got the SNI but has NO IngressRoute for that Host,
+#                                     so it served its self-signed fallback cert.
+```
+
+### Fix — an IngressRoute mirroring the `.cluster` twin
+
+For each orphaned name, add an `IngressRoute` to `apps/traefik/manifests/ingressroutes.yaml` that **mirrors its working `*.cluster.derio.net` counterpart** (same backend `service`, same `entryPoints`), matches `Host(`<name>.frank.derio.net`)`, and serves a `*.frank.derio.net` cert. ArgoCD (the only surviving apply path while Omni is down) syncs it, and **Traefik re-mints the cert itself** via its existing Cloudflare DNS-01 resolver — the `CF_DNS_API_TOKEN` is scoped to the whole `derio.net` zone, so it issues `frank.` certs exactly as it does `cluster.` ones (DNS-01 only needs a TXT in the zone, no public reachability). One `*.frank.derio.net` wildcard cert covers all of them.
+
+```yaml
+    - match: Host(`grafana.frank.derio.net`)
+      kind: Rule
+      middlewares:                      # see the forward-auth trap below
+        - name: ip-allowlist
+        - name: security-headers
+      services:
+        - name: victoria-metrics-grafana
+          namespace: monitoring
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.frank.derio.net"
+```
+
+`auth.frank.derio.net` additionally needs an operator **DNS flip `.10 → .220`** (it was a dedicated A record at the dead Pi); the other legacy names already resolve to `.220`.
+
+### The forward-auth `.frank` 404 trap
+
+Do **not** blindly copy the `authentik-forwardauth` middleware from the `.cluster` route. Authentik's proxy providers are registered with `external_host: *.cluster.derio.net`, so the forward-auth check **404s on the `.frank` host** — and the 404 comes **from Authentik** (`x-powered-by: authentik`, `x-authentik-id` on the response), not from Traefik or the backend. Authentik simply has no application matching that Host. Adding `.frank` to the providers needs a blueprint `external_host` change **plus** the manual outpost-assignment ORM step, which needs `kubectl exec` (unavailable while Omni is down).
+
+Split by whether the backend **self-authenticates**:
+
+- **Auth-less UIs** (`longhorn-frontend`, `hubble-ui`) genuinely need the gate → **keep** `authentik-forwardauth`. (These work on `.frank` only because their providers happen to carry a legacy `.frank` redirect URI; you'll see a clean `302 → auth.frank.derio.net/.../authorize`.)
+- **Self-authing apps** (Grafana OAuth, Infisical, Paperclip better-auth, n8n owner account) never needed it → **drop** `authentik-forwardauth` from their `.frank` route. They fall back to native login, still behind the LAN-only `ip-allowlist`. This drops the SSO *gate* on `.frank` for the outage window (native login + LAN-only instead); restore it when the edge returns.
+
+### Verify
+
+```bash
+# valid cert + reaches the backend (NOT TRAEFIK DEFAULT CERT, NOT Authentik):
+curl -sS -m10 https://<name>.frank.derio.net/ -o /dev/null -w 'http=%{http_code} ssl_verify=%{ssl_verify_result}\n'
+echo | openssl s_client -connect 192.168.55.220:443 -servername <name>.frank.derio.net 2>/dev/null \
+  | openssl x509 -noout -subject -issuer -enddate
+# who answers — the backend (good) vs 'x-powered-by: authentik' (forward-auth still intercepting):
+curl -sS -m10 -D- https://<name>.frank.derio.net/ -o /dev/null | grep -iE '^HTTP|x-powered-by|^location'
+```
+
+**TEMPORARY** — these routes are commented as such in the manifest. Revert when the replacement edge (the Proxmox/Omni rebuild, `omni.md`) restores the original front door, or fold the names into the `frank.derio.net` retirement (`docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md`). Incident: #590 (auth) / #591 (8 services) / #592 (forward-auth split), 2026-06-20.
