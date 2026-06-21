@@ -1,0 +1,66 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Hop manifests, state PV + ArgoCD Application
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: State PV + PVC
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Add `clusters/hop/apps/storage/manifests/pv-crowdsec-canary-state.yaml` — a static hostPath PV (type DirectoryOrCreate, path /var/mnt/hop-data/crowdsec-canary on the Hetzner volume, nodeAffinity pinned to hop-1, storageClassName: hetzner-volume, capacity ~16Mi, accessModes ReadWriteOnce, claimRef → crowdsec-system/ crowdsec-canary-state-pvc), mirroring pv-crowdsec-data.yaml.
+  - id: P2.T1.S2
+    text: |
+      Add the matching `crowdsec-canary-state-pvc` PVC (storageClassName: hetzner-volume, 1 PV match) in the canary manifests dir.
+- number: 2
+  title: CronJob + script ConfigMap (kustomize)
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Create `clusters/hop/apps/crowdsec-canary/manifests/kustomization.yaml` with a configMapGenerator (name: crowdsec-ban-canary-script, files: [../canary.py]) so the script file stays the single testable source; resources list the CronJob + PVC + namespace ref. (Confirm canary.py path relative to the manifests dir.)
+  - id: P2.T2.S2
+    text: |
+      Add `cronjob-ban-canary.yaml`: schedule `*/5 * * * *`, concurrencyPolicy: Forbid, successfulJobsHistoryLimit/failedJobsHistoryLimit small, jobTemplate restartPolicy Never, container image stock digest-pinned `python:3-alpine@sha256:...` (pin the current digest), command `python /app/canary.py`, mounts: script ConfigMap at /app, state PVC at /state; env METRICS_URL, FAIL_THRESHOLD=2, and TELEGRAM_TOKEN/CHATID via secretKeyRef name=crowdsec-canary-telegram OPTIONAL true; securityContext non-root + fsGroup for the state PV; small resources (e.g. 25m/32Mi req).
+- number: 3
+  title: ArgoCD Application + guard test
+  steps:
+  - id: P2.T3.S1
+    text: |
+      Add `clusters/hop/apps/root/templates/crowdsec-canary.yaml` Application: project hop-infrastructure, source path clusters/hop/apps/crowdsec-canary/manifests (kustomize auto-detected), destination namespace crowdsec-system, syncPolicy automated prune:true selfHeal:true, syncOptions ServerSideApply=true. Mirror an existing Hop raw-manifests Application template.
+  - id: P2.T3.S2
+    text: |
+      Write `scripts/tests/test_crowdsec_canary_manifests.py`: assert the CronJob schedule is */5, concurrencyPolicy==Forbid, restartPolicy==Never, the image is digest-pinned (contains '@sha256:', not ':latest'), the telegram secretKeyRef is optional:true, and the state PVC + PV use storageClassName hetzner-volume with a hop-1 claimRef. Run `pytest scripts/tests/test_crowdsec_canary_manifests.py -q` → GREEN. (If kustomize is installed, also assert `kustomize build` of the manifests dir succeeds.)
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-06-21T08:46:39+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-06-21T08:46:40+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-06-21T08:46:41+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-06-21T08:46:42+00:00'
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: '2026-06-21T08:46:43+00:00'
+      note: null
+    P2.T3.S2:
+      state: x
+      ticked_at: '2026-06-21T08:46:44+00:00'
+      note: null
+  completion:
+    at: '2026-06-21T08:46:45+00:00'
+    note: manifests + PV + app; 20 tests green; kustomize build verified CM hash-rewrite
+    observed_prs: []

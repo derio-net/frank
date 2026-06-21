@@ -128,6 +128,14 @@ The false page had three compounding causes, each now fixed:
    spoofer and is semantically wrong. The two strings are coupled across repos;
    a Python pinning test + cross-ref comments guard the drift.
 
+   > **Reciprocal dependency (2026-06-21):** the **CrowdSec ban-pipeline canary**
+   > (`clusters/hop/apps/crowdsec-canary/`, `hop-gotchas.md`) RELIES on this
+   > ~360/hr probe as a guaranteed Caddy traffic floor — it's why "CrowdSec read
+   > zero lines in 5 min" is read as *broken* rather than *idle*. If this probe is
+   > ever retired or re-pointed away from `blog.derio.net`, the canary's
+   > acquisition check can false-positive in a genuinely quiet window. Keep the
+   > two in sync (this note ↔ the canary's acquisition check).
+
 3. **The documented GoatCounter cross-check was never implemented.** A `Major`
    edge tier must be confirmed by real visitors before paging. **Fix:**
    `/surge-check` calls `facts.surge_visitor_pageviews(start, end)`:

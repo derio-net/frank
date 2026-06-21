@@ -1,0 +1,90 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: crowdsec-ban-canary
+  namespace: crowdsec-system
+spec:
+  schedule: "*/5 * * * *"
+  # One run at a time; never overlap a slow run with the next tick.
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 60
+      template:
+        metadata:
+          labels:
+            app: crowdsec-ban-canary
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            fsGroupChangePolicy: OnRootMismatch
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: canary
+              # Stock, digest-pinned python — stdlib does scrape + parse + Telegram POST,
+              # so there is NO custom image / Dockerfile / CI. (python:3.13-alpine)
+              image: python:3.13-alpine@sha256:399babc8b49529dabfd9c922f2b5eea81d611e4512e3ed250d75bd2e7683f4b0
+              imagePullPolicy: IfNotPresent
+              command: ["python3", "/app/canary.py"]
+              env:
+                - name: METRICS_URL
+                  value: "http://crowdsec-agent-service.crowdsec-system:6060/metrics"
+                - name: STATE_DIR
+                  value: "/state"
+                - name: FAIL_THRESHOLD
+                  value: "2"
+                - name: PYTHONDONTWRITEBYTECODE
+                  value: "1"
+                # Telegram creds are OPTIONAL — absent => heartbeat-only (CronJob healthy
+                # before the back-loaded manual secret phase). Secret lives in THIS namespace
+                # (falco-telegram is in falco-system; secrets are namespace-scoped).
+                - name: TELEGRAM_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: crowdsec-canary-telegram
+                      key: TELEGRAM_TOKEN
+                      optional: true
+                - name: TELEGRAM_CHATID
+                  valueFrom:
+                    secretKeyRef:
+                      name: crowdsec-canary-telegram
+                      key: TELEGRAM_CHATID
+                      optional: true
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 32Mi
+                limits:
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: script
+                  mountPath: /app
+                  readOnly: true
+                - name: state
+                  mountPath: /state
+                - name: tmp
+                  mountPath: /tmp
+          volumes:
+            - name: script
+              configMap:
+                # kustomize rewrites this to the hash-suffixed generated name.
+                name: crowdsec-ban-canary-script
+            - name: state
+              persistentVolumeClaim:
+                claimName: crowdsec-canary-state-pvc
+            - name: tmp
+              emptyDir: {}

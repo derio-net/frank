@@ -1,0 +1,50 @@
+schema_version: 2
+phase:
+  number: 5
+  title: '[manual] Telegram secret + post-merge acceptance test'
+  tag: manual
+  depends_on:
+  - 2
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create the canary Telegram secret (manual-operation)
+  steps:
+  - id: P5.T1.S1
+    text: |
+      # manual-operation — create the dedicated Telegram secret in crowdsec-system (same bot token + chat id as falco-telegram, which lives in falco-system; secrets are namespace-scoped so it must be duplicated). Capture as a # manual-operation YAML block (id, layer obs, app crowdsec-canary, when "before first successful page", why_manual "secret material", commands `kubectl -n crowdsec-system create secret generic crowdsec-canary-telegram --from-literal=TELEGRAM_TOKEN=... --from-literal= TELEGRAM_CHATID=...`, verify the next canary run logs creds-present, status pending) and sync via /sync-runbook.
+- number: 2
+  title: Post-merge end-to-end acceptance test (operator-driven)
+  steps:
+  - id: P5.T2.S1
+    text: |
+      Break-injection 1 (acquisition/agent-alive): `kubectl -n crowdsec-system scale deploy/daemonset` is N/A (agent is a DaemonSet) — instead cordon/suspend the agent (e.g. patch the DaemonSet nodeSelector to an impossible label, or delete the agent pod and pause) so /metrics is unreachable; wait ~2 canary runs; CONFIRM a Telegram FAIL page (capture message_id); restore the agent.
+  - id: P5.T2.S2
+    text: |
+      Break-injection 2 (dead-man's switch): `kubectl -n crowdsec-system patch cronjob crowdsec-ban-canary -p '{"spec":{"suspend":true}}'`; wait ~20m; CONFIRM the Frank Grafana `crowdsec-canary-heartbeat-stale` alert fires to Telegram (capture message_id); unsuspend.
+  - id: P5.T2.S3
+    text: |
+      Healthy steady-state: confirm `verdict=ok` heartbeats appear in VictoriaLogs each run and no spurious pages over ~30m. Record message_ids + the VictoriaLogs query as the end-to-end evidence; only then mark the layer Deployed.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

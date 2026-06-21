@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: crowdsec-canary-state-pvc
+  namespace: crowdsec-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  # MANDATORY on Hop — no default StorageClass, so an unset class hangs Pending forever.
+  storageClassName: hetzner-volume
+  volumeName: crowdsec-canary-state
+  resources:
+    requests:
+      storage: 16Mi
