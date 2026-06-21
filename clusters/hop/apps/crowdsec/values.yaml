@@ -73,6 +73,19 @@ agent:
     - namespace: caddy-system
       podName: caddy-*
       program: caddy
+      # The /var/log/containers/*.log paths are SYMLINKS to the kubelet's
+      # per-container log; the kubelet rotates that log by SIZE
+      # (containerLogMaxSize) WITHOUT restarting the pod. The chart hardcodes
+      # `force_inotify: true` and defaults `poll_without_inotify: false`, so the
+      # tailer watches the resolved inode via inotify and CANNOT follow a
+      # rotation — it hangs in "Waiting for ... to appear" and parses zero lines
+      # (agent Running, ArgoCD green, NOTHING banned). It went blind ~19h on
+      # 2026-06-20. `poll_without_inotify: true` switches the per-file tailer to
+      # stat-based polling, which detects rotation/truncation and re-attaches —
+      # exactly what the agent's own startup warning recommends. It is the only
+      # chart-overridable lever (force_inotify is hardcoded but orthogonal).
+      # Guarded by scripts/tests/test_crowdsec_log_rotation_poll.py.
+      poll_without_inotify: true
   env:
     # Same collections on the agent that tails the Caddy logs.
     - name: COLLECTIONS
