@@ -1,0 +1,32 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Frank dead-man's-switch alert (heartbeat staleness)
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: VictoriaLogs heartbeat-staleness alert rule
+  steps:
+  - id: P3.T1.S1
+    text: |
+      In `apps/grafana-alerting/manifests/alert-rules-cm.yaml` add a VictoriaLogs-backed Grafana alert rule `crowdsec-canary-heartbeat-stale`: LogsQL counting `kubernetes.namespace_name:crowdsec-system kubernetes.pod_name:crowdsec-ban-canary* "crowdsec-ban-canary verdict="` over the last ~20m; fire (for: a few min) when the count is 0. Use model.queryType: stats (wide-series requirement — grafana.md), the 3-step SSE A→B→C shape used by the other VictoriaLogs rules, severity critical, github_issue label per the layer convention, and route to the Telegram contact (uid efi04e0201jb4f). Keep < > & out of summary/runbook (HTML-400 trap).
+  - id: P3.T1.S2
+    text: |
+      Validate the rule renders: confirm YAML parses and the rule group matches the existing file's structure (no schema break). If a local alert-rule validation/test exists (e.g. a scripts/tests check or `node scripts/validate-*`), run it; else assert via a small pytest that the new rule uid/title exists and queryType==stats.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

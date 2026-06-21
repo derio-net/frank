@@ -8,6 +8,12 @@
 docker→containerd runtime, inotify→poll log-rotation blindness (#594). Debugging log:
 `docs/superpowers/debugging/2026-06-21-crowdsec-log-rotation-blind.md`.
 
+## Implementation Plans
+
+| Plan | Target repo | Slug | Status |
+|------|-------------|------|--------|
+| 2026-06-21--obs--crowdsec-ban-canary | `derio-net/frank` | `2026-06-21--obs--crowdsec-ban-canary` | — |
+
 ## Problem
 
 The Hop CrowdSec ban pipeline has failed **silently** three times in three days. Each time the
@@ -62,10 +68,10 @@ connected to LAPI**. A canary watching those signatures would have caught all th
                           Hop cluster (crowdsec-system)
   ┌─────────────────────────────────────────────────────────────┐
   │  CronJob crowdsec-ban-canary  (*/5 * * * *)                  │
-  │   1. scrape agent /metrics (+ a 2nd sample after ~120s)     │
+  │   1. scrape agent /metrics ONCE; delta vs prev-run sample   │
   │   2. evaluate 3 checks (read-advancing, parse-advancing,    │
-  │      agent↔LAPI-connected)                                  │
-  │   3a. on FAIL → POST Telegram directly (falco-telegram)  ───┼──► Telegram  (fast,
+  │      agent-alive); persist sample + fail-counter            │
+  │   3a. 2nd consecutive FAIL → POST Telegram (canary secret)──┼──► Telegram  (fast,
   │   3b. always → print structured heartbeat line to stdout    │      log-path-independent)
   └───────────────┬─────────────────────────────────────────────┘
                   │ stdout (verdict=ok|fail …)

@@ -1,0 +1,41 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Docs — gotchas, cross-refs, operating note
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Gotchas + reciprocal cross-refs
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Add a one-liner to `agents/rules/hop-gotchas.md` (CrowdSec section) describing the ban-pipeline canary: what it watches (filesource/caddy-parsed deltas + agent-alive), the persisted-delta+gate=2 design, direct-Telegram on fail, and the Frank dead-man's switch. Cross-link the spec + debugging log.
+  - id: P4.T1.S2
+    text: |
+      Add the reciprocal blackbox-floor note: in the blackbox-exporter config/comments and `docs/runbooks/frank-gotchas/obs-digest.md`, note that the CrowdSec canary's acquisition check DEPENDS on the ~360/hr blog-edge probe traffic floor — retiring/ re-pointing the probe would make the canary false-positive in idle windows. Keep the two cross-refs in sync (both directions).
+  - id: P4.T1.S3
+    text: |
+      Add a short operating note (operating series / runbook) on the canary: how to read its heartbeat in VictoriaLogs, how to suspend it (`kubectl -n crowdsec-system patch cronjob crowdsec-ban-canary -p '{"spec":{"suspend":true}}'`), and what a fail page means + first triage steps (re-scrape agent metrics, check filesource vs caddy delta).
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

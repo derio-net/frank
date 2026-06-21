@@ -1,0 +1,76 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Canary eval logic + unit tests (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Write failing unit tests with Prometheus-text fixtures
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Create fixtures `scripts/tests/fixtures/crowdsec_canary/`: four Prometheus-text snippets modelling agent `:6060/metrics` samples — `healthy_a.txt`/`healthy_b.txt` (filesource +~30, caddy-logs ok +~28 between A and B), `frozen_acq_a/b.txt` (cs_filesource_hits_total identical → delta 0), `parse_broken_a/b.txt` (filesource +~30 but cs_node_hits_ok_total{name="crowdsecurity/caddy-logs"} delta 0 while cs_node_hits_ko_total climbs), and `empty.txt` (agent-down: no cs_ series). Use the REAL label shapes captured live (acquis_type="containerd", source="/var/log/ containers/caddy-...log", name=..., stage=...).
+  - id: P1.T1.S2
+    text: |
+      Write `scripts/tests/test_crowdsec_canary.py` importing the not-yet-written `clusters/hop/apps/crowdsec-canary/canary.py` via importlib (path import). Assert: parse_metrics() extracts cs_filesource_hits_total + cs_node_hits_ok_total by label; extract_signals() yields {filesource, caddy_parsed, alive}. Run `uv run --with pytest --with pyyaml pytest scripts/tests/test_crowdsec_canary.py -q` → expect collection/import FAIL (RED).
+  - id: P1.T1.S3
+    text: |
+      Add evaluate() tests: healthy pair → verdict ok; frozen_acq pair → fail ["acquisition"]; parse_broken pair → fail ["parsing"]; empty cur → fail ["agent_alive"]. Add gate tests: a single failed run leaves fail_count=1 and pages=False; a second consecutive fail → fail_count=2 and should_page=True; an OK run resets fail_count=0. Add bootstrap test: prev=None → verdict ok, should_page=False, state saved. Add telegram-format test: build_message() output contains none of `< > &`. RED.
+- number: 2
+  title: Implement canary.py to green
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Implement parse_metrics(text)->dict[str,list[(labels,value)]] (skip # comment lines, parse `name{labels} value`) and extract_signals(metrics)->dict with filesource = sum of cs_filesource_hits_total values whose source matches the caddy log, caddy_parsed = cs_node_hits_ok_total where name=="crowdsecurity/caddy-logs", alive = bool(metrics). Run the parse tests → GREEN.
+  - id: P1.T2.S2
+    text: |
+      Implement evaluate(prev_signals, cur_signals)->Verdict: agent_alive fails if not cur.alive; acquisition fails if cur.alive and filesource delta == 0; parsing fails if cur.alive and filesource delta > 0 and caddy_parsed delta == 0. Verdict carries ok:bool, failed_checks:list, deltas:dict. Run evaluate tests → GREEN.
+  - id: P1.T2.S3
+    text: |
+      Implement state I/O: load_state(path)->(prev_signals|None, fail_count) reading JSON at $STATE_DIR/state.json (default /state); save_state(path, cur_signals, fail_count). Implement the gate: fail_count = prev+1 on FAIL else 0; should_page = (fail_count >= FAIL_THRESHOLD default 2). Run gate + bootstrap tests → GREEN.
+  - id: P1.T2.S4
+    text: |
+      Implement build_message(verdict) (plain text, strip/avoid < > &) and telegram_notify(token, chat, text) via urllib POST (no parse_mode). Make creds OPTIONAL: if TELEGRAM_TOKEN/CHATID env unset, log and skip send (return False). Run telegram-format test → GREEN.
+  - id: P1.T2.S5
+    text: |
+      Implement main(): scrape METRICS_URL (default http://crowdsec-service... :6060/metrics — confirm the in-cluster agent metrics address at plan-exec time) via urllib with a short timeout; on connection failure treat as agent-down (alive False). Load state → evaluate vs prev → update fail_count → if should_page and creds present: telegram → always print a structured heartbeat line `crowdsec-ban-canary verdict=ok|fail checks=... filesource_delta=N caddy_delta=N fail_count=N ts=<iso>` → save_state. Run the FULL file `uv run --with pytest --with pyyaml pytest scripts/tests/ test_crowdsec_canary.py -q` → all GREEN, then `pytest scripts/tests/ -q` → no regressions.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
