@@ -335,3 +335,14 @@ by the harness built in P5.
 5. Update smoke proves a non-destructive, reviewed v2→v3 path.
 6. frank migrated (P7): inline blog skills + `generate-all-images.py` retired;
    frank's blog is produced/maintained by blog-craft + config; stoa still green.
+
+---
+
+## Implementation Plans
+
+blog-craft phases (P1–P6) are planned + tracked in the blog-craft repo
+(`derio-net/blog-craft`, PRs #4/#5/#6). Only frank's P7 cutover is planned here.
+
+| Plan | Group / Phases | Status | Notes |
+|------|----------------|--------|-------|
+| 2026-06-30-frank-blog-craft-p7 | `derio-net/frank` | `2026-06-30-frank-blog-craft-p7` | — |
