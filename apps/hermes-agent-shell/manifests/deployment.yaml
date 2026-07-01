@@ -33,6 +33,10 @@ spec:
           effect: NoSchedule
       securityContext:
         fsGroup: 1000
+        # On Longhorn-backed PVCs a pod recreate/remount can re-run fsGroup
+        # reconciliation across /home/agent. Keep kubelet from needlessly
+        # re-walking the tree on every mount when the root already matches.
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: hermes
           image: ghcr.io/derio-net/hermes-agent-shell:9ed77051510f570a3e9d87f2ee7f642f86cac093
@@ -64,6 +68,12 @@ spec:
             # 1h reaps stuck servers fast enough to keep ports available.
             - name: MOSH_SERVER_NETWORK_TMOUT
               value: "3600"
+            # PostgreSQL rejects group-writable/setgid PGDATA. On this shell the
+            # home dir lives on a Longhorn PVC under a pod-level fsGroup, so a
+            # remount/recreate can broaden modes across ~/.local. Re-tighten the
+            # Hindsight cluster on every boot before the stack scripts run.
+            - name: HERMES_AGENT_SHELL_STRICT_PATHS
+              value: /home/agent/.local/pgsql/hindsight-data:700:600
           envFrom:
             # BYOK inference auth (OPENAI_BASE_URL + OPENAI_API_KEY). optional:
             # true so the pod boots before the Phase 1 manual bootstrap mints
