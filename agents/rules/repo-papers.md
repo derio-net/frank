@@ -16,9 +16,10 @@ Research dossiers live at `docs/papers-dossiers/NN-slug/dossier.md`.
 5. **Media** — Mermaid diagrams + cover image (use `/blog-craft:media` skill).
    Cover prompt: `"Frank examining [domain object] with a
    decision-maker expression, wearing his thin black tie and round
-   reading glasses."` Add prompt to `blog/prompt_for_images.yaml`
-   under `# --- Papers Series Covers ---` section; generate with
-   `scripts/generate-all-images.py --only <key>`.
+   reading glasses."` Add the entry (scene `prompt`, `series: papers`,
+   `torso_variant`, `mood`) to `blog/prompt_for_images.yaml`; the shared
+   character/atmosphere/torso/mood prose lives in `.blog-craft.yaml`
+   (`image.layers`). Generate with the `/blog-craft:media` skill.
 6. **Review** — voice pass, TL;DR ≤150 words, dossier-link renders.
 7. **Publish** — set `draft: false`, set `status: published`.
 
