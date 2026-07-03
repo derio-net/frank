@@ -1,7 +1,7 @@
 # frank adoption — page-derived series-index overviews
 
 **Date:** 2026-07-04
-**Status:** draft
+**Status:** Complete
 **Layer:** repo (blog infra)
 **Repo:** derio-net/frank
 **Upstream:** derio-net/blog-craft `docs/superpowers/implemented/specs/2026-07-03--series-index--page-derived-series-overviews-design.md` (mechanism, shipped in blog-craft #10)

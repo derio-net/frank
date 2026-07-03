@@ -46,8 +46,10 @@ def build_site():
     """Build the whole site once (cached across tests) into a temp destination."""
     if "dest" not in _BUILD:
         dest = tempfile.mkdtemp(prefix="frank-hugo-")
+        # Match the production config (deploy-blog.yml / Dockerfile build with
+        # --minify), so the parity assertions guard the actual deployed artifact.
         r = subprocess.run(
-            ["hugo", "--destination", dest, "--logLevel", "error"],
+            ["hugo", "--minify", "--destination", dest, "--logLevel", "error"],
             cwd=BLOG, capture_output=True, text=True,
         )
         assert r.returncode == 0, f"hugo build failed:\n{r.stdout}\n{r.stderr}"
@@ -62,7 +64,8 @@ def rendered_overview(series):
 
 
 def series_index_table(html):
-    m = re.search(r'<table class="series-index">.*?</table>', html, re.S)
+    # quote-agnostic: --minify strips attribute quotes (class=series-index)
+    m = re.search(r'<table class="?series-index"?>.*?</table>', html, re.S)
     return m.group(0) if m else None
 
 
@@ -81,7 +84,7 @@ def _assert_parity(series):
     assert positions == sorted(positions), f"{series} index not in numeric order"
     # the overview excludes itself, and there is exactly one body row per post
     assert "00-overview" not in table, f"{series} overview lists itself"
-    assert table.count("<tr>") == len(slugs) + 1, "row count != posts + header"
+    assert table.count("<tr") == len(slugs) + 1, "row count != posts + header"
 
 
 def test_building_series_index_parity():
