@@ -8,6 +8,9 @@ title = "Frank, the Talos Cluster"
 
 [params]
   description = "Building, operating, and deciding: an AI-hybrid Kubernetes homelab with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute"
+  projectSlug = "Frank"
+  papersDossierDir = "docs/papers-dossiers"
+  papersDossierBaseURL = "https://github.com/derio-net/frank/blob/main/docs/papers-dossiers"
 
   [params.navbar]
     displayTitle = true
@@ -24,6 +27,14 @@ title = "Frank, the Talos Cluster"
     type = "flexsearch"
     [params.search.flexsearch]
       index = "content"
+
+# `series` must be a taxonomy or Hextra's opengraph partial fails on
+# series-tagged pages (`first 6 $series.Pages`). capabilities/references
+# back the papers content-type's cross-referencing.
+[taxonomies]
+  series = "series"
+  capabilities = "capabilities"
+  references = "references"
 
 [[menu.main]]
   name = "Building"
@@ -52,7 +63,6 @@ title = "Frank, the Talos Cluster"
   weight = 5
   [menu.main.params]
     icon = "github"
-
 [markup]
   [markup.goldmark]
     [markup.goldmark.renderer]
@@ -61,11 +71,6 @@ title = "Frank, the Talos Cluster"
     codeFences = true
     lineNos = false
     style = "monokai"
-
-[taxonomies]
-  series = "series"
-  capabilities = "capabilities"
-  references = "references"
 
 [outputs]
   home = ["HTML", "RSS", "JSON"]

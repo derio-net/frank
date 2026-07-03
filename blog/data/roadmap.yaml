@@ -1,0 +1,349 @@
+layers:
+  - num: 1
+    key: hw
+    title: Hardware — 7 Nodes, 3 Zones
+    sub_items:
+      - 3x Intel NUC (Core zone)
+      - 1x GPU tower — RTX 5070
+      - 1x Legacy desktop
+      - 2x Raspberry Pi 4
+    tags:
+      - x86_64
+      - arm64
+      - heterogeneous
+  - num: 2
+    key: os
+    title: OS & Bootstrap
+    sub_items:
+      - Talos Linux (immutable)
+      - Sidero Omni (lifecycle)
+      - Declarative machine config
+      - Rolling upgrades
+    tags:
+      - no SSH
+      - API-driven
+      - reproducible
+  - num: 3
+    key: net
+    title: Networking — Cilium CNI
+    sub_items:
+      - eBPF kube-proxy replacement
+      - L2 LoadBalancer (ARP)
+      - Hubble observability
+      - Network policy
+    tags:
+      - eBPF
+      - 192.168.55.200-254
+  - num: 4
+    key: stor
+    title: Storage — Longhorn
+    sub_items:
+      - Distributed 3-replica block storage
+      - GPU-local StorageClass
+      - 2x 4TB SSD on gpu-1
+      - iSCSI via Talos extensions
+    tags:
+      - strict-local
+      - best-effort
+      - all 7 nodes
+  - num: 5
+    key: gpu
+    title: GPU Compute
+    sub_items:
+      - NVIDIA GPU Operator (RTX 5070)
+      - Intel DRA driver (Arc iGPU)
+      - Dynamic Resource Allocation
+      - CDI device injection
+    tags:
+      - K8s 1.35 DRA
+      - ResourceClaim
+      - DeviceClass
+  - num: 6
+    key: gitops
+    title: GitOps — ArgoCD
+    sub_items:
+      - App-of-Apps pattern
+      - Multi-source Applications
+      - Self-healing + drift detection
+      - Zero-downtime adoption
+    tags:
+      - single repo
+      - annotation tracking
+  - num: 7
+    key: fun
+    title: Fun Stuff
+    sub_items:
+      - OpenRGB via USB HID
+      - DaemonSet + ConfigMap
+      - Custom container build (GitHub Actions)
+      - IT5701 firmware lock (in progress)
+    tags:
+      - completely unnecessary
+      - fans still rainbow
+  - num: 8
+    key: obs
+    title: Observability
+    sub_items:
+      - VictoriaMetrics (metrics + alerts)
+      - VictoriaLogs (log aggregation)
+      - Grafana dashboards
+      - Fluent Bit log shipping
+      - Blackbox Exporter (endpoint probes)
+      - Pushgateway (heartbeat ingestion)
+      - Telegram alerting
+      - Health Bridge (GitHub lifecycle)
+      - Edge Observability (blog analytics, edge security, AI alerts)
+    tags:
+      - VMSingle
+      - Feature Health
+      - health-bridge
+      - GoatCounter
+      - CrowdSec
+      - Falco
+      - ai-alert-helper
+      - 192.168.55.203
+  - num: 9
+    key: backup
+    title: Backup
+    sub_items:
+      - Longhorn → Cloudflare R2
+      - Daily + weekly recurring jobs
+      - SOPS-encrypted credentials
+      - NAS target (pending Longhorn 1.13)
+    tags:
+      - S3-compatible
+      - 7-day RPO
+  - num: 10
+    key: secrets
+    title: Secrets Management
+    sub_items:
+      - Infisical (self-hosted vault)
+      - External Secrets Operator
+      - ClusterSecretStore
+      - ExternalSecret → K8s Secret
+    tags:
+      - audit trail
+      - Universal Auth
+      - 192.168.55.204
+  - num: 11
+    key: inference
+    title: Local Inference
+    sub_items:
+      - Ollama (gpu-1, RTX 5070)
+      - LiteLLM (unified gateway)
+      - OpenRouter (free cloud models)
+      - OpenAI-compatible API
+    tags:
+      - ollama
+      - litellm
+      - 192.168.55.206
+  - num: 12
+    key: agents
+    title: Agentic Control Plane
+    sub_items:
+      - Sympozium (K8s-native agents)
+      - n8n (per-user workflow automation)
+      - VK Remote (self-hosted kanban API)
+      - ElectricSQL real-time sync
+    tags:
+      - agent=Pod
+      - n8n
+      - vibekanban
+      - 192.168.55.207
+      - 192.168.55.216
+  - num: 13
+    key: auth
+    title: Unified Auth
+    sub_items:
+      - Authentik IdP (OIDC + proxy)
+      - SSO for ArgoCD, Grafana, Infisical
+      - Forward auth for Longhorn, Hubble, Sympozium
+      - OIDC-backed kubectl via apiserver
+    tags:
+      - OIDC
+      - forward-auth
+      - 192.168.55.211
+  - num: 14
+    key: net
+    title: Multi-tenancy
+    sub_items:
+      - vCluster (K8s-in-K8s)
+      - Disposable experiment clusters
+      - Resource quotas + network policies
+      - GitOps-provisioned via ArgoCD
+    tags:
+      - vcluster
+      - multi-tenant
+      - SQLite
+  - num: 15
+    key: agents
+    title: AI Agent Orchestrator
+    sub_items:
+      - Paperclip (org-chart agents)
+      - Virtual companies + budgets
+      - Delegation chains + governance
+      - LiteLLM gateway integration
+    tags:
+      - paperclip
+      - company model
+      - 192.168.55.212
+  - num: 16
+    key: gpu
+    title: Media Generation
+    sub_items:
+      - ComfyUI (diffusion models)
+      - LTX-2.3 video, SDXL image, Stable Audio
+      - GPU Switcher dashboard (Go)
+      - Time-sharing via replica scaling
+    tags:
+      - comfyui
+      - gpu-switcher
+      - 192.168.55.213
+  - num: 17
+    key: edge
+    title: Public Edge — Hop
+    sub_items:
+      - Hetzner CX23 (single-node Talos)
+      - Headscale mesh + Tailscale
+      - Caddy reverse proxy + TLS
+      - Split-DNS (MagicDNS)
+    tags:
+      - edge
+      - WireGuard
+      - blog.derio.net
+  - num: 18
+    key: agents
+    title: Persistent Agent
+    sub_items:
+      - Kali Linux workstation
+      - Always-on Claude Code agent
+      - SSH remote access
+      - 50Gi persistent /root
+    tags:
+      - kali
+      - claude --remote
+      - 192.168.55.215
+  - num: 19
+    key: gitops
+    title: Progressive Delivery
+    sub_items:
+      - Argo Rollouts controller
+      - LiteLLM canary (Cilium traffic split)
+      - Sympozium blue-green
+      - VictoriaMetrics analysis gates
+    tags:
+      - canary
+      - blue-green
+      - workloadRef
+  - num: 21
+    key: agents
+    title: Secure Agent Pod
+    sub_items:
+      - Hardened non-root Kali container
+      - Cilium egress allowlist
+      - VibeKanban agent orchestration
+      - VK Relay (WebSocket tunnel to browser)
+    tags:
+      - security
+      - vibekanban
+      - relay
+      - 192.168.55.215
+  - num: 24
+    key: net
+    title: In-Cluster Ingress
+    sub_items:
+      - Traefik v3 on raspi edge nodes
+      - Wildcard TLS (*.cluster.derio.net)
+      - Authentik forward-auth (12 services)
+      - Homepage dashboard
+    tags:
+      - traefik
+      - acme
+      - 192.168.55.220
+  - num: 25
+    key: cicd
+    title: CI/CD Platform
+    sub_items:
+      - Gitea (GitHub mirror forge)
+      - Tekton Pipelines + Triggers
+      - Zot OCI registry (cosign signed)
+      - Webhook-driven CI on pc-1
+    tags:
+      - gitea
+      - tekton
+      - zot
+      - 192.168.55.209
+  - num: 26
+    key: agents
+    title: Agent Images and the VK-Local Sidecar
+    sub_items:
+      - agent-images repo (shared base + children)
+      - Matrix CI with cross-repo <code>repository_dispatch</code>
+      - VK-local sidecar (shared /home/claude PVC)
+      - Lockstep bumper PR in frank
+    tags:
+      - docker
+      - github-actions
+      - sidecar
+  - num: 29
+    key: agents
+    title: Ruflo — Swarm Orchestrator
+    sub_items:
+      - claude-flow / ruvocal (chaotic swarm)
+      - "Hybrid pod: ruvocal + shell sidecar"
+      - SSH+Mosh shell on 192.168.55.222
+      - Zero frontier-LLM keys (LiteLLM-only egress)
+    tags:
+      - ruflo
+      - claude-flow
+      - swarm
+      - ruflo.cluster.derio.net
+  - num: 30
+    key: docs
+    title: The Frank Papers — Research Series
+    sub_items:
+      - Third blog series (Building / Operating / Papers)
+      - Dossier gate (vendors, sources, gaps, counter-args)
+      - Mermaid Frank theme + <code>.paper-post</code> CSS scope
+      - Render-time cross-series backlinks (zero retrofit)
+      - Paper 00 prologue published 2026-05-18
+    tags:
+      - hugo
+      - hextra
+      - mermaid
+      - research
+  - num: 32
+    key: cicd
+    title: Infrastructure Automation
+    sub_items:
+      - AWX Ansible controller (operator + CR)
+      - Reaches non-Talos / external home-lab devices
+      - Native OIDC login via Authentik
+      - awx.cluster.derio.net (Traefik)
+    tags:
+      - awx
+      - ansible
+      - automation
+  - num: 33
+    key: agents
+    title: Hermes Agent Shell
+    sub_items:
+      - Nous Research hermes CLI (dedicated pod, gpu-1)
+      - BYOK → LiteLLM (provider pinned in config.yaml)
+      - profile.d shim vs. sshd env-scrub
+      - SSH+Mosh shell on 192.168.55.226
+    tags:
+      - hermes
+      - byok
+      - litellm
+  - num: "—"
+    key: upcoming
+    title: Virtual Machines — upcoming
+    sub_items:
+      - KubeVirt (VMs as pods)
+      - CDI disk image import
+      - KubeVirt Manager UI
+      - Longhorn-backed DataVolumes
+    tags:
+      - KVM
+      - 192.168.55.205

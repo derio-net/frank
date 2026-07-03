@@ -5,26 +5,29 @@ Research dossiers live at `docs/papers-dossiers/NN-slug/dossier.md`.
 
 ### Paper lifecycle
 
-1. **Scaffold** — `scripts/scaffold-paper.sh <NN> <slug>`
-   Creates the Hugo bundle skeleton and a dossier template.
+1. **Scaffold** — `/blog-craft:papers`, or
+   `blog/scripts/scaffold-paper.sh --config .blog-craft.yaml <NN> <slug>`.
+   Creates the Hugo bundle skeleton and an H2-section dossier template.
 2. **Fill dossier** — edit `docs/papers-dossiers/NN-slug/dossier.md`
-   until `scripts/validate-dossier.py` passes (≥3 vendors, ≥5 sources,
-   ≥3 artefacts, ≥1 gap, ≥1 counter-argument).
+   until `blog/scripts/validate_dossier.py --config .blog-craft.yaml <dossier>`
+   passes (thresholds from `content_types.papers.gate` in `.blog-craft.yaml`:
+   ≥3 vendors, ≥5 sources, ≥3 artefacts, ≥1 gap, ≥1 counter-argument).
 3. **Author dossier** (human gate) — user reviews named gaps and
    counter-arguments; marks dossier `status: ready`.
 4. **Draft** — fill every `§` section of the Hugo `index.md`.
-5. **Media** — Mermaid diagrams + cover image (use `/media` skill).
+5. **Media** — Mermaid diagrams + cover image (use `/blog-craft:media` skill).
    Cover prompt: `"Frank examining [domain object] with a
    decision-maker expression, wearing his thin black tie and round
-   reading glasses."` Add prompt to `blog/prompt_for_images.yaml`
-   under `# --- Papers Series Covers ---` section; generate with
-   `scripts/generate-all-images.py --only <key>`.
+   reading glasses."` Add the entry (scene `prompt`, `series: papers`,
+   `torso_variant`, `mood`) to `blog/prompt_for_images.yaml`; the shared
+   character/atmosphere/torso/mood prose lives in `.blog-craft.yaml`
+   (`image.layers`). Generate with the `/blog-craft:media` skill.
 6. **Review** — voice pass, TL;DR ≤150 words, dossier-link renders.
 7. **Publish** — set `draft: false`, set `status: published`.
 
 ### Frontmatter schema
 
-**Required fields** (enforced by `scripts/validate-papers.py`):
+**Required fields** (enforced by `blog/scripts/validate_papers.py`):
 `title`, `date`, `draft`, `weight`, `series: papers`, `layer`,
 `paper_number`, `publish_order`, `status`, `tldr`.
 
@@ -37,7 +40,8 @@ e.g., a paper with no companion building/operating post yet):
 deliberate: Hugo treats `weight: 0` as "no weight set" and sorts those
 pages LAST. The shift means Paper 00 → `weight: 1`, Paper 20 → `weight: 21`,
 preserving numeric sidebar order without tripping the zero-weight trap.
-Enforced by `scripts/validate-papers.py` (pre-commit + CI).
+Enforced by `blog/scripts/validate_papers.py` (CI). The `+1` offset is
+`content_types.papers.weight_offset` in `.blog-craft.yaml`.
 
 ### Cross-linking (bidirectional, zero retrofit)
 
@@ -85,8 +89,9 @@ twice. Use the shortcode inline OR rely on automatic injection, not both.
 ### Commands
 
 ```bash
-scripts/scaffold-paper.sh <NN> <slug>         # scaffold bundle + dossier
-python scripts/validate-dossier.py <dossier>  # gate check (exit 0 = pass)
+blog/scripts/scaffold-paper.sh --config .blog-craft.yaml <NN> <slug>  # scaffold bundle + dossier
+python blog/scripts/validate_dossier.py --config .blog-craft.yaml <dossier>  # gate (exit 0 = pass)
+python blog/scripts/sync_dossier_to_data.py --config .blog-craft.yaml         # dossier → blog/data/papers
 cd blog && hugo server --buildDrafts           # preview
 hugo --minify                                  # production build
 ```

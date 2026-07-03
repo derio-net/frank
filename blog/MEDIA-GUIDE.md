@@ -91,7 +91,7 @@ To fill a placeholder:
 2. Save with the suggested filename in the post's page bundle
 3. Uncomment the shortcode line (remove `<!-- ` and ` -->`)
 4. Delete the `<!-- MEDIA: ... -->` instruction comment
-5. Preview with `cd blog && hugo server --buildDrafts`
+5. Preview with `bash scripts/hugo-serve.sh --buildDrafts` (the wrapper prepends a recent Go to PATH so Hextra's go.mod loads cleanly — see the wrapper header for details)
 
 ## Using the `/media` Skill
 

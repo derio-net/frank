@@ -6,7 +6,7 @@ Every layer follows this sequence:
 2. **Plan** — `/fr-plan` to produce a phase-structured implementation plan. The layer code is chosen at this step (see `docs/layers.yaml` for the registry). Plan behavior is driven by `docs/superpowers/plan-config.yaml`
 3. **Execute** — fr-plan offers three execution paths: VK dispatch, subagent-driven, or inline execution
 4. **Deploy** — Implement the ArgoCD app (values, Application CR, manifests)
-5. **Blog** — Use the `/blog-post` skill to write the Hugo post. After creating the post, update `blog/content/building/00-overview/index.md` (Series Index + Capability Map) and `blog/layouts/shortcodes/cluster-roadmap.html` (add new roadmap layer)
+5. **Blog** — Use the `/blog-craft:blog-post` skill to write the Hugo post. After creating the post, update `blog/content/docs/building/00-overview/index.md` (Series Index + Capability Map) and add the new roadmap layer to `blog/data/roadmap.yaml` (the roadmap is data-driven now — not the old `cluster-roadmap.html` shortcode)
 6. **Update README** — Run `/update-readme` to sync Technology Stack, Repository Structure, Service Access, and Current Status in `README.md`
 7. **Sync runbook** — Run `/sync-runbook` if the layer plan contains any `# manual-operation` blocks
 8. **Review** — Verify deployment health and blog accuracy. Update the plan's `**Status:**` to `Deployed` (cluster workload) or `Complete` (repo/meta work)

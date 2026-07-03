@@ -337,6 +337,7 @@ images:
       posture is thoughtful, not triumphant — the question is genuinely
       open. The whiteboard "2026?" and the three labels are the only
       writing in the image. ONE figure — one single Frank.
+    series: papers
 
   - key: paper-04-cover
     torso_variant: 0
@@ -355,6 +356,7 @@ images:
       paper on the desk shows "rep × 3" in clean handwriting. A single
       warm overhead lamp. ONE figure — one single Frank. No other text
       in the image.
+    series: papers
 
   - key: paper-10-cover
     torso_variant: 1
@@ -379,6 +381,7 @@ images:
       two boxes labelled "engine" and "gateway" are the ONLY text in
       the image — no extra captions or watermarks. ONE FIGURE — one
       single Frank.
+    series: papers
 
   - key: paper-11-cover
     torso_variant: 1
@@ -397,6 +400,7 @@ images:
       the "verified" stamp are the only writing in the image. ONE
       figure — one single Frank. Framing communicates "one identity,
       many surfaces," not "identity is solved".
+    series: papers
 
   - key: paper-14-cover
     torso_variant: 2
@@ -424,6 +428,7 @@ images:
       text in the image — no extra captions or watermarks. ONE FIGURE —
       one single Frank. The framing communicates "staged exposure under
       uncertainty" rather than "deployment is solved".
+    series: papers
   - key: paper-17-cover
     torso_variant: 1
     mood: cautious
@@ -454,6 +459,7 @@ images:
       ONE FIGURE — one single Frank. The framing communicates "fleet
       isolation under uncertainty" rather than "agent platform is
       solved".
+    series: papers
   - key: paper-02-cover
     torso_variant: 0
     mood: approving
@@ -472,6 +478,7 @@ images:
       identifiers (mini-1, mini-2, mini-3, gpu-1) appear beneath each
       node — the only writing in the image. ONE figure — one single
       Frank.
+    series: papers
 
   - key: paper-06-cover
     torso_variant: 1
@@ -494,6 +501,7 @@ images:
       background. RJ45 temple bolts, green skin, messy black hair. The
       ONLY text in the image is the word "main" on the repo. ONE
       FIGURE — one single Frank.
+    series: papers
 
   - key: paper-07-cover
     torso_variant: 0
@@ -517,6 +525,7 @@ images:
       black hair. The ONLY text in the image is small axis labels on
       the charts — no captions or watermarks. ONE FIGURE — one
       single Frank.
+    series: papers
 
   - key: paper-05-cover
     torso_variant: 1
@@ -535,6 +544,7 @@ images:
       heat-sink shroud — the only writing in the image. ONE figure —
       one single Frank. Framing communicates "ownership decisions on
       shared silicon," not "GPU scheduling is solved".
+    series: papers
   - key: paper-08-cover
     torso_variant: 0
     mood: cautious
@@ -562,6 +572,7 @@ images:
       FIGURE — one single Frank. The framing communicates "shipping
       the snapshot off-cluster, knowing the restore is the part you
       haven't tested" rather than "backup is solved".
+    series: papers
   - key: paper-13-cover
     torso_variant: 2
     mood: focused
@@ -582,6 +593,7 @@ images:
       the only writing in the image. ONE figure — one single Frank.
       Framing communicates "a three-tool stack that works because
       every seam is documented," not "CI/CD is solved".
+    series: papers
 
   - key: paper-03-cover
     torso_variant: 0
@@ -607,6 +619,7 @@ images:
       captions or watermarks. ONE FIGURE — one single Frank. The
       framing communicates "kernel-level networking" rather than
       "service-mesh tax".
+    series: papers
   - key: paper-09-cover
     torso_variant: 2
     mood: satisfied
@@ -626,6 +639,7 @@ images:
       are the only writing in the image. ONE figure — one single
       Frank. Framing communicates "named chain of custody," not
       "secrets are solved".
+    series: papers
   - key: paper-20-cover
     torso_variant: 1
     mood: thoughtful
@@ -656,6 +670,7 @@ images:
       — no extra captions or watermarks. ONE FIGURE — one single
       Frank. The framing communicates "deciding how to cross the
       public/private boundary" rather than "the answer is obvious".
+    series: papers
 
   - key: paper-01-cover
     torso_variant: 1
@@ -681,6 +696,7 @@ images:
       shirt with sleeves rolled up. Warm overhead lamp on a dark studio
       background. No text in the image other than the faint device
       markings.
+    series: papers
   - key: paper-15-cover
     torso_variant: 0
     mood: weighing
@@ -710,6 +726,7 @@ images:
       ONE FIGURE — one single Frank. The framing communicates "every
       request routes through one auth door" rather than "ingress is
       solved".
+    series: papers
 
   # --- Post Covers ------------------------------------------------------------
 

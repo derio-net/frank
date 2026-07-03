@@ -159,7 +159,7 @@ frank/
 │   ├── content/docs/papers/         # Frank Papers — research-grade landscape reviews (gated)
 │   ├── assets/js/mermaid-frank.js   # Mermaid Frank theme (loads on .paper-post pages)
 │   ├── layouts/partials/papers-*    # papers-backlink + papers-forwardlinks (cross-series)
-│   └── layouts/shortcodes/          # Custom shortcodes (cluster-roadmap, papers/*)
+│   └── layouts/shortcodes/          # Custom shortcodes (roadmap, papers-roadmap, papers/*)
 ├── docs/
 │   ├── papers-dossiers/        # Frank Papers research dossiers (one per paper, gate-validated)
 │   └── superpowers/
@@ -168,7 +168,7 @@ frank/
 │       ├── specs/             # Design specifications
 │   └── runbooks/              # Manual operations registry
 ├── omni/                      # Omni-specific configs
-├── scripts/                   # Utility scripts (plan-status.sh, validate-plans.sh, scaffold-paper.sh, validate-dossier.py)
+├── scripts/                   # Utility scripts (plan-status.sh, validate-plans.sh, hooks/); blog/papers tooling lives in blog/scripts/ (from blog-craft)
 └── .githooks/                 # Git hooks (plan header + agent-config + Papers dossier gate)
 ```
 

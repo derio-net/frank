@@ -1,4 +1,4 @@
-module github.com/derio-net/frank/blog
+module derio-net.github.io/frank
 
 go 1.24.2
 

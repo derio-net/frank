@@ -1,13 +1,22 @@
+{{- /*
+  Hextra "head-end" override — runs at the end of <head>.
+  Loads the fingerprinted custom.css (always — Hextra does NOT auto-load it),
+  optional asciinema-player assets (only on pages using the {{< asciinema >}}
+  shortcode), the read-tracker script (only when features.read_tracker
+  materialized it), and the analytics partial (only when features.analytics
+  materialized it).
+*/ -}}
 {{ $customCSS := resources.Get "css/custom.css" | minify | fingerprint }}
 <link rel="stylesheet" href="{{ $customCSS.RelPermalink }}">
 {{- if .HasShortcode "asciinema" }}
 <link rel="stylesheet" href="https://unpkg.com/asciinema-player@3.9.0/dist/bundle/asciinema-player.css" />
 <script src="https://unpkg.com/asciinema-player@3.9.0/dist/bundle/asciinema-player.min.js"></script>
 {{- end }}
-{{ $readTracker := resources.Get "js/read-tracker.js" | minify | fingerprint }}
-<script src="{{ $readTracker.RelPermalink }}" defer></script>
-{{/* Mermaid styling for Frank Papers is handled entirely via CSS overrides
-     on the rendered SVG in custom.css (under .paper-post .mermaid). No
-     custom JS loader — Hextra's bundled mermaid does the rendering, we
-     just re-colour. */}}
-{{ partial "custom/goatcounter.html" . }}
+{{- /* read-tracker.js — present only when features.read_tracker materialized it */}}
+{{- with resources.Get "js/read-tracker.js" }}
+<script src="{{ (. | minify | fingerprint).RelPermalink }}" defer></script>
+{{- end }}
+{{- /* goatcounter — partial present only when features.analytics materialized it */}}
+{{- if templates.Exists "partials/custom/goatcounter.html" }}
+{{- partial "custom/goatcounter.html" . }}
+{{- end }}

@@ -1,0 +1,83 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Migrate frank to consume blog-craft — adopt proven config, retire inline
+    tooling
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Wire blog-craft + adopt the proven frank config
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Add the blog-craft plugin to frank's Claude config (marketplace + plugin entry under .claude/) so the /blog-craft:* skills (blog-post, papers, media, bootstrap-blog, update) are available in frank. Verify `/blog-craft:blog-post --help`-equivalent resolves.
+  - id: P1.T1.S2
+    text: |-
+      Copy the P5-proven `tests/fixtures/frank.blog-craft.yaml` from merged blog-craft into frank root as `.blog-craft.yaml`; set `blog_craft_version` to the merged blog-craft release tag. This is the config the reproduction harness already proved reaches zero drift.
+- number: 2
+  title: Reproduction gate against the real repo (go/no-go)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      Run blog-craft's reproduction harness against frank's ACTUAL blog/ tree (not a scratch fixture): assert ZERO structural drift on framework+merged paths (content excluded). If any drift, STOP — fix in blog-craft (rework the config/templates), never hand-patch frank. This gate is the whole safety of the cutover (spec §12.1).
+- number: 3
+  title: Retire inline tooling (replaced by blog-craft)
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Remove frank's inline blog skills now owned by blog-craft: agents/skills/blog-post, agents/skills/media, agents/skills/papers. Confirm nothing else references them.
+  - id: P1.T3.S2
+    text: |-
+      Remove the blog-only scripts now owned by blog-craft: scripts/generate-all-images.py, scripts/validate-papers.py, scripts/validate-dossier.py, scripts/sync-dossier-to-data.py, scripts/scaffold-paper.sh (+ blog-only scripts/lib helpers). KEEP frank content: .reference-pool/ image assets, blog/prompt_for_images.yaml entries, blog/data/roadmap.yaml.
+  - id: P1.T3.S3
+    text: |-
+      Update frank rules + agent instructions to reference blog-craft instead of the removed inline tooling: agents/rules/repo-blog.md, agents/rules/repo-papers.md, agents/rules/plan-post-deploy-checklist.md, AGENTS.md. Retain frank-specific policy (the weight convention is now enforced by blog-craft's shipped guard).
+- number: 4
+  title: Verify frank builds + CI + stoa unaffected (TDD)
+  steps:
+  - id: P1.T4.S1
+    text: |-
+      `cd blog && hugo --minify` builds clean against the migrated setup; a `/blog-craft:blog-post` and `/blog-craft:papers` dry-run works in frank against `.blog-craft.yaml`.
+  - id: P1.T4.S2
+    text: |-
+      Point frank's blog CI (.github/workflows/deploy-blog.yml) at blog-craft's validators / CI template; run it green. Confirm blog-craft's stoa golden test still green (no frank-driven regression) and the frank golden test now passes against the migrated frank repo.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

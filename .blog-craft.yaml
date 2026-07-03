@@ -1,0 +1,136 @@
+version: 2
+blog_craft_version: "0.3.0"
+
+project:
+  name: "Frank"                                   # slug: drives the read-tracker storage key
+  title: "Frank, the Talos Cluster"               # display title (navbar / <title>)
+  tagline: "Building, operating, and deciding: an AI-hybrid Kubernetes homelab with Talos Linux, Cilium, Longhorn, ArgoCD, and GPU compute"
+  base_url: "https://derio-net.github.io/frank/"
+  base_path: "/frank/"
+  module_path: "derio-net.github.io/frank"
+  repo_url: "https://github.com/derio-net/frank"  # adds a GitHub nav link
+
+# Image-layer prose is authored so blog-craft's COMPOSED prompt text (per entry)
+# matches frank's legacy generate-all-images.py output — proven by
+# smoke-image-compose. frank's blog/prompt_for_images.yaml + static/images are
+# preserved as content; this block governs FUTURE /blog-craft:media runs.
+image:
+  provider: gemini
+  model: gemini-3-pro-image-preview
+  api_key_env: GEMINI_API_KEY
+  output_dir: static/images
+  prompts_file: prompt_for_images.yaml
+  reference_pool: .reference-pool
+  curation: { count_default: 1, archive_cap: 30, contact_sheet: true }
+  composition_order: [base_character, base_atmosphere, reference_guidance, torso, mood, scene]
+  layers:
+    base_character: Frank — a chibi-proportioned green Frankenstein monster. Uneven cartoon-green skin with
+      brown / reddish-tan sewn-on patches across the cheek and jaw (horizontal stitch lines crossing each;
+      brown against green, NOT mechanical implants). Each eye is a solid BLACK circle with a single small
+      WHITE pupil-dot — no glow. No nose. Messy black flat-top hair with jagged spiky peaks. Thick raised
+      brow ridge, no eyebrows. A horizontal stitched scar across the upper forehead with a small rectangular
+      RED bandage over it above the right eye. Two symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines around the wrists. Cartoon illustration,
+      thick outlines, vibrant colours.
+    base_atmosphere: "• Dark server-room aesthetic. Deep navy or near-black background;\n  studio-style\
+      \ framing rather than a documentary photograph.\n• Small flecks of bright white / electric-blue sparks\
+      \ scattered\n  through the scene; faint blue glow on metal edges and from any\n  small LED indicators\
+      \ in the frame.\n• Lighting is a single warm overhead source unless the scene says\n  otherwise; soft\
+      \ falloff into deep shadow rather than uniform fill."
+    reference_guidance: 'The reference images attached to this request are ANCHORS, not subjects to render.
+
+      The FIRST reference image is the canonical character-design sheet. All of Frank''s signature face
+      features — chibi head proportions, solid BLACK eyes with a single small WHITE pupil-dot (no white
+      sclera), no nose, jagged flat-top hair, brown sewn-on cheek and jaw patches, the red forehead bandage
+      — come from THIS image and ONLY this image. If any additional reference image shows Frank with different
+      face proportions, white eyes, an over-detailed face, or a "classic Frankenstein" square-jaw look,
+      IGNORE those facial details — they are leftover from older iterations.
+
+      Any ADDITIONAL reference images are clothing/pose anchors. Use them ONLY to match the clothing variant,
+      accessories, and rough posture of the Frank you draw. Do NOT render them as separate figures, do NOT
+      copy face details from them, and do NOT interpret their cropping or empty regions as compositional
+      cues for the output frame.
+
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+
+      Redraw Frank from scratch in the scene''s perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene''s action.'
+    torso:
+      generic:
+      - Torso and clothing follow the scene prompt.
+      building:
+      - Frank's torso/body is exposed server hardware
+      - Frank wears dirty/patched work clothes.
+      - Frank wears overalls.
+      - Frank wears overalls under a lab coat.
+      - Frank wears a work apron with tools in the pockets.
+      operating:
+      - Frank's is lying on his back, torso has an open access panel exposing a device under maintenance
+      - Frank wears a hoodie and sunglasses.
+      - Frank wears t-shirt with rolled-up sleeves.
+      papers:
+      - Frank wears a thin black necktie over a white button-down dress shirt, small senior reading glasses
+        perched low on the nose.
+      - Frank wears a white lab coat over a white button-down dress shirt and thin black necktie, small
+        senior reading glasses perched low on the nose.
+      - Frank wears leather overalls over a white button-down dress shirt and thin black necktie, small
+        senior reading glasses perched low on the nose.
+    mood:
+      curious: Frank's expression is curious — head tilted, brow lifted, eyes wide and attentive.
+      weighing: Frank's expression is weighing — measured, slightly squinting, the look of someone judging
+        an option.
+      determined: Frank's expression is determined — jaw set, brow level, eyes forward and focused.
+      worried: Frank's expression is worried — brow furrowed inward, mouth tightened, eyes slightly wider
+        than usual.
+      smirking: Frank's expression is smirking — one corner of the mouth pulled up, eyes narrowed in dry
+        amusement.
+      approving: Frank's expression is approving — a small contented smile, brow relaxed, eyes calm and
+        pleased.
+      skeptical: Frank's expression is skeptical — one brow raised higher than the other, mouth flat, eyes
+        narrowed.
+      satisfied: Frank's expression is satisfied — soft closed-mouth smile, brow at rest, eyes relaxed.
+      cautious: Frank's expression is cautious — alert but not anxious; brow level, eyes scanning, mouth
+        neutral.
+      angry: Frank's expression is angry — brow pulled down, mouth tight, eyes narrowed and dark.
+      alarmed: Frank's expression is alarmed — eyes wide, brow lifted high, mouth slightly open.
+      focused: Frank's expression is focused — brow lowered in concentration, eyes locked on his work, mouth
+        still.
+      amused: Frank's expression is amused — small grin, brow relaxed, eyes bright.
+
+# series.title drives the NAV menu names (frank's nav is the short form); the
+# longer section/overview + homepage-card titles live in frank's preserved content.
+series:
+  - { key: building,  title: "Building",  description: "Assembling the cluster, layer by layer.", content_type: posts }
+  - { key: operating, title: "Operating", description: "Running and maintaining the cluster.",     content_type: posts }
+  - { key: papers,    title: "Papers",    description: "Vendor analysis + decision narratives.",   content_type: papers }
+
+content_types:
+  papers:
+    enabled: true
+    dossier_dir: docs/papers-dossiers
+    dossier_base_url: "https://github.com/derio-net/frank/blob/main/docs/papers-dossiers"
+    data_dir: blog/data/papers
+    gate: { min_vendors: 3, min_sources: 5, min_source_types: 3,
+            min_artefacts: 3, min_artefact_kinds: 2, min_gaps: 1, min_counterargs: 1 }
+    source_types:   [vendor-docs, paper, postmortem, talk, benchmark]
+    artefact_kinds: [grafana-screenshot, asciinema, yaml, commit, incident]
+    shortcodes:     [landscape, capability-matrix, scar, pullquote, dossier-link, references-index]
+    crosslink_fields: [related_building, related_operating]
+    weight_offset: 1
+
+features:
+  series_overview_posts: true
+  read_tracker: true
+  banners:   { operator_generated: true }
+  roadmap:   { enabled: true, data: data/roadmap.yaml }
+  analytics: { provider: goatcounter, url: "https://counter.derio.net" }
+  # No css.mermaid_palette: frank's papers palette is baked into the papers CSS.
+
+voice: |
+  Frank speaks as the cluster itself — conversational, technically precise,
+  darkly self-aware. Teach through story; admit failures with the same weight
+  as successes.
+
+ci:
+  validators: [frontmatter, dossier, mermaid, hugo_build]
+  deploy: { kind: container_pages }
