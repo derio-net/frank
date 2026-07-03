@@ -37,14 +37,21 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install dossier-sync deps
+      - name: Install validator deps
         run: pip install pyyaml
 
+      # Papers validators now ship from blog-craft into blog/scripts/ (config-driven).
       - name: Check dossier ↔ blog/data/papers sync
-        run: python scripts/sync-dossier-to-data.py --check
+        run: python blog/scripts/sync_dossier_to_data.py --config .blog-craft.yaml --check
 
       - name: Validate paper frontmatter
-        run: python scripts/validate-papers.py --all
+        run: python blog/scripts/validate_papers.py --config .blog-craft.yaml blog/content/docs/papers/*/index.md
+
+      - name: Validate dossiers (gate)
+        run: |
+          for d in docs/papers-dossiers/*/dossier.md; do
+            python blog/scripts/validate_dossier.py --config .blog-craft.yaml "$d"
+          done
 
       - name: Build
         working-directory: blog

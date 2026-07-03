@@ -168,7 +168,7 @@ frank/
 │       ├── specs/             # Design specifications
 │   └── runbooks/              # Manual operations registry
 ├── omni/                      # Omni-specific configs
-├── scripts/                   # Utility scripts (plan-status.sh, validate-plans.sh, scaffold-paper.sh, validate-dossier.py)
+├── scripts/                   # Utility scripts (plan-status.sh, validate-plans.sh, hooks/); blog/papers tooling lives in blog/scripts/ (from blog-craft)
 └── .githooks/                 # Git hooks (plan header + agent-config + Papers dossier gate)
 ```
 

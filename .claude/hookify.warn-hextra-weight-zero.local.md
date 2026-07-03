@@ -22,7 +22,7 @@ bottom" bug.
 
 - **Papers:** convention is `weight = paper_number + 1` (Paper 00 → `weight: 1`).
   The `+1` offset exists precisely to dodge the zero-weight trap. Enforced by
-  `scripts/validate-papers.py`; see `agents/rules/repo-papers.md`.
+  `blog/scripts/validate_papers.py` (from blog-craft); see `agents/rules/repo-papers.md`.
 - **Building / operating posts:** weight matches the post number, but the **00**
   overview post must use `weight: 1` (not `0`). Apply the same `+1` shift across
   the series if you need to preserve strict numeric order without a collision.
