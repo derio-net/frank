@@ -73,6 +73,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | gpu-1 | AI Compute (C) | Worker | i9, 128GB RAM, RTX 5070, 2x4TB SSD |
 | pc-1 | Edge (D) | Worker | Legacy desktop, 64GB SSD + 3x HDD |
 | raspi-1/2 | Edge (D) | Worker | Raspberry Pi 4, 32GB SD |
+<!-- /blog-post auto-appends rows here. -->
 
 ## Series Index
 
@@ -111,6 +112,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 33. [Hermes Agent Shell — A BYOK Pod That Ignored Its Own Keys]({{< relref "/docs/building/33-hermes-shell" >}})
 
 - Virtual Machines with KubeVirt _(planned)_
+<!-- /blog-post auto-appends entries here as posts are created. -->
 
 ## Operating on Frank — Series Index
 
