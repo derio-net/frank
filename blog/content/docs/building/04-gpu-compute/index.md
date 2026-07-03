@@ -1,5 +1,6 @@
 ---
 title: "GPU Compute — NVIDIA and Intel"
+series: ["building"]
 date: 2026-03-06
 draft: false
 tags: ["gpu", "nvidia", "intel", "dra"]

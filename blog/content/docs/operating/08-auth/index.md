@@ -1,10 +1,11 @@
 ---
 title: "Operating on Authentication"
+series: ["operating"]
 date: 2026-03-13
 draft: false
 tags: ["operations", "authentik", "oidc", "sso", "security"]
 summary: "Day-to-day commands for managing Authentik SSO, checking OIDC flows, and debugging authentication issues across the cluster."
-weight: 108
+weight: 9
 ---
 
 This is the operational companion to [Unified Auth — Authentik SSO for the Entire Cluster]({{< relref "/docs/building/13-unified-auth" >}}). That post covers the OIDC provider setup and forward auth proxy configuration. This one is the day-to-day runbook for managing users, rotating secrets, and debugging login issues.

@@ -1,5 +1,6 @@
 ---
 title: "Persistent Agent — A Kali Workstation on Kubernetes"
+series: ["building"]
 date: 2026-03-24
 draft: false
 tags: ["kali", "claude", "agent", "ssh", "gpu-1", "persistent"]

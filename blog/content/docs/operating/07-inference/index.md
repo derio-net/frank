@@ -1,10 +1,11 @@
 ---
 title: "Operating on Local Inference"
+series: ["operating"]
 date: 2026-03-13
 draft: false
 tags: ["operations", "ollama", "litellm", "openrouter", "ai"]
 summary: "Day-to-day commands for managing local LLM inference, checking model status, routing through LiteLLM, and debugging GPU memory issues."
-weight: 107
+weight: 8
 ---
 
 This is the operational companion to [Local Inference — Ollama, LiteLLM, and OpenRouter]({{< relref "/docs/building/10-local-inference" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook for keeping models running, routing requests, and troubleshooting GPU memory issues.

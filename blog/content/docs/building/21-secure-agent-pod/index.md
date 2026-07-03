@@ -1,5 +1,6 @@
 ---
 title: "Secure Agent Pod — Hardening an AI Coding Workstation"
+series: ["building"]
 date: 2026-03-31
 draft: false
 tags: ["security", "agent", "claude", "cilium", "ssh", "gpu-1", "vibekanban", "non-root", "cron", "telegram", "monitoring"]

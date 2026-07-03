@@ -1,10 +1,11 @@
 ---
 title: "Operating on Secure Agent Pod"
+series: ["operating"]
 date: 2026-03-31
 draft: false
 tags: ["operations", "security", "agent", "claude", "ssh", "vibekanban", "cilium", "cron", "telegram", "monitoring"]
 summary: "Day-to-day commands for managing the secure agent pod — SSH access, process health, VibeKanban, secret rotation, and troubleshooting."
-weight: 114
+weight: 15
 ---
 
 This is the operational companion to [Secure Agent Pod — Hardening an AI Coding Workstation]({{< relref "/docs/building/21-secure-agent-pod" >}}). That post explains the architecture and security model. This one is the day-to-day runbook.

@@ -1,5 +1,6 @@
 ---
 title: "Building The Frank Papers — Research Infrastructure for a Third Series"
+series: ["building"]
 date: 2026-05-18
 draft: false
 tags: ["papers", "blog", "hugo", "hextra", "mermaid", "dossier", "research", "shortcodes"]

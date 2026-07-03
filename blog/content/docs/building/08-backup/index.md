@@ -1,5 +1,6 @@
 ---
 title: "Backup — Longhorn to Cloudflare R2"
+series: ["building"]
 date: 2026-03-08
 draft: false
 tags: ["backup", "longhorn", "cloudflare-r2", "sops", "disaster-recovery", "gitops"]

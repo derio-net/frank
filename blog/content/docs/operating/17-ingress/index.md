@@ -1,5 +1,6 @@
 ---
 title: "Operating on In-Cluster Ingress"
+series: ["operating"]
 date: 2026-04-08
 draft: false
 tags: ["networking", "traefik", "ingress", "tls", "acme", "authentik", "homepage", "operations"]

@@ -85,6 +85,24 @@ mis-detect "already has series" and risk editing prose. Insertion is idempotent
 (skip a file whose *frontmatter* already declares the right `series:`). These
 body-example lines are left untouched.
 
+### 1b. Normalize operating post weights (required bugfix)
+
+The shipped shortcode sorts `.ByWeight`. Building posts already follow the
+documented convention `weight = number + 1` (00-overview=1, 01→2 … 33→34), so
+building's index is numeric with no change. **Operating's weights are a broken
+mix** — 01–16 use `100+n`, but 17, 21, 23–28 use `n+1`, and 21 is a stray `127`.
+Under `.ByWeight` that scrambles the index *and* the operating sidebar (Hextra
+also orders by weight): 17 and 23–28 currently sort *before* 01. The numeric
+hand-list was masking a real, pre-existing sidebar bug.
+
+To render the index in the numeric order the hand-list showed (the parity being
+verified) — and because the shortcode must not change (frank-only) — normalize
+**all** operating post weights to the documented `weight = number + 1` (matching
+building). This repairs the scrambled operating sidebar as a side effect.
+Frontmatter-scoped, idempotent (the ~6 posts already at `n+1` unchanged; 22
+normalized). **Visible change:** the operating sidebar order corrects from
+scrambled to numeric — flag it in the PR.
+
 ### 2. Vendor the shortcode
 
 Copy blog-craft's shipped `templates/hugo-hextra/layouts/shortcodes/series-index.html`

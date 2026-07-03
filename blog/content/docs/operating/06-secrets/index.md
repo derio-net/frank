@@ -1,10 +1,11 @@
 ---
 title: "Operating on Secrets"
+series: ["operating"]
 date: 2026-03-13
 draft: false
 tags: ["operations", "infisical", "external-secrets", "sops", "security"]
 summary: "Day-to-day commands for managing secrets in Infisical, checking ESO sync status, and handling SOPS-encrypted bootstrap secrets."
-weight: 106
+weight: 7
 ---
 
 This is the operational companion to [Secrets Management -- Infisical + External Secrets Operator]({{< relref "/docs/building/09-secrets" >}}). That post covers the architecture and deployment of Infisical + ESO. This one covers the commands you reach for when you need to add a secret, check sync status, or figure out why an application is not picking up a rotated credential.

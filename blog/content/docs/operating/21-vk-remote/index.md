@@ -1,10 +1,11 @@
 ---
 title: "Operating on VK Remote"
+series: ["operating"]
 date: 2026-04-13
 draft: false
 tags: ["operations", "agents", "vibekanban", "postgresql", "electricsql", "troubleshooting"]
 summary: "Day-to-day commands for the self-hosted VK Remote stack — PostgreSQL health, ElectricSQL sync status, API verification, and troubleshooting."
-weight: 127
+weight: 22
 ---
 
 This is the operational companion to [VK Remote — Self-Hosting the Kanban Backend Before the Cloud Dies]({{< relref "/docs/building/26-vk-remote-self-host" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook.

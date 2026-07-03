@@ -1,5 +1,6 @@
 ---
 title: "Multi-tenancy — Disposable Kubernetes Clusters with vCluster"
+series: ["building"]
 date: 2026-03-11
 draft: false
 tags: ["vcluster", "multi-tenancy", "sandbox", "isolation", "argocd"]

@@ -2,6 +2,7 @@
 title: "Frank, the Talos Cluster: Overview & Roadmap"
 date: 2026-03-06
 draft: false
+series: ["building"]
 tags: ["overview", "roadmap"]
 summary: "A living overview of Frank, the Talos Cluster — an AI-hybrid Kubernetes homelab. Technology roadmap, capabilities, and series index."
 weight: 1
@@ -73,76 +74,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 | gpu-1 | AI Compute (C) | Worker | i9, 128GB RAM, RTX 5070, 2x4TB SSD |
 | pc-1 | Edge (D) | Worker | Legacy desktop, 64GB SSD + 3x HDD |
 | raspi-1/2 | Edge (D) | Worker | Raspberry Pi 4, 32GB SD |
-<!-- /blog-post auto-appends rows here. -->
 
 ## Series Index
 
-1. [Introduction — Why Build a Kubernetes Homelab?]({{< relref "/docs/building/01-introduction" >}})
-2. [Building the Foundation — Talos, Nodes, and Cilium]({{< relref "/docs/building/02-foundation" >}})
-3. [Persistent Storage with Longhorn]({{< relref "/docs/building/03-storage" >}})
-4. [GPU Compute — NVIDIA and Intel]({{< relref "/docs/building/04-gpu-compute" >}})
-5. [GitOps Everything with ArgoCD]({{< relref "/docs/building/05-gitops" >}})
-6. [Fun Stuff — Controlling Case LEDs from Kubernetes]({{< relref "/docs/building/06-fun-stuff" >}})
-7. [Observability — VictoriaMetrics, Grafana, and Fluent Bit]({{< relref "/docs/building/07-observability" >}})
-8. [Backup — Longhorn to Cloudflare R2]({{< relref "/docs/building/08-backup" >}})
-9. [Secrets Management — Infisical + External Secrets Operator]({{< relref "/docs/building/09-secrets" >}})
-10. [Local Inference — Ollama, LiteLLM, and OpenRouter]({{< relref "/docs/building/10-local-inference" >}})
-11. [Agentic Control Plane — Sympozium]({{< relref "/docs/building/11-agentic-control-plane" >}})
-12. [GPU Containers on Talos — The Validation Fix]({{< relref "/docs/building/12-gpu-talos-fix" >}})
-13. [Unified Auth — Authentik SSO for the Entire Cluster]({{< relref "/docs/building/13-unified-auth" >}})
-14. [Multi-tenancy — Disposable Kubernetes Clusters with vCluster]({{< relref "/docs/building/14-multi-tenancy" >}})
-15. [Paperclip — An AI Agent Orchestrator on Frank]({{< relref "/docs/building/15-paperclip" >}})
-16. [Media Generation — ComfyUI and GPU Time-Sharing]({{< relref "/docs/building/16-media-generation" >}})
-17. [Hopping Through the Portal — A Public Edge Cluster]({{< relref "/docs/building/17-public-edge" >}})
-18. [Persistent Agent — A Kali Workstation on Kubernetes]({{< relref "/docs/building/18-persistent-agent" >}})
-19. [Progressive Delivery with Argo Rollouts]({{< relref "/docs/building/19-progressive-delivery" >}})
-20. [Workflow Automation with n8n]({{< relref "/docs/building/20-workflow-automation" >}})
-21. [Secure Agent Pod — Hardening an AI Coding Workstation]({{< relref "/docs/building/21-secure-agent-pod" >}})
-22. [Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts]({{< relref "/docs/building/22-health-monitoring" >}})
-23. [Health Bridge — Closing the Loop from Grafana Alerts to GitHub Issues]({{< relref "/docs/building/23-health-bridge" >}})
-24. [In-Cluster Ingress — Traefik, Wildcard TLS, and a Homepage Dashboard]({{< relref "/docs/building/24-in-cluster-ingress" >}})
-25. [VK Relay — Tunneling the Browser to a Local Agent Server]({{< relref "/docs/building/25-vk-relay" >}})
-26. [VK Remote — Self-Hosting the Kanban Backend Before the Cloud Dies]({{< relref "/docs/building/26-vk-remote-self-host" >}})
-27. [CI/CD Platform — Gitea, Tekton, Zot, and Cosign]({{< relref "/docs/building/27-cicd-platform" >}})
-28. [Agent Images and the VK-Local Sidecar — Unbaking VibeKanban]({{< relref "/docs/building/28-agent-images-sidecar" >}})
-29. [Ruflo — A Swarm Orchestrator Next to Paperclip]({{< relref "/docs/building/29-ruflo" >}})
-30. [Building The Frank Papers — Research Infrastructure for a Third Series]({{< relref "/docs/building/30-frank-papers" >}})
-31. [Building Edge Observability — Watching Frank's Edge Without Watching Frank's Edge Burn]({{< relref "/docs/building/31-edge-observability" >}})
-32. [Building Automation — AWX, the Imperative Counterweight]({{< relref "/docs/building/32-automation" >}})
-33. [Hermes Agent Shell — A BYOK Pod That Ignored Its Own Keys]({{< relref "/docs/building/33-hermes-shell" >}})
-
-- Virtual Machines with KubeVirt _(planned)_
-<!-- /blog-post auto-appends entries here as posts are created. -->
-
-## Operating on Frank — Series Index
-
-Companion series with day-to-day commands, health checks, and debugging guides.
-
-1. [Operating on Cluster & Nodes]({{< relref "/docs/operating/01-cluster-nodes" >}})
-2. [Operating on Storage & Backups]({{< relref "/docs/operating/02-storage-backups" >}})
-3. [Operating on GitOps]({{< relref "/docs/operating/03-gitops" >}})
-4. [Operating on GPU Compute]({{< relref "/docs/operating/04-gpu-compute" >}})
-5. [Operating on Observability]({{< relref "/docs/operating/05-observability" >}})
-6. [Operating on Secrets]({{< relref "/docs/operating/06-secrets" >}})
-7. [Operating on Local Inference]({{< relref "/docs/operating/07-inference" >}})
-8. [Operating on Authentication]({{< relref "/docs/operating/08-auth" >}})
-9. [Operating on Multi-tenancy]({{< relref "/docs/operating/09-multi-tenancy" >}})
-10. [Operating on Media Generation]({{< relref "/docs/operating/10-media-generation" >}})
-11. [Operating on Hop — Single-Node Talos Edge Cluster]({{< relref "/docs/operating/11-public-edge" >}})
-12. [Operating on Progressive Delivery]({{< relref "/docs/operating/12-progressive-delivery" >}})
-13. [Operating on Workflow Automation]({{< relref "/docs/operating/13-workflow-automation" >}})
-14. [Operating on Secure Agent Pod]({{< relref "/docs/operating/14-secure-agent-pod" >}})
-15. [Operating on Health Monitoring]({{< relref "/docs/operating/15-health-monitoring" >}})
-16. [Operating on Health Bridge]({{< relref "/docs/operating/16-health-bridge" >}})
-17. [Operating on In-Cluster Ingress]({{< relref "/docs/operating/17-ingress" >}})
-18. [Operating on Paperclip]({{< relref "/docs/operating/18-paperclip" >}})
-19. [Git Credentials Without a Shell]({{< relref "/docs/operating/19-git-credentials-without-a-shell" >}})
-20. [Operating on VK Relay]({{< relref "/docs/operating/20-vk-relay" >}})
-21. [Operating on VK Remote]({{< relref "/docs/operating/21-vk-remote" >}})
-22. [Operating on CI/CD Platform]({{< relref "/docs/operating/22-cicd-platform" >}})
-23. [Operating on ArgoCD Drift]({{< relref "/docs/operating/23-argocd-drift-detective" >}})
-24. [Operating on Ruflo]({{< relref "/docs/operating/24-ruflo" >}})
-25. [Operating The Frank Papers — Research, Dossiers, and Publishing]({{< relref "/docs/operating/25-frank-papers" >}})
-26. [Operating Edge Observability — Day-to-Day Commands for the Obs Layer]({{< relref "/docs/operating/26-edge-observability" >}})
-27. [Operating Automation — Day-to-Day Commands for AWX]({{< relref "/docs/operating/27-automation" >}})
-28. [Operating on Hermes Agent Shell]({{< relref "/docs/operating/28-hermes-shell" >}})
+{{< series-index >}}

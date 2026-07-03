@@ -1,10 +1,11 @@
 ---
 title: "Operating on Cluster & Nodes"
+series: ["operating"]
 date: 2026-03-13
 draft: false
 tags: ["operations", "talos", "cilium", "hubble", "networking"]
 summary: "Day-to-day commands for checking cluster health, managing Talos nodes, and debugging Cilium networking on Frank."
-weight: 101
+weight: 2
 ---
 
 This is the operational companion to [Building the Foundation]({{< relref "/docs/building/02-foundation" >}}). That post covers *why* we chose Talos and Cilium and how they were deployed. This one covers the commands you actually type on a Tuesday afternoon when something looks off.

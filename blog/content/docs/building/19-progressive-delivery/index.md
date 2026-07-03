@@ -1,5 +1,6 @@
 ---
 title: "Progressive Delivery with Argo Rollouts"
+series: ["building"]
 date: 2026-03-27
 draft: false
 tags: ["argo-rollouts", "canary", "blue-green", "cilium", "victoria-metrics", "litellm", "sympozium", "postmortem"]

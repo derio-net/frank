@@ -1,0 +1,27 @@
+{{- /* Page-derived series index — a table of the current series' posts, sorted by
+       weight, recomputed every build. Series is inferred from the host page's
+       `series` param; a positional arg overrides: {{< series-index "operating" >}}.
+       No data file, no markers. */ -}}
+{{- /* `series` must be a LIST — Hextra's opengraph partial ranges over it, so a
+       scalar `series:` is a hard build error, not a silent miss. The host page's
+       first series is used unless a positional arg overrides. */ -}}
+{{- $series := "" -}}
+{{- if .Params -}}{{- $series = .Get 0 -}}{{- else -}}{{- $series = index .Page.Params.series 0 -}}{{- end -}}
+{{- $posts := (where site.Pages "Params.series" "intersect" (slice $series)).ByWeight -}}
+{{- $rows := slice -}}
+{{- range $posts -}}
+  {{- if ne .RelPermalink $.Page.RelPermalink -}}{{- $rows = $rows | append . -}}{{- end -}}
+{{- end -}}
+{{- if $rows -}}
+<table class="series-index">
+<thead><tr><th>#</th><th>Post</th><th>Takeaway</th></tr></thead>
+<tbody>
+{{- range $rows }}
+{{- $num := "" -}}{{- with (findRE `^[0-9]+` .File.ContentBaseName) -}}{{- $num = index . 0 -}}{{- end }}
+<tr><td>{{ $num }}</td><td><a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a></td><td>{{ .Params.summary }}</td></tr>
+{{- end }}
+</tbody>
+</table>
+{{- else -}}
+<p class="series-index-empty"><em>No posts yet.</em></p>
+{{- end -}}

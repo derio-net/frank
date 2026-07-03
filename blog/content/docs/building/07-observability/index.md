@@ -1,5 +1,6 @@
 ---
 title: "Observability — Metrics and Logs with VictoriaMetrics"
+series: ["building"]
 date: 2026-03-08
 draft: false
 tags: ["observability", "victoriametrics", "grafana", "fluent-bit", "victoria-logs"]

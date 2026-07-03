@@ -1,5 +1,6 @@
 ---
 title: "VK Relay — Tunneling the Browser to a Local Agent Server"
+series: ["building"]
 date: 2026-04-13
 draft: false
 tags: ["agents", "vibekanban", "relay", "websocket", "sidecar", "traefik", "yamux"]

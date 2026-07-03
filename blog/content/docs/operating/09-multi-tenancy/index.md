@@ -1,10 +1,11 @@
 ---
 title: "Operating on Multi-tenancy"
+series: ["operating"]
 date: 2026-03-13
 draft: false
 tags: ["operations", "vcluster", "multi-tenancy"]
 summary: "Day-to-day commands for managing vCluster virtual clusters, checking tenant health, and debugging isolation issues."
-weight: 109
+weight: 10
 ---
 
 This is the operational companion to [Multi-tenancy — Disposable Kubernetes Clusters with vCluster]({{< relref "/docs/building/14-multi-tenancy" >}}). That post covers the architecture and template pattern. This one is the day-to-day runbook for creating, connecting to, and troubleshooting virtual clusters.

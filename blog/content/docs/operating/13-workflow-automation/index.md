@@ -1,10 +1,11 @@
 ---
 title: "Operating on Workflow Automation"
+series: ["operating"]
 date: 2026-03-29
 draft: false
 tags: ["operations", "n8n", "workflow", "automation", "postgresql"]
 summary: "Day-to-day commands for managing n8n instances — health checks, database operations, adding new instances, upgrading, and common issues."
-weight: 113
+weight: 14
 ---
 
 This is the operational companion to [Workflow Automation with n8n]({{< relref "/docs/building/20-workflow-automation" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook for checking health, managing the database, adding instances, and troubleshooting.

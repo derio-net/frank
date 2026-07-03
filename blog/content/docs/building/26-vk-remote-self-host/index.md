@@ -1,5 +1,6 @@
 ---
 title: "VK Remote — Self-Hosting the Kanban Backend Before the Cloud Dies"
+series: ["building"]
 date: 2026-04-13
 draft: false
 tags: ["agents", "vibekanban", "postgresql", "electricsql", "rust", "axum", "authentik", "self-hosting"]

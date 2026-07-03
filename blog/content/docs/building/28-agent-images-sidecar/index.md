@@ -1,5 +1,6 @@
 ---
 title: "Agent Images and the VK-Local Sidecar — Unbaking VibeKanban"
+series: ["building"]
 date: 2026-04-18
 draft: false
 tags: ["agents", "docker", "sidecar", "github-actions", "multi-stage", "cross-repo-dispatch", "rust-embed"]

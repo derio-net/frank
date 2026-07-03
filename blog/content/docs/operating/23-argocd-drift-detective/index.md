@@ -1,10 +1,11 @@
 ---
 title: "Operating on ArgoCD Drift"
+series: ["operating"]
 date: 2026-04-16
 draft: false
 tags: ["operations", "argocd", "gitops", "debugging", "serverside-apply"]
 summary: "How 20 of my 52 ArgoCD apps were permanently OutOfSync, why it was seven different bugs, and how fixing the noise unmasked a 21-day crashloop."
-weight: 124
+weight: 24
 ---
 
 This is a debugging-focused companion to [Operating on GitOps]({{< relref "/docs/operating/03-gitops" >}}). That post covers the day-to-day ArgoCD commands. This one is about what happens when the `OutOfSync` column stops being useful.

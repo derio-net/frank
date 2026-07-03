@@ -1,5 +1,6 @@
 ---
 title: "Health Bridge — Closing the Loop from Grafana Alerts to GitHub Issues"
+series: ["building"]
 date: 2026-04-04
 draft: false
 tags: ["observability", "grafana", "github", "go", "alerting", "automation", "argocd"]

@@ -1,10 +1,11 @@
 ---
 title: "Operating on GPU Compute"
+series: ["operating"]
 date: 2026-03-13
 draft: false
 tags: ["operations", "gpu", "nvidia", "intel", "talos"]
 summary: "Day-to-day commands for managing NVIDIA and Intel GPUs, checking utilization, and debugging GPU container issues on Talos."
-weight: 104
+weight: 5
 ---
 
 The cluster has two GPU paths: an NVIDIA RTX 5070 Ti on `gpu-1` managed by the GPU Operator, and Intel Arc iGPUs on the three mini nodes exposed through DRA (Dynamic Resource Allocation). Both are operational, both have Talos-specific quirks, and both need different tools to inspect and troubleshoot.

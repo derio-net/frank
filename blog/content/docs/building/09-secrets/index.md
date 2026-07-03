@@ -1,5 +1,6 @@
 ---
 title: "Secrets Management — Infisical + External Secrets Operator"
+series: ["building"]
 date: 2026-03-08
 draft: false
 tags: ["secrets", "infisical", "external-secrets", "eso", "sops", "gitops", "security"]

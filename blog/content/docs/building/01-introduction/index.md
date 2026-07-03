@@ -1,5 +1,6 @@
 ---
 title: "Why Build a Kubernetes Homelab?"
+series: ["building"]
 date: 2026-03-06
 draft: false
 tags: ["introduction", "architecture"]

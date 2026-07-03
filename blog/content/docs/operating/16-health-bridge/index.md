@@ -1,10 +1,11 @@
 ---
 title: "Operating on Health Bridge"
+series: ["operating"]
 date: 2026-04-04
 draft: false
 tags: ["operations", "observability", "grafana", "github", "go", "alerting"]
 summary: "Day-to-day commands for managing the health-bridge service — checking status, testing webhooks, managing alert labels, and troubleshooting GitHub API issues."
-weight: 116
+weight: 17
 ---
 
 Companion to [Health Bridge — Closing the Loop from Grafana Alerts to GitHub Issues]({{< relref "/docs/building/23-health-bridge" >}}).
