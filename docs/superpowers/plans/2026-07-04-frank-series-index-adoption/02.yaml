@@ -1,0 +1,69 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Green — vendor shortcode, migrate frontmatter, split overviews
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Vendor the series-index shortcode
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Copy blog-craft's shipped shortcode (origin/main templates/hugo-hextra/layouts/shortcodes/series-index.html) verbatim to blog/layouts/shortcodes/series-index.html. Verify byte-identical to the upstream source (diff against the blog-craft base clone's main). Frank's Hugo build now resolves {{< series-index >}}.
+- number: 2
+  title: 'Add series: frontmatter to building/operating posts (frontmatter-scoped)'
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Add list-form series to each post's FRONTMATTER only (parse the leading ---...--- block; never touch the body). blog/content/docs/building/*/index.md -> series: ["building"]; blog/content/docs/operating/*/index.md -> series: ["operating"]. Idempotent: skip a file whose frontmatter already declares the right series. Do NOT match or edit the body-example `series: papers` lines in building/30-frank-papers (line ~229) and operating/25-frank-papers (line ~173).
+  - id: P2.T2.S2
+    text: |
+      Verify: 33 building + 28 operating index.md files now carry frontmatter series (building/30-frank-papers included), the 2 body-example `series: papers` lines are unchanged, and a spot `hugo` parse of two edited posts succeeds. No scalar series: introduced.
+- number: 3
+  title: Rewrite building/00-overview
+  steps:
+  - id: P2.T3.S1
+    text: |
+      Edit blog/content/docs/building/00-overview/index.md: add series: ["building"] to frontmatter; replace the hand-numbered "## Series Index" list (and the KubeVirt "(planned)" line and the entries "auto-appends" marker) with a single line {{< series-index >}}; DELETE the entire "## Operating on Frank — Series Index" section; remove the rows "auto-appends" marker under Cluster State. Keep the intro, Roadmap + {{< roadmap >}}, Technology → Capability Map, and Cluster State table.
+- number: 4
+  title: Create operating/00-overview + go green
+  steps:
+  - id: P2.T4.S1
+    text: |
+      Create blog/content/docs/operating/00-overview/index.md with frontmatter (title "Operating on Frank: Overview", date 2026-07-04, draft false, series: ["operating"], tags ["overview"], a one-line summary, weight 1) and body: a short "About this series" intro (reuse "Companion series with day-to-day commands, health checks, and debugging guides.") under "## Series Index", then {{< series-index >}}. No cover image.
+  - id: P2.T4.S2
+    text: |
+      Run `pytest scripts/tests/test_series_index_adoption.py -q`. Expect GREEN — parity (building 33 / operating 28), self-exclusion, and no-stale-markers all pass.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

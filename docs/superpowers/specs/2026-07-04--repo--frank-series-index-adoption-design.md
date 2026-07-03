@@ -187,3 +187,4 @@ self-maintaining and operating gaining its own landing page. No blog-craft chang
 | Plan | Repo | Scope |
 |------|------|-------|
 | _TBD_ | derio-net/frank | frontmatter migration + shortcode vendor + overview split + #604 marker drop + workflow re-touch + parity test |
+| 2026-07-04-frank-series-index-adoption | `derio-net/frank` | `2026-07-04-frank-series-index-adoption` | — |

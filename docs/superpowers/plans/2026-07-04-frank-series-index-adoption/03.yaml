@@ -1,0 +1,35 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Docs re-touch + full-site build verification
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Re-touch repo-workflows.md
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Update agents/rules/repo-workflows.md: Standard-Layer step 5 (Blog) and Fix/Extension step 4 — drop any "append to Series Index / update the overview index" wording (retired), keep "add the roadmap layer to blog/data/roadmap.yaml", and note the overview auto-lists new posts via {{< series-index >}} and operating now has its own overview.
+- number: 2
+  title: Full-site clean build
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Run `cd blog && hugo --minify` (drafts off) over the whole site. Assert exit 0 and no ERROR lines. Confirm public/docs/building/00-overview/index.html and public/docs/operating/00-overview/index.html both render a non-empty <table class="series-index">. This is the in-repo half of the full-parity-diff verification; the live diff is the post-merge Test Plan.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
