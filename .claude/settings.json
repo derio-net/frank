@@ -50,6 +50,7 @@
     ]
   },
   "enabledPlugins": {
-    "superpowers@claude-plugins-official": true
+    "superpowers@claude-plugins-official": true,
+    "blog-craft@blog-craft": true
   }
 }

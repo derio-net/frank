@@ -13,7 +13,7 @@ This post is a **living document**: it gets updated as new technologies and capa
 
 ## Roadmap
 
-{{< cluster-roadmap >}}
+{{< roadmap >}}
 
 ## Technology → Capability Map
 

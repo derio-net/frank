@@ -65,7 +65,7 @@ This separation means Omni never touches workloads, and ArgoCD never touches mac
 
 The rest of this series walks through each capability layer:
 
-{{< cluster-roadmap >}}
+{{< roadmap >}}
 
 Let's start building.
 

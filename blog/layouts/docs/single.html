@@ -1,5 +1,7 @@
-{{/* Override of hextra v0.12.1 docs/single.html — adds cover image support.
-     If upgrading Hextra, diff this against the new upstream template. */}}
+{{/* blog-craft papers override of Hextra v0.12.1 docs/single.html.
+     Adds cover-image support + papers cross-link injection. Materialized only
+     when content_types.papers is enabled; if you bump Hextra, diff this against
+     the new upstream docs/single.html. */}}
 {{ define "main" }}
   <div class='hx:mx-auto hx:flex hextra-max-page-width'>
     {{ partial "sidebar.html" (dict "context" .) }}
