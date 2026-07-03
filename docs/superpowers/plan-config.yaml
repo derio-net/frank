@@ -24,8 +24,8 @@ post_deploy:
   type: manual
   steps:
     - "Expose externally (if user-facing) — add Traefik IngressRoute in apps/traefik/manifests/ingressroutes.yaml (with authentik-forwardauth if SSO required), add tile to homepage dashboard (master.cluster.derio.net) via apps/homepage/manifests/files/services.yaml, document domain+auth in plan and building blog post"
-    - "Write building blog post — Use /blog-post skill"
-    - "Write operating blog post — Use /blog-post skill"
+    - "Write building blog post — Use /blog-craft:blog-post skill; add the new layer to blog/data/roadmap.yaml"
+    - "Write operating blog post — Use /blog-craft:blog-post skill"
     - "Update README — Run /update-readme"
     - "Sync runbook — Run /sync-runbook if plan has manual-operation blocks"
     - "Update plan status to Deployed/Complete"

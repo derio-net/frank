@@ -159,7 +159,7 @@ frank/
 │   ├── content/docs/papers/         # Frank Papers — research-grade landscape reviews (gated)
 │   ├── assets/js/mermaid-frank.js   # Mermaid Frank theme (loads on .paper-post pages)
 │   ├── layouts/partials/papers-*    # papers-backlink + papers-forwardlinks (cross-series)
-│   └── layouts/shortcodes/          # Custom shortcodes (cluster-roadmap, papers/*)
+│   └── layouts/shortcodes/          # Custom shortcodes (roadmap, papers-roadmap, papers/*)
 ├── docs/
 │   ├── papers-dossiers/        # Frank Papers research dossiers (one per paper, gate-validated)
 │   └── superpowers/

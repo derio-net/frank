@@ -53,20 +53,21 @@ Agent-neutral rules live in `agents/rules/`:
 Repo-local skills are stored in `agents/skills/`. When a task matches a skill,
 read that skill's `SKILL.md` before acting.
 
-- `blog-post`: `agents/skills/blog-post/SKILL.md`
 - `bump-image`: `agents/skills/bump-image/SKILL.md`
 - `deploy-app`: `agents/skills/deploy-app/SKILL.md`
 - `expose-service`: `agents/skills/expose-service/SKILL.md`
 - `falco-triage`: `agents/skills/falco-triage/SKILL.md`
-- `media`: `agents/skills/media/SKILL.md`
 - `oidc-onboard`: `agents/skills/oidc-onboard/SKILL.md`
-- `papers`: `agents/skills/papers/SKILL.md`
 - `sync-runbook`: `agents/skills/sync-runbook/SKILL.md`
 - `update-readme`: `agents/skills/update-readme/SKILL.md`
 
-Slash-command references are aliases for these shared skills. For example,
-`/blog-post` means `agents/skills/blog-post/SKILL.md`, and `/sync-runbook`
-means `agents/skills/sync-runbook/SKILL.md`.
+Blog authoring lives in the **blog-craft plugin** (enabled via
+`.claude/settings.json`), not `agents/skills/`: `/blog-craft:blog-post`,
+`/blog-craft:media`, `/blog-craft:papers` — all driven by the repo's
+`.blog-craft.yaml`.
+
+Slash-command references are aliases for the repo-local skills above. For
+example, `/sync-runbook` means `agents/skills/sync-runbook/SKILL.md`.
 
 ## Shared Reviewers And Commands
 

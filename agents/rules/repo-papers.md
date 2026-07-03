@@ -13,7 +13,7 @@ Research dossiers live at `docs/papers-dossiers/NN-slug/dossier.md`.
 3. **Author dossier** (human gate) — user reviews named gaps and
    counter-arguments; marks dossier `status: ready`.
 4. **Draft** — fill every `§` section of the Hugo `index.md`.
-5. **Media** — Mermaid diagrams + cover image (use `/media` skill).
+5. **Media** — Mermaid diagrams + cover image (use `/blog-craft:media` skill).
    Cover prompt: `"Frank examining [domain object] with a
    decision-maker expression, wearing his thin black tie and round
    reading glasses."` Add prompt to `blog/prompt_for_images.yaml`
