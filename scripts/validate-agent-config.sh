@@ -55,9 +55,7 @@ for path in \
   agents/rules/repo-principles.md \
   agents/rules/repo-workflows.md \
   agents/rules/third-party-privacy.md \
-  agents/skills/blog-post/SKILL.md \
   agents/skills/deploy-app/SKILL.md \
-  agents/skills/media/SKILL.md \
   agents/skills/sync-runbook/SKILL.md \
   agents/skills/update-readme/SKILL.md \
   agents/reviewers/code-reviewer.md \
@@ -76,7 +74,9 @@ require_grep 'canonical agent instructions live in `AGENTS.md`' CLAUDE.md \
 require_grep 'see: \[AGENTS.md\]\(AGENTS.md\)' GEMINI.md \
   "GEMINI.md must be an adapter that points back to AGENTS.md"
 
-for alias in blog-post deploy-app media sync-runbook update-readme; do
+# blog authoring (blog-post/media/papers) moved to the blog-craft plugin; only
+# frank-owned repo-local skills are validated here.
+for alias in deploy-app sync-runbook update-readme; do
   require_grep "agents/skills/$alias/SKILL.md" AGENTS.md \
     "AGENTS.md must map /$alias to the shared skill"
 done
