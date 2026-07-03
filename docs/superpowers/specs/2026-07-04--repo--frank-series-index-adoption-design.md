@@ -128,7 +128,8 @@ New bundle `blog/content/docs/operating/00-overview/index.md`:
 ```yaml
 ---
 title: "Operating on Frank: Overview"
-date: 2026-07-04
+date: 2026-03-06   # series epoch, matching building/00-overview — a today-date
+                   # trips Hugo's buildFuture=false and the page silently skips
 draft: false
 series: ["operating"]
 tags: ["overview"]
@@ -148,13 +149,20 @@ not required for the index to work. Operating ships cover-less; a card image can
 be added later via `/blog-craft:media` if the operator wants thumbnail parity.
 Flagged, not silently dropped.
 
-### 5. Re-touch `agents/rules/repo-workflows.md`
+### 5. Re-touch the workflow docs
 
-- **Step 5 (Blog):** the overview auto-lists a new post via `{{< series-index >}}`
-  — remove any "append to Series Index / update the overview index" wording; keep
-  "add the roadmap layer to `blog/data/roadmap.yaml`". Note operating now has its
-  own overview.
-- **Fix/Extension step 4:** drop the marker-append / manual-overview reference.
+- **`repo-workflows.md` Step 5 (Blog):** the overview auto-lists a new post via
+  `{{< series-index >}}` — remove the "auto-appends to the building overview's
+  Series Index + Capability Map (via markers)" wording and the "operating index
+  lives in the combined overview, update by hand until split out" note; keep "add
+  the roadmap layer to `blog/data/roadmap.yaml`" and note the Capability Map stays
+  hand-curated.
+- **`repo-workflows.md` Fix/Extension step 4:** already carried no overview-append
+  reference — no change needed (verified).
+- **`plan-post-deploy-checklist.md` Steps 2 & 3:** both told the author to "update
+  the series index in `building/00-overview`" — the same retired pattern. Drop the
+  index-edit instruction (auto-listed now); Step 3 points at the new
+  `operating/00-overview`.
 
 (These two spots were last touched by #604, which introduced the markers this
 change retires.)
