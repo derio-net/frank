@@ -1,0 +1,76 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Shortcode re-sync — drop divergence, retire aliases, verify zero visual change
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: 'Drop-divergence: replace series-index.html + roadmap.html with blog-craft''s'
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED: add a drop-divergence test to test_series_index_resync.py — frank's blog/layouts/shortcodes/series-index.html and roadmap.html are byte-identical to blog-craft@a7f2f7f's templates/hugo-hextra/layouts/shortcodes/{series-index,roadmap}.html (reference from /tmp/bc-resync-read or committed fixtures). Run pytest — FAILS (frank still ships its #605 hand-written copies).
+  - id: P2.T1.S2
+    text: |
+      GREEN: verbatim-copy blog-craft@a7f2f7f series-index.html and roadmap.html into blog/layouts/shortcodes/ (the framework REPLACE actions from the measured update.py plan). Run pytest — drop-divergence PASSES. Do NOT touch papers-roadmap.html (operator: leave frank-local).
+- number: 2
+  title: Wire the config param + retire aliases + no-orphan-key guard
+  steps:
+  - id: P2.T2.S1
+    text: |
+      RED: add a no-orphan-layer-key test — every `key:` in blog/data/roadmap.yaml and every `layer:` in blog/content/docs/**/index.md resolves to a code present in blog/data/layer_palette.yaml. Run pytest — FAILS on roadmap.yaml key:inference (line 129) and key:docs (line 302), which the alias-free regenerated palette no longer contains.
+  - id: P2.T2.S2
+    text: |
+      GREEN: (i) add `[params.seriesIndex]` with `style = "cards"` under blog/hugo.toml's existing [params] section (line 9); (ii) swap roadmap.yaml key:inference→infer (line 129) and key:docs→repo (line 302). Run pytest — no-orphan-key PASSES.
+- number: 3
+  title: 'Update the #605 test to the standardized shape + full verification'
+  steps:
+  - id: P2.T3.S1
+    text: |
+      Update scripts/tests/test_series_index_adoption.py (#605) to the new shape: assert cards read the layer NAME from the palette data (.name), the seriesIndex.style param, and the card markup emitted by blog-craft's standardized shortcode (adjust the _CARD regex / assertions as needed). Run pytest scripts/tests/ — all green.
+  - id: P2.T3.S2
+    text: |
+      Verify zero visual change: `cd blog && hugo --minify` builds clean; build the rendered site before/after this branch and diff the building + operating section pages and the papers roster — assert the ONLY delta is the tag-layer font-weight 500→600. Any other delta (esp. from the roadmap.html replace) is a finding to resolve before proceeding.
+- number: 4
+  title: Record frank's update-exclusions note
+  steps:
+  - id: P2.T4.S1
+    text: |
+      Document frank's curated-update contract: add a short note (one-liner in agents/rules/frank-gotchas.md pointing at a per-topic body, OR a section in the blog runbook) listing the paths frank OWNS despite blog-craft classifying them framework/merged — papers-roadmap.html (frank-customized), .github/workflows/blog-ci.yml (frank has own CI), blog/README.md (none) — plus the DEFERRED harmless framework adds (.gitignore, .hookify.warn-hextra-weight-zero.md, static/images/.gitkeep), and the blog_craft_version: a7f2f7f pin. This makes the next update.py run predictable.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
