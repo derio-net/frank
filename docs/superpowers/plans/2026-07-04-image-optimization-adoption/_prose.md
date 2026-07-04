@@ -1,11 +1,11 @@
 # Frank image-optimization adoption — plan
 
-Adopt blog-craft #14's WebP pipeline (merged, SHA 78ab274) in frank so the live
+Adopt blog-craft #14+#16 WebP pipeline (merged @ 5dc31f8) in frank so the live
 blog serves optimized images instead of 90.9 MB of raw PNG. Spec:
 docs/superpowers/specs/2026-07-04--repo--frank-image-optimization-adoption-design.md.
 
 Frank's image templates are the pre-change blog-craft baseline (they differ from
-blog-craft@78ab274 only by opt-image), so they're replaced wholesale; frank's own
+blog-craft@5dc31f8 only by opt-image), so they're replaced wholesale; frank's own
 single.html (post covers — the 60 MB bulk) is edited in place. Two phases:
 
 1. **Adopt the mechanism** — config (image.optimize on + version bump) + copy the

@@ -11,16 +11,16 @@ tasks:
   steps:
   - id: P1.T1.S1
     text: |
-      RED: add scripts/tests/test_image_optimization_adoption.py asserting .blog-craft.yaml has image.optimize.enabled true + blog_craft_version 78ab274, and that blog/layouts/partials/opt-image.html + blog/layouts/_markup/render-image.html exist byte-identical to the blog-craft@78ab274 fixtures (committed under scripts/tests/ fixtures). Run pytest — fail.
+      RED: add scripts/tests/test_image_optimization_adoption.py asserting .blog-craft.yaml has image.optimize.enabled true + blog_craft_version 5dc31f8, and that blog/layouts/partials/opt-image.html + blog/layouts/_markup/render-image.html exist byte-identical to the blog-craft@5dc31f8 fixtures (committed under scripts/tests/ fixtures). Run pytest — fail.
   - id: P1.T1.S2
     text: |
-      GREEN: add image.optimize {enabled:true, format:webp, quality:82, max_width:1600, banner_max_width:2560} to .blog-craft.yaml; bump blog_craft_version a7f2f7f->78ab274.
+      GREEN: add image.optimize {enabled:true, format:webp, quality:82, max_width:1600, banner_max_width:2560} to .blog-craft.yaml; bump blog_craft_version a7f2f7f->5dc31f8.
 - number: 2
   title: Adopt templates (copy merged + edit single.html + hugo param)
   steps:
   - id: P1.T2.S1
     text: |
-      GREEN: copy from blog-craft@78ab274 into frank — opt-image.html, _markup/render-image.html, shortcodes/screenshot.html, docs/list.html, partials/site-banner.html (they differ from frank only by opt-image). Edit frank's docs/single.html cover <img> -> opt-image partial. Add [params.imageOptimize] to blog/hugo.toml. Run adoption tests (config + file-identity) — pass.
+      GREEN: copy from blog-craft@5dc31f8 into frank — opt-image.html, _markup/render-image.html, shortcodes/screenshot.html, docs/list.html, partials/site-banner.html (they differ from frank only by opt-image). Edit frank's docs/single.html cover <img> -> opt-image partial. Add [params.imageOptimize] to blog/hugo.toml. Run adoption tests (config + file-identity) — pass.
 state:
   steps:
     P1.T1.S1:
