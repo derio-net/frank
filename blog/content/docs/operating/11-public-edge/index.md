@@ -1,10 +1,12 @@
 ---
 title: "Operating on Hop — Single-Node Talos Edge Cluster"
+series: ["operating"]
+layer: edge
 date: 2026-03-20
 draft: false
 tags: ["operations", "hop", "talos", "headscale", "tailscale", "caddy", "edge"]
 summary: "Day-to-day commands for managing Hop — a standalone single-node Talos cluster on Hetzner Cloud with Headscale mesh, Caddy, and ArgoCD."
-weight: 111
+weight: 12
 ---
 
 This is the operational companion to [Hopping Through the Portal]({{< relref "/docs/building/17-public-edge" >}}). That post covers the deployment story and the ten deviations. This one covers the commands you actually type to manage Hop — a very different operational profile from Frank.

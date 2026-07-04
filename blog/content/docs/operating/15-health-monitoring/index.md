@@ -1,10 +1,12 @@
 ---
 title: "Operating on Health Monitoring"
+series: ["operating"]
+layer: obs
 date: 2026-04-04
 draft: false
 tags: ["operations", "observability", "blackbox-exporter", "pushgateway", "grafana", "telegram", "alerting"]
 summary: "Day-to-day commands for managing feature health probes, heartbeat metrics, Grafana alerts, and Telegram notifications."
-weight: 115
+weight: 16
 ---
 
 Companion to [Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts]({{< relref "/docs/building/22-health-monitoring" >}}).

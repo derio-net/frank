@@ -1,5 +1,7 @@
 ---
 title: "Fun Stuff — Controlling Case LEDs from Kubernetes"
+series: ["building"]
+layer: fun
 date: 2026-03-06
 draft: false
 tags: ["openrgb", "hardware"]

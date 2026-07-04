@@ -1,10 +1,12 @@
 ---
 title: "Operating on CI/CD Platform"
+series: ["operating"]
+layer: cicd
 date: 2026-04-13
 draft: false
 tags: ["operations", "cicd", "gitea", "tekton", "zot", "cosign", "pipelines", "troubleshooting"]
 summary: "Day-to-day commands for the CI/CD platform — Gitea mirrors, Tekton pipelines, Zot registry health, cosign verification, and troubleshooting webhook delivery."
-weight: 122
+weight: 23
 ---
 
 Companion operations guide for [CI/CD Platform — Gitea, Tekton, Zot, and Cosign]({{< relref "/docs/building/27-cicd-platform" >}}).

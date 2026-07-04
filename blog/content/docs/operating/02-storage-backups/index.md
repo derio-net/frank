@@ -1,10 +1,12 @@
 ---
 title: "Operating on Storage & Backups"
+series: ["operating"]
+layer: stor
 date: 2026-03-13
 draft: false
 tags: ["operations", "longhorn", "storage", "backup", "r2"]
 summary: "Day-to-day commands for managing Longhorn volumes, checking backup health, and restoring from Cloudflare R2."
-weight: 102
+weight: 3
 ---
 
 This is the operational runbook for Longhorn storage and Cloudflare R2 backups on Frank, the Talos Cluster. If you want the full story on how storage was set up, see [Persistent Storage with Longhorn]({{< relref "/docs/building/03-storage" >}}). For backup architecture and the Longhorn 1.11 gotchas that shaped the current design, see [Backup — Longhorn to Cloudflare R2]({{< relref "/docs/building/08-backup" >}}).

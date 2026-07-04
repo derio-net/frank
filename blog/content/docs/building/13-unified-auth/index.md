@@ -1,5 +1,7 @@
 ---
 title: "Unified Auth — Authentik SSO for the Entire Cluster"
+series: ["building"]
+layer: auth
 date: 2026-03-11
 draft: false
 tags: ["authentik", "oidc", "sso", "security", "auth", "rbac", "traefik"]

@@ -1,5 +1,7 @@
 ---
 title: "Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts"
+series: ["building"]
+layer: obs
 date: 2026-04-04
 draft: false
 tags: ["observability", "blackbox-exporter", "pushgateway", "grafana", "telegram", "alerting", "victoriametrics"]

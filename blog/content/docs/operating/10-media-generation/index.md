@@ -1,10 +1,12 @@
 ---
 title: "Operating on Media Generation"
+series: ["operating"]
+layer: media
 date: 2026-03-14
 draft: false
 tags: ["operations", "comfyui", "gpu-switcher", "diffusion", "gpu", "time-sharing"]
 summary: "Day-to-day commands for managing GPU time-sharing between Ollama and ComfyUI, downloading models, and troubleshooting the media generation stack."
-weight: 110
+weight: 11
 ---
 
 This is the operational companion to [Media Generation — ComfyUI and GPU Time-Sharing]({{< relref "/docs/building/16-media-generation" >}}). That post explains the architecture and deployment. This one covers the day-to-day workflow for switching GPU workloads, managing diffusion models, and troubleshooting.

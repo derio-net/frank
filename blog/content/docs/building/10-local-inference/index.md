@@ -1,5 +1,7 @@
 ---
 title: "Local Inference — Ollama, LiteLLM, and OpenRouter"
+series: ["building"]
+layer: infer
 date: 2026-03-09
 draft: false
 tags: ["ollama", "litellm", "openrouter", "llm", "inference", "gpu", "ai"]

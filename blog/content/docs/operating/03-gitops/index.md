@@ -1,10 +1,12 @@
 ---
 title: "Operating on GitOps"
+series: ["operating"]
+layer: gitops
 date: 2026-03-13
 draft: false
 tags: ["operations", "argocd", "gitops"]
 summary: "Day-to-day commands for managing ArgoCD applications, syncing, debugging drift, and handling degraded apps."
-weight: 103
+weight: 4
 ---
 
 This post covers the day-to-day commands for working with ArgoCD on the frank cluster. If you want to understand how the App-of-Apps pattern was set up and why, see [GitOps Everything with ArgoCD]({{< relref "/docs/building/05-gitops" >}}).

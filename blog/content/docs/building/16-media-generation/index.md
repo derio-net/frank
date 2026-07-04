@@ -1,5 +1,7 @@
 ---
 title: "Media Generation — ComfyUI and GPU Time-Sharing"
+series: ["building"]
+layer: media
 date: 2026-03-14
 draft: false
 tags: ["comfyui", "diffusion", "gpu", "time-sharing", "video", "image", "audio", "go"]

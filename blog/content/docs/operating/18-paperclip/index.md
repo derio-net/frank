@@ -1,10 +1,12 @@
 ---
 title: "Operating on Paperclip"
+series: ["operating"]
+layer: orch
 date: 2026-04-09
 draft: false
 tags: ["operations", "paperclip", "ai-agents", "postgresql", "gpu-1"]
 summary: "Day-to-day commands for managing Paperclip — checking pod health, database operations, secret sync, and handling the RWO PVC constraint."
-weight: 118
+weight: 19
 ---
 
 This is the operational companion to [Paperclip — AI Agent Orchestrator]({{< relref "/docs/building/15-paperclip" >}}). That post explains the architecture and deployment. This one covers health checks, database access, secret management, and common failure modes.

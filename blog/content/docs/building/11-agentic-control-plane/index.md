@@ -1,5 +1,7 @@
 ---
 title: "Agentic Control Plane — Sympozium"
+series: ["building"]
+layer: agents
 date: 2026-03-10
 draft: false
 tags: ["sympozium", "agents", "ai", "control-plane", "nats", "litellm"]

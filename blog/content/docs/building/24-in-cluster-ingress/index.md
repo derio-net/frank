@@ -1,5 +1,7 @@
 ---
 title: "In-Cluster Ingress — Traefik, Wildcard TLS, and a Homepage Dashboard"
+series: ["building"]
+layer: net
 date: 2026-04-08
 draft: false
 tags: ["networking", "traefik", "ingress", "tls", "acme", "authentik", "forward-auth", "homepage"]

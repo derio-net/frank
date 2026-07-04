@@ -1,10 +1,12 @@
 ---
 title: "Operating on Observability"
+series: ["operating"]
+layer: obs
 date: 2026-03-13
 draft: false
 tags: ["operations", "victoriametrics", "grafana", "fluent-bit", "observability"]
 summary: "Day-to-day commands for querying metrics and logs, managing Grafana dashboards, and debugging the observability pipeline."
-weight: 105
+weight: 6
 ---
 
 This is the operational companion to [Building Observability]({{< relref "/docs/building/07-observability" >}}). That post covers the architecture decisions and deployment gotchas. This one covers what you actually type when you need to find out why something is broken, slow, or eating memory.

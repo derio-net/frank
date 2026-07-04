@@ -1,0 +1,52 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Failing parity test (red)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Write the series-index parity test
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Create scripts/tests/test_series_index_adoption.py. Add a module-level helper build_blog() that runs `hugo` (no --buildDrafts; frank posts are draft:false) inside blog/ into a temp publishDir and returns the rendered HTML for a given page path, plus a helper expected_slugs(series) that lists the NN-slug bundle names under blog/content/docs/<series>/ (excluding 00-overview), sorted by numeric prefix. Ground truth is derived from the filesystem, not hardcoded, so the test stays correct as posts are added.
+  - id: P1.T1.S2
+    text: |
+      Add test_building_series_index_parity: build the site, extract the <table class="series-index"> region from docs/building/00-overview/index.html, and assert it links every building slug from expected_slugs("building") (33 today), in numeric-prefix order, with the overview page itself excluded. Scope all assertions to the table region (page chrome/nav also links posts).
+  - id: P1.T1.S3
+    text: |
+      Add test_operating_series_index_parity: assert docs/operating/00-overview/index.html exists and its series-index table links every operating slug from expected_slugs("operating") (28 today), in order, self-excluded.
+  - id: P1.T1.S4
+    text: |
+      Add test_no_stale_push_machinery: assert blog/content/docs/building/00-overview/index.md contains no "auto-appends" HTML comment and no "Operating on Frank — Series Index" heading (that index moved to the operating overview).
+  - id: P1.T1.S5
+    text: |
+      Run `pytest scripts/tests/test_series_index_adoption.py -q`. Expect RED — the shortcode is not vendored, posts have no series frontmatter, the overview still holds the hand-list, and operating/00-overview does not exist. Record the failure output as the red baseline.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-03T22:59:25+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-03T22:59:26+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-07-03T22:59:27+00:00'
+      note: null
+    P1.T1.S4:
+      state: x
+      ticked_at: '2026-07-03T22:59:28+00:00'
+      note: null
+    P1.T1.S5:
+      state: x
+      ticked_at: '2026-07-03T22:59:29+00:00'
+      note: null
+  completion:
+    at: '2026-07-03T22:59:30+00:00'
+    note: null
+    observed_prs: []

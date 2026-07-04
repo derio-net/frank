@@ -1,5 +1,7 @@
 ---
 title: "Building the Foundation — Talos, Nodes, and Cilium"
+series: ["building"]
+layer: os
 date: 2026-03-06
 draft: false
 tags: ["talos", "cilium", "networking", "bootstrap"]

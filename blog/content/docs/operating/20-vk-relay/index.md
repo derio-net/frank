@@ -1,10 +1,12 @@
 ---
 title: "Operating on VK Relay"
+series: ["operating"]
+layer: agents
 date: 2026-04-13
 draft: false
 tags: ["operations", "agents", "vibekanban", "relay", "websocket", "troubleshooting"]
 summary: "Day-to-day commands for the VK relay server — health checks, tunnel status, re-pairing, and troubleshooting the browser-to-agent connection."
-weight: 120
+weight: 21
 ---
 
 This is the operational companion to [VK Relay — Tunneling the Browser to a Local Agent Server]({{< relref "/docs/building/25-vk-relay" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook.

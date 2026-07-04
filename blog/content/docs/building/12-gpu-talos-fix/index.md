@@ -1,5 +1,7 @@
 ---
 title: "GPU Containers on Talos — The Validation Fix"
+series: ["building"]
+layer: gpu
 date: 2026-03-10
 draft: false
 tags: ["gpu", "nvidia", "talos", "containerd", "debugging"]

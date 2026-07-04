@@ -1,10 +1,12 @@
 ---
 title: "Operating on Progressive Delivery"
+series: ["operating"]
+layer: deploy
 date: 2026-03-27
 draft: false
 tags: ["operations", "argo-rollouts", "canary", "blue-green", "litellm", "sympozium"]
 summary: "Day-to-day commands for managing Argo Rollouts — promoting canary steps, switching blue-green, inspecting analysis results, and handling sparse-traffic pauses."
-weight: 112
+weight: 13
 ---
 
 This is the operational companion to [Progressive Delivery with Argo Rollouts]({{< relref "/docs/building/19-progressive-delivery" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook for promoting rollouts, interpreting analysis results, and recovering from stuck or failed states.

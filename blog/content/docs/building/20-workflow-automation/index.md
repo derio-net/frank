@@ -1,5 +1,7 @@
 ---
 title: "Workflow Automation with n8n"
+series: ["building"]
+layer: auto
 date: 2026-03-29
 draft: false
 tags: ["n8n", "workflow", "automation", "agents", "gpu-1", "authentik", "postgresql"]
