@@ -1,6 +1,7 @@
 ---
 title: "Operating on GPU Compute"
 series: ["operating"]
+layer: gpu
 date: 2026-03-13
 draft: false
 tags: ["operations", "gpu", "nvidia", "intel", "talos"]

@@ -1,6 +1,7 @@
 ---
 title: "CI/CD Platform — Gitea, Tekton, Zot, and Cosign"
 series: ["building"]
+layer: cicd
 date: 2026-04-13
 draft: false
 tags: ["cicd", "gitea", "tekton", "zot", "cosign", "oci", "pipelines", "supply-chain", "kaniko"]

@@ -1,4 +1,4 @@
-# frank adoption — page-derived series-index overviews
+# frank adoption — page-derived series-index cards + unified layer palette
 
 **Date:** 2026-07-04
 **Status:** Complete
@@ -9,208 +9,158 @@
 ## Problem
 
 blog-craft #10 shipped a generic `{{< series-index >}}` shortcode that renders a
-series' index table from its actual pages at Hugo build time (weight-sorted,
-host page self-excluded, `#` from the slug prefix, takeaway from `summary`). It
-retires the marker-append *push* model.
-
-frank's blog still uses the push model, and two facts block a drop-in adoption:
+series' index from its actual pages at Hugo build time — retiring the marker-append
+*push* model. frank's blog still uses the push model, and two facts block a drop-in
+adoption:
 
 1. **frank vendors its own `blog/layouts/`.** The Hextra theme is a Go module;
    blog-craft is not a Hugo dependency. `blog/layouts/shortcodes/` has
-   `papers-roadmap.html`, `roadmap.html`, etc. but **no `series-index.html`** —
-   the shortcode must be copied in.
-2. **frank's building/operating posts carry no `series:` frontmatter.** Only
-   papers does (`series: ["papers"]`). Building/operating are grouped purely by
-   directory. The shipped shortcode selects by `Params.series`, so on frank it
-   would list zero posts.
+   `papers-roadmap.html`, `roadmap.html`, etc. but no `series-index.html`.
+2. **frank's building/operating posts carry no `series:` frontmatter.** Only papers
+   does. Building/operating are grouped purely by directory, so the shipped
+   shortcode (selects by `Params.series`) would list zero posts.
 
-frank's index today lives inside one combined page, `blog/content/docs/building/00-overview/index.md`:
-Roadmap + a hand-curated Technology→Capability Map + a Cluster State table + a
-hand-numbered **building** index (33 entries, #604 markers, one planned KubeVirt
-line) + a hand-numbered **Operating on Frank** index (28 entries). The push model
-drifts and forces operating's index to live inside building's page. Papers already
-does the target thing: `blog/content/docs/papers/_index.md` carries a short intro +
-`{{< papers-roadmap >}}`, so its roster is self-maintaining — **papers needs no
-change**.
+frank's index lived inside one combined page, `building/00-overview`: Roadmap +
+hand-curated Technology→Capability Map + Cluster State + a hand-numbered **building**
+index (33 entries, #604 markers, a planned KubeVirt line) + a hand-numbered
+**Operating on Frank** index (28 entries). Papers already does the target thing:
+`papers/_index.md` carries a short intro + `{{< papers-roadmap >}}`.
 
 ## Goals
 
-- frank's **building** and **operating** series each get their own
-  auto-updating `{{< series-index >}}` landing page — always in sync, no markers.
-- Operating gains its own overview page (today its index is buried in building's).
-- Retire the #604 marker-append comments from `building/00-overview`.
-- Keep the mechanism frozen: adopt the **shipped** blog-craft shortcode as-is
-  (operator decision — single frank PR, no blog-craft change), by giving frank's
-  posts the `series:` frontmatter the shortcode selects on.
+- Each series (**building**, **operating**) gets a self-maintaining, page-derived
+  index on its **section entrypoint** (`docs/<series>/_index.md`), under the intro —
+  exactly like papers' `_index.md`.
+- The index renders as **papers-roadmap-style cards**, **colour-coded by layer**, so
+  all three series (building / operating / papers) share one visual language.
+- **One source of truth for layer colours** — `blog/data/layer_palette.yaml` — used
+  by all three shortcodes, so a layer is the same colour everywhere.
+- Retire the #604 marker-append machinery.
 
 ## Non-goals
 
-- **The blog-craft shortcode is unchanged.** Adoption adds `series:` frontmatter
-  to frank's posts and copies the shipped `series-index.html` verbatim; it does
-  not modify the mechanism.
-- **Papers is unchanged.** `papers/_index.md` already renders `{{< papers-roadmap >}}`.
-- **The Technology → Capability Map and Cluster State tables stay hand-curated**
-  on `building/00-overview` — they are cluster inventories, not per-series indexes,
-  and do not map 1:1 to posts.
-- **The KubeVirt "(planned)" line is not preserved inline.** Page-derived indexes
-  list only real pages; planned layers are already shown by `{{< roadmap >}}`
-  (from `blog/data/roadmap.yaml`) higher on the same page. No information is lost.
+- **Papers keeps its roster mechanism** (`papers-roadmap.html` over `data/papers.yaml`)
+  — it tracks planned/deferred entries with no page, which a page-derived index can't.
+  Only its card *styling* is aligned (layer name tag + shared palette).
+- **The Technology → Capability Map and Cluster State stay hand-curated** on
+  `building/00-overview` — cluster inventories, not per-series indexes.
+- **The KubeVirt "(planned)" line is not preserved inline** — page-derived indexes list
+  real pages; `{{< roadmap >}}` already shows planned layers on `building/00-overview`.
 - No prev/next nav, no URL changes to existing posts, no cover-image regeneration.
 
 ## Design
 
-### 1. Add `series:` frontmatter to building/operating posts
+### 1. Placement — index on the section entrypoints
 
-frank has 33 building post bundles (`blog/content/docs/building/NN-slug/`,
-excluding `00-overview`) and 28 operating post bundles. Add a list-form `series:`
-to each post's frontmatter:
+`{{< series-index "building" >}}` goes on `blog/content/docs/building/_index.md`
+(under its intro) and `{{< series-index "operating" >}}` on `operating/_index.md` —
+mirroring `papers/_index.md`. The positional arg names the series (the entrypoint has
+no `series:` param of its own).
 
-- Every `blog/content/docs/building/*/index.md` → `series: ["building"]`
-- Every `blog/content/docs/operating/*/index.md` → `series: ["operating"]`
-- `building/00-overview/index.md` and the new `operating/00-overview/index.md`
-  also get their series (so the shortcode infers it and self-excludes).
+- **`building/00-overview` is kept** for the Roadmap + Capability Map + Cluster State,
+  but the index is removed from it, and its `series: ["building"]` frontmatter is
+  removed so it does **not** appear as a card in its own index.
+- **`operating/00-overview` is deleted** — it existed only to hold the index, which now
+  lives on the entrypoint.
 
-**List form only.** Hextra's opengraph partial ranges over `series`, so a scalar
-`series:` is a hard build error. `building/30-frank-papers/index.md` currently has
-no frontmatter `series:` → it gets `series: ["building"]` like every other building
-post (it is a building post that happens to be *about* the papers series).
+### 2. `series:` + `layer:` frontmatter on the posts
 
-**Frontmatter-scoped insertion — mandatory.** The two `*-frank-papers` posts
-(`building/30-frank-papers`, `operating/25-frank-papers`) contain a literal
-`series: papers` line *in their body* (example frontmatter they quote while
-documenting the papers series — at line 229 and line 173 respectively). The
-migration MUST parse the leading `---`-delimited frontmatter block and edit only
-that; a whole-file `grep '^series:'` would false-match the body example and both
-mis-detect "already has series" and risk editing prose. Insertion is idempotent
-(skip a file whose *frontmatter* already declares the right `series:`). These
-body-example lines are left untouched.
+The card shortcode selects posts by `series` and colours them by `layer`. Add both to
+each of the 33 building + 28 operating post frontmatters (list-form `series`, e.g.
+`series: ["building"]`; `layer:` = a `docs/layers.yaml` registry code, mapped per post
+by topic — ambiguous/multi-layer posts assigned the dominant layer, e.g.
+`02-foundation`→`os`, ingress→`net`, agent-shell/VK posts→`agents`, intro & papers
+posts→`repo`).
 
-### 1b. Normalize operating post weights (required bugfix)
+**List form + frontmatter-scoped, mandatory.** A scalar `series:` is a hard Hextra
+build error. The two `*-frank-papers` posts quote `series: papers` **in their body**
+(documenting papers frontmatter), so the migration MUST parse only the leading
+`---`-delimited block — a whole-file grep would false-match the prose and corrupt it.
+Idempotent (skip a post whose frontmatter already declares the value).
 
-The shipped shortcode sorts `.ByWeight`. Building posts already follow the
-documented convention `weight = number + 1` (00-overview=1, 01→2 … 33→34), so
-building's index is numeric with no change. **Operating's weights are a broken
-mix** — 01–16 use `100+n`, but 17, 21, 23–28 use `n+1`, and 21 is a stray `127`.
-Under `.ByWeight` that scrambles the index *and* the operating sidebar (Hextra
-also orders by weight): 17 and 23–28 currently sort *before* 01. The numeric
-hand-list was masking a real, pre-existing sidebar bug.
+### 3. Weight normalization (required bugfix)
 
-To render the index in the numeric order the hand-list showed (the parity being
-verified) — and because the shortcode must not change (frank-only) — normalize
-**all** operating post weights to the documented `weight = number + 1` (matching
-building). This repairs the scrambled operating sidebar as a side effect.
-Frontmatter-scoped, idempotent (the ~6 posts already at `n+1` unchanged; 22
-normalized). **Visible change:** the operating sidebar order corrects from
-scrambled to numeric — flag it in the PR.
+The index sorts `.ByWeight`. Building already follows the documented `weight = number+1`.
+**Operating's weights were a broken mix** (`100+n` / `n+1` / a stray `127`) that
+scrambled the `.ByWeight` order of both the index and the operating sidebar (17 and
+23–28 sorted *before* 01). Normalize all operating posts to `weight = number+1`. This
+repairs the pre-existing scrambled sidebar — a **visible change**, flagged in the PR.
 
-### 2. Vendor the shortcode
+### 4. The `series-index` card shortcode (frank customisation)
 
-Copy blog-craft's shipped `templates/hugo-hextra/layouts/shortcodes/series-index.html`
-(current `origin/main`) verbatim to `blog/layouts/shortcodes/series-index.html`.
-Frank's Hugo build then resolves `{{< series-index >}}`.
+`blog/layouts/shortcodes/series-index.html` — page-derived selection like the shipped
+shortcode, but rendered as a **vertical timeline of cards** (papers-roadmap layout):
+number badge, linked title, `summary` takeaway, and a leading **layer-name tag**
+(`.tag-layer`, full name from the registry — "Storage", not "stor"). Series inferred
+from the host page's `series` param or a positional override; posts sorted by weight,
+host page self-excluded. Card colour (left border + number badge, light & dark) comes
+from `site.Data.layer_palette` keyed on the post's `layer`.
 
-### 3. Rewrite `building/00-overview`
+*This diverges from blog-craft's shipped plain-table shortcode — frank's is a card
+customisation. Standardising the card version upstream is a follow-up blog-craft PR.*
 
-- Add `series: ["building"]` to the frontmatter.
-- Keep: intro prose, `## Roadmap` + `{{< roadmap >}}`, `## Technology → Capability Map`,
-  `## Cluster State`.
-- Replace the hand-numbered `## Series Index` list (and the KubeVirt planned line)
-  with `## Series Index` + `{{< series-index >}}`.
-- **Delete** the entire `## Operating on Frank — Series Index` section (moves to
-  the operating overview, §4).
-- **Drop both #604 markers**: `<!-- /blog-post auto-appends entries here as posts are created. -->`
-  and `<!-- /blog-post auto-appends rows here. -->`.
+### 5. Unified layer palette — one source of truth
 
-### 4. Create `operating/00-overview`
+`blog/data/layer_palette.yaml` maps each of the 21 layer codes → `{ light, dark, lt, dt }`
+(card colours + badge text colours), generated by `blog/scripts/gen-layer-palette.py`:
 
-New bundle `blog/content/docs/operating/00-overview/index.md`:
+- **21 unique colours, never reused** — a colour identifies exactly one layer.
+- Built in **OKLCH** with a hue-dependent lightness tracking each hue's chroma peak, so
+  yellows/greens read vivid, not muddy olive.
+- Hues assigned in a **permuted** order (`PERM_STEP` coprime to 21) so **successive
+  layers contrast ~137°** (the opposite of a rainbow), aiding the roadmap timeline.
+- `inference`/`docs` aliases mirror the keys `roadmap.yaml`/`papers.yaml` use.
 
-```yaml
----
-title: "Operating on Frank: Overview"
-date: 2026-03-06   # series epoch, matching building/00-overview — a today-date
-                   # trips Hugo's buildFuture=false and the page silently skips
-draft: false
-series: ["operating"]
-tags: ["overview"]
-summary: "Index of the Operating on Frank series — day-to-day commands, health checks, and debugging guides for every component on the cluster."
-weight: 1
----
-```
+**Propagation:** `roadmap.html` and `papers-roadmap.html` are reworked to read the same
+`layer_palette.yaml` (their duplicated hardcoded `--rm-accent` palettes are retired),
+and `papers-roadmap.html` shows the layer as a full-name `.tag-layer` (left-most),
+matching the series-index cards while keeping its Published/drafting/planned/deferred
+status badge and deferred-reason note.
 
-Body: a short "About this series" intro (reuse the existing one-liner —
-"Companion series with day-to-day commands, health checks, and debugging
-guides.") under `## Series Index`, then `{{< series-index >}}`.
+### 6. Re-touch the workflow docs
 
-**No cover image.** `building/00-overview` has a `cover.png`, but generating a
-matching one for the operating overview needs the interactive `/blog-craft:media`
-flow + `GEMINI_API_KEY` — out of scope for an autonomous, agentic-pure run, and
-not required for the index to work. Operating ships cover-less; a card image can
-be added later via `/blog-craft:media` if the operator wants thumbnail parity.
-Flagged, not silently dropped.
-
-### 5. Re-touch the workflow docs
-
-- **`repo-workflows.md` Step 5 (Blog):** the overview auto-lists a new post via
-  `{{< series-index >}}` — remove the "auto-appends to the building overview's
-  Series Index + Capability Map (via markers)" wording and the "operating index
-  lives in the combined overview, update by hand until split out" note; keep "add
-  the roadmap layer to `blog/data/roadmap.yaml`" and note the Capability Map stays
-  hand-curated.
-- **`repo-workflows.md` Fix/Extension step 4:** already carried no overview-append
-  reference — no change needed (verified).
-- **`plan-post-deploy-checklist.md` Steps 2 & 3:** both told the author to "update
-  the series index in `building/00-overview`" — the same retired pattern. Drop the
-  index-edit instruction (auto-listed now); Step 3 points at the new
-  `operating/00-overview`.
-
-(These two spots were last touched by #604, which introduced the markers this
-change retires.)
+- `repo-workflows.md` Step 5 (Blog) and `plan-post-deploy-checklist.md` Steps 2 & 3 —
+  drop the "update the series index in `building/00-overview`" instructions (the section
+  entrypoint auto-lists now); keep "add the roadmap layer to `blog/data/roadmap.yaml`";
+  note the Capability Map stays hand-curated and operating has its own overview.
 
 ## Testing
 
-TDD, red → green, at a real `hugo` build. New test at frank's test location
-`scripts/tests/test_series_index_adoption.py` (alongside the other
-`scripts/tests/test_*.py`; run with `pytest`):
+`scripts/tests/test_series_index_adoption.py` builds the real production (`--minify`)
+site and asserts (run with `pytest`):
 
-1. **Red first:** before the change, assert `{{< series-index >}}` on
-   `building/00-overview` renders a table listing all 33 building posts — fails
-   (shortcode absent / no series frontmatter).
-2. **Parity (the core assertion):** after the change, build the blog and assert
-   the rendered `building/00-overview` series-index table lists **exactly** the 33
-   building post bundles, weight-sorted, each linked, and that this set **matches
-   the retired hand-list** (same 33 `NN-slug` targets). Same for `operating/00-overview`
-   (28 rows). This is the in-repo half of the "full parity diff".
-3. **Self-exclusion:** the overview page itself is not a row.
-4. **No stale markers:** `building/00-overview` no longer contains
-   `auto-appends` comments, and no longer contains the `Operating on Frank — Series Index`
-   section.
+- **Parity:** each series' entrypoint (`docs/<series>/index.html`) cards **exactly** its
+  section posts (fs-derived ground truth), in numeric order, no overview page listed.
+- **Placement:** `building/00-overview` still renders but carries no series-index;
+  `operating/00-overview` is gone.
+- **Layer colouring:** cards carry `layer-<code>` classes and the full-name `.tag-layer`.
+- **Papers alignment:** papers uses the shared `.tag-layer` (no `layer: <code>` terse form).
+- **No stale push machinery:** `building/00-overview` has no `auto-appends` markers, no
+  embedded operating index, no `{{< series-index >}}`.
+- **Palette reproducibility:** `gen-layer-palette.py` output == committed
+  `layer_palette.yaml` (drift guard).
 
-Plus a plain `hugo --minify` clean build over the whole site (drafts off).
+Plus a whole-site `hugo --minify` clean build.
 
 ## Test Plan
 
 Post-merge, operator-driven (deploys to `blog.derio.net/frank` + `derio-net.github.io/frank`):
 
-1. Wait for the blog deploy workflow to publish the merge.
-2. **Full parity diff — building:** open `blog.derio.net/frank/docs/building/`
-   overview; confirm the auto-generated index lists all 33 posts, and every row's
-   title/link/order matches the retired hand-list (captured in this spec's §Design
-   and the parity test's ground truth). Click-check a sample of links resolve 200.
-3. **Full parity diff — operating:** same for the new operating overview (28 rows).
-4. **Visual:** eyeball both overviews for no regression vs the old rendering
-   (table renders, Roadmap + Capability Map + Cluster State intact on building).
-5. Confirm papers overview is unchanged.
+1. Wait for the blog deploy workflow.
+2. **building** `docs/building/`: the card index lists all 33 posts, order/links match the
+   retired hand-list; layer colours render; spot-check links resolve 200.
+3. **operating** `docs/operating/`: same for the 28 operating posts.
+4. **roadmap + papers**: `building/00-overview` roadmap and `papers/` roadmap render on the
+   new palette (a layer is the same colour across all three); papers shows full layer names.
+5. **dark mode**: toggle and confirm both palettes read correctly.
 
 ## Rollout
 
-Single frank PR. No user-facing content change beyond the index becoming
-self-maintaining and operating gaining its own landing page. No blog-craft change
-(shortcode adopted as shipped).
+Single frank PR. Follow-up: standardise the card `series-index` + `layer_palette.yaml`
+convention upstream in blog-craft (a separate PR — it changes stoa's index appearance).
 
 ## Implementation Plans
 
 | Plan | Repo | Scope |
 |------|------|-------|
-| _TBD_ | derio-net/frank | frontmatter migration + shortcode vendor + overview split + #604 marker drop + workflow re-touch + parity test |
-| 2026-07-04-frank-series-index-adoption | `derio-net/frank` | `2026-07-04-frank-series-index-adoption` | — |
+| 2026-07-04-frank-series-index-adoption | derio-net/frank | frontmatter (series+layer) + card shortcode + entrypoint placement + palette + roadmap/papers propagation + docs + tests |

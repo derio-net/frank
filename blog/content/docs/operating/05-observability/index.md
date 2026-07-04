@@ -1,6 +1,7 @@
 ---
 title: "Operating on Observability"
 series: ["operating"]
+layer: obs
 date: 2026-03-13
 draft: false
 tags: ["operations", "victoriametrics", "grafana", "fluent-bit", "observability"]

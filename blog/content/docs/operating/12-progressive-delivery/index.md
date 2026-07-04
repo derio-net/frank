@@ -1,6 +1,7 @@
 ---
 title: "Operating on Progressive Delivery"
 series: ["operating"]
+layer: deploy
 date: 2026-03-27
 draft: false
 tags: ["operations", "argo-rollouts", "canary", "blue-green", "litellm", "sympozium"]

@@ -1,6 +1,7 @@
 ---
 title: "Building Edge Observability — Watching Frank's Edge Without Watching Frank's Edge Burn"
 series: ["building"]
+layer: obs
 date: 2026-05-24
 draft: false
 tags: ["observability", "victoria-logs", "fluent-bit", "goatcounter", "crowdsec", "falco", "grafana", "litellm", "hop", "talos", "caddy", "fastapi", "tdd"]

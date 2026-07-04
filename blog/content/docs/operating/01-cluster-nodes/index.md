@@ -1,6 +1,7 @@
 ---
 title: "Operating on Cluster & Nodes"
 series: ["operating"]
+layer: os
 date: 2026-03-13
 draft: false
 tags: ["operations", "talos", "cilium", "hubble", "networking"]

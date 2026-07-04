@@ -1,6 +1,7 @@
 ---
 title: "Ruflo — A Swarm Orchestrator Next to Paperclip"
 series: ["building"]
+layer: orch
 date: 2026-05-03
 draft: false
 tags: ["ruflo", "ruvocal", "claude-flow", "agents", "ai", "orchestration", "agent-shell-base", "litellm", "openrouter", "s6-overlay"]

@@ -1,6 +1,7 @@
 ---
 title: "Operating on Hop — Single-Node Talos Edge Cluster"
 series: ["operating"]
+layer: edge
 date: 2026-03-20
 draft: false
 tags: ["operations", "hop", "talos", "headscale", "tailscale", "caddy", "edge"]

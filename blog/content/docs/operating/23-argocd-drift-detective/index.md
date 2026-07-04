@@ -1,6 +1,7 @@
 ---
 title: "Operating on ArgoCD Drift"
 series: ["operating"]
+layer: gitops
 date: 2026-04-16
 draft: false
 tags: ["operations", "argocd", "gitops", "debugging", "serverside-apply"]

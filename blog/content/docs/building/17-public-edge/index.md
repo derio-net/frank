@@ -1,6 +1,7 @@
 ---
 title: "Hopping Through the Portal — A Public Edge Cluster"
 series: ["building"]
+layer: edge
 date: 2026-03-20
 draft: false
 tags: ["hop", "hetzner", "talos", "headscale", "tailscale", "caddy", "edge", "mesh"]

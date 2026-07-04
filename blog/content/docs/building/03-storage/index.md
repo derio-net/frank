@@ -1,6 +1,7 @@
 ---
 title: "Persistent Storage with Longhorn"
 series: ["building"]
+layer: stor
 date: 2026-03-06
 draft: false
 tags: ["longhorn", "storage"]

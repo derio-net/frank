@@ -1,6 +1,7 @@
 ---
 title: "Hermes Agent Shell — A BYOK Pod That Ignored Its Own Keys"
 series: ["building"]
+layer: agents
 date: 2026-06-06
 draft: false
 tags: ["hermes", "nous-research", "agents", "ai", "byok", "litellm", "agent-shell-base", "ssh", "mosh", "ollama"]

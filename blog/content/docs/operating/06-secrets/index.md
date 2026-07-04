@@ -1,6 +1,7 @@
 ---
 title: "Operating on Secrets"
 series: ["operating"]
+layer: secrets
 date: 2026-03-13
 draft: false
 tags: ["operations", "infisical", "external-secrets", "sops", "security"]

@@ -1,6 +1,7 @@
 ---
 title: "Operating on Multi-tenancy"
 series: ["operating"]
+layer: tenant
 date: 2026-03-13
 draft: false
 tags: ["operations", "vcluster", "multi-tenancy"]

@@ -1,6 +1,7 @@
 ---
 title: "Operating on Hermes Agent Shell"
 series: ["operating"]
+layer: agents
 date: 2026-06-06
 draft: false
 tags: ["operations", "hermes", "agents", "byok", "litellm", "agent-shell-base", "ssh", "mosh"]

@@ -1,6 +1,7 @@
 ---
 title: "Operating on Storage & Backups"
 series: ["operating"]
+layer: stor
 date: 2026-03-13
 draft: false
 tags: ["operations", "longhorn", "storage", "backup", "r2"]

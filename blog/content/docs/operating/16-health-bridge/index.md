@@ -1,6 +1,7 @@
 ---
 title: "Operating on Health Bridge"
 series: ["operating"]
+layer: obs
 date: 2026-04-04
 draft: false
 tags: ["operations", "observability", "grafana", "github", "go", "alerting"]

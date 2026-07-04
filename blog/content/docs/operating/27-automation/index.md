@@ -1,6 +1,7 @@
 ---
 title: "Operating Automation — Day-to-Day Commands for AWX"
 series: ["operating"]
+layer: auto
 date: 2026-06-03
 draft: false
 tags: ["operations", "awx", "ansible", "automation", "authentik", "oidc", "postgresql"]

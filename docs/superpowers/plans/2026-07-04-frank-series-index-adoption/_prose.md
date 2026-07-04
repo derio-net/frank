@@ -8,6 +8,23 @@ frank's posts to the shortcode's `series:` contract rather than change the mecha
 
 See the spec: `docs/superpowers/specs/2026-07-04--repo--frank-series-index-adoption-design.md`.
 
+## Deviation (design evolved during review/preview)
+
+The plan phases below describe the initial approach: a plain-**table** index placed on
+the `00-overview` pages. During live preview the design was refined (operator-directed)
+into the shipped shape, captured in the updated spec:
+
+- **Index moved to the section entrypoints** (`docs/<series>/_index.md`), not the
+  `00-overview` pages — mirroring papers. `operating/00-overview` is **deleted**;
+  `building/00-overview` is **kept** (roadmap/capability/state) with the index removed.
+- **Card layout, not a table** — `series-index.html` renders papers-roadmap-style cards
+  **colour-coded by layer**; posts gained a `layer:` frontmatter alongside `series:`.
+- **Unified layer palette** — `blog/data/layer_palette.yaml` (+ `gen-layer-palette.py`),
+  adopted by `series-index`, `roadmap`, and `papers-roadmap` (papers now shows the layer
+  as a full-name tag). The parity test asserts the card structure + palette reproducibility.
+
+The phase steps are retained as the historical record; the spec is the accurate design.
+
 ## Shape
 
 Three agentic phases, TDD red → green → verify:

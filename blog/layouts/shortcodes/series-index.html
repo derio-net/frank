@@ -1,10 +1,15 @@
-{{- /* Page-derived series index — a table of the current series' posts, sorted by
-       weight, recomputed every build. Series is inferred from the host page's
-       `series` param; a positional arg overrides: {{< series-index "operating" >}}.
-       No data file, no markers. */ -}}
-{{- /* `series` must be a LIST — Hextra's opengraph partial ranges over it, so a
-       scalar `series:` is a hard build error, not a silent miss. The host page's
-       first series is used unless a positional arg overrides. */ -}}
+{{/* series-index.html — page-derived series index, rendered as a papers-roadmap-style
+     vertical timeline of cards, colour-coded by the post's `layer` (docs/layers.yaml code).
+     Frank customisation of blog-craft's generic table shortcode: same page-derived selection,
+     papers-matching card layout, but colours come from ONE source of truth —
+     blog/data/layer_palette.yaml (21 unique hues, light + dark). No colour is reused across
+     layers, so a colour identifies exactly one layer.
+
+     Series is inferred from the host page's `series` param; a positional arg overrides
+     (used on the section _index.md pages: {{< series-index "building" >}}).
+     Posts selected by `series` frontmatter, sorted by weight, host page self-excluded.
+     Takeaway = `summary`; the leading tag is the layer name, then the post's `tags`. */}}
+
 {{- $series := "" -}}
 {{- if .Params -}}{{- $series = .Get 0 -}}{{- else -}}{{- $series = index .Page.Params.series 0 -}}{{- end -}}
 {{- $posts := (where site.Pages "Params.series" "intersect" (slice $series)).ByWeight -}}
@@ -12,16 +17,72 @@
 {{- range $posts -}}
   {{- if ne .RelPermalink $.Page.RelPermalink -}}{{- $rows = $rows | append . -}}{{- end -}}
 {{- end -}}
-{{- if $rows -}}
-<table class="series-index">
-<thead><tr><th>#</th><th>Post</th><th>Takeaway</th></tr></thead>
-<tbody>
-{{- range $rows }}
-{{- $num := "" -}}{{- with (findRE `^[0-9]+` .File.ContentBaseName) -}}{{- $num = index . 0 -}}{{- end }}
-<tr><td>{{ $num }}</td><td><a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a></td><td>{{ .Params.summary }}</td></tr>
+
+{{- $palette := site.Data.layer_palette.layers -}}
+{{- /* layer code -> display name (docs/layers.yaml registry; inference/docs are aliases) */ -}}
+{{- $nameOf := dict
+    "hw" "Hardware & Nodes" "os" "OS & Bootstrap" "net" "Networking" "stor" "Storage"
+    "gpu" "GPU Compute" "gitops" "GitOps" "fun" "Fun Stuff" "obs" "Observability"
+    "backup" "Backup & DR" "secrets" "Secrets Management" "infer" "Local Inference"
+    "inference" "Local Inference" "agents" "Agentic Control Plane" "auth" "Unified Auth"
+    "tenant" "Multi-tenancy" "orch" "AI Agent Orchestrator" "media" "Media Generation"
+    "edge" "Public Edge" "deploy" "Progressive Delivery" "cicd" "CI/CD Platform"
+    "auto" "Infrastructure Automation" "repo" "Repository & Tooling" "docs" "Repository & Tooling" -}}
+
+<style>
+.series-index {
+  --si-bg: #f8f9fa; --si-border: #dee2e6; --si-text: #212529; --si-muted: #6c757d; --si-line: #adb5bd;
+  font-family: inherit; max-width: 720px; margin: 1.5rem auto;
+}
+.dark .series-index { --si-bg: #1a1a2e; --si-border: #333; --si-text: #e0e0e0; --si-muted: #999; --si-line: #555; }
+.series-index .si-item { position: relative; margin-bottom: 0; }
+.series-index .si-item::after {
+  content: ''; display: block; width: 2px; height: 20px; background: var(--si-line); margin: 0 auto;
+}
+.series-index .si-item:last-child::after { display: none; }
+.series-index .si-card {
+  background: var(--si-bg); border: 1px solid var(--si-border); border-radius: 8px;
+  padding: 12px 16px; border-left: 4px solid var(--si-line);
+}
+.series-index .si-title { margin: 0; font-size: 0.95rem; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.series-index .si-title a { color: var(--si-text); text-decoration: none; font-weight: 600; }
+.series-index .si-title a:hover { text-decoration: underline; }
+.series-index .si-num {
+  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 22px;
+  border-radius: 11px; font-size: 0.7rem; font-weight: 700; color: #fff; flex-shrink: 0; letter-spacing: 0.5px;
+  background: var(--si-muted);
+}
+.series-index .si-summary { font-size: 0.8rem; color: var(--si-muted); margin-top: 5px; }
+.series-index .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.series-index .tag { font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; background: var(--si-border); color: var(--si-muted); font-weight: 500; }
+.series-index .tag-layer { background: transparent; border: 1px solid var(--si-line); color: var(--si-text); }
+{{- range $code, $c := $palette }}
+.series-index .layer-{{ $code }} { border-left-color: {{ $c.light }}; }
+.series-index .layer-{{ $code }} .si-num { background: {{ $c.light }}; color: {{ $c.lt }}; }
+.dark .series-index .layer-{{ $code }} { border-left-color: {{ $c.dark }}; }
+.dark .series-index .layer-{{ $code }} .si-num { background: {{ $c.dark }}; color: {{ $c.dt }}; }
 {{- end }}
-</tbody>
-</table>
+.series-index-empty { color: var(--si-muted); font-style: italic; }
+</style>
+
+{{- if $rows -}}
+<div class="series-index">
+{{- range $rows }}
+{{- $num := "" -}}{{- with (findRE `^[0-9]+` .File.ContentBaseName) -}}{{- $num = index . 0 -}}{{- end -}}
+{{- $layer := .Params.layer | default "" -}}
+{{- $layerName := index $nameOf $layer | default $layer -}}
+  <div class="si-item">
+    <div class="si-card{{ with $layer }} layer-{{ . }}{{ end }}">
+      <div class="si-title"><span class="si-num">{{ $num }}</span><a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a></div>
+      {{- with .Params.summary }}<div class="si-summary">{{ . }}</div>{{ end -}}
+      <div class="tags">
+        {{- with $layer }}<span class="tag tag-layer">{{ $layerName }}</span>{{ end -}}
+        {{- with .Params.tags }}{{ range . }}<span class="tag">{{ . }}</span>{{ end }}{{ end -}}
+      </div>
+    </div>
+  </div>
+{{- end }}
+</div>
 {{- else -}}
 <p class="series-index-empty"><em>No posts yet.</em></p>
 {{- end -}}

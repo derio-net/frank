@@ -1,6 +1,7 @@
 ---
 title: "Operating on Local Inference"
 series: ["operating"]
+layer: infer
 date: 2026-03-13
 draft: false
 tags: ["operations", "ollama", "litellm", "openrouter", "ai"]

@@ -1,6 +1,7 @@
 ---
 title: "Operating on VK Relay"
 series: ["operating"]
+layer: agents
 date: 2026-04-13
 draft: false
 tags: ["operations", "agents", "vibekanban", "relay", "websocket", "troubleshooting"]

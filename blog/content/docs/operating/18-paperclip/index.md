@@ -1,6 +1,7 @@
 ---
 title: "Operating on Paperclip"
 series: ["operating"]
+layer: orch
 date: 2026-04-09
 draft: false
 tags: ["operations", "paperclip", "ai-agents", "postgresql", "gpu-1"]

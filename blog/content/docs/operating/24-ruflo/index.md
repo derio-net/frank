@@ -1,6 +1,7 @@
 ---
 title: "Operating on Ruflo"
 series: ["operating"]
+layer: orch
 date: 2026-05-03
 draft: false
 tags: ["operations", "ruflo", "claude-flow", "ruvocal", "ai-agents", "agent-shell-base", "ssh", "mosh", "litellm"]

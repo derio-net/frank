@@ -1,6 +1,7 @@
 ---
 title: "Operating on CI/CD Platform"
 series: ["operating"]
+layer: cicd
 date: 2026-04-13
 draft: false
 tags: ["operations", "cicd", "gitea", "tekton", "zot", "cosign", "pipelines", "troubleshooting"]

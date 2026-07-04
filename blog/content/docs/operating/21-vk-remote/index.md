@@ -1,6 +1,7 @@
 ---
 title: "Operating on VK Remote"
 series: ["operating"]
+layer: agents
 date: 2026-04-13
 draft: false
 tags: ["operations", "agents", "vibekanban", "postgresql", "electricsql", "troubleshooting"]

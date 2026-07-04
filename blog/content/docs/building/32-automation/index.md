@@ -1,6 +1,7 @@
 ---
 title: "Building Automation — AWX, the Imperative Counterweight"
 series: ["building"]
+layer: auto
 date: 2026-06-03
 draft: false
 tags: ["awx", "ansible", "automation", "authentik", "oidc", "argocd", "operator", "postgresql", "talos", "auto"]

@@ -1,6 +1,7 @@
 ---
 title: "Operating The Frank Papers — Research, Dossiers, and Publishing"
 series: ["operating"]
+layer: repo
 date: 2026-05-18
 draft: false
 tags: ["operations", "papers", "blog", "hugo", "dossier", "mermaid", "research"]

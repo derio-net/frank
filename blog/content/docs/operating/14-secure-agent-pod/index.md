@@ -1,6 +1,7 @@
 ---
 title: "Operating on Secure Agent Pod"
 series: ["operating"]
+layer: agents
 date: 2026-03-31
 draft: false
 tags: ["operations", "security", "agent", "claude", "ssh", "vibekanban", "cilium", "cron", "telegram", "monitoring"]

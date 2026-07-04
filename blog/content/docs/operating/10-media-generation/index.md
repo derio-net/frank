@@ -1,6 +1,7 @@
 ---
 title: "Operating on Media Generation"
 series: ["operating"]
+layer: media
 date: 2026-03-14
 draft: false
 tags: ["operations", "comfyui", "gpu-switcher", "diffusion", "gpu", "time-sharing"]

@@ -1,6 +1,7 @@
 ---
 title: "Operating Edge Observability — Day-to-Day Commands for the Obs Layer"
 series: ["operating"]
+layer: obs
 date: 2026-05-24
 draft: false
 tags: ["operations", "observability", "victoria-logs", "goatcounter", "crowdsec", "falco", "grafana", "ai-alert-helper", "hop"]

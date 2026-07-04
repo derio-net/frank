@@ -1,6 +1,7 @@
 ---
 title: "Paperclip — An AI Agent Orchestrator on Frank"
 series: ["building"]
+layer: orch
 date: 2026-03-14
 draft: false
 tags: ["paperclip", "agents", "ai", "orchestration", "postgresql", "ghcr", "litellm"]

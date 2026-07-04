@@ -2,9 +2,8 @@
 title: "Frank, the Talos Cluster: Overview & Roadmap"
 date: 2026-03-06
 draft: false
-series: ["building"]
 tags: ["overview", "roadmap"]
-summary: "A living overview of Frank, the Talos Cluster — an AI-hybrid Kubernetes homelab. Technology roadmap, capabilities, and series index."
+summary: "A living overview of Frank, the Talos Cluster — an AI-hybrid Kubernetes homelab. Technology roadmap, capabilities, and cluster state."
 weight: 1
 ---
 
@@ -74,7 +73,3 @@ This post is a **living document**: it gets updated as new technologies and capa
 | gpu-1 | AI Compute (C) | Worker | i9, 128GB RAM, RTX 5070, 2x4TB SSD |
 | pc-1 | Edge (D) | Worker | Legacy desktop, 64GB SSD + 3x HDD |
 | raspi-1/2 | Edge (D) | Worker | Raspberry Pi 4, 32GB SD |
-
-## Series Index
-
-{{< series-index >}}
