@@ -203,7 +203,7 @@ images:
   # --- Site Banners & Icons ---------------------------------------------------
 
   - key: banner-landing
-    output: blog/static/images/banner-landing.png
+    output: blog/assets/images/banner-landing.png
     description: Landing-page top banner — Frank being assembled mid-air, no text (1200x200, 6:1 ratio)
     prompt: >-
       An ultra-wide horizontal strip banner — exactly 1200 pixels wide by 200
@@ -226,7 +226,7 @@ images:
       like a letterbox strip — 1200x200 pixels, 6:1 ratio.
 
   - key: banner-operating
-    output: blog/static/images/banner-operating.png
+    output: blog/assets/images/banner-operating.png
     description: Operating-on-Frank card cover — Frank wincing as gadgets poke him (1200x630)
     prompt: >-
       A wide cinematic banner. Frank the server-hardware Frankenstein monster
@@ -299,7 +299,7 @@ images:
 
   - key: banner-papers
     series: papers
-    output: blog/static/images/banner-papers.png
+    output: blog/assets/images/banner-papers.png
     description: Papers series header strip banner (1200x200, 6:1 ratio) — matches banner-building / banner-operating style with title text
     prompt: >-
       An ultra-wide horizontal strip banner, extremely wide and short

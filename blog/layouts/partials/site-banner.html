@@ -1,19 +1,30 @@
-{{- $bannerSrc := "" -}}
+{{- /* Site/track banner. Prefer an assets/images/ banner (Hugo-processable → optimized
+       WebP via opt-image); fall back to a static/images/ banner rendered raw, so a blog
+       that hasn't relocated its banners to assets/ keeps rendering them (no regression).
+       Nil-safe: a track with no banner in either place renders nothing. */ -}}
+{{- $name := "" -}}
 {{- if eq .Kind "home" -}}
-  {{- $bannerSrc = "images/banner-landing.png" | relURL -}}
+  {{- $name = "images/banner-landing.png" -}}
 {{- else -}}
   {{- with .File -}}
     {{- $parts := split .Dir "/" -}}
     {{- if and (ge (len $parts) 2) (eq (index $parts 0) "docs") -}}
       {{- $track := index $parts 1 -}}
       {{- if $track -}}
-        {{- $bannerSrc = printf "images/banner-%s.png" $track | relURL -}}
+        {{- $name = printf "images/banner-%s.png" $track -}}
       {{- end -}}
     {{- end -}}
   {{- end -}}
 {{- end -}}
-{{- if $bannerSrc -}}
+{{- with $name -}}
+  {{- $asset := resources.Get . -}}
+  {{- if $asset -}}
 <div class="site-track-banner">
-  <img src="{{ $bannerSrc }}" alt="" />
+  {{ partial "opt-image.html" (dict "resource" $asset "alt" "" "loading" "eager" "maxWidth" site.Params.imageOptimize.bannerMaxWidth) }}
 </div>
+  {{- else if (fileExists (printf "static/%s" .)) -}}
+<div class="site-track-banner">
+  <img src="{{ . | relURL }}" alt="" loading="eager" decoding="async" />
+</div>
+  {{- end -}}
 {{- end -}}

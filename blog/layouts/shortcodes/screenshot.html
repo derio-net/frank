@@ -7,7 +7,11 @@
 {{- with $img }}{{ $url = .RelPermalink }}{{ end -}}
 <figure class="screenshot"{{ with $width }} style="max-width: {{ . }}"{{ end }}>
   <a href="{{ $url }}" target="_blank">
+    {{- if $img -}}
+    {{ partial "opt-image.html" (dict "resource" $img "alt" $alt "loading" "lazy") }}
+    {{- else -}}
     <img src="{{ $url }}" alt="{{ $alt }}" loading="lazy" />
+    {{- end -}}
   </a>
   {{- with $caption }}
   <figcaption>{{ . }}</figcaption>

@@ -1,0 +1,32 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Relocate banners + verify
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Banners static->assets + build verification
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED: extend the adoption test — a hugo --minify build emits .webp (+srcset) for a cover/inline image, and the 4 banners live in blog/assets/images/ (not static/images/). Run — fail (banners still in static/).
+  - id: P2.T1.S2
+    text: |
+      GREEN: git mv blog/static/images/banner-{landing,operating,building,papers}.png -> blog/assets/images/. Run the adoption test — pass. Verify hugo --minify clean + a before/after per-page image-payload drop; confirm PNG masters otherwise untouched.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-07-04T15:35:27+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-07-04T15:35:28+00:00'
+      note: null
+  completion:
+    at: '2026-07-04T15:35:30+00:00'
+    note: null
+    observed_prs: []
