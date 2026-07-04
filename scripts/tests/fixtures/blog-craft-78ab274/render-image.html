@@ -1,0 +1,10 @@
+{{- /* Markdown image render hook — routes bundle-resource images through the
+       opt-image optimizer; passes remote/absolute/non-bundle images through
+       unchanged. Fires for every ![alt](src) in content. */ -}}
+{{- $r := "" -}}
+{{- with .Page.Resources.GetMatch .Destination -}}{{ $r = . }}{{- end -}}
+{{- if $r -}}
+  {{- partial "opt-image.html" (dict "resource" $r "alt" .PlainText "loading" "lazy") -}}
+{{- else -}}
+  <img src="{{ .Destination | safeURL }}" alt="{{ .PlainText }}" loading="lazy"{{ with .Title }} title="{{ . }}"{{ end }} />
+{{- end -}}

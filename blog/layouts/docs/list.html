@@ -11,7 +11,7 @@
         {{ $cover := .Resources.GetMatch "cover.*" }}
         {{ with $cover }}
         <div class="post-cover">
-          <img src="{{ .RelPermalink }}" alt="{{ $.Title }}" loading="lazy" />
+          {{ partial "opt-image.html" (dict "resource" . "alt" $.Title "loading" "lazy") }}
         </div>
         {{ end }}
         <div class="content">

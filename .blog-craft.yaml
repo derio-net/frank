@@ -1,5 +1,5 @@
 version: 2
-blog_craft_version: "a7f2f7f"   # blog-craft main SHA frank is synced to (PR #12; supersedes phantom 0.3.0)
+blog_craft_version: "78ab274"   # blog-craft main SHA frank is synced to (PR #14 image-optimization; was #12 a7f2f7f)
 
 project:
   name: "Frank"                                   # slug: drives the read-tracker storage key
@@ -22,6 +22,9 @@ image:
   prompts_file: prompt_for_images.yaml
   reference_pool: .reference-pool
   curation: { count_default: 1, archive_cap: 30, contact_sheet: true }
+  # Build-time WebP optimization (blog-craft #14). Hugo emits width-capped WebP +
+  # srcset from the PNG masters (masters untouched). Banners live in assets/images/.
+  optimize: { enabled: true, format: webp, quality: 82, max_width: 1600, banner_max_width: 2560 }
   composition_order: [base_character, base_atmosphere, reference_guidance, torso, mood, scene]
   layers:
     base_character: Frank — a chibi-proportioned green Frankenstein monster. Uneven cartoon-green skin with

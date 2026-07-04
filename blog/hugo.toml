@@ -32,6 +32,14 @@ title = "Frank, the Talos Cluster"
   [params.seriesIndex]
     style = "cards"
 
+  # Build-time WebP image optimization (blog-craft #14) — read by opt-image.html.
+  [params.imageOptimize]
+    enabled = true
+    format = "webp"
+    quality = 82
+    maxWidth = 1600
+    bannerMaxWidth = 2560
+
 # `series` must be a taxonomy or Hextra's opengraph partial fails on
 # series-tagged pages (`first 6 $series.Pages`). capabilities/references
 # back the papers content-type's cross-referencing.
