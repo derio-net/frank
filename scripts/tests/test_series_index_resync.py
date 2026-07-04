@@ -84,9 +84,11 @@ NEUTRAL_KEYS = {"upcoming"}
 
 
 def test_no_orphan_layer_key():
-    """Every colour-bearing layer key consumed by roadmap.yaml + posts resolves in
-    the palette. Guards the alias retirement (inference/docs) against stranding a
-    key; deliberately-neutral keys are allowlisted."""
+    """Every colour-bearing layer key consumed by roadmap.yaml, papers.yaml, and
+    posts resolves in the palette. Guards the alias retirement (inference/docs)
+    against stranding a key — a stranded key renders a NEUTRAL card (colour loss),
+    the exact zero-visual-change regression this re-sync must not introduce.
+    Deliberately-neutral keys are allowlisted."""
     palette = _live_palette()
     orphans = []
     # roadmap.yaml layer keys
@@ -95,6 +97,13 @@ def test_no_orphan_layer_key():
         key = layer.get("key")
         if key and key not in palette and key not in NEUTRAL_KEYS:
             orphans.append(f"roadmap.yaml key:{key}")
+    # papers.yaml entries' `layer:` (consumed by papers-roadmap.html, which reads
+    # the DATA file, not post frontmatter — this is where the docs alias hid)
+    papers = _load(os.path.join(BLOG, "data", "papers.yaml"))
+    for entry in (papers.get("entries") or []):
+        key = entry.get("layer")
+        if key and key not in palette and key not in NEUTRAL_KEYS:
+            orphans.append(f"papers.yaml entry {entry.get('number')} layer:{key}")
     # post frontmatter `layer:`
     for idx in _iter_post_indexes():
         m = re.search(r"(?m)^layer:\s*([A-Za-z0-9_-]+)", open(idx).read())

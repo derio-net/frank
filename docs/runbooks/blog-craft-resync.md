@@ -69,8 +69,11 @@ surgical. A later full update may adopt them:
 - Replaced `blog/layouts/shortcodes/series-index.html` + `roadmap.html` with
   blog-craft@`a7f2f7f`'s standardized (registry-driven) versions.
 - Vendored the registry-driven `gen-layer-palette.py`; regenerated the palette
-  (now carries `name` per entry; the `inference`/`docs` aliases are retired —
-  `roadmap.yaml` now uses the canonical `infer`/`repo` codes, same colours).
+  (now carries `name` per entry; the `inference`/`docs` aliases are retired).
+  Every consumer of the retired aliases was migrated to the canonical code, same
+  colours by construction: `roadmap.yaml` (`inference`→`infer`, `docs`→`repo`)
+  AND `blog/data/papers.yaml` (paper 0 `layer: docs`→`repo` — consumed by
+  `papers-roadmap.html`, which reads the data file, not post frontmatter).
 - Added `[params.seriesIndex] style = "cards"` to `blog/hugo.toml`.
 - Net visual change: the layer-name card tag is `font-weight: 600` (was `500`);
   every colour and all other markup is byte-identical.

@@ -152,16 +152,22 @@ committed palette.
 ### 5. Aliases — retire them frank-side (zero visual change)
 
 The registry generator emits no `inference`/`docs` aliases. Their consumers are
-**exactly two** `blog/data/roadmap.yaml` entries (measured): `key: inference`
-(line 129) and `key: docs` (line 302). No post or papers data uses them as a
-`layer:`. Because `infer`≡`inference` and `repo`≡`docs` are identical colours by
+**three** entries (measured; an initial pass missed the papers one — caught in
+code review): `blog/data/roadmap.yaml` `key: inference` (line 129) and `key: docs`
+(line 302), plus `blog/data/papers.yaml` entry 0 `layer: docs` (line 24). The
+papers one is easy to miss because `papers-roadmap.html` renders from the **data
+file**, not post frontmatter (the paper's own `index.md` correctly uses `repo`).
+Because `infer`≡`inference` and `repo`≡`docs` are identical colours by
 construction:
 
 - Swap `roadmap.yaml` `key: inference` → `key: infer` (line 129).
 - Swap `roadmap.yaml` `key: docs` → `key: repo` (line 302).
+- Swap `papers.yaml` entry 0 `layer: docs` → `layer: repo` (line 24) — else that
+  one papers-roster card strands on the dropped alias and renders **neutral**.
 
-`papers-roadmap.html` keeps its own name dict (frank-local, untouched) — its
-palette **colour** lookups resolve to the canonical codes present in the
+The `no-orphan-layer-key` test therefore scans `roadmap.yaml`, `papers.yaml`,
+AND post frontmatter. `papers-roadmap.html` keeps its own name dict (frank-local,
+untouched) — its palette **colour** lookups resolve to the canonical codes in the
 regenerated palette. This aligns frank with blog-craft's alias-free registry
 model rather than forcing blog-craft to grow an alias feature.
 
@@ -222,7 +228,10 @@ deploy:
 
 - **roadmap.html replace not render-identical** → caught by the pre-merge render
   diff; resolve by accepting a reviewed change or excluding roadmap.
-- **A paper uses `layer: inference`/`docs`** → caught by the no-orphan-key test;
-  swap the ref to the canonical code.
+- **A paper uses `layer: inference`/`docs`** → this MATERIALIZED
+  (`papers.yaml:24`, missed by the initial scan, caught in code review). Fixed by
+  swapping to `repo`; the no-orphan-key test was extended to scan `papers.yaml` so
+  the guard would have failed pre-fix. Zero-visual-change re-verified: the papers
+  card body diff is a single class rename (`layer-docs`→`layer-repo`, same colour).
 - **Future `update.py` run surprises** → the recorded exclusion/deferral note +
   correct version pin make the next run predictable.
