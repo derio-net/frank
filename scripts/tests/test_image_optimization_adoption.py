@@ -1,4 +1,4 @@
-"""Frank adopts blog-craft #14's WebP image pipeline (blog-craft @ 78ab274).
+"""Frank adopts blog-craft #14's WebP image pipeline (blog-craft @ 5dc31f8).
 
 Pure-python invariants (config + drop-divergence) always run; the build check
 needs Hugo Extended (WebP encode) and is skipped otherwise.
@@ -16,7 +16,7 @@ import yaml
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 BLOG = os.path.join(REPO, "blog")
-FIX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "blog-craft-78ab274")
+FIX = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "blog-craft-5dc31f8")
 
 
 def test_config_opts_into_optimization():
@@ -25,16 +25,16 @@ def test_config_opts_into_optimization():
     opt = (cfg.get("image") or {}).get("optimize") or {}
     assert opt.get("enabled") is True, "image.optimize.enabled must be true"
     assert opt.get("format") == "webp"
-    assert cfg.get("blog_craft_version") == "78ab274", "must pin blog-craft #14 SHA"
+    assert cfg.get("blog_craft_version") == "5dc31f8", "must pin blog-craft #14 SHA"
 
 
 def test_mechanism_templates_match_blog_craft():
-    """opt-image + render-image track blog-craft@78ab274 (no frank divergence)."""
+    """opt-image + render-image track blog-craft@5dc31f8 (no frank divergence)."""
     for name, dest in (("opt-image.html", "partials/opt-image.html"),
                        ("render-image.html", "_markup/render-image.html")):
         live = open(os.path.join(BLOG, "layouts", dest), "rb").read()
         ref = open(os.path.join(FIX, name), "rb").read()
-        assert live == ref, f"blog/layouts/{dest} diverges from blog-craft@78ab274"
+        assert live == ref, f"blog/layouts/{dest} diverges from blog-craft@5dc31f8"
 
 
 def test_banners_relocated_to_assets():

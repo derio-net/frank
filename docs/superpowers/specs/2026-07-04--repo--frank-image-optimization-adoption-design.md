@@ -11,14 +11,14 @@
 Frank's live blog serves **90.9 MB of raw PNG** (152 files, 100% PNG; 82 covers =
 60.5 MB, banners up to 7 MB each), with no optimization — `hugo --minify` doesn't
 touch images. On a slow connection this dominates page load. blog-craft #14
-(merged, SHA `78ab274`) now ships the opt-in WebP pipeline; this adopts it in
+(merged, SHA `5dc31f8`) now ships the opt-in WebP pipeline; this adopts it in
 frank so the live blog actually gets faster (~90 MB → ~10–20 MB, WebP wins
 77–99% measured).
 
 ## What is grounded (measured)
 
 Frank's image templates are the **pre-change blog-craft baseline** — `list.html`,
-`screenshot.html`, `site-banner.html` differ from blog-craft@`78ab274` **only**
+`screenshot.html`, `site-banner.html` differ from blog-craft@`5dc31f8` **only**
 by the opt-image changes. So they can be replaced wholesale with the merged
 versions. Frank additionally has its own `docs/single.html` (papers-injection
 version blog-craft doesn't ship) where **post covers** — the 60 MB bulk — render;
@@ -31,8 +31,8 @@ that one is edited in place.
    image:
      optimize: { enabled: true, format: webp, quality: 82, max_width: 1600, banner_max_width: 2560 }
    ```
-   Bump `blog_craft_version: "a7f2f7f"` → `"78ab274"` (blog-craft #14 merge SHA).
-2. **Adopt the merged templates** (copy from blog-craft@`78ab274`, which differ
+   Bump `blog_craft_version: "a7f2f7f"` → `"5dc31f8"` (blog-craft #14 merge SHA).
+2. **Adopt the merged templates** (copy from blog-craft@`5dc31f8`, which differ
    from frank's only by opt-image):
    - `layouts/partials/opt-image.html` (NEW — the optimizer)
    - `layouts/_markup/render-image.html` (NEW — markdown `![]()` hook)
@@ -52,9 +52,9 @@ that one is edited in place.
 ## Tests
 
 `scripts/tests/test_image_optimization_adoption.py`:
-- Config declares `image.optimize.enabled: true` + `blog_craft_version: 78ab274`.
+- Config declares `image.optimize.enabled: true` + `blog_craft_version: 5dc31f8`.
 - `opt-image.html` + `_markup/render-image.html` exist and are byte-identical to
-  the blog-craft@`78ab274` fixtures (drop-divergence: frank tracks the mechanism).
+  the blog-craft@`5dc31f8` fixtures (drop-divergence: frank tracks the mechanism).
 - A real `hugo --minify` build emits `.webp` (+ `srcset`) for a cover/inline
   image, and the 4 banners live in `assets/images/` (not `static/images/`).
 

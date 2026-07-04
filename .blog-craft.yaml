@@ -1,5 +1,5 @@
 version: 2
-blog_craft_version: "78ab274"   # blog-craft main SHA frank is synced to (PR #14 image-optimization; was #12 a7f2f7f)
+blog_craft_version: "5dc31f8"   # blog-craft main SHA (PR #14 image-optimization + #16 opt-image resilience; was #12 a7f2f7f)
 
 project:
   name: "Frank"                                   # slug: drives the read-tracker storage key
