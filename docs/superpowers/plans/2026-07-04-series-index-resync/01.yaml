@@ -1,0 +1,48 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Palette foundation — registry config + vendored generator + regenerated palette
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: 'Golden-snapshot the #605 palette (parity baseline)'
+  steps:
+  - id: P1.T1.S1
+    text: |
+      RED: add scripts/tests/test_series_index_resync.py with a test that reads a golden snapshot of the CURRENT committed blog/data/layer_palette.yaml (the #605 baseline) — first copy blog/data/layer_palette.yaml verbatim to scripts/tests/fixtures/layer_palette.605.golden.yaml, then assert that, for the 21 core codes, the LIVE blog/data/layer_palette.yaml has light/dark/lt/dt byte-identical to the golden. Run pytest — it PASSES trivially now (live==golden), which is fine; this step establishes the golden + the guard. The parity assertion becomes load-bearing after the palette is regenerated in T2.
+- number: 2
+  title: Registry config + version pin + vendored registry-driven generator + regen
+  steps:
+  - id: P1.T2.S1
+    text: |
+      RED: extend test_series_index_resync.py with (a) a registry↔palette consistency test — every code in .blog-craft.yaml `series_index.layers` appears in blog/data/layer_palette.yaml with a matching `name`; and (b) a generator-identity test — blog/scripts/gen-layer-palette.py is byte-identical to blog-craft@a7f2f7f's tools/gen-layer-palette.py (read the reference from /tmp/bc-resync-read, or a committed fixture copy). Run pytest — both FAIL (no series_index block yet; frank's gen is still the hardcoded-ORDER version).
+  - id: P1.T2.S2
+    text: |
+      GREEN part 1 — config: edit .blog-craft.yaml to (i) add the series_index block {style: cards, layers: [21 {code,name}]} with the codes IN FRANK'S ORDER (hw,os,net,stor,gpu,gitops,fun,obs,backup,secrets,infer,agents,auth,tenant,orch, media,edge,deploy,cicd,auto,repo) and names copied verbatim from the current series-index.html $nameOf dict; (ii) set blog_craft_version: "a7f2f7f".
+  - id: P1.T2.S3
+    text: |
+      GREEN part 2 — vendor + regen: copy blog-craft@a7f2f7f tools/gen-layer-palette.py verbatim to blog/scripts/gen-layer-palette.py (registry-driven). Regenerate: `python blog/scripts/gen-layer-palette.py --config .blog-craft.yaml > blog/data/layer_palette.yaml`. Run pytest — parity (T1), consistency, and generator-identity all PASS. Confirm the diff of layer_palette.yaml vs the golden is ONLY additive `name:` fields + the removal of the 2 alias lines (inference/docs); 21 core colours unchanged.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-04T10:08:01+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-07-04T10:08:02+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-07-04T10:08:04+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-07-04T10:08:05+00:00'
+      note: null
+  completion:
+    at: '2026-07-04T10:14:08+00:00'
+    note: null
+    observed_prs: []

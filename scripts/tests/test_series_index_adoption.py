@@ -128,9 +128,14 @@ def test_no_stale_push_machinery():
 
 
 def test_palette_single_source_and_reproducible():
-    # the committed data file must match the generator output (drift guard)
-    gen = subprocess.run([sys.executable, os.path.join(BLOG, "scripts", "gen-layer-palette.py")],
-                         capture_output=True, text=True)
+    # the committed data file must match the generator output (drift guard).
+    # The generator is now registry-driven (blog-craft standardized) — it reads the
+    # series_index.layers registry from .blog-craft.yaml.
+    gen = subprocess.run(
+        [sys.executable, os.path.join(BLOG, "scripts", "gen-layer-palette.py"),
+         "--config", os.path.join(REPO, ".blog-craft.yaml")],
+        capture_output=True, text=True,
+    )
     assert gen.returncode == 0, gen.stderr
     committed = open(os.path.join(BLOG, "data", "layer_palette.yaml")).read()
     assert gen.stdout == committed, "layer_palette.yaml is out of sync with gen-layer-palette.py — regenerate"

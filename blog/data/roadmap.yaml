@@ -126,7 +126,7 @@ layers:
       - Universal Auth
       - 192.168.55.204
   - num: 11
-    key: inference
+    key: infer
     title: Local Inference
     sub_items:
       - Ollama (gpu-1, RTX 5070)
@@ -299,7 +299,7 @@ layers:
       - swarm
       - ruflo.cluster.derio.net
   - num: 30
-    key: docs
+    key: repo
     title: The Frank Papers — Research Series
     sub_items:
       - Third blog series (Building / Operating / Papers)

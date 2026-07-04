@@ -28,6 +28,10 @@ title = "Frank, the Talos Cluster"
     [params.search.flexsearch]
       index = "content"
 
+  # Series-index card layout (cards | table | none) — read by the series-index shortcode.
+  [params.seriesIndex]
+    style = "cards"
+
 # `series` must be a taxonomy or Hextra's opengraph partial fails on
 # series-tagged pages (`first 6 $series.Pages`). capabilities/references
 # back the papers content-type's cross-referencing.

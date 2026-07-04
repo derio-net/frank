@@ -21,7 +21,7 @@ entries:
     slug: why-homelab-in-2026
     title: "Why Run Your Own Cluster in 2026?"
     covers: "Cloud-native vs managed homelab vs DIY"
-    layer: docs
+    layer: repo
     phase: 1
 
   - number: 1
