@@ -462,7 +462,7 @@ entire reason Frank runs it.
 
 Visible evidence:
 
-![ArgoCD UI — root App-of-Apps tree, every leaf Synced and Healthy](argocd-app-of-apps-tree-healthy-TODO.png)
+![ArgoCD UI — the root App-of-Apps tree, every application Healthy (auto-sync reconciling a couple back toward Git).](argocd-app-of-apps-tree-healthy.png)
 
 A managed-GitOps product would have absorbed the symlink incident
 into its support team's queue; a pure-CI `kubectl apply` flow would

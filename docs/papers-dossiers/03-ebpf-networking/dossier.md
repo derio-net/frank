@@ -100,7 +100,7 @@ status: ready
   demonstrates: "MixedProtocolLBService on Cilium 1.17 + K8s 1.35 — a Service with TCP/22 (SSH) and UDP/60000–60015 (mosh) on a single LB IP. Cilium 1.17 ships this on; no feature gate, no annotation, no per-protocol service split. The ports bind on a single EndpointSlice and answer from the same Pod. We learned this by accident after half an hour reading old 2022-era GitHub issues looking for a flag that did not need flipping."
 
 - kind: grafana-screenshot
-  path_or_url: "blog/content/docs/papers/03-ebpf-networking/hubble-ui-TODO.png"
+  path_or_url: "blog/content/docs/papers/03-ebpf-networking/hubble-ui.png"
   date: 2026-05-20
   demonstrates: "Hubble UI flow graph (192.168.55.202) showing real pod-to-pod flow observability for a representative namespace. Placeholder pending cluster-side capture."
 

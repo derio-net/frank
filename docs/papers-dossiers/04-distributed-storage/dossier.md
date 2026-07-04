@@ -87,7 +87,7 @@ status: ready
   demonstrates: "The ESO empty data:[] admission rejection: when all keys are removed from an ExternalSecret, the resulting empty data shape is rejected by the admission webhook. The ExternalSecret itself must be deleted, not zeroed. Declarative tooling does not infer 'empty' from 'missing'."
 
 - kind: grafana-screenshot
-  path_or_url: "blog/content/docs/papers/04-distributed-storage/longhorn-3-replica-healthy-TODO.png"
+  path_or_url: "blog/content/docs/papers/04-distributed-storage/longhorn-3-replica-healthy.png"
   date: 2026-05-19
   demonstrates: "Longhorn UI snapshot showing healthy volumes with 3 replicas each, distributed across mini-1 / mini-2 / mini-3. The visible evidence that the replica_count = control_plane_count shape is what's actually running, and that a Healthy state is what default settings produce."
 
