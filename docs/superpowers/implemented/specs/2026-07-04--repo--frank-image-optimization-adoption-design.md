@@ -2,7 +2,7 @@
 
 **Layer:** repo (blog infra / tooling meta)
 **Date:** 2026-07-04
-**Status:** draft
+**Status:** Deployed
 **Follows:** blog-craft #14 (image-optimization WebP pipeline mechanism)
 **Mechanism spec:** `derio-net/blog-craft:docs/superpowers/implemented/specs/2026-07-04--image-optimization--webp-pipeline-design.md`
 
