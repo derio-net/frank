@@ -1,6 +1,9 @@
 <!-- Data-driven rich roadmap. Renders from data/roadmap.yaml:
-     layers: [{num, key, title, sub_items: [...], tags: [...]}] (key -> .layer-<key> accent).
-     frank contributed the layout/CSS; blog-specific layers live in data/. -->
+     layers: [{num, key, title, sub_items: [...], tags: [...]}].
+     Colours come from data/layer_palette.yaml (key -> .layer-<key>) when the blog opts
+     into layers; otherwise the roadmap is neutral. frank contributed the layout/CSS. -->
+{{- $palette := false -}}
+{{- with site.Data.layer_palette }}{{- $palette = .layers -}}{{- end -}}
 <style>
 .roadmap {
   --rm-bg: #f8f9fa;
@@ -21,13 +24,12 @@
   --rm-line: #555;
 }
 
-/* per-layer colours — single source of truth: blog/data/layer_palette.yaml */
-{{- range $code, $c := site.Data.layer_palette.layers }}
-.layer-{{ $code }} { border-left-color: {{ $c.light }}; }
-.layer-{{ $code }} .layer-num { background: {{ $c.light }}; color: {{ $c.lt }}; }
-.dark .layer-{{ $code }} { border-left-color: {{ $c.dark }}; }
-.dark .layer-{{ $code }} .layer-num { background: {{ $c.dark }}; color: {{ $c.dt }}; }
-{{- end }}
+{{- with $palette }}{{ range $code, $c := . }}
+.roadmap .layer-{{ $code }} { border-left-color: {{ $c.light }}; }
+.roadmap .layer-{{ $code }} .layer-num { background: {{ $c.light }}; color: {{ $c.lt }}; }
+.dark .roadmap .layer-{{ $code }} { border-left-color: {{ $c.dark }}; }
+.dark .roadmap .layer-{{ $code }} .layer-num { background: {{ $c.dark }}; color: {{ $c.dt }}; }
+{{- end }}{{ end }}
 
 .layer-upcoming {
   border-left-style: dashed;
