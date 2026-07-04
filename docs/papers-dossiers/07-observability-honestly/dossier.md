@@ -108,7 +108,7 @@ status: ready
   demonstrates: "Cannot change provenance from api to file — once an alert exists with provenance: api in Grafana's sqlite, the file-provisioning loader refuses to overwrite it. Recovery requires scale-down, DELETE FROM alert_rule, then scale-up — a write-then-revert dance at the database level. Live evidence that Grafana's alert provenance model treats UI-created and file-provisioned alerts as separate ownership domains, not as views over the same resource."
 
 - kind: grafana-screenshot
-  path_or_url: "blog/content/docs/papers/07-observability-honestly/grafana-honest-dashboard-TODO.png"
+  path_or_url: "blog/content/docs/papers/07-observability-honestly/grafana-honest-dashboard.png"
   date: 2026-05-19
   demonstrates: "Grafana UI snapshot showing real cluster metrics with a visible scar / spike from a past incident — the alertlist panel rendering currently-firing alerts against VictoriaMetrics as the TSDB. Placeholder PNG retained until a cluster-side capture is made; cluster access is not available from this worktree."
 

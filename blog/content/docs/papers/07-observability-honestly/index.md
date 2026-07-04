@@ -461,7 +461,7 @@ does not look.
 
 Visible evidence:
 
-![Grafana dashboard with the alertlist panel rendering currently-firing alerts against the VictoriaMetrics TSDB — placeholder, replace with the live capture before publish.](grafana-honest-dashboard-TODO.png)
+![Grafana’s Feature Health dashboard — the Alert Summary panel rendering currently-firing alerts against the VictoriaMetrics TSDB, alongside cron-job heartbeats and endpoint probes.](grafana-honest-dashboard.png)
 
 A managed all-in-one would have hidden every one of these failure
 modes behind its abstraction, which is the right trade for a

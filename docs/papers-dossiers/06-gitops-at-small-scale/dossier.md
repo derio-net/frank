@@ -102,7 +102,7 @@ status: ready
   demonstrates: "The actual commit that introduced the symlink-causing-ComparisonError incident. Move-skills-and-symlink commit that pointed .claude/skills two levels up instead of one. The post-commit sanity command find-l-name pattern is now muscle memory after every symlink change."
 
 - kind: grafana-screenshot
-  path_or_url: "blog/content/docs/papers/06-gitops-at-small-scale/argocd-app-of-apps-tree-healthy-TODO.png"
+  path_or_url: "blog/content/docs/papers/06-gitops-at-small-scale/argocd-app-of-apps-tree-healthy.png"
   date: 2026-05-19
   demonstrates: "ArgoCD UI snapshot showing the root App-of-Apps tree healthy — every leaf Application Synced and Healthy. The visible evidence that 30+ workloads reconcile cleanly from a single root Application, and that the App-of-Apps pattern is what's actually running on Frank."
 

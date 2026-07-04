@@ -495,7 +495,7 @@ marketing material does not look.
 
 Visible evidence:
 
-![Hubble UI flow graph — pod-to-pod observability without sidecars](hubble-ui-TODO.png)
+![Hubble UI — the flow graph for the authentik namespace: Traefik ingress → the Authentik server (:9000) → PostgreSQL (:5432). Pod-to-pod visibility with no sidecars.](hubble-ui.png)
 
 A managed cloud CNI would have hidden every one of these failure modes
 behind its abstraction, which is the right trade for a production team

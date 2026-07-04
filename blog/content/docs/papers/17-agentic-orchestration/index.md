@@ -510,7 +510,7 @@ the failures live — exactly where the vendor docs do not look.
 
 Visible evidence:
 
-![VibeKanban board showing in-flight agent workspaces dispatched into secure-agent-pod](vk-board-TODO.png)
+![The VibeKanban board — recent agent workspaces grouped Needs Attention / Running / Idle, dispatched into the secure-agent-pod.](vk-board.png)
 
 A managed agent platform would have hidden every one of these
 failure modes behind its abstraction. That is the right trade for a

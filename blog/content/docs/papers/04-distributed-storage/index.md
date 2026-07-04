@@ -461,7 +461,7 @@ live — exactly where the marketing material does not look.
 
 Visible evidence:
 
-![Longhorn UI — three healthy replicas across mini-1, mini-2, mini-3](longhorn-3-replica-healthy-TODO.png)
+![Longhorn UI — one volume’s three healthy replicas, spread across gpu-1, mini-1, and mini-3.](longhorn-3-replica-healthy.png)
 
 A managed-storage product would have hidden every one of these
 failure modes behind its SLA, which is the right trade for a

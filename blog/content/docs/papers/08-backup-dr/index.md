@@ -530,7 +530,7 @@ names are the design; the schema is the gap.
 
 Visible evidence:
 
-![Longhorn UI Backup page — recent R2 backups with retention](longhorn-r2-backups-TODO.png)
+![Longhorn’s Backup page — recent backups of cluster volumes to the default (R2) target.](longhorn-r2-backups.png)
 
 The three scars share a shape. None of them are bugs in Frank's
 architecture. All of them are emergent properties of running a backup

@@ -414,6 +414,8 @@ Authentik is one. Authelia would have worked for the forward-auth
 half but not the OIDC half. Dex would have done OIDC but nothing for
 the opaque apps.
 
+![Authentik’s Applications view — the cluster services behind one IdP, each tagged by provider type: Proxy Provider for the charts that ship without OIDC (ComfyUI, GoatCounter, Longhorn, Hubble…), OAuth2/OpenID for the ones that speak it (ArgoCD, Grafana, Gitea, Infisical…).](authentik-applications.png)
+
 The cost has been scar tissue. Three pieces of it are worth naming
 in detail, because each is the kind of operational tax that doesn't
 appear in any "compare the IdPs" blog post but shows up the second

@@ -554,7 +554,7 @@ shape forced by the chart's missing `else`.
 
 Visible evidence (cluster-side capture deferred):
 
-![Infisical UI at 192.168.55.204 — frank-cluster project, prod environment](infisical-ui-TODO.png)
+![Infisical — the self-hosted secrets manager backing Frank, holding the frank-cluster and homelab projects.](infisical-ui.png)
 
 The four scars share a shape. None of them are bugs in Infisical
 itself, or in ESO, or in SOPS. All of them are emergent properties of
