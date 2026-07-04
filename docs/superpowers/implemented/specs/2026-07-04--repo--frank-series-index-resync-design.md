@@ -2,7 +2,7 @@
 
 **Layer:** repo (blog infra / tooling meta)
 **Date:** 2026-07-04
-**Status:** draft
+**Status:** Deployed
 **Follows:** frank #605 (series-index adoption), blog-craft #12 (standardization)
 
 ## Problem
