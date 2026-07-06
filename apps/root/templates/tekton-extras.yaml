@@ -39,3 +39,18 @@ spec:
         - '.spec.tasks[]?.taskSpec.spec | select(. == null)'
         - '.spec.tasks[]?.taskSpec.stepTemplate.computeResources | select(. == {})'
         - '.spec.tasks[]?.taskSpec.steps[]?.computeResources | select(. == {})'
+        - '.spec.tasks[]?.taskRef.kind | select(. == "Task")'
+    - group: tekton.dev
+      kind: Task
+      namespace: tekton-pipelines
+      jqPathExpressions:
+        - '.spec.results[]?.type | select(. == "string")'
+    - group: triggers.tekton.dev
+      kind: EventListener
+      namespace: tekton-pipelines
+      jqPathExpressions:
+        - '.spec.namespaceSelector | select(. == {})'
+        - '.spec.resources.kubernetesResource.spec.template.metadata.creationTimestamp | select(. == null)'
+        - '.spec.resources.kubernetesResource.spec.template.spec.containers | select(. == null)'
+        - '.spec.triggers[]?.bindings[]?.kind | select(. == "TriggerBinding")'
+        - '.spec.triggers[]?.interceptors[]?.ref.kind | select(. == "ClusterInterceptor")'

@@ -35,3 +35,17 @@ spec:
       - CreateNamespace=false
       - ServerSideApply=true
       - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - group: tekton.dev
+      kind: Task
+      namespace: tekton-pipelines
+      jqPathExpressions:
+        - '.spec.results[]?.type | select(. == "string")'
+    - group: triggers.tekton.dev
+      kind: EventListener
+      namespace: tekton-pipelines
+      jqPathExpressions:
+        - '.spec.namespaceSelector | select(. == {})'
+        - '.spec.resources | select(. == {})'
+        - '.spec.triggers[]?.bindings[]?.kind | select(. == "TriggerBinding")'
+        - '.spec.triggers[]?.interceptors[]?.ref.kind | select(. == "ClusterInterceptor")'

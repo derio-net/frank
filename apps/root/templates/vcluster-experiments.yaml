@@ -47,3 +47,17 @@ spec:
         - /spec/persistentVolumeClaimRetentionPolicy/whenScaled
         - /spec/revisionHistoryLimit
         - /spec/updateStrategy
+        - /spec/template/spec/containers/0/imagePullPolicy
+        - /spec/template/spec/containers/0/terminationMessagePath
+        - /spec/template/spec/containers/0/terminationMessagePolicy
+        - /spec/template/spec/dnsPolicy
+        - /spec/template/spec/initContainers/0/terminationMessagePath
+        - /spec/template/spec/initContainers/0/terminationMessagePolicy
+        - /spec/template/spec/restartPolicy
+        - /spec/template/spec/schedulerName
+        - /spec/template/spec/serviceAccount
+        - /spec/template/spec/volumes/4/secret/defaultMode
+        - /spec/volumeClaimTemplates/0/apiVersion
+        - /spec/volumeClaimTemplates/0/kind
+        - /spec/volumeClaimTemplates/0/spec/volumeMode
+        - /spec/volumeClaimTemplates/0/status
