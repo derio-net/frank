@@ -212,7 +212,7 @@ deploy:
 
 ## Implementation Plans
 
-| Plan | Target repo | Status | Notes |
+| Plan | Repo | File | Depends on |
 |------|-------------|--------|-------|
 | 2026-07-04-series-index-resync | `derio-net/frank` | `2026-07-04-series-index-resync` | — |
 

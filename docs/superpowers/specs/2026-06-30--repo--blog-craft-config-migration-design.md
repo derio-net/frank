@@ -343,6 +343,6 @@ by the harness built in P5.
 blog-craft phases (P1–P6) are planned + tracked in the blog-craft repo
 (`derio-net/blog-craft`, PRs #4/#5/#6). Only frank's P7 cutover is planned here.
 
-| Plan | Group / Phases | Status | Notes |
+| Plan | Repo | File | Depends on |
 |------|----------------|--------|-------|
 | 2026-06-30-frank-blog-craft-p7 | `derio-net/frank` | `2026-06-30-frank-blog-craft-p7` | — |

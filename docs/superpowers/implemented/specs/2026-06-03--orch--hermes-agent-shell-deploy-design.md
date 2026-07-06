@@ -8,7 +8,7 @@
 
 ## Implementation Plans
 
-| Plan | Repo | Path | Status |
+| Plan | Repo | File | Depends on |
 |------|------|------|--------|
 | 2026-06-03--orch--hermes-agent-shell-deploy | `derio-net/frank` | `2026-06-03--orch--hermes-agent-shell-deploy` | — |
 

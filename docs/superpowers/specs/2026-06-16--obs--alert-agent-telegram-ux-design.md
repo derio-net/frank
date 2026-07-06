@@ -8,7 +8,7 @@
 
 ## Implementation Plans
 
-| Plan | Target repo | Slug | Status |
+| Plan | Repo | File | Depends on |
 |------|-------------|------|--------|
 | agent-session-coldstart (Thread A, **gating**) | `derio-net/agent-images` | `2026-06-16-agent-session-coldstart` | — |
 | 2026-06-16--obs--alert-agent-telegram-ux (Threads B+C) | `derio-net/frank` | `2026-06-16--obs--alert-agent-telegram-ux` | — |

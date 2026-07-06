@@ -208,7 +208,7 @@ Deployed:
 
 ## Implementation Plans
 
-| Plan | Repo | Scope | Status |
+| Plan | Repo | File | Depends on |
 |------|------|-------|--------|
 | 2026-06-04--cicd--stoa-live-mirror-sync | `derio-net/frank` | `2026-06-04--cicd--stoa-live-mirror-sync` | — |
 

@@ -1,7 +1,6 @@
 plan:
   filename: "YYYY-MM-DD--{layer}--{details}.md"
   layers: docs/layers.yaml
-  save_to: docs/superpowers/plans/
 
 header:
   required:
@@ -34,12 +33,3 @@ post_deploy:
     - "meta/repo layer"
     - "investigation/audit plans"
     - "internal-only services (skip external-exposure step only)"
-
-dispatch:
-  target: github-issues
-  owner: derio-net
-  project_board: "Derio Ops"
-  default_repo: derio-net/frank
-  labels:
-    agentic: fr:ready
-    manual: manual

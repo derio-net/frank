@@ -8,7 +8,7 @@
 
 ## Implementation Plans
 
-| Plan | Target repo | Slug | Status |
+| Plan | Repo | File | Depends on |
 |------|-------------|------|--------|
 | 2026-06-08--obs--health-bridge-blind-state | `derio-net/frank` | `2026-06-08--obs--health-bridge-blind-state` | Deployed |
 

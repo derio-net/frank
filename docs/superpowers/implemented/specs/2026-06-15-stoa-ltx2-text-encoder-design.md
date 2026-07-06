@@ -134,6 +134,6 @@ deploy fresh).
 
 ## Implementation Plans
 
-| Plan | Target repo | Status | Notes |
+| Plan | Repo | File | Depends on |
 |------|-------------|--------|-------|
 | `2026-06-15-stoa-ltx2-text-encoder` | derio-net/frank | Deployed | Encoder + upscaler + camera LoRAs; live hydration + /object_info verify + close content-factory#69 |

@@ -8,7 +8,7 @@
 
 ## Implementation Plans
 
-| Plan | Target repo | Slug | Status |
+| Plan | Repo | File | Depends on |
 |------|-------------|------|--------|
 | agent-session-persistence (C+E+continuum, **gating**) | `derio-net/agent-images` | `2026-06-17-agent-session-persistence` | Deployed (#130/#131/#132/#133) |
 | 2026-06-17--obs--alert-agent-session-reliability (A+D+env+bump) | `derio-net/frank` | `2026-06-17--obs--alert-agent-session-reliability` | Deployed (#571/#573/#575/#576/#578/#579) |

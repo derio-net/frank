@@ -113,7 +113,7 @@ All paths under `apps/comfyui/` unless noted.
 
 ## Implementation Plans
 
-| Plan | Target repo | Slug | Status |
+| Plan | Repo | File | Depends on |
 |------|-------------|------|--------|
 | 2026-06-15-gpu-comfyui-ltx23-dev | `derio-net/frank` | `2026-06-15-gpu-comfyui-ltx23-dev` | Deployed (G2 render deferred to content-factory) |
 

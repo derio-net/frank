@@ -1,6 +1,6 @@
 schema_version: 2
 plan: 2026-07-04-frank-series-index-adoption
-spec: docs/superpowers/specs/2026-07-04--repo--frank-series-index-adoption-design.md
+spec: 2026-07-04--repo--frank-series-index-adoption-design.md
 target_repo: derio-net/frank
 fr_version: '>=3.0.0,<4.0.0'
 created: '2026-07-04'

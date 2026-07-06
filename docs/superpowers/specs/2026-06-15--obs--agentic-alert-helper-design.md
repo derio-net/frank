@@ -8,7 +8,7 @@
 
 ## Implementation Plans
 
-| Plan | Target repo | Slug | Status |
+| Plan | Repo | File | Depends on |
 |------|-------------|------|--------|
 | 2026-06-15-agent-session-extract (Part A, **gating**) | `derio-net/agent-images` | `2026-06-15-agent-session-extract` | — |
 | 2026-06-15--obs--agentic-alert-helper (Part B) | `derio-net/frank` | `2026-06-15--obs--agentic-alert-helper` | — |

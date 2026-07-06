@@ -69,7 +69,7 @@ Frank deploys a live blog (`blog.derio.net/frank` + GitHub Pages). After deploy:
 
 ## Implementation Plans
 
-| Plan | Target repo | Status | Notes |
+| Plan | Repo | File | Depends on |
 |------|-------------|--------|-------|
 | 2026-07-04-image-optimization-adoption | `derio-net/frank` | `2026-07-04-image-optimization-adoption` | — |
 

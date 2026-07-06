@@ -10,7 +10,7 @@ docker→containerd runtime, inotify→poll log-rotation blindness (#594). Debug
 
 ## Implementation Plans
 
-| Plan | Target repo | Slug | Status |
+| Plan | Repo | File | Depends on |
 |------|-------------|------|--------|
 | 2026-06-21--obs--crowdsec-ban-canary | `derio-net/frank` | `2026-06-21--obs--crowdsec-ban-canary` | — |
 
