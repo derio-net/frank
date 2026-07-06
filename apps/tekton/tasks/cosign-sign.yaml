@@ -27,7 +27,6 @@ spec:
           memory: 512Mi
       env:
         - name: COSIGN_PASSWORD
-          value: ""
         - name: DOCKER_CONFIG
           value: /docker
       command: ["cosign"]

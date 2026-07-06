@@ -117,7 +117,7 @@ spec:
   finally:
     - name: github-status-success
       when: [{input: $(tasks.status), operator: in, values: ["Succeeded", "Completed"]}]
-      taskRef: {name: github-status}
+      taskRef: {kind: Task, name: github-status}
       params:
         - {name: repo-full-name, value: $(params.github-repo)}
         - {name: revision,       value: $(params.sha)}
@@ -126,7 +126,7 @@ spec:
         - {name: context,        value: "tekton/ci"}
     - name: github-status-failure
       when: [{input: $(tasks.status), operator: notin, values: ["Succeeded", "Completed"]}]
-      taskRef: {name: github-status}
+      taskRef: {kind: Task, name: github-status}
       params:
         - {name: repo-full-name, value: $(params.github-repo)}
         - {name: revision,       value: $(params.sha)}
@@ -137,7 +137,7 @@ spec:
     - name: gitea-status-success
       when: [{input: $(tasks.status), operator: in, values: ["Succeeded", "Completed"]}]
       onError: continue
-      taskRef: {name: gitea-status}
+      taskRef: {kind: Task, name: gitea-status}
       params:
         - {name: repo-full-name, value: $(params.gitea-repo)}
         - {name: revision,       value: $(params.sha)}
@@ -147,7 +147,7 @@ spec:
     - name: gitea-status-failure
       when: [{input: $(tasks.status), operator: notin, values: ["Succeeded", "Completed"]}]
       onError: continue
-      taskRef: {name: gitea-status}
+      taskRef: {kind: Task, name: gitea-status}
       params:
         - {name: repo-full-name, value: $(params.gitea-repo)}
         - {name: revision,       value: $(params.sha)}

@@ -41,6 +41,8 @@ spec:
       namespace: tekton-pipelines
       jqPathExpressions:
         - '.spec.results[]?.type | select(. == "string")'
+      jsonPointers:
+        - /spec/steps/0/computeResources
     - group: triggers.tekton.dev
       kind: EventListener
       namespace: tekton-pipelines
