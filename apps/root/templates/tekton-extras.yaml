@@ -28,3 +28,14 @@ spec:
     - kind: Secret
       jsonPointers:
         - /data
+    # Tekton defaults embedded taskSpecs with empty metadata/spec and empty
+    # computeResources maps. Ignore only those empty defaults, not real step
+    # images, scripts, params, or non-empty resource requests/limits.
+    - group: tekton.dev
+      kind: Pipeline
+      namespace: tekton-pipelines
+      jqPathExpressions:
+        - '.spec.tasks[]?.taskSpec.metadata | select(. == {})'
+        - '.spec.tasks[]?.taskSpec.spec | select(. == null)'
+        - '.spec.tasks[]?.taskSpec.stepTemplate.computeResources | select(. == {})'
+        - '.spec.tasks[]?.taskSpec.steps[]?.computeResources | select(. == {})'

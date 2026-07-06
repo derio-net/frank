@@ -25,3 +25,11 @@ spec:
     - kind: Service
       jsonPointers:
         - /spec/selector
+    # Sympozium reconciles disabled PersonaPacks and normalizes these fields
+    # while leaving status.phase=Inactive. Keep ArgoCD from self-healing forever.
+    - group: sympozium.ai
+      kind: PersonaPack
+      namespace: sympozium-system
+      jsonPointers:
+        - /spec/enabled
+        - /spec/authRefs

@@ -186,7 +186,7 @@
 
 Tekton doesn't TTL PipelineRuns natively. Their task pods stay around for log inspection (good for the first hour) but accumulate over weeks. Aside from being clutter, they triggered a false-positive Layer 25 alert on 2026-05-13 (see the corresponding deviation note in `2026-04-16--platform--derio-ops-pass3-grafana-wiring/_prose.md` of the same date for context).
 
-New CronJob `pipelinerun-ttl-gc` in the `tekton-pipelines` namespace, daily at 04:30 UTC, deletes PipelineRuns whose `status.completionTime` is older than 7 days. ServiceAccount + Role limit blast radius to local-namespace `tekton.dev/pipelineruns: get/list/delete` only. Bash + kubectl image (`bitnami/kubectl:1.35.3`), no jq/python deps, lexical ISO-8601 comparison. Ad-hoc invocation:
+New CronJob `pipelinerun-ttl-gc` in the `tekton-pipelines` namespace, daily at 04:30 UTC, deletes PipelineRuns whose `status.completionTime` is older than 7 days. ServiceAccount + Role limit blast radius to local-namespace `tekton.dev/pipelineruns: get/list/delete` only. Bash + kubectl image (`bitnamilegacy/kubectl:1.33.4`), no jq/python deps, lexical ISO-8601 comparison. Ad-hoc invocation:
 
 ```bash
 kubectl create job -n tekton-pipelines --from=cronjob/pipelinerun-ttl-gc pipelinerun-ttl-gc-manual-$(date +%s)
