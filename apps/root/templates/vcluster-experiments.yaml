@@ -34,16 +34,16 @@ spec:
     - kind: Secret
       jsonPointers:
         - /data
-    # vCluster chart injects a vClusterConfigHash annotation and omits
-    # several StatefulSet fields that Kubernetes defaults (whenScaled,
-    # revisionHistoryLimit, updateStrategy). Ignoring those keeps the
-    # essential spec in sync without fighting defaulted fields.
+    # vCluster and Kubernetes inject runtime/defaulted StatefulSet fields.
+    # Ignore only those fields so chart-owned spec still reconciles normally.
     - group: apps
       kind: StatefulSet
       name: experiments
       namespace: vcluster-experiments
       jsonPointers:
         - /spec/template/metadata/annotations/vClusterConfigHash
+        - /spec/template/metadata/annotations/kubectl.kubernetes.io~1restartedAt
+        - /spec/persistentVolumeClaimRetentionPolicy/whenDeleted
         - /spec/persistentVolumeClaimRetentionPolicy/whenScaled
         - /spec/revisionHistoryLimit
         - /spec/updateStrategy

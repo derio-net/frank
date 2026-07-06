@@ -26,3 +26,10 @@ spec:
       namespace: longhorn-system
       jsonPointers:
         - /data
+    # Longhorn writes this timestamp every backup-target sync request.
+    - group: longhorn.io
+      kind: BackupTarget
+      name: default
+      namespace: longhorn-system
+      jsonPointers:
+        - /spec/syncRequestedAt
