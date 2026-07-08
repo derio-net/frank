@@ -1,0 +1,23 @@
+# Official-Hermes profile volume — mounted at HERMES_HOME (/opt/data) into BOTH
+# containers of the two-container pod (main `hermes`, sidecar `ssh`). Holds the
+# official image's profile state: config, skills, cron, sessions, state DB,
+# built-in memory/user profile, SOUL.md, and the Hindsight client config.
+#
+# NB (Phase 0 finding, 2026-07-09): the official image ALSO embeds the Hindsight
+# stack (PostgreSQL 18 via a micromamba env + the `hindsight-api` process),
+# spawned by `hermes gateway run` itself — it is NOT an external service. Its
+# Postgres data dir therefore lands under HERMES_HOME too unless a dedicated
+# volume is mounted over it (see pvc-hindsight.yaml). Sized 20Gi to match the
+# current single combined PVC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-agent-shell-data
+  namespace: hermes-agent-shell
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi

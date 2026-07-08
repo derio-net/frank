@@ -9,7 +9,11 @@ spec:
   storageClassName: longhorn
   resources:
     requests:
-      # Holds ~/.hermes/ (config, sessions, skills, memories) plus any
-      # inventory-installed toolchain under $HOME. Matches paperclip-shell-home
-      # / ruflo-shell-home (20Gi).
+      # REPURPOSED (2026-07-09 migration): this is the SAME PVC that today holds
+      # /home/agent in the single-container pod. In the two-container model it is
+      # reused (not deleted) as the tool-home volume mounted at /opt/data/home —
+      # .ssh, .gitconfig, .config/gh, and the compat .hermes.md. Its
+      # pre-migration contents are seeded into the new /opt/data layout in
+      # Phase 2 before it is re-pointed. Keeping the name preserves the bound
+      # Longhorn volume (no reprovision). 20Gi unchanged.
       storage: 20Gi

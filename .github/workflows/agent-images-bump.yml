@@ -63,7 +63,7 @@ jobs:
           # `{ grep || true; }` so a listed-but-unpinned image (e.g. infra-shell)
           # — grep exit 1 — doesn't trip `bash -eo pipefail`; `xargs -r` no-ops on
           # empty input.
-          AGENT_IMAGES="secure-agent-kali vk-local paperclip-shell ruflo-server ruflo-shell multi-agent-shell hermes-agent-shell infra-shell"
+          AGENT_IMAGES="secure-agent-kali vk-local paperclip-shell ruflo-server ruflo-shell multi-agent-shell hermes-agent-shell hermes-agent-shell-ssh infra-shell"
           for img in $AGENT_IMAGES; do
             { grep -rlZ "ghcr.io/derio-net/$img:[a-f0-9]" apps/ 2>/dev/null || true; } \
               | xargs -0 -r sed -i "s|ghcr.io/derio-net/$img:[a-f0-9]\+|ghcr.io/derio-net/$img:$AI_SHA|g"

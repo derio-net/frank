@@ -8,7 +8,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate  # RWO PVC — cannot mount on two pods simultaneously
+    type: Recreate  # RWO PVCs — cannot mount on two pods simultaneously
   selector:
     matchLabels:
       app: hermes-agent-shell
@@ -17,88 +17,81 @@ spec:
       labels:
         app: hermes-agent-shell
     spec:
-      # s6 cont-finish.d runs shutdown housekeeping (tmux state save). 45s gives
-      # it time to complete before SIGKILL. Mirrors secure-agent-pod / ruflo.
+      # The main container's own s6-overlay runs shutdown housekeeping; the
+      # sidecar's sshd terminates fast. 45s mirrors the family.
       terminationGracePeriodSeconds: 45
-      # Pinned to gpu-1 — Frank's largest CPU/RAM box (the same reason
-      # paperclip / secure-agent-pod sit there). NO GPU is requested: hermes
-      # inference is remote via the in-cluster LiteLLM gateway. The
-      # nvidia.com/gpu:NoSchedule toleration mirrors the cluster's defensive
-      # idiom (ollama, n8n, secure-agent-pod) so the pod survives any future
-      # re-assert of the gpu-only taint.
+      # Pinned to gpu-1 — Frank's largest CPU/RAM box (same reason paperclip /
+      # secure-agent-pod sit there). NO GPU requested: hermes inference is
+      # remote via the in-cluster LiteLLM gateway. The nvidia.com/gpu:NoSchedule
+      # toleration mirrors the cluster's defensive idiom so the pod survives any
+      # future re-assert of the gpu-only taint.
       nodeSelector:
         kubernetes.io/hostname: gpu-1
       tolerations:
         - key: nvidia.com/gpu
           effect: NoSchedule
       securityContext:
+        # fsGroup lines both containers' GID up with the shared /opt/data PVCs.
+        # NB (Phase 0 finding 2026-07-09): the official nousresearch/hermes-agent
+        # image is built to run as ROOT (config User: "root") and ships its OWN
+        # s6-overlay (ENTRYPOINT /init). Running it under runAsNonRoot:1000 +
+        # cap-drop ALL + allowPrivilegeEscalation:false (below) is the posture
+        # this family uses, but is UNVERIFIED against this image — s6-overlay may
+        # need to chown /run at runtime, which dropped caps forbid. This is the
+        # spec's Phase-3 "confirm actual UID/GID" validation item; if the main
+        # container fails to init as 1000, the fallback is to relax its
+        # securityContext (the namespace PSA is `baseline`, which permits root)
+        # rather than rebuild the image. DO NOT cut over before this is proven.
         fsGroup: 1000
       containers:
+        # ── main service container: official Hermes, unmodified ──────────────
         - name: hermes
-          image: ghcr.io/derio-net/hermes-agent-shell:9ed77051510f570a3e9d87f2ee7f642f86cac093
+          # Official image pulled directly from Docker Hub (decision 2, no
+          # agent-images build layer on top). Pinned to the latest published
+          # versioned tag as of 2026-07-09 (NOT `latest`/`main`). Confirm the
+          # auto-continue behaviour (spec Open Risks / frank#496) against this
+          # tag before cutover — the custom image's git-apply patch is NOT here.
+          image: docker.io/nousresearch/hermes-agent:v2026.7.7.2
           imagePullPolicy: IfNotPresent
-          ports:
-            - name: ssh
-              containerPort: 2222  # Non-root sshd; Service maps 22→2222
-              protocol: TCP
-            # mosh-server picks a port from this range at session start;
-            # service.yaml exposes them on the same LB IP (UDP).
-            - { name: mosh-60032, containerPort: 60032, protocol: UDP }
-            - { name: mosh-60033, containerPort: 60033, protocol: UDP }
-            - { name: mosh-60034, containerPort: 60034, protocol: UDP }
-            - { name: mosh-60035, containerPort: 60035, protocol: UDP }
-            - { name: mosh-60036, containerPort: 60036, protocol: UDP }
-            - { name: mosh-60037, containerPort: 60037, protocol: UDP }
-            - { name: mosh-60038, containerPort: 60038, protocol: UDP }
-            - { name: mosh-60039, containerPort: 60039, protocol: UDP }
-            - { name: mosh-60040, containerPort: 60040, protocol: UDP }
-            - { name: mosh-60041, containerPort: 60041, protocol: UDP }
-            - { name: mosh-60042, containerPort: 60042, protocol: UDP }
-            - { name: mosh-60043, containerPort: 60043, protocol: UDP }
-            - { name: mosh-60044, containerPort: 60044, protocol: UDP }
-            - { name: mosh-60045, containerPort: 60045, protocol: UDP }
-            - { name: mosh-60046, containerPort: 60046, protocol: UDP }
-            - { name: mosh-60047, containerPort: 60047, protocol: UDP }
+          # Entrypoint inherited from the image: `/init /opt/hermes/docker/
+          # main-wrapper.sh` (its own s6-overlay supervises `hermes gateway run`
+          # and the embedded Hindsight stack). Do NOT override.
           env:
-            # Mosh default is 168h (7d) — too long for a 16-port range.
-            # 1h reaps stuck servers fast enough to keep ports available.
-            - name: MOSH_SERVER_NETWORK_TMOUT
-              value: "3600"
+            - name: HERMES_HOME
+              value: /opt/data
+            # Dashboard is opt-in in the official image; enable it (decision 3).
+            - name: HERMES_DASHBOARD
+              value: "1"
           envFrom:
             # BYOK inference auth (OPENAI_BASE_URL + OPENAI_API_KEY). optional:
-            # true so the pod boots before the Phase 1 manual bootstrap mints
-            # HERMES_LITELLM_KEY and ESO syncs this secret. These land on PID 1's
-            # environ; the 35-…-byok-env.sh profile.d shim (hermes-agent-shell-env
-            # ConfigMap) re-exports them into the interactive login shell, which
-            # sshd would otherwise scrub.
+            # true so the pod boots before the manual bootstrap mints
+            # HERMES_LITELLM_KEY and ESO syncs this secret.
             - secretRef:
                 name: hermes-agent-shell-llm
                 optional: true
-            # Telegram creds for the inventory installer's notify helper.
-            # optional: true per the envFrom.secretRef gotcha — an ESO hiccup
-            # would otherwise CreateContainerConfigError instead of letting the
-            # shell boot without alerts. The helper is fail-silent if missing.
+            # Telegram creds for any notify helpers. optional per the
+            # envFrom.secretRef gotcha — an ESO hiccup must not block boot.
             - secretRef:
                 name: hermes-agent-shell-alerts
                 optional: true
+          ports:
+            - name: api
+              containerPort: 8642  # Hermes gateway / OpenAI-compatible API
+              protocol: TCP
+            - name: dashboard
+              containerPort: 9119  # Hermes web dashboard (HERMES_DASHBOARD=1)
+              protocol: TCP
           volumeMounts:
+            - name: data
+              mountPath: /opt/data
             - name: home
-              mountPath: /home/agent
-            - name: ssh-keys
-              mountPath: /etc/ssh-keys
-              readOnly: true
-            - name: inventory
-              mountPath: /etc/hermes-agent-shell
-              readOnly: true
-            # BYOK-env profile.d shim — single-file subPath mount alongside the
-            # image-baked /etc/profile.d/{40,45,50}-hermes-agent-shell-*.sh.
-            - name: byok-env
-              mountPath: /etc/profile.d/35-hermes-agent-shell-byok-env.sh
-              subPath: 35-hermes-agent-shell-byok-env.sh
-              readOnly: true
-            # fetch-text context-hygiene helper (same single-file subPath
-            # idiom). Script edits need a pod restart — kubelet never
-            # live-updates subPath mounts.
+              mountPath: /opt/data/home
+            - name: repos
+              mountPath: /opt/data/home/repos
+            # fetch-text context-hygiene helper — SOUL.md steers the gateway
+            # here, so the MAIN container needs it on PATH. subPath single-file
+            # mount; script edits need a pod restart (kubelet never live-updates
+            # subPath mounts).
             - name: fetch-text
               mountPath: /usr/local/bin/fetch-text
               subPath: fetch-text
@@ -115,14 +108,108 @@ spec:
               cpu: 500m
               memory: 1Gi
             limits:
-              # A single interactive hermes process + the s6 supervision tree.
-              # No vk-local executor fleet, so far lighter than secure-agent-pod.
-              # 8Gi (was 4Gi): `claude install` / the native build's auto-updater
-              # buffers its 245MB download ~17x in anon memory (Bun HTTP client,
-              # upstream claude-code#22536) peaking ~4.2GiB — at 4Gi the group-OOM
-              # killed sshd and dropped every SSH session (2026-06-07 incident).
+              # Gateway + the embedded Hindsight stack (Postgres 18 + hindsight-
+              # api, both spawned by `hermes gateway run` — Phase 0 finding) +
+              # Playwright. 8Gi retained from the current pod (the `claude
+              # install` OOM headroom note historically, and now the extra
+              # Hindsight/PG resident set).
               cpu: "2"
               memory: 8Gi
+          readinessProbe:
+            tcpSocket:
+              port: api
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          livenessProbe:
+            tcpSocket:
+              port: api
+            initialDelaySeconds: 120  # gateway + embedded PG init can be slow
+            periodSeconds: 60
+        # ── SSH sidecar: thin terminal-access container ─────────────────────
+        - name: ssh
+          # New agent-images dir hermes-agent-shell-ssh/, built FROM the SAME
+          # official tag + sshd/mosh/tmux. PLACEHOLDER SHA — see the PR body:
+          # merge the agent-images PR first so CI builds this image, then pin
+          # the real SHA here (the agent-images-bump workflow does this once
+          # hermes-agent-shell-ssh is in its AGENT_IMAGES list) BEFORE merging.
+          image: ghcr.io/derio-net/hermes-agent-shell-ssh:0000000000000000000000000000000000000000
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: HERMES_HOME
+              value: /opt/data
+            - name: HOME
+              value: /opt/data/home
+            # Mosh default is 168h (7d) — too long for a 16-port range. 1h reaps
+            # stuck servers fast enough to keep ports available.
+            - name: MOSH_SERVER_NETWORK_TMOUT
+              value: "3600"
+          envFrom:
+            # Same BYOK auth so `hermes` invoked from the SSH shell reaches
+            # LiteLLM. The 35-…-byok-env.sh profile.d shim re-exports these into
+            # the interactive login shell (sshd scrubs PID 1's environ).
+            - secretRef:
+                name: hermes-agent-shell-llm
+                optional: true
+            - secretRef:
+                name: hermes-agent-shell-alerts
+                optional: true
+          ports:
+            - name: ssh
+              containerPort: 2222  # Non-root sshd; Service maps 22→2222
+              protocol: TCP
+            - { name: mosh-60032, containerPort: 60032, protocol: UDP }
+            - { name: mosh-60033, containerPort: 60033, protocol: UDP }
+            - { name: mosh-60034, containerPort: 60034, protocol: UDP }
+            - { name: mosh-60035, containerPort: 60035, protocol: UDP }
+            - { name: mosh-60036, containerPort: 60036, protocol: UDP }
+            - { name: mosh-60037, containerPort: 60037, protocol: UDP }
+            - { name: mosh-60038, containerPort: 60038, protocol: UDP }
+            - { name: mosh-60039, containerPort: 60039, protocol: UDP }
+            - { name: mosh-60040, containerPort: 60040, protocol: UDP }
+            - { name: mosh-60041, containerPort: 60041, protocol: UDP }
+            - { name: mosh-60042, containerPort: 60042, protocol: UDP }
+            - { name: mosh-60043, containerPort: 60043, protocol: UDP }
+            - { name: mosh-60044, containerPort: 60044, protocol: UDP }
+            - { name: mosh-60045, containerPort: 60045, protocol: UDP }
+            - { name: mosh-60046, containerPort: 60046, protocol: UDP }
+            - { name: mosh-60047, containerPort: 60047, protocol: UDP }
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            - name: home
+              mountPath: /opt/data/home
+            - name: repos
+              mountPath: /opt/data/home/repos
+            # SSH host + authorized keys — SOPS-managed Secret, sidecar only.
+            - name: ssh-keys
+              mountPath: /etc/ssh-keys
+              readOnly: true
+            # BYOK-env profile.d shim (single-file subPath) — re-exports the
+            # scrubbed OPENAI_* into the login shell.
+            - name: byok-env
+              mountPath: /etc/profile.d/35-hermes-agent-shell-byok-env.sh
+              subPath: 35-hermes-agent-shell-byok-env.sh
+              readOnly: true
+            - name: fetch-text
+              mountPath: /usr/local/bin/fetch-text
+              subPath: fetch-text
+              readOnly: true
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              # Thin: sshd + mosh + occasional `hermes` CLI passthrough. The
+              # heavy runtime lives in the main container.
+              cpu: 500m
+              memory: 1Gi
           readinessProbe:
             tcpSocket:
               port: ssh
@@ -134,21 +221,23 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 60
       volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-agent-shell-data
         - name: home
           persistentVolumeClaim:
             claimName: hermes-agent-shell-home
+        - name: repos
+          persistentVolumeClaim:
+            claimName: hermes-agent-shell-repos
         - name: ssh-keys
-          # SOPS-managed bootstrap secret in secrets/hermes-agent-shell/. See the
-          # README there for rotation. optional: true (paperclip/ruflo pattern)
-          # so the pod boots before the bootstrap lands; sshd just accepts no
-          # keys until then.
+          # SOPS-managed bootstrap secret in secrets/hermes-agent-shell/.
+          # optional: true (paperclip/ruflo pattern) so the pod boots before the
+          # bootstrap lands; sshd just accepts no keys until then.
           secret:
             secretName: hermes-agent-shell-ssh-keys
             optional: true
             defaultMode: 0400
-        - name: inventory
-          configMap:
-            name: hermes-agent-shell-inventory
         - name: byok-env
           configMap:
             name: hermes-agent-shell-env
