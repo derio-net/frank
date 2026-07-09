@@ -1,0 +1,60 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Repo prep and validation
+  tag: agentic
+  depends_on: []
+  acceptance:
+    - gpu1-i22x-replacement-documented
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Add the I22X-LAN patch template
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Add `patches/phase04-gpu/404-gpu1-i22x-lan.template.yaml` as a non-applied Omni ConfigPatch template targeting gpu-1's machine UUID. It must bind `192.168.55.31/24` by `deviceSelector.hardwareAddr`, keep DHCP disabled, and document that `<I22X_MAC_ADDRESS>` must be replaced only after live discovery.
+  - id: P1.T1.S2
+    text: |
+      Update `patches/phase04-gpu/README.md` so operators can find the I22X-LAN template next to the existing `403` ASPM mitigation.
+- number: 2
+  title: Update gpu-1 operating docs
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Update `docs/runbooks/frank-gotchas/gpu-1.md` to make the escalation state explicit: `pcie_aspm=off` suppresses the onboard Realtek flap, but the durable repair is moving `192.168.55.31` to the I22X-LAN card by MAC and leaving the Realtek port unplugged.
+  - id: P1.T2.S2
+    text: |
+      Update `agents/rules/frank-gotchas.md` with the hot one-liner so future agents do not keep tuning the damaged Realtek NIC when replacement is now the intended fix.
+- number: 3
+  title: Validate repo-prep changes
+  steps:
+  - id: P1.T3.S1
+    text: |
+      Run `scripts/validate-agent-config.sh` and `scripts/validate-plans.sh docs/superpowers/plans/2026-07-09--gpu--gpu-1-i22x-lan`. Fix any schema/path issues before completing the phase.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-09T21:22:09+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-09T21:22:09+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-07-09T21:22:09+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-07-09T21:22:09+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-07-09T21:22:09+00:00'
+      note: validate-agent-config, validate-plans, and fr plan self-review passed
+  completion:
+    at: '2026-07-09T21:22:09+00:00'
+    note: repo prep implemented; manual hardware install remains pending
+    observed_prs: []
