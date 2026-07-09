@@ -22,6 +22,7 @@
 | `04-gpu-nvidia-modules.yaml` | omnictl | Loads nvidia kernel modules on gpu-1 |
 | `gpu-operator-values.yaml` | helm | GPU Operator Helm values (driver/toolkit disabled — Talos provides them) |
 | `403-gpu1-pcie-aspm.yaml` | omnictl | Disables PCIe ASPM (`pcie_aspm=off`) to stop the enp3s0/r8169 NIC link-flap (reboots gpu-1; operator-applied — see file header + `docs/runbooks/frank-gotchas/networking.md`) |
+| `404-gpu1-i22x-lan.template.yaml` | operator template | Template for moving gpu-1's `192.168.55.31/24` address to the replacement PCIe I22X-LAN NIC by MAC address; copy to `404-gpu1-i22x-lan.yaml` after live MAC discovery |
 
 ## Apply
 

@@ -1,0 +1,65 @@
+# Acceptance matrix — the registry of business-level acceptance tests and
+# where each is verified. Rendered by `fr acceptance report`; checked locally
+# with `fr acceptance check`.
+#
+# Row schema:
+#   id:         kebab-case, stable
+#   capability: grouping (tables render in first-seen order)
+#   acceptance: the business-level statement
+#   origin:     list of "repo:path[#anchor]" refs (spec §, design doc)
+#   levels:     unit/api/int/ui → list of "repo:path[#Lline]" test refs
+#               ([] = level does not verify this row)
+#   status:     ci | scheduled | skipped | not-implemented | failing
+#     ci               automated on every PR — cannot drift silently
+#     scheduled        automated on cron/path triggers
+#     skipped          verification exists but does not run in CI (proven
+#                      live once / manual walk) → CI warning, backfill owed
+#     not-implemented  no test or surface exists yet → CI warning
+#     failing          known red → `fr acceptance check` exits 2, CI FAILS
+#   notes:      evidence detail, drift context
+#
+# Rule: update rows in the SAME PR that changes a Test Plan, adds tests, ships
+# a surface, or touches CI.
+# Add rows with `fr acceptance add` (schema-validated append). Keep `rows:`
+# as the LAST top-level key — `add` appends to the end of this file.
+
+org: derio-net
+repo: frank
+rows:
+  - id: gpu1-i22x-replacement-documented
+    capability: gpu-1 network stability
+    acceptance: Operators have a documented, MAC-bound path to move gpu-1 from the damaged
+      onboard Realtek NIC to the replacement I22X-LAN card without changing node identity.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-i22x-lan-design.md
+    levels: {}
+    status: not-implemented
+    notes: Repo-prep row; verified by plan phase 1 docs/template validation.
+  - id: gpu1-i22x-node-ip-stable
+    capability: gpu-1 network stability
+    acceptance: gpu-1 keeps serving the same Kubernetes node identity and 192.168.55.31
+      address through the replacement I22X-LAN NIC.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-i22x-lan-design.md
+    levels: {}
+    status: not-implemented
+    notes: Manual maintenance-window proof required after the card is installed and
+      the concrete MAC-bound patch is applied.
+  - id: gpu1-cilium-datapath-stable
+    capability: gpu-1 network stability
+    acceptance: Cilium on gpu-1 initializes and keeps a healthy direct-routing datapath
+      on the replacement NIC, with no layer-1 NIC flap alert breach during the soak.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-i22x-lan-design.md
+    levels: {}
+    status: not-implemented
+    notes: Manual post-swap Cilium verification plus 24h carrier-change soak.
+  - id: gpu1-gpu-workloads-return
+    capability: gpu-1 workload continuity
+    acceptance: After the NIC maintenance event, gpu-1 returns with NVIDIA allocatable
+      GPU capacity and hard-pinned GPU/agent workloads recover to their intended state.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-i22x-lan-design.md
+    levels: {}
+    status: not-implemented
+    notes: Manual post-swap Kubernetes/GPU workload verification required.
