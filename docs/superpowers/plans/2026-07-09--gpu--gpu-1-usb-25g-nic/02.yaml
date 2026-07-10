@@ -1,30 +1,31 @@
 schema_version: 2
 phase:
   number: 2
-  title: Hardware install and Omni apply
+  title: USB adapter install and Omni apply
   tag: manual
   depends_on: [1]
   acceptance:
-    - gpu1-i22x-node-ip-stable
+    - gpu1-usb-25g-node-ip-stable
+    - gpu1-usb-25g-detected
     - gpu1-cilium-datapath-stable
     - gpu1-gpu-workloads-return
   tracking_issue: null
 tasks:
 - number: 1
-  title: Install the I22X-LAN card and create the concrete patch
+  title: Install the USB 2.5G adapter and create the concrete patch
   steps:
   - id: P2.T1.S1
     text: |
-      In a maintenance window, power down gpu-1, install the PCIe I22X-LAN card, move the Ethernet cable from onboard Realtek to the new card, and leave the onboard port unplugged.
+      In a maintenance window after the adapter arrives, power down gpu-1, plug in the USB 2.5G Ethernet adapter, move the Ethernet cable from onboard Realtek to the adapter, and leave the onboard port unplugged.
   - id: P2.T1.S2
     text: |
-      Boot gpu-1, discover the new card's MAC/name/driver/speed, copy `404-gpu1-i22x-lan.template.yaml` to `404-gpu1-i22x-lan.yaml`, replace `<I22X_MAC_ADDRESS>`, adjust the gateway only if live discovery proves it differs, and push the concrete file to this PR.
+      Boot gpu-1, discover the adapter's MAC/name/driver/speed, confirm Talos detects a usable link, copy `404-gpu1-usb-25g-nic.template.yaml` to `404-gpu1-usb-25g-nic.yaml`, replace `<USB_25G_MAC_ADDRESS>`, adjust the gateway only if live discovery proves it differs, and push the concrete file to this PR.
 - number: 2
   title: Apply and verify
   steps:
   - id: P2.T2.S1
     text: |
-      Apply `patches/phase04-gpu/404-gpu1-i22x-lan.yaml` with `omnictl apply -f`, then verify gpu-1 returns as the same node on `192.168.55.31`.
+      Apply `patches/phase04-gpu/404-gpu1-usb-25g-nic.yaml` with `omnictl apply -f`, then verify gpu-1 returns as the same node on `192.168.55.31`.
   - id: P2.T2.S2
     text: |
       Verify the gpu-1 Cilium pod is Ready and `cilium-dbg status --brief` is OK from that pod; verify LoadBalancer SSH paths to gpu-1-hosted agent pods reconnect.
