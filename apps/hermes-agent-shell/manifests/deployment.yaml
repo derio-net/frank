@@ -311,26 +311,38 @@ spec:
             - name: PGDATA
               value: /opt/hindsight/pgdata
             # ── Retain (fact-extraction) LLM wiring — operator decision,
-            # 2026-07-10. The live validated stack ran LLM_PROVIDER=none
-            # (recall-only). Retain is wired to claude-code (Sonnet) here, but
-            # may be left "wired DARK": the env is present and the provider is
-            # settable, yet ANTHROPIC_API_KEY is not yet provisioned in the
-            # hermes-agent-shell-llm secret, so retain does not actually run —
-            # and RECALL WORKS WITHOUT IT (auto_recall in config.json is
-            # independent of retain). Flip retain on later by adding the key to
-            # the secret. HINDSIGHT_API_LLM_PROVIDER is the exact var name
-            # observed in the live stack (TASK A); the Sonnet model-selection
-            # var is the one open input the spec flags and is intentionally left
-            # unset here (do not fabricate a var name).
+            # 2026-07-10: claude-code (Sonnet). The live validated stack ran
+            # LLM_PROVIDER=none (recall-only, chunks-only); RECALL WORKS WITHOUT
+            # ANY LLM (auto_recall is independent of retain).
+            #
+            # IMPORTANT (verified against hindsight-api-slim 0.8.4 source, TASK A
+            # follow-up): the `claude-code` provider does NOT use an API key — it
+            # authenticates through the Claude Agent SDK via `claude auth login`
+            # (isolated CLAUDE_CONFIG_DIR), and its __init__ explicitly ignores
+            # api_key. So there is NO ANTHROPIC_API_KEY to wire from a secret; the
+            # earlier secretRef was removed as incorrect. For retain to actually
+            # run, the hindsight IMAGE must ship Node + the Claude Code CLI
+            # (@anthropics/claude-code) and carry an authenticated Claude session
+            # (claude-agent-sdk is already a hindsight-api dep). Until that auth
+            # is provisioned, retain is "wired DARK": provider construction is
+            # lazy and only imports the SDK (no boot-time auth call), so the API
+            # still boots and serves recall; the FIRST retain call fails
+            # gracefully. Model auto-defaults to claude-sonnet-4-5-20250929 (the
+            # image's built-in claude-code default) — no model var needed.
+            #
+            # Var-name reference (from source, for whoever wires this): retain
+            # can be decoupled from the query LLM via the dedicated retain vars
+            # HINDSIGHT_API_RETAIN_LLM_PROVIDER / _MODEL / _API_KEY / _BASE_URL;
+            # the generic pair is HINDSIGHT_API_LLM_PROVIDER / _MODEL / _API_KEY /
+            # _BASE_URL. ALTERNATIVE the operator may prefer (matches the pre-
+            # override spec, and needs NO Claude CLI in the image): point retain
+            # at the in-cluster LiteLLM — RETAIN_LLM_PROVIDER=openai +
+            # RETAIN_LLM_BASE_URL=http://litellm.litellm.svc:4000/v1 +
+            # RETAIN_LLM_API_KEY=$HERMES_LITELLM_KEY (already in the
+            # hermes-agent-shell-llm secret) + a model name. Flagged to coordinator
+            # — not wired here pending that call.
             - name: HINDSIGHT_API_LLM_PROVIDER
               value: claude-code
-          envFrom:
-            # Carries ANTHROPIC_API_KEY for the claude-code retain provider when
-            # provisioned. optional:true so a missing key never blocks boot —
-            # this is what makes "wired dark, recall still works" true.
-            - secretRef:
-                name: hermes-agent-shell-llm
-                optional: true
           volumeMounts:
             # Sidecar-ONLY volume (not shared with hermes/ssh). PGDATA lives here.
             - name: hindsight-data
