@@ -299,10 +299,11 @@ spec:
         # RERANKER, PGDATA=/opt/hindsight/pgdata). The Deployment overrides only
         # the deployment/secret-specific bits below.
         - name: hindsight
-          # PLACEHOLDER — igor will re-pin to the real published SHA after the
-          # ghcr.io/derio-net/hermes-agent-shell-hindsight image builds. Do NOT
-          # merge with the placeholder tag.
-          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:PLACEHOLDER
+          # Pinned to the first published build (agent-images build of
+          # hermes-agent-shell-hindsight). CI compiled clean; the offline smoke
+          # was skipped (shared-matrix kali build-break), so RUNTIME boot was
+          # gated by the live migrate deploy instead.
+          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:c776905ac021f3ff483e6e3bb66e6798a82e0ec5
           imagePullPolicy: IfNotPresent
           env:
             # PGDATA on the mounted PVC (isolated from /opt/data). The image
