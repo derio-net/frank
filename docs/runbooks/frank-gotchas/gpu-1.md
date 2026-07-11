@@ -16,7 +16,7 @@ Workarounds:
 - For metrics endpoints (blackbox `/probe`, pushgateway `/metrics`, etc.): `kubectl exec deploy/<target> -- wget -qO- localhost:<port>/<path>` instead of port-forward + local curl. The exec path uses the pod's own network namespace cleanly.
 - Pods on mini-1/2/3 are unaffected — only gpu-1's netns has the issue.
 
-## enp3s0/r8169 link-flap — `pcie_aspm=off` suppresses it; I22X-LAN replaces it
+## enp3s0/r8169 link-flap — `pcie_aspm=off` suppresses it; USB 2.5G replaces it
 
 gpu-1's onboard 2.5GbE NIC (`enp3s0`, Realtek r8169) chronically link-flaps — `Link is Down`/`Up` every minute or two — which strips the node IP off Cilium's direct-routing device and collapses the datapath (mass SSH/pod-traffic drop; watched by the `layer-1-nic-link-flap` Grafana alert, `increase(node_network_carrier_changes_total[30m]) > 6`). It's a classic r8169 PCIe Active State Power Management instability: the link drops into L1 during an idle lull and the PHY mishandles the wake.
 
@@ -33,7 +33,7 @@ gpu-1's onboard 2.5GbE NIC (`enp3s0`, Realtek r8169) chronically link-flaps — 
 
 Post-deploy (#582, 2026-06-19): flap rate dropped from ~every 1–2 min (138 events accrued) to **~1 flap in 6 hours** — far below the alert threshold, so the notification storm is gone, but the NIC is **not 100% stable**.
 
-The current durable path is replacement, not more Realtek tuning: install the PCIe I22X-LAN card, move `192.168.55.31/24` to that card with a MAC-bound Talos ConfigPatch, and leave the onboard Realtek port unplugged. The repo carries the fill-in template at `patches/phase04-gpu/404-gpu1-i22x-lan.template.yaml`; after live MAC discovery, copy it to `404-gpu1-i22x-lan.yaml`, replace `<I22X_MAC_ADDRESS>`, apply with Omni, and soak the `layer-1-nic-link-flap` metric for 24h.
+The current durable path is replacement, not more Realtek tuning. The attempted PCIe I22X-LAN card did not fix the path, so the next repair is the incoming USB 2.5G Ethernet adapter: move `192.168.55.31/24` to that adapter with a MAC-bound Talos ConfigPatch and leave the onboard Realtek port unplugged. The repo carries the fill-in template at `patches/phase04-gpu/404-gpu1-usb-25g-nic.template.yaml`; after live MAC/driver discovery, copy it to `404-gpu1-usb-25g-nic.yaml`, replace `<USB_25G_MAC_ADDRESS>`, apply with Omni, and soak the `layer-1-nic-link-flap` metric for 24h.
 
 ### Incident note
 

@@ -26,31 +26,40 @@
 org: derio-net
 repo: frank
 rows:
-  - id: gpu1-i22x-replacement-documented
+  - id: gpu1-usb-25g-replacement-documented
     capability: gpu-1 network stability
     acceptance: Operators have a documented, MAC-bound path to move gpu-1 from the damaged
-      onboard Realtek NIC to the replacement I22X-LAN card without changing node identity.
+      onboard Realtek NIC to the replacement USB 2.5G Ethernet adapter without changing node identity.
     origin:
-    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-i22x-lan-design.md
+    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-usb-25g-nic-design.md
     levels: {}
     status: not-implemented
     notes: Repo-prep row; verified by plan phase 1 docs/template validation.
-  - id: gpu1-i22x-node-ip-stable
+  - id: gpu1-usb-25g-node-ip-stable
     capability: gpu-1 network stability
     acceptance: gpu-1 keeps serving the same Kubernetes node identity and 192.168.55.31
-      address through the replacement I22X-LAN NIC.
+      address through the replacement USB 2.5G Ethernet adapter.
     origin:
-    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-i22x-lan-design.md
+    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-usb-25g-nic-design.md
     levels: {}
-    status: not-implemented
-    notes: Manual maintenance-window proof required after the card is installed and
-      the concrete MAC-bound patch is applied.
+    status: skipped
+    notes: Live manual proof 2026-07-11 — ConfigPatch 404-gpu1-usb-25g-nic applied;
+      gpu-1 Ready on 192.168.55.31 via enp0s20f0u7 MAC 6c:1f:f7:c6:e0:da.
+  - id: gpu1-usb-25g-detected
+    capability: gpu-1 network stability
+    acceptance: Talos detects the USB 2.5G Ethernet adapter with a usable driver, stable link state, and discoverable MAC address before the concrete network patch is applied.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-usb-25g-nic-design.md
+    levels: {}
+    status: skipped
+    notes: Live manual proof 2026-07-11 — Talos detected r8152 USB adapter enp0s20f0u7
+      with MAC 6c:1f:f7:c6:e0:da; missing rtl8156b firmware patch logged but link works.
   - id: gpu1-cilium-datapath-stable
     capability: gpu-1 network stability
     acceptance: Cilium on gpu-1 initializes and keeps a healthy direct-routing datapath
       on the replacement NIC, with no layer-1 NIC flap alert breach during the soak.
     origin:
-    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-i22x-lan-design.md
+    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-usb-25g-nic-design.md
     levels: {}
     status: not-implemented
     notes: Manual post-swap Cilium verification plus 24h carrier-change soak.
@@ -59,7 +68,8 @@ rows:
     acceptance: After the NIC maintenance event, gpu-1 returns with NVIDIA allocatable
       GPU capacity and hard-pinned GPU/agent workloads recover to their intended state.
     origin:
-    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-i22x-lan-design.md
+    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-usb-25g-nic-design.md
     levels: {}
-    status: not-implemented
-    notes: Manual post-swap Kubernetes/GPU workload verification required.
+    status: skipped
+    notes: Live manual proof 2026-07-11 — gpu-1 allocatable nvidia.com/gpu is 1;
+      pinned workloads are Running or Completed after the network move.

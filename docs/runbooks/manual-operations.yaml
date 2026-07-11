@@ -771,14 +771,14 @@ operations:
   - BIOS version shown as F6 in BIOS setup header
   - Secure Boot shows Disabled
   status: pending
-- id: gpu-gpu1-i22x-lan-install
+- id: gpu-gpu1-usb-25g-nic-install
   layer: gpu
   app: gpu-1
-  plan: 2026-07-09--gpu--gpu-1-i22x-lan
-  when: During a gpu-1 maintenance window after this PR's repo-prep phase lands.
-  why_manual: Physical PCIe installation, live NIC MAC discovery, and Omni apply/reboot are operator-only actions.
+  plan: 2026-07-09--gpu--gpu-1-usb-25g-nic
+  when: After the USB 2.5G Ethernet adapter arrives, during a gpu-1 maintenance window.
+  why_manual: Physical USB adapter installation, live NIC MAC/driver discovery, and Omni apply/reboot are operator-only actions.
   commands:
-  - "# Before shutdown: capture current state and recent Realtek/I22X evidence.\nkubectl get node gpu-1 -o wide\ntalosctl -n 192.168.55.31 dmesg | grep -E 'enp3s0|r8169|igc|i225|i226' | tail -50\n\n# Power down gpu-1, install the I22X-LAN PCIe card, move the Ethernet cable\n# to the new card, and leave the onboard Realtek port unplugged.\n\n# After boot: discover the new NIC MAC/name/driver. If 192.168.55.31 does\n# not return before the patch, use Omni console/local Talos access.\ntalosctl -n 192.168.55.31 get links\n\ncp patches/phase04-gpu/404-gpu1-i22x-lan.template.yaml \\\n  patches/phase04-gpu/404-gpu1-i22x-lan.yaml\n# Replace <I22X_MAC_ADDRESS> with the discovered MAC and adjust gateway if needed.\nomnictl apply -f patches/phase04-gpu/404-gpu1-i22x-lan.yaml\n"
+  - "# Before shutdown: capture current state and recent Realtek/USB evidence.\nkubectl get node gpu-1 -o wide\ntalosctl -n 192.168.55.31 get links\ntalosctl -n 192.168.55.31 dmesg | grep -Ei 'enp3s0|r8169|usb|cdc|r815|aqc|realtek|ether' | tail -80\n\n# Power down gpu-1, plug in the USB 2.5G adapter, move the Ethernet cable\n# to the adapter, and leave the onboard Realtek port unplugged.\n\n# After boot: discover the adapter MAC/name/driver. If 192.168.55.31 does\n# not return before the patch, use Omni console/local Talos access.\ntalosctl -n 192.168.55.31 get links\ntalosctl -n 192.168.55.31 dmesg | grep -Ei 'usb|cdc|r815|aqc|realtek|ether' | tail -80\n\ncp patches/phase04-gpu/404-gpu1-usb-25g-nic.template.yaml \\\n  patches/phase04-gpu/404-gpu1-usb-25g-nic.yaml\n# Replace <USB_25G_MAC_ADDRESS> with the discovered MAC and adjust gateway if needed.\nomnictl apply -f patches/phase04-gpu/404-gpu1-usb-25g-nic.yaml\n"
   verify:
   - "kubectl get node gpu-1 -o wide\nkubectl -n kube-system get pod -o wide | grep 'cilium-.*gpu-1'\nkubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\\.com/gpu}'\n# 24h soak: confirm the layer-1-nic-link-flap threshold does not breach for gpu-1.\n"
   status: pending
