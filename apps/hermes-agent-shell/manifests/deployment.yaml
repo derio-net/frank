@@ -299,13 +299,16 @@ spec:
         # RERANKER, PGDATA=/opt/hindsight/pgdata). The Deployment overrides only
         # the deployment/secret-specific bits below.
         - name: hindsight
-          # Pinned to the second published build (agent-images build of
-          # hermes-agent-shell-hindsight). Passed a local smoke: initdb → 21
-          # Alembic tables → CREATE EXTENSION vector → /health healthy, offline
-          # model loaded. (The first build c776905 CrashLooped on-cluster:
-          # inherited shell cont-init assumed a writable mounted $HOME + the
-          # model bake wrote no refs/main — both fixed here.)
-          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:df29ea7f3893ac3a11d603d3c0b18da05e9976bb
+          # Pinned to the LIVE-VALIDATED build (agent-images build of
+          # hermes-agent-shell-hindsight), proven end-to-end on the migrate
+          # deployment 2026-07-11: initdb → 21 Alembic tables → CREATE EXTENSION
+          # vector → /health healthy, offline model loaded, 369 memory_units
+          # restored and PERSISTED across a pod restart, dashboard 200.
+          # History: c776905 CrashLooped (inherited shell cont-init assumed a
+          # writable mounted $HOME; model bake wrote no refs/main) → df29ea7
+          # fixed boot but flapped on httpGet probes (API binds 127.0.0.1 only)
+          # → this build + the exec probes below is the validated combination.
+          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:28de3ab1e503a79dda3ffc636622f0f811e4d0e4
           imagePullPolicy: IfNotPresent
           env:
             # PGDATA on the mounted PVC (isolated from /opt/data). The image
@@ -379,18 +382,33 @@ spec:
               memory: 2Gi
           # /health is the hindsight-api liveness/readiness surface (port 8888).
           # PG stays loopback-only — NO containerPort declared for 5433.
+          #
+          # EXEC probes, not httpGet (live-validated on the migrate deployment
+          # 2026-07-11): hindsight-api binds 127.0.0.1 ONLY, so an httpGet probe
+          # (which the kubelet runs against the pod IP) gets connection-refused
+          # and the container flaps forever — 37 restarts observed before this
+          # fix. An exec probe runs `curl` INSIDE the container against loopback,
+          # which is where the API actually listens, and passes. The startupProbe
+          # gives PG init + offline-embedder load up to 300s before liveness kicks
+          # in.
+          startupProbe:
+            exec:
+              command: ["sh","-c","curl -sf http://127.0.0.1:8888/health"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
-            httpGet:
-              path: /health
-              port: 8888
-            initialDelaySeconds: 20
+            exec:
+              command: ["sh","-c","curl -sf http://127.0.0.1:8888/health"]
             periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
           livenessProbe:
-            httpGet:
-              path: /health
-              port: 8888
-            initialDelaySeconds: 60  # PG init + embedder load can be slow
-            periodSeconds: 60
+            exec:
+              command: ["sh","-c","curl -sf http://127.0.0.1:8888/health"]
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
       volumes:
         - name: data
           persistentVolumeClaim:
