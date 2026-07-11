@@ -134,3 +134,66 @@ The Pi death was **near-silent across the whole stack**: the Derio Ops board sta
 ### The durable fix — rebuild off the Pi
 
 The root problem is the un-HA'd single-Pi SPOF, not this one death. The replacement is **not another Pi**: Omni is being rehomed onto an **Ansible-managed Proxmox host with HA + UPS** for the whole homelab. That migration is its own Layer 2 build/operating post (this incident is its cold open), and it also retires the **wedge** gotcha above — a UPS plus a real RTC end the cold-boot clock-jump class outright. Until then the temporary `*.frank` re-fronting (`networking.md`) carries the services.
+
+## Renewing the fr-isolation cluster-admin kube token (Omni service-account kubeconfig)
+
+The `fr-isolation` `cluster-admin` devcontainer profile
+(`.devcontainer/cluster-admin/`) talks to Frank with an **Omni service-account
+kubeconfig** — an `omni-omni-service-account-issuer` JWT carrying `system:masters`
+on cluster `frank`. It is a *minted* token, not backed by a stored Omni object,
+so it simply **expires** (default TTL 1 year) and re-minting is the only
+"renewal". It has no alert: expired → every isolated `kubectl` gets `401`, and it
+lapsed unnoticed once. **Put the expiry date somewhere you actually watch.**
+
+### Diagnose (offline — no cluster needed)
+
+It's a JWT, so `exp` is self-describing. Decode the base64 kubeconfig from the
+host secrets file, take the `token:` value, split on `.`, base64url-decode the
+middle (payload) segment, and read `exp` (Unix seconds). `exp` in the past →
+expired. The token is structurally fine when this happens; it is purely a TTL
+lapse, not corruption. `iss`/`sub`/`groups`/`cluster` in the same payload confirm
+it's the right identity.
+
+### Re-mint (from this repo, with Omni env sourced)
+
+```bash
+cd <repo-root>
+source .env && source .env_devops          # OMNICONFIG + Omni service-account auth
+omnictl kubeconfig --service-account \
+  --user fr-isolation --groups system:masters \
+  --cluster frank --ttl 8760h \
+  --merge=false --force <out.yaml>
+```
+
+`--user` becomes the token `sub` — this is the *only* place the identity name
+lives, so a stale `vk-isolation` sub is the leftover from the vk→fr rename;
+re-mint with `--user fr-isolation` to retire it (there is no in-place rename of a
+signed JWT). **Verify end-to-end before trusting it** — a well-formed token is
+not the same as a working one:
+
+```bash
+kubectl --kubeconfig <out.yaml> auth whoami      # → fr-isolation / system:masters
+kubectl --kubeconfig <out.yaml> auth can-i '*' '*'   # → yes
+```
+
+### Install
+
+Base64 the kubeconfig into `KUBECONFIG_B64` in the host secrets env-file, then
+**`chmod 600` the file** (see below). The `TALOSCONFIG_B64` in the same file is a
+Siderov1 identity (no expiry) — it does not change on a kube-token renewal.
+Nothing to delete for the old identity: a `kubeconfig`-minted service account is
+just a signed token, not a stored object, so the previous token simply stays
+expired.
+
+> Precondition: this routes through `omni.frank.derio.net`, so Omni must be
+> reachable — if it is wedged or dead, see the sections above first.
+
+### Host secrets MUST be private (0600 / 0700)
+
+The `~/.config/fr/secrets/` store must be owner-only. A world-readable store
+(`0644` files under `0755` dirs) once exposed this live `system:masters` token to
+any local process. Files `0600`, dirs `0700` — `0700` on the dir chain is the real
+choke point (traversal is blocked there). The `fr` generator now births these
+files private and self-heals loose perms on the next `fr isolation up` /
+`fr init scaffold` (super-fr#376); if you ever hand-place a file under that dir,
+`chmod 600` it yourself.
