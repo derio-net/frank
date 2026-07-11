@@ -299,11 +299,13 @@ spec:
         # RERANKER, PGDATA=/opt/hindsight/pgdata). The Deployment overrides only
         # the deployment/secret-specific bits below.
         - name: hindsight
-          # Pinned to the first published build (agent-images build of
-          # hermes-agent-shell-hindsight). CI compiled clean; the offline smoke
-          # was skipped (shared-matrix kali build-break), so RUNTIME boot was
-          # gated by the live migrate deploy instead.
-          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:c776905ac021f3ff483e6e3bb66e6798a82e0ec5
+          # Pinned to the second published build (agent-images build of
+          # hermes-agent-shell-hindsight). Passed a local smoke: initdb → 21
+          # Alembic tables → CREATE EXTENSION vector → /health healthy, offline
+          # model loaded. (The first build c776905 CrashLooped on-cluster:
+          # inherited shell cont-init assumed a writable mounted $HOME + the
+          # model bake wrote no refs/main — both fixed here.)
+          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:df29ea7f3893ac3a11d603d3c0b18da05e9976bb
           imagePullPolicy: IfNotPresent
           env:
             # PGDATA on the mounted PVC (isolated from /opt/data). The image
@@ -311,6 +313,12 @@ spec:
             # explicit.
             - name: PGDATA
               value: /opt/hindsight/pgdata
+            # Stable worker id — the sidecar is a singleton, so a static value is
+            # correct. Unset, WORKER_ID defaults to the container hostname, which
+            # changes every restart, so consolidation tasks left in 'processing'
+            # are never recovered (found in the local smoke). A fixed id fixes it.
+            - name: HINDSIGHT_API_WORKER_ID
+              value: hermes-agent-shell-hindsight
             # ── Retain (fact-extraction) LLM wiring — operator decision,
             # 2026-07-10: claude-code (Sonnet). The live validated stack ran
             # LLM_PROVIDER=none (recall-only, chunks-only); RECALL WORKS WITHOUT
