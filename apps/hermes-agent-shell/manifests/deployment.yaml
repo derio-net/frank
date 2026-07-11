@@ -153,13 +153,15 @@ spec:
               cpu: 500m
               memory: 1Gi
             limits:
-              # Gateway + the embedded Hindsight stack (Postgres 18 + hindsight-
-              # api, both spawned by `hermes gateway run` — Phase 0 finding) +
-              # Playwright. 8Gi retained from the current pod (the `claude
-              # install` OOM headroom note historically, and now the extra
-              # Hindsight/PG resident set).
+              # Gateway + Playwright only. Hindsight (Postgres 18 + hindsight-api
+              # + the torch-CPU embedder) is NOT embedded here — Phase 0 proved
+              # the official image ships only the Hindsight client, so the whole
+              # backend runs in the dedicated `hindsight` sidecar container (see
+              # below) with its ML resident set on that container's budget.
+              # Dropped 8Gi→4Gi accordingly (the OOM headroom the old custom
+              # `claude install` needed no longer applies to this container).
               cpu: "2"
-              memory: 8Gi
+              memory: 4Gi
           readinessProbe:
             tcpSocket:
               port: api
@@ -168,7 +170,7 @@ spec:
           livenessProbe:
             tcpSocket:
               port: api
-            initialDelaySeconds: 120  # gateway + embedded PG init can be slow
+            initialDelaySeconds: 120  # gateway init can be slow
             periodSeconds: 60
         # ── SSH sidecar: thin terminal-access container ─────────────────────
         - name: ssh
@@ -268,6 +270,106 @@ spec:
               port: ssh
             initialDelaySeconds: 30
             periodSeconds: 60
+        # ── Hindsight sidecar: long-term memory backend ─────────────────────
+        # PERMANENT DESIGN (2026-07-10) — supersedes the earlier "embedded /
+        # self-spawn" assumption. The official nousresearch/hermes-agent image
+        # ships only the Hindsight CLIENT, not the backend: `hermes gateway run`
+        # spawns NO Postgres/API pair. Recall continuity is provided by running
+        # the backend as its OWN container here. Hermes stays `local_external`
+        # pointed at 127.0.0.1:8888 (client config in /opt/data/hindsight/
+        # config.json, unchanged) — pod containers share one netns, so the main
+        # container's loopback client resolves to this sidecar with zero change.
+        # k8s (kubelet) supervises it; no hermes_stack_watchdog.py / tmux / s6
+        # bolt-ons. The main `hermes` container stays the BARE official image
+        # (this preserves decision 2 — a local_embedded backend would have
+        # forced an image layer onto the main container instead).
+        #
+        # Recipe baked into the image (ground-truth, extracted from the live
+        # hand-resurrected migrate stack, 2026-07-10):
+        #   • micromamba 2.8.1 base; env python 3.11
+        #   • postgresql 18.4, loopback :5433, -k /tmp, listen_addresses=127.0.0.1
+        #       DB `postgres`, role `hindsight`, locale C.UTF-8, pg_hba trust
+        #   • hindsight-api-slim==0.8.4 from PUBLIC PyPI (py3-none-any wheel,
+        #       hatchling; no private index) with the local-ml extra
+        #       (torch 2.13.0+cpu, sentence-transformers 5.6.0)
+        #   • embedder BAAI/bge-small-en-v1.5 pre-baked in the image HF cache
+        #       (~/.cache/huggingface/hub), NOT on the PVC
+        #   • hindsight-api on 127.0.0.1:8888, /health → {"status":"healthy"}
+        # The image's own s6 owns the non-secret env (DATABASE_URL, EMBEDDINGS_*,
+        # RERANKER, PGDATA=/opt/hindsight/pgdata). The Deployment overrides only
+        # the deployment/secret-specific bits below.
+        - name: hindsight
+          # PLACEHOLDER — igor will re-pin to the real published SHA after the
+          # ghcr.io/derio-net/hermes-agent-shell-hindsight image builds. Do NOT
+          # merge with the placeholder tag.
+          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          env:
+            # PGDATA on the mounted PVC (isolated from /opt/data). The image
+            # bakes this default too; declared here to keep the mount contract
+            # explicit.
+            - name: PGDATA
+              value: /opt/hindsight/pgdata
+            # ── Retain (fact-extraction) LLM wiring — operator decision,
+            # 2026-07-10. The live validated stack ran LLM_PROVIDER=none
+            # (recall-only). Retain is wired to claude-code (Sonnet) here, but
+            # may be left "wired DARK": the env is present and the provider is
+            # settable, yet ANTHROPIC_API_KEY is not yet provisioned in the
+            # hermes-agent-shell-llm secret, so retain does not actually run —
+            # and RECALL WORKS WITHOUT IT (auto_recall in config.json is
+            # independent of retain). Flip retain on later by adding the key to
+            # the secret. HINDSIGHT_API_LLM_PROVIDER is the exact var name
+            # observed in the live stack (TASK A); the Sonnet model-selection
+            # var is the one open input the spec flags and is intentionally left
+            # unset here (do not fabricate a var name).
+            - name: HINDSIGHT_API_LLM_PROVIDER
+              value: claude-code
+          envFrom:
+            # Carries ANTHROPIC_API_KEY for the claude-code retain provider when
+            # provisioned. optional:true so a missing key never blocks boot —
+            # this is what makes "wired dark, recall still works" true.
+            - secretRef:
+                name: hermes-agent-shell-llm
+                optional: true
+          volumeMounts:
+            # Sidecar-ONLY volume (not shared with hermes/ssh). PGDATA lives here.
+            - name: hindsight-data
+              mountPath: /opt/hindsight
+          securityContext:
+            # Unlike the root-bound main container (official-image s6 constraint),
+            # this image has no such constraint, so it runs strict non-root.
+            # Postgres initdb-as-non-root is legal; 1000:1000 owns /opt/hindsight
+            # via the PVC + fsGroup.
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              # The ML resident set (torch-CPU embedder + PG shared buffers)
+              # moved OUT of the main container to here — main dropped 8Gi→4Gi
+              # to compensate.
+              cpu: "1"
+              memory: 2Gi
+          # /health is the hindsight-api liveness/readiness surface (port 8888).
+          # PG stays loopback-only — NO containerPort declared for 5433.
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8888
+            initialDelaySeconds: 20
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8888
+            initialDelaySeconds: 60  # PG init + embedder load can be slow
+            periodSeconds: 60
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -278,6 +380,11 @@ spec:
         - name: repos
           persistentVolumeClaim:
             claimName: hermes-agent-shell-repos
+        - name: hindsight-data
+          # Sidecar-only Hindsight Postgres data (PGDATA=/opt/hindsight/pgdata).
+          # Its own Longhorn volume → auto-joins the daily/weekly backup group.
+          persistentVolumeClaim:
+            claimName: hermes-agent-shell-hindsight
         - name: ssh-keys
           # SOPS-managed bootstrap secret in secrets/hermes-agent-shell/.
           # optional: true (paperclip/ruflo pattern) so the pod boots before the

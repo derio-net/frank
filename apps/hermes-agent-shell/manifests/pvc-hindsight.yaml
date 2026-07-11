@@ -1,0 +1,31 @@
+# Dedicated Hindsight-backend volume — mounted ONLY into the `hindsight` sidecar
+# container (see deployment.yaml), at /opt/hindsight. Holds the Hindsight
+# PostgreSQL 18 data dir (PGDATA=/opt/hindsight/pgdata).
+#
+# WHY ITS OWN PVC (revised design, 2026-07-10 — supersedes the earlier
+# "embedded, lives under /opt/data" assumption): the official
+# nousresearch/hermes-agent image ships only the Hindsight *client*, not the
+# backend. Hindsight (Postgres 18.4 + hindsight-api-slim 0.8.4 + the local
+# bge-small-en-v1.5 embedder) therefore runs as a dedicated sidecar container
+# from ghcr.io/derio-net/hermes-agent-shell-hindsight, and its Postgres data
+# gets its OWN isolated volume rather than sharing hermes-agent-shell-data.
+# Benefits: isolated ownership (strict non-root 1000:1000, no /opt/data UID
+# entanglement), and — because it is its own Longhorn volume — it auto-joins
+# Longhorn's existing daily/weekly recurring-job backup group (`default`,
+# retain 7), closing the previously-unbacked Hindsight-DB gap for free.
+#
+# Sized 5Gi: the live bank is 369 memory_units (~21MB PG data-dir tar today);
+# 5Gi is generous headroom for pgvector growth. The embedding model is baked
+# INTO the image (HF cache), NOT on this PVC.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-agent-shell-hindsight
+  namespace: hermes-agent-shell
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 5Gi
