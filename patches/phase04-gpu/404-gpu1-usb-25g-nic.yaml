@@ -1,0 +1,31 @@
+## Move gpu-1's stable node address (192.168.55.31/24) from the damaged
+## onboard Realtek r8169 NIC to the replacement USB 2.5G Ethernet adapter.
+##
+## Discovered live 2026-07-11:
+##   - Interface: enp0s20f0u7
+##   - MAC: 6c:1f:f7:c6:e0:da
+##   - Driver: r8152 (RTL8156B-class USB Ethernet)
+##   - Temporary DHCP address before this patch: 192.168.55.150/24
+##
+## Binding by MAC is deliberate: USB NIC interface names can shift across ports,
+## hubs, and boot ordering, but the adapter's hardware address is stable.
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 404-gpu1-usb-25g-nic
+    labels:
+        omni.sidero.dev/cluster: frank
+        omni.sidero.dev/cluster-machine: 03ff0210-04e0-05b0-ab06-300700080009
+spec:
+    data: |
+        machine:
+            network:
+                interfaces:
+                    - deviceSelector:
+                          hardwareAddr: "6c:1f:f7:c6:e0:da"
+                      dhcp: false
+                      addresses:
+                          - 192.168.55.31/24
+                      routes:
+                          - network: 0.0.0.0/0
+                            gateway: 192.168.55.1
