@@ -54,6 +54,18 @@ spec:
         # different image (custom foreground sshd, no s6) and DOES run strict as
         # 1000 + cap-drop:ALL — validated in agent-images CI + locally.
         fsGroup: 1000
+        # Defense-in-depth for the Hindsight sidecar's PGDATA (salvaged from the
+        # superseded frank#601). With the default fsGroupChangePolicy (Always),
+        # kubelet re-walks and re-applies fsGroup across every mounted PVC on
+        # EVERY pod recreate/remount, which re-loosens the Hindsight Postgres data
+        # dir to group-rwx — and Postgres refuses to start on a PGDATA wider than
+        # 0750. OnRootMismatch skips the re-walk when the volume root already
+        # matches, so a populated /opt/hindsight PVC keeps the 0700 that the
+        # sidecar image's boot-time `chmod 700 $PGDATA` set. The image chmod is the
+        # primary fix (it runs regardless of policy); this is the belt to its
+        # braces. (The other PVCs — /opt/data, home, repos — are unaffected either
+        # way; only PGDATA cares about group bits.)
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         # ── main service container: official Hermes, unmodified ──────────────
         - name: hermes
