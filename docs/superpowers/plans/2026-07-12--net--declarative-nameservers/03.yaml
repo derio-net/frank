@@ -32,17 +32,25 @@ tasks:
       when: After the PR merges — apply the cluster-wide nameservers ConfigPatch to the live Frank cluster, staged.
       why_manual: Talos machine config is applied out-of-band via omnictl (declarative-only principle; never CI). Touches the live cluster; staged to protect gpu-1.
       commands: |
+        # NON-DISRUPTIVE — NO REBOOT. A `machine.network.nameservers` change is applied
+        # LIVE by Talos's network controller; it never requires a reboot (confirmed against
+        # Talos docs: apply succeeds under `--mode no-reboot`). gpu-1's GPU workloads keep
+        # running; the node does NOT go NotReady. (nameservers is a list-REPLACE — the config
+        # value fully replaces the DHCP-provided list; our values equal what DHCP serves.)
         source .env && source .env_devops
+        # Baseline the reboot counter so we can PROVE no reboot happened.
+        omnictl get machines | awk '/03ff0210/{print "gpu-1 REBOOTS before:", $NF}'
         # 1. Apply the cluster-wide patch (all machines in cluster frank)
         omnictl apply -f patches/phase01-node-config/02-cluster-wide-nameservers.yaml
         # 2. gpu-1 FIRST — the static host that proves the mechanism (DHCP does NOT supply its DNS)
-        talosctl -n 192.168.55.31 get resolvers    # expect ["192.168.10.11","192.168.10.12"]
-        kubectl get node gpu-1                      # expect Ready
+        talosctl -n 192.168.55.31 get resolvers    # expect ["192.168.10.11","192.168.10.12"] (updates within seconds)
+        kubectl get node gpu-1                      # expect Ready, uninterrupted (no NotReady flap)
+        omnictl get machines | awk '/03ff0210/{print "gpu-1 REBOOTS after:", $NF}'  # expect UNCHANGED
         # 3. minis (only proceed if gpu-1 verified)
         for ip in 192.168.55.21 192.168.55.22 192.168.55.23; do talosctl -n "$ip" get resolvers; done
         # 4. edge
         for ip in 192.168.55.41 192.168.55.42 192.168.55.71; do talosctl -n "$ip" get resolvers; done
-      verify: Every node's `talosctl -n <ip> get resolvers` lists 192.168.10.11 + 192.168.10.12 from the config layer; all nodes Ready.
+      verify: Every node's `talosctl -n <ip> get resolvers` lists 192.168.10.11 + 192.168.10.12 from the config layer; all nodes Ready; gpu-1's Omni REBOOTS count is UNCHANGED (the change applied live, no reboot).
       status: pending
       ```
 - number: 2

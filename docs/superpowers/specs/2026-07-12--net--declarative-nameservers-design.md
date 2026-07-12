@@ -157,12 +157,23 @@ Synced into `docs/runbooks/manual-operations.yaml` via `/sync-runbook`.
 
 ## Test Plan (post-merge, operator-driven)
 
+**Non-disruptive — NO node reboot.** A `machine.network.nameservers` change is
+applied **live** by Talos's network controller; it never requires a reboot
+(succeeds under `--mode no-reboot`; Omni/auto apply only reboots when a change
+*requires* it). gpu-1's hard-pinned GPU workloads keep running and the node does
+not go `NotReady`. (`nameservers` is a list-**replace** — the config value fully
+replaces the DHCP-provided list; our values equal what DHCP already serves, so it
+is a no-op on the DHCP hosts and gpu-1 already has them.) Each group's checkpoint
+below includes proving the reboot count did not change.
+
 Staged, with a checkpoint after each group:
 
 1. `omnictl apply -f patches/phase01-node-config/02-cluster-wide-nameservers.yaml`
+   (baseline gpu-1's `omnictl get machines` REBOOTS count first).
 2. **gpu-1 first:** `talosctl -n 192.168.55.31 get resolvers` shows
-   `["192.168.10.11","192.168.10.12"]` from the config layer; `kubectl get node
-   gpu-1` stays `Ready`.
+   `["192.168.10.11","192.168.10.12"]` from the config layer (updates within
+   seconds); `kubectl get node gpu-1` stays `Ready` (no flap); gpu-1's Omni
+   REBOOTS count is **unchanged** — proving the change applied live, no reboot.
 3. **gpu-1 drift cleanup:** revert the console/platform network override;
    confirm `talosctl -n 192.168.55.31 get addresses` shows a single
    `192.168.55.31/24` on `enp0s20f0u7` (no `.150`); resolvers still correct;
