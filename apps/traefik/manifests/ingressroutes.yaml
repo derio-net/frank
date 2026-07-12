@@ -739,11 +739,15 @@ spec:
       - main: "*.frank.derio.net"
 ---
 # hermes-agent-shell — official Hermes web dashboard + gateway API (migration
-# 2026-07-09, willikins#285, decision 3). The dashboard has NO built-in auth of
-# its own, so it gets authentik-forwardauth on top of ip-allowlist +
-# security-headers (the "login-less UIs get forward-auth" rule, same as
-# Longhorn/Hubble). Backend is the hermes-agent-shell-dashboard ClusterIP; the
-# SSH/Mosh path stays on the Cilium L2 LoadBalancer and is unaffected.
+# 2026-07-09, willikins#285, decision 3). The dashboard ships its OWN basic-auth
+# (HERMES_DASHBOARD_BASIC_AUTH_*, frank#626 — it refuses to bind 0.0.0.0 without
+# an auth provider and self-authenticates at :9119/login), so it only needs
+# ip-allowlist + security-headers at the edge. authentik-forwardauth was REMOVED
+# 2026-07-12 (willikins#285): no authentik application/proxy-provider was ever
+# configured for these hosts, so the outpost 404'd every request — a broken and,
+# given #626, redundant edge layer. SSO via authentik is a possible later
+# follow-up. Backend is the hermes-agent-shell-dashboard ClusterIP; the SSH/Mosh
+# path stays on the Cilium L2 LoadBalancer and is unaffected.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -758,7 +762,6 @@ spec:
       middlewares:
         - name: ip-allowlist
         - name: security-headers
-        - name: authentik-forwardauth
       services:
         - name: hermes-agent-shell-dashboard
           namespace: hermes-agent-shell
@@ -769,11 +772,11 @@ spec:
       - main: "*.cluster.derio.net"
 ---
 # hermes gateway / OpenAI-compatible API. Separate hostname per the spec. The
-# API is a machine surface (OpenAI-shape clients), but is still gated behind
-# ip-allowlist + security-headers; authentik-forwardauth is included for parity
-# with the dashboard. If a non-browser client cannot complete the forward-auth
-# redirect at cutover, drop the authentik-forwardauth line from THIS route only
-# (the API carries its own bearer-token auth via LiteLLM keys).
+# API is a machine surface (OpenAI-shape clients), gated behind ip-allowlist +
+# security-headers. authentik-forwardauth was REMOVED 2026-07-12 (willikins#285)
+# for the same reason as the dashboard route above: no authentik application was
+# configured for this host, so the forward-auth outpost 404'd every request. The
+# API carries its own bearer-token auth via LiteLLM keys.
 apiVersion: traefik.io/v1alpha1
 kind: IngressRoute
 metadata:
@@ -788,7 +791,6 @@ spec:
       middlewares:
         - name: ip-allowlist
         - name: security-headers
-        - name: authentik-forwardauth
       services:
         - name: hermes-agent-shell-dashboard
           namespace: hermes-agent-shell
