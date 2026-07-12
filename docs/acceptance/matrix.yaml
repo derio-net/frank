@@ -73,3 +73,37 @@ rows:
     status: skipped
     notes: Live manual proof 2026-07-11 — gpu-1 allocatable nvidia.com/gpu is 1;
       pinned workloads are Running or Completed after the network move.
+  - id: net-all-hosts-declarative-dns
+    capability: Network isolation
+    acceptance: Every Frank host has the internal DNS resolvers (192.168.10.11/12) set
+      declaratively in its Talos machine config, so no host silently depends on DHCP-provided
+      DNS.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-12--net--declarative-nameservers-design.md
+    levels:
+      unit:
+      - frank:scripts/tests/test_cluster_wide_nameservers.py
+    status: not-implemented
+    notes: Verified live post-apply (talosctl get resolvers on every node reflects the
+      config-layer nameservers) + unit guard test.
+  - id: net-static-host-resolves-internal-dns
+    capability: Network isolation
+    acceptance: A static-networked Frank host (e.g. gpu-1 on its USB adapter) resolves
+      DNS via the internal resolvers and boots cleanly, with no fallback to ACL-blocked
+      public DNS.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-12--net--declarative-nameservers-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'Live manual proof: gpu-1 get resolvers from config layer + node Ready after
+      apply.'
+  - id: net-gpu1-single-declarative-ip
+    capability: Network isolation
+    acceptance: gpu-1 presents a single declarative IPv4 address on its USB adapter
+      (no DHCP-drift 192.168.55.150 alongside the static 192.168.55.31).
+    origin:
+    - frank:docs/superpowers/specs/2026-07-12--net--declarative-nameservers-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'Live manual proof: talosctl get addresses shows single .31 on enp0s20f0u7
+      after platform-config drift cleanup.'

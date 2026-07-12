@@ -1843,3 +1843,31 @@ operations:
   - "kubectl -n alert-agent get externalsecret alert-agent-goatcounter  # READY=True, SecretSynced"
   - "kubectl -n alert-agent get secret alert-agent-goatcounter  # exists"
   status: pending
+- id: net-apply-cluster-nameservers
+  layer: net
+  app: talos-machine-config
+  plan: 2026-07-12--net--declarative-nameservers
+  when: After the PR merges — apply the cluster-wide nameservers ConfigPatch, staged
+  why_manual: Talos machine config is applied out-of-band via omnictl (declarative-only principle; never CI); touches the live cluster, staged to protect gpu-1
+  commands:
+  - source .env && source .env_devops
+  - omnictl apply -f patches/phase01-node-config/02-cluster-wide-nameservers.yaml
+  - "gpu-1 FIRST (proves the mechanism): talosctl -n 192.168.55.31 get resolvers  # expect 192.168.10.11 + 192.168.10.12; kubectl get node gpu-1  # Ready"
+  - "minis (only if gpu-1 verified): for ip in 192.168.55.21 192.168.55.22 192.168.55.23; do talosctl -n $ip get resolvers; done"
+  - "edge: for ip in 192.168.55.41 192.168.55.42 192.168.55.71; do talosctl -n $ip get resolvers; done"
+  verify:
+  - Every node's talosctl get resolvers lists 192.168.10.11 + 192.168.10.12 from the config layer; all nodes Ready
+  status: pending
+- id: net-gpu1-clear-dhcp-drift
+  layer: net
+  app: talos-machine-config
+  plan: 2026-07-12--net--declarative-nameservers
+  when: ONLY after net-apply-cluster-nameservers is applied and gpu-1 resolvers confirmed from the config layer
+  why_manual: The DHCP drift lives in gpu-1's console/platform-layer network config (not a repo patch); reverting is a Talos console (F3 Network Config) / platform-config action, done live
+  commands:
+  - "Revert gpu-1's console (F3 Network Config) / platform network override that re-enabled DHCP on enp0s20f0u7, so machine-config dhcp:false is authoritative"
+  - "talosctl -n 192.168.55.31 get addresses | grep enp0s20f0u7  # expect ONLY 192.168.55.31/24"
+  - "kubectl get node gpu-1  # expect Ready"
+  verify:
+  - talosctl -n 192.168.55.31 get addresses shows a single 192.168.55.31/24 on enp0s20f0u7 (no 192.168.55.150); resolvers intact; node Ready
+  status: pending
