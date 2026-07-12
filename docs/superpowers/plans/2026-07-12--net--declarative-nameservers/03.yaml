@@ -1,0 +1,140 @@
+schema_version: 2
+phase:
+  number: 3
+  title: '[manual] Staged live apply + gpu-1 DHCP-drift cleanup'
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+  acceptance:
+  - net-static-host-resolves-internal-dns
+  - net-gpu1-single-declarative-ip
+tasks:
+- number: 1
+  title: Apply the cluster-wide nameservers patch (staged), operator-run
+  steps:
+  - id: P3.T1.S1
+    text: |
+      MANUAL (operator, post-merge). See the `# manual-operation` block
+      `net-apply-cluster-nameservers` in _prose.md / this phase. Staged omnictl apply
+      with a checkpoint per group: gpu-1 first (verify `talosctl -n 192.168.55.31 get
+      resolvers` shows the config-layer resolvers and `kubectl get node gpu-1` stays
+      Ready), then minis (.21/.22/.23), then edge (.41/.42/.71). Closes acceptance row
+      net-static-host-resolves-internal-dns.
+
+      ```yaml
+      # manual-operation
+      id: net-apply-cluster-nameservers
+      layer: net
+      app: talos-machine-config
+      plan: 2026-07-12--net--declarative-nameservers
+      when: After the PR merges — apply the cluster-wide nameservers ConfigPatch to the live Frank cluster, staged.
+      why_manual: Talos machine config is applied out-of-band via omnictl (declarative-only principle; never CI). Touches the live cluster; staged to protect gpu-1.
+      commands: |
+        # NON-DISRUPTIVE — NO REBOOT. A `machine.network.nameservers` change is applied
+        # LIVE by Talos's network controller; it never requires a reboot (confirmed against
+        # Talos docs: apply succeeds under `--mode no-reboot`). gpu-1's GPU workloads keep
+        # running; the node does NOT go NotReady. (nameservers is a list-REPLACE — the config
+        # value fully replaces the DHCP-provided list; our values equal what DHCP serves.)
+        source .env && source .env_devops
+        # Baseline the reboot counter so we can PROVE no reboot happened.
+        omnictl get machines | awk '/03ff0210/{print "gpu-1 REBOOTS before:", $NF}'
+        # 1. Apply the cluster-wide patch (all machines in cluster frank)
+        omnictl apply -f patches/phase01-node-config/02-cluster-wide-nameservers.yaml
+        # 2. gpu-1 FIRST — the static host that proves the mechanism (DHCP does NOT supply its DNS)
+        talosctl -n 192.168.55.31 get resolvers    # expect ["192.168.10.11","192.168.10.12"] (updates within seconds)
+        kubectl get node gpu-1                      # expect Ready, uninterrupted (no NotReady flap)
+        omnictl get machines | awk '/03ff0210/{print "gpu-1 REBOOTS after:", $NF}'  # expect UNCHANGED
+        # 3. minis (only proceed if gpu-1 verified)
+        for ip in 192.168.55.21 192.168.55.22 192.168.55.23; do talosctl -n "$ip" get resolvers; done
+        # 4. edge
+        for ip in 192.168.55.41 192.168.55.42 192.168.55.71; do talosctl -n "$ip" get resolvers; done
+      verify: Every node's `talosctl -n <ip> get resolvers` lists 192.168.10.11 + 192.168.10.12 from the config layer; all nodes Ready; gpu-1's Omni REBOOTS count is UNCHANGED (the change applied live, no reboot).
+      status: pending
+      ```
+- number: 2
+  title: Clear the gpu-1 DHCP drift (single declarative IP)
+  steps:
+  - id: P3.T2.S1
+    text: |
+      MANUAL (operator, post-merge). See the `# manual-operation` block
+      `net-gpu1-clear-dhcp-drift`. ONLY after the nameservers patch is applied and gpu-1
+      verified: revert gpu-1's console/platform network override so the machine-config
+      `dhcp: false` is authoritative. Verify `talosctl -n 192.168.55.31 get addresses`
+      shows a SINGLE 192.168.55.31/24 on enp0s20f0u7 (no 192.168.55.150), resolvers
+      intact, node Ready. Closes acceptance row net-gpu1-single-declarative-ip.
+
+      ```yaml
+      # manual-operation
+      id: net-gpu1-clear-dhcp-drift
+      layer: net
+      app: talos-machine-config
+      plan: 2026-07-12--net--declarative-nameservers
+      when: ONLY after net-apply-cluster-nameservers is applied and gpu-1's resolvers are confirmed from the config layer.
+      why_manual: The DHCP drift lives in gpu-1's console/platform-layer network config (not a repo patch); reverting it is a Talos console (F3 Network Config) / platform-config action, done live.
+      commands: |
+        # Precondition: `talosctl -n 192.168.55.31 get resolvers` already shows the internal
+        # resolvers from the config layer (net-apply-cluster-nameservers done + verified).
+        # Revert gpu-1's console (F3 Network Config) / platform network override that re-enabled
+        # DHCP on enp0s20f0u7, so the machine-config `dhcp: false` becomes authoritative.
+        talosctl -n 192.168.55.31 get addresses | grep enp0s20f0u7   # expect ONLY 192.168.55.31/24
+        kubectl get node gpu-1                                        # expect Ready
+      verify: `talosctl -n 192.168.55.31 get addresses` shows a single 192.168.55.31/24 on enp0s20f0u7 (no 192.168.55.150); resolvers intact; node Ready.
+      status: pending
+      ```
+- number: 3
+  title: Reboot-survival test — gpu-1 boots clean with the declarative DNS
+  steps:
+  - id: P3.T3.S1
+    text: |
+      MANUAL (operator, post-merge). THE key test — reproduce what failed in the
+      incident. See the `# manual-operation` block `net-gpu1-reboot-survival`. The
+      nameservers apply itself does NOT reboot the node, so this is the ONLY step
+      that actually exercises the fix. With the end-state config in place
+      (nameservers from config + single .31), deliberately reboot gpu-1 and confirm
+      it boots cleanly through the exact chain that hung on 2026-07-12: comes back
+      Ready, resolvers from the config layer, time syncs, siderolink reconnects
+      (Omni CONNECTED: true), single .31 (no .150 re-appears), GPU workloads
+      reschedule. Brief deliberate GPU-service downtime (gpu-1 is the only GPU
+      node). Definitive proof for net-static-host-resolves-internal-dns.
+
+      ```yaml
+      # manual-operation
+      id: net-gpu1-reboot-survival
+      layer: net
+      app: talos-machine-config
+      plan: 2026-07-12--net--declarative-nameservers
+      when: After net-apply-cluster-nameservers AND net-gpu1-clear-dhcp-drift are done and verified (end-state gpu-1 config in place).
+      why_manual: A deliberate reboot of a live GPU node to prove clean boot; operator-timed (brief GPU-service downtime — gpu-1 is the only GPU node).
+      commands: |
+        # Reproduce the incident condition: a real reboot. The nameservers apply itself
+        # does NOT reboot (see net-apply), so this is the ONLY step that tests the fix.
+        talosctl -n 192.168.55.31 reboot          # or reboot gpu-1 from the Omni UI
+        # Watch it come back through the chain that hung on 2026-07-12:
+        kubectl get node gpu-1 -w                  # NotReady -> Ready (must NOT hang at NotReady)
+        talosctl -n 192.168.55.31 get resolvers    # 192.168.10.11 + 192.168.10.12, from config
+        talosctl -n 192.168.55.31 get addresses | grep enp0s20f0u7   # single 192.168.55.31/24, no .150
+        omnictl get machines | awk '/03ff0210/{print "CONNECTED:", $(NF-1)}'   # true (siderolink back)
+        kubectl get pods -A --field-selector spec.nodeName=gpu-1     # GPU workloads rescheduled/Running
+      verify: gpu-1 returns to Ready after a real reboot (NO time-sync boot-hang), resolvers come from the config layer, addresses show a single .31 (no .150), Omni CONNECTED true, GPU workloads Running — proving the declarative DNS prevents the incident.
+      status: pending
+      ```
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

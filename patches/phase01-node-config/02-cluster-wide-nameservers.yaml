@@ -1,0 +1,30 @@
+## Cluster-wide internal DNS resolvers for EVERY Frank host.
+##
+## Why this exists (gpu-1 incident, 2026-07-12): the homelab blocks public DNS
+## (1.1.1.1 / 8.8.8.8) network-wide by ACL. A Talos host with a static interface
+## (`dhcp: false`) and no `machine.network.nameservers` falls back to those
+## blocked public resolvers -> cannot resolve its NTP host -> never syncs time ->
+## Talos gates apid/kubelet/siderolink on time-sync -> the node hangs
+## "pinging but dead". DHCP hosts dodge this only because the DHCP server hands
+## them these same internal resolvers; static hosts get nothing.
+##
+## This patch makes the internal resolvers DECLARATIVE for the whole fleet, so no
+## host silently depends on DHCP-provided DNS. Full prose:
+## docs/runbooks/frank-gotchas/networking.md
+##
+## Applies to ALL machines in cluster `frank` (cluster label, no cluster-machine).
+## For the DHCP hosts the values equal what DHCP already serves (no behavioural
+## change); the config layer wins going forward, which is the intent.
+metadata:
+    namespace: default
+    type: ConfigPatches.omni.sidero.dev
+    id: 102-cluster-nameservers
+    labels:
+        omni.sidero.dev/cluster: frank
+spec:
+    data: |
+        machine:
+            network:
+                nameservers:
+                    - 192.168.10.11
+                    - 192.168.10.12

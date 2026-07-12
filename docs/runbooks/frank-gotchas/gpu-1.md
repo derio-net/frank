@@ -39,6 +39,10 @@ The current durable path is replacement, not more Realtek tuning. The attempted 
 
 The fix was delayed not just by the wrong mechanism but by a **wedged Omni control plane** — after a power-outage cold boot, Omni's reconcile runtime had silently deadlocked on a clock-jump and applied nothing for days (see `omni.md`). The `KernelArgs` resource only reconciled and rebooted gpu-1 *after* `docker restart omni` revived the runtime.
 
+## USB 2.5G static config → DNS boot-hang (see `networking.md`)
+
+The USB 2.5G migration (`404-gpu1-usb-25g-nic.yaml`) made gpu-1 the fleet's first **static-networked** host — `dhcp: false` with no `nameservers`. On the 2026-07-12 power-restart it hung ~12h "pinging but dead": static interface → public-DNS fallback (`1.1.1.1`/`8.8.8.8`) → ACL-blocked → no NTP → time-sync-gated `apid`/`kubelet`/`siderolink`. Fixed fleet-wide by the cluster-wide `102-cluster-nameservers` patch. Full failure chain, console signature, and the emergency ACL unblock: **`networking.md` → "Static Talos interface with no `nameservers`"**.
+
 ## Ollama "system memory" errors mean container cgroup RAM, not VRAM
 
 When Ollama returns `model requires more system memory (X GiB) than is available (Y MiB)`, "system memory" means container RAM, not GPU VRAM. With `OLLAMA_KEEP_ALIVE=24h` page cache from previously-loaded models pins the cgroup near its `resources.limits.memory` ceiling, so a 15 GB model can fail to load even when `nvidia-smi` shows ~15 GB of VRAM free and the host has 60 GB of RAM idle — the gpu-1 container was simply at 31/32 GiB.

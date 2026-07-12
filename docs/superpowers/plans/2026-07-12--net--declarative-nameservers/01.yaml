@@ -1,0 +1,77 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Cluster-wide nameservers ConfigPatch (TDD guard + patch)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - net-all-hosts-declarative-dns
+tasks:
+- number: 1
+  title: Regression guard test (red) -> cluster-wide nameservers patch (green)
+  steps:
+  - id: P1.T1.S1
+    text: |
+      [RED] Write scripts/tests/test_cluster_wide_nameservers.py (pure-Python,
+      no cluster access; mirrors scripts/tests/test_crowdsec_*.py style — pytest,
+      PyYAML, walks the repo). Assertions:
+        (a) It scans patches/** for any Talos ConfigPatch whose spec.data declares a
+            STATIC interface — a machine.network.interfaces[] entry with `dhcp: false`
+            AND a non-empty `addresses:` list (parse the `spec.data` block-scalar as YAML).
+        (b) IF any static-interface patch exists, THEN a cluster-wide nameservers patch
+            MUST exist: a doc with metadata.type ConfigPatches.omni.sidero.dev,
+            metadata.id == "102-cluster-nameservers", label omni.sidero.dev/cluster: frank,
+            and spec.data machine.network.nameservers == ["192.168.10.11","192.168.10.12"].
+        (c) The nameservers patch must NOT carry a per-machine label
+            (omni.sidero.dev/cluster-machine) — it is cluster-scoped.
+      Run: `cd <repo> && python -m pytest scripts/tests/test_cluster_wide_nameservers.py -q`
+      EXPECTED: FAIL (red) — the 404 static-interface patch exists but the cluster
+      nameservers patch does not yet.
+  - id: P1.T1.S2
+    text: |
+      [GREEN] Create patches/phase01-node-config/02-cluster-wide-nameservers.yaml:
+      ```
+      ## Cluster-wide internal DNS resolvers for every Frank host.
+      ## Homelab isolation blocks public DNS (1.1.1.1/8.8.8.8) network-wide; a Talos
+      ## host with no explicit nameservers falls back to those blocked resolvers and
+      ## hangs at boot (no DNS -> no NTP -> time-sync-gated apid/kubelet/siderolink).
+      ## Applies to ALL machines in cluster `frank` (cluster label, no cluster-machine).
+      metadata:
+          namespace: default
+          type: ConfigPatches.omni.sidero.dev
+          id: 102-cluster-nameservers
+          labels:
+              omni.sidero.dev/cluster: frank
+      spec:
+          data: |
+              machine:
+                  network:
+                      nameservers:
+                          - 192.168.10.11
+                          - 192.168.10.12
+      ```
+      Run pytest again. EXPECTED: PASS (green).
+  - id: P1.T1.S3
+    text: |
+      [REFACTOR — optional] If the test has duplicated YAML-loading/selector logic,
+      extract a small helper (e.g. load_configpatches(), iter_static_interfaces()).
+      Stay green; add no new assertions. Skip entirely if nothing to clean.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-12T11:22:54+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-12T11:22:56+00:00'
+      note: null
+    P1.T1.S3:
+      state: '-'
+      ticked_at: '2026-07-12T11:22:57+00:00'
+      note: no refactor needed — guard test helpers already clean
+  completion:
+    at: '2026-07-12T11:23:05+00:00'
+    note: null
+    observed_prs: []

@@ -1,0 +1,83 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Single-source-of-truth comments, gotcha docs, runbook sync
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Point the gpu-1 404 patch + template at the cluster-wide nameservers patch
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Edit patches/phase04-gpu/404-gpu1-usb-25g-nic.yaml — add a comment block above
+      the interface config: "DNS nameservers are provided cluster-wide by
+      `102-cluster-nameservers` (patches/phase01-node-config/02-cluster-wide-nameservers.yaml).
+      A static interface (`dhcp: false`) has NO DNS of its own and falls back to the
+      ACL-blocked public resolvers 1.1.1.1/8.8.8.8, so that patch MUST be applied.
+      Never ship a static-NIC patch without it." Do NOT add per-interface nameservers
+      (single source of truth is the cluster patch).
+      Verify: `grep -q 102-cluster-nameservers patches/phase04-gpu/404-gpu1-usb-25g-nic.yaml`
+  - id: P2.T1.S2
+    text: |
+      Add the same comment block to patches/phase04-gpu/404-gpu1-usb-25g-nic.template.yaml
+      (the durable teaching surface for the NEXT static NIC), fitting its existing
+      "Operator flow" header comments.
+      Verify: `grep -q 102-cluster-nameservers patches/phase04-gpu/404-gpu1-usb-25g-nic.template.yaml`
+- number: 2
+  title: Gotcha docs — one-liner + full prose
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Add a one-liner to agents/rules/frank-gotchas.md under the Networking section
+      (pointer to networking.md): a Talos host with a STATIC interface (`dhcp: false`)
+      and no `machine.network.nameservers` falls back to ACL-blocked public DNS ->
+      can't resolve the NTP host -> time never syncs -> Talos gates apid/kubelet/
+      siderolink on time-sync -> node "pings but is dead". Fixed cluster-wide by
+      `102-cluster-nameservers`; the minis dodged it only via DHCP-provided DNS.
+  - id: P2.T2.S2
+    text: |
+      Add full prose to docs/runbooks/frank-gotchas/networking.md (primary home —
+      fleet-wide DNS/isolation gotcha): the full failure chain, the "pinging but dead"
+      signature, the console evidence (error serving dns request ... i/o timeout;
+      failed looking up time.cloudflare.com; startAllServices apid to be up), and the
+      fix (cluster-wide nameservers patch + never a static NIC without it). Add a
+      one-line cross-reference in docs/runbooks/frank-gotchas/gpu-1.md (the incident
+      node) pointing to the networking.md prose.
+- number: 3
+  title: Sync the manual-operations runbook
+  steps:
+  - id: P2.T3.S1
+    text: |
+      Run the /sync-runbook skill so the two `# manual-operation` blocks authored in
+      Phase 3 (03.yaml) — ids `net-apply-cluster-nameservers` and
+      `net-gpu1-clear-dhcp-drift` — are extracted into docs/runbooks/manual-operations.yaml.
+      Verify both ids appear: `grep -E 'net-apply-cluster-nameservers|net-gpu1-clear-dhcp-drift' docs/runbooks/manual-operations.yaml`
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-07-12T11:22:58+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-07-12T11:23:00+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-07-12T11:23:01+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-07-12T11:23:03+00:00'
+      note: null
+    P2.T3.S1:
+      state: x
+      ticked_at: '2026-07-12T11:23:04+00:00'
+      note: null
+  completion:
+    at: '2026-07-12T11:23:07+00:00'
+    note: null
+    observed_prs: []
