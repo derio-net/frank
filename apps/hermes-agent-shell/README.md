@@ -78,11 +78,10 @@ the official image can be told NOT to spawn its embedded PG. Not attempted here.
    exits the moment it finds no TTY → in a pod that is CrashLoopBackOff. The
    deployment now passes `args: [gateway, run]`, which the image auto-redirects to
    its supervised s6 `main-hermes` service. Verified it stays up.
-3. **Sidecar image SHA — RESOLVED (pinned).** First real published build:
-   `ghcr.io/derio-net/hermes-agent-shell-ssh:6991631d7e556ed69b156514691418a85304a039`
-   (agent-images branch `feat/hermes-agent-shell-ssh`, digest `sha256:24f5a9ff…`).
-   Branch build; the agent-images-bump workflow re-pins to the main-merge SHA once
-   agent-images#136 lands.
+3. **Sidecar image SHA — RESOLVED (pinned).** Pinned to the permanent main-build
+   SHA `ghcr.io/derio-net/hermes-agent-shell-ssh:820c1fbd1b8d14e70073d0c249e8270a4e34acb9`
+   (agent-images#136 merged; the 820c1fb main build published it). The
+   agent-images-bump workflow re-pins it on future bumps (it is in AGENT_IMAGES).
 
 ## Still-open flags for Phase 3 (the live migration dispatch)
 
