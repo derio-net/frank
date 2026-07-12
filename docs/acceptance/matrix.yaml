@@ -79,31 +79,36 @@ rows:
       declaratively in its Talos machine config, so no host silently depends on DHCP-provided
       DNS.
     origin:
-    - frank:docs/superpowers/specs/2026-07-12--net--declarative-nameservers-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-12--net--declarative-nameservers-design.md
     levels:
       unit:
       - frank:scripts/tests/test_cluster_wide_nameservers.py
-    status: not-implemented
-    notes: Verified live post-apply (talosctl get resolvers on every node reflects the
-      config-layer nameservers) + unit guard test.
+    status: skipped
+    notes: 'Live proof 2026-07-12: 102-cluster-nameservers applied via omnictl to all
+      7 Frank nodes (non-disruptive); talosctl get resolvers on gpu-1/mini-1/2/3/pc-1/raspi-1/2
+      all show 192.168.10.11 + 192.168.10.12 from the config layer. Unit guard
+      scripts/tests/test_cluster_wide_nameservers.py passing (local guard, not CI-run).'
   - id: net-static-host-resolves-internal-dns
     capability: Network isolation
     acceptance: A static-networked Frank host (e.g. gpu-1 on its USB adapter) resolves
       DNS via the internal resolvers and boots cleanly, with no fallback to ACL-blocked
       public DNS.
     origin:
-    - frank:docs/superpowers/specs/2026-07-12--net--declarative-nameservers-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-12--net--declarative-nameservers-design.md
     levels: {}
-    status: not-implemented
-    notes: 'Live manual proof: gpu-1 get resolvers from config layer + node Ready after
-      apply.'
+    status: skipped
+    notes: 'Live proof 2026-07-12: gpu-1 (static USB-adapter host) rebooted via talosctl
+      reboot — DOWN 16:51 -> Ready 16:53 (~2min, no time-sync boot-hang); resolvers
+      192.168.10.11/12 from the config layer; siderolink reconnected; GPU workloads
+      rescheduled Running. The exact incident scenario now boots clean.'
   - id: net-gpu1-single-declarative-ip
     capability: Network isolation
     acceptance: gpu-1 presents a single declarative IPv4 address on its USB adapter
       (no DHCP-drift 192.168.55.150 alongside the static 192.168.55.31).
     origin:
-    - frank:docs/superpowers/specs/2026-07-12--net--declarative-nameservers-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-12--net--declarative-nameservers-design.md
     levels: {}
-    status: not-implemented
-    notes: 'Live manual proof: talosctl get addresses shows single .31 on enp0s20f0u7
-      after platform-config drift cleanup.'
+    status: skipped
+    notes: 'Live proof 2026-07-12: after console-drift cleanup, talosctl -n 192.168.55.31
+      get addresses shows a single 192.168.55.31/24 on enp0s20f0u7 (no .150), and it
+      persisted across the gpu-1 reboot-survival test.'
