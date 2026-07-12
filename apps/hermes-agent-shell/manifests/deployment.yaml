@@ -104,6 +104,32 @@ spec:
             # UNVERIFIED against migrated state and must be reconfirmed in Phase 3.
             - name: HERMES_DASHBOARD
               value: "1"
+            # Dashboard basic-auth. HERMES_DASHBOARD=1 makes the v0.18.2 dashboard
+            # HARD-REFUSE to bind (9119) without an auth provider, and that refusal
+            # loops and blocks the gateway API (8642) from binding at all, so the
+            # whole `hermes` container CrashLoops. These three env supply the auth
+            # (username/password + a session-signing secret) the dashboard needs.
+            # Sourced from a SOPS-bootstrapped Secret applied out-of-band (like the
+            # ssh-keys Secret — NOT ArgoCD-managed; see secrets/hermes-agent-shell/
+            # README.md). The migrate deployment used these same three keys from
+            # hermes-agent-shell-migrate-dashboard-auth; prod uses the stable name.
+            # NOT optional: the dashboard genuinely needs them to bind, so the pod
+            # must not start until the Secret exists (apply it before merging this).
+            - name: HERMES_DASHBOARD_BASIC_AUTH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-shell-dashboard-auth
+                  key: HERMES_DASHBOARD_BASIC_AUTH_USERNAME
+            - name: HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-shell-dashboard-auth
+                  key: HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+            - name: HERMES_DASHBOARD_BASIC_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-shell-dashboard-auth
+                  key: HERMES_DASHBOARD_BASIC_AUTH_SECRET
             # Image-blessed ownership remap: the official image's internal `hermes`
             # user is UID/GID 10000. Setting these makes the s6 boot (running as
             # root) remap that user to 1000 and chown /opt/data, so shared-PVC
