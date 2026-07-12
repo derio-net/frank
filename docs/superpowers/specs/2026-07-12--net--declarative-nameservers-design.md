@@ -178,10 +178,20 @@ Staged, with a checkpoint after each group:
    confirm `talosctl -n 192.168.55.31 get addresses` shows a single
    `192.168.55.31/24` on `enp0s20f0u7` (no `.150`); resolvers still correct;
    node still `Ready`.
-4. **minis:** `talosctl -n 192.168.55.2{1,2,3} get resolvers` reflect the
+4. **gpu-1 reboot-survival (THE key test — this is what failed in the
+   incident):** with the end-state config in place, deliberately reboot gpu-1
+   (`talosctl -n 192.168.55.31 reboot`, or via the Omni UI) and confirm it
+   **boots cleanly through the exact chain that hung before** — it comes back
+   `Ready`, `get resolvers` shows the internal resolvers *from the config layer*,
+   time syncs, siderolink reconnects (Omni `CONNECTED: true`), `get addresses`
+   still shows a single `.31` (no `.150` re-appears), and the GPU workloads
+   reschedule. NOTE: gpu-1 is the only GPU node with hard-pinned workloads, so
+   this is a brief, deliberate GPU-service downtime. This is the definitive proof
+   that the declarative DNS actually prevents the boot-hang.
+5. **minis:** `talosctl -n 192.168.55.2{1,2,3} get resolvers` reflect the
    config-layer nameservers; all `Ready`.
-5. **edge:** same for `192.168.55.{41,42,71}`.
-6. Regression: `python -m pytest scripts/tests/test_cluster_wide_nameservers.py`
+6. **edge:** same for `192.168.55.{41,42,71}`.
+7. Regression: `python -m pytest scripts/tests/test_cluster_wide_nameservers.py`
    green in CI.
 
 ## Acceptance criteria (business-level)

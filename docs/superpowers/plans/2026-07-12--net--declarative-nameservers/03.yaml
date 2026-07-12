@@ -83,6 +83,43 @@ tasks:
       verify: `talosctl -n 192.168.55.31 get addresses` shows a single 192.168.55.31/24 on enp0s20f0u7 (no 192.168.55.150); resolvers intact; node Ready.
       status: pending
       ```
+- number: 3
+  title: Reboot-survival test — gpu-1 boots clean with the declarative DNS
+  steps:
+  - id: P3.T3.S1
+    text: |
+      MANUAL (operator, post-merge). THE key test — reproduce what failed in the
+      incident. See the `# manual-operation` block `net-gpu1-reboot-survival`. The
+      nameservers apply itself does NOT reboot the node, so this is the ONLY step
+      that actually exercises the fix. With the end-state config in place
+      (nameservers from config + single .31), deliberately reboot gpu-1 and confirm
+      it boots cleanly through the exact chain that hung on 2026-07-12: comes back
+      Ready, resolvers from the config layer, time syncs, siderolink reconnects
+      (Omni CONNECTED: true), single .31 (no .150 re-appears), GPU workloads
+      reschedule. Brief deliberate GPU-service downtime (gpu-1 is the only GPU
+      node). Definitive proof for net-static-host-resolves-internal-dns.
+
+      ```yaml
+      # manual-operation
+      id: net-gpu1-reboot-survival
+      layer: net
+      app: talos-machine-config
+      plan: 2026-07-12--net--declarative-nameservers
+      when: After net-apply-cluster-nameservers AND net-gpu1-clear-dhcp-drift are done and verified (end-state gpu-1 config in place).
+      why_manual: A deliberate reboot of a live GPU node to prove clean boot; operator-timed (brief GPU-service downtime — gpu-1 is the only GPU node).
+      commands: |
+        # Reproduce the incident condition: a real reboot. The nameservers apply itself
+        # does NOT reboot (see net-apply), so this is the ONLY step that tests the fix.
+        talosctl -n 192.168.55.31 reboot          # or reboot gpu-1 from the Omni UI
+        # Watch it come back through the chain that hung on 2026-07-12:
+        kubectl get node gpu-1 -w                  # NotReady -> Ready (must NOT hang at NotReady)
+        talosctl -n 192.168.55.31 get resolvers    # 192.168.10.11 + 192.168.10.12, from config
+        talosctl -n 192.168.55.31 get addresses | grep enp0s20f0u7   # single 192.168.55.31/24, no .150
+        omnictl get machines | awk '/03ff0210/{print "CONNECTED:", $(NF-1)}'   # true (siderolink back)
+        kubectl get pods -A --field-selector spec.nodeName=gpu-1     # GPU workloads rescheduled/Running
+      verify: gpu-1 returns to Ready after a real reboot (NO time-sync boot-hang), resolvers come from the config layer, addresses show a single .31 (no .150), Omni CONNECTED true, GPU workloads Running — proving the declarative DNS prevents the incident.
+      status: pending
+      ```
 state:
   steps:
     P3.T1.S1:
@@ -90,6 +127,10 @@ state:
       ticked_at: null
       note: null
     P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T3.S1:
       state: ' '
       ticked_at: null
       note: null

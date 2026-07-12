@@ -1873,3 +1873,20 @@ operations:
   verify:
   - talosctl -n 192.168.55.31 get addresses shows a single 192.168.55.31/24 on enp0s20f0u7 (no 192.168.55.150); resolvers intact; node Ready
   status: pending
+- id: net-gpu1-reboot-survival
+  layer: net
+  app: talos-machine-config
+  plan: 2026-07-12--net--declarative-nameservers
+  when: After net-apply-cluster-nameservers AND net-gpu1-clear-dhcp-drift are done and verified (end-state gpu-1 config in place)
+  why_manual: A deliberate reboot of a live GPU node to prove clean boot; operator-timed (brief GPU-service downtime — gpu-1 is the only GPU node)
+  commands:
+  - "THE key test — the nameservers apply itself does NOT reboot, so this is the only step that exercises the fix. Reproduce the incident condition with a real reboot:"
+  - talosctl -n 192.168.55.31 reboot   # or reboot gpu-1 from the Omni UI
+  - "kubectl get node gpu-1 -w   # NotReady -> Ready (must NOT hang at NotReady like 2026-07-12)"
+  - "talosctl -n 192.168.55.31 get resolvers   # 192.168.10.11 + 192.168.10.12 from config"
+  - "talosctl -n 192.168.55.31 get addresses | grep enp0s20f0u7   # single 192.168.55.31/24, no .150"
+  - "omnictl get machines | awk '/03ff0210/{print $(NF-1)}'   # CONNECTED true (siderolink back)"
+  - "kubectl get pods -A --field-selector spec.nodeName=gpu-1   # GPU workloads rescheduled/Running"
+  verify:
+  - gpu-1 returns to Ready after a real reboot (NO time-sync boot-hang), resolvers from the config layer, single .31 (no .150), Omni CONNECTED true, GPU workloads Running — proving the declarative DNS prevents the incident
+  status: pending
