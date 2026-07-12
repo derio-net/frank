@@ -48,7 +48,9 @@ jobs:
           echo "Resolved: OLD_AI_SHA=$OLD_AI_SHA AI_SHA=$AI_SHA VKR_SHA=$VKR_SHA"
 
       - name: Update manifests
+        id: bump
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AI_SHA: ${{ steps.shas.outputs.ai_sha }}
           VKR_SHA: ${{ steps.shas.outputs.vkr_sha }}
         run: |
@@ -63,11 +65,49 @@ jobs:
           # `{ grep || true; }` so a listed-but-unpinned image (e.g. infra-shell)
           # — grep exit 1 — doesn't trip `bash -eo pipefail`; `xargs -r` no-ops on
           # empty input.
-          AGENT_IMAGES="secure-agent-kali vk-local paperclip-shell ruflo-server ruflo-shell multi-agent-shell hermes-agent-shell hermes-agent-shell-ssh infra-shell"
+          #
+          # PER-IMAGE EXISTENCE GATE: agent-images can now bump frank even when a
+          # flaky leg (e.g. secure-agent-kali on a Kali-rolling t64 break) did NOT
+          # publish at this SHA — its build leg is soft and dispatch-frank no
+          # longer waits on the kali smoke (see agent-images build.yaml). A blind
+          # pin would then point an app at a non-existent ghcr tag →
+          # ImagePullBackOff. So only pin an image whose
+          # ghcr.io/derio-net/<img>:<AI_SHA> tag actually exists. tag_exists:
+          #   0 = present            → pin
+          #   1 = definitively absent→ skip + warn, leave the old pin (recorded in
+          #                            the `skipped` output for the Verify step)
+          #   2 = could not verify (GHCR API error) → FAIL-OPEN, pin anyway (the
+          #       pre-existing behaviour) rather than stall the whole bump on a
+          #       transient API glitch.
+          # hermes-agent-shell-ssh + hermes-agent-shell-hindsight are the two
+          # sidecar images the official-Hermes migration adds (willikins#285);
+          # both must be here so the bump covers them and Verify-coverage passes
+          # once #616's manifests pin them.
+          AGENT_IMAGES="secure-agent-kali vk-local paperclip-shell ruflo-server ruflo-shell multi-agent-shell hermes-agent-shell hermes-agent-shell-ssh hermes-agent-shell-hindsight infra-shell"
+
+          tag_exists() {
+            local img="$1" sha="$2" out
+            if ! out=$(gh api --paginate "/orgs/derio-net/packages/container/${img}/versions" \
+                         --jq '.[].metadata.container.tags[]' 2>/dev/null); then
+              return 2
+            fi
+            printf '%s\n' "$out" | grep -qx "$sha"
+          }
+
+          SKIPPED=""
           for img in $AGENT_IMAGES; do
+            r=0; tag_exists "$img" "$AI_SHA" || r=$?
+            if [ "$r" -eq 1 ]; then
+              echo "::warning::${img} has no ghcr tag ${AI_SHA} — leaving its pin unchanged (per-image existence skip)"
+              SKIPPED="${SKIPPED:+$SKIPPED }${img}"
+              continue
+            fi
+            [ "$r" -eq 2 ] && echo "::warning::could not verify ${img}@${AI_SHA} in GHCR (API error) — pinning anyway (fail-open)"
             { grep -rlZ "ghcr.io/derio-net/$img:[a-f0-9]" apps/ 2>/dev/null || true; } \
               | xargs -0 -r sed -i "s|ghcr.io/derio-net/$img:[a-f0-9]\+|ghcr.io/derio-net/$img:$AI_SHA|g"
           done
+          echo "skipped=$SKIPPED" >> "$GITHUB_OUTPUT"
+          [ -n "$SKIPPED" ] && echo "Left un-bumped (not published at ${AI_SHA}): $SKIPPED"
 
           # vk-remote rides a DIFFERENT build (separate repo) → its own SHA.
           if [ -n "$VKR_SHA" ]; then
@@ -80,6 +120,7 @@ jobs:
       - name: Verify coverage
         env:
           AI_SHA: ${{ steps.shas.outputs.ai_sha }}
+          SKIPPED: ${{ steps.bump.outputs.skipped }}
         run: |
           # Guard against a NEW app pinning an agent-image the AGENT_IMAGES list
           # above does not cover (the silent-skip bug that stranded alert-agent /
@@ -87,15 +128,29 @@ jobs:
           # ghcr.io/derio-net/* pin in apps/ must equal AI_SHA — any other value
           # is an uncovered agent-image. vk-remote uses a short tag (not 40-hex)
           # so it is out of scope; `blog` is built by frank, not agent-images.
+          #
+          # Images intentionally left un-bumped this run by the per-image
+          # existence gate above (no ghcr tag at AI_SHA — e.g. a flaky kali that
+          # didn't publish) are ALLOWED to remain at their prior SHA; exclude them
+          # so a skipped image doesn't fail the very bump the gate was built to let
+          # through. This is NOT a coverage hole: an uncovered image (missing from
+          # AGENT_IMAGES) is never in SKIPPED, so it still trips the error below.
           stale=$(grep -rEo "ghcr.io/derio-net/[a-z0-9-]+:[a-f0-9]{40}" apps/ \
                     | grep -vE ":${AI_SHA}\$" \
                     | grep -vE "derio-net/blog:" || true)
+          for img in $SKIPPED; do
+            stale=$(printf '%s\n' "$stale" | grep -vE "derio-net/${img}:" || true)
+          done
           if [ -n "$stale" ]; then
-            echo "::error::agent-image pin(s) not bumped to ${AI_SHA} — add the image name to AGENT_IMAGES in .github/workflows/agent-images-bump.yml:"
+            echo "::error::agent-image pin(s) not bumped to ${AI_SHA} — add the image name to AGENT_IMAGES in .github/workflows/agent-images-bump.yml (or it genuinely failed to publish and isn't in the skip list):"
             printf '%s\n' "$stale" | sort -u
             exit 1
           fi
-          echo "coverage OK: all agent-image pins in apps/ are at ${AI_SHA}"
+          if [ -n "$SKIPPED" ]; then
+            echo "coverage OK: pins at ${AI_SHA}; intentionally left un-bumped (not published at this SHA): $SKIPPED"
+          else
+            echo "coverage OK: all agent-image pins in apps/ are at ${AI_SHA}"
+          fi
 
       - name: Open PR
         env:

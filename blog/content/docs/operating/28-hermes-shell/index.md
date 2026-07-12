@@ -1,15 +1,26 @@
 ---
-title: "Operating on Hermes Agent Shell"
+title: "Operating the Hermes Shell With Its Hindsight Memory Sidecar"
 series: ["operating"]
 layer: agents
-date: 2026-06-06
-draft: false
-tags: ["operations", "hermes", "agents", "byok", "litellm", "agent-shell-base", "ssh", "mosh"]
-summary: "Day-to-day commands for the hermes shell pod — connecting via SSH/Mosh, running hermes against LiteLLM, rotating the virtual key and ssh keys, and the env-scrub troubleshooting tree."
+date: 2026-07-11
+draft: true
+tags: ["operations", "hermes", "nous-research", "agents", "litellm", "hindsight", "sidecar", "postgres", "pgvector", "memory", "ssh"]
+summary: "Day-to-day commands for the rebuilt hermes pod on the official image: checking the Hindsight memory sidecar's health, the two-tier memory backup story, the claude-code retain provider and its auth caveat, and the pg_dump/pg_restore restore mechanic."
 weight: 29
 ---
 
-Companion to [Hermes Agent Shell — A BYOK Pod That Ignored Its Own Keys]({{< relref "/docs/building/33-hermes-shell" >}}). Everything here assumes the Frank kubeconfig (`source .env` from the repo root — remember the [relative-path trap]({{< relref "/docs/operating/01-cluster-nodes" >}})).
+Companion to [Rebuilding the Hermes Shell on the Official Image, With a Hindsight
+Memory Sidecar]({{< relref "/docs/building/33-hermes-shell" >}}). Everything here
+assumes the Frank kubeconfig (`source .env` from the repo root, and mind the
+[relative-path trap]({{< relref "/docs/operating/01-cluster-nodes" >}})).
+
+The pod is now **three containers**: `hermes` (the bare official image), `ssh` (the
+SSH/Mosh sidecar), and `hindsight` (the self-hosted memory backend). Most of what
+changed since the original operating guide is that memory is a real, supervised
+container instead of a hand-run tmux stack, so that is where this guide spends its
+words. The BYOK inference surface (provider pinning, `ollama_chat/`, context
+budgets) is unchanged; the [building post's history]({{< relref "/docs/building/33-hermes-shell" >}})
+still owns that chain.
 
 ## What "Healthy" Looks Like
 
@@ -17,162 +28,182 @@ Companion to [Hermes Agent Shell — A BYOK Pod That Ignored Its Own Keys]({{< r
 kubectl -n hermes-agent-shell get pods,svc,pvc
 ```
 
-- One pod `Running` on **gpu-1**, `1/1 Ready`
-- Service `hermes-agent-shell` holding **192.168.55.226** (TCP 22 + UDP 60032–60047)
-- PVC `hermes-agent-shell-home` `Bound` (20Gi Longhorn)
+- One pod `Running` on **gpu-1**, all three containers Ready
+- The SSH/Mosh Service holding **192.168.55.226** (TCP 22 + UDP 60032-60047)
+- The PVCs `Bound`, including the isolated Hindsight data volume
+  (`hermes-agent-shell-hindsight`) alongside the agent's data/home/repos volumes
 
-The real health check is a chat completion, not pod status — this layer's entire build story is surface checks passing while inference was broken:
+Pod status is not the health check. As with the original build, the surface can be
+green while the real path is broken. The memory backend has its own liveness door,
+and it is loopback-only by design:
 
 ```bash
-kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
-  bash -lc 'hermes chat -Q -q "Reply with the single word: alive"'
+kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
+  curl -sf http://127.0.0.1:8888/health
+#   → {"status":"healthy","database":"connected"}
 ```
 
-`bash -lc` matters: it makes the profile.d BYOK shim run so the env is populated. A bare `bash -c` reproduces the env-scrubbed state.
+Run it against the `hindsight` container specifically (`-c hindsight`). The
+kubelet's own probes are `exec` probes that do exactly this from inside the
+container, because `hindsight-api` binds `127.0.0.1` only and a pod-IP `httpGet`
+probe draws connection-refused forever (the build post's failure five).
+
+From the agent's side, `hermes` sees the same backend over loopback:
+
+```bash
+kubectl exec -n hermes-agent-shell -c hermes deploy/hermes-agent-shell -- \
+  bash -lc 'hermes memory status'
+```
+
+This should report the Hindsight backend reachable and the bank populated; it is
+the agent-facing view of the same `/health` the sidecar answers.
+
+## Checking the Memory Store Directly
+
+Recall count, straight from Postgres, is the ground truth. 369 `memory_units`
+survived the migration, so that number is the canary:
+
+```bash
+kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
+  psql -h 127.0.0.1 -p 5433 -U hindsight -d postgres \
+  -tAc 'select count(*) from memory_units'
+#   → 369
+```
+
+Two connection details worth pinning, because they are not the Postgres defaults:
+the port is **5433** (not 5432, so nothing collides with a default expectation),
+and the database is **`postgres`**, owned by role **`hindsight`** (the table lives
+in the `postgres` database, not in a database named `hindsight`). Loopback auth is
+trust, so no password is needed from inside the container.
+
+## The Memory Backup Story
+
+This is the part that got materially better in the migration, and it is worth being
+explicit about, because "where is the memory backed up" used to have an
+uncomfortable answer.
+
+**Tier one: Longhorn recurring backups.** Because the Hindsight data now lives on
+its own isolated PVC, that volume auto-joined Longhorn's existing recurring-backup
+group. Nothing was configured specially; isolating the volume is what enrolled it.
+The previously-unbacked-memory gap closed as a side effect of the architecture.
+
+**Tier two: a portable logical dump.** Longhorn snapshots are volume-level and
+cluster-bound. For a portable, restorable-anywhere copy, take a logical dump:
+
+```bash
+kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
+  pg_dump -h 127.0.0.1 -p 5433 -U hindsight -Fc postgres > hindsight-$(date +%F).dump
+```
+
+The two tiers answer different questions. Longhorn answers "the volume died";
+`pg_dump` answers "I need this memory on a different cluster, a different Postgres,
+or my laptop."
+
+## The Retain Provider and Its One Caveat
+
+Writing new memories (retain) uses the **`claude-code`** provider: Sonnet 4.5
+(`claude-sonnet-4-5-20250929`, the provider's built-in default), through a baked
+`claude` CLI and the `claude-agent-sdk` inside the `hindsight` sidecar. Auto-retain
+fires roughly every ten turns.
+
+The caveat that will bite someone: **retain only fires if an authenticated Claude
+session is present in the sidecar.** The `claude-code` provider authenticates
+through the Claude Agent SDK (a logged-in `claude` session), not through an
+`ANTHROPIC_API_KEY` env var, so wiring a key into the manifest does nothing for it.
+If no session is authenticated, new memories are not written, and the failure is
+quiet. Recall is unaffected: it uses the local `BAAI/bge-small-en-v1.5` embeddings
+and needs no LLM at all, so the pod keeps reading its memory back perfectly while
+silently not writing new memories in.
+
+So "memory works" splits into two questions with two different answers. Recall
+working is cheap to verify (the psql count, a recall query). Retain working
+requires that the sidecar's Claude session is live, and there is a trap here:
+
+```bash
+# proves the BINARY exists, NOT that a session is authenticated:
+kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
+  claude --version
+```
+
+`claude --version` tells you the CLI is installed, which is not the same as a
+logged-in session. Durable retain-auth across restarts is an open item (see the
+building post's "What's Next"); until it is settled, treat retain as best-effort and
+recall as the guarantee, and if new memories stop appearing, suspect the session
+before anything else.
+
+## Restore / Migration Mechanic
+
+To pull memory out of an old PostgreSQL (the migration case, or a recovery from a
+`pg_dump`), the shape is:
+
+1. `chmod 700` the old data directory first, then stand the old Postgres up on a
+   spare loopback port (the same `fsGroup` widening from the build post's failure
+   four applies to any data directory Kubernetes has remounted).
+2. `pg_dump -Fc` the old database.
+3. `pg_restore` into the sidecar's Postgres over loopback (`127.0.0.1:5433`). The
+   sidecar's `initdb` has already auto-created an empty schema via Alembic, so
+   restore with `--clean --if-exists` to overwrite it cleanly rather than collide
+   with it.
+4. Restart the pod and re-count `memory_units` to prove continuity.
+
+```bash
+# on the OLD data dir, before starting it (Postgres refuses a group-readable dir):
+chmod 700 "$OLD_PGDATA"
+# then: start old PG on a spare port → pg_dump -Fc → pg_restore --clean --if-exists
+#       into 127.0.0.1:5433 → restart pod → recall count should return 369
+```
+
+The full end-to-end of this (how the old PG is stood up, exact flags, cleanup) is
+in `docs/runbooks/frank-gotchas/agent-shells.md`; the sketch above is the shape,
+not the paste-at-2am procedure.
 
 ## Connecting
 
-### SSH
+SSH and Mosh are unchanged from the original operating guide, served by the `ssh`
+sidecar on **192.168.55.226**:
 
 ```bash
 ssh agent@192.168.55.226
-```
 
-The MOTD's auth-status block should show `OPENAI_BASE_URL` and `OPENAI_API_KEY` as set. If it prints "not set", see Troubleshooting — that's the env shim failing, and hermes will not reach LiteLLM.
-
-### Mosh
-
-```bash
 mosh --ssh="ssh agent@192.168.55.226" \
      --server="mosh-server new -p 60032:60047" 192.168.55.226
 ```
 
-Pin the port range to match the Service; the per-shell wrapper in `apps/hermes-agent-shell/client-setup/laptop/` does this for you. Mosh sessions reap after 1h idle (`MOSH_SERVER_NETWORK_TMOUT=3600`) — a 16-port range fills up fast under the 168h default.
-
-### Scripted access
-
-`ssh agent@192.168.55.226 -- cmd` runs **without** the BYOK env (non-interactive shells skip profile.d, by design). For automation use:
-
-```bash
-kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- bash -lc '<cmd>'
-```
-
-## Running hermes
-
-The provider is pinned to LiteLLM in `~/.hermes/config.yaml` (home PVC, seeded manually — manual-op `orch-hermes-config-provider`):
-
-```bash
-hermes                      # interactive; default model qwen36-a3b-64k
-hermes chat -Q -q "..."     # one-shot
-/model                      # switch model in-session (any LiteLLM alias)
-/info                       # shows the model's context window — should read 65,536 on the default
-```
-
-Useful aliases on the gateway: `qwen36-a3b-64k` (**the default and agent
-brain** since 2026-06-06 evening — passed the 4-probe agentic gate that
-gemma4-12B failed: grounded fetch-text summaries, exact recall, single-call
-tool use, zero truncations; 61 t/s at 39/61 CPU/GPU hybrid),
-`qwen36-a3b-64k-nothin` (same, thinking off), `gemma-12b-64k-nothin` (fast
-100%-GPU chat/vision — NOT for agentic work: degenerate tool loops),
-`gemma-12b-64k` (same, thinking on). **Note:** hermes refuses every 16k
-model (hard 64k floor — its preamble alone is ~15k tokens), so
-`mistral-small-24b`/`qwen-think-14b` are no longer selectable here. Avoid editing the `model:` mapping into prefix forms
-(`litellm/<alias>` etc.) — they silently unpin the provider and route to
-openrouter (401).
-
-**Context budgets (2026-06-06):** `~/.hermes/config.yaml` carries per-model
-`context_length` overrides that mirror the live server (64k pair = 65536,
-everything else = `OLLAMA_CONTEXT_LENGTH` = 16384) — manual-op
-`orch-hermes-context-budgets`. They keep hermes's compressor honest; without
-them an unknown alias resolves to a fantasy 256k window and Ollama silently
-truncates history front-first ("session amnesia" — full chain in the building
-post's update). If the gateway lineup changes, update the overrides in the
-same breath. Switching mid-session to a 16k model after the conversation has
-grown past ~8k triggers aggressive compaction — expected, not a bug.
-
-**Reading web pages:** use `fetch-text <url>` (size-capped text extraction,
-mounted at `/usr/local/bin/fetch-text`), never raw `curl` for HTML. SOUL.md
-steers hermes to it; check after a long session that it obeyed:
-`kubectl logs -n ollama deploy/ollama --since=1h | grep -c "truncated = 1"` → 0.
-
-## Rotating Credentials
-
-### LiteLLM virtual key
-
-```bash
-# 1. Mint a new virtual key against LiteLLM (admin UI or API at 192.168.55.206:4000)
-# 2. Update HERMES_LITELLM_KEY in Infisical
-# 3. ESO syncs hermes-agent-shell-llm; restart to re-inject on PID 1:
-kubectl -n hermes-agent-shell rollout restart deploy/hermes-agent-shell
-```
-
-The env lands on PID 1 at boot; the login-shell shim reads `/proc/1/environ`, so a restart is required for shells to see the new key.
-
-### SSH authorized keys
-
-```bash
-# Edit secrets/hermes-agent-shell/ssh-keys.yaml (SOPS round-trips)
-sops --decrypt secrets/hermes-agent-shell/ssh-keys.yaml | kubectl apply -f -
-# cont-init only COPIES keys at pod boot — restart to pick up:
-kubectl -n hermes-agent-shell rollout restart deploy/hermes-agent-shell
-```
-
-## Inventory ConfigMap
-
-`apps/hermes-agent-shell/manifests/configmap-inventory.yaml` ships **sparse** (all keys empty) so the boot reconcile is a genuine no-op. Do not seed `harnesses: { hermes: latest }` — the image bakes hermes at 0.15.2, and a populated entry runs `hermes update` on every boot (non-zero exit pages Telegram). Pin an explicit version only when you mean to float.
-
-## Patching Hermes In-Pod (PVC venv)
-
-Since `agent-images@83bdab4` (frank#496) the live Hermes venv is **PVC-resident** at `/home/agent/.local/opt/hermes-agent`, uid-1000-owned and writable. The image bakes a relocatable *seed* at `/opt/hermes-agent`; `cont-init.d/35-hermes-venv-seed` copies it onto the PVC on first boot. So you can edit `site-packages` in place and the change **persists across pod restarts** — no `PYTHONPATH` shadow-copy, no fragility.
-
-```bash
-# Where the live venv lives (NOT /opt — that's the read-only seed):
-kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
-  readlink -f "$(command -v hermes)"
-#   → /home/agent/.local/opt/hermes-agent/bin/hermes
-
-# Patch a site-packages file in place (survives restarts):
-LIVE=/home/agent/.local/opt/hermes-agent/lib/python3.11/site-packages
-kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
-  sed -i 's/old/new/' "$LIVE/agent/conversation_loop.py"
-```
-
-The seed is **version-gated**: an image bump (new `/opt/hermes-agent/.seed-version`) re-seeds on next boot, *overwriting* in-pod patches with the new image's venv — so bake durable fixes into `agent-images/hermes-agent-shell/patches/` rather than hand-patching. A plain `rollout restart` (same version) preserves your edits.
-
-To force a re-seed by hand (e.g. after corrupting the live venv), invoke the hook **via `bash`** — its `#!/command/with-contenv` shebang only resolves inside supervised cont-init, so a bare exec fails with `execlineb: unable to exec ifelse`:
-
-```bash
-kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
-  bash /etc/cont-init.d/35-hermes-venv-seed
-```
-
-The baked **auto-continue patch** widens hermes' announce-only countermeasure to fire on the LiteLLM `chat_completions` path — it's what stops `qwen36-a3b` from saying "Let me wire everything up:" and then going idle. Confirm it's live:
-
-```bash
-kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
-  grep -c '"codex_responses", "chat_completions"' \
-  /home/agent/.local/opt/hermes-agent/lib/python3.11/site-packages/agent/conversation_loop.py
-#   → 1
-```
+Scripted access still wants `kubectl exec ... -c <container> -- bash -lc '<cmd>'`
+rather than `ssh host -- cmd` (non-interactive SSH skips the profile.d BYOK shim);
+name the container explicitly now that the pod has three.
 
 ## Troubleshooting
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| MOTD: "OPENAI_BASE_URL not set" | sshd env-scrub; shim ConfigMap not mounted or secret not yet synced | Check `hermes-agent-shell-env` ConfigMap mount + `kubectl get externalsecret -n hermes-agent-shell` |
-| `401 Missing Authentication header` from `openrouter.ai` | Provider unpinned — config.yaml missing/malformed (`model:` must be a *mapping* with `provider:`) | Re-seed `~/.hermes/config.yaml` per `orch-hermes-config-provider` |
-| Every reply is `{"name": "text_to_speech", ...}` JSON | A LiteLLM alias reverted to `ollama/` prefix (prompt-based tools break under streaming) | Aliases must be `ollama_chat/` in `apps/litellm/values.yaml` |
-| Reasoning-only empty replies | Thinking model exhausted `max_tokens` on reasoning | Raise the budget or switch model (`/model qwen36-a3b-64k-nothin`) |
-| Hermes refuses a model at init ("minimum 64,000") | Truthful budget below hermes's hard 64k context floor | Use a 64k alias; do NOT lie in `context_length` — that re-opens silent-truncation amnesia |
-| Model "forgets" earlier turns mid-session | Prompt exceeds the real server window; Ollama truncates front-first, silently | New session. Verify budgets: config.yaml `context_length` = live reality; check `kubectl logs -n ollama deploy/ollama \| grep "truncated = 1"` |
-| Agent announces ("Let me wire everything up:") then goes idle | Announce-only turn (no tool call); auto-continue countermeasure not firing | Confirm the baked patch is live (see *Patching Hermes In-Pod*); pre-`83bdab4` images lack it — bump the image pin |
-| `fetch-text: command not found` | ConfigMap mount missing or pod predates it | `kubectl -n hermes-agent-shell rollout restart deploy/hermes-agent-shell` (subPath mounts never live-update) |
-| Mosh hangs on connect | Port range mismatch or all 16 ports held by stale sessions | Use `-p 60032:60047`; stale servers reap after 1h |
-| Env present in `kubectl exec` but not over SSH | Using `ssh -- cmd` (non-interactive skips profile.d) | `bash -lc` via kubectl exec, or interactive SSH |
+| `hermes` container CrashLoops on start | Missing `args: ["gateway","run"]`: the bare entrypoint runs an interactive TUI | Ensure the manifest sets the gateway args |
+| Migration/start "hangs" with no error | Restored data directory is root-owned; breaks the CLI privilege-drop shim | `chown -R hermes:hermes /opt/data` |
+| `hindsight` CrashLoops after a restart (worked on first boot) | `fsGroup: 1000` re-loosened PGDATA to group-rwx on remount; Postgres refuses wider than 0750 | `chmod 700 $PGDATA` on every boot (baked into the sidecar's start) |
+| Pod flaps / many restarts, but `/health` is 200 on loopback | Probe was `httpGet` on the pod IP; `hindsight-api` binds 127.0.0.1 only | `exec` probes that curl loopback, plus a `startupProbe` for the cold start |
+| Recall works, new memories never appear | Retain's `claude-code` provider has no authenticated Claude session in the sidecar | Authenticate the sidecar's Claude session; recall is unaffected |
+| Embedding model fails to load though files are present | Revision-pinned `snapshot_download` wrote no `refs/main` | Bake to a fixed `local_dir` and load by path, not by `main` revision |
+| `memory_units` count is 0 / unexpected after restore | pg_restore target wrong, or continuity check off | Re-run the restore mechanic (`-d postgres`, port 5433); count should return 369 |
+
+## What's Retired
+
+- **The relocatable venv-on-PVC seed ([#496])**: gone. The official image is the
+  source of truth; there is no baked-`root:root` venv to relocate.
+- **The venv-on-PVC seed cont-init and the auto-continue patch**: gone. Tracking
+  upstream means running upstream's venv and behaviour, not maintained edits.
+- **The custom-image maintenance**: gone. `hermes` is the bare official image plus
+  `args`. The only image still owned here is the Hindsight backend, which exists
+  because upstream ships the client and not the server.
+- **The hand-run tmux memory stack**: gone. Memory is a supervised container on a
+  backed-up volume.
 
 ## References
 
-- [Building post]({{< relref "/docs/building/33-hermes-shell" >}}) — the deploy narrative and the three-act failure chain
-- `docs/runbooks/frank-gotchas/agent-shells.md` — BYOK provider-pinning section, env-scrub gotcha
-- `docs/runbooks/manual-operations.yaml` — `orch-hermes-litellm-virtual-key`, `orch-hermes-shell-ssh-keys`, `orch-hermes-config-provider`
-- [Operating on Local Inference]({{< relref "/docs/operating/07-inference" >}}) — LiteLLM gateway operations
+- [Building post]({{< relref "/docs/building/33-hermes-shell" >}}): the rebuild narrative and the five on-cluster failures
+- [willikins#285](https://github.com/derio-net/willikins/issues/285): the official-image migration and Hindsight sidecar
+- [agent-images repo](https://github.com/derio-net/agent-images): the `hermes-agent-shell-hindsight` backend image
+- `docs/runbooks/frank-gotchas/agent-shells.md`: memory sidecar operations, retain-auth, and the restore mechanic
+- [Operating on Local Inference]({{< relref "/docs/operating/07-inference" >}}): LiteLLM gateway operations
+- [LiteLLM Ollama provider docs](https://docs.litellm.ai/docs/providers/ollama): the BYOK inference path, unchanged
+
+[#496]: https://github.com/derio-net/frank/issues/496

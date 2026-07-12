@@ -187,14 +187,11 @@ spec:
         # ── SSH sidecar: thin terminal-access container ─────────────────────
         - name: ssh
           # New agent-images dir hermes-agent-shell-ssh/, built FROM the SAME
-          # official tag + sshd/mosh/tmux. Pinned to the first REAL published
-          # build (agent-images branch feat/hermes-agent-shell-ssh, run
-          # 28999391005, digest sha256:24f5a9ffc16c…). This is a BRANCH-build SHA:
-          # once agent-images#136 merges to main, that repo's build + the frank
-          # agent-images-bump workflow (hermes-agent-shell-ssh is now in its
-          # AGENT_IMAGES list) will re-pin this to the main-merge SHA automatically
-          # BEFORE this PR merges. Do NOT merge/sync ahead of that.
-          image: ghcr.io/derio-net/hermes-agent-shell-ssh:6991631d7e556ed69b156514691418a85304a039
+          # official tag + sshd/mosh/tmux. Pinned to the permanent main-build SHA:
+          # agent-images#136 merged, and the 820c1fb main build published this
+          # tag (verified present on GHCR). hermes-agent-shell-ssh is in the
+          # agent-images-bump AGENT_IMAGES list, so future bumps re-pin it here.
+          image: ghcr.io/derio-net/hermes-agent-shell-ssh:820c1fbd1b8d14e70073d0c249e8270a4e34acb9
           imagePullPolicy: IfNotPresent
           env:
             - name: HERMES_HOME
@@ -319,8 +316,10 @@ spec:
           # History: c776905 CrashLooped (inherited shell cont-init assumed a
           # writable mounted $HOME; model bake wrote no refs/main) → df29ea7
           # fixed boot but flapped on httpGet probes (API binds 127.0.0.1 only)
-          # → this build + the exec probes below is the validated combination.
-          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:28de3ab1e503a79dda3ffc636622f0f811e4d0e4
+          # → 28de3ab + the exec probes below was the validated combination →
+          # re-pinned to the permanent main-build SHA 820c1fb (same code rebuilt
+          # on main; agent-images sidecar dir merged, tag verified on GHCR).
+          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:820c1fbd1b8d14e70073d0c249e8270a4e34acb9
           imagePullPolicy: IfNotPresent
           env:
             # PGDATA on the mounted PVC (isolated from /opt/data). The image

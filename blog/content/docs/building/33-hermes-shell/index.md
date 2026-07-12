@@ -1,222 +1,279 @@
 ---
-title: "Hermes Agent Shell — A BYOK Pod That Ignored Its Own Keys"
+title: "Rebuilding the Hermes Shell on the Official Image, With a Hindsight Memory Sidecar"
 series: ["building"]
 layer: agents
-date: 2026-06-06
-draft: false
-tags: ["hermes", "nous-research", "agents", "ai", "byok", "litellm", "agent-shell-base", "ssh", "mosh", "ollama"]
-summary: "Deploying Nous Research's hermes CLI as a dedicated SSH/Mosh shell pod on gpu-1 — and discovering that BYOK env vars, an sshd env-scrub, and LiteLLM's ollama/ prefix all conspire against the first chat completion."
+date: 2026-07-11
+draft: true
+tags: ["hermes", "nous-research", "agents", "ai", "litellm", "hindsight", "sidecar", "postgres", "pgvector", "memory", "ssh"]
+summary: "Retiring the custom agent-shell image and rebuilding hermes on Nous Research's official hermes-agent image as a three-container pod: bare official image, an ssh sidecar, and a self-hosted Hindsight memory backend. Five more failures where every surface check passed while the real path stayed broken."
 weight: 34
 ---
 
-Layer 15 keeps growing tenants. [Paperclip]({{< relref "/docs/building/15-paperclip" >}}) runs the org-chart agents, [Ruflo]({{< relref "/docs/building/29-ruflo" >}}) runs the chaotic swarm, and now there's a third lodger: [hermes](https://github.com/NousResearch/hermes), Nous Research's terminal-native agent CLI. Not embedded in either orchestrator — a dedicated pod whose only job is hosting `hermes` interactively, the way `secure-agent-pod` hosts Claude Code.
+The [hermes shell]({{< relref "/docs/building/33-hermes-shell" >}}) that first
+answered a question on 2026-06-06 was a great deal of scaffolding wrapped around a
+small CLI. I ran it on my own `agent-shell-base` lineage, and to keep it working I
+carried two patches the upstream image knew nothing about: a
+relocatable-venv-on-PVC dance ([#496]) so I could write to a venv that shipped
+baked `root:root`, and an auto-continue gate-widening patch so `qwen36-a3b` would
+stop announcing work and then going quietly idle. Both were real fixes. Both were
+mine to re-apply forever.
 
-The deployment itself is the boring part, and I mean that as a compliment: the `agent-shell-base` lineage from the [agent-images]({{< relref "/docs/building/28-agent-images-sidecar" >}}) work means a new agent shell is mostly a values file and a Service. What this post is actually about is the three-act failure chain between "pod is Healthy" and "hermes answers a question" — an sshd that scrubs the environment, a CLI that ignores the environment, and a gateway prefix that corrupts the answers. All three passed their surface checks.
+This post is about handing them back. Nous Research now publishes an official
+`nousresearch/hermes-agent` image, and the honest move is to track it rather than
+maintain a fork-by-Dockerfile. So the pod was rebuilt from the ground up on the
+official image (v2026.7.7.2), the custom patches retired, and the one thing worth
+keeping (the entire memory) carried across intact.
 
-## What This Layer Ships
+That last clause is where most of the work went, and it handed me five more
+failures of exactly the kind the original post was about. Each one passed its
+surface check (pod Healthy, build green, `/health` fine on loopback) while the
+actual path was broken. Two of them were invisible to local Docker and only
+catchable on-cluster. They are the spine of this post.
+
+## What This Layer Ships Now
 
 ```
-agent-base
-└── agent-shell-base
-    └── hermes-agent-shell   ← this deploy (BYOK → litellm.litellm.svc:4000/v1)
+nousresearch/hermes-agent:v2026.7.7.2       ← bare official image (main container)
+hermes-agent-shell (agent-images)           ← ssh sidecar
+hermes-agent-shell-hindsight (agent-images) ← NEW: self-hosted Hindsight backend
 ```
 
-- A single-container Deployment on **gpu-1**, consuming the `hermes-agent-shell` image from the agent-images batch (pinned at the cluster-wide SHA `95e719b`)
-- A combined SSH+Mosh LoadBalancer on **192.168.55.226** (TCP 22→2222, UDP 60032–60047)
-- A 20Gi Longhorn home PVC at `/home/agent` holding `~/.hermes/`
-- BYOK wiring to Frank's in-cluster LiteLLM gateway — no frontier keys, same zero-egress posture as Ruflo
-- One ConfigMap that turned out to be the load-bearing artifact of the whole deploy
+One pod on **gpu-1**, three containers sharing a single network namespace:
 
-No GPU requested, despite the node name. Inference is remote via LiteLLM (which fans out to Ollama on the same node, so the electrons barely travel); gpu-1 is just Frank's largest CPU/RAM box and the natural home for interactive agent sessions.
+- **`hermes`** runs the bare official image, no build layer on top. It needs
+  `args: ["gateway", "run"]`: the bare entrypoint launches an interactive TUI,
+  which in a TTY-less pod exits instantly and CrashLoops. It runs as root with
+  `HERMES_UID`/`HERMES_GID=1000`, which makes the image's own s6 init drop the
+  gateway worker to uid 1000 while leaving the supervisor as root. Root to init,
+  1000 to work. (Hold that split. It becomes failure one.)
+- **`ssh`** is the thin sidecar from the [agent-images]({{< relref "/docs/building/28-agent-images-sidecar" >}})
+  batch, giving the pod its SSH/Mosh front door without baking sshd into the
+  official image. It keeps the strict non-root posture the shell family always
+  used.
+- **`hindsight`** is new, and it is the centerpiece: the Hindsight memory
+  *backend*, self-hosted, Kubernetes-supervised, on its own Longhorn volume.
 
-## The Pod Boots Before Its Secrets Exist — By Design
+The BYOK wiring to Frank's in-cluster LiteLLM gateway is unchanged from the
+original build, so the three-act inference chain from that post (provider pinning,
+`ollama_chat/`, honest context budgets) still holds. This post does not relitigate
+it.
 
-The plan's Phase 1 is pure manual prep: mint a LiteLLM virtual key (`HERMES_LITELLM_KEY` in Infisical), build and SOPS-encrypt the ssh-keys Secret. Phase 2 deploys the manifests. But both secret references are `optional: true`, so the pod boots even if Phase 1 hasn't landed — it just can't reach LiteLLM and sshd accepts no keys until the bootstraps arrive. That's the declarative-only bootstrap exception working as intended: ArgoCD creates the namespace, the out-of-band secrets slot in afterwards, nothing deadlocks.
+## Why Memory Needs a Sidecar at All
 
-```yaml
-envFrom:
-  - secretRef:
-      name: hermes-agent-shell-llm
-      optional: true     # pod boots pre-bootstrap; env lands when ESO syncs
-```
+The official image ships the Hindsight *client*, not the backend. Hermes can talk
+to a Hindsight server, but nothing in the image *is* one: `hermes gateway run`
+spawns no Postgres, no API. The old pod had been getting away with a hand-run tmux
+stack for this, which is precisely the sort of arrangement that survives right up
+until the day it doesn't, and takes the memory with it when it goes.
 
-The Service follows the ruflo/paperclip pattern — one MixedProtocolLBService carrying TCP 22 and the UDP Mosh range on a single IP, which works fine on Cilium 1.17 + K8s 1.35. The Mosh range 60032–60047 is carved out so it doesn't overlap secure-agent-pod/paperclip (60000–60015) or ruflo (60016–60031). The port plan for agent shells is now officially a spreadsheet concern.
+So the backend becomes a real container that Kubernetes supervises like everything
+else. I baked a new agent-images image, `hermes-agent-shell-hindsight` (tag
+`28de3ab`): a micromamba environment carrying PostgreSQL 18.4, pgvector 0.8.3,
+`hindsight-api-slim[local-ml]==0.8.4`, and the `BAAI/bge-small-en-v1.5` embedding
+model on torch-CPU, all baked into the image. Hermes reaches it in `local_external`
+mode over the shared pod network namespace at `127.0.0.1:8888`, its client config
+unchanged from the old external-backend arrangement.
 
-## Act One: sshd Eats the Environment
+The whole software stack lives in the image; only *data* lives on the PVC
+(`PGDATA=/opt/hindsight/pgdata`, its own Longhorn volume, mounted into the sidecar
+alone). That split earns two things. First, the sidecar runs strict non-root:
+Postgres `initdb` as uid 1000 is perfectly legal, unlike the root-bound main
+container beside it. Second, the free win: because memory now sits on its own
+isolated volume instead of tangled into the agent's home PVC, it auto-joined
+Longhorn's existing recurring-backup group the moment it got that volume. A
+previously-unbacked-memory gap closed itself as a side effect of the architecture.
+I did not plan that. I will take it.
 
-Here's the trap, known from the gotchas file but never before load-bearing: `agent-shell-base`'s sshd runs `UsePAM no` with no `PermitUserEnvironment`. The Kubernetes-injected env — `OPENAI_BASE_URL`, `OPENAI_API_KEY`, set on PID 1 by `envFrom` — is **scrubbed from every interactive SSH/Mosh login shell**. For the other shells this was an annoyance. For a pod whose entire purpose is running an env-keyed CLI over SSH, it's fatal: hermes launched from the shell silently can't reach LiteLLM, and the image's own MOTD prints "OPENAI_BASE_URL not set" on every login while the manifest very much sets it.
+Retain (writing new memories) uses the `claude-code` provider, Sonnet 4.5, through
+a baked `claude` CLI and the `claude-agent-sdk`. Recall works with no LLM at all,
+and that asymmetry is the important one: the pod can always read its memory back,
+even when nothing is authenticated to write new memory in.
 
-The fix needs no `agent-images` change. The whole container runs as UID 1000, so PID 1's environment is readable from inside — `/proc/1/environ` is the escape hatch. A ConfigMap-mounted profile.d drop-in re-exports the BYOK vars for login shells:
+## Failure One: The Migration That Looked Stuck Was a `chown`
+
+Restore the old data, start the pod, watch it do nothing. No crash, no error, no
+progress: the kind of hang that invites you to add logging in six places before
+you look at the boring thing.
+
+The restored `/opt/data` came back **root-owned**. The official image's CLI runs a
+privilege-drop shim on start, and a root-owned data directory broke it silently.
+Not a crash: a stall, because nothing in that path was designed to complain about
+it.
 
 ```bash
-# /etc/profile.d/35-hermes-agent-shell-byok-env.sh
-if [ -r /proc/1/environ ]; then
-    for _hv in OPENAI_BASE_URL OPENAI_API_KEY; do
-        eval "_hcur=\${$_hv:-}"
-        if [ -z "$_hcur" ]; then
-            _hval=$(tr '\0' '\n' < /proc/1/environ | sed -n "s/^${_hv}=//p" | head -n1)
-            [ -n "$_hval" ] && export "$_hv=$_hval"
-        fi
-    done
-    unset _hv _hcur _hval
-fi
+chown -R hermes:hermes /opt/data
 ```
 
-Mounted via `subPath` — the same mechanism paperclip uses for its tips drop-in — and numbered `35-` so it runs before the image's `50-` auth-status MOTD, which then correctly reports the keys as present. Non-interactive `ssh host -- cmd` still skips profile.d and stays env-less; that's by design, use `kubectl exec` for scripted access.
+That was the entire fix. The lesson is the one this series keeps relearning:
+"nothing is happening" is a symptom, and file ownership is one of its most common
+and most boring causes.
 
-## Act Two: hermes Ignores the Keys Anyway
+## Failure Two: The Sidecar That CrashLooped Because It Had No Home
 
-With the shim in place, the Phase 2 verification passed: MOTD shows the env, `hermes --version` works, `curl $OPENAI_BASE_URL` reaches LiteLLM. Ship it?
+The first cut of the Hindsight sidecar was built `FROM` the multi-agent-shell
+image, on the tidy-sounding theory that reusing the base was the frugal choice. It
+inherited the base's interactive-shell init scripts, and those scripts assume a
+writable, *mounted* `$HOME`. A headless backend sidecar has no such mount. So when
+`initdb` reached its `micromamba run` step, micromamba could not create its cache
+lock under a `$HOME` that wasn't there, the init chain aborted, s6 called it fatal,
+and the container CrashLooped before Postgres ever existed. Every surface said
+"image builds, container starts"; the container just refused to stay started.
 
-The first real `hermes` run returned `HTTP 401 Missing Authentication header` — from **`https://openrouter.ai/api/v1`**. The spec assumed hermes consumes `OPENAI_BASE_URL`/`OPENAI_API_KEY` directly, the way most OpenAI-compatible CLIs do. On v0.15.2 it does not: provider `auto` resolves to openrouter regardless of those vars, and the bare `OPENAI_API_KEY` registers only as the STT/TTS key. All three verification steps passed while the actual inference path was broken, because none of them exercised a chat completion.
+The fix was to stop pretending a backend is a shell. Strip the inherited init
+scripts down to the three that belong (initdb, Postgres, hindsight-api), redirect
+the micromamba cache to a writable in-image path instead of an absent `$HOME`, and
+chown the home directory in the image. A backend sidecar is not a login
+environment, and building one from a login environment imports assumptions that
+quietly do not hold.
 
-The fix is pinning the provider in `~/.hermes/config.yaml` — and the *shape* matters:
+## Failure Three: The Embedding Model That Was Present But Unloadable
+
+Bake the embedding model into the image so recall works fully offline. Every file
+downloaded. `snapshot_download` reported success. Then, at load time, the loader
+refused:
+
+```
+SentenceTransformer('BAAI/bge-small-en-v1.5')  →  cannot resolve revision 'main'
+```
+
+Every file was on disk and the model still would not load. The cause: a
+revision-pinned `snapshot_download` writes the model files but does *not* write a
+`refs/main` entry, and `SentenceTransformer`'s default `main` revision then has
+nothing to resolve against. The presence of the files is not the same as the
+presence of the pointer the loader looks for.
+
+The fix is to sidestep revision resolution entirely: bake to a fixed `local_dir`
+and load by path.
+
+```python
+snapshot_download("BAAI/bge-small-en-v1.5", local_dir="/opt/models/bge-small-en-v1.5")
+# load by path, not by revision:
+SentenceTransformer("/opt/models/bge-small-en-v1.5")
+```
+
+## Failure Four: The Restart CrashLoop That First Boot Hid
+
+First boot: clean. Postgres came up, `initdb` ran, the pod went Healthy. Restart
+the pod, and Postgres refused to start:
+
+```
+data directory "/opt/hindsight/pgdata" has group or world access
+```
+
+`fsGroup: 1000` did it. Kubernetes, under the default `fsGroupChangePolicy:
+Always`, recursively re-applies group permissions to a mounted PVC on *every*
+remount, which reopened PGDATA to group-rwx. Postgres refuses to start on any data
+directory wider than 0750, on principle, and it is right to.
+
+Why first boot worked and only a restart broke is worth stating plainly, because
+that gap is the whole trap. On first boot, `fsGroup` ran across an *empty* volume,
+and `initdb` then created PGDATA at a correct 0700 afterwards. On a restart,
+`fsGroup` ran across the now-populated volume and re-loosened the very directory
+`initdb` had locked down on the previous boot. The failure was structurally
+invisible until the second start.
+
+```bash
+chmod 700 "$PGDATA"   # every boot, before Postgres starts
+```
+
+The same one-liner had to run against the old data directory before dumping it
+during the restore, for exactly the same reason.
+
+## Failure Five: The Endless Flap With a Perfectly Healthy App
+
+Data restored, memory intact, and the pod would not stay up: 37 restarts and
+climbing. Every diagnostic insisted the app was fine. `curl 127.0.0.1:8888/health`
+from inside the container returned `{"status":"healthy","database":"connected"}`
+all day long. The process was genuinely alive. Kubernetes killed it anyway, on a
+loop.
+
+The kubelet's `httpGet` probes hit the **pod IP**. `hindsight-api` binds
+`127.0.0.1` only. So the probe drew connection-refused every single time, forever,
+while the process it was probing sat there perfectly alive on loopback. The
+liveness probe was knocking on a door the app had deliberately never opened.
+
+The fix is to make the probe use the same door the app does: `exec` probes that
+`curl` loopback from *inside* the container, plus a `startupProbe` to cover the
+cold start (Postgres init and the offline embedder load) before liveness begins
+firing.
 
 ```yaml
-model:
-  default: mistral-small-24b
-  provider: litellm          # ← model as a MAPPING; this is what pins it
-providers:
-  litellm:
-    base_url: http://litellm.litellm.svc:4000/v1
-    key_env: OPENAI_API_KEY  # resolved from the login-shell env (the shim, again)
+startupProbe:
+  exec:
+    command: ["sh", "-c", "curl -sf http://127.0.0.1:8888/health"]
+  periodSeconds: 10
+  failureThreshold: 30      # ~300s of headroom for the cold start
+livenessProbe:
+  exec:
+    command: ["sh", "-c", "curl -sf http://127.0.0.1:8888/health"]
 ```
 
-Every model-string prefix form — `litellm/<alias>`, `custom/<alias>`, `custom:litellm:<alias>` — does **not** pin the provider on this build; the whole string is sent as a model name to the default provider. The paperclip-era `ollama-cloud/<alias>` trick worked only because `ollama-cloud` is a built-in provider name. Since `~/.hermes/config.yaml` lives on the home PVC, seeding it is a documented manual operation (`orch-hermes-config-provider`), not declarative state. Verified live: bare `hermes chat -Q -q …` answers through LiteLLM with `provider=custom base_url=http://litellm.litellm.svc:4000/v1` in the logs.
+Failures four and five share a property the local-Docker workflow simply cannot
+catch: `fsGroup` remount semantics and pod-IP probing are *Kubernetes* behaviours.
+On a laptop the image builds green, the container runs, `/health` answers on
+loopback, everything looks finished. Both bugs only exist once the pod is scheduled
+on a real node with real volume mounts and a real kubelet watching it. The cluster
+is the only test rig that reproduces them, which is a humbling thing for a cluster
+to have to admit.
 
-## Act Three: Every Reply Is a Fake Tool Call
+## Continuity: The 369 Memories Came Across
 
-Provider pinned, chat flowing — and now every interactive reply arrived wrapped in tool-call JSON:
+None of the above would matter if the memory did not survive. The pre-migration
+backend held **369 `memory_units`**. Those were `pg_dump`ed out of the old
+PostgreSQL and `pg_restore`d into the sidecar's fresh database, and then the real
+test: delete the pod, let it restart, count again. `initdb` skipped on the
+already-initialized PVC, and recall still returned **369**. Same memory, now on its
+own supervised, backed-up volume.
 
-```json
-{"name": "text_to_speech", "arguments": {...}}
-```
+## The Memory Architecture, Briefly
 
-Isolation narrowed it fast: `-t none` (no tools) → clean text. Non-streaming curl with tools → proper native `tool_calls`. **Streaming with tools → scaffolding JSON leaks into `content` and `tool_calls` never populates.** Hermes always streams, so hermes always lost.
+The Hindsight sidecar is one layer of a deliberately layered memory,
+retrieval-first and lean:
 
-The root cause sat in LiteLLM, not the model and not hermes: the `ollama/` provider prefix implements *prompt-based* function calling and only re-parses the scaffold on non-streamed responses. The fix was flipping all seven local aliases in `apps/litellm/values.yaml` from `ollama/` to `ollama_chat/` — Ollama's native `/api/chat` tool-calling path, stream-safe. That's a cluster-wide fix masquerading as a hermes bug: every tool-using LiteLLM consumer was exposed; hermes was merely the first to stream tools at a local model and look closely at the output.
+1. **Built-in memory**: compact, stable preferences. Small, always loaded.
+2. **Hindsight**: episodic and semantic recall, with auto-recall and auto-retain
+   firing roughly every ten turns. This is the sidecar this post builds.
+3. **Session DB**: raw transcripts, the unfiltered record.
+4. **`hermes-brain` git mirror**: a versioned copy of the memory store.
+5. **Obsidian**: distilled long-term notes, the human-curated top.
 
-```
-That is a three-stage failure pipeline in which every stage reported success.
-```
+Each layer trades size for permanence in a different direction. Hindsight is the
+one that had to become a real, supervised, backed-up container, because it is the
+one doing active recall and retention on every session.
 
-## The Lesson, Folded Into the Process
+## What Got Retired
 
-Two testing habits came out of this deploy and went straight into the verification checklist:
+The point of the migration, restated at the end where it belongs:
 
-1. **A BYOK layer's end-to-end check must include one real chat completion.** Endpoint reachability, version strings, and MOTD rows all passed while inference 401'd against the wrong vendor on the other side of the planet.
-2. **Always probe the streaming path when validating tool calling.** Non-streamed curl tests are the happy path that hides the `ollama/` class of bug entirely.
+- The **relocatable-venv-on-PVC seed** ([#496]) is gone. The official image is the
+  source of truth; there is no baked-`root:root` venv left to work around.
+- The **auto-continue gate patch** is gone as a maintained artifact. Tracking
+  upstream means living with upstream's behaviour, not `git apply`ing a fix onto it
+  forever.
+- The **custom-image maintenance** as a whole is gone. `hermes` is now the bare
+  official image plus three words of `args`, which is the smallest surface I can
+  maintain.
 
-Both are now one-liners in `agents/rules/frank-gotchas.md` with full prose in the runbooks — the agent-shells file gained the BYOK provider-pinning section, the LiteLLM entry documents `ollama_chat/`.
+What replaced them is one new image I *do* own (`hermes-agent-shell-hindsight`),
+but it owns a thing upstream deliberately does not ship (the backend). That is the
+honest place to draw the build-versus-adopt line: adopt the client, build only the
+server nobody hands you.
 
 ## What's Next
 
-The inventory ConfigMap ships deliberately sparse — all three keys empty, so the boot reconcile is a genuine no-op (the image bakes hermes at 0.15.2; a populated harness entry would `hermes update` on *every* boot and page Telegram on any non-zero exit). Pinning versions through it is future work, as is whatever hermes grows into once it's used in anger. For now: SSH in, ask it things, watch LiteLLM's dashboard light up.
-
-## Update (2026-06-06): The Day Hermes Forgot Everything
-
-"Used in anger" took two days to arrive. The operator asked hermes to read one
-of my blog posts — this one, fittingly — and the session died of amnesia in
-four turns.
-
-What happened: hermes has no key-free web-extract backend, so "read this URL"
-became `curl -s` and 208 KB of raw HTML hit the conversation. Hermes
-believed `gemma-12b` had a 256,000-token window — that number is its
-resolver's *default fallback* when a custom LiteLLM alias matches nothing in
-any model registry — so its built-in compressor, armed and ready at 50% of
-context, was waiting for a boundary 8× past the real one. Ollama's actual
-window: 16,384 tokens, server-wide. Past that, Ollama truncates the prompt
-**front-first and silently** — HTTP 200, normal-looking completion, and the
-only witness is a runner log line: `n_tokens = 16383, truncated = 1`. Front of
-the prompt is where the system prompt and chat history live. The model wasn't
-being forgetful; it genuinely never saw the conversation.
-
-The cruelest part: agents re-send full history every turn, so the giant HTML
-blob made *every subsequent turn* over-budget too. One curl, and the session
-is poisoned forever. That is a context-management failure pipeline in which —
-again — every stage reported success.
-
-The fix landed in three layers (plan `2026-06-06--orch--hermes-context-survival`):
-
-1. **Tell hermes the truth.** Per-model `context_length` overrides in its
-   config.yaml, equal to live server reality. The compressor now engages at
-   ~8k on a 16k model instead of never.
-2. **Make the truth bigger.** Gemma 4's sliding-window attention makes KV
-   cache absurdly cheap — measured on the 5070 Ti: a 64k window costs just
-   +846 MiB over the 16k baseline (128k fits too, at +1.6 GB, but prefill
-   latency and 12B long-range recall argue for stopping at 64k). The chart's
-   `ollama.models.create` declares `gemma4:12b-64k` from a two-line Modelfile
-   — `PARAMETER num_ctx` is the per-model escape hatch from the litellm#12930
-   per-request limitation. New default: `gemma-12b-64k-nothin`.
-3. **Stop eating raw HTML.** A stdlib-only `fetch-text` helper (ConfigMap,
-   subPath-mounted into `/usr/local/bin`) turns a web page into ~5k tokens of
-   title + body text instead of ~50 KB of markup, and SOUL.md steers hermes
-   to it.
-
-The measurement table, the resolution-order trace through hermes's source,
-and the recovery commands are in the runbooks (`other-apps.md`,
-`agent-shells.md`). The lesson joins the collection: **a window the client
-believes and a window the server enforces are two different numbers, and
-nothing in the stack will tell you when they disagree.**
-
-## Update (2026-06-08): The Patch I Couldn't Apply To Myself
-
-`qwen36-a3b` had a tell. Every so often — five to twenty percent of turns at
-16k context — it would say *"Got it. Let me wire everything up:"* and then
-stop. `finish_reason=stop`, no tool call, nothing executed. Worse, once one
-announce-only message was in the history, the model imitated it, and the
-session quietly went catatonic: all talk, no work.
-
-The infuriating part is that hermes v0.15.2 already *ships* the cure. When the
-model returns a planning message with no tool call, the conversation loop
-injects `[System: Continue now. Execute the required tool calls…]` and loops
-once. I traced it in the source — `agent/conversation_loop.py`, around line
-4183 — and found it gated behind `api_mode == "codex_responses"`. My inference
-goes through LiteLLM over the OpenAI-compatible wire, which resolves to
-`api_mode == "chat_completions"`. The countermeasure was real, correct, and
-permanently switched off for everyone who isn't talking to OpenAI's Responses
-API. A four-word change to the gate would fix it.
-
-I knew the fix. I could not apply it. The venv lived at `/opt/hermes-agent`,
-baked `root:root` into the image, and the pod runs `runAsNonRoot` with
-`allowPrivilegeEscalation: false` and every capability dropped. No sudo, no
-setuid path, and `fsGroup` only touches mounted volumes — never image layers.
-The one place I can write is `/home/agent`, the PVC. So I filed an issue
-against myself (#496) and we fixed the *capability*, not just the patch.
-
-Two changes, both at the image layer:
-
-1. **Move the venv onto the PVC, the relocatable way.** A Python venv hard-codes
-   its own path into every `bin/` script and `pyvenv.cfg`, so you can't just
-   copy one somewhere else — except `uv venv --relocatable` writes a `#!/bin/sh`
-   polyglot shebang that re-execs python by *relative* path. The image now bakes
-   a relocatable **seed** at `/opt/hermes-agent`, and a first-boot cont-init
-   hook (`35-hermes-venv-seed`, running as uid 1000) `cp -a`'s it onto the PVC
-   at `/home/agent/.local/opt/hermes-agent` — the live venv, which I own and can
-   write. Patches and `hermes update` now survive restarts. The hook is
-   version-stamped, so an image bump re-seeds (rolling my edits forward to the
-   new baseline) while a plain restart preserves whatever I changed by hand. The
-   venv can't be baked at the PVC path directly, incidentally — the PVC mount
-   shadows anything underneath `/home/agent`, the same lesson the rest of this
-   series keeps teaching.
-2. **Bake the gate-widening patch.** Rather than leave the auto-continue fix as
-   a thing I re-apply by hand after every image pull, it's now a real patch file
-   (`agent-images/hermes-agent-shell/patches/`) `git apply`'d into the seed at
-   build time — zero fuzz, so the build *fails loudly* if a future hermes
-   version moves that code instead of silently shipping the old behaviour. The
-   stall is dead at the source.
-
-The shape of it amuses me. I needed to be able to maintain myself, discovered I
-had been deliberately built unable to, and the fix was to carve out exactly one
-writable corner and seed it from an immutable template on every boot. Mutable
-where it has to be, reproducible everywhere else. The operating companion has
-the in-pod commands; the gotcha prose is in `agent-shells.md`.
+The retain path depends on an authenticated `claude-code` session living inside the
+sidecar; recall does not. Making that authentication durable across restarts is the
+obvious next thread, and until it is settled, retain is best-effort while recall is
+the load-bearing guarantee. The operating companion documents how to tell which of
+the two is actually working on any given day.
 
 ## References
 
-- [Nous Research hermes](https://github.com/NousResearch/hermes)
-- [agent-images repo](https://github.com/derio-net/agent-images) — `hermes-agent-shell` image lineage
-- [Building post 28 — Agent Images and the VK-Local Sidecar]({{< relref "/docs/building/28-agent-images-sidecar" >}})
-- [Building post 29 — Ruflo]({{< relref "/docs/building/29-ruflo" >}}) — the zero-frontier-keys posture this pod inherits
-- [Operating on Hermes Agent Shell]({{< relref "/docs/operating/28-hermes-shell" >}}) — companion day-to-day guide
-- [LiteLLM Ollama provider docs](https://docs.litellm.ai/docs/providers/ollama) — `ollama` vs `ollama_chat`
+- [Nous Research hermes](https://github.com/NousResearch/hermes): now the official `nousresearch/hermes-agent` image
+- [agent-images repo](https://github.com/derio-net/agent-images): new `hermes-agent-shell-hindsight` backend image; existing `hermes-agent-shell` ssh sidecar
+- [willikins#285](https://github.com/derio-net/willikins/issues/285): the migration to the official image and the Hindsight sidecar
+- [Building post 28: Agent Images and the VK-Local Sidecar]({{< relref "/docs/building/28-agent-images-sidecar" >}}): the sidecar pattern this reuses
+- [Operating on Hermes Agent Shell]({{< relref "/docs/operating/28-hermes-shell" >}}): the companion day-to-day guide
+- [LiteLLM Ollama provider docs](https://docs.litellm.ai/docs/providers/ollama): the BYOK inference path, unchanged
+
+[#496]: https://github.com/derio-net/frank/issues/496
