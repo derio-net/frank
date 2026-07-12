@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-12
 **Layer:** net
-**Status:** Draft
+**Status:** Deployed
 **Slug:** declarative-nameservers
 **Branch:** feat/declarative-nameservers
 

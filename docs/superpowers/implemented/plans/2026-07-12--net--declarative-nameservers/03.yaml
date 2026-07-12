@@ -123,18 +123,21 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-12T15:08:11+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-12T15:08:12+00:00'
       note: null
     P3.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-12T15:08:13+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-07-12T15:08:32+00:00'
+    note: 'Executed live 2026-07-12: omnictl apply of 102-cluster-nameservers to all
+      7 nodes (non-disruptive, no reboots); gpu-1 .150 drift cleared (single .31);
+      gpu-1 reboot-survival PASSED (talosctl reboot, DOWN 16:51 -> Ready 16:53 ~2min,
+      no boot-hang, resolvers from config, siderolink reconnected, GPU workloads rescheduled).'
     observed_prs: []
