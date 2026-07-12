@@ -1,0 +1,18 @@
+# ClusterIP for the official Hermes web dashboard (9119) + gateway/OpenAI API
+# (8642), exposed externally by the Traefik IngressRoute in
+# apps/traefik/manifests/ingressroutes.yaml (decision 3). Separate from the
+# SSH/Mosh LoadBalancer (service.yaml) — the shell path stays on the Cilium L2
+# LB and never goes through Traefik. Same pod selector; the two ports land on
+# the `hermes` main container.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-agent-shell-dashboard
+  namespace: hermes-agent-shell
+spec:
+  type: ClusterIP
+  selector:
+    app: hermes-agent-shell
+  ports:
+    - { name: dashboard, port: 9119, targetPort: dashboard, protocol: TCP }
+    - { name: api,       port: 8642, targetPort: api,       protocol: TCP }

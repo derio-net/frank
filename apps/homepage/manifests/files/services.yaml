@@ -91,6 +91,11 @@
         href: https://ruflo.cluster.derio.net
         description: Ruvocal multi-agent orchestrator
         siteMonitor: http://ruflo-web.ruflo-system:80
+    - Hermes:
+        icon: mdi-brain
+        href: https://hermes.cluster.derio.net
+        description: Hermes agent dashboard (Willikins)
+        siteMonitor: http://hermes-agent-shell-dashboard.hermes-agent-shell:9119
 - Automation:
     - AWX:
         icon: ansible

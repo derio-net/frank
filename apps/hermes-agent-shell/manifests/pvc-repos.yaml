@@ -1,0 +1,17 @@
+# Local working-repos volume — mounted at /opt/data/home/repos into BOTH
+# containers. Separated from profile state per the issue's "workspace, not
+# profile state" framing, so a profile reset never touches checked-out repos.
+# 20Gi placeholder (matches the current combined volume's footprint); revise
+# after Phase 1's actual repo-directory measurement (spec Open Risks).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-agent-shell-repos
+  namespace: hermes-agent-shell
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 20Gi
