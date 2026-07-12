@@ -8,7 +8,7 @@ metadata:
 spec:
   replicas: 1
   strategy:
-    type: Recreate  # RWO PVC — cannot mount on two pods simultaneously
+    type: Recreate  # RWO PVCs — cannot mount on two pods simultaneously
   selector:
     matchLabels:
       app: hermes-agent-shell
@@ -17,32 +17,231 @@ spec:
       labels:
         app: hermes-agent-shell
     spec:
-      # s6 cont-finish.d runs shutdown housekeeping (tmux state save). 45s gives
-      # it time to complete before SIGKILL. Mirrors secure-agent-pod / ruflo.
+      # The main container's own s6-overlay runs shutdown housekeeping; the
+      # sidecar's sshd terminates fast. 45s mirrors the family.
       terminationGracePeriodSeconds: 45
-      # Pinned to gpu-1 — Frank's largest CPU/RAM box (the same reason
-      # paperclip / secure-agent-pod sit there). NO GPU is requested: hermes
-      # inference is remote via the in-cluster LiteLLM gateway. The
-      # nvidia.com/gpu:NoSchedule toleration mirrors the cluster's defensive
-      # idiom (ollama, n8n, secure-agent-pod) so the pod survives any future
-      # re-assert of the gpu-only taint.
+      # Pinned to gpu-1 — Frank's largest CPU/RAM box (same reason paperclip /
+      # secure-agent-pod sit there). NO GPU requested: hermes inference is
+      # remote via the in-cluster LiteLLM gateway. The nvidia.com/gpu:NoSchedule
+      # toleration mirrors the cluster's defensive idiom so the pod survives any
+      # future re-assert of the gpu-only taint.
       nodeSelector:
         kubernetes.io/hostname: gpu-1
       tolerations:
         - key: nvidia.com/gpu
           effect: NoSchedule
       securityContext:
+        # fsGroup lines both containers' GID up with the shared /opt/data PVCs.
+        #
+        # VERIFIED 2026-07-09 (igor, throwaway disposable pod running the exact
+        # official image, then torn down): the strict runAsNonRoot:1000 +
+        # cap-drop:ALL posture this family usually uses DOES NOT WORK for the
+        # official nousresearch/hermes-agent MAIN container, which is built to run
+        # as ROOT with its own s6-overlay supervision tree:
+        #   • non-root 1000 + cap-drop:ALL → s6 preinit `fatal: /run belongs to
+        #     uid 0 … lacking the privileges to fix it` (exit 100).
+        #   • root + cap-drop:ALL → s6-applyuidgid `fatal: unable to set
+        #     supplementary group list: Operation not permitted` + supervise-perms
+        #     chown failures (exit 111). The image drops to its internal `hermes`
+        #     user (UID 10000) via s6-setuidgid, which needs SETUID/SETGID/CHOWN
+        #     from the DEFAULT cap set.
+        #   • root + DEFAULT caps → boots clean (all s6-rc services start).
+        # Under PSA `baseline` we cannot drop-ALL-then-add-back those caps
+        # (baseline only permits ADDING NET_BIND_SERVICE), so the resolved posture
+        # is: MAIN container runs as root with the default cap set (see its own
+        # securityContext below); the internal workload still ends up as UID 1000
+        # via HERMES_UID/HERMES_GID env (image-blessed remap). The SIDECAR is a
+        # different image (custom foreground sshd, no s6) and DOES run strict as
+        # 1000 + cap-drop:ALL — validated in agent-images CI + locally.
         fsGroup: 1000
+        # Defense-in-depth for the Hindsight sidecar's PGDATA (salvaged from the
+        # superseded frank#601). With the default fsGroupChangePolicy (Always),
+        # kubelet re-walks and re-applies fsGroup across every mounted PVC on
+        # EVERY pod recreate/remount, which re-loosens the Hindsight Postgres data
+        # dir to group-rwx — and Postgres refuses to start on a PGDATA wider than
+        # 0750. OnRootMismatch skips the re-walk when the volume root already
+        # matches, so a populated /opt/hindsight PVC keeps the 0700 that the
+        # sidecar image's boot-time `chmod 700 $PGDATA` set. The image chmod is the
+        # primary fix (it runs regardless of policy); this is the belt to its
+        # braces. (The other PVCs — /opt/data, home, repos — are unaffected either
+        # way; only PGDATA cares about group bits.)
+        fsGroupChangePolicy: OnRootMismatch
       containers:
+        # ── main service container: official Hermes, unmodified ──────────────
         - name: hermes
-          image: ghcr.io/derio-net/hermes-agent-shell:aecf74d675f562fe55cd00336f874d61582f2000
+          # Official image pulled directly from Docker Hub (decision 2, no
+          # agent-images build layer on top). Pinned to the latest published
+          # versioned tag as of 2026-07-09 (NOT `latest`/`main`). Confirm the
+          # auto-continue behaviour (spec Open Risks / frank#496) against this
+          # tag before cutover — the custom image's git-apply patch is NOT here.
+          image: docker.io/nousresearch/hermes-agent:v2026.7.7.2
           imagePullPolicy: IfNotPresent
+          # Entrypoint inherited from the image: `/init /opt/hermes/docker/
+          # main-wrapper.sh` (s6-overlay). VERIFIED 2026-07-09 (igor, throwaway
+          # pod): with NO args the wrapper execs the INTERACTIVE `hermes` TUI,
+          # which exits cleanly the moment it finds no TTY on stdin — in a K8s pod
+          # (no TTY) that means the container exits → CrashLoopBackOff. The gateway
+          # is NOT the default. `args: [gateway, run]` routes through the wrapper
+          # to `hermes gateway run`, which the image auto-redirects to its
+          # supervised s6 `main-hermes` service (auto-restart, plus the supervised
+          # `dashboard` service when HERMES_DASHBOARD=1) and stays up. Confirmed:
+          # `→ gateway is now running under s6 supervision`.
+          args: ["gateway", "run"]
+          env:
+            - name: HERMES_HOME
+              value: /opt/data
+            # Dashboard is opt-in in the official image; enable it (decision 3).
+            # NB (Phase-3 blocker, VERIFIED 2026-07-09): this v0.18.2 image
+            # HARD-REFUSES to bind the dashboard (9119) to any non-loopback
+            # interface unless an auth provider is configured ("There is no
+            # unauthenticated public-bind option — bind 127.0.0.1 and tunnel in").
+            # So the Traefik IngressRoute + authentik-forwardauth plan is NOT
+            # sufficient on its own: Phase 3 must ALSO configure a dashboard auth
+            # provider (dashboard.basic_auth in config.yaml, or `hermes dashboard
+            # register`) in the migrated /opt/data, or the dashboard never binds
+            # for Traefik to reach. Likewise 8642/9119 did not bind at all in a
+            # fresh (unseeded, credential-less) boot — the probes below are
+            # UNVERIFIED against migrated state and must be reconfirmed in Phase 3.
+            - name: HERMES_DASHBOARD
+              value: "1"
+            # Dashboard basic-auth. HERMES_DASHBOARD=1 makes the v0.18.2 dashboard
+            # HARD-REFUSE to bind (9119) without an auth provider, and that refusal
+            # loops and blocks the gateway API (8642) from binding at all, so the
+            # whole `hermes` container CrashLoops. These three env supply the auth
+            # (username/password + a session-signing secret) the dashboard needs.
+            # Sourced from a SOPS-bootstrapped Secret applied out-of-band (like the
+            # ssh-keys Secret — NOT ArgoCD-managed; see secrets/hermes-agent-shell/
+            # README.md). The migrate deployment used these same three keys from
+            # hermes-agent-shell-migrate-dashboard-auth; prod uses the stable name.
+            # NOT optional: the dashboard genuinely needs them to bind, so the pod
+            # must not start until the Secret exists (apply it before merging this).
+            - name: HERMES_DASHBOARD_BASIC_AUTH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-shell-dashboard-auth
+                  key: HERMES_DASHBOARD_BASIC_AUTH_USERNAME
+            - name: HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-shell-dashboard-auth
+                  key: HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+            - name: HERMES_DASHBOARD_BASIC_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-shell-dashboard-auth
+                  key: HERMES_DASHBOARD_BASIC_AUTH_SECRET
+            # Image-blessed ownership remap: the official image's internal `hermes`
+            # user is UID/GID 10000. Setting these makes the s6 boot (running as
+            # root) remap that user to 1000 and chown /opt/data, so shared-PVC
+            # files line up with the UID-1000 SSH sidecar. This is the supported
+            # alternative to `--user` (which the wrapper explicitly rejects for
+            # arbitrary UIDs). Verified 2026-07-09: /opt/data ends up 1000:1000.
+            - name: HERMES_UID
+              value: "1000"
+            - name: HERMES_GID
+              value: "1000"
+          envFrom:
+            # BYOK inference auth (OPENAI_BASE_URL + OPENAI_API_KEY). optional:
+            # true so the pod boots before the manual bootstrap mints
+            # HERMES_LITELLM_KEY and ESO syncs this secret.
+            - secretRef:
+                name: hermes-agent-shell-llm
+                optional: true
+            # Telegram creds for any notify helpers. optional per the
+            # envFrom.secretRef gotcha — an ESO hiccup must not block boot.
+            - secretRef:
+                name: hermes-agent-shell-alerts
+                optional: true
+          ports:
+            - name: api
+              containerPort: 8642  # Hermes gateway / OpenAI-compatible API
+              protocol: TCP
+            - name: dashboard
+              containerPort: 9119  # Hermes web dashboard (HERMES_DASHBOARD=1)
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /opt/data
+            - name: home
+              mountPath: /opt/data/home
+            - name: repos
+              mountPath: /opt/data/home/repos
+            # fetch-text context-hygiene helper — SOUL.md steers the gateway
+            # here, so the MAIN container needs it on PATH. subPath single-file
+            # mount; script edits need a pod restart (kubelet never live-updates
+            # subPath mounts).
+            - name: fetch-text
+              mountPath: /usr/local/bin/fetch-text
+              subPath: fetch-text
+              readOnly: true
+          securityContext:
+            # MUST run as root with the DEFAULT cap set — see the pod-level
+            # securityContext comment above for the verified reasoning (the image
+            # boots its s6-overlay as root and drops to its own UID-10000 `hermes`
+            # user via s6-setuidgid, which needs SETUID/SETGID/CHOWN). runAsNonRoot
+            # + cap-drop:ALL both break s6 init; PSA `baseline` permits this root
+            # posture. The workload itself still runs as UID 1000 after the
+            # HERMES_UID/HERMES_GID remap above, so this is "root to init, 1000 to
+            # work", not "root all the way down". No cap-drop / no runAsNonRoot.
+            runAsUser: 0
+            runAsGroup: 0
+            allowPrivilegeEscalation: true
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              # Gateway + Playwright only. Hindsight (Postgres 18 + hindsight-api
+              # + the torch-CPU embedder) is NOT embedded here — Phase 0 proved
+              # the official image ships only the Hindsight client, so the whole
+              # backend runs in the dedicated `hindsight` sidecar container (see
+              # below) with its ML resident set on that container's budget.
+              # Dropped 8Gi→4Gi accordingly (the OOM headroom the old custom
+              # `claude install` needed no longer applies to this container).
+              cpu: "2"
+              memory: 4Gi
+          readinessProbe:
+            tcpSocket:
+              port: api
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          livenessProbe:
+            tcpSocket:
+              port: api
+            initialDelaySeconds: 120  # gateway init can be slow
+            periodSeconds: 60
+        # ── SSH sidecar: thin terminal-access container ─────────────────────
+        - name: ssh
+          # New agent-images dir hermes-agent-shell-ssh/, built FROM the SAME
+          # official tag + sshd/mosh/tmux. Pinned to the permanent main-build SHA:
+          # agent-images#136 merged, and the 820c1fb main build published this
+          # tag (verified present on GHCR). hermes-agent-shell-ssh is in the
+          # agent-images-bump AGENT_IMAGES list, so future bumps re-pin it here.
+          image: ghcr.io/derio-net/hermes-agent-shell-ssh:aecf74d675f562fe55cd00336f874d61582f2000
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: HERMES_HOME
+              value: /opt/data
+            - name: HOME
+              value: /opt/data/home
+            # Mosh default is 168h (7d) — too long for a 16-port range. 1h reaps
+            # stuck servers fast enough to keep ports available.
+            - name: MOSH_SERVER_NETWORK_TMOUT
+              value: "3600"
+          envFrom:
+            # Same BYOK auth so `hermes` invoked from the SSH shell reaches
+            # LiteLLM. The 35-…-byok-env.sh profile.d shim re-exports these into
+            # the interactive login shell (sshd scrubs PID 1's environ).
+            - secretRef:
+                name: hermes-agent-shell-llm
+                optional: true
+            - secretRef:
+                name: hermes-agent-shell-alerts
+                optional: true
           ports:
             - name: ssh
               containerPort: 2222  # Non-root sshd; Service maps 22→2222
               protocol: TCP
-            # mosh-server picks a port from this range at session start;
-            # service.yaml exposes them on the same LB IP (UDP).
             - { name: mosh-60032, containerPort: 60032, protocol: UDP }
             - { name: mosh-60033, containerPort: 60033, protocol: UDP }
             - { name: mosh-60034, containerPort: 60034, protocol: UDP }
@@ -59,46 +258,23 @@ spec:
             - { name: mosh-60045, containerPort: 60045, protocol: UDP }
             - { name: mosh-60046, containerPort: 60046, protocol: UDP }
             - { name: mosh-60047, containerPort: 60047, protocol: UDP }
-          env:
-            # Mosh default is 168h (7d) — too long for a 16-port range.
-            # 1h reaps stuck servers fast enough to keep ports available.
-            - name: MOSH_SERVER_NETWORK_TMOUT
-              value: "3600"
-          envFrom:
-            # BYOK inference auth (OPENAI_BASE_URL + OPENAI_API_KEY). optional:
-            # true so the pod boots before the Phase 1 manual bootstrap mints
-            # HERMES_LITELLM_KEY and ESO syncs this secret. These land on PID 1's
-            # environ; the 35-…-byok-env.sh profile.d shim (hermes-agent-shell-env
-            # ConfigMap) re-exports them into the interactive login shell, which
-            # sshd would otherwise scrub.
-            - secretRef:
-                name: hermes-agent-shell-llm
-                optional: true
-            # Telegram creds for the inventory installer's notify helper.
-            # optional: true per the envFrom.secretRef gotcha — an ESO hiccup
-            # would otherwise CreateContainerConfigError instead of letting the
-            # shell boot without alerts. The helper is fail-silent if missing.
-            - secretRef:
-                name: hermes-agent-shell-alerts
-                optional: true
           volumeMounts:
+            - name: data
+              mountPath: /opt/data
             - name: home
-              mountPath: /home/agent
+              mountPath: /opt/data/home
+            - name: repos
+              mountPath: /opt/data/home/repos
+            # SSH host + authorized keys — SOPS-managed Secret, sidecar only.
             - name: ssh-keys
               mountPath: /etc/ssh-keys
               readOnly: true
-            - name: inventory
-              mountPath: /etc/hermes-agent-shell
-              readOnly: true
-            # BYOK-env profile.d shim — single-file subPath mount alongside the
-            # image-baked /etc/profile.d/{40,45,50}-hermes-agent-shell-*.sh.
+            # BYOK-env profile.d shim (single-file subPath) — re-exports the
+            # scrubbed OPENAI_* into the login shell.
             - name: byok-env
               mountPath: /etc/profile.d/35-hermes-agent-shell-byok-env.sh
               subPath: 35-hermes-agent-shell-byok-env.sh
               readOnly: true
-            # fetch-text context-hygiene helper (same single-file subPath
-            # idiom). Script edits need a pod restart — kubelet never
-            # live-updates subPath mounts.
             - name: fetch-text
               mountPath: /usr/local/bin/fetch-text
               subPath: fetch-text
@@ -112,17 +288,13 @@ spec:
               drop: ["ALL"]
           resources:
             requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              # Thin: sshd + mosh + occasional `hermes` CLI passthrough. The
+              # heavy runtime lives in the main container.
               cpu: 500m
               memory: 1Gi
-            limits:
-              # A single interactive hermes process + the s6 supervision tree.
-              # No vk-local executor fleet, so far lighter than secure-agent-pod.
-              # 8Gi (was 4Gi): `claude install` / the native build's auto-updater
-              # buffers its 245MB download ~17x in anon memory (Bun HTTP client,
-              # upstream claude-code#22536) peaking ~4.2GiB — at 4Gi the group-OOM
-              # killed sshd and dropped every SSH session (2026-06-07 incident).
-              cpu: "2"
-              memory: 8Gi
           readinessProbe:
             tcpSocket:
               port: ssh
@@ -133,22 +305,170 @@ spec:
               port: ssh
             initialDelaySeconds: 30
             periodSeconds: 60
+        # ── Hindsight sidecar: long-term memory backend ─────────────────────
+        # PERMANENT DESIGN (2026-07-10) — supersedes the earlier "embedded /
+        # self-spawn" assumption. The official nousresearch/hermes-agent image
+        # ships only the Hindsight CLIENT, not the backend: `hermes gateway run`
+        # spawns NO Postgres/API pair. Recall continuity is provided by running
+        # the backend as its OWN container here. Hermes stays `local_external`
+        # pointed at 127.0.0.1:8888 (client config in /opt/data/hindsight/
+        # config.json, unchanged) — pod containers share one netns, so the main
+        # container's loopback client resolves to this sidecar with zero change.
+        # k8s (kubelet) supervises it; no hermes_stack_watchdog.py / tmux / s6
+        # bolt-ons. The main `hermes` container stays the BARE official image
+        # (this preserves decision 2 — a local_embedded backend would have
+        # forced an image layer onto the main container instead).
+        #
+        # Recipe baked into the image (ground-truth, extracted from the live
+        # hand-resurrected migrate stack, 2026-07-10):
+        #   • micromamba 2.8.1 base; env python 3.11
+        #   • postgresql 18.4, loopback :5433, -k /tmp, listen_addresses=127.0.0.1
+        #       DB `postgres`, role `hindsight`, locale C.UTF-8, pg_hba trust
+        #   • hindsight-api-slim==0.8.4 from PUBLIC PyPI (py3-none-any wheel,
+        #       hatchling; no private index) with the local-ml extra
+        #       (torch 2.13.0+cpu, sentence-transformers 5.6.0)
+        #   • embedder BAAI/bge-small-en-v1.5 pre-baked in the image HF cache
+        #       (~/.cache/huggingface/hub), NOT on the PVC
+        #   • hindsight-api on 127.0.0.1:8888, /health → {"status":"healthy"}
+        # The image's own s6 owns the non-secret env (DATABASE_URL, EMBEDDINGS_*,
+        # RERANKER, PGDATA=/opt/hindsight/pgdata). The Deployment overrides only
+        # the deployment/secret-specific bits below.
+        - name: hindsight
+          # Pinned to the LIVE-VALIDATED build (agent-images build of
+          # hermes-agent-shell-hindsight), proven end-to-end on the migrate
+          # deployment 2026-07-11: initdb → 21 Alembic tables → CREATE EXTENSION
+          # vector → /health healthy, offline model loaded, 369 memory_units
+          # restored and PERSISTED across a pod restart, dashboard 200.
+          # History: c776905 CrashLooped (inherited shell cont-init assumed a
+          # writable mounted $HOME; model bake wrote no refs/main) → df29ea7
+          # fixed boot but flapped on httpGet probes (API binds 127.0.0.1 only)
+          # → 28de3ab + the exec probes below was the validated combination →
+          # re-pinned to the permanent main-build SHA 820c1fb (same code rebuilt
+          # on main; agent-images sidecar dir merged, tag verified on GHCR).
+          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:aecf74d675f562fe55cd00336f874d61582f2000
+          imagePullPolicy: IfNotPresent
+          env:
+            # PGDATA on the mounted PVC (isolated from /opt/data). The image
+            # bakes this default too; declared here to keep the mount contract
+            # explicit.
+            - name: PGDATA
+              value: /opt/hindsight/pgdata
+            # Stable worker id — the sidecar is a singleton, so a static value is
+            # correct. Unset, WORKER_ID defaults to the container hostname, which
+            # changes every restart, so consolidation tasks left in 'processing'
+            # are never recovered (found in the local smoke). A fixed id fixes it.
+            - name: HINDSIGHT_API_WORKER_ID
+              value: hermes-agent-shell-hindsight
+            # ── Retain (fact-extraction) LLM wiring — operator decision,
+            # 2026-07-10: claude-code (Sonnet). The live validated stack ran
+            # LLM_PROVIDER=none (recall-only, chunks-only); RECALL WORKS WITHOUT
+            # ANY LLM (auto_recall is independent of retain).
+            #
+            # IMPORTANT (verified against hindsight-api-slim 0.8.4 source, TASK A
+            # follow-up): the `claude-code` provider does NOT use an API key — it
+            # authenticates through the Claude Agent SDK via `claude auth login`
+            # (isolated CLAUDE_CONFIG_DIR), and its __init__ explicitly ignores
+            # api_key. So there is NO ANTHROPIC_API_KEY to wire from a secret; the
+            # earlier secretRef was removed as incorrect. For retain to actually
+            # run, the hindsight IMAGE must ship Node + the Claude Code CLI
+            # (@anthropics/claude-code) and carry an authenticated Claude session
+            # (claude-agent-sdk is already a hindsight-api dep). Until that auth
+            # is provisioned, retain is "wired DARK": provider construction is
+            # lazy and only imports the SDK (no boot-time auth call), so the API
+            # still boots and serves recall; the FIRST retain call fails
+            # gracefully. Model auto-defaults to claude-sonnet-4-5-20250929 (the
+            # image's built-in claude-code default) — no model var needed.
+            #
+            # Var-name reference (from source, for whoever wires this): retain
+            # can be decoupled from the query LLM via the dedicated retain vars
+            # HINDSIGHT_API_RETAIN_LLM_PROVIDER / _MODEL / _API_KEY / _BASE_URL;
+            # the generic pair is HINDSIGHT_API_LLM_PROVIDER / _MODEL / _API_KEY /
+            # _BASE_URL. ALTERNATIVE the operator may prefer (matches the pre-
+            # override spec, and needs NO Claude CLI in the image): point retain
+            # at the in-cluster LiteLLM — RETAIN_LLM_PROVIDER=openai +
+            # RETAIN_LLM_BASE_URL=http://litellm.litellm.svc:4000/v1 +
+            # RETAIN_LLM_API_KEY=$HERMES_LITELLM_KEY (already in the
+            # hermes-agent-shell-llm secret) + a model name. Flagged to coordinator
+            # — not wired here pending that call.
+            - name: HINDSIGHT_API_LLM_PROVIDER
+              value: claude-code
+          volumeMounts:
+            # Sidecar-ONLY volume (not shared with hermes/ssh). PGDATA lives here.
+            - name: hindsight-data
+              mountPath: /opt/hindsight
+          securityContext:
+            # Unlike the root-bound main container (official-image s6 constraint),
+            # this image has no such constraint, so it runs strict non-root.
+            # Postgres initdb-as-non-root is legal; 1000:1000 owns /opt/hindsight
+            # via the PVC + fsGroup.
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              # The ML resident set (torch-CPU embedder + PG shared buffers)
+              # moved OUT of the main container to here — main dropped 8Gi→4Gi
+              # to compensate.
+              cpu: "1"
+              memory: 2Gi
+          # /health is the hindsight-api liveness/readiness surface (port 8888).
+          # PG stays loopback-only — NO containerPort declared for 5433.
+          #
+          # EXEC probes, not httpGet (live-validated on the migrate deployment
+          # 2026-07-11): hindsight-api binds 127.0.0.1 ONLY, so an httpGet probe
+          # (which the kubelet runs against the pod IP) gets connection-refused
+          # and the container flaps forever — 37 restarts observed before this
+          # fix. An exec probe runs `curl` INSIDE the container against loopback,
+          # which is where the API actually listens, and passes. The startupProbe
+          # gives PG init + offline-embedder load up to 300s before liveness kicks
+          # in.
+          startupProbe:
+            exec:
+              command: ["sh","-c","curl -sf http://127.0.0.1:8888/health"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command: ["sh","-c","curl -sf http://127.0.0.1:8888/health"]
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["sh","-c","curl -sf http://127.0.0.1:8888/health"]
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
       volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: hermes-agent-shell-data
         - name: home
           persistentVolumeClaim:
             claimName: hermes-agent-shell-home
+        - name: repos
+          persistentVolumeClaim:
+            claimName: hermes-agent-shell-repos
+        - name: hindsight-data
+          # Sidecar-only Hindsight Postgres data (PGDATA=/opt/hindsight/pgdata).
+          # Its own Longhorn volume → auto-joins the daily/weekly backup group.
+          persistentVolumeClaim:
+            claimName: hermes-agent-shell-hindsight
         - name: ssh-keys
-          # SOPS-managed bootstrap secret in secrets/hermes-agent-shell/. See the
-          # README there for rotation. optional: true (paperclip/ruflo pattern)
-          # so the pod boots before the bootstrap lands; sshd just accepts no
-          # keys until then.
+          # SOPS-managed bootstrap secret in secrets/hermes-agent-shell/.
+          # optional: true (paperclip/ruflo pattern) so the pod boots before the
+          # bootstrap lands; sshd just accepts no keys until then.
           secret:
             secretName: hermes-agent-shell-ssh-keys
             optional: true
             defaultMode: 0400
-        - name: inventory
-          configMap:
-            name: hermes-agent-shell-inventory
         - name: byok-env
           configMap:
             name: hermes-agent-shell-env

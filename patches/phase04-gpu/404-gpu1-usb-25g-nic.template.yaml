@@ -11,7 +11,18 @@
 ##   5. Replace `<USB_25G_MAC_ADDRESS>` with the discovered MAC.
 ##   6. Verify the default gateway is still 192.168.55.1, or adjust it to the
 ##      live LAN gateway before applying.
-##   7. Apply the concrete file with `omnictl apply -f`.
+##   7. Confirm the cluster-wide `102-cluster-nameservers` patch
+##      (patches/phase01-node-config/02-cluster-wide-nameservers.yaml) is applied
+##      BEFORE this one — see the DNS note below.
+##   8. Apply the concrete file with `omnictl apply -f`.
+##
+## DNS (load-bearing): a STATIC interface (`dhcp: false`) gets NO DNS from DHCP
+## and falls back to Talos's built-in PUBLIC resolvers (1.1.1.1 / 8.8.8.8), which
+## the homelab blocks network-wide by ACL -> no DNS -> no NTP -> time-sync-gated
+## boot hang (the gpu-1 2026-07-12 incident). Do NOT add nameservers here;
+## internal resolvers are supplied cluster-wide by `102-cluster-nameservers`,
+## which MUST be applied. NEVER ship a static-NIC patch without it. See
+## docs/runbooks/frank-gotchas/networking.md.
 ##
 ## Binding by MAC is deliberate: USB NIC interface names can shift across ports,
 ## hubs, and boot ordering, but the adapter's hardware address is stable.

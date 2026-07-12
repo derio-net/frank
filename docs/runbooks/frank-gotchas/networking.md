@@ -200,3 +200,37 @@ curl -sS -m10 -D- https://<name>.frank.derio.net/ -o /dev/null | grep -iE '^HTTP
 ```
 
 **TEMPORARY** — these routes are commented as such in the manifest. Revert when the replacement edge (the Proxmox/Omni rebuild, `omni.md`) restores the original front door, or fold the names into the `frank.derio.net` retirement (`docs/superpowers/specs/2026-06-01--net--frank-derio-net-retire-design.md`). Incident: #590 (auth) / #591 (8 services) / #592 (forward-auth split), 2026-06-20.
+
+## Static Talos interface with no `nameservers` → public-DNS fallback → time-sync boot hang
+
+**Signature:** a node that **pings but is dead** — ICMP replies on its IP, but Talos `apid` (`:50000`) refuses/does not answer, `kubectl get node` shows `NotReady` ("Kubelet stopped posting node status"), and Omni siderolink shows `CONNECTED: false`. The console (F3 → Summary) shows `CONNECTIVITY: OK` yet the log spams:
+
+```
+[talos] error serving dns request {"component":"dns-resolve-cache","error":"read udp <ip>:xxxxx->192.168.10.12:53: i/o timeout"}
+[talos] failed looking up "time.cloudflare.com" ... controller":"time.SyncController" ... i/o timeout
+[talos] task startAllServices (1/1): service "apid" to be up, service "kubelet" to be up
+```
+
+**Root cause (gpu-1, ~12h outage, 2026-07-12).** A Talos interface configured **`dhcp: false`** with a static address but **no `machine.network.nameservers`** falls back to Talos's built-in **public** resolvers `1.1.1.1` / `8.8.8.8`. The homelab **blocks public DNS network-wide by ACL** (internal DNS is enforced). So the host resolves **nothing**:
+
+1. Static interface, no nameservers → public-DNS fallback (`1.1.1.1`/`8.8.8.8`).
+2. Public DNS ACL-blocked → every lookup `i/o timeout`.
+3. NTP server `time.cloudflare.com` is a **hostname** → can't resolve → **time never syncs**.
+4. Talos **gates service startup on time-sync** → `apid`, `kubelet`, `siderolink` block **forever**. Network is up (ICMP + gateway reachable, `CONNECTIVITY: OK`), the service layer is dead.
+
+**Why only static hosts hit it.** The minis / raspis / pc-1 use **DHCP**, and the DHCP server hands them the internal resolvers `192.168.10.11` / `192.168.10.12`. gpu-1 was the **first static-networked host** in the fleet, so it was the first exposed. Every other host silently depended on DHCP-provided DNS.
+
+**A NIC/switch swap does NOT fix it.** During the incident, moving gpu-1 between its USB 2.5G adapter and the onboard NIC, and between the Omada and unmanaged switches, only changed *which IP pinged* — never whether Talos booted. Public DNS is blocked on every path to the internet, independent of NIC. (Two red herrings surfaced and were ruled out: an Omni-Pi cold-boot **clock-jump** — future-dated logs, self-corrected by NTP, Omni was NOT wedged; and a transient **duplicate-IP** when both NICs were cabled at once, USB static `.31` + onboard DHCP-reservation `.31` — the fix there is one NIC at a time.)
+
+**Fix (declarative, fleet-wide).** A cluster-wide Omni ConfigPatch sets the internal resolvers for **every** host so none silently depends on DHCP:
+
+```
+# patches/phase01-node-config/02-cluster-wide-nameservers.yaml  (id: 102-cluster-nameservers)
+machine:
+  network:
+    nameservers: [192.168.10.11, 192.168.10.12]
+```
+
+Applied staged via `omnictl apply -f` (manual-op `net-apply-cluster-nameservers`), gpu-1 first (the static host proves the mechanism — DHCP does not supply *its* DNS). A repo guard `scripts/tests/test_cluster_wide_nameservers.py` fails if any static-NIC patch (`dhcp: false` + `addresses`) ships without this cluster-wide patch. Static-NIC patches (e.g. `patches/phase04-gpu/404-gpu1-usb-25g-nic.yaml`) must **not** add their own nameservers — the cluster patch is the single source of truth.
+
+**Emergency unblock (if you must boot a static host before the patch is live):** temporarily allow that host → `1.1.1.1`/`8.8.8.8:53` (or its intended internal resolvers) through the ACL so it resolves → syncs time → boots → connects to Omni → then apply the declarative patch and re-tighten. There is no console-only workaround if nothing the host can reach answers `:53` (the gateway `192.168.55.1` does **not** run DNS).

@@ -51,5 +51,9 @@ def test_every_pinned_agent_image_is_bumped():
 def test_multi_agent_shell_and_hermes_are_pinned_somewhere():
     # Sanity: the regression this guards is real — these apps exist and pin
     # agent-images, so the coverage assertion above is not vacuous.
+    # NB (willikins#285, 2026-07-09): hermes-agent-shell's MAIN container moved
+    # to the upstream docker.io/nousresearch/hermes-agent image (no ghcr pin);
+    # the agent-images pin for that workload is now the SSH sidecar,
+    # hermes-agent-shell-ssh.
     pinned = _pinned_agent_images()
-    assert {"multi-agent-shell", "hermes-agent-shell"} <= pinned
+    assert {"multi-agent-shell", "hermes-agent-shell-ssh"} <= pinned

@@ -737,3 +737,63 @@ spec:
     certResolver: cloudflare
     domains:
       - main: "*.frank.derio.net"
+---
+# hermes-agent-shell — official Hermes web dashboard + gateway API (migration
+# 2026-07-09, willikins#285, decision 3). The dashboard has NO built-in auth of
+# its own, so it gets authentik-forwardauth on top of ip-allowlist +
+# security-headers (the "login-less UIs get forward-auth" rule, same as
+# Longhorn/Hubble). Backend is the hermes-agent-shell-dashboard ClusterIP; the
+# SSH/Mosh path stays on the Cilium L2 LoadBalancer and is unaffected.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: hermes
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`hermes.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: hermes-agent-shell-dashboard
+          namespace: hermes-agent-shell
+          port: 9119
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+# hermes gateway / OpenAI-compatible API. Separate hostname per the spec. The
+# API is a machine surface (OpenAI-shape clients), but is still gated behind
+# ip-allowlist + security-headers; authentik-forwardauth is included for parity
+# with the dashboard. If a non-browser client cannot complete the forward-auth
+# redirect at cutover, drop the authentik-forwardauth line from THIS route only
+# (the API carries its own bearer-token auth via LiteLLM keys).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: hermes-api
+  namespace: traefik-system
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`hermes-api.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: ip-allowlist
+        - name: security-headers
+        - name: authentik-forwardauth
+      services:
+        - name: hermes-agent-shell-dashboard
+          namespace: hermes-agent-shell
+          port: 8642
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
