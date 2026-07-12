@@ -130,6 +130,30 @@ spec:
                 secretKeyRef:
                   name: hermes-agent-shell-dashboard-auth
                   key: HERMES_DASHBOARD_BASIC_AUTH_SECRET
+            # Gateway programmatic API server (:8642 = the `api` port the
+            # readiness/liveness probes below hit). ENV-DRIVEN, not config-driven:
+            # there is no `api_server:` section in config.yaml — these three env
+            # are the ONLY mechanism that binds :8642. Without them the `hermes`
+            # container boots (gateway + dashboard :9119 come up) but NOTHING
+            # listens on :8642, so the tcpSocket probe on `api` never succeeds and
+            # the pod is stuck 2/3. Diagnosed by env-diffing the working temporary
+            # `hermes-agent-shell-migrate` deployment (which carried these) against
+            # prod (which lacked them). API_SERVER_KEY comes from a SOPS-bootstrapped
+            # Secret applied out-of-band (same pattern as the dashboard-auth /
+            # ssh-keys Secrets above — NOT ArgoCD-managed; see secrets/
+            # hermes-agent-shell/README.md). The migrate deployment used this exact
+            # key from hermes-agent-shell-migrate-api-key; prod uses the stable name.
+            # NOT optional: the API server needs the key, so the pod must not start
+            # until the Secret exists (apply it before merging this).
+            - name: API_SERVER_ENABLED
+              value: "1"
+            - name: API_SERVER_HOST
+              value: "0.0.0.0"
+            - name: API_SERVER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-agent-shell-api-key
+                  key: API_SERVER_KEY
             # Image-blessed ownership remap: the official image's internal `hermes`
             # user is UID/GID 10000. Setting these makes the s6 boot (running as
             # root) remap that user to 1000 and chown /opt/data, so shared-PVC
