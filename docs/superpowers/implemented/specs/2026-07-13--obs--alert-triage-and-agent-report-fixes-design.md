@@ -1,6 +1,6 @@
 # Design: Frank alert-triage skill + alert-agent report fixes
 
-**Status:** Draft
+**Status:** Deployed
 **Layer:** obs
 **Branch:** feat/alert-triage-and-agent-fixes
 **Date:** 2026-07-13

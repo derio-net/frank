@@ -136,7 +136,7 @@ rows:
       verdict table classifying every firing Grafana alert (muted-canary, by-design,
       false-positive, known-tracker, or unexplained) without mutating the cluster.
     origin:
-    - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
     levels: {}
     status: skipped
     notes: >-
@@ -151,7 +151,7 @@ rows:
     acceptance: The alert-agent attributes a traffic surge from evidence (top referrers/user-agents)
       or states undetermined; it never defaults to a named source such as Hacker News.
     origin:
-    - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
     levels: {}
     status: skipped
     notes: >-
@@ -165,7 +165,7 @@ rows:
     acceptance: Operator DM and digest replies from the alert-agent are compact plain-text
       tables, never a raw JSON envelope or a prose wall.
     origin:
-    - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
     levels: {}
     status: skipped
     notes: >-
@@ -181,7 +181,7 @@ rows:
     acceptance: A focused explicit DM question to the alert-agent returns a real answer
       within the turn budget, not a timeout fallback.
     origin:
-    - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
     levels: {}
     status: skipped
     notes: >-
