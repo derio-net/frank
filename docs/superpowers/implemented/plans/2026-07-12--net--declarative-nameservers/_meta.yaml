@@ -1,6 +1,6 @@
 schema_version: 2
 plan: 2026-07-12--net--declarative-nameservers
-spec: docs/superpowers/implemented/specs/2026-07-12--net--declarative-nameservers-design.md
+spec: 2026-07-12--net--declarative-nameservers-design.md
 target_repo: derio-net/frank
 fr_version: '>=3.7.0,<4.0.0'
 created: '2026-07-12'
