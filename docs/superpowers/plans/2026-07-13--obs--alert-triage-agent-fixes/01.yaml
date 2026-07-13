@@ -1,0 +1,66 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Shared classifier (classify.py) — TDD
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - obs-alert-triage-classifies
+tasks:
+- number: 1
+  title: Pure classify(labels, pod_state) -> Verdict, test-first
+  steps:
+  - id: P1.T1.S1
+    text: |
+      RED. Create `agents/skills/frank-alert-triage/test_classify.py` with one case per
+      decision-tree branch, using the REAL label dicts captured this session:
+      (a) `{"canary":"true", ...}` -> verdict `muted` (expected/canary, never paged);
+      (b) `{"gpu_timeshare":"true","layer":"11", ...}` -> verdict `by-design` (mentions the
+         real pager is `gpu-node-both-down` only);
+      (c) readiness rule labels `{"__name__":"kube_pod_status_ready","condition":"true",
+         "pod":"cilium-operator-...","alertname":"Layer 3 Cilium Agent Down"}` with
+         pod_state in {"Succeeded","Completed",None} -> verdict `false-positive`
+         (stale KSM series / graceful-shutdown tombstone);
+      (d) same readiness labels with pod_state `"Running"` -> NOT false-positive
+         (verdict `unexplained` or `live` — a genuinely NotReady live pod);
+      (e) any labels carrying `{"github_issue":"frank-ops#3"}` -> verdict carries the
+         known-tracker ref `frank-ops#3`;
+      (f) plain labels, none of the above -> verdict `unexplained`.
+      Run `fr isolation exec -- bash -lc 'cd apps/../ ; python -m pytest agents/skills/frank-alert-triage/test_classify.py'`
+      (adjust path) and confirm it FAILS (module/functions absent).
+  - id: P1.T1.S2
+    text: |
+      GREEN. Implement `agents/skills/frank-alert-triage/classify.py`: stdlib-only, pure,
+      NO kube/network access. Expose `classify(labels: dict, pod_state: str | None) -> Verdict`
+      where `Verdict` is a small dataclass/namedtuple `(kind, reason, tracker)` with `kind` in
+      {muted, by-design, false-positive, known-tracker, unexplained, live}. Encode the tree in
+      the priority order from the spec: canary -> gpu_timeshare -> readiness+terminal/absent pod
+      -> github_issue annotation -> else unexplained. `pod_state` is supplied by the caller
+      (the skill resolves it via kubectl); the classifier itself never calls out. Re-run the
+      test -> all branches GREEN.
+  - id: P1.T1.S3
+    text: |
+      REFACTOR (optional). If the branch ladder or Verdict construction has duplication,
+      tidy it (extract a helper, name the terminal-pod set once). Stay green; add no behavior.
+      Skip if nothing to clean.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-13T17:05:31+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-13T17:05:34+00:00'
+      note: null
+    P1.T1.S3:
+      state: '-'
+      ticked_at: '2026-07-13T17:05:37+00:00'
+      note: no cleanup needed — classify() is already DRY
+  completion:
+    at: '2026-07-13T17:05:40+00:00'
+    note: 'classify.py + test_classify.py: 7/7 green via uv --with pytest; github_issue
+      treated as orthogonal tracker annotation (not a benign verdict) to avoid masking
+      a live NotReady pod'
+    observed_prs: []

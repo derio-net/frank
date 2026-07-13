@@ -16,6 +16,6 @@
 
 ### Skills
 
-Skills are installed at user level via the `superpowers`, `super-fr`, and `super-fr-dispatch` plugins. They are NOT vendored in this repo. Frank-specific skills remain repo-local in `agents/skills/` (blog-post, bump-image, deploy-app, expose-service, falco-triage, media, oidc-onboard, papers, sync-runbook, update-readme).
+Skills are installed at user level via the `superpowers`, `super-fr`, and `super-fr-dispatch` plugins. They are NOT vendored in this repo. Frank-specific skills remain repo-local in `agents/skills/` (blog-post, bump-image, deploy-app, expose-service, falco-triage, frank-alert-triage, media, oidc-onboard, papers, sync-runbook, update-readme).
 
 Plan behavior is driven by the profile at `docs/superpowers/plan-config.yaml`.

@@ -79,6 +79,38 @@ def test_deliver_uses_agent_payload_when_present(calls):
     assert _sent(calls, "/sendMessage")[0]["text"] == "agent narrative"
 
 
+def test_render_payload_unwraps_json_envelope_string():
+    # The agent is taught to reply in plain text, but if a turn still emits the
+    # legacy {"text": ...} envelope AS ITS MESSAGE, the session server hands it
+    # back as a STRING payload — which must be unwrapped, not posted raw (else
+    # the operator sees literal JSON in Telegram).
+    assert bridge.render_payload(
+        {"status": "ok", "payload": '{"text": "hello there"}'}) == "hello there"
+
+
+def test_render_payload_passes_plain_string_through():
+    assert bridge.render_payload({"status": "ok", "payload": "just words"}) == "just words"
+
+
+def test_render_payload_leaves_non_envelope_json_verbatim():
+    # A string that happens to start like JSON but isn't a {"text": ...} envelope
+    # is returned unchanged — no accidental mangling of a normal answer.
+    assert bridge.render_payload({"status": "ok", "payload": "not json {"}) == "not json {"
+    # A JSON list, or a JSON object without a "text" key, is not an envelope.
+    assert bridge.render_payload({"status": "ok", "payload": '["a", "b"]'}) == '["a", "b"]'
+
+
+def test_render_payload_ignores_non_string_text():
+    # A JSON object whose "text" is not a string is NOT a valid envelope — return
+    # the raw string, never coerce a number/list into the reply.
+    assert bridge.render_payload(
+        {"status": "ok", "payload": '{"text": 123}'}) == '{"text": 123}'
+
+
+def test_render_payload_dict_branch_unchanged():
+    assert bridge.render_payload({"status": "ok", "payload": {"text": "x"}}) == "x"
+
+
 # --- Thread B: slash commands (expand_command + COMMANDS registry) -------------
 
 CATALOG = ["/help", "/digest", "/surge", "/edge_traffic", "/security", "/status"]

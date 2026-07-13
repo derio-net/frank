@@ -130,3 +130,40 @@ rows:
       :9119/login -> 200). In-repo surface exists; becomes live-provable once this PR
       merges and ArgoCD reconciles the traefik-system IngressRoutes. SSO via authentik
       is a possible later follow-up.'
+  - id: obs-alert-triage-classifies
+    capability: Frank alert triage
+    acceptance: The operator can invoke the frank-alert-triage skill and receive a per-alert
+      verdict table classifying every firing Grafana alert (muted-canary, by-design,
+      false-positive, known-tracker, or unexplained) without mutating the cluster.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: obs-alert-agent-evidence-not-hn
+    capability: alert-agent report quality
+    acceptance: The alert-agent attributes a traffic surge from evidence (top referrers/user-agents)
+      or states undetermined; it never defaults to a named source such as Hacker News.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: obs-alert-agent-plain-text-table
+    capability: alert-agent report quality
+    acceptance: Operator DM and digest replies from the alert-agent are compact plain-text
+      tables, never a raw JSON envelope or a prose wall.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: obs-alert-agent-answers-explicit-asks
+    capability: alert-agent report quality
+    acceptance: A focused explicit DM question to the alert-agent returns a real answer
+      within the turn budget, not a timeout fallback.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
