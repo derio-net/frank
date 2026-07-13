@@ -160,15 +160,36 @@ def session_send(message: str, session_id: str | None = None, timeout_s: float =
     )
 
 
+def _dict_to_table(d: dict) -> str:
+    """Render a dict payload as a compact plain-text `key  value` table — so the
+    operator NEVER sees raw json.dumps. The bridge owns presentation: the
+    agent-session server hands the agent's raw JSON result straight through and
+    the model routinely writes a domain-shaped object (no `text` field) despite
+    the prompt, so a mechanism the model can't override is the only reliable fix.
+    Nested values compact to single-line JSON so each top-level key stays one row."""
+    if not d:
+        return "(empty result)"
+
+    def _val(v) -> str:
+        if isinstance(v, (dict, list)):
+            s = json.dumps(v, separators=(",", ":"), ensure_ascii=False)
+            return s if len(s) <= 200 else s[:197] + "..."
+        return str(v)
+
+    w = max(len(str(k)) for k in d)
+    return "\n".join(f"{str(k):<{w}}  {_val(v)}" for k, v in d.items())
+
+
 def render_payload(resp: dict) -> str | None:
     """Human text from an agent-session response, or None if it didn't complete.
 
-    The agent's output contract (taught in SKILL.md) is now PLAIN TEXT. But a
-    turn that still emits the legacy {"text": "..."} envelope arrives here as a
-    STRING payload (the session server returns the agent's final message
-    verbatim) — so we defensively unwrap a {"text": ...} envelope, else the
-    operator sees literal JSON in Telegram. Any other string passes through.
-    None when status != ok or payload is empty.
+    The session-server contract is a JSON file result. The preferred shape is
+    {"text": "<compact plain-text table>"} → we return `text`. But the model often
+    ignores that and writes a domain-shaped dict with no `text` field; rather than
+    leak raw JSON, we render ANY such dict as a `key  value` table
+    (`_dict_to_table`). A bare string passes through; a string that parses to a
+    dict is handled the same way (unwrap `text`, else table). None when status !=
+    ok or payload is empty.
     """
     if not resp or resp.get("status") != "ok":
         return None
@@ -179,13 +200,14 @@ def render_payload(resp: dict) -> str | None:
         try:
             obj = json.loads(payload)
         except (ValueError, TypeError):
-            return payload
-        if isinstance(obj, dict) and isinstance(obj.get("text"), str):
-            return obj["text"]
-        return payload
+            return payload                      # genuine plain text
+        payload = obj if isinstance(obj, dict) else payload
+        if not isinstance(payload, dict):
+            return payload                      # non-dict JSON (list/number) — leave as-is
     if isinstance(payload, dict):
-        return payload.get("text") or json.dumps(payload)
-    return json.dumps(payload)
+        text = payload.get("text")
+        return text if isinstance(text, str) else _dict_to_table(payload)
+    return str(payload)                          # non-str, non-dict (list/number)
 
 
 def deliver(resp: dict, fallback_text: str, chat_id: str | None = None) -> dict:
