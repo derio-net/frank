@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -27,13 +28,15 @@ ALLOWED_CHATS = set(_CHATS)
 SESSION_URL = os.environ.get("AGENT_SESSION_URL", "http://localhost:8765")
 SESSION_AGENT = os.environ.get("AGENT_SESSION_AGENT", "claude")
 SESSION_ID = os.environ.get("AGENT_SESSION_ID", "alert-agent")
-# How long to wait for an interactive DM turn. The old 120s cut off legitimate
-# answers — a thorough probe-based "cluster status" investigation runs ~5 min. The
-# 120s was a pre-threading guard against freezing the single getUpdates consumer;
-# Fix D moved turns to per-session worker threads, so a slow turn no longer blocks
-# the consumer or static /help — only a second DM to the SAME chat waits. So allow
-# DM turns to run long enough to actually finish.
-DM_TIMEOUT_S = float(os.environ.get("DM_TIMEOUT_S", "600"))
+# How long to wait for an interactive DM turn. Per-session worker threads (Fix D)
+# mean a slow turn blocks only a second DM to the SAME chat, never the getUpdates
+# consumer or static /help — so this bound is purely about operator responsiveness.
+# Bounded so a probe-sweeping turn can't leave the operator waiting minutes. A
+# focused turn (≤2 probes, per the SKILL) finishes well inside this; when the
+# model over-investigates past it, _run_agent_turn posts a deterministic
+# frank-facts snapshot instead of the useless "(no reply)" — the mechanical
+# backstop the soft prompt nudge lacks (a --resume'd session can ignore it).
+DM_TIMEOUT_S = float(os.environ.get("DM_TIMEOUT_S", "150"))
 
 
 def _http_post_json(url: str, payload: dict, timeout: float = 310) -> dict:
@@ -249,20 +252,45 @@ def _receipt_and_route(chat_id, message_id, text):
     return text   # no leading slash → free-text Q&A verbatim
 
 
+def _deterministic_snapshot() -> str:
+    """A fast, deterministic frank-facts snapshot for the DM fallback — so a slow
+    or failed agent turn still returns REAL data, never a bare '(no reply)'. Pure
+    stdlib: shells the frank-facts CLI (the same tool the agent uses), defensive on
+    any failure. Patched in tests."""
+    try:
+        # `surge-compute` returns the verdict {tier,current,baseline,ratio};
+        # `-m frank_facts.cli` avoids depending on the bin dir being on PATH
+        # (frank_facts is on PYTHONPATH=/opt/pylib in the bridge container).
+        out = subprocess.run([sys.executable, "-m", "frank_facts.cli", "surge-compute"],
+                             capture_output=True, text=True, timeout=20)
+        verdict = json.loads(out.stdout) if out.returncode == 0 and out.stdout.strip() else {}
+    except Exception as exc:  # noqa: BLE001 — the fallback must never itself raise
+        print(f"WARN telegram-bridge: deterministic snapshot failed: {exc}", file=sys.stderr)
+        verdict = {}
+    if verdict:
+        return ("agent busy — deterministic snapshot: surge "
+                f"tier={verdict.get('tier')} current={verdict.get('current')} "
+                f"baseline={verdict.get('baseline')} (x{verdict.get('ratio', 0)})")
+    return ("the agent is taking too long — try again shortly, or use a slash "
+            "command like /status")
+
+
 def _run_agent_turn(chat_id, message_id, message) -> None:
     """Drive the agent for one turn under the per-session lock, reply, react 👍/🤔.
-    The lock serializes same-session turns (no interleaved pastes); the wait spans
-    only session_send so a finished turn frees the session immediately."""
+    The lock serializes same-session turns; the wait spans only session_send so a
+    finished turn frees the session immediately. A transport failure OR a timed-out/
+    empty turn NEVER kills the thread silently — it posts a deterministic snapshot."""
     react = _react_fn(chat_id, message_id)
     session_id = f"{SESSION_ID}-tg-{chat_id}"
-    with _session_lock(session_id):
-        # Long enough for a thorough turn to finish (DM_TIMEOUT_S). Safe under
-        # threading: a slow turn holds only THIS session's lock, not the consumer.
-        resp = session_send(message, session_id=session_id, timeout_s=DM_TIMEOUT_S)
+    try:
+        with _session_lock(session_id):
+            resp = session_send(message, session_id=session_id, timeout_s=DM_TIMEOUT_S)
+    except Exception as exc:  # noqa: BLE001 — an HTTP timeout/error must not drop the reply
+        print(f"WARN telegram-bridge: session_send failed: {exc}", file=sys.stderr)
+        resp = None
     rendered = render_payload(resp)
-    tg_send(rendered or "(the agent did not return a reply — it may be busy or unauthenticated)",
-            str(chat_id))
-    react("👍" if rendered is not None else "🤔")   # 🤔 = only the deterministic fallback was posted
+    tg_send(rendered if rendered is not None else _deterministic_snapshot(), str(chat_id))
+    react("👍" if rendered is not None else "🤔")   # 🤔 = deterministic fallback was posted
 
 
 def process_update(update: dict) -> bool:

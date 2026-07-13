@@ -81,17 +81,19 @@ def _prompt_of(sent):
     return next(a[0] for kind, a, k in sent if kind == "session")
 
 
-def test_surge_prompt_is_evidence_driven_no_named_source(wired, monkeypatch):
+def test_surge_prompt_is_evidence_driven_and_uses_text_envelope(wired, monkeypatch):
     # The surge prompt must NOT pre-seed a named source (e.g. "Hacker News") —
-    # that anchors the model into confabulating attribution against thin facts.
+    # that anchors the model. BUT it MUST ask for the {"text": ...} envelope: the
+    # agent-session server reads back a JSON file result, so a bare-narrative /
+    # rich-JSON reply has no `text` field and leaks raw JSON to Telegram.
     monkeypatch.setattr(orch.surge, "compute",
                         lambda: {"tier": "Major", "current": 600, "baseline": 30, "ratio": 20})
     orch.run_surge(now=T0)
     prompt = _prompt_of(wired)
-    assert "Hacker News" not in prompt
-    assert '{"text"' not in prompt          # no JSON envelope taught in the prompt
+    assert "Hacker News" not in prompt       # de-Hacker-News stays
+    assert '{"text"' in prompt               # envelope REQUIRED (file-result contract)
 
 
-def test_digest_prompt_has_no_json_envelope(wired):
+def test_digest_prompt_uses_text_envelope(wired):
     orch.run_digest(now=T0)
-    assert '{"text"' not in _prompt_of(wired)
+    assert '{"text"' in _prompt_of(wired)
