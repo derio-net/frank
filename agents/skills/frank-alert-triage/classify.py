@@ -29,6 +29,9 @@ from dataclasses import dataclass
 
 # A pod that is gone, or reported terminal, cannot be "NotReady" in any
 # meaningful sense — the readiness alert is holding a stale metric series.
+# `None` here means the caller RESOLVED the pod as absent (a genuine tombstone),
+# never "pod resolution failed" — the driver must map a kubectl error to a
+# non-terminal sentinel so a real NotReady pod is not suppressed as benign.
 _TERMINAL_POD_STATES = frozenset({"Succeeded", "Completed", None})
 
 _READINESS_METRIC = "kube_pod_status_ready"

@@ -46,27 +46,39 @@ endpoint reports `Normal` / `Alerting` / `Normal (NoData)`, not `firing`).
 ## Step 2 — resolve pod state for readiness alerts
 
 An alert whose `__name__` is `kube_pod_status_ready` fires on a pod being
-NotReady — but a **terminal or absent** pod (graceful-shutdown `Succeeded`
+NotReady — but a **terminal or absent** pod (a graceful-shutdown `Succeeded`
 tombstone left by a node reboot) holds a *stale* series and reads NotReady
-forever. So for each such alert, resolve the live pod phase:
+forever. So for each such alert, resolve the live pod phase — and critically,
+**distinguish a genuinely-absent pod from a kubectl that merely failed**:
 
 ```bash
-kubectl -n <namespace-label> get pod <pod-label> \
-  -o jsonpath='{.status.phase}' 2>/dev/null   # empty ⇒ pod is gone (absent)
+kubectl -n <namespace-label> get pod <pod-label> -o jsonpath='{.status.phase}'
+# rc 0            → the phase (Running / Succeeded / …)
+# rc≠0 "NotFound" → the pod is genuinely gone (absent)
+# rc≠0 otherwise  → kubectl failed to connect — do NOT treat this as "absent"
 ```
 
-Pass the phase (or `None` when absent) as `pod_state` to `classify()`. For any
-non-readiness alert, `pod_state` is `None`.
+**`pod_state` semantics are load-bearing:** `None` passed to `classify()` MUST
+mean **resolved-absent** (→ tombstone → `false-positive`), NEVER "resolution
+failed". On any kubectl error that is not `NotFound`, pass a non-terminal
+sentinel (e.g. `"unresolved"`) so the alert fails **safe** to `unexplained`
+(escalate) instead of being silently suppressed as benign. For a non-readiness
+alert `pod_state` is `None` and the readiness branch never applies.
 
 ## Step 3 — classify and print the table
 
 Feed each alert's `labels` (+ resolved `pod_state`) through `classify.py` and
 print a compact PLAIN-TEXT verdict table (same column style as the alert-agent
-report): `alert | severity | verdict | reason/action`. Example driver:
+report): `alert | severity | verdict | reason/action`.
+
+**Run from the repo root** — do NOT `cd` into the skill dir: `.env` sets a
+`KUBECONFIG` relative to the repo root, so a `cd` breaks every `kubectl` in the
+driver (which then fails-open to `None` → a real NotReady pod misclassified as a
+tombstone). Keep cwd at the repo root and make `classify.py` importable via
+`PYTHONPATH` (path relative to the repo root):
 
 ```bash
-cd <this-skill-dir>   # so `import classify` resolves
-python3 - "$@" <<'PY'
+PYTHONPATH=agents/skills/frank-alert-triage python3 - <<'PY'
 import json, subprocess
 from classify import classify
 
@@ -82,13 +94,19 @@ for a in alerts:
             ["kubectl", "-n", lbl.get("namespace", ""), "get", "pod", lbl["pod"],
              "-o", "jsonpath={.status.phase}"],
             capture_output=True, text=True)
-        pod_state = out.stdout.strip() or None
+        if out.returncode == 0:
+            pod_state = out.stdout.strip() or None      # resolved phase
+        elif "NotFound" in out.stderr:
+            pod_state = None                            # genuinely absent → tombstone
+        else:
+            pod_state = "unresolved"                    # kubectl failed → NOT terminal → escalate
     v = classify(lbl, pod_state)
     rows.append((lbl.get("alertname", "?"), lbl.get("severity", "?"), v))
 
 w = max((len(r[0]) for r in rows), default=5)
 for name, sev, v in rows:
-    print(f"{name:<{w}}  {sev:<8}  {v.kind:<14}  {v.reason}")
+    tracker = f"  [{v.tracker}]" if v.tracker else ""
+    print(f"{name:<{w}}  {sev:<8}  {v.kind:<14}  {v.reason}{tracker}")
 PY
 ```
 
@@ -118,6 +136,10 @@ signal (a live NotReady pod carries it too).
   URL gets a TLS reset. Use `http://`.
 - `state == "Alerting"` on this endpoint is the rule state, distinct from the
   Alertmanager instance `firing`.
+- The readiness branch keys on the `__name__: kube_pod_status_ready` label being
+  present in the alert's label set — that is the load-bearing assumption. If a
+  Grafana version ever omits `__name__` from managed-alert labels, the branch
+  simply never matches and those alerts fail **safe** to `unexplained`.
 - Verify the fix worked by re-fetching after any operator cleanup: a deleted
   tombstone's readiness series ages out of VictoriaMetrics on its ~5-min
   staleness window, so the alert resolves on a short delay, not instantly.

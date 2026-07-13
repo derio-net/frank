@@ -100,6 +100,13 @@ def test_render_payload_leaves_non_envelope_json_verbatim():
     assert bridge.render_payload({"status": "ok", "payload": '["a", "b"]'}) == '["a", "b"]'
 
 
+def test_render_payload_ignores_non_string_text():
+    # A JSON object whose "text" is not a string is NOT a valid envelope — return
+    # the raw string, never coerce a number/list into the reply.
+    assert bridge.render_payload(
+        {"status": "ok", "payload": '{"text": 123}'}) == '{"text": 123}'
+
+
 def test_render_payload_dict_branch_unchanged():
     assert bridge.render_payload({"status": "ok", "payload": {"text": "x"}}) == "x"
 

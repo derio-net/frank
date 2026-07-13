@@ -48,8 +48,17 @@ def test_readiness_with_terminal_pod_is_false_positive():
 
 
 def test_readiness_with_live_pod_is_not_false_positive():
-    # A genuinely Running-but-NotReady pod is a REAL degradation → escalate.
+    # A genuinely Running-but-NotReady pod is a REAL degradation → escalate,
+    # AND the tracker is still captured (orthogonality holds on the escalate path).
     v = classify(_READINESS, pod_state="Running")
+    assert v.kind == "unexplained"
+    assert v.tracker == "frank-ops#3"
+
+
+def test_readiness_with_unresolved_pod_escalates_not_false_positive():
+    # The driver passes a non-terminal sentinel when kubectl fails to resolve —
+    # it must NOT be swallowed as a benign tombstone (fail-safe = escalate).
+    v = classify(_READINESS, pod_state="unresolved")
     assert v.kind == "unexplained"
 
 
