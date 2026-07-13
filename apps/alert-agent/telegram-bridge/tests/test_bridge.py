@@ -92,23 +92,51 @@ def test_render_payload_passes_plain_string_through():
     assert bridge.render_payload({"status": "ok", "payload": "just words"}) == "just words"
 
 
-def test_render_payload_leaves_non_envelope_json_verbatim():
-    # A string that happens to start like JSON but isn't a {"text": ...} envelope
-    # is returned unchanged — no accidental mangling of a normal answer.
+def test_render_payload_leaves_non_dict_json_verbatim():
+    # A non-JSON string, or a JSON *non-dict* (list/number), is not a report —
+    # returned unchanged, no accidental mangling of a normal answer.
     assert bridge.render_payload({"status": "ok", "payload": "not json {"}) == "not json {"
-    # A JSON list, or a JSON object without a "text" key, is not an envelope.
     assert bridge.render_payload({"status": "ok", "payload": '["a", "b"]'}) == '["a", "b"]'
-
-
-def test_render_payload_ignores_non_string_text():
-    # A JSON object whose "text" is not a string is NOT a valid envelope — return
-    # the raw string, never coerce a number/list into the reply.
-    assert bridge.render_payload(
-        {"status": "ok", "payload": '{"text": 123}'}) == '{"text": 123}'
 
 
 def test_render_payload_dict_branch_unchanged():
     assert bridge.render_payload({"status": "ok", "payload": {"text": "x"}}) == "x"
+
+
+# --- render_payload renders ANY dict as a table (the mechanical anti-JSON-leak) ---
+# The agent-session server hands the agent's raw JSON result straight through, and
+# the model often writes a domain-shaped object (no `text` field) despite the prompt.
+# render_payload must table it, NEVER post raw json.dumps — a mechanism the agent's
+# per-turn wrapper cannot override.
+
+def test_render_payload_textless_dict_becomes_table():
+    out = bridge.render_payload(
+        {"status": "ok", "payload": {"gpu_mode": "comfyui", "firing_alerts": "none"}})
+    assert "gpu_mode" in out and "comfyui" in out
+    assert "firing_alerts" in out and "none" in out
+    assert not out.lstrip().startswith("{")        # NOT raw JSON
+    assert out.count("\n") == 1                      # one row per top-level key
+
+
+def test_render_payload_textless_dict_string_becomes_table():
+    out = bridge.render_payload({"status": "ok", "payload": '{"a": 1, "b": "two"}'})
+    assert not out.lstrip().startswith("{")
+    assert "a" in out and "b" in out and "two" in out
+
+
+def test_render_payload_nested_dict_one_row_per_top_key():
+    out = bridge.render_payload(
+        {"status": "ok", "payload": {"summary": {"overall": "quiet"}, "count": 5}})
+    assert out.count("\n") == 1                      # 2 top-level keys → 2 rows
+    assert "summary" in out and "count" in out
+    assert "overall" in out                          # nested value compacted inline
+
+
+def test_render_payload_non_string_text_key_is_tabled_not_raw():
+    # {"text": <non-string>} is not a valid envelope → tabled, never posted raw.
+    out = bridge.render_payload({"status": "ok", "payload": '{"text": 123}'})
+    assert not out.lstrip().startswith("{")
+    assert "text" in out and "123" in out
 
 
 # --- DM path: deterministic fallback (never a bare "(no reply)" / silent death) ---

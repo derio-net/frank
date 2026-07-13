@@ -30,8 +30,10 @@ The whole reply is the JSON; the table lives in `text` (note the `\n` line break
 {"text": "L3 Cilium    OK     2/2 operators\nL11 Infer    DEGR   gpu-timeshare (ComfyUI, by design)\nEdge req/h   118    baseline 95 (x1.2)"}
 ```
 
-Do NOT write a bare narrative or a rich JSON object with other keys — a result without a
-`text` field is posted to the operator as raw JSON.
+Prefer `{"text": "<table>"}` — a table you compose reads best. If you instead write a
+**flat** JSON object of short `label → value` fields (no deep nesting), the bridge renders
+it as a `label  value` table automatically. Either way the operator sees a table, never
+raw JSON — but deep nesting renders as compacted one-line values, so keep it flat.
 
 ## Tools (read-only, HTTP-only — you have NO kubernetes credential)
 
