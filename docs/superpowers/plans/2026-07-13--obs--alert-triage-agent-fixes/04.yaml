@@ -1,0 +1,49 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Post-merge live verification (Test Plan)
+  tag: manual
+  depends_on:
+  - 2
+  - 3
+  tracking_issue: null
+  acceptance:
+  - obs-alert-triage-classifies
+  - obs-alert-agent-evidence-not-hn
+  - obs-alert-agent-plain-text-table
+  - obs-alert-agent-answers-explicit-asks
+tasks:
+- number: 1
+  title: Verify the skill against live alerts (host, post-merge)
+  steps:
+  - id: P4.T1.S1
+    text: |
+      manual-operation. From the kube-credentialed host, invoke `frank-alert-triage` against the
+      current firing set. Confirm the verdict table matches manual triage: canaries -> muted,
+      gpu_timeshare (Layer 11/16) -> by-design, any readiness alert on a Succeeded/absent pod ->
+      false-positive. Confirm the skill performs NO mutation.
+- number: 2
+  title: Verify the alert-agent report (host, post-merge)
+  steps:
+  - id: P4.T2.S1
+    text: |
+      manual-operation. After ArgoCD rolls the alert-agent ConfigMaps (hash-suffixed -> pod
+      rolls automatically), send a live Telegram DM (`/status` and a free-text "why is X
+      firing?") and, if convenient, trigger `/digest` / `/surge`. Confirm: reply is a compact
+      plain-text table (not prose, not a raw {"text":...} envelope), never mentions "Hacker
+      News", and an explicit question returns within the turn budget (no timeout fallback /
+      no thinking-face reaction).
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

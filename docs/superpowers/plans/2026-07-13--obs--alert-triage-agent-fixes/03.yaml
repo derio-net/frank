@@ -1,0 +1,103 @@
+schema_version: 2
+phase:
+  number: 3
+  title: alert-agent report fixes — TDD
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - obs-alert-agent-evidence-not-hn
+  - obs-alert-agent-plain-text-table
+  - obs-alert-agent-answers-explicit-asks
+tasks:
+- number: 1
+  title: render_payload defensive JSON-envelope unwrap (TDD)
+  steps:
+  - id: P3.T1.S1
+    text: |
+      RED. Add to `apps/alert-agent/telegram-bridge/tests/test_bridge.py`:
+      `test_render_payload_unwraps_json_envelope_string` — a resp `{"status":"ok","payload":
+      '{"text": "hello"}'}` (payload is a STRING) -> `render_payload` returns `"hello"`; a plain
+      string payload `"hi"` -> `"hi"`; a non-JSON string `"not json {"` -> returned verbatim;
+      the existing dict-payload branch still returns `.text`. Run
+      `fr isolation exec -- bash -lc 'cd apps/alert-agent/telegram-bridge && python -m pytest tests/test_bridge.py -k render_payload'`
+      -> FAILS (string envelope currently returned verbatim).
+  - id: P3.T1.S2
+    text: |
+      GREEN. In `apps/alert-agent/telegram-bridge/tg_bridge/bridge.py` `render_payload`, before
+      returning a `str` payload verbatim, try `json.loads`; if it yields a `dict` with a `text`
+      key, return that. Non-JSON / non-envelope strings fall through unchanged. Re-run -> GREEN;
+      run the FULL `test_bridge.py` to confirm no regression.
+- number: 2
+  title: De-Hacker-News + plain-text contract in prompts
+  steps:
+  - id: P3.T2.S1
+    text: |
+      RED-ish. In `apps/alert-agent/handlers/tests/test_orchestration.py` add an assertion that
+      the surge prompt built by `run_surge` and the digest prompt built by `run_digest` contain
+      NO "Hacker News" literal and NO `{"text"` envelope literal (patch `bridge.session_send`
+      to capture the prompt). Run -> FAILS on the current prompts.
+  - id: P3.T2.S2
+    text: |
+      GREEN. In `apps/alert-agent/handlers/handlers/orchestration.py`: (line ~81) replace the
+      surge prompt's "(is it Hacker News, a scraper, a real story?)" with evidence-driven
+      phrasing — "identify the source from top_referrers / top_user_agents; if the facts do not
+      show it, say 'undetermined'" (name NO example source); (lines ~82, ~106) replace
+      `Reply as JSON {"text": "..."}` in BOTH surge and digest prompts with a plain-text compact
+      instruction ("Reply in plain text, a few short lines / a compact table; no JSON, no
+      markdown"). Re-run the orchestration tests -> GREEN.
+- number: 3
+  title: Rewrite the alert-agent SKILL.md output contract
+  steps:
+  - id: P3.T3.S1
+    text: |
+      Rewrite `apps/alert-agent/manifests/files/SKILL.md`: (line 12) drop the "Hacker News?"
+      example from the surge trigger — describe it as "attribute the source from the supplied
+      referrers/user-agents, else undetermined"; (lines 17-22, Output contract) replace the raw
+      `{"text":...}` JSON envelope + the stale "no markdown tables / no <>&" constraint with:
+      reply in PLAIN TEXT (the sender uses no parse_mode, so <>& are safe) as a COMPACT ALIGNED
+      TABLE (label / value / detail columns) under a hard line budget (e.g. <= ~8 lines); no
+      prose walls. Add a note that this format matches the `frank-alert-triage` skill. In the
+      "Answering inbound DMs" section, bound an interactive turn to <= 2 probes then answer now
+      (do NOT raise DM_TIMEOUT_S). Keep the read-only / no-mutation boundary intact.
+- number: 4
+  title: Full alert-agent suite green
+  steps:
+  - id: P3.T4.S1
+    text: |
+      Run the whole alert-agent test suite via
+      `fr isolation exec -- bash -lc 'cd apps/alert-agent && for d in telegram-bridge handlers frank-facts; do (cd $d && python -m pytest -q) || exit 1; done'`
+      -> all GREEN. Fix any fallout.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-07-13T17:13:25+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-07-13T17:13:37+00:00'
+      note: null
+    P3.T2.S1:
+      state: x
+      ticked_at: '2026-07-13T17:13:45+00:00'
+      note: null
+    P3.T2.S2:
+      state: x
+      ticked_at: '2026-07-13T17:13:52+00:00'
+      note: null
+    P3.T3.S1:
+      state: x
+      ticked_at: '2026-07-13T17:13:58+00:00'
+      note: null
+    P3.T4.S1:
+      state: x
+      ticked_at: '2026-07-13T17:14:03+00:00'
+      note: null
+  completion:
+    at: '2026-07-13T17:14:07+00:00'
+    note: render_payload envelope-unwrap (TDD, bridge 29 green); de-HN + plain-text
+      prompts (orchestration 15 green, prompt-content asserts); SKILL.md output contract
+      rewritten to compact plain-text table + <=2-probe DM bound; frank-facts 13 green;
+      no residual Hacker News / JSON envelope
+    observed_prs: []

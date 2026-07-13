@@ -78,8 +78,10 @@ def run_surge(now: datetime | None = None) -> bool:
     sheet = facts.build_for_surge(now - timedelta(hours=1), now)
     fallback = _render_surge(sheet, verdict)
     prompt = ("A blog traffic surge tripped the deterministic gate. Investigate and explain it "
-              "(is it Hacker News, a scraper, a real story?) using ONLY the facts below; cite "
-              "specifics. Reply as JSON {\"text\": \"<your narrative>\"}.\n\n"
+              "using ONLY the facts below: attribute the source from top_referrers and "
+              "top_user_agents and cite specifics; if the facts do not show it, say the source "
+              "is undetermined. Never name a source the facts do not support. "
+              "Reply in plain text — a few short lines or a compact table; no JSON, no markdown.\n\n"
               f"verdict={json.dumps(verdict)}\nfacts={json.dumps(sheet)}")
     resp = bridge.session_send(prompt, session_id="alert-agent-ops")
     bridge.deliver(resp, fallback)
@@ -103,7 +105,8 @@ def run_digest(now: datetime | None = None) -> None:
     sheet = facts.build_for_digest(since, until, now)
     fallback = _render_digest(sheet)
     prompt = ("Write the daily Frank digest (traffic + security) from ONLY the facts below — "
-              "concise, notable items only, no speculation. Reply as JSON {\"text\": \"<digest>\"}.\n\n"
+              "concise, notable items only, no speculation. Reply in plain text as a compact "
+              "table or a few short lines; no JSON, no markdown.\n\n"
               f"facts={json.dumps(sheet)}")
     resp = bridge.session_send(prompt, session_id="alert-agent-ops")
     bridge.deliver(resp, fallback)

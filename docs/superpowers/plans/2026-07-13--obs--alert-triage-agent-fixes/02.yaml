@@ -1,0 +1,61 @@
+schema_version: 2
+phase:
+  number: 2
+  title: frank-alert-triage skill playbook
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - obs-alert-triage-classifies
+tasks:
+- number: 1
+  title: Author the SKILL.md playbook
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Write `agents/skills/frank-alert-triage/SKILL.md` with YAML frontmatter (`name:
+      frank-alert-triage`; `description:` triggering on "Grafana is alerting on Frank",
+      "investigate a Frank alert", "what is firing", "triage this alert"). Body documents the
+      flow: (1) fetch firing alerts from `http://192.168.55.203/api/prometheus/grafana/api/v1/alerts`
+      using admin creds from the `monitoring/victoria-metrics-grafana` secret (state `Alerting`);
+      (2) per alert, resolve any readiness-rule `pod` label against the live cluster with
+      `kubectl -n <ns> get pod <pod> -o jsonpath='{.status.phase}'` (live vs Succeeded/absent
+      ghost); (3) call `classify(labels, pod_state)`; (4) emit a COMPACT PLAIN-TEXT verdict
+      table with columns `alert | severity | verdict | reason/action`. Include the shared
+      decision-tree table verbatim (the contract the alert-agent mirrors). State the hard
+      boundary: CLASSIFY-AND-RECOMMEND ONLY, never mutate (no pod deletes/acks — the auto-mode
+      classifier blocks them); genuinely-unexplained alerts hand off to `fr-debugging`.
+  - id: P2.T1.S2
+    text: |
+      Make the skill discoverable: check how repo-local skills under `agents/skills/` are
+      indexed (grep `AGENTS.md` and `agents/` for an existing skill like `falco-triage` or
+      `expose-service`) and add `frank-alert-triage` wherever those are registered, matching
+      the existing pattern exactly.
+- number: 2
+  title: Validate skill structure
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Run `fr isolation exec -- bash -lc 'scripts/validate-agent-config.sh'` (and any skill
+      linter it invokes). Fix frontmatter/path issues until clean.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-07-13T17:07:38+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-07-13T17:07:40+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-07-13T17:07:42+00:00'
+      note: null
+  completion:
+    at: '2026-07-13T17:07:44+00:00'
+    note: SKILL.md playbook written (fetch→resolve-pod→classify→table, no-mutation
+      boundary, fr-debugging handoff); registered in repo-principles skill list; validate-agent-config
+      passed
+    observed_prs: []

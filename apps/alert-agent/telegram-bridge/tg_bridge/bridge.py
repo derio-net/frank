@@ -160,8 +160,12 @@ def session_send(message: str, session_id: str | None = None, timeout_s: float =
 def render_payload(resp: dict) -> str | None:
     """Human text from an agent-session response, or None if it didn't complete.
 
-    The agent's output contract (taught in SKILL.md): write {"text": "..."}. We
-    accept a bare string payload too. None when status != ok or payload is empty.
+    The agent's output contract (taught in SKILL.md) is now PLAIN TEXT. But a
+    turn that still emits the legacy {"text": "..."} envelope arrives here as a
+    STRING payload (the session server returns the agent's final message
+    verbatim) — so we defensively unwrap a {"text": ...} envelope, else the
+    operator sees literal JSON in Telegram. Any other string passes through.
+    None when status != ok or payload is empty.
     """
     if not resp or resp.get("status") != "ok":
         return None
@@ -169,6 +173,12 @@ def render_payload(resp: dict) -> str | None:
     if payload is None:
         return None
     if isinstance(payload, str):
+        try:
+            obj = json.loads(payload)
+        except (ValueError, TypeError):
+            return payload
+        if isinstance(obj, dict) and isinstance(obj.get("text"), str):
+            return obj["text"]
         return payload
     if isinstance(payload, dict):
         return payload.get("text") or json.dumps(payload)

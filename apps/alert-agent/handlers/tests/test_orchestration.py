@@ -74,3 +74,24 @@ def test_run_digest_always_wakes_and_delivers_with_fallback(wired):
     assert any(s[0] == "session" for s in wired)
     deliver = [s for s in wired if s[0] == "deliver"][0]
     assert "Daily digest" in deliver[1]                  # deterministic fallback text built
+
+
+def _prompt_of(sent):
+    """The prompt string passed to the (mocked) session_send call."""
+    return next(a[0] for kind, a, k in sent if kind == "session")
+
+
+def test_surge_prompt_is_evidence_driven_no_named_source(wired, monkeypatch):
+    # The surge prompt must NOT pre-seed a named source (e.g. "Hacker News") —
+    # that anchors the model into confabulating attribution against thin facts.
+    monkeypatch.setattr(orch.surge, "compute",
+                        lambda: {"tier": "Major", "current": 600, "baseline": 30, "ratio": 20})
+    orch.run_surge(now=T0)
+    prompt = _prompt_of(wired)
+    assert "Hacker News" not in prompt
+    assert '{"text"' not in prompt          # no JSON envelope taught in the prompt
+
+
+def test_digest_prompt_has_no_json_envelope(wired):
+    orch.run_digest(now=T0)
+    assert '{"text"' not in _prompt_of(wired)
