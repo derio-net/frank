@@ -352,6 +352,14 @@ with `git apply` (zero fuzz → the build fails if the hunk drifts on a
 `HERMES_VERSION` bump; refresh the patch then, and bump the `+autocontinueN`
 seed-version suffix so live pods re-seed).
 
+## hermes-agent-shell Hindsight sidecar: pod-level `fsGroup` re-loosens PGDATA on every remount
+
+The Hindsight sidecar runs Postgres on its own Longhorn PVC at `/opt/hindsight/pgdata`. A pod recreate/remount re-applies the pod-level `fsGroup: 1000` across that volume (default `fsGroupChangePolicy: Always`), re-loosening PGDATA to group-rwx — and Postgres refuses to start (`data directory … has group or world access`; it requires `0700`).
+
+**Nasty because first boot hides it**: `fsGroup` runs on the *empty* volume, then `initdb` creates PGDATA at `0700` afterwards — so it looks fine. The **second** boot re-loosens the now-populated dir and breaks.
+
+Fixed image-side: the sidecar runs `chmod 700 $PGDATA` on every boot before Postgres starts (do the same on an old data dir before a migration `pg_dump`). Belt-and-braces on the pod securityContext: `fsGroupChangePolicy: OnRootMismatch` skips the re-walk once the volume root already matches. Supersedes the old single-container `~/.local/pgsql` form (frank#601).
+
 ## Agent GitHub auth: rotating App installation token — git helper + gh wrapper, not a PAT (2026-06-08)
 
 The secure-agent-pod authenticates to GitHub with a short-lived **GitHub App
@@ -429,6 +437,22 @@ Verify against a PRIVATE repo (public ones false-pass):
 The same App pattern backs other CI on the cluster via per-app `GithubAccessToken`
 generators (e.g. tekton mirror pipelines for a separate org), with the key in the
 consuming namespace — see `storage-secrets-ssa.md` for the generator gotcha.
+
+## agent-images bump PR body rendering (best-effort enrichment)
+
+The agent-images bump PR body is rendered by `scripts/render_bump_body.py`, called from `agent-images-bump.yml`. It lists the upstream `agent-images` PR(s) in the `old…new` SHA range with a one-line summary each.
+
+Enrichment is **best-effort** — any `gh api` failure (or a missing pre-bump pin) falls back to the legacy two-line body, so the bump PR always opens even when enrichment can't run. The "what changed" filter mirrors agent-images `build.yaml`'s `paths-ignore: docs/**` (docs-only upstream PRs trigger no rebuild, so they're excluded from the list — showing them would imply a rebuild that didn't happen).
+
+Summary + title come from the **squash commit body** (GitHub copies the PR description there). A subject's `(#NN)` may reference an **issue**, not a PR — e.g. `8606edf` → issue #88, not PR #88 — so refs link to `.../issues/NN` (canonical; GitHub redirects to the PR when it is one) rather than hard-coding `/pull/NN`, which would 404 on an issue-numbered subject.
+
+## `AGENT_IMAGES` allowlist — bump workflow image coverage
+
+The bump workflow originally covered images via a **hardcoded per-file `sed` list**, which silently skipped any app pinning an agent-image not on it. `alert-agent`, `n8n-01`, and `hermes-agent-shell` all went stale this way — never auto-bumped since they were added, because nobody remembered to add them to the list.
+
+Fixed by generalizing to an **`AGENT_IMAGES` allowlist looped over all of `apps/`** — every image rides the same agent-images SHA except `vk-remote` (its own short-tag build). A post-bump **"Verify coverage" step** fails the workflow loudly if any 40-hex `ghcr.io/derio-net/*` pin under `apps/` wasn't bumped to the new SHA (`blog` is frank-built, excepted).
+
+Adding a new agent-image to the build matrix means adding its name to `AGENT_IMAGES` — `scripts/tests/test_agent_images_bump_coverage.py` guards the allowlist locally (frank#570).
 
 ## shell-inventory npm-global dist-tag guard → reinstall-every-boot → `ENOTEMPTY` deadlock on the PVC
 

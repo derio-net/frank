@@ -59,6 +59,15 @@ kubectl get sympoziuminstances -n sympozium-system -o custom-columns=NAME:.metad
 
 - Image uses non-numeric user (`curl_user`) — Kubernetes `runAsNonRoot` can't verify non-numeric users are non-root. Add explicit `runAsUser: 100` (curl_user's UID).
 
+## ComfyUI model-folder registrations are node-specific, not path-specific
+
+Each custom node registers its own `folder_paths` scan directory — dropping a model in the "obviously right" folder can still leave a node's dropdown empty.
+
+- The LTX-2 latent spatial upscaler (`LatentUpscaleModelLoader`) scans `models/latent_upscale_models/`, a **separate** folder from `models/upscale_models/` (pixel-space upscalers). A file in the wrong one leaves the node's enum empty with no error.
+- The native LTX-2 audio encoder node `LTXAVTextEncoderLoader` wants a **safetensors** Gemma-3-12B (hidden dim 3840) in `models/text_encoders/` — a Gemma **GGUF** does not surface there at all (t5xxl/umt5 dim-mismatch: 2048 vs 3840, so the loader silently excludes it from the scan).
+
+New model files need a `GET /object_info` recheck and usually a `kubectl rollout restart deploy/comfyui -n comfyui` to rebuild node schemas (the pod doesn't re-scan `folder_paths` on its own). `/object_info` serializes v3 `io.ComfyNode` combo options as `["COMBO", {"options": [...]}]` but legacy v1 nodes as `[[...]]` — any verifier script must handle both shapes or it'll miss half the nodes.
+
 ## Homepage
 
 ### `subPath` ConfigMap mounts are frozen — config edits never reach the running pod

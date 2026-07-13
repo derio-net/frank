@@ -428,6 +428,14 @@ ln -sf /paperclip/agent-bin/hermes-agent/venv/bin/hermes /paperclip/agent-bin/bi
 
 **Key gotcha:** `UV_PYTHON_INSTALL_DIR` must be on the shared `/paperclip` PVC. Without it, the venv's `python` symlink resolves to `~/.local/share/uv/python/…` (shell sidecar's home) which is mounted as the shell sidecar's PV — not visible to the `paperclip` container. The shim at `/paperclip/agent-bin/bin/hermes` then executes cleanly from both containers.
 
+## claude-flow v3 (`ruflo v3.10.x`) has no `orchestrate` / `hive.yaml`
+
+Those were pre-v3 docs fiction. `swarm init/start` + `hive-mind init` build COORDINATION state only — **workers are Claude Code processes**, spawned via `hive-mind spawn --claude`. That needs an authenticated `claude` on the shell PVC (one-time `claude` → `/login`); without it, swarms init fine and execute nothing (silent — no error, just zero worker output).
+
+Worker tokens bill Anthropic (subscription), NOT LiteLLM — the local-only posture only covers ruvocal chat, not swarm workers. ChatUI cannot create swarms, only view runs already started elsewhere. Default `swarm init` spins up 15 agents with auto-scale — cap with `-m 3` unless you mean to burn that many Claude Code sessions at once.
+
+Cookbook corrected 2026-06-05: `operating/24-ruflo`.
+
 ### shell-inventory `paperclip-shared` section
 
 The `configmap-shell-inventory.yaml` has a `paperclip-shared:` section (distinct from `npm-global:`, `pipx:`, `cargo:` which target the shell sidecar's home PV). It declares tools that must land on `/paperclip` for the paperclip container to reach them:
