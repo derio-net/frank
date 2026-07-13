@@ -111,6 +111,43 @@ def test_render_payload_dict_branch_unchanged():
     assert bridge.render_payload({"status": "ok", "payload": {"text": "x"}}) == "x"
 
 
+# --- DM path: deterministic fallback (never a bare "(no reply)" / silent death) ---
+
+def test_dm_timeout_posts_deterministic_fallback(calls, monkeypatch):
+    # A timed-out/empty agent turn must post a DETERMINISTIC snapshot, not the
+    # bare "(the agent did not return a reply…)" that reads as a dead bot.
+    calls.canned["/session/send"] = {"status": "timeout", "payload": None}
+    monkeypatch.setattr(bridge, "_deterministic_snapshot", lambda: "SNAPSHOT surge tier=None")
+    bridge.process_update({"message": {"message_id": 5, "chat": {"id": 100}, "text": "/status"}})
+    replies = _sent(calls, "/sendMessage")
+    assert replies and "SNAPSHOT" in replies[-1]["text"]
+    assert "did not return a reply" not in replies[-1]["text"]
+    assert _reactions(calls)[-1] == "🤔"     # fallback → thinking-face, not thumbs-up
+
+
+def test_dm_session_exception_does_not_kill_turn(calls, monkeypatch):
+    # If session_send RAISES (HTTP timeout), the turn must survive and still post
+    # the deterministic fallback — never die silently leaving the operator with
+    # nothing (the original silent-no-reply bug).
+    def boom(*a, **k):
+        raise RuntimeError("http read timed out")
+    monkeypatch.setattr(bridge, "session_send", boom)
+    monkeypatch.setattr(bridge, "_deterministic_snapshot", lambda: "SNAPSHOT fallback")
+    bridge.process_update({"message": {"message_id": 6, "chat": {"id": 100}, "text": "why is X firing?"}})
+    replies = _sent(calls, "/sendMessage")
+    assert replies and "SNAPSHOT fallback" in replies[-1]["text"]
+
+
+def test_dm_success_still_posts_agent_text(calls, monkeypatch):
+    # The happy path is unchanged: a real payload is posted, 👍, no fallback.
+    calls.canned["/session/send"] = {"status": "ok", "payload": {"text": "real answer"}}
+    monkeypatch.setattr(bridge, "_deterministic_snapshot", lambda: "SHOULD NOT APPEAR")
+    bridge.process_update({"message": {"message_id": 7, "chat": {"id": 100}, "text": "hi"}})
+    replies = _sent(calls, "/sendMessage")
+    assert replies[-1]["text"] == "real answer"
+    assert _reactions(calls)[-1] == "👍"
+
+
 # --- Thread B: slash commands (expand_command + COMMANDS registry) -------------
 
 CATALOG = ["/help", "/digest", "/surge", "/edge_traffic", "/security", "/status"]

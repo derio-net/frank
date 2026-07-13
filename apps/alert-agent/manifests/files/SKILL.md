@@ -17,17 +17,21 @@ event and reads back a JSON result you write.
 
 ## Output contract
 
-Reply in **plain text** — no JSON envelope, no markdown. The Telegram sender uses no
-parse_mode, so `<`, `>`, and `&` are safe. Prefer a **compact aligned table** (label /
-value / detail columns) over prose, under a hard budget of about **8 short lines**; no
-prose walls. This is the same compact-table format the `frank-alert-triage` skill emits —
-keep the two consistent.
+The orchestration reads back a JSON result you write to the file the prompt names, so your
+whole reply MUST be the envelope `{"text": "<your message>"}` — nothing else in that file.
+Put a **compact plain-text table** INSIDE the `text` value (aligned label / value / detail
+columns), under a hard budget of about **8 short lines**; no prose walls. The sender posts
+`text` as plain text (no parse_mode), so `<`, `>`, and `&` are safe inside it. This is the
+same compact-table format the `frank-alert-triage` skill emits — keep the two consistent.
+
+The whole reply is the JSON; the table lives in `text` (note the `\n` line breaks):
 
 ```
-L3 Cilium    OK     2/2 operators
-L11 Infer    DEGR   gpu-timeshare (ComfyUI active, by design)
-Edge req/h   118    baseline 95 (x1.2)
+{"text": "L3 Cilium    OK     2/2 operators\nL11 Infer    DEGR   gpu-timeshare (ComfyUI, by design)\nEdge req/h   118    baseline 95 (x1.2)"}
 ```
+
+Do NOT write a bare narrative or a rich JSON object with other keys — a result without a
+`text` field is posted to the operator as raw JSON.
 
 ## Tools (read-only, HTTP-only — you have NO kubernetes credential)
 
