@@ -138,8 +138,14 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: >-
+      Live proof 2026-07-13: ran the frank-alert-triage skill against the live firing
+      set — 2 cert-canaries muted, Layer 11 by-design (frank-ops#11), zero mutation;
+      verdict table matched the manual triage. classify.py unit-tested across 8
+      decision-tree branches. github_issue is implemented as an orthogonal tracker
+      annotation, not a benign known-tracker verdict, so a live NotReady pod still
+      escalates.
   - id: obs-alert-agent-evidence-not-hn
     capability: alert-agent report quality
     acceptance: The alert-agent attributes a traffic surge from evidence (top referrers/user-agents)
@@ -147,8 +153,13 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: >-
+      Live proof 2026-07-13: the Hacker News anchor was removed from SKILL.md and the
+      orchestration.py surge/digest prompts (verified live in the rolled pod); a live
+      surge reply attributed the traffic to a Chrome/120 stale-UA crawler from
+      evidence, with no Hacker News. Prompt-content unit tests enforce the absence.
+      (#631, #633)
   - id: obs-alert-agent-plain-text-table
     capability: alert-agent report quality
     acceptance: Operator DM and digest replies from the alert-agent are compact plain-text
@@ -156,8 +167,15 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: >-
+      Live proof 2026-07-13: drove session_send then render_payload end-to-end in the
+      deployed pod — the agent's rich dict result renders as a compact plain-text
+      table (aligned as_of/gpu_mode/alerts_firing/edge_traffic_level rows),
+      raw-JSON=false. Fixed mechanically in render_payload (#634) after instruction-only
+      attempts (#631 removed then #633 restored the text envelope) proved unable to
+      override the session server's per-turn raw-JSON wrapper. Bridge unit tests cover
+      the table render.
   - id: obs-alert-agent-answers-explicit-asks
     capability: alert-agent report quality
     acceptance: A focused explicit DM question to the alert-agent returns a real answer
@@ -165,5 +183,10 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-13--obs--alert-triage-and-agent-report-fixes-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: >-
+      Live proof 2026-07-13: a focused DM turn returned status=ok within the bounded
+      DM_TIMEOUT_S=150 (no timeout fallback). An overrun is mechanically backstopped by
+      a deterministic frank-facts surge-compute snapshot, and a transport error can no
+      longer silently drop the reply (#633). Bridge unit tests cover both the fallback
+      and the exception path.

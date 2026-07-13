@@ -36,14 +36,19 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-13T19:06:03+00:00'
       note: null
     P4.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-13T19:06:04+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-07-13T19:06:05+00:00'
+    note: 'Post-merge Test Plan verified live 2026-07-13 (across #631/#633/#634):
+      skill classified the live firing set (table matched manual triage, zero mutation);
+      agent DM path drives session_send→render_payload to a compact plain-text table
+      (raw-JSON=false), fast (status=ok, DM_TIMEOUT=150, no timeout fallback), evidence-based
+      attribution, no Hacker News. All 4 acceptance rows flipped to skipped with live
+      proof.'
     observed_prs: []
