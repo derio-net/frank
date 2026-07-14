@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cncd
+  labels:
+    app.kubernetes.io/name: cncd
+    app.kubernetes.io/part-of: cnc
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cncd
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cncd
+        app.kubernetes.io/part-of: cnc
+    spec:
+      serviceAccountName: cnc
+      imagePullSecrets:
+        - name: cnc-ghcr-pull
+      initContainers:
+        - name: seed-master-key-file
+          image: busybox:1.37
+          command: ["sh", "-ec"]
+          args:
+            - |
+              mkdir -p /var/lib/cncd/secrets
+              cp /run/secrets/CNCD_SECRETS_MASTER_KEY /var/lib/cncd/secrets/master.key
+              chmod 600 /var/lib/cncd/secrets/master.key
+          volumeMounts:
+            - {name: cncd-data, mountPath: /var/lib/cncd}
+            - {name: master-key, mountPath: /run/secrets, readOnly: true}
+      containers:
+        - name: cncd
+          image: ghcr.io/agentic-stoa/cnc-frd:0.14.0
+          imagePullPolicy: IfNotPresent
+          command: ["serve"]
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: CNCD_DATABASE_URL
+              value: postgres://cnc:$(PG_PASSWORD)@cnc-db-postgresql:5432/cnc
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: cnc-db-postgresql
+                  key: password
+            - name: CNCD_BUNDLE_PATH
+              value: /bundle
+            - name: CNCD_WRITEBACK_MODE
+              value: "off"
+            - name: CNCD_PUBLIC_URL
+              value: http://cncd:8080
+            - name: CNCD_SECRETS_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: cnc-secrets
+                  key: CNCD_SECRETS_MASTER_KEY
+          volumeMounts:
+            - name: cncd-data
+              mountPath: /var/lib/cncd
+            - name: bundle
+              mountPath: /bundle
+          resources:
+            requests: {cpu: 250m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          readinessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: http}
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      volumes:
+        - name: cncd-data
+          persistentVolumeClaim:
+            claimName: cncd-data
+        - name: bundle
+          persistentVolumeClaim:
+            claimName: cnc-bundle
+        - name: master-key
+          secret:
+            secretName: cnc-secrets
+            items:
+              - key: CNCD_SECRETS_MASTER_KEY
+                path: CNCD_SECRETS_MASTER_KEY

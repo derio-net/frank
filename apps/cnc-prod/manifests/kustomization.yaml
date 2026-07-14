@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: cnc
+resources:
+  - ../../cnc-base/manifests
+  - migration-job.yaml
+  - snapshot-job.yaml
+  - snapshot-pvc.yaml
+patches:
+  - path: app-patch.yaml
+  - path: ingress-patch.yaml
+images:
+  - name: ghcr.io/agentic-stoa/cnc-frd
+    newTag: "0.14.0"
+  - name: ghcr.io/agentic-stoa/cnc-fru
+    newTag: "0.7.1"

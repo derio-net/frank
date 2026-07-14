@@ -1,0 +1,17 @@
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: cnc-source-token
+spec:
+  refreshInterval: 45m
+  secretStoreRef: {name: infisical, kind: ClusterSecretStore}
+  target:
+    name: cnc-source-token
+    creationPolicy: Owner
+    deletionPolicy: Retain
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: ClusterGenerator
+          name: github-app-stoa

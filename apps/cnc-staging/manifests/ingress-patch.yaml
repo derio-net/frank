@@ -1,0 +1,16 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: cnc
+spec:
+  routes:
+    - match: Host(`cnc-staging.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - name: authentik-forwardauth
+          namespace: traefik-system
+        - name: security-headers
+          namespace: traefik-system
+      services:
+        - name: cnc-fru
+          port: 80

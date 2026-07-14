@@ -1,0 +1,43 @@
+# This is a normal, completed Job rather than an Argo hook. The first sync
+# seeds the persistent staging PVC; deleting this Job is the explicit operator
+# action that requests another staging seed. It is deliberately absent from
+# the prod overlay.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cnc-staging-reseed
+  labels:
+    app.kubernetes.io/name: cnc-staging-reseed
+    cnc-frank.io/staging-only: "true"
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cnc-staging-reseed
+    spec:
+      restartPolicy: Never
+      imagePullSecrets: [{name: cnc-ghcr-pull}]
+      containers:
+        - name: reseed
+          image: alpine/git:2.47.2
+          env:
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef: {name: cnc-source-token, key: token}
+            - name: RESEED_CONFIRMATION
+              value: staging-demo-reseed
+          volumeMounts:
+            - {name: bundle, mountPath: /bundle}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              test "$RESEED_CONFIRMATION" = staging-demo-reseed
+              rm -rf /bundle/* /bundle/.[!.]* /bundle/..?* 2>/dev/null || true
+              git clone --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/agentic-stoa/cnc-fr.git" /tmp/cnc-fr
+              cp -a /tmp/cnc-fr/demo/bundle/. /bundle/
+              wget -qO- --post-data='' http://cncd:8080/v1/ingest
+      volumes:
+        - name: bundle
+          persistentVolumeClaim: {claimName: cnc-bundle}

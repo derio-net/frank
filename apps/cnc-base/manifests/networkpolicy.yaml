@@ -1,0 +1,16 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cnc-node-session
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cnc-node
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cncd
+      ports:
+        - {port: 8765, protocol: TCP}

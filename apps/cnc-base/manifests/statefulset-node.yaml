@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: cnc-node
+  labels:
+    app.kubernetes.io/name: cnc-node
+    app.kubernetes.io/part-of: cnc
+spec:
+  serviceName: cnc-node
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cnc-node
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cnc-node
+        app.kubernetes.io/part-of: cnc
+    spec:
+      imagePullSecrets:
+        - name: cnc-ghcr-pull
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: node
+          image: ghcr.io/derio-net/multi-agent-shell:22637aab0fc3ada4d667509ca1dd9aab71788773
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: AGENT_SESSION_SERVE
+              value: "1"
+            - name: AGENT_SESSION_PORT
+              value: "8765"
+            - name: RUNNER_NAME
+              value: default
+            - name: CNC_RUNNER_SESSION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cnc-runner-auth
+                  key: token
+          ports:
+            - name: agent-session
+              containerPort: 8765
+            - name: ssh
+              containerPort: 2222
+          volumeMounts:
+            - name: home
+              mountPath: /home/agent
+          resources:
+            requests: {cpu: 500m, memory: 1Gi}
+            limits: {cpu: "2", memory: 8Gi}
+          readinessProbe:
+            httpGet: {path: /healthz, port: agent-session}
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          livenessProbe:
+            httpGet: {path: /healthz, port: agent-session}
+            initialDelaySeconds: 45
+            periodSeconds: 30
+  volumeClaimTemplates:
+    - metadata:
+        name: home
+      spec:
+        accessModes: [ReadWriteOnce]
+        storageClassName: longhorn
+        resources:
+          requests:
+            storage: 20Gi

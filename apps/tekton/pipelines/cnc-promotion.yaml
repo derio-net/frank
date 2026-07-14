@@ -1,0 +1,127 @@
+# GitOps promotion: update staging, wait for its externally reconciled health
+# gate, then update prod. This pipeline never runs kubectl or deploys directly.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: cnc-promotion
+  namespace: tekton-pipelines
+spec:
+  params:
+    - {name: cncd-tag, type: string}
+    - {name: fru-tag, type: string}
+    - {name: staging-url, type: string, default: https://cnc-staging.cluster.derio.net}
+    - name: quality-command
+      type: string
+      default: "wget -qO- https://cnc-staging.cluster.derio.net/healthz >/dev/null"
+  workspaces:
+    - name: repo
+    - name: ssh-creds
+  tasks:
+    - name: promote-staging
+      workspaces:
+        - {name: repo, workspace: repo}
+        - {name: ssh, workspace: ssh-creds}
+      taskSpec:
+        params:
+          - {name: cncd-tag, type: string}
+          - {name: fru-tag, type: string}
+        workspaces:
+          - name: repo
+          - {name: ssh, mountPath: /workspace/ssh-creds}
+        steps:
+          - name: update-and-push
+            image: alpine/git:2.47.2
+            computeResources: {requests: {cpu: 100m, memory: 128Mi}, limits: {memory: 1Gi}}
+            securityContext: {runAsNonRoot: true, runAsUser: 65534, allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+            env:
+              - {name: HOME, value: /tekton/home}
+              - name: GITHUB_TOKEN
+                valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+            script: |
+              #!/bin/sh
+              set -eu
+              mkdir -p "$HOME/.ssh"
+              cp /workspace/ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
+              chmod 600 "$HOME/.ssh/id_rsa"
+              git config --global --add safe.directory '*'
+              cd "$(workspaces.repo.path)"
+              rm -rf frank
+              git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" frank
+              cd frank
+              sed -i '/cnc-frd/{n;s/newTag:.*/newTag: "$(params.cncd-tag)"/;}' apps/cnc-staging/manifests/kustomization.yaml
+              sed -i '/cnc-fru/{n;s/newTag:.*/newTag: "$(params.fru-tag)"/;}' apps/cnc-staging/manifests/kustomization.yaml
+              git config user.name stoa-fr-automation
+              git config user.email stoa-fr-automation@users.noreply.github.com
+              git add apps/cnc-staging
+              git diff --cached --quiet && exit 0
+              git commit -m "deploy(cnc): promote cncd $(params.cncd-tag) to staging"
+              git push origin HEAD:main
+      params:
+        - {name: cncd-tag, value: $(params.cncd-tag)}
+        - {name: fru-tag, value: $(params.fru-tag)}
+    - name: quality-gate
+      runAfter: [promote-staging]
+      taskSpec:
+        params:
+          - {name: staging-url, type: string}
+          - {name: quality-command, type: string}
+        steps:
+          - name: smoke
+            image: busybox:1.37
+            computeResources: {requests: {cpu: 10m, memory: 16Mi}, limits: {memory: 64Mi}}
+            script: |
+              #!/bin/sh
+              set -eu
+              i=0
+              until [ "$i" -ge 30 ]; do
+                if sh -c '$(params.quality-command)'; then exit 0; fi
+                i=$((i + 1)); sleep 10
+              done
+              echo "staging quality gate timed out" >&2
+              exit 1
+      params:
+        - {name: staging-url, value: $(params.staging-url)}
+        - {name: quality-command, value: $(params.quality-command)}
+    - name: promote-prod
+      runAfter: [quality-gate]
+      workspaces:
+        - {name: repo, workspace: repo}
+        - {name: ssh, workspace: ssh-creds}
+      taskSpec:
+        params:
+          - {name: cncd-tag, type: string}
+          - {name: fru-tag, type: string}
+        workspaces:
+          - name: repo
+          - {name: ssh, mountPath: /workspace/ssh-creds}
+        steps:
+          - name: update-and-push
+            image: alpine/git:2.47.2
+            computeResources: {requests: {cpu: 100m, memory: 128Mi}, limits: {memory: 1Gi}}
+            securityContext: {runAsNonRoot: true, runAsUser: 65534, allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+            env:
+              - {name: HOME, value: /tekton/home}
+              - name: GITHUB_TOKEN
+                valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+            script: |
+              #!/bin/sh
+              set -eu
+              mkdir -p "$HOME/.ssh"
+              cp /workspace/ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
+              chmod 600 "$HOME/.ssh/id_rsa"
+              git config --global --add safe.directory '*'
+              cd "$(workspaces.repo.path)"
+              rm -rf frank
+              git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" frank
+              cd frank
+              sed -i '/cnc-frd/{n;s/newTag:.*/newTag: "$(params.cncd-tag)"/;}' apps/cnc-prod/manifests/kustomization.yaml
+              sed -i '/cnc-fru/{n;s/newTag:.*/newTag: "$(params.fru-tag)"/;}' apps/cnc-prod/manifests/kustomization.yaml
+              git config user.name stoa-fr-automation
+              git config user.email stoa-fr-automation@users.noreply.github.com
+              git add apps/cnc-prod
+              git diff --cached --quiet && exit 0
+              git commit -m "deploy(cnc): promote cncd $(params.cncd-tag) to prod"
+              git push origin HEAD:main
+      params:
+        - {name: cncd-tag, value: $(params.cncd-tag)}
+        - {name: fru-tag, value: $(params.fru-tag)}

@@ -1,0 +1,102 @@
+# Shared CI for the three CNC repositories. Images are built by CNC's existing
+# GitHub workflows; Frank mirrors the source and verifies the checked-out SHA.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: cnc-ci
+  namespace: tekton-pipelines
+spec:
+  params:
+    - {name: github-repo, type: string}
+    - {name: gitea-repo, type: string}
+    - {name: sha, type: string}
+    - {name: ref-to, type: string}
+    - {name: test-image, type: string}
+    - name: test-command
+      type: string
+      description: Repository-local CI command
+  workspaces:
+    - name: source
+    - name: ssh-creds
+  tasks:
+    - name: mirror
+      workspaces:
+        - {name: source, workspace: source}
+        - {name: ssh, workspace: ssh-creds}
+      taskSpec:
+        params:
+          - {name: github-repo, type: string}
+          - {name: gitea-repo, type: string}
+          - {name: sha, type: string}
+          - {name: ref-to, type: string}
+        workspaces:
+          - name: source
+          - {name: ssh, mountPath: /workspace/ssh-creds}
+        steps:
+          - name: clone-and-mirror
+            image: alpine/git:2.47.2
+            computeResources:
+              requests: {cpu: 100m, memory: 128Mi}
+              limits: {memory: 1Gi}
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 65534
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            env:
+              - {name: HOME, value: /tekton/home}
+              - name: GITHUB_TOKEN
+                valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+            script: |
+              #!/bin/sh
+              set -eu
+              mkdir -p "$HOME/.ssh"
+              cp /workspace/ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
+              chmod 600 "$HOME/.ssh/id_rsa"
+              git config --global --add safe.directory '*'
+              cd "$(workspaces.source.path)"
+              git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/$(params.github-repo).git" repo
+              cd repo
+              git checkout --detach "$(params.sha)"
+              org=$(printf '%s' "$(params.gitea-repo)" | cut -d/ -f1)
+              name=$(printf '%s' "$(params.gitea-repo)" | cut -d/ -f2)
+              git remote add gitea "ssh://git@192.168.55.209:2222/${org}/${name}.git"
+              GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+                git push --force gitea "$(params.sha):$(params.ref-to)"
+      params:
+        - {name: github-repo, value: $(params.github-repo)}
+        - {name: gitea-repo, value: $(params.gitea-repo)}
+        - {name: sha, value: $(params.sha)}
+        - {name: ref-to, value: $(params.ref-to)}
+    - name: test
+      runAfter: [mirror]
+      workspaces: [{name: source, workspace: source}]
+      taskSpec:
+        params:
+          - {name: test-image, type: string}
+          - {name: test-command, type: string}
+        workspaces: [{name: source}]
+        steps:
+          - name: test
+            image: $(params.test-image)
+            computeResources:
+              requests: {cpu: 500m, memory: 512Mi}
+              limits: {cpu: "2", memory: 4Gi}
+            securityContext:
+              runAsNonRoot: true
+              runAsUser: 65534
+              allowPrivilegeEscalation: false
+              capabilities: {drop: [ALL]}
+            env:
+              - {name: HOME, value: /tekton/home}
+              - {name: GOPATH, value: /tekton/home/go}
+              - {name: GOMODCACHE, value: /tekton/home/go/pkg/mod}
+              - {name: npm_config_cache, value: /tekton/home/.npm}
+            workingDir: $(workspaces.source.path)/repo
+            script: |
+              #!/bin/sh
+              set -eu
+              $(params.test-command)
+      params:
+        - {name: test-image, value: $(params.test-image)}
+        - {name: test-command, value: $(params.test-command)}

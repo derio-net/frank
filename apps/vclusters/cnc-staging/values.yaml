@@ -1,0 +1,15 @@
+# Long-lived CNC staging vCluster. Unlike experiments, this is an ArgoCD
+# deploy target and its cluster credentials must be registered out-of-band.
+controlPlane:
+  statefulSet:
+    persistence:
+      volumeClaim:
+        enabled: true
+        size: 20Gi
+        storageClass: longhorn
+isolation:
+  resourceQuota:
+    quota:
+      pods: "50"
+      requests.cpu: "8"
+      requests.memory: 16Gi

@@ -1,0 +1,14 @@
+architecture: standalone
+image:
+  registry: mirror.gcr.io
+  repository: bitnamilegacy/postgresql
+auth:
+  username: cnc
+  database: cnc
+primary:
+  persistence:
+    size: 20Gi
+    storageClass: longhorn
+  resources:
+    requests: {cpu: 250m, memory: 256Mi}
+    limits: {cpu: "1", memory: 1Gi}
