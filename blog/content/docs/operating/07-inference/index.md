@@ -4,28 +4,35 @@ series: ["operating"]
 layer: infer
 date: 2026-03-13
 draft: false
-tags: ["operations", "ollama", "litellm", "openrouter", "ai"]
-summary: "Day-to-day commands for managing local LLM inference, checking model status, routing through LiteLLM, and debugging GPU memory issues."
+tags: ["operations", "ollama", "litellm", "openrouter", "ai", "gpu", "troubleshooting"]
+summary: "Day-to-day commands for managing local LLM inference, checking model status, routing through LiteLLM, and debugging GPU memory issues — including the misleading cgroup OOM and the time-share probe pattern."
 weight: 8
+reader_goal: "Manage Ollama models, route inference through LiteLLM, and correctly diagnose the two different OOM patterns that look identical."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
 ---
 
-This is the operational companion to [Local Inference — Ollama, LiteLLM, and OpenRouter]({{< relref "/docs/building/10-local-inference" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook for keeping models running, routing requests, and troubleshooting GPU memory issues.
+{{< last-updated >}}
 
-## What "Healthy" Looks Like
+This is the operational companion to [Local Inference]({{< relref "/docs/building/10-local-inference" >}}). That post covers the architecture and deployment. This one is what you type when a model won't load, LiteLLM returns 404, or the GPU shows plenty of free VRAM but Ollama insists there's not enough memory — and the probes that keep the ops board honest about a time-shared GPU.
 
-The inference stack is healthy when Ollama is running on gpu-1 with at least one model loaded, LiteLLM at `192.168.55.206:4000` is responding to health checks, and requests route correctly to either the local GPU or OpenRouter cloud models depending on the model name.
+Before any of the commands below, source the environment:
 
-> **Canonical health signal — the end-to-end probe.** gpu-1 time-shares its single GPU between
-> Ollama (inference) and ComfyUI (media), so inference is **down by design** whenever the GPU is
-> handed to ComfyUI — that is not an outage. The Ops board reads the real state from a blackbox
-> probe that runs an actual chat completion through LiteLLM: `probe_success{layer="11"}` (VMUI,
-> VictoriaMetrics datasource) is `1` only when a completion truly succeeds. A `0` with ComfyUI
-> holding the GPU is the expected quiet-degraded tile; a `0` with **both** `gpu_timeshare` probes
-> at `0` is the only condition that pages (`gpu-node-both-down`). Check ownership with
-> `kubectl -n ollama get deploy ollama` (`0/0` = it yielded the GPU). Note: `kube_pod_status_ready`
-> is *not* a valid inference health check — it is blind to Ollama scaled to 0.
+```bash
+source .env          # sets KUBECONFIG, TALOSCONFIG
+source .env_devops   # sets OMNICONFIG + service accounts
+```
 
-## Observing State
+## What Healthy Looks Like
+
+The inference stack is healthy when Ollama is running on gpu-1 with at least one model loaded, LiteLLM at `192.168.55.206:4000` is responding, and requests route correctly to either the local GPU or a paid frontier key.
+
+**The end-to-end probe.** gpu-1 time-shares its single GPU between Ollama (inference) and ComfyUI (media generation), so inference is down by design whenever the GPU is handed to ComfyUI — that is not an outage. The ops board reads the real state from a blackbox probe that runs an actual chat completion through LiteLLM: `probe_success{layer="11"}` is `1` only when a completion truly succeeds. A `0` with ComfyUI holding the GPU is expected-quiet-degraded; a `0` with **both** GPU time-share probes at `0` is the only condition that pages (`gpu-node-both-down`). Check GPU ownership with `kubectl -n ollama get deploy ollama` — `0/0` replicas means it yielded the GPU.
+
+> `kube_pod_status_ready` is not a valid inference health check — it is blind to Ollama scaled to 0.
+
+## Verify
 
 ### Ollama Status
 
@@ -60,21 +67,12 @@ kubectl logs -n litellm deploy/litellm --tail=50
 $ curl -s http://192.168.55.206:4000/health/liveliness
 "I'm alive!"
 $ kubectl -n litellm get pods -o wide
-NAME                       READY   STATUS    RESTARTS   AGE   IP              NODE     NOMINATED NODE   READINESS GATES
-litellm-84d78cd556-rglgl   1/1     Running   0          25d   10.244.8.237    mini-3   <none>           <none>
-litellm-postgresql-0       1/1     Running   0          28d   10.244.12.161   mini-1   <none>           <none>
+NAME                       READY   STATUS    RESTARTS   AGE   IP              NODE
+litellm-84d78cd556-rglgl   1/1     Running   0          25d   10.244.8.237    mini-3
+litellm-postgresql-0       1/1     Running   0          28d   10.244.12.161   mini-1
 ```
 
-### GPU Memory
-
-```bash
-# Detailed GPU utilization
-kubectl exec -n ollama deploy/ollama -- nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv
-```
-
-> Only one model is loaded in VRAM at a time on the RTX 5070 Ti (16 GB GDDR7). Switching models means the old one gets evicted.
-
-## Routine Operations
+## Steps
 
 ### Pull or Remove Models
 
@@ -86,12 +84,12 @@ kubectl exec -n ollama deploy/ollama -- ollama pull qwen3:14b
 kubectl exec -n ollama deploy/ollama -- ollama rm qwen2.5-coder:14b-instruct-q6_K
 ```
 
-> Do not use `postStart` hooks for model pulls on Talos — the nvidia-container-runtime exec hooks fail. Always pull via `kubectl exec` after the pod is running.
+Never use `postStart` hooks for model pulls on Talos — the nvidia-container-runtime exec hooks fail there (commit `7c88dcc4`). Always pull via `kubectl exec` after the pod is running.
 
 ### Test Inference
 
 ```bash
-# Quick test via LiteLLM (routes to Ollama via the LiteLLM alias, not the Ollama tag)
+# Quick test via LiteLLM
 curl -s http://192.168.55.206:4000/v1/chat/completions \
   -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
   -H "Content-Type: application/json" \
@@ -101,21 +99,9 @@ curl -s http://192.168.55.206:4000/v1/chat/completions \
     "max_tokens": 50
   }' | jq '.choices[0].message.content'
 
-# Direct Ollama test (bypassing LiteLLM — uses the Ollama tag, not the alias)
+# Direct Ollama test (bypassing LiteLLM)
 kubectl exec -n ollama deploy/ollama -- curl -s http://localhost:11434/api/generate \
   -d '{"model": "mistral-small3.2:24b", "prompt": "Hello", "stream": false}' | jq '.response'
-
-# Multimodal test — send an image to gemma-12b
-curl -s http://192.168.55.206:4000/v1/chat/completions \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "gemma-12b",
-    "messages": [{"role": "user", "content": [
-      {"type": "text", "text": "Describe this image in one sentence."},
-      {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}
-    ]}]
-  }' | jq '.choices[0].message.content'
 ```
 
 ### Check LiteLLM Routing
@@ -127,9 +113,9 @@ kubectl get configmap -n litellm litellm-config -o yaml | grep -A 5 'model_name'
 
 ### OpenRouter Free Models (retired)
 
-The cluster no longer routes to OpenRouter free models — the policy is local Ollama or a paid frontier key only. The `/update-openrouter-models` command that used to refresh the free-model list has been retired with them. If you are reading this with a config that still lists `openrouter/*:free` models, it predates the purge: remove them rather than refresh them.
+The cluster no longer routes to OpenRouter free models (commit `46f19ca2`). The policy is local Ollama or a paid frontier key only. If your config still lists `openrouter/*:free` models, remove them.
 
-## Debugging
+## Recover
 
 ### Ollama Not Responding
 
@@ -144,42 +130,47 @@ kubectl describe node gpu-1 | grep -A 5 "nvidia.com/gpu"
 kubectl logs -n ollama deploy/ollama --tail=100
 ```
 
-### Out of Memory: which kind?
+### Out of Memory: Which Kind?
 
-Ollama emits **two error patterns** that both look like "out of memory" but have different root causes. Mis-identify which one you're hitting and you'll waste a lot of time trying smaller quants when the issue is something else entirely.
+Ollama emits **two error patterns** that both look like "out of memory" but have different root causes. Mis-identify which one you're hitting and you'll waste time trying smaller quants when the issue is something else.
 
-**Pattern A — VRAM exhaustion** (real GPU OOM): the model genuinely doesn't fit in the 16 GB on the RTX 5070 Ti, or you're trying to load two models at once. Diagnose with:
+**Pattern A — VRAM exhaustion** (real GPU OOM). The model genuinely doesn't fit in the RTX 5070 Ti's 16 GB GDDR7, or you're loading two models at once:
 
 ```bash
 kubectl exec -n ollama deploy/ollama -- nvidia-smi --query-gpu=memory.used,memory.free --format=csv
 ```
 
-If `memory.free` is < 1 GB, you have a real VRAM problem. Fix: stop the current model and pull a smaller quant.
+If `memory.free` is under 1 GB, stop the current model and switch:
 
 ```bash
 kubectl exec -n ollama deploy/ollama -- ollama stop mistral-small3.2:24b
 kubectl exec -n ollama deploy/ollama -- ollama pull qwen2.5-coder:14b-instruct-q4_K_M
 ```
 
-**Pattern B — container cgroup RAM exhaustion** (the misleading one): the error message reads `model requires more system memory (X GiB) than is available (Y MiB)`. "System memory" here means **container RAM**, not VRAM — and `nvidia-smi` will show plenty of VRAM free. With `OLLAMA_KEEP_ALIVE=24h`, page cache from previously-loaded model files pins the container near its `resources.limits.memory` ceiling, leaving no room for new-model load buffers. Diagnose with:
+**Pattern B — container cgroup RAM exhaustion** (the misleading one). The error reads `model requires more system memory (X GiB) than is available (Y MiB)`. "System memory" here means **container RAM**, not VRAM — `nvidia-smi` will show plenty of VRAM free. With `OLLAMA_KEEP_ALIVE=24h`, page cache from previously-loaded model files pins the container near its `resources.limits.memory` ceiling, leaving no room for new-model load buffers.
 
 ```bash
 kubectl exec -n ollama deploy/ollama -- sh -c 'cat /sys/fs/cgroup/memory.current; echo; cat /sys/fs/cgroup/memory.max'
 ```
 
-If `memory.current` is within ~1–2 GiB of `memory.max`, that's the constraint. Fix: bump `resources.limits.memory` in `apps/ollama/values.yaml`. Reducing `num_ctx` via a derived Modelfile will **not** help here — the bottleneck is at-load buffers, not the KV cache, so the error is identical at 32K and 8K context.
+If `memory.current` is within 1–2 GiB of `memory.max`, that's the constraint. We bumped the limit to 64 GiB to fit 24B+ models (commit `8a135bcc`). Reducing `num_ctx` via a derived Modelfile will **not** help here — the bottleneck is at-load buffers, not the KV cache.
 
 ### Reconciling LiteLLM Aliases vs. Ollama Tags
 
-Two name spaces are in play. LiteLLM aliases (`mistral-small-24b`, `gemma-12b`, `qwen-vl-7b`, `qwen-coder-14b`, `qwen-think-14b`) live in `apps/litellm/values.yaml` under `model_list[].model_name` — these are what consumers send. Ollama tags (`mistral-small3.2:24b`, `qwen2.5-coder:14b-instruct-q6_K`, etc.) live under `model_list[].litellm_params.model` — these are what Ollama pulls and runs. If a request returns "model not found", check both: either the alias is wrong on the consumer side, or the underlying Ollama tag was never pulled.
+Two name spaces are in play. LiteLLM **aliases** (`mistral-small-24b`, `gemma-12b`) live in `apps/litellm/values.yaml` under `model_list[].model_name` — consumers send these. Ollama **tags** (`mistral-small3.2:24b`) live under `model_list[].litellm_params.model` — these are what Ollama pulls and runs.
+
+If a request returns "model not found", check both:
 
 ```bash
 # What aliases does LiteLLM advertise?
-curl -s http://192.168.55.206:4000/v1/models -H "Authorization: Bearer $LITELLM_MASTER_KEY" | jq '.data[].id'
+curl -s http://192.168.55.206:4000/v1/models \
+  -H "Authorization: Bearer $LITELLM_MASTER_KEY" | jq '.data[].id'
 
 # What Ollama tags actually exist on disk?
 kubectl exec -n ollama deploy/ollama -- ollama list
 ```
+
+A second gotcha: we switched the local routing prefix from `ollama/` to `ollama_chat/` (commit `8277c154`) to get native stream-safe tool calling. If existing consumers are still sending `ollama/model` they'll get 404s — update them to `ollama_chat/model`.
 
 ### LiteLLM Routing Errors
 
@@ -193,7 +184,16 @@ kubectl exec -n litellm deploy/litellm -- curl -s http://ollama.ollama.svc:11434
 
 ### Model Loading Very Slow
 
-Large models can take 30-60 seconds to load into VRAM. Check `nvidia-smi` to see if memory is being allocated. If the model doesn't fit, Ollama falls back to CPU which is extremely slow — this looks like a hang but is actually just CPU inference.
+Large models take 30-60 seconds to load into VRAM. If `nvidia-smi` shows no memory being allocated, the model is falling back to CPU — extremely slow. Check Ollama logs for "no compatible CUDA device" or similar.
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| PostStart hooks are a fine place to pull models | Talos' nvidia-container-runtime doesn't support exec hooks inside the container at startup — the hook fails silently before Ollama starts, causing a CrashLoopBackOff. | Every deployment of a new model version required a manual post-fix workaround until we removed the hooks. |
+| Bumping container `resources.limits.memory` was unnecessary — 24B+ models would fit in the default limit | `OLLAMA_KEEP_ALIVE=24h` causes page cache from previously-loaded models to accumulate, leaving no room for new-model load buffers. The error looks like a VRAM problem but `nvidia-smi` shows free GPU memory. | Several rounds of quant-size debugging before discovering the cgroup was the constraint. |
+| LiteLLM's `ollama/` model prefix would work for tool-calling agents | The `ollama/` route prefix doesn't support native stream-safe tool calling — agents that called tools through it got garbled responses. | A cluster-wide consumption pattern fix (`ollama/` → `ollama_chat/`, commit `8277c154`) once the tool-calling use case emerged. |
+| OpenRouter free-tier models would provide a useful fallback | Free models had unreliable availability, inconsistent quality, and changing rate limits — they broke silently more often than they worked. | Retired entirely (commit `46f19ca2`). The complexity of managing the model list wasn't worth the never-working fallback. |
 
 ## Quick Reference
 
@@ -213,5 +213,4 @@ Large models can take 30-60 seconds to load into VRAM. Check `nvidia-smi` to see
 
 - [Ollama API Reference](https://github.com/ollama/ollama/blob/main/docs/api.md)
 - [LiteLLM Documentation](https://docs.litellm.ai/)
-- [OpenRouter Documentation](https://openrouter.ai/docs/)
 - [Building Post — Local Inference]({{< relref "/docs/building/10-local-inference" >}})
