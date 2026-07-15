@@ -167,3 +167,5 @@ voice: |
 ci:
   validators: [frontmatter, dossier, mermaid, hugo_build]
   deploy: { kind: container_pages }
+# How thick the persona frame is. (options: dry,balanced,rich)
+voice_level: balanced
