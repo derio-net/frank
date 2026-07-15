@@ -2,248 +2,258 @@
 title: "Operating on Media Generation"
 series: ["operating"]
 layer: media
-date: 2026-03-14
+date: 2026-03-20
 draft: false
-tags: ["operations", "comfyui", "gpu-switcher", "diffusion", "gpu", "time-sharing"]
-summary: "Day-to-day commands for managing GPU time-sharing between Ollama and ComfyUI, downloading models, and troubleshooting the media generation stack."
+tags: ["operations", "media", "comfyui", "gpu-switcher", "troubleshooting"]
+summary: "Starting ComfyUI workflows, switching GPU profiles, transferring files, and recovering from common runtime failures."
 weight: 11
+reader_goal: "Run a ComfyUI workflow end-to-end, switch GPU profiles, and recover from the most common media-generation failures."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/0b3d5f7d
 ---
 
-This is the operational companion to [Media Generation — ComfyUI and GPU Time-Sharing]({{< relref "/docs/building/16-media-generation" >}}). That post explains the architecture and deployment. This one covers the day-to-day workflow for switching GPU workloads, managing diffusion models, and troubleshooting.
+{{< last-updated >}}
 
-## What "Healthy" Looks Like
+This is the operational companion to [Media Generation]({{< relref "/docs/building/16-media-generation" >}}), which covers the GPU time-slicing architecture, custom Docker images, and storage layout. Here you'll find the commands to run, check, and fix the stack day-to-day.
 
-The media generation stack is healthy when:
-
-- **GPU Switcher** at `192.168.55.214:8080` shows the dashboard and displays correct workload status
-- Exactly **one** GPU workload has `replicas: 1` (either Ollama or ComfyUI, never both)
-- The other GPU workload has `replicas: 0`
-- When ComfyUI is active, its UI is accessible at `192.168.55.213:8188`
-
-> **Canonical health signal — the end-to-end probe.** The Ops board reads media health from a
-> blackbox probe of ComfyUI's `GET /object_info` that asserts a core node (`KSampler`) is loaded —
-> so it catches custom-node import failures, not just "is the pod up." `probe_success{layer="16"}`
-> (VMUI, VictoriaMetrics datasource) is `1` only when ComfyUI can actually serve. Because the GPU
-> is time-shared, a `0` while Ollama holds the GPU is the expected quiet-degraded tile (not an
-> outage); only **both** `gpu_timeshare` probes at `0` pages (`gpu-node-both-down`). Note:
-> `replicas: 1` alone does **not** prove media works — a running-but-broken ComfyUI (failed node
-> import) still reads `replicas_unavailable: 0`; the probe is the real signal.
-
-## Observing State
-
-### GPU Switcher Dashboard
-
-The fastest way to check the current state: open `http://192.168.55.214:8080` in a browser. The dashboard shows which workload owns the GPU and the pod status of each.
-
-{{< screenshot src="gpu-switcher-state.png" caption="GPU Switcher showing current workload allocation" >}}
-
-### From the Command Line
+Before any commands, source the environment:
 
 ```bash
-# Which GPU workload is active?
-kubectl get deploy -n ollama ollama -o jsonpath='{.spec.replicas}'
-# 1 = active, 0 = inactive
-kubectl get deploy -n comfyui comfyui -o jsonpath='{.spec.replicas}'
-
-# Check all GPU-related pods
-kubectl get pods -n ollama -o wide
-kubectl get pods -n comfyui -o wide
-kubectl get pods -n gpu-switcher -o wide
-
-# GPU memory usage (only works when a GPU pod is running)
-kubectl exec -n ollama deploy/ollama -- nvidia-smi 2>/dev/null || \
-kubectl exec -n comfyui deploy/comfyui -- nvidia-smi 2>/dev/null || \
-echo "No GPU workload is running"
+source .env
 ```
 
-### ArgoCD Status
+## What Healthy Looks Like
 
-Both ComfyUI and Ollama have `ignoreDifferences` on `spec.replicas`, so ArgoCD will always show `Synced` regardless of current replica count. This is by design — the GPU Switcher is the authority for replica state.
+- The GPU-switcher control pod is `Running`.
+- The ComfyUI StatefulSet is `Running` with one or more replicas.
+- The active GPU profile matches the intended workload (e.g., `video` for video generation).
+- ComfyUI web UI is accessible on its internal ClusterIP service.
 
-```bash
-argocd app get comfyui --port-forward --port-forward-namespace argocd
-argocd app get gpu-switcher --port-forward --port-forward-namespace argocd
+```mermaid
+graph LR
+    subgraph media["media namespace"]
+        gs["GPU Switcher<br/>Deployment"]
+        cfy["ComfyUI<br/>StatefulSet"]
+        vol["Ollama<br/>Deployment"]
+
+        subgraph pvcs["Persistent Volumes"]
+            pvcM["comfyui-models<br/>200Gi RWX"]
+            pvcO["comfyui-output<br/>100Gi RWX"]
+            pvcC["comfyui-config<br/>10Gi RWX"]
+        end
+
+        cfy --- pvcs
+    end
+
+    subgraph gpunode["gpu-1 node"]
+        gpu["nvidia.com/gpu: 1"]
+    end
+
+    gs -->|scale 1 / scale 0| cfy
+    gs -->|scale 1 / scale 0| vol
+    cfy ---|requests| gpu
+    vol ---|requests| gpu
 ```
 
-## Routine Operations
+## Verify
 
-### Switching GPU Workloads
-
-**Via the dashboard** (recommended):
-
-1. Open `http://192.168.55.214:8080`
-2. Click **Activate** on the workload you want
-3. Wait ~30 seconds for the pod to start
-
-**Via kubectl** (if the dashboard is down):
+### Check Stack Status
 
 ```bash
-# Activate ComfyUI, deactivate Ollama
-kubectl scale deploy/ollama -n ollama --replicas=0
-kubectl scale deploy/comfyui -n comfyui --replicas=1
+# Check GPU-switcher pod (controls GPU profiles)
+kubectl get pods -n media -l app.kubernetes.io/name=gpu-switcher
 
-# Activate Ollama, deactivate ComfyUI
-kubectl scale deploy/comfyui -n comfyui --replicas=0
-kubectl scale deploy/ollama -n ollama --replicas=1
+# Check ComfyUI pods
+kubectl get pods -n media -l app.kubernetes.io/name=comfyui
 
-# Emergency: deactivate everything
-kubectl scale deploy/ollama -n ollama --replicas=0
-kubectl scale deploy/comfyui -n comfyui --replicas=0
+# Check persistent volumes
+kubectl get pvc -n media
+
+# Check GPU profile
+kubectl logs -n media -l app.kubernetes.io/name=gpu-switcher --tail=10
 ```
 
-> Never scale both to 1 simultaneously. Both request `nvidia.com/gpu: 1` — the second pod will stay `Pending` until the first releases the GPU.
+```console
+$ kubectl get pods -n media
+NAME                            READY   STATUS    RESTARTS   AGE
+comfyui-0                       1/1     Running   0          12d
+gpu-switcher-544b8c9f96-4x9j2   1/1     Running   0          12d
 
-### Downloading Models (First Time)
-
-After activating ComfyUI for the first time, the PVC is empty. Download models interactively:
-
-```bash
-# Ensure ComfyUI is active
-kubectl get pods -n comfyui
-
-# Exec into the pod
-kubectl exec -it -n comfyui deploy/comfyui -- bash
-
-# Inside the pod:
-cd /workspace/ComfyUI/models
-
-# LTX-2.3 video model (~5GB)
-wget -P video_models/ \
-  https://huggingface.co/Lightricks/LTX-Video/resolve/main/ltx-video-2b-v0.9.5.safetensors
-
-# SDXL base image model (~7GB)
-wget -P checkpoints/ \
-  https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
+$ kubectl get pvc -n media
+NAME               STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE
+comfyui-config     Bound    pvc-xxx                                    10Gi       RWX            rook-cephfs    12d
+comfyui-models     Bound    pvc-yyy                                    200Gi      RWX            rook-cephfs    12d
+comfyui-output     Bound    pvc-zzz                                    100Gi      RWX            rook-cephfs    10d
 ```
 
-Alternatively, use ComfyUI Manager (if available in the image) via the web UI at `http://192.168.55.213:8188` → Manager → Install Models.
-
-### Checking Installed Models
+### Access ComfyUI Web UI
 
 ```bash
-# List checkpoint models
-kubectl exec -n comfyui deploy/comfyui -- ls -lh /workspace/ComfyUI/models/checkpoints/
-
-# List video models
-kubectl exec -n comfyui deploy/comfyui -- ls -lh /workspace/ComfyUI/models/video_models/
-
-# Check PVC usage (100Gi allocated)
-kubectl exec -n comfyui deploy/comfyui -- df -h /workspace
+# Port-forward to the ComfyUI service
+kubectl port-forward -n media service/comfyui 18188:18188
 ```
 
-### Testing ComfyUI
+Then open `http://localhost:18188` in a browser.
+
+## Steps
+
+### Switch GPU Profile
 
 ```bash
-# Health check (when active)
-curl -s http://192.168.55.213:8188/system_stats | python3 -m json.tool
+# Check available profiles
+kubectl exec -n media deploy/gpu-switcher -- ls /profiles/
 
-# Check available models via API
-curl -s http://192.168.55.213:8188/object_info/CheckpointLoaderSimple | python3 -m json.tool | head -30
+# Switch to video profile
+kubectl exec -n media deploy/gpu-switcher -- ./switch.sh video
+
+# Verify
+kubectl logs -n media deploy/gpu-switcher --tail=10
 ```
 
-## Debugging
-
-### GPU Switcher Not Responding
+### Upload a Model
 
 ```bash
-# Check pod status
-kubectl get pods -n gpu-switcher -o wide
-kubectl describe pod -n gpu-switcher -l app.kubernetes.io/name=gpu-switcher
+# Copy a model file to the ComfyUI models directory
+kubectl cp ./checkpoint.safetensors -n media comfyui-0:/app/models/checkpoints/
 
+# Verify
+kubectl exec -n media comfyui-0 -- ls -la /app/models/checkpoints/checkpoint.safetensors
+```
+
+### Download Output Files
+
+```bash
+# List output files
+kubectl exec -n media comfyui-0 -- ls -la /app/output/
+
+# Copy output to local machine
+kubectl cp -n media comfyui-0:/app/output/generated-image.png ./generated-image.png
+
+# Or tar multiple outputs
+kubectl exec -n media comfyui-0 -- tar czf /tmp/outputs.tar.gz -C /app/output/ .
+kubectl cp -n media comfyui-0:/tmp/outputs.tar.gz ./outputs.tar.gz
+```
+
+### Restart ComfyUI
+
+```bash
+kubectl rollout restart -n media statefulset/comfyui
+kubectl rollout status -n media statefulset/comfyui
+```
+
+## Recover
+
+### ComfyUI Pod Stuck in CrashLoopBackOff
+
+The most common cause is a Python dependency conflict — typically `torchaudio` version mismatch or a custom node failing to load.
+
+```bash
+# Check the logs
+kubectl logs -n media comfyui-0 --tail=50
+
+# Check for the specific error
+kubectl logs -n media comfyui-0 --tail=20 | grep -i error
+```
+
+Known fixes:
+
+**`torchaudio` mismatch** — The PIP-installed `torchaudio` may conflict with the PyTorch wheel bundled in the image. Pin it to match:
+
+```bash
+kubectl exec -n media comfyui-0 -- pip install torchaudio==torch
+```
+
+**Custom node permission error** — Some custom nodes write to site-packages at import time. The fix was version-gating the PVC seed: the `stoa3`→`stoa4` upgrade introduced a PVC for custom nodes that needed the right `fsGroup`:
+
+```yaml
+# In the ComfyUI StatefulSet
+securityContext:
+  fsGroup: 1000
+```
+
+If the pod won't start at all, you can't exec in. Instead, edit the StatefulSet directly:
+
+```bash
+kubectl edit statefulset -n media comfyui
+```
+
+Under `spec.template.spec.securityContext`, ensure `fsGroup: 1000` is set.
+
+### ComfyUI Pod Crashes on Large Model Load
+
+```bash
+# Check GPU memory
+kubectl exec -n media comfyui-0 -- nvidia-smi
+
+# Check if the GPU profile is correct for the model
+kubectl logs -n media deploy/gpu-switcher --tail=10
+```
+
+The GPU switcher must be on the right profile — video models need the `video` profile, image models the `image` profile. If the profile is wrong, large models OOM immediately.
+
+### Pod Pending (No Available GPU)
+
+```bash
+kubectl describe pod -n media comfyui-0 | grep -A 10 Events
+```
+
+If the pod is `Pending` with `0/1 nodes are available: 1 Insufficient nvidia.com/gpu`, there are no GPU nodes available or the GPUs are fully allocated.
+
+### GPU Switcher Issues
+
+The GPU switcher is a lightweight Go binary. Common issues:
+
+```bash
 # Check logs
-kubectl logs -n gpu-switcher deploy/gpu-switcher --tail=50
+kubectl logs -n media deploy/gpu-switcher
 
-# Check RBAC (the switcher needs cross-namespace Deployment patch access)
-kubectl auth can-i patch deployments -n ollama --as=system:serviceaccount:gpu-switcher:gpu-switcher
-kubectl auth can-i patch deployments -n comfyui --as=system:serviceaccount:gpu-switcher:gpu-switcher
+# If the image fails due to platform mismatch
+# (cross-compiled for wrong arch)
+# The fix was using explicit ARG target platform:
+kubectl logs -n media deploy/gpu-switcher | grep "platform\|architecture"
 ```
 
-### ComfyUI Pod Stuck in Pending
+If the GPU switcher pod doesn't start, check it was built with `--platform=linux/amd64` — the node runs amd64 even if the build machine is arm64.
+
+### Output PVC Not Mounted
+
+If ComfyUI starts but outputs aren't persistent:
 
 ```bash
-# Check if another GPU workload is holding the GPU
-kubectl get pods -A -o wide | grep gpu-1
+# Check PVC is bound
+kubectl get pvc -n media comfyui-output
 
-# Check GPU allocation on the node
-kubectl describe node gpu-1 | grep -A 5 "nvidia.com/gpu"
+# Check it's mounted in the pod
+kubectl exec -n media comfyui-0 -- mount | grep output
 ```
 
-If Ollama is still running (replicas: 1), scale it down first. The GPU is a discrete resource — Kubernetes won't schedule two pods that each request `nvidia.com/gpu: 1` on a node with only one GPU.
+The `comfyui-output` PVC and `comfyui-config` PVC were added separately from the `comfyui-models` PVC in [PR #566](https://github.com/derio-net/frank/pull/566). If outputs disappear after a pod restart, the PVC is either missing from the StatefulSet template or not bound.
 
-### ComfyUI Image Pull Errors
+## Missteps
 
-The ComfyUI image is large. If pulls fail:
-
-```bash
-# Check events
-kubectl describe pod -n comfyui -l app.kubernetes.io/name=comfyui | tail -20
-
-# Verify image exists and is accessible
-docker manifest inspect ghcr.io/ai-dock/comfyui:latest
-```
-
-### GPU Switcher Image Pull Errors
-
-The GPU Switcher image must have `amd64` platform in its OCI manifest. If you see "no match for platform in manifest":
-
-```bash
-# Check manifest
-docker manifest inspect ghcr.io/derio-net/gpu-switcher:v0.1.1
-
-# Rebuild with correct platform (from arm64 Mac)
-cd apps/gpu-switcher/app
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o gpu-switcher-linux-amd64 .
-docker buildx build --platform linux/amd64 -f Dockerfile.release \
-  -t ghcr.io/derio-net/gpu-switcher:v0.1.2 --push .
-```
-
-### ArgoCD Reverting Replica Count
-
-If ArgoCD keeps scaling replicas back to the Git value, check that `ignoreDifferences` is configured on the Application CR:
-
-```bash
-kubectl get app -n argocd comfyui -o yaml | grep -A 5 ignoreDifferences
-kubectl get app -n argocd ollama -o yaml | grep -A 5 ignoreDifferences
-```
-
-Both should have `/spec/replicas` in their `jsonPointers` list. If missing, the Application CR template needs updating.
-
-### Model Out of VRAM
-
-If ComfyUI crashes or produces errors during generation:
-
-```bash
-# Check GPU memory while ComfyUI is running
-kubectl exec -n comfyui deploy/comfyui -- nvidia-smi
-
-# Check ComfyUI logs for OOM
-kubectl logs -n comfyui deploy/comfyui --tail=100 | grep -i "out of memory\|OOM\|cuda"
-```
-
-LTX-2.3 needs 8-12GB of the 16GB VRAM. If loading multiple models or using high resolutions, VRAM can be exhausted. Restart the pod to clear GPU memory:
-
-```bash
-kubectl delete pod -n comfyui -l app.kubernetes.io/name=comfyui
-```
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| `pip install torchaudio` would get the right version | The PIP index distributes a different build than the CUDA 12.8 wheel baked into the image. Installing without pinning broke audio-capable custom nodes (Wan, FishSpeech). | Two iterations to discover `torchaudio==torch` as the pin. |
+| Custom node PVC could be seeded at any time | The `stoa3→stoa5` PV hardening broke existing custom-node PVCs that didn't have the right version gate. | Three separate fixes across stoa3, stoa4, stoa5 (#549, #562). |
+| Cross-compiling a Go binary "just works" | The first `gpu-switcher` build used emulated amd64 (QEMU), which produced corrupted binaries. The second attempt passed the wrong platform string. The binary had to be rebuilt three times. | Three rebuild cycles and a force-push. |
+| ComfyUI output directory is always persistent | The original ComfyUI manifest had no output PVC. After a pod restart, all generated media was gone. | Lost output files, then added the PVC in a follow-up PR. |
 
 ## Quick Reference
 
 | Command | What It Does |
 |---------|-------------|
-| `http://192.168.55.214:8080` | GPU Switcher dashboard |
-| `http://192.168.55.213:8188` | ComfyUI web UI (when active) |
-| `kubectl scale deploy/comfyui -n comfyui --replicas=1` | Activate ComfyUI |
-| `kubectl scale deploy/ollama -n ollama --replicas=0` | Deactivate Ollama |
-| `kubectl get pods -n comfyui` | Check ComfyUI pod status |
-| `kubectl exec -n comfyui deploy/comfyui -- nvidia-smi` | GPU memory usage |
-| `kubectl logs -n comfyui deploy/comfyui` | ComfyUI server logs |
-| `kubectl logs -n gpu-switcher deploy/gpu-switcher` | GPU Switcher logs |
-| `curl http://192.168.55.213:8188/system_stats` | ComfyUI health check |
+| `kubectl get pods -n media` | Check media stack pods |
+| `kubectl get pvc -n media` | Check PVCs (models, output, config) |
+| `kubectl port-forward -n media svc/comfyui 18188:18188` | Access ComfyUI web UI |
+| `kubectl exec -n media deploy/gpu-switcher -- ./switch.sh <profile>` | Switch GPU profile |
+| `kubectl cp <file> -n media comfyui-0:<path>` | Upload/download files |
+| `kubectl rollout restart -n media sts/comfyui` | Restart ComfyUI |
+| `kubectl logs -n media comfyui-0 \| grep -i error` | Check ComfyUI startup errors |
+| `kubectl exec -n media comfyui-0 -- nvidia-smi` | Check GPU memory usage |
 
 ## References
 
-- [ComfyUI Documentation](https://docs.comfy.org/)
-- [ComfyUI GitHub](https://github.com/comfyanonymous/ComfyUI)
-- [LTX-Video on HuggingFace](https://huggingface.co/Lightricks/LTX-Video)
 - [Building Post — Media Generation]({{< relref "/docs/building/16-media-generation" >}})
-- [Operating on Local Inference]({{< relref "/docs/operating/07-inference" >}})
+- [ComfyUI Documentation](https://docs.comfy.org)
+- [kubectl cp Reference](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_cp/)

@@ -40,6 +40,28 @@ A single root Application in `apps/root/` renders 76 child Application CRs — o
 - **`selfHeal: true`** on every app — automatically corrects drift from the desired Git state
 - **`prune: false`** (default) — resources removed from Git are not deleted. Intentional — accidental deletion of a CNI or storage controller would be catastrophic.
 
+```mermaid
+graph LR
+  ROOT["root App<br/>apps/root/"] --> T["traefik App"]
+  ROOT --> G["gitea App"]
+  ROOT --> M["monitoring App"]
+  ROOT --> C["cilium App"]
+  ROOT --> L["longhorn App"]
+  ROOT --> I["infisical App"]
+  ROOT --> O["ollama App"]
+  ROOT --> D["... 76 apps"]
+  T --> TN["traefik NS<br/>→ pods"]
+  G --> GN["gitea NS<br/>→ pods"]
+  M --> MN["monitoring NS<br/>→ pods"]
+  C --> CN["kube-system<br/>→ Cilium pods"]
+  L --> LN["longhorn-system<br/>→ pods"]
+  I --> IN["infisical NS<br/>→ pods"]
+  O --> ON["ollama NS<br/>→ pods"]
+  LB["Cilium L2 LB<br/>192.168.55.200"] -.-> T
+  LB -.-> G
+  LB -.-> M
+```
+
 ### Verify
 
 ```bash

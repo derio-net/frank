@@ -32,6 +32,19 @@ The inference stack is healthy when Ollama is running on gpu-1 with at least one
 
 > `kube_pod_status_ready` is not a valid inference health check — it is blind to Ollama scaled to 0.
 
+```mermaid
+graph LR
+  CLIENT["Client / Agent"] -->|"chat completion"| LLM["LiteLLM Gateway<br/>192.168.55.206:4000"]
+  LLM -->|"local models"| OLL["Ollama<br/>gpu-1"]
+  LLM -->|"frontier models"| OR["OpenRouter"]
+  LLM -->|"frontier models"| AN["Anthropic"]
+  OLL --> GPU["RTX 5070 Ti<br/>16 GB VRAM"]
+  subgraph TS["GPU Time-Sharing"]
+    GS["GPU Switcher"] -->|"inference"| OLL
+    GS -->|"media gen"| CF["ComfyUI"]
+  end
+```
+
 ## Verify
 
 ### Ollama Status

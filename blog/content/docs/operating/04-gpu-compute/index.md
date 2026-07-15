@@ -32,6 +32,26 @@ Frank runs two GPU stacks side by side:
 - **NVIDIA (gpu-1):** GPU Operator managing the RTX 5070 Ti. Deployment is via `gpu-operator` Helm chart with Talos-specific extensions and containerd runtime config.
 - **Intel (mini-1/2/3):** Intel Resource Drivers for Kubernetes using DRA. One DaemonSet per node, no special containerd config needed.
 
+```mermaid
+graph LR
+  subgraph NVIDIA["NVIDIA Stack (gpu-1)"]
+    N1["GPU Operator<br/>Helm chart"]
+    N2["nvidia-container-toolkit<br/>containerd runtime"]
+    N3["RTX 5070 Ti<br/>16 GB GDDR7"]
+    N1 --> N2 --> N3
+  end
+  subgraph INTEL["Intel Stack (mini-1/2/3)"]
+    I1["Intel DRA<br/>Resource Driver"]
+    I2["Intel Arc iGPU"]
+    I1 --> I2
+  end
+  subgraph SCHED["Workload Scheduling"]
+    S1["kube-scheduler"]
+    S1 -->|"nvidia.com/gpu"| N3
+    S1 -->|"gpu.intel.com"| I2
+  end
+```
+
 ### Verify
 
 ```bash

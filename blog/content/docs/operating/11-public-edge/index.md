@@ -5,33 +5,71 @@ layer: edge
 date: 2026-03-20
 draft: false
 tags: ["operations", "hop", "talos", "headscale", "tailscale", "caddy", "edge"]
-summary: "Day-to-day commands for managing Hop — a standalone single-node Talos cluster on Hetzner Cloud with Headscale mesh, Caddy, and ArgoCD."
+summary: "Managing Hop — a standalone single-node Talos cluster on Hetzner Cloud with Headscale mesh, Caddy, and CrowdSec."
 weight: 12
+reader_goal: "Manage Hop day-to-day: talosctl, Headscale mesh operations, Caddy TLS, CrowdSec, and emergency recovery."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/eba80287
 ---
 
-This is the operational companion to [Hopping Through the Portal]({{< relref "/docs/building/17-public-edge" >}}). That post covers the deployment story and the ten deviations. This one covers the commands you actually type to manage Hop — a very different operational profile from Frank.
+{{< last-updated >}}
 
-## Key Differences from Frank
+This is the operational companion to [Hopping Through the Portal]({{< relref "/docs/building/17-public-edge" >}}). That post covers the ten deviations from standard Talos. This one covers what you type to keep Hop running.
 
-Hop is a single-node, standalone-talosctl cluster. Almost everything about its operational model differs from Frank:
+Hop is a single-node Talos cluster on a CX23 Hetzner VM. Everything about it differs from Frank.
 
 | Concern | Frank | Hop |
 |---------|-------|-----|
-| **Talos management** | Omni (UI + API) | `talosctl` directly |
-| **CNI** | Cilium (eBPF, L2 LB) | Flannel (default) |
-| **Storage** | Longhorn (distributed) | Static PVs on Hetzner Volume |
-| **Nodes** | 7 (HA control plane) | 1 (control-plane + worker) |
-| **Ingress** | Cilium L2 LoadBalancer | Caddy hostPort (80/443) |
-| **Remote access** | LAN only | Tailscale mesh + public endpoints |
+| Talos management | Omni (UI + API) | `talosctl` directly |
+| CNI | Cilium (eBPF, L2 LB) | Flannel (default) |
+| Storage | Longhorn (distributed) | Static PVs on Hetzner Volume |
+| Nodes | 7 (HA control plane) | 1 (control-plane + worker) |
+| Ingress | Traefik | Caddy hostPort (80/443) |
+| Ingress auth | Authentik SSO | CrowdSec bouncer + tailscale ACL |
+| Remote access | LAN only | Tailscale mesh + public endpoints |
 
-The critical operational difference: **Hop has no redundancy.** A node reboot means all services are down. A botched Talos upgrade means you're rebuilding from the Packer snapshot. Treat Hop as a pet, not cattle.
+**Hop has no redundancy.** A node reboot means all services are down. A botched Talos upgrade means rebuilding from Packer snapshot. Treat Hop as a pet.
 
-## Environment Setup
+```mermaid
+graph TB
+    subgraph internet["Internet"]
+        user["User"]
+        attacker["Scanner / Attacker"]
+    end
 
-**Critical:** Hop and Frank use separate env files that export the same `KUBECONFIG` variable. Sourcing the wrong one points every command at the wrong cluster.
+    subgraph hetzner["Hetzner Cloud"]
+        hop["hop-1<br/>CX23 VM<br/>Talos Linux"]
+
+        subgraph k8s["Kubernetes"]
+            caddy["Caddy<br/>hostPort 80/443"]
+            cs["CrowdSec<br/>LAPI + Bouncer"]
+            hs["Headscale<br/>Control Server"]
+            hp["Headplane<br/>Admin UI"]
+            blog["Blog<br/>Hugo static"]
+        end
+
+        vol["Hetzner Volume<br/>10GB<br/>headscale db + caddy certs"]
+        caddy -.->|logs →| cs
+        cs -->|ban decision| caddy
+        hs --- vol
+    end
+
+    subgraph mesh["Tailscale Mesh"]
+        laptop["Laptop"]
+        raspi["Raspi<br/>Subnet Router"]
+        phone["Phone"]
+    end
+
+    user -->|https://blog.derio.net| caddy
+    attacker -->|scan| caddy
+    cs -->|block| attacker
+    hs --- mesh
+```
+
+Before any commands, source the Hop environment:
 
 ```bash
-# Hop operations — ALWAYS use this
 source .env_hop
 
 # Verify you're targeting the right cluster
@@ -39,527 +77,161 @@ kubectl get nodes
 # Expected: hop-1   Ready   control-plane   ...
 ```
 
-Never run `source .env` in a terminal where you intend to work on Hop. If you're unsure which cluster you're targeting:
+Never run `source .env` in a Hop terminal — it overwrites `KUBECONFIG` with Frank's config. If unsure: `kubectl config current-context` should show `admin@hop`.
+
+## What Healthy Looks Like
+
+- `talosctl health` passes on the public IP.
+- All system pods are `Running` or `Completed` — no `Pending` or `CrashLoopBackOff`.
+- Caddy responds on both public and mesh entrypoints.
+- Headscale shows all registered nodes as `online`.
+- CrowdSec ban pipeline is active (no "0 bans" forever).
+- The Hetzner Volume is `attached to hop-1`.
+
+## Verify
 
 ```bash
-kubectl config current-context
-# Should show: admin@hop
-```
-
-For `talosctl`, also set the config path:
-
-```bash
-export TALOSCONFIG=$(pwd)/clusters/hop/talosconfig/talosconfig
-talosctl -n $HOP_IP version
-```
-
-## Observing State
-
-### Cluster Health
-
-Talos health check works the same as on Frank, but you only have one node:
-
-```bash
+# Cluster
 talosctl -n $HOP_IP health
-```
-
-This validates etcd, API server, kubelet, and node readiness. Since there's no HA, any failure here means the entire cluster is down.
-
-```console
-$ talosctl -n $HOP_IP health 2>&1 | head -20
-discovered nodes: ["91.99.8.121"]
-waiting for etcd to be healthy: ...
-waiting for etcd to be healthy: OK
-waiting for etcd members to be consistent across nodes: ...
-waiting for etcd members to be consistent across nodes: OK
-waiting for etcd members to be control plane nodes: ...
-waiting for etcd members to be control plane nodes: OK
-waiting for apid to be ready: ...
-waiting for apid to be ready: OK
-waiting for all nodes memory sizes: ...
-waiting for all nodes memory sizes: OK
-waiting for all nodes disk sizes: ...
-waiting for all nodes disk sizes: OK
-waiting for no diagnostics: ...
-waiting for no diagnostics: OK
-waiting for kubelet to be healthy: ...
-waiting for kubelet to be healthy: OK
-waiting for all nodes to finish boot sequence: ...
-waiting for all nodes to finish boot sequence: OK
-waiting for all k8s nodes to report: ...
-
-$ kubectl get nodes -o wide
-NAME    STATUS   ROLES           AGE   VERSION   INTERNAL-IP   EXTERNAL-IP   OS-IMAGE          KERNEL-VERSION   CONTAINER-RUNTIME
-hop-1   Ready    control-plane   32d   v1.34.1   91.99.8.121   <none>        Talos (v1.12.5)   6.18.15-talos    containerd://2.1.6
-```
-
-```bash
 kubectl get nodes -o wide
-# hop-1 should be Ready
+kubectl get pods -A | grep -v Running | grep -v Completed
 
-kubectl get pods -A
-# All pods should be Running/Completed — no Pending or CrashLoopBackOff
-```
-
-### ArgoCD Applications
-
-```bash
-argocd app list --port-forward --port-forward-namespace argocd
-```
-
-All applications should show `Synced` and `Healthy`. If any show `Degraded`, check the specific app:
-
-```bash
-argocd app get <app-name> --port-forward --port-forward-namespace argocd
-```
-
-### Service Health Checks
-
-Verify each service is actually responding (not just that pods are Running):
-
-```bash
-# Public endpoints (from anywhere)
-curl -sI https://headscale.hop.derio.net | head -3
+# Caddy
 curl -sI https://blog.derio.net/frank/ | head -3
+kubectl -n caddy-system logs deploy/caddy --tail=5 | grep "tls\|cert"
 
-# Mesh-only endpoints (from a mesh client)
-curl -sI https://headplane.hop.derio.net | head -3
-# Should return 200 from mesh, 403 from public
-
-# From inside the cluster (verify internal routing)
-kubectl -n headscale-system exec deploy/headscale -- wget -qO- 127.0.0.1:8080/health
-kubectl -n headscale-system exec deploy/headplane -- wget -qO- 127.0.0.1:3000/admin/
-```
-
-**Important:** Headplane binds IPv4 only. Use `127.0.0.1`, not `localhost` (which resolves to `::1` in Alpine containers).
-
-## Headscale Operations
-
-### Managing Users and Nodes
-
-```bash
-# List users
-kubectl -n headscale-system exec deploy/headscale -- headscale users list
-
-# Create a user
-kubectl -n headscale-system exec deploy/headscale -- headscale users create <username>
-
-# List registered nodes
+# Headscale
 kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
-
-# Create a pre-auth key (for registering new devices)
-kubectl -n headscale-system exec deploy/headscale -- \
-  headscale preauthkeys create --user <username> --reusable --expiration 24h
-```
-
-### Adding a Node to the Tailscale Network
-
-Adding a device to the Hop mesh is a two-step process: create a pre-auth key on the server side, then register the client.
-
-**Step 1 — Create a user (if needed) and generate a pre-auth key:**
-
-```bash
-source .env_hop
-
-# Create a user for the device (skip if user already exists)
-kubectl -n headscale-system exec deploy/headscale -- headscale users create <username>
-
-# Generate a pre-auth key
-kubectl -n headscale-system exec deploy/headscale -- \
-  headscale preauthkeys create --user <username> --reusable --expiration 24h
-```
-
-The `--reusable` flag lets you register multiple devices with the same key (useful for a batch of machines). Omit it for single-use keys. The `--expiration` controls how long the key is valid — after that, it can't be used for new registrations but already-registered nodes stay connected.
-
-**Step 2 — Register the client device:**
-
-On the device you want to add (macOS, Linux, Windows, iOS, Android — anything that runs Tailscale):
-
-```bash
-# Linux / macOS — note: --accept-routes is required to reach LAN-only
-# services (Frank cluster nodes on 192.168.55.0/24, home DNS at
-# 192.168.10.11/12, etc.). Without it, the raspi-vlan10-d/-e subnet
-# routers advertise routes but the client kernel won't actually
-# forward packets through them. Symptom: "Network is unreachable"
-# (not "no route to host") when reaching any 192.168.x.x address.
-tailscale up \
-  --login-server https://headscale.hop.derio.net \
-  --accept-routes \
-  --authkey <PREAUTH_KEY>
-
-# If Tailscale was previously connected to a different control server, reset first:
-tailscale logout
-tailscale up \
-  --login-server https://headscale.hop.derio.net \
-  --accept-routes \
-  --authkey <PREAUTH_KEY>
-```
-
-On mobile devices (iOS/Android), you can set the control server URL in the Tailscale app settings before signing in. Enter `https://headscale.hop.derio.net` as the control server and use the pre-auth key. Toggle "Use Tailscale subnets" (or equivalent) ON — it's the mobile equivalent of `--accept-routes`.
-
-**On an already-registered client without `--accept-routes`:** flip it on without re-registering: `sudo tailscale set --accept-routes` (or `tailscale up` with the existing args plus `--accept-routes`). `tailscale status` will print `Some peers are advertising routes but --accept-routes is false` as a health-check line whenever the flag is missing — that's the canonical signal.
-
-**Step 3 — Verify registration:**
-
-```bash
-# From the Hop cluster — confirm the node appears
-kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
-
-# From the new client — confirm connectivity
-tailscale status
-tailscale ping <another-mesh-node>
-```
-
-The new node gets a `100.64.0.x` address from Headscale's IP pool. MagicDNS automatically makes it reachable by name (e.g., `device-name.mesh.hop.derio.net`).
-
-```console
-$ kubectl -n headscale-system exec deploy/headscale -- headscale users list
-
-ID | Name | Username | Email | Created            
-1  |      | default  |       | 2026-03-18 22:32:51
-
-$ kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
-
-ID | Hostname       | Name           | MachineKey | NodeKey | User    | IP addresses                  | Ephemeral | Last seen           | Expiration | Connected | Expired
-1  | laptop         | laptop         | [……]       | [……]    | default | 100.64.0.1, fd7a:115c:a1e0::1 | false     | <redacted>          | N/A        | online    | no     
-3  | hop-1          | hop-1          | [……]       | [……]    | default | 100.64.0.4, fd7a:115c:a1e0::4 | false     | <redacted>          | N/A        | online    | no     
-4  | raspi-vlan10-D | raspi-vlan10-d | [……]       | [……]    | default | 100.64.0.2, fd7a:115c:a1e0::2 | false     | <redacted>          | N/A        | online    | no     
-5  | raspi-vlan10-E | raspi-vlan10-e | [……]       | [……]    | default | 100.64.0.3, fd7a:115c:a1e0::3 | false     | <redacted>          | N/A        | online    | no     
-6  | phone          | phone          | [……]       | [……]    | default | 100.64.0.7, fd7a:115c:a1e0::7 | false     | <redacted>          | N/A        | online    | no     
-
-$ kubectl -n headscale-system exec deploy/headscale -- headscale routes list
-
-ID | Node           | Prefix          | Advertised | Enabled | Primary
-1  | raspi-vlan10-d | ::/0            | true       | true    | -      
-2  | raspi-vlan10-d | 0.0.0.0/0       | true       | true    | -      
-3  | raspi-vlan10-e | 0.0.0.0/0       | true       | true    | -      
-4  | raspi-vlan10-e | ::/0            | true       | true    | -      
-5  | raspi-vlan10-e | 192.168.10.0/24 | true       | true    | false  
-6  | raspi-vlan10-e | 192.168.50.0/24 | true       | true    | false  
-7  | raspi-vlan10-e | 192.168.55.0/24 | true       | true    | false  
-8  | raspi-vlan10-d | 192.168.10.0/24 | true       | true    | true   
-9  | raspi-vlan10-d | 192.168.50.0/24 | true       | true    | true   
-10 | raspi-vlan10-d | 192.168.55.0/24 | true       | true    | true   
-
-```
-
-**Removing a node:**
-
-```bash
-# List nodes to find the ID
-kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
-
-# Delete by ID
-kubectl -n headscale-system exec deploy/headscale -- headscale nodes delete --identifier <NODE_ID>
-```
-
-### Registering a Subnet Router / Exit Node
-
-A subnet router advertises LAN subnets to the mesh, making homelab services reachable from any mesh client. An exit node routes all internet traffic through itself. The Raspberry Pi subnet routers serve both roles.
-
-**Prerequisites on the device:**
-
-```bash
-# Enable IP forwarding (required for routing — persistent across reboots)
-sudo sysctl -w net.ipv4.ip_forward=1
-echo 'net.ipv4.ip_forward = 1' | sudo tee /etc/sysctl.d/99-ip-forward.conf
-```
-
-**Step 1 — Register the device with subnet routes, exit node, and tag:**
-
-```bash
-sudo tailscale up \
-  --login-server=https://headscale.hop.derio.net \
-  --advertise-exit-node \
-  --advertise-routes=192.168.10.0/24,192.168.50.0/24,192.168.55.0/24 \
-  --advertise-tags=tag:subnet-router \
-  --accept-dns=false \
-  --hostname=$(hostname) \
-  --authkey $HEADSCALE_PREAUTH_KEY
-```
-
-Key flags:
-
-- `--advertise-routes` — exposes these LAN subnets to all mesh clients
-- `--advertise-exit-node` — offers this node as an exit node for tunneling all traffic
-- `--advertise-tags=tag:subnet-router` — carries the tag with registration so `autoApprovers` in the ACL policy auto-approves routes immediately
-- `--accept-dns=false` — prevents MagicDNS from overriding the device's OS-level DNS (the raspis need their local DNS to resolve internal hostnames)
-- `--authkey` — pre-auth key from `.env_hop` (`HEADSCALE_PREAUTH_KEY`)
-
-**Step 2 — Tag the node (one-time, for existing nodes without the tag):**
-
-If the node was registered before `--advertise-tags` was added, apply the tag server-side:
-
-```bash
-source .env_hop
-kubectl -n headscale-system exec deploy/headscale -- headscale nodes list
-kubectl -n headscale-system exec deploy/headscale -- \
-  headscale nodes tag --identifier <NODE_ID> --tags tag:subnet-router
-```
-
-Future re-registrations carry the tag automatically via `--advertise-tags`.
-
-**Step 3 — Verify routes are approved:**
-
-```bash
 kubectl -n headscale-system exec deploy/headscale -- headscale routes list
+
+# CrowdSec
+kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli metrics | head -15
+
+# Storage
+hcloud volume list
+kubectl get pv | grep -v Bound
 ```
 
-All routes should show `Enabled: true`. With `autoApprovers` configured, no manual `headscale routes enable` is needed.
+## Steps
 
-**Step 4 — Use the exit node from another mesh client:**
+### Add a Node to the Mesh
 
 ```bash
-# Connect to the exit node
-tailscale set --exit-node=<exit-node-hostname>
-
-# Verify internet traffic routes through the exit node
-curl ifconfig.me
-# Should show the exit node's network's public IP
-
-# Verify LAN access
-ping 192.168.55.21  # Frank cluster mini-1
-
-# Disconnect
-tailscale set --exit-node=
-```
-
-**Gotcha:** `--login-server` must use the **public URL** (`https://headscale.hop.derio.net`), not the Kubernetes-internal service name (`headscale.headscale-system.svc:8080`). The internal name only resolves inside the Hop cluster's pod network — from any external device, including Frank cluster nodes, it will hang indefinitely without error.
-
-**Gotcha:** Without `net.ipv4.ip_forward=1` on the device, exit node connections will appear to work (Tailscale reports connected) but all traffic will black-hole — `ping google.com` hangs silently.
-
-### Split DNS for Internal Domains
-
-Headscale pushes split DNS configuration to all mesh clients. Queries for internal domains go to the home DNS servers; everything else uses public DNS.
-
-| Domain | Nameservers | Purpose |
-| ------ | ----------- | ------- |
-| `*.lab.derio.net` | 192.168.10.11, 192.168.10.12 | Home lab services |
-| `*.frank.derio.net` | 192.168.10.11, 192.168.10.12 | Frank cluster services |
-| Everything else | 1.1.1.1, 8.8.8.8 | Public DNS |
-
-The home DNS servers (192.168.10.11/12) are on the 192.168.10.0/24 subnet, which is advertised by the subnet routers. Any mesh client can reach them — you don't need to be using an exit node.
-
-**Verify split DNS from a mesh client:**
-
-```bash
-# Should resolve via home DNS
-dig litellm.frank.derio.net
-
-# Should resolve via public DNS
-dig google.com
-```
-
-**Limitation:** If both Raspberry Pi subnet routers are offline, mesh clients lose both the subnet routes and DNS resolution for `*.lab.derio.net` and `*.frank.derio.net`. This is consistent — the services themselves are also unreachable without the subnet routes.
-
-To add more internal domains to split DNS, edit the Headscale ConfigMap's `dns.nameservers.split` section and restart Headscale:
-
-```bash
-kubectl -n headscale-system rollout restart deploy/headscale
-```
-
-### Adding a Mesh-Only Service
-
-When adding a new mesh-only domain to Hop, three things need updating:
-
-1. **Headscale extra_records** — add the domain → Tailscale IP mapping to the ConfigMap
-2. **Caddy Caddyfile** — add a `@mesh` handler block for the new domain
-3. **Cloudflare DNS** — add an A record pointing the domain to Hop's public IP (for the 403 response)
-
-```yaml
-# In headscale ConfigMap, under dns.extra_records:
-- name: newservice.hop.derio.net
-  type: A
-  value: 100.64.0.4  # hop-1's Tailscale IP
-```
-
-After updating the ConfigMap, restart Headscale to pick up DNS changes:
-
-```bash
-kubectl -n headscale-system rollout restart deploy/headscale
-```
-
-### Headscale Backup and Recovery
-
-A CronJob runs daily at 3 AM UTC, backing up the SQLite database:
-
-```bash
-# Check backup job status
-kubectl -n headscale-system get cronjobs
-kubectl -n headscale-system get jobs --sort-by=.metadata.creationTimestamp
-
-# List backups
-kubectl -n headscale-system exec deploy/headscale -- ls -la /var/lib/headscale/backups/
-
-# Manual backup
+# 1. Create a pre-auth key (on workstation with .env_hop sourced)
 kubectl -n headscale-system exec deploy/headscale -- \
-  sqlite3 /var/lib/headscale/db.sqlite ".backup /var/lib/headscale/backups/manual-$(date +%F).db"
+  headscale preauthkeys create --user default --reusable --expiration 24h
+
+# 2. On the new device:
+sudo tailscale up \
+  --login-server https://headscale.hop.derio.net \
+  --accept-routes \
+  --authkey <KEY>
+
+# 3. Verify
+kubectl -n headscale-system exec deploy/headscale -- headscale nodes list | grep online
 ```
 
-Backups are stored on the Hetzner Volume (persistent across pod restarts). Retention is 7 days.
-
-## Caddy Operations
-
-### TLS Certificate Status
-
-Caddy manages TLS automatically via Cloudflare DNS challenge. To check certificate status:
-
-```bash
-kubectl -n caddy-system logs deploy/caddy | grep -i "tls\|cert\|acme"
-```
-
-The Cloudflare API token is stored as a Kubernetes Secret (`caddy-cloudflare`). If TLS stops working, check the token hasn't expired or been emptied:
-
-```bash
-# Check the token exists and has a value (shows last 4 chars only)
-kubectl -n caddy-system get secret caddy-cloudflare -o jsonpath='{.data.api-token}' | base64 -d | tail -c 4
-# If empty, recreate:
-kubectl -n caddy-system delete secret caddy-cloudflare
-kubectl -n caddy-system create secret generic caddy-cloudflare \
-  --from-literal=api-token=<YOUR_CLOUDFLARE_API_TOKEN>
-```
-
-**Gotcha:** Running pods don't detect secret changes — env vars from `secretKeyRef` are injected at pod creation and never refreshed. A pod can keep running with a valid token long after the secret is emptied or deleted. You'll only discover the problem on the next `rollout restart`.
-
-### Reloading Caddy Config
-
-After editing the Caddyfile ConfigMap:
+### Reload Caddy Config
 
 ```bash
 kubectl -n caddy-system rollout restart deploy/caddy
 ```
 
-The Caddy Deployment uses `strategy: Recreate` (not `RollingUpdate`) because it binds host ports 80 and 443. On a single-node cluster, `RollingUpdate` would deadlock — the new pod can't bind the ports while the old pod holds them. `Recreate` kills the old pod first, causing ~5 seconds of downtime during restarts.
+Caddy uses `Recreate` strategy (binds host port 80/443 — rolling update would deadlock). Expect ~5s downtime.
 
-### Debugging Access Issues
+### Upgrade Talos
 
-If a mesh-only service returns 403 when it shouldn't:
-
-```bash
-# Check if the client has a mesh IP
-tailscale ip -4
-# Should return 100.64.0.x
-
-# Check if Caddy sees the mesh IP
-kubectl -n caddy-system logs deploy/caddy | grep "headplane\|remote_ip"
-
-# Verify DNS resolution from the client
-dig headplane.hop.derio.net
-# From mesh: should resolve to 100.64.0.4
-# From public: should resolve to Hop's public IP
-```
-
-If DNS resolves to the public IP from a mesh client, Headscale's MagicDNS isn't active. Check that the client is using Headscale as its DNS:
-
-```bash
-tailscale status
-# Verify "exit node" is not set (overrides DNS)
-```
-
-## Talos Operations
-
-### Upgrading Talos
-
-Hop upgrades are manual (no Omni to orchestrate). This is a **service-impacting operation** — all pods stop during the reboot.
+Service-impacting — all pods stop during reboot.
 
 ```bash
 # Check current version
 talosctl -n $HOP_IP version
 
-# Stage the upgrade (downloads image, does not reboot yet)
-talosctl -n $HOP_IP upgrade --image ghcr.io/siderolabs/installer:<NEW_VERSION> --stage
+# Stage
+talosctl -n $HOP_IP upgrade --image ghcr.io/siderolabs/installer:<VERSION> --stage
 
-# Reboot to apply
+# Reboot
 talosctl -n $HOP_IP reboot
+
+# Wait for recovery
+talosctl -n $HOP_IP health
+kubectl get pods -A
 ```
 
-After reboot, wait for the node to come back:
+Expected downtime: 3–5 minutes.
+
+### Backup Headscale DB
 
 ```bash
-talosctl -n $HOP_IP health     # Wait until all checks pass
-kubectl get nodes              # hop-1 should be Ready
-kubectl get pods -A            # All pods should recover
+kubectl -n headscale-system exec deploy/headscale -- \
+  sqlite3 /var/lib/headscale/db.sqlite \
+  ".backup /var/lib/headscale/backups/manual-$(date +%F).db"
 ```
 
-**Expected downtime:** 3-5 minutes for the reboot cycle.
+An automated CronJob runs daily at 3 AM UTC. Retention is 7 days on the Hetzner Volume.
 
-### Applying Config Changes
+## Recover
 
-Talos config patches must be combined into a single `talosctl apply-config` invocation. You can't apply patches incrementally — each `--config-patch` replaces the previous one.
+### Caddy TLS Expired
 
 ```bash
-# View current config
-talosctl -n $HOP_IP get machineconfig -o yaml
+# Check token is valid (shows last 4 chars)
+kubectl -n caddy-system get secret caddy-cloudflare -o jsonpath='{.data.api-token}' | base64 -d | tail -c 4
 
-# Apply updated config (combines base + patches)
-talosctl -n $HOP_IP apply-config --file controlplane.yaml
+# Recreate if empty, then restart pod
+kubectl -n caddy-system delete secret caddy-cloudflare
+kubectl -n caddy-system create secret generic caddy-cloudflare \
+  --from-literal=api-token=<TOKEN>
+kubectl -n caddy-system rollout restart deploy/caddy
 ```
 
-### Node Recovery
+**Gotcha:** Env vars from `secretKeyRef` are injected at pod creation. A pod keeps running with a valid token long after the secret is deleted. You find out on the next restart.
 
-If hop-1 becomes unreachable:
-
-1. **Check Hetzner console** — `hcloud server status hop-1`
-2. **Try talosctl via public IP** — `talosctl -n <PUBLIC_IP> health` (TCP 50000 is open)
-3. **Power cycle** — `hcloud server reset hop-1` (hard reboot)
-4. **Rebuild from snapshot** — last resort; PV data survives on the Hetzner Volume
-
-## Blog Operations
-
-### Redeploying the Blog
-
-The blog container rebuilds automatically on push to `main` (GitHub Actions). To manually trigger:
+### CrowdSec Stops Banning
 
 ```bash
-# From the repo root
-cd blog && hugo --minify  # Verify build succeeds locally
+# Check LAPI health
+kubectl -n crowdsec-system logs deploy/crowdsec-lapi --tail=20
 
-# The CI pipeline builds and pushes ghcr.io/derio-net/frank-blog:latest
-# To force a new pull on Hop:
-kubectl -n blog-system rollout restart deploy/blog
+# Check bouncer is connected
+kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli bouncers list
+
+# Check metric collection
+kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli metrics
 ```
 
-### Checking Blog Content
+The ban pipeline can fail silently. A CrowdSec canary exists that pages when no new bans appear over a threshold — but the canary itself depends on the pipeline being wired correctly. Known failure modes:
+
+- **Caddy logs not ingested** — CrowdSec needs `container_runtime=containerd` in its Caddy parser config to parse Caddy's JSON logs correctly ([#584](https://github.com/derio-net/frank/pull/584)).
+- **LAPI data not persisted** — If the LAPI pod restarts without a PVC, it forgets all decisions. The fix was adding a PVC for `/var/lib/crowdsec/data` ([#583](https://github.com/derio-net/frank/pull/583)).
+- **Bouncer can't reach LAPI** — The Caddy CrowdSec bouncer was initially pointed at the wrong service name. Fixed in [#574](https://github.com/derio-net/frank/pull/574).
+- **Log rotation kills ingestion** — Caddy's log rotation closes the file descriptor. CrowdSec needs `poll_without_inotify: true` to detect the new log file ([#594](https://github.com/derio-net/frank/pull/594)).
+
+### Mesh Client Can't Route
 
 ```bash
-# Verify the container is serving the expected content
-kubectl -n blog-system exec deploy/blog -- ls /usr/share/caddy/frank/
-# Should show index.html and the post directories
+# From the client
+tailscale status
+tailscale ip -4          # Should show 100.64.0.x
+dig litellm.frank.derio.net  # Should resolve via split DNS
 ```
 
-## Storage Operations
+Common fixes:
+- `--accept-routes` missing: run `sudo tailscale set --accept-routes`
+- `net.ipv4.ip_forward=1` missing for exit node: add it and restart tailscale
+- Split DNS not working: check Headscale ConfigMap `dns.nameservers.split` section
 
-### Hetzner Volume Health
+### Headscale Pod Won't Start
 
 ```bash
-# Check volume is attached
-hcloud volume list
-# hop-data should show "attached to hop-1"
-
-# Check mount inside Talos
-talosctl -n $HOP_IP mounts | grep hop-data
-# Should show /var/mnt/hop-data
-
-# Check PVs are bound
-kubectl get pv
-# headscale-data and caddy-data should be Bound
+kubectl -n headscale-system logs deploy/headscale --tail=30
 ```
 
-### Disk Space
-
-The Hetzner Volume is 10GB. Monitor usage:
-
-```bash
-talosctl -n $HOP_IP usage /var/mnt/hop-data/
-```
-
-Headscale's SQLite database is small (< 1MB). Caddy's TLS certificates and OCSP staples are the main consumers (typically < 50MB). If space becomes an issue, expand the volume in Hetzner dashboard (no downtime).
-
-## Emergency Procedures
+Known causes:
+- SQLite DB corruption from unclean shutdown — restore from backup.
+- Falco alert killing the backup CronJob pod (bake sqlite binary into the image to avoid the exec probe) — fixed in [#385](https://github.com/derio-net/frank/pull/385).
 
 ### Complete Cluster Rebuild
-
-If hop-1 is unrecoverable:
 
 ```bash
 # 1. Create new server from Talos snapshot
@@ -570,42 +242,43 @@ hcloud server create --name hop-1 --type cx23 --location fsn1 \
 talosctl apply-config --insecure -n <NEW_IP> --file controlplane.yaml
 talosctl bootstrap -n <NEW_IP>
 
-# 3. Wait for cluster
+# 3. Wait, bootstrap ArgoCD, re-create secrets
 talosctl -n <NEW_IP> health
-
-# 4. Bootstrap ArgoCD
-source .env_hop  # Update HOP_IP if changed
 helm install argocd argo/argo-cd -n argocd --create-namespace \
   -f clusters/hop/apps/argocd/values.yaml
 kubectl apply -f <(helm template root clusters/hop/apps/root/)
 
-# 5. Re-create secrets (not in Git)
-kubectl -n caddy-system create secret generic caddy-cloudflare-token \
-  --from-literal=CF_API_TOKEN=<token>
-kubectl -n headscale-system create secret generic tailscale-auth \
-  --from-literal=TS_AUTHKEY=<key>
-
-# 6. Update DNS if IP changed
-# Update Cloudflare A records for *.hop.derio.net and blog.derio.net
+# 4. Manually re-create cloudflare and tailscale secrets
 ```
 
-The Hetzner Volume (with Headscale DB and Caddy certs) survives server deletion — reattach it to the new server. Headscale clients will automatically reconnect once the control server is back.
+The Hetzner Volume survives server deletion. Reattach to the new server and Headscale clients reconnect automatically.
 
-### Mesh Recovery Without Mesh Access
+## Missteps
 
-If the Tailscale mesh is down and you need to reach Hop:
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| CrowdSec would parse Caddy logs out of the box | The default Caddy log parser expects a different container runtime. Without `container_runtime=containerd` in the parser config, CrowdSec silently ingested zero events. | One debug session to find the missing config field. |
+| CrowdSec LAPI state survives pod restarts | The LAPI pod had no PVC. A restart wiped all decisions, and the bouncer had to re-learn. | Added a PVC and re-tested the ban pipeline. |
+| Caddy log rotation is transparent to CrowdSec | Log rotation closes the file descriptor. Without `poll_without_inotify`, CrowdSec never sees the new log file and stops ingesting events. | Added the config flag and bounced both pods. |
+| `hcloud volume` data persists automatically on server rebuild | It does — but you must specify `--volume hop-data` on `hcloud server create`. Forgetting it starts a fresh server without the volume attached. | The checklist now includes this flag. |
+| A pod with `secretKeyRef` picks up secret changes on rotation | Env vars are injected at pod creation. Rotating the secret has no effect until the next restart. | Discovered during a Cloudflare token rotation — Caddy kept serving with the old token until the next deploy. |
 
-```bash
-# Use the public IP directly (mTLS-protected ports)
-talosctl -n <PUBLIC_IP> -e <PUBLIC_IP> health
-kubectl --kubeconfig clusters/hop/talosconfig/kubeconfig get pods -A
-```
+## Quick Reference
 
-TCP 6443 and 50000 are open on the Hetzner firewall specifically for this scenario. Both require client certificates from the talosconfig/kubeconfig — unauthenticated access is impossible.
+| Command | What It Does |
+|---------|-------------|
+| `talosctl -n $HOP_IP health` | Full cluster health check |
+| `talosctl -n $HOP_IP upgrade --image=... --stage` | Stage Talos upgrade |
+| `headscale nodes list` (via kubectl exec) | List mesh devices |
+| `headscale preauthkeys create` (via kubectl exec) | Generate registration key |
+| `kubectl -n caddy-system rollout restart deploy/caddy` | Reload Caddy config |
+| `kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli metrics` | CrowdSec metrics |
+| `hcloud volume list` | Check Hetzner Volume status |
+| `kubectl -n headscale-system exec deploy/headscale -- ls /var/lib/headscale/backups/` | List DB backups |
 
 ## References
 
-- [Talos Linux Operations](https://www.talos.dev/v1.9/talos-guides/) — Official operations guide
-- [Headscale CLI Reference](https://github.com/juanfont/headscale/blob/main/docs/) — Headscale command documentation
-- [Caddy Documentation](https://caddyserver.com/docs/) — Caddy server configuration
-- [Hetzner Cloud CLI](https://github.com/hetznercloud/cli) — `hcloud` command reference
+- [Building Post — Hopping Through the Portal]({{< relref "/docs/building/17-public-edge" >}})
+- [Headscale CLI Reference](https://github.com/juanfont/headscale/blob/main/docs/)
+- [Talos Linux Operations](https://www.talos.dev/v1.9/talos-guides/)
+- [Caddy Documentation](https://caddyserver.com/docs/)

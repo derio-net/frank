@@ -30,6 +30,17 @@ Authentication is healthy when Authentik at `192.168.55.211:9000` is responding,
 
 {{< screenshot src="authentik-providers-healthy.png" caption="Authentik admin UI: all cluster OIDC and proxy providers with healthy status" >}}
 
+```mermaid
+graph LR
+  USER["User / Browser"] -->|"https://service.frank.derio.net"| TR["Traefik<br/>Ingress"]
+  TR -->|"forward-auth"| FA["forward-auth<br/>middleware"]
+  FA -->|"OIDC auth"| AK["Authentik<br/>192.168.55.211:9000"]
+  AK -->|"JWT token"| FA
+  FA -->|"allow"| TR
+  TR -->|"JWT"| SVC["Backend Service<br/>ArgoCD / Grafana / Infisical"]
+  AK -->|"OIDC provider"| SVC
+```
+
 ## Verify
 
 ### Authentik Status

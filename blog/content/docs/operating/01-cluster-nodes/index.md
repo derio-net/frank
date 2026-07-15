@@ -60,6 +60,28 @@ Containers:            cilium                   Running: 7
 Cluster Pods:          135/135 managed by Cilium
 ```
 
+```mermaid
+graph LR
+  subgraph CP["Control Plane (mini-1/2/3)"]
+    M1["mini-1<br/>192.168.55.21"]
+    M2["mini-2<br/>192.168.55.22"]
+    M3["mini-3<br/>192.168.55.23"]
+  end
+  subgraph WORK["Worker Nodes"]
+    G1["gpu-1<br/>192.168.55.31"]
+    PC["pc-1<br/>192.168.55.71"]
+    R1["raspi-1<br/>192.168.55.41"]
+    R2["raspi-2<br/>192.168.55.42"]
+  end
+  CIL["Cilium CNI"] --> M1
+  CIL --> M2
+  CIL --> M3
+  CIL --> G1
+  CIL --> PC
+  CIL --> R1
+  CIL --> R2
+```
+
 ### Verify
 
 All nodes `Ready`, all Cilium components `OK`, all daemonsets at `Ready: 7/7`. Run the two commands above (`kubectl get nodes -o wide` and `cilium status --wait=false`) — if any node is `NotReady` or any Cilium component is not `OK`, proceed to the Runbook section below.

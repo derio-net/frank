@@ -43,6 +43,29 @@ kubectl get pods -n monitoring | head -20
 
 Expected output shows `Running` for `vmsingle`, `victoria-logs`, `grafana`, `vmagent`, `fluent-bit`, `node-exporter`, and `kube-state-metrics` pods.
 
+```mermaid
+graph LR
+  subgraph COLL["Collectors (7 nodes)"]
+    FB["Fluent Bit<br/>DaemonSet"]
+    NE["node-exporter<br/>DaemonSet"]
+    KSM["kube-state-metrics"]
+    BB["blackbox-exporter"]
+  end
+  subgraph STORE["Storage Layer"]
+    VM["VictoriaMetrics<br/>VMSingle"]
+    VL["VictoriaLogs"]
+  end
+  subgraph UI["Visualization"]
+    GF["Grafana<br/>192.168.55.203"]
+  end
+  FB -->|"logs"| VL
+  NE -->|"metrics"| VM
+  KSM -->|"metrics"| VM
+  BB -->|"probes"| VM
+  VM --> GF
+  VL --> GF
+```
+
 ## Verify
 
 ### Grafana Dashboards

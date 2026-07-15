@@ -58,6 +58,24 @@ And the `ClusterSecretStore` shows `READY: True`:
 kubectl get clustersecretstore
 ```
 
+```mermaid
+graph LR
+  subgraph BOOT["Bootstrap Layer"]
+    S1["SOPS-encrypted<br/>secrets/ files"]
+    S1 -->|"sops --decrypt"| INF["Infisical<br/>192.168.55.204:8080"]
+  end
+  subgraph RUNTIME["Runtime Layer"]
+    INF -->|"Machine Identity"| ESO["ESO<br/>ClusterSecretStore"]
+    ESO --> ES["ExternalSecret<br/>CR"]
+    ES --> KS["K8s Secret"]
+    KS -->|"envFrom"| POD["Pod"]
+  end
+  subgraph USER["User Workflow"]
+    U["Operator"] -->|"Infisical UI"| INF
+    U -->|"sops --decrypt \| kubectl apply"| BS["Bootstrap Secret<br/>(SOPS)"]
+  end
+```
+
 ## Verify
 
 ### ESO Sync Status

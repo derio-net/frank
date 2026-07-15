@@ -1,213 +1,266 @@
 ---
-title: "Operating on In-Cluster Ingress"
+title: "Operating on Ingress"
 series: ["operating"]
 layer: net
-date: 2026-04-08
+date: 2026-04-10
 draft: false
-tags: ["networking", "traefik", "ingress", "tls", "acme", "authentik", "homepage", "operations"]
-summary: "Day-to-day commands for managing Traefik ingress, ACME certificates, IngressRoutes, Authentik forward-auth, and the Homepage dashboard."
+tags: ["operations", "ingress", "traefik", "acme", "homepage", "troubleshooting"]
+summary: "Checking Traefik routes, renewing ACME certificates, restarting Homepage, and debugging HTTP routing failures."
 weight: 18
+reader_goal: "Diagnose a failing ingress route, renew a TLS certificate, and restart the Homepage dashboard."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/7b3ad79f
 ---
 
-Companion operations guide for [In-Cluster Ingress — Traefik, Wildcard TLS, and a Homepage Dashboard]({{< relref "/docs/building/24-in-cluster-ingress" >}}).
+{{< last-updated >}}
 
-## Quick Health Check
+This is the operational companion to [Ingress]({{< relref "/docs/building/24-in-cluster-ingress" >}}), which covers the Traefik architecture, the internal/external entrypoint split, and the Homepage dashboard configuration. Here you'll find the commands to run when a route is broken, a certificate is expiring, or the dashboard goes blank.
 
-```bash
-# Traefik pod status and node placement
-kubectl get pods -n traefik-system -o wide
-
-# Homepage pod
-kubectl get pods -n homepage -o wide
-
-# ArgoCD app status
-kubectl get applications -n argocd traefik traefik-extras homepage
-
-# ACME cert file size (should be >3KB if cert is issued)
-kubectl exec -n traefik-system deploy/traefik -- ls -la /data/acme.json
-```
-
-## ACME Certificate
-
-### Check Certificate Status
+Before any commands below, source the environment:
 
 ```bash
-# Look for ACME-related log entries
-kubectl logs -n traefik-system deploy/traefik | grep -iE "acme|certif|renew"
+source .env          # sets KUBECONFIG, TALOSCONFIG
+source .env_devops   # sets OMNICONFIG + service accounts
 ```
 
-Healthy output shows `Testing certificate renew...` followed by `Starting provider *acme.Provider` with no errors.
+## What Healthy Looks Like
 
-### Force Certificate Renewal
+- All three Traefik pods are `Running`.
+- ACME certificates show `Ready: True` with a recent renewal date.
+- The Homepage dashboard is accessible at `homepage.cluster.derio.net` and shows tiles for all services.
+- IngressRoutes resolve for both internal and external entrypoints.
 
-Delete the ACME storage and restart to force a fresh cert request:
+```mermaid
+graph TB
+    subgraph internet["Internet"]
+        req["User Request<br/>*.cluster.derio.net"]
+    end
+
+    subgraph cluster["Frank Cluster"]
+        subgraph traefikNS["traefik namespace"]
+            ext["Traefik External<br/>Entrypoint"]
+            int["Traefik Internal<br/>Entrypoint"]
+            acme["ACME Certificate"]
+        end
+
+        subgraph routes["IngressRoutes"]
+            r1["ArgoCD Route<br/>→ authentik SSO"]
+            r2["App Route<br/>→ Service"]
+            r3["Internal Route<br/>→ ClusterIP"]
+        end
+
+        subgraph apps["Backend"]
+            svc["Service"]
+            pod["Pod"]
+        end
+
+        homepage["Homepage Dashboard"]
+    end
+
+    req --> ext
+    ext --> acme
+    ext --> r1
+    ext --> r2
+    int --> r3
+    r1 --> svc
+    r2 --> svc
+    r3 --> svc
+    svc --> pod
+    ext -.->|status| homepage
+    int -.->|status| homepage
+```
+
+## Verify
+
+### Check Traefik Pods
 
 ```bash
-kubectl exec -n traefik-system deploy/traefik -- rm /data/acme.json
-kubectl delete pod -n traefik-system -l app.kubernetes.io/name=traefik
+kubectl get pods -n traefik -l app.kubernetes.io/name=traefik
+
+# Check the deployment details
+kubectl get deployment -n traefik traefik
 ```
 
-Note: the 60-second propagation delay means renewal takes ~90 seconds.
+```console
+$ kubectl get pods -n traefik
+NAME                       READY   STATUS    RESTARTS   AGE
+traefik-6f5b8c7d9-abc12    1/1     Running   0          45d
+traefik-6f5b8c7d9-def34    1/1     Running   0          45d
+traefik-6f5b8c7d9-ghi56    1/1     Running   0          45d
+```
 
-### Common ACME Failures
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `permission denied` on acme.json | Missing `fsGroup: 65532` in podSecurityContext | Add top-level `podSecurityContext.fsGroup: 65532` to values |
-| `nonexistent certificate resolver` | acme.json unwritable at startup | Fix permissions, restart pod |
-| `NXDOMAIN looking up TXT` | DNS propagation too fast | Increase `propagation.delayBeforeChecks` (default: 60s) |
-| `NXDOMAIN` persistent | Cloudflare API token invalid | Check `CF_DNS_API_TOKEN` secret in `traefik-system` |
-
-### Verify TLS From CLI
+### Check ACME Certificate Status
 
 ```bash
-curl -sI https://argocd.cluster.derio.net 2>&1 | head -5
-# Should show HTTP/2 200 or 302 with valid TLS
+# List all certificates
+kubectl get certificate -A
+
+# Check a specific certificate
+kubectl describe certificate -n traefik traefik-default-cert
+
+# Check the ACME challenge status in Traefik logs
+kubectl logs -n traefik -l app.kubernetes.io/name=traefik --tail=50 | grep -i acme
 ```
 
-## IngressRoutes
+```console
+$ kubectl get certificate -A
+NAMESPACE   NAME                              READY   SECRET                            AGE
+traefik     traefik-default-cert              True    traefik-default-cert-tls          60d
+traefik     wildcard-derio-net-cert           True    wildcard-derio-net-cert-tls       30d
+argocd      argocd-server-tls                 True    argocd-server-tls                 120d
+```
 
-### List All Routes
+### Check IngressRoutes
 
 ```bash
-kubectl get ingressroutes -n traefik-system
+# List all IngressRoutes
+kubectl get ingressroute -A
+
+# Check a specific route
+kubectl describe ingressroute -n <namespace> <name>
 ```
 
-### Add a New IngressRoute
-
-1. Add the route to `apps/traefik/manifests/ingressroutes.yaml`
-2. Add to `apps/homepage/manifests/configmap-services.yaml`
-3. If forward-auth needed:
-   - Add blueprint entry to `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml`
-   - After deploy, assign provider to outpost (see Authentik section below)
-
-### Debug a Route
+### Check Homepage Status
 
 ```bash
-# Check Traefik logs for a specific route
-kubectl logs -n traefik-system deploy/traefik | grep "<hostname>"
+# Check if the config update was picked up
+kubectl rollout status -n homepage deployment/homepage
 
-# Test from inside the cluster (bypasses Traefik)
-kubectl run -it --rm debug --image=busybox -- wget -qO- http://<service>.<namespace>:<port>/
+# Check if the tiles render correctly by curling the page
+kubectl exec -n homepage deploy/homepage -- wget -qO- http://localhost:3000/api/services
 ```
 
-## Authentik Forward-Auth
+## Steps
 
-### Check Provider Assignment
+### Check HTTP Routing
 
 ```bash
-kubectl exec -n authentik deploy/authentik-server -- python -c "
-import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
-import django; django.setup()
-from authentik.outposts.models import Outpost
-outpost = Outpost.objects.get(name='authentik Embedded Outpost')
-for p in outpost.providers.all():
-    print(f'  {p.name}')
-print(f'Total: {outpost.providers.count()} providers')
-"
+# Check if the internal entrypoint is working
+kubectl port-forward -n traefik svc/traefik-internal 9000:9000
+
+# Check if the external entrypoint is working
+kubectl port-forward -n traefik svc/traefik 9000:9000
 ```
 
-### Add a New Provider to the Outpost
+Then visit `http://localhost:9000/dashboard/`.
 
-After the Authentik blueprint creates the provider:
+### Restart Homepage Pod
+
+When tiles are stale, SSO is misconfigured, or the config needs to be refreshed:
 
 ```bash
-kubectl exec -n authentik deploy/authentik-server -- python -c "
-import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
-import django; django.setup()
-from authentik.providers.proxy.models import ProxyProvider
-from authentik.outposts.models import Outpost
-outpost = Outpost.objects.get(name='authentik Embedded Outpost')
-provider = ProxyProvider.objects.get(name='<PROVIDER_NAME>')
-outpost.providers.add(provider)
-print(f'Added {provider.name} to {outpost.name}')
-"
+kubectl rollout restart -n homepage deployment/homepage
+kubectl rollout status -n homepage deployment/homepage
 ```
 
-### Check Blueprint Status
+## Recover
+
+### Route Returns 404
 
 ```bash
-kubectl exec -n authentik deploy/authentik-server -- python -c "
-import os; os.environ.setdefault('DJANGO_SETTINGS_MODULE','authentik.root.settings')
-import django; django.setup()
-from authentik.blueprints.models import BlueprintInstance
-for b in BlueprintInstance.objects.filter(path__contains='proxy'):
-    print(f'{b.name} status={b.status}')
-"
+# Check if the IngressRoute exists
+kubectl get ingressroute -A | grep <service-name>
+
+# Check if the Service exists and has endpoints
+kubectl get svc -n <namespace> <service-name>
+kubectl get endpoints -n <namespace> <service-name>
+
+# Check Traefik logs for routing errors
+kubectl logs -n traefik -l app.kubernetes.io/name=traefik --tail=50 | grep <service-name>
 ```
 
-### Force Blueprint Re-Apply
+If the IngressRoute is missing, add it following the pattern in `apps/traefik/ingressroutes/`. If the Service has no endpoints, the backing pod is not running or the label selector is wrong.
+
+### Certificate Not Renewing
 
 ```bash
-# Restart the worker (blueprints are processed by the worker, not server)
-kubectl rollout restart deploy/authentik-worker -n authentik
+# Check certificate expiry
+kubectl get certificate -A -o wide
+
+# Check if the ACME issuer is reachable
+kubectl exec -n traefik deploy/traefik -- wget -qO- https://acme-v02.api.letsencrypt.org/directory
+
+# Check Traefik ACME logs for the specific certificate
+kubectl logs -n traefik -l app.kubernetes.io/name=traefik --tail=100 | grep -B5 -A5 "certificate.*renew"
 ```
 
-### Common Forward-Auth Failures
-
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| HTTP 404 from Authentik | Provider not assigned to outpost | Run the outpost assignment command above |
-| HTTP 404 after deploy | Blueprint not applied (missing `invalidation_flow`) | Check worker logs for serializer errors |
-| Forward-auth redirect to wrong URL | `AUTHENTIK_HOST` env var wrong | Check `global.env` in `apps/authentik/values.yaml` |
-
-## Homepage Dashboard
-
-{{< screenshot src="homepage-dashboard.png" caption="Homepage dashboard showing all cluster services" >}}
-
-### Restart After ConfigMap Change
-
-ArgoCD syncs the ConfigMap, but the Homepage pod needs a restart to pick up changes:
+Common causes: DNS resolution failure for the domain, Let's Encrypt rate limiting, or the ACME HTTP-01 challenge port (80) not being reachable from the internet. If the certificate is managed via cert-manager instead of Traefik's built-in ACME:
 
 ```bash
-kubectl rollout restart deploy/homepage -n homepage
+# Check cert-manager resources
+kubectl describe certificaterequest -n <namespace> <name>
 ```
 
-### Add a New Service
-
-Edit `apps/homepage/manifests/configmap-services.yaml`:
-
-```yaml
-        - ServiceName:
-            icon: icon-name    # si-* (Simple Icons) or mdi-* (Material Design)
-            href: https://service.cluster.derio.net
-            description: One-line description
-            siteMonitor: http://service.namespace:port
-```
-
-Use `siteMonitor` (HTTP health check), not `ping` (ICMP doesn't work for ClusterIP).
-
-### Check Health From Pod
+### Homepage Dashboard is Blank
 
 ```bash
-# Verify Homepage can reach internal services
-kubectl exec -n homepage deploy/homepage -- wget -qO- --timeout=3 http://argocd-server.argocd:80 | head -5
+# Check the pods
+kubectl get pods -n homepage
+
+# Check logs
+kubectl logs -n homepage deploy/homepage --tail=50
+
+# Check if the config updated
+kubectl get configmap -n homepage homepage-config -o yaml
 ```
 
-## Middleware CRDs
-
-### List Middlewares
+Homepage uses a ConfigMap for its settings. If the `configMapGenerator` in `kustomization.yaml` was changed, the pod needs to be restarted to pick it up:
 
 ```bash
-kubectl get middlewares -n traefik-system
+kubectl rollout restart -n homepage deployment/homepage
 ```
 
-Current middlewares:
-- `security-headers` — HSTS, X-Frame-Options, CSP
-- `ip-allowlist` — RFC 1918 ranges only
-- `authentik-forwardauth` — Authentik embedded outpost
+### Broken Forward Authentication (SSO)
 
-## Cloudflare DNS Token
-
-The SOPS-encrypted secret is in `secrets/traefik-cloudflare-credentials.yaml`. To re-apply:
+If a service's Auth middleware is misconfigured, you may get 401 or 500 on the route. Check:
 
 ```bash
-sops --decrypt secrets/traefik-cloudflare-credentials.yaml | kubectl apply -f -
+# Check the middlewares on the IngressRoute
+kubectl describe ingressroute -n <namespace> <name> | grep -A 10 "middlewares"
+
+# Check the auth service is running
+kubectl get pods -n authentik
+
+# Check auth middleware definition
+kubectl get middleware -n traefik
 ```
+
+To bypass SSO for debugging (temporarily), remove the `middlewares:` block from the IngressRoute, test the route, then add it back.
+
+### Homepage Tile Shows Broken Icon
+
+If a tile renders but the icon is broken (the "GoatCounter goat" placeholder):
+
+```bash
+kubectl logs -n homepage deploy/homepage --tail=20 | grep -i icon
+```
+
+The icon URL in the tile config may need updating. Edit the `services.yaml` entry for the service in `apps/homepage/config/services.yaml`.
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| Homepage picks up config changes automatically | Homepage reads the ConfigMap at startup. The `configMapGenerator` produces a new ConfigMap name on change, but the deployment doesn't auto-roll. The pod must be manually restarted. | Stale tiles persisted until someone noticed and restarted. |
+| Authentik forward-auth works for every route | The Hermes agent-shell dashboard route needed simple basic auth, not forward auth. The forward-auth middleware was blocking legitimate traffic. | One debugging session to revert to basic auth (#629). |
+| All internal routes go through the external entrypoint | Some services shouldn't be internet-facing at all. The fix was an internal-only entrypoint (`traefik-internal`) that skips ACME and external middleware. | Re-architecture to split entrypoints, then migration of internal routes. |
+
+## Quick Reference
+
+| Command | What It Does |
+|---------|-------------|
+| `kubectl get pods -n traefik` | Check Traefik pods |
+| `kubectl get certificate -A` | List all TLS certificates |
+| `kubectl get ingressroute -A` | List all HTTP routes |
+| `kubectl describe ingressroute -n <ns> <name>` | Show route details |
+| `kubectl rollout restart -n homepage deploy/homepage` | Restart Homepage |
+| `kubectl logs -n traefik deploy/traefik \| grep <svc>` | Check Traefik logs for a service |
+| `kubectl get endpoints -n <ns> <svc>` | Check if service has backends |
+| `kubectl get middleware -n traefik` | List Traefik middlewares |
 
 ## References
 
-- [Traefik IngressRoute CRD](https://doc.traefik.io/traefik/routing/providers/kubernetes-crd/)
-- [Traefik ACME Configuration](https://doc.traefik.io/traefik/https/acme/)
-- [Authentik Proxy Provider](https://docs.goauthentik.io/docs/providers/proxy/)
-- [gethomepage.dev Services Config](https://gethomepage.dev/configs/services/)
+- [Building Post — Ingress]({{< relref "/docs/building/24-in-cluster-ingress" >}})
+- [Traefik Documentation](https://doc.traefik.io/traefik/)
+- [Homepage Documentation](https://gethomepage.dev/)

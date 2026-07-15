@@ -39,6 +39,29 @@ All volumes in the `default` group are backed up to a Cloudflare R2 bucket on tw
 
 Both RecurringJobs target the R2 BackupTarget (`apps/longhorn/manifests/backup-target-default.yaml`, URL `s3://frank-longhorn-backups@auto/`). NFS backup target is disabled pending a Longhorn bug fix in v1.13 (`apps/longhorn/manifests/backup-target-nas.yaml`, entirely commented out).
 
+```mermaid
+graph LR
+  subgraph CP["Control-Plane (replica=3)"]
+    M1["mini-1"]
+    M2["mini-2"]
+    M3["mini-3"]
+  end
+  subgraph GPU["GPU Node"]
+    G1["gpu-1<br/>local SSD"]
+  end
+  subgraph PC["PC Node"]
+    P1["pc-1<br/>longhorn-cicd"]
+  end
+  M1 --> LH["Longhorn<br/>replica=3"]
+  M2 --> LH
+  M3 --> LH
+  G1 --> LG["longhorn-gpu-local<br/>single-replica"]
+  P1 --> LC["longhorn-cicd<br/>single-replica"]
+  LH --> R2["Cloudflare R2<br/>s3://frank-longhorn-backups"]
+  LG --> R2
+  LC --> R2
+```
+
 ### Verify
 
 ```bash
