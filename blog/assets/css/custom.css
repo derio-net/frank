@@ -258,7 +258,10 @@
 }
 
 /* ---------------------------------------------------------------
-   Mermaid SVG colour overrides for Frank Papers (.paper-post only).
+   Mermaid SVG colour overrides — Frank theme (applied to all
+   docs posts via .content, plus .paper-post for papers-specific
+   elements like quadrant charts).
+
    Hextra renders mermaid with its default light/dark theme, which is
    muted in dark mode. We override the resulting SVG attributes.
 
@@ -266,87 +269,103 @@
    !important to win.
 --------------------------------------------------------------- */
 
-/* --- dark mode (default) --- */
-.paper-post .mermaid svg {
-  background: transparent !important;
+/* Shared scope for all doc posts (.content) plus papers (.paper-post) */
+:is(.content, .paper-post) {
+  /* responsive container — horizontal scroll if the SVG overflows */
+  & .mermaid {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* SVG renders at its natural Mermaid-computed size;
+     if the diagram is wider than the content column
+     the container scrolls. Don't force shrink — that
+     makes node text unreadable. */
+  & .mermaid svg {
+    background: transparent !important;
+  }
+
+  /* node fills (rect/polygon/circle/ellipse/path that aren't edge arrows) */
+  & .mermaid .node rect,
+  & .mermaid .node polygon,
+  & .mermaid .node circle,
+  & .mermaid .node ellipse,
+  & .mermaid .node path {
+    fill: #1f3a5f !important;
+    stroke: #4dabf7 !important;
+    stroke-width: 1.5px !important;
+  }
+
+  /* node labels — the text inside boxes */
+  & .mermaid .nodeLabel,
+  & .mermaid .nodeLabel p,
+  & .mermaid .node .label,
+  & .mermaid .node text,
+  & .mermaid .nodeLabel foreignObject div {
+    color: #eaf2ff !important;
+    fill: #eaf2ff !important;
+    font-size: 15px !important;
+  }
+
+  /* edge lines */
+  & .mermaid .edgePath path,
+  & .mermaid .flowchart-link {
+    stroke: #51cf66 !important;
+    stroke-width: 1.5px !important;
+  }
+
+  /* edge arrowheads */
+  & .mermaid .arrowheadPath,
+  & .mermaid marker path {
+    fill: #51cf66 !important;
+    stroke: #51cf66 !important;
+  }
+
+  /* dashed/dotted edges (used for "fallback" or "scar" paths) */
+  & .mermaid .edgePath path.flowchart-link[style*="dasharray"],
+  & .mermaid path.flowchart-link.dashed {
+    stroke: #ffa94d !important;
+  }
+
+  /* edge labels */
+  & .mermaid .edgeLabel,
+  & .mermaid .edgeLabel p,
+  & .mermaid .edgeLabel rect {
+    color: #eaf2ff !important;
+    fill: #0d1117 !important;
+    background-color: #0d1117 !important;
+  }
+  & .mermaid .edgeLabel foreignObject div {
+    color: #eaf2ff !important;
+    background-color: #0d1117 !important;
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+
+  /* subgraph (cluster) container */
+  & .mermaid .cluster rect {
+    fill: #161b22 !important;
+    stroke: #4dabf7 !important;
+    stroke-width: 1.5px !important;
+    stroke-dasharray: 4 2 !important;
+  }
+  & .mermaid .cluster-label,
+  & .mermaid .cluster text,
+  & .mermaid .cluster .label foreignObject div {
+    color: #4dabf7 !important;
+    fill: #4dabf7 !important;
+    font-weight: 600 !important;
+  }
+
+  /* title text */
+  & .mermaid .flowchartTitleText,
+  & .mermaid .titleText {
+    fill: #eaf2ff !important;
+    font-weight: 700 !important;
+  }
 }
 
-/* node fills (rect/polygon/circle/ellipse/path that aren't edge arrows) */
-.paper-post .mermaid .node rect,
-.paper-post .mermaid .node polygon,
-.paper-post .mermaid .node circle,
-.paper-post .mermaid .node ellipse,
-.paper-post .mermaid .node path {
-  fill: #1f3a5f !important;
-  stroke: #4dabf7 !important;
-  stroke-width: 1.5px !important;
-}
-
-/* node labels — the text inside boxes */
-.paper-post .mermaid .nodeLabel,
-.paper-post .mermaid .nodeLabel p,
-.paper-post .mermaid .node .label,
-.paper-post .mermaid .node text,
-.paper-post .mermaid .nodeLabel foreignObject div {
-  color: #eaf2ff !important;
-  fill: #eaf2ff !important;
-}
-
-/* edge lines */
-.paper-post .mermaid .edgePath path,
-.paper-post .mermaid .flowchart-link {
-  stroke: #51cf66 !important;
-  stroke-width: 1.5px !important;
-}
-
-/* edge arrowheads */
-.paper-post .mermaid .arrowheadPath,
-.paper-post .mermaid marker path {
-  fill: #51cf66 !important;
-  stroke: #51cf66 !important;
-}
-
-/* dashed/dotted edges (used for "fallback" or "scar" paths) */
-.paper-post .mermaid .edgePath path.flowchart-link[style*="dasharray"],
-.paper-post .mermaid path.flowchart-link.dashed {
-  stroke: #ffa94d !important;
-}
-
-/* edge labels */
-.paper-post .mermaid .edgeLabel,
-.paper-post .mermaid .edgeLabel p,
-.paper-post .mermaid .edgeLabel rect {
-  color: #eaf2ff !important;
-  fill: #0d1117 !important;
-  background-color: #0d1117 !important;
-}
-.paper-post .mermaid .edgeLabel foreignObject div {
-  color: #eaf2ff !important;
-  background-color: #0d1117 !important;
-  padding: 2px 6px;
-  border-radius: 3px;
-}
-
-/* subgraph (cluster) container */
-.paper-post .mermaid .cluster rect {
-  fill: #161b22 !important;
-  stroke: #4dabf7 !important;
-  stroke-width: 1.5px !important;
-  stroke-dasharray: 4 2 !important;
-}
-.paper-post .mermaid .cluster-label,
-.paper-post .mermaid .cluster text,
-.paper-post .mermaid .cluster .label foreignObject div {
-  color: #4dabf7 !important;
-  fill: #4dabf7 !important;
-  font-weight: 600 !important;
-}
-
-/* quadrantChart — Mermaid 11 renders the four quadrants as rects with
-   classes .quadrant1 … .quadrant4 (top-right, top-left, bottom-left,
-   bottom-right). We tint all four with the Frank blue and vary the
-   opacity slightly so they read as four distinct cells without
-   competing with the rest of the diagram. */
+/* quadrantChart — Papers-only (rarely used in operating/building posts) */
 .paper-post .mermaid .quadrantChart .background-fill {
   fill: #0d1117 !important;
 }
@@ -388,58 +407,55 @@
   stroke: #51cf66 !important;
 }
 
-/* title text */
-.paper-post .mermaid .flowchartTitleText,
-.paper-post .mermaid .titleText {
-  fill: #eaf2ff !important;
-  font-weight: 700 !important;
+/* --- light-mode overrides (shared scope) --- */
+:root:not(.dark) :is(.content, .paper-post) {
+  & .mermaid .node rect,
+  & .mermaid .node polygon,
+  & .mermaid .node circle,
+  & .mermaid .node ellipse,
+  & .mermaid .node path {
+    fill: #dde9ff !important;
+    stroke: #1f6feb !important;
+  }
+  & .mermaid .nodeLabel,
+  & .mermaid .nodeLabel p,
+  & .mermaid .node text,
+  & .mermaid .nodeLabel foreignObject div {
+    color: #0d1b2a !important;
+    fill: #0d1b2a !important;
+  }
+  & .mermaid .edgePath path,
+  & .mermaid .flowchart-link {
+    stroke: #198754 !important;
+  }
+  & .mermaid .arrowheadPath,
+  & .mermaid marker path {
+    fill: #198754 !important;
+    stroke: #198754 !important;
+  }
+  & .mermaid .edgeLabel,
+  & .mermaid .edgeLabel p {
+    color: #0d1b2a !important;
+    fill: #f8f9fa !important;
+    background-color: #f8f9fa !important;
+  }
+  & .mermaid .edgeLabel foreignObject div {
+    color: #0d1b2a !important;
+    background-color: #f8f9fa !important;
+  }
+  & .mermaid .cluster rect {
+    fill: #eef2f6 !important;
+    stroke: #1f6feb !important;
+  }
+  & .mermaid .cluster-label,
+  & .mermaid .cluster text,
+  & .mermaid .cluster .label foreignObject div {
+    fill: #1f6feb !important;
+    color: #1f6feb !important;
+  }
 }
 
-/* --- light-mode overrides --- */
-:root:not(.dark) .paper-post .mermaid .node rect,
-:root:not(.dark) .paper-post .mermaid .node polygon,
-:root:not(.dark) .paper-post .mermaid .node circle,
-:root:not(.dark) .paper-post .mermaid .node ellipse,
-:root:not(.dark) .paper-post .mermaid .node path {
-  fill: #dde9ff !important;
-  stroke: #1f6feb !important;
-}
-:root:not(.dark) .paper-post .mermaid .nodeLabel,
-:root:not(.dark) .paper-post .mermaid .nodeLabel p,
-:root:not(.dark) .paper-post .mermaid .node text,
-:root:not(.dark) .paper-post .mermaid .nodeLabel foreignObject div {
-  color: #0d1b2a !important;
-  fill: #0d1b2a !important;
-}
-:root:not(.dark) .paper-post .mermaid .edgePath path,
-:root:not(.dark) .paper-post .mermaid .flowchart-link {
-  stroke: #198754 !important;
-}
-:root:not(.dark) .paper-post .mermaid .arrowheadPath,
-:root:not(.dark) .paper-post .mermaid marker path {
-  fill: #198754 !important;
-  stroke: #198754 !important;
-}
-:root:not(.dark) .paper-post .mermaid .edgeLabel,
-:root:not(.dark) .paper-post .mermaid .edgeLabel p {
-  color: #0d1b2a !important;
-  fill: #f8f9fa !important;
-  background-color: #f8f9fa !important;
-}
-:root:not(.dark) .paper-post .mermaid .edgeLabel foreignObject div {
-  color: #0d1b2a !important;
-  background-color: #f8f9fa !important;
-}
-:root:not(.dark) .paper-post .mermaid .cluster rect {
-  fill: #eef2f6 !important;
-  stroke: #1f6feb !important;
-}
-:root:not(.dark) .paper-post .mermaid .cluster-label,
-:root:not(.dark) .paper-post .mermaid .cluster text,
-:root:not(.dark) .paper-post .mermaid .cluster .label foreignObject div {
-  fill: #1f6feb !important;
-  color: #1f6feb !important;
-}
+/* --- light-mode quadrant overrides (papers-only) --- */
 :root:not(.dark) .paper-post .mermaid .quadrantChart .background-fill {
   fill: #f8f9fa !important;
 }
