@@ -4,16 +4,38 @@ series: ["operating"]
 layer: auth
 date: 2026-03-13
 draft: false
-tags: ["operations", "authentik", "oidc", "sso", "security"]
+tags: ["operations", "authentik", "oidc", "sso", "security", "troubleshooting"]
 summary: "Day-to-day commands for managing Authentik SSO, checking OIDC flows, and debugging authentication issues across the cluster."
 weight: 9
+reader_goal: "Manage Authentik SSO users and providers, rotate OIDC client secrets, debug login loops and forward auth redirects, and validate token flows."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 ---
+
+{{< last-updated >}}
 
 This is the operational companion to [Unified Auth — Authentik SSO for the Entire Cluster]({{< relref "/docs/building/13-unified-auth" >}}). That post covers the OIDC provider setup and forward auth proxy configuration. This one is the day-to-day runbook for managing users, rotating secrets, and debugging login issues.
 
+Source your environment:
+
+```bash
+source .env
+```
+
 ## What "Healthy" Looks Like
 
-Authentication is healthy when Authentik at `192.168.55.211:9000` is responding, all OIDC providers show valid status in the admin UI, and users can log into ArgoCD, Grafana, and Infisical via SSO without errors. Forward auth should be passing requests through for Longhorn UI, Hubble UI, and Sympozium.
+Authentication is healthy when Authentik at `192.168.55.211:9000` is responding, all OIDC providers show valid status, and users can log into ArgoCD, Grafana, and Infisical via SSO without errors. Forward auth should pass requests through for Longhorn UI, Hubble UI, and Sympozium.
+
+### Verify
+
+```bash
+# Authentik pods running
+kubectl get pods -n authentik
+
+# Test OIDC well-known endpoint
+curl -s http://192.168.55.211:9000/application/o/<provider-slug>/.well-known/openid-configuration | jq
+```
 
 {{< screenshot src="authentik-providers-healthy.png" caption="Authentik admin UI: all cluster OIDC and proxy providers with healthy status" >}}
 
@@ -22,25 +44,20 @@ Authentication is healthy when Authentik at `192.168.55.211:9000` is responding,
 ### Authentik Status
 
 ```bash
-# Check Authentik pods
 kubectl get pods -n authentik
-
-# Check server and worker logs
 kubectl logs -n authentik deploy/authentik-server --tail=50
 kubectl logs -n authentik deploy/authentik-worker --tail=50
 ```
 
 ### API Access
 
-Authentik API requires a Bearer token. Create one via the Django shell if needed:
+Authentik API requires a Bearer token. Generate one via the Django shell:
 
 ```bash
-# Get a shell into the Authentik server
 kubectl exec -n authentik deploy/authentik-server -it -- ak shell
 ```
 
 ```python
-# In the Django shell:
 from authentik.core.models import Token, TokenIntents, User
 user = User.objects.get(username="akadmin")
 token, created = Token.objects.get_or_create(
@@ -51,7 +68,7 @@ print(token.key)
 ```
 
 ```bash
-# List providers via API
+# List providers
 curl -s -H "Authorization: Bearer <token>" \
   http://192.168.55.211:9000/api/v3/providers/all/ | jq '.results[].name'
 
@@ -65,7 +82,7 @@ curl -s -H "Authorization: Bearer <token>" \
 ### Add Users and Groups
 
 ```bash
-# Create a user via API
+# Via API
 curl -s -X POST -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   http://192.168.55.211:9000/api/v3/core/users/ \
@@ -76,23 +93,20 @@ curl -s -H "Authorization: Bearer <token>" \
   http://192.168.55.211:9000/api/v3/core/groups/ | jq '.results[] | {name, pk}'
 ```
 
-Or use the Authentik admin UI at `http://192.168.55.211:9000/if/admin/` — it is often faster for one-off changes.
+Or use the Authentik admin UI at `http://192.168.55.211:9000/if/admin/` for one-off changes.
 
 ### Rotate Client Secrets
 
-When rotating an OIDC client secret for a service (e.g., Grafana):
+1. Generate a new secret in Authentik admin UI under the provider settings.
+2. Update the secret in Infisical.
+3. Force ESO resync: `kubectl annotate es <name> -n <ns> force-sync=$(date +%s) --overwrite`
+4. Restart the affected service.
 
-1. Generate a new secret in Authentik admin UI under the provider settings
-2. Update the secret in Infisical (the source of truth)
-3. Force ESO to resync: `kubectl annotate es <name> -n <ns> force-sync=$(date +%s) --overwrite`
-4. Restart the affected service to pick up the new secret
-
-> For Grafana specifically, the secret must be stored with key `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` in the Kubernetes Secret for `envFromSecret` to work.
+For Grafana specifically, the secret must be stored with key `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` for `envFromSecret` to work.
 
 ### Manage API Tokens
 
 ```bash
-# List API tokens via Django shell
 kubectl exec -n authentik deploy/authentik-server -it -- ak shell
 ```
 
@@ -102,17 +116,14 @@ for t in Token.objects.filter(intent="api"):
     print(f"{t.identifier}: {t.user.username} expires={t.expires}")
 ```
 
-## Debugging
+## Runbook
 
 ### OIDC Login Loop
 
 If a service redirects back and forth between the login page:
 
 ```bash
-# Check Authentik server logs for OIDC errors
 kubectl logs -n authentik deploy/authentik-server --tail=100 | grep -i "oauth\|oidc\|redirect"
-
-# Verify redirect URIs match exactly
 curl -s -H "Authorization: Bearer <token>" \
   http://192.168.55.211:9000/api/v3/providers/oauth2/ | jq '.results[] | {name, redirect_uris}'
 ```
@@ -122,11 +133,9 @@ Common causes:
 - `redirect_uris` must be a list in Authentik 2026.x API calls
 - Missing `invalidation_flow` in provider config (required in 2026.x)
 
-### Forward Auth Redirects to `0.0.0.0`
+### Forward Auth Redirects to 0.0.0.0
 
-If clicking a forward-auth-protected service (Longhorn, Hubble, Sympozium) redirects the browser to `http://0.0.0.0:9000/...` instead of `https://auth.frank.derio.net/...`:
-
-The embedded outpost does not know its own external URL. Set `AUTHENTIK_HOST` in the Helm values:
+The embedded outpost does not know its own external URL. Set `AUTHENTIK_HOST` in Helm values:
 
 ```yaml
 global:
@@ -135,26 +144,21 @@ global:
       value: "https://auth.frank.derio.net"
 ```
 
-After updating `apps/authentik/values.yaml`, ArgoCD will sync the change. Verify with:
+After updating `apps/authentik/values.yaml`, ArgoCD syncs the change. Verify:
 
 ```bash
-# Check that the env var is set on the server pods
 kubectl get deploy -n authentik authentik-server \
   -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="AUTHENTIK_HOST")].value}'
 # Expected: https://auth.frank.derio.net
 
-# Test that forward-auth now redirects correctly
 curl -sk -o /dev/null -w "%{redirect_url}\n" https://longhorn.frank.derio.net/
-# Expected: https://auth.frank.derio.net/outpost.goauthentik.io/... (not 0.0.0.0)
+# Expected: https://auth.frank.derio.net/outpost.goauthentik.io/...
 ```
 
 ### Forward Auth 403
 
 ```bash
-# Check the forward auth outpost logs
 kubectl logs -n authentik -l app.kubernetes.io/component=outpost --tail=50
-
-# Verify the outpost can reach the Authentik server
 kubectl exec -n authentik -l app.kubernetes.io/component=outpost -- \
   curl -s http://authentik-server.authentik.svc:9000/api/v3/root/config/
 ```
@@ -164,9 +168,7 @@ kubectl exec -n authentik -l app.kubernetes.io/component=outpost -- \
 If Grafana shows "login error" after OIDC redirect:
 
 ```bash
-# Verify the secret key name in the K8s Secret
 kubectl get secret -n grafana grafana-oidc -o jsonpath='{.data}' | jq 'keys'
-
 # Must contain: GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET
 # NOT: client_secret or clientSecret
 ```
@@ -174,13 +176,18 @@ kubectl get secret -n grafana grafana-oidc -o jsonpath='{.data}' | jq 'keys'
 ### Token Validation Failures
 
 ```bash
-# Test the OIDC well-known endpoint
 curl -s http://192.168.55.211:9000/application/o/<provider-slug>/.well-known/openid-configuration | jq
-
-# Check token endpoint manually
 curl -s -X POST http://192.168.55.211:9000/application/o/token/ \
   -d "grant_type=client_credentials&client_id=<id>&client_secret=<secret>"
 ```
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|-----------------|------------------|-------------|
+| Authentik forward auth auto-resolves its external URL | The embedded outpost doesn't know its public URL — defaults to `0.0.0.0` in redirects | Forward auth redirects broke until `AUTHENTIK_HOST` was explicitly set in values. |
+| Grafana OIDC secret key matches Authentik's default naming | Grafana's `envFromSecret` expects `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` — not `client_secret` | Login errors until the Secret key was renamed. |
+| Authentik provider config is backwards-compatible across versions | 2026.x requires `invalidation_flow` and list-format `redirect_uris` | OIDC login loops until config was updated. |
 
 ## Quick Reference
 

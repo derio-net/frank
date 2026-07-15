@@ -1,15 +1,25 @@
 ---
 title: "Operating on ArgoCD Drift"
-series: ["operating"]
+series: [operating]
 layer: gitops
 date: 2026-04-16
 draft: false
-tags: ["operations", "argocd", "gitops", "debugging", "serverside-apply"]
-summary: "How 20 of my 52 ArgoCD apps were permanently OutOfSync, why it was seven different bugs, and how fixing the noise unmasked a 21-day crashloop."
+tags: [operations, argocd, gitops, debugging, serverside-apply, troubleshooting]
+summary: "How 20 of my 52 ArgoCD apps were permanently OutOfSync, why it was seven different bugs, and how fixing the noise unmasked a 21-day crashloop. Documents seven drift classes found during the cleanup and how fixing the noise unmasked a 21-day controller crashloop."
+reader_goal: "Diagnose and classify ArgoCD OutOfSync drift into its root cause classes — CRD defaults, phantom diffs, orphan resources, and zombie sub-charts — and decide when to fix vs ignore."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 24
 ---
+{{< last-updated >}}
 
 This is a debugging-focused companion to [Operating on GitOps]({{< relref "/docs/operating/03-gitops" >}}). That post covers the day-to-day ArgoCD commands. This one is about what happens when the `OutOfSync` column stops being useful.
+
+```bash
+source .env   # sets KUBECONFIG
+```
+
 
 ## The Problem
 
@@ -75,6 +85,21 @@ On my cluster the output was dominated by three kinds:
 - `CustomResourceDefinition/*` — twelve entries across argo-rollouts, tekton-pipelines, tekton-dashboard
 
 Those aren't random. Each cluster is its own drift class with its own fix.
+
+### Verify
+
+Confirm your ArgoCD drift signal is clean and actionable:
+
+```bash
+# Count OutOfSync apps — should be near zero after classification
+argocd app list -o json | jq '[.[] | select(.status.sync.status == "OutOfSync")] | length'
+
+# Check for Progressing apps that might be crashlooping
+argocd app list -o json | jq '.[] | select(.status.health.status == "Progressing") | .metadata.name'
+```
+
+Expected: OutOfSync count is low (ideally 0–2) and every Progressing app has a known cause.
+
 
 ## Class A: CRD Schema Defaults
 
@@ -393,6 +418,18 @@ I'm keeping both as residuals instead of blanket-ignoring the whole resources, b
 - **Pin schema defaults in git where possible.** Preferred over `ignoreDifferences` because real changes still flag. Only reach for `ignoreDifferences` when the mutator is a controller/webhook you don't own.
 - **Dump before you delete.** `kubectl get -o yaml > rollback.yaml` takes two seconds and saves you from a bad Monday.
 - **Read the logs of every app that moved from `Progressing` to a new state.** That's where the hiding things are.
+
+
+## Missteps
+
+The layer's design took a few wrong turns before it settled. These are the ones worth remembering so the next operator doesn't repeat them.
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| ArgoCD OutOfSync means a real configuration drift | Seven distinct classes of false-positive drift exist — CRD schema defaults, ArgoCD normalization, orphan CRDs, zombie sub-charts, namespace ownership fights, terminal hook artifacts, and chart-rendered timestamps — most of which are harmless | Twenty of 52 apps permanently OutOfSync, normalizing a red column and hiding a 21-day CrashLoopBackOff |
+| CRD schema defaults are safe to omit from git because the API server fills them in | The API server injects defaults server-side, but ArgoCD's three-way diff compares git (no defaults) against live (with defaults) and flags every field as drifted | Ten OutOfSync apps that each needed 4-line edits to pin defaults in manifests |
+| prune: false is the safe default and should be explicit in every Application template | ArgoCD's Application CRD has prune: false as its schema default — writing it explicitly creates a diff against the normalized live object that strips the explicit false | Twelve child Applications permanently drifted under the root app until the line was dropped from 51 templates |
+| An aspirational plugin config in values.yaml is harmless if nothing uses it | The Cilium traffic router plugin URL 404s; Argo Rollouts downloads it at startup and crashloops — 1,154 restarts over 21 days with no alert because the OutOfSync noise masked the health column | A 21-day controller crashloop invisible to every monitoring signal |
 
 ## References
 

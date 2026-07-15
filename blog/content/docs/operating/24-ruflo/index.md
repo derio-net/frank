@@ -1,15 +1,26 @@
 ---
 title: "Operating on Ruflo"
-series: ["operating"]
+series: [operating]
 layer: orch
 date: 2026-05-03
 draft: false
-tags: ["operations", "ruflo", "claude-flow", "ruvocal", "ai-agents", "agent-shell-base", "ssh", "mosh", "litellm"]
-summary: "Day-to-day commands for managing Ruflo — connecting via SSH/Mosh, curating the inventory ConfigMap, reading the install log, bumping images, backups, and a worked example of running claude-flow against the running ruvocal."
+tags: [operations, ruflo, claude-flow, ruvocal, ai-agents, agent-shell-base, ssh, mosh,
+  litellm, troubleshooting]
+summary: "Day-to-day commands for managing Ruflo — connecting via SSH/Mosh, curating the inventory ConfigMap, reading the install log, bumping images, backups, and a worked example of running claude-flow against the running ruvocal. Includes troubleshooting for pod startup failures, mise activation bugs, and Telegram alert silence."
+reader_goal: "Connect to Ruflo via SSH/Mosh, manage the tool inventory ConfigMap, bump container images, read install logs, run a swarm, and troubleshoot common pod failures."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 25
 ---
+{{< last-updated >}}
 
 This is the operational companion to [Ruflo — A Swarm Orchestrator Next to Paperclip]({{< relref "/docs/building/29-ruflo" >}}). That post explains the architecture and the rationale. This one covers the day-to-day: connecting, installing tools, bumping images, reading logs, recovering from breakage, and a worked swarm-run cookbook.
+
+```bash
+source .env   # sets KUBECONFIG
+```
+
 
 ## What "Healthy" Looks Like
 
@@ -27,6 +38,21 @@ kubectl get pods,pvc,externalsecret,svc -n ruflo-system
 ```
 
 Expected: one `ruflo-…` Deployment pod (2/2), one `ruflo-db-postgresql-0` StatefulSet pod (2/2), three Bound PVCs, four synced ExternalSecrets, two Services (ClusterIP for ruvocal, LoadBalancer at `192.168.55.222` for SSH+Mosh).
+
+### Verify
+
+Confirm Ruflo is reachable and the shell sidecar is ready:
+
+```bash
+# SSH connectivity
+ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new agent@192.168.55.222 'echo SSH-OK'
+
+# Pod health
+kubectl -n ruflo-system get pods -l app.kubernetes.io/name=ruflo -o jsonpath='{.items[0].status.containerStatuses[*].ready}'
+```
+
+Expected: `SSH-OK` printed, all container statuses `true`.
+
 
 ## Connecting
 
@@ -421,6 +447,18 @@ The alert helper resolves `FRANK_C2_TELEGRAM_BOT_TOKEN` / `FRANK_C2_TELEGRAM_CHA
 - **RVF's `GridFSBucket` is a shim** — its file upload/download/copy-on-fork paths needed a parity fix (real `Writable`/`Readable`/cursor) to stop 500-ing. Carried as a build-time patch, upstreamed as ruvnet/ruflo#2293. A pre-fix image regresses file uploads (see Troubleshooting above).
 - **`mise install` doesn't activate.** Until the upstream `agent-shell-base` fix lands, manual `mise use --global …` after first reconcile is required (see workaround above).
 - **The `cont-init.d/30-authorized-keys` hook only fires at pod boot.** Rotating SSH keys mid-life requires either a `kubectl exec` re-copy or a pod bounce.
+
+
+## Missteps
+
+The layer's design took a few wrong turns before it settled. These are the ones worth remembering so the next operator doesn't repeat them.
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| The mise install step in cont-init.d activates tools globally after installation | install-inventory.sh runs `mise install` but not `mise use --global`, so subsequent steps (npm, pip, python) fall through to system installs and fail with EACCES | First-time tool installs appeared successful but were silently broken — required discovery debugging and a manual workaround |
+| shareProcessNamespace: true is safe for multi-container pods with s6-overlay | s6-overlay v3 must be PID 1 in its own container namespace; sharing the process namespace causes `s6-overlay-suexec: fatal: can only run as pid 1` | Pod init failures and container crashloops until the incompatibility was documented as a frank-gotcha |
+| The ruflo-shell image build includes all needed tools, so the inventory ConfigMap is secondary | Decoupling tool declarations from image builds means faster iteration — every image rebuild takes a CI cycle while inventory changes are commit-and-sync | Operators waited for image builds when a simple ConfigMap edit would have sufficed; pattern inverted to prefer inventory over image bumps |
+| swarm workers use the same LiteLLM proxy as the chat surface | claude-flow workers use the `claude` CLI's own auth (subscription OAuth), not the zero-direct-key LiteLLM path — workers bill Anthropic directly | First swarm run with beautiful topology and zero executed tasks until the dual-auth architecture was understood |
 
 ## References
 

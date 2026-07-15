@@ -4,12 +4,22 @@ series: ["operating"]
 layer: net
 date: 2026-04-08
 draft: false
-tags: ["networking", "traefik", "ingress", "tls", "acme", "authentik", "homepage", "operations"]
-summary: "Day-to-day commands for managing Traefik ingress, ACME certificates, IngressRoutes, Authentik forward-auth, and the Homepage dashboard."
+tags: ["networking", "traefik", "ingress", "tls", "acme", "authentik", "homepage", "operations", "troubleshooting"]
+summary: "Day-to-day commands for managing Traefik ingress, ACME certificates, IngressRoutes, Authentik forward-auth, the Homepage dashboard, and troubleshooting common failures."
+reader_goal: "Verify Traefik TLS certificates, add IngressRoutes, manage Authentik forward-auth, and debug routing issues."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 18
 ---
 
+{{< last-updated >}}
+
 Companion operations guide for [In-Cluster Ingress — Traefik, Wildcard TLS, and a Homepage Dashboard]({{< relref "/docs/building/24-in-cluster-ingress" >}}).
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## Quick Health Check
 
@@ -25,6 +35,22 @@ kubectl get applications -n argocd traefik traefik-extras homepage
 
 # ACME cert file size (should be >3KB if cert is issued)
 kubectl exec -n traefik-system deploy/traefik -- ls -la /data/acme.json
+```
+
+### Verify
+
+```bash
+# Traefik pod is running
+kubectl get pods -n traefik-system -o wide
+# Expected: traefik pod Running
+
+# TLS certificate is valid
+curl -sI https://argocd.cluster.derio.net 2>&1 | head -5
+# Should show HTTP/2 200 or 302 with valid TLS
+
+# ACME cert file is populated
+kubectl exec -n traefik-system deploy/traefik -- ls -la /data/acme.json
+# File size should be > 3 KB
 ```
 
 ## ACME Certificate
@@ -204,6 +230,15 @@ The SOPS-encrypted secret is in `secrets/traefik-cloudflare-credentials.yaml`. T
 ```bash
 sops --decrypt secrets/traefik-cloudflare-credentials.yaml | kubectl apply -f -
 ```
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|----------------|-----------------|-------------|
+| Default ACME propagation delay is always sufficient | Let's Encrypt sometimes validates faster than DNS propagates, causing `NXDOMAIN` failures | Increased `propagation.delayBeforeChecks` to 60s |
+| Creating an Authentik provider is enough to enable forward-auth | The provider must also be explicitly assigned to the Embedded Outpost before it routes requests | Added the outpost assignment step to every new-service procedure |
+| Homepage picks up ConfigMap changes without a restart | ArgoCD syncs the ConfigMap, but the running pod doesn't reload it automatically | Added `kubectl rollout restart deploy/homepage` to every ConfigMap change workflow |
+| ClusterIP services respond to ICMP ping | Kubernetes doesn't route ICMP to ClusterIP services — `ping` always fails | Used `siteMonitor` (HTTP health check) for all Homepage service monitors |
 
 ## References
 

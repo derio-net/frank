@@ -4,12 +4,22 @@ series: ["operating"]
 layer: media
 date: 2026-03-14
 draft: false
-tags: ["operations", "comfyui", "gpu-switcher", "diffusion", "gpu", "time-sharing"]
+tags: ["operations", "comfyui", "gpu-switcher", "diffusion", "gpu", "time-sharing", "troubleshooting"]
 summary: "Day-to-day commands for managing GPU time-sharing between Ollama and ComfyUI, downloading models, and troubleshooting the media generation stack."
+reader_goal: "Switch GPU workloads between Ollama and ComfyUI, download diffusion models, and diagnose media-stack failures."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 11
 ---
 
+{{< last-updated >}}
+
 This is the operational companion to [Media Generation — ComfyUI and GPU Time-Sharing]({{< relref "/docs/building/16-media-generation" >}}). That post explains the architecture and deployment. This one covers the day-to-day workflow for switching GPU workloads, managing diffusion models, and troubleshooting.
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## What "Healthy" Looks Like
 
@@ -28,6 +38,21 @@ The media generation stack is healthy when:
 > outage); only **both** `gpu_timeshare` probes at `0` pages (`gpu-node-both-down`). Note:
 > `replicas: 1` alone does **not** prove media works — a running-but-broken ComfyUI (failed node
 > import) still reads `replicas_unavailable: 0`; the probe is the real signal.
+
+### Verify
+
+```bash
+# GPU Switcher dashboard responds
+curl -s -o /dev/null -w "%{http_code}" http://192.168.55.214:8080
+# Expected: 200
+
+# Only one GPU workload is active
+kubectl get pods -n ollama -o name 2>/dev/null | grep -c .; kubectl get pods -n comfyui -o name 2>/dev/null | grep -c .
+# One namespace should return 0, the other >= 1
+
+# ComfyUI probe (if active)
+curl -s http://192.168.55.213:8188/system_stats | python3 -m json.tool 2>/dev/null || echo "ComfyUI is not active"
+```
 
 ## Observing State
 
@@ -141,7 +166,7 @@ curl -s http://192.168.55.213:8188/system_stats | python3 -m json.tool
 curl -s http://192.168.55.213:8188/object_info/CheckpointLoaderSimple | python3 -m json.tool | head -30
 ```
 
-## Debugging
+## Runbook
 
 ### GPU Switcher Not Responding
 
@@ -225,6 +250,14 @@ LTX-2.3 needs 8-12GB of the 16GB VRAM. If loading multiple models or using high 
 ```bash
 kubectl delete pod -n comfyui -l app.kubernetes.io/name=comfyui
 ```
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|----------------|-----------------|-------------|
+| ArgoCD would manage replica counts for GPU-switched workloads | ArgoCD continuously reconciles to the Git-specified replica count, fighting the GPU Switcher | Added `ignoreDifferences` on `spec.replicas` to both ComfyUI and Ollama Application CRs |
+| A running ComfyUI pod proves media generation works | A pod can be Running with a failed custom-node import, serving nothing useful | Added the `KSampler` blackbox probe as the canonical health signal |
+| Both GPU workloads can share the node's single GPU | Kubernetes schedules each `nvidia.com/gpu: 1` request as a discrete resource — the second pod stays Pending | Adopted the time-sharing model: one workload active, the other at replicas: 0 |
 
 ## Quick Reference
 

@@ -4,50 +4,70 @@ series: ["operating"]
 layer: obs
 date: 2026-03-13
 draft: false
-tags: ["operations", "victoriametrics", "grafana", "fluent-bit", "observability"]
+tags: ["operations", "victoriametrics", "grafana", "fluent-bit", "observability", "troubleshooting"]
 summary: "Day-to-day commands for querying metrics and logs, managing Grafana dashboards, and debugging the observability pipeline."
 weight: 6
+reader_goal: "Query metrics and logs, check pipeline health, adjust retention, and debug common failures (missing metrics, Fluent Bit not shipping, high cardinality) across VictoriaMetrics, Grafana, Fluent Bit, and VictoriaLogs."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 ---
 
+{{< last-updated >}}
+
 This is the operational companion to [Building Observability]({{< relref "/docs/building/07-observability" >}}). That post covers the architecture decisions and deployment gotchas. This one covers what you actually type when you need to find out why something is broken, slow, or eating memory.
+
+Source your environment before running commands:
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## Overview
 
 Frank's observability stack has four moving parts:
 
-- **VictoriaMetrics** (VMSingle + vmagent) -- time-series metrics database and scraping engine, running in the `monitoring` namespace with a 20Gi Longhorn PVC and 1-month retention
-- **Grafana** at `http://192.168.55.203` -- dashboards and exploration, with OIDC auth via Authentik
-- **Fluent Bit** -- DaemonSet on all nodes (including tainted control-plane and GPU nodes), shipping container logs
-- **VictoriaLogs** -- log storage with 14-day retention, queryable through Grafana's Explore tab
+- **VictoriaMetrics** (VMSingle + vmagent) — time-series metrics database and scraping engine, 20Gi Longhorn PVC, 1-month retention
+- **Grafana** at `http://192.168.55.203` — dashboards and exploration, OIDC auth via Authentik
+- **Fluent Bit** — DaemonSet on all nodes (including tainted CP and GPU nodes), shipping container logs
+- **VictoriaLogs** — log storage, 14-day retention, queryable through Grafana's Explore tab
 
-Supporting collectors: **node-exporter** (hardware metrics on all nodes) and **kube-state-metrics** (Kubernetes object metrics).
+### Verify
+
+```bash
+# vmagent scraping
+kubectl get pods -n monitoring -l app.kubernetes.io/name=vmagent
+
+# Fluent Bit on all nodes
+kubectl get ds -n monitoring fluent-bit
+# DESIRED and READY should match (7 nodes)
+
+# VictoriaLogs accepting writes
+kubectl logs -n monitoring -l app=victoria-logs-single-server --tail=5
+```
 
 ## Observing State
 
 ### Grafana Dashboards
 
-Open `http://192.168.55.203` in a browser. The stack ships with pre-built dashboards under the "VictoriaMetrics" folder:
+Open `http://192.168.55.203`. Provisioned dashboards under "VictoriaMetrics" folder:
 
-- **Node Exporter Full** -- per-node CPU, memory, disk I/O, network, filesystem
-- **Kubernetes / Compute Resources / Cluster** -- cluster-wide CPU and memory requests vs limits vs actual usage
-- **Kubernetes / Compute Resources / Namespace** -- the same, broken down by namespace
-- **VMAgent** -- scrape targets, samples/sec, queue depth
-
-These dashboards are provisioned by the Helm chart and survive Grafana pod restarts.
+- **Node Exporter Full** — per-node CPU, memory, disk I/O
+- **Kubernetes / Compute Resources / Cluster** — cluster-wide CPU/memory usage
+- **Kubernetes / Compute Resources / Namespace** — same, by namespace
+- **VMAgent** — scrape targets, samples/sec, queue depth
 
 {{< screenshot src="grafana-dashboards.png" caption="Grafana dashboard list showing available views" >}}
 
 ### Querying Metrics with MetricsQL
 
-For ad-hoc metric exploration, port-forward to VMSingle and use its built-in UI:
-
 ```bash
 kubectl port-forward -n monitoring svc/vmsingle-victoria-metrics-victoria-metrics-k8s-stack 8429:8429
 ```
 
-Then open `http://localhost:8429/vmui` in your browser. MetricsQL is a superset of PromQL -- any PromQL query works, plus extensions like `keep_metric_names` and `range_median`.
+Then open `http://localhost:8429/vmui`. MetricsQL is a superset of PromQL.
 
-Some useful starter queries:
+Useful starter queries:
 
 ```promql
 # CPU usage by node (1m average)
@@ -63,7 +83,7 @@ increase(kube_pod_container_status_restarts_total[1h]) > 0
 kubelet_volume_stats_used_bytes / kubelet_volume_stats_capacity_bytes * 100
 ```
 
-You can also query from the command line with curl:
+CLI query:
 
 ```bash
 kubectl port-forward -n monitoring svc/vmsingle-victoria-metrics-victoria-metrics-k8s-stack 8429:8429 &
@@ -72,7 +92,7 @@ curl -s 'http://localhost:8429/api/v1/query?query=up' | jq '.data.result[] | {in
 
 ### Querying Logs with VictoriaLogs
 
-Logs are queryable through Grafana's Explore tab -- select the "VictoriaLogs" datasource and use LogsQL syntax:
+Logs are queryable through Grafana's Explore tab — select "VictoriaLogs" datasource and use LogsQL:
 
 ```text
 # All logs from a namespace
@@ -88,46 +108,24 @@ Logs are queryable through Grafana's Explore tab -- select the "VictoriaLogs" da
 {kubernetes_host="gpu-1"} | level:error
 ```
 
-For CLI access, port-forward to VictoriaLogs directly:
+CLI access:
 
 ```bash
 kubectl port-forward -n monitoring svc/victoria-logs-victoria-logs-single-server 9428:9428
 curl -s 'http://localhost:9428/select/logsql/query?query={kubernetes_namespace_name="monitoring"}&limit=10' | jq .
 ```
 
-### Checking Pipeline Health
-
-Verify all pieces are running:
-
-```bash
-# vmagent is scraping
-kubectl get pods -n monitoring -l app.kubernetes.io/name=vmagent
-kubectl logs -n monitoring -l app.kubernetes.io/name=vmagent --tail=5
-
-# Fluent Bit is running on all nodes
-kubectl get ds -n monitoring fluent-bit
-# DESIRED and READY counts should match (7 nodes)
-
-# VictoriaLogs is accepting writes
-kubectl logs -n monitoring -l app=victoria-logs-single-server --tail=5
-```
-
 ## Routine Operations
 
 ### Creating and Importing Grafana Dashboards
 
-To import a community dashboard (for example, dashboard ID 1860 for Node Exporter Full):
+Open Grafana at `http://192.168.55.203` → Dashboards → Import → enter dashboard ID (e.g. 1860 for Node Exporter Full) → select VictoriaMetrics datasource.
 
-1. Open Grafana at `http://192.168.55.203`
-2. Go to Dashboards > Import
-3. Enter the dashboard ID and click Load
-4. Select the VictoriaMetrics datasource and click Import
-
-To make an imported dashboard persistent across pod restarts, Grafana's 1Gi Longhorn PVC handles that automatically. Dashboards saved in the UI are written to the PVC and survive restarts.
+Dashboards are written to Grafana's 1Gi Longhorn PVC and survive pod restarts.
 
 ### Adjusting Retention
 
-Metrics retention is set in `apps/victoria-metrics/values.yaml`:
+Metrics retention (`apps/victoria-metrics/values.yaml`):
 
 ```yaml
 vmsingle:
@@ -135,68 +133,64 @@ vmsingle:
     retentionPeriod: "1"  # 1 month
 ```
 
-Log retention is in `apps/victoria-logs/values.yaml`:
+Log retention (`apps/victoria-logs/values.yaml`):
 
 ```yaml
 server:
   retentionPeriod: 14d
 ```
 
-Change the value, commit, and let ArgoCD sync. The pods will restart with the new retention window. Existing data outside the new window is garbage-collected on the next retention pass.
+Change the value, commit, and let ArgoCD sync. Existing data outside the new window is GC'd on the next retention pass.
 
 ### Checking What vmagent Is Scraping
-
-vmagent exposes its target list via its own UI:
 
 ```bash
 kubectl port-forward -n monitoring svc/vmagent-victoria-metrics-victoria-metrics-k8s-stack 8429:8429
 ```
 
-Open `http://localhost:8429/targets` to see every scrape target, its status (up/down), last scrape time, and error messages. This is the first place to look when a metric is missing.
+Open `http://localhost:8429/targets` to see every scrape target, status (up/down), last scrape time, and errors.
 
 ### Exploring Available Metrics
-
-To find what metrics exist:
 
 ```bash
 # List all metric names
 curl -s 'http://localhost:8429/api/v1/label/__name__/values' | jq '.data[:20]'
 
-# Search for metrics by keyword
+# Search by keyword
 curl -s 'http://localhost:8429/api/v1/label/__name__/values' | jq '.data[] | select(test("gpu|nvidia"))'
 ```
 
-## Debugging
+## Runbook
 
-### False positives from `kube_pod_status_ready` in batch namespaces
+### False Positives from kube_pod_status_ready in Batch Namespaces
 
-If a Layer/feature alert fires intermittently for a namespace that runs Tekton, Argo Workflows, or any Job/CronJob, double-check the underlying query. `kube_pod_status_ready{condition="true"}` reports `0` for pods in `Completed` / `Error` state — those are by-design not-Ready post-completion. A namespace with active CI accumulates such pods until the next GC sweep, and a `reduce.last` on the per-pod series can pick one of them and trip the threshold.
+If a Layer alert fires intermittently for a namespace running Tekton or Argo Workflows, `kube_pod_status_ready{condition="true"}` reports `0` for pods in `Completed`/`Error` state — those are by-design not-Ready post-completion.
 
-Switch the query to `kube_deployment_status_replicas_unavailable{namespace=~"…"}` — Deployments are the long-running things; task pods aren't owned by Deployments so they're naturally excluded. This was the fix for the `layer-25-cicd-down` alert on 2026-05-14 (see `apps/grafana-alerting/manifests/alert-rules-cm.yaml`); the TTL CronJob in `apps/tekton/manifests/pipelinerun-ttl-gc.yaml` is the complementary hygiene piece.
+Fix: switch the query to `kube_deployment_status_replicas_unavailable{namespace=~"…"}` — Deployments are the long-running things; task pods are naturally excluded. This fixed the `layer-25-cicd-down` alert on 2026-05-14 (`apps/grafana-alerting/manifests/alert-rules-cm.yaml`). The TTL CronJob in `apps/tekton/manifests/pipelinerun-ttl-gc.yaml` handles the complementary hygiene.
 
 ### Missing Metrics
 
-If a metric you expect is not showing up:
+If a metric you expect is missing:
 
-1. **Check the scrape target** -- is the exporter pod running?
+1. **Check the exporter pod:**
    ```bash
    kubectl get pods -n monitoring -l app.kubernetes.io/name=node-exporter
    kubectl get pods -n monitoring -l app.kubernetes.io/name=kube-state-metrics
    ```
 
-2. **Check vmagent targets** -- is it scraping the endpoint?
+2. **Check vmagent targets:**
    ```bash
    kubectl port-forward -n monitoring svc/vmagent-victoria-metrics-victoria-metrics-k8s-stack 8429:8429
-   # Open http://localhost:8429/targets and look for the target
+   # Open http://localhost:8429/targets
    ```
 
-3. **Check VMServiceMonitor** -- does the CRD exist and match the service labels?
+3. **Check VMServiceMonitor:**
    ```bash
    kubectl get vmservicemonitors -n monitoring
    kubectl describe vmservicemonitor <name> -n monitoring
    ```
 
-4. **Check the exporter directly** -- does it actually expose the metric?
+4. **Check the exporter directly:**
    ```bash
    kubectl port-forward -n monitoring <exporter-pod> <port>:<port>
    curl http://localhost:<port>/metrics | grep <metric-name>
@@ -204,54 +198,56 @@ If a metric you expect is not showing up:
 
 ### Fluent Bit Not Shipping Logs
 
-If logs are not appearing in VictoriaLogs:
-
-1. **Check Fluent Bit pods** -- are they running on all nodes?
+1. **Check DaemonSet:**
    ```bash
    kubectl get ds -n monitoring fluent-bit
    kubectl get pods -n monitoring -l app.kubernetes.io/name=fluent-bit -o wide
    ```
 
-2. **Check Fluent Bit logs** for output errors:
+2. **Check Fluent Bit logs for `retry` lines:**
    ```bash
    kubectl logs -n monitoring -l app.kubernetes.io/name=fluent-bit --tail=50
    ```
-   Look for `retry` lines. Silent retries with no error detail usually mean DNS resolution failure -- the output hostname is wrong or the target service is down.
 
-3. **Verify the destination hostname resolves**:
+3. **Verify destination hostname resolution:**
    ```bash
-   kubectl exec -n monitoring <fluent-bit-pod> -- nslookup \
-     victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local
+   kubectl exec -n monitoring <fluent-bit-pod> -- nslookup victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local
    ```
 
-4. **Check tail file positions** -- Fluent Bit tracks where it left off reading each log file. If positions are stale, it may be re-reading or skipping:
+4. **Check tail file positions:**
    ```bash
    kubectl exec -n monitoring <fluent-bit-pod> -- ls -la /var/log/flb_kube.db
    ```
 
 ### High Cardinality
 
-If VMSingle memory usage is climbing or queries are slow, high cardinality labels are usually the cause:
+If VMSingle memory is climbing or queries are slow:
 
 ```bash
-# Check top series by cardinality
 curl -s 'http://localhost:8429/api/v1/status/tsdb' | jq '.data.seriesCountByMetricName[:10]'
 ```
 
-If a metric has an unbounded label (like a request ID or session token), either drop the label in vmagent's relabeling config or exclude the metric entirely.
+Drop the offending label in vmagent's relabeling config or exclude the metric entirely.
 
 ### VictoriaLogs Query Returns No Results
 
-1. **Check VictoriaLogs is receiving data**:
+1. **Check VictoriaLogs is receiving data:**
    ```bash
    kubectl port-forward -n monitoring svc/victoria-logs-victoria-logs-single-server 9428:9428
    curl -s 'http://localhost:9428/select/logsql/query?query=*&limit=5' | jq .
    ```
-   If this returns results, the problem is your query syntax, not the pipeline.
 
-2. **Check the Grafana datasource** -- the VictoriaLogs datasource must point to `http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428`. Go to Grafana > Configuration > Data Sources and verify.
+2. **Check Grafana datasource** points to `http://victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428`.
 
-3. **Check retention** -- if logs are older than 14 days, they have been garbage-collected.
+3. **Check retention** — logs older than 14 days are GC'd.
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|-----------------|------------------|-------------|
+| `kube_pod_status_ready` is a reliable health signal for all namespaces | Batch namespaces (Tekton, Argo Workflows) have pods that are intentionally not-Ready post-completion | False-positive `layer-25-cicd-down` alert until query was switched to `kube_deployment_status_replicas_unavailable`. |
+| VictoriaLogs datasource auto-configures | Grafana needs the exact internal SVC URL | Queries returned nothing until datasource was pointed to `victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local:9428`. |
+| High cardinality is always an application problem | Unbounded labels on infrastructure metrics (node-exporter, kube-state-metrics) can also blow up series count | Memory pressure on VMSingle until the offending label was dropped in vmagent relabeling. |
 
 ## Quick Reference
 
@@ -270,8 +266,8 @@ If a metric has an unbounded label (like a request ID or session token), either 
 
 ## References
 
-- [VictoriaMetrics Documentation](https://docs.victoriametrics.com/) -- MetricsQL reference, VMSingle operations, retention
-- [VictoriaLogs Documentation](https://docs.victoriametrics.com/victorialogs/) -- LogsQL syntax, ingestion API
-- [Grafana Documentation](https://grafana.com/docs/grafana/latest/) -- Dashboard management, datasource provisioning
-- [Fluent Bit Documentation](https://docs.fluentbit.io/) -- Pipeline debugging, tail input, HTTP output
-- [Building Observability]({{< relref "/docs/building/07-observability" >}}) -- Architecture decisions and deployment gotchas
+- [VictoriaMetrics Documentation](https://docs.victoriametrics.com/) — MetricsQL reference, VMSingle operations, retention
+- [VictoriaLogs Documentation](https://docs.victoriametrics.com/victorialogs/) — LogsQL syntax, ingestion API
+- [Grafana Documentation](https://grafana.com/docs/grafana/latest/) — Dashboard management, datasource provisioning
+- [Fluent Bit Documentation](https://docs.fluentbit.io/) — Pipeline debugging, tail input, HTTP output
+- [Building Observability]({{< relref "/docs/building/07-observability" >}}) — Architecture decisions and deployment gotchas

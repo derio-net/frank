@@ -4,34 +4,52 @@ series: ["operating"]
 layer: secrets
 date: 2026-03-13
 draft: false
-tags: ["operations", "infisical", "external-secrets", "sops", "security"]
+tags: ["operations", "infisical", "external-secrets", "sops", "security", "troubleshooting"]
 summary: "Day-to-day commands for managing secrets in Infisical, checking ESO sync status, and handling SOPS-encrypted bootstrap secrets."
 weight: 7
+reader_goal: "Manage secrets through Infisical and ESO, check sync status, rotate credentials, apply SOPS bootstrap secrets, and debug sync failures — without the Infisical UI."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 ---
 
-This is the operational companion to [Secrets Management -- Infisical + External Secrets Operator]({{< relref "/docs/building/09-secrets" >}}). That post covers the architecture and deployment of Infisical + ESO. This one covers the commands you reach for when you need to add a secret, check sync status, or figure out why an application is not picking up a rotated credential.
+{{< last-updated >}}
+
+This is the operational companion to [Secrets Management — Infisical + External Secrets Operator]({{< relref "/docs/building/09-secrets" >}}). That post covers the architecture and deployment of Infisical + ESO. This one covers the commands you reach for when you need to add a secret, check sync status, or figure out why an application is not picking up a rotated credential.
+
+Source your environment before running commands:
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## Overview
 
 Secrets on Frank flow through two layers:
 
-**Runtime secrets** live in Infisical (192.168.55.204:8080). Applications never touch them directly. External Secrets Operator watches `ExternalSecret` resources, fetches values from Infisical via the `ClusterSecretStore`, and materializes them as native Kubernetes Secrets. The refresh interval (typically 5 minutes) controls how quickly changes propagate.
+**Runtime secrets** live in Infisical (`http://192.168.55.204:8080`). External Secrets Operator watches `ExternalSecret` resources, fetches values from Infisical via the `ClusterSecretStore`, and materializes them as native Kubernetes Secrets. Refresh interval is typically 5 minutes.
 
-**Bootstrap secrets** are the credentials that Infisical and ESO themselves need to start -- database passwords, Redis passwords, Machine Identity credentials. These are SOPS-encrypted with age, stored in `secrets/`, and applied manually with `sops --decrypt | kubectl apply -f -`. They exist outside ArgoCD because ArgoCD cannot decrypt SOPS secrets during ServerSideApply.
+**Bootstrap secrets** are credentials that Infisical and ESO themselves need to start — database passwords, Machine Identity credentials. These are SOPS-encrypted with age, stored in `secrets/`, and applied manually with `sops --decrypt | kubectl apply -f -`. They exist outside ArgoCD because ArgoCD cannot decrypt SOPS secrets during ServerSideApply.
 
-The rule is simple: if a secret is needed before Infisical is running, it is a SOPS bootstrap secret. Everything else goes into Infisical.
+The rule: if a secret is needed before Infisical is running, it is a SOPS bootstrap secret. Everything else goes into Infisical.
+
+### Verify
+
+```bash
+kubectl get externalsecrets -A
+# All should show STATUS: SecretSynced, READY: True
+
+kubectl get clustersecretstore
+# Should show READY: True, STATUS: Valid
+```
 
 ## Observing State
 
 ### ESO Sync Status
 
-The first thing to check is whether ESO is successfully syncing secrets from Infisical:
-
 ```bash
 kubectl get externalsecrets -A
 ```
-
-Every `ExternalSecret` should show `STATUS: SecretSynced` and `READY: True`. If any show `SecretSyncedError` or `False`, something is broken between ESO and Infisical.
 
 ```console
 $ kubectl get externalsecrets -A
@@ -40,47 +58,28 @@ agents             vk-remote-secrets          ClusterSecretStore   infisical   5
 gitea              gitea-secrets              ClusterSecretStore   infisical   5m                 SecretSynced   True
 litellm            litellm-api-keys           ClusterSecretStore   infisical   5m                 SecretSynced   True
 monitoring         grafana-alerting-secrets   ClusterSecretStore   infisical   5m                 SecretSynced   True
-monitoring         health-bridge-secrets      ClusterSecretStore   infisical   5m                 SecretSynced   True
-paperclip-system   paperclip-anthropic        ClusterSecretStore   infisical   5m                 SecretSynced   True
-paperclip-system   paperclip-auth             ClusterSecretStore   infisical   5m                 SecretSynced   True
-paperclip-system   paperclip-ghcr             ClusterSecretStore   infisical   5m                 SecretSynced   True
-paperclip-system   paperclip-llm-key          ClusterSecretStore   infisical   5m                 SecretSynced   True
-secure-agent-pod   agent-secrets-tier2        ClusterSecretStore   infisical   5m                 SecretSynced   True
-sympozium-system   sympozium-llm-key          ClusterSecretStore   infisical   5m                 SecretSynced   True
-tekton-pipelines   cosign-key                 ClusterSecretStore   infisical   5m                 SecretSynced   True
-tekton-pipelines   gitea-api-token            ClusterSecretStore   infisical   5m                 SecretSynced   True
-tekton-pipelines   gitea-webhook-secret       ClusterSecretStore   infisical   5m                 SecretSynced   True
-tekton-pipelines   zot-push-creds             ClusterSecretStore   infisical   5m                 SecretSynced   True
-zot                zot-secrets                ClusterSecretStore   infisical   5m                 SecretSynced   True
+# ... (14 total ExternalSecrets, all SecretSynced)
 ```
 
-To inspect a specific ExternalSecret in detail:
+To inspect a specific ExternalSecret:
 
 ```bash
 kubectl describe externalsecret <name> -n <namespace>
 ```
 
-The `Events` section at the bottom will show the most recent sync attempts and any error messages.
+The `Events` section shows recent sync attempts and errors.
 
 ### ClusterSecretStore Health
-
-The `ClusterSecretStore` is the single connection point between ESO and Infisical. If it is unhealthy, no secrets sync:
-
-```bash
-kubectl get clustersecretstore
-```
-
-You want `READY: True` and `STATUS: Valid`. If the store shows `SecretStoreError`, the Infisical API is unreachable or the Machine Identity credentials are wrong.
-
-For more detail:
 
 ```bash
 kubectl describe clustersecretstore infisical
 ```
 
+If the store shows `SecretStoreError`, the Infisical API is unreachable or the Machine Identity credentials are wrong.
+
 ### Infisical UI
 
-The Infisical dashboard at `http://192.168.55.204:8080` shows all secrets in the `frank-cluster` project, organized by environment. The audit log (under Project Settings) records who changed what and when. This is the fastest way to verify a secret's current value or check rotation history.
+The dashboard at `http://192.168.55.204:8080` shows all secrets in the `frank-cluster` project. The audit log (Project Settings) records who changed what and when.
 
 {{< screenshot src="infisical-project-prod.png" caption="Infisical prod environment for the frank-cluster project (secret values redacted)" >}}
 
@@ -88,9 +87,8 @@ The Infisical dashboard at `http://192.168.55.204:8080` shows all secrets in the
 
 ### Adding a New Secret
 
-1. Go to the Infisical UI, navigate to the `frank-cluster` project, `prod` environment
-2. Add the key-value pair
-3. Create an `ExternalSecret` manifest in the consuming app's manifests directory:
+1. Infisical UI → `frank-cluster` project → `prod` → add key-value pair.
+2. Create an `ExternalSecret` manifest in the consuming app's manifests directory:
 
 ```yaml
 apiVersion: external-secrets.io/v1
@@ -111,17 +109,17 @@ spec:
         key: MY_SECRET_KEY
 ```
 
-4. Commit and push -- ArgoCD syncs the ExternalSecret, ESO fetches the value from Infisical
+3. Commit and push — ArgoCD syncs the ExternalSecret, ESO fetches the value.
 
 ### Rotating a Secret
 
-Update the value in the Infisical UI. ESO picks up the change on the next refresh cycle. If the consuming pod reads secrets from environment variables (not files), it needs a restart to see the new value:
+Update the value in Infisical. ESO picks it up on the next refresh. If the consuming pod uses env vars (not files), restart it:
 
 ```bash
 kubectl rollout restart deployment/<app> -n <namespace>
 ```
 
-If you cannot wait for the refresh interval, force an immediate sync:
+To force an immediate sync:
 
 ```bash
 kubectl annotate externalsecret <name> -n <namespace> \
@@ -130,92 +128,94 @@ kubectl annotate externalsecret <name> -n <namespace> \
 
 ### Applying SOPS Bootstrap Secrets
 
-Bootstrap secrets are applied manually whenever they change or after a fresh cluster build:
-
 ```bash
 sops --decrypt secrets/infisical/infisical-secrets.yaml | kubectl apply -f -
 sops --decrypt secrets/infisical/eso-credentials.yaml | kubectl apply -f -
 ```
 
-To verify a SOPS-encrypted file decrypts correctly without applying it:
+To verify decryption without applying:
 
 ```bash
 sops --decrypt secrets/infisical/infisical-secrets.yaml
 ```
 
-## Debugging
+## Runbook
 
 ### ESO Sync Failed
 
 If an ExternalSecret shows `SecretSyncedError`:
 
-1. **Check the ClusterSecretStore** -- if it is unhealthy, all syncs fail:
+1. **Check ClusterSecretStore:**
    ```bash
    kubectl get clustersecretstore
    kubectl describe clustersecretstore infisical
    ```
 
-2. **Check the ESO controller logs** for API errors:
+2. **Check ESO controller logs:**
    ```bash
    kubectl logs -n external-secrets deployment/external-secrets --tail=50
    ```
 
-3. **Verify Infisical is reachable** from the cluster:
+3. **Verify Infisical is reachable:**
    ```bash
    kubectl run curl-test --rm -it --image=curlimages/curl -- \
      curl -s http://192.168.55.204:8080/api/status
    ```
 
-4. **Check the Machine Identity credentials** -- the `infisical-credentials` Secret in the `external-secrets` namespace must contain valid `clientId` and `clientSecret` values:
+4. **Check Machine Identity credentials:**
    ```bash
    kubectl get secret infisical-credentials -n external-secrets -o yaml
    ```
 
 ### Secret Not Updating After Rotation
 
-If you changed a value in Infisical but the Kubernetes Secret still has the old value:
-
-1. **Check the refresh interval** on the ExternalSecret -- the default is 5 minutes:
+1. **Check refresh interval:**
    ```bash
    kubectl get externalsecret <name> -n <namespace> -o yaml | grep refreshInterval
    ```
 
-2. **Force a sync** to rule out timing:
+2. **Force sync:**
    ```bash
    kubectl annotate externalsecret <name> -n <namespace> \
      force-sync=$(date +%s) --overwrite
    ```
 
-3. **Check whether the pod needs a restart** -- environment variables are read at startup, not live-reloaded:
+3. **Restart the consuming pod** (env vars are read at startup, not live-reloaded):
    ```bash
    kubectl rollout restart deployment/<app> -n <namespace>
    ```
 
 ### SOPS Decrypt Errors
 
-If `sops --decrypt` fails with an age-related error:
-
-1. **Check that the age key is available** -- SOPS looks for the key in `$SOPS_AGE_KEY_FILE` or `~/.config/sops/age/keys.txt`:
+1. **Check age key availability:**
    ```bash
    echo $SOPS_AGE_KEY_FILE
    ls -la ~/.config/sops/age/keys.txt
    ```
 
-2. **Verify the `.sops.yaml` config** points to the correct age public key:
+2. **Verify `.sops.yaml`:**
    ```bash
    cat .sops.yaml
    ```
 
-3. **Check that the file was encrypted for the right key** -- the age recipient in the file header must match your key:
+3. **Check age recipient in file header:**
    ```bash
    head -5 secrets/infisical/infisical-secrets.yaml
    ```
 
 ### Project Slug Issues
 
-If the ClusterSecretStore returns 404 errors, the project slug is likely wrong. Infisical auto-generates slugs that differ from the project display name. The slug for `frank-cluster` is `frank-cluster-iwpg`.
+If the ClusterSecretStore returns 404 errors, the project slug is wrong. Infisical auto-generates slugs that differ from the display name — `frank-cluster` has slug `frank-cluster-iwpg`.
 
-To find the correct slug: open the Infisical UI, go to Project Settings, and check the General tab. The slug is displayed there. Update `apps/infisical/manifests/cluster-secret-store.yaml` with the correct value.
+Find the correct slug in the Infisical UI → Project Settings → General tab. Update `apps/infisical/manifests/cluster-secret-store.yaml`.
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|-----------------|------------------|-------------|
+| ArgoCD can manage SOPS-encrypted Secrets through SSA | SOPS `.sops` metadata fields are rejected by ServerSideApply | All bootstrap secrets live outside ArgoCD, applied manually (`secrets/` directory). |
+| The Infisical project slug matches the display name | Infisical appends a random suffix to slugs | `frank-cluster` has slug `frank-cluster-iwpg`. 404 errors until the correct slug was found in the UI. |
+| Rotated secrets propagate immediately to pods | Env vars are read at container start, not live-reloaded | Pods must be restarted after rotation if they read secrets from env vars. |
 
 ## Quick Reference
 
@@ -233,8 +233,8 @@ To find the correct slug: open the Infisical UI, go to Project Settings, and che
 
 ## References
 
-- [Infisical Documentation](https://infisical.com/docs) -- Self-hosted setup, Machine Identities, audit logs
-- [External Secrets Operator Documentation](https://external-secrets.io/latest/) -- ClusterSecretStore, ExternalSecret v1 API
-- [ESO Infisical Provider](https://external-secrets.io/latest/provider/infisical/) -- Provider-specific configuration and auth
-- [SOPS Documentation](https://github.com/getsops/sops) -- age encryption, `.sops.yaml` configuration
-- [Secrets Management -- Infisical + ESO]({{< relref "/docs/building/09-secrets" >}}) -- Building post covering architecture and deployment
+- [Infisical Documentation](https://infisical.com/docs) — Self-hosted setup, Machine Identities, audit logs
+- [External Secrets Operator Documentation](https://external-secrets.io/latest/) — ClusterSecretStore, ExternalSecret v1 API
+- [ESO Infisical Provider](https://external-secrets.io/latest/provider/infisical/) — Provider-specific configuration and auth
+- [SOPS Documentation](https://github.com/getsops/sops) — age encryption, `.sops.yaml` configuration
+- [Secrets Management — Infisical + ESO]({{< relref "/docs/building/09-secrets" >}}) — Building post covering architecture and deployment

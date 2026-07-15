@@ -1,13 +1,19 @@
 ---
 title: "Operating Edge Observability — Day-to-Day Commands for the Obs Layer"
-series: ["operating"]
+series: [operating]
 layer: obs
 date: 2026-05-24
 draft: false
-tags: ["operations", "observability", "victoria-logs", "goatcounter", "crowdsec", "falco", "grafana", "ai-alert-helper", "hop"]
-summary: "Querying the blog log stream, banning a scraper before lunch, tuning Falco out of the kube-system noise, and triggering a digest by hand."
+tags: [operations, observability, victoria-logs, goatcounter, crowdsec, falco, grafana,
+  ai-alert-helper, hop, troubleshooting]
+summary: "Querying the blog log stream, banning a scraper before lunch, tuning Falco out of the kube-system noise, and triggering a digest by hand. Includes troubleshooting for log field-name mismatches, CrowdSec agent crashloops, Falco tuning errors, and surge-detector false alarms."
+reader_goal: "Query the blog log stream in VictoriaLogs, ban a scraper via CrowdSec CLI, tune Falco rules out of the kube-system noise, and trigger a digest or surge check by hand."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 27
 ---
+{{< last-updated >}}
 
 The companion to {{< relref "/docs/building/31-edge-observability" >}}. Where the building post explains *why* the wiring is the way it is, this one is the cheat-sheet for the day Hop pages me at 03:14 and Grafana says `DatasourceError`. The commands that ship the layer's mental model into muscle memory.
 
@@ -68,6 +74,23 @@ kubectl exec -n monitoring vlogs-q -- curl -sG \
 
 kubectl delete pod -n monitoring vlogs-q --force --grace-period=0
 ```
+
+### Verify
+
+Confirm the observability pipeline is ingesting data:
+
+```bash
+# VictoriaLogs responds to a LogsQL query
+curl -sG 'http://192.168.55.225:9428/select/logsql/query' \
+  --data-urlencode 'query=_time:5m kubernetes.namespace_name:caddy-system | limit 1' \
+  | python3 -c "import sys,json; d=json.load(sys.stdin); print('data OK' if d.get('result') else 'empty')"
+
+# GoatCounter count.js is served
+curl -s -o /dev/null -w "%{http_code}" https://counter.derio.net/count.js
+```
+
+Expected: `data OK` from VictoriaLogs, `200` from GoatCounter.
+
 
 ## GoatCounter — the analytics dashboard
 
@@ -627,6 +650,18 @@ The five things most likely to bite me again, ordered by probability:
 - **Hop infrastructure operations.** [Operating Hop]({{< relref "/docs/operating/11-public-edge" >}}) covers the cluster-level operations — Tailscale mesh state, Caddy TLS renewal, Headscale node management.
 
 This post stays narrowly on the obs layer's own surface. The rest is somebody else's runbook.
+
+
+## Missteps
+
+The layer's design took a few wrong turns before it settled. These are the ones worth remembering so the next operator doesn't repeat them.
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| Fluent-bit ships Caddy logs in the same field format as the local journald pipeline | Fluent-bit's kubernetes filter emits dotted field names (kubernetes.namespace_name) not underscore form — LogsQL queries using the legacy format return zero hits | An evening debugging empty query results before discovering the field shape mismatch |
+| CrowdSec LAPI state is ephemeral but regenerates on restart | The agent registers itself as a machine in LAPI's SQLite DB — when LAPI restarts (emptyDir), the agent's machine row vanishes and the agent crashloops with 'ent: machine not found', parsing zero logs and banning nothing | A live scan-trace with hundreds of probes, none banned, while the CrowdSec dashboard stayed green — persistent PVs were the fix |
+| Falco tuning via customRules is intuitive — redeclare the macro with a narrower condition | There is no `override:` key in Falco's schema; re-declaration is how overrides work, but invalid YAML in the inline block causes the whole DaemonSet to crashloop | Falco restart failures after tuning attempts until the YAML escaping pattern was documented |
+| The surge detector's baseline of 1 request/hour is harmless | During quiet hours, the median is 0, forced to 1 by the floor — Frank's own blackbox probe (360 req/hr) then appears as a 370× surge, paging the operator for a false alarm | Noise paging and wasted investigation until the probe-exclusion, absolute floor, and visitor cross-check were added |
 
 ## References
 

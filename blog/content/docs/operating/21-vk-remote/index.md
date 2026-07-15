@@ -1,15 +1,25 @@
 ---
 title: "Operating on VK Remote"
-series: ["operating"]
+series: [operating]
 layer: agents
 date: 2026-04-13
 draft: false
-tags: ["operations", "agents", "vibekanban", "postgresql", "electricsql", "troubleshooting"]
-summary: "Day-to-day commands for the self-hosted VK Remote stack — PostgreSQL health, ElectricSQL sync status, API verification, and troubleshooting."
+tags: [operations, agents, vibekanban, postgresql, electricsql, troubleshooting]
+summary: "Day-to-day commands for the self-hosted VK Remote stack — PostgreSQL health, ElectricSQL sync status, API verification, and troubleshooting. Includes troubleshooting for ElectricSQL sync failures, init-job crashes, and Authentik SSO loops."
+reader_goal: "Verify PostgreSQL replication health, check ElectricSQL sync status, and troubleshoot the self-hosted VK Remote stack when kanban boards stop updating."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 22
 ---
+{{< last-updated >}}
 
 This is the operational companion to [VK Remote — Self-Hosting the Kanban Backend Before the Cloud Dies]({{< relref "/docs/building/26-vk-remote-self-host" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook.
+
+```bash
+source .env   # sets KUBECONFIG
+```
+
 
 ## What "Healthy" Looks Like
 
@@ -20,6 +30,21 @@ A healthy VK Remote stack has:
 - vk-remote responding on port 8081 with a healthy API
 - The init Job (`postgres-vk-init-electric`) in Completed state
 - Browser access working at `https://vk.cluster.derio.net` through Authentik SSO
+
+### Verify
+
+Quick health check for the three-component stack:
+
+```bash
+# All three pods Running
+kubectl -n agents get pods -l 'app in (postgres-vk, electric, vk-remote)' -o jsonpath='{range .items[*]}{.status.phase}{" "}{end}'
+
+# PostgreSQL WAL level is logical
+kubectl -n agents exec deploy/postgres-vk -- psql -U remote -d remote -tAc "SHOW wal_level"
+```
+
+Expected: all pods `Running`; WAL level printed as `logical`.
+
 
 ## Observing State
 
@@ -266,6 +291,18 @@ argocd app get vk-remote --port-forward --port-forward-namespace argocd
 # Force sync if needed
 argocd app sync vk-remote --port-forward --port-forward-namespace argocd
 ```
+
+
+## Missteps
+
+The layer's design took a few wrong turns before it settled. These are the ones worth remembering so the next operator doesn't repeat them.
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| ElectricSQL auto-reconnects to the replication stream after any PostgreSQL restart | If the `electric` PG role is missing (e.g., init job failed silently), ElectricSQL starts but syncs nothing — no error, no logs, just empty kanban boards | Days of intermittent 'works on my cluster' bugs before adding the pg_replication_slots check to the runbook |
+| The init job only needs to run once on first deploy | PVC replacement or namespace re-creation wipes the `electric` role; the init job is a Job, not a CronJob, so it doesn't re-fire automatically | Manual job re-triggering during recovery until the procedure was documented |
+| PostgreSQL WAL level `logical` survives a StatefulSet rebuild | Bitnami charts reset wal_level to `replica` on fresh install — ElectricSQL cannot connect without `logical` | DB rebuild required manual ALTER SYSTEM SET wal_level=logical before ElectricSQL would accept connections |
+| Authentik SSO for VK Remote is self-configuring via the Traefik middleware | The Authentik proxy provider must be explicitly assigned to the embedded outpost — ArgoCD syncs the middleware but not the Authentik-internal provider-outpost binding | SSO loop errors after re-deploy until the manual outpost assignment step was added to the runbook |
 
 ## References
 

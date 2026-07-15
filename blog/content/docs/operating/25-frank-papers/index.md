@@ -1,15 +1,25 @@
 ---
 title: "Operating The Frank Papers — Research, Dossiers, and Publishing"
-series: ["operating"]
+series: [operating]
 layer: repo
 date: 2026-05-18
 draft: false
-tags: ["operations", "papers", "blog", "hugo", "dossier", "mermaid", "research"]
-summary: "Day-to-day commands for the Papers workflow — scaffolding a paper, getting the dossier past the gate, the five `papers/` shortcodes, cross-series linking, cover-image generation, and the publish flow."
+tags: [operations, papers, blog, hugo, dossier, mermaid, research, troubleshooting]
+summary: "Day-to-day commands for the Papers workflow — scaffolding a paper, getting the dossier past the gate, the five `papers/` shortcodes, cross-series linking, cover-image generation, and the publish flow. Includes troubleshooting for dossier gate failures, shortcode syntax errors, and cross-link chip dropouts."
+reader_goal: "Scaffold a new Paper, fill and validate the dossier, use the five papers/ shortcodes, generate a cover image, and navigate the dossier gate from scaffold to publish."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 26
 ---
+{{< last-updated >}}
 
 This is the operational companion to [Building The Frank Papers]({{< relref "/docs/building/30-frank-papers" >}}). That post explains *why* there's a third series and what the dossier gate is for. This one is the cookbook: scaffold a paper, get the dossier to pass, write the prose, generate the cover, ship.
+
+```bash
+source .env   # sets KUBECONFIG
+```
+
 
 ## What "Ready to Write" Looks Like
 
@@ -21,6 +31,21 @@ A Paper is *ready to write* when all of the following are true:
 - The dossier's `status:` field is `ready` (set by the human author after reviewing the named gaps and counter-arguments).
 
 Until all four are true, drafting prose is premature. The pre-commit hook will block the commit; the section-skeleton template will not have the Frank-specific context it needs; and the cover-image prompt key won't exist in `blog/prompt_for_images.yaml`.
+
+### Verify
+
+Confirm the paper is ready for prose:
+
+```bash
+# Dossier validator passes
+python scripts/validate-dossier.py docs/papers-dossiers/<NN-slug>/dossier.md && echo "GATE PASSED"
+
+# Hugo build succeeds with no errors
+cd blog && hugo --buildDrafts 2>&1 | grep -c "^ERROR" && echo "BUILD FAILED" || echo "BUILD OK"
+```
+
+Expected: `GATE PASSED` and `BUILD OK`.
+
 
 ## Scaffolding a New Paper
 
@@ -310,6 +335,18 @@ Archiving (e.g. a Paper that's been superseded) is the same shape but with `draf
 | Cover image is green-on-green Frank | Prompt forgot to specify shirt colour | Add explicit "white dress shirt, not green" to the prompt; regenerate |
 | Banner shows duplicate Frank | Gemini drift on prompts that don't say "EXACTLY ONE FIGURE" | Add the constraint; regenerate |
 | `hugo --buildDrafts` errors on shortcode parse | Quote escaping in `papers/landscape` `vendors` argument | Use `\n` for line breaks; escape inner quotes carefully |
+
+
+## Missteps
+
+The layer's design took a few wrong turns before it settled. These are the ones worth remembering so the next operator doesn't repeat them.
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| Drafting prose can proceed in parallel with dossier preparation | The pre-commit hook blocks any commit that has a Papers index.md without a validated dossier — prose work before dossier validation wastes effort | Lost writing time and frustrated commits until the dossier-gate-first workflow became the standard |
+| Shortcode syntax errors fail at Hugo build time with clear error messages | Mismatched quotes in the `papers/landscape` `vendors` argument produce a cryptic Hugo parse error or a silently broken page with no diagram | Extended debugging per paper until the quote-escaping convention was documented in the cheat sheet |
+| Cover image generation with a single reference image is enough to pin Frank's appearance | Without per-series reference images, Gemini drifts — Frank acquires a nose, loses stitches, or blends into the background | Multiple regeneration cycles per paper until per-series reference pools replaced the single reference.png |
+| Cross-series link chips appear automatically without verifying the path format | related_building and related_operating paths require exact slugs — a typo produces zero backlinks silently, no build error | Missed cross-references on published papers until the verification checklist was formalized |
 
 ## References
 

@@ -4,12 +4,22 @@ series: ["operating"]
 layer: obs
 date: 2026-04-04
 draft: false
-tags: ["operations", "observability", "grafana", "github", "go", "alerting"]
+tags: ["operations", "observability", "grafana", "github", "go", "alerting", "troubleshooting"]
 summary: "Day-to-day commands for managing the health-bridge service — checking status, testing webhooks, managing alert labels, and troubleshooting GitHub API issues."
+reader_goal: "Test the health-bridge webhook, manage alert rule labels, verify GitHub integration, and recover stranded tiles."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 17
 ---
 
+{{< last-updated >}}
+
 Companion to [Health Bridge — Closing the Loop from Grafana Alerts to GitHub Issues]({{< relref "/docs/building/23-health-bridge" >}}).
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## Quick Reference
 
@@ -19,6 +29,22 @@ Companion to [Health Bridge — Closing the Loop from Grafana Alerts to GitHub I
 | Webhook endpoint | — | — | `POST /webhook` (Bearer auth) |
 | Health check | — | — | `GET /healthz` |
 | Readiness check | — | — | `GET /readyz` |
+
+### Verify
+
+```bash
+# Pod is running
+kubectl get pods -n monitoring -l app=health-bridge
+# Expected: 1/1 Running
+
+# Health endpoint responds
+kubectl exec -n monitoring deploy/health-bridge -- wget -qO- http://localhost:8080/healthz 2>/dev/null
+# Expected: {"status":"ok"}
+
+# Project metadata is loaded
+kubectl logs -n monitoring -l app=health-bridge --tail=5 | grep "Loaded project metadata"
+# Expected: "Loaded project metadata: id=..."
+```
 
 ## Checking Service Status
 
@@ -403,6 +429,14 @@ curl -sS -X POST http://127.0.0.1:18080/webhook \
   -H "Authorization: Bearer ${SECRET}" -H "Content-Type: application/json" \
   -d "${payload}"
 ```
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|----------------|-----------------|-------------|
+| A single webhook delivery guarantees the bridge has the full alerting state | When Grafana is replaced mid-incident, the new process never fires the alert and never sends resolved | Added the manual recovery procedure for stranded tiles and bugs |
+| Title-only matching is sufficient for auto-closing bugs | Layers sharing a `DatasourceError` alertname would cross-close each other's issues | Added the `**Feature Issue:**` body ref to matching (strict two-condition close) |
+| In-memory dedup survives pod restarts | After a bridge restart, the dedup cache is empty, letting duplicate bug issues through | Added the GitHub search safety net as a second line of defense |
 
 `alertname: DatasourceError` is the key: it makes the bridge match the `[Bug] DatasourceError is dead` titles for the create-era bugs, while the feature-ref close (v0.4.0) handles anything titled differently. The whole thing is idempotent — re-running on already-healthy tiles with no open bugs is a no-op. Verify with `kubectl logs -n monitoring -l app=health-bridge --tail=40 | grep -E 'Closed bug|→ healthy'`.
 

@@ -1,13 +1,18 @@
 ---
 title: "Operating Automation — Day-to-Day Commands for AWX"
-series: ["operating"]
+series: [operating]
 layer: auto
 date: 2026-06-03
 draft: false
-tags: ["operations", "awx", "ansible", "automation", "authentik", "oidc", "postgresql"]
-summary: "Onboarding a new host, reading a failed job, rotating the OIDC secret, and getting back in when SSO is the thing that broke."
+tags: [operations, awx, ansible, automation, authentik, oidc, postgresql, troubleshooting]
+summary: "Onboarding a new host, reading a failed job, rotating the OIDC secret, and getting back in when SSO is the thing that broke. Includes troubleshooting for OIDC secret misrouting, SSO failure, and execution-environment connectivity gaps."
+reader_goal: "Onboard a new AWX-managed host, read a failed job's stdout, rotate the OIDC secret, and break-glass into AWX when Authentik SSO itself is the thing that broke."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 28
 ---
+{{< last-updated >}}
 
 The companion to {{< relref "/docs/building/32-automation" >}}. The building post
 is the story of standing AWX up; this one is the cheat-sheet for living with it —
@@ -17,6 +22,11 @@ button can't save you.
 
 Assumes the layer is deployed and `.env` (Frank `KUBECONFIG`) is sourced. AWX lives
 in the `awx` namespace; its UI is `awx.cluster.derio.net`.
+
+```bash
+source .env   # sets KUBECONFIG
+```
+
 
 ## Onboard a new host
 
@@ -64,6 +74,21 @@ the rendered settings module. Check the rendered config:
 ```bash
 kubectl -n awx get cm awx-awx-configmap -o jsonpath='{.data.settings}' | grep SOCIAL_AUTH
 ```
+
+### Verify
+
+Confirm AWX is up and accepting traffic:
+
+```bash
+# Pod-level health (beyond ArgoCD Synced/Healthy)
+kubectl -n awx get pods -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.phase}{"\n"}{end}'
+
+# API ping
+curl -s -o /dev/null -w "%{http_code}" https://awx.cluster.derio.net/api/v2/ping/
+```
+
+Expected: all pods `Running`; API returns `200`.
+
 
 ## Run a job, read a failed job
 
@@ -178,6 +203,18 @@ Building actual automation content — real playbooks, surveys, schedules, workf
 templates, RBAC mapping from Authentik groups to AWX teams. The layer ships the
 *controller* and proves it reaches a host; the inventory of useful plays grows in-app
 from here.
+
+
+## Missteps
+
+The layer's design took a few wrong turns before it settled. These are the ones worth remembering so the next operator doesn't repeat them.
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| Settings PATCH to the authentication endpoint is the correct way to set OIDC secrets | AWX has separate settings categories — PATCH to `authentication` silently drops the key while returning 200; the correct category is `oidc` | Extended debug session where SSO worked in test but not in production because the secret was accepted but never stored |
+| Synced/Healthy in ArgoCD means AWX is ready | ArgoCD syncs the operator + CR; the operator then runs migrations and builds pods — Synced/Healthy only proves the first loop, not the second | Claims of 'AWX is deployed' while awx-web was still crashlooping, requiring pod-level verification |
+| SSO is sufficient for all AWX access — admin credentials are fallback and rarely needed | SSO authenticates but does not authorize; OIDC users land with no RBAC roles and cannot run jobs until groups are mapped to teams | Confusion on first SSO login where the user authenticated but saw an empty UI |
+| Ansible host reachability from the Mac workstation guarantees AWX execution-environment connectivity | AWX runs jobs in cluster-network pods on a different VLAN — a host reachable from the Mac may be unreachable from the awx-task container | SSH-key onboarding succeeded but job execution failed until the in-pod socket connectivity check was added to the runbook |
 
 ## References
 

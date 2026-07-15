@@ -1,15 +1,25 @@
 ---
 title: "Operating on CI/CD Platform"
-series: ["operating"]
+series: [operating]
 layer: cicd
 date: 2026-04-13
 draft: false
-tags: ["operations", "cicd", "gitea", "tekton", "zot", "cosign", "pipelines", "troubleshooting"]
-summary: "Day-to-day commands for the CI/CD platform — Gitea mirrors, Tekton pipelines, Zot registry health, cosign verification, and troubleshooting webhook delivery."
+tags: [operations, cicd, gitea, tekton, zot, cosign, pipelines, troubleshooting]
+summary: "Day-to-day commands for the CI/CD platform — Gitea mirrors, Tekton pipelines, Zot registry health, cosign verification, and troubleshooting webhook delivery. Includes troubleshooting for webhook delivery failures, stuck PipelineRuns, and registry auth issues."
+reader_goal: "Check CI/CD pipeline health, troubleshoot Gitea webhook delivery failures, verify Zot registry and cosign signatures, and run end-to-end webhook tests."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 23
 ---
+{{< last-updated >}}
 
 Companion operations guide for [CI/CD Platform — Gitea, Tekton, Zot, and Cosign]({{< relref "/docs/building/27-cicd-platform" >}}).
+
+```bash
+source .env   # sets KUBECONFIG
+```
+
 
 ## Quick Health Check
 
@@ -52,6 +62,26 @@ $ kubectl get pods -n zot -o wide
 NAME                   READY   STATUS    RESTARTS   AGE     IP             NODE   NOMINATED NODE   READINESS GATES
 zot-68c79b95f9-6vbhh   1/1     Running   0          7h41m   10.244.7.202   pc-1   <none>           <none>
 ```
+
+### Verify
+
+Confirm all three CI/CD pillars are reachable:
+
+```bash
+# Gitea API responds
+curl -s -o /dev/null -w "%{http_code}" http://192.168.55.209:3000/api/v1/version
+
+# Zot registry responds
+curl -sk -o /dev/null -w "%{http_code}" https://192.168.55.210:5000/v2/
+
+# Tekton EventListener service reachable from inside the cluster
+kubectl run vfy-cicd --rm -it --image=curlimages/curl --restart=Never -- \
+  curl -s -o /dev/null -w "%{http_code}" \
+  http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080 2>/dev/null || echo "listener check done"
+```
+
+Expected: Gitea returns `200`, Zot returns `{}` or `200`, EventListener port responds.
+
 
 ## Gitea Operations
 
@@ -460,6 +490,18 @@ If the GitHub side is missing entirely after a CI run, the github-status Task fa
 | github-pull-sync fails on `git push` to Gitea | stoa-bot SSH key rotated; Gitea side has stale fingerprint | Re-add public key in Gitea → stoa-bot → Settings → SSH Keys |
 | github-status Task posts but PR shows no check | PAT missing `Commit statuses: Read and write` (fine-grained PAT) | Add the scope; the `x-accepted-github-permissions: statuses=write` header in the 403 response is the smoking gun |
 | gitea-status posts 404 | tekton-bot isn't a member of `agentic-stoa` org | Add membership via Gitea UI → Organization Members |
+
+
+## Missteps
+
+The layer's design took a few wrong turns before it settled. These are the ones worth remembering so the next operator doesn't repeat them.
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| Gitea-to-Tekton webhooks work with the standard GitHub interceptor | Gitea sends `X-Gitea-Event` headers, not `X-GitHub-Event` — the `github` interceptor silently ignores them and no PipelineRun is created | Failed CI runs on every push until the CEL interceptor replaced the GitHub-specific one |
+| Task pods inherit the pipeline's security context automatically | Tekton task steps default to an empty securityContext, triggering PodSecurity violations on a restricted cluster — git clone fails with permission errors | Debug time per new PipelineRun until runAsUser, fsGroup, and seccompProfile were added to the TriggerTemplate |
+| PipelineRun completion means the image is pushed and signed | Cosign signing fails silently if the key is missing or the registry is unreachable — the step errors but subsequent steps may still report success | Unsigned images in production until explicit cosign verify checks were added post-pipeline |
+| Longhorn-backed PVCs for Tekton workspace are always available | When pc-1 goes down, Longhorn replicas on that node become unavailable and PipelineRuns hang in Pending indefinitely | Stuck CI pipelines with no alerting until a PVC-availability check was added to the health monitoring |
 
 ## References
 

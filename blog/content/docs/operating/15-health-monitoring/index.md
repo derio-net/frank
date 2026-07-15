@@ -4,12 +4,22 @@ series: ["operating"]
 layer: obs
 date: 2026-04-04
 draft: false
-tags: ["operations", "observability", "blackbox-exporter", "pushgateway", "grafana", "telegram", "alerting"]
-summary: "Day-to-day commands for managing feature health probes, heartbeat metrics, Grafana alerts, and Telegram notifications."
+tags: ["operations", "observability", "blackbox-exporter", "pushgateway", "grafana", "telegram", "alerting", "troubleshooting"]
+summary: "Day-to-day commands for managing feature health probes, heartbeat metrics, Grafana alerts, Telegram notifications, and troubleshooting alerting issues."
+reader_goal: "Check probe status, inspect heartbeat metrics, edit Grafana alert rules, and verify Telegram notifications."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 16
 ---
 
+{{< last-updated >}}
+
 Companion to [Health Monitoring — Feature Probes, Heartbeats, and Telegram Alerts]({{< relref "/docs/building/22-health-monitoring" >}}).
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## Quick Reference
 
@@ -19,6 +29,22 @@ Companion to [Health Monitoring — Feature Probes, Heartbeats, and Telegram Ale
 | Pushgateway | monitoring | 9091 | Heartbeat metric ingestion |
 | Grafana | monitoring | 3000 (LB: 192.168.55.203) | Dashboards + alerting |
 | Feature Health Dashboard | — | — | `/d/fh-overview/feature-health` |
+
+### Verify
+
+```bash
+# Monitoring pods are running
+kubectl get pods -n monitoring -l 'app in (blackbox-exporter,pushgateway)'
+# Expected: all 1/1 Running
+
+# Grafana is reachable
+curl -s -o /dev/null -w "%{http_code}" https://grafana.frank.derio.net 2>/dev/null
+# Expected: 200 or 302
+
+# Pushgateway is ingesting metrics
+curl -s http://localhost:9091/metrics 2>/dev/null | grep -c "willikins_heartbeat"
+# Expected: > 0 (heartbeat metrics from active cron jobs)
+```
 
 ## Checking Probe Status
 
@@ -233,6 +259,14 @@ kubectl rollout restart deployment -n monitoring victoria-metrics-operator
 - Verify datasource UID is `P4169E866C3094E38`
 - Table panels require `"format": "table"` on targets
 - `ALERTS{}` metric doesn't exist for Grafana-managed alerts — use `alertlist` panel type
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|----------------|-----------------|-------------|
+| `ALERTS{}` metric exists for Grafana-managed alerts | Grafana-managed alerts don't expose an `ALERTS` metric — only Prometheus-compatible rules do | Switched to `alertlist` panel type for the Feature Health dashboard |
+| API-provisioned alerting rules are easy to maintain at scale | Every change required a curl command with auth headers, and mistakes were easy to make | Migrated to file-provisioned alerting via ConfigMaps, read-only in the UI |
+| Pod readiness is a reliable proxy for feature health | A pod can be Running but its service can be broken (failed node import, hung worker) | Added Blackbox Exporter probes as the canonical health signal per layer |
 
 ## References
 

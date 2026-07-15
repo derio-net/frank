@@ -4,14 +4,24 @@ series: ["operating"]
 layer: deploy
 date: 2026-03-27
 draft: false
-tags: ["operations", "argo-rollouts", "canary", "blue-green", "litellm", "sympozium"]
-summary: "Day-to-day commands for managing Argo Rollouts — promoting canary steps, switching blue-green, inspecting analysis results, and handling sparse-traffic pauses."
+tags: ["operations", "argo-rollouts", "canary", "blue-green", "litellm", "sympozium", "troubleshooting"]
+summary: "Day-to-day commands for managing Argo Rollouts — promoting canary steps, switching blue-green, inspecting analysis results, troubleshooting stuck rollouts, and handling sparse-traffic pauses."
+reader_goal: "Promote Argo Rollouts through canary and blue-green steps and recover from stuck or failed states."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 13
 ---
+
+{{< last-updated >}}
 
 This is the operational companion to [Progressive Delivery with Argo Rollouts]({{< relref "/docs/building/19-progressive-delivery" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook for promoting rollouts, interpreting analysis results, and recovering from stuck or failed states.
 
 > **Update: 2026-05-04** — The litellm canary sections were rewritten twice in one day. First rewrite was for the replica-count canary with `AnalysisRun` between each pause. Second rewrite is for **pause-only canary** (no AnalysisRun) — because the AnalysisTemplate referenced a metric (`litellm_request_total`) that doesn't exist on this cluster (LiteLLM's Prometheus integration is an Enterprise-paid feature; the OSS image we run doesn't emit it). All sample outputs below are now real captured output from the 2026-05-04 rehearsal, not typed-up reconstructions of expected shape. The sympozium blue-green sections are unchanged. Full postmortem with all five latent bugs in the [building post]({{< relref "/docs/building/19-progressive-delivery#update-2026-05-04--the-canary-that-wasnt" >}}). The Path B spec for restoring metric-gated promotion is at `docs/superpowers/specs/2026-05-04--deploy--litellm-canary-metric-source-design.md`.
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## What "Healthy" Looks Like
 
@@ -20,6 +30,22 @@ The progressive delivery stack is healthy when:
 - LiteLLM Rollout shows `Status: Healthy` with **5/5 pods Ready** under one ReplicaSet (the current stable). `Step` is *not* shown — at-rest Rollouts have no current step
 - Sympozium Rollout shows `Status: Healthy` with the active service serving at `192.168.55.207:8080`
 - No `Degraded` or `Paused` rollouts exist (unless you're mid-rollout)
+
+### Verify
+
+```bash
+# Controller is running
+kubectl get pods -n argo-rollouts
+# Expected: argo-rollouts pod Running
+
+# All rollouts are healthy
+kubectl get rollout -A
+# No Degraded or unexpected Paused rollouts
+
+# Controller log is clean
+kubectl logs -n argo-rollouts deploy/argo-rollouts --tail=20 | grep -ciE "error|fail"
+# Expected: 0, or only benign startup lines
+```
 
 ## Observing State
 
@@ -305,6 +331,14 @@ kubectl get cm argo-rollouts-config -n argo-rollouts -o yaml | grep -A 3 traffic
 #    a vanilla RollingUpdate, not a canary. Check:
 kubectl get deploy -n <ns> -l app.kubernetes.io/name=<app> -o wide
 ```
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|----------------|-----------------|-------------|
+| The Cilium traffic-router plugin would work with our cluster config | The controller got stuck at Step 0/6 for 39 days, unable to advance reconciliation | Removed the plugin entirely and fell back to replica-count canary |
+| LiteLLM's OSS image exposes Prometheus metrics for analysis | The `litellm_request_total` metric is an Enterprise-paid feature — the OSS image doesn't emit it | Converted to a pause-only canary with no AnalysisRun; metric-gated promotion deferred to Path B |
+| `maxSurge: 25%` doesn't affect pod count at intermediate steps | At SetWeight 50, the controller stages 3 canary + 3 stable pods (6 total), not the expected 5 | Documented the 6-pod transient as expected behavior |
 
 ## References
 

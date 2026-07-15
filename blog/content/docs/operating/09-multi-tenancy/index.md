@@ -4,39 +4,53 @@ series: ["operating"]
 layer: tenant
 date: 2026-03-13
 draft: false
-tags: ["operations", "vcluster", "multi-tenancy"]
+tags: ["operations", "vcluster", "multi-tenancy", "troubleshooting"]
 summary: "Day-to-day commands for managing vCluster virtual clusters, checking tenant health, and debugging isolation issues."
 weight: 10
+reader_goal: "Create, connect to, and troubleshoot vCluster virtual clusters — check sync health, manage resource quotas, and debug API server or networking issues."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 ---
+
+{{< last-updated >}}
 
 This is the operational companion to [Multi-tenancy — Disposable Kubernetes Clusters with vCluster]({{< relref "/docs/building/14-multi-tenancy" >}}). That post covers the architecture and template pattern. This one is the day-to-day runbook for creating, connecting to, and troubleshooting virtual clusters.
 
+Source your environment:
+
+```bash
+source .env
+```
+
 ## What "Healthy" Looks Like
 
-Multi-tenancy is healthy when all vCluster StatefulSets are running, each virtual cluster's API server is responding, and resources are syncing correctly between virtual and host clusters. The ArgoCD applications for each vCluster should show `Synced` and `Healthy`.
+Multi-tenancy is healthy when all vCluster StatefulSets are running, each virtual cluster's API server is responding, and resources are syncing correctly.
+
+### Verify
+
+```bash
+vcluster list
+kubectl get statefulset -A -l app=vcluster
+```
+
+All vClusters should show `STATUS: Running`. StatefulSets should show `READY: 1/1`.
 
 ## Observing State
 
 ### List Virtual Clusters
 
 ```bash
-# Using vcluster CLI
 vcluster list
-
-# Check vCluster pods on the host
 kubectl get pods -A -l app=vcluster
-
-# Check ArgoCD status for vCluster apps
 argocd app list --port-forward --port-forward-namespace argocd | grep vcluster
 ```
 
 ```console
 $ vcluster list
-  
-       NAME     |      NAMESPACE       | STATUS  | VERSION | CONNECTED | AGE  
+       NAME     |      NAMESPACE       | STATUS  | VERSION | CONNECTED | AGE
   --------------+----------------------+---------+---------+-----------+------
-    experiments | vcluster-experiments | Running | 0.32.1  |           | 39d  
-  
+    experiments | vcluster-experiments | Running | 0.32.1  |           | 39d
 
 $ kubectl get statefulset -A -l app=vcluster
 NAMESPACE              NAME          READY   AGE
@@ -46,24 +60,16 @@ vcluster-experiments   experiments   1/1     39d
 ### Connect to a Virtual Cluster
 
 ```bash
-# Connect and switch kubectl context
 vcluster connect <name> --namespace <namespace>
-
-# Verify you are in the virtual cluster
 kubectl get nodes
 kubectl get namespaces
-
-# Disconnect when done
 vcluster disconnect
 ```
 
 ### Check Synced Resources
 
 ```bash
-# From the host cluster, check what the syncer is doing
 kubectl logs -n <vcluster-namespace> <vcluster-pod> -c syncer --tail=50
-
-# Check resource sync status
 kubectl get pods -n <vcluster-namespace> -l vcluster.loft.sh/managed-by
 ```
 
@@ -71,86 +77,56 @@ kubectl get pods -n <vcluster-namespace> -l vcluster.loft.sh/managed-by
 
 ### Create a New Virtual Cluster
 
-New vClusters follow the template pattern:
-
-1. Copy the template values:
-```bash
-cp -r apps/vclusters/template/ apps/vclusters/<new-name>/
-```
-
-2. Customize `apps/vclusters/<new-name>/values.yaml` — set the name, resource quotas, and any specific configuration.
-
-3. Add the ArgoCD Application CR in `apps/root/templates/vcluster-<new-name>.yaml` following the existing pattern.
-
-4. Commit and push — ArgoCD picks it up automatically.
+1. Copy the template: `cp -r apps/vclusters/template/ apps/vclusters/<new-name>/`
+2. Customize `apps/vclusters/<new-name>/values.yaml` — name, resource quotas.
+3. Add ArgoCD Application CR in `apps/root/templates/vcluster-<new-name>.yaml`.
+4. Commit and push.
 
 ### Delete a Virtual Cluster
 
-Since `prune: false`, removing a vCluster requires manual cleanup:
+Since `prune: false`:
 
 ```bash
-# Delete the ArgoCD application
 argocd app delete vcluster-<name> --port-forward --port-forward-namespace argocd
-
-# Verify the namespace is cleaned up
 kubectl get ns <vcluster-namespace>
 ```
 
-Then remove the files from `apps/vclusters/<name>/` and `apps/root/templates/vcluster-<name>.yaml`.
+Then remove the files from `apps/vclusters/<name>/` and `apps/root/templates/`.
 
 ### Manage Resource Quotas
 
 ```bash
-# Check current quotas from inside the virtual cluster
 vcluster connect <name> --namespace <namespace>
 kubectl get resourcequota -A
-
-# Check host-level resource usage for the vCluster namespace
 vcluster disconnect
 kubectl top pods -n <vcluster-namespace>
 ```
 
-To adjust quotas, update the values in `apps/vclusters/<name>/values.yaml` and let ArgoCD sync.
-
-## Debugging
+## Runbook
 
 ### Virtual API Server Not Responding
 
 ```bash
-# Check the StatefulSet
 kubectl get statefulset -n <vcluster-namespace>
 kubectl describe statefulset -n <vcluster-namespace> <vcluster-name>
-
-# Check the PVC for the virtual etcd
 kubectl get pvc -n <vcluster-namespace>
-
-# Check pod logs
 kubectl logs -n <vcluster-namespace> <vcluster-pod> -c vcluster --tail=100
 ```
 
-Common causes:
-- PVC stuck pending (storage class issue)
-- Resource limits too low for the API server
-- Host node where the StatefulSet is scheduled is under pressure
+Common causes: PVC stuck pending, resource limits too low, host node under pressure.
 
 ### Resources Not Syncing
 
 ```bash
-# Check syncer logs for errors
 kubectl logs -n <vcluster-namespace> <vcluster-pod> -c syncer --tail=100 | grep -i error
-
-# Verify sync configuration in values.yaml
 kubectl get configmap -n <vcluster-namespace> -l app=vcluster -o yaml | grep -A 20 sync
 ```
 
 ### Resource Quota Exceeded
 
 ```bash
-# Connect to the virtual cluster and check
 vcluster connect <name> --namespace <namespace>
 kubectl describe resourcequota -A
-
-# Check which pods are consuming the most
 kubectl top pods -A --sort-by=memory
 vcluster disconnect
 ```
@@ -158,11 +134,8 @@ vcluster disconnect
 ### Network Connectivity Issues
 
 ```bash
-# Test DNS from inside the virtual cluster
 vcluster connect <name> --namespace <namespace>
 kubectl run test --image=busybox --rm -it --restart=Never -- nslookup kubernetes.default
-
-# Test connectivity to a host service
 kubectl run test --image=busybox --rm -it --restart=Never -- wget -qO- http://<host-service>
 vcluster disconnect
 ```

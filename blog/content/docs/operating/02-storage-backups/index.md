@@ -4,71 +4,82 @@ series: ["operating"]
 layer: stor
 date: 2026-03-13
 draft: false
-tags: ["operations", "longhorn", "storage", "backup", "r2"]
-summary: "Day-to-day commands for managing Longhorn volumes, checking backup health, and restoring from Cloudflare R2."
+tags: ["operations", "longhorn", "storage", "backup", "r2", "troubleshooting"]
+summary: "Day-to-day commands for managing Longhorn volumes, checking backup health, restoring from Cloudflare R2, and debugging common storage failures on Frank."
 weight: 3
+reader_goal: "Check Longhorn volume health, manage R2 backups, expand a volume, restore from backup, and debug degraded volumes, failed backups, or stuck attachments — without relying on the Longhorn UI."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 ---
 
-This is the operational runbook for Longhorn storage and Cloudflare R2 backups on Frank, the Talos Cluster. If you want the full story on how storage was set up, see [Persistent Storage with Longhorn]({{< relref "/docs/building/03-storage" >}}). For backup architecture and the Longhorn 1.11 gotchas that shaped the current design, see [Backup — Longhorn to Cloudflare R2]({{< relref "/docs/building/08-backup" >}}).
+{{< last-updated >}}
+
+This is the operational runbook for Longhorn storage and Cloudflare R2 backups on Frank. For the full story on how storage was set up, see [Persistent Storage with Longhorn]({{< relref "/docs/building/03-storage" >}}). For the backup architecture and the Longhorn 1.11 gotchas that shaped the current design, see [Backup — Longhorn to Cloudflare R2]({{< relref "/docs/building/08-backup" >}}).
+
+Source your environment before running any commands:
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## Overview
 
-Frank runs Longhorn for distributed block storage. The default StorageClass replicates every volume three times across the control-plane nodes (mini-1, mini-2, mini-3). A second StorageClass, `longhorn-gpu-local`, provides single-replica strict-local storage pinned to gpu-1's dedicated SSDs for AI workloads.
+Frank runs Longhorn for distributed block storage. The default StorageClass replicates every volume three times across the control-plane nodes (`apps/longhorn/values.yaml:3`, `defaultReplicaCount: 3`). Two additional StorageClasses exist:
+
+- **`longhorn-gpu-local`** — single-replica, strict-local (`dataLocality: strict-local`), pinned to gpu-1's dedicated SSDs via `diskSelector: gpu-local` (`apps/longhorn/manifests/gpu-local-sc.yaml`)
+- **`longhorn-cicd`** — single-replica, best-effort, for CI/CD workloads on pc-1 (`apps/longhorn/manifests/storageclass-longhorn-cicd.yaml`)
+
+Raspberry Pi nodes have scheduling disabled — Longhorn does not place replicas on them.
 
 All volumes in the `default` group are backed up to a Cloudflare R2 bucket on two schedules:
 
-- **Daily** at 02:00 UTC — 7 recovery points retained
-- **Weekly** on Sunday at 03:00 UTC — 4 recovery points retained
+- **Daily** at 02:00 UTC — 7 recovery points retained (`apps/longhorn/manifests/recurring-job-daily.yaml`)
+- **Weekly** on Sunday at 03:00 UTC — 4 recovery points retained (`apps/longhorn/manifests/recurring-job-weekly.yaml`)
 
-Both RecurringJobs currently target R2 (NFS backup target is disabled pending a Longhorn bug fix in v1.13).
+Both RecurringJobs target the R2 BackupTarget (`apps/longhorn/manifests/backup-target-default.yaml`, URL `s3://frank-longhorn-backups@auto/`). NFS backup target is disabled pending a Longhorn bug fix in v1.13 (`apps/longhorn/manifests/backup-target-nas.yaml`, entirely commented out).
+
+### Verify
+
+```bash
+# All volumes healthy, no degraded/faulted entries
+kubectl get volumes.longhorn.io -n longhorn-system
+
+# Backup target reachable
+kubectl get backuptargets.longhorn.io -n longhorn-system -o wide
+```
+
+Healthy output for volumes shows all `ROBUSTNESS: healthy`. For backup targets, `AVAILABLE` must be `true`.
 
 ## Observing State
 
 ### Volume Health
 
-List all Longhorn volumes and their current state:
-
 ```bash
 kubectl get volumes.longhorn.io -n longhorn-system
 ```
 
-A healthy volume shows `State: attached` (if in use) or `State: detached` (if idle), with `Robustness: healthy`. Anything showing `degraded` or `faulted` needs attention — jump to the Debugging section.
+A healthy volume shows `State: attached` (if in use) or `detached` (if idle), with `Robustness: healthy`. Anything showing `degraded` or `faulted` needs attention.
 
 ```console
 $ kubectl get volumes.longhorn.io -n longhorn-system
 NAME                                       DATA ENGINE   STATE      ROBUSTNESS   SCHEDULED   SIZE           NODE      AGE
 pvc-0ea5fae9-9f12-488e-83e8-a69e4b533b50   v1            attached   healthy                  32212254720    gpu-1     42d
 pvc-1211b9cd-8062-43ca-8fa9-93ec43c36c35   v1            attached   healthy                  1073741824     mini-2    8d
-pvc-184f9b50-5d7f-400d-865b-4bb587dcf859   v1            attached   healthy                  8589934592     mini-2    39d
-pvc-1929c98e-6a59-4eec-8c41-353833f43dec   v1            attached   healthy                  5368709120     mini-2    37d
-pvc-1b0925db-fc13-4a8f-99da-2a09265ada47   v1            detached   unknown                  10737418240              35d
-pvc-1ded449d-e2bc-4e38-b7c9-c5d5ee264294   v1            attached   healthy                  2147483648     mini-3    37d
-pvc-26d07ae3-35c9-406f-b963-01894b9db240   v1            attached   healthy                  21474836480    mini-3    43d
-pvc-40c7a93f-5a74-49f0-8dc6-ff900348879a   v1            attached   healthy                  10737418240    gpu-1     21d
-pvc-4b1121bb-2285-42ec-8a8d-49cc96978ae1   v1            attached   healthy                  5368709120     mini-1    42d
-pvc-61ea0ef7-097a-4362-8727-19db3475a07c   v1            attached   healthy                  53687091200    gpu-1     20d
-pvc-64409163-fd82-49d1-bdfd-6a2a97f339c6   v1            attached   healthy                  1073741824     mini-3    43d
-pvc-6555d86e-52c3-4d36-9f3d-498053f0525c   v1            attached   healthy                  2147483648     mini-1    42d
-pvc-6ff35220-82b3-478e-849d-f3dd9e0f29af   v1            attached   healthy                  1073741824     gpu-1     41d
-pvc-82bfe595-d342-41c4-9f68-7346b2317a6d   v1            attached   healthy                  53687091200    pc-1      7d8h
-pvc-9cfe443a-e7e9-4894-a169-943b361124a5   v1            attached   healthy                  21474836480    gpu-1     43d
-pvc-b17ad456-1c3b-45dc-a6c9-18df39a4dab6   v1            attached   healthy                  134217728      raspi-1   12d
-pvc-c1d1b3b5-4e57-4488-a921-40814dac625a   v1            attached   healthy                  10737418240    pc-1      22d
-pvc-c700abbe-9114-47b8-ac5b-2f408f6055ec   v1            detached   unknown                  107374182400             36d
-pvc-cd8722f8-2077-41d5-86eb-a62c6437dd3f   v1            attached   healthy                  5368709120     mini-3    21d
-pvc-de4ab602-205f-41d5-8f13-1d2982109b92   v1            attached   healthy                  5368709120     mini-2    42d
-pvc-f083c9f7-8cbe-4cb7-89d0-7455c59a6f50   v1            attached   healthy                  5368709120     mini-3    39d
+# ... (truncated — 20 volumes, all healthy)
 ```
 
 For more detail on a specific volume:
 
 ```bash
 kubectl get volume.longhorn.io <volume-name> -n longhorn-system -o yaml
+# or
+kubectl describe volume.longhorn.io <volume-name> -n longhorn-system
 ```
 
 ### Longhorn UI
 
-The dashboard at `http://192.168.55.201` gives you a visual overview of volume health, replica distribution, node capacity, and backup status. It is the fastest way to spot problems.
+The dashboard at `http://192.168.55.201` gives a visual overview of volume health, replica distribution, node capacity, and backup status.
 
 {{< screenshot src="longhorn-ui-volumes.png" caption="Longhorn UI Volume page: replica distribution and robustness at a glance" >}}
 
@@ -80,10 +91,16 @@ Check the RecurringJob schedule and retention:
 kubectl get recurringjobs.longhorn.io -n longhorn-system
 ```
 
-Check the backup target status (should show `AVAILABLE: true`):
+Check the backup target status:
 
 ```bash
 kubectl get backuptargets.longhorn.io -n longhorn-system
+```
+
+Expected output:
+```
+NAME      URL                              CREDENTIAL        AVAILABLE   LASTSYNCEDAT
+default   s3://frank-longhorn-backups@auto/   longhorn-r2-secret   true        2026-07-15T02:00:00Z
 ```
 
 List recent backups for a specific volume:
@@ -96,28 +113,32 @@ kubectl get backups.longhorn.io -n longhorn-system \
 
 ### Node and Disk Status
 
-See how much capacity each node has and whether disks are schedulable:
-
 ```bash
 kubectl get nodes.longhorn.io -n longhorn-system -o wide
 ```
+
+This shows per-node scheduling state and disk capacity. Both Raspberry Pi nodes should show `ALLOWSCHEDULING: false`.
 
 ## Routine Operations
 
 ### Expand a Volume
 
-Longhorn supports online volume expansion. Edit the PVC to request more storage:
+Longhorn supports online volume expansion. Edit the PVC:
 
 ```bash
 kubectl patch pvc <pvc-name> -n <namespace> \
   -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
 ```
 
-The underlying Longhorn volume and filesystem expand automatically. No pod restart needed for ext4; XFS may need a manual `xfs_growfs` inside the pod.
+The underlying Longhorn volume and filesystem expand automatically. No pod restart needed for ext4. For XFS, run inside the pod:
+
+```bash
+xfs_growfs /
+```
 
 ### Trigger a Manual Backup
 
-If you want an immediate backup outside the scheduled window (before maintenance, for example):
+Before maintenance, take an immediate backup outside the scheduled window:
 
 ```bash
 kubectl create -f - <<EOF
@@ -133,19 +154,18 @@ spec:
 EOF
 ```
 
-Leaving `snapshotName` empty tells Longhorn to take a fresh snapshot and back it up. You can track progress in the Longhorn UI under **Backup**.
+Leaving `snapshotName` empty tells Longhorn to take a fresh snapshot and back it up. Track progress in the Longhorn UI under **Backup**.
 
 ### Restore a Volume from Backup
 
-To restore a volume from an R2 backup:
+Via the Longhorn UI:
 
-1. Open the Longhorn UI at `http://192.168.55.201`
-2. Navigate to **Backup** and find the volume
-3. Select the recovery point (daily or weekly) and click **Restore**
-4. Choose the number of replicas and target StorageClass
-5. Longhorn creates a new volume — create a PVC to bind it
+1. Open `http://192.168.55.201` → **Backup**
+2. Find the volume, select a recovery point (daily or weekly)
+3. Click **Restore** — choose replica count and target StorageClass
+4. Longhorn creates a new volume
 
-Alternatively, via CLI, create a new volume referencing the backup URL:
+Via CLI, create a new volume referencing the backup URL:
 
 ```bash
 kubectl create -f - <<EOF
@@ -165,39 +185,35 @@ Then create a PV and PVC pointing to the restored volume, or use the Longhorn UI
 
 ### Manage Snapshots
 
-List snapshots for a volume:
-
 ```bash
+# List snapshots for a volume
 kubectl get snapshots.longhorn.io -n longhorn-system \
   -l longhornvolume=<volume-name>
-```
 
-Delete old snapshots manually (Longhorn retains per the RecurringJob `retain` count, but you can clean up extras):
-
-```bash
+# Delete old snapshots (Longhorn retains per RecurringJob retain count)
 kubectl delete snapshot.longhorn.io <snapshot-name> -n longhorn-system
 ```
 
 ### Verify R2 Backup Credentials
 
-If backups start failing, check the secret is present and the backup target reports available:
+If backups start failing:
 
 ```bash
 kubectl get secret longhorn-r2-secret -n longhorn-system
 kubectl get backuptargets.longhorn.io -n longhorn-system
 ```
 
-If the secret was lost (node rebuild, namespace wipe), re-apply it from the encrypted source:
+If `AVAILABLE` is `false`, the R2 credentials may be missing or invalid. Re-apply from the encrypted source:
 
 ```bash
 sops --decrypt secrets/longhorn/r2-secret.yaml | kubectl apply -f -
 ```
 
-## Debugging
+## Runbook
 
 ### Volume Degraded
 
-A degraded volume has fewer healthy replicas than requested. Common causes:
+A degraded volume has fewer healthy replicas than requested.
 
 ```bash
 # Check which replicas are unhealthy
@@ -209,7 +225,7 @@ kubectl get nodes
 kubectl get nodes.longhorn.io -n longhorn-system
 ```
 
-If a node is down temporarily (reboot, maintenance), Longhorn will rebuild the replica when the node returns. If a node is permanently gone, Longhorn auto-rebuilds on remaining nodes once `nodeDownPodDeletionPolicy` kicks in.
+If a node is temporarily down (reboot, maintenance), Longhorn rebuilds the replica when the node returns. If a node is permanently gone, `nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod` triggers auto-rebuild.
 
 Force-rebuild a replica on a different node by deleting the failed replica:
 
@@ -219,6 +235,20 @@ kubectl delete replica.longhorn.io <replica-name> -n longhorn-system
 
 Longhorn schedules a new replica on a healthy node automatically.
 
+#### Recovery: IM memory wedge
+
+If a node goes `NotReady` with memory pressure (Layer 1 alert `layer-1-node-memory-headroom` below 1 GiB), the Longhorn instance manager may have leaked memory. Known in v1.11.0 (`~0.9 GiB/day`) — fixed in v1.11.1+. The recovery is a power-cycle (`docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md`).
+
+```bash
+# Confirm no volumes are degraded first
+kubectl get volumes.longhorn.io -n longhorn-system | grep -v healthy
+
+# If all healthy, reboot the affected node
+talosctl reboot --nodes <node-ip>
+```
+
+Do **not** force-delete VolumeAttachments — scale the workload to 0 and let natural detach happen. A force-delete mid-write can blow up ext4 journals.
+
 ### Backup Failed
 
 Check the backup target availability first:
@@ -227,17 +257,27 @@ Check the backup target availability first:
 kubectl get backuptargets.longhorn.io -n longhorn-system -o yaml
 ```
 
-Look at the `status.conditions` — common failures:
+Look at `status.conditions` — common failures:
 
-- **Credential error**: R2 secret missing or wrong. Verify with `kubectl get secret longhorn-r2-secret -n longhorn-system -o yaml` and check that `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_ENDPOINTS` are all present.
+- **Credential error**: R2 secret missing or wrong. Verify with `kubectl get secret longhorn-r2-secret -n longhorn-system -o yaml` and check that `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_ENDPOINTS` are present.
 - **Network error**: Check DNS resolution and outbound HTTPS connectivity from a Longhorn pod.
-- **Bucket not found**: Verify the bucket name matches what is in the `backupTargetURL`.
+- **Bucket not found**: Verify the bucket name matches `backupTargetURL`.
 
-Check the Longhorn manager logs for detailed error messages:
+Check the Longhorn manager logs:
 
 ```bash
 kubectl logs -n longhorn-system -l app=longhorn-manager --tail=50 | grep -i backup
 ```
+
+#### Recovery: stale backups (Grafana alert)
+
+The Layer 9 alert `layer-9-backup-stale` fires when `daily-nas` goes >48h or `weekly-r2` >10d without success. To diagnose:
+
+```bash
+kubectl -n longhorn-system get jobs --sort-by=.status.startTime | tail -5
+```
+
+If the CronJob is healthy but individual backups fail, the BackupTarget may have drifted — check ArgoCD sync status on the `longhorn-extras` Application.
 
 ### Volume Stuck Attaching
 
@@ -253,42 +293,66 @@ kubectl get engines.longhorn.io -n longhorn-system \
 
 # Verify iSCSI is running on the target node
 talosctl -n <node-ip> services | grep iscsid
-```
 
-If iSCSI is not running, the `iscsi-tools` extension may have been lost during an upgrade. Verify extensions on the node:
-
-```bash
+# If iscsid is missing, check extensions
 talosctl -n <node-ip> get extensions
 ```
 
-As a last resort, force-detach and re-attach:
+If iSCSI is not running, the `iscsi-tools` Talos extension may have been lost during an upgrade.
+
+#### Recovery: force-detach
+
+As a last resort:
 
 ```bash
 kubectl patch volume.longhorn.io <volume-name> -n longhorn-system \
   --type merge -p '{"spec":{"nodeID":""}}'
 ```
 
-This clears the node assignment and lets Longhorn re-attach the volume when the consuming pod is rescheduled.
+This clears the node assignment and lets Longhorn re-attach the volume when the consuming pod is rescheduled. Do not force-delete the VolumeAttachment object — scale the workload to 0 and let the natural detach complete.
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|-----------------|------------------|-------------|
+| Both daily and weekly backups can use separate targets (NFS + R2) | Longhorn `v1beta2` RecurringJob CRD has no `backupTargetName` field — only `concurrency, cron, groups, labels, name, parameters, retain, task` (#11392 closed without fix) | Both jobs route to single R2 target. NFS BackupTarget exists in the repo but is commented out (`apps/longhorn/manifests/backup-target-nas.yaml`). |
+| NFS backup target works | Longhorn 1.11 generates `host/path` instead of `host:/path` for NFS (bug #11412) | NFS target disabled until v1.13 fix. |
+| ArgoCD can manage the R2 backup secret through SSA | SOPS `.sops` metadata fields are rejected by ArgoCD's server-side apply — Secret goes OutOfSync immediately | R2 secret lives outside the manifests path, applied out-of-band via `sops --decrypt \| kubectl apply -f -` (`docs/runbooks/frank-gotchas/storage-secrets-ssa.md`). |
+| Longhorn v1.11.0 is stable | Instance Manager anonymous heap leaks ~0.9 GiB/day (`docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md`) | raspi-1 wedged at 8 GiB RAM — power-cycle recovery. Pinned to v1.11.2. |
+| Volume health alerting is automatic | No ServiceMonitor scrapes Longhorn metrics — `longhorn_volume_robustness` is not surfaced | Fallback is `kube_pod_status_ready` on longhorn-manager pods. Alert rule exists but covers only pod liveness. |
 
 ## Quick Reference
 
 | Task | Command |
 |------|---------|
 | List volumes | `kubectl get volumes.longhorn.io -n longhorn-system` |
-| Volume detail | `kubectl get volume.longhorn.io <name> -n longhorn-system -o yaml` |
-| List replicas | `kubectl get replicas.longhorn.io -n longhorn-system` |
+| Volume detail | `kubectl describe volume.longhorn.io <name> -n longhorn-system` |
+| List replicas | `kubectl get replicas.longhorn.io -n longhorn-system -l longhornvolume=<name>` |
 | List backups | `kubectl get backups.longhorn.io -n longhorn-system` |
 | Backup target status | `kubectl get backuptargets.longhorn.io -n longhorn-system` |
 | Recurring jobs | `kubectl get recurringjobs.longhorn.io -n longhorn-system` |
+| List snapshots | `kubectl get snapshots.longhorn.io -n longhorn-system -l longhornvolume=<name>` |
 | Expand PVC | `kubectl patch pvc <name> -n <ns> -p '{"spec":{"resources":{"requests":{"storage":"<size>"}}}}'` |
 | Re-apply R2 secret | `sops --decrypt secrets/longhorn/r2-secret.yaml \| kubectl apply -f -` |
 | Longhorn manager logs | `kubectl logs -n longhorn-system -l app=longhorn-manager --tail=50` |
 | Node disk capacity | `kubectl get nodes.longhorn.io -n longhorn-system -o wide` |
+| Check Longhorn StorageClasses | `kubectl get storageclass \| grep longhorn` |
+| Trigger manual backup | `kubectl create -f manual-backup.yaml` (see Routine Operations) |
+| Restore from backup (CLI) | `kubectl create -f restored-volume.yaml` (see Routine Operations) |
+| Force-detach stuck volume | `kubectl patch volume.longhorn.io <name> -n longhorn-system --type merge -p '{"spec":{"nodeID":""}}'` |
 | Longhorn UI | `http://192.168.55.201` |
+
+## Explanation
+
+This post covers the Longhorn operations that keep Frank's data alive — volume health checks, backup management, and recovery from the failures that have actually bitten us (IM memory wedges, stuck attachments, stale backups). The building companion posts cover *why* we chose Longhorn and this backup architecture; this post is what you reach for when a volume degrades or a backup alert fires.
+
+The design intention was for daily backups to go to NFS and weekly to R2, but Longhorn 1.11's NFS bug and the absent `backupTargetName` CRD field forced both onto R2. The NFS BackupTarget manifest is preserved commented out in the repo (`apps/longhorn/manifests/backup-target-nas.yaml`) for when the fix lands.
 
 ## References
 
 - [Longhorn Documentation](https://longhorn.io/docs/1.8.1/) — official docs including snapshot, backup, and restore guides
 - [Cloudflare R2 Documentation](https://developers.cloudflare.com/r2/) — bucket management, API tokens, S3 compatibility
-- [Building Post: Persistent Storage with Longhorn]({{< relref "/docs/building/03-storage" >}}) — how storage was set up on Frank
-- [Building Post: Backup — Longhorn to Cloudflare R2]({{< relref "/docs/building/08-backup" >}}) — backup architecture and Longhorn 1.11 gotchas
+- [Building: Persistent Storage with Longhorn]({{< relref "/docs/building/03-storage" >}}) — how storage was set up on Frank
+- [Building: Backup — Longhorn to R2]({{< relref "/docs/building/08-backup" >}}) — backup architecture and Longhorn 1.11 gotchas
+- [Frank Gotchas — Storage/Secrets](https://github.com/derio-net/frank/blob/main/docs/runbooks/frank-gotchas/storage-secrets-ssa.md) — IM leak, SSA/SOPS gotchas
+- [Incident: raspi-1 Memory Wedge](https://github.com/derio-net/frank/blob/main/docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md) — IM leak forensics and recovery

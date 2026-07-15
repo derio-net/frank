@@ -4,12 +4,22 @@ series: ["operating"]
 layer: agents
 date: 2026-03-31
 draft: false
-tags: ["operations", "security", "agent", "claude", "ssh", "vibekanban", "cilium", "cron", "telegram", "monitoring"]
+tags: ["operations", "security", "agent", "claude", "ssh", "vibekanban", "cilium", "cron", "telegram", "monitoring", "troubleshooting"]
 summary: "Day-to-day commands for managing the secure agent pod — SSH access, process health, VibeKanban, secret rotation, and troubleshooting."
+reader_goal: "SSH and mosh into the secure agent pod, manage secrets, monitor cron health, and troubleshoot connectivity."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 15
 ---
 
+{{< last-updated >}}
+
 This is the operational companion to [Secure Agent Pod — Hardening an AI Coding Workstation]({{< relref "/docs/building/21-secure-agent-pod" >}}). That post explains the architecture and security model. This one is the day-to-day runbook.
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## What "Healthy" Looks Like
 
@@ -20,6 +30,21 @@ A healthy secure-agent-pod has:
 - mosh accessible on UDP `192.168.55.219:60000-60015`
 - VibeKanban UI accessible at `192.168.55.218:8081` (served by the `vk-local` sidecar)
 - All running as UID 1000 (`claude`), no root
+
+### Verify
+
+```bash
+# Pod is running with both containers
+kubectl -n secure-agent-pod get pods -o wide
+# Expected: 2/2 Ready on gpu-1
+
+# SSH responds
+ssh -o ConnectTimeout=5 -o StrictHostKeyChecking=no claude@192.168.55.215 echo "SSH OK" 2>/dev/null
+
+# VibeKanban serves UI
+curl -s -o /dev/null -w "%{http_code}" http://192.168.55.218:8081
+# Expected: 200
+```
 
 ## Observing State
 
@@ -604,6 +629,14 @@ Environment variables are set at container start. After changing a Secret:
 ```bash
 kubectl rollout restart deployment/secure-agent-pod -n secure-agent-pod
 ```
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|----------------|-----------------|-------------|
+| `wait -n` is sufficient for process supervision in the container | A SIGHUP to one child propagated to the whole process group, killing sshd, mosh, and tmux along with the cron job | Migrated to s6-overlay with signal-isolated supervision per service |
+| mosh-server ports always land within the published LoadBalancer range | Without `-p` constraint, mosh-server picks uniformly from 60000-61000 — a ~1.6% hit rate against the 16 published ports | Added the `--server='mosh-server new -p 60000:60015'` constraint |
+| SSH-launched scripts inherit the container's K8s environment | sshd scrubs the login environment, so `kubectl exec`-only env vars like `FRANK_C2_TELEGRAM_*` are missing | Documented the `kubectl exec` not SSH rule for reconcile scripts |
 
 ## References
 

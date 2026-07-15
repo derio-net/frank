@@ -1,15 +1,25 @@
 ---
 title: "Operating on VK Relay"
-series: ["operating"]
+series: [operating]
 layer: agents
 date: 2026-04-13
 draft: false
-tags: ["operations", "agents", "vibekanban", "relay", "websocket", "troubleshooting"]
-summary: "Day-to-day commands for the VK relay server — health checks, tunnel status, re-pairing, and troubleshooting the browser-to-agent connection."
+tags: [operations, agents, vibekanban, relay, websocket, troubleshooting]
+summary: "Day-to-day commands for the VK relay server — health checks, tunnel status, re-pairing, and troubleshooting the browser-to-agent connection. Includes troubleshooting for 502s, pairing-code rejection, and silent tunnel failures."
+reader_goal: "Verify VK relay health, re-pair the browser-to-agent tunnel, and troubleshoot the most common connection failures from relay logs and endpoint status codes."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 21
 ---
+{{< last-updated >}}
 
 This is the operational companion to [VK Relay — Tunneling the Browser to a Local Agent Server]({{< relref "/docs/building/25-vk-relay" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook.
+
+```bash
+source .env   # sets KUBECONFIG
+```
+
 
 ## What "Healthy" Looks Like
 
@@ -19,6 +29,21 @@ A healthy VK relay setup has:
 - The `/v1/relay/` path reachable through Traefik at `vk.cluster.derio.net`
 - The local VK server in the secure-agent-pod connected via WebSocket tunnel
 - Browser paired and able to view workspace data through the remote UI
+
+### Verify
+
+Quick one-liner to confirm the relay is reachable and the tunnel is up:
+
+```bash
+# Relay endpoint returns 401 (JWT required — that means it's alive)
+curl -s -o /dev/null -w "%{http_code}" https://vk.cluster.derio.net/v1/relay/connect
+
+# Both relay-server and vk-remote containers are Ready
+kubectl -n agents get pods -l app=vk-remote -o jsonpath='{.items[0].status.containerStatuses[*].ready}'
+```
+
+Expected: `401` from curl, `true true` from the pod status.
+
 
 ## Observing State
 
@@ -160,6 +185,18 @@ argocd app get vk-remote --port-forward --port-forward-namespace argocd
 # Force sync if needed
 argocd app sync vk-remote --port-forward --port-forward-namespace argocd
 ```
+
+
+## Missteps
+
+The layer's design took a few wrong turns before it settled. These are the ones worth remembering so the next operator doesn't repeat them.
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| The relay WebSocket tunnel auto-recovers from pod restarts without re-pairing | Browser IndexedDB state is ephemeral — clearing storage or switching devices loses the pairing code, requiring a full re-pair flow | Multiple support cycles debugging 'remote UI empty' before documenting the re-pairing procedure |
+| A single port-forward is enough to test the relay end-to-end | Port-forward only tests the local VK server, not the Traefik IngressRoute or TLS termination — the relay path through vk.cluster.derio.net has additional failure modes (JWT auth, Cilium egress policies) | False-positive health checks that passed locally but failed in production until the curl-against-Ingress test was added |
+| The relay-server sidecar would log connection state at startup unconditionally | Relay logs only show active connections; a silent failure (pod up but tunnel not established) produces no log output until someone tries to pair | Extended debug time for tunnel failures, leading to the addition of explicit reachability checks in the runbook |
+| Sourcing .env on any workstation gives you the correct KUBECONFIG for relay debugging | The relay spans both Frank (pod) and the workstation (browser); .env only targets Frank — diagnosing browser-side issues requires local VK server access | Time wasted checking the wrong cluster before the dual-context testing pattern was documented |
 
 ## References
 

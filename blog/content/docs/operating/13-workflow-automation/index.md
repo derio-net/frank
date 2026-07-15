@@ -4,12 +4,22 @@ series: ["operating"]
 layer: auto
 date: 2026-03-29
 draft: false
-tags: ["operations", "n8n", "workflow", "automation", "postgresql"]
+tags: ["operations", "n8n", "workflow", "automation", "postgresql", "troubleshooting"]
 summary: "Day-to-day commands for managing n8n instances — health checks, database operations, adding new instances, upgrading, and common issues."
+reader_goal: "Check n8n health, connect to PostgreSQL, add new instances, and fix common workflow automation issues."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 14
 ---
 
+{{< last-updated >}}
+
 This is the operational companion to [Workflow Automation with n8n]({{< relref "/docs/building/20-workflow-automation" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook for checking health, managing the database, adding instances, and troubleshooting.
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## What "Healthy" Looks Like
 
@@ -19,6 +29,22 @@ A healthy n8n instance has:
 - The LoadBalancer Service showing the assigned external IP
 - The `/healthz` endpoint returning 200
 - Metrics flowing at `/metrics`
+
+### Verify
+
+```bash
+# Pod health
+kubectl -n n8n-01 get pods
+# Expected: both pods 1/1 Running
+
+# HTTP health endpoint
+curl -s -o /dev/null -w "%{http_code}" http://192.168.55.216:5678/healthz
+# Expected: 200
+
+# ArgoCD sync status
+argocd app get n8n-01 --server 192.168.55.200 --insecure 2>/dev/null | grep -E "Health|Sync"
+# Expected: Healthy, Synced
+```
 
 ## Observing State
 
@@ -223,6 +249,14 @@ Check that `WEBHOOK_URL` is set correctly in the deployment env. n8n uses this t
 ```bash
 kubectl -n n8n-01 get deploy n8n-01 -o jsonpath='{.spec.template.spec.containers[0].env}' | python3 -m json.tool | grep -A1 WEBHOOK
 ```
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|----------------|-----------------|-------------|
+| Bitnami PostgreSQL chart defaults work with our existing-secret setup | The `existingSecret` key names differ between what we provided and what Bitnami expects (`postgres-password` vs `password`) | Debugged connection-refused errors and aligned the secret key names |
+| One n8n instance can serve all team workflows | Different teams need isolated environments, credential sets, and webhook URLs | Added the instance duplication guide and per-instance namespace pattern |
+| n8n's secure cookie mode works over plain HTTP | n8n refuses to set secure cookies on non-TLS connections, breaking session-based features | Added `N8N_SECURE_COOKIE: "false"` to the deployment env until TLS is configured |
 
 ## References
 

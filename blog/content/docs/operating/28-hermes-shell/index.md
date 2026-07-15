@@ -1,13 +1,19 @@
 ---
 title: "Operating the Hermes Shell With Its Hindsight Memory Sidecar"
-series: ["operating"]
+series: [operating]
 layer: agents
 date: 2026-07-11
 draft: true
-tags: ["operations", "hermes", "nous-research", "agents", "litellm", "hindsight", "sidecar", "postgres", "pgvector", "memory", "ssh"]
-summary: "Day-to-day commands for the rebuilt hermes pod on the official image: checking the Hindsight memory sidecar's health, the two-tier memory backup story, the claude-code retain provider and its auth caveat, and the pg_dump/pg_restore restore mechanic."
+tags: [operations, hermes, nous-research, agents, litellm, hindsight, sidecar, postgres,
+  pgvector, memory, ssh, troubleshooting]
+summary: "Day-to-day commands for the rebuilt hermes pod on the official image: checking the Hindsight memory sidecar's health, the two-tier memory backup story, the claude-code retain provider and its auth caveat, and the pg_dump/pg_restore restore mechanic. Includes troubleshooting for retain-vs-recall split-brain, Postgres permission flips, and probe misconfiguration."
+reader_goal: "Check Hindsight memory sidecar health, verify the two-tier backup story (Longhorn + pg_dump), and troubleshoot retain-vs-recall split-brain when Claude session auth lapses."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 29
 ---
+{{< last-updated >}}
 
 Companion to [Rebuilding the Hermes Shell on the Official Image, With a Hindsight
 Memory Sidecar]({{< relref "/docs/building/33-hermes-shell" >}}). Everything here
@@ -21,6 +27,11 @@ container instead of a hand-run tmux stack, so that is where this guide spends i
 words. The BYOK inference surface (provider pinning, `ollama_chat/`, context
 budgets) is unchanged; the [building post's history]({{< relref "/docs/building/33-hermes-shell" >}})
 still owns that chain.
+
+```bash
+source .env   # sets KUBECONFIG
+```
+
 
 ## What "Healthy" Looks Like
 
@@ -57,6 +68,23 @@ kubectl exec -n hermes-agent-shell -c hermes deploy/hermes-agent-shell -- \
 
 This should report the Hindsight backend reachable and the bank populated; it is
 the agent-facing view of the same `/health` the sidecar answers.
+
+### Verify
+
+Confirm the hindsight memory sidecar is healthy and accessible:
+
+```bash
+# Hindsight health endpoint
+kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
+  curl -sf http://127.0.0.1:8888/health
+
+# Memory count from Postgres
+kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
+  psql -h 127.0.0.1 -p 5433 -U hindsight -d postgres -tAc 'select count(*) from memory_units'
+```
+
+Expected: `{"status":"healthy","database":"connected"}` and a count > 0.
+
 
 ## Checking the Memory Store Directly
 
@@ -196,6 +224,18 @@ name the container explicitly now that the pod has three.
   because upstream ships the client and not the server.
 - **The hand-run tmux memory stack**: gone. Memory is a supervised container on a
   backed-up volume.
+
+
+## Missteps
+
+The layer's design took a few wrong turns before it settled. These are the ones worth remembering so the next operator doesn't repeat them.
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| Retain works automatically as long as the hindsight sidecar is running | The claude-code provider needs an authenticated Claude session in the sidecar — no ANTHROPIC_API_KEY env var works; without a logged-in session, new memories are silently not written | Periods where recall worked perfectly but no new memories were retained, going unnoticed until a spot-check of memory_units count |
+| PostgreSQL data directory permissions survive Kubernetes pod restarts | fsGroup: 1000 re-loosens PGDATA to group-rwx on every remount; Postgres refuses group-writable directories | Hindsight container crash on every restart until chmod 700 was baked into the sidecar's startup |
+| A httpGet probe against the pod IP works for the hindsight health endpoint | hindsight-api binds 127.0.0.1 only — a pod-IP httpGet probe draws connection-refused forever, causing the kubelet to restart the container | Pod flapping with false-negative health checks until exec probes curling loopback replaced httpGet |
+| claude --version reliably indicates retain capability | The binary exists but needs a logged-in OAuth session; --version tells you it's installed, not authenticated — the failure path is completely silent | Troubleshooting 'why no new memories' required digging into the sidecar's session state rather than a simple version check |
 
 ## References
 

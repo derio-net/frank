@@ -4,12 +4,22 @@ series: ["operating"]
 layer: orch
 date: 2026-04-09
 draft: false
-tags: ["operations", "paperclip", "ai-agents", "postgresql", "gpu-1"]
-summary: "Day-to-day commands for managing Paperclip — checking pod health, database operations, secret sync, and handling the RWO PVC constraint."
+tags: ["operations", "paperclip", "ai-agents", "postgresql", "gpu-1", "troubleshooting"]
+summary: "Day-to-day commands for managing Paperclip — checking pod health, database operations, secret sync, troubleshooting, and handling the RWO PVC constraint."
+reader_goal: "Check Paperclip pod health, access the database, manage secrets, and handle RWO PVC deployment constraints."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 19
 ---
 
+{{< last-updated >}}
+
 This is the operational companion to [Paperclip — AI Agent Orchestrator]({{< relref "/docs/building/15-paperclip" >}}). That post explains the architecture and deployment. This one covers health checks, database access, secret management, and common failure modes.
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## What "Healthy" Looks Like
 
@@ -23,6 +33,22 @@ Paperclip is healthy when:
 Paperclip is pinned to gpu-1 (`nodeSelector: kubernetes.io/hostname: gpu-1`) with a defensive `nvidia.com/gpu:NoSchedule` toleration. It does not request a GPU — gpu-1 is the cluster's biggest CPU/RAM box (128GB, ~20% requested) and absorbs the 12Gi memory limit without crowding the core-zone control-plane minis. See the building post's *Memory Tuning and the Move to gpu-1* section for the history.
 
 {{< screenshot src="paperclip-dashboard.png" caption="Paperclip dashboard: the control plane's view of registered agents and recent runs" >}}
+
+### Verify
+
+```bash
+# All-in-one status
+kubectl get pods,pvc,externalsecret -n paperclip-system
+# Expected: paperclip pod on gpu-1, paperclip-db pod, PVCs Bound, ExternalSecrets Synced
+
+# Web UI responds
+curl -s -o /dev/null -w "%{http_code}" http://192.168.55.212:3100/
+# Expected: 200 or 403 (private mode)
+
+# Database is reachable
+kubectl exec -n paperclip-system deploy/paperclip -- pg_isready -h paperclip-db-postgresql 2>/dev/null
+# Expected: accepts connections
+```
 
 Quick health check:
 
@@ -346,6 +372,15 @@ Adding to the inventory (medium loop):
 ```
 
 The vast majority of "I want tool X" requests resolve to the inventory. Bumping the image is the right answer when the user is reaching for a *new manager* or for behaviour that needs to run before sshd starts. If you're not sure, default to inventory — promotion to image is always available later, and the inventory loop is faster.
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|----------------|-----------------|-------------|
+| RollingUpdate works with ReadWriteOnce PVCs | The new pod can't mount the RWO volume while the old pod holds it, deadlocking the rollout | Switched to `strategy: Recreate`, accepting brief downtime on restarts |
+| Default resource limits are sufficient for Paperclip | Paperclip's working set under load is much larger than 1Gi — it OOM-killed repeatedly | Bumped memory limit to 12Gi and moved the workload to gpu-1 (128GB RAM) |
+| SSH-launched tool reconciliation preserves the container environment | sshd scrubs env vars from `envFrom` at login, so Telegram alerts never fire on failure | Documented the `kubectl exec` rule for running `paperclip-shell-reconcile` |
+| Upstream Paperclip publishes semver image tags | Upstream only publishes `latest` and `sha-<short>` tags — no semver | Pin by `sha-<short>` tag that maps to a known git tag |
 
 ## References
 

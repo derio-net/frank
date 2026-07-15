@@ -4,12 +4,22 @@ series: ["operating"]
 layer: edge
 date: 2026-03-20
 draft: false
-tags: ["operations", "hop", "talos", "headscale", "tailscale", "caddy", "edge"]
-summary: "Day-to-day commands for managing Hop — a standalone single-node Talos cluster on Hetzner Cloud with Headscale mesh, Caddy, and ArgoCD."
+tags: ["operations", "hop", "talos", "headscale", "tailscale", "caddy", "edge", "troubleshooting"]
+summary: "Day-to-day commands for managing Hop — a standalone single-node Talos cluster on Hetzner Cloud with Headscale mesh, Caddy, and ArgoCD — including troubleshooting, mesh operations, and emergency recovery procedures."
+reader_goal: "Manage Hop's Tailscale mesh, Caddy ingress, Talos upgrades, and recover from single-node failures."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 weight: 12
 ---
 
+{{< last-updated >}}
+
 This is the operational companion to [Hopping Through the Portal]({{< relref "/docs/building/17-public-edge" >}}). That post covers the deployment story and the ten deviations. This one covers the commands you actually type to manage Hop — a very different operational profile from Frank.
+
+```bash
+source .env   # sets KUBECONFIG
+```
 
 ## Key Differences from Frank
 
@@ -25,6 +35,22 @@ Hop is a single-node, standalone-talosctl cluster. Almost everything about its o
 | **Remote access** | LAN only | Tailscale mesh + public endpoints |
 
 The critical operational difference: **Hop has no redundancy.** A node reboot means all services are down. A botched Talos upgrade means you're rebuilding from the Packer snapshot. Treat Hop as a pet, not cattle.
+
+### Verify
+
+```bash
+# Talos health
+talosctl -n $HOP_IP health 2>&1 | grep -c "OK$"
+# Expected: all checks report OK
+
+# Kubernetes node
+kubectl get nodes
+# hop-1 should be Ready
+
+# ArgoCD applications
+argocd app list --port-forward --port-forward-namespace argocd 2>/dev/null | grep -c "Healthy"
+# All apps should show Healthy
+```
 
 ## Environment Setup
 
@@ -602,6 +628,15 @@ kubectl --kubeconfig clusters/hop/talosconfig/kubeconfig get pods -A
 ```
 
 TCP 6443 and 50000 are open on the Hetzner firewall specifically for this scenario. Both require client certificates from the talosconfig/kubeconfig — unauthenticated access is impossible.
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|----------------|-----------------|-------------|
+| RollingUpdate works on a single-node cluster | The new pod can't bind host ports 80/443 while the old pod holds them, deadlocking the rollout | Switched Caddy to `strategy: Recreate`, accepting ~5s downtime on restarts |
+| Talos upgrades are zero-downtime with a single node | Every pod stops during the reboot — there's no second node to absorb traffic | Documented expected 3-5 minute downtime; treating Hop as a pet, not cattle |
+| `localhost` resolves to IPv4 in Alpine containers | In Alpine, `localhost` resolves to `::1` first, and Headplane binds IPv4 only | Used `127.0.0.1` explicitly in all health checks and documentation |
+| Secret changes propagate to running pods automatically | Environment variables from `secretKeyRef` are injected at pod creation and never refreshed | Added explicit `rollout restart` steps to every secret rotation procedure |
 
 ## References
 
