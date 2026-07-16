@@ -78,12 +78,12 @@ The gate checks that every required section is present and above a minimum lengt
 
 | Shortcode | When to Use |
 |-----------|-------------|
-| `{{< papers/capability-matrix data="vendors" >}}` | Vendor comparison table from `data/vendors.yaml` |
-| `{{< papers/dossier-link paper="NN-slug" >}}` | Link to the paper's dossier |
-| `{{< papers/landscape title="..." >}}...{{< /papers/landscape >}}` | Mermaid architecture landscape |
-| `{{< papers/pullquote source="...">}}...{{< /papers/pullquote >}}` | Key insight quote |
-| `{{< papers/references-index >}}` | Auto-generates §8 from dossier refs |
-| `{{< papers/scar date="2026-Q1">}}...{{< /papers/scar >}}` | Notable decision scar |
+| `{{</* papers/capability-matrix data="vendors" */>}}` | Vendor comparison table from `data/vendors.yaml` |
+| `{{</* papers/dossier-link paper="NN-slug" */>}}` | Link to the paper's dossier |
+| `{{</* papers/landscape title="..." */>}}...{{</* /papers/landscape */>}}` | Mermaid architecture landscape |
+| `{{</* papers/pullquote source="..." */>}}...{{</* /papers/pullquote */>}}` | Key insight quote |
+| `{{</* papers/references-index */>}}` | Auto-generates §8 from dossier refs |
+| `{{</* papers/scar date="2026-Q1" */>}}...{{</* /papers/scar */>}}` | Notable decision scar |
 
 ### Generate a Cover Image
 
