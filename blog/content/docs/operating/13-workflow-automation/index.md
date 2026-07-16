@@ -5,227 +5,203 @@ layer: auto
 date: 2026-03-29
 draft: false
 tags: ["operations", "n8n", "workflow", "automation", "postgresql"]
-summary: "Day-to-day commands for managing n8n instances — health checks, database operations, adding new instances, upgrading, and common issues."
+summary: "Managing n8n instances — health checks, database operations, adding instances, upgrading, and common issues."
 weight: 14
+reader_goal: "Check n8n health, add new instances, upgrade, and recover from database or runtime failures."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/47fbb518
 ---
 
-This is the operational companion to [Workflow Automation with n8n]({{< relref "/docs/building/20-workflow-automation" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook for checking health, managing the database, adding instances, and troubleshooting.
+{{< last-updated >}}
 
-## What "Healthy" Looks Like
+This is the operational companion to [Workflow Automation with n8n]({{< relref "/docs/building/20-workflow-automation" >}}). That post covers the architecture and deployment. This one covers day-to-day operations for n8n instances.
 
-A healthy n8n instance has:
-- The n8n pod running (`1/1 Ready`) on gpu-1
-- The PostgreSQL pod running (`1/1 Ready`) in the same namespace
-- The LoadBalancer Service showing the assigned external IP
-- The `/healthz` endpoint returning 200
-- Metrics flowing at `/metrics`
+```mermaid
+graph TB
+    subgraph ns["n8n-01 namespace"]
+        n8n["n8n Pod<br/>Workflow Engine"]
+        pg["PostgreSQL Pod<br/>n8n Database"]
+        n8n ---|"DB connection"| pg
 
-## Observing State
+        subgraph mounts["Persistent Storage"]
+            config["Config PVC"]
+            data["Data PVC"]
+        end
+        n8n --- mounts
+    end
 
-### Pod Health
+    subgraph svc["Service Layer"]
+        lb["LoadBalancer Service<br/>External IP"]
+        cluster["ClusterIP Service<br/>Internal"]
+    end
 
-```bash
-# Both pods in one view
-kubectl -n n8n-01 get pods
+    subgraph users["Access"]
+        ui["Web UI<br/>/healthz"]
+        api["REST API"]
+        agent["Agent Session<br/>Sidecar"]
+    end
 
-# Detailed pod status (events, conditions)
-kubectl -n n8n-01 describe pod -l app.kubernetes.io/name=n8n-01
+    n8n --- cluster
+    cluster --- lb
+    lb --> ui
+    lb --> api
+    n8n -.- agent
+
+    subgraph metrics["Observability"]
+        probe["Blackbox Probe<br/>/healthz"]
+        met["/metrics endpoint"]
+    end
+    n8n --- met
+    probe -.->|"GET /healthz"| n8n
 ```
 
-### Service and Networking
+## What Healthy Looks Like
+
+- The n8n pod is `1/1 Running` on gpu-1.
+- The PostgreSQL pod is `1/1 Running` in the same namespace.
+- The LoadBalancer Service shows an assigned external IP.
+- `GET /healthz` returns 200.
+- Metrics flow at `GET /metrics`.
+
+## Verify
 
 ```bash
-# Verify LoadBalancer IP assignment
-kubectl -n n8n-01 get svc n8n-01
+# Both pods
+kubectl -n n8n-01 get pods
 
-# Quick health check
-curl -s -o /dev/null -w "%{http_code}" http://192.168.55.216:5678/healthz
+# Health endpoint (from inside the cluster)
+kubectl -n n8n-01 exec deploy/n8n -- wget -qO- localhost:5678/healthz
 
-# Metrics endpoint
-curl -s http://192.168.55.216:5678/metrics | head -10
+# Metrics
+kubectl -n n8n-01 exec deploy/n8n -- wget -qO- localhost:5678/metrics | head -10
+
+# Database
+kubectl -n n8n-01 exec deploy/n8n-postgresql -- psql -U n8n -c "SELECT 1;"
 ```
 
 ```console
 $ kubectl -n n8n-01 get pods
-NAME                     READY   STATUS    RESTARTS   AGE
-n8n-01-ddb7c789c-xv8mr   1/1     Running   0          21d
-n8n-01-postgresql-0      1/1     Running   0          21d
+NAME                                READY   STATUS    RESTARTS   AGE
+n8n-7c9f5b6d8f-abc12               1/1     Running   0          14d
+n8n-postgresql-0                    1/1     Running   0          14d
 
-$ kubectl -n n8n-01 get svc n8n-01
-NAME     TYPE           CLUSTER-IP      EXTERNAL-IP      PORT(S)          AGE
-n8n-01   LoadBalancer   10.102.108.93   192.168.55.216   5678:32466/TCP   21d
-
-$ curl -s -o /dev/null -w "healthz: %{http_code}
-" http://192.168.55.216:5678/healthz
-healthz: 200
+$ kubectl -n n8n-01 exec deploy/n8n -- wget -qO- localhost:5678/healthz
+{"status":"ok"}
 ```
 
-### ArgoCD Sync Status
+## Steps
+
+### Restart n8n
 
 ```bash
-# Both apps at a glance
-argocd app get n8n-01 --server 192.168.55.200 --insecure | head -10
-argocd app get n8n-01-postgresql --server 192.168.55.200 --insecure | head -10
-```
+kubectl -n n8n-01 rollout restart deployment/n8n
+kubectl -n n8n-01 rollout status deployment/n8n
 
-### Logs
-
-```bash
-# n8n application logs
-kubectl -n n8n-01 logs -l app.kubernetes.io/name=n8n-01 -c n8n --tail=50
-
-# PostgreSQL logs
-kubectl -n n8n-01 logs -l app.kubernetes.io/name=n8n-01-postgresql --tail=50
-```
-
-## Database Operations
-
-### Connect to PostgreSQL
-
-```bash
-# Port-forward to access psql
-kubectl -n n8n-01 port-forward svc/n8n-01-postgresql 5432:5432 &
-
-# Connect (password from SOPS secret)
-PGPASSWORD=$(sops --decrypt secrets/n8n-01/n8n-01-secrets.yaml | grep "  password:" | head -1 | awk '{print $2}') \
-  psql -h localhost -U n8n -d n8n
-```
-
-### Check Database Size
-
-```sql
-SELECT pg_size_pretty(pg_database_size('n8n'));
-```
-
-### List Workflow Executions
-
-```sql
-SELECT id, "workflowId", finished, "startedAt", "stoppedAt", status
-FROM execution_entity
-ORDER BY "startedAt" DESC
-LIMIT 10;
-```
-
-### Clean Old Executions
-
-n8n can accumulate execution history. To prune old entries:
-
-```sql
-DELETE FROM execution_entity
-WHERE "startedAt" < NOW() - INTERVAL '30 days'
-AND status = 'success';
-```
-
-## Adding a New Instance
-
-Follow the duplication guide:
-
-```bash
-# 1. Copy manifests
-cp -r apps/n8n-01 apps/n8n-02
-cp -r apps/n8n-01-postgresql apps/n8n-02-postgresql
-
-# 2. Find-replace in all files
-find apps/n8n-02 apps/n8n-02-postgresql -type f -exec sed -i '' 's/n8n-01/n8n-02/g' {} +
-
-# 3. Copy Application CRs
-for tmpl in ns-n8n-01 n8n-01 n8n-01-postgresql; do
-  new=$(echo $tmpl | sed 's/n8n-01/n8n-02/g')
-  cp apps/root/templates/${tmpl}.yaml apps/root/templates/${new}.yaml
-  sed -i '' 's/n8n-01/n8n-02/g' apps/root/templates/${new}.yaml
+# Wait for health check
+until kubectl -n n8n-01 exec deploy/n8n -- wget -qO- localhost:5678/healthz; do
+  sleep 2
 done
-
-# 4. Update the IP (pick next available, e.g. 192.168.55.217)
-sed -i '' 's/192.168.55.216/192.168.55.217/g' apps/n8n-02/manifests/service.yaml
-
-# 5. Add Authentik proxy provider entries to blueprints-proxy-providers.yaml
-# (copy the n8n-01 block, replace n8n-01 → n8n-02, update external_host)
-
-# 6. Create SOPS secret
-mkdir -p secrets/n8n-02
-# Create secrets/n8n-02/n8n-02-secrets.yaml with new passwords
-sops --encrypt --in-place secrets/n8n-02/n8n-02-secrets.yaml
-
-# 7. Apply and push
-sops --decrypt secrets/n8n-02/n8n-02-secrets.yaml | kubectl apply -f -
-git add apps/n8n-02 apps/n8n-02-postgresql apps/root/templates/*n8n-02* secrets/n8n-02
-git commit -m "feat(agents): add n8n-02 instance"
-git push
 ```
 
-## Upgrading n8n
+### Add a New Instance
 
-Check the [n8n releases](https://github.com/n8n-io/n8n/releases) for the latest stable version, then update the image tag in the deployment:
+1. Copy `apps/n8n/` to `apps/n8n-02/`.
+2. Update values (namespace, PG credentials, external URL).
+3. Add the ArgoCD Application CR in `apps/root/templates/n8n-02.yaml`.
+4. Commit — ArgoCD picks it up.
+
+### Upgrade n8n Version
 
 ```bash
-# Current version
-kubectl -n n8n-01 get deploy n8n-01 -o jsonpath='{.spec.template.spec.containers[0].image}'
+# Update the image tag in apps/n8n/values.yaml
+kubectl -n n8n-01 rollout restart deployment/n8n
 
-# Update (edit the deployment manifest)
-# In apps/n8n-01/manifests/deployment.yaml, change:
-#   image: docker.io/n8nio/n8n:2.13.4
-# To:
-#   image: docker.io/n8nio/n8n:<new-version>
-
-# Commit and push — ArgoCD syncs, Recreate strategy replaces the pod
+# Check migrations ran
+kubectl -n n8n-01 logs deploy/n8n --tail=30 | grep -i migration
 ```
 
-**Before upgrading:** Check the release notes for breaking changes, especially database migrations. n8n runs migrations automatically on startup.
+## Recover
 
-## Restarting
+### n8n Pod Won't Start
 
 ```bash
-# Restart n8n (Recreate strategy — brief downtime)
-kubectl -n n8n-01 rollout restart deployment n8n-01
-
-# Restart PostgreSQL
-kubectl -n n8n-01 rollout restart statefulset n8n-01-postgresql
+kubectl -n n8n-01 logs deploy/n8n --tail=50 | grep -i error
 ```
 
-## Troubleshooting
+Common causes:
+- **Database connection refused** — PostgreSQL isn't running yet. The n8n pod will crash-loop until the database is ready. Check `kubectl -n n8n-01 get pods n8n-postgresql-0`.
+- **Migration failure** — Schema migration failed on upgrade. Check the full migration log: `kubectl -n n8n-01 logs deploy/n8n --tail=100 | grep -A 20 migration`.
+- **PVC not mounting** — Check events: `kubectl -n n8n-01 describe pod -l app.kubernetes.io/name=n8n`.
 
-### Pod Stuck in CreateContainerConfigError
-
-The SOPS secret hasn't been applied to the namespace. The pod can't mount the `n8n-01-secrets` Secret.
+### PostgreSQL Won't Start
 
 ```bash
-# Apply the secret
-sops --decrypt secrets/n8n-01/n8n-01-secrets.yaml | kubectl apply -f -
+kubectl -n n8n-01 logs n8n-postgresql-0 --tail=30
+kubectl -n n8n-01 describe pod n8n-postgresql-0 | grep -A 10 Events
 ```
 
-### n8n Shows "Secure Cookie" Error
+Common causes:
+- Storage class missing or PVC stuck `Pending`.
+- Data corruption on unclean shutdown. Check the PG pod logs for `FATAL: data directory ... has wrong ownership` or `FATAL: lock file "postmaster.pid" already exists`.
 
-n8n requires TLS for secure cookies. If accessing over plain HTTP:
+If the lock file is stale:
 
 ```bash
-# Verify N8N_SECURE_COOKIE is set to false
-kubectl -n n8n-01 get deploy n8n-01 -o jsonpath='{.spec.template.spec.containers[0].env}' | python3 -m json.tool | grep -A1 SECURE_COOKIE
+kubectl -n n8n-01 exec n8n-postgresql-0 -- rm /var/lib/postgresql/data/postmaster.pid
+kubectl -n n8n-01 delete pod n8n-postgresql-0
 ```
 
-If missing, add `N8N_SECURE_COOKIE: "false"` to the deployment env vars. Remove it once TLS is configured.
+### Agent Session Sidecar Issues
 
-### PostgreSQL Connection Refused
+If the n8n instance has the agent-session sidecar and workflows that use Claude Code fail:
 
 ```bash
-# Check if PostgreSQL pod is running
-kubectl -n n8n-01 get pods -l app.kubernetes.io/name=n8n-01-postgresql
+# Check sidecar status
+kubectl -n n8n-01 get pods -l app.kubernetes.io/name=n8n -o jsonpath='{.items[0].status.containerStatuses}'
 
-# Check PostgreSQL logs for auth errors
-kubectl -n n8n-01 logs -l app.kubernetes.io/name=n8n-01-postgresql --tail=20
+# Check if the workspace needs pre-trusting
+kubectl -n n8n-01 exec deploy/n8n -c n8n -- \
+  sh -c "ls ~/.claude/settings.json 2>/dev/null || echo 'no settings.json — may hit trust gate'"
 ```
 
-Common cause: the `existingSecret` key names don't match what Bitnami expects (`postgres-password` for admin, `password` for the app user).
+The agent sidecar may need the workspace pre-trusted to skip the Claude Code trust gate. The fix was injecting a pre-seeded `settings.json` that whitelists the workspace ([#542](https://github.com/derio-net/frank/pull/542)).
 
-### Workflows Not Triggering on Schedule
-
-Check that `WEBHOOK_URL` is set correctly in the deployment env. n8n uses this to construct callback URLs for webhooks and scheduled triggers. If it's wrong or unreachable, scheduled workflows may silently fail.
+### n8n Web UI Slow or Unresponsive
 
 ```bash
-kubectl -n n8n-01 get deploy n8n-01 -o jsonpath='{.spec.template.spec.containers[0].env}' | python3 -m json.tool | grep -A1 WEBHOOK
+# Check resource usage
+kubectl -n n8n-01 top pods
+
+# Check PG connection count
+kubectl -n n8n-01 exec n8n-postgresql-0 -- psql -U n8n -c "SELECT count(*) FROM pg_stat_activity;"
+
+# Check n8n internal metrics
+kubectl -n n8n-01 exec deploy/n8n -- wget -qO- localhost:5678/metrics | grep -i "request_duration\|error_total"
 ```
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| n8n's workspace trust gate respects a pre-existing `settings.json` | It does — but only if the file exists before n8n starts. If the image doesn't ship it, every agent session hits the interactive trust prompt and hangs. | Added the pre-seeded file to the image build. |
+| An agent session sidecar can submit commands with simple stdin piping | n8n's terminal expects bracketed-paste mode. Plain `echo "command" \|` input arrives as literal characters. | Switched to a driver that wraps the payload in bracketed-paste escape sequences. |
+| PostgreSQL PVC data survives all pod restarts | It does for normal restarts, but a forced delete of the StatefulSet pod without terminating PG gracefully can leave a stale `postmaster.pid` lock file. | Added recovery steps to the runbook. |
+| More n8n instances can share the same PG cluster | Each n8n instance needs its own database and user. Sharing a single PG across instances causes namespace collisions on migration. | Template now includes a dedicated PG per instance. |
+
+## Quick Reference
+
+| Command | What It Does |
+|---------|-------------|
+| `kubectl -n n8n-01 get pods` | Check n8n + PG status |
+| `kubectl -n n8n-01 exec deploy/n8n -- wget -qO- localhost:5678/healthz` | Health check |
+| `kubectl -n n8n-01 logs deploy/n8n \| grep -i migration` | Check upgrade migration |
+| `kubectl -n n8n-01 rollout restart deployment/n8n` | Restart n8n |
+| `kubectl -n n8n-01 top pods` | Resource usage |
+| `kubectl -n n8n-01 exec n8n-postgresql-0 -- psql -U n8n -c "SELECT 1;"` | DB connectivity |
 
 ## References
 
-- [n8n self-hosting documentation](https://docs.n8n.io/hosting/)
-- [n8n environment variables](https://docs.n8n.io/hosting/configuration/environment-variables/)
-- [n8n security bulletin (Feb 2026)](https://community.n8n.io/t/security-bulletin-february-6-2026/261682)
+- [Building Post — Workflow Automation]({{< relref "/docs/building/20-workflow-automation" >}})
+- [n8n Documentation](https://docs.n8n.io/)
+- [n8n Health Check Endpoint](https://docs.n8n.io/hosting/healthchecks/)

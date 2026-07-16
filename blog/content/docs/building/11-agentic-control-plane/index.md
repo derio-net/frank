@@ -7,177 +7,157 @@ draft: false
 tags: ["sympozium", "agents", "ai", "control-plane", "nats", "litellm"]
 summary: "A Kubernetes-native control plane where every AI agent is a Pod, every policy is a CRD, and every execution is a Job — orchestrated by Sympozium."
 weight: 12
+reader_goal: "Deploy Sympozium on Talos, wire LiteLLM routing through auth-secret injection, and work around the git-sourced chart, PodSecurity, and PersonaPack baseURL gotchas"
+diataxis: tutorial
+last_updated: 2026-07-15
 ---
 
-The cluster can serve models. Layer 10 wired up Ollama and LiteLLM so anything on the network can call an OpenAI-compatible endpoint. But models sitting behind an API are passive — they wait for requests and return responses. They don't act.
+The cluster can serve models. Layer 10 wired up Ollama and LiteLLM so anything on the network can call an OpenAI-compatible endpoint. But models behind an API are passive — they wait and respond. They do not act.
 
-Layer 11 adds the capability that makes them act. [Sympozium](https://sympozium.ai/) is a Kubernetes-native agentic control plane. It turns the cluster into something that can reason, plan, and execute — autonomously, on a schedule, or on demand — all governed by Kubernetes-native policy.
-
-## Why Not Just Run Agents in Containers?
-
-You could deploy an agent framework in a Deployment, give it a ServiceAccount, and let it call `kubectl`. That works for one agent. The moment you want multiple agents with different permissions, scheduled runs, policy enforcement, and audit trails, you are reinventing half of what Sympozium provides.
-
-Sympozium maps agentic concepts to Kubernetes primitives:
-
-| Agent Concept | Kubernetes Primitive |
-|--------------|---------------------|
-| Agent identity | SympoziumInstance (CRD) |
-| Execution | AgentRun (CRD) → Pod |
-| Policy | SympoziumPolicy (CRD) |
-| Skills | SkillPack (CRD) |
-| Scheduling | SympoziumSchedule (CRD) |
-| Persona bundle | PersonaPack (CRD) |
-| Event bus | NATS JetStream (StatefulSet) |
-
-Every agent run is an ephemeral Pod. When it finishes, the Pod exits. Kubernetes handles the lifecycle — retries, timeouts, resource limits. The controller watches AgentRun resources and reconciles them like any other operator.
+Layer 11 makes them act. [Sympozium](https://sympozium.ai/) is a Kubernetes-native agentic control plane. Agents are Pods, policies are CRDs, and every execution is a Job. It maps agentic concepts to Kubernetes primitives that the cluster already knows how to manage.
 
 ## The Architecture
 
-Five components run in the `sympozium-system` namespace:
+Five components in `sympozium-system`:
 
-```
-                            ┌─────────────────────┐
-                            │   Web Dashboard     │
-                            │  192.168.55.207:8080│
-                            └────────┬────────────┘
-                                     │
-                            ┌────────▼────────────┐
-                            │    API Server        │
-                            │  (embedded web UI)   │
-                            └────────┬────────────┘
-                                     │
-              ┌──────────────────────┼──────────────────────┐
-              │                      │                      │
-    ┌─────────▼──────────┐ ┌────────▼─────────┐ ┌─────────▼──────────┐
-    │  Controller Manager │ │    Webhook       │ │  OTel Collector    │
-    │  (reconcile loop)   │ │ (policy enforce) │ │  (observability)   │
-    └─────────┬──────────┘ └──────────────────┘ └────────────────────┘
-              │
-    ┌─────────▼──────────┐
-    │   NATS JetStream   │
-    │  (durable events)  │
-    └────────────────────┘
-              │
-    ┌─────────▼──────────┐
-    │   Agent Pods        │
-    │  (ephemeral Jobs)   │──── LiteLLM ──── Ollama / OpenRouter
-    └────────────────────┘
+```mermaid
+flowchart LR
+  subgraph Sympozium[Sympozium — Agentic Control Plane]
+    CM[Controller Manager<br/>reconcile loop]
+    WH[Webhook<br/>policy enforcement]
+    AS[API Server<br/>embedded web UI<br/>192.168.55.207:8080]
+    NATS[NATS JetStream<br/>1Gi Longhorn PVC]
+    OTel[OTel Collector]
+  end
+  subgraph Agents[Agent Pods]
+    AP[Ephemeral Jobs]
+  end
+  subgraph LLM[Inference]
+    LL[LiteLLM<br/>litellm.litellm.svc:4000]
+  end
+
+  AS --> CM
+  CM --> NATS
+  WH -->|admission| AP
+  CM -->|spawns| AP
+  AP -->|via LiteLLM| LL
+  OTel -->|traces + metrics| Observability
 ```
 
-**Controller Manager** watches for AgentRun CRs and spawns agent Pods. It manages the reconciliation loop — creating, monitoring, and cleaning up agent executions.
+| Component | CRD / Primitive | Purpose |
+|-----------|----------------|---------|
+| Controller Manager | AgentRun → Pod | Watches for AgentRun CRs, spawns ephemeral Jobs |
+| Webhook | SympoziumPolicy | Intercepts AgentRun creation, enforces policy at admission |
+| NATS JetStream | StatefulSet + 1Gi Longhorn PVC | Durable event bus — agent status, skill invocations, inter-agent messages |
+| OTel Collector | DaemonSet | Ships traces and metrics from agent runs |
+| API Server | Deployment + LoadBalancer | REST API + web dashboard |
 
-**Webhook** intercepts AgentRun creation and enforces SympoziumPolicies before admission. If a run violates a policy (wrong tools, too many sub-agents, sandbox required but not present), the webhook rejects it.
+The load-bearing design choice: the controller reads its namespace from the downward API and creates all agent Jobs there. There is no `agentNamespace` configuration. That matters when PodSecurity standards collide with agent capabilities.
 
-**NATS JetStream** is the internal event bus. Components communicate through durable streams — agent status updates, skill invocations, and inter-agent messages all flow through NATS. The StatefulSet uses a 1Gi Longhorn PVC for message persistence.
+## Prerequisites
 
-**OTel Collector** ships traces and metrics from agent runs to the cluster's observability stack.
+- **cert-manager** (sync wave `-1` so it deploys before Sympozium) — the webhook needs TLS certificates
+- **LiteLLM** from Layer 10 — agents route through the inference gateway
+- **Longhorn** default StorageClass — NATS persistence uses a 1Gi PVC
 
-**API Server** serves the REST API and embeds the web dashboard.
+## Deploying the Core
 
-{{< screenshot src="sympozium-dashboard.png" caption="Sympozium web dashboard" >}}
+Three ArgoCD apps:
 
-## PersonaPacks: Agent Bundles
+| App | Source | Purpose |
+|-----|--------|---------|
+| `cert-manager` | Helm (jetstack) | Webhook TLS |
+| `sympozium` | Git (`https://github.com/AlexsJones/sympozium.git`, `charts/sympozium`) | Core control plane |
+| `sympozium-extras` | Raw manifests under `apps/sympozium-extras/manifests/` | Policies, PersonaPacks, ExternalSecret, LoadBalancer |
 
-Rather than configuring agents one by one, Sympozium uses PersonaPacks — CRDs that bundle a persona's identity, policy, skills, and schedule into a single resource. When a PersonaPack is applied, the controller stamps out the individual SympoziumInstances, schedules, and configuration.
-
-Three PersonaPacks are deployed:
-
-### Platform Team
-
-| Persona | Policy | Schedule | Purpose |
-|---------|--------|----------|---------|
-| `sre-agent` | default-policy | Hourly heartbeat | Cluster health checks, resource monitoring |
-| `incident-responder` | default-policy | On-demand | Event-triggered diagnostics |
-
-The SRE agent runs every hour via a SympoziumSchedule. It uses the `k8s-ops` SkillPack to interact with the Kubernetes API — listing nodes, checking pod health, reading logs. The `sre-watchdog` persona also uses the `llmfit` SkillPack for hardware-aware model placement recommendations.
-
-{{< screenshot src="agent-run-detail.png" caption="Agent run detail view showing lifecycle states" >}}
-
-### DevOps Essentials
-
-| Persona | Policy | Schedule | Purpose |
-|---------|--------|----------|---------|
-| `code-reviewer` | restrictive-policy | On-demand | Read-only code analysis |
-
-The code reviewer has a deliberately constrained policy. It can read files and list directories but cannot write, execute commands, or fetch URLs. The restrictive policy enforces this at the webhook level.
-
-### Developer Team
-
-The Sympozium chart ships with a built-in `developer-team` PersonaPack — a 2-pizza dev team of seven agents that collaborate on GitHub repositories:
-
-| Persona | Schedule | Purpose |
-|---------|----------|---------|
-| `tech-lead` | 30m | PR review, issue triage, merge approved PRs |
-| `backend-dev` | 1h sweep | Pick up `backend` issues, implement, open PRs |
-| `frontend-dev` | 1h sweep | Pick up `frontend`/`ui` issues, implement, open PRs |
-| `qa-engineer` | 1h sweep | Test coverage gaps, bug discovery, edge cases |
-| `code-reviewer` | 30m sweep | Security/correctness/performance review of all PRs |
-| `devops-engineer` | 2h sweep | CI/CD health, Dockerfile updates, CVE patching |
-| `docs-writer` | 2h | Documentation drift detection, changelog updates |
-
-We deploy a customised version in `sympozium-extras` rather than using the chart default — this adds `authRefs` (LiteLLM credentials), `policyRef`, `model: qwen3.5`, and homelab-appropriate schedule intervals (the built-in default is 5 minutes for all agents, which would saturate the RTX 5070).
-
-{{< asciinema src="agentrun-lifecycle.cast" cols="160" rows="35" >}}
-
-## Policy Enforcement
-
-Policies are the key governance primitive. Each SympoziumPolicy CRD defines:
-
-- **Tool gating** — which tools an agent can use (allow, deny, or ask-for-approval)
-- **Sub-agent limits** — max depth and concurrency for agent-spawned sub-agents
-- **Sandbox requirements** — whether agent Pods must run in a sandbox with CPU/memory limits
-- **Network policy** — whether to deny all egress (with exceptions for DNS and the event bus)
-- **Feature gates** — enable/disable capabilities like browser automation, code execution, file access
-
-Two policy presets:
+### cert-manager
 
 ```yaml
-# default-policy — for trusted ops agents
-toolGating:
-  defaultAction: allow
-  rules:
-    - tool: execute_command
-      action: ask        # human approval for shell commands
-sandboxPolicy:
-  required: false
-networkPolicy:
-  denyAll: false
-
-# restrictive-policy — for dev-facing agents
-toolGating:
-  defaultAction: deny
-  rules:
-    - tool: read_file
-      action: allow
-    - tool: list_directory
-      action: allow
-    - tool: write_file
-      action: deny
-sandboxPolicy:
-  required: true
-  maxCPU: "2"
-  maxMemory: 4Gi
-networkPolicy:
-  denyAll: true
+# apps/root/templates/cert-manager.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"
 ```
 
-The webhook enforces these at admission time. An AgentRun referencing a restrictive-policy persona that attempts to use `write_file` is rejected before the Pod ever starts.
+### sympozium (Git-Sourced Chart)
 
-## LLM Routing Through LiteLLM
-
-Agent Pods don't talk directly to Ollama. They route through the LiteLLM gateway from Layer 10:
-
-```
-Agent Pod → LiteLLM (litellm.litellm.svc:4000) → Ollama / OpenRouter
-```
-
-This means agents automatically benefit from the full model roster — local models on the RTX 5070 and free cloud models via OpenRouter.
-
-There is a subtlety here. The PersonaPack CRD has no `baseURL` field — generated SympoziumInstances don't know where LiteLLM lives. Manually created instances can set `spec.agents.default.baseURL`, but PersonaPack-generated ones default to `api.openai.com`.
-
-The fix exploits how the controller injects auth credentials. It uses `envFrom` with `SecretRef` — the **entire Secret** is projected as environment variables into the agent container. By adding `OPENAI_BASE_URL` alongside `OPENAI_API_KEY` in the auth secret, all agent pods automatically discover the LiteLLM endpoint:
+The Sympozium chart is **not published** to any OCI or Helm registry. ArgoCD must source it directly from GitHub:
 
 ```yaml
+sources:
+  - repoURL: https://github.com/AlexsJones/sympozium.git
+    targetRevision: v0.1.3
+    path: charts/sympozium
+```
+
+**Image tag override.** The chart's `appVersion` is `0.1.1` but images tagged `v0.1.3` include a critical webhook fix — the `PolicyEnforcer.Decoder` field was uninitialized, causing a nil-pointer panic on every AgentRun admission. Override:
+
+```yaml
+# apps/sympozium/values.yaml
+image:
+  tag: v0.1.3
+certManager:
+  enabled: true
+crds:
+  install: true
+nats:
+  persistence:
+    enabled: true
+    storageClass: longhorn
+    size: 1Gi
+networkPolicies:
+  enabled: true
+observability:
+  enabled: true
+defaultPersonas:
+  enabled: false   # we deploy our own in sympozium-extras
+```
+
+### sympozium-extras
+
+The chart's apiserver service template hardcodes ClusterIP with no `type` or `annotations` overrides. A separate LoadBalancer manifest:
+
+```yaml
+# apps/sympozium-extras/manifests/service-lb.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sympozium-apiserver-lb
+  namespace: sympozium-system
+  annotations:
+    lbipam.cilium.io/ips: "192.168.55.207"
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/component: apiserver
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+```
+
+**Verify it works:**
+
+```bash
+kubectl get svc -n sympozium-system sympozium-apiserver-lb
+# NAME                     TYPE           CLUSTER-IP     EXTERNAL-IP       PORT(S)
+# sympozium-apiserver-lb   LoadBalancer   10.43.143.40   192.168.55.207    8080:31717/TCP
+
+curl -s http://192.168.55.207:8080/api/health | jq .
+# {"status":"ok"}
+```
+
+## Wiring LiteLLM Through Auth Secrets
+
+Agent Pods must route through the LiteLLM gateway, not directly to `api.openai.com`. The PersonaPack CRD has no `baseURL` field — generated SympoziumInstances cannot set it. Manually created instances can (`spec.agents.default.baseURL`), but PersonaPack-generated ones cannot.
+
+The fix: the controller injects auth credentials into agent pods via `envFrom` with `SecretRef` — the **entire Secret** is projected as environment variables. Adding `OPENAI_BASE_URL` alongside `OPENAI_API_KEY` in the auth Secret makes every agent pod discover the LiteLLM endpoint automatically:
+
+```yaml
+# apps/sympozium-extras/manifests/external-secret.yaml
 apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
@@ -201,107 +181,149 @@ spec:
 
 The ExternalSecret `template` merges the Infisical-sourced API key with a static base URL. No plaintext secrets in the repo — only the endpoint URL is hardcoded, and the actual key refreshes every 5 minutes from Infisical.
 
-## Deploying with ArgoCD
+## PersonaPacks
 
-Three ArgoCD apps:
+PersonaPacks bundle identity, policy, skills, and schedule into a single CRD. The controller stamps out individual SympoziumInstances from the pack.
 
-| App | Source | Purpose |
-|-----|--------|---------|
-| `cert-manager` | Helm (jetstack) | Webhook TLS certificates |
-| `sympozium` | Git (GitHub, chart path) | Core control plane |
-| `sympozium-extras` | Raw manifests | Policies, PersonaPacks, ExternalSecret, LB Service |
+### Platform Team
 
-### cert-manager
+| Persona | Policy | Schedule | Tools |
+|---------|--------|----------|-------|
+| `sre-agent` | default-policy | Hourly heartbeat | `k8s-ops` + `llmfit` |
+| `incident-responder` | default-policy | On-demand | `k8s-ops` |
 
-Sympozium's webhook needs TLS certificates signed by a trusted CA. cert-manager handles the lifecycle — issuing, renewing, and injecting certificates into the webhook configuration.
+The `sre-watchdog` persona uses `llmfit` for hardware-aware model placement recommendations — it reads `/proc`, `/sys`, `/dev`, and `/run/udev` via sidecar injection.
 
-```yaml
-# apps/root/templates/cert-manager.yaml
-annotations:
-  argocd.argoproj.io/sync-wave: "-1"  # Deploy before Sympozium
-```
+### DevOps Essentials
 
-### Sympozium Core
+| Persona | Policy | Schedule | Tools |
+|---------|--------|----------|-------|
+| `code-reviewer` | restrictive-policy | On-demand | read + list only |
 
-The Helm chart is sourced from Git — it is not published to any OCI or Helm registry:
+### Developer Team (7-Persona)
 
-```yaml
-sources:
-  - repoURL: https://github.com/AlexsJones/sympozium.git
-    targetRevision: v0.1.3
-    path: charts/sympozium
-```
+The chart ships with a built-in `developer-team` PersonaPack — a 2-pizza dev team of seven agents. The cluster deploys a customised version with `authRefs`, `policyRef`, `model: qwen3.5`, and homelab-appropriate intervals (the default is 5 minutes for all agents, which saturates the RTX 5070):
 
-One gotcha: the chart's `appVersion` is `0.1.1` but v0.1.3 images include a critical webhook fix. Override the image tag explicitly:
+| Persona | Interval | Purpose |
+|---------|----------|---------|
+| `tech-lead` | 30m | PR review, issue triage, merge |
+| `backend-dev` | 1h sweep | Implement backend issues |
+| `frontend-dev` | 1h sweep | Implement frontend/UI issues |
+| `qa-engineer` | 1h sweep | Test coverage, bug discovery |
+| `code-reviewer` | 30m sweep | Security/correctness/performance |
+| `devops-engineer` | 2h sweep | CI/CD health, CVE patching |
+| `docs-writer` | 2h | Documentation drift, changelogs |
 
-```yaml
-# apps/sympozium/values.yaml
-image:
-  tag: v0.1.3
-```
+## Policy Enforcement
 
-### sympozium-extras
-
-The chart's built-in service template doesn't support `type` or `annotations` overrides, so the LoadBalancer lives in a separate manifest:
+Two policy presets. The webhook enforces them at admission time — an AgentRun referencing a restrictive-policy persona that attempts `write_file` is rejected before the Pod starts.
 
 ```yaml
-# apps/sympozium-extras/manifests/service-lb.yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: sympozium-apiserver-lb
-  namespace: sympozium-system
-  annotations:
-    lbipam.cilium.io/ips: "192.168.55.207"
-spec:
-  type: LoadBalancer
-  selector:
-    app.kubernetes.io/component: apiserver
-  ports:
-    - name: http
-      port: 8080
-      targetPort: http
+# default-policy — trusted ops agents
+toolGating:
+  defaultAction: allow
+  rules:
+    - tool: execute_command
+      action: ask
+sandboxPolicy:
+  required: false
+networkPolicy:
+  denyAll: false
+
+# restrictive-policy — dev-facing agents
+toolGating:
+  defaultAction: deny
+  rules:
+    - tool: read_file
+      action: allow
+    - tool: list_directory
+      action: allow
+sandboxPolicy:
+  required: true
+  maxCPU: "2"
+  maxMemory: 4Gi
+networkPolicy:
+  denyAll: true
 ```
 
 ## Gotchas
 
-### Git-Sourced Helm Chart
+### Git-Sourced Chart, Not OCI
 
-The Sympozium chart is not published to an OCI or Helm registry. ArgoCD must use a Git source with `path: charts/sympozium` instead of `chart:`. This is the same pattern used for the vendored Intel GPU DRA driver chart.
+The chart lives at `https://github.com/AlexsJones/sympozium.git`, `path: charts/sympozium`. There is no Helm or OCI registry. ArgoCD Application sources must use `repoURL` + `path` instead of `chart`. This is the same pattern as the vendored Intel GPU DRA driver.
 
-### Image Tag Override
+### Image Tag Lags Behind Releases
 
-The chart's `appVersion` lags behind the latest tagged release. The v0.1.3 images fix a critical nil-pointer panic in the webhook's PolicyEnforcer (the `Decoder` field was uninitialized). Without the override, agent creation is rejected with `invalid memory address or nil pointer dereference`.
+The chart's `appVersion` (`0.1.1`) trails the latest tag (`v0.1.3`). The v0.1.3 images fix a nil-pointer panic in the webhook's `PolicyEnforcer` (`Decoder` field uninitialized). Without the override, every AgentRun admission produces:
 
-### Service Template Limitations
+```
+invalid memory address or nil pointer dereference
+```
 
-The chart's apiserver deployment template hardcodes a ClusterIP service with no support for type or annotation overrides. Custom service configuration requires a separate manifest in extras.
+### PodSecurity Standard Blocks llmfit Sidecars
 
-### PodSecurity and the llmfit SkillPack
-
-The `llmfit` SkillPack injects sidecars that require `hostPID: true` and `hostPath` volumes for `/proc`, `/sys`, `/dev`, and `/run/udev`. Under the default `baseline` PodSecurity standard, the admission controller rejects these pods:
+The `llmfit` SkillPack injects sidecars that require `hostPID: true` and `hostPath` volumes for `/proc`, `/sys`, `/dev`, `/run/udev`. Under the default `baseline` PodSecurity standard:
 
 ```
 pods "frankie-heartbeat-5-zlxjf" is forbidden: violates PodSecurity
 "baseline:latest": host namespaces (hostPID=true), hostPath volumes
 ```
 
-Sympozium runs agent pods in the controller's namespace — there is no `agentNamespace` configuration. The controller reads its namespace from the downward API and creates all Jobs there. A separate "agents" namespace would not help because the controller has no mechanism to redirect agent pods.
+The fix — a Namespace manifest in `sympozium-extras` that sets `privileged`:
 
-The fix is a declarative Namespace manifest in `sympozium-extras` that sets `pod-security.kubernetes.io/enforce: privileged` on `sympozium-system`. This allows llmfit-using agents to run while keeping the label under ArgoCD management.
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sympozium-system
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+```
 
-### PersonaPack baseURL Limitation
+### PersonaPack `model` Only Applies at Creation
 
-The PersonaPack CRD has no `baseURL` field at either the pack or persona level. When the controller stamps out SympoziumInstances from a PersonaPack, the generated instances lack `baseURL` and default to `api.openai.com`. Manually created SympoziumInstances (like `frankie`) can set `spec.agents.default.baseURL` directly, but PersonaPack-generated instances cannot.
+The controller stamps each persona's `model` into its SympoziumInstance **when the instance is created**. Editing the PersonaPack afterwards does **not** reconcile existing instances. Two traps:
 
-The workaround is to inject `OPENAI_BASE_URL` into the auth secret (see [LLM Routing](#llm-routing-through-litellm) above). The controller uses `envFrom` with `SecretRef`, so all keys in the secret become environment variables in agent pods.
+1. **Live edits get healed away.** Patching the PersonaPack on the cluster works temporarily, but ArgoCD self-heal reverts it within the sync window. Merge the manifest change to `main` first.
+2. **Even a synced PersonaPack changes nothing.** After the merge, existing SympoziumInstances still carry the old model. Delete them and let the controller recreate:
+
+```bash
+kubectl delete sympoziuminstances -n sympozium-system --all
+sleep 30
+kubectl get sympoziuminstances -n sympozium-system \
+  -o custom-columns=NAME:.metadata.name,MODEL:.spec.model
+```
 
 ### CRD Discovery Timing
 
-After initial deployment, `sympozium-extras` may fail to sync because ArgoCD hasn't discovered the Sympozium CRDs yet. A manual sync of the root app followed by a retry resolves this.
+On initial deploy, `sympozium-extras` may fail to sync because ArgoCD has not yet discovered the Sympozium CRDs. Sync the root app manually, wait, then retry `sympozium-extras`.
 
-## What is Next
+## Recovery Path
 
-The control plane is running. Three PersonaPacks are deployed — platform-team, devops-essentials, and the 7-persona developer-team. The PodSecurity and LLM routing fixes unblock agent execution, so scheduled heartbeats and sweeps can now produce real results through the local inference stack on the RTX 5070.
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| AgentRun stuck `Pending` | cert-manager certificate not ready | Check `kubectl get certificate -n sympozium-system` |
+| AgentRun rejected with nil-pointer | `image.tag` not overridden to `v0.1.3` | Set `image.tag: v0.1.3` in values.yaml |
+| AgentRun fails with `sessionKey` error | `spec.sessionKey` is required by schema | Set `sessionKey: ""` |
+| Poll loop never exits | Matching `Completed` instead of `Succeeded` | Match `Succeeded` phase |
+| UI shows no runs | Default namespace filter is `default` | Switch to `sympozium-system` |
+| UI shows "Unauthorized" | Token not set | Token in `sympozium-ui-token` secret, `sympozium-system` namespace |
 
-Next steps: Telegram channel integration for mobile notifications, custom SkillPacks for cluster-specific operations, pointing the developer-team at a target repository, and connecting agent traces to the observability stack for closed-loop monitoring.
+## Missteps
+
+| What Happened | Why It Was Wrong | How We Fixed It | Commit |
+|---------------|-----------------|-----------------|--------|
+| **LiteLLM baseURL missing from PersonaPack-driven agents** — agents defaulted to `api.openai.com` because PersonaPack CRD has no `baseURL` field | PersonaPack-generated SympoziumInstances cannot set `baseURL`; only manually created instances can | Injected `OPENAI_BASE_URL` into the auth Secret consumed via `envFrom` | `27d947d2` |
+| **llmfit SkillPack sidecars rejected by PodSecurity** — `hostPID: true` and `hostPath` volumes violate `baseline` | The controller has no `agentNamespace` config; agent pods inherit the controller namespace's PodSecurity standard | Applied `pod-security.kubernetes.io/enforce: privileged` label on `sympozium-system` namespace | `c34d065b` |
+| **Dead LiteLLM alias in PersonaPack** — `qwen3.5` was removed from LiteLLM config but PersonaPacks still referenced it; 350 silent failures over 2 weeks | PersonaPack `model` is stamped at SympoziumInstance creation and never reconciled; editing the PersonaPack has no effect on existing instances | Deleted all SympoziumInstances in `sympozium-system`, controller recreated them with the new model alias from the merged PersonaPack manifest | PR #448, `c5812e2b` |
+| **AgentRun stuck comparing `Completed`** — the terminal success phase is `Succeeded`, not `Completed` | Schema documentation ambiguous; poll loop checking `Completed` never exits | Changed phase match to `Succeeded` | `19a2b4f1` |
+
+## References
+
+- [Sympozium](https://sympozium.ai/) — Agentic control plane
+- `apps/sympozium/values.yaml` — Helm values for the core chart
+- `apps/sympozium-extras/manifests/` — Policies, PersonaPacks, ExternalSecret, LoadBalancer
+- `docs/runbooks/frank-gotchas/other-apps.md` — Full gotcha notes with recovery commands
+- [Operating: Progressive Delivery](/docs/operating/12-progressive-delivery) — blue-green rollouts for Sympozium
+
+**Next: [GPU Talos Fix — PCIe ACS and KernelArgs](/docs/building/12-gpu-talos-fix)**

@@ -4,18 +4,50 @@ series: ["operating"]
 layer: tenant
 date: 2026-03-13
 draft: false
-tags: ["operations", "vcluster", "multi-tenancy"]
-summary: "Day-to-day commands for managing vCluster virtual clusters, checking tenant health, and debugging isolation issues."
+tags: ["operations", "vcluster", "multi-tenancy", "troubleshooting"]
+summary: "Day-to-day commands for managing vCluster virtual clusters, checking tenant health, creating and deleting vClusters, and debugging sync issues."
 weight: 10
+reader_goal: "Create, connect to, and troubleshoot vCluster virtual clusters, including resource quota management and sync debugging."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
 ---
 
-This is the operational companion to [Multi-tenancy — Disposable Kubernetes Clusters with vCluster]({{< relref "/docs/building/14-multi-tenancy" >}}). That post covers the architecture and template pattern. This one is the day-to-day runbook for creating, connecting to, and troubleshooting virtual clusters.
+{{< last-updated >}}
 
-## What "Healthy" Looks Like
+This is the operational companion to [Multi-tenancy]({{< relref "/docs/building/14-multi-tenancy" >}}). That post covers the architecture and template pattern. This one is what you type when a virtual cluster's API server isn't responding, resources aren't syncing, or a tenant hit their quota.
 
-Multi-tenancy is healthy when all vCluster StatefulSets are running, each virtual cluster's API server is responding, and resources are syncing correctly between virtual and host clusters. The ArgoCD applications for each vCluster should show `Synced` and `Healthy`.
+Before any commands below, source the environment:
 
-## Observing State
+```bash
+source .env          # sets KUBECONFIG, TALOSCONFIG
+source .env_devops   # sets OMNICONFIG + service accounts
+```
+
+## What Healthy Looks Like
+
+All vCluster StatefulSets are running, each virtual cluster's API server is responding, and resources sync correctly between virtual and host clusters. ArgoCD applications for each vCluster show `Synced` and `Healthy`.
+
+```mermaid
+graph TB
+    subgraph host["Host Cluster"]
+        subgraph vcNS["vcluster-experiments namespace"]
+            vc0["vCluster StatefulSet"]
+            syncer["Syncer Container"]
+            vc0 -.- syncer
+        end
+        vc0 --> vAPI["Virtual API Server"]
+    end
+
+    subgraph virt["Virtual Cluster"]
+        vAPI --> vPod["User Pod"]
+        vAPI --> vSvc["User Service"]
+    end
+
+    syncer -.->|resource sync| vAPI
+```
+
+## Verify
 
 ### List Virtual Clusters
 
@@ -32,11 +64,10 @@ argocd app list --port-forward --port-forward-namespace argocd | grep vcluster
 
 ```console
 $ vcluster list
-  
-       NAME     |      NAMESPACE       | STATUS  | VERSION | CONNECTED | AGE  
-  --------------+----------------------+---------+---------+-----------+------
-    experiments | vcluster-experiments | Running | 0.32.1  |           | 39d  
-  
+
+     NAME     |      NAMESPACE       | STATUS  | VERSION | CONNECTED | AGE
+  ------------+----------------------+---------+---------+-----------+------
+    experiments | vcluster-experiments | Running | 0.32.1  |           | 39d
 
 $ kubectl get statefulset -A -l app=vcluster
 NAMESPACE              NAME          READY   AGE
@@ -67,21 +98,18 @@ kubectl logs -n <vcluster-namespace> <vcluster-pod> -c syncer --tail=50
 kubectl get pods -n <vcluster-namespace> -l vcluster.loft.sh/managed-by
 ```
 
-## Routine Operations
+## Steps
 
 ### Create a New Virtual Cluster
 
 New vClusters follow the template pattern:
 
-1. Copy the template values:
 ```bash
 cp -r apps/vclusters/template/ apps/vclusters/<new-name>/
 ```
 
 2. Customize `apps/vclusters/<new-name>/values.yaml` — set the name, resource quotas, and any specific configuration.
-
 3. Add the ArgoCD Application CR in `apps/root/templates/vcluster-<new-name>.yaml` following the existing pattern.
-
 4. Commit and push — ArgoCD picks it up automatically.
 
 ### Delete a Virtual Cluster
@@ -112,7 +140,7 @@ kubectl top pods -n <vcluster-namespace>
 
 To adjust quotas, update the values in `apps/vclusters/<name>/values.yaml` and let ArgoCD sync.
 
-## Debugging
+## Recover
 
 ### Virtual API Server Not Responding
 
@@ -128,10 +156,7 @@ kubectl get pvc -n <vcluster-namespace>
 kubectl logs -n <vcluster-namespace> <vcluster-pod> -c vcluster --tail=100
 ```
 
-Common causes:
-- PVC stuck pending (storage class issue)
-- Resource limits too low for the API server
-- Host node where the StatefulSet is scheduled is under pressure
+Common causes: PVC stuck pending (storage class issue), resource limits too low for the API server, or the host node where the StatefulSet is scheduled is under pressure.
 
 ### Resources Not Syncing
 
@@ -166,6 +191,13 @@ kubectl run test --image=busybox --rm -it --restart=Never -- nslookup kubernetes
 kubectl run test --image=busybox --rm -it --restart=Never -- wget -qO- http://<host-service>
 vcluster disconnect
 ```
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| The template pattern means creating a new vCluster is a simple copy-and-commit | Each vCluster needs unique resource quotas, sync config, and ArgoCD Application CR. Forgetting any of the three registration points leaves the vCluster orphaned or misconfigured. | Repeated manual fixes until a checklist was formalized. |
+| `prune: false` means we can delete vCluster manifests without side effects | ArgoCD won't clean up the namespace or resources when the Application is removed — they must be cleaned manually or they accumulate. | Stale namespaces and PVCs left behind after vCluster deletion. |
 
 ## Quick Reference
 

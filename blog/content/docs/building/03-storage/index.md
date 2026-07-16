@@ -7,29 +7,60 @@ draft: false
 tags: ["longhorn", "storage"]
 summary: "Setting up Longhorn distributed block storage across heterogeneous disks, including a GPU-local StorageClass for AI workloads."
 weight: 4
+reader_goal: "Install Longhorn on Talos and configure a GPU-local StorageClass for AI workloads"
+diataxis: tutorial
+last_updated: 2026-07-15
 ---
 
-This post covers installing Longhorn for distributed block storage — including handling Talos's immutable OS, heterogeneous disk sizes, and creating a dedicated GPU-local StorageClass.
+Pods are ephemeral. Their data cannot be. Every cluster needs persistent storage, but on Talos Linux the usual approach — SSH in, partition a disk, write an fstab entry, install `open-iscsi` — is not an option. The OS is immutable. There is no package manager. The root filesystem is read-only.
 
-## Why Longhorn?
+This forces a different workflow: every storage prerequisite must be declared as a machine config extension, every disk mount must be defined in a config patch, and every storage component must be deployable through GitOps. It is more deliberate than a standard Linux setup, but the result is fully reproducible — rebuild any node, and its storage capability comes back exactly as it was.
 
-The storage question for a homelab Kubernetes cluster usually comes down to two serious contenders: Rook-Ceph and Longhorn. Rook-Ceph is the heavyweight — it brings the full power of Ceph's distributed storage engine into Kubernetes, with support for block, object, and file storage. It is the right choice for production environments with dedicated storage nodes and operations teams who can manage the complexity.
+This post covers installing Longhorn as the cluster's distributed block storage layer: enabling iSCSI on Talos, mounting dedicated SSD storage on the GPU node, configuring replication and data locality, and creating a GPU-local StorageClass for AI workloads.
 
-For a homelab, Rook-Ceph is overkill. It demands a minimum of three dedicated OSDs (Object Storage Daemons), each ideally on separate nodes with raw disks. The control plane components (monitors, managers, metadata servers) add significant memory and CPU overhead, and the operational burden of managing Ceph — understanding PG placement groups, recovery semantics, CRUSH maps — is a full-time education.
+```mermaid
+flowchart LR
+  subgraph Prerequisites[Prerequisites]
+    ISCSI[iSCSI extension<br/>all 7 nodes]
+    Disks[Disk mounts<br/>gpu-1: 2x 4TB SSD]
+  end
+  subgraph Longhorn[Longhorn]
+    Helm[Helm chart 1.11.2]
+    Values[3 replicas, best-effort]
+  end
+  subgraph Classes[Storage Classes]
+    Default[longhorn — default, 3-replica HA]
+    GPU[longhorn-gpu-local — strict-local, gpu-1 only]
+  end
+  subgraph UI[Management]
+    Dashboard[Longhorn UI<br/>192.168.55.201]
+  end
 
-Longhorn takes the opposite approach. It is a lightweight, cloud-native distributed block storage system originally built by Rancher Labs. Each volume is an independent Linux process backed by a sparse file, and replication happens at the volume level rather than the cluster level. This makes it straightforward to reason about: a 3-replica volume simply means three copies of the data living on three different nodes.
+  ISCSI --> Helm
+  Disks --> GPU
+  Helm --> Values
+  Values --> Default
+  Values --> GPU
+  Helm --> Dashboard
+```
 
-For Frank, the Talos Cluster, Longhorn wins on three counts:
+## Why Longhorn
 
-1. **No dedicated storage nodes.** Every node contributes its local disk to the storage pool. The three mini nodes, gpu-1, pc-1, and both Raspberry Pis all participate.
-2. **Simple operations.** The Longhorn UI (bundled with the install) gives you a clear view of volume health, replica status, and node capacity. No CRUSH maps.
-3. **Flexible data locality.** Longhorn can place replicas anywhere for redundancy, or pin data to a specific node for performance — which is exactly what GPU workloads need.
+The serious contender for Kubernetes storage is Rook-Ceph, and it is the wrong choice for a homelab. Ceph demands a minimum of three dedicated OSDs on separate nodes with raw disks, plus monitors, managers, and metadata servers. The control plane overhead in memory and CPU is substantial, and the operational model — PG placement groups, recovery semantics, CRUSH maps — is a full-time education.
 
-## Prerequisites: iSCSI Tools on Talos
+Longhorn inverts the complexity. Each volume is an independent Linux process backed by a sparse file. Replication happens at the volume level, not the cluster level. A 3-replica volume is three copies of the data on three different nodes. That is the entire mental model.
 
-Longhorn uses iSCSI under the hood to expose block devices to pods. On a traditional Linux distribution, you would install `open-iscsi` from the package manager and be done with it. Talos Linux has no package manager — the root filesystem is immutable and read-only. Instead, you install system extensions that get baked into the Talos image at boot time.
+Three decisions drove the choice:
 
-The `iscsi-tools` extension must be present on every node that will participate in Longhorn storage. In Frank, the Talos Cluster, that means all seven nodes. Using Omni, this is a single cluster-scoped patch:
+- **No dedicated storage nodes.** Every node contributes its local disk. The three minis, gpu-1, pc-1, and both Raspberry Pis all participate.
+- **Simple operations.** The Longhorn UI shows volume health, replica status, and node capacity. No CRUSH maps. No placement groups.
+- **Flexible data locality.** Longhorn can spread replicas for redundancy or pin data to a specific node for performance — which is exactly what GPU workloads need.
+
+## Prerequisite: iSCSI on Talos
+
+Longhorn uses iSCSI to expose block devices to pods. On Ubuntu, you run `apt install open-iscsi`. On Talos, you add a system extension that gets baked into the boot image.
+
+This cluster-scoped patch applies to all seven nodes:
 
 ```yaml
 # patches/phase03-longhorn/400-cluster-iscsi-tools.yaml
@@ -43,25 +74,23 @@ spec:
     - siderolabs/iscsi-tools
 ```
 
-The `omni.sidero.dev/cluster: frank` label applies this extension to every machine in the cluster. Omni handles the rest: it rebuilds each node's boot image with the extension included, then performs a rolling reboot across the cluster.
+The `omni.sidero.dev/cluster: frank` label targets every machine. Omni rebuilds each node's boot image with the extension included, then performs a rolling reboot across the cluster.
 
-**Gotcha:** This rolling reboot is not instant. Omni reboots nodes one at a time, waiting for each to rejoin the cluster before proceeding to the next. For a seven-node cluster, expect this to take roughly 15-20 minutes. Plan accordingly — do not apply this patch right before you need the cluster to be stable.
+This is not instant. Omni reboots nodes one at a time, waiting for each to rejoin before proceeding to the next. For seven nodes, expect 15–20 minutes. Do not apply this patch right before you need the cluster stable.
 
-You can verify the extension is loaded after reboot by checking the extension list on any node:
+After the reboot, verify the extension loaded:
 
 ```bash
 talosctl -n 192.168.55.21 get extensions
 ```
 
-Look for `siderolabs/iscsi-tools` in the output. If it is missing, the image rebuild did not include it — check the Omni UI for image build status.
+Look for `siderolabs/iscsi-tools`. If it is missing, check the Omni UI for image build status.
 
-## Mounting Extra Disks on gpu-1
+## Mounting the GPU Disks
 
-Most nodes in Frank, the Talos Cluster use their single internal disk for both the OS and Longhorn storage. The gpu-1 node is different. It has two Samsung 870 EVO 4TB SATA SSDs dedicated to storage — the kind of capacity you want available when training models or caching large datasets locally.
+Most nodes use their single internal disk for both the OS and Longhorn storage. The gpu-1 node is different — it has two Samsung 870 EVO 4TB SATA SSDs dedicated to storage. Eight terabytes of capacity for model caches, datasets, and diffusion outputs.
 
-On a standard Linux system, you would partition and mount these drives with `fdisk` and `fstab`. On Talos, disk management is declarative — you describe the desired state in the machine config, and Talos handles partitioning and mounting.
-
-This patch targets only gpu-1 (identified by its Omni machine UUID) and tells Talos to partition and mount both drives:
+On a standard Linux system, you partition and mount these drives with `fdisk` and `fstab`. On Talos, disk management is declarative. This patch targets only gpu-1 (by its Omni machine UUID):
 
 ```yaml
 # patches/phase03-longhorn/401-gpu1-extra-disks.yaml
@@ -83,46 +112,44 @@ spec:
             - mountpoint: /var/mnt/longhorn-sdb
 ```
 
-A few things to note here:
+Key details:
 
-- **Mount paths live under `/var/mnt/`.** Talos's root filesystem is read-only, but `/var/` is writable. Longhorn needs write access to its storage directories, so all custom mounts must go under `/var/`.
-- **Talos will wipe the disks.** When Talos sees a disk declaration in the machine config, it takes full ownership: existing partitions are destroyed, a new partition table is created, and the filesystem is formatted. The comment in the patch notes that `/dev/sda` had old Linux partitions — those are gone now.
-- **The `cluster-machine` label** scopes this patch to gpu-1 only. Other nodes are unaffected.
+- **Mount paths under `/var/mnt/`**. The root filesystem is read-only, but `/var/` is writable. Longhorn needs write access, so all custom mounts go under `/var/`.
+- **Talos wipes the disks**. When it sees a disk declaration, it takes full ownership: existing partitions are destroyed, a new partition table is created, and the filesystem is formatted.
+- **Scope via `cluster-machine`**. This patch targets gpu-1 only. Other nodes never see these mount points.
 
-After applying this patch and the node reboots, you can verify the mounts:
+Verify after the node reboots:
 
 ```bash
 talosctl -n 192.168.55.31 mounts | grep longhorn
 ```
 
-You should see both `/var/mnt/longhorn-sda` and `/var/mnt/longhorn-sdb` listed as mounted filesystems. Later, when configuring Longhorn, you will point the gpu-1 node at these paths and tag them for GPU-local workloads.
-
 ```console
 $ talosctl -n 192.168.55.31 mounts 2>&1 | grep "/var/mnt/longhorn-s"
-192.168.55.31   /dev/sda1                                                3998.83    112.11     3886.72         2.80%          /var/mnt/longhorn-sda
-192.168.55.31   /dev/sdb1                                                3998.83    163.48     3835.36         4.09%          /var/mnt/longhorn-sdb
+192.168.55.31   /dev/sda1     3998.83  112.11  3886.72  2.80%  /var/mnt/longhorn-sda
+192.168.55.31   /dev/sdb1     3998.83  163.48  3835.36  4.09%  /var/mnt/longhorn-sdb
 ```
+
+Both SSDs mounted and ready.
 
 ## Installing Longhorn
 
-With iSCSI available and disks mounted, Longhorn itself goes in via Helm. In Frank, the Talos Cluster, ArgoCD manages the Longhorn Helm release through an Application resource that references the upstream chart and a values file in the Git repo.
-
-The ArgoCD Application pulls Longhorn chart version 1.11.0 from the official `charts.longhorn.io` repository, with values sourced from the Git repo:
+With iSCSI available and disks mounted, Longhorn is deployed via Helm through ArgoCD. The Application references the upstream chart and a values file in the Git repo:
 
 ```yaml
-# apps/root/templates/longhorn.yaml (abbreviated)
+# apps/root/templates/longhorn.yaml
 spec:
   sources:
     - repoURL: https://charts.longhorn.io
       chart: longhorn
-      targetRevision: "1.11.0"
+      targetRevision: "1.11.2"
       helm:
         releaseName: longhorn
         valueFiles:
           - $values/apps/longhorn/values.yaml
 ```
 
-The values file itself is deliberately minimal — Longhorn's defaults are sensible, and the goal is to override only what matters:
+The values file overrides only what matters:
 
 ```yaml
 # apps/longhorn/values.yaml
@@ -137,23 +164,23 @@ persistence:
   defaultClass: true
 ```
 
-Let's walk through each setting:
+Each setting was chosen through experience, not by default:
 
-**`defaultReplicaCount: 3`** — Every volume gets three replicas spread across different nodes by default. With seven nodes in the cluster, this provides solid redundancy. Losing any two nodes still leaves one healthy copy.
+**`defaultReplicaCount: 3`** — Every volume gets three replicas spread across different nodes. With seven nodes in the cluster, losing any two still leaves one healthy copy. This is the safety net for application databases and persistent state.
 
-**`storageMinimalAvailablePercentage: 15`** — Longhorn will stop scheduling new replicas on a node once its available storage drops below 15%. This prevents any single node from filling up completely, which would cause iSCSI target failures and degraded volumes.
+**`storageMinimalAvailablePercentage: 15`** — Longhorn stops scheduling new replicas on a node once it drops below 15% free. Prevents a single node filling up completely, which causes iSCSI target failures and degraded volumes.
 
-**`nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod`** — When a node goes down, Longhorn will immediately delete the pods using volumes on that node. This allows Kubernetes to reschedule them elsewhere rather than leaving them stuck in a `Terminating` state. For a homelab where nodes might reboot for patches or power issues, this is the pragmatic choice.
+**`nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod`** — When a node goes down, Longhorn immediately deletes pods using volumes on that node. This lets Kubernetes reschedule them elsewhere rather than leaving them stuck in `Terminating`. In a homelab where nodes reboot for patches, this is the pragmatic choice.
 
-**`defaultDataLocality: best-effort`** — This tells Longhorn to try to keep at least one replica on the same node as the pod consuming the volume. "Best-effort" means it will do this when possible but will not block scheduling if the local node has no space. This improves read performance without sacrificing scheduling flexibility.
+**`defaultDataLocality: best-effort`** — Tries to keep one replica on the same node as the consuming pod. Improves read performance without blocking scheduling if the local node has no space.
 
-**`defaultClass: true`** — The Longhorn StorageClass becomes the cluster's default. Any PersistentVolumeClaim that does not specify a StorageClass will get a Longhorn volume.
+**`defaultClass: true`** — The Longhorn StorageClass becomes the cluster default. Any PVC without an explicit StorageClass gets a Longhorn volume.
 
 ## GPU-Local StorageClass
 
-The default three-replica, best-effort configuration is the right choice for most workloads — application databases, config stores, log buffers. But GPU workloads have different requirements. When a model training job on gpu-1 reads a 50GB dataset, you want that data on a local disk, not coming across the network from a replica on a Raspberry Pi.
+The default three-replica, best-effort config is right for application databases. But GPU workloads have different requirements. When a training job reads a 50GB dataset, that data should be on a local disk — not fetched across the network from a replica on a Raspberry Pi.
 
-For this, there is a second StorageClass deployed as a raw manifest through the `longhorn-extras` ArgoCD Application:
+A second StorageClass solves this:
 
 ```yaml
 # apps/longhorn/manifests/gpu-local-sc.yaml
@@ -171,31 +198,55 @@ parameters:
   diskSelector: "gpu-local"
 ```
 
-Three parameters make this StorageClass distinct:
+Three parameters make this distinct:
 
-**`numberOfReplicas: "1"`** — Only one copy of the data. There is no point replicating GPU scratch data to other nodes; if gpu-1 goes down, the training job is gone regardless. A single replica eliminates replication overhead and doubles the effective write throughput.
+**`numberOfReplicas: "1"`** — No point replicating GPU scratch data to other nodes. If gpu-1 goes down, the training job is gone regardless. A single replica doubles effective write throughput.
 
-**`dataLocality: strict-local`** — Unlike `best-effort`, this is a hard constraint. The single replica must live on the same node where the consuming pod runs. If the data cannot be placed locally, the volume attachment fails rather than silently falling back to a remote replica.
+**`dataLocality: strict-local`** — A hard constraint. The replica must live on the same node as the consuming pod. If local placement is impossible, the volume attachment fails rather than falling back to a remote replica.
 
-**`diskSelector: "gpu-local"`** — This restricts volume placement to disks tagged with the `gpu-local` label. After Longhorn is running, you tag gpu-1's extra disks in the Longhorn UI (or via the Longhorn API): navigate to the gpu-1 node, find the `/var/mnt/longhorn-sda` and `/var/mnt/longhorn-sdb` disks, and add the `gpu-local` tag. Only those 8TB of dedicated SSD capacity will serve volumes from this StorageClass.
+**`diskSelector: "gpu-local"`** — Volume placement is restricted to disks tagged with `gpu-local`. After Longhorn is running, tag gpu-1's SSDs in the Longhorn UI: navigate to the node, find `/var/mnt/longhorn-sda` and `/var/mnt/longhorn-sdb`, and add the `gpu-local` tag.
 
-The `longhorn-extras` Application that manages this manifest is straightforward — it points ArgoCD at the `apps/longhorn/manifests/` directory and applies everything it finds:
+Workloads choose their storage class through the PVC spec. Standard application:
 
 ```yaml
-# apps/root/templates/longhorn-extras.yaml (abbreviated)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: app-data
 spec:
-  source:
-    repoURL: https://github.com/derio-net/frank.git
-    path: apps/longhorn/manifests
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
 ```
 
-This pattern of splitting Helm-managed resources from raw manifests into separate ArgoCD Applications is a useful convention. It keeps the Helm values file focused on chart configuration and avoids the complexity of post-install hooks or custom chart templates for one-off resources.
+GPU workload using the local class explicitly:
 
-## Exposing the Longhorn UI
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-cache
+spec:
+  storageClassName: longhorn-gpu-local
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 200Gi
+```
 
-Longhorn ships a web UI that shows volume health, replica status, and node capacity at a glance. By default it runs as a ClusterIP service (`longhorn-frontend`), which is only reachable from inside the cluster. For a homelab, you want it on the LAN.
+```console
+$ kubectl get storageclass
+NAME                 PROVISIONER          RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+longhorn (default)   driver.longhorn.io   Delete          Immediate           true                   48d
+longhorn-cicd        driver.longhorn.io   Delete          Immediate           true                   22d
+longhorn-gpu-local   driver.longhorn.io   Delete          Immediate           true                   48d
+longhorn-static      driver.longhorn.io   Delete          Immediate           true                   48d
+```
 
-Using the same Cilium L2 LoadBalancer pattern as ArgoCD, a second service manifest in the `longhorn-extras` directory exposes the UI at a fixed IP:
+## Longhorn UI
+
+The Longhorn UI shows volume health, replica status, and node capacity at a glance. By default it runs as a ClusterIP service. Using the same Cilium L2 LoadBalancer pattern established in the foundation layer:
 
 ```yaml
 # apps/longhorn/manifests/ui-service.yaml
@@ -216,70 +267,35 @@ spec:
       targetPort: http
 ```
 
-The `io.cilium/lb-ipam-ips` annotation pins the service to `192.168.55.201`. Because this manifest lives in `apps/longhorn/manifests/`, the existing `longhorn-extras` ArgoCD Application picks it up alongside the GPU-local StorageClass — no new Application CR needed.
-
-The Longhorn dashboard is then reachable at `http://192.168.55.201` from any machine on the LAN.
+Reachable at `http://192.168.55.201`.
 
 ![Longhorn dashboard showing storage capacity, node count, and volume health](longhorn-dashboard.png)
 
-## Using the StorageClasses
-
-With both StorageClasses in place, workloads choose their storage strategy through their PVC spec. A standard application uses the default class implicitly:
-
-```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: app-data
-spec:
-  accessModes: ["ReadWriteOnce"]
-  resources:
-    requests:
-      storage: 10Gi
-```
-
-A GPU workload requests gpu-local storage explicitly:
-
-```yaml
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: model-cache
-spec:
-  storageClassName: longhorn-gpu-local
-  accessModes: ["ReadWriteOnce"]
-  resources:
-    requests:
-      storage: 200Gi
-```
-
-The `strict-local` data locality combined with the `gpu-local` disk selector ensures this volume lands on one of gpu-1's 4TB SSDs, right next to the GPU that will process its contents.
-
-```console
-$ kubectl get storageclass
-NAME                 PROVISIONER          RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
-longhorn (default)   driver.longhorn.io   Delete          Immediate           true                   48d
-longhorn-cicd        driver.longhorn.io   Delete          Immediate           true                   22d
-longhorn-gpu-local   driver.longhorn.io   Delete          Immediate           true                   48d
-longhorn-static      driver.longhorn.io   Delete          Immediate           true                   48d
-```
-
 ## What We Have Now
 
-At this point the cluster has:
 - Distributed 3-replica block storage across all 7 nodes
-- GPU-local StorageClass for high-performance single-node workloads on gpu-1
-- Longhorn UI exposed at `http://192.168.55.201` for storage management
+- GPU-local StorageClass for single-node AI workloads on gpu-1
+- Longhorn UI at `http://192.168.55.201` for storage management
 - Automatic volume rebalancing and health monitoring
+
+The storage layer is live. Anything that needs persistent data — databases, model caches, application state — has a place to put it.
+
+## Missteps
+
+| What Happened | Why It Was Wrong | How We Fixed It | Commit |
+|---------------|-----------------|-----------------|--------|
+| **Longhorn 1.11.0 heap leak on gpu-1** — instance manager process grew unbounded over days, OOM-killing volumes | Upstream bug (longhorn#12575) triggered by sustained I/O on large SSDs | Bumped chart to 1.11.2, which included the fix | `b99085af`, `78a6c45a` |
+| **raspi-1 memory wedge** — Longhorn replicas consumed all 4GB RAM, node became unresponsive | Pi 4s have 4GB RAM; default cache settings exhaust this under write pressure | Excluded raspi-1/2 from Longhorn scheduling, added headroom alerting | `16385077` |
+| **ArgoCD sync failures on backup manifests** — R2 backup target caused health check timeouts | Backup target validation needs external connectivity that ArgoCD health checks could not reach | Separated backup manifests into own Application with relaxed sync policy | `9fd060fc` |
+| **No CI/CD StorageClass** — all CI pipeline pods consumed 3-replica volumes, wasting storage | CI artifacts are ephemeral; every pipeline run provisioned 3x the requested storage | Added `longhorn-cicd` with 1 replica and nodeSelector for CI nodes | `be9f5743` |
+| **Default backup target pointed at nonexistent NAS** — config referenced a Synology path before the NAS was purchased | Planned infrastructure that was never bought; backup target was unreachable from day one | Switched default to Cloudflare R2, stubbed NAS as future improvement | `3df7c9ad` |
 
 ## References
 
-- [Longhorn](https://longhorn.io/) — Cloud-native distributed block storage for Kubernetes (CNCF incubating)
-- [Longhorn Concepts and Architecture](https://longhorn.io/docs/1.11.0/what-is-longhorn/) — How Longhorn engines, replicas, and volumes work
-- [Longhorn StorageClass Parameters](https://longhorn.io/docs/latest/references/storage-class-parameters/) — Reference for numberOfReplicas, dataLocality, diskSelector, and more
-- [Talos Linux Storage Guide](https://docs.siderolabs.com/kubernetes-guides/csi/storage) — iSCSI prerequisites and CSI setup on Talos
-- [Talos System Extensions](https://github.com/siderolabs/extensions) — Official Talos Linux system extensions repository (includes iscsi-tools)
-- [Rook-Ceph](https://rook.io/) — Cloud-native storage orchestration for Kubernetes using Ceph
-- [Kubernetes Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) — Official PV and PVC documentation
+- [Longhorn](https://longhorn.io/) — Cloud-native distributed block storage
+- [Longhorn StorageClass Parameters](https://longhorn.io/docs/latest/references/storage-class-parameters/) — numberOfReplicas, dataLocality, diskSelector
+- [Talos Linux Storage Guide](https://docs.siderolabs.com/kubernetes-guides/csi/storage) — iSCSI prerequisites on Talos
+- [Talos System Extensions](https://github.com/siderolabs/extensions) — Official extension repository (iscsi-tools)
+- [Kubernetes Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) — PV and PVC documentation
 
-**Next: [GPU Compute — NVIDIA and Intel]({{< relref "/docs/building/04-gpu-compute" >}})**
+**Next: [GPU Compute — NVIDIA and Intel](/docs/building/04-gpu-compute)**

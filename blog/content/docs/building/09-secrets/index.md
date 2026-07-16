@@ -7,21 +7,47 @@ draft: false
 tags: ["secrets", "infisical", "external-secrets", "eso", "sops", "gitops", "security"]
 summary: "Replacing the SOPS-only secrets workflow with Infisical + ESO — and the three Infisical chart bugs that forced splitting one app into three."
 weight: 10
+reader_goal: "Deploy Infisical and External Secrets Operator on Talos, working around three Infisical standalone chart bugs"
+diataxis: tutorial
+last_updated: 2026-07-15
 ---
 
-Layer 8 established that SOPS-encrypted secrets cannot live in ArgoCD-managed manifest paths. The fix was to apply them out-of-band with `sops --decrypt | kubectl apply -f -`. That is a workable pattern for bootstrap secrets — the ones that exist before anything else can run. It is not a workable pattern for runtime secrets consumed by applications.
+Layer 8 established that SOPS-encrypted secrets cannot live in ArgoCD-managed manifest paths. The fix — apply them out-of-band with `sops --decrypt | kubectl apply` — works for bootstrap secrets that exist before anything else runs. It does not work for runtime secrets that applications consume daily.
 
-Layer 9 replaces the runtime half of that story. The goal: secrets live in a versioned, audited store; applications consume them as standard Kubernetes Secrets; no engineer ever touches a plaintext credential.
+Layer 9 replaces the runtime half. The goal: secrets live in a versioned, audited store; applications consume them as standard Kubernetes Secrets; no engineer ever touches a plaintext credential. The tooling is Infisical for the store and External Secrets Operator (ESO) to materialize secrets into the cluster.
+
+But deploying Infisical's standalone chart surfaced three bugs in quick succession — duplicate environment variables, hardcoded Redis password paths, and Bitnami image registry issues — that forced splitting one ArgoCD application into three.
+
+```mermaid
+flowchart LR
+  subgraph Infisical[Infisical — Secret Store]
+    PG[PostgreSQL<br/>separate ArgoCD app]
+    Redis[C<br/>separate ArgoCD app]
+    App[Infisical Standalone<br/>v1.7.2, sub-charts disabled]
+  end
+  subgraph ESO[External Secrets Operator]
+    CSS[ClusterSecretStore<br/>infisical]
+    ES[ExternalSecret<br/>per app per namespace]
+  end
+  subgraph Bootstrap[Bootstrap Secrets]
+    SOPS[SOPS-encrypted<br/>applied out-of-band]
+  end
+
+  SOPS -->|PG password| PG
+  SOPS -->|Redis password| Redis
+  SOPS -->|Infisical env vars| App
+  App -->|Machine Identity auth| CSS
+  CSS --> ES
+  ES -->|materializes| K8sSecret[Kubernetes Secret]
+```
 
 ## The Architecture
 
-Two components do the work:
+Two components:
 
-**[Infisical](https://infisical.com)** is a self-hosted secret manager. Secrets live in projects, scoped to environments (`dev`, `staging`, `prod`). Access is controlled per identity. There is an audit log. The self-hosted version is free.
+**Infisical** is a self-hosted secret manager. Secrets live in projects, scoped to environments (`dev`, `staging`, `prod`). Access is controlled per Machine Identity. There is an audit log. The self-hosted version is free.
 
-**[External Secrets Operator](https://external-secrets.io)** (ESO) is a Kubernetes operator that reads from external secret stores and materializes them as native Kubernetes Secrets. It watches `ExternalSecret` resources. An app declares what it needs; ESO fetches it from Infisical and creates the Secret. The app sees a normal Secret — no SDK, no sidecar.
-
-The wiring is a one-time setup per cluster:
+**External Secrets Operator** (ESO) reads from external secret stores and materializes them as native Kubernetes Secrets. It watches `ExternalSecret` resources — an app declares what it needs, ESO fetches it from Infisical and creates the Secret. The app sees a normal Secret with no SDK, no sidecar.
 
 ```
 Infisical (192.168.55.204:8080)
@@ -29,47 +55,39 @@ Infisical (192.168.55.204:8080)
         └── secrets (KEY = value)
 
 ESO ClusterSecretStore "infisical"
-  └── authenticates to Infisical via Machine Identity (Universal Auth)
+  └── authenticates via Machine Identity (Universal Auth)
 
 ExternalSecret (per app, per namespace)
   └── references ClusterSecretStore + secret key
         └── ESO materializes → K8s Secret
 ```
 
-Applications reference Secrets with `secretKeyRef` or `envFrom` — exactly as they would for any other Secret. Infisical is invisible to the app.
-
 ## Deploying Infisical: Three Apps, Not One
 
-The [infisical-standalone chart](https://github.com/Infisical/infisical/tree/main/helm-charts/infisical-standalone) bundles PostgreSQL and Redis as sub-charts. Deploying it as a single ArgoCD app surfaced three bugs in quick succession.
+The `infisical-standalone` chart bundles PostgreSQL and Redis as sub-charts. Deploying it as a single ArgoCD app surfaced three bugs.
 
 ### Bug 1: Duplicate `DB_CONNECTION_URI`
 
-The chart has two independent conditions that inject `DB_CONNECTION_URI` as an environment variable on the Infisical pod:
+The chart has two independent conditions that inject `DB_CONNECTION_URI`:
 
 1. `postgresql.enabled: true` — the bundled PostgreSQL sub-chart injects it
-2. `useExistingPostgresSecret.enabled: true` — the external secret injection path also injects it
+2. `useExistingPostgresSecret.enabled: true` — the external secret path also injects it
 
-There is no `else` branch. If you enable the external secret path while disabling bundled PostgreSQL, both conditions evaluate independently, and the env var appears twice. Kubernetes accepts duplicate env vars without error — but the second value silently wins, and the one that wins is whichever the chart author happened to write last.
+There is no `else` branch. Enable the external secret path while disabling bundled PostgreSQL, both conditions fire, and the env var appears twice. Kubernetes accepts duplicate env vars without error — but the second value silently wins.
 
-ArgoCD's `ServerSideApply=true` mode does not help here — it applies the rendered manifest as-is.
+The fix: split PostgreSQL into a separate ArgoCD app (`infisical-postgresql`) using the OCI Bitnami chart. With `postgresql.enabled: false` in the main `infisical` app, only the external secret path fires.
 
-**The fix:** split PostgreSQL into a separate ArgoCD app (`infisical-postgresql`) using the [OCI Bitnami chart](https://registry-1.docker.io/bitnamicharts). With `postgresql.enabled: false` in the main `infisical` app, only the external secret path fires. One `DB_CONNECTION_URI`.
+### Bug 2: Redis Password Hardcoded
 
-### Bug 2: Redis Password Hardcoded in Chart Logic
+The chart builds `REDIS_URL` using a Helm helper that reads `.Values.redis.auth.password` — a plain Helm value, not a secret reference. Setting `redis.auth.existingSecret` has no effect on `REDIS_URL` construction. The Redis pod uses the password from the secret, but the Infisical pod builds its `REDIS_URL` using the hardcoded Helm value. Connection refused.
 
-The chart builds the `REDIS_URL` environment variable using a Helm helper that reads `.Values.redis.auth.password` — a plain Helm value, not a secret reference. The default value is `mysecretpassword`.
-
-Setting `redis.auth.existingSecret` has no effect on `REDIS_URL` construction. The chart simply does not use it in that helper. Result: the Redis pod uses the password from the secret, but the Infisical pod builds its `REDIS_URL` using the hardcoded Helm value. The connection is refused.
-
-**The fix:** split Redis into a separate ArgoCD app (`infisical-redis`) as well. With `redis.enabled: false` in the main chart, the `REDIS_URL` env var must come from the `infisical-secrets` Secret via `envFrom`. Set it explicitly to match the Redis password.
+The fix: split Redis into a separate ArgoCD app (`infisical-redis`). With `redis.enabled: false` in the main chart, `REDIS_URL` comes from the `infisical-secrets` Secret via `envFrom`.
 
 ### Bug 3: Bitnami Image Registry
 
-The Bitnami PostgreSQL chart versions available from `charts.bitnami.com/bitnami` pull images from `docker.io/bitnami/postgresql`. Recent tags are unavailable in that registry for architecture reasons.
+The Bitnami PostgreSQL chart from `charts.bitnami.com/bitnami` pulls images from `docker.io/bitnami/postgresql`. Recent tags are unavailable there for architecture reasons. The Infisical chart itself uses `mirror.gcr.io/bitnamilegacy/postgresql` — a GCR-hosted mirror. Using the OCI chart source (`registry-1.docker.io/bitnamicharts`) and pinning to the same image mirror resolves pull failures.
 
-The Infisical chart itself uses `mirror.gcr.io/bitnamilegacy/postgresql` — a GCR-hosted mirror with better availability. Using the OCI chart source (`registry-1.docker.io/bitnamicharts`) instead of the HTTP Helm repo, and pinning to the same image registry, resolves the pull failures.
-
-A secondary issue: Bitnami chart versions 16.x and newer include a security validation check that rejects non-default image registry overrides. Staying on `postgresql 14.1.10` from the OCI source avoids that check entirely.
+A secondary issue: Bitnami chart versions 16.x+ validate non-default image registry overrides. Staying on `postgresql 14.1.10` avoids that check.
 
 ### The Final Shape
 
@@ -77,19 +95,15 @@ Three ArgoCD apps, all in the `infisical` namespace:
 
 | App | Chart | Purpose |
 |-----|-------|---------|
-| `infisical-postgresql` | `registry-1.docker.io/bitnamicharts/postgresql:14.1.10` | PostgreSQL, image from `mirror.gcr.io/bitnamilegacy` |
-| `infisical-redis` | `registry-1.docker.io/bitnamicharts/redis:18.14.1` | Redis standalone, same image mirror |
-| `infisical` | `infisical-helm-charts/infisical-standalone:1.7.2` | Infisical app only, both sub-charts disabled |
+| `infisical-postgresql` | OCI Bitnami postgresql 14.1.10 | PostgreSQL, image from `mirror.gcr.io/bitnamilegacy` |
+| `infisical-redis` | OCI Bitnami redis 18.14.1 | Redis standalone, same image mirror |
+| `infisical` | infisical-standalone 1.7.2 | Infisical app only, sub-charts disabled |
 
-Bootstrap secrets — the PostgreSQL password, Redis password, and Infisical app env vars — are SOPS-encrypted and applied out-of-band. The pattern is the same as Layer 8: live in `secrets/infisical/`, never in an ArgoCD-managed manifest path.
+Bootstrap secrets — PostgreSQL password, Redis password, Infisical env vars — are SOPS-encrypted and applied out-of-band, matching the Layer 8 pattern.
 
 ## Connecting ESO to Infisical
 
-{{< screenshot src="infisical-dashboard.png" caption="Infisical dashboard showing cluster secrets" >}}
-
-ESO authenticates to Infisical using a [Machine Identity](https://infisical.com/docs/documentation/platform/identities/universal-auth) with Universal Auth. This is the Infisical equivalent of a service account: create an identity, generate a Client ID + Client Secret pair, grant the identity Viewer access to the project.
-
-The credentials are stored as a SOPS-encrypted Secret in `secrets/infisical/eso-credentials.yaml`, applied out-of-band to the `external-secrets` namespace.
+ESO authenticates to Infisical using a Machine Identity with Universal Auth. The credentials are SOPS-encrypted in `secrets/infisical/eso-credentials.yaml`, applied out-of-band.
 
 The `ClusterSecretStore` ties it together:
 
@@ -118,53 +132,22 @@ spec:
         secretsPath: /
 ```
 
-This is deployed as a raw manifest via a dedicated `infisical-extras` ArgoCD app, which syncs `apps/infisical/manifests/`. The ClusterSecretStore is cluster-scoped, so it goes into the `external-secrets` namespace by convention.
+This is deployed as a raw manifest via `infisical-extras` ArgoCD app, syncing `apps/infisical/manifests/`.
 
-## ESO v1 Gotchas
+### The Project Slug Surprise
 
-ESO 2.x promoted the API to `external-secrets.io/v1` and dropped `v1beta1`. The schema changed in two places that bit the plan:
+The `ClusterSecretStore` needs a `projectSlug`. The intuitive value is the project name — `frank-cluster`. This returns a 404. Infisical auto-generates a URL-safe slug that differs from the display name. The actual slug is visible at Project Settings → General. The `eso-cluster-reader` Machine Identity has Viewer access but Viewer cannot call the workspace-list API, so the slug cannot be retrieved programmatically with the same credentials.
 
-**`ClusterSecretStore` credentials**: In the old API, `clientId` and `clientSecret` were wrapped in a `secretRef:` key. In v1, they are direct `SecretKeySelector` objects — `name`, `namespace`, `key` at the same level, no wrapper.
+### ESO v1 Schema Changes
 
-**`ExternalSecret` remoteRef**: The old API included a `metaData:` block under `remoteRef` for specifying `projectSlug`, `envSlug`, and `secretPath` per-secret. In v1, those fields are gone. The scope is declared once in the `ClusterSecretStore.spec.provider.infisical.secretsScope` and applies to all ExternalSecrets that reference it.
+ESO 2.x promoted the API to `external-secrets.io/v1`. Two schema changes bit the initial manifests:
 
-An app that needs a secret from Infisical declares:
-
-```yaml
-apiVersion: external-secrets.io/v1
-kind: ExternalSecret
-metadata:
-  name: my-app-secrets
-spec:
-  refreshInterval: 5m
-  secretStoreRef:
-    name: infisical
-    kind: ClusterSecretStore
-  target:
-    name: my-app-secrets
-  data:
-    - secretKey: DATABASE_URL
-      remoteRef:
-        key: DATABASE_URL
-```
-
-ESO fetches `DATABASE_URL` from the `frank-cluster-iwpg` project, `prod` environment, root path — as configured in the ClusterSecretStore — and creates a Kubernetes Secret named `my-app-secrets` with that value. Refreshed every 5 minutes.
-
-## The Project Slug Surprise
-
-The `ClusterSecretStore` needs a `projectSlug` to identify the Infisical project. The intuitive value is the project name — `frank-cluster`. This returns a 404.
-
-Infisical auto-generates a URL-safe slug that differs from the display name. The actual slug for the `frank-cluster` project is `frank-cluster-iwpg`. It is visible at Project Settings → General in the UI.
-
-The `eso-cluster-reader` Machine Identity has Viewer access to the project, but Viewer cannot call the workspace-list API endpoint — so the slug cannot be retrieved programmatically with the same credentials. It has to be read from the UI once and committed to `cluster-secret-store.yaml`.
+- **`ClusterSecretStore` credentials**: In `v1beta1`, `clientId` and `clientSecret` were wrapped in a `secretRef:` key. In v1, they are direct `SecretKeySelector` objects.
+- **`ExternalSecret` remoteRef**: The `metaData:` block under `remoteRef` is gone; scope is declared once in `ClusterSecretStore.spec.provider.infisical.secretsScope`.
 
 ## The Smoke Test
 
-With the ClusterSecretStore validated (`READY=True`), the end-to-end test:
-
-1. Create `CLUSTER_TEST_KEY = hello-from-infisical` in the `prod` environment
-2. Apply a test `ExternalSecret` in a temporary namespace
-3. Wait for sync
+With the ClusterSecretStore validated (`READY=True`):
 
 ```bash
 kubectl get externalsecret cluster-test -n secrets-test
@@ -178,28 +161,24 @@ kubectl get secret cluster-test-secret -n secrets-test \
 
 ## What Changed
 
-Before Layer 9, adding a runtime secret to the cluster meant:
+Before Layer 9, adding a runtime secret meant: write plaintext YAML, `sops` encrypt, commit, manually `kubectl apply`, update every consumer's deployment. Now: add the secret in the Infisical UI, declare an `ExternalSecret` in the app's namespace, ESO syncs within the `refreshInterval`. Rotation is a UI operation — no pod restart, no git commit.
 
-1. Write the plaintext value into a YAML file
-2. Encrypt it with `sops`
-3. Commit to git
-4. Apply manually with `kubectl`
-5. Update every consumer's deployment manifest
+SOPS stays for bootstrap secrets: the credentials Infisical and ESO themselves need to start. Everything above that layer moves to Infisical.
 
-Now:
+## Missteps
 
-1. Add the secret in the Infisical UI (or API)
-2. Declare an `ExternalSecret` in the app's namespace
-3. ESO syncs it within the `refreshInterval`
-
-The audit trail lives in Infisical. Access control is per-identity, per-project. Rotation is a UI operation — ESO picks up the new value on the next refresh cycle without a pod restart or a git commit.
-
-SOPS stays for bootstrap secrets: the credentials that Infisical and ESO themselves need to start. Everything above that layer moves to Infisical.
+| What Happened | Why It Was Wrong | How We Fixed It | Commit |
+|---------------|-----------------|-----------------|--------|
+| **Duplicate `DB_CONNECTION_URI` env var** — the chart has no `else` branch between bundled PostgreSQL and external secret path, both inject the same env var | Two independent conditions fire regardless of which is enabled; Kubernetes silently accepts duplicates, second value wins | Split PostgreSQL into separate ArgoCD app, disabled bundled sub-chart | `446dab7a`, `9a00f46c` |
+| **Redis password hardcoded in Helm helper** — `REDIS_URL` is built from `.Values.redis.auth.password` not the actual secret value | Setting `redis.auth.existingSecret` has no effect on `REDIS_URL` construction; the helper ignores it | Split Redis into separate app, set `REDIS_URL` via `envFrom` on the actual secret | `95f31f96` |
+| **Wrong Infisical project slug** — `frank-cluster` returns 404; the auto-generated slug is `frank-cluster-iwpg` | The display name and URL-safe slug differ; Viewer permissions cannot query the workspace-list API to discover the slug | Read the slug from the UI once, committed to `cluster-secret-store.yaml` | `aefa7916` |
+| **ClusterSecretStore schema mismatch for ESO v2.1.0** — `v1beta1` credential wrapper syntax used instead of direct `SecretKeySelector` | Upgrade from `v1beta1` to `v1` removed the `secretRef:` wrapper; initial manifests used old syntax | Corrected ClusterSecretStore to v1 schema | `6fe95a3f`, `b228e2b5` |
 
 ## References
 
 - [Infisical Documentation](https://infisical.com/docs) — self-hosted setup, Machine Identities, Universal Auth
 - [External Secrets Operator Documentation](https://external-secrets.io/latest/) — ClusterSecretStore, ExternalSecret v1 API
-- [ESO Infisical Provider](https://external-secrets.io/latest/provider/infisical/) — provider-specific configuration
-- [Bitnami OCI Charts](https://registry-1.docker.io/bitnamicharts) — `postgresql`, `redis`
-- [SOPS Documentation](https://github.com/getsops/sops) — age encryption for bootstrap secrets
+- [ESO Infisical Provider](https://external-secrets.io/latest/provider/infisical/) — provider-specific config
+- [Bitnami OCI Charts](https://registry-1.docker.io/bitnamicharts) — postgresql, redis
+
+**Next: [Local Inference — Ollama, LiteLLM, and OpenRouter](/docs/building/10-local-inference)**

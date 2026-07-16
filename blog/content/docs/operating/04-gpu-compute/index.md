@@ -4,87 +4,116 @@ series: ["operating"]
 layer: gpu
 date: 2026-03-13
 draft: false
-tags: ["operations", "gpu", "nvidia", "intel", "talos"]
+tags: ["operations", "gpu", "nvidia", "intel", "talos", "troubleshooting"]
 summary: "Day-to-day commands for managing NVIDIA and Intel GPUs, checking utilization, and debugging GPU container issues on Talos."
 weight: 5
+reader_goal: "Check GPU health, manage GPU workloads, and debug common failures (GPU not allocating, containerd config corruption, stale allocations, reboot loops) on both NVIDIA and Intel GPU stacks on Talos."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 ---
 
-The cluster has two GPU paths: an NVIDIA RTX 5070 Ti on `gpu-1` managed by the GPU Operator, and Intel Arc iGPUs on the three mini nodes exposed through DRA (Dynamic Resource Allocation). Both are operational, both have Talos-specific quirks, and both need different tools to inspect and troubleshoot.
+{{< last-updated >}}
 
-This post covers the day-to-day commands for checking GPU state, managing workloads, and debugging the issues you will eventually hit. For the build story, see [GPU Compute — NVIDIA and Intel]({{< relref "/docs/building/04-gpu-compute" >}}) and [GPU Containers on Talos — The Validation Fix]({{< relref "/docs/building/12-gpu-talos-fix" >}}).
+The cluster has two GPU paths: an NVIDIA RTX 5070 Ti on `gpu-1` managed by the GPU Operator, and Intel Arc iGPUs on the three mini nodes exposed through DRA (Dynamic Resource Allocation). Both have Talos-specific quirks, and both need different tools to inspect and troubleshoot.
+
+This post covers day-to-day commands for checking GPU state, managing workloads, and debugging the issues you will eventually hit. For the build story, see [GPU Compute — NVIDIA and Intel]({{< relref "/docs/building/04-gpu-compute" >}}) and [GPU Containers on Talos — The Validation Fix]({{< relref "/docs/building/12-gpu-talos-fix" >}}).
+
+Source your environment before running commands:
+
+```bash
+source .env   # sets KUBECONFIG
+```
+
+## Overview
+
+Frank runs two GPU stacks side by side:
+
+- **NVIDIA (gpu-1):** GPU Operator managing the RTX 5070 Ti. Deployment is via `gpu-operator` Helm chart with Talos-specific extensions and containerd runtime config.
+- **Intel (mini-1/2/3):** Intel Resource Drivers for Kubernetes using DRA. One DaemonSet per node, no special containerd config needed.
+
+```mermaid
+graph LR
+  subgraph NVIDIA["NVIDIA Stack (gpu-1)"]
+    N1["GPU Operator<br/>Helm chart"]
+    N2["nvidia-container-toolkit<br/>containerd runtime"]
+    N3["RTX 5070 Ti<br/>16 GB GDDR7"]
+    N1 --> N2 --> N3
+  end
+  subgraph INTEL["Intel Stack (mini-1/2/3)"]
+    I1["Intel DRA<br/>Resource Driver"]
+    I2["Intel Arc iGPU"]
+    I1 --> I2
+  end
+  subgraph SCHED["Workload Scheduling"]
+    S1["kube-scheduler"]
+    S1 -->|"nvidia.com/gpu"| N3
+    S1 -->|"gpu.intel.com"| I2
+  end
+```
+
+### Verify
+
+```bash
+# NVIDIA — device plugin registered
+kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'
+# Should return: 1
+
+# Intel — ResourceSlices published
+kubectl get resourceslice -o wide
+# Should show three slices, one per mini node
+```
 
 ## Observing State
 
 ### NVIDIA GPU (gpu-1)
 
-The GPU Operator runs several pods on `gpu-1`. Check that they are all healthy:
+The GPU Operator runs several pods on `gpu-1`. Check they are all healthy:
 
 ```bash
 kubectl get pods -n gpu-operator -o wide
 ```
 
-You should see pods for the device plugin, feature discovery, DCGM exporter, and the validation markers DaemonSet — all `Running` and `1/1`. If any pod is stuck at `Init:0/1`, the validation markers are likely missing (see [Debugging](#debugging) below).
+You should see pods for the device plugin, feature discovery, DCGM exporter, and validation markers DaemonSet — all `Running` and `1/1`.
 
-To run `nvidia-smi`, exec into the DCGM exporter pod (it has the nvidia tools available):
+To run `nvidia-smi`, exec into the DCGM exporter pod:
 
 ```bash
-kubectl exec -n gpu-operator $(kubectl get pod -n gpu-operator \
-  -l app=nvidia-dcgm-exporter -o jsonpath='{.items[0].metadata.name}') \
-  -- nvidia-smi
+POD=$(kubectl get pod -n gpu-operator -l app=nvidia-dcgm-exporter \
+  -o jsonpath='{.items[0].metadata.name}')
+kubectl exec -n gpu-operator "$POD" -- nvidia-smi
 ```
 
-For a quick check of what the node reports as allocatable:
+```console
+$ POD=$(kubectl get pod -n gpu-operator -l app=nvidia-dcgm-exporter -o jsonpath='{.items[0].metadata.name}'); kubectl exec -n gpu-operator "$POD" -- nvidia-smi
+Mon Apr 20 16:55:31 2026
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 570.211.01             Driver Version: 570.211.01     CUDA Version: 12.8     |
+|-----------------------------------------+------------------------+----------------------+
+|   0  NVIDIA GeForce RTX 5070 Ti     Off |   00000000:01:00.0 Off |                  N/A |
+|  0%   33C    P8             19W /  300W |    7956MiB /  16303MiB |      0%      Default |
++-----------------------------------------------------------------------------------------+
+```
+
+For a quick view of allocatable resources:
 
 ```bash
 kubectl describe node gpu-1 | grep -A 10 "Allocated resources"
 ```
 
-```console
-$ POD=$(kubectl get pod -n gpu-operator -l app=nvidia-dcgm-exporter -o jsonpath='{.items[0].metadata.name}'); kubectl exec -n gpu-operator "$POD" -c nvidia-dcgm-exporter -- nvidia-smi
-Mon Apr 20 16:55:31 2026       
-+-----------------------------------------------------------------------------------------+
-| NVIDIA-SMI 570.211.01             Driver Version: 570.211.01     CUDA Version: 12.8     |
-|-----------------------------------------+------------------------+----------------------+
-| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
-| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
-|                                         |                        |               MIG M. |
-|=========================================+========================+======================|
-|   0  NVIDIA GeForce RTX 5070 Ti     Off |   00000000:01:00.0 Off |                  N/A |
-|  0%   33C    P8             19W /  300W |    7956MiB /  16303MiB |      0%      Default |
-|                                         |                        |                  N/A |
-+-----------------------------------------+------------------------+----------------------+
-                                                                                         
-+-----------------------------------------------------------------------------------------+
-| Processes:                                                                              |
-|  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
-|        ID   ID                                                               Usage      |
-|=========================================================================================|
-|  No running processes found                                                             |
-+-----------------------------------------------------------------------------------------+
-```
-
-Look for `nvidia.com/gpu` in the capacity and allocatable fields:
-
-```bash
-kubectl get node gpu-1 -o jsonpath='{.status.capacity.nvidia\.com/gpu}'
-# Should return: 1
-```
-
 ### Intel iGPU (mini nodes)
 
-The Intel DRA driver runs as a DaemonSet — one pod per mini node:
+The Intel DRA driver runs as a DaemonSet:
 
 ```bash
 kubectl get pods -n intel-gpu-resource-driver -o wide
 ```
 
-Check that ResourceSlices are published for each node:
+Check that ResourceSlices are published:
 
 ```bash
 kubectl get resourceslice -o wide
 ```
-
-You should see three slices, one per mini node, all with driver `gpu.intel.com`. The DeviceClass should also exist:
 
 ```console
 $ kubectl get resourceslice -o wide
@@ -92,10 +121,6 @@ NAME                         NODE     DRIVER          POOL     AGE
 mini-1-gpu.intel.com-wnt98   mini-1   gpu.intel.com   mini-1   28d
 mini-2-gpu.intel.com-ssz5r   mini-2   gpu.intel.com   mini-2   28d
 mini-3-gpu.intel.com-ch2jg   mini-3   gpu.intel.com   mini-3   28d
-```
-
-```bash
-kubectl get deviceclass gpu.intel.com
 ```
 
 To see active ResourceClaims (pods currently using an Intel GPU):
@@ -108,29 +133,27 @@ kubectl get resourceclaim -A
 
 ### Check GPU Utilization
 
-For NVIDIA, the quickest way to see what is running on the GPU:
-
 ```bash
-# GPU utilization, memory usage, running processes
+# GPU utilization, memory, running processes
 kubectl exec -n ollama $(kubectl get pod -n ollama \
   -o jsonpath='{.items[0].metadata.name}') -- nvidia-smi
 
-# Or just check Ollama's model status
+# Ollama model status
 kubectl exec -n ollama $(kubectl get pod -n ollama \
   -o jsonpath='{.items[0].metadata.name}') -- ollama ps
 ```
 
-The `ollama ps` output tells you the model name, size, processor allocation (look for `100% GPU`), and context window size.
+The `ollama ps` output shows model name, size, processor allocation (look for `100% GPU`), and context window.
 
 ### Check Which Pods Use the GPU
 
 ```bash
-# NVIDIA — find pods requesting nvidia.com/gpu
+# NVIDIA — pods requesting nvidia.com/gpu
 kubectl get pods -A -o json | jq -r '
   .items[] | select(.spec.containers[].resources.limits."nvidia.com/gpu" != null)
   | "\(.metadata.namespace)/\(.metadata.name)"'
 
-# Intel DRA — find pods with ResourceClaims
+# Intel DRA — pods with ResourceClaims
 kubectl get pods -A -o json | jq -r '
   .items[] | select(.spec.resourceClaims != null)
   | "\(.metadata.namespace)/\(.metadata.name)"'
@@ -138,7 +161,7 @@ kubectl get pods -A -o json | jq -r '
 
 ### Pull Models via kubectl exec
 
-On Talos with NVIDIA, postStart lifecycle hooks fail due to the nvidia-container-cli exec hook. Models must be pulled manually after the pod is running:
+PostStart lifecycle hooks fail on Talos with NVIDIA due to the `nvidia-container-cli` exec hook. Models must be pulled manually:
 
 ```bash
 kubectl exec -n ollama $(kubectl get pod -n ollama \
@@ -148,58 +171,57 @@ kubectl exec -n ollama $(kubectl get pod -n ollama \
   -o jsonpath='{.items[0].metadata.name}') -- ollama pull deepseek-coder:6.7b
 ```
 
-Models persist on the Longhorn PVC, so this is a one-time operation unless the PVC is lost.
+Models persist on the Longhorn PVC — one-time operation unless the PVC is lost.
 
 ### Manage GPU Memory
-
-If Ollama holds a model in VRAM that you want to unload:
 
 ```bash
 # List loaded models
 kubectl exec -n ollama $(kubectl get pod -n ollama \
   -o jsonpath='{.items[0].metadata.name}') -- ollama ps
 
-# Unload by running a different model, or restart the pod
+# Unload — delete the pod; Deployment recreates it
 kubectl delete pod -n ollama $(kubectl get pod -n ollama \
   -o jsonpath='{.items[0].metadata.name}')
 ```
 
-The pod will be recreated by the Deployment. Models on the PVC remain available — they just need to be loaded back into VRAM on the next request.
+Models on the PVC remain available and load back into VRAM on the next request.
 
-## Debugging
+## Runbook
 
 ### GPU Not Allocating
 
 If a pod requesting `nvidia.com/gpu` stays `Pending`:
 
-```bash
-# 1. Check that the device plugin registered the GPU
-kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'
-# Should return 1. If empty or 0, the device plugin is not running.
+1. **Check device plugin registration:**
+   ```bash
+   kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'
+   ```
+   Should return `1`. If empty or `0`, the device plugin is not running.
 
-# 2. Check GPU Operator pods
-kubectl get pods -n gpu-operator -o wide
-# All should be Running. Look for Init:0/1 or CrashLoopBackOff.
+2. **Check GPU Operator pods:**
+   ```bash
+   kubectl get pods -n gpu-operator -o wide
+   ```
+   All should be `Running`. Look for `Init:0/1` or `CrashLoopBackOff`.
 
-# 3. Check validation markers
-kubectl exec -n gpu-operator $(kubectl get pod -n gpu-operator \
-  -l app=nvidia-validation-markers -o jsonpath='{.items[0].metadata.name}') \
-  -- ls -la /run/nvidia/validations/
-# Should show driver-ready and toolkit-ready files
-```
+3. **Check validation markers:**
+   ```bash
+   kubectl exec -n gpu-operator $(kubectl get pod -n gpu-operator \
+     -l app=nvidia-validation-markers -o jsonpath='{.items[0].metadata.name}') \
+     -- ls -la /run/nvidia/validations/
+   ```
+   Should show `driver-ready` and `toolkit-ready` files. If missing, the node may have rebooted (files are on tmpfs). The DaemonSet recreates them within 30 seconds.
 
-If the markers are missing, check that the `nvidia-validation-markers` DaemonSet is running. If it is running but the files are gone, the node may have rebooted (files are on tmpfs). The DaemonSet loop recreates them within 30 seconds.
-
-### Containerd Issues on Talos
+#### Recovery: containerd config corruption
 
 If GPU pods are stuck at `ContainerCreating` with `PodReadyToStartContainers: False`:
 
 ```bash
-# Check containerd runtime config on gpu-1
 talosctl -n 192.168.55.31 read /etc/cri/conf.d/20-customization.part
 ```
 
-The file should contain the nvidia runtime as default **and** the `base_runtime_spec`:
+The file should contain:
 
 ```toml
 [plugins."io.containerd.cri.v1.runtime"]
@@ -214,40 +236,45 @@ If `base_runtime_spec` is missing, kubelet cannot track the GPU container lifecy
 
 ### Talos Reboot Loops from Conflicting Patches
 
-If a node enters a ~35-minute reboot loop after applying a config patch, the likely cause is two patches creating the same file at `/etc/cri/conf.d/20-customization.part`. Talos cannot merge them and throws:
+If a node enters a ~35-minute reboot loop after applying a config patch, the cause is two patches creating the same file at `/etc/cri/conf.d/20-customization.part`:
 
 ```
 resource EtcFileSpecs.files.talos.dev(files/cri/conf.d/20-customization.part@undefined) already exists
 ```
 
-The fix: each node must have its own machine-specific patch. Delete the cluster-wide patch **before** applying machine-specific ones. To recover a looping node:
+Recovery:
 
 ```bash
-# Remove the conflicting cluster-wide patch from Omni
 omnictl delete configpatch <cluster-wide-patch-id>
-
-# Watch the node recover (it will complete its current reboot cycle)
 kubectl get node <node-name> -w
 ```
 
-### Force-Delete GPU Pods Carefully
+Each node must have its own machine-specific patch. Delete the cluster-wide patch before applying machine-specific ones.
 
-Force-deleting a GPU pod (`kubectl delete pod --force --grace-period=0`) leaves stale containers holding the GPU allocation inside containerd. The device plugin still sees the GPU as allocated. New GPU pods will stay `Pending` with `Insufficient nvidia.com/gpu`.
+### Stale GPU Allocations from Force-Delete
 
-If you must force-delete:
+Force-deleting a GPU pod (`kubectl delete pod --force --grace-period=0`) leaves stale containers holding the GPU allocation. The device plugin still sees the GPU as allocated, and new GPU pods stay `Pending` with `Insufficient nvidia.com/gpu`.
+
+Recovery:
 
 ```bash
-# Force delete (last resort)
-kubectl delete pod -n <namespace> <pod> --force --grace-period=0
-
-# Check if the GPU is still shown as allocated
+# Check if GPU is stuck allocated
 kubectl describe node gpu-1 | grep -A 5 "Allocated resources"
 
-# If GPU is still stuck as allocated, a clean node reboot clears it
+# Clean reboot clears it
 talosctl -n 192.168.55.31 reboot
 ```
 
-A clean reboot is the only reliable way to clear stale GPU allocations from containerd. Budget about 90 seconds for Talos to come back Ready.
+A clean reboot is the only reliable way to clear stale GPU allocations. Budget about 90 seconds for Talos to come back `Ready`. Avoid force-deleting GPU pods — scale the workload to 0 instead.
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|-----------------|------------------|-------------|
+| PostStart lifecycle hooks work on Talos with NVIDIA | The `nvidia-container-cli` exec hook conflicts with Talos's containerd config — the hook runs before the container runtime is fully initialized | All model pulls must happen manually via `kubectl exec` after the pod is running. |
+| A single cluster-wide containerd patch works for all nodes | GPU-1 needs a different `20-customization.part` than non-GPU nodes. Two patches creating the same file throw `EtcFileSpecs` conflict | ~35-minute reboot loop on gpu-1 until the cluster-wide patch was deleted. |
+| `kubectl delete pod --force` is safe for GPU workloads | Stale containerd containers hold the GPU allocation — the device plugin never releases it | GPU appears allocated but unusable until a clean node reboot. |
+| Validation markers persist across reboots | Files live on tmpfs — a node reboot wipes them | DaemonSet recreates them within 30 seconds, but operators panic when they disappear. |
 
 ## Quick Reference
 
@@ -264,6 +291,11 @@ A clean reboot is the only reliable way to clear stale GPU allocations from cont
 | Validation markers | `kubectl exec -n gpu-operator $(kubectl get pod -n gpu-operator -l app=nvidia-validation-markers -o jsonpath='{.items[0].metadata.name}') -- ls /run/nvidia/validations/` |
 | Containerd config | `talosctl -n 192.168.55.31 read /etc/cri/conf.d/20-customization.part` |
 | Reboot gpu-1 | `talosctl -n 192.168.55.31 reboot` |
+| Find GPU-using pods (NVIDIA) | `kubectl get pods -A -o json \| jq -r '.items[] \| select(.spec.containers[].resources.limits."nvidia.com/gpu" != null) \| "\(.metadata.namespace)/\(.metadata.name)"'` |
+
+## Explanation
+
+This post covers both GPU paths on Frank because they fail differently. The NVIDIA stack has Talos-specific containerd quirks (missing `base_runtime_spec`, postStart hook conflicts, stale allocations from force-delete). The Intel DRA stack is simpler — it Just Works — but requires understanding the ResourceSlice/ResourceClaim model. The building posts cover why each stack was chosen and how it was deployed; this post covers what to do when they break.
 
 ## References
 

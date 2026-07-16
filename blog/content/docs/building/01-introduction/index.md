@@ -7,78 +7,98 @@ draft: false
 tags: ["introduction", "architecture"]
 summary: "The motivation behind Frank, the Talos Cluster — learning enterprise infrastructure and building interesting projects on your own hardware."
 weight: 2
+reader_goal: "Decide whether this cluster architecture suits your own homelab goals and map its two-layer management model"
+diataxis: explainer
+last_updated: 2026-07-15
 ---
 
-## Why?
+I knew Kubernetes from the cloud. EKS, GKE — they hand you a cluster with networking, storage, and GPU scheduling already wired. You push a manifest, it works, and you have no idea how. The abstraction is the point if your job is shipping features. But if your job is understanding infrastructure, the abstraction is the obstacle.
 
-Two reasons drove me to build this cluster.
+I wanted to know what happens between `kubectl apply` and a running pod. How does the CNI assign an IP? How does Longhorn replicate data without a SAN? How does an immutable OS manage disk mounts when there is no SSH and no shell? You can read about eBPF kube-proxy replacement or DRA-based GPU sharing all day. But you can also break it, fix it, and actually learn it.
 
-### Reason 1: Learning by Doing
+The hardware was already sitting around. An i9 desktop retired from daily use. A stack of Intel NUCs. Two Raspberry Pi 4s gathering dust. The cluster turns idle machines into a platform. The goal was never "run a production cluster at home." It was to build one that *could* be production, so the skills transfer directly.
 
-Cloud-managed Kubernetes (EKS, GKE) abstracts away the parts I wanted to understand: CNI networking, storage orchestration, GPU scheduling, immutable OS operation, and GitOps at the infrastructure layer. You can read about eBPF kube-proxy replacement or DRA-based GPU sharing all day — or you can break it, fix it, and actually learn it.
+## The Shape That Emerged
 
-The goal was never "run a production cluster at home." It was to build one that *could* be production, so the skills transfer directly.
+What started as "throw Kubernetes on some boxes" became a four-zone design, driven less by planning and more by what each machine forced us to confront.
 
-### Reason 2: Self-hosted Infrastructure
+```mermaid
+flowchart LR
+  subgraph M[Zone A — Management]
+    omni[raspi-omni<br/>Omni + Authentik + Traefik]
+  end
+  subgraph C[Zone B — Core HA]
+    n1[mini-1<br/>CP + Worker]
+    n2[mini-2<br/>CP + Worker]
+    n3[mini-3<br/>CP + Worker]
+  end
+  subgraph G[Zone C — AI Compute]
+    gpu[gpu-1<br/>RTX 5070, 128GB, 8TB SSD]
+  end
+  subgraph E[Zone D — Edge]
+    pc[pc-1<br/>Legacy desktop]
+    r1[raspi-1<br/>Pi 4]
+    r2[raspi-2<br/>Pi 4]
+  end
 
-As a solo builder, I want self-hosted infrastructure for:
+  omni -->|machine config| n1
+  omni -->|machine config| n2
+  omni -->|machine config| n3
+  omni -->|machine config| gpu
+  omni -->|machine config| pc
+```
 
-- **AI/ML workloads** — local inference with GPUs, fine-tuning, experiments
-- **Self-hosted services** — things I'd otherwise pay SaaS for
-- **Product prototyping** — test deployments before going to cloud
+**Zone A** is a single Raspberry Pi 5 that lives outside the cluster. It runs Sidero Omni (machine lifecycle), Authentik (SSO), and Traefik (ingress). Putting management outside the cluster was a lesson learned the hard way — more on that in Missteps.
 
-The hardware was already sitting around. The cluster turns idle machines into a platform.
+**Zone B** is three identical Intel NUCs (Ultra 5, 64GB, 1TB NVMe). They form the HA control plane. Because Talos lets control planes run workloads, these also host Longhorn storage and most cluster services. Identical hardware means predictable capacity. No surprises.
 
-## The Hardware
+**Zone C** is one machine: a custom desktop with an i9, 128GB RAM, an RTX 5070, and two 4TB SATA SSDs. It is the single node that makes the cluster interesting — local LLM inference, diffusion models, agentic workloads. Everything GPU-related lands here.
 
-The cluster spans 4 zones of heterogeneous hardware:
+**Zone D** is the rag-tag edge: a legacy desktop (pc-1) and two Raspberry Pi 4s. They run CI/CD pipelines, monitoring scrapers, DNS caches — workloads that need to be always-on but do not need a GPU or fast storage.
 
-### Zone A: Management
+{{< screenshot src="homelab.png" alt="The Frank cluster in its natural habitat. The minis are hidden behind a patch panel. The GPU desktop stands to the left. The Raspberry Pis are in a horizontal rack kit alongside other network gear. The GPU did not fit in a rack-mountable case so it lives in a gaming case with LEDs that never turn off." caption="The Frank cluster in its natural habitat. The minis are hidden behind a patch panel. The GPU desktop stands to the left. The Raspberry Pis are in a horizontal rack kit alongside other network gear. The GPU did not fit in a rack-mountable case so it lives in a gaming case with LEDs that never turn off." >}}
 
-- **raspi-omni** (Raspberry Pi 5, 8GB) — Runs Sidero Omni, Authentik SSO, Traefik. The management plane lives outside the cluster.
+## The Two-Layer Model That Makes It Work
 
-### Zone B: Core HA
+The single most important design decision was separating machine config from workload config. It was not obvious at first. Early on, Omni and ArgoCD overlapped in confusing ways — Omni would install an OS extension, ArgoCD would try to manage the same resource, and neither knew about the other.
 
-- **mini-1, mini-2, mini-3** (ASUS NUC, Intel Ultra 5 225H, 64GB RAM, 1TB NVMe) — Three identical nodes forming the HA control plane. Each has an Intel Arc iGPU for future media/AI workloads.
+The fix was a clean boundary:
 
-### Zone C: AI Compute
+- **Layer 1 (Machine Config):** Sidero Omni manages Talos Linux machine configurations — OS extensions, kernel modules, disk mounts, network settings. Applied via `omnictl` config patches. Version-controlled in `clusters/frank/`.
+- **Layer 2 (Workloads):** ArgoCD manages everything running *on* Kubernetes — CNI, storage, GPU drivers, applications. GitOps via `apps/` in the same repo.
 
-- **gpu-1** (Custom desktop, i9, 128GB RAM, RTX 5070, 2x4TB SSD) — The heavy lifter. Dedicated GPU storage via Longhorn. Tainted for GPU-only workloads.
+Omni never touches workloads. ArgoCD never touches machine config. When a problem surfaces, you know which layer to debug.
 
-### Zone D: Edge
+![Omni cluster dashboard showing all seven nodes, their roles, and resource usage](omni-cluster.png)
 
-- **pc-1** (Legacy desktop, 64GB SSD + 3x HDD) — General purpose worker.
-- **raspi-1, raspi-2** (Raspberry Pi 4, 32GB SD) — Low-power edge nodes.
+## What the Series Covers
 
-{{< screenshot src="homelab.png" alt="Frank cluster hardware, integrated to the rest of my homelab. The two Raspberry Pi 4s and the omni are part of the horizontal rack kit, along with a few others. The minis are hidden below the patch panel. The gpu-1 workstation stands to the left. The GPU didn't fit in a mountable 4U case so I got a gaming case with pretty lights that never turn off instead.." caption="Frank cluster hardware, integrated to the rest of my homelab. The two Raspberry Pi 4s and the omni are part of the horizontal rack kit, along with a few others. The minis are hidden below the patch panel. The gpu-1 workstation stands to the left. The GPU didn't fit in a mountable 4U case so I got a gaming case with pretty lights that never turn off instead.." >}}
-
-## Architecture
-
-![Omni cluster dashboard showing CPU, pods, memory, and node status for the frank cluster](omni-cluster.png)
-
-The cluster uses a **two-layer management model**:
-
-- **Layer 1 (Machine Config):** Sidero Omni manages Talos Linux machine configurations — OS extensions, kernel modules, disk mounts, network settings. Applied via `omnictl`.
-- **Layer 2 (Workloads):** ArgoCD manages everything running *on* Kubernetes — CNI, storage, GPU drivers, applications. GitOps via the same repo you're reading.
-
-This separation means Omni never touches workloads, and ArgoCD never touches machine config. Clean boundaries, no conflicts.
-
-## What's Next
-
-The rest of this series walks through each capability layer:
+Each post in this series builds one layer on top of the last. The roadmap below shows the full sequence — the post you are reading sits at Layer 0, the motivation.
 
 {{< roadmap >}}
 
-Let's start building.
+## What You Need to Follow This
+
+- Familiarity with `kubectl` and basic Kubernetes concepts (Pod, Service, Deployment)
+- A Talos-compatible machine (x86 or ARM64) to experiment on — even a single node is enough for most layers
+- About 30 minutes per layer post
+
+The series assumes you are building alongside. Each post ends with a running cluster state you can verify.
+
+## Missteps
+
+| What Happened | Why It Was Wrong | How We Fixed It | Commit |
+|---------------|-----------------|-----------------|--------|
+| **Management ran on mini-1** — Omni and Authentik shared the first control-plane node at boot | A control-plane reboot would take down management (Omni) and auth (Authentik) simultaneously, creating a circular dependency where nothing could restart without the other | Moved Omni and Authentik to a dedicated Raspberry Pi 5 outside the cluster | `frank-infrastructure.md` |
+| **Zone D was originally just pc-1** — the Raspberry Pis were added months later as an afterthought | The cluster needed low-power edge nodes for always-on workloads (DNS caches, monitoring scrapers) without burning 65W x86 idle power | Added raspi-1 and raspi-2 as `tier: low-power` edge workers | `ce2fcd9e` |
+| **No hardware photo for the first three months** — readers had diagrams of logical topology but no sense of the physical rack layout | The abstract diagrams made the cluster feel theoretical; the photo made it real | Added `homelab.png` showing the rack, minis, and gpu-1 workstation | `46673fde` |
+| **Early drafts documented a manual kubeadm install on Ubuntu** — the entire bootstrap section described a flow that Omni later replaced | Omni support was added mid-series, making the documented approach obsolete and requiring a full revision of the foundation post | Rewrote to describe Omni-based bootstrap as the primary path | `ce2fcd9e` |
 
 ## References
 
 - [Talos Linux](https://www.talos.dev/) — Immutable, secure, minimal Kubernetes OS
 - [Sidero Omni](https://www.siderolabs.com/omni/) — SaaS-simple Kubernetes cluster management for Talos Linux
-- [Kubernetes](https://kubernetes.io/) — Production-grade container orchestration
 - [ArgoCD](https://argo-cd.readthedocs.io/en/stable/) — Declarative GitOps continuous delivery for Kubernetes
-- [Cilium](https://docs.cilium.io/en/stable/) — eBPF-based networking, observability, and security for Kubernetes
+- [Cilium](https://docs.cilium.io/en/stable/) — eBPF-based networking, observability, and security
 - [Longhorn](https://longhorn.io/) — Cloud-native distributed block storage for Kubernetes
-- [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/) — Automated GPU management in Kubernetes
-- [Intel Resource Drivers for Kubernetes](https://github.com/intel/intel-resource-drivers-for-kubernetes) — DRA-based resource drivers for Intel GPUs
-- [eBPF](https://ebpf.io/) — Technology for programmable networking, observability, and security in the Linux kernel
+- [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/) — GPU management in Kubernetes

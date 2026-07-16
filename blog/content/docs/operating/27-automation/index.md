@@ -7,91 +7,109 @@ draft: false
 tags: ["operations", "awx", "ansible", "automation", "authentik", "oidc", "postgresql"]
 summary: "Onboarding a new host, reading a failed job, rotating the OIDC secret, and getting back in when SSO is the thing that broke."
 weight: 28
+reader_goal: "Onboard a new host to AWX, read a failed job, rotate the OIDC secret, and break-glass when SSO is down."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/14d0b674
 ---
 
-The companion to {{< relref "/docs/building/32-automation" >}}. The building post
-is the story of standing AWX up; this one is the cheat-sheet for living with it —
-adding the next host, reading a job that went red, rotating the secret that fronts
-the whole thing, and the break-glass path for the day Authentik is down and the SSO
-button can't save you.
+{{< last-updated >}}
 
-Assumes the layer is deployed and `.env` (Frank `KUBECONFIG`) is sourced. AWX lives
-in the `awx` namespace; its UI is `awx.cluster.derio.net`.
+The companion to [Automation with AWX]({{< relref "/docs/building/32-automation" >}}). This post is the cheat-sheet for living with it — onboarding hosts, reading failed jobs, rotating the OIDC secret, and breaking glass when SSO is down.
 
-## Onboard a new host
+Assumes the `awx` namespace exists and `.env` (Frank `KUBECONFIG`) is sourced.
 
-This is the whole reason the layer exists, and it's been reduced to an env file
-plus three scripts — the `awx-onboard-hosts` skill. Fill
-`scripts/tmp/awx-hosts.env` (one line per host: `ssh_alias | awx_host |
-ansible_user | become`), then:
+```mermaid
+graph LR
+    subgraph awx["awx namespace"]
+        web["awx-web<br/>Django + API"]
+        task["awx-task<br/>Job runner"]
+        pg["awx-postgres-15<br/>PostgreSQL"]
 
-```bash
-bash agents/skills/awx-onboard-hosts/01-key-onboard.sh   # dedicated key + ssh-copy-id, verified the AWX way
-bash agents/skills/awx-onboard-hosts/02-wire-up.sh       # org, credential, inventory + ad-hoc ping proof
-bash agents/skills/awx-onboard-hosts/03-formalize.sh     # Gitea ping repo + Project + Job Template
+        subgraph jobs["Execution"]
+            ee["Execution-Environment Pod<br/>Ansible playbook"]
+            inventory["Inventory<br/>host groups"]
+            creds["Credentials<br/>SSH keys + tokens"]
+        end
+
+        web --> pg
+        web --> task
+        task --> ee
+        ee --> inventory
+        ee --> creds
+    end
+
+    subgraph auth["Authentication"]
+        authentik["Authentik SSO<br/>OIDC provider"]
+        admin["break-glass<br/>local admin"]
+    end
+
+    subgraph targets["Target Hosts"]
+        host1["192.168.10.x"]
+        host2["192.168.50.x"]
+    end
+
+    web --> authentik
+    web --> admin
+    ee --> host1
+    ee --> host2
 ```
 
-The one preflight that actually matters runs first inside those scripts but is worth
-knowing by hand: **can a pod even reach the host?** AWX runs jobs in execution-
-environment pods on the cluster network, so a target on a different VLAN has to be
-routable from a pod, not just from your Mac:
+## What Healthy Looks Like
+
+- `awx-web` and `awx-task` pods are `Running`.
+- `awx-postgres-15-0` is `Running` and migration Job is `Completed`.
+- `kubectl -n awx get awx awx -o jsonpath='{.status.conditions}'` shows `Successful`.
+- `curl -s https://awx.cluster.derio.net/api/v2/ping/` returns a JSON ping.
+- SSO login via Authentik works and directs to the AWX dashboard.
+
+## Verify
 
 ```bash
+# Two-layer reconcile: ArgoCD → operator → pods
+kubectl -n awx get awx awx -o jsonpath='{.status.conditions}'
+kubectl -n awx get pods
+
+# AWX API
+curl -s https://awx.cluster.derio.net/api/v2/ping/ | python3 -m json.tool
+
+# Pod-level reachability to a target host
 kubectl -n awx exec deploy/awx-task -c awx-task -- \
   python3 -c "import socket;s=socket.socket();s.settimeout(4);s.connect(('192.168.10.14',22));print('OPEN')"
 ```
 
-`OPEN` means feasible. A timeout means stop and fix routing before touching AWX.
+## Steps
 
-## Verify the two-layer reconcile
-
-AWX is reconciled by *two* loops — ArgoCD installs the operator + CR; the operator
-builds the pods, DB, and migrations. ArgoCD `Synced/Healthy` only proves the first.
-To prove the second, look at the pods directly:
+### Onboard a New Host
 
 ```bash
-kubectl -n awx get awx awx -o jsonpath='{.status.conditions}'; echo
-kubectl -n awx get pods
-# expect: awx-postgres-15-0 Running, awx-web + awx-task Running, migration job Completed
-kubectl -n awx logs deploy/awx-task -c awx-task | grep -i "migration"   # "...is finished"
-curl -s https://awx.cluster.derio.net/api/v2/ping/ | python3 -m json.tool
+# Fill the env file
+# scripts/tmp/awx-hosts.env: ssh_alias | awx_host | ansible_user | become
+
+bash agents/skills/awx-onboard-hosts/01-key-onboard.sh
+bash agents/skills/awx-onboard-hosts/02-wire-up.sh
+bash agents/skills/awx-onboard-hosts/03-formalize.sh
 ```
 
-If `awx-web` is CrashLooping right after a CR change, the first suspect is
-`extra_settings`: a string value missing its inner Python quotes is a syntax error in
-the rendered settings module. Check the rendered config:
+Preflight: verify the host is routable from an AWX task pod, not just from your Mac.
 
-```bash
-kubectl -n awx get cm awx-awx-configmap -o jsonpath='{.data.settings}' | grep SOCIAL_AUTH
-```
-
-## Run a job, read a failed job
-
-Launch the smoke template (or any) from the UI, or by API. Per-host results and the
-full `stdout` are the truth:
+### Run a Job
 
 ```bash
 ADMIN_PW=$(kubectl -n awx get secret awx-admin-password -o jsonpath='{.data.password}' | base64 -d)
-# launch smoke-ping (job template id from the UI URL or the API)
+
+# Launch a job template
 kubectl -n awx exec deploy/awx-web -c awx-web -- \
-  curl -s -u "admin:$ADMIN_PW" -X POST http://localhost:8052/api/v2/job_templates/<id>/launch/
-# read a job's output
+  curl -s -u "admin:$ADMIN_PW" -X POST \
+  http://localhost:8052/api/v2/job_templates/<id>/launch/
+
+# Read job output
 kubectl -n awx exec deploy/awx-web -c awx-web -- \
-  curl -s -u "admin:$ADMIN_PW" "http://localhost:8052/api/v2/jobs/<job-id>/stdout/?format=txt"
+  curl -s -u "admin:$ADMIN_PW" \
+  "http://localhost:8052/api/v2/jobs/<job-id>/stdout/?format=txt"
 ```
 
-A green run ends in `PLAY RECAP … ok=N failed=0`. `unreachable=1` is an SSH/routing
-problem (re-run the pod reachability check above and confirm the machine credential's
-key is the one you `ssh-copy-id`'d). `failed=1` is the playbook itself — read the
-task that failed, not the recap.
-
-## Rotate / re-set the OIDC secret
-
-The single most counter-intuitive operation here, because it has two traps stacked.
-The provider's `client_secret` is **auto-generated by Authentik** — you don't mint
-one, you copy Authentik's into AWX. And it must be PATCHed into the **`oidc`** settings
-category, **not** `authentication` (the wrong category returns `200` and silently
-drops the key). The whole thing, idempotent:
+### Rotate the OIDC Secret
 
 ```bash
 ADMIN_PW=$(kubectl -n awx get secret awx-admin-password -o jsonpath='{.data.password}' | base64 -d)
@@ -100,89 +118,84 @@ import os; os.environ.setdefault("DJANGO_SETTINGS_MODULE","authentik.root.settin
 import django; django.setup()
 from authentik.providers.oauth2.models import OAuth2Provider
 print(OAuth2Provider.objects.get(client_id="awx").client_secret)')
+
 kubectl -n awx exec deploy/awx-web -c awx-web -- curl -s -u "admin:$ADMIN_PW" \
   -X PATCH http://localhost:8052/api/v2/settings/oidc/ \
   -H 'Content-Type: application/json' \
   -d "{\"SOCIAL_AUTH_OIDC_SECRET\": \"$SECRET\"}"
 ```
 
-Verify it took — a successful write reads back as `$encrypted$`, and the backend
-registers:
+**Trap:** PATCH to the `authentication` category returns 200 and silently drops the key. Must use the `oidc` category.
+
+## Recover
+
+### AWX Web CrashLooping After Config Change
 
 ```bash
-kubectl -n awx exec deploy/awx-web -c awx-web -- curl -s -u "admin:$ADMIN_PW" \
-  http://localhost:8052/api/v2/settings/oidc/ | grep -o '"SOCIAL_AUTH_OIDC_SECRET":"[^"]*"'
-curl -s https://awx.cluster.derio.net/api/v2/auth/    # should list an "oidc" login URL
+kubectl -n awx logs deploy/awx-web --tail=50
 ```
 
-If `/api/v2/auth/` returns `{}`, the OIDC backend isn't registered — the secret didn't
-stick (wrong category) or the provider doesn't exist (blueprint failed; see below).
-
-## When SSO itself is broken — break-glass admin
-
-SSO is great until the thing you log in *through* is the thing that's down. The local
-`admin` is the deliberate escape hatch and never goes through Authentik:
+First suspect: `extra_settings` with missing inner Python quotes. Check the rendered config:
 
 ```bash
-kubectl -n awx get secret awx-admin-password -o jsonpath='{.data.password}' | base64 -d; echo
-# log in at awx.cluster.derio.net via the username/password form (not the SSO icon)
+kubectl -n awx get cm awx-awx-configmap -o jsonpath='{.data.settings}' | grep SOCIAL_AUTH
 ```
 
-If the **SSO button is missing entirely**, the provider blueprint failed to apply —
-the classic being the Authentik 2026.x schema change. Check the blueprint instance:
+### SSO Button Missing
 
 ```bash
 kubectl exec -n authentik deploy/authentik-worker -- python -c '
 import os; os.environ.setdefault("DJANGO_SETTINGS_MODULE","authentik.root.settings")
 import django; django.setup()
 from authentik.blueprints.models import BlueprintInstance
-b=BlueprintInstance.objects.filter(name="AWX OIDC Provider").first()
-print(b.status, bool(b.last_applied_hash))'   # want: successful True
+b = BlueprintInstance.objects.filter(name="AWX OIDC Provider").first()
+print(b.status, bool(b.last_applied_hash))'
 ```
 
-`error` means the blueprint is invalid for the running Authentik version — fix the
-blueprint (`invalidation_flow` + object-shaped `redirect_uris` on 2026.x), let ArgoCD
-re-sync, and the worker re-applies.
+If `error`, the blueprint is invalid for the running Authentik version — fix `invalidation_flow` and `redirect_uris`, let ArgoCD re-sync.
 
-## Backup and restore
-
-Two things hold the irreplaceable state. The **bootstrap secrets** (admin password,
-Django secret key) live SOPS-encrypted in `secrets/awx/` and are applied out-of-band —
-restore with:
+### Break-Glass: SSO is Down
 
 ```bash
-sops --decrypt secrets/awx/awx-admin-password.yaml | kubectl apply -f -
-sops --decrypt secrets/awx/awx-secret-key.yaml     | kubectl apply -f -
+kubectl -n awx get secret awx-admin-password -o jsonpath='{.data.password}' | base64 -d
 ```
 
-The **AWX database** (inventories, credentials, job history) lives on the operator-
-managed Postgres PVC `data-awx-postgres-15-0`. It is not yet snapshotted — flagged as
-out-of-scope until AWX holds state worth the backup plumbing. When it does, that PVC is
-the target, not the `awx` app's other volumes.
+Log in at `awx.cluster.derio.net` via username/password form (not the SSO icon). The local `admin` is deliberately excluded from Authentik.
 
-## Gotchas, in increasing order of mean time to surprise
+### Job Fails with `unreachable`
 
-- **`Synced/Healthy` is the operator's, not AWX's.** Always read the pods.
-- **`ansible_ssh_common_args` is banned in ad-hoc `extra_vars`** (AWX denylist) — put
-  host-key options on the inventory as a variable instead.
-- **Settings PATCH to the wrong category returns `200` and drops the key.** Re-read the
-  setting; don't trust the status code.
-- **An OIDC user lands with no RBAC.** SSO authenticates; it doesn't authorize. Map
-  Authentik groups to AWX teams/roles, or do admin work as break-glass `admin`.
-- **The auto-generated secret is per-provider.** Recreate the Authentik provider and
-  the secret changes — re-run the rotate block above; don't hand-copy an old value.
+```bash
+# Re-test pod-level reachability
+kubectl -n awx exec deploy/awx-task -c awx-task -- \
+  python3 -c "import socket;s=socket.socket();s.settimeout(4);s.connect(('<HOST_IP>',22));print('OPEN')"
+```
 
-## What this doesn't cover
+### Job Fails with `failed`
 
-Building actual automation content — real playbooks, surveys, schedules, workflow job
-templates, RBAC mapping from Authentik groups to AWX teams. The layer ships the
-*controller* and proves it reaches a host; the inventory of useful plays grows in-app
-from here.
+Read the specific task that failed, not the recap. The ansible task path in the output is the actionable line.
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| `Synced/Healthy` in ArgoCD means AWX is ready | ArgoCD installs the operator + CR. The operator then builds pods, runs migrations, and configures the app — none of which ArgoCD tracks. | Always read the pods directly; `Synced/Healthy` is only the first layer. |
+| PATCH to `settings/authentication/` with the OIDC secret works | AWX accepts the PATCH with 200 but silently drops the key if the category is wrong. The key must go to `settings/oidc/`. | Debugging session to discover the silent 200 drop. |
+| The Authentik blueprint applies correctly across version upgrades | The 2026.x Authentik schema change broke the AWX OIDC blueprint's `invalidation_flow` and `redirect_uris` shape. | Blueprint re-sync and manual fix. |
+| An OIDC-authenticated user has RBAC automatically | SSO authenticates but doesn't authorize. The user lands in AWX with zero permissions. | Must map Authentik groups to AWX teams/roles explicitly. |
+
+## Quick Reference
+
+| Command | What It Does |
+|---------|-------------|
+| `kubectl -n awx get awx awx -o jsonpath='{.status.conditions}'` | Operator status |
+| `kubectl -n awx get pods` | Pod-level status |
+| `curl https://awx.cluster.derio.net/api/v2/ping/` | AWX API health |
+| `kubectl -n awx exec deploy/awx-task -- python3 -c "socket connect test"` | Pod-level host reachability |
+| `kubectl -n awx get secret awx-admin-password -o jsonpath='{.data.password}' \| base64 -d` | Break-glass admin password |
+| `kubectl -n awx exec deploy/awx-web -- curl -s http://localhost:8052/api/v2/jobs/<id>/stdout/?format=txt` | Job output |
 
 ## References
 
-- Building post: {{< relref "/docs/building/32-automation" >}}
+- [Building Post — Automation]({{< relref "/docs/building/32-automation" >}})
+- [AWX Operator](https://github.com/ansible/awx-operator)
 - Onboarding skill: `agents/skills/awx-onboard-hosts/`
-- Runbook manual-ops: `docs/runbooks/manual-operations.yaml`
-  (`auto-awx-bootstrap-secrets`, `auto-awx-oidc-client-secret`)
-- App + CR: `apps/awx/`

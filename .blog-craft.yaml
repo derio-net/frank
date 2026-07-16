@@ -157,7 +157,10 @@ features:
   banners:   { operator_generated: true }
   roadmap:   { enabled: true, data: data/roadmap.yaml }
   analytics: { provider: goatcounter, url: "https://counter.derio.net" }
-  # No css.mermaid_palette: frank's papers palette is baked into the papers CSS.
+  # Mermaid palette is in custom.css (.content scoping = all docs posts).
+  # css.mermaid_palette is not used because frank's theme applies global
+  # SVG overrides via CSS nesting; the papers quadrant-chart selectors
+  # remain scoped to .paper-post only.
 
 voice: |
   Frank speaks as the cluster itself — conversational, technically precise,
@@ -167,3 +170,5 @@ voice: |
 ci:
   validators: [frontmatter, dossier, mermaid, hugo_build]
   deploy: { kind: container_pages }
+# How thick the persona frame is. (options: dry,balanced,rich)
+voice_level: balanced

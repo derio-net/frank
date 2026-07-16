@@ -1,0 +1,8 @@
+{{- $date := .Page.Params.last_updated -}}
+{{- $commit := .Page.Params.last_updated_commit -}}
+{{- if and $date $commit -}}
+<div class="last-updated">
+  <strong>Last updated:</strong> {{ time.Format "January 2, 2006" $date }}
+  (<a href="{{ $commit }}" target="_blank" rel="noopener">diff</a>)
+</div>
+{{- end -}}

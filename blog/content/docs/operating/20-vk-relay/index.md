@@ -5,163 +5,154 @@ layer: agents
 date: 2026-04-13
 draft: false
 tags: ["operations", "agents", "vibekanban", "relay", "websocket", "troubleshooting"]
-summary: "Day-to-day commands for the VK relay server — health checks, tunnel status, re-pairing, and troubleshooting the browser-to-agent connection."
+summary: "VK relay server health checks, tunnel status, re-pairing, and troubleshooting the browser-to-agent connection."
 weight: 21
+reader_goal: "Verify the VK relay tunnel is up, re-pair a browser, diagnose 502s and missing workspace data."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/eff627fb
 ---
 
-This is the operational companion to [VK Relay — Tunneling the Browser to a Local Agent Server]({{< relref "/docs/building/25-vk-relay" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook.
+{{< last-updated >}}
 
-## What "Healthy" Looks Like
+This is the operational companion to [VK Relay]({{< relref "/docs/building/25-vk-relay" >}}). That post explains the architecture and deployment. This one is the day-to-day runbook.
 
-A healthy VK relay setup has:
-- The `vk-remote` pod running with **two containers**: `vk-remote` and `relay-server`
-- Relay server listening on port 8082
-- The `/v1/relay/` path reachable through Traefik at `vk.cluster.derio.net`
-- The local VK server in the secure-agent-pod connected via WebSocket tunnel
-- Browser paired and able to view workspace data through the remote UI
+```mermaid
+sequenceDiagram
+    participant Browser as Remote Browser<br/>vk.cluster.derio.net
+    participant Traefik as Traefik<br/>(ingress)
+    participant Relay as Relay Server<br/>(vk-remote:8082)
+    participant Local as Local VK Server<br/>(secure-agent-pod:8081)
+    participant Agent as Agent Workspace
 
-## Observing State
+    Browser->>Traefik: WebSocket connect /v1/relay/connect
+    Traefik->>Relay: route to relay-server
+    Relay->>Local: tunnel WebSocket
+    Note over Relay,Local: pairing code handshake
+    Local->>Agent: query workspace data
+    Agent-->>Local: repos, sessions, diffs
+    Local-->>Relay: relay response
+    Relay-->>Browser: render workspace UI
+```
 
-### Pod Health
+## What Healthy Looks Like
+
+- The `vk-remote` pod has two containers: `vk-remote` and `relay-server`, both `Running`.
+- Relay server is listening on port 8082.
+- `GET https://vk.cluster.derio.net/v1/relay/connect` returns 401 (JWT auth required — means the relay is up and routing).
+- A browser is paired and shows workspace data through the remote UI.
+
+## Verify
 
 ```bash
-# Verify both containers are running
+# Pod health
 kubectl -n agents get pods -l app=vk-remote -o wide
 
-# Check container names (should list: vk-remote relay-server)
-kubectl -n agents get pods -l app=vk-remote \
-  -o jsonpath='{.items[0].spec.containers[*].name}'
-```
+# Relay logs
+kubectl -n agents logs deploy/vk-remote -c relay-server --tail=10
 
-### Relay Server Logs
-
-```bash
-# Relay server logs
-kubectl -n agents logs deploy/vk-remote -c relay-server --tail=20
-
-# Follow relay logs (useful during pairing or debugging)
-kubectl -n agents logs deploy/vk-remote -c relay-server -f
-```
-
-Expected healthy output includes: `Relay server listening on 0.0.0.0:8082`
-
-### Relay Endpoint Reachability
-
-```bash
-# Test relay endpoint through Traefik (expect 401 — JWT auth required)
+# Endpoint reachable (expect 401)
 curl -s -o /dev/null -w "%{http_code}" https://vk.cluster.derio.net/v1/relay/connect
-```
 
-A `401` means the relay is running and reachable — it's rejecting the request because there's no JWT token. A `404` means the IngressRoute isn't routing correctly. A `502` means the relay container is down.
+# Local server relay connection
+kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- \
+  env | grep VK_SHARED_RELAY
+# Expected: VK_SHARED_RELAY_API_BASE=https://vk.cluster.derio.net
+```
 
 ```console
-$ kubectl -n agents get pods -l app=vk-remote -o wide
-NAME                         READY   STATUS    RESTARTS   AGE   IP             NODE     NOMINATED NODE   READINESS GATES
-vk-remote-7949d8bb66-vpgpx   2/2     Running   0          21h   10.244.13.68   mini-2   <none>           <none>
+$ kubectl -n agents get pods -l app=vk-remote
+NAME                         READY   STATUS    RESTARTS   AGE
+vk-remote-7949d8bb66-vpgpx   2/2     Running   0          21h
 
-$ curl -s -o /dev/null -w "relay status: %{http_code}
-" https://vk.cluster.derio.net/v1/relay/connect
-relay status: 401
+$ curl -s -o /dev/null -w "%{http_code}" https://vk.cluster.derio.net/v1/relay/connect
+401
 ```
 
-### Service Ports
-
-```bash
-# Verify both ports are exposed
-kubectl -n agents get svc vk-remote
-# Expected: 8081/TCP (http) and 8082/TCP (relay)
-```
-
-## Common Operations
+## Steps
 
 ### Restart the Relay
-
-The relay is a sidecar in the vk-remote pod — restarting the pod restarts both containers:
 
 ```bash
 kubectl -n agents rollout restart deploy/vk-remote
 kubectl -n agents rollout status deploy/vk-remote
 ```
 
-### Re-Pairing
-
-If the browser loses its IndexedDB data (cleared storage, new browser, new device), re-pair:
-
-1. Port-forward to the local VK server:
-   ```bash
-   kubectl -n secure-agent-pod port-forward deploy/secure-agent-pod 8081:8081
-   ```
-2. Open `http://localhost:8081` → Settings → Relay Settings → "Generate pairing code"
-3. Open `https://vk.cluster.derio.net` → Settings → "Pair host" → enter code
-4. Stop the port-forward — the relay handles everything from here
-
-### Check Local Server Relay Connection
+### Re-Pair a Browser
 
 ```bash
-# Check if the local VK server is connected to the relay
-kubectl -n secure-agent-pod logs deploy/secure-agent-pod -c kali --tail=50 | grep -i relay
+# 1. Port-forward to the local VK server
+kubectl -n secure-agent-pod port-forward deploy/secure-agent-pod 8081:8081
+
+# 2. Open http://localhost:8081 → Settings → Relay Settings → "Generate pairing code"
+
+# 3. Open https://vk.cluster.derio.net → Settings → "Pair host" → enter code
+
+# 4. Stop the port-forward
 ```
 
-If the local server isn't connecting, verify the env var is set:
+## Recover
+
+### 502 on Relay Endpoint
 
 ```bash
-kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- \
-  env | grep VK_SHARED_RELAY
-# Expected: VK_SHARED_RELAY_API_BASE=https://vk.cluster.derio.net
-```
-
-## Troubleshooting
-
-### Workspace Data Not Loading in Remote UI
-
-**Symptom:** The remote UI at `vk.cluster.derio.net` shows workspaces but clicking into one shows no repos, sessions, or diffs.
-
-**Check:** Is the relay tunnel established?
-
-```bash
-# Relay logs — look for active tunnel connections
-kubectl -n agents logs deploy/vk-remote -c relay-server --tail=30
-```
-
-If no tunnel connections appear, the local VK server isn't connecting. Check:
-1. The secure-agent-pod is running
-2. `VK_SHARED_RELAY_API_BASE` env var is set
-3. Cilium egress policy allows outbound to `vk.cluster.derio.net`
-
-### 502 on Relay Path
-
-**Symptom:** `curl https://vk.cluster.derio.net/v1/relay/connect` returns 502.
-
-**Cause:** The relay-server container is not running or not ready.
-
-```bash
-# Check container status
+# Check relay container
 kubectl -n agents describe pod -l app=vk-remote | grep -A5 relay-server
-
-# Check for crash loops
 kubectl -n agents logs deploy/vk-remote -c relay-server --previous
 ```
 
-### Pairing Code Rejected
+The relay-server container is likely crashing. Check for port conflicts or startup failures.
 
-**Symptom:** Entering the 6-digit pairing code in the remote UI fails.
+### Workspace Data Not Loading
 
-**Causes:**
-- Code expired (codes are short-lived — generate a fresh one)
-- Browser and local server not on the same relay (verify both point to `vk.cluster.derio.net`)
-- SPAKE2 mismatch — regenerate and try again
-
-## ArgoCD Sync
+Symptom: the remote UI shows workspaces but they're empty.
 
 ```bash
-# Check vk-remote app status
-argocd app get vk-remote --port-forward --port-forward-namespace argocd
-
-# Force sync if needed
-argocd app sync vk-remote --port-forward --port-forward-namespace argocd
+# Check tunnel connections in relay logs
+kubectl -n agents logs deploy/vk-remote -c relay-server --tail=30
 ```
+
+If no tunnel connections appear:
+
+1. The local VK server (secure-agent-pod) may not be running — check `kubectl -n secure-agent-pod get pods`.
+2. `VK_SHARED_RELAY_API_BASE` may not be set — check the env var.
+3. Cilium `NetworkPolicy` may block egress to `vk.cluster.derio.net`.
+
+### Pairing Code Rejected
+
+- Code expired (6-digit codes are short-lived — generate a fresh one).
+- Browser and local server not on the same relay — verify both point to `vk.cluster.derio.net`.
+- SPAKE2 key mismatch — regenerate and retry.
+
+### Container Not at 2/2 Ready
+
+If only one container is `Running`:
+
+```bash
+kubectl -n agents logs deploy/vk-remote -c <missing-container>
+kubectl -n agents describe pod -l app=vk-remote
+```
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
+|---|---|---|
+| The relay and vk-remote can share a single container | Each has different lifecycle and routing needs. The relay needs its own readiness probe and port. | Split into two containers in the same pod. |
+| A pairing code is valid until the browser closes it | Codes are short-lived by design (SPAKE2 handshake timeout). A stale UI showing an old code wastes a pairing attempt. | Added a "generate new code" instruction to the re-pairing flow. |
+| A 502 on the relay path is always a relay-server crash | It can also be a Traefik IngressRoute misconfiguration or a Cilium egress policy blocking the WebSocket upgrade. | Added the three-layer diagnosis to the runbook. |
+
+## Quick Reference
+
+| Command | What It Does |
+|---------|-------------|
+| `kubectl -n agents get pods -l app=vk-remote` | Pod status (expect 2/2) |
+| `kubectl -n agents logs deploy/vk-remote -c relay-server` | Relay server logs |
+| `curl -s -o /dev/null -w "%{http_code}" https://vk.cluster.derio.net/v1/relay/connect` | Endpoint test (expect 401) |
+| `kubectl -n agents rollout restart deploy/vk-remote` | Restart relay |
+| `kubectl -n secure-agent-pod port-forward deploy/secure-agent-pod 8081:8081` | Local VK server (for pairing) |
+| `kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c kali -- env \| grep VK_SHARED_RELAY` | Check relay env var |
 
 ## References
 
-- [Building Post: VK Relay]({{< relref "/docs/building/25-vk-relay" >}})
+- [Building Post — VK Relay]({{< relref "/docs/building/25-vk-relay" >}})
 - [Operating on Secure Agent Pod]({{< relref "/docs/operating/14-secure-agent-pod" >}})

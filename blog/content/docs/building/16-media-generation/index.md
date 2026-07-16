@@ -7,33 +7,37 @@ draft: false
 tags: ["comfyui", "diffusion", "gpu", "time-sharing", "video", "image", "audio", "go"]
 summary: "Running ComfyUI for video, image, and audio generation on the same GPU as Ollama — with a custom GPU Switcher dashboard to manage time-sharing."
 weight: 17
+reader_goal: "Deploy ComfyUI alongside Ollama on a single GPU with a GPU Switcher dashboard, working around ArgoCD self-heal and cross-compilation gotchas"
+diataxis: tutorial
+last_updated: 2026-07-15
 ---
 
-The cluster has one GPU. Layer 10 gave it to Ollama for LLM inference. This layer adds a second GPU consumer — ComfyUI for diffusion-based media generation — and a mechanism to share the hardware between them.
+The cluster has one GPU. Layer 10 gave it to Ollama for LLM inference. This layer adds a second consumer — ComfyUI for diffusion-based media generation — and a mechanism to share the hardware between them.
 
-## The Constraint: One GPU, Two Workloads
+```mermaid
+flowchart LR
+  subgraph GPU[gpu-1 — RTX 5070 Ti, 16GB]
+    Ollama[ollama<br/>replicas: 1, default]
+    Comfy[comfyui<br/>replicas: 0, on demand]
+  end
+  subgraph Switcher[GPU Switcher — 192.168.55.214]
+    Go[Go web app<br/>50m CPU, 32Mi mem]
+    RBAC[ClusterRole<br/>patch deployments]
+  end
+  subgraph ArgoCD[ArgoCD]
+    ID[ignoreDifferences<br/>spec.replicas]
+  end
 
-The RTX 5070 Ti on gpu-1 has 16GB of GDDR7 VRAM. That's enough for one heavy workload at a time, but not two simultaneously. LTX-2.3 (the video diffusion model) needs 8-12GB of VRAM for inference. Ollama with a 9B parameter model uses 6-7GB. Running both means neither has enough memory for useful context or batch sizes.
-
-Time-sharing is the answer: scale one workload to zero replicas, let the other use the full GPU, then swap when needed. Both Deployments request `nvidia.com/gpu: 1`, so Kubernetes won't schedule them concurrently — the GPU is a discrete resource. Only the workload with `replicas: 1` actually runs.
-
-## Architecture
-
-```
-gpu-1 (RTX 5070 Ti, 16GB VRAM)
-├── ollama (replicas: 1, default active)
-│   └── LLM inference — qwen3.5:9b, deepseek-coder:6.7b
-└── comfyui (replicas: 0, scaled up on demand)
-    └── Diffusion models — LTX-2.3 (video), SDXL (image), Stable Audio
-
-gpu-switcher (any amd64 node)
-└── Web dashboard at 192.168.55.214:8080
-    ├── Shows which workload owns the GPU
-    ├── One-click activate/deactivate
-    └── Patches Deployment replicas via K8s API
+  Switcher -->|scale up| Comfy
+  Switcher -->|scale down| Ollama
+  ArgoCD -->|doesn't fight| Switcher
 ```
 
-Three ArgoCD apps, all using raw manifests (no upstream Helm chart):
+The constraint: the RTX 5070 Ti has 16GB of GDDR7. LTX-2.3 needs 8-12GB. Ollama with a 9B model uses 6-7GB. Both cannot run simultaneously.
+
+The solution is time-sharing: scale one workload to zero, let the other use the full GPU, swap when needed. Both Deployments request `nvidia.com/gpu: 1`, so Kubernetes will not schedule them concurrently.
+
+## The Three Apps
 
 | App | Namespace | IP | Purpose |
 |-----|-----------|-----|---------|
@@ -41,11 +45,9 @@ Three ArgoCD apps, all using raw manifests (no upstream Helm chart):
 | `gpu-switcher` | gpu-switcher | 192.168.55.214:8080 | GPU time-sharing dashboard |
 | `ollama` | ollama | _(existing)_ | Modified: `ignoreDifferences` on replicas |
 
-## ComfyUI
+### ComfyUI
 
-[ComfyUI](https://github.com/comfyanonymous/ComfyUI) is a node-based visual editor for diffusion model pipelines. It supports text-to-video (LTX-2.3), text-to-image (SDXL, Flux), and text-to-audio (Stable Audio). The web UI runs a graph editor where you wire model nodes, samplers, and output nodes together. It also exposes a REST API for programmatic use.
-
-The Deployment:
+[ComfyUI](https://github.com/comfyanonymous/ComfyUI) is a node-based visual editor for diffusion model pipelines. Text-to-video (LTX-2.3), text-to-image (SDXL, Flux), text-to-audio (Stable Audio). Exposes both a visual graph editor and a REST API.
 
 ```yaml
 containers:
@@ -59,37 +61,25 @@ containers:
 ```
 
 Key decisions:
+- **100Gi PVC** on Longhorn `gpu-local` — models are large (LTX-2.3 ~4GB, SDXL ~7GB). Mounts at `/workspace`.
+- **Starts at 0 replicas** — Ollama is the default. ComfyUI only runs when switched via the GPU Switcher.
+- **Node affinity** to gpu-1.
 
-- **100Gi PVC** on Longhorn `gpu-local` StorageClass — models are large (LTX-2.3 alone is ~4GB, SDXL is ~7GB). This volume mounts at `/workspace` and persists across pod restarts.
-- **Starts at 0 replicas** — Ollama is the default active workload. ComfyUI only starts when explicitly switched via the GPU Switcher.
-- **Node affinity** to gpu-1 — the only node with a discrete GPU.
+### GPU Switcher
 
-<!-- MEDIA: screenshot | ComfyUI node editor showing a text-to-video workflow with LTX-2.3 | Open browser to http://192.168.55.213:8188 after activating ComfyUI via GPU Switcher -->
-<!-- {{</* screenshot src="comfyui-editor.png" caption="ComfyUI node editor with workflow" */>}} -->
-
-## GPU Switcher
-
-The GPU Switcher is a custom Go web application that provides a dashboard for managing GPU time-sharing. It runs as a lightweight pod (50m CPU, 32Mi memory) on any amd64 node — it doesn't need a GPU itself.
-
-### How It Works
-
-The application reads a `WORKLOADS` environment variable that defines the managed workloads:
+A custom Go web application that manages time-sharing. It reads a `WORKLOADS` env var defining managed workloads:
 
 ```
 WORKLOADS=ollama:ollama:ollama,comfyui:comfyui:comfyui
 ```
 
-Format: `name:namespace:deployment` — so `ollama:ollama:ollama` means "the workload called `ollama` is the Deployment named `ollama` in the `ollama` namespace".
-
-On each status check, it queries the Kubernetes API for each Deployment's replica count and pod status. The dashboard shows which workload currently owns the GPU. Activating a workload scales it to 1 replica and scales all others to 0.
-
-{{< screenshot src="gpu-switcher-ui.png" caption="GPU Switcher web UI" >}}
+Format: `name:namespace:deployment`. On each status check, it queries the K8s API for each Deployment's replica count. Activating a workload scales it to 1 and all others to 0.
 
 ### The ArgoCD Problem
 
-ArgoCD's self-heal feature normally detects drift between the Git state and the live cluster, then corrects it. If Git says `replicas: 0` for ComfyUI but the GPU Switcher just scaled it to 1, ArgoCD would scale it back to 0 within minutes.
+ArgoCD's self-heal normally detects drift between Git and the live cluster. If Git says `replicas: 0` for ComfyUI but the Switcher just scaled it to 1, ArgoCD would scale it back.
 
-The fix: `ignoreDifferences` on `spec.replicas` in both the ComfyUI and Ollama Application CRs:
+The fix: `ignoreDifferences` on `spec.replicas` in both Application CRs:
 
 ```yaml
 spec:
@@ -100,13 +90,11 @@ spec:
         - /spec/replicas
 ```
 
-This tells ArgoCD to ignore replica count differences — the GPU Switcher is the authority for that field, not Git.
-
-{{< asciinema src="gpu-switcher-toggle.cast" cols="80" rows="38" >}}
+This tells ArgoCD that the GPU Switcher, not Git, is the authority for replica counts.
 
 ### RBAC
 
-The GPU Switcher's ServiceAccount needs cross-namespace access:
+The Switcher's ServiceAccount needs cross-namespace access via ClusterRole:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -115,41 +103,16 @@ metadata:
   name: gpu-switcher
 rules:
   - apiGroups: ["apps"]
-    resources: ["deployments"]
+    resources: ["deployments", "deployments/scale"]
     verbs: ["get", "list", "patch"]
-  - apiGroups: ["apps"]
-    resources: ["deployments/scale"]
-    verbs: ["get", "patch"]
   - apiGroups: [""]
     resources: ["pods"]
     verbs: ["get", "list"]
 ```
 
-A ClusterRole (not a namespaced Role) because it patches Deployments in both the `ollama` and `comfyui` namespaces.
-
-```console
-$ curl -s http://192.168.55.214:8080/api/status | jq
-[
-  {
-    "name": "ollama",
-    "namespace": "ollama",
-    "replicas": 1,
-    "readyReplicas": 1,
-    "podPhase": "Running"
-  },
-  {
-    "name": "comfyui",
-    "namespace": "comfyui",
-    "replicas": 0,
-    "readyReplicas": 0,
-    "podPhase": "None"
-  }
-]
-```
-
 ### Building the Image
 
-The GPU Switcher is a static Go binary in a distroless container. Building on an arm64 Mac for amd64 cluster nodes required some care:
+Cross-compiling a Go binary for amd64 from an arm64 Mac:
 
 ```bash
 # Cross-compile natively (no QEMU)
@@ -161,19 +124,16 @@ docker buildx build --platform linux/amd64 \
   --push .
 ```
 
-The first build attempt used Docker's `--platform` flag on the full multi-stage build, which tried to run the Go compiler under QEMU emulation — and crashed with a SIGSEGV in the Go runtime's garbage collector. The working approach: compile the Go binary natively on the host (arm64) with `GOARCH=amd64`, then use a single-stage Dockerfile that just copies the pre-built binary into a `--platform linux/amd64` distroless image.
+First attempt used Docker's `--platform` on the full multi-stage build, which ran the Go compiler under QEMU — and crashed with a SIGSEGV in the GC. The working approach: compile natively with `GOARCH=amd64`, then use a single-stage Dockerfile that copies the pre-built binary.
 
-The second attempt pushed an image with `arm64` in its OCI manifest despite containing an amd64 binary — Docker inherits the manifest platform from the build host, not from `FROM --platform`. Using `docker buildx build --push` with explicit `--platform linux/amd64` on a single-stage Dockerfile (no emulated build steps) fixed the manifest.
+Second attempt pushed an image with `arm64` in its OCI manifest despite containing an amd64 binary — Docker inherits manifest platform from the build host. Explicit `--platform linux/amd64` fixed it.
 
 ## Model Downloads
 
-ComfyUI models must be downloaded into the PVC after first deployment. This is a manual operation — the models are large and require specific placement:
+ComfyUI models must be downloaded into the PVC after first deployment:
 
 ```bash
-# After switching GPU to ComfyUI via the Switcher
 kubectl exec -it -n comfyui deploy/comfyui -- bash
-
-# Inside the pod — download models to the persistent volume
 cd /workspace/ComfyUI/models
 # LTX-2.3 video model
 wget -P video_models/ https://huggingface.co/Lightricks/LTX-Video/resolve/main/ltx-video-2b-v0.9.5.safetensors
@@ -181,16 +141,28 @@ wget -P video_models/ https://huggingface.co/Lightricks/LTX-Video/resolve/main/l
 wget -P checkpoints/ https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors
 ```
 
-This step is documented in the manual operations runbook.
+## Missteps
 
-## What's Running
+| What Happened | Why It Was Wrong | How We Fixed It | Commit |
+|---------------|-----------------|-----------------|--------|
+| **Go cross-compile crashed under QEMU** — `docker buildx build --platform linux/amd64` on a multi-stage Dockerfile ran the Go compiler under emulation, hitting a SIGSEGV | QEMU user-mode emulation has known issues with Go's garbage collector | Compiled Go binary natively with `GOARCH=amd64`, used single-stage Dockerfile | `b3f86231` |
+| **Image manifest platform mismatch** — Docker inherited `arm64` from build host despite containing amd64 binary | `docker buildx build` without explicit `--platform` on the `FROM` line | Added explicit `--platform linux/amd64` to build command | `b3f86231` |
+| **ArgoCD fighting GPU Switcher** — self-heal reverted replica count changes within minutes | ArgoCD sees drift between Git state and live cluster | Added `ignoreDifferences` on `spec.replicas` for both deployments | `65dcabdb` |
+| **ComfyUI models falling into wrong folder paths** — nodes scan specific subdirectories under `models/` | Each custom node registers its own `folder_paths` scan directory; wrong folder means empty dropdown | Documented per-node model placement in gotchas | — |
 
-After deployment:
+## Recovery Path
 
-- **Ollama** holds the GPU (replicas: 1) — the default state
-- **ComfyUI** is idle (replicas: 0) — waiting to be activated
-- **GPU Switcher** shows the dashboard at `192.168.55.214:8080`
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| GPU Switcher shows wrong state | ArgoCD reverted replica count | Check `ignoreDifferences` is in place; re-scale via Switcher |
+| ComfyUI node shows empty dropdown | Model in wrong `models/` subdirectory | Move model to correct folder path; restart ComfyUI pod |
+| Switcher pod crash looping | RBAC missing for deployment patches | Verify ClusterRole has `deployments/scale` + `patch` verbs |
+| Can't reach ComfyUI on 192.168.55.213 | GPU not switched yet | Use GPU Switcher to activate ComfyUI (scales Ollama to 0) |
 
-To generate a video: open the GPU Switcher, click "Activate" on ComfyUI (which deactivates Ollama), wait for the pod to start (~30s), then open ComfyUI at `192.168.55.213:8188`. When done, switch back to Ollama.
+## References
 
-The cluster now has both LLM inference and media generation on a single GPU, with clean time-sharing managed through a web dashboard.
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) — Node-based diffusion pipeline editor
+- [GPU Switcher source](https://github.com/derio-net/frank/tree/main/apps/gpu-switcher) — Custom Go dashboard
+- [LTX-Video](https://huggingface.co/Lightricks/LTX-Video) — Video diffusion model
+
+**Next: [Hopping Through the Portal — Hop Edge Cluster](/docs/building/17-public-edge)**

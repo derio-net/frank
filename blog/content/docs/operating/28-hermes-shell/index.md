@@ -3,164 +3,80 @@ title: "Operating the Hermes Shell With Its Hindsight Memory Sidecar"
 series: ["operating"]
 layer: agents
 date: 2026-07-11
-draft: true
+draft: false
 tags: ["operations", "hermes", "nous-research", "agents", "litellm", "hindsight", "sidecar", "postgres", "pgvector", "memory", "ssh"]
-summary: "Day-to-day commands for the rebuilt hermes pod on the official image: checking the Hindsight memory sidecar's health, the two-tier memory backup story, the claude-code retain provider and its auth caveat, and the pg_dump/pg_restore restore mechanic."
+summary: "Checking the Hindsight memory sidecar's health, the two-tier memory backup story, the claude-code retain provider, and the pg_restore mechanic."
 weight: 29
+reader_goal: "Verify Hindsight memory health, back up and restore the memory database, diagnose retain-vs-recall failures, and connect via SSH/Mosh."
+diataxis: [how-to, reference]
+last_updated: 2026-07-15
+last_updated_commit: https://github.com/derio-net/frank/commit/4541ee68
 ---
 
-Companion to [Rebuilding the Hermes Shell on the Official Image, With a Hindsight
-Memory Sidecar]({{< relref "/docs/building/33-hermes-shell" >}}). Everything here
-assumes the Frank kubeconfig (`source .env` from the repo root, and mind the
-[relative-path trap]({{< relref "/docs/operating/01-cluster-nodes" >}})).
+{{< last-updated >}}
 
-The pod is now **three containers**: `hermes` (the bare official image), `ssh` (the
-SSH/Mosh sidecar), and `hindsight` (the self-hosted memory backend). Most of what
-changed since the original operating guide is that memory is a real, supervised
-container instead of a hand-run tmux stack, so that is where this guide spends its
-words. The BYOK inference surface (provider pinning, `ollama_chat/`, context
-budgets) is unchanged; the [building post's history]({{< relref "/docs/building/33-hermes-shell" >}})
-still owns that chain.
+Companion to [Rebuilding the Hermes Shell](/docs/building/33-hermes-shell). The pod is now three containers: `hermes`, `ssh`, and `hindsight`. Most of what changed is the memory sidecar — a supervised PostgreSQL + Hindsight process on an isolated PVC.
 
-## What "Healthy" Looks Like
+```mermaid
+graph LR
+    subgraph pod["hermes-agent-shell pod (gpu-1)"]
+        hermes["hermes container<br/>bare official image<br/>gateway run"]
+        sshc["ssh container<br/>sshd + mosh<br/>192.168.55.226"]
+        hindsight["hindsight container<br/>PostgreSQL :5433<br/>Hindsight API :8888"]
 
-```bash
-kubectl -n hermes-agent-shell get pods,svc,pvc
+        hermes ---|"memory queries"| hindsight
+    end
+
+    subgraph storage["PVCs"]
+        data["hermes-agent-shell-data"]
+        home["hermes-agent-shell-home"]
+        repos["hermes-agent-shell-repos"]
+        hmem["hermes-agent-shell-hindsight<br/>isolated memory PVC"]
+    end
+
+    hindsight --- hmem
+    hindsight -->|"Longhorn recurring backup"| backup["Longhorn Snapshots"]
+    hindsight -.->|"pg_dump -Fc"| portable["Portable dump file"]
+
+    subgraph auth["Authentication"]
+        sso["Authentik SSO<br/>dashboard route"]
+        claude["Claude session<br/>(retain auth)"]
+    end
+
+    hermes --> sso
+    hindsight -.-> claude
 ```
 
-- One pod `Running` on **gpu-1**, all three containers Ready
-- The SSH/Mosh Service holding **192.168.55.226** (TCP 22 + UDP 60032-60047)
-- The PVCs `Bound`, including the isolated Hindsight data volume
-  (`hermes-agent-shell-hindsight`) alongside the agent's data/home/repos volumes
+## What Healthy Looks Like
 
-Pod status is not the health check. As with the original build, the surface can be
-green while the real path is broken. The memory backend has its own liveness door,
-and it is loopback-only by design:
+- One pod `Running` on gpu-1, all three containers `Ready`.
+- SSH/Mosh Service at `192.168.55.226` (TCP 22 + UDP 60032–60047).
+- Hindsight `/health` returns `{"status":"healthy","database":"connected"}`.
+- `memory_units` count in PostgreSQL is the expected value (369).
+
+## Verify
 
 ```bash
+# Pod status
+kubectl -n hermes-agent-shell get pods,svc,pvc
+
+# Hindsight health
 kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
   curl -sf http://127.0.0.1:8888/health
-#   → {"status":"healthy","database":"connected"}
-```
 
-Run it against the `hindsight` container specifically (`-c hindsight`). The
-kubelet's own probes are `exec` probes that do exactly this from inside the
-container, because `hindsight-api` binds `127.0.0.1` only and a pod-IP `httpGet`
-probe draws connection-refused forever (the build post's failure five).
-
-From the agent's side, `hermes` sees the same backend over loopback:
-
-```bash
+# Agent-facing memory status
 kubectl exec -n hermes-agent-shell -c hermes deploy/hermes-agent-shell -- \
   bash -lc 'hermes memory status'
-```
 
-This should report the Hindsight backend reachable and the bank populated; it is
-the agent-facing view of the same `/health` the sidecar answers.
-
-## Checking the Memory Store Directly
-
-Recall count, straight from Postgres, is the ground truth. 369 `memory_units`
-survived the migration, so that number is the canary:
-
-```bash
+# Memory count from PostgreSQL
 kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
   psql -h 127.0.0.1 -p 5433 -U hindsight -d postgres \
   -tAc 'select count(*) from memory_units'
-#   → 369
 ```
 
-Two connection details worth pinning, because they are not the Postgres defaults:
-the port is **5433** (not 5432, so nothing collides with a default expectation),
-and the database is **`postgres`**, owned by role **`hindsight`** (the table lives
-in the `postgres` database, not in a database named `hindsight`). Loopback auth is
-trust, so no password is needed from inside the container.
+## Steps
 
-## The Memory Backup Story
-
-This is the part that got materially better in the migration, and it is worth being
-explicit about, because "where is the memory backed up" used to have an
-uncomfortable answer.
-
-**Tier one: Longhorn recurring backups.** Because the Hindsight data now lives on
-its own isolated PVC, that volume auto-joined Longhorn's existing recurring-backup
-group. Nothing was configured specially; isolating the volume is what enrolled it.
-The previously-unbacked-memory gap closed as a side effect of the architecture.
-
-**Tier two: a portable logical dump.** Longhorn snapshots are volume-level and
-cluster-bound. For a portable, restorable-anywhere copy, take a logical dump:
-
-```bash
-kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
-  pg_dump -h 127.0.0.1 -p 5433 -U hindsight -Fc postgres > hindsight-$(date +%F).dump
-```
-
-The two tiers answer different questions. Longhorn answers "the volume died";
-`pg_dump` answers "I need this memory on a different cluster, a different Postgres,
-or my laptop."
-
-## The Retain Provider and Its One Caveat
-
-Writing new memories (retain) uses the **`claude-code`** provider: Sonnet 4.5
-(`claude-sonnet-4-5-20250929`, the provider's built-in default), through a baked
-`claude` CLI and the `claude-agent-sdk` inside the `hindsight` sidecar. Auto-retain
-fires roughly every ten turns.
-
-The caveat that will bite someone: **retain only fires if an authenticated Claude
-session is present in the sidecar.** The `claude-code` provider authenticates
-through the Claude Agent SDK (a logged-in `claude` session), not through an
-`ANTHROPIC_API_KEY` env var, so wiring a key into the manifest does nothing for it.
-If no session is authenticated, new memories are not written, and the failure is
-quiet. Recall is unaffected: it uses the local `BAAI/bge-small-en-v1.5` embeddings
-and needs no LLM at all, so the pod keeps reading its memory back perfectly while
-silently not writing new memories in.
-
-So "memory works" splits into two questions with two different answers. Recall
-working is cheap to verify (the psql count, a recall query). Retain working
-requires that the sidecar's Claude session is live, and there is a trap here:
-
-```bash
-# proves the BINARY exists, NOT that a session is authenticated:
-kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
-  claude --version
-```
-
-`claude --version` tells you the CLI is installed, which is not the same as a
-logged-in session. Durable retain-auth across restarts is an open item (see the
-building post's "What's Next"); until it is settled, treat retain as best-effort and
-recall as the guarantee, and if new memories stop appearing, suspect the session
-before anything else.
-
-## Restore / Migration Mechanic
-
-To pull memory out of an old PostgreSQL (the migration case, or a recovery from a
-`pg_dump`), the shape is:
-
-1. `chmod 700` the old data directory first, then stand the old Postgres up on a
-   spare loopback port (the same `fsGroup` widening from the build post's failure
-   four applies to any data directory Kubernetes has remounted).
-2. `pg_dump -Fc` the old database.
-3. `pg_restore` into the sidecar's Postgres over loopback (`127.0.0.1:5433`). The
-   sidecar's `initdb` has already auto-created an empty schema via Alembic, so
-   restore with `--clean --if-exists` to overwrite it cleanly rather than collide
-   with it.
-4. Restart the pod and re-count `memory_units` to prove continuity.
-
-```bash
-# on the OLD data dir, before starting it (Postgres refuses a group-readable dir):
-chmod 700 "$OLD_PGDATA"
-# then: start old PG on a spare port → pg_dump -Fc → pg_restore --clean --if-exists
-#       into 127.0.0.1:5433 → restart pod → recall count should return 369
-```
-
-The full end-to-end of this (how the old PG is stood up, exact flags, cleanup) is
-in `docs/runbooks/frank-gotchas/agent-shells.md`; the sketch above is the shape,
-not the paste-at-2am procedure.
-
-## Connecting
-
-SSH and Mosh are unchanged from the original operating guide, served by the `ssh`
-sidecar on **192.168.55.226**:
+### Connect via SSH
 
 ```bash
 ssh agent@192.168.55.226
@@ -169,41 +85,92 @@ mosh --ssh="ssh agent@192.168.55.226" \
      --server="mosh-server new -p 60032:60047" 192.168.55.226
 ```
 
-Scripted access still wants `kubectl exec ... -c <container> -- bash -lc '<cmd>'`
-rather than `ssh host -- cmd` (non-interactive SSH skips the profile.d BYOK shim);
-name the container explicitly now that the pod has three.
+### Back Up Memory
 
-## Troubleshooting
+**Tier 1 — Longhorn snapshots** (automatic via recurring backup group on the hindsight PVC).
 
-| Symptom | Cause | Fix |
+**Tier 2 — Portable logical dump:**
+
+```bash
+kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
+  pg_dump -h 127.0.0.1 -p 5433 -U hindsight -Fc postgres > hindsight-$(date +%F).dump
+```
+
+### Restore Memory
+
+```bash
+# On the old data directory (Postgres refuses group-readable dir):
+chmod 700 "$OLD_PGDATA"
+
+# Stand up old PG → pg_dump -Fc → pg_restore --clean --if-exists into 127.0.0.1:5433
+# Restart pod, then verify:
+kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
+  psql -h 127.0.0.1 -p 5433 -U hindsight -d postgres \
+  -tAc 'select count(*) from memory_units'
+# Expected: 369
+```
+
+## Recover
+
+### `hermes` Container CrashLoops
+
+```bash
+kubectl -n hermes-agent-shell logs deploy/hermes-agent-shell -c hermes --tail=30
+```
+
+Missing `args: ["gateway","run"]` — the bare entrypoint runs an interactive TUI. Ensure the manifest sets the gateway args. If `chown`-related: `chown -R hermes:hermes /opt/data`.
+
+### `hindsight` CrashLoops After Restart
+
+```bash
+kubectl -n hermes-agent-shell logs deploy/hermes-agent-shell -c hindsight --tail=30
+```
+
+`fsGroup: 1000` re-loosens PGDATA to group-rwx on remount; Postgres refuses wider than 0750. The fix (`chmod 700 $PGDATA` on every boot) is baked into the sidecar's start script.
+
+### Pod Flapping / Readiness Probe Fails
+
+```bash
+kubectl -n hermes-agent-shell describe pod -l app=hermes-agent-shell | grep -A 10 Events
+```
+
+`hindsight-api` binds `127.0.0.1` only — an `httpGet` probe against the pod IP draws `connection-refused`. The fix is `exec` probes that curl loopback, plus a `startupProbe` for the cold start.
+
+### Recall Works, Retain Doesn't
+
+Retain's `claude-code` provider needs an authenticated Claude session in the hindsight sidecar. `claude --version` only proves the binary exists.
+
+```bash
+# Check if the session is authenticated
+kubectl -n hermes-agent-shell exec -c hindsight deploy/hermes-agent-shell -- \
+  bash -lc 'claude status 2>&1 | grep -i "logged\|authenticated\|session"'
+```
+
+If not authenticated, log in: `kubectl exec -it -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- claude` and complete the OAuth flow. Recall (local `BAAI/bge-small-en-v1.5` embeddings) is unaffected — it works without any LLM auth.
+
+## Missteps
+
+| What we assumed | Why it was wrong | What it cost |
 |---|---|---|
-| `hermes` container CrashLoops on start | Missing `args: ["gateway","run"]`: the bare entrypoint runs an interactive TUI | Ensure the manifest sets the gateway args |
-| Migration/start "hangs" with no error | Restored data directory is root-owned; breaks the CLI privilege-drop shim | `chown -R hermes:hermes /opt/data` |
-| `hindsight` CrashLoops after a restart (worked on first boot) | `fsGroup: 1000` re-loosened PGDATA to group-rwx on remount; Postgres refuses wider than 0750 | `chmod 700 $PGDATA` on every boot (baked into the sidecar's start) |
-| Pod flaps / many restarts, but `/health` is 200 on loopback | Probe was `httpGet` on the pod IP; `hindsight-api` binds 127.0.0.1 only | `exec` probes that curl loopback, plus a `startupProbe` for the cold start |
-| Recall works, new memories never appear | Retain's `claude-code` provider has no authenticated Claude session in the sidecar | Authenticate the sidecar's Claude session; recall is unaffected |
-| Embedding model fails to load though files are present | Revision-pinned `snapshot_download` wrote no `refs/main` | Bake to a fixed `local_dir` and load by path, not by `main` revision |
-| `memory_units` count is 0 / unexpected after restore | pg_restore target wrong, or continuity check off | Re-run the restore mechanic (`-d postgres`, port 5433); count should return 369 |
+| An `httpGet` probe works for a service that binds `127.0.0.1` | The kubelet probes the pod IP, not loopback. `hindsight-api` binds loopback-only for security. Probes drew `connection-refused` forever. | Switched to `exec` probes curling `127.0.0.1:8888/health` from inside the container. |
+| `fsGroup: 1000` is safe for PostgreSQL data directories | On PVC remount, fsGroup re-loosens PGDATA permissions to group-rwx. Postgres refuses a data directory wider than 0750. | Added `chmod 700 $PGDATA` to the sidecar's boot script. |
+| `claude --version` in the sidecar means retain works | The `claude-code` provider authenticates through a logged-in Claude session, not an API key env var. A binary install ≠ authenticated session. | Must explicitly check session auth; retain is best-effort until durable-auth is implemented. |
+| The bare official image starts as a gateway server | The official image's entrypoint runs an interactive TUI by default. Without `args: ["gateway","run"]`, the container blocks at the TUI screen. | Added the gateway args to the manifest. |
 
-## What's Retired
+## Quick Reference
 
-- **The relocatable venv-on-PVC seed ([#496])**: gone. The official image is the
-  source of truth; there is no baked-`root:root` venv to relocate.
-- **The venv-on-PVC seed cont-init and the auto-continue patch**: gone. Tracking
-  upstream means running upstream's venv and behaviour, not maintained edits.
-- **The custom-image maintenance**: gone. `hermes` is the bare official image plus
-  `args`. The only image still owned here is the Hindsight backend, which exists
-  because upstream ships the client and not the server.
-- **The hand-run tmux memory stack**: gone. Memory is a supervised container on a
-  backed-up volume.
+| Command | What It Does |
+|---------|-------------|
+| `kubectl -n hermes-agent-shell get pods,svc,pvc` | Full status |
+| `kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- curl -sf http://127.0.0.1:8888/health` | Hindsight health |
+| `kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- psql ... -c 'select count(*) from memory_units'` | Memory count |
+| `kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- pg_dump ... > hindsight-$(date +%F).dump` | Logical memory backup |
+| `ssh agent@192.168.55.226` | SSH to pod |
+| `kubectl exec -n hermes-agent-shell -c hermes deploy/hermes-agent-shell -- bash -lc 'hermes memory status'` | Agent memory status |
 
 ## References
 
-- [Building post]({{< relref "/docs/building/33-hermes-shell" >}}): the rebuild narrative and the five on-cluster failures
-- [willikins#285](https://github.com/derio-net/willikins/issues/285): the official-image migration and Hindsight sidecar
-- [agent-images repo](https://github.com/derio-net/agent-images): the `hermes-agent-shell-hindsight` backend image
-- `docs/runbooks/frank-gotchas/agent-shells.md`: memory sidecar operations, retain-auth, and the restore mechanic
-- [Operating on Local Inference]({{< relref "/docs/operating/07-inference" >}}): LiteLLM gateway operations
-- [LiteLLM Ollama provider docs](https://docs.litellm.ai/docs/providers/ollama): the BYOK inference path, unchanged
-
-[#496]: https://github.com/derio-net/frank/issues/496
+- [Building Post — Hermes Shell](/docs/building/33-hermes-shell)
+- [willikins#285](https://github.com/derio-net/willikins/issues/285) — official-image migration
+- `docs/runbooks/frank-gotchas/agent-shells.md` — restore mechanic detail
+- [Operating on Local Inference]({{< relref "/docs/operating/07-inference" >}})

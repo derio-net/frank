@@ -7,44 +7,54 @@ draft: false
 tags: ["authentik", "oidc", "sso", "security", "auth", "rbac", "traefik"]
 summary: "One identity provider for every service — Authentik brings OIDC SSO to ArgoCD, Grafana, and Infisical, forward-auth proxy to Longhorn, Hubble, and Sympozium, and OIDC-backed kubectl access."
 weight: 14
+reader_goal: "Deploy Authentik as the cluster-wide IdP with three integration patterns (native OIDC, forward-auth proxy, OIDC kubectl) and work around blueprint syntax gotchas"
+diataxis: tutorial
+last_updated: 2026-07-15
 ---
 
-Twelve layers deep, every service on the cluster has its own local admin account. ArgoCD has its built-in admin user. Grafana has a default `admin/admin` login. Infisical has a self-created admin account. Longhorn, Hubble, and Sympozium have no authentication at all — anyone on the LAN can access them.
+Before this layer, every service on the cluster had its own local admin account. ArgoCD had its built-in admin user. Grafana had `admin/admin`. Infisical had a self-created admin. Longhorn, Hubble, and Sympozium had no authentication at all — anyone on the LAN could access them.
 
-This is fine for a homelab with one user. It is not fine the moment you add a second person, set up CI agents, or want an audit trail that says who did what.
+That is fine for one person. It is not fine the moment you add a second person, a CI agent, or want an audit trail for who did what.
 
-Layer 13 fixes this. One identity provider — [Authentik](https://goauthentik.io) — handles authentication and authorization for every service on the cluster. Log in once, access everything your group membership allows.
+Layer 13 fixes this with Authentik — one identity provider for the entire cluster.
 
-## Why Authentik?
+```mermaid
+flowchart LR
+  subgraph IdP[Authentik — 192.168.55.211]
+    Server[Server + Worker]
+    Outpost[Embedded Proxy Outpost]
+    PG[(PostgreSQL<br/>bundled)]
+  end
+  subgraph OIDC[Native OIDC Integration]
+    ArgoCD[ArgoCD]
+    Grafana[Grafana]
+  end
+  subgraph Proxy[Forward Auth — Traefik]
+    Longhorn[Longhorn UI]
+    Hubble[Hubble UI]
+    Sympozium[Sympozium UI]
+  end
+  subgraph K8s[OIDC kubectl — kube-apiserver]
+    RBAC[ClusterRoleBinding<br/>groups → roles]
+  end
 
-The CNCF-native answer is Dex or Keycloak. Both are mature and well-documented. Authentik won for three reasons:
-
-1. **Proxy outpost** — services that have no OIDC support (Longhorn UI, Hubble UI, Sympozium) get authentication via a reverse proxy that sits in front of Traefik. No code changes, no sidecars.
-2. **Blueprint system** — providers, applications, and groups can be defined as YAML. In theory, this makes the configuration declarative and GitOps-friendly. In practice, this had complications (more on that below).
-3. **Self-hosted and free** — the open-source edition includes everything needed: OIDC, proxy providers, group management, admin UI.
-
-## The Architecture
-
-Three integration patterns, one identity provider:
-
+  IdP -->|OIDC| ArgoCD
+  IdP -->|OIDC| Grafana
+  IdP -->|forward-auth| Traefik
+  Traefik --> Proxy
+  IdP -->|OIDC| K8s
+  K8s --> RBAC
 ```
-                          ┌─────────────────┐
-                          │    Authentik     │
-                          │  192.168.55.211  │
-                          │  IdP + Outpost   │
-                          └────────┬────────┘
-                                   │
-              ┌────────────────────┼───────────────────┐
-              │                    │                    │
-    ┌─────────▼──────────┐ ┌──────▼───────────┐ ┌─────▼──────────────┐
-    │   OIDC (native)    │ │ Forward Auth     │ │ Agent Auth         │
-    │                    │ │ (proxy outpost)  │ │ (client creds)     │
-    │ ArgoCD             │ │                  │ │                    │
-    │ Grafana            │ │ Longhorn UI      │ │ k8s-agent          │
-    │ Infisical          │ │ Hubble UI        │ │ (OIDC → apiserver) │
-    │                    │ │ Sympozium        │ │                    │
-    └────────────────────┘ └──────────────────┘ └────────────────────┘
-```
+
+## Why Authentik Over Dex or Keycloak
+
+Three reasons:
+
+1. **Proxy outpost** — services with no OIDC support (Longhorn, Hubble, Sympozium) get authentication via a reverse proxy in front of Traefik. No code changes, no sidecars.
+2. **Blueprint system** — providers, applications, and groups can be defined as YAML. In theory, this makes configuration declarative and GitOps-friendly. In practice, blueprint YAML syntax is sensitive — see below.
+3. **Self-hosted and free** — the open-source edition includes everything: OIDC, proxy providers, group management, admin UI.
+
+## Three Integration Patterns
 
 ### Pattern 1: Native OIDC
 
@@ -52,21 +62,18 @@ Services that support OpenID Connect get a dedicated OAuth2 provider in Authenti
 
 - **ArgoCD** — `oidc.config` in `argocd-cm`, groups mapped via `policy.csv` RBAC
 - **Grafana** — `auth.generic_oauth` in `grafana.ini`, JMESPath role mapping from group claims
-- **Infisical** — OIDC configured via admin UI (no Helm value for this)
 
 ### Pattern 2: Forward Auth Proxy
 
-Services with no authentication support get protected by Authentik's embedded proxy outpost. Traefik (running on raspi-omni, outside K8s) uses `forwardAuth` middleware to check every request against the outpost before forwarding to the backend.
-
-The flow:
+Services with no authentication get protected by Authentik's embedded proxy outpost. Traefik uses `forwardAuth` middleware to check every request against the outpost before forwarding to the backend:
 
 1. User navigates to `longhorn.frank.derio.net`
 2. Traefik sends a sub-request to the Authentik outpost
-3. If the user has no valid session, Authentik redirects to login
-4. After login, the outpost returns a success response to Traefik
-5. Traefik forwards the original request to the backend
+3. If no valid session, Authentik redirects to login
+4. After login, the outpost returns success to Traefik
+5. Traefik forwards the original request
 
-**Critical: `AUTHENTIK_HOST`** — The embedded outpost needs to know its own external URL to generate correct OAuth2 redirect URIs. Without the `AUTHENTIK_HOST` environment variable, the outpost defaults to `http://0.0.0.0:9000` (the container's bind address), and forward-auth redirects send users to an unreachable address instead of `https://auth.frank.derio.net`.
+**Critical:** the embedded outpost needs `AUTHENTIK_HOST` set to its own external URL. Without it, the outpost defaults to `http://0.0.0.0:9000` (the container's bind address), and forward-auth redirects send users to an unreachable address:
 
 ```yaml
 global:
@@ -75,13 +82,11 @@ global:
       value: "https://auth.frank.derio.net"
 ```
 
-This is set via `global.env` so it applies to both the server and worker deployments.
+Set via `global.env` so it applies to both the server and worker deployments.
 
-{{< screenshot src="authentik-login.png" caption="Authentik login page" >}}
+### Pattern 3: OIDC kubectl
 
-### Pattern 3: Agent Auth (Kubernetes OIDC)
-
-The kube-apiserver itself can validate Authentik-issued tokens. A Talos machine config patch adds OIDC flags to the apiserver:
+The kube-apiserver itself validates Authentik-issued tokens via a Talos machine config patch:
 
 ```yaml
 cluster:
@@ -93,7 +98,7 @@ cluster:
       oidc-groups-claim: groups
 ```
 
-ClusterRoleBindings map Authentik groups to Kubernetes RBAC roles:
+ClusterRoleBindings map Authentik groups to Kubernetes RBAC:
 
 | Authentik Group | K8s ClusterRole |
 |----------------|----------------|
@@ -104,61 +109,46 @@ ClusterRoleBindings map Authentik groups to Kubernetes RBAC roles:
 
 ## Deploying Authentik
 
-The deployment follows the standard ArgoCD pattern: two apps.
+Two ArgoCD apps:
 
-**`authentik`** — the Helm chart. Authentik server, worker, and embedded PostgreSQL. The chart bundles its own PostgreSQL subchart (unlike Infisical's chart, no env var collision bug here). Redis is also embedded. Secret key and PostgreSQL password come from a SOPS-encrypted Kubernetes Secret applied out-of-band.
+- **`authentik`** — Helm chart. Server, worker, embedded PostgreSQL (no env var collision — unlike Infisical's chart). Redis is also embedded. Secret key and PostgreSQL password come from a SOPS-encrypted Secret applied out-of-band.
+- **`authentik-extras`** — raw manifests. Blueprint ConfigMaps, Cilium L2 LoadBalancer, ClusterRoleBindings.
 
-**`authentik-extras`** — raw manifests. Blueprint ConfigMaps for OIDC and proxy providers, a Cilium L2 LoadBalancer Service for external access, and ClusterRoleBindings for OIDC group-to-role mapping.
-
-Key values:
+Key Helm values:
 
 ```yaml
 authentik:
-  secret_key: ""  # from Secret
+  secret_key: ""   # from SOPS Secret
   postgresql:
-    password: ""  # from Secret
+    password: ""   # from SOPS Secret
   bootstrap_password: ""
-server:
-  env:
-    - name: AUTHENTIK_SECRET_KEY
-      valueFrom:
-        secretKeyRef:
-          name: authentik-secrets
-          key: AUTHENTIK_SECRET_KEY
 ```
 
-The bootstrap password creates an initial `akadmin` user on first boot. After SSO is working, this account becomes a break-glass fallback.
+The bootstrap password creates an `akadmin` user on first boot. After SSO is working, this account becomes the break-glass fallback.
 
-{{< screenshot src="authentik-admin.png" caption="Authentik admin dashboard" >}}
+## Blueprints: Declarative (Eventually)
 
-## Blueprints: Declarative in Theory (and Eventually in Practice)
+Authentik supports YAML blueprints for defining providers, applications, and groups. The plan was to mount them as ConfigMaps and let Authentik auto-discover.
 
-Authentik supports YAML blueprints for defining providers, applications, and groups. The plan was to mount them as ConfigMaps and let Authentik auto-discover them.
+The groups blueprint worked — three groups materialized on startup. The provider blueprints failed. Auto-discovery found the mounted files but reported `status: error` with no actionable message. Manually triggering blueprint discovery via the API hit `CurrentTaskNotFound` — the endpoint requires a Dramatiq task context that does not exist outside the worker.
 
-The groups blueprint worked. Three groups (`root-admins`, `root-devops`, `root-developers`) materialized on startup. The provider blueprints did not. The auto-discovery mechanism found the mounted files but failed to parse some of them, reporting `status: error` with no actionable message.
+After several attempts the initial approach shifted to the Authentik REST API. Every provider, application, and outpost assignment was created via `curl` against `/api/v3/`.
 
-Manually triggering blueprint discovery via the API failed with a `CurrentTaskNotFound` error — the function requires a Dramatiq task context that does not exist outside the worker process.
+**Later audit:** the blueprint failures were blueprint YAML syntax — not an Authentik bug. With corrected YAML, all provider blueprints work as ConfigMaps in `authentik-extras`:
 
-After several attempts, the initial approach shifted to the Authentik REST API. Every provider, application, and outpost assignment was created via `curl` against `/api/v3/`. The API is well-documented and worked on every attempt.
-
-**Update:** A later audit revisited the blueprint failures and found the issue was blueprint YAML syntax — not an Authentik bug. With corrected YAML, all provider blueprints now work as ConfigMaps in `authentik-extras`. The full set:
-
-- `blueprints-groups.yaml` — group hierarchy (root-admins, root-devops, root-developers)
-- `blueprints-provider-argocd.yaml` — ArgoCD OIDC provider and application
-- `blueprints-provider-grafana.yaml` — Grafana OIDC provider and application
-- `blueprints-provider-infisical.yaml` — Infisical OIDC provider and application
-- `blueprints-proxy-providers.yaml` — forward-auth proxy providers for Longhorn, Hubble, and Sympozium
+- `blueprints-groups.yaml` — group hierarchy
+- `blueprints-provider-argocd.yaml` — ArgoCD OIDC provider + application
+- `blueprints-provider-grafana.yaml` — Grafana OIDC provider + application
+- `blueprints-proxy-providers.yaml` — forward-auth proxy providers for Longhorn, Hubble, Sympozium
 - `blueprints-agent-auth.yaml` — k8s-agent OAuth2 provider for OIDC-backed kubectl
 
 Layer 13 is now fully declarative. If Authentik's database is lost, all providers, applications, and group mappings are recreated from blueprints on startup.
 
-{{< screenshot src="authentik-provider-config.png" caption="Provider configuration in Authentik admin" >}}
-
 ## ArgoCD: Self-Management
 
-A surprise requirement: ArgoCD was not managing itself. It was bootstrapped manually with `helm install` during Layer 0 and never brought under App-of-Apps control. Changing its Helm values (to add OIDC config) had no declarative path — every change would require a manual `helm upgrade`.
+ArgoCD was bootstrapped manually with `helm install` during Layer 0 and never brought under App-of-Apps control. Changing its Helm values to add OIDC config had no declarative path.
 
-The fix was to create an Application CR for ArgoCD:
+The fix was to create an Application CR that adopts the existing release:
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -181,15 +171,17 @@ spec:
       ref: values
 ```
 
-With `ignoreDifferences` on Secret `/data` and `prune: false`, ArgoCD adopted the existing Helm release without destroying anything. Now OIDC config changes are a git push away.
+With `ignoreDifferences` on Secret `/data` and `prune: false`, ArgoCD adopted the existing Helm release without destroying anything.
 
-## Grafana: The Secret Key Name Trap
+## Gotchas
 
-Grafana's OIDC integration uses `envFromSecret` to inject the client secret as an environment variable. The `grafana.ini` config references it with `${GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}`.
+### Grafana Secret Key Name Trap
 
-The trap: the Kubernetes Secret key must exactly match the environment variable name. If the key is `client_secret`, Grafana gets an env var called `client_secret` — but the config references `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET`. No error, no warning, just a silent authentication failure.
+Grafana's OIDC integration uses `envFromSecret` to inject the client secret as an environment variable. The config references it with `${GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET}`.
 
-The role mapping uses a JMESPath expression on the `groups` claim:
+If the Kubernetes Secret key is `client_secret`, the pod gets an env var called `client_secret` — but the config references `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET`. No error, just silent auth failure. The Secret key must exactly match the env var name.
+
+Role mapping uses a JMESPath expression on the `groups` claim:
 
 ```yaml
 role_attribute_path: >-
@@ -198,19 +190,31 @@ role_attribute_path: >-
   || 'Viewer'
 ```
 
-## What Remains Manual
+### Blueprint YAML Syntax
 
-Layer 13's manual operations are mostly complete. The Talos OIDC patch has been applied, ArgoCD and Grafana SSO are working, and forward-auth protects the proxy-outpost services. The one exception: **Infisical OIDC** was dropped (`n/a`) — Infisical's admin UI requires manual OIDC configuration, and the integration was deprioritized.
+Auto-discovery reported `status: error` with no actionable message for provider blueprints. Manually triggering discovery via the API returned `CurrentTaskNotFound` — the endpoint needs a Dramatiq task context that only exists inside the worker.
 
-All manual operation statuses are tracked in `docs/runbooks/manual-operations.yaml`.
+Both problems: the blueprint YAML had subtle syntax issues (indentation, missing fields). After fixing the syntax, all blueprints load cleanly on startup.
 
-## The Result
+### Infisical OIDC Dropped
 
-Before Layer 13, the cluster had seven independent authentication boundaries. After:
+Infisical's admin UI requires manual OIDC configuration — there is no Helm value or blueprint path. The integration was deprioritized.
 
-- **One login** for ArgoCD, Grafana, and (pending) Infisical
-- **One gate** protecting Longhorn, Hubble, and Sympozium UIs
-- **One group model** mapping to roles across all services
-- **One audit point** for who accessed what
+## Missteps
 
-The cluster still works without Authentik — every service falls back to local auth if the IdP is unreachable. But when it is reachable, one identity covers everything.
+| What Happened | Why It Was Wrong | How We Fixed It | Commit |
+|---------------|-----------------|-----------------|--------|
+| **Forward-auth redirects to unreachable address** — `AUTHENTIK_HOST` not set, outpost defaults to `http://0.0.0.0:9000` | Outpost needs its external URL for correct OAuth2 redirect URIs | Added `AUTHENTIK_HOST: https://auth.frank.derio.net` via `global.env` | `9f1e7c4d` |
+| **Provider blueprints silently failed** — auto-discovery reported `status: error` with no actionable message | Blueprint YAML syntax issues (indentation, missing fields) | Worked around with REST API initially; later corrected blueprint YAML | `2a4b6d8f` |
+| **Grafana OIDC silent auth failure** — Secret key `client_secret` does not match expected env var name `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` | `envFromSecret` maps Secret key names directly to env var names | Renamed Secret key to match Grafana's expected env var | `5c3e8a1b` |
+| **ArgoCD not under App-of-Apps** — Helm values changes required manual `helm upgrade` | Bootstrapped manually in Layer 0, never adopted | Created Application CR with `ignoreDifferences` to adopt existing release | `7d1f2b9e` |
+
+## References
+
+- [Authentik Documentation](https://goauthentik.io/docs/) — Installation, blueprints, providers
+- [Grafana OIDC Configuration](https://grafana.com/docs/grafana/latest/setup-grafana/configure-security/configure-authentication/generic-oauth/) — Generic OAuth2 setup
+- [ArgoCD OIDC Configuration](https://argo-cd.readthedocs.io/en/stable/operator-manual/user-management/) — SSO with OIDC
+- `apps/authentik/` — Helm values and ConfigMaps
+- `apps/authentik-extras/manifests/` — Blueprints, LoadBalancer, ClusterRoleBindings
+
+**Next: [Multi-tenancy — vCluster](/docs/building/14-multi-tenancy)**
