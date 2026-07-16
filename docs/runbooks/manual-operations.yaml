@@ -792,7 +792,7 @@ operations:
   - "# Capture the current (failing) firmware log line for before/after evidence.\ntalosctl -n 192.168.55.31 dmesg | grep -i 'rtl8156b-2.fw'   # expect: \"Direct firmware load ... failed\"\n\n# Apply the updated single per-machine extensions list (now includes siderolabs/realtek-firmware).\nsource .env_devops\nomnictl apply -f patches/phase04-gpu/402-gpu1-nvidia-extensions.yaml\n# gpu-1 rebuilds its image and reboots. Wait for it to return.\nsource .env\nkubectl get node gpu-1 -w   # wait until Ready\n"
   verify:
   - "source .env\ntalosctl -n 192.168.55.31 get extensions | grep realtek-firmware       # present\ntalosctl -n 192.168.55.31 dmesg | grep -i 'rtl8156b-2.fw'              # no \"failed\" line\nkubectl get node gpu-1 -o wide                                          # Ready on 192.168.55.31\nkubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\\.com/gpu}'  # still 1 (schematic override kept nvidia)\n"
-  status: pending
+  status: done
 - id: gpu-pcie-gen4
   layer: gpu
   app: gpu-operator
