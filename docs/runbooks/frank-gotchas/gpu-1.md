@@ -43,6 +43,34 @@ The fix was delayed not just by the wrong mechanism but by a **wedged Omni contr
 
 The USB 2.5G migration (`404-gpu1-usb-25g-nic.yaml`) made gpu-1 the fleet's first **static-networked** host — `dhcp: false` with no `nameservers`. On the 2026-07-12 power-restart it hung ~12h "pinging but dead": static interface → public-DNS fallback (`1.1.1.1`/`8.8.8.8`) → ACL-blocked → no NTP → time-sync-gated `apid`/`kubelet`/`siderolink`. Fixed fleet-wide by the cluster-wide `102-cluster-nameservers` patch. Full failure chain, console signature, and the emergency ACL unblock: **`networking.md` → "Static Talos interface with no `nameservers`"**.
 
+## USB 2.5G NIC firmware — `rtl_nic/rtl8156b-2.fw` via `realtek-firmware` extension
+
+After the USB 2.5G adapter (r8152 / RTL8156B, `enp0s20f0u7`) took over gpu-1's
+`192.168.55.31` address, Talos boots with `Direct firmware load for
+rtl_nic/rtl8156b-2.fw failed` — the RTL8156B firmware blob is not in gpu-1's
+image. The link **still works** on the chip's on-board firmware, so this is
+cosmetic, but the warning is fixed by adding the **`siderolabs/realtek-firmware`**
+system extension (it ships the full upstream `rtl_nic/` tree, which includes
+`rtl8156b-2.fw`; confirmed available on the Image Factory for v1.12.6 as
+`ghcr.io/siderolabs/realtek-firmware:20260309`).
+
+**Where it goes — and the trap:** it belongs in gpu-1's *existing*
+`patches/phase04-gpu/402-gpu1-nvidia-extensions.yaml`, alongside the nvidia
+extensions and `iscsi-tools`. A per-machine `ExtensionsConfiguration`
+**overrides (does not merge with)** cluster-wide configs, so gpu-1's whole
+extension set must live in that one resource — a second per-machine
+`ExtensionsConfiguration` (e.g. a `405-*` file) would override `402` and silently
+drop nvidia + iscsi-tools. Same reason `iscsi-tools` is already pinned there.
+
+Firmware is a **schematic** change, not a ConfigPatch and not a kernel arg
+(contrast `403`'s `pcie_aspm=off`, which is a `KernelArgs` resource). Re-applying
+`402` with `omnictl apply` recomputes gpu-1's install image and reboots the node,
+so it is operator-only — bundle it with any other pending gpu-1 schematic change
+to avoid a second reboot. Manual op: `gpu-gpu1-usb-25g-nic-firmware`
+(`docs/runbooks/manual-operations.yaml`). Verify after reboot with
+`talosctl -n 192.168.55.31 get extensions | grep realtek-firmware` and
+`talosctl -n 192.168.55.31 dmesg | grep -i rtl8156b-2.fw` (no "failed" line).
+
 ## Ollama "system memory" errors mean container cgroup RAM, not VRAM
 
 When Ollama returns `model requires more system memory (X GiB) than is available (Y MiB)`, "system memory" means container RAM, not GPU VRAM. With `OLLAMA_KEEP_ALIVE=24h` page cache from previously-loaded models pins the cgroup near its `resources.limits.memory` ceiling, so a 15 GB model can fail to load even when `nvidia-smi` shows ~15 GB of VRAM free and the host has 60 GB of RAM idle — the gpu-1 container was simply at 31/32 GiB.

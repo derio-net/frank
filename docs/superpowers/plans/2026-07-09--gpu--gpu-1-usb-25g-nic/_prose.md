@@ -56,6 +56,46 @@ verify: |
 status: pending
 ```
 
+## Deviation — 2026-07-16: USB NIC firmware warning
+
+Live-verified 2026-07-11 that Talos loads the USB adapter's r8152 driver but logs
+`Direct firmware load for rtl_nic/rtl8156b-2.fw failed` — the RTL8156B firmware blob
+is absent from gpu-1's schematic (recorded in acceptance row `gpu1-usb-25g-detected`:
+"missing rtl8156b firmware patch logged but link works"). The link runs on the chip's
+built-in firmware, so this is cosmetic, but it is fixed by adding the
+`siderolabs/realtek-firmware` extension (ships the full `rtl_nic/` tree) to gpu-1's
+single per-machine extension list, `patches/phase04-gpu/402-gpu1-nvidia-extensions.yaml`.
+Because a per-machine `ExtensionsConfiguration` overrides rather than merges, the
+firmware extension MUST go in that existing file (not a new one). Re-applying it
+rebuilds the image and reboots gpu-1 → operator-only, maintenance window (below).
+
+```yaml
+# manual-operation
+id: gpu-gpu1-usb-25g-nic-firmware
+layer: gpu
+app: gpu-1
+plan: 2026-07-09--gpu--gpu-1-usb-25g-nic
+when: Next gpu-1 maintenance window (image rebuild + reboot). Bundle with any other pending gpu-1 schematic change (e.g. 403 PCIe ASPM) to avoid a second reboot.
+why_manual: Re-applying an ExtensionsConfiguration rebuilds gpu-1's Talos image and reboots the only GPU node; Omni apply is operator-only.
+commands: |
+  # Capture the current (failing) firmware log line for before/after evidence.
+  talosctl -n 192.168.55.31 dmesg | grep -i 'rtl8156b-2.fw'   # expect: "Direct firmware load ... failed"
+
+  # Apply the updated single per-machine extensions list (now includes siderolabs/realtek-firmware).
+  source .env_devops
+  omnictl apply -f patches/phase04-gpu/402-gpu1-nvidia-extensions.yaml
+  # gpu-1 rebuilds its image and reboots. Wait for it to return.
+  source .env
+  kubectl get node gpu-1 -w   # wait until Ready
+verify: |
+  source .env
+  talosctl -n 192.168.55.31 get extensions | grep realtek-firmware       # present
+  talosctl -n 192.168.55.31 dmesg | grep -i 'rtl8156b-2.fw'              # no "failed" line
+  kubectl get node gpu-1 -o wide                                          # Ready on 192.168.55.31
+  kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'  # still 1 (schematic override kept nvidia)
+status: pending
+```
+
 ## Post-Merge Test Plan
 
 Use the spec's maintenance-window Test Plan verbatim. The layer is not complete until Talos detects the adapter, the concrete MAC-bound patch is pushed, the node returns on `192.168.55.31`, Cilium is healthy on gpu-1, the NVIDIA allocatable count is `1`, and the 24h flap soak stays below alert threshold.

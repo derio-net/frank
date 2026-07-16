@@ -54,6 +54,18 @@ rows:
     status: skipped
     notes: Live manual proof 2026-07-11 — Talos detected r8152 USB adapter enp0s20f0u7
       with MAC 6c:1f:f7:c6:e0:da; missing rtl8156b firmware patch logged but link works.
+  - id: gpu1-usb-25g-firmware-present
+    capability: gpu-1 network stability
+    acceptance: gpu-1's Talos schematic ships the RTL8156B firmware (rtl_nic/rtl8156b-2.fw)
+      for the USB 2.5G Ethernet adapter, so the r8152 driver loads it cleanly with no
+      "Direct firmware load ... failed" warning at boot.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-09--gpu--gpu-1-usb-25g-nic-design.md
+    levels: {}
+    status: not-implemented
+    notes: siderolabs/realtek-firmware added to patches/phase04-gpu/402-gpu1-nvidia-extensions.yaml
+      (single per-machine list — overrides not merges). Operator re-applies via omnictl in a
+      gpu-1 maintenance window (image rebuild + reboot); verify no "rtl8156b-2.fw failed" in dmesg.
   - id: gpu1-cilium-datapath-stable
     capability: gpu-1 network stability
     acceptance: Cilium on gpu-1 initializes and keeps a healthy direct-routing datapath

@@ -1,6 +1,19 @@
-## Add Nvidia extensions to gpu-1's Talos image schematic
-## NOTE: This triggers an image rebuild and reboot of gpu-1
-## Apply BEFORE the kernel module patch (04-gpu-nvidia-modules.yaml)
+## gpu-1's Talos image-schematic system extensions (single per-machine list).
+## NOTE: This triggers an image rebuild and reboot of gpu-1.
+## Apply BEFORE the kernel module patch (04-gpu-nvidia-modules.yaml).
+##
+## IMPORTANT: a per-machine ExtensionsConfiguration OVERRIDES (does not merge
+## with) cluster-wide configs, so EVERY extension gpu-1 needs must live in this
+## one file — that is why `iscsi-tools` and `realtek-firmware` sit alongside the
+## nvidia extensions despite the file's historical name. Do NOT split them into a
+## second per-machine ExtensionsConfiguration (the second would override this one
+## and silently drop these).
+##
+## realtek-firmware provides rtl_nic/rtl8156b-2.fw for the USB 2.5G Ethernet
+## adapter (r8152 / RTL8156B) that carries gpu-1's 192.168.55.31 address
+## (patches/phase04-gpu/404-gpu1-usb-25g-nic.yaml). Without it the r8152 driver
+## logs `Direct firmware load for rtl_nic/rtl8156b-2.fw failed` at boot; the link
+## still works on the chip's built-in firmware, but the warning is fixed here.
 metadata:
     namespace: default
     type: ExtensionsConfigurations.omni.sidero.dev
@@ -13,3 +26,4 @@ spec:
         - siderolabs/iscsi-tools
         - siderolabs/nvidia-container-toolkit-production
         - siderolabs/nvidia-open-gpu-kernel-modules-production
+        - siderolabs/realtek-firmware

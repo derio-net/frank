@@ -18,7 +18,7 @@
 
 | File | Tool | Purpose |
 | ---- | ---- | ------- |
-| `402-gpu1-nvidia-extensions.yaml` | omnictl | Adds nvidia extensions to gpu-1 (includes iscsi-tools — see note below) |
+| `402-gpu1-nvidia-extensions.yaml` | omnictl | gpu-1's single per-machine extensions list: nvidia + `iscsi-tools` + `realtek-firmware` (the USB 2.5G NIC firmware — see note below) |
 | `04-gpu-nvidia-modules.yaml` | omnictl | Loads nvidia kernel modules on gpu-1 |
 | `gpu-operator-values.yaml` | helm | GPU Operator Helm values (driver/toolkit disabled — Talos provides them) |
 | `403-gpu1-pcie-aspm.yaml` | omnictl | Disables PCIe ASPM (`pcie_aspm=off`) to stop the enp3s0/r8169 NIC link-flap (reboots gpu-1; operator-applied — see file header + `docs/runbooks/frank-gotchas/networking.md`) |
@@ -30,8 +30,10 @@
 ### Step 1: Add Nvidia extensions to gpu-1 (triggers reboot)
 
 **NOTE:** Per-machine `ExtensionsConfiguration` **overrides** (not merges with) cluster-wide
-configs. The file includes `iscsi-tools` alongside the nvidia extensions to avoid
-dropping it from gpu-1.
+configs, so every extension gpu-1 needs lives in this one file. It includes `iscsi-tools`
+(would otherwise be dropped) and `realtek-firmware`, which ships `rtl_nic/rtl8156b-2.fw` for
+the USB 2.5G Ethernet adapter (`404-gpu1-usb-25g-nic.yaml`). Re-applying it after adding an
+extension rebuilds gpu-1's image and reboots the node — operator-only, maintenance window.
 
 ```bash
 source .env_devops
@@ -58,10 +60,15 @@ omnictl apply -f patches/phase4-gpu/04-gpu-nvidia-modules.yaml
 ```bash
 source .env
 talosctl -n 192.168.55.31 get extensions
-# Expected: iscsi-tools, nvidia-container-toolkit, nvidia-open-gpu-kernel-modules
+# Expected: iscsi-tools, nvidia-container-toolkit, nvidia-open-gpu-kernel-modules, realtek-firmware
 
 talosctl -n 192.168.55.31 dmesg | grep -i nvidia | head -10
 # Expected: nvidia module loaded messages
+
+# USB 2.5G NIC firmware (r8152 / RTL8156B): the warning must be gone after re-apply.
+talosctl -n 192.168.55.31 dmesg | grep -i 'rtl8156b-2.fw'
+# Before: "Direct firmware load for rtl_nic/rtl8156b-2.fw failed"
+# After : line absent, or a successful load — no "failed"
 ```
 
 ### Step 4: Label gpu-operator namespace for privileged PSS
