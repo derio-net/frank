@@ -69,6 +69,16 @@ Because a per-machine `ExtensionsConfiguration` overrides rather than merges, th
 firmware extension MUST go in that existing file (not a new one). Re-applying it
 rebuilds the image and reboots gpu-1 → operator-only, maintenance window (below).
 
+**APPLIED + verified 2026-07-16** (manual-op `gpu-gpu1-usb-25g-nic-firmware`, status
+`done`; acceptance `gpu1-usb-25g-firmware-present`). `omnictl apply` of the updated
+`402` → Omni recomputed schematic `54e23848` and reinstalled + rebooted gpu-1 (~76s
+NotReady, cordoned first). Post-boot: `realtek-firmware v20260309` present, **zero**
+`rtl_nic` firmware-load failures in dmesg (both the `rtl8156b` USB warning and the
+onboard `rtl8125b` warning cleared), gpu-1 Ready on `192.168.55.31`, nvidia
+allocatable `1`, 19/19 pods back, cilium datapath OK. The USB NIC re-enumerated
+`enp0s20f0u7`→`enp0s20f0u5` across the reboot; the MAC-bound patch kept `.31` on it —
+a live validation of the MAC-binding choice over interface-name binding.
+
 ```yaml
 # manual-operation
 id: gpu-gpu1-usb-25g-nic-firmware
@@ -93,7 +103,7 @@ verify: |
   talosctl -n 192.168.55.31 dmesg | grep -i 'rtl8156b-2.fw'              # no "failed" line
   kubectl get node gpu-1 -o wide                                          # Ready on 192.168.55.31
   kubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'  # still 1 (schematic override kept nvidia)
-status: pending
+status: done
 ```
 
 ## Post-Merge Test Plan
