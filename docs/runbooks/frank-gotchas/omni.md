@@ -288,8 +288,8 @@ Admin-scoped `devops` key. Three Omni service accounts, not one:
 | Identity | Role | TTL | Homed on | Consumed by |
 |---|---|---|---|---|
 | `devops@serviceaccount.omni.sidero.dev` | **Admin** | to 2027-03-02 | workstation `.env_devops` (+ external Infisical/host vault) | interactive / automation `omnictl` + `talosctl` (unchanged) |
-| `shutdown-tirith@serviceaccount.omni.sidero.dev` | **Operator**, frank-scoped | long (see below) | gondor ansible-vault, `tirith` only | orchestrator role on tirith |
-| `shutdown-morgul@serviceaccount.omni.sidero.dev` | **Operator**, frank-scoped | long (see below) | gondor ansible-vault, `morgul` only | orchestrator role on morgul |
+| `shutdown-tirith@serviceaccount.omni.sidero.dev` | **Operator**, frank-scoped | 1 yr (Omni max — **annual renewal**) | gondor ansible-vault, `tirith` only | orchestrator role on tirith |
+| `shutdown-morgul@serviceaccount.omni.sidero.dev` | **Operator**, frank-scoped | 1 yr (Omni max — **annual renewal**) | gondor ansible-vault, `morgul` only | orchestrator role on morgul |
 
 ### Why per-tower (one key each, not one shared)
 
@@ -337,23 +337,24 @@ gives two equivalent-today options:
 
 ### Create commands (run by the operator; DO NOT run from here)
 
-TTL: `omnictl serviceaccount create` defaults to **8760h (1 year)**; there is no
-documented maximum cap. For a *safety* key a long TTL means fewer silent-expiry
-windows — `43800h` (5 years) below — **but a long TTL only helps if expiry is
-actively monitored** (see verification). Adjust to taste; keep the T-30d alert
-regardless.
+TTL: `omnictl serviceaccount create` defaults to **8760h (1 year)**, and on this
+backend **1 year is also the hard maximum** — a longer value was rejected
+empirically (a `43800h` / 5-year create failed). So these are **annual-renewal**
+keys: `--ttl 8760h` below (equivalently, omit `--ttl` for the 1-year default).
+A short-lived key on a crisis-only safety path makes the active expiry check
+(see verification) **non-negotiable** — it is the compensating control.
 
 ```bash
 cd /Users/derio/Docs/projects/DERIO_NET/frank
 source .env && source .env_devops          # devops (Admin) authorizes the create; no browser
 
 # Simplest (single-cluster) — global Operator:
-omnictl serviceaccount create shutdown-tirith --use-user-role=false --role Operator --ttl 43800h
-omnictl serviceaccount create shutdown-morgul --use-user-role=false --role Operator --ttl 43800h
+omnictl serviceaccount create shutdown-tirith --use-user-role=false --role Operator --ttl 8760h
+omnictl serviceaccount create shutdown-morgul --use-user-role=false --role Operator --ttl 8760h
 
 # Future-proof variant — create as Reader, then scope Operator@frank via ACL:
-#   omnictl serviceaccount create shutdown-tirith --use-user-role=false --role Reader --ttl 43800h
-#   omnictl serviceaccount create shutdown-morgul --use-user-role=false --role Reader --ttl 43800h
+#   omnictl serviceaccount create shutdown-tirith --use-user-role=false --role Reader --ttl 8760h
+#   omnictl serviceaccount create shutdown-morgul --use-user-role=false --role Reader --ttl 8760h
 #   omnictl apply -f frank-shutdown-acl.yaml
 ```
 
@@ -396,8 +397,9 @@ signature`. `config/playbooks/homelab-shutdown-verify.yml` must therefore, for
    version` through the Omni proxy succeeds (the same runtime rule as `devops`:
    the SA key must be in the env when `talosctl` runs, not just at generation).
 2. **Alert on days-to-expiry** — decode the key's PGP expiry offline (the
-   "Diagnose the SA key" block above) and page at **T-30d**. Long TTL + no alert
-   is the trap, not the fix.
+   "Diagnose the SA key" block above) and page at **T-30d**. With only a 1-year
+   TTL this alert is **mandatory**, not a nice-to-have: it is the sole thing
+   standing between an annual renewal slipping and the shutdown failing mid-outage.
 
 ### Renewal (per key, one place)
 
