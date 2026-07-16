@@ -7,14 +7,14 @@ All 34 building posts rewritten with the educational methodology: set-the-stage 
 | Category | Items |
 |----------|-------|
 | Added | `reader_goal`, `diataxis`, `last_updated` frontmatter fields |
-| Added | "Next" link at the end of every post (except 33-hermes-shell, the finale, which links back to 00-overview) |
-| Added | Missteps table (real incidents from git history with commit references) |
-| Added | Recovery Path table (symptom → cause → fix) |
+|  | "Next" link at the end of every post (except 33-hermes-shell, the finale, which links back to 00-overview) |
+|  | Missteps table (real incidents from git history with commit references) |
+|  | Recovery Path table (symptom → cause → fix) |
 | Removed | `{{< relref >}}` shortcodes replaced with plain `/docs/building/NN-slug` paths (Hugo build errors when linked posts are `draft: true`) |
-| Removed | MEDIA/screenshot placeholders (drafting artifacts, never captured) |
-| Removed | ASCII architecture diagrams replaced with Mermaid `flowchart LR` |
+|  | MEDIA/screenshot placeholders (drafting artifacts, never captured) |
+|  | ASCII architecture diagrams replaced with Mermaid `flowchart LR` |
 | Modified | Chronological narrative restructured to tutorial flow (architecture → deploy → gotchas → verify → references) |
-| Modified | Verbose session narrative condensed |
+|  | Verbose session narrative condensed |
 |  | "I tried X then Y then Z" → "X was wrong, Y was the fix" |
 ### 00-overview
 
