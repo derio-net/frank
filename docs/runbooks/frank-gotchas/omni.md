@@ -164,7 +164,7 @@ workstation, and a failure is almost always about *which one* signed:
 | Identity | Used when | Signing key |
 |---|---|---|
 | `devops@serviceaccount.omni.sidero.dev` (the SA) | `OMNI_SERVICE_ACCOUNT_KEY` is set in the env | signs **directly** with the SA key — no browser, valid to the SA key's own expiry (2027-03-02) |
-| `familiedermitzaki@gmail.com` (interactive Google login) | the SA env var is **absent** | a **short-lived** (≈4 h TTL) local keypair in `~/.talos/keys/<context>-<identity>.pgp`, re-minted via browser OIDC on expiry |
+| `you@example.com` (interactive Google login) | the SA env var is **absent** | a **short-lived** (≈4 h TTL) local keypair in `~/.talos/keys/<context>-<identity>.pgp`, re-minted via browser OIDC on expiry |
 
 `omnictl serviceaccount list` shows the SA's registered public keys: the
 long-lived one (fingerprint `2945F95C…214304568`, exp 2027-03-02) plus a litter
@@ -191,7 +191,7 @@ devops@serviceaccount.omni.sidero.dev`), and the SA key is read from the env
 
 - Running `talosctl` in a shell where `.env_devops` was never sourced → no SA key
   → talosctl falls back to `~/.talos/config`'s **current context** (an interactive
-  identity, e.g. `omni-frank-1` → `familiedermitzaki@gmail.com`) → `invalid
+  identity, e.g. `omni-frank-1` → `you@example.com`) → `invalid
   signature` if that key has expired (and a browser popup on the re-auth attempt).
 - Bare `talosctl …` with no `--talosconfig` uses `~/.talos/config`, whose current
   context may be an interactive one, **not** the SA — same failure.
@@ -249,11 +249,11 @@ cannot fall back to browser auth to renew — the still-valid SA env is what mak
 ### Recovery — a wedged interactive identity (`invalid signature` / `public key id mismatch`)
 
 If the SA path works (API + Talos both fine under `source .env_devops`) but bare
-`talosctl` / browser `omnictl` fails, the interactive `familiedermitzaki@gmail.com`
+`talosctl` / browser `omnictl` fails, the interactive `you@example.com`
 identity is the broken one, not the SA. Clear its stale local keys and re-auth:
 
 ```bash
-rm ~/.talos/keys/*familiedermitzaki@gmail.com.pgp    # stale local keypairs (per-context)
+rm ~/.talos/keys/*you@example.com.pgp    # stale local keypairs (per-context)
 cd <repo-root> && source .env                        # OMNICONFIG, but NOT the SA env
 omnictl get clusters                                 # completes the Google SSO re-auth → fresh key registers
 ```
@@ -273,7 +273,7 @@ clusters` / `omnictl talosconfig` succeeded. Root cause was **not** the SA key
 (valid to 2027-03-02, proven working through the Talos proxy against a live CP
 node with the SA env sourced) and **not** clock skew (workstation vs Omni = 0 s):
 `talosctl` was using `~/.talos/config`'s interactive context
-(`omni-frank-1` → `familiedermitzaki@gmail.com`) whose ~4 h local key had lapsed,
+(`omni-frank-1` → `you@example.com`) whose ~4 h local key had lapsed,
 either without the SA env in scope or via the bare-config fallback. Fixed by the
 Recovery block (stale-key delete + re-auth) for the interactive path; the durable
 answer for automation is the SA-env + SA-talosconfig runtime sequence above.
