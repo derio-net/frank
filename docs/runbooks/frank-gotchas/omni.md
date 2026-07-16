@@ -278,6 +278,140 @@ either without the SA env in scope or via the bare-config fallback. Fixed by the
 Recovery block (stale-key delete + re-auth) for the interactive path; the durable
 answer for automation is the SA-env + SA-talosconfig runtime sequence above.
 
+## Three-key model — per-tower shutdown service accounts (gondor)
+
+The single shared `devops` key above is being split so the **gondor** Proxmox HA
+cluster (`derio-homelab/proxmox-cluster`) drives frank's power-outage safety
+shutdown with a **least-privilege, single-homed** credential instead of the
+Admin-scoped `devops` key. Three Omni service accounts, not one:
+
+| Identity | Role | TTL | Homed on | Consumed by |
+|---|---|---|---|---|
+| `devops@serviceaccount.omni.sidero.dev` | **Admin** | to 2027-03-02 | workstation `.env_devops` (+ external Infisical/host vault) | interactive / automation `omnictl` + `talosctl` (unchanged) |
+| `shutdown-tirith@serviceaccount.omni.sidero.dev` | **Operator**, frank-scoped | long (see below) | gondor ansible-vault, `tirith` only | orchestrator role on tirith |
+| `shutdown-morgul@serviceaccount.omni.sidero.dev` | **Operator**, frank-scoped | long (see below) | gondor ansible-vault, `morgul` only | orchestrator role on morgul |
+
+### Why per-tower (one key each, not one shared)
+
+PR #38 (`proxmox-cluster`, dual-pve-nut-failover) retires `osgiliath` (the Pi
+QDevice) as the single orchestrator SPOF and moves shutdown-driver duty to
+**either PVE node — `tirith` or `morgul`** — elected via Proxmox HA / quorum.
+Whichever node holds quorum during an outage runs `talosctl shutdown` against
+frank (workers before control-plane). Either can be the driver, so **each tower
+carries its own key**:
+
+- **Single-homed → renewal touches exactly one place.** Rotating
+  `shutdown-tirith` edits one vault var on one node; no shared secret fanned out
+  across hosts, no cross-repo drift, no "which copy is current" ambiguity.
+- **Blast radius per key is one tower.** A compromised or leaked tower key is
+  revoked (`omnictl serviceaccount destroy shutdown-<node>`) without disturbing
+  the other tower or the `devops` automation path.
+
+### Least privilege — role and cluster scope
+
+Omni roles are coarse: `None` < `Reader` < `Operator` < `Admin`. `talosctl
+shutdown`/`reboot` through the Omni proxy is a machine-maintenance op, so the
+floor is **`Operator`** — `Reader` is view-only and cannot reboot/shutdown;
+there is no finer "reboot-only" capability to drop to. `Admin` (what `devops`
+uses) is strictly more than a shutdown driver needs.
+
+**Cluster scoping is not a `create` flag** — `omnictl serviceaccount create` only
+sets a *global* role. To bind Operator to **cluster `frank` only** you apply an
+Omni **AccessPolicy (ACL)**, which grants a role to an identity scoped to a
+cluster. ACLs *elevate* per-cluster and cannot downgrade an existing global role
+(so devops's Admin is unaffected). This Omni currently runs **no ACL**
+(`omnictl get accesspolicy` is empty) and has **one cluster** (`frank`), which
+gives two equivalent-today options:
+
+- **Simplest (single-cluster):** create each SA with global `--role Operator`,
+  no ACL. Blast radius today = frank only, because frank is the only cluster.
+- **Future-proof (true least-privilege):** create each SA with global
+  `--role Reader` (harmless view-only everywhere) and apply an ACL granting
+  `Operator` on cluster `frank`. If a second cluster is ever added to this Omni,
+  these keys do **not** inherit Operator on it.
+
+> Not live-verified: create/ACL-apply were not run this session (diagnosis only),
+> so the base-Reader + ACL-elevation path is grounded in the Omni ACL docs' role
+> examples, not exercised on this backend (v1.5.0). If in doubt, use the simplest
+> form now and add the ACL when a second cluster appears.
+
+### Create commands (run by the operator; DO NOT run from here)
+
+TTL: `omnictl serviceaccount create` defaults to **8760h (1 year)**; there is no
+documented maximum cap. For a *safety* key a long TTL means fewer silent-expiry
+windows — `43800h` (5 years) below — **but a long TTL only helps if expiry is
+actively monitored** (see verification). Adjust to taste; keep the T-30d alert
+regardless.
+
+```bash
+cd /Users/derio/Docs/projects/DERIO_NET/frank
+source .env && source .env_devops          # devops (Admin) authorizes the create; no browser
+
+# Simplest (single-cluster) — global Operator:
+omnictl serviceaccount create shutdown-tirith --use-user-role=false --role Operator --ttl 43800h
+omnictl serviceaccount create shutdown-morgul --use-user-role=false --role Operator --ttl 43800h
+
+# Future-proof variant — create as Reader, then scope Operator@frank via ACL:
+#   omnictl serviceaccount create shutdown-tirith --use-user-role=false --role Reader --ttl 43800h
+#   omnictl serviceaccount create shutdown-morgul --use-user-role=false --role Reader --ttl 43800h
+#   omnictl apply -f frank-shutdown-acl.yaml
+```
+
+ACL (only for the future-proof variant) — `frank-shutdown-acl.yaml`:
+
+```yaml
+metadata:
+  namespace: default
+  type: AccessPolicies.omni.sidero.dev
+  id: frank-shutdown
+spec:
+  rules:
+    - users:
+        - shutdown-tirith@serviceaccount.omni.sidero.dev
+        - shutdown-morgul@serviceaccount.omni.sidero.dev
+      clusters:
+        - frank
+      role: Operator
+  tests: []
+```
+
+Each `create` prints an `OMNI_SERVICE_ACCOUNT_KEY=<blob>` line. **Do not** put it
+in frank's `.env_devops` — these are gondor-only. Paste each into the
+**proxmox-cluster ansible-vault** (`config/host_vars/cluster_frank/vault.yml`):
+`shutdown-tirith` → `vault_omni_sa_key_tirith`, `shutdown-morgul` →
+`vault_omni_sa_key_morgul`, wired through
+`config/inventory/group_vars/cluster_frank/vars.yml` exactly as the existing
+`omni_sa_key: "{{ vault_omni_sa_key }}"` line does (add per-node
+`omni_sa_key_tirith` / `_morgul`). That repo standardizes on ansible-vault
+(AES256) — no SOPS/Infisical.
+
+### Active verification is mandatory (a silent expiry defeats the shutdown)
+
+A shutdown key that has silently expired fails at the **worst** moment — mid power
+outage, when the driver tower tries `talosctl shutdown` and gets `invalid
+signature`. `config/playbooks/homelab-shutdown-verify.yml` must therefore, for
+**each** tower key:
+
+1. **Prove it authenticates** — `talosctl --talosconfig <gen> -n <machine-id>
+   version` through the Omni proxy succeeds (the same runtime rule as `devops`:
+   the SA key must be in the env when `talosctl` runs, not just at generation).
+2. **Alert on days-to-expiry** — decode the key's PGP expiry offline (the
+   "Diagnose the SA key" block above) and page at **T-30d**. Long TTL + no alert
+   is the trap, not the fix.
+
+### Renewal (per key, one place)
+
+Same mechanism as `devops` — with a still-valid authorizing identity sourced:
+
+```bash
+omnictl serviceaccount renew shutdown-tirith    # or shutdown-morgul; prints a new key value
+```
+
+Paste the new value into **that one tower's** vault var
+(`vault_omni_sa_key_tirith` *or* `_morgul`) and nothing else — single-homed means
+one edit, no drift. `renew` registers an additional public key to the SA (the old
+one ages out); the identity and its ACL/role are unchanged.
+
 ## Renewing the fr-isolation cluster-admin kube token (Omni service-account kubeconfig)
 
 The `fr-isolation` `cluster-admin` devcontainer profile
