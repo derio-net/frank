@@ -21,40 +21,55 @@ spec:
       serviceAccountName: cnc
       imagePullSecrets:
         - name: cnc-ghcr-pull
-      initContainers:
-        - name: seed-master-key-file
-          image: busybox:1.37
-          command: ["sh", "-ec"]
-          args:
-            - |
-              mkdir -p /var/lib/cncd/secrets
-              cp /run/secrets/CNCD_SECRETS_MASTER_KEY /var/lib/cncd/secrets/master.key
-              chmod 600 /var/lib/cncd/secrets/master.key
-          volumeMounts:
-            - {name: cncd-data, mountPath: /var/lib/cncd}
-            - {name: master-key, mountPath: /run/secrets, readOnly: true}
+      # The cncd image is distroless (gcr.io/distroless/static-debian12:nonroot,
+      # uid 65532). Match it explicitly so the RWO PVCs (cncd-data, cnc-bundle)
+      # are group-writable by 65532 — fsGroup re-owns the Longhorn volume on
+      # mount. No initContainer: env-key is the deliberate master-key posture
+      # (see below), so there is nothing to pre-seed as root.
+      securityContext:
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
       containers:
         - name: cncd
           image: ghcr.io/agentic-stoa/cnc-frd:0.14.0
           imagePullPolicy: IfNotPresent
-          command: ["serve"]
+          # distroless ENTRYPOINT is ["/cncd"]; `args` supplies the subcommand.
+          # `command:` would REPLACE the entrypoint and exec a nonexistent
+          # `serve` binary (distroless has no shell / no PATH) → CrashLoop.
+          args: ["serve"]
           ports:
             - name: http
               containerPort: 8080
           env:
-            - name: CNCD_DATABASE_URL
-              value: postgres://cnc:$(PG_PASSWORD)@cnc-db-postgresql:5432/cnc
+            # PG_PASSWORD must precede CNCD_DATABASE_URL: k8s `$(VAR)` expansion
+            # only resolves names defined EARLIER in the list.
             - name: PG_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: cnc-db-postgresql
                   key: password
+            - name: CNCD_DATABASE_URL
+              value: postgres://cnc:$(PG_PASSWORD)@cnc-db-postgresql:5432/cnc
             - name: CNCD_BUNDLE_PATH
               value: /bundle
             - name: CNCD_WRITEBACK_MODE
               value: "off"
             - name: CNCD_PUBLIC_URL
               value: http://cncd:8080
+            # Authentik's forward-auth outpost emits X-authentik-username; cncd's
+            # AUTH_HEADER defaults to X-Forwarded-User, so without this every
+            # authenticated browser request 403s (no actor header). The
+            # traefik-system authentik-forwardauth middleware must copy this
+            # header to the backend (authResponseHeaders) — see runbook.
+            - name: AUTH_HEADER
+              value: X-authentik-username
+            # Master-key posture: ENV-KEY (deliberate). cncd reads
+            # CNCD_SECRETS_MASTER_KEY from env and it takes precedence over the
+            # on-PVC key file, so Infisical is the single source of truth
+            # (frank-idiomatic: every other secret is ESO env/envFrom). Rotation
+            # is an Infisical change + pod restart, NOT `cncd rotate-master-key`
+            # (which re-seals the file path and would be shadowed by this env).
             - name: CNCD_SECRETS_MASTER_KEY
               valueFrom:
                 secretKeyRef:
@@ -83,9 +98,3 @@ spec:
         - name: bundle
           persistentVolumeClaim:
             claimName: cnc-bundle
-        - name: master-key
-          secret:
-            secretName: cnc-secrets
-            items:
-              - key: CNCD_SECRETS_MASTER_KEY
-                path: CNCD_SECRETS_MASTER_KEY

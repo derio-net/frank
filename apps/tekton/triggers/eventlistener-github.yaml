@@ -165,8 +165,12 @@ spec:
         - {name: gitea-repo, value: agentic-stoa/cnc-fr}
         - {name: sha, value: $(extensions.sha)}
         - {name: ref-to, value: $(extensions.ref_to)}
-        - {name: test-image, value: golang:1.24-alpine}
-        - {name: test-command, value: go test ./...}
+        # cnc-fr has NO Go/Node build — it is deploy artifacts (manifests + the
+        # demo bundle). `go test ./...` hard-fails. CI is mirror + a bundle
+        # presence sanity on a light image (compile-time gates live in the repo's
+        # own compose-smoke/parity GitHub workflows, not here).
+        - {name: test-image, value: alpine:3.21}
+        - {name: test-command, value: "test -d demo/bundle && echo 'cnc-fr: deploy artifacts present (no compile step)'"}
       template: {ref: cnc-fr-ci-template}
     - name: agentic-stoa-cnc-frd-pr
       interceptors:
@@ -189,7 +193,9 @@ spec:
         - {name: gitea-repo, value: agentic-stoa/cnc-frd}
         - {name: sha, value: $(extensions.sha)}
         - {name: ref-to, value: $(extensions.ref_to)}
-        - {name: test-image, value: golang:1.24-alpine}
+        # cnc-frd go.mod requires go 1.25.7 — a 1.24 image fails (toolchain
+        # download blocked in CI). golang:1.25-alpine ships go >= 1.25.7.
+        - {name: test-image, value: golang:1.25-alpine}
         - {name: test-command, value: go test ./...}
       template: {ref: cnc-frd-ci-template}
     - name: agentic-stoa-cnc-fru-pr

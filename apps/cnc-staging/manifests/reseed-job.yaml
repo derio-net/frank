@@ -1,7 +1,23 @@
-# This is a normal, completed Job rather than an Argo hook. The first sync
-# seeds the persistent staging PVC; deleting this Job is the explicit operator
-# action that requests another staging seed. It is deliberately absent from
-# the prod overlay.
+# Staging demo re-seed — a normal completed Job (NOT an Argo hook). Deleting it
+# is the explicit operator "conscious act" that requests another staging seed;
+# it is deliberately absent from the prod overlay.
+#
+# WHY THIS SHAPE (review 2026-07-16): the first draft did an UNAUTHENTICATED
+# `wget --post-data='' http://cncd:8080/v1/ingest` — but POST /v1/ingest needs
+# scope admin:org (it 403s with no identity), and it keyed prod-refusal off a
+# manifest-literal shell test (`test "$RESEED_CONFIRMATION" = …`) that the same
+# manifest both sets AND checks — a tautology, no real safety.
+#
+# Corrected: ingest is a CNCD operation authenticated IN-PROCESS. An initContainer
+# refreshes the demo bundle into a scratch emptyDir (no RWO PVC contention with
+# the serving cncd's cnc-bundle volume), then the cncd image runs `ingest`
+# directly against the staging DB — no HTTP, no forgeable identity. Prod-refusal
+# is env-supplied (CNC_DEPLOYMENT_ENV, read by cncd) + the Job's staging-only
+# presence, NOT a manifest shell literal.
+#
+# NOTE: today's `cncd ingest` is idempotent (upsert; it does not delete rows).
+# The destructive purge-and-ingest (audited, prod-refusing) is the pending
+# cnc-frd subcommand row — see the runbook Data Safety section.
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -19,25 +35,49 @@ spec:
     spec:
       restartPolicy: Never
       imagePullSecrets: [{name: cnc-ghcr-pull}]
-      containers:
-        - name: reseed
+      # cncd is distroless uid 65532; fsGroup lets the scratch emptyDir be
+      # written by the alpine/git initContainer and read by the cncd container.
+      securityContext:
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+      initContainers:
+        - name: fetch-bundle
           image: alpine/git:2.47.2
           env:
             - name: GITHUB_TOKEN
               valueFrom:
                 secretKeyRef: {name: cnc-source-token, key: token}
-            - name: RESEED_CONFIRMATION
-              value: staging-demo-reseed
           volumeMounts:
             - {name: bundle, mountPath: /bundle}
           command: ["/bin/sh", "-ec"]
           args:
             - |
-              test "$RESEED_CONFIRMATION" = staging-demo-reseed
-              rm -rf /bundle/* /bundle/.[!.]* /bundle/..?* 2>/dev/null || true
-              git clone --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/agentic-stoa/cnc-fr.git" /tmp/cnc-fr
+              git clone --depth 1 \
+                "https://x-access-token:${GITHUB_TOKEN}@github.com/agentic-stoa/cnc-fr.git" /tmp/cnc-fr
               cp -a /tmp/cnc-fr/demo/bundle/. /bundle/
-              wget -qO- --post-data='' http://cncd:8080/v1/ingest
+      containers:
+        - name: reseed
+          image: ghcr.io/agentic-stoa/cnc-frd:0.14.0
+          # distroless entrypoint /cncd; `args` supplies the subcommand.
+          # `cncd ingest` opens the store directly (in-process admin), so it
+          # needs no forward-auth identity.
+          args: ["ingest", "--bundle", "/bundle"]
+          env:
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: cnc-staging-db-postgresql, key: password}
+            - name: CNCD_DATABASE_URL
+              value: postgres://cnc:$(PG_PASSWORD)@cnc-staging-db-postgresql:5432/cnc
+            - name: CNCD_BUNDLE_PATH
+              value: /bundle
+            # Env-supplied deployment signal (read by cncd, not a manifest shell
+            # test). The pending cnc-frd purge subcommand refuses unless this
+            # says staging — defense in depth with the Job's staging-only scope.
+            - name: CNC_DEPLOYMENT_ENV
+              value: staging
+          volumeMounts:
+            - {name: bundle, mountPath: /bundle}
       volumes:
         - name: bundle
-          persistentVolumeClaim: {claimName: cnc-bundle}
+          emptyDir: {}

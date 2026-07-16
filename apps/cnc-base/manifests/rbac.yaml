@@ -1,0 +1,37 @@
+# RBAC for runs-fr's k8s attach backend (term.KubeAttacher). The interactive
+# Runners-panel shell attaches to the cnc-node pod via the pods/exec subresource
+# (spec §D). The `cnc` ServiceAccount had NO Role granting it, so any attach
+# would 403. This Role + binding is the security surface the attach plane needs.
+#
+# HONEST SCOPE: the runs-fr GATEWAY Deployment that consumes this RBAC is
+# deferred to runs-fr#30's live rollout (it needs the runs-fr image + config and
+# live pod-exec, out of scope for this manifests PR). The agent-session plane
+# (cncd → cnc-node:8765) is fully wired here; the interactive attach plane is
+# RBAC-ready but its gateway is a later rollout — see the runbook.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cnc-node-attach
+  labels:
+    app.kubernetes.io/part-of: cnc
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [create, get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cnc-node-attach
+  labels:
+    app.kubernetes.io/part-of: cnc
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cnc-node-attach
+subjects:
+  - kind: ServiceAccount
+    name: cnc

@@ -9,10 +9,16 @@ spec:
   params:
     - {name: cncd-tag, type: string}
     - {name: fru-tag, type: string}
-    - {name: staging-url, type: string, default: https://cnc-staging.cluster.derio.net}
+    # In-cluster, UNAUTHENTICATED gate target. The old default hit the
+    # Authentik-fronted external URL, which 302s to login before /healthz ever
+    # answers and is unroutable from Tekton anyway. cncd's /healthz + /readyz
+    # are ungated. Tekton (host) reaches staging cncd via the vCluster's
+    # host-synced Service — OPERATOR GATE: confirm this synced name at rollout
+    # (same vCluster bridge as the staging IngressRoute).
+    - {name: staging-url, type: string, default: "http://cncd-x-cnc-staging-x-cnc-staging.cnc-staging.svc:8080"}
     - name: quality-command
       type: string
-      default: "wget -qO- https://cnc-staging.cluster.derio.net/healthz >/dev/null"
+      default: "wget -qO- $(params.staging-url)/healthz >/dev/null"
   workspaces:
     - name: repo
     - name: ssh-creds
@@ -36,7 +42,7 @@ spec:
             env:
               - {name: HOME, value: /tekton/home}
               - name: GITHUB_TOKEN
-                valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+                valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
             script: |
               #!/bin/sh
               set -eu
@@ -73,9 +79,9 @@ spec:
               #!/bin/sh
               set -eu
               i=0
-              until [ "$i" -ge 30 ]; do
+              until [ "$i" -ge 40 ]; do
                 if sh -c '$(params.quality-command)'; then exit 0; fi
-                i=$((i + 1)); sleep 10
+                i=$((i + 1)); sleep 15
               done
               echo "staging quality gate timed out" >&2
               exit 1
@@ -102,7 +108,7 @@ spec:
             env:
               - {name: HOME, value: /tekton/home}
               - name: GITHUB_TOKEN
-                valueFrom: {secretKeyRef: {name: stoa-github-mirror, key: token}}
+                valueFrom: {secretKeyRef: {name: frank-gitops-push, key: token}}
             script: |
               #!/bin/sh
               set -eu

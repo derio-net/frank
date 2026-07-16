@@ -799,3 +799,66 @@ spec:
     certResolver: cloudflare
     domains:
       - main: "*.cluster.derio.net"
+---
+# ============================================================================
+# CNC permanent deployment (frank #637). IngressRoutes live host-side in
+# traefik-system per the central convention — the host Traefik cannot see
+# CRs INSIDE the staging vCluster, so an in-namespace IngressRoute (the shape
+# the first draft shipped) never reconciles for staging.
+# ----------------------------------------------------------------------------
+# PROD — host `cnc` namespace, concrete backend. Authentik forward-auth gates
+# the human web surface; the middleware must be configured to forward
+# X-authentik-username to the backend (cncd reads it via AUTH_HEADER).
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: cnc-prod
+  namespace: traefik-system
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`cnc.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - {name: ip-allowlist}
+        - {name: security-headers}
+        - {name: authentik-forwardauth}
+      services:
+        - name: cnc-fru
+          namespace: cnc
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"
+---
+# STAGING — the cnc-fru Service runs INSIDE the cnc-staging vCluster. The host
+# Traefik reaches it only via the vCluster's host-synced Service
+# (sync.toHost.services.enabled: true in the template). The synced name is
+# vCluster-generated: `<svc>-x-<namespace>-x-<vcluster-release>` →
+# `cnc-fru-x-cnc-staging-x-cnc-staging` in the host `cnc-staging` namespace.
+# OPERATOR GATE: confirm the exact synced Service name at rollout (it depends on
+# the live vCluster's sync config) — this is the vCluster ingress bridge the
+# runbook documents. Left concrete here as the best-known name, not pretend.
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: cnc-staging
+  namespace: traefik-system
+spec:
+  entryPoints: [websecure]
+  routes:
+    - match: Host(`cnc-staging.cluster.derio.net`)
+      kind: Rule
+      middlewares:
+        - {name: ip-allowlist}
+        - {name: security-headers}
+        - {name: authentik-forwardauth}
+      services:
+        - name: cnc-fru-x-cnc-staging-x-cnc-staging
+          namespace: cnc-staging
+          port: 80
+  tls:
+    certResolver: cloudflare
+    domains:
+      - main: "*.cluster.derio.net"

@@ -26,8 +26,10 @@ spec:
             - name: http
               containerPort: 80
           env:
-            - name: CNC_API_URL
-              value: http://cncd:8080
+            # cnc-fru's Caddyfile reverse-proxies to {$CNCD_UPSTREAM:cncd:8080};
+            # CNC_API_URL was a no-op (Caddy never reads it).
+            - name: CNCD_UPSTREAM
+              value: cncd:8080
           resources:
             requests: {cpu: 50m, memory: 64Mi}
             limits: {cpu: 500m, memory: 256Mi}

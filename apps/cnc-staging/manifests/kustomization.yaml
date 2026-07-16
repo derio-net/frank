@@ -8,7 +8,6 @@ resources:
   - source-token.yaml
 patches:
   - path: app-patch.yaml
-  - path: ingress-patch.yaml
 images:
   - name: ghcr.io/agentic-stoa/cnc-frd
     newTag: "0.14.0"

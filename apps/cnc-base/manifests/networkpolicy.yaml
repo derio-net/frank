@@ -1,3 +1,59 @@
+# East-west isolation (SEC-3). cncd trusts the forward-auth actor header
+# (AUTH_HEADER=X-authentik-username) on its plain :8080 ClusterIP. On a shared
+# cluster ANY pod could otherwise dial cncd directly and forge that header to
+# impersonate a user. These policies pin the legitimate callers:
+#   - cnc-fru (the Caddy front door, itself only reachable via Traefik forward-auth)
+#   - cnc-node (agent turns calling back to the CNC API with a run-scoped token)
+# The migrate/reseed Jobs are NOT cncd ingress sources: they talk to Postgres
+# directly (reseed runs in-process `cncd ingest`, not an HTTP POST).
+#
+# Prod (host `cnc` ns) enforces these via Cilium. In the staging vCluster,
+# in-cluster NetworkPolicy enforcement depends on the vCluster's own
+# networkPolicy sync (policies.networkPolicy.enabled in the template) — see the
+# runbook's vCluster bridge section; treat staging isolation as an operator gate.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cncd-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cncd
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cnc-fru
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: cnc-node
+      ports:
+        - {port: 8080, protocol: TCP}
+---
+# cnc-fru is the only web surface exposed at the edge. Restrict its ingress to
+# the Traefik pods in traefik-system (the forward-auth hop) so nothing bypasses
+# Authentik by hitting cnc-fru:80 directly.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cnc-fru-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: cnc-fru
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: traefik-system
+      ports:
+        - {port: 80, protocol: TCP}
+---
+# The agent-session server on cnc-node:8765 is dialed only by cncd (spec b
+# agent-session adapter). It fails closed without a runner token, but pin the
+# caller too.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

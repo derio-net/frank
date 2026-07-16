@@ -16,13 +16,10 @@ spec:
       containers:
         - name: migrate
           image: ghcr.io/agentic-stoa/cnc-frd:0.14.0
-          command: ["migrate"]
+          args: ["migrate"]
           env:
             - name: PG_PASSWORD
               valueFrom:
                 secretKeyRef: {name: cnc-prod-db-postgresql, key: password}
             - name: CNCD_DATABASE_URL
               value: postgres://cnc:$(PG_PASSWORD)@cnc-prod-db-postgresql:5432/cnc
-            - name: CNCD_SECRETS_MASTER_KEY
-              valueFrom:
-                secretKeyRef: {name: cnc-secrets, key: CNCD_SECRETS_MASTER_KEY}

@@ -15,6 +15,10 @@ spec:
     - name: test-command
       type: string
       description: Repository-local CI command
+    - name: dashboard-base-url
+      type: string
+      default: "https://tekton.cluster.derio.net"
+      description: "Tekton dashboard base URL (Tailscale-reachable); CI statuses deep-link to the PipelineRun page so a red check links to the failing step."
   workspaces:
     - name: source
     - name: ssh-creds
@@ -100,3 +104,51 @@ spec:
       params:
         - {name: test-image, value: $(params.test-image)}
         - {name: test-command, value: $(params.test-command)}
+  finally:
+    # github-status — MANDATORY (a failed post fails the run). Deep-links to the
+    # PipelineRun so a red check is one click from the failing step.
+    - name: github-status-success
+      when:
+        - {input: $(tasks.status), operator: in, values: ["Succeeded", "Completed"]}
+      taskRef: {kind: Task, name: github-status}
+      params:
+        - {name: repo-full-name, value: $(params.github-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "success"}
+        - {name: description,    value: "All checks passed"}
+        - {name: context,        value: "tekton/ci"}
+        - {name: target-url,     value: "$(params.dashboard-base-url)/#/namespaces/tekton-pipelines/pipelineruns/$(context.pipelineRun.name)"}
+    - name: github-status-failure
+      when:
+        - {input: $(tasks.status), operator: notin, values: ["Succeeded", "Completed"]}
+      taskRef: {kind: Task, name: github-status}
+      params:
+        - {name: repo-full-name, value: $(params.github-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "failure"}
+        - {name: description,    value: "CI failed — click Details for the failing step"}
+        - {name: context,        value: "tekton/ci"}
+        - {name: target-url,     value: "$(params.dashboard-base-url)/#/namespaces/tekton-pipelines/pipelineruns/$(context.pipelineRun.name)"}
+    # gitea-status — best-effort secondary (onError: continue).
+    - name: gitea-status-success
+      when:
+        - {input: $(tasks.status), operator: in, values: ["Succeeded", "Completed"]}
+      onError: continue
+      taskRef: {kind: Task, name: gitea-status}
+      params:
+        - {name: repo-full-name, value: $(params.gitea-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "success"}
+        - {name: description,    value: "All checks passed"}
+        - {name: context,        value: "tekton/ci"}
+    - name: gitea-status-failure
+      when:
+        - {input: $(tasks.status), operator: notin, values: ["Succeeded", "Completed"]}
+      onError: continue
+      taskRef: {kind: Task, name: gitea-status}
+      params:
+        - {name: repo-full-name, value: $(params.gitea-repo)}
+        - {name: revision,       value: $(params.sha)}
+        - {name: state,          value: "failure"}
+        - {name: description,    value: "CI failed"}
+        - {name: context,        value: "tekton/ci"}

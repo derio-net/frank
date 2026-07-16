@@ -9,4 +9,4 @@ resources:
   - services.yaml
   - externalsecrets.yaml
   - networkpolicy.yaml
-  - ingressroute.yaml
+  - rbac.yaml

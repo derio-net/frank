@@ -3,6 +3,9 @@ kind: Application
 metadata:
   name: cnc-staging-vcluster
   namespace: argocd
+  annotations:
+    # Provision the vCluster before its DB (wave 0) and workloads (wave 1).
+    argocd.argoproj.io/sync-wave: "-1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

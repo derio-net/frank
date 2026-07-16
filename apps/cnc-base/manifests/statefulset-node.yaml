@@ -17,8 +17,10 @@ spec:
         app.kubernetes.io/name: cnc-node
         app.kubernetes.io/part-of: cnc
     spec:
-      imagePullSecrets:
-        - name: cnc-ghcr-pull
+      # ghcr.io/derio-net/multi-agent-shell is a PUBLIC package — no
+      # imagePullSecret (only the private agentic-stoa images need cnc-ghcr-pull).
+      # Runs as uid 1000 (agent); the image chowns $AGENT_HOME on boot, and
+      # fsGroup 1000 re-owns the home PV so a fresh volume boots clean.
       securityContext:
         fsGroup: 1000
       containers:
@@ -30,21 +32,29 @@ spec:
               value: "1"
             - name: AGENT_SESSION_PORT
               value: "8765"
+            # The v1 agent-session server binds 127.0.0.1 by default; the
+            # :8765 probes/Service/cncd-dial only work on a non-loopback bind.
+            # A non-loopback bind FAILS CLOSED without a runner token, so the
+            # token below is mandatory, not optional.
+            - name: AGENT_SESSION_BIND
+              value: 0.0.0.0
+            # The server reads AGENT_SESSION_RUNNER_TOKEN[_FILE] — NOT the old
+            # CNC_RUNNER_SESSION_TOKEN name (which the server ignores, leaving a
+            # 0.0.0.0 bind unauthenticated → fail-closed refusal). Mount the ESO
+            # secret as a file and point the server at it.
+            - name: AGENT_SESSION_RUNNER_TOKEN_FILE
+              value: /run/secrets/agent-session/token
             - name: RUNNER_NAME
               value: default
-            - name: CNC_RUNNER_SESSION_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: cnc-runner-auth
-                  key: token
           ports:
             - name: agent-session
               containerPort: 8765
-            - name: ssh
-              containerPort: 2222
           volumeMounts:
             - name: home
               mountPath: /home/agent
+            - name: runner-token
+              mountPath: /run/secrets/agent-session
+              readOnly: true
           resources:
             requests: {cpu: 500m, memory: 1Gi}
             limits: {cpu: "2", memory: 8Gi}
@@ -56,6 +66,12 @@ spec:
             httpGet: {path: /healthz, port: agent-session}
             initialDelaySeconds: 45
             periodSeconds: 30
+      volumes:
+        - name: runner-token
+          secret:
+            secretName: cnc-runner-auth
+            items:
+              - {key: token, path: token}
   volumeClaimTemplates:
     - metadata:
         name: home

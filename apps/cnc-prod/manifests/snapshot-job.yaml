@@ -26,10 +26,18 @@ spec:
           args:
             - |
               mkdir -p /snapshots
-              pg_dump --no-owner --format=custom \
-                --file=/snapshots/cnc-$(date -u +%Y%m%dT%H%M%SZ).dump \
+              # Name the file ONCE and verify THAT file. `test -s /snapshots/*.dump`
+              # globs to multiple args on the 2nd rollout (many dumps) → `test`
+              # errors → PreSync red forever. Verify the dump we just wrote.
+              f="/snapshots/cnc-$(date -u +%Y%m%dT%H%M%SZ).dump"
+              pg_dump --no-owner --format=custom --file="$f" \
                 "postgres://cnc:${PG_PASSWORD}@cnc-prod-db-postgresql:5432/cnc"
-              test -s /snapshots/*.dump
+              test -s "$f"
+              # Retention: keep the 7 most recent dumps so the RWO PVC does not
+              # fill and wedge future PreSyncs. Longhorn volume snapshots of the
+              # cncd-data/master-key PVCs remain a separate operator prerequisite.
+              ls -1t /snapshots/cnc-*.dump | tail -n +8 | xargs -r rm -f
+              echo "snapshot ok: $f"
           volumeMounts:
             - {name: snapshots, mountPath: /snapshots}
       volumes:
