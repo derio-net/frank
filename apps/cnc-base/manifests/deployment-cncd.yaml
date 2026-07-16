@@ -55,8 +55,22 @@ spec:
               value: /bundle
             - name: CNCD_WRITEBACK_MODE
               value: "off"
-            - name: CNCD_PUBLIC_URL
+            # cncd reads CNCD_BASE_URL (default http://127.0.0.1:8080), NOT
+            # CNCD_PUBLIC_URL — the latter was a no-op that left the served
+            # SKILL.md URL wrong off-laptop.
+            - name: CNCD_BASE_URL
               value: http://cncd:8080
+            # agent-session adapter (spec b): the node base URL + the per-runner
+            # SERVICE bearer cncd presents to the node's /v1/session/send. The
+            # token is the SAME secret the node mounts (cnc-runner-auth/token);
+            # the k8s node Service is single-host `cnc-node` (no {runner} template).
+            - name: CNCD_NODE_BASE_URL
+              value: http://cnc-node:8765
+            - name: CNCD_RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cnc-runner-auth
+                  key: token
             # Authentik's forward-auth outpost emits X-authentik-username; cncd's
             # AUTH_HEADER defaults to X-Forwarded-User, so without this every
             # authenticated browser request 403s (no actor header). The
