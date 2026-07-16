@@ -178,6 +178,57 @@ allowed. The `layer-1-node-memory-headroom` Grafana alert (`MemAvailable <
 
 Full timeline + forensics: `docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md`.
 
+## Graceful-node-shutdown pod tombstones look like a live CSI failure (2026-07-16)
+
+Two Longhorn CSI pods — `csi-attacher-5557d89ccf-tq7ln` and
+`csi-provisioner-857485dbfb-26tj7` — sat `0/1 Error`, IP `<none>`, age **41d**,
+long after a gpu-1 hardware event, which made them look like a lingering casualty
+of that outage. They are neither a CSI bug nor outage fallout: they are
+**graceful-node-shutdown tombstones**.
+
+Diagnosis (the fields that settle it):
+
+```bash
+kubectl -n longhorn-system get pod <name> -o jsonpath='{.status.phase}{" / "}{.status.reason}{" / "}{.status.message}{"\n"}'
+# Failed / Terminated / Pod was terminated in response to imminent node shutdown.
+kubectl -n longhorn-system get pod <name> -o jsonpath='{.status.containerStatuses[0].state.terminated.finishedAt}{"\n"}'
+# 2026-07-11T17:35:50Z   <- the node's actual reboot time
+```
+
+What happened: **mini-1 rebooted 2026-07-11**. The kubelet's graceful-node-shutdown
+manager SIGTERM'd the pods and left them in a terminal `Failed` phase with that
+canonical message. The owning ReplicaSet immediately created healthy replacements
+(the `5d1h`-old Running pods sharing the *same* ReplicaSet hash — Deployments read
+`3/3`), but Kubernetes **does not garbage-collect the Failed pod objects**: PodGC's
+`--terminated-pod-gc-threshold` defaults to `12500`, so a handful of tombstones
+never trip it.
+
+Two traps that make this look older/scarier than it is:
+
+- **AGE is the Deployment's creation time, not the failure time.** Both tombstones
+  showed `41d` (when the `csi-attacher`/`csi-provisioner` Deployments were created),
+  so the age is *not* evidence they predate a recent reboot. The `finishedAt` /
+  `startTime` fields are the real timeline.
+- **Same-ReplicaSet, not a stale rollout.** The Error pod shares its ReplicaSet
+  hash (`5557d89ccf`) with the Running ones — so it's a Failed member of the
+  *current* ReplicaSet with a replacement beside it, not a leftover from an old
+  revision.
+
+**Cleanup** (harmless — the Deployment is already `3/3`):
+
+```bash
+kubectl -n longhorn-system delete pod csi-attacher-5557d89ccf-tq7ln csi-provisioner-857485dbfb-26tj7
+# Generic sweep for the class (all namespaces):
+kubectl get pods -A --field-selector=status.phase=Failed
+```
+
+This is **generic to any Deployment**, not Longhorn-specific — CSI just happens to
+run several replicas on the rebooted node. Optional durable hardening (deferred,
+not applied): lower PodGC's `terminated-pod-gc-threshold` via
+`cluster.controllerManager.extraArgs` in Talos machine config so shutdown
+tombstones auto-reap — a cluster-wide controller-manager change, so it deserves
+its own decision rather than being bundled with a cosmetic cleanup.
+
 ## Standing rules
 
 - Always `ServerSideApply=true` in ArgoCD sync options (avoids annotation size limits).

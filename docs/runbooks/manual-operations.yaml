@@ -782,6 +782,17 @@ operations:
   verify:
   - "kubectl get node gpu-1 -o wide\nkubectl -n kube-system get pod -o wide | grep 'cilium-.*gpu-1'\nkubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\\.com/gpu}'\n# 24h soak: confirm the layer-1-nic-link-flap threshold does not breach for gpu-1.\n"
   status: pending
+- id: gpu-gpu1-usb-25g-nic-firmware
+  layer: gpu
+  app: gpu-1
+  plan: 2026-07-09--gpu--gpu-1-usb-25g-nic
+  when: Next gpu-1 maintenance window (image rebuild + reboot). Bundle with any other pending gpu-1 schematic change (e.g. 403 PCIe ASPM) to avoid a second reboot.
+  why_manual: Re-applying an ExtensionsConfiguration rebuilds gpu-1's Talos image and reboots the only GPU node; Omni apply is operator-only.
+  commands:
+  - "# Capture the current (failing) firmware log line for before/after evidence.\ntalosctl -n 192.168.55.31 dmesg | grep -i 'rtl8156b-2.fw'   # expect: \"Direct firmware load ... failed\"\n\n# Apply the updated single per-machine extensions list (now includes siderolabs/realtek-firmware).\nsource .env_devops\nomnictl apply -f patches/phase04-gpu/402-gpu1-nvidia-extensions.yaml\n# gpu-1 rebuilds its image and reboots. Wait for it to return.\nsource .env\nkubectl get node gpu-1 -w   # wait until Ready\n"
+  verify:
+  - "source .env\ntalosctl -n 192.168.55.31 get extensions | grep realtek-firmware       # present\ntalosctl -n 192.168.55.31 dmesg | grep -i 'rtl8156b-2.fw'              # no \"failed\" line\nkubectl get node gpu-1 -o wide                                          # Ready on 192.168.55.31\nkubectl get node gpu-1 -o jsonpath='{.status.allocatable.nvidia\\.com/gpu}'  # still 1 (schematic override kept nvidia)\n"
+  status: pending
 - id: gpu-pcie-gen4
   layer: gpu
   app: gpu-operator
