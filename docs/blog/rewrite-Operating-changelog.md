@@ -4,22 +4,24 @@ All 28 operating posts rewritten with the educational methodology: set-the-stage
 
 ## Conventions Applied to Every Post
 
-- **Added**: `reader_goal`, `diataxis: [how-to, reference]`, `last_updated`, `last_updated_commit` frontmatter fields
-- **Added**: `tags: ["troubleshooting"]` to every post (except those where it was already present)
-- **Added**: `{{< last-updated >}}` shortcode immediately after frontmatter
-- **Added**: Mermaid `flowchart LR` / `graph TB` / `sequenceDiagram` showing architecture, data flow, or lifecycle
-- **Added**: "What Healthy Looks Like" section — concise health baseline
-- **Added**: "Verify" subsection — terse check criteria with commands
-- **Added**: "Missteps" table (real incidents from git history with commit SHAs and PR references)
-- **Added**: "Recovery Path" or "Runbook" section with symptom → cause → fix entries
-- **Added**: `file:line` annotations citing specific config files and gotcha docs
-- **Added**: Source preamble (`source .env` / `source .env_devops` / `source .env_hop`)
-- **Removed**: Verbose narrative prose and session diary — condensed to "A was wrong, B was the fix"
-- **Removed**: ASCII architecture diagrams (replaced with Mermaid)
-- **Removed**: Redundant command commentary and inline admonition boxes
-- **Removed**: Full console output captures (replaced with excerpts or descriptions)
-- **Modified**: Chronological narrative restructured to tutorial flow (Overview → What Healthy Looks Like → Verify → Steps → Recover → Missteps → Quick Reference → References)
-- **Modified**: Verbose session narrative condensed; long-form gotcha descriptions → Missteps table
+| Category | Items |
+|----------|-------|
+| Added | `reader_goal`, `diataxis: [how-to, reference]`, `last_updated`, `last_updated_commit` frontmatter fields |
+| Added | `tags: ["troubleshooting"]` to every post (except those where it was already present) |
+| Added | `{{< last-updated >}}` shortcode immediately after frontmatter |
+| Added | Mermaid `flowchart LR` / `graph TB` / `sequenceDiagram` showing architecture, data flow, or lifecycle |
+| Added | "What Healthy Looks Like" section — concise health baseline |
+| Added | "Verify" subsection — terse check criteria with commands |
+| Added | "Missteps" table (real incidents from git history with commit SHAs and PR references) |
+| Added | "Recovery Path" or "Runbook" section with symptom → cause → fix entries |
+| Added | `file:line` annotations citing specific config files and gotcha docs |
+| Added | Source preamble (`source .env` / `source .env_devops` / `source .env_hop`) |
+| Removed | Verbose narrative prose and session diary — condensed to "A was wrong, B was the fix" |
+| Removed | ASCII architecture diagrams (replaced with Mermaid) |
+| Removed | Redundant command commentary and inline admonition boxes |
+| Removed | Full console output captures (replaced with excerpts or descriptions) |
+| Modified | Chronological narrative restructured to tutorial flow (Overview → What Healthy Looks Like → Verify → Steps → Recover → Missteps → Quick Reference → References) |
+| Modified | Verbose session narrative condensed; long-form gotcha descriptions → Missteps table |
 
 ---
 
