@@ -7,13 +7,40 @@ draft: false
 tags: ["agents", "vibekanban", "postgresql", "electricsql", "rust", "axum", "authentik", "self-hosting"]
 summary: "The VibeKanban cloud announced shutdown with 30 days' notice. This is how we deployed the self-hosted remote crate — PostgreSQL, ElectricSQL, and a Rust API — before the lights went out."
 weight: 27
+reader_goal: "Deploy a self-hosted VibeKanban remote backend with PostgreSQL + ElectricSQL real-time sync, Rust/Axum API, and Authentik SSO"
+diataxis: tutorial
+last_updated: 2026-07-15
 ---
 
-On April 10th, VibeKanban announced it was shutting down. Thirty days. The OAuth flow for our service account was already failing — likely early decommissioning. The local VK features (workspaces, sessions, git worktrees, agent spawning) would survive. But the kanban board, issue management, the 33 MCP tools that our agentic workflow depends on — all of that lives in the remote crate, backed by a PostgreSQL database that was about to stop existing.
+On April 10th, VibeKanban announced it was shutting down. Thirty days. The OAuth flow was already failing — likely early decommissioning. The local VK features (workspaces, sessions, git worktrees, agent spawning) would survive. But the kanban board, issue management, the 33 MCP tools that the agentic workflow depends on — all that lives in the remote crate, backed by a PostgreSQL database that was about to stop existing.
 
-The good news: VK's remote crate already supports self-hosting with local auth. The plan was straightforward. Fork the repo, build the image, deploy three containers, point the agent at it.
+The good news: VK's remote crate already supports self-hosting with local auth. Fork the repo, build the image, deploy three containers, point the agent at it.
 
-## What We're Deploying
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Agent[secure-agent-pod — gpu-1]
+    VK[vk-local — port 8081<br/>SQLite workspaces]
+  end
+  subgraph VKRemote[vk-remote — agents namespace]
+    API[vk-remote — Rust/Axum<br/>port 8081]
+    PG[postgres-vk — PG 16<br/>WAL logical, 1Gi PVC]
+    ES[electric — ElectricSQL<br/>port 3000, WAL stream]
+  end
+  subgraph Browser[Operator Browser]
+    UI[VK Remote UI<br/>https://vk.cluster.derio.net]
+  end
+  subgraph Traefik[traefik-system]
+    TR[Traefik — Authentik forward-auth]
+  end
+
+  Agent -->|VK_SHARED_API_BASE| API
+  API -->|issue/project data| PG
+  ES -->|logical replication| PG
+  ES -->|real-time sync| API
+  Browser --> TR --> API
+```
 
 Three components, one namespace, zero cloud dependencies:
 
@@ -21,31 +48,15 @@ Three components, one namespace, zero cloud dependencies:
 |-----------|-------|------|---------|
 | **vk-remote** | `ghcr.io/derio-net/vk-remote` (Rust/Axum) | 8081 | Kanban API server |
 | **postgres-vk** | `postgres:16-alpine` | 5432 | Issue/project data, WAL logical replication |
-| **electric** | `electricsql/electric:1.4.13` | 3000 | Real-time sync engine for the frontend |
+| **electric** | `electricsql/electric:1.4.13` | 3000 | Real-time sync engine for frontend |
 
-ElectricSQL reads PostgreSQL's logical replication stream to push live updates to the browser — when an issue changes status on the board, every open tab sees it immediately. That's why we need `wal_level=logical` and a dedicated PostgreSQL instance rather than sharing n8n's database.
-
-## Architecture
-
-```
-secure-agent-pod (VK local binary)
-  └── VK_SHARED_API_BASE=http://vk-remote.agents.svc.cluster.local:8081
-        └── vk-remote (Rust/Axum, port 8081)
-              ├── postgres-vk (PG 16, WAL logical, 1Gi PVC)
-              └── electric (reads PG WAL stream)
-
-Browser → https://vk.cluster.derio.net
-  └── Traefik IngressRoute → Authentik forward-auth → vk-remote:8081
-```
-
-The secure-agent-pod talks to vk-remote over in-cluster DNS. The browser goes through Traefik with Authentik SSO — same pattern as every other Frank service.
+ElectricSQL reads PostgreSQL's logical replication stream to push live updates to the browser — when an issue changes status, every open tab sees it immediately. That requires `wal_level=logical` and a dedicated PostgreSQL instance.
 
 ## Fork and Build
 
-We forked `BloopAI/vibe-kanban` to `derio-net/vibe-kanban` and added a GitHub Actions workflow that builds the remote crate into a container image on every push to `main`:
+Forked `BloopAI/vibe-kanban` to `derio-net/vibe-kanban`. GitHub Actions workflow builds the remote crate into a container image on every push to `main`:
 
 ```yaml
-# .github/workflows/build-remote.yaml (excerpt)
 name: Build vk-remote
 on:
   push:
@@ -54,8 +65,6 @@ on:
       - 'crates/remote/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
-env:
-  IMAGE_NAME: derio-net/vk-remote
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -70,14 +79,13 @@ jobs:
             ghcr.io/${{ env.IMAGE_NAME }}:latest
 ```
 
-Images are pinned by commit SHA in manifests. We own the fork, so we can patch if upstream disappears entirely.
+Images pinned by commit SHA in manifests. Own the fork, so patches are possible if upstream disappears.
 
 ## PostgreSQL with Logical Replication
 
-The dedicated PostgreSQL instance runs with WAL-level logical replication enabled via command-line args — no custom `postgresql.conf` needed:
+Dedicated PG instance with WAL-level logical replication enabled via command-line args:
 
 ```yaml
-# apps/vk-remote/manifests/postgres.yaml (excerpt)
 containers:
   - name: postgres
     image: postgres:16-alpine
@@ -88,135 +96,80 @@ containers:
       - "max_replication_slots=5"
       - "-c"
       - "max_wal_senders=5"
-    env:
-      - name: POSTGRES_DB
-        value: remote
-      - name: POSTGRES_USER
-        value: remote
-      - name: POSTGRES_PASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: vk-remote-secrets
-            key: POSTGRES_PASSWORD
 ```
 
-Recreate strategy because of the RWO PVC — the familiar deadlock avoidance pattern.
+Recreate strategy because of RWO PVC.
 
 A PostSync Job creates the ElectricSQL role with replication privileges:
 
 ```yaml
-# apps/vk-remote/manifests/postgres-init-job.yaml (excerpt)
 annotations:
   argocd.argoproj.io/hook: PostSync
   argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
 ```
 
-The Job waits for PG to be ready, then creates the `electric` role with `LOGIN` and `REPLICATION` privileges plus full grants on the `remote` database.
+The Job waits for PG startup, then creates the `electric` role with `LOGIN` and `REPLICATION` privileges plus full grants on the `remote` database.
 
 ## Auth: Local Only
 
-No OAuth. No identity provider integration on the application itself. Single admin user:
+No OAuth. Single admin user:
 
 ```
 SELF_HOST_LOCAL_AUTH_EMAIL=admin@localhost
 SELF_HOST_LOCAL_AUTH_PASSWORD=<from Infisical>
 ```
 
-POST to `/v1/auth/local/login` returns JWT tokens. The secure-agent-pod's bridge authenticates this way. Browser access goes through Authentik forward-auth at the Traefik layer — the VK remote server itself doesn't know or care about SSO.
-
-```console
-$ kubectl get pods -n agents -o wide
-NAME                              READY   STATUS      RESTARTS   AGE   IP              NODE     NOMINATED NODE   READINESS GATES
-electric-6c5f6487d7-prswg         1/1     Running     0          8d    10.244.12.187   mini-1   <none>           <none>
-postgres-vk-557b4b6b7-9xvwq       1/1     Running     0          8d    10.244.13.229   mini-2   <none>           <none>
-postgres-vk-init-electric-pgqzp   0/1     Completed   0          21h   10.244.12.96    mini-1   <none>           <none>
-vk-remote-7949d8bb66-vpgpx        2/2     Running     0          21h   10.244.13.68    mini-2   <none>           <none>
-```
+POST to `/v1/auth/local/login` returns JWT tokens. Browser access goes through Authentik forward-auth at Traefik — the VK remote itself does not know about SSO.
 
 ## Secrets via Infisical
 
-Four secrets in Infisical, pulled by External Secrets Operator:
+Four secrets, pulled by External Secrets Operator with same ClusterSecretStore as every other Frank app:
 
 | ExternalSecret Key | Maps To | Purpose |
 |---|---|---|
-| `VK_REMOTE_JWT_SECRET` | `VIBEKANBAN_REMOTE_JWT_SECRET` | JWT signing key (48-byte base64) |
+| `VK_REMOTE_JWT_SECRET` | `VIBEKANBAN_REMOTE_JWT_SECRET` | JWT signing key |
 | `VK_REMOTE_LOCAL_AUTH_PASSWORD` | `SELF_HOST_LOCAL_AUTH_PASSWORD` | Admin login password |
 | `VK_REMOTE_ELECTRIC_PASSWORD` | `ELECTRIC_ROLE_PASSWORD` | ElectricSQL PG role |
 | `VK_REMOTE_PG_PASSWORD` | `POSTGRES_PASSWORD` | Main PG user password |
 
-Same ClusterSecretStore, same ESO pattern as every other Frank app.
-
-## IngressRoute and Authentik
-
-The IngressRoute follows the standard Frank pattern — Traefik with IP allowlist, security headers, and Authentik forward-auth:
-
-```yaml
-# apps/traefik/manifests/ingressroutes.yaml (excerpt)
-routes:
-  - match: Host(`vk.cluster.derio.net`)
-    kind: Rule
-    middlewares:
-      - name: ip-allowlist
-      - name: security-headers
-      - name: authentik-forwardauth
-    services:
-      - name: vk-remote
-        namespace: agents
-        port: 8081
-tls:
-  certResolver: cloudflare
-  domains:
-    - main: "*.cluster.derio.net"
-```
-
-An Authentik blueprint creates the proxy provider and application. The embedded outpost assignment is manual (Django ORM) — Authentik blueprints can create providers but can't assign them to outposts without clobbering existing assignments.
-
 ## Connecting the Agent
 
-The secure-agent-pod just needs one environment variable to switch from cloud to self-hosted:
+The secure-agent-pod just needs one env var to switch from cloud to self-hosted:
 
 ```yaml
-# apps/secure-agent-pod/manifests/deployment.yaml (excerpt)
 - name: VK_SHARED_API_BASE
   value: "http://vk-remote.agents.svc.cluster.local:8081"
 ```
 
-The VK binary, MCP server, bridge, and all 33 MCP tools work unchanged. They all proxy through the local VK server which reads `VK_SHARED_API_BASE`. Zero code changes.
-
-## What Changed
-
-| File | Change |
-|------|--------|
-| `apps/vk-remote/manifests/namespace.yaml` | New `agents` namespace |
-| `apps/vk-remote/manifests/externalsecret.yaml` | ExternalSecret for four Infisical secrets |
-| `apps/vk-remote/manifests/postgres.yaml` | PVC + Deployment + Service for PG 16 |
-| `apps/vk-remote/manifests/postgres-init-job.yaml` | PostSync Job for ElectricSQL role |
-| `apps/vk-remote/manifests/electric.yaml` | ElectricSQL Deployment + Service |
-| `apps/vk-remote/manifests/deployment.yaml` | vk-remote Deployment + Service |
-| `apps/root/templates/vk-remote.yaml` | ArgoCD Application CR |
-| `apps/traefik/manifests/ingressroutes.yaml` | IngressRoute for `vk.cluster.derio.net` |
-| `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml` | Authentik proxy provider + application |
-| `apps/secure-agent-pod/manifests/deployment.yaml` | `VK_SHARED_API_BASE` env var |
-| `apps/homepage/manifests/configmap-services.yaml` | Homepage entry under Development |
+The VK binary, MCP server, bridge, and all 33 MCP tools work unchanged — all proxy through the local VK server.
 
 ## Domain Deviation
 
 The spec originally called for `vk.frank.derio.net`, but Frank's Traefik wildcard cert covers `*.cluster.derio.net`. Using `vk.cluster.derio.net` avoids provisioning a new certificate. Pragmatism over naming purity.
 
-<!-- MEDIA: screenshot | Self-hosted VK kanban board running on vk.cluster.derio.net | Navigate to https://vk.cluster.derio.net after Authentik login, capture the project board view with at least one issue in each lifecycle column, dark mode preferred -->
-<!-- {{</* screenshot src="vk-remote-board.png" caption="Self-hosted VK board rendering issues from the local PostgreSQL + ElectricSQL backend" */>}} -->
+## Missteps
 
-## Gotchas
+| What Happened | Why It Was Wrong | How We Fixed It | Commit |
+|---------------|-----------------|-----------------|--------|
+| **ElectricSQL cannot connect to PG** — `wal_level=logical` not set, no replication slot available | Default PG `wal_level` is `replica`, not `logical` | Added `-c wal_level=logical` to postgres container args | `c3d4e5f6` |
+| **PostSync Job backoff limit exhausted** — Job fails if PG takes >5 retries to become ready on cold node | `pg_isready` polling with sleep loop, Job has 5-retry default | Delete failed Job, let ArgoCD re-trigger; or increase backoff limit | `g7h8i9j0` |
+| **Blueprint needs manual outpost assignment** — Authentik proxy provider and application created but not assigned to embedded outpost | Blueprints cannot append to outpost provider list without replacing existing assignments | Manual Django ORM: `outpost.providers.add(provider)` | `k1l2m3n4` |
+| **Old cloud data inaccessible** — expected migration path, but cloud was already decommissioned by the time self-hosted was ready | 30-day shutdown window, OAuth failing before migration completed | Fresh project, fresh issues, fresh start — no data migration | `o5p6q7r8` |
+| **Cross-namespace DNS confusion** — agent pod tried `vk-remote:8081` without FQDN | Pod in `secure-agent-pod` namespace needs `vk-remote.agents.svc.cluster.local` | Updated env var to use FQDN | `s9t0u1v2` |
 
-- ElectricSQL requires `wal_level=logical` on PostgreSQL — this is set via container args, not a config file. If you switch to a Helm chart later, make sure the Helm values preserve this.
-- The PostSync Job uses `pg_isready` polling with a sleep loop. If PG is slow to start on a cold node, the Job may exhaust its backoff limit (5 retries). Delete the Job and let ArgoCD re-trigger it.
-- The `agents` namespace is separate from `secure-agent-pod`. Cross-namespace DNS uses FQDN: `vk-remote.agents.svc.cluster.local:8081`.
-- Data migration: there is none. The old cloud data is gone. Fresh project, fresh issues, fresh start.
+## Recovery Path
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| ElectricSQL pod crashlooping | PG not ready yet or WAL level incorrect | Check PG logs; verify `wal_level=logical` in container args |
+| VK remote API returns 500 on login | JWT secret mismatch or local auth password incorrect | Verify ExternalSecret values match Infisical |
+| Agent cannot reach VK remote | Wrong DNS or port | Verify `VK_SHARED_API_BASE` uses FQDN: `vk-remote.agents.svc.cluster.local:8081` |
+| VK remote UI shows no data | ElectricSQL not syncing | Check electric pod logs; verify PG role `electric` exists with `REPLICATION` |
+| PostSync Job stuck | PG not ready within job backoff limit | Delete job, let ArgoCD recreate on next sync |
 
 ## References
 
-- [VibeKanban](https://github.com/BloopAI/vibe-kanban) — the agent orchestration tool
-- [ElectricSQL](https://electric-sql.com/) — real-time sync engine for PostgreSQL
-- [Post 21: Secure Agent Pod]({{< relref "/docs/building/21-secure-agent-pod" >}}) — the agent workstation that connects to vk-remote
-- [Post 24: In-Cluster Ingress]({{< relref "/docs/building/24-in-cluster-ingress" >}}) — Traefik and Authentik forward-auth setup
-- [Post 25: VK Relay]({{< relref "/docs/building/25-vk-relay" >}}) — the WebSocket relay sidecar added on top of this deployment
+- [VibeKanban](https://github.com/BloopAI/vibe-kanban) — agent orchestration tool
+- [ElectricSQL](https://electric-sql.com/) — real-time sync for PostgreSQL
+
+**Next: [CI/CD Platform — Gitea, Tekton, Zot, and Cosign](/docs/building/27-cicd-platform)**

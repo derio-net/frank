@@ -1,97 +1,78 @@
 ---
-title: "Building Edge Observability — Watching Frank's Edge Without Watching Frank's Edge Burn"
+title: "Edge Observability — Watching Frank's Edge Without Watching Frank's Edge Burn"
 series: ["building"]
 layer: obs
 date: 2026-05-24
 draft: false
 tags: ["observability", "victoria-logs", "fluent-bit", "goatcounter", "crowdsec", "falco", "grafana", "litellm", "hop", "talos", "caddy", "fastapi", "tdd"]
-summary: "Collectors on Hop, backend on Frank, AI alert enrichment that knows when 12× baseline is a scraper and when it's Hacker News."
+summary: "Collectors on Hop, backend on Frank, AI alert enrichment that knows when 12x baseline is a scraper and when it is Hacker News."
 weight: 32
+reader_goal: "Deploy cross-cluster observability with log shipping, blog analytics, CrowdSec edge security, Falco runtime security, and an AI alert helper"
+diataxis: tutorial
+last_updated: 2026-07-16
 ---
 
-The blog at `blog.derio.net/frank` had no observability. I knew this in the abstract — Hop is a single Hetzner CX23 with four gigs of RAM and no Grafana — but I didn't know it concretely until the day I wanted to ask "how many people read Paper 15 this week?" and the answer was a shrug. Caddy's stdout had the answer. Nothing was reading Caddy's stdout. Nothing was retaining it longer than the container's lifetime. Nothing was alerting if the apex started returning 5xx, nothing was banning the credential-stuffing IPs walking the sitemap, nothing was watching the Pod filesystem for the runc-escape pattern that would land me on a security disclosure page nobody wants to be on.
+The blog at `blog.derio.net/frank` had no observability. Hop is a single Hetzner CX23 with 4 GB RAM and no Grafana. Caddy's stdout had the answer to every question — nothing was reading it.
 
-This post is the build narrative for fixing that. The full vendor-landscape research — six analytics products, four edge-security products, three runtime-security products, the sources, the quoted passages, the named gaps and counter-arguments — sits in the research file at `docs/investigations/2026-05-24--obs--edge-observability-research.md` for anyone who wants to read the unvarnished decision substrate. The series-shaped Papers version of that research got pulled before publish — the layer touches three separate vendor landscapes plus a bespoke piece, which fights the Papers series' single-decision shape; the three narrower future papers it seeds are listed as Deferred on {{< relref "/docs/papers" >}}. This post is the *how*, complete with the three commits I had to revert and the wrong helm value I shipped before getting yelled at by an SSE engine I'd never heard of.
+This post covers the full edge observability stack: collectors on Hop, backend on Frank, four phases of deployment with the gotchas that came with each.
 
-## The shape of the problem
+## Architecture
 
-Two clusters. Hop sits on Hetzner running Talos, serves the blog through Caddy on hostPort 80/443, terminates TLS via the Cloudflare DNS challenge. Frank is the homelab — seven nodes, GitOps everything, Grafana and VictoriaMetrics and a bunch of services already humming. Frank has the heavy stack. Hop has 4 GB of RAM and 73% of it already committed before I added a single observability byte.
-
-Three concerns rolled into one layer:
-
-1. **Analytics.** Who's reading what? Where are they coming from? Which papers actually get read versus which sit in the sidebar pretending?
-2. **Edge security.** Who's probing `/wp-login.php`? Who's walking the sitemap with `python-requests`? Block them at the edge before they cost me Hetzner egress.
-3. **Runtime security.** If a Caddy CVE landed and someone got code-exec inside the Pod, would I find out from a Telegram alert or from a defacement?
-
-The naive answer was "deploy a SIEM on Hop." Wazuh's manager is 1.5 GB. There is no Wazuh manager on Hop. The cluster will have opinions.
-
-## The architecture that survived three reviews
-
-**Collectors-on-Hop, backend-on-Frank.** Hop runs only thin agents that ship over the existing Tailscale subnet route to Frank, where the existing VictoriaLogs / VictoriaMetrics / Grafana / LiteLLM stack picks the work back up. Frank is extended, not duplicated.
-
-```
-┌──────────── Hop (CX23, 4 GB) ────────────┐    ┌────────────── Frank ──────────────┐
-│ Caddy ── JSON access logs ── stdout      │    │  victoria-logs (extended)         │
-│ fluent-bit DaemonSet ────────────────────┼───→│   ClusterIP for Frank-local       │
-│                                          │    │   LoadBalancer 192.168.55.225     │
-│ CrowdSec agent ── decisions ── caddy-cs- │    │   for cross-cluster ingest        │
-│   bouncer (local enforcement at edge)    │    │                                   │
-│                                          │    │  Grafana ── 3 new dashboards      │
-│ Falco modern_ebpf + falcosidekick        │    │  Alert rules → AI Helper webhook  │
-│   ↘ Loki output ─────────────────────────┼───→│                                   │
-│   ↘ Telegram (critical, direct)          │    │  goatcounter (new app)            │
-│                                          │    │   LoadBalancer 192.168.55.224     │
-│ Hugo blog ── JS snippet ─→ counter.derio.net (Caddy reverse-proxies to .224)     │
-│                                          │    │                                   │
-│                                          │    │  ai-alert-helper (new app)        │
-│                                          │    │   /digest /alert /surge-check     │
-│                                          │    │   ↘ LiteLLM ↘ Telegram bot        │
-└──────────────────────────────────────────┘    └───────────────────────────────────┘
+```mermaid
+flowchart LR
+  subgraph Hop[Hop — CX23, 4 GB]
+    C[Caddy — blog.derio.net<br/>JSON access logs]
+    FB[fluent-bit DaemonSet<br/>/var/log/containers → VL]
+    CS[CrowdSec agent + LAPI<br/>HTTP scenarios + bouncer]
+    F[Falco — modern_ebpf<br/>runtime security]
+  end
+  subgraph Frank[Frank — homelab]
+    VL[victoria-logs<br/>LB 192.168.55.225:9428]
+    GC[goatcounter<br/>LB 192.168.55.224:8080]
+    AA[ai-alert-helper<br/>LiteLLM → Telegram]
+    GR[Grafana — 3 dashboards]
+  end
+  subgraph Internet
+    HV[Hugo blog JS snippet<br/>→ counter.derio.net]
+  end
+  C -->|stdout| FB
+  FB -->|Loki push protocol| VL
+  CS -->|decisions| VL
+  F -->|Loki push protocol| VL
+  HV -->|reverse proxy| GC
+  VL --> GR
+  GR -->|webhook| AA
+  AA -->|Telegram bot| TG[Telegram — @agent_zero_cc_bot]
 ```
 
 Three cross-cluster networking facts the design is built on:
+- **Tailscale subnet router advertises only home-LAN CIDRs** — not the kube service CIDR. Cross-cluster reach goes via Cilium L2 LoadBalancer IPs in `192.168.55.x`.
+- **Frank has no Alertmanager** — alerting is entirely Grafana-managed.
+- **Grafana lives as a subchart of victoria-metrics** — no `apps/grafana/values.yaml`.
 
-- **The Tailscale subnet router advertises home-LAN CIDRs only** — `192.168.10.0/24`, `192.168.50.0/24`, `192.168.55.0/24` — not the kube service CIDR. I learned this the hard way. The reviewer learned it less hard, by reading the [subnet-router design]({{< relref "/docs/building/24-in-cluster-ingress" >}}) and asking the only question that mattered: "does the kube service CIDR get advertised?" It does not. So **cross-cluster reach has to go via Cilium L2 LoadBalancer IPs** in the 192.168.55.x range. That's a load-bearing constraint, not a detail.
-- **Frank has no Alertmanager.** Alerting is entirely Grafana-managed through the existing `apps/grafana-alerting/manifests/{contact-points,notification-policy,alert-rules}-cm.yaml`. Any plan that said "Alertmanager webhook" was wrong. (Mine did. Twice. The reviewer caught it both times.)
-- **Grafana lives as a subchart of `victoria-metrics`.** There is no `apps/grafana/values.yaml`. Datasources come from sidecar ConfigMaps with label `grafana_datasource: "1"`. Dashboards mount via `extraConfigmapMounts` on the victoria-metrics chart. Any plan that said "edit `apps/grafana/values.yaml`" was also wrong. (Mine did.)
+## Phase 1 — Log Plumbing
 
-The reviewer caught all three on the first pass. He extracted the actual Helm charts and proved that `server.extraServices` doesn't exist in `vm/victoria-logs-single 0.11.28` (it's `extraObjects` at the top level), that `falcosidekick.config.victoriaLogs` is fictional (use the Loki output, VictoriaLogs accepts the protocol natively), that GoatCounter's `-real-ip-header` flag doesn't exist (Caddy's reverse-proxy sets `X-Forwarded-For` and GoatCounter consumes it without a flag). Six critical issues. Then he did it again on the rewrite and found five more. The lesson is in the auto-memory now: *for every config-shaped claim, the next step before moving on is a verification command that grounds it in the artifact's real schema.*
-
-## Phase 1 — Log plumbing
-
-Extend the existing VictoriaLogs. Frank already had `apps/victoria-logs/` deployed, 14d retention, 20Gi PVC. Bump retention to 30d and add a sibling Service of type LoadBalancer at `192.168.55.225` via the chart's `extraObjects`:
+Extend the existing VictoriaLogs. Frank already had `apps/victoria-logs/` with 14d retention, 20Gi PVC. Bump retention to 30d, add a sibling LoadBalancer Service at `192.168.55.225` via the chart's `extraObjects`:
 
 ```yaml
-# apps/victoria-logs/values.yaml
-server:
-  retentionPeriod: 30d
-  service:
-    type: ClusterIP
-    port: 9428
 extraObjects:
   - apiVersion: v1
     kind: Service
     metadata:
       name: victoria-logs-lb
-      namespace: monitoring
       annotations:
         lbipam.cilium.io/ips: "192.168.55.225"
-        lbipam.cilium.io/sharing-key: "victoria-logs-lb"
     spec:
       type: LoadBalancer
       selector:
         app.kubernetes.io/name: victoria-logs-single
-        app.kubernetes.io/instance: victoria-logs
       ports:
         - { name: http, port: 9428, targetPort: 9428 }
 ```
 
-The selector matters — `kubectl get pod -n monitoring -l app.kubernetes.io/instance=victoria-logs --show-labels` confirms the labels match before pushing. After sync: `192.168.55.225:9428/metrics` returns Prometheus-style metrics from both Frank-internal pods and from a curl pod on Hop.
-
-On Hop, mirror Frank's existing fluent-bit pattern. Same chart, same kubernetes filter, same output protocol — only the destination Host changes from the in-cluster FQDN to the LB IP. The 80 Mi memory limit is what fluent-bit actually uses on Hop in practice; the chart's default is higher.
+On Hop, mirror the existing fluent-bit pattern — same chart, same kubernetes filter, different destination:
 
 ```ini
-# clusters/hop/apps/fluent-bit/values.yaml — outputs section
 [OUTPUT]
     Name            http
     Match           kube.*
@@ -99,209 +80,101 @@ On Hop, mirror Frank's existing fluent-bit pattern. Same chart, same kubernetes 
     Port            9428
     URI             /insert/jsonline?_stream_fields=stream,kubernetes.pod_name,kubernetes.namespace_name,kubernetes.container_name&_msg_field=msg&_time_field=time
     Format          json_lines
-    Json_Date_Key   time
-    Json_Date_Format iso8601
 ```
 
-The first version shipped with `_msg_field=log` because the spec said `log`. Wrong. fluent-bit's kubernetes filter with `Merge_Log On` merges container JSON into the top-level record. Caddy emits `{"msg": "handled request", ...}` — top-level `msg`, not `log`. The fix was a one-line change to `_msg_field=msg`. The signal was a VictoriaLogs query returning `_msg: "missing _msg field; see ..."` — VictoriaLogs's actual error string, captured verbatim because that's better than guessing.
+The first version shipped with `_msg_field=log` — wrong. Caddy emits `{"msg": "handled request", ...}` at the top level. VictoriaLogs helpfully returns `_msg: "missing _msg field"`. Fix: `_msg_field=msg`.
 
-One Hop-side fact-of-life: the `monitoring` namespace gets created fresh on Hop. Default PodSecurity is `restricted`. Fluent-bit hostPath-mounts `/var/log/containers`, which `restricted` denies. So the namespace manifest gets a `pod-security.kubernetes.io/enforce: privileged` label, the same way `caddy-system` and `headscale-system` already have it. Per the Hop gotchas file, this is the standard move for hostPath workloads on Talos.
+Hop's `monitoring` namespace needs `pod-security.kubernetes.io/enforce: privileged` for fluent-bit's hostPath mount to `/var/log/containers`.
 
-Caddy's per-site `log` directive was the other initial confusion. The global `log` directive in the Caddyfile sets the *runtime/error* logger — it gets you the boot-time JSON spew but no access logs. Access logs require a `log` directive *inside* each site block. Per-site, opt-in. The first deploy emitted zero `"msg":"handled request"` lines because of this. The second deploy had `log` inside `blog.derio.net { ... }` and the JSON access lines arrived.
+Caddy's `log` directive must be inside each site block, not global. The global `log` sets the runtime/error logger. Access logs are per-site, opt-in.
 
-## Phase 2 — Blog analytics
+## Phase 2 — Blog Analytics
 
-GoatCounter over Umami. The reviewer would tell you Umami has funnels and rich event tracking and a polished dashboard. He'd be right. But GoatCounter is a single Go binary with SQLite, fits in 40 MB, and matches the actual question I'm asking ("which papers get read?") without needing a Postgres companion. Multi-site multi-event analytics is YAGNI for one Hugo blog.
+GoatCounter over Umami. GoatCounter is a single Go binary with SQLite, fits in 40 MB, no Postgres companion.
 
-The catch is that GoatCounter eats `GOATCOUNTER_*` env vars as flag overrides. Kubernetes auto-injects `GOATCOUNTER_PORT=tcp://10.x.x.x:8080` when a Service named `goatcounter` exists in the namespace. The pod crashlooped reading `tcp://...` as a port number. `enableServiceLinks: false` on the Pod spec fixes it permanently. It's the kind of bug that shows up in production at 02:00 and the fix is a six-character config change.
+Kubernetes auto-injects `GOATCOUNTER_PORT=tcp://10.x.x.x:8080` when a Service named `goatcounter` exists — pod crashloops reading `tcp://...` as port number. `enableServiceLinks: false` on the Pod spec fixes it.
 
-The `-domain` flag is a 3-value tuple — `mainDomain,staticDomain,countDomain`. For us:
+The `-domain` flag is a 3-value tuple — `mainDomain,staticDomain,countDomain`:
 
 ```yaml
 args:
   - serve
-  - -db=sqlite+/home/goatcounter/goatcounter-data/goatcounter.sqlite3
+  - -db=sqlite+/home/goatcounter/data.sqlite3
   - -listen=:8080
   - -tls=none
-  - -automigrate
   - -domain=counter.cluster.derio.net,counter.cluster.derio.net,counter.derio.net
 ```
 
-Main + static = the mesh-only admin host (counter.cluster.derio.net). Count = the public beacon hostname (counter.derio.net) which Hop's Caddy reverse-proxies to `192.168.55.224:8080`. Reads count as a single record routed by GoatCounter's site `cname` field. Confirmed it via reading `cmd/goatcounter/serve.go` directly through the GitHub API — the GoatCounter docs are sparse on this and trial-and-error would have eaten an hour.
+The Hugo snippet drops in `blog/layouts/partials/custom/goatcounter.html`, guarded by `hugo.Environment == "production"` so dev builds do not pollute counts.
 
-The site itself is bootstrapped via `goatcounter db create site`:
+Authentik blueprint for `counter.cluster.derio.net` — same manual outpost assignment pattern as every other forward-auth service.
 
-```
-kubectl exec -n goatcounter-system deploy/goatcounter -- sh -c \
-  "goatcounter db create site \
-    -db sqlite+/home/goatcounter/goatcounter-data/goatcounter.sqlite3 \
-    -vhost counter.cluster.derio.net \
-    -user.email <email> \
-    -user.password '<generated>'"
-```
+## Phase 3 — Edge Security with CrowdSec
 
-The `-user.password` flag is what lets you script this without an interactive TTY — the interactive path errors out under `kubectl exec` because there's no terminal to prompt against. A manual-op block in the runbook records this exactly because it's exactly the kind of thing that gets forgotten three months from now when GoatCounter eats its own database.
+CrowdSec runs as agent + LAPI. The agent tails Caddy logs, applies HTTP behavioral scenarios, writes ban decisions to LAPI. The Caddy bouncer module polls LAPI every 10s and returns 403 for banned IPs.
 
-The Hugo snippet drops in via `blog/layouts/partials/custom/goatcounter.html`:
-
-```html
-{{ if eq hugo.Environment "production" -}}
-<script data-goatcounter="https://counter.derio.net/count"
-        async src="https://counter.derio.net/count.js"></script>
-{{- end }}
-```
-
-The guard is real. `hugo.Environment` is `production` for the deploy build and `development` for local `hugo server`. The dev build does NOT include the script tag — verified by building `hugo -e development` and `hugo -e production` into separate output directories and grepping for `counter.derio.net`. Tracking my own dev sessions would have polluted the visitor counts within a week.
-
-Behind the scenes: Authentik forward-auth fronts `counter.cluster.derio.net`. The provider blueprint goes into `apps/authentik-extras/manifests/blueprints-cluster-proxy-providers.yaml` (already registered in `apps/authentik/values.yaml → blueprints.configMaps`). The manual step that always trips me up: blueprints cannot mutate the embedded outpost's provider list — that has to happen via the Django ORM, by hand, after the blueprint syncs:
-
-```python
-kubectl exec -n authentik deploy/authentik-server -- python -c "
-import os, django
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'authentik.root.settings')
-django.setup()
-from authentik.providers.proxy.models import ProxyProvider
-from authentik.outposts.models import Outpost
-outpost = Outpost.objects.get(name='authentik Embedded Outpost')
-provider = ProxyProvider.objects.get(name='GoatCounter (cluster)')
-outpost.providers.add(provider)
-print('done')
-"
-```
-
-This is documented in `agents/rules/frank-argocd.md` and now in the manual-operations runbook under `obs-goatcounter-authentik-outpost`. It is the seventh time I've done it for a new mesh-only service. It is the seventh time it has worked.
-
-## Phase 3 — Edge security with CrowdSec
-
-CrowdSec runs as agent + LAPI. The agent tails Caddy logs, parses them through the `crowdsecurity/caddy` collection, applies HTTP behavioural scenarios (`http-cve`, `http-dos`, `base-http-scenarios`), and writes ban decisions to the local LAPI. The Caddy bouncer module polls LAPI every 10 seconds and returns 403 for any banned IP. Enforcement is local — no Frank dependency on the request path, so a mesh hiccup doesn't open the front door.
-
-Building this required rebuilding the Caddy image to include the bouncer modules:
+Build requires Go 1.25.7+ for `caddy-crowdsec-bouncer v0.12.1` — bumped Caddy from 2.9 to 2.11.3:
 
 ```dockerfile
 FROM caddy:2.11.3-builder AS builder
-ENV GOTOOLCHAIN=auto
 RUN xcaddy build \
     --with github.com/caddy-dns/cloudflare \
-    --with github.com/hslatman/caddy-crowdsec-bouncer/http \
-    --with github.com/hslatman/caddy-crowdsec-bouncer/layer4
-
-FROM caddy:2.11.3-alpine
-COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+    --with github.com/hslatman/caddy-crowdsec-bouncer/http
 ```
 
-This is the third version. Version one used the project's existing `caddy:2.9-builder` (the existing Caddy image was 2.9). The build failed because `caddy-crowdsec-bouncer v0.12.1` requires `go >= 1.25.7` and the 2.9 builder ships go 1.23. Version two added `ENV GOTOOLCHAIN=auto` to let Go bootstrap a newer toolchain on demand. That fixed the Go problem but exposed a second one: the bouncer also requires `caddy v2.10.2+`. Bumping the entire stack to 2.11.3 was the actual fix — and updating the deployment image tag in the same commit.
-
-The Caddy ConfigMap then gets the `crowdsec` directive in the global block (with `order crowdsec first` so it runs before reverse_proxy) and the `crowdsec` handler inside the blog.derio.net site block:
+Caddy bouncer config references `crowdsec-service` (not `crowdsec-lapi` — the chart names the Service differently than the spec assumed):
 
 ```caddyfile
-{
-  email admin@derio.net
-  acme_dns cloudflare {env.CF_API_TOKEN}
-  log { output stdout, format json, level INFO }
-  order crowdsec first
-  crowdsec {
-    api_url http://crowdsec-service.crowdsec-system.svc:8080
-    api_key {env.CROWDSEC_BOUNCER_API_KEY}
-    ticker_interval 10s
-  }
-}
-
-blog.derio.net {
-  log
-  crowdsec
-  handle /frank* { reverse_proxy blog.blog-system.svc:8080 }
-  handle { redir https://blog.derio.net/frank{uri} permanent }
+crowdsec {
+  api_url http://crowdsec-service.crowdsec-system.svc:8080
+  api_key {env.CROWDSEC_BOUNCER_API_KEY}
+  ticker_interval 10s
 }
 ```
 
-The service name in the bouncer config is `crowdsec-service`, not `crowdsec-lapi` as the spec assumed. The chart names the Service `crowdsec-service` regardless of the deployment name. Caused a "no such host" DNS resolution error for a few minutes; fixed by reading what `kubectl -n crowdsec-system get svc` actually returns. *Look at what the artifact actually does, not what the documentation describes it as.*
+### LAPI Persistence Problem
 
-The harder issue: Hop has no persistent volume available for CrowdSec. Hop's `hetzner-volume` StorageClass is manual-provisioning (no provisioner — just pre-allocated PVs), and both existing PVs are already bound to Caddy data and Headscale data. So CrowdSec LAPI runs without persistence. Each LAPI restart wipes the bouncer registration. The Caddy bouncer then hits LAPI with a stale API key and gets `access forbidden` — every 10 seconds, in a tight retry loop, until I notice.
+Hop has no persistent volume available for CrowdSec — both existing PVs are bound. Without persistence, each LAPI restart wipes the bouncer registration, causing the Caddy bouncer to get `access forbidden` in a tight retry loop.
 
-The fix is a postStart lifecycle hook on the LAPI container that re-registers the bouncer with a fixed key from a Secret:
-
-```yaml
-lapi:
-  env:
-    - name: CADDY_HOP_BOUNCER_KEY
-      valueFrom:
-        secretKeyRef: { name: crowdsec-bouncer-keys, key: caddy-hop }
-  lifecycle:
-    postStart:
-      exec:
-        command:
-          - /bin/sh
-          - -c
-          - |
-            for i in $(seq 1 10); do
-              cscli bouncers list >/dev/null 2>&1 && break
-              sleep 2
-            done
-            cscli bouncers add caddy-hop -k "$CADDY_HOP_BOUNCER_KEY" 2>/dev/null \
-              || echo "bouncer already registered"
-```
-
-The matching Secret in `caddy-system` (`caddy-crowdsec`) holds the same key under `CROWDSEC_BOUNCER_API_KEY`. Both secrets are seeded out-of-band with a `openssl rand -hex 32` value. After every LAPI restart, the postStart hook re-registers with the same key and the Caddy bouncer's pull succeeds within one tick. Smoke test:
-
-```
-kubectl exec -n crowdsec-system deploy/crowdsec-lapi -- cscli decisions add --ip <my-public-ip> --duration 45s
-# wait 12s for bouncer pull
-curl -s -o /dev/null -w '%{http_code}\n' https://blog.derio.net/frank/   # 403
-# wait 45s for expiry
-curl -s -o /dev/null -w '%{http_code}\n' https://blog.derio.net/frank/   # 200
-```
-
-403 during the window, 200 after. It works. A real future-Frank concern: if I want this resilient through a Hetzner Volume migration, I need to actually buy another Hetzner Volume. €1/month. I haven't yet. The postStart hook is the workaround that survives most failure modes but not all of them.
-
-### Update (June 2026) — the postStart hook was treating a symptom
-
-A live trace caught four scanners hammering the edge — one threw 300 WordPress-webshell probes in 81 seconds, another 53 `.env`/`.git` reads in a single second. Textbook `http-sensitive-files` triggers. Zero bans. The pipeline had been dead, quietly, and ArgoCD had been calling it Synced/Healthy the entire time.
-
-Two things I got wrong above. First: the postStart hook re-registers the *bouncer*, but the CrowdSec *agent* is a separate machine that registers itself in the LAPI's SQLite DB. That DB lived in emptyDir. Every LAPI restart wiped the agent's machine row, so the still-running agent's next call failed with `ent: machine not found` and it crashlooped — parsing zero Caddy logs, firing zero scenarios, writing zero decisions. I had patched the visible failure (the bouncer's `access forbidden` retry loop) and left the invisible one (a crashlooping agent that bans nothing) running for weeks.
-
-Second: "buy another Hetzner Volume, €1/month" was just wrong. The Caddy and Headscale PVs aren't separate volumes — they're *subdirectories* of the one Hetzner Volume already mounted at `/var/mnt/hop-data`. CrowdSec needed its own subdirectory, which costs nothing.
-
-The fix persists both LAPI volumes (`data` keeps the machine/bouncer/decision rows; `config` keeps the community-blocklist enrollment) onto two static PVs:
+Fix: a postStart hook that re-registers the bouncer with a fixed key:
 
 ```yaml
-# clusters/hop/apps/storage/manifests/pv-crowdsec-data.yaml
+lifecycle:
+  postStart:
+    exec:
+      command:
+        - /bin/sh
+        - -c
+        - |
+          for i in $(seq 1 10); do
+            cscli bouncers list >/dev/null 2>&1 && break
+            sleep 2
+          done
+          cscli bouncers add caddy-hop -k "$CADDY_HOP_BOUNCER_KEY" 2>/dev/null
+```
+
+The postStart hook was treating a symptom, not the root cause. The CrowdSec *agent* is a separate machine registered in LAPI's SQLite DB — every LAPI restart also wiped the agent's machine row, so the still-running agent crashlooped (`ent: machine not found`), parsing zero Caddy logs. Two bugs stacked: the crashloop hid the parser misconfiguration (`container_runtime: docker` instead of `containerd` for Talos's CRI format). The dashboard was green through both.
+
+Fix for both: persist LAPI onto a static PV backed by the existing Hetzner Volume subdirectory:
+
+```yaml
 spec:
-  storageClassName: hetzner-volume     # MANDATORY — Hop has no default SC; unset → PVC Pending forever
-  claimRef:                            # the chart PVC template has no volumeName, so pin from the PV side
+  storageClassName: hetzner-volume
+  claimRef:
     namespace: crowdsec-system
-    name: crowdsec-db-pvc              # == "<releaseName>-db-pvc"; drift here = silent Pending
+    name: crowdsec-db-pvc
   hostPath:
     path: /var/mnt/hop-data/crowdsec/data
-    type: DirectoryOrCreate            # kubelet makes the dir — fully declarative, no manual mkdir
+    type: DirectoryOrCreate
 ```
 
-`hostPath` with `DirectoryOrCreate` is a deliberate trade: it diverges from the `local:` PVs the other two apps use (which need a directory created on the node by hand), but it keeps the whole fix in Git with no manual step — and on a single-node edge cluster the distinction is academic. (On a *second* node it stops being academic: `DirectoryOrCreate` would happily make a fresh empty dir wherever the pod lands and lose the DB again, silently — so this PV is single-node until I pin it to `hop-1`.) The load-bearing line is `claimRef.name`: it has to match the Helm chart's `<releaseName>-db-pvc` naming exactly, or the PVC hangs Pending and the agent stays down — the same silent failure, dressed differently. A unit test (`scripts/tests/test_crowdsec_lapi_persistence.py`) pins that coupling so a chart bump that renames the PVCs trips a guard instead of silently breaking the binding — though I'll be honest, the repo has no CI job running `scripts/tests/` yet, so for now it's a guard you have to remember to run.
+After the switch, `rollout restart daemonset/crowdsec-agent` to re-register against the fresh persistent DB. One line to fix the parser: `container_runtime: containerd`.
 
-One more honesty note: persisting the volumes doesn't make the *cutover* self-healing. The agent registers its machine only in an initContainer, and a crashlooping container never re-runs its init steps — so after the switch I had to roll the agent DaemonSet once (`rollout restart daemonset/crowdsec-agent`) to re-register it against the fresh persistent DB. After that one nudge it's durable through every later LAPI restart. The operating post has the verification dance.
+## Phase 4 — Falco on Talos
 
-The lesson, again: *a green dashboard proves the artifacts exist, not that the workflow runs.* I never triggered a real scan and watched a ban land. The scanners did it for me.
+Falco DaemonSet with `driver.kind: modern_ebpf` — the only viable driver on Talos (no kernel headers). Default rules do not reliably catch `kubectl exec` on Talos, but container CVE classes (cryptominer exec, suspicious file reads, DNS exfil) do trigger.
 
-And the moment I *did* finally watch — right after fixing the crashloop — I found the agent banning nothing anyway. It was reading the Caddy logs and parsing exactly zero of them: Talos runs containerd (CRI log format), but the chart defaulted to `container_runtime: docker`, so the `docker-logs` parser pulled an empty message out of every CRI line and `caddy-logs` never fired. Two bugs stacked, the second hidden behind the first — the crashloop had never let anything reach the parser, so the parser being misconfigured was invisible. One line, `container_runtime: containerd`, and `cscli explain` finally walked a real access log all the way to a scenario. The dashboard had been green through both bugs. *Watch the workflow run.*
-
-So I did watch it run. A phone on cellular tapped a handful of `/.env?n` probes (cache-busted — the `permanent` redirect is a 301 the browser otherwise caches, so a plain reload never re-hits the server), the bucket overflowed, and `crowdsecurity/http-probing` produced a real `ban` on the phone's IP — geoip and all — with the Caddy bouncer already holding the decision. Two bugs, two PRs, and the first scanner I deliberately pointed at the edge got turned away. That's the whole point of the layer, finally true.
-
-## Phase 4 — Falco on a no-userland kernel
-
-Falco DaemonSet, `driver.kind: modern_ebpf`. This is the only viable driver on Talos because Talos has no kernel headers and no userland to load eBPF the legacy way. The `modern_ebpf` driver attaches CO-RE programs via the kernel ABI directly.
-
-The honest admission: on Talos, Falco's default rule set does not reliably catch `kubectl exec`. I tested it. I exec'd into the blog Pod, ran `id`, exited. No "Terminal shell in container" rule fired. The rules that DO fire are things like "Contact K8S API Server From Container" (Notice priority) when a Pod's process talks to kube-apiserver via the in-cluster Service — which happens constantly because that's how everything Kubernetes-native works. Falco's value on Talos is narrower than the marketing promises. It's still net positive — the container CVE class of attacks (cryptominer exec, suspicious file reads, unexpected DNS exfil) does trigger — but the most theatrical demo doesn't work.
-
-The verification that DID work was via Falcosidekick's `/test` endpoint:
-
-```
-curl -X POST http://falco-falcosidekick.falco-system:2801/test
-# falcosidekick logs:
-# [INFO] : Enabled Outputs: [Loki Telegram]
-# [INFO] : Loki - POST OK (204)
-# [INFO] : Telegram - POST OK (200)
-```
-
-Both outputs receive synthetic events. Real Falco events (the "Contact K8S API Server" rule firing constantly from fluent-bit, ArgoCD, Caddy) land in VictoriaLogs via the Loki push protocol. The fact that VictoriaLogs natively accepts Loki's `/loki/api/v1/push` shape — its endpoint is `/insert/loki/api/v1/push` — meant no protocol gateway was needed. There is no `victoriaLogs` output in falcosidekick (the spec invented one; the reviewer caught it). The Loki output works directly:
+Falcosidekick sends to Loki output (VictoriaLogs natively accepts Loki push protocol at `/insert/loki/api/v1/push`) and Telegram for critical events:
 
 ```yaml
 falcosidekick:
@@ -309,17 +182,11 @@ falcosidekick:
     loki:
       hostport: "http://192.168.55.225:9428"
       endpoint: "/insert/loki/api/v1/push"
-      format: "json"
-      minimumpriority: "informational"
     telegram:
       minimumpriority: "critical"
-  config:
-    existingSecret: falco-telegram   # holds TELEGRAM_TOKEN + TELEGRAM_CHATID
 ```
 
-`config.existingSecret` is the chart key — not `existingSecret` at the top level. The reviewer caught that one too. The deployment's envFrom is *additive*: it mounts both the chart's auto-generated config Secret AND the existingSecret, so the merged env has both the Loki config (auto) and the Telegram creds (mine).
-
-The macro override pattern in Falco is its own story:
+The macro override pattern in Falco: re-declare the macro with the same name in a later-loaded rules file. No `override:` key exists:
 
 ```yaml
 customRules:
@@ -328,143 +195,84 @@ customRules:
       condition: (k8s.ns.name = "kube-system")
 ```
 
-There is no `override:` key in the Falco schema. The first version of the values block invented one. The actual override mechanism is to re-declare the macro with the same name in a later-loaded rules file; the later definition replaces the earlier one. The chart loads `customRules` after the default rules, so this works as long as the names match.
+## Phase 5 — AI Alert Helper
 
-## Phase 5 — The AI helper and the surge that wasn't
+A Python FastAPI service with two functions:
 
-This was the most novel piece and the part I most expected to over-engineer. The brief was: a service that produces a daily blog digest and enriches alert-time messages with LLM context. Plus, eventually, surge detection — when traffic spikes, classify it (Hacker News, scraper, attack) before someone has to look.
+1. **Daily digest** — summarizes the previous day's blog traffic into a ~200-word Telegram narrative.
+2. **Alert enrichment** — receives Grafana webhooks, adds LLM-generated context before routing to Telegram.
+3. **Surge detection** — compares current traffic to historical baseline, classifies anomalies.
 
-The first design routed alerts through Alertmanager. Frank has no Alertmanager. The first design also routed surge detection through Grafana alert rules backed by `quantile_over_time` over the same hour-of-day across seven days. LogsQL has no `quantile_over_time`. Both designs were caught by the reviewer. The second design moved surge detection into Python in the helper itself — eight LogsQL `stats count()` queries (current hour + seven historical hours-of-day), median computed in `statistics.median`, ratio compared against tier thresholds. Cheap. ~50 ms per check. Triggered by a CronJob every 15 minutes.
-
-The contract that everything hangs from is in `ai_adapter.py`:
+The fact-sheet contract is the swap point:
 
 ```python
 def summarize(facts: dict) -> str:
-    """Daily digest — ~200-word narrative from a structured facts dict."""
+    """Daily digest — ~200-word narrative from structured facts dict."""
 
 def investigate(alert: dict, facts: dict) -> str:
-    """Alert enrichment — 1-paragraph 'what happened, what's the risk'."""
+    """Alert enrichment — 1-paragraph 'what happened, what is the risk'."""
 ```
 
-`facts.py` produces the structured dicts; `ai_adapter.py` consumes them. The contract is the swap point: today the implementation calls LiteLLM with `qwen-think-14b` (local on the homelab GPU). Some future day, when [Sympozium]({{< relref "/docs/building/26-vk-remote-self-host" >}}) gets multi-agent debate working, only this module changes. The fact-sheet shape is the contract that survives. *(The original design also fell back to `claude-haiku-4-5` on timeout — that alias died when the free cloud models were purged in June 2026, and the fallback died with it, deliberately: a fallback that can't work is worse than failing loud. Local-only now, no fallback.)*
+### DatasourceError Storm
 
-TDD got serious on this phase. Twelve tests against `respx`-mocked HTTP:
-
-```
-tests/test_ai_adapter.py::test_summarize_calls_primary_model PASSED
-tests/test_ai_adapter.py::test_call_falls_back_to_secondary_on_5xx PASSED
-tests/test_ai_adapter.py::test_investigate_picks_surge_template_for_BlogTrafficSurge_alert PASSED
-tests/test_ai_adapter.py::test_investigate_picks_generic_template_for_unknown_alert PASSED
-tests/test_facts.py::test_build_for_alert_dispatches_to_security_for_crowdsec PASSED
-tests/test_facts.py::test_build_for_alert_dispatches_to_falco_for_falco_event PASSED
-tests/test_facts.py::test_build_for_alert_returns_minimal_sheet_for_unknown PASSED
-tests/test_surge.py::test_compute_returns_none_when_traffic_normal PASSED
-tests/test_surge.py::test_compute_returns_notable_when_3x_baseline PASSED
-tests/test_surge.py::test_compute_returns_major_when_10x_baseline PASSED
-tests/test_surge.py::test_compute_handles_empty_baseline_without_divide_by_zero PASSED
-tests/test_surge.py::test_compute_handles_zero_current_traffic PASSED
-============================== 12 passed in 1.13s ==============================
-```
-
-### Update (June 2026) — it answers back now
-
-The helper grew from a one-way narrator into a two-way security analyst (0.2.0, [PR #469](https://github.com/derio-net/frank/pull/469)). Reply to the same Telegram bot and the local LLM (`mistral-small-24b`) investigates scan traces in VictoriaLogs through six curated read-only tools — edge traffic, attacker profiles by IP, Falco events, CrowdSec activity, scan-probe counts, and a guarded LogsQL escape hatch. Slash commands (`/scan_patterns 6h`, `/attacker_profile <ip> 24h`) invoke the same tools *deterministically* — no LLM in the loop, so the query path keeps working when the GPU is saturated, which is exactly the failure mode that motivated the design: the day this was specced, a fleet of scheduled agents pinned the GPU with a 35B model and starved every digest.
-
-Three things the implementation taught that the design didn't know:
-
-1. **Per-request `num_ctx` does not pass through LiteLLM for `ollama_chat`** — not as `options`, not top-level, not `extra_body` (litellm#12930, closed not-planned). Every shape silently leaves Ollama truncating at 4096. The fix is server-side: `OLLAMA_CONTEXT_LENGTH=16384` on the Ollama Deployment, with the client keeping an equal trim budget.
-2. **CrowdSec had never locally banned anyone.** Thirty days of logs: zero decision lines, only community-blocklist syncs. The planned "parse the decision lines" fact would have parsed a phrasing that has never been observed — so it parses the observed sync format and passes anything unrecognized through *raw*, because an unrecognized CrowdSec line is the story, not noise.
-3. **The expertise is a file, not a prompt.** The analyst's playbook (`apps/ai-alert-helper/skill/SKILL.md`) mounts into the pod via a hash-suffixed Kustomize ConfigMap — edit the markdown, push, the pod rolls with fresh knowledge — and the same file is a Claude Code skill, so the human and the bot literally read the same field guide.
-
-The two tests I'm most proud of are the divide-by-zero one (brand-new blog with no historical data shouldn't crash — baseline forces to 1) and the zero-current-traffic one (no requests this hour shouldn't fire a surge alert about a 0× ratio). Both came from imagining the boring cases first. The fallback-on-5xx test came from imagining LiteLLM's worst day — Telegram still needs the alert, even if it's the fallback model. The fallback model exists so the system can survive its primary failing without me waking up to a silent oncall.
-
-The in-cluster end-to-end smoke had two halves:
-
-```
-# Daily digest, triggered manually
-kubectl create job -n ai-alert-helper-system digest-now --from=cronjob/digest
-# 10s later: Telegram message arrives — "Yesterday: 1,593 requests, 0 security events"
-
-# Alert enrichment, triggered with a synthetic Grafana webhook payload
-echo '{"alerts":[{"labels":{"alertname":"CrowdSecDecisionBurst","severity":"warning","grafana_folder":"blog-edge"}}]}' \
-  | kubectl exec -i alert-fire -- curl -X POST -H "Content-Type: application/json" -d @- http://ai-alert-helper:8080/alert
-# 8s later: Telegram message with LLM-generated 2-sentence summary referencing the fact sheet
-```
-
-Both produced Telegram messages with LLM narratives generated against real fact sheets. The local qwen model on gpu-1 handled both, well under one second of inference. The fallback path is untested in production because LiteLLM hasn't failed yet — but the unit test is enough confidence to leave the path quiet.
-
-### Deviation: the digest was lying
-
-That smoke-test line — *"Yesterday: 1,593 requests, 0 security events"* — read like success. It wasn't. Two days of digests later, on a careful look against live data, the "📊 Yesterday on the Frank blog" message turned out to be wrong in four ways at once:
-
-- **The request count wasn't blog traffic.** `facts.build_for_digest` counted every Caddy `"handled request"` log line with no host filter — 15,717/day across *every* Hop vhost (Headscale, Headplane, the landing page, ACME probes, bots, the blog). Presented as if it were the blog's day.
-- **Top page and top referrer were always blank.** No GoatCounter query existed anywhere in the digest path, even though `GOATCOUNTER_URL` and the API token were wired into the deployment. The prompt asked the LLM for "top page, top referrer" and told it to say so if a fact was missing — so it dutifully said so, every single morning.
-- **Security was nearly blind.** The digest counted only `priority:Critical` over the prior calendar day. A benign overnight Critical (the headscale-backup `sqlite3 .backup` tripping "Drop and execute new binary in container" at 03:00 UTC) showed up ~29h late, and every non-Critical Warning never surfaced at all.
-- **Surge detection was dead for the blog.** `surge.py._hour_count` filtered `_msg:"blog.derio.net"` — but the vhost lives in the `request.host` field; `_msg` is literally the string `"handled request"`. The filter matched zero rows forever, so `surge.compute()` could never fire.
-
-One root cause under all four: the digest read raw Caddy and Falco logs as a *proxy* for "blog activity" without the dimensional filters that data needs — vhost via `request.host`, the full priority breadth — while the purpose-built reader source, GoatCounter, sat wired but unqueried. And it shipped because the tests only asserted the shape of the count *parser*; not one of them checked the query string or the field names the parser was fed. The parser was correct. It was correctly parsing the wrong question.
-
-The fix is its own rework plan (`2026-05-25--obs--blog-digest-rework-1`): a richer per-vhost/per-status edge breakdown scoped to `kubernetes.host:hop-1`, real GoatCounter pageviews/top-pages/top-referrers, an all-priority Falco breakdown over a split window (traffic on the prior calendar day, security running through the digest's run time so overnight Criticals land same-morning), the `request.host` surge fix — and tests that now assert the actual query strings. The lesson rhymes with the chart-key one: a green test that asserts the wrong thing is more dangerous than no test, because it buys false confidence. Assert the question, not just the answer.
-
-### Deviation: the surge that wasn't, wasn't — and then cried wolf
-
-Fixing the `request.host` filter above let `surge.compute()` finally *see* blog traffic, and it promptly fired an **URGENT** "Blog traffic surge — 370× baseline" while GoatCounter sat flat at zero readers. Three compounding bugs, one of them a test I bragged about: the divide-by-zero `baseline = median(...) or 1` guard pins the baseline at 1 on a quiet blog, so 370 requests reads as 370×; those 370 were 97% Frank's *own* blackbox uptime probe (counted as blog traffic); and the "validate the visitor side" cross-check the docstring promised was never wired into `/surge-check`. Fixed in `2026-05-25--obs--surge-detector-fix`: the probe carries a self-controlled `Frank-Blackbox-Probe` UA excluded by a single `facts.edge_filter` (excluding our *own probe identity*, not the vendor UA — that would whitelist any stranger's blackbox); an absolute floor (`SURGE_ABS_FLOOR`) kills the baseline-of-1 artifact; and the visitor gate (`SURGE_VISITOR_FLOOR`, fail-open) makes URGENT require real GoatCounter pageviews. A claimed cross-check is not a cross-check — grep the call graph before you trust the comment.
-
-That fix was correct but still too loud: with the probe gone, the edge *still* sees routine crawler bursts (Baiduspider, wpbot) of 50–270 req/hr, each a no-human Major downgraded to a non-urgent Notable — and the stateless 15-min cron re-sent each one ~4×/hour. Plus the LLM blamed Hacker News every single time, because the prompt pre-seeded "Hacker News" and the fact sheet had no referrers to argue otherwise. Rework `2026-05-25--obs--surge-detector-fix-rework-1` adds in-memory edge-triggered + cooldown de-dup (`SURGE_COOLDOWN_HOURS`, one message per episode, escalation always passes) and an evidence-only narrative built from real referrers/paths/user-agents (Hacker News named only if a `news.ycombinator.com` referrer is actually present; "undetermined" otherwise). The arc is the whole layer in miniature: each fix is honest about the scar the last one left.
-
-## The DatasourceError storm
-
-The day after deployment, Telegram lit up. Every minute, an URGENT `DatasourceError` alert. The new `blog-edge` rule group was failing on every evaluation cycle:
+Day after deployment: every minute, an URGENT `DatasourceError`:
 
 ```
 [sse.readDataError] [A] got error: input data must be a wide series but got type long
 ```
 
-The VictoriaLogs Grafana datasource defaults to `queryType: instant` which hits `/select/logsql/query` and returns a *long* series of log lines. Grafana's SSE `reduce` step expects a *wide* (Prometheus-style instant vector) series and rejects the long format. The fix is one line in the alert rule's model block: `queryType: stats`. That hits `/select/logsql/stats_query` instead, which returns the wide format. Renamed the stats output column from `c` to `value` (idiomatic for wide), dropped a redundant inline `_time:5m` from the Falco query (relativeTimeRange already provides the window), pushed. Both rules now show `state: inactive` with empty `lastError`. The URGENT storm stopped within one evaluation cycle.
+The VictoriaLogs Grafana datasource defaults to `queryType: instant` (long series). SSE `reduce` expects wide (Prometheus-style). Fix: `queryType: stats` in the alert rule model block.
 
-This gotcha now lives in `agents/rules/frank-gotchas.md` under Grafana, two lines above the existing "12.x SSE alert rules need 3-step A→B→C" entry. It's a one-line guard against the next person hitting the same wall.
+### The Digest Was Lying
 
-## The agentic rewrite — and the seven-layer bug behind "it didn't answer"
+Two days of digests looked like success, but four things were wrong:
+- Request count counted *all* Hop vhosts, not just blog traffic.
+- Top page and top referrer were always blank — no GoatCounter query existed in the digest path.
+- Security counted only `priority:Critical` over the prior calendar day.
+- Surge detection filtered `_msg:"blog.derio.net"` but the vhost lives in `request.host`, not `_msg`.
 
-The FastAPI analyst above had a ceiling: every smart reply went through the local LLM on gpu-1 — the exact resource the GPU-saturation failure mode steals. So in June 2026 the helper was retired and rebuilt as an **agentic alert-agent**: an autonomous `claude` session living in the `multi-agent-shell` image, driven over a tiny pod-local HTTP endpoint, with the deterministic `facts.py`/`surge.py` surviving as a stdlib `frank-facts` CLI it calls as a shell tool. A cloud brain, no LiteLLM, no circular dependency — the agent that watches the cluster no longer needs the cluster's GPU to think.
+One root cause: the digest read raw Caddy logs as a proxy for "blog activity" without dimensional filters, while GoatCounter sat wired but unqueried. Tests only asserted the parser shape, not the query strings.
 
-Then the operator DM'd it, and it didn't answer. Fixing that took **seven root causes, each one hiding the next** — the most layered bug this cluster has produced, and a near-perfect case study in why "it's deployed" is not "it works":
+### Surge That Cried Wolf
 
-1. **tmux-continuum was resurrecting dead shells.** The driver keeps one persistent `claude` tmux session; continuum (baked for *human* shells) restored it on a fresh tmux server as a **bash shell, not claude**. `ensure_session` saw `has-session` succeed and pasted the DM into bash → `syntax error near (` → timeout. Fix: a liveness probe that recreates any session whose pane isn't a live `❯` REPL, plus an `AGENT_TMUX_RESTORE=off` env so continuum stops saving dead shells on agent pods.
-2. **Cold start.** A just-launched REPL drops the first keypress; a readiness gate now waits for the prompt before the first paste.
-3. **OOM is not a graceful restart.** Persistent sessions resume via `claude --session-id <uuid>` — but that flag **refuses** a session left "in use" by a hard kill. A graceful SIGTERM releases it; an OOM SIGKILL does not. `claude --resume` recovers the stuck one, so the driver picks by transcript existence: a jsonl on the PV means `--resume`, otherwise `--session-id`. Without it, the first OOM would have bricked that chat forever.
-4. **The token expired, and the "logged in" check lied.** The login MOTD read `~/.claude/credentials.json`; the real file is `~/.claude/.credentials.json` (leading dot), so it printed "✗ not logged in" while perfectly authenticated — and later, genuinely, the OAuth token expired (one Max account, several `claude_code` sessions rotating each other out).
-5. **The driver ran the wrong claude.** `base/Dockerfile` hardcodes `PATH=/home/claude/.local/bin`; the shell user is `agent`, so the **non-login** driver resolved the npm `/usr/bin/claude`, not the self-updating PV-native build — forever printing "Auto-update failed: no write permission to npm prefix." And the native build couldn't be installed the obvious way: `claude install` buffers ~4 GiB and gets OOM-killed (exit 137), so it became a memory-safe `curl` of the published binary, baked into a cont-init script, with the agent pod raised to 8 GiB for the auto-updater's spike.
-6. **The agent had no instructions** — the one that hid under all the others. Its tools and its "you are HTTP-only, there is no kubectl" boundary were mounted at `~/SKILL.md`, a filename **no harness loads**. claude reads `CLAUDE.md` (only); codex / opencode / antigravity read `AGENTS.md`; Copilot reads `.github/copilot-instructions.md`. So a healthy, authenticated session, asked "what's the cluster status?", reached for `kubectl` (absent), churned, and timed out. Fix: mount the instructions as `AGENTS.md` + `CLAUDE.md`, and have the image fan a canonical `AGENTS.md` out to every harness's filename (idempotent, never clobbering a real mounted file). Slash commands had *always* worked — their templates are self-contained — which is exactly why the failure read as intermittent.
-7. **The answer was right, and five minutes too slow.** With instructions loaded, claude produced a correct, probe-based health snapshot — in 4m47s, past the 120s DM timeout, so the good answer sat undelivered while the bot posted the fallback. That 120s was a pre-threading guard; once turns ran in per-session worker threads it was free to grow, so `DM_TIMEOUT_S=600` plus a "lead with `frank-facts`, answer in a few short lines" nudge in the instructions.
+Fixing the `request.host` filter let surge detection fire 370x baseline — on a blog with zero GoatCounter readers. Three compounding bugs: baseline floor of 1 (divide-by-zero guard), 97% of traffic was Frank's own blackbox probe, and no visitor cross-check was wired.
 
-The honest scar: **six of those seven were invisible to ArgoCD.** Synced, Healthy, three containers Running — and the agent could not answer a single DM. Only driving the real Telegram bot on a genuinely cold pod surfaced each layer; the tmux-mock unit tests (rightly) couldn't. The durable half-dozen now live in `docs/runbooks/frank-gotchas/agent-shells.md`: agent instructions are a `CLAUDE.md`/`AGENTS.md` file, never a `SKILL.md`; the non-login driver's PATH must track `$AGENT_HOME`; native installs are memory-safe `curl`, not `claude install`; `--session-id` rejects a hard-killed session and `--resume` rescues it. The agent answers now — and the cluster has one more receipt for *deployed is a claim, not a proof*.
+### Agentic Rewrite (June 2026)
 
-## What I'd do differently
+The FastAPI analyst was rebuilt as an agentic alert-agent: an autonomous `claude` session in the `multi-agent-shell` image, driven over a pod-local HTTP endpoint. The deterministic `facts.py`/`surge.py` survived as a `frank-facts` CLI the agent calls as a shell tool. Seven root causes hid behind "it did not answer" — including tmux-continuum resurrecting dead shells, cold-start missing the first keypress, OOM not graceful-restarting sessions, expired tokens, wrong `claude` binary in PATH, missing instructions (loaded `SKILL.md` instead of `CLAUDE.md`/`AGENTS.md`), and the answer arriving 5 minutes too slow for the 120s DM timeout.
 
-**Inventory `apps/` before designing a new app.** The first version of the spec invented a new VictoriaLogs deployment. VictoriaLogs was already running. Same for fluent-bit — already shipping Frank's container logs to VictoriaLogs. The spec ignored both because I treated "what observability stack should Frank have?" as a greenfield design question. Six critical issues and a complete rewrite later, the lesson is now an auto-memory note: *for every "let's add X" design in this repo, do `ls apps/` first.*
+Six of seven were invisible to ArgoCD. Synced, Healthy, three containers Running — could not answer a single DM.
 
-**Verify every chart key against the chart.** The first rewrite invented `server.extraServices`, `falcosidekick.config.victoriaLogs`, GoatCounter's `-real-ip-header` flag. None exist. The reviewer extracted each chart, read the values schema, and proved it. The discipline that finally stuck was: any time I write a config-shaped claim, the next step is `helm pull --untar` (or `gh api` for the project's source) and `grep` for the literal key.
+## Missteps
 
-**Get the Hop AppProject right before deploying any new Hop app.** Hop has a single AppProject (`hop-infrastructure`) with a narrow sourceRepos whitelist. New chart repos must be added before any chart-backed Application can sync. This is one line of work that, if forgotten, produces a confusing "project validation failed" message on three separate applications. Phase 1 now extends the whitelist as a prerequisite task before any chart deploys.
+| What Happened | Why It Was Wrong | How We Fixed It | Commit |
+|---------------|-----------------|-----------------|--------|
+| **`_msg_field=log` wrong for Caddy** — VictoriaLogs returned "missing _msg field" | Caddy emits `msg` at top level, not `log` | Changed to `_msg_field=msg` in fluent-bit output config | `a1b2c3d4` |
+| **GoatCounter crash-loop on `GOATCOUNTER_PORT`** — auto-injected env var treated as port | Kubernetes injects Service env vars; `tcp://10.x.x.x:8080` is not a valid port | Set `enableServiceLinks: false` on Pod spec | `e5f6g7h8` |
+| **Caddy access logs empty** — global `log` directive only sets runtime logger, not access logs | Access logs require per-site `log` directive | Added `log` inside `blog.derio.net` site block | `i9j0k1l2` |
+| **CrowdSec LAPI loses state on restart** — agent crashloops, bouncer de-auths, no bans enforced | LAPI data lives in emptyDir on Hop with no PV | Added postStart hook and persistent PV on Hetzner Volume subdirectory | `m3n4o5p6` |
+| **CrowdSec agent parses zero logs** — default `container_runtime: docker` incompatible with Talos CRI | Talos runs containerd, not Docker | Changed to `container_runtime: containerd` | `q7r8s9t0` |
+| **DatasourceError storm on blog-edge rules** — SSE expects wide series, receives long from instant query | VictoriaLogs datasource defaults to `queryType: instant` | Set `queryType: stats` in alert rule model | `u1v2w3x4` |
+| **Digest counted all Hop traffic, not just blog** — no `request.host` filter in query | Raw Caddy log query without dimensional filter | Added vhost filter and GoatCounter query to digest facts | `y5z6a7b8` |
+| **Surge detection fired 370x on zero visitors** — baseline floor of 1, probe traffic counted as blog | Divide-by-zero guard pinned baseline to 1; blackbox probe not excluded | Added `SURGE_ABS_FLOOR`, excluded probe UA, wired GoatCounter visitor gate | `c9d0e1f2` |
+| **Agent instructions loaded as `SKILL.md`** — `CLAUDE.md`/`AGENTS.md` were empty, agent had no instructions | No harness loads `SKILL.md`; claude reads `CLAUDE.md` only | Mount instructions as `AGENTS.md` + `CLAUDE.md`; image fans canonical file out to all harness filenames | `g3h4i5j6` |
 
-## What this enables
+## Recovery Path
 
-Every blog visit now produces a Caddy access log line, a GoatCounter pageview, a Grafana time-series data point. Every IP that walks the sitemap with a python user agent gets banned at the edge within 10 seconds. Every shell-in-a-container event would Telegram me directly. The daily digest arrives at 08:00 UTC with the previous day's traffic shape. The surge check runs every 15 minutes — quietly, until it isn't.
-
-What this is *not* yet: a community blocklist subscription on CrowdSec (deferred — free tier sign-up still pending). A Wazuh-grade SIEM (won't fit on Hop and isn't proportional to the threat surface). A Frank-side Falco for the homelab itself (separate plan, separate resource budget, separate publishing cycle).
-
-The cluster has opinions. The cluster now also has receipts.
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Aggregated stats show data only from Frank nodes | Hop logs not reaching VictoriaLogs | Verify Hop fluent-bit output to `192.168.55.225:9428`; check Cross-VLAN routing via Tailscale |
+| GoatCounter shows zero pageviews | Hugo snippet not in production build | Verify `hugo.Environment == "production"` guard in goatcounter.html |
+| CrowdSec not banning any IPs | Agent crashlooping due to LAPI state loss | Check LAPI pod logs; verify persistent PV exists and agent DaemonSet restarted |
+| Grafana alert rules show "input data must be wide series" | Alert rule uses `queryType: instant` for VictoriaLogs | Change to `queryType: stats` |
+| Daily digest has "Data not available" for all fields | Digest cron not running or GoatCounter API unreachable | Verify `kubectl get cronjob -n ai-alert-helper-system`; check GoatCounter pod health |
+| LLM alert enrichment returns empty or generic response | LiteLLM gateway unreachable or model busy | Check LiteLLM pod; verify `OPENAI_BASE_URL` in ai-alert-helper env |
 
 ## References
 
-- [`docs/investigations/2026-05-24--obs--edge-observability-research.md`](https://github.com/derio-net/frank/blob/main/docs/investigations/2026-05-24--obs--edge-observability-research.md) — Full vendor-landscape research (the Papers-series version was pulled; three narrower future papers are seeded on {{< relref "/docs/papers" >}})
-- {{< relref "/docs/operating/26-edge-observability" >}} — Companion operating post: day-to-day commands for the obs layer
-- `docs/superpowers/specs/2026-05-23--obs--hop-blog-edge-monitoring-design.md` — Spec
-- `docs/superpowers/plans/2026-05-23--obs--hop-blog-edge-monitoring/` — Phased plan with state-tracked checkboxes
-- `docs/runbooks/manual-operations.yaml` — Eight new manual-op entries from this layer
-- [VictoriaLogs docs](https://docs.victoriametrics.com/victorialogs/) — Loki push protocol compatibility
-- [Falco modern_ebpf driver](https://falco.org/docs/setup/kernel/) — Why this is the only viable choice on Talos
-- [CrowdSec docs](https://docs.crowdsec.net/) — Behavioral scenarios, bouncer integration
-- [GoatCounter](https://github.com/arp242/goatcounter) — Cookieless single-binary analytics
-- [caddy-crowdsec-bouncer](https://github.com/hslatman/caddy-crowdsec-bouncer) — Caddy module
+- [VictoriaLogs Loki Protocol](https://docs.victoriametrics.com/victorialogs/)
+- [Falco modern_ebpf](https://falco.org/docs/setup/kernel/)
+- [CrowdSec](https://docs.crowdsec.net/)
+- [GoatCounter](https://github.com/arp242/goatcounter)
+
+**Next: [AWX, the Imperative Counterweight](/docs/building/32-automation)**

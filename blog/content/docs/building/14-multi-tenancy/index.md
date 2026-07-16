@@ -7,17 +7,45 @@ draft: false
 tags: ["vcluster", "multi-tenancy", "sandbox", "isolation", "argocd"]
 summary: "Virtual Kubernetes clusters inside Frank — each one a disposable sandbox with its own control plane, resource quotas, and network policies, deployed via ArgoCD."
 weight: 15
+reader_goal: "Deploy a vCluster virtual cluster on Talos with template-based ArgoCD pattern and work around the v0.32.1 chart schema gotchas"
+diataxis: tutorial
+last_updated: 2026-07-15
 ---
 
-Every experiment on a shared cluster carries risk. Install a CRD that conflicts with something in production. Deploy a Helm chart that creates cluster-scoped resources you did not expect. Run a fuzz test that fills all available memory. On a homelab with one cluster, the blast radius is everything.
+Every experiment on a shared cluster carries risk. Install a CRD that conflicts with production. Deploy a Helm chart that creates cluster-scoped resources you did not expect. Run a fuzz test that fills all available memory. On a homelab with one cluster, the blast radius is everything.
 
-Layer 12 adds vCluster — virtual Kubernetes clusters that run inside Frank. Each one has its own API server, its own namespaces, its own resources. From the inside, it looks and feels like a real cluster. From the outside, it is a StatefulSet in a namespace.
+Layer 14 adds vCluster — virtual Kubernetes clusters that run inside Frank. Each one has its own API server, its own namespaces, its own resources. From the inside it looks like a real cluster. From the outside it is a StatefulSet in a namespace.
+
+```mermaid
+flowchart LR
+  subgraph Host[Host Cluster — Frank]
+    NS[vcluster-experiments<br/>namespace]
+    ST[StatefulSet<br/>experiments-0]
+    PVC[5Gi Longhorn<br/>backing store]
+  end
+  subgraph Virtual[Virtual Cluster — experiments]
+    API[API Server]
+    CM[Controller Manager]
+    SQL[SQLite<br/>embedded]
+    NSv[Namespaces<br/>kube-system, default, ...]
+  end
+  subgraph Tenant[Tenant Workloads]
+    Pod[nginx pod<br/>scheduled on host]
+  end
+
+  NS --> ST
+  ST --> API
+  API --> SQL
+  API --> CM
+  CM -->|sync| Pod
+  Pod -->|scheduled on| Host
+```
 
 ## What vCluster Actually Is
 
-[vCluster](https://www.vcluster.com/) runs a virtual Kubernetes control plane (API server + controller manager + backing store) as a StatefulSet. The virtual cluster has its own API endpoint, its own etcd (or SQLite), and its own set of namespaces. Workloads created inside the virtual cluster get synced to the host cluster for actual scheduling — the virtual cluster does not run its own kubelet or container runtime.
+vCluster runs a virtual Kubernetes control plane (API server + controller manager + backing store) as a StatefulSet. The virtual cluster has its own API endpoint, its own etcd (or SQLite), and its own namespaces. Workloads created inside the virtual cluster get synced to the host cluster for actual scheduling — the virtual cluster does not run its own kubelet or container runtime.
 
-The key properties:
+Key properties:
 
 - **API isolation** — a tenant can install CRDs, create cluster-scoped resources, and run `kubectl` without affecting the host
 - **Resource isolation** — quotas and limit ranges bound what the tenant can consume
@@ -26,15 +54,15 @@ The key properties:
 
 ## The Template Pattern
 
-Adding a vCluster should be as simple as adding a Helm values file and an ArgoCD Application CR. To make this work, the values are split into two layers:
+Adding a vCluster should be as simple as adding a Helm values file and an ArgoCD Application CR. Values are split into two layers:
 
 ```
 apps/vclusters/
-  template/values.yaml        # Base defaults — all vClusters inherit this
-  experiments/values.yaml     # Instance-specific overrides (can be empty)
+  template/values.yaml        # Base defaults — all vClusters inherit
+  experiments/values.yaml     # Instance-specific overrides
 ```
 
-The ArgoCD Application CR loads both files in order:
+The ArgoCD Application CR loads both files in order — Helm deep-merges them:
 
 ```yaml
 helm:
@@ -43,25 +71,50 @@ helm:
     - $values/apps/vclusters/experiments/values.yaml
 ```
 
-Helm deep-merges them — the instance file overrides the template. To create a new vCluster, copy the Application CR, point it at a new values file, and push.
+To create a new vCluster: copy the Application CR, point it at a new values file, push.
 
-## Template Defaults
+### Template Defaults
 
-The template configures sensible defaults for a homelab sandbox:
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| Backing store | SQLite | Open-source vCluster does not support embedded etcd (Pro license); SQLite fine for single-replica at homelab scale |
+| Persistence | 5Gi Longhorn | State survives pod restarts |
+| Resource quotas | 4 CPU / 8Gi / 50 pods / 20 services | Enough for experiments, bounded to prevent host starvation |
+| Network policies | Enabled | Virtual pods cannot reach host services by default |
+| Sync rules | Pods, Services, ConfigMaps, Secrets, PVCs, Ingresses → host; Nodes, StorageClasses → virtual | |
 
-**Backing store:** SQLite (embedded database). The open-source edition of vCluster does not support embedded etcd — that requires a Pro license. SQLite is fine for single-replica virtual clusters at homelab scale.
+## Deploying
 
-**Persistence:** 5Gi Longhorn volume for the backing store. The virtual cluster's state survives pod restarts.
+One ArgoCD app per vCluster. The `experiments` instance:
 
-**Resource quotas:** 4 CPU / 8Gi request limit, 50 pods, 20 services. Enough for experiments, bounded enough to prevent runaway workloads from starving the host.
-
-**Network policies:** Enabled. Virtual cluster pods cannot reach host cluster services by default.
-
-**Sync rules:** Pods, Services, ConfigMaps, Secrets, PVCs, and Ingresses sync from virtual to host. Nodes and StorageClasses sync from host to virtual.
+```yaml
+# apps/vclusters/experiments/application.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: vcluster-experiments
+  namespace: argocd
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://charts.loft.sh
+      chart: vcluster
+      targetRevision: 0.32.1
+      helm:
+        releaseName: experiments
+        valueFiles:
+          - $values/apps/vclusters/template/values.yaml
+          - $values/apps/vclusters/experiments/values.yaml
+    - repoURL: <git-repo>
+      targetRevision: main
+      ref: values
+  destination:
+    namespace: vcluster-experiments
+```
 
 ## Chart Schema Gotchas
 
-The vCluster chart v0.32.1 has a strict JSON schema. Three things the plan got wrong:
+The vCluster chart v0.32.1 has a strict JSON schema. Three things the initial plan got wrong:
 
 1. **`isolation` does not exist** — it is `policies` (with `resourceQuota`, `limitRange`, `networkPolicy`)
 2. **`networking.service` does not exist** — the chart does not expose a top-level service type override
@@ -69,11 +122,11 @@ The vCluster chart v0.32.1 has a strict JSON schema. Three things the plan got w
 
 Any schema violation produces a template error during ArgoCD sync. The error message is clear, but discovering the correct field names required `helm show values` against the actual chart.
 
-## The Result
+## Verify
 
 Inside the virtual cluster:
 
-```
+```console
 $ kubectl get namespaces
 NAME              STATUS   AGE
 default           Active   3m
@@ -93,24 +146,29 @@ NAME    READY   STATUS    RESTARTS   AGE
 nginx   1/1     Running   0          10s
 ```
 
-On the host cluster, the nginx pod appears in the `vcluster-experiments` namespace with a mangled name — the syncer translates between virtual and host namespaces. The pod is scheduled normally by the host's kubelet.
+On the host, the nginx pod appears in `vcluster-experiments` with a mangled name — the syncer translates between virtual and host namespaces. The pod is scheduled normally by the host's kubelet.
 
-Adding the next vCluster is two files and a `git push`.
+## Missteps
 
-```console
-$ vcluster list
-  
-       NAME     |      NAMESPACE       | STATUS  | VERSION | CONNECTED | AGE  
-  --------------+----------------------+---------+---------+-----------+------
-    experiments | vcluster-experiments | Running | 0.32.1  |           | 39d  
-  
+| What Happened | Why It Was Wrong | How We Fixed It | Commit |
+|---------------|-----------------|-----------------|--------|
+| **Chart schema field name mismatch** — used `isolation` and `networking.service` which do not exist in v0.32.1 schema | Initial config based on outdated docs; chart has strict JSON schema validation | Discovered correct fields (`policies`, no top-level `networking.service`) via `helm show values` | `7cfc11bc` |
+| **Case-sensitive sync rule keys** — `configmaps` instead of `configMaps`, `persistentvolumeclaims` instead of `persistentVolumeClaims` | Helm values are case-sensitive; schema rejects wrong casing | Corrected casing in values.yaml | `7cfc11bc` |
 
-$ kubectl get pods -n vcluster-experiments -o wide
-NAME                                                   READY   STATUS    RESTARTS   AGE   IP             NODE     NOMINATED NODE   READINESS GATES
-coredns-79cf5f4c56-9592v-x-kube-system-x-experiments   1/1     Running   0          29d   10.244.13.30   mini-2   <none>           <none>
-experiments-0                                          1/1     Running   0          29d   10.244.8.85    mini-3   <none>           <none>
+## Recovery Path
 
-$ kubectl get statefulset -n vcluster-experiments
-NAME          READY   AGE
-experiments   1/1     39d
-```
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| ArgoCD sync fails with template error | Chart schema violation — wrong field name or casing | Check with `helm template` against the chart version; verify with `helm show values` |
+| Virtual cluster pod stuck Pending | Insufficient resources in host namespace | Check resource quotas in `vcluster-experiments` namespace |
+| Cannot reach workloads in virtual cluster | Network policies blocking cross-cluster traffic | Verify `policies.networkPolicy` config; add host-side allow rules if needed |
+| State lost on pod restart | PVC not created or not bound | Check `kubectl get pvc -n vcluster-experiments` |
+
+## References
+
+- [vCluster Documentation](https://www.vcluster.com/docs) — Installation, configuration, sync rules
+- [vCluster Helm Chart](https://charts.loft.sh) — Chart repository
+- `apps/vclusters/template/values.yaml` — Base defaults
+- `apps/vclusters/experiments/` — Instance-specific config
+
+**Next: [Paperclip — AI Agent Orchestrator](/docs/building/15-paperclip)**
