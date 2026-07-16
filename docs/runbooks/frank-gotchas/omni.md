@@ -135,6 +135,285 @@ The Pi death was **near-silent across the whole stack**: the Derio Ops board sta
 
 The root problem is the un-HA'd single-Pi SPOF, not this one death. The replacement is **not another Pi**: Omni is being rehomed onto an **Ansible-managed Proxmox host with HA + UPS** for the whole homelab. That migration is its own Layer 2 build/operating post (this incident is its cold open), and it also retires the **wedge** gotcha above — a UPS plus a real RTC end the cold-boot clock-jump class outright. Until then the temporary `*.frank` re-fronting (`networking.md`) carries the services.
 
+## `OMNI_SERVICE_ACCOUNT_KEY` — the `devops` Omni service account (non-interactive auth)
+
+`OMNI_SERVICE_ACCOUNT_KEY` (in `.env_devops`) is what lets `omnictl` and
+`talosctl` authenticate to Omni **without a browser** — it is the credential the
+automation (and the `omnictl kubeconfig` / `omnictl talosconfig` mints in the
+section below) runs on. Not to be confused with the *minted kubeconfig* in the
+next section: that is a k8s JWT this key is used to **issue**; this is the Omni
+identity that authorizes the issuing.
+
+- **What it is.** Base64 of a small JSON blob `{name, pgp_key}` where `pgp_key`
+  is an armored **ed25519 PGP private key**. `name` is `devops`; the full Omni
+  identity is `devops@serviceaccount.omni.sidero.dev`, role **Admin**.
+- **Where it lives.** A plaintext blob on **one line of the gitignored
+  `.env_devops`** — **no SOPS, no in-repo vault path**. The external
+  Infisical / host secret store is the source of truth; `.env_devops` is the
+  local working copy. `.env` chains `.env_common`; `.env_devops` is sourced
+  separately (that's where this key and `OMNICONFIG` live).
+- **Expiry.** The SA's own PGP key is long-lived — current key expires
+  **2027-03-02** (created 2026-03-02). It does not auto-rotate and has no alert;
+  put the date somewhere you watch, same as the kubeconfig below.
+
+### The two-identities model (read this before debugging any auth failure)
+
+Every Omni request is PGP-signed. Two different identities sign on this
+workstation, and a failure is almost always about *which one* signed:
+
+| Identity | Used when | Signing key |
+|---|---|---|
+| `devops@serviceaccount.omni.sidero.dev` (the SA) | `OMNI_SERVICE_ACCOUNT_KEY` is set in the env | signs **directly** with the SA key — no browser, valid to the SA key's own expiry (2027-03-02) |
+| `familiedermitzaki@gmail.com` (interactive Google login) | the SA env var is **absent** | a **short-lived** (≈4 h TTL) local keypair in `~/.talos/keys/<context>-<identity>.pgp`, re-minted via browser OIDC on expiry |
+
+`omnictl serviceaccount list` shows the SA's registered public keys: the
+long-lived one (fingerprint `2945F95C…214304568`, exp 2027-03-02) plus a litter
+of already-expired short-lived signing keys — the expired ones are normal churn,
+the long-lived one is what authenticates.
+
+**Reading the error:**
+
+- `Unauthenticated: invalid signature` — the presented signing key is
+  expired / not registered (a **crypto** rejection, not authz). Usually means the
+  tool fell back to an interactive identity whose local key has lapsed.
+- `public key <> id mismatch` (during a browser re-auth) — the locally-cached
+  identity keypair is stale versus Omni's on-file record. Fix: delete the stale
+  `~/.talos/keys/<context>-<identity>.pgp` file(s) for that identity, then re-auth
+  so a fresh keypair registers (see Recovery below).
+
+### The gotcha that costs an afternoon: the key must be present at **`talosctl` runtime**
+
+`OMNI_SERVICE_ACCOUNT_KEY` being set when you **generate** a talosconfig is not
+enough — it must also be set in the shell when `talosctl` actually **runs**, because
+the generated Omni talosconfig stores only the *identity* (`auth.siderov1.identity:
+devops@serviceaccount.omni.sidero.dev`), and the SA key is read from the env
+**per request** to sign. Two ways this bites:
+
+- Running `talosctl` in a shell where `.env_devops` was never sourced → no SA key
+  → talosctl falls back to `~/.talos/config`'s **current context** (an interactive
+  identity, e.g. `omni-frank-1` → `familiedermitzaki@gmail.com`) → `invalid
+  signature` if that key has expired (and a browser popup on the re-auth attempt).
+- Bare `talosctl …` with no `--talosconfig` uses `~/.talos/config`, whose current
+  context may be an interactive one, **not** the SA — same failure.
+
+**Do it right:**
+
+```bash
+cd <repo-root>
+source .env && source .env_devops                 # sets OMNICONFIG + OMNI_SERVICE_ACCOUNT_KEY
+omnictl talosconfig <out.yaml>                     # identity = devops@serviceaccount…
+talosctl --talosconfig <out.yaml> -n <machine-id> version   # SA key still in env → signs silently
+```
+
+The `<machine-id>` is an Omni machine UUID from `omnictl get machines`; the call
+routes through `https://omni.frank.derio.net` (the endpoint in the generated
+config), Omni proxies to the node. Verified end-to-end 2026-07-16.
+
+### Diagnose the SA key (offline — no cluster needed)
+
+The key is self-describing; decode metadata only, **never** print the private
+block:
+
+```bash
+# name + confirm structure
+printf '%s' "$OMNI_SERVICE_ACCOUNT_KEY" | base64 -d | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["name"])'
+# fingerprint + expiry of the embedded PGP key
+printf '%s' "$OMNI_SERVICE_ACCOUNT_KEY" | base64 -d \
+  | python3 -c 'import sys,json;open("/tmp/sa.asc","w").write(json.load(sys.stdin)["pgp_key"])'
+gpg --show-keys /tmp/sa.asc     # read fingerprint + [expires: …]; then: rm /tmp/sa.asc
+```
+
+Cross-check the fingerprint against the `PUBLIC KEY ID` / `EXPIRATION` columns of
+`omnictl serviceaccount list` (needs the SA env sourced) — the env key's
+fingerprint should match the one non-expired registered entry.
+
+### Renew (rotate) the key
+
+The SA key does not need renewing until near its expiry, but to rotate it (or if
+it is ever compromised), with the **current** SA env still valid (Admin authorizes
+its own renewal, no browser):
+
+```bash
+cd <repo-root>
+source .env && source .env_devops
+omnictl serviceaccount renew devops        # prints a new OMNI_SERVICE_ACCOUNT_KEY value
+```
+
+Then paste the new value into **`.env_devops`** *and* the **external
+Infisical / host vault** (the vault is the source of truth; the file is the
+working copy). Re-source and verify with the Diagnose block above. If the
+interactive admin identity is itself broken (see the mismatch case below) you
+cannot fall back to browser auth to renew — the still-valid SA env is what makes
+`renew` work, so rotate *before* the key lapses, not after.
+
+### Recovery — a wedged interactive identity (`invalid signature` / `public key id mismatch`)
+
+If the SA path works (API + Talos both fine under `source .env_devops`) but bare
+`talosctl` / browser `omnictl` fails, the interactive `familiedermitzaki@gmail.com`
+identity is the broken one, not the SA. Clear its stale local keys and re-auth:
+
+```bash
+rm ~/.talos/keys/*familiedermitzaki@gmail.com.pgp    # stale local keypairs (per-context)
+cd <repo-root> && source .env                        # OMNICONFIG, but NOT the SA env
+omnictl get clusters                                 # completes the Google SSO re-auth → fresh key registers
+```
+
+Note re-authing via `omnictl` only re-mints the key for the **`OMNICONFIG`
+context** (`default` → `~/.talos/keys/default-…pgp`); the **talos** contexts
+(`omni-frank`, `omni-frank-1`) get their own key on the next `talosctl`
+interactive call, which triggers **one more** (expected) browser click. For
+automation you never need the interactive path at all — use the SA env + a
+SA-generated talosconfig and no browser is ever involved.
+
+### Incident
+
+2026-07-16 — `talosctl` against the Omni-generated talosconfig returned
+`Unauthenticated: invalid signature` on two talosctl versions while `omnictl get
+clusters` / `omnictl talosconfig` succeeded. Root cause was **not** the SA key
+(valid to 2027-03-02, proven working through the Talos proxy against a live CP
+node with the SA env sourced) and **not** clock skew (workstation vs Omni = 0 s):
+`talosctl` was using `~/.talos/config`'s interactive context
+(`omni-frank-1` → `familiedermitzaki@gmail.com`) whose ~4 h local key had lapsed,
+either without the SA env in scope or via the bare-config fallback. Fixed by the
+Recovery block (stale-key delete + re-auth) for the interactive path; the durable
+answer for automation is the SA-env + SA-talosconfig runtime sequence above.
+
+## Three-key model — per-tower shutdown service accounts (gondor)
+
+The single shared `devops` key above is being split so the **gondor** Proxmox HA
+cluster (`derio-homelab/proxmox-cluster`) drives frank's power-outage safety
+shutdown with a **least-privilege, single-homed** credential instead of the
+Admin-scoped `devops` key. Three Omni service accounts, not one:
+
+| Identity | Role | TTL | Homed on | Consumed by |
+|---|---|---|---|---|
+| `devops@serviceaccount.omni.sidero.dev` | **Admin** | to 2027-03-02 | workstation `.env_devops` (+ external Infisical/host vault) | interactive / automation `omnictl` + `talosctl` (unchanged) |
+| `shutdown-tirith@serviceaccount.omni.sidero.dev` | **Operator**, frank-scoped | 1 yr (Omni max — **annual renewal**) | gondor ansible-vault, `tirith` only | orchestrator role on tirith |
+| `shutdown-morgul@serviceaccount.omni.sidero.dev` | **Operator**, frank-scoped | 1 yr (Omni max — **annual renewal**) | gondor ansible-vault, `morgul` only | orchestrator role on morgul |
+
+### Why per-tower (one key each, not one shared)
+
+PR #38 (`proxmox-cluster`, dual-pve-nut-failover) retires `osgiliath` (the Pi
+QDevice) as the single orchestrator SPOF and moves shutdown-driver duty to
+**either PVE node — `tirith` or `morgul`** — elected via Proxmox HA / quorum.
+Whichever node holds quorum during an outage runs `talosctl shutdown` against
+frank (workers before control-plane). Either can be the driver, so **each tower
+carries its own key**:
+
+- **Single-homed → renewal touches exactly one place.** Rotating
+  `shutdown-tirith` edits one vault var on one node; no shared secret fanned out
+  across hosts, no cross-repo drift, no "which copy is current" ambiguity.
+- **Blast radius per key is one tower.** A compromised or leaked tower key is
+  revoked (`omnictl serviceaccount destroy shutdown-<node>`) without disturbing
+  the other tower or the `devops` automation path.
+
+### Least privilege — role and cluster scope
+
+Omni roles are coarse: `None` < `Reader` < `Operator` < `Admin`. `talosctl
+shutdown`/`reboot` through the Omni proxy is a machine-maintenance op, so the
+floor is **`Operator`** — `Reader` is view-only and cannot reboot/shutdown;
+there is no finer "reboot-only" capability to drop to. `Admin` (what `devops`
+uses) is strictly more than a shutdown driver needs.
+
+**Cluster scoping is not a `create` flag** — `omnictl serviceaccount create` only
+sets a *global* role. To bind Operator to **cluster `frank` only** you apply an
+Omni **AccessPolicy (ACL)**, which grants a role to an identity scoped to a
+cluster. ACLs *elevate* per-cluster and cannot downgrade an existing global role
+(so devops's Admin is unaffected). This Omni currently runs **no ACL**
+(`omnictl get accesspolicy` is empty) and has **one cluster** (`frank`), which
+gives two equivalent-today options:
+
+- **Simplest (single-cluster):** create each SA with global `--role Operator`,
+  no ACL. Blast radius today = frank only, because frank is the only cluster.
+- **Future-proof (true least-privilege):** create each SA with global
+  `--role Reader` (harmless view-only everywhere) and apply an ACL granting
+  `Operator` on cluster `frank`. If a second cluster is ever added to this Omni,
+  these keys do **not** inherit Operator on it.
+
+> Not live-verified: create/ACL-apply were not run this session (diagnosis only),
+> so the base-Reader + ACL-elevation path is grounded in the Omni ACL docs' role
+> examples, not exercised on this backend (v1.5.0). If in doubt, use the simplest
+> form now and add the ACL when a second cluster appears.
+
+### Create commands (run by the operator; DO NOT run from here)
+
+TTL: `omnictl serviceaccount create` defaults to **8760h (1 year)**, and on this
+backend **1 year is also the hard maximum** — a longer value was rejected
+empirically (a `43800h` / 5-year create failed). So these are **annual-renewal**
+keys: `--ttl 8760h` below (equivalently, omit `--ttl` for the 1-year default).
+A short-lived key on a crisis-only safety path makes the active expiry check
+(see verification) **non-negotiable** — it is the compensating control.
+
+```bash
+cd /Users/derio/Docs/projects/DERIO_NET/frank
+source .env && source .env_devops          # devops (Admin) authorizes the create; no browser
+
+# Simplest (single-cluster) — global Operator:
+omnictl serviceaccount create shutdown-tirith --use-user-role=false --role Operator --ttl 8760h
+omnictl serviceaccount create shutdown-morgul --use-user-role=false --role Operator --ttl 8760h
+
+# Future-proof variant — create as Reader, then scope Operator@frank via ACL:
+#   omnictl serviceaccount create shutdown-tirith --use-user-role=false --role Reader --ttl 8760h
+#   omnictl serviceaccount create shutdown-morgul --use-user-role=false --role Reader --ttl 8760h
+#   omnictl apply -f frank-shutdown-acl.yaml
+```
+
+ACL (only for the future-proof variant) — `frank-shutdown-acl.yaml`:
+
+```yaml
+metadata:
+  namespace: default
+  type: AccessPolicies.omni.sidero.dev
+  id: frank-shutdown
+spec:
+  rules:
+    - users:
+        - shutdown-tirith@serviceaccount.omni.sidero.dev
+        - shutdown-morgul@serviceaccount.omni.sidero.dev
+      clusters:
+        - frank
+      role: Operator
+  tests: []
+```
+
+Each `create` prints an `OMNI_SERVICE_ACCOUNT_KEY=<blob>` line. **Do not** put it
+in frank's `.env_devops` — these are gondor-only. Paste each into the
+**proxmox-cluster ansible-vault** (`config/host_vars/cluster_frank/vault.yml`):
+`shutdown-tirith` → `vault_omni_sa_key_tirith`, `shutdown-morgul` →
+`vault_omni_sa_key_morgul`, wired through
+`config/inventory/group_vars/cluster_frank/vars.yml` exactly as the existing
+`omni_sa_key: "{{ vault_omni_sa_key }}"` line does (add per-node
+`omni_sa_key_tirith` / `_morgul`). That repo standardizes on ansible-vault
+(AES256) — no SOPS/Infisical.
+
+### Active verification is mandatory (a silent expiry defeats the shutdown)
+
+A shutdown key that has silently expired fails at the **worst** moment — mid power
+outage, when the driver tower tries `talosctl shutdown` and gets `invalid
+signature`. `config/playbooks/homelab-shutdown-verify.yml` must therefore, for
+**each** tower key:
+
+1. **Prove it authenticates** — `talosctl --talosconfig <gen> -n <machine-id>
+   version` through the Omni proxy succeeds (the same runtime rule as `devops`:
+   the SA key must be in the env when `talosctl` runs, not just at generation).
+2. **Alert on days-to-expiry** — decode the key's PGP expiry offline (the
+   "Diagnose the SA key" block above) and page at **T-30d**. With only a 1-year
+   TTL this alert is **mandatory**, not a nice-to-have: it is the sole thing
+   standing between an annual renewal slipping and the shutdown failing mid-outage.
+
+### Renewal (per key, one place)
+
+Same mechanism as `devops` — with a still-valid authorizing identity sourced:
+
+```bash
+omnictl serviceaccount renew shutdown-tirith    # or shutdown-morgul; prints a new key value
+```
+
+Paste the new value into **that one tower's** vault var
+(`vault_omni_sa_key_tirith` *or* `_morgul`) and nothing else — single-homed means
+one edit, no drift. `renew` registers an additional public key to the SA (the old
+one ages out); the identity and its ACL/role are unchanged.
+
 ## Renewing the fr-isolation cluster-admin kube token (Omni service-account kubeconfig)
 
 The `fr-isolation` `cluster-admin` devcontainer profile
