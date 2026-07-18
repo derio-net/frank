@@ -19,3 +19,28 @@ policies:
       requests.cpu: "8"
       requests.memory: 16Gi
       count/pods: "50"
+
+# Blocker B.5 (frank CNC permanent-deployment rollout) — enable vCluster's
+# External-Secrets integration so THIS vCluster's ExternalSecrets
+# (cnc-secrets / cnc-ghcr-pull / cnc-runner-auth) resolve using the HOST's ESO
+# controller + the `infisical` ClusterSecretStore. Without it there is no ESO
+# controller or store inside the vCluster, so those ExternalSecrets never
+# reconcile and cncd/node/fru cannot mount their secrets. Requires a resync of
+# cnc-staging-vcluster (control-plane restarts to pick up the syncer change).
+integrations:
+  externalSecrets:
+    enabled: true
+    sync:
+      # Push vCluster ExternalSecrets to the host ns; host ESO processes them and
+      # the resulting Secret syncs back into the vCluster.
+      toHost:
+        externalSecrets:
+          selector:
+            matchLabels: {}
+      # Make host ClusterSecretStores (incl. `infisical`) visible inside the
+      # vCluster so `secretStoreRef {name: infisical, kind: ClusterSecretStore}` resolves.
+      fromHost:
+        clusterStores:
+          enabled: true
+          selector:
+            matchLabels: {}
