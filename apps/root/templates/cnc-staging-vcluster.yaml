@@ -1,0 +1,37 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cnc-staging-vcluster
+  namespace: argocd
+  annotations:
+    # Provision the vCluster before its DB (wave 0) and workloads (wave 1).
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  sources:
+    - repoURL: https://charts.loft.sh
+      chart: vcluster
+      targetRevision: "0.32.1"
+      helm:
+        releaseName: cnc-staging
+        valueFiles:
+          - $values/apps/vclusters/template/values.yaml
+          - $values/apps/vclusters/cnc-staging/values.yaml
+    - repoURL: {{ .Values.repoURL }}
+      targetRevision: {{ .Values.targetRevision }}
+      ref: values
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: cnc-staging-vcluster
+  syncPolicy:
+    automated:
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers: [/data]

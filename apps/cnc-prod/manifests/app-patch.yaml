@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cncd
+spec:
+  template:
+    spec:
+      containers:
+        - name: cncd
+          env:
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: cnc-prod-db-postgresql, key: password}
+            - name: CNCD_DATABASE_URL
+              value: postgres://cnc:$(PG_PASSWORD)@cnc-prod-db-postgresql:5432/cnc
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cncd-migrate
+spec:
+  template:
+    spec:
+      containers:
+        - name: migrate
+          env:
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: cnc-prod-db-postgresql, key: password}
+            - name: CNCD_DATABASE_URL
+              value: postgres://cnc:$(PG_PASSWORD)@cnc-prod-db-postgresql:5432/cnc

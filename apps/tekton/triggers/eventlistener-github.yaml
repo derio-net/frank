@@ -129,7 +129,7 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies']
+                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies', 'agentic-stoa/cnc-fr', 'agentic-stoa/cnc-frd', 'agentic-stoa/cnc-fru']
                 && body.ref == 'refs/heads/main'
             - name: overlays
               value:
@@ -142,6 +142,109 @@ spec:
         - {name: ref-to,      value: "refs/heads/main"}
       template:
         ref: agentic-stoa-main-sync-template
+    # CNC source mirrors and CI. The image build remains in each CNC repo's
+    # GitHub workflow; this listener mirrors and tests the exact SHA.
+    - name: agentic-stoa-cnc-fr-pr
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
+            - {name: eventTypes, value: [pull_request]}
+        - name: cel
+          ref: {name: cel}
+          params:
+            - name: filter
+              value: body.repository.full_name == 'agentic-stoa/cnc-fr' && body.action in ['opened', 'synchronize', 'reopened']
+            - name: overlays
+              value:
+                - {key: sha, expression: "body.pull_request.head.sha"}
+                - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
+      bindings:
+        - {name: github-repo, value: agentic-stoa/cnc-fr}
+        - {name: gitea-repo, value: agentic-stoa/cnc-fr}
+        - {name: sha, value: $(extensions.sha)}
+        - {name: ref-to, value: $(extensions.ref_to)}
+        # cnc-fr has NO Go/Node build — it is deploy artifacts (manifests + the
+        # demo bundle). `go test ./...` hard-fails. CI is mirror + a bundle
+        # presence sanity on a light image (compile-time gates live in the repo's
+        # own compose-smoke/parity GitHub workflows, not here).
+        - {name: test-image, value: alpine:3.21}
+        - {name: test-command, value: "test -d demo/bundle && echo 'cnc-fr: deploy artifacts present (no compile step)'"}
+      template: {ref: cnc-fr-ci-template}
+    - name: agentic-stoa-cnc-frd-pr
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
+            - {name: eventTypes, value: [pull_request]}
+        - name: cel
+          ref: {name: cel}
+          params:
+            - name: filter
+              value: body.repository.full_name == 'agentic-stoa/cnc-frd' && body.action in ['opened', 'synchronize', 'reopened']
+            - name: overlays
+              value:
+                - {key: sha, expression: "body.pull_request.head.sha"}
+                - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
+      bindings:
+        - {name: github-repo, value: agentic-stoa/cnc-frd}
+        - {name: gitea-repo, value: agentic-stoa/cnc-frd}
+        - {name: sha, value: $(extensions.sha)}
+        - {name: ref-to, value: $(extensions.ref_to)}
+        # cnc-frd go.mod requires go 1.25.7 — a 1.24 image fails (toolchain
+        # download blocked in CI). golang:1.25-alpine ships go >= 1.25.7.
+        - {name: test-image, value: golang:1.25-alpine}
+        - {name: test-command, value: go test ./...}
+      template: {ref: cnc-frd-ci-template}
+    - name: agentic-stoa-cnc-fru-pr
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
+            - {name: eventTypes, value: [pull_request]}
+        - name: cel
+          ref: {name: cel}
+          params:
+            - name: filter
+              value: body.repository.full_name == 'agentic-stoa/cnc-fru' && body.action in ['opened', 'synchronize', 'reopened']
+            - name: overlays
+              value:
+                - {key: sha, expression: "body.pull_request.head.sha"}
+                - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
+      bindings:
+        - {name: github-repo, value: agentic-stoa/cnc-fru}
+        - {name: gitea-repo, value: agentic-stoa/cnc-fru}
+        - {name: sha, value: $(extensions.sha)}
+        - {name: ref-to, value: $(extensions.ref_to)}
+        - {name: test-image, value: node:22-alpine}
+        - {name: test-command, value: npm ci && npm test}
+      template: {ref: cnc-fru-ci-template}
+    # A repository_dispatch from the CNC release workflow starts promotion.
+    # It is intentionally not a package webhook: the release workflow is the
+    # authority that knows which cnc-frd/cnc-fru tags are a compatible set.
+    - name: cnc-image-promotion
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
+            - {name: eventTypes, value: [repository_dispatch]}
+        - name: cel
+          ref: {name: cel}
+          params:
+            - name: filter
+              value: body.repository.full_name == 'agentic-stoa/cnc-frd' && body.action == 'cnc-image-ready'
+            - name: overlays
+              value:
+                - {key: cncd_tag, expression: "body.client_payload.cncd_tag"}
+                - {key: fru_tag, expression: "body.client_payload.fru_tag"}
+      bindings:
+        - {name: cncd-tag, value: $(extensions.cncd_tag)}
+        - {name: fru-tag, value: $(extensions.fru_tag)}
+      template: {ref: cnc-promotion-template}
   resources:
     kubernetesResource:
       spec:
@@ -248,6 +351,125 @@ spec:
                 accessModes: [ReadWriteOnce]
                 storageClassName: longhorn-cicd
                 resources: {requests: {storage: 5Gi}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: cnc-fr-ci-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - {name: github-repo}
+    - {name: gitea-repo}
+    - {name: sha}
+    - {name: ref-to}
+    - {name: test-image}
+    - {name: test-command}
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: cnc-ci-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef: {name: cnc-ci}
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo, value: $(tt.params.gitea-repo)}
+          - {name: sha, value: $(tt.params.sha)}
+          - {name: ref-to, value: $(tt.params.ref-to)}
+          - {name: test-image, value: $(tt.params.test-image)}
+          - {name: test-command, value: $(tt.params.test-command)}
+        taskRunTemplate:
+          podTemplate:
+            securityContext: {fsGroup: 65534}
+            nodeSelector: {kubernetes.io/hostname: pc-1}
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: longhorn-cicd
+                resources: {requests: {storage: 8Gi}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: cnc-frd-ci-template
+  namespace: tekton-pipelines
+spec:
+  params: [{name: github-repo}, {name: gitea-repo}, {name: sha}, {name: ref-to}, {name: test-image}, {name: test-command}]
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata: {generateName: cnc-frd-ci-, namespace: tekton-pipelines}
+      spec:
+        pipelineRef: {name: cnc-ci}
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo, value: $(tt.params.gitea-repo)}
+          - {name: sha, value: $(tt.params.sha)}
+          - {name: ref-to, value: $(tt.params.ref-to)}
+          - {name: test-image, value: $(tt.params.test-image)}
+          - {name: test-command, value: $(tt.params.test-command)}
+        taskRunTemplate: {podTemplate: {securityContext: {fsGroup: 65534}, nodeSelector: {kubernetes.io/hostname: pc-1}}}
+        workspaces:
+          - name: source
+            volumeClaimTemplate: {spec: {accessModes: [ReadWriteOnce], storageClassName: longhorn-cicd, resources: {requests: {storage: 8Gi}}}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: cnc-fru-ci-template
+  namespace: tekton-pipelines
+spec:
+  params: [{name: github-repo}, {name: gitea-repo}, {name: sha}, {name: ref-to}, {name: test-image}, {name: test-command}]
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata: {generateName: cnc-fru-ci-, namespace: tekton-pipelines}
+      spec:
+        pipelineRef: {name: cnc-ci}
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo, value: $(tt.params.gitea-repo)}
+          - {name: sha, value: $(tt.params.sha)}
+          - {name: ref-to, value: $(tt.params.ref-to)}
+          - {name: test-image, value: $(tt.params.test-image)}
+          - {name: test-command, value: $(tt.params.test-command)}
+        taskRunTemplate: {podTemplate: {securityContext: {fsGroup: 65534}, nodeSelector: {kubernetes.io/hostname: pc-1}}}
+        workspaces:
+          - name: source
+            volumeClaimTemplate: {spec: {accessModes: [ReadWriteOnce], storageClassName: longhorn-cicd, resources: {requests: {storage: 8Gi}}}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: cnc-promotion-template
+  namespace: tekton-pipelines
+spec:
+  params: [{name: cncd-tag}, {name: fru-tag}]
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata: {generateName: cnc-promotion-, namespace: tekton-pipelines}
+      spec:
+        pipelineRef: {name: cnc-promotion}
+        params:
+          - {name: cncd-tag, value: $(tt.params.cncd-tag)}
+          - {name: fru-tag, value: $(tt.params.fru-tag)}
+        taskRunTemplate: {podTemplate: {securityContext: {fsGroup: 65534}, nodeSelector: {kubernetes.io/hostname: pc-1}}}
+        workspaces:
+          - name: repo
+            volumeClaimTemplate: {spec: {accessModes: [ReadWriteOnce], storageClassName: longhorn-cicd, resources: {requests: {storage: 2Gi}}}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
 ---

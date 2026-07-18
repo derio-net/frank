@@ -1,0 +1,21 @@
+# Long-lived CNC staging vCluster. Unlike experiments, this is an ArgoCD
+# deploy target and its cluster credentials must be registered out-of-band.
+#
+# Overrides on top of apps/vclusters/template/values.yaml. Chart vcluster
+# 0.32.1 pins root `additionalProperties: false` in values.schema.json, so the
+# removed `isolation:` key fails `helm template` outright — the quota lives
+# under `policies.resourceQuota` (template key style), not `isolation:`.
+controlPlane:
+  statefulSet:
+    persistence:
+      volumeClaim:
+        enabled: true
+        size: 20Gi
+        storageClass: longhorn
+policies:
+  resourceQuota:
+    enabled: true
+    quota:
+      requests.cpu: "8"
+      requests.memory: 16Gi
+      count/pods: "50"

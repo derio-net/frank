@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cncd
+  labels:
+    app.kubernetes.io/name: cncd
+    app.kubernetes.io/part-of: cnc
+spec:
+  selector:
+    app.kubernetes.io/name: cncd
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cnc-fru
+  labels:
+    app.kubernetes.io/name: cnc-fru
+    app.kubernetes.io/part-of: cnc
+spec:
+  selector:
+    app.kubernetes.io/name: cnc-fru
+  ports:
+    - {name: http, port: 80, targetPort: http}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cnc-node
+  labels:
+    app.kubernetes.io/name: cnc-node
+    app.kubernetes.io/part-of: cnc
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: cnc-node
+  ports:
+    - {name: agent-session, port: 8765, targetPort: agent-session}

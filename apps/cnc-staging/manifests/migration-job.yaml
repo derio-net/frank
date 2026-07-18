@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cncd-migrate
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "-1"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cncd-migrate
+    spec:
+      restartPolicy: Never
+      imagePullSecrets: [{name: cnc-ghcr-pull}]
+      containers:
+        - name: migrate
+          image: ghcr.io/agentic-stoa/cnc-frd:0.14.0
+          args: ["migrate"]
+          env:
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: cnc-staging-db-postgresql, key: password}
+            - name: CNCD_DATABASE_URL
+              value: postgres://cnc:$(PG_PASSWORD)@cnc-staging-db-postgresql:5432/cnc

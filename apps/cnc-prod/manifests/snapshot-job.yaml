@@ -1,0 +1,45 @@
+# Database snapshot gate. Longhorn snapshots of cncd-data and cnc-secrets are
+# an operator-controlled prerequisite because those PVCs are RWO; this Job
+# provides a verified logical Postgres snapshot before goose runs.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cnc-prod-snapshot
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/sync-wave: "-2"
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 900
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: snapshot
+          image: postgres:16
+          env:
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef: {name: cnc-prod-db-postgresql, key: password}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - |
+              mkdir -p /snapshots
+              # Name the file ONCE and verify THAT file. `test -s /snapshots/*.dump`
+              # globs to multiple args on the 2nd rollout (many dumps) → `test`
+              # errors → PreSync red forever. Verify the dump we just wrote.
+              f="/snapshots/cnc-$(date -u +%Y%m%dT%H%M%SZ).dump"
+              pg_dump --no-owner --format=custom --file="$f" \
+                "postgres://cnc:${PG_PASSWORD}@cnc-prod-db-postgresql:5432/cnc"
+              test -s "$f"
+              # Retention: keep the 7 most recent dumps so the RWO PVC does not
+              # fill and wedge future PreSyncs. Longhorn volume snapshots of the
+              # cncd-data/master-key PVCs remain a separate operator prerequisite.
+              ls -1t /snapshots/cnc-*.dump | tail -n +8 | xargs -r rm -f
+              echo "snapshot ok: $f"
+          volumeMounts:
+            - {name: snapshots, mountPath: /snapshots}
+      volumes:
+        - name: snapshots
+          persistentVolumeClaim: {claimName: cnc-prod-snapshots}
