@@ -32,7 +32,7 @@ spec:
         fsGroup: 65532
       containers:
         - name: cncd
-          image: ghcr.io/agentic-stoa/cnc-frd:0.14.0
+          image: ghcr.io/agentic-stoa/cnc-frd:0.18.0
           imagePullPolicy: IfNotPresent
           # distroless ENTRYPOINT is ["/cncd"]; `args` supplies the subcommand.
           # `command:` would REPLACE the entrypoint and exec a nonexistent

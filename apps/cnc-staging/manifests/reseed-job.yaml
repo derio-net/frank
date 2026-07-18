@@ -58,7 +58,7 @@ spec:
               cp -a /tmp/cnc-fr/demo/bundle/. /bundle/
       containers:
         - name: reseed
-          image: ghcr.io/agentic-stoa/cnc-frd:0.14.0
+          image: ghcr.io/agentic-stoa/cnc-frd:0.18.0
           # distroless entrypoint /cncd; `args` supplies the subcommand.
           # `cncd ingest` opens the store directly (in-process admin), so it
           # needs no forward-auth identity.

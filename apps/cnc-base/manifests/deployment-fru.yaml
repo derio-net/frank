@@ -20,7 +20,7 @@ spec:
         - name: cnc-ghcr-pull
       containers:
         - name: cnc-fru
-          image: ghcr.io/agentic-stoa/cnc-fru:0.7.1
+          image: ghcr.io/agentic-stoa/cnc-fru:0.7.5
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
