@@ -15,7 +15,7 @@ spec:
       imagePullSecrets: [{name: cnc-ghcr-pull}]
       containers:
         - name: migrate
-          image: ghcr.io/agentic-stoa/cnc-frd:0.14.0
+          image: ghcr.io/agentic-stoa/cnc-frd:0.18.0
           args: ["migrate"]
           env:
             - name: PG_PASSWORD

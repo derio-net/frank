@@ -25,11 +25,18 @@ spec:
         fsGroup: 1000
       containers:
         - name: node
-          image: ghcr.io/derio-net/multi-agent-shell:22637aab0fc3ada4d667509ca1dd9aab71788773
+          image: ghcr.io/derio-net/multi-agent-shell:a59f49998b0001cd49d635dd261e9ef238ed89a8
           imagePullPolicy: IfNotPresent
           env:
             - name: AGENT_SESSION_SERVE
               value: "1"
+            # tmux-continuum ships @continuum-restore 'on' in the
+            # multi-agent-shell image; without this the node bricks on any pod
+            # restart with `duplicate session` (the cnc-fr compose fix, PR #86).
+            # The driver owns sessions, so continuum must never resurrect one.
+            # Mirrors alert-agent / n8n-01.
+            - name: AGENT_TMUX_RESTORE
+              value: "off"
             - name: AGENT_SESSION_PORT
               value: "8765"
             # The v1 agent-session server binds 127.0.0.1 by default; the

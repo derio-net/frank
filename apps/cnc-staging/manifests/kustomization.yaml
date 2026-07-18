@@ -10,6 +10,6 @@ patches:
   - path: app-patch.yaml
 images:
   - name: ghcr.io/agentic-stoa/cnc-frd
-    newTag: "0.14.0"
+    newTag: "0.18.0"
   - name: ghcr.io/agentic-stoa/cnc-fru
-    newTag: "0.7.1"
+    newTag: "0.7.5"
