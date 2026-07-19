@@ -1,0 +1,59 @@
+schema_version: 2
+phase:
+  number: 3
+  title: On-cluster verification spike + deploy (MANUAL)
+  tag: manual
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - cnc-staging-secrets-in-vcluster
+  - cnc-staging-ghcr-pull-dockerconfigjson
+tasks:
+- number: 1
+  title: Deploy + prove the sync on-cluster
+  steps:
+  - id: P3.T1.S1
+    text: |
+      After merge, ArgoCD auto-syncs cnc-staging-host (host ExternalSecrets) and cnc-staging-vcluster (fromHost.secrets values). Confirm the 3 host Secrets exist and are resolved in ns cnc-staging-vcluster: `kubectl get externalsecret,secret -n cnc-staging-vcluster | grep cnc-`.
+  - id: P3.T1.S2
+    text: |
+      PRIMARY-RISK SPIKE — inside the vcluster (via its kubeconfig / `vcluster connect` / kubectl exec), assert the 3 secrets landed in ns cnc-staging with correct names+keys AND `kubectl get secret cnc-ghcr-pull -n cnc-staging -o jsonpath={.type}` == kubernetes.io/dockerconfigjson (NOT Opaque). If Opaque -> STOP, image pulls would break; revisit the mapping. Satisfies cnc-staging-ghcr-pull-dockerconfigjson + cnc-staging-secrets-in-vcluster.
+  - id: P3.T1.S3
+    text: |
+      Confirm vcluster RBAC read of the host ns worked (no sync errors in the vcluster syncer logs referencing secrets/cnc-staging-vcluster). Record the evidence (kubectl outputs) on the PR / in terminal-2.md.
+- number: 2
+  title: Runbook + dependency notes
+  steps:
+  - id: P3.T2.S1
+    text: |
+      Add a runbook note: staging secret path diverges from prod (prod = host-ESO direct in ns cnc; staging = host-ESO in ns cnc-staging-vcluster + fromHost sync hop into the vcluster; names/keys/type identical, mechanism differs).
+  - id: P3.T2.S2
+    text: |
+      Record that Blocker B (register the cnc-staging vcluster as an ArgoCD cluster) remains a SEPARATE out-of-band prerequisite for the full staging workload bring-up; the fromHost secret sync itself does NOT require it. cnc-source-token / reseed stay skipped for the first rollout.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

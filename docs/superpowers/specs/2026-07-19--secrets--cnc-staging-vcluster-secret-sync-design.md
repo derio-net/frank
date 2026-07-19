@@ -122,6 +122,12 @@ vCluster. Names/keys/type identical, mechanism differs — so the staging
 acceptance walk proves the agent-session seam but **not** prod's exact secret
 delivery.
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-07-19-cnc-staging-secret-sync | `derio-net/frank` | `2026-07-19-cnc-staging-secret-sync` | — |
+
 ## Rollback
 - Revert the vCluster values (`sync.fromHost.secrets`) + the host-side app +
   restore the in-vCluster ExternalSecrets (drop the `$patch: delete`).
