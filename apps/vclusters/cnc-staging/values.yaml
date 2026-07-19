@@ -13,6 +13,13 @@ controlPlane:
         size: 20Gi
         storageClass: longhorn
 policies:
+  # Disable the vCluster-level (host-side vc-*) NetworkPolicies for staging. Their
+  # default egress excludes 10.0.0.0/8, so the CNC stack's ClusterIP-based comms
+  # (migrate/cncd -> postgres, cncd <-> node :8765, etc.) are denied on Frank's
+  # Cilium (EPERM). The CNC stack ships its OWN networkpolicy.yaml (cnc-base) which
+  # governs workload isolation INSIDE the vCluster. Staging is internal-by-default.
+  networkPolicy:
+    enabled: false
   resourceQuota:
     enabled: true
     quota:
