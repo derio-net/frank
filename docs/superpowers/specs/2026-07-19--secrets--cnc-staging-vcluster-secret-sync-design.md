@@ -60,10 +60,13 @@ Infisical --host ESO--> Secret in host ns cnc-staging-vcluster
   template), created in **host ns `cnc-staging-vcluster`**.
 - `manifests/kustomization.yaml` — `namespace: cnc-staging-vcluster`.
 - `apps/root/templates/cnc-staging-host.yaml` — Application CR, destination
-  **host cluster**, ns `cnc-staging-vcluster`, `sync-wave` **before** the vCluster
-  workloads sync (so the host Secrets exist before the vCluster syncs them in).
-  `ignoreDifferences` on Secret `/data` (ESO-managed), `prune: false`,
-  `ServerSideApply=true`.
+  **host cluster**, ns `cnc-staging-vcluster`, `sync-wave -1` (root creates it
+  before the in-vCluster workloads; the actual ordering guarantee rests on ArgoCD
+  health-gating + the vCluster syncer's reconcile, both self-healing).
+  `ignoreDifferences` on Secret `/data` (ESO-managed), `ServerSideApply=true`,
+  `selfHeal`. **`prune` is OMITTED, not set to `false`** — per the root
+  `values.yaml` convention (ArgoCD normalizes explicit `prune: false` to absent,
+  which caused permanent root-app drift), matching all sibling Application CRs.
 
 ### 2. Exclude the 3 ExternalSecrets from the in-vCluster staging deploy (D2)
 - In `apps/cnc-staging/manifests/kustomization.yaml`, add a `$patch: delete`

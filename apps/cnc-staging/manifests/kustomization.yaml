@@ -4,8 +4,14 @@ namespace: cnc-staging
 resources:
   - ../../cnc-base/manifests
   - migration-job.yaml
-  - reseed-job.yaml
-  - source-token.yaml
+  # reseed-job.yaml + source-token.yaml are EXCLUDED for the first rollout:
+  # reseed is skipped, and cnc-source-token is a (ClusterGenerator-backed)
+  # ExternalSecret that cannot resolve inside the OSS vCluster (no ESO there) —
+  # left in, it sits SecretSyncError and drags the app to Degraded. Re-add both
+  # (and deliver cnc-source-token host-side, same pattern as the other 3) when
+  # reseed is enabled. Files kept in-tree for that follow-up.
+  # - reseed-job.yaml
+  # - source-token.yaml
 patches:
   - path: app-patch.yaml
   # Approach A: these 3 ExternalSecrets are resolved HOST-side

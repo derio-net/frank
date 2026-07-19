@@ -14,6 +14,12 @@ These guards lock the STATIC invariants product code depends on. The
 the vCluster RBAC read are RUNTIME facts — proven by the manual Phase-3
 on-cluster spike, NOT here (helm/kustomize prove schema only; trusting that over
 runtime is exactly the #651 trap).
+
+These are LOCAL guards (frank does not run scripts/tests/ in CI). They shell out
+to `kustomize build` and `helm template --repo https://charts.loft.sh` and are
+fail-closed (non-zero return / missing render -> assertion error, never a
+false-green). In a runner without helm/kustomize or without egress they go red
+on infra, not logic — run them where those tools + network are available.
 """
 
 import base64
@@ -102,7 +108,10 @@ def test_secret_keys_are_preserved():
     )
 
 
-def test_ghcr_pull_keeps_dockerconfigjson_type():
+def test_host_declares_ghcr_pull_dockerconfigjson_type():
+    # NOTE: this asserts the host-side ExternalSecret's DECLARED template type.
+    # Whether the SYNCED copy inside the vCluster retains the type is a RUNTIME
+    # fact proven by the manual Phase-3 spike (the primary risk), not here.
     es = _externalsecrets(_kustomize(HOST_APP))
     assert (
         es["cnc-ghcr-pull"]["spec"]["target"]["template"]["type"]
@@ -124,12 +133,25 @@ def test_root_renders_host_app_with_host_destination_and_early_wave():
 # --- Phase 2: staging in-vCluster exclusion + vCluster fromHost sync ---------
 
 
-def test_staging_overlay_excludes_the_three_externalsecrets():
-    """Staging must NOT create these inside the vCluster (they can't resolve
-    there); they arrive via fromHost sync instead."""
+def test_staging_overlay_creates_no_externalsecrets_at_all():
+    """The OSS cnc-staging vCluster has NO ESO controller, so the overlay must
+    create ZERO ExternalSecrets — not just the 3 store-backed ones. This also
+    catches cnc-source-token (ClusterGenerator-backed), which would otherwise sit
+    SecretSyncError forever and drag the app to Degraded. The 3 app secrets arrive
+    via fromHost sync; source-token/reseed are excluded until reseed is enabled."""
     es = _externalsecrets(_kustomize(CNC_STAGING))
-    leaked = NAMES & set(es)
-    assert not leaked, f"staging overlay still creates in-vcluster ExternalSecrets: {leaked}"
+    assert es == {}, f"staging overlay must create NO ExternalSecrets in-vcluster, found: {sorted(es)}"
+
+
+def test_staging_overlay_excludes_reseed_job():
+    """reseed-job consumes cnc-source-token (unresolvable in-vcluster) and reseed
+    is skipped for the first rollout — the Job must not be created."""
+    jobs = {
+        d["metadata"]["name"]
+        for d in _kustomize(CNC_STAGING)
+        if d.get("kind") == "Job"
+    }
+    assert "cnc-staging-reseed" not in jobs, "reseed Job must be excluded until reseed is enabled"
 
 
 def test_prod_overlay_still_includes_the_three_externalsecrets():

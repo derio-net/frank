@@ -4,11 +4,13 @@ metadata:
   name: cnc-staging-host
   namespace: argocd
   annotations:
-    # Resolve the staging secrets host-side BEFORE the vCluster syncs them in
-    # (fromHost.secrets) and before staging workloads. The vCluster itself is
-    # provisioned at wave -1 (cnc-staging-vcluster); these ExternalSecrets land
-    # in that vCluster's host namespace, so they only need to exist before the
-    # in-vCluster workloads (wave 0/1) consume the synced copies.
+    # Early wave so the root app creates this host-side ExternalSecrets app before
+    # the in-vCluster staging workloads (wave 0/1). NOTE: app-of-apps sync-wave
+    # orders when the child Application CRs are CREATED, not when their contents
+    # converge — the real "secrets exist before consumers" guarantee rests on
+    # ArgoCD health-gating + the vCluster syncer's continuous reconcile, both
+    # self-healing. Wave -1 collides with nothing (cnc-staging-vcluster, also -1,
+    # is independent).
     argocd.argoproj.io/sync-wave: "-1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
