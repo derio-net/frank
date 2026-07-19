@@ -120,6 +120,79 @@ configs:
         - email
         - groups
         - offline_access
+    # resource.exclusions REPLACES the argo-cd chart default (Helm does not merge
+    # a multiline string value), so the chart's default exclusions are reproduced
+    # here VERBATIM (argo-cd chart 9.4.6) and the scoped Pod entry is appended.
+    # scripts/tests/test_argocd_vcluster_pod_exclusion.py guards that the defaults
+    # survive AND that the Pod exclusion stays cluster-scoped (never global).
+    resource.exclusions: |
+      ### Network resources created by the Kubernetes control plane (chart default)
+      - apiGroups:
+        - ''
+        - discovery.k8s.io
+        kinds:
+        - Endpoints
+        - EndpointSlice
+      ### Internal Kubernetes resources (chart default)
+      - apiGroups:
+        - coordination.k8s.io
+        kinds:
+        - Lease
+      ### Internal Kubernetes Authz/Authn resources (chart default)
+      - apiGroups:
+        - authentication.k8s.io
+        - authorization.k8s.io
+        kinds:
+        - SelfSubjectReview
+        - TokenReview
+        - LocalSubjectAccessReview
+        - SelfSubjectAccessReview
+        - SelfSubjectRulesReview
+        - SubjectAccessReview
+      ### Intermediate Certificate Requests (chart default)
+      - apiGroups:
+        - certificates.k8s.io
+        kinds:
+        - CertificateSigningRequest
+      - apiGroups:
+        - cert-manager.io
+        kinds:
+        - CertificateRequest
+      ### Cilium internal resources (chart default)
+      - apiGroups:
+        - cilium.io
+        kinds:
+        - CiliumIdentity
+        - CiliumEndpoint
+        - CiliumEndpointSlice
+      ### Kyverno intermediate and reporting resources (chart default)
+      - apiGroups:
+        - kyverno.io
+        - reports.kyverno.io
+        - wgpolicyk8s.io
+        kinds:
+        - PolicyReport
+        - ClusterPolicyReport
+        - EphemeralReport
+        - ClusterEphemeralReport
+        - AdmissionReport
+        - ClusterAdmissionReport
+        - BackgroundScanReport
+        - ClusterBackgroundScanReport
+        - UpdateRequest
+      ### fr-debugging 2026-07-19 — work around argo-cd#26529 / kubernetes#136533.
+      ### ArgoCD v3.3.2 (kubectl v0.34.0) panics `assignment to entry in nil map`
+      ### in populatePodInfo when caching a Pod from a remote vCluster that ships a
+      ### LimitRange, crashing the application-controller cluster-wide. Skip Pods on
+      ### the cnc-staging vCluster ONLY (scoped by `clusters`) so the main cluster
+      ### keeps full per-pod visibility. Remove when ArgoCD ships >= 3.5 (client-go
+      ### 1.36.1, the upstream fix).
+      - apiGroups:
+        - ''
+        kinds:
+        - Pod
+        clusters:
+        - https://cnc-staging.cnc-staging-vcluster.svc:443
   rbac:
     policy.csv: |
       g, root-admins, role:admin
