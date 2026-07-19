@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cnc-staging-host
+  namespace: argocd
+  annotations:
+    # Resolve the staging secrets host-side BEFORE the vCluster syncs them in
+    # (fromHost.secrets) and before staging workloads. The vCluster itself is
+    # provisioned at wave -1 (cnc-staging-vcluster); these ExternalSecrets land
+    # in that vCluster's host namespace, so they only need to exist before the
+    # in-vCluster workloads (wave 0/1) consume the synced copies.
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: apps/cnc-staging-host/manifests
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: cnc-staging-vcluster
+  syncPolicy:
+    automated: {selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true, RespectIgnoreDifferences=true]
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers: [/data]
