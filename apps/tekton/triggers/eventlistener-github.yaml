@@ -107,11 +107,68 @@ spec:
         ref: stoa-blog-ci-github-template
 
     # ──────────────────────────────────────────────────────────────────
-    # Push-to-main trigger (Phase 5) — single trigger for all 4 repos.
-    # Fires github-pull-sync (just the pull-and-push, no CI) so Gitea's
-    # main branch catches up to GitHub's after a PR is merged.
+    # PR mirror-sync triggers for the Gitea-Actions repos (2026-07-19
+    # gitea-actions plan) — second-brain and hermes-brain have no bespoke
+    # Tekton CI body: the mirror push of sync-pr-<N> itself triggers their
+    # Gitea Actions workflows, so these bind straight to the shared
+    # main-sync template (github-pull-sync only, no test-image/command).
+    # flexible-health has no workflows → main-sync only, no PR trigger.
+    # ──────────────────────────────────────────────────────────────────
+    - name: agentic-stoa-second-brain-pr
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
+            - {name: eventTypes, value: [pull_request]}
+        - name: cel
+          ref: {name: cel}
+          params:
+            - name: filter
+              value: body.repository.full_name == 'agentic-stoa/second-brain' && body.action in ['opened', 'synchronize', 'reopened']
+            - name: overlays
+              value:
+                - {key: sha, expression: "body.pull_request.head.sha"}
+                - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
+      bindings:
+        - {name: github-repo, value: agentic-stoa/second-brain}
+        - {name: gitea-repo, value: agentic-stoa/second-brain}
+        - {name: sha, value: $(extensions.sha)}
+        - {name: ref-to, value: $(extensions.ref_to)}
+      template:
+        ref: agentic-stoa-main-sync-template
+    - name: agentic-stoa-hermes-brain-pr
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
+            - {name: eventTypes, value: [pull_request]}
+        - name: cel
+          ref: {name: cel}
+          params:
+            - name: filter
+              value: body.repository.full_name == 'agentic-stoa/hermes-brain' && body.action in ['opened', 'synchronize', 'reopened']
+            - name: overlays
+              value:
+                - {key: sha, expression: "body.pull_request.head.sha"}
+                - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
+      bindings:
+        - {name: github-repo, value: agentic-stoa/hermes-brain}
+        - {name: gitea-repo, value: agentic-stoa/hermes-brain}
+        - {name: sha, value: $(extensions.sha)}
+        - {name: ref-to, value: $(extensions.ref_to)}
+      template:
+        ref: agentic-stoa-main-sync-template
+
+    # ──────────────────────────────────────────────────────────────────
+    # Push-to-main trigger (Phase 5) — single trigger for all mirrored
+    # repos. Fires github-pull-sync (just the pull-and-push, no CI) so
+    # Gitea's main branch catches up to GitHub's after a PR is merged.
     # `companies` (added 2026-06-04, gh #444) has no CI pipeline — its mirror
     # feeds the live-mirror-sync EventListener (stoa-live-mirror-sync app).
+    # second-brain/hermes-brain/flexible-health (added 2026-07-19) run their
+    # CI as Gitea Actions on the mirror, not as Tekton pipelines.
     # ──────────────────────────────────────────────────────────────────
     - name: agentic-stoa-main-sync
       interceptors:
@@ -129,7 +186,7 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies', 'agentic-stoa/cnc-fr', 'agentic-stoa/cnc-frd', 'agentic-stoa/cnc-fru']
+                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies', 'agentic-stoa/cnc-fr', 'agentic-stoa/cnc-frd', 'agentic-stoa/cnc-fru', 'agentic-stoa/second-brain', 'agentic-stoa/hermes-brain', 'agentic-stoa/flexible-health']
                 && body.ref == 'refs/heads/main'
             - name: overlays
               value:
