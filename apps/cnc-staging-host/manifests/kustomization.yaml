@@ -3,3 +3,4 @@ kind: Kustomization
 namespace: cnc-staging-vcluster
 resources:
   - externalsecrets.yaml
+  - networkpolicy-argocd.yaml
