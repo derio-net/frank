@@ -1,0 +1,55 @@
+# Forwards a Gitea commit status (written by Gitea Actions on an
+# agentic-stoa mirror) to GitHub as a commit status on the same sha.
+#
+# The mirror is push-synced from GitHub, so the sha on the Gitea side IS the
+# GitHub PR head sha — no mapping. State vocabulary (pending/success/error/
+# failure) is identical between the two APIs and passes through unmapped.
+#
+# Context is prefixed `gitea-actions/` so Frank-side results are
+# distinguishable from native GitHub checks on the same PR. Tekton's own
+# dual-status writes never reach this pipeline (the gitea-status-bridge
+# trigger filters out context tekton/*).
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: stoa-status-bridge
+  namespace: tekton-pipelines
+spec:
+  description: Forward a Gitea Actions commit status to GitHub.
+  params:
+    - name: repo-full-name
+      type: string
+      description: "Repo full name, identical on both forges (e.g. agentic-stoa/hum)"
+    - name: revision
+      type: string
+      description: "Commit sha the status attaches to"
+    - name: state
+      type: string
+      description: "pending | success | error | failure (shared vocabulary)"
+    - name: context
+      type: string
+      description: "Gitea-side status context (workflow/job name)"
+    - name: description
+      type: string
+      default: ""
+    - name: target-url
+      type: string
+      default: ""
+      description: "Gitea Actions run URL — lands as the status link on GitHub"
+  tasks:
+    - name: forward
+      taskRef:
+        name: github-status
+      params:
+        - name: repo-full-name
+          value: $(params.repo-full-name)
+        - name: revision
+          value: $(params.revision)
+        - name: state
+          value: $(params.state)
+        - name: context
+          value: "gitea-actions/$(params.context)"
+        - name: description
+          value: $(params.description)
+        - name: target-url
+          value: $(params.target-url)
