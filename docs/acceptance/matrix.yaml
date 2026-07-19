@@ -243,3 +243,40 @@ rows:
       (prod overlay still renders all 3 ExternalSecrets; cnc-base byte-unchanged —
       the staging change is a staging-scoped $patch:delete). Local guard (frank does
       not CI-run scripts/tests/); prod runtime path untouched by this PR.'
+  - id: stoa-mirror-all-private
+    capability: stoa CI on Frank
+    acceptance: Every private agentic-stoa repo has a Gitea mirror on Frank whose main
+      branch tracks GitHub automatically.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
+    levels: {}
+    status: not-implemented
+    notes: Adds second-brain, hermes-brain, flexible-health to the existing 7.
+  - id: stoa-ci-runs-on-frank
+    capability: stoa CI on Frank
+    acceptance: The Actions workflows of the five CI-bearing agentic-stoa repos execute
+      on Frank via Gitea Actions, on PR sync branches, main pushes, and their schedules.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: stoa-ci-github-status-writeback
+    capability: stoa CI on Frank
+    acceptance: A Frank-side CI run reports its result as a commit status on the originating
+      GitHub PR sha, keeping branch protection meaningful.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: stoa-ci-no-double-mutation
+    capability: stoa CI on Frank
+    acceptance: While GitHub Actions and Frank CI run in parallel, mutating jobs (PR
+      robots, tags, releases, issue upserts) execute from exactly one operator-selectable
+      authority side.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
