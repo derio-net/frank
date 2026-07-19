@@ -8,6 +8,41 @@ resources:
   - source-token.yaml
 patches:
   - path: app-patch.yaml
+  # Approach A: these 3 ExternalSecrets are resolved HOST-side
+  # (apps/cnc-staging-host) and synced into this vCluster via
+  # sync.fromHost.secrets — they must NOT be created inside the vCluster (no ESO
+  # there). Drop them from the staging overlay only; cnc-base is untouched so
+  # prod keeps resolving them directly in host ns cnc.
+  - patch: |-
+      $patch: delete
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: cnc-secrets
+    target:
+      group: external-secrets.io
+      kind: ExternalSecret
+      name: cnc-secrets
+  - patch: |-
+      $patch: delete
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: cnc-ghcr-pull
+    target:
+      group: external-secrets.io
+      kind: ExternalSecret
+      name: cnc-ghcr-pull
+  - patch: |-
+      $patch: delete
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: cnc-runner-auth
+    target:
+      group: external-secrets.io
+      kind: ExternalSecret
+      name: cnc-runner-auth
 images:
   - name: ghcr.io/agentic-stoa/cnc-frd
     newTag: "0.18.0"

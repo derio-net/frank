@@ -16,6 +16,7 @@ on-cluster spike, NOT here (helm/kustomize prove schema only; trusting that over
 runtime is exactly the #651 trap).
 """
 
+import base64
 import subprocess
 from pathlib import Path
 
@@ -24,8 +25,30 @@ import yaml  # hard dep (pyproject) — a missing yaml must ERROR, not skip
 REPO = Path(__file__).resolve().parents[2]
 HOST_APP = REPO / "apps/cnc-staging-host/manifests"
 ROOT_APP = REPO / "apps/root"
+CNC_STAGING = REPO / "apps/cnc-staging/manifests"
+CNC_PROD = REPO / "apps/cnc-prod/manifests"
+VC_TEMPLATE_VALUES = REPO / "apps/vclusters/template/values.yaml"
+VC_STAGING_VALUES = REPO / "apps/vclusters/cnc-staging/values.yaml"
+VCLUSTER_VERSION = "0.32.1"
 
 NAMES = {"cnc-secrets", "cnc-ghcr-pull", "cnc-runner-auth"}
+
+
+def _vcluster_config():
+    """Render the cnc-staging vCluster and decode its effective config.yaml."""
+    out = subprocess.run(
+        [
+            "helm", "template", "cnc-staging", "vcluster",
+            "--repo", "https://charts.loft.sh", "--version", VCLUSTER_VERSION,
+            "-f", str(VC_TEMPLATE_VALUES), "-f", str(VC_STAGING_VALUES),
+        ],
+        capture_output=True, text=True,
+    )
+    assert out.returncode == 0, f"helm template vcluster failed:\n{out.stderr}"
+    for d in yaml.safe_load_all(out.stdout):
+        if d and d.get("kind") == "Secret" and "config.yaml" in d.get("data", {}):
+            return yaml.safe_load(base64.b64decode(d["data"]["config.yaml"]))
+    raise AssertionError("vc-config Secret not rendered")
 
 
 def _helm_template(path: Path):
@@ -96,3 +119,38 @@ def test_root_renders_host_app_with_host_destination_and_early_wave():
     assert app["spec"]["source"]["path"] == "apps/cnc-staging-host/manifests"
     # syncs before the in-vCluster staging workloads
     assert app["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"] == "-1"
+
+
+# --- Phase 2: staging in-vCluster exclusion + vCluster fromHost sync ---------
+
+
+def test_staging_overlay_excludes_the_three_externalsecrets():
+    """Staging must NOT create these inside the vCluster (they can't resolve
+    there); they arrive via fromHost sync instead."""
+    es = _externalsecrets(_kustomize(CNC_STAGING))
+    leaked = NAMES & set(es)
+    assert not leaked, f"staging overlay still creates in-vcluster ExternalSecrets: {leaked}"
+
+
+def test_prod_overlay_still_includes_the_three_externalsecrets():
+    """Prod resolves them directly in host ns cnc — unaffected by the staging
+    change (pins cnc-prod-secret-delivery-unaffected)."""
+    es = _externalsecrets(_kustomize(CNC_PROD))
+    missing = NAMES - set(es)
+    assert not missing, f"prod overlay lost ExternalSecrets: {missing}"
+
+
+def test_vcluster_fromhost_secret_mappings_present():
+    fh = _vcluster_config()["sync"]["fromHost"]["secrets"]
+    assert fh["enabled"] is True
+    mappings = fh["mappings"]["byName"]
+    for n in NAMES:
+        assert (
+            mappings.get(f"cnc-staging-vcluster/{n}") == f"cnc-staging/{n}"
+        ), f"missing/incorrect fromHost mapping for {n}: {mappings}"
+
+
+def test_vcluster_externalsecrets_integration_stays_disabled():
+    """Never re-enable the Pro-only integration that crashed OSS (#651)."""
+    cfg = _vcluster_config()
+    assert cfg["integrations"]["externalSecrets"]["enabled"] is False

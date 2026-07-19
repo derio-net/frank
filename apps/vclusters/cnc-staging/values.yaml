@@ -19,3 +19,19 @@ policies:
       requests.cpu: "8"
       requests.memory: 16Gi
       count/pods: "50"
+
+# Approach A (frank secret-sync): the 3 CNC staging secrets are resolved
+# HOST-side by apps/cnc-staging-host (host ESO + infisical) in this vCluster's
+# own host namespace, then synced INTO the vCluster (ns cnc-staging, where the
+# pods consume them) by name. This is OSS-native sync — NOT the Pro-only
+# `integrations.externalSecrets` that crashed the control-plane (#651/#652).
+# Reading the vCluster's OWN host ns needs no extra RBAC.
+sync:
+  fromHost:
+    secrets:
+      enabled: true
+      mappings:
+        byName:
+          "cnc-staging-vcluster/cnc-secrets": "cnc-staging/cnc-secrets"
+          "cnc-staging-vcluster/cnc-ghcr-pull": "cnc-staging/cnc-ghcr-pull"
+          "cnc-staging-vcluster/cnc-runner-auth": "cnc-staging/cnc-runner-auth"
