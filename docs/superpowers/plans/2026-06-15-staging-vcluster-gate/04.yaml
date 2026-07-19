@@ -1,0 +1,31 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Per-app gate contract (schema + runs-fr entry)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Contract validator + runs-fr entry (TDD)
+  steps:
+  - id: P4.T1.S1
+    text: |
+      RED — write `scripts/staging-gate/validate-contract.py` (stdlib + PyYAML via `uv run --with pyyaml`): for each `apps/staging-gate/registry/*.yaml` assert the required keys exist: `app, sourceRepo, image, chartRepo, chartPath, stagingApp, stagingValuesPath, smokeImage, smokeNamespace, prodApp, prodValuesPath, prodValuesKey`. Run via exec; Expected NOW: no registry files → the script reports "no contracts found" and exits non-zero — RED.
+  - id: P4.T1.S2
+    text: |
+      GREEN — create `apps/staging-gate/registry/runs-fr.yaml` populated for runs-fr (image `ghcr.io/derio-net/runs-fr`; chartRepo `https://github.com/derio-net/runs-fr.git`; chartPath `charts/runs-fr`; stagingApp `runs-fr-staging`; stagingValuesPath `apps/staging-gate/runs-fr/staging-values.yaml`; smokeImage `ghcr.io/derio-net/runs-fr-smoke`; smokeNamespace `runs-fr`; prodApp `runs-fr`; prodValuesPath `apps/runs-fr/values.yaml`; prodValuesKey `image.tag`) and `apps/staging-gate/README.md` documenting the schema. Run the validator → exit 0. (prodApp/prodValuesPath are the PAIRED-FOLLOWUP target; the file need not exist yet — the validator checks the contract shape, not the target's existence.)
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-06-15T20:01:58+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-06-15T20:01:59+00:00'
+      note: null
+  completion:
+    at: '2026-06-15T20:02:00+00:00'
+    note: null
+    observed_prs: []

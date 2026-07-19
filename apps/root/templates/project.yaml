@@ -12,6 +12,11 @@ spec:
   destinations:
     - namespace: '*'
       server: {{ .Values.destination.server }}
+    # staging-gate: permit deploying into the staging vCluster, registered as an
+    # ArgoCD external cluster. The cluster credential (kubeconfig-derived Secret) is
+    # created out-of-band — see the staging-gate plan's manual phase.
+    - namespace: '*'
+      server: https://staging.vcluster-staging.svc:443
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'

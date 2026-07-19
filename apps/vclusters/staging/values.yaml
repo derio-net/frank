@@ -1,0 +1,24 @@
+# vCluster "staging" — the release-gate's staging cluster.
+# Base values come from apps/vclusters/template/values.yaml (loaded first in ArgoCD).
+# This file contains only instance-specific overrides.
+#
+# Chart: loft-sh/vcluster v0.32.1
+# Namespace: vcluster-staging
+#
+# Purpose: gate-owned, reset-able cluster that the Tekton staging-gate deploys each
+# release candidate into for the in-cluster e2e smoke-test. Distinct from the
+# `experiments` sandbox so gate runs never collide with ad-hoc experimentation.
+
+# Currently using all template defaults (same envelope as experiments).
+# To override, add only the keys that differ. Examples:
+#
+# controlPlane:
+#   statefulSet:
+#     persistence:
+#       volumeClaim:
+#         size: 10Gi
+#
+# isolation:
+#   resourceQuota:
+#     quota:
+#       pods: "100"

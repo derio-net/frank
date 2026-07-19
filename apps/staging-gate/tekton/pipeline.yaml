@@ -1,0 +1,118 @@
+# staging-gate Pipeline (tekton.dev/v1). Reusable: params are {app, sha}; resolve-contract reads
+# apps/staging-gate/registry/<app>.yaml (ssh-cloned — frank is private) and emits each field as a
+# result. promote runs ONLY when run-smoke Succeeded; reset always (finally). RUNTIME → P7.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: staging-gate
+  namespace: tekton-pipelines
+spec:
+  params:
+    - {name: app, type: string}
+    - {name: sha, type: string}
+  workspaces:
+    - {name: ssh-creds}
+    - {name: vcluster-kubeconfig}
+    - {name: scratch}
+  tasks:
+    - name: resolve-contract
+      params:
+        - {name: app, value: $(params.app)}
+      workspaces:
+        - {name: ssh-creds, workspace: ssh-creds}
+        - {name: scratch, workspace: scratch}
+      taskSpec:
+        params:
+          - {name: app, type: string}
+        workspaces:
+          - {name: ssh-creds}
+          - {name: scratch}
+        results:
+          - {name: stagingApp}
+          - {name: stagingValuesPath}
+          - {name: smokeImage}
+          - {name: smokeNamespace}
+          - {name: prodValuesPath}
+          - {name: prodValuesKey}
+        steps:
+          - name: clone
+            image: alpine/git:2.45.2
+            env: [{name: HOME, value: /tekton/home}]
+            computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 256Mi}}
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65532
+              seccompProfile: {type: RuntimeDefault}
+            script: |
+              #!/bin/sh
+              set -eu
+              install -m 0700 -d "$HOME/.ssh"
+              install -m 0600 "$(workspaces.ssh-creds.path)/id_rsa" "$HOME/.ssh/id_rsa"
+              export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new"
+              rm -rf "$(workspaces.scratch.path)/frank"
+              git clone --depth 1 git@github.com:derio-net/frank.git "$(workspaces.scratch.path)/frank"
+          - name: read
+            image: mikefarah/yq:4.44.3
+            computeResources: {requests: {cpu: 50m, memory: 64Mi}, limits: {memory: 128Mi}}
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65532
+              seccompProfile: {type: RuntimeDefault}
+            script: |
+              #!/bin/sh
+              set -eu
+              f="$(workspaces.scratch.path)/frank/apps/staging-gate/registry/$(params.app).yaml"
+              # Each result path is a genuine Tekton substitution; values written newline-free.
+              printf '%s' "$(yq '.stagingApp' "$f")" > "$(results.stagingApp.path)"
+              printf '%s' "$(yq '.stagingValuesPath' "$f")" > "$(results.stagingValuesPath.path)"
+              printf '%s' "$(yq '.smokeImage' "$f")" > "$(results.smokeImage.path)"
+              printf '%s' "$(yq '.smokeNamespace' "$f")" > "$(results.smokeNamespace.path)"
+              printf '%s' "$(yq '.prodValuesPath' "$f")" > "$(results.prodValuesPath.path)"
+              printf '%s' "$(yq '.prodValuesKey' "$f")" > "$(results.prodValuesKey.path)"
+    - name: bump-staging
+      runAfter: [resolve-contract]
+      taskRef: {name: staging-gate-bump-staging}
+      params:
+        - {name: sha, value: $(params.sha)}
+        - {name: stagingValuesPath, value: $(tasks.resolve-contract.results.stagingValuesPath)}
+      workspaces:
+        - {name: ssh-creds, workspace: ssh-creds}
+        - {name: scratch, workspace: scratch}
+    - name: await-sync
+      runAfter: [bump-staging]
+      taskRef: {name: staging-gate-await-sync}
+      params:
+        - {name: stagingApp, value: $(tasks.resolve-contract.results.stagingApp)}
+    - name: run-smoke
+      runAfter: [await-sync]
+      taskRef: {name: staging-gate-run-smoke}
+      params:
+        - {name: app, value: $(params.app)}
+        - {name: smokeImage, value: $(tasks.resolve-contract.results.smokeImage)}
+        - {name: smokeNamespace, value: $(tasks.resolve-contract.results.smokeNamespace)}
+        - {name: sha, value: $(params.sha)}
+      workspaces:
+        - {name: vcluster-kubeconfig, workspace: vcluster-kubeconfig}
+    - name: promote
+      runAfter: [run-smoke]
+      when:
+        - input: "$(tasks.run-smoke.status)"
+          operator: in
+          values: ["Succeeded"]
+      taskRef: {name: staging-gate-promote}
+      params:
+        - {name: sha, value: $(params.sha)}
+        - {name: prodValuesPath, value: $(tasks.resolve-contract.results.prodValuesPath)}
+        - {name: prodValuesKey, value: $(tasks.resolve-contract.results.prodValuesKey)}
+      workspaces:
+        - {name: ssh-creds, workspace: ssh-creds}
+        - {name: scratch, workspace: scratch}
+  finally:
+    - name: reset
+      taskRef: {name: staging-gate-reset}
+      params:
+        - {name: smokeNamespace, value: $(tasks.resolve-contract.results.smokeNamespace)}
+      workspaces:
+        - {name: vcluster-kubeconfig, workspace: vcluster-kubeconfig}

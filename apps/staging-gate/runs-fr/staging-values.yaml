@@ -1,0 +1,15 @@
+# runs-fr staging values — consumed by the runs-fr-staging ArgoCD Application
+# (apps/root/templates/runs-fr-staging.yaml) which deploys the runs-fr chart into the
+# `staging` vCluster.
+#
+# The Tekton staging-gate's `bump-staging` task rewrites `image.tag` to the candidate
+# commit sha each gate run; ArgoCD then syncs that image into the vCluster for the
+# in-cluster smoke-test. Do NOT hand-edit `image.tag` — it is gate-owned.
+image:
+  repository: ghcr.io/derio-net/runs-fr
+  tag: staging
+# The gateway watches its own namespace in staging.
+namespace: runs-fr
+service:
+  type: ClusterIP
+# authHeader stays the default (X-Forwarded-User); the smoke-test supplies the header.
