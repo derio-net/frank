@@ -1,0 +1,23 @@
+# Additive NetworkPolicy (Blocker B, part 3): allow the ArgoCD application-controller
+# to reach the cnc-staging vCluster API server (control-plane pod, port 8443) so
+# ArgoCD can sync the cnc-staging / cnc-staging-db apps INTO the vCluster. The
+# chart's vc-cp-* NetworkPolicy only permits in-vCluster pods + app=loft; ArgoCD
+# is neither. NetworkPolicies are additive (union), so this grants argocd->8443
+# without weakening the chart's isolation. Namespace is set by the kustomization
+# (cnc-staging-vcluster).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-argocd-to-vcluster-api
+spec:
+  podSelector:
+    matchLabels:
+      release: cnc-staging
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: argocd
+      ports:
+        - {port: 8443, protocol: TCP}
