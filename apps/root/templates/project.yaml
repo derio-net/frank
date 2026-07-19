@@ -12,6 +12,10 @@ spec:
   destinations:
     - namespace: '*'
       server: {{ .Values.destination.server }}
+    # cnc-staging vCluster (registered out-of-band as ArgoCD cluster 'cnc-staging')
+    # so cnc-staging / cnc-staging-db can deploy INTO it.
+    - namespace: '*'
+      name: cnc-staging
   clusterResourceWhitelist:
     - group: '*'
       kind: '*'
