@@ -213,8 +213,12 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-19--secrets--cnc-staging-vcluster-secret-sync-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: 'Live manual proof 2026-07-19 — all 3 secrets present inside the cnc-staging
+      vCluster ns cnc-staging with correct keys (cnc-secrets/CNCD_SECRETS_MASTER_KEY,
+      cnc-runner-auth/token, cnc-ghcr-pull/.dockerconfigjson) via fromHost.secrets
+      after operator populated Infisical (prod env) + forced-sync/restart. No CI
+      (host ESO + live vCluster required).'
   - id: cnc-staging-ghcr-pull-dockerconfigjson
     capability: CNC staging secret delivery
     acceptance: The cnc-ghcr-pull secret synced into the cnc-staging vCluster retains
@@ -222,8 +226,11 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-19--secrets--cnc-staging-vcluster-secret-sync-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: 'Live manual proof 2026-07-19 — cnc-ghcr-pull synced into the cnc-staging
+      vCluster (ns cnc-staging) RETAINED type kubernetes.io/dockerconfigjson (the
+      primary risk); key .dockerconfigjson present. Verified via the vCluster
+      kubeconfig. No CI (live vCluster required).'
   - id: cnc-prod-secret-delivery-unaffected
     capability: CNC staging secret delivery
     acceptance: CNC prod secret delivery (ExternalSecrets resolved directly in host
@@ -231,5 +238,8 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-19--secrets--cnc-staging-vcluster-secret-sync-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: 'Statically guarded by scripts/tests/test_cnc_staging_host_secrets.py::test_prod_overlay_still_includes_the_three_externalsecrets
+      (prod overlay still renders all 3 ExternalSecrets; cnc-base byte-unchanged —
+      the staging change is a staging-scoped $patch:delete). Local guard (frank does
+      not CI-run scripts/tests/); prod runtime path untouched by this PR.'

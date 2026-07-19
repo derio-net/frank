@@ -34,26 +34,32 @@ tasks:
 state:
   steps:
     P3.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-19T17:05:09+00:00'
       note: null
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-19T17:05:12+00:00'
       note: null
     P3.T1.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-19T17:05:14+00:00'
       note: null
     P3.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-19T17:05:17+00:00'
       note: null
     P3.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-19T17:05:19+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-07-19T17:05:22+00:00'
+    note: 'On-cluster verified 2026-07-19: operator populated the 3 keys in Infisical
+      (prod env; CNCD_SECRETS_MASTER_KEY reuses LITELLM_MASTER_KEY per CNC docs).
+      Host ExternalSecrets resolved in ns cnc-staging-vcluster; forced-sync+restart
+      activated fromHost.secrets (OSS, no crash). Inside the vcluster ns cnc-staging:
+      all 3 secrets present with correct keys; cnc-ghcr-pull retained kubernetes.io/dockerconfigjson
+      (primary risk CLEARED); no RBAC errors. Divergence note in spec; Blocker B (vcluster
+      ArgoCD registration) still separate for workload bring-up.'
     observed_prs: []
