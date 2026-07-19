@@ -307,6 +307,20 @@ Inlined fetch+push (not the catalog `git-clone` Task — the catalog task does `
 
 One trap: `GIT_SSH_COMMAND` must point explicitly at `$HOME/.ssh/id_rsa` because the Tekton pod runs as UID 65534 (nobody), and OpenSSH's default key lookup walks `~/.ssh/id_*` against `/etc/passwd` HOME for that UID — which is `/`, where there is no readable `~/.ssh`.
 
+## Extension: Gitea Actions (2026-07)
+
+The mirror layer earned a second act. GitHub Actions on private repos bills by the minute, and one workflow in the mirrored fleet was firing **every 30 minutes** — roughly 1,500 runs a month before counting per-PR CI across five repos. The obvious question arrived: isn't Tekton's format compatible with Actions, so the workflows can just be reused?
+
+No. Tekton is Task/Pipeline CRDs — every per-repo pipeline above was a hand translation, and hand translations drift. What *is* compatible is **Gitea Actions**: same workflow YAML, `actions/checkout` resolved from github.com, service containers, artifacts, schedules. Gitea had been sitting on this capability the whole time, disabled by default.
+
+The division of labor is now:
+
+- **Tekton** stays the mirror/trigger layer — `github-pull-sync` pushes `sync-pr-N` branches, dual-status, promotion flows. Unchanged.
+- **Gitea Actions** runs the workflow-shaped CI on the mirrors, near-verbatim. A new `apps/gitea-runner/` app ships `act_runner` plus a `docker:dind` sidecar — the one privileged workload in the fleet, quarantined in its own namespace on pc-1 with capacity 2 so a Playwright run and a compose smoke can't jointly eat the node. Two traps baked into the manifests: DinD needs `DOCKER_TLS_CERTDIR=""` or it silently generates certs, listens on 2376, and the runner hangs waiting for 2375 forever; and act_runner registration is one-shot state on the PVC — rotating the token does not re-register an existing runner.
+- **A status bridge** closes the loop: Gitea's `status` webhook events feed a `gitea-status-bridge` trigger, which forwards each Gitea Actions result to GitHub as a commit status (context `gitea-actions/*`) on the same sha. Same sha because the mirror is push-synced — no mapping table, no state machine. Tekton's own `tekton/*` contexts are filtered out, or every Tekton CI result would double-post.
+
+The subtle part is **parallel running**. GitHub Actions stays enabled while Frank proves itself, and most workflows are harmless to run twice — tests failing twice is just emphasis. But PR-creating robots, auto-taggers, release image pushes and issue upserts must not run from both sides. Those jobs gate on a `CI_AUTHORITY` org variable (default `github`), compared against `github.server_url` — so cutover day is "flip one variable", not "edit five repos again".
+
 ## Missteps
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |

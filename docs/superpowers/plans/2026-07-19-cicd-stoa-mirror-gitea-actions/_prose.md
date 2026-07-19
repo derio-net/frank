@@ -72,3 +72,11 @@ flip one org variable, no workflow edits. This is acceptance row
 ## Deviations
 
 (recorded during execution)
+
+- 2026-07-20 P4.T2.S1: runbook merge done surgically (4 new cicd entries
+  inserted after the last cicd entry, formatting preserved) rather than the
+  skill's full-rewrite-and-sort — the live file's tail is append-ordered, and
+  a full resort would have produced a large unrelated diff in this PR.
+- 2026-07-20 P4.T2.S2: README updated by targeted edits (CI/CD Platform row,
+  gitea row, new gitea-runner row) instead of a full /update-readme run; the
+  full sync remains a post-merge post-deploy-checklist item.
