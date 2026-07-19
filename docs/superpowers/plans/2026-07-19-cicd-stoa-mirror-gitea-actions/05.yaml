@@ -86,10 +86,12 @@ tasks:
       when: After Phase 2 merges (Actions enabled); before any Gitea Actions run needs GitHub credentials.
       why_manual: Org-level Actions secrets/variables and org webhooks are Gitea UI/API state, not chart values.
       commands:
+        - "Enable the Actions unit on every workflow-bearing mirror — instance-level actions.ENABLED does NOT switch it on for EXISTING repos (silent no-run otherwise): for r in second-brain hermes-brain cnc-fr cnc-frd cnc-fru; do curl -s -X PATCH http://192.168.55.209:3000/api/v1/repos/agentic-stoa/$r -H 'Authorization: token <gitea admin/stoa-bot token>' -H 'Content-Type: application/json' -d '{\"has_actions\": true}'; done  (idempotent; covers the three new mirrors too in case DEFAULT_REPO_UNITS excludes repo.actions)"
         - "Gitea UI → org agentic-stoa → Settings → Actions → Secrets: add STOA_APP_PRIVATE_KEY (the stoa-fr-automation App PEM, from Infisical), STOA_CI_GH_TOKEN (GHCR-capable GitHub token for ghcr.io login + gh CLI where workflows fall back from GITHUB_TOKEN)"
         - "Gitea UI → org agentic-stoa → Settings → Actions → Variables: add CI_AUTHORITY=github (mutating jobs stay GitHub-authoritative during parallel running; flip to gitea at cutover — no workflow edits needed)"
         - "Gitea UI → org agentic-stoa → Settings → Webhooks → Add webhook: target http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080 (confirm svc name: kubectl -n tekton-pipelines get svc | grep el-gitea), content application/json, trigger on: Status only"
       verify:
+        - "Each of the 5 repos shows an Actions tab in the Gitea UI (unit enabled)"
         - "Push any commit to a mirrored repo's sync branch → Gitea Actions run starts → gitea-listener logs show a received status event → matching commit status appears on GitHub sha with context gitea-actions/*"
       status: pending
 - number: 5

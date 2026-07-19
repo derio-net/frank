@@ -53,6 +53,9 @@ def test_deployment_shape():
 
     pod = spec["template"]["spec"]
     assert pod["nodeSelector"]["kubernetes.io/hostname"] == "pc-1"
+    # privileged DinD + arbitrary workflow code: the SA token must not be
+    # reachable (a job can bind-mount host paths through the docker daemon)
+    assert pod["automountServiceAccountToken"] is False
 
     containers = {c["name"]: c for c in pod["containers"]}
     assert set(containers) == {"runner", "dind"}

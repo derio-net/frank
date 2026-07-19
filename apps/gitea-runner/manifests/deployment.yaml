@@ -27,6 +27,10 @@ spec:
       labels:
         app.kubernetes.io/name: act-runner
     spec:
+      # This pod runs semi-arbitrary mirrored-workflow code with a privileged
+      # DinD daemon — a job could bind-mount the SA token path through docker.
+      # No cluster credentials, enforced:
+      automountServiceAccountToken: false
       nodeSelector:
         kubernetes.io/hostname: pc-1
       containers:

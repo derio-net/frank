@@ -43,6 +43,13 @@ spec:
     # gets those directly; forwarding would double-post every CI result.
     # Requires the org-level Gitea webhook (Status event) — manual op
     # cicd-stoa-gitea-org-actions-config.
+    # Notes: statuses attach to shas, not branches — mirror-main runs also
+    # forward (intentional: GitHub main commits get gitea-actions/* statuses
+    # too). description/target_url are omitempty in Gitea's payload, hence
+    # the has() overlays — a direct $(body.X) binding on a missing field
+    # drops the event. Gitea state values outside GitHub's vocabulary
+    # (e.g. 'warning') would 422 in github-status and fail the PipelineRun
+    # visibly — acceptable failure shape, revisit only if it fires.
     # ──────────────────────────────────────────────────────────────────
     - name: gitea-status-bridge
       interceptors:
@@ -54,6 +61,12 @@ spec:
                 header.match('X-Gitea-Event', 'status') &&
                 body.repository.full_name.startsWith('agentic-stoa/') &&
                 !body.context.startsWith('tekton')
+            - name: "overlays"
+              value:
+                - key: description
+                  expression: "has(body.description) ? body.description : ''"
+                - key: target_url
+                  expression: "has(body.target_url) ? body.target_url : ''"
       bindings:
         - name: repo-full-name
           value: $(body.repository.full_name)
@@ -64,9 +77,9 @@ spec:
         - name: context
           value: $(body.context)
         - name: description
-          value: $(body.description)
+          value: $(extensions.description)
         - name: target-url
-          value: $(body.target_url)
+          value: $(extensions.target_url)
       template:
         ref: stoa-status-bridge-template
     # NOTE 2026-05-13 (rework Phase 4): the per-repo agentic-stoa CI triggers

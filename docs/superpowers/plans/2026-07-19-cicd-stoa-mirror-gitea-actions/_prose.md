@@ -80,3 +80,19 @@ flip one org variable, no workflow edits. This is acceptance row
 - 2026-07-20 P4.T2.S2: README updated by targeted edits (CI/CD Platform row,
   gitea row, new gitea-runner row) instead of a full /update-readme run; the
   full sync remains a post-merge post-deploy-checklist item.
+- 2026-07-20 P2 deviation (flagged in review): plan 02.yaml said
+  `CreateNamespace=true`; implemented as `CreateNamespace=false` + a Namespace
+  manifest carrying the PodSecurity labels (declarative labels; ArgoCD's
+  kind-priority ordering applies Namespaces first). Guard test asserts the
+  implemented shape.
+- 2026-07-20 code review (fr-goal step 7) — all findings fixed on-branch:
+  (1) per-repo Actions unit enablement added to cicd-stoa-gitea-org-actions-config
+  (instance ENABLED does not activate the unit on existing repos — would have
+  silently no-opped the Test Plan on the cnc mirrors); (2)
+  automountServiceAccountToken: false on the runner pod + guard assertion;
+  (3) rebased onto origin/main (#658); (4) bridge description/target_url moved
+  to has()-guarded CEL overlays (omitempty payload fields would drop events);
+  (5) main-branch status forwarding documented as intentional in the trigger
+  comment. Reviewer note for cutover (repo-side, out of scope here): auto-tag's
+  `git push origin <tag>` on a Gitea runner pushes to the mirror, not GitHub —
+  needs a checkout-token override when CI_AUTHORITY flips.

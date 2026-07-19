@@ -74,6 +74,19 @@ def test_bridge_template_and_bindings():
     assert bindings["state"] == "$(body.state)"
     assert bindings["context"] == "$(body.context)"
 
+    # description/target_url are omitempty in Gitea's status payload — they
+    # must come through has()-guarded overlays, not direct body bindings
+    # (a missing field in a direct binding silently drops the event)
+    assert bindings["description"] == "$(extensions.description)"
+    assert bindings["target-url"] == "$(extensions.target_url)"
+    overlays = {}
+    for interceptor in trig.get("interceptors", []):
+        for p in interceptor.get("params", []):
+            if p["name"] == "overlays":
+                overlays.update({o["key"]: o["expression"] for o in p["value"]})
+    assert overlays["description"] == "has(body.description) ? body.description : ''"
+    assert overlays["target_url"] == "has(body.target_url) ? body.target_url : ''"
+
     templates = [
         d
         for d in _gitea_docs()
