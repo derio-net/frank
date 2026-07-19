@@ -1,0 +1,34 @@
+schema_version: 2
+phase:
+  number: 2
+  title: vCluster fromHost secret sync + staging in-vcluster exclusion
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - cnc-prod-secret-delivery-unaffected
+tasks:
+- number: 1
+  title: 'Guard test: exclusion + vcluster mappings (red -> green)'
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED: extend scripts/tests/test_cnc_staging_host_secrets.py (or a sibling test) to assert: (a) kustomize build apps/cnc-staging/manifests EXCLUDES the 3 ExternalSecrets; (b) kustomize build apps/cnc-prod/manifests still INCLUDES all 3 (prod unaffected — pins cnc-prod-secret-delivery-unaffected); (c) `helm template` of the cnc-staging vcluster (template + cnc-staging values) renders sync.fromHost.secrets.enabled: true with the 3 byName mappings cnc-staging-vcluster/<n> -> cnc-staging/<n>. Run; FAILS.
+  - id: P2.T1.S2
+    text: |
+      GREEN: (1) add a `$patch: delete` entry for each of the 3 ExternalSecrets to apps/cnc-staging/manifests/kustomization.yaml (patches: with inline delete stubs, kind ExternalSecret, metadata.name each). (2) add sync.fromHost.secrets {enabled: true, mappings.byName: {three entries}} to apps/vclusters/cnc-staging/values.yaml. Re-run the guard; PASSES. Confirm the decoded vc-config render shows externalSecrets integration STILL disabled (we are NOT re-enabling the Pro feature).
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-07-19T11:59:37+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-07-19T11:59:39+00:00'
+      note: null
+  completion:
+    at: '2026-07-19T11:59:41+00:00'
+    note: null
+    observed_prs: []

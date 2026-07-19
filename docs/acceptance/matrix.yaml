@@ -205,3 +205,31 @@ rows:
       a deterministic frank-facts surge-compute snapshot, and a transport error can no
       longer silently drop the reply (#633). Bridge unit tests cover both the fallback
       and the exception path.
+  - id: cnc-staging-secrets-in-vcluster
+    capability: CNC staging secret delivery
+    acceptance: The three CNC staging secrets (cnc-secrets, cnc-ghcr-pull, cnc-runner-auth)
+      are present inside the cnc-staging vCluster with their expected names and keys,
+      so cncd/node/fru can mount them.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-19--secrets--cnc-staging-vcluster-secret-sync-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: cnc-staging-ghcr-pull-dockerconfigjson
+    capability: CNC staging secret delivery
+    acceptance: The cnc-ghcr-pull secret synced into the cnc-staging vCluster retains
+      type kubernetes.io/dockerconfigjson, so CNC image pulls from ghcr succeed.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-19--secrets--cnc-staging-vcluster-secret-sync-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: cnc-prod-secret-delivery-unaffected
+    capability: CNC staging secret delivery
+    acceptance: CNC prod secret delivery (ExternalSecrets resolved directly in host
+      namespace cnc) is unchanged by the staging secret-sync work.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-19--secrets--cnc-staging-vcluster-secret-sync-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''

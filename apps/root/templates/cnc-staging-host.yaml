@@ -1,0 +1,31 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cnc-staging-host
+  namespace: argocd
+  annotations:
+    # Early wave so the root app creates this host-side ExternalSecrets app before
+    # the in-vCluster staging workloads (wave 0/1). NOTE: app-of-apps sync-wave
+    # orders when the child Application CRs are CREATED, not when their contents
+    # converge — the real "secrets exist before consumers" guarantee rests on
+    # ArgoCD health-gating + the vCluster syncer's continuous reconcile, both
+    # self-healing. Wave -1 collides with nothing (cnc-staging-vcluster, also -1,
+    # is independent).
+    argocd.argoproj.io/sync-wave: "-1"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: infrastructure
+  source:
+    repoURL: {{ .Values.repoURL }}
+    targetRevision: {{ .Values.targetRevision }}
+    path: apps/cnc-staging-host/manifests
+  destination:
+    server: {{ .Values.destination.server }}
+    namespace: cnc-staging-vcluster
+  syncPolicy:
+    automated: {selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true, RespectIgnoreDifferences=true]
+  ignoreDifferences:
+    - kind: Secret
+      jsonPointers: [/data]

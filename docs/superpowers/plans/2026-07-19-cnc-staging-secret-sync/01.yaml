@@ -1,0 +1,48 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Host-side ExternalSecrets app
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: 'Guard test: host-side ExternalSecrets render correctly (red -> green)'
+  steps:
+  - id: P1.T1.S1
+    text: |
+      RED: add scripts/tests/test_cnc_staging_host_secrets.py — kustomize-build apps/cnc-staging-host/manifests and assert: exactly 3 ExternalSecrets named cnc-secrets / cnc-ghcr-pull / cnc-runner-auth; each targets the right key (CNCD_SECRETS_MASTER_KEY / .dockerconfigjson / token); all in namespace cnc-staging-vcluster; cnc-ghcr-pull's target.template.type == kubernetes.io/dockerconfigjson. Run it; it FAILS (dir absent).
+  - id: P1.T1.S2
+    text: |
+      GREEN: create apps/cnc-staging-host/manifests/externalsecrets.yaml (the 3 ExternalSecret CRs copied verbatim from apps/cnc-base/manifests/externalsecrets.yaml — same names/keys/store/template) and kustomization.yaml with `namespace: cnc-staging-vcluster` + resources: [externalsecrets.yaml]. Re-run the guard; it PASSES.
+- number: 2
+  title: Application CR wiring for the host-side app
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Create apps/root/templates/cnc-staging-host.yaml (copy the shape of apps/root/templates/cnc-staging-db.yaml host variant): project infrastructure, single source path apps/cnc-staging-host/manifests, destination server {{ .Values.destination.server }} (HOST), namespace cnc-staging-vcluster, sync-wave "-1" (before the vcluster workloads at wave 0/1), syncPolicy automated selfHeal, syncOptions [CreateNamespace=true, ServerSideApply=true, RespectIgnoreDifferences=true], ignoreDifferences on Secret /data, finalizers resources-finalizer.
+  - id: P1.T2.S2
+    text: |
+      Verify the root app-of-apps still renders: `helm template apps/root --values apps/root/values.yaml` (or the repo's documented root render) succeeds and emits the cnc-staging-host Application with destination namespace cnc-staging-vcluster and sync-wave -1. Extend the guard test to assert the template file parses and carries those literal fields.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-19T11:55:23+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-19T11:55:25+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-07-19T11:55:27+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-07-19T11:55:30+00:00'
+      note: null
+  completion:
+    at: '2026-07-19T11:55:32+00:00'
+    note: null
+    observed_prs: []
