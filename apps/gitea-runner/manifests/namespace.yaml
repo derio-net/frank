@@ -1,0 +1,12 @@
+# Dedicated namespace for the Gitea Actions runner. It exists so the
+# privileged DinD sidecar is contained here — the gitea namespace itself
+# stays at the default (restricted) PodSecurity level.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitea-runner
+  labels:
+    app.kubernetes.io/name: gitea-runner
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged

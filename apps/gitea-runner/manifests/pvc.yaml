@@ -1,0 +1,16 @@
+# Persistent runner state: /data/.runner (registration identity) and
+# /data/cache (actions tool/cache — Playwright, setup-go/node downloads).
+# The DinD image cache is deliberately an emptyDir in the Deployment: it is
+# rebuildable and would bloat a Longhorn volume.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: act-runner-data
+  namespace: gitea-runner
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn-cicd
+  resources:
+    requests:
+      storage: 20Gi

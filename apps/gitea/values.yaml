@@ -44,6 +44,14 @@ gitea:
       ENABLED: true
       DEFAULT_INTERVAL: 10m
 
+    # Gitea Actions — GitHub-Actions-compatible CI on the agentic-stoa mirrors
+    # (2026-07-19 cicd plan). The runner ships separately in apps/gitea-runner
+    # (own privileged-labeled namespace; this one stays unprivileged).
+    # DEFAULT_ACTIONS_URL keeps its default (github) so actions/checkout etc.
+    # resolve from github.com.
+    actions:
+      ENABLED: true
+
     webhook:
       ALLOWED_HOST_LIST: "*.svc.cluster.local"
 

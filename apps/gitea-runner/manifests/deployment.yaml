@@ -1,0 +1,86 @@
+# Gitea Actions runner: act_runner + docker:dind sidecar.
+#
+# - The ONLY privileged workload we ship for CI; contained to this namespace
+#   and pinned to pc-1 (Edge zone) with no cluster credentials mounted.
+# - DinD serves plain TCP on localhost:2375 (DOCKER_TLS_CERTDIR="" — without
+#   it the daemon generates certs, listens on 2376, and the runner hangs
+#   waiting for a socket that never opens).
+# - strategy Recreate: RWO Longhorn PVC + RollingUpdate deadlocks (gotcha).
+# - /var/lib/docker is emptyDir on purpose: image cache is disposable; the
+#   PVC persists only runner identity (/data/.runner) and the tool cache.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: act-runner
+  namespace: gitea-runner
+  labels:
+    app.kubernetes.io/name: act-runner
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: act-runner
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: act-runner
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: pc-1
+      containers:
+        - name: runner
+          image: gitea/act_runner:0.2.13
+          env:
+            - name: GITEA_INSTANCE_URL
+              value: "http://gitea-http.gitea.svc.cluster.local:3000"
+            - name: GITEA_RUNNER_REGISTRATION_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: gitea-runner-token
+                  key: token
+            - name: CONFIG_FILE
+              value: /config/config.yaml
+            - name: DOCKER_HOST
+              value: "tcp://localhost:2375"
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+        - name: dind
+          image: docker:28.3.2-dind
+          securityContext:
+            privileged: true
+          args:
+            - "--host=tcp://0.0.0.0:2375"
+          env:
+            - name: DOCKER_TLS_CERTDIR
+              value: ""
+          volumeMounts:
+            - name: docker-lib
+              mountPath: /var/lib/docker
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              memory: 8Gi
+      volumes:
+        - name: config
+          configMap:
+            name: act-runner-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: act-runner-data
+        - name: docker-lib
+          emptyDir:
+            sizeLimit: 40Gi

@@ -94,26 +94,27 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-19T21:59:01+00:00'
       note: null
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-19T21:59:06+00:00'
       note: null
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-19T21:59:10+00:00'
       note: null
     P2.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-19T21:59:14+00:00'
       note: null
     P2.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-07-19T21:59:18+00:00'
+      note: no kustomization in app dir; raw manifests stay plain per step's own skip
+        clause
   completion:
-    at: null
+    at: '2026-07-19T21:59:22+00:00'
     note: null
     observed_prs: []

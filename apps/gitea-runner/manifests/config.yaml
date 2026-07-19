@@ -1,0 +1,27 @@
+# act_runner configuration. capacity 2 caps concurrent jobs so a Playwright
+# run plus a compose smoke can't starve pc-1 (32GB, shared with Gitea, Tekton
+# runs and Longhorn). Jobs run as containers against the DinD sidecar.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: act-runner-config
+  namespace: gitea-runner
+data:
+  config.yaml: |
+    log:
+      level: info
+    runner:
+      capacity: 2
+      timeout: 45m
+      fetch_timeout: 10s
+      fetch_interval: 5s
+      # ubuntu-latest maps to Gitea's runner image so `runs-on: ubuntu-latest`
+      # workflows run unmodified. node/go/python setup-actions install on top.
+      labels:
+        - "ubuntu-latest:docker://gitea/runner-images:ubuntu-latest"
+    cache:
+      enabled: true
+      dir: /data/cache
+    container:
+      docker_host: "tcp://localhost:2375"
+      force_pull: false
