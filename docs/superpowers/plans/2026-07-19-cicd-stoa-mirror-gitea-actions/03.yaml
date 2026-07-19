@@ -1,0 +1,70 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Status bridge — Gitea Actions results → GitHub commit statuses
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - stoa-ci-github-status-writeback
+tasks:
+- number: 1
+  title: Guard test + bridge trigger/pipeline
+  steps:
+  - id: P3.T1.S1
+    text: |
+      RED: Write scripts/tests/test_stoa_status_bridge.py asserting:
+      (a) apps/tekton/triggers/eventlistener.yaml gitea-listener has a trigger
+      gitea-status-bridge whose CEL filter matches header X-Gitea-Event == 'status',
+      requires body.repository.full_name.startsWith('agentic-stoa/'), and excludes
+      contexts written by Tekton's own dual-status (filter contains
+      !body.context.startsWith('tekton')) — Tekton results already reach GitHub
+      directly via github-status; forwarding them again would double-post;
+      (b) a TriggerTemplate stoa-status-bridge-template exists creating a
+      PipelineRun of pipeline stoa-status-bridge with params repo-full-name,
+      revision, state, context, description, target-url;
+      (c) apps/tekton/pipelines/stoa-status-bridge.yaml exists, single task
+      referencing Task github-status, passing context as
+      'gitea-actions/' + forwarded context and repo-full-name/revision/state
+      through, target-url pointing at the Gitea run URL from the webhook body.
+      Run: python3 -m pytest scripts/tests/test_stoa_status_bridge.py -q
+      Expect: FAIL.
+  - id: P3.T1.S2
+    text: |
+      GREEN: Implement:
+      (1) apps/tekton/pipelines/stoa-status-bridge.yaml — Pipeline
+      stoa-status-bridge, params repo-full-name/revision/state/context/description/
+      target-url, one task 'forward' with taskRef github-status, context param
+      value "gitea-actions/$(params.context)". No workspaces.
+      (2) In apps/tekton/triggers/eventlistener.yaml add trigger
+      gitea-status-bridge: cel interceptor filter
+        header.match('X-Gitea-Event', 'status') &&
+        body.repository.full_name.startsWith('agentic-stoa/') &&
+        !body.context.startsWith('tekton')
+      overlays: none needed — bind directly. TriggerBinding (inline bindings):
+      repo-full-name=body.repository.full_name, revision=body.sha,
+      state=body.state, context=body.context, description=body.description,
+      target-url=body.target_url. Add TriggerTemplate stoa-status-bridge-template
+      (PipelineRun, generateName stoa-status-bridge-, nodeSelector pc-1, no
+      workspaces).
+      NOTE: Gitea state vocabulary (pending/success/error/failure) is identical to
+      GitHub's — pass through unmapped. The webhook body field names (sha, state,
+      context, description, target_url) are verified live in the Test Plan; if the
+      1.25 payload nests them differently, fix the bindings here (this is the one
+      spec-flagged live-verification risk).
+      Run: python3 -m pytest scripts/tests/test_stoa_status_bridge.py -q
+      Expect: PASS.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

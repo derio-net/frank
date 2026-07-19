@@ -51,8 +51,9 @@ layer (github-pull-sync, dual-status, cnc promotion) — those flows are untouch
     release.yml (image → GHCR), fixtures-recapture.yml (weekly; postgres;
     App token)
   - `hermes-brain`: backup-restore-tests.yml (BDD suite, push main/feat/fix/chore + PR)
-- **Gitea:** chart 12.5.0 (Gitea 1.24.x), Actions **not** enabled, runs on pc-1,
-  sqlite, LB 192.168.55.209.
+- **Gitea:** chart 12.5.0, live image `docker.gitea.com/gitea:1.25.4-rootless`
+  (verified on-cluster) — Actions, schedules, and the `status` webhook event all
+  available; Actions **not** enabled yet. Runs on pc-1, sqlite, LB 192.168.55.209.
 - **Webhook path:** GitHub → `https://webhooks.hop.derio.net/` → mesh →
   el-github-listener-lb (192.168.55.223). Per-repo webhook creation is an
   established manual op (`cicd-stoa-github-webhook-*`).
@@ -186,6 +187,12 @@ The Frank-side capacity cost is bounded by runner capacity 2 on pc-1.
 - **agentic-stoa ×5 (dispatched, one small PR each):** trigger additions,
   secret fallback swaps, `CI_AUTHORITY` guards. Repo names and workflow
   filenames only in this spec — no business logic detail (third-party privacy).
+
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|-------------|------|--------|
+| 2026-07-19-cicd-stoa-mirror-gitea-actions | `derio-net/frank` | `2026-07-19-cicd-stoa-mirror-gitea-actions` | — |
 
 ## Test Plan (post-merge, operator-driven — one repo per class)
 

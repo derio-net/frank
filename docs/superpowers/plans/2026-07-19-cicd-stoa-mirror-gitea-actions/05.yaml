@@ -1,0 +1,131 @@
+schema_version: 2
+phase:
+  number: 5
+  title: '[manual] Secrets, Gitea repos, webhooks, org config, first-run verification'
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  tracking_issue: null
+  acceptance:
+  - stoa-mirror-all-private
+  - stoa-ci-runs-on-frank
+  - stoa-ci-no-double-mutation
+tasks:
+- number: 1
+  title: Mint the act_runner registration token
+  steps:
+  - id: P5.T1.S1
+    text: |
+      # manual-operation
+      id: cicd-gitea-runner-registration-token
+      layer: cicd
+      app: gitea-runner
+      plan: docs/superpowers/plans/2026-07-19-cicd-stoa-mirror-gitea-actions/05.yaml
+      when: After Phase 2 merges and the gitea Application syncs (Actions enabled); before the act-runner Deployment can register.
+      why_manual: Runner registration tokens are minted inside the running Gitea instance and stored in Infisical — bootstrap secret path.
+      commands:
+        - kubectl -n gitea exec deploy/gitea -- gitea actions generate-runner-token
+        - "Infisical UI: add STOA_GITEA_RUNNER_TOKEN with the printed value, same project/path as the existing gitea secrets (see cicd-infisical-gitea-secrets)"
+        - kubectl -n gitea-runner annotate externalsecret gitea-runner-token force-sync=$(date +%s) --overwrite
+      verify:
+        - kubectl -n gitea-runner get secret gitea-runner-token
+        - "kubectl -n gitea-runner logs deploy/act-runner -c runner | grep -i 'runner registered'"
+        - "Gitea UI http://192.168.55.209:3000/-/admin/actions/runners shows the runner Idle"
+      status: pending
+- number: 2
+  title: Create + backfill the three Gitea mirror repos
+  steps:
+  - id: P5.T2.S1
+    text: |
+      # manual-operation
+      id: cicd-stoa-mirror-remaining-repos
+      layer: cicd
+      app: gitea
+      plan: docs/superpowers/plans/2026-07-19-cicd-stoa-mirror-gitea-actions/05.yaml
+      when: After Phase 1 merges (triggers live); before the GitHub webhooks are added.
+      why_manual: Repo creation + history backfill uses stoa-bot credentials; one-time per repo (pattern of cicd-stoa-companies-gitea-mirror/-backfill).
+      commands:
+        - "For each of second-brain, hermes-brain, flexible-health:"
+        - "curl -s -X POST http://192.168.55.209:3000/api/v1/orgs/agentic-stoa/repos -H 'Authorization: token <stoa-bot token from Infisical>' -H 'Content-Type: application/json' -d '{\"name\": \"<repo>\", \"private\": true, \"default_branch\": \"main\"}'"
+        - "git clone --mirror git@github.com:agentic-stoa/<repo>.git /tmp/<repo>.git && cd /tmp/<repo>.git && git push --mirror ssh://git@192.168.55.209:2222/agentic-stoa/<repo>.git (stoa-bot key)"
+      verify:
+        - "Gitea UI: agentic-stoa/<repo> exists, main matches GitHub main HEAD sha"
+      status: pending
+- number: 3
+  title: GitHub webhooks for the three new mirrors
+  steps:
+  - id: P5.T3.S1
+    text: |
+      # manual-operation
+      id: cicd-stoa-github-webhook-remaining-repos
+      layer: cicd
+      app: tekton
+      plan: docs/superpowers/plans/2026-07-19-cicd-stoa-mirror-gitea-actions/05.yaml
+      when: After the Gitea mirror repos exist (previous op).
+      why_manual: GitHub webhook config is per-repo UI work; no IaC for this in our setup (same as cicd-stoa-github-webhook-hum et al).
+      commands:
+        - "GitHub UI, for each of agentic-stoa/{second-brain, hermes-brain, flexible-health}: Settings → Webhooks → Add webhook"
+        - "Payload URL: https://webhooks.hop.derio.net/  | Content type: application/json | Secret: STOA_GITHUB_WEBHOOK_SECRET from Infisical | SSL verify: enabled | Events: pull_request, push | Active: yes"
+      verify:
+        - "Recent Deliveries shows 200 on the ping event"
+        - kubectl -n tekton-pipelines logs -l eventlistener=github-listener --tail=20
+      status: pending
+- number: 4
+  title: Gitea org Actions secrets + CI_AUTHORITY variable + status webhook
+  steps:
+  - id: P5.T4.S1
+    text: |
+      # manual-operation
+      id: cicd-stoa-gitea-org-actions-config
+      layer: cicd
+      app: gitea
+      plan: docs/superpowers/plans/2026-07-19-cicd-stoa-mirror-gitea-actions/05.yaml
+      when: After Phase 2 merges (Actions enabled); before any Gitea Actions run needs GitHub credentials.
+      why_manual: Org-level Actions secrets/variables and org webhooks are Gitea UI/API state, not chart values.
+      commands:
+        - "Gitea UI → org agentic-stoa → Settings → Actions → Secrets: add STOA_APP_PRIVATE_KEY (the stoa-fr-automation App PEM, from Infisical), STOA_CI_GH_TOKEN (GHCR-capable GitHub token for ghcr.io login + gh CLI where workflows fall back from GITHUB_TOKEN)"
+        - "Gitea UI → org agentic-stoa → Settings → Actions → Variables: add CI_AUTHORITY=github (mutating jobs stay GitHub-authoritative during parallel running; flip to gitea at cutover — no workflow edits needed)"
+        - "Gitea UI → org agentic-stoa → Settings → Webhooks → Add webhook: target http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080 (confirm svc name: kubectl -n tekton-pipelines get svc | grep el-gitea), content application/json, trigger on: Status only"
+      verify:
+        - "Push any commit to a mirrored repo's sync branch → Gitea Actions run starts → gitea-listener logs show a received status event → matching commit status appears on GitHub sha with context gitea-actions/*"
+      status: pending
+- number: 5
+  title: First-run verification (pre-Test-Plan smoke)
+  steps:
+  - id: P5.T5.S1
+    text: |
+      Smoke only (the full one-repo-per-class Test Plan runs post-merge, spec
+      §Test Plan): confirm the runner shows Idle in Gitea admin, then re-deliver a
+      recent pull_request webhook from GitHub (Recent Deliveries → Redeliver) on
+      second-brain and watch: sync-pr-N branch updates on Gitea → Actions run
+      starts → status lands on the GitHub PR sha. Record outcomes in this plan's
+      Deviations section of _prose.md.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T5.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
