@@ -1,0 +1,61 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Complete the mirror trigger set (second-brain, hermes-brain, flexible-health)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - stoa-mirror-all-private
+tasks:
+- number: 1
+  title: Guard test + EventListener extension
+  steps:
+  - id: P1.T1.S1
+    text: |
+      RED: Write scripts/tests/test_stoa_mirror_triggers.py (pytest, repo-local guard
+      convention). Parse apps/tekton/triggers/eventlistener-github.yaml with
+      yaml.safe_load_all; locate the EventListener named github-listener. Assert:
+      (a) the agentic-stoa-main-sync trigger's CEL filter string contains all 10
+      private repos: hum, content-factory, stoa-blog, companies, cnc-fr, cnc-frd,
+      cnc-fru, second-brain, hermes-brain, flexible-health (each as
+      'agentic-stoa/<name>');
+      (b) triggers agentic-stoa-second-brain-pr and agentic-stoa-hermes-brain-pr
+      exist, use eventTypes ["pull_request"], carry a CEL overlay ref_to of the
+      form 'refs/heads/sync-pr-' + PR number, and reference template
+      agentic-stoa-main-sync-template (mirror-only sync; Gitea Actions runs the CI
+      body, unlike the Phase-4 repos' bespoke <repo>-ci templates).
+      Run: python3 -m pytest scripts/tests/test_stoa_mirror_triggers.py -q
+      Expect: FAIL (three repos missing from filter; triggers absent).
+  - id: P1.T1.S2
+    text: |
+      GREEN: Edit apps/tekton/triggers/eventlistener-github.yaml:
+      (1) extend the agentic-stoa-main-sync CEL filter list with
+      'agentic-stoa/second-brain', 'agentic-stoa/hermes-brain',
+      'agentic-stoa/flexible-health';
+      (2) add triggers agentic-stoa-second-brain-pr and agentic-stoa-hermes-brain-pr,
+      copying the agentic-stoa-hum-pr interceptor shape (github ClusterInterceptor
+      with stoa-github-webhook-secret + cel filter on full_name and action in
+      opened/synchronize/reopened, overlays sha=body.pull_request.head.sha and
+      ref_to='refs/heads/sync-pr-'+string(body.pull_request.number)) but bind to
+      template agentic-stoa-main-sync-template with params github-repo/gitea-repo/
+      sha/ref-to only (no test-image/test-command — these repos have no Tekton CI
+      body; Gitea Actions fires on the sync-pr push). flexible-health gets NO PR
+      trigger (no workflows) — main-sync only. Update the trigger-block comment to
+      name the new repos.
+      Run: python3 -m pytest scripts/tests/test_stoa_mirror_triggers.py -q
+      Expect: PASS.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-19T21:56:21+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-19T21:56:23+00:00'
+      note: null
+  completion:
+    at: '2026-07-19T21:56:25+00:00'
+    note: null
+    observed_prs: []

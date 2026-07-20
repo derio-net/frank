@@ -34,6 +34,54 @@ spec:
         - ref: gitea-push-binding
       template:
         ref: gitea-pipeline-template
+    # ──────────────────────────────────────────────────────────────────
+    # Status bridge (2026-07-19 gitea-actions plan): Gitea Actions writes
+    # commit statuses on the agentic-stoa mirrors; this trigger forwards
+    # them to GitHub (same sha — the mirror is push-synced) via the
+    # stoa-status-bridge pipeline → github-status task. Tekton's own
+    # dual-status writes (context tekton/*) are excluded: GitHub already
+    # gets those directly; forwarding would double-post every CI result.
+    # Requires the org-level Gitea webhook (Status event) — manual op
+    # cicd-stoa-gitea-org-actions-config.
+    # Notes: statuses attach to shas, not branches — mirror-main runs also
+    # forward (intentional: GitHub main commits get gitea-actions/* statuses
+    # too). description/target_url are omitempty in Gitea's payload, hence
+    # the has() overlays — a direct $(body.X) binding on a missing field
+    # drops the event. Gitea state values outside GitHub's vocabulary
+    # (e.g. 'warning') would 422 in github-status and fail the PipelineRun
+    # visibly — acceptable failure shape, revisit only if it fires.
+    # ──────────────────────────────────────────────────────────────────
+    - name: gitea-status-bridge
+      interceptors:
+        - ref:
+            name: "cel"
+          params:
+            - name: "filter"
+              value: >-
+                header.match('X-Gitea-Event', 'status') &&
+                body.repository.full_name.startsWith('agentic-stoa/') &&
+                !body.context.startsWith('tekton')
+            - name: "overlays"
+              value:
+                - key: description
+                  expression: "has(body.description) ? body.description : ''"
+                - key: target_url
+                  expression: "has(body.target_url) ? body.target_url : ''"
+      bindings:
+        - name: repo-full-name
+          value: $(body.repository.full_name)
+        - name: revision
+          value: $(body.sha)
+        - name: state
+          value: $(body.state)
+        - name: context
+          value: $(body.context)
+        - name: description
+          value: $(extensions.description)
+        - name: target-url
+          value: $(extensions.target_url)
+      template:
+        ref: stoa-status-bridge-template
     # NOTE 2026-05-13 (rework Phase 4): the per-repo agentic-stoa CI triggers
     # (agentic-stoa-hum-ci, agentic-stoa-content-factory-ci) moved out of this
     # gitea-listener to the new github-listener (apps/tekton/triggers/
@@ -55,3 +103,39 @@ spec:
 # template) were removed 2026-05-13 (rework Phase 4); replacement github-aware
 # versions ship in eventlistener-github.yaml. See the NOTE in the gitea-listener
 # triggers block above for context.
+---
+# Scaffolds the status-forward PipelineRun. No workspaces — the bridge is a
+# single curl-shaped task (github-status) with params only.
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: stoa-status-bridge-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: repo-full-name
+    - name: revision
+    - name: state
+    - name: context
+    - name: description
+    - name: target-url
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: stoa-status-bridge-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef:
+          name: stoa-status-bridge
+        params:
+          - {name: repo-full-name, value: $(tt.params.repo-full-name)}
+          - {name: revision,       value: $(tt.params.revision)}
+          - {name: state,          value: $(tt.params.state)}
+          - {name: context,        value: $(tt.params.context)}
+          - {name: description,    value: $(tt.params.description)}
+          - {name: target-url,     value: $(tt.params.target-url)}
+        taskRunTemplate:
+          podTemplate:
+            nodeSelector:
+              kubernetes.io/hostname: pc-1

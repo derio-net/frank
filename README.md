@@ -64,7 +64,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | VK Remote (self-hosted) | PostgreSQL 16 + ElectricSQL + Rust/Axum | Self-hosted VibeKanban kanban API server, local JWT auth, Authentik SSO via Traefik |
 | VK Relay | VK Relay Server (sidecar) | WebSocket relay tunneling browser API calls to local VK agent server via yamux multiplexing, SPAKE2 pairing |
 | In-Cluster Ingress | Traefik v3 | Wildcard TLS (`*.cluster.derio.net`) via ACME + Cloudflare DNS-01, Authentik forward-auth, raspi edge nodes |
-| CI/CD Platform | Gitea + Tekton + Zot | Self-hosted git forge (GitHub mirror), K8s-native pipelines, OCI registry with cosign signing — all on pc-1 |
+| CI/CD Platform | Gitea + Gitea Actions + Tekton + Zot | Self-hosted git forge (GitHub mirror), Actions-compatible CI on the mirrors (act_runner + DinD), K8s-native pipelines, OCI registry with cosign signing — all on pc-1 |
 | Cluster Dashboard | gethomepage.dev | Service catalog at `master.cluster.derio.net` with HTTP health indicators and custom bookmarks |
 | The Frank Papers | Third blog series (research) | Hugo section with dossier-gate pre-commit hook, Mermaid Frank theme, five `papers/` shortcodes, render-time cross-series backlinks (zero-retrofit) |
 | Ansible Automation | AWX | Operator-managed upstream Ansible controller (the `auto` layer) — the imperative counterweight reaching non-Talos home-lab hosts; native OIDC SSO via Authentik; Job Templates pull playbooks from a Gitea repo |
@@ -289,7 +289,8 @@ argocd app list
 | traefik | traefik-system | In-cluster ingress controller (192.168.55.220), ACME wildcard TLS for `*.cluster.derio.net` |
 | traefik-extras | traefik-system | Middleware CRDs (security headers, IP allowlist, Authentik forward-auth) + 16 IngressRoutes |
 | homepage | homepage | Cluster dashboard at `master.cluster.derio.net`, HTTP health indicators, service catalog |
-| gitea | gitea | Git forge with GitHub pull-mirror (192.168.55.209:3000), Authentik OIDC SSO |
+| gitea | gitea | Git forge with GitHub pull-mirror (192.168.55.209:3000), Authentik OIDC SSO, Gitea Actions enabled |
+| gitea-runner | gitea-runner | Gitea Actions runner (act_runner + DinD, pc-1) for agentic-stoa mirror CI |
 | gitea-extras | gitea | ExternalSecret for admin password, OIDC client secret, GitHub mirror token |
 | zot | zot | OCI container/artifact registry (192.168.55.210:5000), self-signed TLS via cert-manager |
 | zot-extras | zot | Certificate, ClusterIssuer, ExternalSecret for push password and OIDC |

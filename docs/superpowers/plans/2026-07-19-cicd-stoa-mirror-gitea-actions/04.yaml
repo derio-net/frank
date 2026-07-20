@@ -1,0 +1,68 @@
+schema_version: 2
+phase:
+  number: 4
+  title: Docs — retro blog updates, gotchas, runbook sync
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Retro-update the cicd layer posts
+  steps:
+  - id: P4.T1.S1
+    text: |
+      Locate the cicd layer's building and operating posts (grep 'layer: cicd'
+      blog/content/docs/*/*/index.md). Building post: add a section on the Gitea
+      Actions extension — why (private-repo Actions cost; pins-update */30min),
+      the engine decision (Tekton not Actions-compatible; Gitea Actions is), the
+      act_runner+DinD architecture, the CI_AUTHORITY parallel-running guard, and
+      the status bridge. Operating post: add runner operations — check runner:
+      Gitea UI /admin/actions/runners; logs: kubectl -n gitea-runner logs deploy/
+      act-runner -c runner; capacity tuning in apps/gitea-runner/manifests/
+      config.yaml; DinD disk: emptyDir wiped on pod restart (by design).
+      This is the fix/extension workflow — extend existing posts, no new post.
+  - id: P4.T1.S2
+    text: |
+      Add gotcha one-liners to agents/rules/frank-gotchas.md (+ full prose in
+      docs/runbooks/frank-gotchas/tekton.md or a new gitea-actions section) for any
+      non-obvious trap surfaced in phases 1-3 (candidates: DinD needs
+      DOCKER_TLS_CERTDIR="" or the daemon silently waits for certs; act_runner
+      registration is one-shot state on the PVC — token rotation does NOT
+      re-register without wiping /data/.runner). Skip cleanly if nothing surfaced.
+- number: 2
+  title: Runbook + README sync
+  steps:
+  - id: P4.T2.S1
+    text: |
+      Run the /sync-runbook skill so the manual-operation blocks in this plan's
+      05.yaml merge into docs/runbooks/manual-operations.yaml (dedup by id,
+      status pending).
+  - id: P4.T2.S2
+    text: |
+      Run /update-readme if the Technology Stack / Current Status sections should
+      name Gitea Actions as the stoa CI engine (they should — one-line addition).
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-07-19T22:09:16+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-07-19T22:09:19+00:00'
+      note: null
+    P4.T2.S1:
+      state: x
+      ticked_at: '2026-07-19T22:09:22+00:00'
+      note: null
+    P4.T2.S2:
+      state: x
+      ticked_at: '2026-07-19T22:09:26+00:00'
+      note: null
+  completion:
+    at: '2026-07-19T22:09:29+00:00'
+    note: null
+    observed_prs: []

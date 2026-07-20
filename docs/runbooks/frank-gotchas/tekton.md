@@ -21,3 +21,11 @@ Tekton tasks with `runAsUser: 65534` get `HOME=/` from `/etc/passwd`. Since `/` 
 ## Gitea sends `X-Gitea-Event`, not `X-GitHub-Event`
 
 Tekton `github` ClusterInterceptor silently drops Gitea webhooks because Gitea sends `X-Gitea-Event` header instead. Use `cel` interceptor with `header.match('X-Gitea-Event', 'push')` instead.
+
+## Gitea Actions runner: DinD needs `DOCKER_TLS_CERTDIR=""`
+
+The `docker:dind` sidecar in `apps/gitea-runner` defaults to generating TLS certs and listening on **2376** when `DOCKER_TLS_CERTDIR` is unset. act_runner is pointed at plain-TCP `tcp://localhost:2375`, so the pair comes up "Running" while every job hangs waiting for a docker daemon that is listening one port over, TLS-only. Set `DOCKER_TLS_CERTDIR: ""` and pass `--host=tcp://0.0.0.0:2375` explicitly (guarded by `scripts/tests/test_gitea_runner_app.py`).
+
+## Gitea Actions runner: registration is one-shot PVC state
+
+`act_runner` registers against Gitea once and persists its identity in `/data/.runner` on the PVC. Rotating `STOA_GITEA_RUNNER_TOKEN` (or re-minting the registration token) does **NOT** re-register an already-registered runner — the token is only read when `/data/.runner` is absent. To force a fresh registration: scale the Deployment to 0, delete `/data/.runner` (or the whole PVC — the tool cache is rebuildable), scale back up. Symptom of a half-dead registration: runner pod healthy but the Gitea admin runners page shows it Offline.

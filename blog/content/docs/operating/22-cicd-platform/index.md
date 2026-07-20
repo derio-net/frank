@@ -239,6 +239,30 @@ crane auth login 192.168.55.210:5000 -u tekton-push -p "$ZOT_PASS" --insecure
 
 If the password changed in Infisical, the ExternalSecret needs to re-sync. Check `kubectl get externalsecret -n zot`.
 
+## Gitea Actions Runner (2026-07 extension)
+
+The agentic-stoa mirrors now run their GitHub Actions workflows on Frank via Gitea Actions (`apps/gitea-runner/` — act_runner + DinD on pc-1).
+
+```bash
+# Is the runner alive and registered?
+kubectl -n gitea-runner get pods
+kubectl -n gitea-runner logs deploy/act-runner -c runner --tail=20
+# Gitea admin view: http://192.168.55.209:3000/-/admin/actions/runners (expect state Idle)
+
+# Watch a run's job containers appear inside DinD
+kubectl -n gitea-runner exec deploy/act-runner -c dind -- docker ps
+
+# Status bridge: did the result reach GitHub?
+kubectl -n tekton-pipelines get pipelinerun | grep stoa-status-bridge
+```
+
+Operational notes:
+
+- **Capacity** lives in `apps/gitea-runner/manifests/config.yaml` (`runner.capacity: 2`). Drop to 1 if pc-1 strains before considering a node move.
+- **DinD's image cache is an emptyDir** — wiped on pod restart, by design. The PVC keeps only the runner identity (`/data/.runner`) and the actions tool cache.
+- **Registration is one-shot.** The runner registers once and persists identity on the PVC; rotating `STOA_GITEA_RUNNER_TOKEN` does NOT re-register. To force a fresh registration: scale to 0, delete `/data/.runner` (or the PVC), scale up.
+- **Mutation authority**: the `CI_AUTHORITY` org variable in Gitea (org agentic-stoa → Settings → Actions → Variables) decides which side's mutating jobs run. `github` = parallel-safe default; flip to `gitea` at cutover.
+
 ## Missteps
 
 | What we assumed | Why it was wrong | What it cost |

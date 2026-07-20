@@ -1,0 +1,120 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Enable Gitea Actions + deploy act_runner (apps/gitea-runner)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - stoa-ci-runs-on-frank
+tasks:
+- number: 1
+  title: Guard test for the runner app (RED)
+  steps:
+  - id: P2.T1.S1
+    text: |
+      RED: Write scripts/tests/test_gitea_runner_app.py asserting:
+      (a) apps/gitea/values.yaml: gitea.config.actions.ENABLED is true;
+      (b) apps/gitea-runner/manifests/namespace.yaml: namespace gitea-runner labeled
+      pod-security.kubernetes.io/enforce: privileged (DinD lives here, NOT in the
+      gitea namespace — Gitea itself stays unprivileged);
+      (c) apps/gitea-runner/manifests/deployment.yaml: containers 'runner' (image
+      gitea/act_runner, pinned tag, not :latest) and 'dind' (image docker:dind,
+      pinned, privileged: true), spec.strategy.type == Recreate (RWO PVC gotcha),
+      nodeSelector kubernetes.io/hostname: pc-1, runner env GITEA_INSTANCE_URL
+      pointing at http://gitea-http.gitea.svc.cluster.local:3000, DOCKER_HOST
+      tcp://localhost:2375 and DOCKER_TLS_CERTDIR "" on dind, runner envFrom/env
+      referencing Secret gitea-runner-token for GITEA_RUNNER_REGISTRATION_TOKEN,
+      and memory limits present on BOTH containers;
+      (d) apps/gitea-runner/manifests/config.yaml ConfigMap: runner.capacity == 2
+      and a labels entry mapping 'ubuntu-latest' to a docker:// image;
+      (e) apps/gitea-runner/manifests/externalsecret-runner-token.yaml:
+      ExternalSecret producing Secret gitea-runner-token from remote key
+      STOA_GITEA_RUNNER_TOKEN, same secretStoreRef as
+      apps/gitea/manifests/externalsecret-gitea.yaml (read that file for the store
+      name in the test, don't hardcode);
+      (f) apps/gitea-runner/manifests/pvc.yaml: storageClassName longhorn-cicd;
+      (g) apps/root/templates/gitea-runner.yaml: Application with path
+      apps/gitea-runner/manifests, destination namespace gitea-runner, syncOptions
+      containing ServerSideApply=true and CreateNamespace=true, prune absent/false.
+      Run: python3 -m pytest scripts/tests/test_gitea_runner_app.py -q
+      Expect: FAIL (nothing exists yet).
+- number: 2
+  title: Implement values + manifests + Application CR (GREEN)
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Edit apps/gitea/values.yaml: under gitea.config add
+        actions:
+          ENABLED: true
+      (Gitea 1.25.4 live; DEFAULT_ACTIONS_URL default 'github' is correct — actions/*
+      resolve from github.com.)
+  - id: P2.T2.S2
+    text: |
+      Create apps/gitea-runner/manifests/:
+      - namespace.yaml — Namespace gitea-runner, labels pod-security enforce
+        privileged (+ audit/warn), plus the standard app labels.
+      - externalsecret-runner-token.yaml — ExternalSecret gitea-runner-token,
+        refreshInterval 1h, target Secret gitea-runner-token key token, remoteRef
+        STOA_GITEA_RUNNER_TOKEN; copy secretStoreRef from
+        apps/gitea/manifests/externalsecret-gitea.yaml.
+      - config.yaml — ConfigMap act-runner-config with config.yaml:
+          log: {level: info}
+          runner: {capacity: 2, timeout: 45m, fetch_timeout: 10s, fetch_interval: 5s,
+                   labels: ["ubuntu-latest:docker://gitea/runner-images:ubuntu-latest"]}
+          cache: {enabled: true, dir: /data/cache}
+          container: {docker_host: "tcp://localhost:2375", force_pull: false}
+      - pvc.yaml — PVC act-runner-data, 20Gi, longhorn-cicd, RWO.
+      - deployment.yaml — Deployment act-runner, replicas 1, strategy Recreate,
+        nodeSelector pc-1; container runner: image gitea/act_runner:0.2.13,
+        env GITEA_INSTANCE_URL=http://gitea-http.gitea.svc.cluster.local:3000,
+        GITEA_RUNNER_REGISTRATION_TOKEN from Secret gitea-runner-token/token,
+        CONFIG_FILE=/config/config.yaml, DOCKER_HOST=tcp://localhost:2375;
+        volumeMounts: /config (ConfigMap), /data (PVC); requests 100m/256Mi,
+        limits memory 1Gi. Container dind: image docker:28-dind, privileged true,
+        env DOCKER_TLS_CERTDIR="", args ["--host=tcp://0.0.0.0:2375"];
+        requests 500m/1Gi, limits memory 8Gi (Playwright/compose headroom;
+        pc-1 has 32GB). emptyDir /var/lib/docker (image cache is disposable;
+        PVC holds only act_runner state + tool cache).
+  - id: P2.T2.S3
+    text: |
+      Create apps/root/templates/gitea-runner.yaml Application CR: copy an existing
+      raw-manifests app template (e.g. apps/root/templates/pushgateway.yaml shape),
+      project infrastructure, source path apps/gitea-runner/manifests, destination
+      namespace gitea-runner, syncPolicy automated selfHeal + CreateNamespace=true,
+      ServerSideApply=true.
+      Run: python3 -m pytest scripts/tests/test_gitea_runner_app.py -q
+      Expect: PASS.
+  - id: P2.T2.S4
+    text: |
+      OPTIONAL REFACTOR: deduplicate any literal repeated across manifests (e.g.
+      the gitea-runner namespace string) only if kustomization is already in use in
+      this app dir; otherwise skip — raw manifests stay plain. Re-run the guard →
+      stays green.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-07-19T21:59:01+00:00'
+      note: null
+    P2.T2.S1:
+      state: x
+      ticked_at: '2026-07-19T21:59:06+00:00'
+      note: null
+    P2.T2.S2:
+      state: x
+      ticked_at: '2026-07-19T21:59:10+00:00'
+      note: null
+    P2.T2.S3:
+      state: x
+      ticked_at: '2026-07-19T21:59:14+00:00'
+      note: null
+    P2.T2.S4:
+      state: '-'
+      ticked_at: '2026-07-19T21:59:18+00:00'
+      note: no kustomization in app dir; raw manifests stay plain per step's own skip
+        clause
+  completion:
+    at: '2026-07-19T21:59:22+00:00'
+    note: null
+    observed_prs: []

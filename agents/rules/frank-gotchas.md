@@ -32,6 +32,8 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - PVC workspaces mount as root — set `fsGroup` on `taskRunTemplate.podTemplate.securityContext`.
 - `runAsUser: 65534` (nobody) → `HOME=/` (read-only); set `HOME=/tekton/home` env explicitly.
 - Gitea sends `X-Gitea-Event` (not `X-GitHub-Event`) — use `cel` interceptor, not `github`.
+- Gitea Actions runner DinD needs `DOCKER_TLS_CERTDIR=""` + explicit `--host=tcp://0.0.0.0:2375` — unset, dind serves TLS on 2376 and every job hangs "Running" against 2375.
+- act_runner registration is one-shot PVC state (`/data/.runner`) — rotating `STOA_GITEA_RUNNER_TOKEN` does NOT re-register; scale to 0, delete `/data/.runner`, scale up.
 
 ### Argo Rollouts — `docs/runbooks/frank-gotchas/argo-rollouts.md`
 - Only `canary` / `blueGreen` strategies — stateful + RWO PVC apps stay as plain Deployments.
