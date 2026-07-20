@@ -19,7 +19,12 @@ image:
   model: gemini-3-pro-image-preview
   api_key_env: GEMINI_API_KEY
   output_dir: static/images
-  prompts_file: prompt_for_images.yaml
+  # Repo-root-relative: generate-images.py resolves this against the directory
+  # holding .blog-craft.yaml (the repo root), while frank's Hugo site lives in
+  # blog/. Without the prefix the generator finds zero entries and every
+  # `--only <key>` fails with "unknown key". Matches the other repo-root-relative
+  # paths here (content_types.papers.data_dir) and every entry's `output:`.
+  prompts_file: blog/prompt_for_images.yaml
   reference_pool: .reference-pool
   curation: { count_default: 1, archive_cap: 30, contact_sheet: true }
   # Build-time WebP optimization (blog-craft #14). Hugo emits width-capped WebP +

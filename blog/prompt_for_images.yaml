@@ -2179,3 +2179,26 @@ images:
       desk lamp from the side. The ONLY readable text: "401 openrouter",
       "alive", "litellm", "config.yaml" — no other captions, no watermarks.
       ONE FIGURE — one single Frank.
+
+  - key: building-34-first-vcluster-tenant
+    series: building
+    torso_variant: 0
+    mood: cautious
+    references:
+      - .reference-pool/building/subjects/frank-server-torso.png
+    output: blog/content/docs/building/34-first-vcluster-tenant/cover.png
+    description: "The First Real Tenant — Frank lowering a glass dome over a miniature server rack, a sieve labelled Pod spliced into the cable feeding it"
+    prompt: >-
+      Frank, his torso an open server chassis of exposed hardware, kneeling on
+      the floor of a dim server hall and carefully lowering a small glass dome
+      onto a low pedestal with both hands. Inside the dome stands a complete
+      miniature server rack, perfectly formed, its tiny lights glowing — a
+      cluster inside the cluster. One armoured cable runs from the pedestal
+      back to a full-height rack behind him, and spliced into that cable sits a
+      small brass sieve cartridge stencilled "Pod", catching a few tiny pebbles
+      so they cannot travel up the line. On the wall behind, a row of status
+      lamps glows green beside one heavy master breaker that has plainly just
+      been re-set. Frank's posture is careful and deliberate, weight on one
+      knee. Cool blue glow rising from inside the glass dome, warm overhead key
+      light, deep shadow beyond. The ONLY readable text: "Pod" — no other
+      captions, no watermarks. ONE FIGURE — one single Frank.

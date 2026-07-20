@@ -90,3 +90,82 @@ kubectl -n <ns> patch deployment <name> --type=merge \
 then re-sync (the ArgoCD operation retries 5× and then needs a manual
 re-trigger). Same root cause as the Helm-values variant documented in
 storage-secrets-ssa.md.
+
+## Registering a vCluster as an ArgoCD cluster target panics the controller cluster-wide (2026-07-19)
+
+Adding a vCluster (e.g. `cnc-staging`, server
+`https://cnc-staging.cnc-staging-vcluster.svc:443`) as an ArgoCD **cluster
+target** — the out-of-band `cluster-<name>` Secret — makes the
+`argocd-application-controller` **panic and exit** while building that cluster's
+cache. On the next cold start it rebuilds *all* caches, panics again →
+**CrashLoopBackOff cluster-wide**: every Application stops reconciling. It is
+latent — it works while a cache builds incrementally; a controller **restart**
+triggers the full rebuild and the crash.
+
+Verbatim panic (read from VictoriaLogs;
+`kubernetes.pod_name:argocd-application-controller-0`):
+
+```
+panic: assignment to entry in nil map
+  k8s.io/kubectl/pkg/util/resource.maxResourceList        resource.go:179
+  ...PodRequestsAndLimits                                 resource.go:36
+  argo-cd/v3/controller/cache.populatePodInfo             controller/cache/info.go:462
+  ...gitops-engine clusterCache.sync → listResources → EachListItem
+```
+
+**Root cause:** ArgoCD **v3.3.2** (chart `9.4.6`) vendors kubectl **v0.34.0**,
+whose `PodRequestsAndLimits` writes to a nil `ResourceList` map when computing the
+requests of a Pod carrying **LimitRange-defaulted** resources — and vClusters ship
+a default LimitRange, so any pod cached from the vCluster hits it. The panic is
+uncaught in a cache-sync goroutine, so the whole controller process dies (not just
+that cluster's cache). Upstream
+[argo-cd#26529](https://github.com/argoproj/argo-cd/issues/26529) /
+[kubernetes#136533](https://github.com/kubernetes/kubernetes/issues/136533);
+permanent fix ships in **ArgoCD 3.5** (client-go 1.36.1), **not** backported to 3.4.
+
+**Fix (frank #658):** a **cluster-scoped** `resource.exclusions` in
+`apps/argocd/values.yaml` `configs.cm` that skips **Pod on the vCluster URL only**
+(`resource.exclusions` matches `apiGroups` + `kinds` + a `clusters` glob list).
+ArgoCD then never caches the vCluster's Pods → `populatePodInfo` never runs there.
+The main cluster keeps full per-pod visibility.
+
+- The value **replaces** the argo-cd chart default (Helm does not merge a multiline
+  string), so the chart-default exclusions must be reproduced verbatim and the Pod
+  entry appended. Guard: `scripts/tests/test_argocd_vcluster_pod_exclusion.py`
+  (asserts scoped-to-vcluster, **never-global**, main-cluster-safe,
+  defaults-preserved).
+- **NEVER make the Pod exclusion global** (absent/`*` `clusters`) — that silently
+  strips the pod tree + health rollup from every main-cluster app.
+
+```yaml
+      - apiGroups:
+        - ''
+        kinds:
+        - Pod
+        clusters:
+        - https://cnc-staging.cnc-staging-vcluster.svc:443
+```
+
+**Safe (re-)registration sequence** (order matters — the exclusion must be loaded
+before the controller sees the cluster):
+
+1. Merge the exclusion; let ArgoCD self-apply `argocd-cm` (hard-refresh the
+   `argocd` app if impatient). Confirm the live CM has the entry.
+2. **Restart the application-controller** so it reloads `resource.exclusions` —
+   safe while the vCluster is unregistered (nothing to crash on).
+3. Register the vCluster: out-of-band `cluster-<name>` Secret with
+   `tlsClientConfig.insecure: true` and `certData`/`keyData` from the vCluster's
+   `vc-<name>` secret (`client-certificate`/`client-key`). **No `caData`** — it
+   conflicts with `insecure: true` ("specifying a root certificates file with the
+   insecure flag is not allowed").
+4. Watch the controller: `restartCount` stays 0 and no `panic:` in the logs →
+   the exclusion is working; the vCluster apps reconcile.
+
+**Recovery from a live crash** (proven): `kubectl delete secret cluster-<name> -n
+argocd` (removes the trigger) + delete the controller pod. It comes back clean.
+Do NOT clear a wedged sync-op via `kubectl patch .../operation` — it is
+controller-owned; delete the offending virtual resource instead.
+
+**When ArgoCD reaches ≥ 3.5, remove the Pod exclusion** (the client-go 1.36.1 bump
+fixes the panic upstream). Full investigation:
+`docs/superpowers/debugging/2026-07-19-argocd-vcluster-cache-panic.md`.
