@@ -144,7 +144,29 @@ def post_process(output: Path, steps: list) -> None:
             Image.open(output).save(str(s["target"]), sizes=[(s.get("size", 32), s.get("size", 32))])
 
 
-def _gen_bytes(prompt: str, ref: Path | None, model: str, image_cfg: dict, entry: dict) -> bytes | None:
+def entry_reference_paths(entry: dict, root: Path) -> list[Path]:
+    """Resolve an entry's `references:` clothing/pose anchors against the repo root.
+
+    These are the ADDITIONAL reference images the composed `reference_guidance`
+    prose describes ("clothing/pose anchors"). The master character sheet is
+    selected separately and MUST stay first in the payload — that prose tells the
+    model the FIRST image is canonical for the face.
+
+    A missing anchor is skipped with a warning rather than failing the run: a
+    stale path in one entry should not block generating its cover.
+    """
+    out: list[Path] = []
+    for rel in entry.get("references") or []:
+        p = (root / str(rel)).expanduser()
+        if p.is_file():
+            out.append(p)
+        else:
+            print(f"  WARN: reference not found, skipping: {rel}", file=sys.stderr)
+    return out
+
+
+def _gen_bytes(prompt: str, ref: Path | None, model: str, image_cfg: dict, entry: dict,
+               root: Path) -> bytes | None:
     if TEST_MODE:
         return _ONE_PX_PNG
     from google import genai
@@ -153,6 +175,12 @@ def _gen_bytes(prompt: str, ref: Path | None, model: str, image_cfg: dict, entry
     contents: list = [prompt]
     if ref:
         contents.append(Image.open(ref))
+    # Entry-level anchors follow the master sheet, in declared order.
+    for p in entry_reference_paths(entry, root):
+        try:
+            contents.append(Image.open(p))
+        except OSError as exc:
+            print(f"  WARN: reference unreadable, skipping: {p} ({exc})", file=sys.stderr)
     cfg_kwargs: dict = {}
     if entry.get("aspect_ratio") or entry.get("image_size"):
         ic = {}
@@ -222,11 +250,21 @@ def main(argv: list[str]) -> int:
         out = root / e.get("output", f"{image_cfg.get('output_dir', 'static/images')}/{key}.png")
         ref = select_reference(e, image_cfg, root, override)
         if a.dry_run:
-            print(f"[dry-run] {key} -> {out}  (ref={ref}, {len(prompt)} chars)")
+            extra = entry_reference_paths(e, root)
+            refs_used = ([ref] if ref else []) + extra
+            print(f"[dry-run] {key} -> {out}  (ref={ref}, {len(prompt)} chars, "
+                  f"{len(refs_used)} image(s) to model)")
+            for i, p in enumerate(refs_used, 1):
+                kind = "master" if (ref and p == ref and i == 1) else "entry"
+                try:
+                    rel = p.relative_to(root)
+                except ValueError:
+                    rel = p
+                print(f"           ref {i} ({kind}): {rel}")
             continue
         variants = []
         for i in range(max(1, count)):
-            b = _gen_bytes(prompt, ref, model, image_cfg, e)
+            b = _gen_bytes(prompt, ref, model, image_cfg, e, root)
             if not b:
                 print(f"  {key}: no image returned", file=sys.stderr)
                 rc = 1
