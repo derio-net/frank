@@ -236,3 +236,35 @@ its own decision rather than being bundled with a cosmetic cleanup.
 - Always `ignoreDifferences` on Secret data (`/data` jsonPointer) so ArgoCD doesn't fight live mutations.
 - SOPS/age encryption for secrets — never commit plaintext.
 - Longhorn default replicaCount: 3 (matches 3 control-plane nodes).
+
+## Config-in-Secret charts: values change syncs the Secret but the pod keeps serving OLD config
+
+Some charts render their app configuration into a **Secret** consumed by an
+init container at pod boot — gitea's `gitea-inline-config` (assembled into
+`/data/gitea/conf/app.ini` by `init-app-ini`) is the canonical case here.
+
+Observed 2026-07-20 while enabling Gitea Actions (`gitea.config.actions.ENABLED:
+true`, frank#659): after merge + root sync, the live `gitea-inline-config`
+Secret HAD the new `actions: ENABLED=true` key — but the pod was still the
+Jul 15 one, live `app.ini` said `ENABLED = false`, and the Deployment's
+`checksum/config` pod-template annotation was stale (pre-change value) while
+ArgoCD showed the app **Synced/Healthy**. The chart's checksum-annotation
+mechanism (which is what normally rolls the pod on config change) did not
+propagate under our SSA + `RespectIgnoreDifferences` sync options.
+
+Symptom pattern to recognize: **config-only values change, app Synced/Healthy,
+Secret updated, behavior unchanged.** The app serves the old config until the
+pod is recreated for any reason — which can be days later, making the config
+change appear to "apply itself" mysteriously after an unrelated restart.
+
+Fix (each time, after any config-only values change to such a chart):
+
+```bash
+kubectl -n gitea rollout restart deploy/gitea    # Recreate strategy: ~30s blip
+kubectl -n gitea rollout status deploy/gitea
+# verify INSIDE the pod, not via the Secret:
+kubectl -n gitea exec deploy/gitea -- grep -A1 '\[actions\]' /data/gitea/conf/app.ini
+```
+
+The PodSecurity "restricted" warnings on restart are warn-level only
+(pre-existing for this chart's init containers).
