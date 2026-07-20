@@ -1,10 +1,24 @@
-# Additive NetworkPolicy (Blocker B, part 3): allow the ArgoCD application-controller
-# to reach the cnc-staging vCluster API server (control-plane pod, port 8443) so
-# ArgoCD can sync the cnc-staging / cnc-staging-db apps INTO the vCluster. The
-# chart's vc-cp-* NetworkPolicy only permits in-vCluster pods + app=loft; ArgoCD
-# is neither. NetworkPolicies are additive (union), so this grants argocd->8443
-# without weakening the chart's isolation. Namespace is set by the kustomization
-# (cnc-staging-vcluster).
+# Ingress allow-list for the cnc-staging vCluster API server (control-plane pod,
+# port 8443). Namespace is set by the kustomization (cnc-staging-vcluster).
+#
+# This policy must grant BOTH consumers, because it is now the ONLY policy
+# selecting that pod — and a NetworkPolicy selecting a pod makes it default-deny
+# for every ingress it does not name:
+#
+#   1. ArgoCD  — so it can sync the cnc-staging / cnc-staging-db apps INTO the
+#      vCluster (Blocker B pt3, #656).
+#   2. The vCluster's OWN pods — CoreDNS watches Services/EndpointSlices/
+#      Namespaces on this API. Without it CoreDNS answers NOTHING and every
+#      in-vCluster name NXDOMAINs.
+#
+# HISTORY — do not "simplify" rule 2 away. #656 added only rule 1, reasoning that
+# NetworkPolicies are additive and the chart's own vc-cp-* policy already allowed
+# in-vCluster pods. That was true when written. #657 then DELETED the vc-* policies
+# (their egress excluded 10/8 and blocked the stack's ClusterIP traffic), so the
+# union collapsed to rule 1 alone and the vCluster's CoreDNS silently lost API
+# access: `Failed to watch: ... dial tcp 10.107.226.95:443: i/o timeout`, and
+# cncd's agent-session dispatch died at `lookup cnc-node ... no such host`.
+# Neither PR was wrong alone; the break lived in the seam between them.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -15,9 +29,18 @@ spec:
       release: cnc-staging
   policyTypes: [Ingress]
   ingress:
+    # 1. ArgoCD application-controller -> vCluster API
     - from:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: argocd
+      ports:
+        - {port: 8443, protocol: TCP}
+    # 2. The vCluster's own synced pods (CoreDNS, cncd, node, ...) -> vCluster API.
+    #    An empty podSelector in `from` means "every pod in THIS policy's
+    #    namespace" (cnc-staging-vcluster), which is exactly where they run.
+    #    Restores what the deleted vc-cp-* policy used to grant.
+    - from:
+        - podSelector: {}
       ports:
         - {port: 8443, protocol: TCP}
