@@ -250,8 +250,8 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
     levels: {}
-    status: not-implemented
-    notes: Adds second-brain, hermes-brain, flexible-health to the existing 7.
+    status: skipped
+    notes: "Live proof 2026-07-20 \u2014 all 10 private repos on Gitea; second-brain/hermes-brain/flexible-health AND the cnc trio (discovered absent, never provisioned since June) created + sha-verified backfilled via scripts/tmp/phase5-gitea-actions.sh."
   - id: stoa-ci-runs-on-frank
     capability: stoa CI on Frank
     acceptance: The Actions workflows of the five CI-bearing agentic-stoa repos execute
@@ -259,8 +259,8 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: "Live proof 2026-07-20 \u2014 smoke PR second-brain#12 sync-pr-12; tests/unittest SUCCESS on act-runner; 14+ tasks executed across second-brain/hermes-brain/cnc-frd. Schedule-tick observation still pending."
   - id: stoa-ci-github-status-writeback
     capability: stoa CI on Frank
     acceptance: A Frank-side CI run reports its result as a commit status on the originating
@@ -268,8 +268,8 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: "Live proof 2026-07-20 \u2014 gitea-actions/* statuses on GitHub sha 24f4291c (pending then success/failure transitions) via stoa-status-bridge, 6 PipelineRuns Succeeded. Required frank#664 (EL apply freeze) first."
   - id: stoa-ci-no-double-mutation
     capability: stoa CI on Frank
     acceptance: While GitHub Actions and Frank CI run in parallel, mutating jobs (PR
@@ -279,4 +279,4 @@ rows:
     - frank:docs/superpowers/specs/2026-07-19--cicd--stoa-full-mirror-gitea-actions-design.md
     levels: {}
     status: not-implemented
-    notes: ''
+    notes: "Guards merged in all 5 repos + CI_AUTHORITY=github org variable live (phase5 script). Stays open until the negative is observed \u2014 first Gitea-side pins-update tick skipping cleanly and no duplicate robot PRs during the August parallel week."

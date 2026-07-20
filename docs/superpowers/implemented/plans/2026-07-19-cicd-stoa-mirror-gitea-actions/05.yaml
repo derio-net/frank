@@ -34,7 +34,7 @@ tasks:
         - kubectl -n gitea-runner get secret gitea-runner-token
         - "kubectl -n gitea-runner logs deploy/act-runner -c runner | grep -i 'runner registered'"
         - "Gitea UI http://192.168.55.209:3000/-/admin/actions/runners shows the runner Idle"
-      status: pending
+      status: done
 - number: 2
   title: Create + backfill the three Gitea mirror repos
   steps:
@@ -48,12 +48,12 @@ tasks:
       when: After Phase 1 merges (triggers live); before the GitHub webhooks are added.
       why_manual: Repo creation + history backfill uses stoa-bot credentials; one-time per repo (pattern of cicd-stoa-companies-gitea-mirror/-backfill).
       commands:
-        - "For each of second-brain, hermes-brain, flexible-health:"
+        - "For each of second-brain, hermes-brain, flexible-health, cnc-fr, cnc-frd, cnc-fru (cnc trio discovered ABSENT 2026-07-20 — never provisioned since June; executed via scripts/tmp/phase5-gitea-actions.sh):"
         - "curl -s -X POST http://192.168.55.209:3000/api/v1/orgs/agentic-stoa/repos -H 'Authorization: token <stoa-bot token from Infisical>' -H 'Content-Type: application/json' -d '{\"name\": \"<repo>\", \"private\": true, \"default_branch\": \"main\"}'"
         - "git clone --mirror git@github.com:agentic-stoa/<repo>.git /tmp/<repo>.git && cd /tmp/<repo>.git && git push --mirror ssh://git@192.168.55.209:2222/agentic-stoa/<repo>.git (stoa-bot key)"
       verify:
         - "Gitea UI: agentic-stoa/<repo> exists, main matches GitHub main HEAD sha"
-      status: pending
+      status: done
 - number: 3
   title: GitHub webhooks for the three new mirrors
   steps:
@@ -72,7 +72,7 @@ tasks:
       verify:
         - "Recent Deliveries shows 200 on the ping event"
         - kubectl -n tekton-pipelines logs -l eventlistener=github-listener --tail=20
-      status: pending
+      status: done
 - number: 4
   title: Gitea org Actions secrets + CI_AUTHORITY variable + status webhook
   steps:
@@ -93,7 +93,7 @@ tasks:
       verify:
         - "Each of the 5 repos shows an Actions tab in the Gitea UI (unit enabled)"
         - "Push any commit to a mirrored repo's sync branch → Gitea Actions run starts → gitea-listener logs show a received status event → matching commit status appears on GitHub sha with context gitea-actions/*"
-      status: pending
+      status: done
 - number: 5
   title: First-run verification (pre-Test-Plan smoke)
   steps:
@@ -108,26 +108,31 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-20T14:07:09+00:00'
       note: null
     P5.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-20T14:07:10+00:00'
       note: null
     P5.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-20T14:07:12+00:00'
       note: null
     P5.T4.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-20T14:07:13+00:00'
       note: null
     P5.T5.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-20T14:07:14+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-07-20T14:07:32+00:00'
+    note: 'Executed 2026-07-20 by operator via scripts/tmp/phase5-gitea-actions.sh
+      (runner registered; 6 mirrors created+backfilled incl. the absent cnc trio;
+      3 GitHub webhooks; org secrets + CI_AUTHORITY + status webhook; Actions units).
+      Smoke proven on second-brain#12: sync-pr-12 → unittest SUCCESS → gitea-actions/*
+      statuses on GitHub sha via stoa-status-bridge (required frank#664 EL-unfreeze
+      first).'
     observed_prs: []
