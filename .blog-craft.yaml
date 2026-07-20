@@ -1,5 +1,5 @@
-version: 4
-blog_craft_version: "v0.9.0"   # blog-craft release (image-composition-system, PR #42; was 5dc31f8)
+version: 5
+blog_craft_version: "v0.10.0"   # blog-craft release (v5 composition model, PR #44; was v0.9.0)
 
 # Hugo site lives under blog/; .blog-craft.yaml stays at the repo root.
 # blog-craft's /blog-post scaffolding and /update path mapping read this (v4).
@@ -38,83 +38,91 @@ image:
   # Build-time WebP optimization (blog-craft #14). Hugo emits width-capped WebP +
   # srcset from the PNG masters (masters untouched). Banners live in assets/images/.
   optimize: { enabled: true, format: webp, quality: 82, max_width: 1600, banner_max_width: 2560 }
-  composition_order: [base_character, base_atmosphere, reference_guidance, torso, mood, scene]
+  # v5 (blog-craft #44): NAMED composition orders; entries pick via
+  # composition.order (default hero). reference_guidance is a chunk map —
+  # orders include exactly the chunks an image type needs.
+  composition_orders:
+    hero:
+      - base_character
+      - base_atmosphere
+      - reference_guidance[anchor]
+      - reference_guidance[character]
+      - reference_guidance[clothing]
+      - reference_guidance[single_hero]
+      - reference_guidance[drawing_instructions]
+      - clothing
+      - mood
+      - scene
+    scenery:
+      - base_atmosphere
+      - reference_guidance[anchor]
+      - reference_guidance[scenery_reference_image]
+      - scene
   layers:
-    base_character: Frank — a chibi-proportioned green Frankenstein monster. Uneven cartoon-green skin with
-      brown / reddish-tan sewn-on patches across the cheek and jaw (horizontal stitch lines crossing each;
-      brown against green, NOT mechanical implants). Each eye is a solid BLACK circle with a single small
-      WHITE pupil-dot — no glow. No nose. Messy black flat-top hair with jagged spiky peaks. Thick raised
-      brow ridge, no eyebrows. A horizontal stitched scar across the upper forehead with a small rectangular
-      RED bandage over it above the right eye. Two symmetric RJ45-connector bolts on the temples, each sparking
-      faint blue. Hands stitched onto the arms with visible scar lines around the wrists. Cartoon illustration,
-      thick outlines, vibrant colours.
-    base_atmosphere: "• Dark server-room aesthetic. Deep navy or near-black background;\n  studio-style\
-      \ framing rather than a documentary photograph.\n• Small flecks of bright white / electric-blue sparks\
-      \ scattered\n  through the scene; faint blue glow on metal edges and from any\n  small LED indicators\
-      \ in the frame.\n• Lighting is a single warm overhead source unless the scene says\n  otherwise; soft\
-      \ falloff into deep shadow rather than uniform fill."
-    reference_guidance: 'The reference images attached to this request are ANCHORS, not subjects to render.
-
-      The FIRST reference image is the canonical character-design sheet. All of Frank''s signature face
-      features — chibi head proportions, solid BLACK eyes with a single small WHITE pupil-dot (no white
-      sclera), no nose, jagged flat-top hair, brown sewn-on cheek and jaw patches, the red forehead bandage
-      — come from THIS image and ONLY this image. If any additional reference image shows Frank with different
-      face proportions, white eyes, an over-detailed face, or a "classic Frankenstein" square-jaw look,
-      IGNORE those facial details — they are leftover from older iterations.
-
-      Any ADDITIONAL reference images are clothing/pose anchors. Use them ONLY to match the clothing variant,
-      accessories, and rough posture of the Frank you draw. Do NOT render them as separate figures, do NOT
-      copy face details from them, and do NOT interpret their cropping or empty regions as compositional
-      cues for the output frame.
-
-      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
-
-      Redraw Frank from scratch in the scene''s perspective and lighting; vary his pose, angle, head turn,
-      and body language to fit the scene''s action.'
-    torso:
-      # v4: the engine hardcodes no layer names — this walk (group by
-      # torso|series, then index by torso_variant) is what compose.py used to
-      # special-case for "torso"; migration 003_to_004 writes it as data.
-      _select: [[torso, series], torso_variant]
+    base_character: |-
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+    base_atmosphere: |-
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+    reference_guidance:
+      anchor: The reference images attached to this request are ANCHORS, not subjects to render.
+      scenery_reference_image: |-
+        The FIRST reference image is only to be used as a guide for the scene's perspective, lighting, and composition.
+      character: |-
+        The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      clothing: |-
+        Any ADDITIONAL reference images are clothing/pose anchors.
+      single_hero: |-
+        There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      drawing_instructions: |-
+        Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+        and body language to fit the scene's action.
+    clothing:
       generic:
-      - Torso and clothing follow the scene prompt.
+        default: Frank's torso/body is exposed server hardware
       building:
-      - Frank's torso/body is exposed server hardware
-      - Frank wears dirty/patched work clothes.
-      - Frank wears overalls.
-      - Frank wears overalls under a lab coat.
-      - Frank wears a work apron with tools in the pockets.
+        default: Frank's torso/body is exposed server hardware
+        dirty: Frank wears dirty/patched work clothes.
+        overalls: Frank wears overalls.
+        overalls_lab: Frank wears overalls under a lab coat.
+        apron: Frank wears a work apron with tools in the pockets.
       operating:
-      - Frank's is lying on his back, torso has an open access panel exposing a device under maintenance
-      - Frank wears a hoodie and sunglasses.
-      - Frank wears t-shirt with rolled-up sleeves.
+        lying_open_access: Frank's is lying on his back, torso has an open access panel exposing a device under maintenance
+        hoodie_and_sunglasses: Frank wears a hoodie and sunglasses.
+        tshirt_rolled_sleeves: Frank wears t-shirt with rolled-up sleeves.
       papers:
-      - Frank wears a thin black necktie over a white button-down dress shirt, small senior reading glasses
-        perched low on the nose.
-      - Frank wears a white lab coat over a white button-down dress shirt and thin black necktie, small
-        senior reading glasses perched low on the nose.
-      - Frank wears leather overalls over a white button-down dress shirt and thin black necktie, small
-        senior reading glasses perched low on the nose.
+        default: Frank wears a thin black necktie over a white button-down dress shirt, small senior reading glasses perched low on the nose.
+        white_lab_coat: Frank wears a white lab coat over a white button-down dress shirt and thin black necktie, small senior reading glasses perched low on the nose.
+        leather_overalls: Frank wears leather overalls over a white button-down dress shirt and thin black necktie, small senior reading glasses perched low on the nose.
     mood:
       curious: Frank's expression is curious — head tilted, brow lifted, eyes wide and attentive.
-      weighing: Frank's expression is weighing — measured, slightly squinting, the look of someone judging
-        an option.
+      weighing: Frank's expression is weighing — measured, slightly squinting, the look of someone judging an option.
       determined: Frank's expression is determined — jaw set, brow level, eyes forward and focused.
-      worried: Frank's expression is worried — brow furrowed inward, mouth tightened, eyes slightly wider
-        than usual.
-      smirking: Frank's expression is smirking — one corner of the mouth pulled up, eyes narrowed in dry
-        amusement.
-      approving: Frank's expression is approving — a small contented smile, brow relaxed, eyes calm and
-        pleased.
-      skeptical: Frank's expression is skeptical — one brow raised higher than the other, mouth flat, eyes
-        narrowed.
+      worried: Frank's expression is worried — brow furrowed inward, mouth tightened, eyes slightly wider than usual.
+      smirking: Frank's expression is smirking — one corner of the mouth pulled up, eyes narrowed in dry amusement.
+      approving: Frank's expression is approving — a small contented smile, brow relaxed, eyes calm and pleased.
+      skeptical: Frank's expression is skeptical — one brow raised higher than the other, mouth flat, eyes narrowed.
       satisfied: Frank's expression is satisfied — soft closed-mouth smile, brow at rest, eyes relaxed.
-      cautious: Frank's expression is cautious — alert but not anxious; brow level, eyes scanning, mouth
-        neutral.
+      cautious: Frank's expression is cautious — alert but not anxious; brow level, eyes scanning, mouth neutral.
       angry: Frank's expression is angry — brow pulled down, mouth tight, eyes narrowed and dark.
       alarmed: Frank's expression is alarmed — eyes wide, brow lifted high, mouth slightly open.
-      focused: Frank's expression is focused — brow lowered in concentration, eyes locked on his work, mouth
-        still.
+      focused: Frank's expression is focused — brow lowered in concentration, eyes locked on his work, mouth still.
       amused: Frank's expression is amused — small grin, brow relaxed, eyes bright.
 
 # series.title drives the NAV menu names (frank's nav is the short form); the

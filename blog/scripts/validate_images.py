@@ -27,9 +27,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from compose import _resolve_selector_walk  # noqa: E402  (sibling: tools/ or scripts/)
+from compose import _resolve_selector_walk, resolve_layer  # noqa: E402  (sibling: tools/ or scripts/)
 
 REQUIRED = ("key", "output")
+_ORDER_REF = __import__("re").compile(r"^composition_orders\[([A-Za-z0-9_-]+)\]$")
 
 
 def _all_step_fields_present(name: str, table: dict, entry: dict) -> bool:
@@ -42,12 +43,28 @@ def _all_step_fields_present(name: str, table: dict, entry: dict) -> bool:
     return True
 
 
+def _entry_order(e: dict, image: dict, errors: list, key: str) -> list:
+    """The token list this entry composes with; flags an unknown order name."""
+    comp = e.get("composition") or {}
+    orders = image.get("composition_orders") or {}
+    o = comp.get("order")
+    if isinstance(o, list):
+        return o
+    if isinstance(o, str):
+        m = _ORDER_REF.match(o.strip())
+        if not m or m.group(1) not in orders:
+            errors.append(f"{key}: unknown composition order reference: {o}")
+            return []
+        return orders[m.group(1)]
+    if orders:
+        return orders.get("hero", [])
+    return image.get("composition_order") or []
+
+
 def validate_images(cfg: dict, entries: list, root: Path) -> list[str]:
     errors: list[str] = []
     image = cfg.get("image") or {}
     layers = image.get("layers") or {}
-    order = image.get("composition_order") or []
-    dict_layers = {n: v for n, v in layers.items() if isinstance(v, dict) and n in order}
 
     seen: set = set()
     for i, e in enumerate(entries):
@@ -55,10 +72,15 @@ def validate_images(cfg: dict, entries: list, root: Path) -> list[str]:
             errors.append(f"images[{i}]: entry is not a mapping")
             continue
         key = e.get("key") or f"images[{i}]"
+        comp = e.get("composition")
         missing = [f for f in REQUIRED if not e.get(f)]
-        # `prompt: ""` is the shipped placeholder convention (bootstrap tiles);
-        # only a missing key on a generatable entry is a defect
-        if "prompt" not in e and not e.get("operator_generated"):
+        # An EMPTY scene/prompt string is the shipped placeholder convention
+        # (bootstrap tiles await fill-in); only a missing field on a
+        # generatable entry is a defect.
+        if comp is not None:
+            if "scene" not in comp and not e.get("operator_generated"):
+                missing.append("composition.scene")
+        elif "prompt" not in e and not e.get("operator_generated"):
             missing.append("prompt")
         if missing:
             errors.append(f"{key}: missing required field(s): {', '.join(missing)}")
@@ -71,17 +93,35 @@ def validate_images(cfg: dict, entries: list, root: Path) -> list[str]:
         if isinstance(out, str) and (out.startswith("/") or ".." in Path(out).parts):
             errors.append(f"{key}: output escapes the blog tree: {out}")
 
-        for rel in e.get("references") or []:
+        # reference files must exist: v5 explicit reference_images, v4 references:
+        if comp is not None:
+            ri = comp.get("reference_images") or {}
+            rels = ([ri["primary"]] if ri.get("primary") else []) + list(ri.get("clothing") or [])
+        else:
+            rels = e.get("references") or []
+        for rel in rels:
             if not (root / str(rel)).is_file():
                 errors.append(f"{key}: reference not found: {rel}")
 
+        # selector health, against the fields this entry actually composes with
+        selectors = dict((comp.get("modifiers") or {})) if comp is not None else e
+        order = _entry_order(e, image, errors, key)
+        order_bases = {t.split("[", 1)[0] for t in order}
+        dict_layers = {n: v for n, v in layers.items()
+                       if isinstance(v, dict) and n in order_bases}
         for name, table in dict_layers.items():
-            if not _all_step_fields_present(name, table, e):
-                continue                     # deliberate skip — engine semantics
-            if _resolve_selector_walk(name, table, e) == "":
+            if "_select" in table:
+                if not _all_step_fields_present(name, table, selectors):
+                    continue                 # deliberate skip — engine semantics
+                resolved = _resolve_selector_walk(name, table, selectors)
+            else:
+                if selectors.get(name) is None:
+                    continue                 # deliberate skip — no modifier given
+                resolved = resolve_layer(name, table, selectors)
+            if resolved == "":
                 errors.append(
                     f"{key}: layer '{name}' selector resolves to nothing "
-                    f"(out-of-range index, unknown group, or missing walk field) "
+                    f"(bad bracket path, out-of-range index, or unknown group) "
                     f"— the layer would silently drop from this cover"
                 )
     return errors
