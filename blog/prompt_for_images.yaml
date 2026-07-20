@@ -1826,3 +1826,29 @@ images:
       the right cheek and jaw, a small red rectangular bandage on the forehead, and a metal bolt at each
       temple. He is a stitched-together monster, NOT a soft cartoon baby. The ONLY readable text: "Pod"
       and "RESET" — no other captions, no watermarks. ONE FIGURE — one single Frank.'
+- key: building-35-gitea-actions-ci
+  aspect_ratio: '16:9'
+  output: blog/content/docs/building/35-gitea-actions-ci/cover.png
+  description: CI on the Mirrors — Frank throwing a rotary transfer switch between
+    a smoking coin-fed machine and its quiet twin wired into his own rack
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference-building.png
+      clothing:
+      - .reference-pool/building/subjects/frank-dirty-clothes.png
+    modifiers:
+      series: building
+      mood: smirking
+      clothing: building[apron]
+    scene: 'WIDE LANDSCAPE composition, the action spread horizontally across the
+      frame. Frank stands at centre in a workshop between two tall framed mirror
+      panes, gripping a single large rotary transfer switch mounted on a pedestal,
+      mid-turn, sleeves rolled. In the left pane: a bulky coin-operated machine
+      labelled with a small winged badge, smoking, gears grinding to a halt, a
+      coin slot overflowing with spent tokens spilling onto the floor. In the
+      right pane: the identical machine running smoothly and quietly, its cables
+      routed neatly into a small glowing server rack that is unmistakably part of
+      Frank''s own workshop wall. A thin conveyor of green status lamps runs from
+      the right pane back toward the left pane''s frame, carrying tiny lit
+      check-marks. Workshop-practical mood, warm tungsten light over the bench,
+      faint amusement in the scene.'

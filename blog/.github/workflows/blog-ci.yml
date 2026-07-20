@@ -1,0 +1,47 @@
+name: blog
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: peaceiris/actions-hugo@v3
+        with:
+          hugo-version: '0.157.0'
+          extended: true
+      - name: Install deps
+        run: python3 -m pip install --quiet pyyaml
+      # Papers content-type present -> sync data, then validate dossiers + frontmatter.
+      # Validators ship into the blog at scripts/ (mirrored from blog-craft tools/),
+      # so a plain-python CI runs them without the plugin.
+      - name: Validate papers
+        run: |
+          python3 scripts/sync_dossier_to_data.py --config .blog-craft.yaml --check
+          for d in docs/papers-dossiers/*/dossier.md; do
+            python3 scripts/validate_dossier.py --config .blog-craft.yaml "$d"
+          done
+          python3 scripts/validate_papers.py --config .blog-craft.yaml content/docs/*/*/index.md
+      # Mermaid syntax gate: lint every ```mermaid fence (posts, explainers,
+      # papers) before render so a broken diagram fails CI instead of shipping
+      # dead. On by default; opt out with `quality.mermaid_syntax: false`. Ships
+      # at scripts/ (mirrored from blog-craft tools/) for plugin-free CI.
+      - name: Validate mermaid syntax
+        run: python3 scripts/validate_mermaid.py --config .blog-craft.yaml content/docs/*/*/index.md
+      # Image-entry gate: prompt_for_images.yaml entries stay generable — no
+      # duplicate keys, no dead references: paths, no selector that silently
+      # resolves to nothing (an out-of-range torso_variant would drop that
+      # layer from every future regen). Ships at scripts/ for plugin-free CI.
+      - name: Validate image entries
+        run: python3 scripts/validate_images.py --config .blog-craft.yaml
+      - name: Hugo build
+        run: hugo --minify
+
+  deploy:
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Build a container image + publish — wire your registry + cluster manifest bump."

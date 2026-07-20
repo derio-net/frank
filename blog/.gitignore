@@ -1,0 +1,11 @@
+public/
+resources/
+.hugo_build.lock
+.env
+__pycache__/
+.venv/
+*.pyc
+node_modules/
+
+# Image curation: candidate variants (keepers get promoted into .reference-pool/, which IS tracked)
+.regen-archive/

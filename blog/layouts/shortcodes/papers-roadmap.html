@@ -13,17 +13,6 @@
   not on this page.
 */}}
 
-{{- /* layer code -> display name (docs/layers.yaml registry), matching the
-       series-index cards so all three indexes show the full layer name. */ -}}
-{{- $nameOf := dict
-    "hw" "Hardware & Nodes" "os" "OS & Bootstrap" "net" "Networking" "stor" "Storage"
-    "gpu" "GPU Compute" "gitops" "GitOps" "fun" "Fun Stuff" "obs" "Observability"
-    "backup" "Backup & DR" "secrets" "Secrets Management" "infer" "Local Inference"
-    "inference" "Local Inference" "agents" "Agentic Control Plane" "auth" "Unified Auth"
-    "tenant" "Multi-tenancy" "orch" "AI Agent Orchestrator" "media" "Media Generation"
-    "edge" "Public Edge" "deploy" "Progressive Delivery" "cicd" "CI/CD Platform"
-    "auto" "Infrastructure Automation" "repo" "Repository & Tooling" "docs" "Repository & Tooling" -}}
-
 <style>
 .roadmap {
   --rm-bg: #f8f9fa;
@@ -31,6 +20,18 @@
   --rm-text: #212529;
   --rm-muted: #6c757d;
   --rm-line: #adb5bd;
+  --rm-accent-1: #0d6efd;
+  --rm-accent-2: #198754;
+  --rm-accent-3: #6f42c1;
+  --rm-accent-4: #dc3545;
+  --rm-accent-5: #fd7e14;
+  --rm-accent-6: #20c997;
+  --rm-accent-7: #e83e8c;
+  --rm-accent-8: #ffd43b;
+  --rm-accent-9: #74c0fc;
+  --rm-accent-10: #a9e34b;
+  --rm-accent-11: #da77f2;
+  --rm-accent-12: #ff922b;
   font-family: inherit;
   max-width: 720px;
   margin: 1.5rem auto;
@@ -42,6 +43,18 @@
   --rm-text: #e0e0e0;
   --rm-muted: #999;
   --rm-line: #555;
+  --rm-accent-1: #4dabf7;
+  --rm-accent-2: #51cf66;
+  --rm-accent-3: #b197fc;
+  --rm-accent-4: #ff6b6b;
+  --rm-accent-5: #ffa94d;
+  --rm-accent-6: #63e6be;
+  --rm-accent-7: #f783ac;
+  --rm-accent-8: #ffe066;
+  --rm-accent-9: #a5d8ff;
+  --rm-accent-10: #c0eb75;
+  --rm-accent-11: #e599f7;
+  --rm-accent-12: #ffa94d;
 }
 
 .roadmap .roadmap-layer {
@@ -67,7 +80,7 @@
   border: 1px solid var(--rm-border);
   border-radius: 8px;
   padding: 12px 16px;
-  border-left: 4px solid var(--rm-line);
+  border-left: 4px solid var(--rm-accent-1);
 }
 
 .roadmap .roadmap-card .layer-title {
@@ -109,20 +122,44 @@
   color: var(--rm-muted);
   font-weight: 500;
 }
-.roadmap .roadmap-card .tag-layer {
-  background: transparent;
-  border: 1px solid var(--rm-line);
-  color: var(--rm-text);
-  font-weight: 600;
-}
 
-/* per-layer colours — single source of truth: blog/data/layer_palette.yaml */
-{{- range $code, $c := site.Data.layer_palette.layers }}
-.roadmap .layer-{{ $code }}      { border-left-color: {{ $c.light }}; }
-.roadmap .layer-{{ $code }} .layer-num { background: {{ $c.light }}; color: {{ $c.lt }}; }
-.dark .roadmap .layer-{{ $code }}      { border-left-color: {{ $c.dark }}; }
-.dark .roadmap .layer-{{ $code }} .layer-num { background: {{ $c.dark }}; color: {{ $c.dt }}; }
-{{- end }}
+/* per-layer colours (matches cluster-roadmap convention) */
+.roadmap .layer-hw      { border-left-color: var(--rm-accent-4); }
+.roadmap .layer-hw .layer-num      { background: var(--rm-accent-4); }
+.roadmap .layer-os      { border-left-color: var(--rm-accent-5); }
+.roadmap .layer-os .layer-num      { background: var(--rm-accent-5); }
+.roadmap .layer-net     { border-left-color: var(--rm-accent-1); }
+.roadmap .layer-net .layer-num     { background: var(--rm-accent-1); }
+.roadmap .layer-stor    { border-left-color: var(--rm-accent-2); }
+.roadmap .layer-stor .layer-num    { background: var(--rm-accent-2); }
+.roadmap .layer-gpu     { border-left-color: var(--rm-accent-3); }
+.roadmap .layer-gpu .layer-num     { background: var(--rm-accent-3); }
+.roadmap .layer-gitops  { border-left-color: var(--rm-accent-6); }
+.roadmap .layer-gitops .layer-num  { background: var(--rm-accent-6); }
+.roadmap .layer-obs     { border-left-color: var(--rm-accent-8); }
+.roadmap .layer-obs .layer-num     { background: var(--rm-accent-8); color: #333; }
+.roadmap .layer-backup  { border-left-color: var(--rm-accent-9); }
+.roadmap .layer-backup .layer-num  { background: var(--rm-accent-9); color: #333; }
+.roadmap .layer-secrets { border-left-color: var(--rm-accent-10); }
+.roadmap .layer-secrets .layer-num { background: var(--rm-accent-10); color: #333; }
+.roadmap .layer-infer   { border-left-color: var(--rm-accent-11); }
+.roadmap .layer-infer .layer-num   { background: var(--rm-accent-11); color: #333; }
+.roadmap .layer-auth    { border-left-color: var(--rm-accent-4); }
+.roadmap .layer-auth .layer-num    { background: var(--rm-accent-4); }
+.roadmap .layer-tenant  { border-left-color: var(--rm-accent-3); }
+.roadmap .layer-tenant .layer-num  { background: var(--rm-accent-3); }
+.roadmap .layer-cicd    { border-left-color: var(--rm-accent-2); }
+.roadmap .layer-cicd .layer-num    { background: var(--rm-accent-2); }
+.roadmap .layer-deploy  { border-left-color: var(--rm-accent-5); }
+.roadmap .layer-deploy .layer-num  { background: var(--rm-accent-5); }
+.roadmap .layer-edge    { border-left-color: var(--rm-accent-6); }
+.roadmap .layer-edge .layer-num    { background: var(--rm-accent-6); color: #333; }
+.roadmap .layer-media   { border-left-color: var(--rm-accent-12); }
+.roadmap .layer-media .layer-num   { background: var(--rm-accent-12); color: #333; }
+.roadmap .layer-orch    { border-left-color: var(--rm-accent-12); }
+.roadmap .layer-orch .layer-num    { background: var(--rm-accent-12); color: #333; }
+.roadmap .layer-docs    { border-left-color: var(--rm-accent-7); }
+.roadmap .layer-docs .layer-num    { background: var(--rm-accent-7); color: #fff; }
 .roadmap .layer-default { border-left-color: var(--rm-muted); }
 .roadmap .layer-default .layer-num { background: var(--rm-muted); }
 
@@ -206,8 +243,8 @@
         <span class="paper-status-badge paper-status-{{ $status }}">{{ $status }}</span>
       </div>
       <div class="tags">
-        {{ with $entry.layer }}<span class="tag tag-layer">{{ index $nameOf . | default . }}</span>{{ end }}
         <span class="tag">{{ $entry.covers }}</span>
+        {{ with $entry.layer }}<span class="tag">layer: {{ . }}</span>{{ end }}
       </div>
       {{ if and $entry.deferred $entry.deferred_reason }}
         <span class="paper-deferred-reason">Phase 2 — {{ $entry.deferred_reason }}</span>
