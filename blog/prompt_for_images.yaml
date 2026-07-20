@@ -2182,19 +2182,19 @@ images:
 
   - key: building-34-first-vcluster-tenant
     series: building
-    torso_variant: 0
+    torso_variant: 2
     mood: cautious
     # Covers are landscape (existing building covers are 1376x768). The current
     # image model defaults to portrait, so pin it explicitly.
     aspect_ratio: "16:9"
     references:
-      - .reference-pool/building/subjects/frank-server-torso.png
+      - .reference-pool/building/subjects/frank-server-torso-shirt-construction-vest.png
+      - .reference-pool/building/subjects/frank-dirty-clothes.png
     output: blog/content/docs/building/34-first-vcluster-tenant/cover.png
     description: "The First Real Tenant — Frank lowering a glass dome over a miniature server rack, a sieve labelled Pod spliced into the cable feeding it"
     prompt: >-
-      WIDE LANDSCAPE composition, the action spread horizontally across the
-      frame. Frank, his torso an open server chassis of exposed hardware,
-      kneels at centre-right on the floor of a dim server hall, carefully
+      WIDE LANDSCAPE composition, the action spread horizontally across the frame.
+      Frank kneels at centre-right on the floor of a dim server hall, carefully
       lowering a small glass dome onto a low pedestal at centre-left with both
       hands. Inside the dome stands a complete miniature server rack, perfectly
       formed, its tiny lights glowing — a cluster inside the cluster. One
@@ -2207,8 +2207,7 @@ images:
       is careful and deliberate, weight on one knee. Cool blue glow rising from
       inside the glass dome, warm overhead key light, deep shadow into the
       corners. Match the character sheet exactly: dark
-      green-black hair in jagged spiky peaks (NOT soft or tousled), NO NOSE at
-      all — no nostrils, no nose shadow, solid BLACK eyes each with one small
+      green-black hair in jagged spiky peaks, solid BLACK eyes each with one small
       WHITE dot and no visible eyelids, a thick raised brow ridge, heavy tan
       sewn-on patches stitched across the right cheek and jaw, a small red
       rectangular bandage on the forehead, and a metal bolt at each temple. He
