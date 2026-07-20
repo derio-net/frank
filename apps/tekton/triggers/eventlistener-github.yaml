@@ -24,7 +24,7 @@ spec:
             - name: eventTypes
               value: ["pull_request"]
         - name: cel
-          ref: {name: cel}
+          ref: {name: cel, kind: ClusterInterceptor}
           params:
             - name: filter
               value: >-
@@ -37,12 +37,16 @@ spec:
       bindings:
         - name: github-repo
           value: "agentic-stoa/hum"
+          kind: TriggerBinding
         - name: gitea-repo
           value: "agentic-stoa/hum"
+          kind: TriggerBinding
         - name: sha
           value: $(extensions.sha)
+          kind: TriggerBinding
         - name: ref-to
           value: $(extensions.ref_to)
+          kind: TriggerBinding
       template:
         ref: hum-ci-github-template
 
@@ -58,7 +62,7 @@ spec:
             - name: eventTypes
               value: ["pull_request"]
         - name: cel
-          ref: {name: cel}
+          ref: {name: cel, kind: ClusterInterceptor}
           params:
             - name: filter
               value: >-
@@ -69,10 +73,10 @@ spec:
                 - {key: sha, expression: "body.pull_request.head.sha"}
                 - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
       bindings:
-        - {name: github-repo, value: "agentic-stoa/content-factory"}
-        - {name: gitea-repo,  value: "agentic-stoa/content-factory"}
-        - {name: sha,         value: $(extensions.sha)}
-        - {name: ref-to,      value: $(extensions.ref_to)}
+        - {name: github-repo, value: "agentic-stoa/content-factory", kind: TriggerBinding}
+        - {name: gitea-repo,  value: "agentic-stoa/content-factory", kind: TriggerBinding}
+        - {name: sha,         value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to,      value: $(extensions.ref_to), kind: TriggerBinding}
       template:
         ref: content-factory-ci-github-template
 
@@ -88,7 +92,7 @@ spec:
             - name: eventTypes
               value: ["pull_request"]
         - name: cel
-          ref: {name: cel}
+          ref: {name: cel, kind: ClusterInterceptor}
           params:
             - name: filter
               value: >-
@@ -99,10 +103,10 @@ spec:
                 - {key: sha, expression: "body.pull_request.head.sha"}
                 - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
       bindings:
-        - {name: github-repo, value: "agentic-stoa/stoa-blog"}
-        - {name: gitea-repo,  value: "agentic-stoa/stoa-blog"}
-        - {name: sha,         value: $(extensions.sha)}
-        - {name: ref-to,      value: $(extensions.ref_to)}
+        - {name: github-repo, value: "agentic-stoa/stoa-blog", kind: TriggerBinding}
+        - {name: gitea-repo,  value: "agentic-stoa/stoa-blog", kind: TriggerBinding}
+        - {name: sha,         value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to,      value: $(extensions.ref_to), kind: TriggerBinding}
       template:
         ref: stoa-blog-ci-github-template
 
@@ -122,7 +126,7 @@ spec:
             - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
             - {name: eventTypes, value: [pull_request]}
         - name: cel
-          ref: {name: cel}
+          ref: {name: cel, kind: ClusterInterceptor}
           params:
             - name: filter
               value: body.repository.full_name == 'agentic-stoa/second-brain' && body.action in ['opened', 'synchronize', 'reopened']
@@ -131,10 +135,10 @@ spec:
                 - {key: sha, expression: "body.pull_request.head.sha"}
                 - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
       bindings:
-        - {name: github-repo, value: agentic-stoa/second-brain}
-        - {name: gitea-repo, value: agentic-stoa/second-brain}
-        - {name: sha, value: $(extensions.sha)}
-        - {name: ref-to, value: $(extensions.ref_to)}
+        - {name: github-repo, value: agentic-stoa/second-brain, kind: TriggerBinding}
+        - {name: gitea-repo, value: agentic-stoa/second-brain, kind: TriggerBinding}
+        - {name: sha, value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to, value: $(extensions.ref_to), kind: TriggerBinding}
       template:
         ref: agentic-stoa-main-sync-template
     - name: agentic-stoa-hermes-brain-pr
@@ -145,7 +149,7 @@ spec:
             - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
             - {name: eventTypes, value: [pull_request]}
         - name: cel
-          ref: {name: cel}
+          ref: {name: cel, kind: ClusterInterceptor}
           params:
             - name: filter
               value: body.repository.full_name == 'agentic-stoa/hermes-brain' && body.action in ['opened', 'synchronize', 'reopened']
@@ -154,10 +158,10 @@ spec:
                 - {key: sha, expression: "body.pull_request.head.sha"}
                 - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
       bindings:
-        - {name: github-repo, value: agentic-stoa/hermes-brain}
-        - {name: gitea-repo, value: agentic-stoa/hermes-brain}
-        - {name: sha, value: $(extensions.sha)}
-        - {name: ref-to, value: $(extensions.ref_to)}
+        - {name: github-repo, value: agentic-stoa/hermes-brain, kind: TriggerBinding}
+        - {name: gitea-repo, value: agentic-stoa/hermes-brain, kind: TriggerBinding}
+        - {name: sha, value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to, value: $(extensions.ref_to), kind: TriggerBinding}
       template:
         ref: agentic-stoa-main-sync-template
 
@@ -182,7 +186,7 @@ spec:
             - name: eventTypes
               value: ["push"]
         - name: cel
-          ref: {name: cel}
+          ref: {name: cel, kind: ClusterInterceptor}
           params:
             - name: filter
               value: >-
@@ -193,10 +197,10 @@ spec:
                 - {key: repo_full_name, expression: "body.repository.full_name"}
                 - {key: sha, expression: "body.after"}
       bindings:
-        - {name: github-repo, value: $(extensions.repo_full_name)}
-        - {name: gitea-repo,  value: $(extensions.repo_full_name)}
-        - {name: sha,         value: $(extensions.sha)}
-        - {name: ref-to,      value: "refs/heads/main"}
+        - {name: github-repo, value: $(extensions.repo_full_name), kind: TriggerBinding}
+        - {name: gitea-repo,  value: $(extensions.repo_full_name), kind: TriggerBinding}
+        - {name: sha,         value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to,      value: "refs/heads/main", kind: TriggerBinding}
       template:
         ref: agentic-stoa-main-sync-template
     # CNC source mirrors and CI. The image build remains in each CNC repo's
@@ -209,7 +213,7 @@ spec:
             - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
             - {name: eventTypes, value: [pull_request]}
         - name: cel
-          ref: {name: cel}
+          ref: {name: cel, kind: ClusterInterceptor}
           params:
             - name: filter
               value: body.repository.full_name == 'agentic-stoa/cnc-fr' && body.action in ['opened', 'synchronize', 'reopened']
@@ -218,16 +222,16 @@ spec:
                 - {key: sha, expression: "body.pull_request.head.sha"}
                 - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
       bindings:
-        - {name: github-repo, value: agentic-stoa/cnc-fr}
-        - {name: gitea-repo, value: agentic-stoa/cnc-fr}
-        - {name: sha, value: $(extensions.sha)}
-        - {name: ref-to, value: $(extensions.ref_to)}
+        - {name: github-repo, value: agentic-stoa/cnc-fr, kind: TriggerBinding}
+        - {name: gitea-repo, value: agentic-stoa/cnc-fr, kind: TriggerBinding}
+        - {name: sha, value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to, value: $(extensions.ref_to), kind: TriggerBinding}
         # cnc-fr has NO Go/Node build — it is deploy artifacts (manifests + the
         # demo bundle). `go test ./...` hard-fails. CI is mirror + a bundle
         # presence sanity on a light image (compile-time gates live in the repo's
         # own compose-smoke/parity GitHub workflows, not here).
-        - {name: test-image, value: alpine:3.21}
-        - {name: test-command, value: "test -d demo/bundle && echo 'cnc-fr: deploy artifacts present (no compile step)'"}
+        - {name: test-image, value: alpine:3.21, kind: TriggerBinding}
+        - {name: test-command, value: "test -d demo/bundle && echo 'cnc-fr: deploy artifacts present (no compile step)'", kind: TriggerBinding}
       template: {ref: cnc-fr-ci-template}
     - name: agentic-stoa-cnc-frd-pr
       interceptors:
@@ -237,7 +241,7 @@ spec:
             - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
             - {name: eventTypes, value: [pull_request]}
         - name: cel
-          ref: {name: cel}
+          ref: {name: cel, kind: ClusterInterceptor}
           params:
             - name: filter
               value: body.repository.full_name == 'agentic-stoa/cnc-frd' && body.action in ['opened', 'synchronize', 'reopened']
@@ -246,14 +250,14 @@ spec:
                 - {key: sha, expression: "body.pull_request.head.sha"}
                 - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
       bindings:
-        - {name: github-repo, value: agentic-stoa/cnc-frd}
-        - {name: gitea-repo, value: agentic-stoa/cnc-frd}
-        - {name: sha, value: $(extensions.sha)}
-        - {name: ref-to, value: $(extensions.ref_to)}
+        - {name: github-repo, value: agentic-stoa/cnc-frd, kind: TriggerBinding}
+        - {name: gitea-repo, value: agentic-stoa/cnc-frd, kind: TriggerBinding}
+        - {name: sha, value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to, value: $(extensions.ref_to), kind: TriggerBinding}
         # cnc-frd go.mod requires go 1.25.7 — a 1.24 image fails (toolchain
         # download blocked in CI). golang:1.25-alpine ships go >= 1.25.7.
-        - {name: test-image, value: golang:1.25-alpine}
-        - {name: test-command, value: go test ./...}
+        - {name: test-image, value: golang:1.25-alpine, kind: TriggerBinding}
+        - {name: test-command, value: go test ./..., kind: TriggerBinding}
       template: {ref: cnc-frd-ci-template}
     - name: agentic-stoa-cnc-fru-pr
       interceptors:
@@ -263,7 +267,7 @@ spec:
             - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
             - {name: eventTypes, value: [pull_request]}
         - name: cel
-          ref: {name: cel}
+          ref: {name: cel, kind: ClusterInterceptor}
           params:
             - name: filter
               value: body.repository.full_name == 'agentic-stoa/cnc-fru' && body.action in ['opened', 'synchronize', 'reopened']
@@ -272,12 +276,12 @@ spec:
                 - {key: sha, expression: "body.pull_request.head.sha"}
                 - {key: ref_to, expression: "'refs/heads/sync-pr-' + string(body.pull_request.number)"}
       bindings:
-        - {name: github-repo, value: agentic-stoa/cnc-fru}
-        - {name: gitea-repo, value: agentic-stoa/cnc-fru}
-        - {name: sha, value: $(extensions.sha)}
-        - {name: ref-to, value: $(extensions.ref_to)}
-        - {name: test-image, value: node:22-alpine}
-        - {name: test-command, value: npm ci && npm test}
+        - {name: github-repo, value: agentic-stoa/cnc-fru, kind: TriggerBinding}
+        - {name: gitea-repo, value: agentic-stoa/cnc-fru, kind: TriggerBinding}
+        - {name: sha, value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to, value: $(extensions.ref_to), kind: TriggerBinding}
+        - {name: test-image, value: node:22-alpine, kind: TriggerBinding}
+        - {name: test-command, value: npm ci && npm test, kind: TriggerBinding}
       template: {ref: cnc-fru-ci-template}
     # A repository_dispatch from the CNC release workflow starts promotion.
     # It is intentionally not a package webhook: the release workflow is the
@@ -290,7 +294,7 @@ spec:
             - {name: secretRef, value: {secretName: stoa-github-webhook-secret, secretKey: secret}}
             - {name: eventTypes, value: [repository_dispatch]}
         - name: cel
-          ref: {name: cel}
+          ref: {name: cel, kind: ClusterInterceptor}
           params:
             - name: filter
               value: body.repository.full_name == 'agentic-stoa/cnc-frd' && body.action == 'cnc-image-ready'
@@ -299,8 +303,8 @@ spec:
                 - {key: cncd_tag, expression: "body.client_payload.cncd_tag"}
                 - {key: fru_tag, expression: "body.client_payload.fru_tag"}
       bindings:
-        - {name: cncd-tag, value: $(extensions.cncd_tag)}
-        - {name: fru-tag, value: $(extensions.fru_tag)}
+        - {name: cncd-tag, value: $(extensions.cncd_tag), kind: TriggerBinding}
+        - {name: fru-tag, value: $(extensions.fru_tag), kind: TriggerBinding}
       template: {ref: cnc-promotion-template}
   resources:
     kubernetesResource:

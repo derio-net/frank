@@ -15,6 +15,7 @@ spec:
         # not exposed outside the cluster.
         - ref:
             name: "cel"
+            kind: ClusterInterceptor
           params:
             - name: "filter"
               value: >-
@@ -26,12 +27,14 @@ spec:
                   expression: "body.ref.split('/')[2]"
         - ref:
             name: "cel"
+            kind: ClusterInterceptor
           params:
             - name: "filter"
               value: >-
                 extensions.branch_name != ''
       bindings:
         - ref: gitea-push-binding
+          kind: TriggerBinding
       template:
         ref: gitea-pipeline-template
     # ──────────────────────────────────────────────────────────────────
@@ -55,6 +58,7 @@ spec:
       interceptors:
         - ref:
             name: "cel"
+            kind: ClusterInterceptor
           params:
             - name: "filter"
               value: >-
@@ -70,16 +74,22 @@ spec:
       bindings:
         - name: repo-full-name
           value: $(body.repository.full_name)
+          kind: TriggerBinding
         - name: revision
           value: $(body.sha)
+          kind: TriggerBinding
         - name: state
           value: $(body.state)
+          kind: TriggerBinding
         - name: context
           value: $(body.context)
+          kind: TriggerBinding
         - name: description
           value: $(extensions.description)
+          kind: TriggerBinding
         - name: target-url
           value: $(extensions.target_url)
+          kind: TriggerBinding
       template:
         ref: stoa-status-bridge-template
     # NOTE 2026-05-13 (rework Phase 4): the per-repo agentic-stoa CI triggers
