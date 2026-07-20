@@ -169,3 +169,38 @@ controller-owned; delete the offending virtual resource instead.
 **When ArgoCD reaches ≥ 3.5, remove the Pod exclusion** (the client-go 1.36.1 bump
 fixes the panic upstream). Full investigation:
 `docs/superpowers/debugging/2026-07-19-argocd-vcluster-cache-panic.md`.
+
+
+## RespectIgnoreDifferences + array-item jqPathExpressions silently freezes the array
+
+Observed 2026-07-20 (the gitea-actions rollout, frank#659): both Tekton
+EventListeners were frozen at their **June 13** state for five weeks. Every
+sync of `tekton-extras` reported `Succeeded … serverside-applied`, the app
+alternated Synced/OutOfSync, and `managedFields` showed argocd-controller's
+last real Apply on Jun 13 — the July cnc triggers and the gitea-actions
+triggers (#659) never reached the cluster. New resources (Pipelines,
+TriggerTemplates) were created fine; only UPDATES to the ignored array froze.
+
+Mechanism: `#613/#614` (Jul 6) added ignoreDifferences jqPathExpressions that
+address array items (`.spec.triggers[]?.bindings[]?.kind`, …) to quiet
+controller-default drift. With `RespectIgnoreDifferences=true`, removing a
+subfield from array items requires ArgoCD to materialize the array from the
+LIVE object — so the whole live `spec.triggers` is carried into the applied
+manifest, and git-side changes to that array are discarded. The sync is
+"successful": it applied the live state back to itself.
+
+Symptom pattern: **git changes to a list inside a kind that has array-item
+ignore rules; app syncs Succeeded; live object unchanged; `kubectl get <obj>
+-o json --show-managed-fields` shows argocd-controller's Apply timestamp stuck
+in the past.** That managedFields timestamp is the decisive probe.
+
+Fix (frank#663): never use array-item jq expressions with
+RespectIgnoreDifferences. Delete the rules and instead set the defaulted
+per-item fields explicitly in the manifests so no drift appears (bindings get
+`kind: TriggerBinding`, cel interceptor refs get `kind: ClusterInterceptor`).
+Tripwire: `scripts/tests/test_tekton_ignore_rules_no_arrays.py`.
+
+Known remaining debt: the Pipeline/Task rules in the same Application still
+use `.spec.tasks[]?` / `.spec.results[]?` expressions — Pipeline/Task UPDATES
+are frozen the same way until they get the explicit-defaults treatment
+(exempted in the tripwire; follow-up tracked in the plan's rework notes).

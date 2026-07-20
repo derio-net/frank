@@ -52,5 +52,10 @@ spec:
         - '.spec.namespaceSelector | select(. == {})'
         - '.spec.resources.kubernetesResource.spec.template.metadata.creationTimestamp | select(. == null)'
         - '.spec.resources.kubernetesResource.spec.template.spec.containers | select(. == null)'
-        - '.spec.triggers[]?.bindings[]?.kind | select(. == "TriggerBinding")'
-        - '.spec.triggers[]?.interceptors[]?.ref.kind | select(. == "ClusterInterceptor")'
+        # NEVER add array-item expressions (.spec.triggers[]?...) here: with
+        # RespectIgnoreDifferences=true they make ArgoCD carry the LIVE
+        # triggers array into every apply, silently freezing trigger updates
+        # while syncs report Succeeded (Jun 13 → Jul 20 incident — the cnc and
+        # gitea-actions triggers never went live). Defaulted per-item fields
+        # (bindings kind, cel ref kind) are instead set explicitly in the EL
+        # manifests so they produce no drift.
