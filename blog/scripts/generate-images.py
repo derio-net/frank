@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
-"""blog-craft image generator (v2, Approach A).
+"""blog-craft image generator (Approach A; config schemas v4 + v5).
 
-Reads composition config from `.blog-craft.yaml` (`image.composition_order` +
-`image.layers`) and per-image entries from the prompts file, composes each
-prompt via the generic concatenator (compose.py), and generates covers through
-Google Gemini. The generator hardcodes no layer vocabulary — frank and stoa
-ship different composition_order/layers and both are pure data.
+Reads composition config from `.blog-craft.yaml` (`image.composition_orders`
+named map — v5 — or the legacy single `image.composition_order`) and per-image
+entries from the prompts file, composes each prompt via the generic
+concatenator (compose.py), and generates covers through Google Gemini. The
+generator hardcodes no layer vocabulary — frank, gondor and stoa ship
+different orders/layers and all are pure data.
+
+v5 entries carry a `composition:` block — `scene` (was `prompt`), `modifiers`
+(the selector fields), `order` (a `composition_orders[name]` reference or an
+inline token list; absent -> `hero`), and `reference_images`
+(`{primary, clothing: [...]}`), which REPLACES the v4 reference precedence
+chain for that entry: what is declared is sent, nothing else. Legacy v4
+entries (top-level `prompt` + selector fields) keep the old behavior — one
+engine serves both, so /update can ship it to blogs on either schema.
 
 Modes:
   --list                 list all image keys
@@ -23,6 +32,7 @@ import argparse
 import base64
 import hashlib
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -73,8 +83,42 @@ def select_reference(entry: dict, image_cfg: dict, root: Path, override: Path | 
     return None  # generation can proceed prompt-only
 
 
+_ORDER_REF = re.compile(r"^composition_orders\[([A-Za-z0-9_-]+)\]$")
+
+
+def order_tokens(entry: dict, image_cfg: dict) -> list:
+    """The token list this entry composes with (spec: v5 named orders).
+
+    Entry `composition.order` may be an inline list or a
+    `composition_orders[name]` reference; absent -> `hero` from the config's
+    named orders, falling back to the legacy single `composition_order`.
+    """
+    comp = entry.get("composition") or {}
+    orders = image_cfg.get("composition_orders") or {}
+    o = comp.get("order")
+    if isinstance(o, list):
+        return o
+    if isinstance(o, str):
+        m = _ORDER_REF.match(o.strip())
+        return orders.get(m.group(1), []) if m else []
+    if orders:
+        return orders.get("hero", [])
+    return image_cfg.get("composition_order", [])
+
+
+def selector_source(entry: dict) -> dict:
+    """The dict layers select against: v5 -> modifiers + scene; legacy -> the entry."""
+    comp = entry.get("composition")
+    if comp is None:
+        return entry
+    sel = dict(comp.get("modifiers") or {})
+    sel["prompt"] = comp.get("scene") or ""
+    return sel
+
+
 def compose_for(entry: dict, image_cfg: dict) -> str:
-    return compose(image_cfg.get("composition_order", []), image_cfg.get("layers", {}) or {}, entry)
+    return compose(order_tokens(entry, image_cfg), image_cfg.get("layers", {}) or {},
+                   selector_source(entry))
 
 
 def write_archive_entry(root: Path, key: str, image_bytes: bytes, prompt: str,
@@ -145,24 +189,50 @@ def post_process(output: Path, steps: list) -> None:
 
 
 def entry_reference_paths(entry: dict, root: Path) -> list[Path]:
-    """Resolve an entry's `references:` clothing/pose anchors against the repo root.
+    """Resolve an entry's ADDITIONAL anchors against the blog root.
 
-    These are the ADDITIONAL reference images the composed `reference_guidance`
-    prose describes ("clothing/pose anchors"). The master character sheet is
-    selected separately and MUST stay first in the payload — that prose tells the
-    model the FIRST image is canonical for the face.
+    v5: `composition.reference_images.clothing`; legacy: top-level
+    `references:`. Either way these are the clothing/pose anchors the composed
+    `reference_guidance` prose describes. The primary/master sheet is selected
+    separately and MUST stay first in the payload — that prose tells the model
+    the FIRST image is canonical for the face.
 
     A missing anchor is skipped with a warning rather than failing the run: a
     stale path in one entry should not block generating its cover.
     """
+    comp = entry.get("composition")
+    if comp is not None:
+        rels = (comp.get("reference_images") or {}).get("clothing") or []
+    else:
+        rels = entry.get("references") or []
     out: list[Path] = []
-    for rel in entry.get("references") or []:
+    for rel in rels:
         p = (root / str(rel)).expanduser()
         if p.is_file():
             out.append(p)
         else:
             print(f"  WARN: reference not found, skipping: {rel}", file=sys.stderr)
     return out
+
+
+def primary_reference(entry: dict, image_cfg: dict, root: Path, override: Path | None) -> Path | None:
+    """The FIRST payload image. v5 composition entries are EXPLICIT: their
+    declared `reference_images.primary` (or nothing) — the legacy precedence
+    chain never kicks in for them. Legacy entries keep select_reference().
+    A CLI --reference override beats both (debugging escape)."""
+    if override is not None:
+        return override
+    comp = entry.get("composition")
+    if comp is not None:
+        rel = (comp.get("reference_images") or {}).get("primary")
+        if not rel:
+            return None
+        p = (root / str(rel)).expanduser()
+        if p.is_file():
+            return p
+        print(f"  WARN: primary reference not found, skipping: {rel}", file=sys.stderr)
+        return None
+    return select_reference(entry, image_cfg, root, None)
 
 
 def _gen_bytes(prompt: str, ref: Path | None, model: str, image_cfg: dict, entry: dict,
@@ -248,7 +318,7 @@ def main(argv: list[str]) -> int:
         if not prompt.strip():
             continue
         out = root / e.get("output", f"{image_cfg.get('output_dir', 'static/images')}/{key}.png")
-        ref = select_reference(e, image_cfg, root, override)
+        ref = primary_reference(e, image_cfg, root, override)
         if a.dry_run:
             extra = entry_reference_paths(e, root)
             refs_used = ([ref] if ref else []) + extra
