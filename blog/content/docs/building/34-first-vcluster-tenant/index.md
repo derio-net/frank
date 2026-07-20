@@ -194,8 +194,6 @@ Success signature: `0` and `0`, held steady, while your tenant apps leave
 `Unknown` and start reconciling. Any non-zero `restartCount`, or any `panic:`
 line, means the exclusion did not load — go to Recover, then back to Step 2.
 
-<!-- MEDIA: screenshot | ArgoCD UI showing the registered vCluster's tenant application Healthy, with its StatefulSet/Deployment nodes present but no Pod children beneath them | Capture the ArgoCD app tree for an app whose destination is the vCluster, at http://192.168.55.200 — this visually shows exactly what the scoped exclusion costs: workload nodes and health remain, pod-level nodes are absent -->
-
 ## Recover — when the controller is already crashlooping
 
 If you registered first and read this second, the symptom is unmistakable: the
