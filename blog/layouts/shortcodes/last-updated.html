@@ -1,8 +1,20 @@
-{{- $date := .Page.Params.last_updated -}}
-{{- $commit := .Page.Params.last_updated_commit -}}
-{{- if and $date $commit -}}
-<div class="last-updated">
-  <strong>Last updated:</strong> {{ time.Format "January 2, 2006" $date }}
-  (<a href="{{ $commit }}" target="_blank" rel="noopener">diff</a>)
-</div>
+{{- /* Visible "last updated" stamp for posts that mirror code state (no in-post
+       Update logs). Reads the host page's frontmatter:
+
+         last_updated:        2026-07-13            # date the post was reconciled to code
+         last_updated_commit: https://github.com/owner/repo/commit/<sha>   # full commit URL
+
+       Renders:  Last updated 2026-07-13 · <sha>  (sha linked to the commit).
+       If last_updated_commit is a bare sha (no slash), it renders unlinked.
+       Emits nothing if last_updated is absent, so it's safe to drop on any post. */ -}}
+{{- with .Page.Params.last_updated -}}
+{{- $date := . -}}
+{{- $commit := $.Page.Params.last_updated_commit -}}
+<p class="last-updated">
+  <em>Last updated {{ $date }}{{ with $commit }} ·
+  {{- $sha := path.Base . -}}
+  {{- $short := substr $sha 0 7 -}}
+  {{ if in . "/" }}<a href="{{ . }}"><code>{{ $short }}</code></a>{{ else }}<code>{{ $short }}</code>{{ end }}
+  {{- end }}</em>
+</p>
 {{- end -}}

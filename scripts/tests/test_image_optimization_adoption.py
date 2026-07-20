@@ -25,7 +25,9 @@ def test_config_opts_into_optimization():
     opt = (cfg.get("image") or {}).get("optimize") or {}
     assert opt.get("enabled") is True, "image.optimize.enabled must be true"
     assert opt.get("format") == "webp"
-    assert cfg.get("blog_craft_version") == "5dc31f8", "must pin blog-craft #14 SHA"
+    # a recorded pin is what update.py needs for a real 3-way base; the exact
+    # release moves (was the #14 SHA, then v0.9.0, now v0.10.0+) — don't freeze it
+    assert cfg.get("blog_craft_version"), "blog_craft_version pin must be recorded"
 
 
 def test_mechanism_templates_match_blog_craft():
