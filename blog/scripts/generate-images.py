@@ -145,7 +145,7 @@ def post_process(output: Path, steps: list) -> None:
 
 
 def entry_reference_paths(entry: dict, root: Path) -> list[Path]:
-    """Resolve an entry's `references:` clothing/pose anchors against the repo root.
+    """Resolve an entry's `references:` clothing/pose anchors against the blog root.
 
     These are the ADDITIONAL reference images the composed `reference_guidance`
     prose describes ("clothing/pose anchors"). The master character sheet is

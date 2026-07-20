@@ -1,5 +1,9 @@
-version: 2
-blog_craft_version: "5dc31f8"   # blog-craft main SHA (PR #14 image-optimization + #16 opt-image resilience; was #12 a7f2f7f)
+version: 4
+blog_craft_version: "v0.9.0"   # blog-craft release (image-composition-system, PR #42; was 5dc31f8)
+
+# Hugo site lives under blog/; .blog-craft.yaml stays at the repo root.
+# blog-craft's /blog-post scaffolding and /update path mapping read this (v4).
+site_dir: blog
 
 project:
   name: "Frank"                                   # slug: drives the read-tracker storage key
@@ -26,6 +30,10 @@ image:
   # paths here (content_types.papers.data_dir) and every entry's `output:`.
   prompts_file: blog/prompt_for_images.yaml
   reference_pool: .reference-pool
+  # Character sheets (scripts/gen-character-sheet.py) draw their prose from
+  # these layers — frank's character lives in base_character, not the default
+  # persona/visual_constants vocabulary.
+  character_sheet: { layers: [base_character] }
   curation: { count_default: 1, archive_cap: 30, contact_sheet: true }
   # Build-time WebP optimization (blog-craft #14). Hugo emits width-capped WebP +
   # srcset from the PNG masters (masters untouched). Banners live in assets/images/.
@@ -64,6 +72,10 @@ image:
       Redraw Frank from scratch in the scene''s perspective and lighting; vary his pose, angle, head turn,
       and body language to fit the scene''s action.'
     torso:
+      # v4: the engine hardcodes no layer names — this walk (group by
+      # torso|series, then index by torso_variant) is what compose.py used to
+      # special-case for "torso"; migration 003_to_004 writes it as data.
+      _select: [[torso, series], torso_variant]
       generic:
       - Torso and clothing follow the scene prompt.
       building:
