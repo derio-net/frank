@@ -47,7 +47,6 @@ image:
       - base_atmosphere
       - reference_guidance[anchor]
       - reference_guidance[character]
-      - reference_guidance[clothing]
       - reference_guidance[single_hero]
       - reference_guidance[drawing_instructions]
       - clothing
@@ -86,8 +85,6 @@ image:
         The FIRST reference image is only to be used as a guide for the scene's perspective, lighting, and composition.
       character: |-
         The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
-      clothing: |-
-        Any ADDITIONAL reference images are clothing/pose anchors.
       single_hero: |-
         There is exactly ONE Frank in the final image, regardless of how many reference images show him.
       drawing_instructions: |-

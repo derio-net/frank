@@ -1,66 +1,48 @@
 # Reference-pool — character anchors for image generation
 
-Reference images are attached to every Gemini call to keep the blog's persona
-consistent across covers, tiles, and banners. They stack — compose, don't replace.
+Every v5 prompt entry in `blog/prompt_for_images.yaml` declares **exactly one**
+reference image — `composition.reference_images.primary` — a character-design
+sheet from `<series>/reference/`. What is declared is sent, nothing else;
+verify what a run would send with `scripts/generate-images.py --dry-run`.
 
-1. **Master reference** — `image.reference_image` in `.blog-craft.yaml`
-   (default `static/images/reference.png`). The canonical character design sheet.
-   Overrides everything for a whole run via
-   `scripts/generate-images.py --reference path/to.png`.
-2. **Master per-series reference** — auto-picked from
-   `<series>/reference-<series>.png` when a prompt entry has `series: <series>`.
-   Gives a series its own flavour of the character while staying on-model.
-3. **Explicit `references:` on a prompt entry** — hand-picked anchors, usually
-   from `<series>/subjects/`. Appended AFTER the master sheet (order is
-   load-bearing: the first image is canonical for the face); verify what a run
-   would send with `scripts/generate-images.py --dry-run`.
-
-## Building `subjects/` renders
-
-A subject render is a transparent-background, single-figure PNG with a
-descriptive filename (e.g. `hero-white-shirt-black-tie-1.png`), promoted by
-hand from good generations. On macOS, `scripts/extract-subject.swift` isolates
-the foreground figure from a busy cover via Apple Vision:
-
-```
-swift scripts/extract-subject.swift <in.png> <out.png>
-```
-
-(macOS-only — it needs the Vision framework. Elsewhere any background-removal
-tool works; the contract is just "transparent background, exactly one figure".
-If a clean subject render already exists, prefer cropping it to its alpha bbox
-over re-segmenting a complex scene — auto-segmentation under-performs on busy
-compositions.)
+A character-design sheet is an animation model sheet: a full-body turnaround
+(front / three-quarter / side), a row of expression close-ups, and detail
+callouts of the outfit's signature props. One sheet per outfit variant, with a
+descriptive filename (e.g. `frank-white-shirt-black-tie-1.png`). Sheets anchor
+the face, proportions, eye style (large solid-black eyes with a small white
+pupil highlight — never white sclera), line work, AND the costume — so pick
+the sheet whose outfit matches the entry's `clothing:` modifier.
 
 ## Layout
 
 ```
 .reference-pool/
   README.md
+  <series>/                    # one per series in .blog-craft.yaml
+    reference-<series>.png     # legacy master ref (fallback for entries
+                               #   that declare no primary; unused by v5 entries)
+    reference/                 # character-design sheets — the v5 anchors
   generic/
-    reference-generic.png      # fallback master ref (entries with no series)
-    subjects/                  # hand-curated single-character renders
-  <series>/                    # one per series in .blog-craft.yaml (create as needed)
-    reference-<series>.png     # master ref for that series
-    subjects/                  # series-flavoured character renders
+    reference/                 # incl. frank-favicon.png (head-only icon sheet)
 ```
 
-## Choosing the master reference (the character design sheet)
+## Adding a new sheet (new outfit variant)
 
-The persona + `image.layers.visual_constants` in `.blog-craft.yaml` are enough to
-*generate* candidate design sheets — no hand-drawn art required:
+1. Get a single-figure render of the new outfit (any generation, transparent
+   background preferred; on macOS `scripts/extract-subject.swift <in> <out>`
+   isolates a figure from a busy cover via Apple Vision).
+2. Generate a sheet from it, anchored on 2–3 existing approved sheets so the
+   face/eye style stays on-model. The sheet prompt comes from
+   `gen-character-sheet.py`'s `build_prompt()` (`image.character_sheet.layers`
+   in `.blog-craft.yaml`); attach the render FIRST (costume authority) and the
+   approved sheets after (style authority). Known trap: the *startled/surprised*
+   expression pulls Gemini toward white-sclera cartoon eyes — pin the
+   expression row to neutral / grin / angry / worried.
+3. Review every face on the sheet, then drop it in
+   `<series>/reference/<outfit-name>.png` and point prompt entries at it.
 
-1. Generate candidates (source your `.env` for the API key first):
-   `python scripts/gen-character-sheet.py 12`
-   → writes 12 model sheets + `contact-sheet.png` to `.regen-archive/reference/`
-   (the `.regen-archive/` dir is **gitignored**; only keepers are tracked).
-2. Browse them full-screen and compare:
-   `python scripts/build-gallery.py` → open `.regen-archive/reference/gallery.html`.
-3. Promote the best one:
-   `cp .regen-archive/reference/reference-<sha>.png static/images/reference.png`
-   (optionally also into `generic/reference-generic.png`).
-4. Regenerate covers/tiles with the reference in place:
-   `python scripts/generate-images.py`
+## Bootstrapping a blog with no sheets at all
 
-The chosen sheet is what `image.layers.reference_guidance` calls "the canonical
-character-design sheet" — every cover's character is drawn to match it.
+`python scripts/gen-character-sheet.py 12` generates candidate master sheets
+from `image.layers` prose alone (no art needed) into `.regen-archive/reference/`
+(gitignored); browse with `scripts/build-gallery.py`, promote the keeper.

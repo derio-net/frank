@@ -33,7 +33,9 @@ references:
   style_anchors:
   - blog/_private/frank-stickers/images/sticker-09-server-blade.png
   - blog/_private/frank-stickers/images/sticker-20-tinkering.png
-  subjects_dir: .reference-pool/building/subjects
+  # character sheets are name-parallel to the retired subjects/ renders,
+  # so per-sticker filenames keep resolving unchanged
+  subjects_dir: .reference-pool/building/reference
 stickers:
 - key: 05-golden-key
   slug: golden-key

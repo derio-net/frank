@@ -166,7 +166,9 @@ def post_process(output: Path, steps: list) -> None:
         if "resize" in step:
             s = step["resize"]
             im = Image.open(output)
-            im.resize((s["width"], s["height"]), Image.LANCZOS).save(str(output))
+            w = s.get("width", s.get("size"))
+            h = s.get("height", s.get("size"))
+            im.resize((w, h), Image.LANCZOS).save(str(s.get("target", output)))
         elif "crop_resize" in step:
             s = step["crop_resize"]
             im = Image.open(output).convert("RGB")
