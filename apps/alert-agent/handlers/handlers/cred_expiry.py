@@ -74,45 +74,67 @@ def _now_iso(ms: int) -> str:
 
 
 def evaluate_expiry(creds_text: str | None, now_ms: int) -> Verdict:
-    """Pure: map a credentials-file body + a clock to a Verdict. A missing/unparseable
-    file or an absent/non-int `refreshTokenExpiresAt` → tier 'error' (should_warn True) —
-    a broken credential is itself alarming, never a silent skip."""
+    """Pure + TOTAL: map a credentials-file body + a clock to a Verdict, NEVER raising.
+    A missing/unparseable file, an absent/non-numeric/non-finite/out-of-range
+    `refreshTokenExpiresAt` → tier 'error' (should_warn True) — a broken credential is
+    itself alarming, never a silent skip and never an exception."""
     exp_ms = None
     if creds_text is not None:
         try:
             exp_ms = json.loads(creds_text).get("refreshTokenExpiresAt")
         except (ValueError, TypeError, AttributeError):
             exp_ms = None
-    if not isinstance(exp_ms, (int, float)) or isinstance(exp_ms, bool):
+    # Reject non-numbers, bools (isinstance(True, int) is True), and non-finite
+    # floats — json.loads accepts Infinity/NaN by default and math.floor(inf/nan)
+    # RAISES, which would crash the runner before it can emit a heartbeat.
+    ok = (isinstance(exp_ms, (int, float)) and not isinstance(exp_ms, bool)
+          and math.isfinite(exp_ms))
+    if ok:
+        try:
+            days_left = math.floor((exp_ms - now_ms) / DAY_MS)
+            tier = _tier(days_left)
+            # _now_iso raises ValueError for a finite-but-out-of-range epoch (e.g. a
+            # value stored in seconds*1000, or garbage) — treat as error, not a crash.
+            exp_iso = _now_iso(int(exp_ms))
+        except (ValueError, OverflowError, OSError):
+            ok = False
+    if not ok:
         hb = (f"cred-expiry-check days_left=unknown tier=error "
               f"refresh_expires=unknown ts={_now_iso(now_ms)}")
         return Verdict(None, "error", True, _message("error", None, None), hb)
 
-    days_left = math.floor((exp_ms - now_ms) / DAY_MS)
-    tier = _tier(days_left)
-    exp_iso = _now_iso(int(exp_ms))
     hb = (f"cred-expiry-check days_left={days_left} tier={tier} "
           f"refresh_expires={exp_iso} ts={_now_iso(now_ms)}")
     return Verdict(days_left, tier, tier != "ok", _message(tier, days_left, exp_iso), hb)
 
 
 def _read_cred() -> str | None:
-    """Read the credentials file body, or None if it does not exist (a missing file is
-    a real problem the check must warn about, not crash on)."""
+    """Read the credentials file body, or None if it can't be read. ANY read failure
+    (missing, permission, is-a-directory → OSError; invalid UTF-8 → UnicodeDecodeError,
+    a ValueError) → None → an `error`-tier warning, never an exception that would crash
+    the runner before the heartbeat prints."""
     try:
         with open(CRED_PATH, encoding="utf-8") as fh:
             return fh.read()
-    except FileNotFoundError:
+    except (OSError, UnicodeDecodeError):
         return None
 
 
 def run_cred_check(now_ms: int | None = None) -> None:
-    """Daily runner: emit the heartbeat ALWAYS, warn on threshold. A tg_send transport
-    error is swallowed (logged to stderr) so a send failure never suppresses the
-    heartbeat that the dead-man rule depends on. `now_ms` is injectable for tests."""
+    """Daily runner: emit the heartbeat ALWAYS, warn on threshold. The heartbeat is
+    load-bearing (the Grafana dead-man rule keys on it), so the whole verdict
+    computation is wrapped: ANY unexpected error still yields an `error` heartbeat +
+    warning rather than a silent crash. A tg_send transport error is swallowed
+    (logged) so a send failure can't suppress the heartbeat. `now_ms` injectable."""
     if now_ms is None:
         now_ms = int(time.time() * 1000)
-    v = evaluate_expiry(_read_cred(), now_ms)
+    try:
+        v = evaluate_expiry(_read_cred(), now_ms)
+    except Exception as exc:  # noqa: BLE001 — never crash before the heartbeat prints
+        print(f"WARN cred-expiry-check: evaluate_expiry raised: {exc}", file=sys.stderr)
+        hb = (f"cred-expiry-check days_left=unknown tier=error "
+              f"refresh_expires=unknown ts={_now_iso(now_ms)}")
+        v = Verdict(None, "error", True, _message("error", None, None), hb)
     print(v.heartbeat, flush=True)
     if v.should_warn:
         try:

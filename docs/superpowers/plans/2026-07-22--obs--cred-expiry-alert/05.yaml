@@ -17,16 +17,20 @@ tasks:
       # manual-operation
       After merge + ArgoCD sync: (1) `kubectl -n alert-agent rollout status
       deploy/alert-agent`; confirm `/opt/alert-agent-bin/cred-expiry-check` present in the
-      `agent` container and the crontab has the 09:00 line. (2) Restart the grafana pod so
-      the file-provisioned rule loads: `kubectl -n monitoring rollout restart deploy/grafana`
-      (confirm deploy name). (3) HEARTBEAT: run the check in-container; confirm the
+      `agent` container and the crontab has the 09:00 line. (2) SEED THE HEARTBEAT FIRST
+      (before/at the grafana restart): run the check in-container so a `cred-expiry-check`
+      line exists in VictoriaLogs — otherwise the dead-man rule sees an empty 30h window on
+      load and would fire a SPURIOUS page after its `for: 2h`. `kubectl -n alert-agent exec
+      deploy/alert-agent -c agent -- /opt/alert-agent-bin/cred-expiry-check`; confirm the
       `cred-expiry-check ... tier=ok` line prints AND lands in VictoriaLogs
-      (`kubernetes.namespace_name:alert-agent AND _msg:"cred-expiry-check"`). (4) WARNING:
-      run with `CRED_PATH` pointing at a temp creds file whose refreshTokenExpiresAt is 2
-      days out → confirm a real Telegram warning is delivered. (5) DEAD-MAN: confirm the
-      Grafana rule `alert-agent-cred-expiry-heartbeat-stale` loaded and its VL query
-      returns ≥1; optionally confirm Pending under a simulated stale window. Frank-observed;
-      operator triggers the merge. Live-only.
+      (`kubernetes.namespace_name:alert-agent AND _msg:"cred-expiry-check"`). (3) Restart
+      grafana so the file-provisioned rule loads: `kubectl -n monitoring rollout restart
+      deploy/grafana` (confirm deploy name). (4) WARNING: run with `CRED_PATH` pointing at a
+      temp creds file whose refreshTokenExpiresAt is 2 days out → confirm a real Telegram
+      warning is delivered. (5) DEAD-MAN: confirm the Grafana rule
+      `alert-agent-cred-expiry-heartbeat-stale` loaded and its VL query returns ≥1;
+      optionally confirm Pending under a simulated stale window. Frank-observed; operator
+      triggers the merge. Live-only.
 state:
   steps:
     P5.T1.S1:

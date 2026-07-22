@@ -53,3 +53,9 @@ def test_pages_telegram_directly_and_window_exceeds_a_day():
     # silence is the enemy: this rule pages Telegram directly, not the quiet route
     assert rule["labels"].get("telegram_direct") == "true"
     assert "canary_watchdog" not in rule["labels"]
+
+
+def test_flap_suppression_and_error_handling_pinned():
+    rule = _find_rule()
+    assert rule["for"] == "2h"                 # a slightly-late daily run must not flap
+    assert rule["execErrState"] == "Error"     # a query error is surfaced, not hidden

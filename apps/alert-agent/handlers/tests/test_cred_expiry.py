@@ -52,7 +52,17 @@ def test_message_escalates_and_is_plain_text():
 
 # --- broken input → error tier, never a silent skip --------------------------
 
-@pytest.mark.parametrize("bad", [None, "{ not json", "{}", '{"refreshTokenExpiresAt": "nope"}'])
+# NB: 'Infinity'/'NaN' are accepted by Python's json.loads by default, and
+# math.floor(inf|nan) RAISES — these would crash the runner before the heartbeat
+# unless guarded. They MUST land on the error tier, not an exception.
+@pytest.mark.parametrize("bad", [
+    None, "{ not json", "{}", '{"refreshTokenExpiresAt": "nope"}',
+    '{"refreshTokenExpiresAt": true}',        # bool is not a valid epoch
+    '{"refreshTokenExpiresAt": Infinity}',    # math.floor(inf) raises
+    '{"refreshTokenExpiresAt": NaN}',         # math.floor(nan) raises
+    '{"refreshTokenExpiresAt": 1e18}',        # finite but out-of-range: _now_iso year>9999
+    '{"refreshTokenExpiresAt": -1e18}',       # out-of-range negative
+])
 def test_broken_cred_is_error_tier_and_warns(bad):
     v = ce.evaluate_expiry(bad, NOW_MS)
     assert v.tier == "error"
@@ -113,3 +123,38 @@ def test_run_missing_file_warns(wired, monkeypatch, capsys):
     ce.run_cred_check(now_ms=NOW_MS)
     assert "tier=error" in capsys.readouterr().out
     assert len(wired) == 1                                       # error → warns
+
+
+def test_read_cred_swallows_non_filenotfound(monkeypatch, tmp_path):
+    # A directory / permission error must not raise out of _read_cred (which would
+    # crash the runner before the heartbeat) — it returns None → error tier.
+    monkeypatch.setattr(ce, "CRED_PATH", str(tmp_path))          # a dir → IsADirectoryError
+    assert ce._read_cred() is None
+
+
+def test_read_cred_swallows_invalid_utf8(monkeypatch, tmp_path):
+    # UnicodeDecodeError is a ValueError, NOT an OSError — it must still be swallowed.
+    p = tmp_path / "creds.json"
+    p.write_bytes(b"\xff\xfe not utf-8")
+    monkeypatch.setattr(ce, "CRED_PATH", str(p))
+    assert ce._read_cred() is None
+
+
+def test_run_out_of_range_epoch_is_error_not_crash(wired, monkeypatch, capsys):
+    # A finite-but-huge epoch (e.g. seconds*1000) drove _now_iso to ValueError. It must
+    # go through the REAL code path to an error heartbeat + warning, never crash.
+    monkeypatch.setattr(ce, "_read_cred", lambda: '{"refreshTokenExpiresAt": 1e18}')
+    ce.run_cred_check(now_ms=NOW_MS)                            # must NOT raise
+    assert "tier=error" in capsys.readouterr().out
+    assert len(wired) == 1
+
+
+def test_run_never_crashes_and_always_heartbeats_on_unexpected_error(wired, monkeypatch, capsys):
+    # Belt-and-suspenders: even if evaluate_expiry blows up unexpectedly, the runner
+    # must still print a heartbeat (the dead-man keys on it) and warn — never crash.
+    monkeypatch.setattr(ce, "_read_cred", lambda: "{}")
+    monkeypatch.setattr(ce, "evaluate_expiry", lambda *a, **k: (_ for _ in ()).throw(RuntimeError("boom")))
+    ce.run_cred_check(now_ms=NOW_MS)                             # must NOT raise
+    out = capsys.readouterr().out
+    assert "cred-expiry-check" in out and "tier=error" in out   # heartbeat still emitted
+    assert len(wired) == 1                                       # and warned

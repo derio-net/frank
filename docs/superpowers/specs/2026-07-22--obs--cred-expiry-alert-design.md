@@ -163,12 +163,15 @@ is the *checker-died* backstop. They fail independently.
 
 ## Test Plan (post-merge — operator-driven trigger, Frank-observed)
 
-After merge + pod roll + grafana restart:
+After merge + pod roll:
 1. `kubectl -n alert-agent rollout status deploy/alert-agent`; confirm
    `/opt/alert-agent-bin/cred-expiry-check` present in the `agent` container.
-2. **Heartbeat**: run the check normally in-container; confirm the
-   `cred-expiry-check days_left=… tier=ok` line prints AND appears in
+2. **Heartbeat (seed BEFORE the grafana restart)**: run the check in-container;
+   confirm the `cred-expiry-check days_left=… tier=ok` line prints AND appears in
    VictoriaLogs (`kubernetes.namespace_name:alert-agent AND _msg:"cred-expiry-check"`).
+   Seeding first means the dead-man rule loads against a non-empty 30h window —
+   otherwise it would fire a spurious page after its `for: 2h` on first deploy.
+   Then restart grafana so the file-provisioned rule loads.
 3. **Warning**: run the check with a forced near-expiry (`CRED_PATH` pointing at
    a temp cred with `refreshTokenExpiresAt` 2 days out) → confirm a real Telegram
    warning is delivered.
