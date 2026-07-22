@@ -11,7 +11,21 @@ DAY_MS = 86_400_000
 
 
 def _creds(days_out: float) -> str:
+    # The REAL claude credentials.json nests the field under `claudeAiOauth`
+    # (confirmed live 2026-07-22) — NOT top-level.
+    return json.dumps({"claudeAiOauth": {
+        "refreshToken": "", "expiresAt": 0,
+        "refreshTokenExpiresAt": int(NOW_MS + days_out * DAY_MS)}})
+
+
+def _creds_flat(days_out: float) -> str:
+    # Defensive fallback: a top-level field must also work (format may vary).
     return json.dumps({"refreshTokenExpiresAt": int(NOW_MS + days_out * DAY_MS), "expiresAt": 0})
+
+
+def test_reads_nested_and_flat_field():
+    assert ce.evaluate_expiry(_creds(5), NOW_MS).days_left == 5        # nested claudeAiOauth
+    assert ce.evaluate_expiry(_creds_flat(5), NOW_MS).days_left == 5   # top-level fallback
 
 
 # --- evaluate_expiry: arithmetic + tiers -------------------------------------
