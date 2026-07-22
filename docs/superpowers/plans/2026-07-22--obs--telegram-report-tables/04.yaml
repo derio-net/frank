@@ -28,9 +28,9 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-07-22T19:25:37+00:00'
+      note: Back-loaded manual post-deploy — operator merges, Frank observes live.
   completion:
     at: null
     note: null
