@@ -268,6 +268,63 @@ def test_split_oversized_single_pre_splits_on_rows():
         assert "row-0 " in p or "row-" in p          # rows preserved whole
 
 
+def test_split_header_prefixed_oversized_section_is_split():
+    # REGRESSION: a section block is `Header\n<pre>...</pre>` — it does NOT start
+    # with `<pre>`, so the old prefix-guarded explode skipped it and emitted a
+    # single >4096 part → HTML 400 → plain retry also >4096 → silent drop.
+    payload = {"attackers": [{"ip": f"1.2.3.{i}", "note": "Z" * 500} for i in range(10)]}
+    out = bridge.render_report(payload)
+    assert len(out) > 4096                         # the section alone overflows
+    parts = bridge._split_for_telegram(out, limit=4096)
+    assert len(parts) >= 2
+    for p in parts:
+        assert len(p) <= 4096                      # INVARIANT: no part over the limit
+        assert p.count("<pre>") == p.count("</pre>")
+
+
+def test_split_single_row_longer_than_limit_is_hard_sliced():
+    # REGRESSION: a single value larger than the limit (a giant log line) must be
+    # visibly truncated, NOT emitted as an over-limit part that 400s silently.
+    out = bridge.render_report({"logs": ["X" * 8000]})
+    parts = bridge._split_for_telegram(out, limit=4096)
+    assert parts and all(len(p) <= 4096 for p in parts)
+    assert any("truncated" in p for p in parts)    # visible marker, never silent
+    assert all(p.count("<pre>") == p.count("</pre>") for p in parts)
+
+
+def test_split_invariant_every_part_within_limit():
+    # Property: for a big multi-table report, EVERY part (with its (i/n) prefix) is
+    # ≤ limit — the guarantee that neither HTML nor the plain retry can 400 on size.
+    big = {f"table_{t}": [{"ip": f"10.0.{t}.{i}", "org": "Org " * 40} for i in range(8)]
+           for t in range(12)}
+    parts = bridge._split_for_telegram(bridge.render_report(big), limit=4096)
+    assert len(parts) >= 2
+    assert all(len(p) <= 4096 for p in parts)
+
+
+def test_render_report_escapes_column_header_keys():
+    # REGRESSION: header cells were built from raw keys (c.upper()), so a key with
+    # `<`/`>`/`&` leaked bare markup into the <pre> and 400'd. Now escaped.
+    out = bridge.render_report({"rows": [{"a&b<c>": 1}]})
+    assert "A&amp;B&lt;C&gt;" in out               # escaped header, entities intact
+    assert "&AMP;" not in out                       # uppercase applied BEFORE escape
+    stripped = out.replace("<pre>", "").replace("</pre>", "")
+    assert "<" not in stripped and ">" not in stripped
+
+
+def test_oversized_report_delivers_not_silently_dropped(calls):
+    # END-TO-END: the exact silent-drop scenario. A giant value → send_reply must
+    # deliver at least one part ≤ 4096 that Telegram would accept.
+    def sender(url, payload):
+        # model Telegram: reject anything over 4096
+        return {"ok": False, "error_code": 400} if len(payload.get("text", "")) > 4096 else {"ok": True}
+    calls.canned["/sendMessage"] = sender
+    bridge.send_reply({"status": "ok", "payload": {"logs": ["Q" * 9000]}}, "100", fallback="fb")
+    sent = _sent(calls, "/sendMessage")
+    assert sent, "nothing was sent — the silent-drop regression is back"
+    assert any(len(m["text"]) <= 4096 for m in sent)   # at least one deliverable message
+
+
 def test_send_reply_report_posts_html(calls):
     resp = {"status": "ok", "payload": {"a": 1, "b": 2}}
     bridge.send_reply(resp, "100", fallback="fb")

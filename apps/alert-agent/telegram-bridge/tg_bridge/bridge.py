@@ -67,6 +67,10 @@ def _send_message(params: dict) -> dict:
     try:
         return _tg("sendMessage", params)
     except urllib.error.HTTPError as exc:
+        # A 400 is handled by send_reply's plain-text retry; anything else (429
+        # rate-limit, 5xx) is not, so surface it — else the send is invisibly lost.
+        if exc.code != 400:
+            print(f"WARN telegram-bridge: sendMessage {exc.code}: {exc.reason}", file=sys.stderr)
         return {"ok": False, "error_code": exc.code}
 
 
@@ -208,6 +212,19 @@ def _esc(v) -> str:
     return html.escape(str(v), quote=False)
 
 
+def _dlen(escaped: str) -> int:
+    """Display width of an html-escaped string — `&amp;` renders as ONE glyph, so
+    column widths must be measured on the unescaped length, not the escaped one."""
+    return len(html.unescape(escaped))
+
+
+def _pad(escaped: str, width: int, right: bool) -> str:
+    """Pad an html-escaped cell to `width` DISPLAY columns (str.ljust would count
+    entity chars and misalign)."""
+    gap = max(0, width - _dlen(escaped))
+    return (" " * gap + escaped) if right else (escaped + " " * gap)
+
+
 def _fmt_table(rows: list[dict]) -> str:
     """Aligned monospace column table body (no `<pre>` wrapper — the caller wraps).
 
@@ -235,17 +252,16 @@ def _fmt_table(rows: list[dict]) -> str:
         ) and any(c in r for r in shown)
         for c in cols
     }
-    heads = {c: c.upper() for c in cols}
+    # Uppercase the raw key THEN escape — escaping first would corrupt an entity
+    # (`&`->`&amp;`->`.upper()`->`&AMP;`, which Telegram won't decode).
+    heads = {c: _esc(str(c).upper()) for c in cols}
     widths = {
-        c: max([len(heads[c])] + [len(cell(r, c)) for r in shown])
+        c: max([_dlen(heads[c])] + [_dlen(cell(r, c)) for r in shown])
         for c in cols
     }
 
     def render_row(values: dict) -> str:
-        parts = []
-        for c in cols:
-            val = values[c]
-            parts.append(val.rjust(widths[c]) if numeric[c] else val.ljust(widths[c]))
+        parts = [_pad(values[c], widths[c], right=numeric[c]) for c in cols]
         return "  ".join(parts).rstrip()
 
     lines = [render_row(heads)]
@@ -359,45 +375,82 @@ def _html_to_plain(html_text: str) -> str:
     return html.unescape(stripped)
 
 
+_PRE_OVERHEAD = len("<pre></pre>")
+_TRUNC_MARK = "…[truncated]"
+
+
+def _hard_slice(text: str, budget: int) -> str:
+    """Last-resort truncation of a SINGLE over-budget row/line, with a VISIBLE
+    marker (the one place a mid-value cut is the lesser evil — silent loss on a
+    C&C channel is worse). Never leaves a dangling partial entity (`&am`), so the
+    result stays parse-safe, and its length is ≤ budget. Applied only to body text,
+    never to a string containing `<pre>` tags."""
+    keep = max(0, budget - len(_TRUNC_MARK))
+    out = text[:keep]
+    amp = out.rfind("&")
+    if amp != -1 and ";" not in out[amp:]:      # would cut inside an entity
+        out = out[:amp]
+    return out + _TRUNC_MARK
+
+
 def _split_for_telegram(html_text: str, limit: int = _TG_LIMIT) -> list[str]:
     """Split a rendered HTML report into parts each ≤ `limit`, never cutting inside
-    a `<pre>` tag. Splits on blank-line block boundaries; a single `<pre>` block
-    whose body alone exceeds the limit is split on WHOLE ROWS, each fragment
-    re-wrapped in `<pre>...</pre>`. >1 part → each gets an `(i/n)` prefix line
-    (outside any `<pre>`); a single part gets no prefix.
+    a `<pre>` tag. INVARIANT: every returned part is ≤ `limit` — so neither the HTML
+    send nor its plain-text 400-retry can ever be rejected for length (which would
+    be a silent drop). Achieved by:
 
-    The prefix is added AFTER packing, so packing budgets against `limit` with a
-    small reserve for the longest possible prefix."""
-    blocks = [b for b in html_text.split("\n\n") if b != ""]
+    - budgeting against `eff = limit - reserve` so the `(i/n)` prefix (added after
+      packing) can never push a part over;
+    - for any block over `eff`, locating its embedded `<pre>` (blocks are
+      `[header\\n]<pre>body</pre>`, so a `startswith('<pre>')` test misses the
+      header-prefixed ones) and splitting the body on WHOLE ROWS, each fragment
+      re-wrapped; the header becomes its own small unit;
+    - hard-slicing (with a visible marker) any single row longer than a fragment's
+      whole budget — the only mid-value cut, and never silent."""
+    reserve = 12                                 # room for a "(nnn/nnn)\n" prefix
+    eff = max(1, limit - reserve)
+    row_budget = eff - _PRE_OVERHEAD
 
-    # Explode any oversized <pre> block into row-wise <pre> fragments first.
-    exploded: list[str] = []
-    for b in blocks:
-        if len(b) <= limit or not b.startswith("<pre>"):
-            exploded.append(b)
+    units: list[str] = []
+    for b in [b for b in html_text.split("\n\n") if b != ""]:
+        if len(b) <= eff:
+            units.append(b)
             continue
-        rows = b[len("<pre>"):-len("</pre>")].split("\n")
-        cur: list[str] = []
-        cur_len = len("<pre></pre>")
-        for row in rows:
-            add = len(row) + 1
-            if cur and cur_len + add > limit:
-                exploded.append(_wrap_pre("\n".join(cur)))
-                cur, cur_len = [], len("<pre></pre>")
-            cur.append(row)
-            cur_len += add
-        if cur:
-            exploded.append(_wrap_pre("\n".join(cur)))
+        i = b.find("<pre>")
+        if i == -1:                              # oversized plain text (no table)
+            units.append(_hard_slice(b, eff))
+            continue
+        header = b[:i].rstrip("\n")
+        body = b[i + len("<pre>"):b.rfind("</pre>")]
+        if header:
+            units.append(header if len(header) <= eff else _hard_slice(header, eff))
+        frag: list[str] = []
+        frag_len = _PRE_OVERHEAD
+        for row in body.split("\n"):
+            if len(row) > row_budget:            # one row too big for any fragment
+                if frag:
+                    units.append(_wrap_pre("\n".join(frag)))
+                    frag, frag_len = [], _PRE_OVERHEAD
+                units.append(_wrap_pre(_hard_slice(row, row_budget)))
+                continue
+            add = len(row) + (1 if frag else 0)
+            if frag and frag_len + add > eff:
+                units.append(_wrap_pre("\n".join(frag)))
+                frag, frag_len = [], _PRE_OVERHEAD
+                add = len(row)
+            frag.append(row)
+            frag_len += add
+        if frag:
+            units.append(_wrap_pre("\n".join(frag)))
 
-    # Pack blocks into parts. Reserve room for an "(nn/nn)\n" prefix.
-    reserve = 12
+    # Pack units (each ≤ eff) into parts, keeping each part ≤ eff.
     parts: list[str] = []
     cur = ""
-    for b in exploded:
-        candidate = b if not cur else f"{cur}\n\n{b}"
-        if cur and len(candidate) + reserve > limit:
+    for u in units:
+        candidate = u if not cur else f"{cur}\n\n{u}"
+        if cur and len(candidate) > eff:
             parts.append(cur)
-            cur = b
+            cur = u
         else:
             cur = candidate
     if cur:
