@@ -28,10 +28,12 @@ tasks:
 state:
   steps:
     P4.T1.S1:
-      state: '-'
-      ticked_at: '2026-07-22T19:25:37+00:00'
-      note: Back-loaded manual post-deploy — operator merges, Frank observes live.
+      state: x
+      ticked_at: '2026-07-22T19:47:04+00:00'
+      note: null
   completion:
-    at: null
-    note: null
+    at: '2026-07-22T19:46:29+00:00'
+    note: 'Post-deploy verified live 2026-07-22: pod rolled onto new bridge ConfigMap,
+      deployed render_payload->send_reply produces aligned <pre> tables with escaping
+      + parse_mode=HTML. Manual/operator-triggered merge done.'
     observed_prs: []

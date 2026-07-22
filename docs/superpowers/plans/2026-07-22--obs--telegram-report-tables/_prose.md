@@ -1,6 +1,6 @@
 # alert-agent Telegram report tables
 
-**Status:** In Progress
+**Status:** Deployed
 **Layer:** obs (fix/extension of the deployed `apps/alert-agent`)
 **Spec:** `docs/superpowers/specs/2026-07-22--obs--telegram-report-tables-design.md`
 
