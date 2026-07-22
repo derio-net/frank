@@ -306,3 +306,78 @@ curl -sS -X POST http://127.0.0.1:18080/webhook \
 `alertname: DatasourceError` makes the create-era bugs match by title; the
 v0.4.0 feature-ref close handles any other titles. Idempotent. Verify:
 `kubectl logs -n monitoring -l app=health-bridge --tail=40 | grep -E 'Closed bug|→ healthy'`.
+
+## alert-agent Telegram report formatting — monospace `<pre>` tables
+
+**2026-07-22 (frank#TBD).** The C&C Telegram agent's command reports
+(`/edge_traffic`, `/security`, `/digest`, `/status`, and free-text asks that
+return structured data) were unreadable. Three defects in the old
+`_dict_to_table`:
+
+1. **Nested list/dict values were `json.dumps`'d to one line** — a
+   list-of-uniform-dicts (which *is* a table) rendered as escaped one-line JSON.
+2. **A 200-char cell truncation silently destroyed data** — the operator saw 3
+   of 10 attacker IPs, cut mid-JSON, with no marker that more existed.
+3. **Plain-text transport misaligned every column** — `tg_send` sent with no
+   `parse_mode`, so padded tables drifted in Telegram's proportional font
+   (worst on mobile).
+
+**Fix (`apps/alert-agent/telegram-bridge/tg_bridge/bridge.py`).** A new
+`render_report(payload)` replaces `_dict_to_table`:
+
+- **list-of-dicts → aligned `<pre>` column table**: columns are the *union* of
+  keys across rows in first-seen order (a key seen only in a later row is
+  appended); a missing key renders a blank cell (never the literal `None`);
+  numeric columns right-align. Capped at **10 data rows** with a `+N more`
+  footer (widths computed *after* the cap so the footer never widens the table).
+- **list-of-scalars** (e.g. `crowdsec_bans` log lines) → one escaped item per
+  line, same 10 + `+N more` cap.
+- **nested dict** → a one-level-indented `key: value` block (deeper levels
+  compact to single-line JSON as a leaf).
+- **scalars** → a leading `key  value` summary `<pre>` block.
+- Every interpolated value is `html.escape`d; **the `<pre>` tags are the only
+  literal `<`/`>` in the output** — which is also how the sender detects "this
+  is an HTML report" (a `<pre>` substring test).
+
+**Transport posture change (this is the load-bearing gotcha).** Telegram's HTML
+`parse_mode` **400s on a bare `<`, `>`, or `&`** and then *silently never
+delivers* — the same trap documented for Grafana's own Telegram contact point
+(`grafana.md`). So:
+
+- `tg_send(text, chat_id=None, parse_mode=None)` — `parse_mode` is **opt-in**.
+  Default `None` keeps the zero-risk plain-text path unchanged, so free-text
+  **narratives** (`{"text": ...}` payloads, `/help`, deterministic fallbacks)
+  never touch HTML. Only reports pass `parse_mode="HTML"`.
+- `_send_message` catches `urllib.error.HTTPError` and **returns**
+  `{"ok": False, "error_code": N}` instead of raising (a real 400 then looks
+  identical to a test's canned error dict).
+- `_split_for_telegram` splits a >4096-char report into `(i/n)` parts on
+  **whole block / whole row** boundaries — never inside a `<pre>` tag; a single
+  oversized `<pre>` is split on rows, each fragment re-wrapped.
+- `send_reply(resp, chat_id, fallback)` owns routing: HTML report → split +
+  post each part as HTML, and **if any part 400s, retry it ONCE as plain text**
+  (`_html_to_plain` strips tags + unescapes). A formatting bug can therefore
+  degrade readability but **never silence the C&C channel** — the
+  non-negotiable safety property. `fallback` is a str *or* a zero-arg callable
+  (the DM path passes `_deterministic_snapshot` so it's computed only when a
+  turn returned nothing).
+
+**Why it must be a bridge mechanism, not an agent prompt.** The agent-session
+server appends "write ONLY the JSON result to the file — raw JSON" to *every*
+turn, which dominates `CLAUDE.md`/`SKILL.md`. PRs #631/#633/#634 proved output
+shape cannot be forced via instructions; the renderer is the only reliable seam.
+
+**Verify** (per the process rule — observe end-to-end, don't grep mounted
+files): ships via the hash-suffixed `alert-agent-bridge` ConfigMap (no image
+rebuild), so an edit rolls the pod. Drive a live turn in the deployed pod and
+read the rendered `sendMessage` body:
+
+```bash
+kubectl -n alert-agent rollout status deploy/alert-agent
+kubectl exec -n alert-agent deploy/alert-agent -c telegram-bridge -- python3 -c '
+import sys; sys.path.insert(0,"/opt/pylib")
+from tg_bridge import bridge
+kind, instr = bridge.expand_command("/edge_traffic")
+print(bridge.render_report(bridge.session_send(instr, session_id="fmt-check", timeout_s=240)["payload"]))
+'
+```
