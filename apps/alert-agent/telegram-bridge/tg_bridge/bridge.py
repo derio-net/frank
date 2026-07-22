@@ -5,6 +5,7 @@ endpoint) the tests patch. Telegram messages are sent as PLAIN TEXT (no parse_mo
 — the HTML parse_mode 400s on a bare `<`/`>`/`&` in a narrative (frank-gotchas).
 """
 from __future__ import annotations
+import html
 import json
 import os
 import re
@@ -160,24 +161,138 @@ def session_send(message: str, session_id: str | None = None, timeout_s: float =
     )
 
 
-def _dict_to_table(d: dict) -> str:
-    """Render a dict payload as a compact plain-text `key  value` table — so the
+_ROW_CAP = 10   # rows shown per table before a "+N more" footer
+
+
+def _humanize(key: str) -> str:
+    """`top_attacker_ips` -> `Top attacker ips` — a readable section header."""
+    return str(key).replace("_", " ").strip().capitalize()
+
+
+def _wrap_pre(body: str) -> str:
+    """The ONLY producer of `<pre>` markup. `body` is already fully html-escaped;
+    the tags are the sole literal `<`/`>` in any rendered report — which is what
+    lets the sender detect 'this is an HTML report' by a `<pre>` substring test."""
+    return f"<pre>{body}</pre>"
+
+
+def _esc(v) -> str:
+    """A scalar cell/line, HTML-escaped. Non-scalars (a nested dict/list buried
+    inside a row cell) compact to single-line JSON first, then escape — a leaf,
+    never a nested table."""
+    if isinstance(v, (dict, list)):
+        v = json.dumps(v, separators=(",", ":"), ensure_ascii=False)
+    return html.escape(str(v), quote=False)
+
+
+def _fmt_table(rows: list[dict]) -> str:
+    """Aligned monospace column table body (no `<pre>` wrapper — the caller wraps).
+
+    Columns are the UNION of keys across rows in first-seen order (a key appearing
+    only in a later row is appended). Missing key -> blank cell (never the literal
+    `None`). All cells are html-escaped. Capped at _ROW_CAP data rows with a
+    `+N more` footer; column widths are computed AFTER the cap so the footer never
+    widens the table. A column whose every present cell is numeric is right-aligned."""
+    cols: list[str] = []
+    for r in rows:
+        for k in r:
+            if k not in cols:
+                cols.append(k)
+
+    shown = rows[:_ROW_CAP]
+    extra = len(rows) - len(shown)
+
+    def cell(r: dict, c: str) -> str:
+        return _esc(r[c]) if c in r else ""
+
+    numeric = {
+        c: all(
+            isinstance(r.get(c), bool) is False and isinstance(r.get(c), (int, float))
+            for r in shown if c in r
+        ) and any(c in r for r in shown)
+        for c in cols
+    }
+    heads = {c: c.upper() for c in cols}
+    widths = {
+        c: max([len(heads[c])] + [len(cell(r, c)) for r in shown])
+        for c in cols
+    }
+
+    def render_row(values: dict) -> str:
+        parts = []
+        for c in cols:
+            val = values[c]
+            parts.append(val.rjust(widths[c]) if numeric[c] else val.ljust(widths[c]))
+        return "  ".join(parts).rstrip()
+
+    lines = [render_row(heads)]
+    lines.append("  ".join("-" * widths[c] for c in cols))
+    for r in shown:
+        lines.append(render_row({c: cell(r, c) for c in cols}))
+    if extra > 0:
+        lines.append(f"+{extra} more")
+    return "\n".join(lines)
+
+
+def _is_list_of_dicts(v) -> bool:
+    return isinstance(v, list) and len(v) > 0 and all(isinstance(x, dict) for x in v)
+
+
+def render_report(payload: dict) -> str:
+    """Render an agent's domain dict as HTML monospace `<pre>` tables — so the
     operator NEVER sees raw json.dumps. The bridge owns presentation: the
     agent-session server hands the agent's raw JSON result straight through and
     the model routinely writes a domain-shaped object (no `text` field) despite
     the prompt, so a mechanism the model can't override is the only reliable fix.
-    Nested values compact to single-line JSON so each top-level key stays one row."""
-    if not d:
-        return "(empty result)"
 
-    def _val(v) -> str:
-        if isinstance(v, (dict, list)):
-            s = json.dumps(v, separators=(",", ":"), ensure_ascii=False)
-            return s if len(s) <= 200 else s[:197] + "..."
-        return str(v)
+    Layout per top-level key:
+      - scalars (str/int/float/bool/None)  -> one `key  value` line, all grouped
+        into a leading summary `<pre>` block;
+      - list-of-dicts                      -> a humanized header + a `<pre>` table
+        (`_fmt_table`: union-of-keys columns, 10-row cap, +N more);
+      - list-of-scalars                    -> header + `<pre>`, one escaped item
+        per line (10 + +N more);
+      - empty list                         -> a `key  (none)` scalar line;
+      - nested dict                        -> header + `<pre>` of one-level-indented
+        `key: value` (deeper levels compact to single-line JSON as a leaf).
 
-    w = max(len(str(k)) for k in d)
-    return "\n".join(f"{str(k):<{w}}  {_val(v)}" for k, v in d.items())
+    Every interpolated value is html-escaped; the `<pre>` tags are the only literal
+    markup (see `_wrap_pre`)."""
+    if not payload:
+        return _wrap_pre("(empty result)")
+
+    scalars: list[str] = []
+    blocks: list[str] = []
+
+    def section(key, body: str) -> None:
+        blocks.append(f"{html.escape(_humanize(key), quote=False)}\n{_wrap_pre(body)}")
+
+    for k, v in payload.items():
+        if isinstance(v, list) and not v:
+            scalars.append((k, "(none)"))
+        elif _is_list_of_dicts(v):
+            section(k, _fmt_table(v))
+        elif isinstance(v, list):                       # list of scalars
+            shown = v[:_ROW_CAP]
+            body = "\n".join(_esc(x) for x in shown)
+            if len(v) > len(shown):
+                body += f"\n+{len(v) - len(shown)} more"
+            section(k, body)
+        elif isinstance(v, dict):                       # nested dict, one level
+            body = "\n".join(f"  {_esc(kk)}: {_esc(vv)}" for kk, vv in v.items())
+            section(k, body)
+        else:                                           # scalar
+            scalars.append((k, _esc(v)))
+
+    out_blocks: list[str] = []
+    if scalars:
+        w = max(len(html.escape(str(k), quote=False)) for k, _ in scalars)
+        summary = "\n".join(
+            f"{html.escape(str(k), quote=False):<{w}}  {val}" for k, val in scalars
+        )
+        out_blocks.append(_wrap_pre(summary))
+    out_blocks.extend(blocks)
+    return "\n\n".join(out_blocks)
 
 
 def render_payload(resp: dict) -> str | None:
@@ -186,10 +301,10 @@ def render_payload(resp: dict) -> str | None:
     The session-server contract is a JSON file result. The preferred shape is
     {"text": "<compact plain-text table>"} → we return `text`. But the model often
     ignores that and writes a domain-shaped dict with no `text` field; rather than
-    leak raw JSON, we render ANY such dict as a `key  value` table
-    (`_dict_to_table`). A bare string passes through; a string that parses to a
-    dict is handled the same way (unwrap `text`, else table). None when status !=
-    ok or payload is empty.
+    leak raw JSON, we render ANY such dict as HTML `<pre>` monospace tables
+    (`render_report`). A bare string passes through; a string that parses to a
+    dict is handled the same way (unwrap `text`, else report). None when status !=
+    ok or payload is empty. A `<pre>` in the return signals HTML to the sender.
     """
     if not resp or resp.get("status") != "ok":
         return None
@@ -206,7 +321,7 @@ def render_payload(resp: dict) -> str | None:
             return payload                      # non-dict JSON (list/number) — leave as-is
     if isinstance(payload, dict):
         text = payload.get("text")
-        return text if isinstance(text, str) else _dict_to_table(payload)
+        return text if isinstance(text, str) else render_report(payload)
     return str(payload)                          # non-str, non-dict (list/number)
 
 

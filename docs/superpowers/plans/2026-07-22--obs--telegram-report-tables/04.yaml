@@ -1,0 +1,37 @@
+schema_version: 2
+phase:
+  number: 4
+  title: '[manual] Post-deploy — confirm roll + live-observed verification'
+  tag: manual
+  depends_on:
+  - 3
+  tracking_issue: null
+  acceptance:
+  - report-tables-live-observed
+tasks:
+- number: 1
+  title: Confirm ConfigMap roll and drive a live report turn
+  steps:
+  - id: P4.T1.S1
+    text: |
+      # manual-operation
+      After merge, ArgoCD rolls the alert-agent pod on the new `alert-agent-bridge`
+      ConfigMap hash (no image rebuild). Confirm: `kubectl -n alert-agent rollout status
+      deploy/alert-agent`. Then drive each report through the DEPLOYED bridge and observe
+      the rendered `sendMessage` body (exec the telegram-bridge container; import bridge;
+      `render_report(session_send(expand_command(cmd)[1]))` for cmd in /edge_traffic,
+      /security, /digest, /status). Verify: aligned columns, `+N more` where capped, no raw
+      JSON, balanced `<pre>`, `(i/n)` only when >4096. Send one real value containing `&`/`<`
+      (a UA string) and confirm it DELIVERS (no silent 400). This is Frank-observed per the
+      Test Plan; the operator triggers the merge. Live-only — unit tests can't prove the
+      deployed ConfigMap rolled.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,118 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Transport — opt-in HTML, 4096 split, 400→plain fallback (TDD)
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - report-tables-html-escape-safe
+  - report-tables-no-silent-truncation
+tasks:
+- number: 1
+  title: Failing tests for parse_mode, splitting, and the 400 fallback
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Add failing tests:
+      (a) `tg_send("x", parse_mode="HTML")` records a `sendMessage` call WITH
+      `parse_mode == "HTML"`; `tg_send("x")` (no arg) records NO `parse_mode` key
+      (the existing `test_outbound_sender_posts_to_configured_chat` must keep passing);
+      (b) `_split_for_telegram(html_str)` on a >4096-char multi-block string returns a
+      list where every part is ≤4096, every part has balanced `<pre>`/`</pre>`, and parts
+      2..n carry a leading `(i/n)` prefix line; a ≤4096 single-block input returns one part
+      with NO `(i/n)` prefix.
+      Run tests → RED.
+  - id: P2.T1.S2
+    text: |
+      Add failing tests for `send_reply(resp, chat_id, fallback)`:
+      (c) a text-less-dict resp → posts HTML (`parse_mode == "HTML"`, body contains `<pre>`);
+      (d) a `{"text": "prose"}` resp → posts PLAIN (no `parse_mode`, no `<pre>`);
+      (e) 400 fallback — when the FIRST `sendMessage` for an HTML body returns
+      `{"ok": False, "error_code": 400}` (canned), `send_reply` posts EXACTLY one more
+      `sendMessage` with NO `parse_mode` and a body that carries the data but contains no
+      `<pre>` (plain rendering); assert the data value still present;
+      (f) `fallback` accepts a str OR a zero-arg callable and is used only when
+      `render_payload(resp) is None`.
+      RED.
+- number: 2
+  title: Implement transport helpers to green
+  steps:
+  - id: P2.T2.S1
+    text: |
+      Add optional `parse_mode: str | None = None` to `tg_send`; include the key in the
+      sendMessage params ONLY when non-None. Add `_send_message(params) -> dict` wrapping
+      `_tg("sendMessage", params)` in a `try/except urllib.error.HTTPError` that returns
+      `{"ok": False, "error_code": e.code}` instead of raising; route `tg_send` through it.
+      Run test (a) → GREEN.
+  - id: P2.T2.S2
+    text: |
+      Implement `_split_for_telegram(html_text, limit=4096) -> list[str]`: split on blank-
+      line block boundaries; if a single `<pre>` block exceeds the limit, split it on whole
+      rows, re-wrapping each fragment in `<pre>...</pre>`; NEVER cut inside a tag. When >1
+      part, prepend `(i/n)\n` (outside any `<pre>`). Also add `_html_to_plain(html_text)`
+      that strips `<pre>`/`</pre>` and unescapes entities (for the fallback body).
+      Run test (b) → GREEN.
+  - id: P2.T2.S3
+    text: |
+      Implement `send_reply(resp, chat_id, fallback)`: `text = render_payload(resp)`; if
+      None → `text = fallback() if callable(fallback) else fallback` and `tg_send(text,
+      chat_id)` (plain); else if `"<pre>" in text` → for each part of
+      `_split_for_telegram(text)`: `r = tg_send(part, chat_id, parse_mode="HTML")`; if
+      `r.get("ok") is False and r.get("error_code") == 400` → retry once
+      `tg_send(_html_to_plain(part), chat_id)` (no parse_mode); else `tg_send(text,
+      chat_id)` (plain narrative). Run tests (c)-(f) → GREEN.
+  - id: P2.T2.S4
+    text: |
+      Rewire the two call sites to `send_reply`: `deliver(resp, fallback_text, chat_id)`
+      becomes `send_reply(resp, chat_id, fallback_text)`; in `_run_agent_turn`, replace the
+      `render_payload`+`tg_send` pair with `send_reply(resp, str(chat_id),
+      _deterministic_snapshot)` (pass the callable, not a call) and derive the 👍/🤔
+      reaction from whether `render_payload(resp) is None` (compute once). Keep
+      `test_deliver_*` and `test_dm_timeout_*` green — adjust their assertions only where
+      the fallback is now invoked lazily. Run the FULL file → GREEN, no regressions.
+- number: 3
+  title: REFACTOR — dedupe send path
+  steps:
+  - id: P2.T3.S1
+    text: |
+      Optional: if `deliver` is now a thin shim over `send_reply`, keep it as a
+      back-compat alias with a one-line docstring (cron handlers import it). Ensure the
+      module docstring's "PLAIN TEXT (no parse_mode)" note is updated to
+      "narratives plain; reports opt into HTML with escaping + a 400→plain fallback".
+      Green. Skip if nothing to clean.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

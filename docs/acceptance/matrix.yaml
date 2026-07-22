@@ -280,3 +280,39 @@ rows:
     levels: {}
     status: not-implemented
     notes: "Guards merged in all 5 repos + CI_AUTHORITY=github org variable live (phase5 script). Stays open until the negative is observed \u2014 first Gitea-side pins-update tick skipping cleanly and no duplicate robot PRs during the August parallel week."
+  - id: report-tables-list-of-dicts
+    capability: alert-agent report formatting
+    acceptance: A list-of-uniform-dicts payload renders as an aligned monospace column
+      table in Telegram, not escaped one-line JSON.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--telegram-report-tables-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: report-tables-no-silent-truncation
+    capability: alert-agent report formatting
+    acceptance: Over-cap lists show a +N more footer; no value is ever cut mid-character
+      or mid-JSON.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--telegram-report-tables-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: report-tables-html-escape-safe
+    capability: alert-agent report formatting
+    acceptance: Values containing angle brackets or ampersands deliver (never a silent
+      HTML-400), proven by unit test and the 400-to-plain fallback path.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--telegram-report-tables-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: report-tables-live-observed
+    capability: alert-agent report formatting
+    acceptance: A live command turn in the deployed pod renders a real monospace table
+      (operator-observed, post-merge).
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--telegram-report-tables-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''

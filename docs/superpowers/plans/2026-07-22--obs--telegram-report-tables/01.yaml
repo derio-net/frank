@@ -1,0 +1,127 @@
+schema_version: 2
+phase:
+  number: 1
+  title: render_report core — tables, escaping, row cap (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - report-tables-list-of-dicts
+  - report-tables-no-silent-truncation
+  - report-tables-html-escape-safe
+tasks:
+- number: 1
+  title: Failing tests for render_report using the live payload fixture
+  steps:
+  - id: P1.T1.S1
+    text: |
+      In `apps/alert-agent/telegram-bridge/tests/test_bridge.py`, add a `_edge_payload()`
+      fixture helper returning a Python dict modelling the captured live `/edge_traffic`
+      result: `top_scanned_paths` = list of {"path","count"} (11+ entries to force the
+      row cap), `top_attacker_ips` = list of dicts with a RAGGED key set — most rows
+      {"ip","count","org","banned"}, ONE row also carries "country" (e.g. 45.148.10.244
+      AD) — and `crowdsec_bans` = a scalar list of raw log-line strings (one contains a
+      literal `"` and `=` and `<`-free text; add one synthetic entry containing `&` and
+      `<` to prove escaping). Also a leading scalar key `window: "last_24h"`.
+  - id: P1.T1.S2
+    text: |
+      Write failing tests against a not-yet-written `bridge.render_report(payload: dict) -> str`:
+      (a) list-of-dicts → an aligned table: a header line containing IP/COUNT/ORG/BANNED,
+      one line per row, and the value `52.152.150.151` present un-escaped-JSON (assert the
+      output does NOT contain `[{` and does NOT contain `":"` json punctuation);
+      (b) ragged keys → `COUNTRY` column header appears exactly once and a row lacking it
+      renders a blank cell (not the literal `None`);
+      (c) column order = first-seen (`IP` before `COUNT` before `ORG` before `BANNED`,
+      `COUNTRY` last as it first appears in a later row).
+      Run `uv run --with pytest python3 -m pytest tests/test_bridge.py -q` from the
+      `telegram-bridge/` dir → expect FAIL (render_report missing). RED.
+  - id: P1.T1.S3
+    text: |
+      Add failing tests for the remaining shapes and safety:
+      (d) row cap — an 11-row list renders exactly 10 data rows plus a `+1 more` line, and
+      NO value is cut mid-character (assert every rendered IP from the first 10 rows is
+      present whole);
+      (e) scalar list (`crowdsec_bans`) → one entry per line, each entry appears whole (not
+      truncated at 200 chars);
+      (f) HTML-escape — the synthetic value containing `&`/`<` renders as `&amp;`/`&lt;`;
+      the ONLY literal `<`/`>` characters in the whole output are the `<pre>`/`</pre>` tags
+      (assert `output.replace("<pre>","").replace("</pre>","")` contains no `<` or `>`);
+      (g) `<pre>` tags are balanced (equal count of `<pre>` and `</pre>`).
+      RED.
+- number: 2
+  title: Implement render_report to green (replaces _dict_to_table)
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Add `import html` to bridge.py. Implement `_fmt_table(rows: list[dict]) -> str`:
+      columns = union of keys in first-seen order across rows; header = keys upper-cased;
+      cells = `html.escape(str(v))` (missing key → ""); left-align text, right-align cells
+      that are all-numeric in their column; width = max escaped-cell width per column
+      (computed AFTER the 10-row cap so a `+N more` marker never widens columns); cap at 10
+      data rows, append `+<N> more` when `len(rows) > 10`. Return the table body (no `<pre>`
+      wrapper — the caller wraps).
+  - id: P1.T2.S2
+    text: |
+      Implement `render_report(payload: dict) -> str`: iterate top-level keys; collect all
+      SCALAR keys (str/int/float/bool/None) into a leading `key  value` summary block;
+      for each list-of-dicts key emit a humanized section header line (`top_attacker_ips`
+      → `Top attacker ips`) then a `<pre>`-wrapped `_fmt_table`; for each scalar-list key
+      emit a header + `<pre>` of one `html.escape` item per line (10 + `+N more`); for a
+      nested dict emit a header + `<pre>` of one-level-indented `key: value` (deeper levels
+      compact to single-line JSON, escaped); empty list → a `key  (none)` scalar line.
+      Every non-tag character is `html.escape`d. Join blocks with a blank line.
+  - id: P1.T2.S3
+    text: |
+      Rewire `render_payload`'s text-less-dict branch (currently `_dict_to_table(payload)`
+      at bridge.py:209) to call `render_report(payload)`. DELETE `_dict_to_table`. Update
+      the three existing `render_payload` table tests
+      (`test_render_payload_textless_dict_becomes_table`,
+      `test_render_payload_textless_dict_string_becomes_table`,
+      `test_render_payload_nested_dict_one_row_per_top_key`) to assert the NEW contract
+      (contains a `<pre>`, values present, NOT raw JSON) — the old `out.count("\n") == 1`
+      one-row-per-key assertion is the behaviour we are deliberately replacing.
+      Run the full bridge test file → GREEN.
+- number: 3
+  title: REFACTOR — tidy helpers, no behaviour change
+  steps:
+  - id: P1.T3.S1
+    text: |
+      Optional cleanup ONLY if warranted: extract a `_humanize(key)` and a
+      `_wrap_pre(body)` helper if the same logic repeats ≥3×; ensure docstrings state the
+      escaping invariant. Keep tests green (`uv run --with pytest python3 -m pytest
+      tests/test_bridge.py -q`). Skip with a note if there is nothing to clean.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-22T19:02:02+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-22T19:02:03+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-07-22T19:02:04+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-07-22T19:02:06+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-07-22T19:02:07+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-07-22T19:02:08+00:00'
+      note: null
+    P1.T3.S1:
+      state: '-'
+      ticked_at: '2026-07-22T19:02:09+00:00'
+      note: No refactor needed — _humanize/_wrap_pre/_esc already extracted, helpers
+        cohesive.
+  completion:
+    at: '2026-07-22T19:02:11+00:00'
+    note: null
+    observed_prs: []

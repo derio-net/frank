@@ -109,27 +109,30 @@ def test_render_payload_dict_branch_unchanged():
 # render_payload must table it, NEVER post raw json.dumps — a mechanism the agent's
 # per-turn wrapper cannot override.
 
-def test_render_payload_textless_dict_becomes_table():
+def test_render_payload_textless_dict_becomes_report():
+    # A text-less dict is now rendered as an HTML <pre> report, never raw JSON.
     out = bridge.render_payload(
         {"status": "ok", "payload": {"gpu_mode": "comfyui", "firing_alerts": "none"}})
     assert "gpu_mode" in out and "comfyui" in out
     assert "firing_alerts" in out and "none" in out
     assert not out.lstrip().startswith("{")        # NOT raw JSON
-    assert out.count("\n") == 1                      # one row per top-level key
+    assert "<pre>" in out                            # HTML report → sender opts into HTML
 
 
-def test_render_payload_textless_dict_string_becomes_table():
+def test_render_payload_textless_dict_string_becomes_report():
     out = bridge.render_payload({"status": "ok", "payload": '{"a": 1, "b": "two"}'})
     assert not out.lstrip().startswith("{")
     assert "a" in out and "b" in out and "two" in out
+    assert "<pre>" in out
 
 
-def test_render_payload_nested_dict_one_row_per_top_key():
+def test_render_payload_nested_dict_rendered_not_raw_json():
     out = bridge.render_payload(
         {"status": "ok", "payload": {"summary": {"overall": "quiet"}, "count": 5}})
-    assert out.count("\n") == 1                      # 2 top-level keys → 2 rows
-    assert "summary" in out and "count" in out
-    assert "overall" in out                          # nested value compacted inline
+    assert "<pre>" in out
+    assert "summary" in out.lower() and "count" in out   # summary → humanized header
+    assert "overall" in out                          # nested value rendered, not dropped
+    assert not out.lstrip().startswith("{")
 
 
 def test_render_payload_non_string_text_key_is_tabled_not_raw():
@@ -137,6 +140,86 @@ def test_render_payload_non_string_text_key_is_tabled_not_raw():
     out = bridge.render_payload({"status": "ok", "payload": '{"text": 123}'})
     assert not out.lstrip().startswith("{")
     assert "text" in out and "123" in out
+
+
+# --- render_report: monospace <pre> tables from a domain dict --------------------
+# The captured live /edge_traffic payload is the primary fixture: a leading scalar,
+# a list-of-dicts with a RAGGED key set (one row carries `country`, others don't),
+# and a scalar list of raw log lines (some with HTML-sensitive characters).
+
+def _edge_payload():
+    return {
+        "window": "last_24h",
+        "top_scanned_paths": [
+            {"path": f"/scan/{i}.php", "count": 20 - i} for i in range(11)
+        ],  # 11 rows → forces the 10-row cap
+        "top_attacker_ips": [
+            {"ip": "52.152.150.151", "count": 266, "org": "Microsoft Corporation", "banned": False},
+            {"ip": "4.204.201.85", "count": 144, "org": "Microsoft Corporation", "banned": False},
+            # ragged: this row ALSO carries `country`
+            {"ip": "45.148.10.244", "count": 45, "org": "TECHOFF SRV LIMITED", "country": "AD", "banned": False},
+            {"ip": "20.220.225.223", "count": 42, "org": "Microsoft Corporation", "banned": True},
+        ],
+        "crowdsec_bans": [
+            'time="2026-07-21T21:00:36Z" level=info msg="4h ban on Ip 20.220.225.223"',
+            'ua="Mozilla/5.0 <bot> & spider" note=blocked',  # HTML-sensitive: < > &
+        ],
+    }
+
+
+def test_render_report_list_of_dicts_is_aligned_table():
+    out = bridge.render_report(_edge_payload())
+    # header names present (upper-cased), one line per row, real IP value present
+    assert "IP" in out and "COUNT" in out and "ORG" in out and "BANNED" in out
+    assert "52.152.150.151" in out
+    # NOT escaped one-line JSON
+    assert "[{" not in out
+    assert '":"' not in out and '","' not in out
+
+
+def test_render_report_ragged_keys_single_country_column_blank_cell():
+    out = bridge.render_report(_edge_payload())
+    assert out.count("COUNTRY") == 1              # the ragged key appears exactly once
+    assert "AD" in out                             # present for the row that has it
+    # a row without `country` must render blank, never the literal None
+    assert "None" not in out
+
+
+def test_render_report_column_order_is_first_seen():
+    out = bridge.render_report(_edge_payload())
+    hdr = next(ln for ln in out.splitlines() if "IP" in ln and "COUNT" in ln)
+    assert hdr.index("IP") < hdr.index("COUNT") < hdr.index("ORG") < hdr.index("BANNED")
+    assert hdr.index("BANNED") < hdr.index("COUNTRY")   # country first seen later → last
+
+
+def test_render_report_row_cap_ten_plus_more_no_midcut():
+    out = bridge.render_report(_edge_payload())
+    assert "+1 more" in out                         # 11 scanned paths → 10 shown + 1 more
+    # the 10 shown paths appear whole (never truncated mid-value)
+    for i in range(10):
+        assert f"/scan/{i}.php" in out
+    assert "/scan/10.php" not in out               # the 11th is folded into "+1 more"
+
+
+def test_render_report_scalar_list_one_per_line_whole():
+    out = bridge.render_report(_edge_payload())
+    # each ban log line appears WHOLE (not truncated at 200 chars, not JSON-listed)
+    assert '4h ban on Ip 20.220.225.223' in out
+    assert '["' not in out                          # not a json.dumps'd list
+
+
+def test_render_report_html_escapes_all_values():
+    out = bridge.render_report(_edge_payload())
+    # the HTML-sensitive ban line is escaped
+    assert "&lt;bot&gt;" in out and "&amp; spider" in out
+    # the ONLY literal angle brackets in the whole output are the <pre> tags
+    stripped = out.replace("<pre>", "").replace("</pre>", "")
+    assert "<" not in stripped and ">" not in stripped
+
+
+def test_render_report_pre_tags_balanced():
+    out = bridge.render_report(_edge_payload())
+    assert out.count("<pre>") == out.count("</pre>") >= 1
 
 
 # --- DM path: deterministic fallback (never a bare "(no reply)" / silent death) ---
