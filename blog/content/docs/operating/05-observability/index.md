@@ -310,6 +310,40 @@ If you suspect a silent delivery failure, check the Grafana Alerting log:
 kubectl logs -n monitoring deployment/grafana --tail=100 | grep -i "telegram\|failed\|error\|400\|404"
 ```
 
+### The Watcher Also Goes Silent — Credential Expiry
+
+The Telegram bot for the persistent agent (`alert-agent`) authenticates with a
+Claude OAuth token that expires on a hard ~30-day clock. In July 2026 it expired
+unnoticed: the pod stayed `3/3 Running`, ArgoCD stayed green, and the failure
+(`Login expired · Please run /login`) lived inside a tmux pane — invisible to
+every probe. The bot was dead for three days before anyone noticed.
+
+The fix is a daily in-container check (`cred-expiry-check`, 09:00) that reads the
+token's `refreshTokenExpiresAt` and:
+
+- **warns Telegram** when ≤7 / ≤3 / ≤1 days remain (wording sharpens as it
+  nears), so a re-login is a scheduled chore, not a scramble;
+- **emits a heartbeat line** (`cred-expiry-check days_left=N tier=…`) that a
+  Grafana dead-man rule (`alert-agent-cred-expiry-heartbeat-stale`) watches — if
+  the check itself stops, that rule pages directly.
+
+Day-to-day: you'll get a Telegram nudge roughly monthly; re-login by attaching the
+agent's tmux and running `/login` (runbook: `obs-alert-agent-claude-login`). To
+see the heartbeat:
+
+```bash
+# the last heartbeat line
+kubectl exec -n alert-agent deploy/alert-agent -c agent -- \
+  /opt/alert-agent-bin/cred-expiry-check
+```
+
+One trap worth recording: Frank's VictoriaLogs carries the message in the `_msg`
+field, but Hop's fluent-bit uses `log` — so the dead-man rule's LogsQL had to use
+`_msg:"cred-expiry-check"`; the Hop CrowdSec canary's `log:"…"` form returns 0 on
+Frank and would have left the watchdog permanently blind. Same lesson as the
+silent Telegram failures above: **a monitor that Synced is not a monitor that
+fires — you have to observe it end to end.**
+
 ### False Positives from Completed Pods
 
 Some layer alerts fire for namespaces that run Tekton pipelines, Argo Workflows, or other Jobs/CronJobs. `kube_pod_status_ready{condition="true"}` reports `0` for pods in `Completed` or `Error` state — those are by-design not-Ready post-completion.

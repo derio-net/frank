@@ -2,3 +2,6 @@
 # secrets) is inherited from the agent container. Surge gate every 15m; digest daily 08:00.
 */15 * * * * /opt/alert-agent-bin/surge-gate
 0 8 * * * /opt/alert-agent-bin/digest
+# Daily Claude-credential expiry check: warns Telegram at <=7/3/1 days + emits a
+# heartbeat watched by a Grafana dead-man rule (frank#cred-expiry-alert).
+0 9 * * * /opt/alert-agent-bin/cred-expiry-check

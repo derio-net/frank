@@ -1,0 +1,42 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Wiring — bin wrapper, crontab, kustomization
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Bin wrapper + crontab entry + configMap generators
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Create `apps/alert-agent/handlers/cred-expiry-check` (mirror `handlers/surge-gate`):
+      `#!/usr/bin/env python3` then `from handlers.cred_expiry import run_cred_check` /
+      `run_cred_check()`. Append to `apps/alert-agent/manifests/files/.crontab`:
+      `0 9 * * * /opt/alert-agent-bin/cred-expiry-check` with a brief comment.
+  - id: P2.T1.S2
+    text: |
+      Edit `apps/alert-agent/kustomization.yaml`: add
+      `handlers/cred_expiry.py` to the `alert-agent-handlers` configMapGenerator files,
+      and `cred-expiry-check=handlers/cred-expiry-check` to `alert-agent-bin`. (The
+      `.crontab` change rolls via the existing `alert-agent-crontab` generator.) Verify
+      `kubectl kustomize apps/alert-agent >/dev/null` renders without error (or
+      `kustomize build`). Add a guard test `apps/alert-agent/handlers/tests/
+      test_cred_expiry_wiring.py` asserting the crontab contains the cred-expiry-check
+      line and the bin wrapper file exists + is executable-shebang'd. GREEN.
+state:
+  steps:
+    P2.T1.S1:
+      state: x
+      ticked_at: '2026-07-22T20:05:50+00:00'
+      note: null
+    P2.T1.S2:
+      state: x
+      ticked_at: '2026-07-22T20:05:51+00:00'
+      note: null
+  completion:
+    at: '2026-07-22T20:05:53+00:00'
+    note: null
+    observed_prs: []

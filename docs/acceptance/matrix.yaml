@@ -328,3 +328,54 @@ rows:
     levels: {}
     status: not-implemented
     notes: ''
+  - id: cred-expiry-warns-before-expiry
+    capability: alert-agent credential expiry
+    acceptance: When the refresh token is 7 or fewer days from expiry, the daily check
+      sends a Telegram warning whose urgency escalates at 3, 1, and expired.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
+    levels:
+      unit:
+      - frank:apps/alert-agent/handlers/tests/test_cred_expiry.py
+    status: skipped
+    notes: Unit-proven — evaluate_expiry tier boundaries (8→ok, 7→notice, 3→soon,
+      1→urgent, 0/-5→expired), should_warn iff tier!=ok, escalating plain-text wording;
+      run_cred_check sends the warning via tg_send on threshold. Local guard (frank does
+      not CI-run apps/*/tests); delivery observed live post-merge (cred-expiry-live-observed).
+  - id: cred-expiry-heartbeat-deadman
+    capability: alert-agent credential expiry
+    acceptance: A Grafana rule pages Telegram directly if the daily heartbeat line stops
+      appearing in VictoriaLogs (checker died or pod down).
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
+    levels:
+      unit:
+      - frank:scripts/tests/test_cred_expiry_alert_rule.py
+    status: skipped
+    notes: Rule shape unit-pinned — VictoriaLogs stats query on the _msg field (NOT Hop's
+      log field; verified live), lt 1 + noDataState OK, telegram_direct, 30h window,
+      for 2h. Query validated server-side against live VictoriaLogs (returns 0 pre-deploy).
+      Local guard; end-to-end firing observed live post-merge.
+  - id: cred-expiry-robust-on-bad-cred
+    capability: alert-agent credential expiry
+    acceptance: A missing, unparseable, or field-less credential file yields a warning
+      plus an error-tier heartbeat, never a silent skip.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
+    levels:
+      unit:
+      - frank:apps/alert-agent/handlers/tests/test_cred_expiry.py
+    status: skipped
+    notes: Unit-proven — missing/unparseable/field-less/bool/Infinity/NaN/out-of-range-epoch
+      + non-FileNotFound read + invalid-UTF-8 all yield tier=error + a warning + a heartbeat;
+      evaluate_expiry is total (never raises) and run_cred_check always heartbeats even on
+      an unexpected error. Local guard; no CI run.
+  - id: cred-expiry-live-observed
+    capability: alert-agent credential expiry
+    acceptance: Post-merge, both the warning and the dead-man heartbeat signals are
+      triggered and observed live.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
