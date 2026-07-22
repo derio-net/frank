@@ -81,7 +81,14 @@ def evaluate_expiry(creds_text: str | None, now_ms: int) -> Verdict:
     exp_ms = None
     if creds_text is not None:
         try:
-            exp_ms = json.loads(creds_text).get("refreshTokenExpiresAt")
+            doc = json.loads(creds_text)
+            # The real claude credentials.json nests the field under `claudeAiOauth`
+            # (confirmed live 2026-07-22); accept a top-level field too, defensively.
+            oauth = doc.get("claudeAiOauth") if isinstance(doc, dict) else None
+            if isinstance(oauth, dict) and "refreshTokenExpiresAt" in oauth:
+                exp_ms = oauth.get("refreshTokenExpiresAt")
+            else:
+                exp_ms = doc.get("refreshTokenExpiresAt")
         except (ValueError, TypeError, AttributeError):
             exp_ms = None
     # Reject non-numbers, bools (isinstance(True, int) is True), and non-finite

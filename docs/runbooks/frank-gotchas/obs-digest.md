@@ -390,7 +390,12 @@ for 3 days with no signal: the pod stayed `3/3 Running`, ArgoCD stayed green, an
 the failure (`Login expired · Please run /login`) lived inside a tmux pane —
 invisible to every existing probe. The token is a hard ~30-day clock
 (`refreshTokenExpiresAt`, epoch-ms, in `/home/agent/.claude/.credentials.json` on
-the `alert-agent-home` PVC; `expiresAt` is `0`).
+the `alert-agent-home` PVC; `expiresAt` is `0`). **The field is nested under a
+`claudeAiOauth` wrapper** (`{"claudeAiOauth": {"refreshTokenExpiresAt": …}}`), NOT
+top-level — the v1 check read it flat and reported `tier=error` (a daily false
+"credential check FAILED" warning), caught only at live verification; a substring
+grep matches the field regardless of nesting, so confirm the *shape*, not just the
+name. Fixed to descend the wrapper (top-level fallback retained).
 
 **Design — dual signal, fails independently.** A standalone canary pod is
 impossible: the credential lives on an RWO PVC held by the agent pod, and the pod

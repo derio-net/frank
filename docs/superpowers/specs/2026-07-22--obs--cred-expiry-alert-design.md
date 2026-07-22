@@ -20,8 +20,10 @@ warner itself dies.
 - **Credential**: `/home/agent/.claude/.credentials.json` on PVC `alert-agent-home`
   (RWO, `apps/alert-agent/manifests/pvc.yaml:4-10`), mounted at `/home/agent`
   **only on the `agent` container** (`deployment.yaml:65`). Field
-  `refreshTokenExpiresAt` (epoch-ms int); confirmed live 2026-07-22
-  (`=2026-08-19`, `expiresAt=0`). Path per `agent-shells.md:567-568`.
+  `refreshTokenExpiresAt` (epoch-ms int) is **nested under `claudeAiOauth`**
+  (`{"claudeAiOauth": {"refreshTokenExpiresAt": …}}`) — confirmed live 2026-07-22
+  (`=2026-08-19`); NOT top-level (the reader must descend the wrapper, with a
+  top-level fallback). Path per `agent-shells.md:567-568`.
 - **RWO + no-RBAC posture** (`automountServiceAccountToken: false`,
   `deployment.yaml:22-25`) → a standalone CronJob can neither co-mount the PVC
   nor `kubectl exec`. A separate canary pod is **out**.
