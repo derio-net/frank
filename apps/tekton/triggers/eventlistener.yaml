@@ -50,9 +50,11 @@ spec:
     # forward (intentional: GitHub main commits get gitea-actions/* statuses
     # too). description/target_url are omitempty in Gitea's payload, hence
     # the has() overlays — a direct $(body.X) binding on a missing field
-    # drops the event. Gitea state values outside GitHub's vocabulary
-    # (e.g. 'warning') would 422 in github-status and fail the PipelineRun
-    # visibly — acceptable failure shape, revisit only if it fires.
+    # drops the event. Gitea state values outside GitHub's vocabulary were
+    # once left to 422 in github-status ("acceptable failure shape, revisit
+    # only if it fires") — it fired on 2026-07-22 and the failure shape was
+    # NOT acceptable, because the stranded status is invisible on the PR.
+    # They are narrowed in the gh_state overlay below.
     # ──────────────────────────────────────────────────────────────────
     - name: gitea-status-bridge
       interceptors:
@@ -67,8 +69,20 @@ spec:
                 !body.context.startsWith('tekton')
             - name: "overlays"
               value:
+                # Gitea's CommitStatusState is a SUPERSET of GitHub's
+                # (pending|success|error|failure): it also carries `skipped`
+                # and `warning`. Posting either verbatim 422s ("State is not
+                # included in the list"), github-status exits non-zero, and
+                # the GitHub status stays stuck on the `pending` written when
+                # the job was queued — permanently, because a commit status
+                # has no lifecycle of its own and nothing reconciles it.
+                # Both Gitea-only states mean "not a failure" → success.
+                - key: gh_state
+                  expression: "(body.state == 'skipped' || body.state == 'warning') ? 'success' : body.state"
+                # Keep the real Gitea state visible, or a skipped job reads
+                # as a genuine green check on the GitHub PR.
                 - key: description
-                  expression: "has(body.description) ? body.description : ''"
+                  expression: "(body.state == 'skipped' || body.state == 'warning') ? 'Gitea: ' + body.state : (has(body.description) ? body.description : '')"
                 - key: target_url
                   expression: "has(body.target_url) ? body.target_url : ''"
       bindings:
@@ -79,7 +93,7 @@ spec:
           value: $(body.sha)
           kind: TriggerBinding
         - name: state
-          value: $(body.state)
+          value: $(extensions.gh_state)
           kind: TriggerBinding
         - name: context
           value: $(body.context)
