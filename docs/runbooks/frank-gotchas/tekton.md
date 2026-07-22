@@ -69,9 +69,18 @@ A real cutover is therefore two writes:
     http://gitea-http.gitea.svc.cluster.local:3000/api/v1/orgs/agentic-stoa/actions/variables/CI_AUTHORITY
   ```
   (HTTP 204; the `tekton-bot` token is **not** enough — it lacks `read:organization`.)
-- **GitHub** — org variable under Settings → Secrets and variables → Actions → Variables. Needs org-owner `admin:org`; a repo-level override needs repo `admin`. Neither the clawdia nor the personal `gh` token carries these, so this half is operator-only.
+- **GitHub** — **must be REPO-level, not org-level.** The `agentic-stoa` GitHub plan does not allow *organization* variables to be used by **private** repos (`"Organization variables cannot be used by private repositories with your plan"`), and every mirror is private — so the single org-level lever the migration plan assumed **does not exist on this plan**. *Repository* variables are not plan-gated and work fine; it is 5 writes instead of 1. Needs repo `admin`: the personal account has it, the `clawdia` token does not (`permissions.admin=false`).
+  ```bash
+  for r in second-brain cnc-fr cnc-frd cnc-fru hermes-brain; do
+    gh api -X POST "/repos/agentic-stoa/$r/actions/variables" -f name=CI_AUTHORITY -f value=gitea
+  done
+  ```
 
-Symptom of doing only the Gitea half: Gitea jobs run and report correctly, while GitHub jobs *also* run — visible as `failure` check runs rather than `skipped` ones. Flipped 2026-07-22 (Gitea half; GitHub half outstanding). Manual op: `cicd-stoa-ci-authority-cutover`.
+Symptom of doing only the Gitea half: Gitea jobs run and report correctly, while GitHub jobs *also* run — visible as `failure` check runs rather than `skipped` ones. Both halves flipped to `gitea` on 2026-07-22 (proven on `cnc-fru#36` sha `aac669d1`: GitHub `test`/`e2e`/`smoke` all `skipped`). **Reversing in August needs both halves too** — delete the 5 repo variables *and* set the Gitea org variable back to `github`, or you land in the mirror-image split.
+
+Unrelated to the variable but adjacent: `release.yml` in `cnc-frd` and `cnc-fru` carries **no** `CI_AUTHORITY` guard at all, so it is unaffected by either side of the flip. Every other workflow across the 5 mirrors is fully guarded.
+
+Manual op: `cicd-stoa-ci-authority-cutover`.
 
 ## Gitea Actions runner: registration is one-shot PVC state
 
