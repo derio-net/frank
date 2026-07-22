@@ -1648,6 +1648,60 @@ data:
               summary: "Cert-expiry canary heartbeat lost: probe_ssl_earliest_cert_expiry{canary=\"true\"} absent >3h"
               runbook: "Check https://expired.badssl.com/ reachability, the blackbox-exporter http_2xx_insecure_tls module, and VMProbe expired-cert-canary. Spec: docs/superpowers/specs/2026-06-07--obs--cert-expiry-canary-design.md"
 
+      # Dead-man's switch for the alert-agent Claude-credential expiry check. A
+      # daily cron in the alert-agent `agent` container emits a
+      # "cred-expiry-check days_left=... tier=..." heartbeat to stdout ->
+      # supercronic -> fluent-bit -> VictoriaLogs. The "expiring soon" warning is
+      # sent by that script directly (tg_send); THIS rule is the checker-died
+      # backstop — if the heartbeat stops (cron broke / pod down / container
+      # wedged) it fires. `stats count() as value` without `by()` returns a single
+      # 0-row when nothing matches -> threshold lt 1 fires; a VictoriaLogs outage
+      # yields noData -> OK (blindness != death). NOTE: Frank's VictoriaLogs message
+      # field is `_msg` (the Hop crowdsec rule uses `log:` because Hop's fluent-bit
+      # maps differently — verified live: `_msg:"..."` matches, `log:"..."` -> 0).
+      # telegram_direct pages Telegram DIRECTLY (bypassing the LLM agent — the
+      # warner is down, so it can't be trusted to triage its own outage), via the
+      # top-of-policy route (notification-policy-cm.yaml:57-60, folder-independent).
+      # Spec: docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
+      - orgId: 1
+        name: alert-agent-cred-expiry
+        folder: feature-health
+        interval: 1h
+        rules:
+          - uid: alert-agent-cred-expiry-heartbeat-stale
+            title: alert-agent credential-expiry heartbeat stale
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 108000, to: 0 }
+                datasourceUid: affdoo4s9258gc
+                model:
+                  refId: A
+                  queryType: stats
+                  expr: 'kubernetes.namespace_name:alert-agent AND _msg:"cred-expiry-check" | stats count() as value'
+              - refId: B
+                relativeTimeRange: { from: 108000, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 108000, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: lt, params: [1] }
+            noDataState: OK
+            execErrState: Error
+            for: 2h
+            labels:
+              severity: critical
+              telegram_direct: "true"
+            annotations:
+              summary: "alert-agent credential-expiry check heartbeat stale: no cred-expiry-check line in namespace alert-agent for 30h. The daily check is dead (cron broke / pod down) so the Claude token could expire unnoticed — the exact 3-day silent outage this alert exists to prevent."
+              runbook: "Check the alert-agent pod + its supercronic cron: kubectl -n alert-agent get pods; kubectl -n alert-agent exec deploy/alert-agent -c agent -- /opt/alert-agent-bin/cred-expiry-check (should print a cred-expiry-check heartbeat). Spec: docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md"
+
       # =====================================================================
       # blog-edge folder rules (obs layer phase 3+5) — fired alerts route to
       # the AI Helper Webhook (added in phase 5). For now they route through
