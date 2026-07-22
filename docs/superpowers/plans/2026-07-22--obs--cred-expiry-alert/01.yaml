@@ -1,0 +1,107 @@
+schema_version: 2
+phase:
+  number: 1
+  title: cred_expiry core — evaluate + runner (TDD)
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - cred-expiry-warns-before-expiry
+  - cred-expiry-robust-on-bad-cred
+tasks:
+- number: 1
+  title: Failing tests for evaluate_expiry + run_cred_check
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Create `apps/alert-agent/handlers/tests/test_cred_expiry.py`. Import the
+      not-yet-written `handlers.cred_expiry`. A helper builds a creds JSON string with a
+      `refreshTokenExpiresAt` epoch-ms N days from a fixed `now_ms`
+      (now_ms = 1_753_000_000_000 as the test clock). Write failing tests for
+      `evaluate_expiry(creds_text, now_ms) -> Verdict`:
+      - days_left arithmetic: N-days-out token → verdict.days_left == N (floor).
+      - tier boundary table: 8→"ok", 7→"notice", 3→"soon", 1→"urgent", 0→"expired",
+        -5→"expired".
+      - should_warn == (tier != "ok"): False at 8 days, True at 7/3/1/0/-5.
+      Run `uv run --with pytest python3 -m pytest tests/test_cred_expiry.py -q` from the
+      `handlers/` dir → FAIL (module missing). RED.
+  - id: P1.T1.S2
+    text: |
+      Add failing tests for wording, safety, and broken input:
+      - message escalation: distinct substrings per tier (e.g. "expires in 7",
+        "expires in 3", "expires in 1"/"tomorrow", "EXPIRED"); message contains NO
+        `<`, `>`, or `&` (plain-text Telegram invariant).
+      - broken input → tier "error", days_left is None, should_warn True, safe message:
+        creds_text=None (missing file); "{ not json"; "{}" (no field);
+        '{"refreshTokenExpiresAt":"nope"}' (non-int).
+      - heartbeat: verdict.heartbeat is one line, starts "cred-expiry-check", carries
+        "days_left=" and "tier="; for error tier → "days_left=unknown".
+      RED.
+  - id: P1.T1.S3
+    text: |
+      Add failing tests for `run_cred_check` wiring. Monkeypatch `cred_expiry._read_cred`
+      (or CRED_PATH to a tmp file) and `tg_bridge.bridge.tg_send` (record calls); capture
+      stdout. Assert: heartbeat is ALWAYS printed (ok tier → still prints, no warn);
+      should_warn tier → tg_send called once with the message; a tg_send that RAISES is
+      swallowed (no exception out of run_cred_check) and the heartbeat STILL prints. RED.
+- number: 2
+  title: Implement cred_expiry.py to green
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Write `apps/alert-agent/handlers/handlers/cred_expiry.py`. Pure
+      `evaluate_expiry(creds_text: str | None, now_ms: int) -> Verdict` (a small
+      dataclass or dict with days_left/tier/should_warn/message/heartbeat). Parse JSON,
+      read int `refreshTokenExpiresAt`; days_left = floor((exp_ms-now_ms)/86_400_000).
+      Tiers per boundary table; broken input → tier "error". Build plain-text message
+      (no <>&) with escalating wording; build the stable heartbeat line
+      `cred-expiry-check days_left=<N|unknown> tier=<tier> refresh_expires=<iso|unknown> ts=<iso>`.
+      Run the evaluate + wording + broken-input tests → GREEN.
+  - id: P1.T2.S2
+    text: |
+      Implement `run_cred_check()`: `_read_cred()` reads `os.environ.get("CRED_PATH",
+      "/home/agent/.claude/.credentials.json")`, returns text or None on
+      FileNotFoundError; now_ms from `time.time()*1000`; `v = evaluate_expiry(...)`;
+      ALWAYS `print(v.heartbeat)`; `if v.should_warn:` call `bridge.tg_send(v.message)`
+      inside try/except (log to stderr on failure, mirror _deterministic_snapshot's
+      defensiveness). Import `from tg_bridge import bridge`. Run the wiring tests → GREEN,
+      then the FULL handlers suite `uv run --with pytest python3 -m pytest tests/ -q` →
+      no regressions.
+- number: 3
+  title: REFACTOR — tidy, keep green
+  steps:
+  - id: P1.T3.S1
+    text: |
+      Optional: extract a `_tier(days_left)` and `_message(tier, days_left, exp_iso)` if
+      it reads cleaner; ensure the plain-text (<>&-free) invariant is docstring'd. Keep
+      tests green. Skip with a note if nothing to clean.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-22T20:03:53+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-22T20:03:55+00:00'
+      note: null
+    P1.T1.S3:
+      state: x
+      ticked_at: '2026-07-22T20:03:57+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-07-22T20:03:59+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-07-22T20:04:01+00:00'
+      note: null
+    P1.T3.S1:
+      state: '-'
+      ticked_at: '2026-07-22T20:04:03+00:00'
+      note: No refactor needed — _tier/_message/_read_cred already separated.
+  completion:
+    at: '2026-07-22T20:04:05+00:00'
+    note: null
+    observed_prs: []

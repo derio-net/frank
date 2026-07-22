@@ -1,0 +1,47 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Grafana dead-man heartbeat-stale rule
+  tag: agentic
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - cred-expiry-heartbeat-deadman
+tasks:
+- number: 1
+  title: Add the file-provisioned rule + a field-trap guard test
+  steps:
+  - id: P3.T1.S1
+    text: |
+      In `apps/grafana-alerting/manifests/alert-rules-cm.yaml`, add a new group
+      `alert-agent-cred-expiry` in the `feature-health` folder with rule uid
+      `alert-agent-cred-expiry-heartbeat-stale` mirroring `crowdsec-canary-heartbeat-stale`
+      (:1743-1781): VictoriaLogs ds `affdoo4s9258gc`, query
+      `kubernetes.namespace_name:alert-agent AND _msg:"cred-expiry-check" | stats count() as value`
+      (**_msg, NOT log** — Frank's VL field), relativeTimeRange.from 108000 (30h),
+      reduce last dropNN → threshold lt 1, noDataState OK, execErrState Error, for 2h,
+      label telegram_direct:"true", severity:critical. Summary/runbook explain the
+      daily-heartbeat dead-man + point at this spec.
+  - id: P3.T1.S2
+    text: |
+      Add a guard test `scripts/tests/test_cred_expiry_alert_rule.py` (stdlib+yaml) that
+      loads alert-rules-cm.yaml, finds the rule by uid, and asserts: query contains
+      `_msg:"cred-expiry-check"` and does NOT contain `log:"cred-expiry-check"` (the
+      Frank/Hop field trap); noDataState=="OK"; label telegram_direct=="true";
+      relativeTimeRange.from >= 90000 (>24h, so a daily heartbeat isn't falsely stale).
+      Run it → GREEN. (Local guard; frank does not CI-run scripts/tests.)
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

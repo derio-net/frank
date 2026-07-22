@@ -328,3 +328,39 @@ rows:
     levels: {}
     status: not-implemented
     notes: ''
+  - id: cred-expiry-warns-before-expiry
+    capability: alert-agent credential expiry
+    acceptance: When the refresh token is 7 or fewer days from expiry, the daily check
+      sends a Telegram warning whose urgency escalates at 3, 1, and expired.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: cred-expiry-heartbeat-deadman
+    capability: alert-agent credential expiry
+    acceptance: A Grafana rule pages Telegram directly if the daily heartbeat line stops
+      appearing in VictoriaLogs (checker died or pod down).
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: cred-expiry-robust-on-bad-cred
+    capability: alert-agent credential expiry
+    acceptance: A missing, unparseable, or field-less credential file yields a warning
+      plus an error-tier heartbeat, never a silent skip.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
+  - id: cred-expiry-live-observed
+    capability: alert-agent credential expiry
+    acceptance: Post-merge, both the warning and the dead-man heartbeat signals are
+      triggered and observed live.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
+    levels: {}
+    status: not-implemented
+    notes: ''
