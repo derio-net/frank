@@ -1,8 +1,11 @@
 """telegram-bridge core (stdlib-only).
 
 `_http_post_json` is the single HTTP seam (Telegram API + the local agent-session
-endpoint) the tests patch. Telegram messages are sent as PLAIN TEXT (no parse_mode)
-— the HTML parse_mode 400s on a bare `<`/`>`/`&` in a narrative (frank-gotchas).
+endpoint) the tests patch. Narratives are sent as PLAIN TEXT (no parse_mode);
+structured REPORTS opt into parse_mode=HTML with `<pre>` monospace tables and
+STRICT per-value `html.escape` — the HTML parse_mode 400s on a bare `<`/`>`/`&`
+(frank-gotchas), so `send_reply` retries once as plain text on a 400, and a
+formatting bug can degrade readability but never delivery.
 """
 from __future__ import annotations
 import html
@@ -13,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 
 # Telegram's command-id rule: lowercase letters, digits, underscore; 1–32 chars
@@ -52,9 +56,28 @@ def _tg(method: str, params: dict, timeout: float = 35) -> dict:
     return _http_post_json(f"https://api.telegram.org/bot{BOT_TOKEN}/{method}", params, timeout)
 
 
-def tg_send(text: str, chat_id: str | None = None) -> dict:
-    """Send PLAIN TEXT to a chat (default the configured operator chat)."""
-    return _tg("sendMessage", {"chat_id": chat_id or DEFAULT_CHAT, "text": text})
+def _send_message(params: dict) -> dict:
+    """sendMessage with a 4xx caught and RETURNED (not raised) as an error dict.
+
+    `_http_post_json` wraps `urlopen`, which raises `HTTPError` on a 4xx — a bare
+    `<`/`>`/`&` slipping past escaping would then 400 and, unhandled, crash the
+    reply. Returning `{"ok": False, "error_code": N}` instead lets `send_reply`
+    detect the failure and retry as plain text — and makes a real 400 look
+    identical to a test's canned error dict."""
+    try:
+        return _tg("sendMessage", params)
+    except urllib.error.HTTPError as exc:
+        return {"ok": False, "error_code": exc.code}
+
+
+def tg_send(text: str, chat_id: str | None = None, parse_mode: str | None = None) -> dict:
+    """Send text to a chat (default the configured operator chat). `parse_mode` is
+    opt-in: default None keeps the zero-risk PLAIN-TEXT path (the HTML-400 dodge);
+    only the report path passes parse_mode='HTML' (with strictly escaped values)."""
+    params = {"chat_id": chat_id or DEFAULT_CHAT, "text": text}
+    if parse_mode is not None:
+        params["parse_mode"] = parse_mode
+    return _send_message(params)
 
 
 def is_allowed(chat_id) -> bool:
@@ -325,13 +348,97 @@ def render_payload(resp: dict) -> str | None:
     return str(payload)                          # non-str, non-dict (list/number)
 
 
-def deliver(resp: dict, fallback_text: str, chat_id: str | None = None) -> dict:
-    """Post an agent narrative; if the agent timed out / returned no payload, post
-    the deterministic fallback instead — so a stuck agent never silences the digest."""
+_TG_LIMIT = 4096   # Telegram's per-message character ceiling
+
+
+def _html_to_plain(html_text: str) -> str:
+    """Strip `<pre>` markup and unescape entities — the plain-text body for the
+    400 fallback. The table's alignment survives (it's just spaces); only the tags
+    and escapes go, so a formatting-driven 400 still delivers readable data."""
+    stripped = html_text.replace("<pre>", "").replace("</pre>", "")
+    return html.unescape(stripped)
+
+
+def _split_for_telegram(html_text: str, limit: int = _TG_LIMIT) -> list[str]:
+    """Split a rendered HTML report into parts each ≤ `limit`, never cutting inside
+    a `<pre>` tag. Splits on blank-line block boundaries; a single `<pre>` block
+    whose body alone exceeds the limit is split on WHOLE ROWS, each fragment
+    re-wrapped in `<pre>...</pre>`. >1 part → each gets an `(i/n)` prefix line
+    (outside any `<pre>`); a single part gets no prefix.
+
+    The prefix is added AFTER packing, so packing budgets against `limit` with a
+    small reserve for the longest possible prefix."""
+    blocks = [b for b in html_text.split("\n\n") if b != ""]
+
+    # Explode any oversized <pre> block into row-wise <pre> fragments first.
+    exploded: list[str] = []
+    for b in blocks:
+        if len(b) <= limit or not b.startswith("<pre>"):
+            exploded.append(b)
+            continue
+        rows = b[len("<pre>"):-len("</pre>")].split("\n")
+        cur: list[str] = []
+        cur_len = len("<pre></pre>")
+        for row in rows:
+            add = len(row) + 1
+            if cur and cur_len + add > limit:
+                exploded.append(_wrap_pre("\n".join(cur)))
+                cur, cur_len = [], len("<pre></pre>")
+            cur.append(row)
+            cur_len += add
+        if cur:
+            exploded.append(_wrap_pre("\n".join(cur)))
+
+    # Pack blocks into parts. Reserve room for an "(nn/nn)\n" prefix.
+    reserve = 12
+    parts: list[str] = []
+    cur = ""
+    for b in exploded:
+        candidate = b if not cur else f"{cur}\n\n{b}"
+        if cur and len(candidate) + reserve > limit:
+            parts.append(cur)
+            cur = b
+        else:
+            cur = candidate
+    if cur:
+        parts.append(cur)
+    if not parts:
+        return [html_text]
+    if len(parts) == 1:
+        return parts
+    n = len(parts)
+    return [f"({i}/{n})\n{p}" for i, p in enumerate(parts, 1)]
+
+
+def send_reply(resp: dict, chat_id: str | None, fallback) -> None:
+    """Post an agent reply, owning HTML-vs-plain routing and the 400 fallback.
+
+    - No completed payload → post `fallback` (a str, or a zero-arg callable invoked
+      lazily) as plain text — so a stuck/timed-out turn never silences the channel.
+    - An HTML report (the rendered string contains a `<pre>` block — the only
+      producer is `render_report`) → split at 4096 on block/row boundaries and post
+      each part with parse_mode=HTML; if a part 400s, retry it ONCE as plain text
+      (tags stripped, entities unescaped). The 400→plain retry is the non-negotiable
+      safety net: a formatting bug can degrade readability but never delivery.
+    - A plain narrative → post as-is (no parse_mode)."""
     text = render_payload(resp)
     if text is None:
-        text = fallback_text
-    return tg_send(text, chat_id)
+        text = fallback() if callable(fallback) else fallback
+        tg_send(text, chat_id)
+        return
+    if "<pre>" in text:
+        for part in _split_for_telegram(text):
+            r = tg_send(part, chat_id, parse_mode="HTML")
+            if r.get("ok") is False and r.get("error_code") == 400:
+                tg_send(_html_to_plain(part), chat_id)   # one plain retry — never silent
+        return
+    tg_send(text, chat_id)
+
+
+def deliver(resp: dict, fallback_text: str, chat_id: str | None = None) -> None:
+    """Back-compat shim over `send_reply` (cron digest/surge handlers import it):
+    post the agent narrative/report, else the deterministic fallback text."""
+    send_reply(resp, chat_id, fallback_text)
 
 
 # Per-session_id locks serialize same-session agent turns so two DMs never
@@ -425,9 +532,10 @@ def _run_agent_turn(chat_id, message_id, message) -> None:
     except Exception as exc:  # noqa: BLE001 — an HTTP timeout/error must not drop the reply
         print(f"WARN telegram-bridge: session_send failed: {exc}", file=sys.stderr)
         resp = None
-    rendered = render_payload(resp)
-    tg_send(rendered if rendered is not None else _deterministic_snapshot(), str(chat_id))
-    react("👍" if rendered is not None else "🤔")   # 🤔 = deterministic fallback was posted
+    answered = render_payload(resp) is not None
+    # pass the snapshot as a CALLABLE so it's computed only when there's no answer
+    send_reply(resp, str(chat_id), _deterministic_snapshot)
+    react("👍" if answered else "🤔")   # 🤔 = deterministic fallback was posted
 
 
 def process_update(update: dict) -> bool:

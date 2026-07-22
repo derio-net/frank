@@ -22,7 +22,9 @@ def calls(monkeypatch):
         rec.calls.append((url, payload))
         for frag, resp in rec.canned.items():
             if frag in url:
-                return resp
+                # a callable canned response is invoked with (url, payload) — lets a
+                # test return a 400 on the first sendMessage and success on the retry
+                return resp(url, payload) if callable(resp) else resp
         return {}
     monkeypatch.setattr(bridge, "_http_post_json", fake)
     monkeypatch.setattr(bridge, "BOT_TOKEN", "T")
@@ -220,6 +222,101 @@ def test_render_report_html_escapes_all_values():
 def test_render_report_pre_tags_balanced():
     out = bridge.render_report(_edge_payload())
     assert out.count("<pre>") == out.count("</pre>") >= 1
+
+
+# --- Transport: opt-in HTML parse_mode, 4096 split, 400 -> plain fallback --------
+
+def test_tg_send_parse_mode_opt_in(calls):
+    bridge.tg_send("x", parse_mode="HTML")
+    sent = _sent(calls, "/sendMessage")
+    assert sent[-1]["parse_mode"] == "HTML"
+
+
+def test_tg_send_default_still_plain(calls):
+    # the default path is unchanged — no parse_mode key (the HTML-400 dodge)
+    bridge.tg_send("x")
+    assert "parse_mode" not in _sent(calls, "/sendMessage")[-1]
+
+
+def test_split_for_telegram_single_block_no_prefix():
+    body = bridge._wrap_pre("short")
+    parts = bridge._split_for_telegram(body)
+    assert len(parts) == 1
+    assert not parts[0].startswith("(")            # no (i/n) prefix for a single part
+
+
+def test_split_for_telegram_multi_part_balanced_and_prefixed():
+    # a report far larger than the limit → multiple parts, each ≤ limit, each with
+    # balanced <pre> tags and a (i/n) prefix
+    big = "\n\n".join(bridge._wrap_pre("row " + "x" * 500) for _ in range(20))
+    parts = bridge._split_for_telegram(big, limit=4096)
+    assert len(parts) >= 2
+    for i, p in enumerate(parts, 1):
+        assert len(p) <= 4096
+        assert p.count("<pre>") == p.count("</pre>")
+        assert p.startswith(f"({i}/{len(parts)})")
+
+
+def test_split_oversized_single_pre_splits_on_rows():
+    # one <pre> whose body alone exceeds the limit is split on whole rows, each
+    # fragment re-wrapped — never a cut inside a tag
+    rows = "\n".join(f"row-{i} " + "y" * 80 for i in range(200))
+    parts = bridge._split_for_telegram(bridge._wrap_pre(rows), limit=2000)
+    assert len(parts) >= 2
+    for p in parts:
+        assert p.count("<pre>") == p.count("</pre>") >= 1
+        assert "row-0 " in p or "row-" in p          # rows preserved whole
+
+
+def test_send_reply_report_posts_html(calls):
+    resp = {"status": "ok", "payload": {"a": 1, "b": 2}}
+    bridge.send_reply(resp, "100", fallback="fb")
+    sent = _sent(calls, "/sendMessage")
+    assert sent[-1]["parse_mode"] == "HTML"
+    assert "<pre>" in sent[-1]["text"]
+
+
+def test_send_reply_narrative_posts_plain(calls):
+    resp = {"status": "ok", "payload": {"text": "just prose"}}
+    bridge.send_reply(resp, "100", fallback="fb")
+    sent = _sent(calls, "/sendMessage")
+    assert sent[-1]["text"] == "just prose"
+    assert "parse_mode" not in sent[-1]
+    assert "<pre>" not in sent[-1]["text"]
+
+
+def test_send_reply_400_falls_back_to_plain(calls):
+    # first HTML sendMessage 400s → exactly one retry, no parse_mode, data preserved,
+    # no <pre> in the fallback body
+    state = {"n": 0}
+
+    def sender(url, payload):
+        state["n"] += 1
+        return {"ok": False, "error_code": 400} if state["n"] == 1 else {"ok": True}
+    calls.canned["/sendMessage"] = sender
+    resp = {"status": "ok", "payload": {"marker_key": "marker_val"}}
+    bridge.send_reply(resp, "100", fallback="fb")
+    sent = _sent(calls, "/sendMessage")
+    assert len(sent) == 2                             # one HTML attempt + one plain retry
+    assert sent[0]["parse_mode"] == "HTML"
+    assert "parse_mode" not in sent[1]
+    assert "<pre>" not in sent[1]["text"]
+    assert "marker_key" in sent[1]["text"] and "marker_val" in sent[1]["text"]
+
+
+def test_send_reply_fallback_callable_used_only_on_none(calls):
+    used = {"called": False}
+
+    def fb():
+        used["called"] = True
+        return "LAZY FALLBACK"
+    # a completed turn must NOT invoke the callable
+    bridge.send_reply({"status": "ok", "payload": {"text": "ok"}}, "100", fallback=fb)
+    assert used["called"] is False
+    # an empty turn invokes it lazily
+    bridge.send_reply({"status": "timeout", "payload": None}, "100", fallback=fb)
+    assert used["called"] is True
+    assert _sent(calls, "/sendMessage")[-1]["text"] == "LAZY FALLBACK"
 
 
 # --- DM path: deterministic fallback (never a bare "(no reply)" / silent death) ---
