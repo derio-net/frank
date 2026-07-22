@@ -1,0 +1,3 @@
+#!/usr/bin/env python3
+from handlers.cred_expiry import run_cred_check
+run_cred_check()

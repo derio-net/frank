@@ -29,6 +29,7 @@ configMapGenerator:
       - handlers/handlers/__init__.py
       - handlers/handlers/orchestration.py
       - handlers/handlers/webhook.py
+      - handlers/handlers/cred_expiry.py
   - name: alert-agent-bin
     files:
       - frank-facts=frank-facts/frank-facts
@@ -36,6 +37,7 @@ configMapGenerator:
       - surge-gate=handlers/surge-gate
       - digest=handlers/digest
       - grafana-webhook=handlers/grafana-webhook
+      - cred-expiry-check=handlers/cred-expiry-check
   - name: alert-agent-crontab
     files:
       - manifests/files/.crontab
