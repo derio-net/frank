@@ -71,7 +71,9 @@ def test_bridge_template_and_bindings():
     bindings = {b["name"]: b["value"] for b in trig.get("bindings", [])}
     assert bindings["repo-full-name"] == "$(body.repository.full_name)"
     assert bindings["revision"] == "$(body.sha)"
-    assert bindings["state"] == "$(body.state)"
+    # NOT $(body.state) — Gitea's vocabulary is a superset of GitHub's and
+    # must be narrowed first (see test_bridge_maps_gitea_only_states)
+    assert bindings["state"] == "$(extensions.gh_state)"
     assert bindings["context"] == "$(body.context)"
 
     # description/target_url are omitempty in Gitea's status payload — they
@@ -84,7 +86,6 @@ def test_bridge_template_and_bindings():
         for p in interceptor.get("params", []):
             if p["name"] == "overlays":
                 overlays.update({o["key"]: o["expression"] for o in p["value"]})
-    assert overlays["description"] == "has(body.description) ? body.description : ''"
     assert overlays["target_url"] == "has(body.target_url) ? body.target_url : ''"
 
     templates = [
@@ -100,6 +101,52 @@ def test_bridge_template_and_bindings():
     run = tmpl["spec"]["resourcetemplates"][0]
     assert run["kind"] == "PipelineRun"
     assert run["spec"]["pipelineRef"]["name"] == "stoa-status-bridge"
+
+
+def _bridge_overlays():
+    overlays = {}
+    for interceptor in _bridge_trigger().get("interceptors", []):
+        for p in interceptor.get("params", []):
+            if p["name"] == "overlays":
+                overlays.update({o["key"]: o["expression"] for o in p["value"]})
+    return overlays
+
+
+def test_bridge_maps_gitea_only_states():
+    """Gitea's CommitStatusState is a SUPERSET of GitHub's.
+
+    GitHub's status API accepts exactly pending|success|error|failure. Gitea
+    adds `skipped` and `warning`. Posting either verbatim returns 422
+    ("State is not included in the list"), github-status exits non-zero, and
+    — because a commit status has no lifecycle of its own — the GitHub status
+    stays stuck on the `pending` written when the job was queued. Forever.
+
+    Incident 2026-07-22: the CI_AUTHORITY guard PRs made every Gitea job skip
+    (correct: CI_AUTHORITY=github during parallel running), 30 bridge
+    PipelineRuns failed on `skipped`, and 4 PRs showed permanently pending
+    gitea-actions/* checks that no rerun could clear.
+
+    Both Gitea-only states mean "not a failure", so both map to `success`
+    with the real state preserved in the description. Everything already in
+    GitHub's vocabulary passes through untouched.
+    """
+    expr = _bridge_overlays().get("gh_state")
+    assert expr, "gh_state overlay missing — raw Gitea states would 422"
+
+    for gitea_only in ("skipped", "warning"):
+        assert f"'{gitea_only}'" in expr, (
+            f"Gitea-only state {gitea_only!r} not narrowed to GitHub's "
+            f"vocabulary — it would 422 and strand the status: {expr}"
+        )
+    assert "'success'" in expr
+    # non-Gitea-only states must still pass through unmapped
+    assert "body.state" in expr.split("?", 1)[1]
+
+    desc = _bridge_overlays().get("description")
+    assert desc and "body.state" in desc, (
+        "description must surface the real Gitea state, or a skipped job "
+        f"reads as a genuine green check on GitHub: {desc}"
+    )
 
 
 def test_bridge_pipeline_forwards_via_github_status():

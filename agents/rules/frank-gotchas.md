@@ -37,6 +37,7 @@ One-line reminders only. Each section header points at a per-topic file under `d
 - Gitea sends `X-Gitea-Event` (not `X-GitHub-Event`) — use `cel` interceptor, not `github`.
 - Gitea Actions runner DinD needs `DOCKER_TLS_CERTDIR=""` + explicit `--host=tcp://0.0.0.0:2375` — unset, dind serves TLS on 2376 and every job hangs "Running" against 2375.
 - act_runner registration is one-shot PVC state (`/data/.runner`) — rotating `STOA_GITEA_RUNNER_TOKEN` does NOT re-register; scale to 0, delete `/data/.runner`, scale up.
+- **Gitea's commit-status vocabulary is a SUPERSET of GitHub's** (`skipped`/`warning` beyond `pending|success|error|failure`) — `stoa-status-bridge` forwarded state verbatim, so a `skipped` job 422'd and the earlier `pending` stayed FOREVER (commit statuses have no lifecycle; nothing reconciles them). PR stuck `UNSTABLE`, the failure visible only as a Failed PipelineRun in `tekton-pipelines`. Fixed by the `gh_state` CEL overlay (skipped/warning→`success`, real state kept in the description). Fix MUST live in the EventListener, NOT the bridge Pipeline — Pipeline `.spec.tasks` is still frozen by array-item ignore rules. Skipping itself is CORRECT while `CI_AUTHORITY=github` — don't chase the guard. No backfill: statuses stranded pre-fix need a one-shot manual overwrite. Full prose: `tekton.md`.
 
 ### Argo Rollouts — `docs/runbooks/frank-gotchas/argo-rollouts.md`
 - Only `canary` / `blueGreen` strategies — stateful + RWO PVC apps stay as plain Deployments.
