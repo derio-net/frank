@@ -100,6 +100,47 @@ def test_runner_config():
     assert config["container"]["docker_host"] == "tcp://localhost:2375"
 
 
+def test_job_containers_can_reach_the_docker_daemon():
+    """Job containers must see the daemon AND published ports on localhost.
+
+    Workflows written for GitHub-hosted runners assume the job and the Docker
+    daemon share one host: `docker build` finds /var/run/docker.sock, and a
+    `docker run -p 8088:80` is then reachable at http://localhost:8088.
+
+    Here the job is a CONTAINER, a sibling of the DinD daemon, so neither
+    holds. act_runner only mounts the docker host into job containers when it
+    is a unix socket (its `docker_host` doc: "-" means "won't be mounted to
+    the job containers"), and ours is TCP — so a job gets no DOCKER_HOST at
+    all and the CLI falls back to the missing socket:
+
+        ERROR: failed to connect to the docker API at unix:///var/run/docker.sock
+               dial unix /var/run/docker.sock: connect: no such file or directory
+
+    Measured against the live daemon 2026-07-22, container on a bridge
+    network vs one on the host network:
+
+        bridge  daemon localhost:2375 FAIL   published port FAIL
+        host    daemon localhost:2375 OK     published port OK
+
+    So `network: host` is load-bearing for BOTH halves, and DOCKER_HOST must
+    be injected explicitly because act_runner will not do it for a TCP host.
+    """
+    cms = [d for d in _load("config.yaml") if d["kind"] == "ConfigMap"]
+    config = yaml.safe_load(cms[0]["data"]["config.yaml"])
+    container = config["container"]
+
+    assert container.get("network") == "host", (
+        "job containers on a bridge network can reach neither the DinD "
+        "daemon nor any port published by the containers they start"
+    )
+
+    options = container.get("options") or ""
+    assert "DOCKER_HOST" in options and "2375" in options, (
+        "act_runner does not propagate a TCP docker_host into job containers "
+        f"— inject it via container.options: {options!r}"
+    )
+
+
 def test_registration_token_externalsecret():
     es = _load("externalsecret-runner-token.yaml")[0]
     assert es["kind"] == "ExternalSecret"

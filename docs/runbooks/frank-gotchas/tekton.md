@@ -82,6 +82,38 @@ Unrelated to the variable but adjacent: `release.yml` in `cnc-frd` and `cnc-fru`
 
 Manual op: `cicd-stoa-ci-authority-cutover`.
 
+## Gitea Actions runner: job containers are DinD SIBLINGS, not its host
+
+Workflows written for GitHub-hosted runners assume the job and the Docker daemon share one machine. On `act_runner` + DinD they do not — the job is a container created *on* the daemon — so **both** affordances are missing and every `docker` step fails ~5s in:
+
+```
+ERROR: failed to connect to the docker API at unix:///var/run/docker.sock
+       dial unix /var/run/docker.sock: connect: no such file or directory
+```
+
+1. **The daemon.** act_runner only mounts the docker host into job containers when it is a **unix socket** (its own `generate-config` doc: `"-"` means *"the docker host won't be mounted to the job containers"*). Ours is TCP, so the job gets no `DOCKER_HOST` at all and the CLI falls back to the non-existent socket. `docker_host: tcp://localhost:2375` is still correct **for act_runner itself** — it shares the pod netns with DinD — it just never reaches the job.
+2. **Published ports.** `docker run -p 8088:80` publishes on the DinD host, so the job's own `curl http://localhost:8088` misses it.
+
+Measured on the live daemon 2026-07-22:
+
+```
+bridge  daemon localhost:2375 FAIL   published port FAIL
+host    daemon localhost:2375 OK     published port OK
+```
+
+Fix — `network: host` covers both halves; `options` injects what act_runner won't:
+
+```yaml
+container:
+  docker_host: "tcp://localhost:2375"
+  network: "host"
+  options: "-e DOCKER_HOST=tcp://localhost:2375"
+```
+
+Guarded by `scripts/tests/test_gitea_runner_app.py::test_job_containers_can_reach_the_docker_daemon`. **Trade-off:** with `capacity: 2` two concurrent docker-using jobs share one port namespace, so fixed published ports can collide — the shared daemon already collided on fixed container/network *names*, so this widens an existing hazard, not a new one. Drop capacity to 1 if it bites.
+
+**Why this hid for so long:** of the 14 workflows across the 5 mirrors only `cnc-fr`/`cnc-frd`/`cnc-fru` use the docker CLI. The migration's "smoke-proven" evidence ran on `second-brain`, one of the two repos that don't — so the gap only surfaced when `CI_AUTHORITY=gitea` made Gitea the sole authority. Full prose: `docs/superpowers/debugging/2026-07-22--cicd--gitea-job-containers-cannot-reach-dind.md`.
+
 ## Gitea Actions runner: registration is one-shot PVC state
 
 `act_runner` registers against Gitea once and persists its identity in `/data/.runner` on the PVC. Rotating `STOA_GITEA_RUNNER_TOKEN` (or re-minting the registration token) does **NOT** re-register an already-registered runner — the token is only read when `/data/.runner` is absent. To force a fresh registration: scale the Deployment to 0, delete `/data/.runner` (or the whole PVC — the tool cache is rebuildable), scale back up. Symptom of a half-dead registration: runner pod healthy but the Gitea admin runners page shows it Offline.
