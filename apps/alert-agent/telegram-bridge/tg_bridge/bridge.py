@@ -1,10 +1,14 @@
 """telegram-bridge core (stdlib-only).
 
 `_http_post_json` is the single HTTP seam (Telegram API + the local agent-session
-endpoint) the tests patch. Telegram messages are sent as PLAIN TEXT (no parse_mode)
-— the HTML parse_mode 400s on a bare `<`/`>`/`&` in a narrative (frank-gotchas).
+endpoint) the tests patch. Narratives are sent as PLAIN TEXT (no parse_mode);
+structured REPORTS opt into parse_mode=HTML with `<pre>` monospace tables and
+STRICT per-value `html.escape` — the HTML parse_mode 400s on a bare `<`/`>`/`&`
+(frank-gotchas), so `send_reply` retries once as plain text on a 400, and a
+formatting bug can degrade readability but never delivery.
 """
 from __future__ import annotations
+import html
 import json
 import os
 import re
@@ -12,6 +16,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.error
 import urllib.request
 
 # Telegram's command-id rule: lowercase letters, digits, underscore; 1–32 chars
@@ -51,9 +56,32 @@ def _tg(method: str, params: dict, timeout: float = 35) -> dict:
     return _http_post_json(f"https://api.telegram.org/bot{BOT_TOKEN}/{method}", params, timeout)
 
 
-def tg_send(text: str, chat_id: str | None = None) -> dict:
-    """Send PLAIN TEXT to a chat (default the configured operator chat)."""
-    return _tg("sendMessage", {"chat_id": chat_id or DEFAULT_CHAT, "text": text})
+def _send_message(params: dict) -> dict:
+    """sendMessage with a 4xx caught and RETURNED (not raised) as an error dict.
+
+    `_http_post_json` wraps `urlopen`, which raises `HTTPError` on a 4xx — a bare
+    `<`/`>`/`&` slipping past escaping would then 400 and, unhandled, crash the
+    reply. Returning `{"ok": False, "error_code": N}` instead lets `send_reply`
+    detect the failure and retry as plain text — and makes a real 400 look
+    identical to a test's canned error dict."""
+    try:
+        return _tg("sendMessage", params)
+    except urllib.error.HTTPError as exc:
+        # A 400 is handled by send_reply's plain-text retry; anything else (429
+        # rate-limit, 5xx) is not, so surface it — else the send is invisibly lost.
+        if exc.code != 400:
+            print(f"WARN telegram-bridge: sendMessage {exc.code}: {exc.reason}", file=sys.stderr)
+        return {"ok": False, "error_code": exc.code}
+
+
+def tg_send(text: str, chat_id: str | None = None, parse_mode: str | None = None) -> dict:
+    """Send text to a chat (default the configured operator chat). `parse_mode` is
+    opt-in: default None keeps the zero-risk PLAIN-TEXT path (the HTML-400 dodge);
+    only the report path passes parse_mode='HTML' (with strictly escaped values)."""
+    params = {"chat_id": chat_id or DEFAULT_CHAT, "text": text}
+    if parse_mode is not None:
+        params["parse_mode"] = parse_mode
+    return _send_message(params)
 
 
 def is_allowed(chat_id) -> bool:
@@ -160,24 +188,150 @@ def session_send(message: str, session_id: str | None = None, timeout_s: float =
     )
 
 
-def _dict_to_table(d: dict) -> str:
-    """Render a dict payload as a compact plain-text `key  value` table — so the
+_ROW_CAP = 10   # rows shown per table before a "+N more" footer
+
+
+def _humanize(key: str) -> str:
+    """`top_attacker_ips` -> `Top attacker ips` — a readable section header."""
+    return str(key).replace("_", " ").strip().capitalize()
+
+
+def _wrap_pre(body: str) -> str:
+    """The ONLY producer of `<pre>` markup. `body` is already fully html-escaped;
+    the tags are the sole literal `<`/`>` in any rendered report — which is what
+    lets the sender detect 'this is an HTML report' by a `<pre>` substring test."""
+    return f"<pre>{body}</pre>"
+
+
+def _esc(v) -> str:
+    """A scalar cell/line, HTML-escaped. Non-scalars (a nested dict/list buried
+    inside a row cell) compact to single-line JSON first, then escape — a leaf,
+    never a nested table."""
+    if isinstance(v, (dict, list)):
+        v = json.dumps(v, separators=(",", ":"), ensure_ascii=False)
+    return html.escape(str(v), quote=False)
+
+
+def _dlen(escaped: str) -> int:
+    """Display width of an html-escaped string — `&amp;` renders as ONE glyph, so
+    column widths must be measured on the unescaped length, not the escaped one."""
+    return len(html.unescape(escaped))
+
+
+def _pad(escaped: str, width: int, right: bool) -> str:
+    """Pad an html-escaped cell to `width` DISPLAY columns (str.ljust would count
+    entity chars and misalign)."""
+    gap = max(0, width - _dlen(escaped))
+    return (" " * gap + escaped) if right else (escaped + " " * gap)
+
+
+def _fmt_table(rows: list[dict]) -> str:
+    """Aligned monospace column table body (no `<pre>` wrapper — the caller wraps).
+
+    Columns are the UNION of keys across rows in first-seen order (a key appearing
+    only in a later row is appended). Missing key -> blank cell (never the literal
+    `None`). All cells are html-escaped. Capped at _ROW_CAP data rows with a
+    `+N more` footer; column widths are computed AFTER the cap so the footer never
+    widens the table. A column whose every present cell is numeric is right-aligned."""
+    cols: list[str] = []
+    for r in rows:
+        for k in r:
+            if k not in cols:
+                cols.append(k)
+
+    shown = rows[:_ROW_CAP]
+    extra = len(rows) - len(shown)
+
+    def cell(r: dict, c: str) -> str:
+        return _esc(r[c]) if c in r else ""
+
+    numeric = {
+        c: all(
+            isinstance(r.get(c), bool) is False and isinstance(r.get(c), (int, float))
+            for r in shown if c in r
+        ) and any(c in r for r in shown)
+        for c in cols
+    }
+    # Uppercase the raw key THEN escape — escaping first would corrupt an entity
+    # (`&`->`&amp;`->`.upper()`->`&AMP;`, which Telegram won't decode).
+    heads = {c: _esc(str(c).upper()) for c in cols}
+    widths = {
+        c: max([_dlen(heads[c])] + [_dlen(cell(r, c)) for r in shown])
+        for c in cols
+    }
+
+    def render_row(values: dict) -> str:
+        parts = [_pad(values[c], widths[c], right=numeric[c]) for c in cols]
+        return "  ".join(parts).rstrip()
+
+    lines = [render_row(heads)]
+    lines.append("  ".join("-" * widths[c] for c in cols))
+    for r in shown:
+        lines.append(render_row({c: cell(r, c) for c in cols}))
+    if extra > 0:
+        lines.append(f"+{extra} more")
+    return "\n".join(lines)
+
+
+def _is_list_of_dicts(v) -> bool:
+    return isinstance(v, list) and len(v) > 0 and all(isinstance(x, dict) for x in v)
+
+
+def render_report(payload: dict) -> str:
+    """Render an agent's domain dict as HTML monospace `<pre>` tables — so the
     operator NEVER sees raw json.dumps. The bridge owns presentation: the
     agent-session server hands the agent's raw JSON result straight through and
     the model routinely writes a domain-shaped object (no `text` field) despite
     the prompt, so a mechanism the model can't override is the only reliable fix.
-    Nested values compact to single-line JSON so each top-level key stays one row."""
-    if not d:
-        return "(empty result)"
 
-    def _val(v) -> str:
-        if isinstance(v, (dict, list)):
-            s = json.dumps(v, separators=(",", ":"), ensure_ascii=False)
-            return s if len(s) <= 200 else s[:197] + "..."
-        return str(v)
+    Layout per top-level key:
+      - scalars (str/int/float/bool/None)  -> one `key  value` line, all grouped
+        into a leading summary `<pre>` block;
+      - list-of-dicts                      -> a humanized header + a `<pre>` table
+        (`_fmt_table`: union-of-keys columns, 10-row cap, +N more);
+      - list-of-scalars                    -> header + `<pre>`, one escaped item
+        per line (10 + +N more);
+      - empty list                         -> a `key  (none)` scalar line;
+      - nested dict                        -> header + `<pre>` of one-level-indented
+        `key: value` (deeper levels compact to single-line JSON as a leaf).
 
-    w = max(len(str(k)) for k in d)
-    return "\n".join(f"{str(k):<{w}}  {_val(v)}" for k, v in d.items())
+    Every interpolated value is html-escaped; the `<pre>` tags are the only literal
+    markup (see `_wrap_pre`)."""
+    if not payload:
+        return _wrap_pre("(empty result)")
+
+    scalars: list[str] = []
+    blocks: list[str] = []
+
+    def section(key, body: str) -> None:
+        blocks.append(f"{html.escape(_humanize(key), quote=False)}\n{_wrap_pre(body)}")
+
+    for k, v in payload.items():
+        if isinstance(v, list) and not v:
+            scalars.append((k, "(none)"))
+        elif _is_list_of_dicts(v):
+            section(k, _fmt_table(v))
+        elif isinstance(v, list):                       # list of scalars
+            shown = v[:_ROW_CAP]
+            body = "\n".join(_esc(x) for x in shown)
+            if len(v) > len(shown):
+                body += f"\n+{len(v) - len(shown)} more"
+            section(k, body)
+        elif isinstance(v, dict):                       # nested dict, one level
+            body = "\n".join(f"  {_esc(kk)}: {_esc(vv)}" for kk, vv in v.items())
+            section(k, body)
+        else:                                           # scalar
+            scalars.append((k, _esc(v)))
+
+    out_blocks: list[str] = []
+    if scalars:
+        w = max(len(html.escape(str(k), quote=False)) for k, _ in scalars)
+        summary = "\n".join(
+            f"{html.escape(str(k), quote=False):<{w}}  {val}" for k, val in scalars
+        )
+        out_blocks.append(_wrap_pre(summary))
+    out_blocks.extend(blocks)
+    return "\n\n".join(out_blocks)
 
 
 def render_payload(resp: dict) -> str | None:
@@ -186,10 +340,10 @@ def render_payload(resp: dict) -> str | None:
     The session-server contract is a JSON file result. The preferred shape is
     {"text": "<compact plain-text table>"} → we return `text`. But the model often
     ignores that and writes a domain-shaped dict with no `text` field; rather than
-    leak raw JSON, we render ANY such dict as a `key  value` table
-    (`_dict_to_table`). A bare string passes through; a string that parses to a
-    dict is handled the same way (unwrap `text`, else table). None when status !=
-    ok or payload is empty.
+    leak raw JSON, we render ANY such dict as HTML `<pre>` monospace tables
+    (`render_report`). A bare string passes through; a string that parses to a
+    dict is handled the same way (unwrap `text`, else report). None when status !=
+    ok or payload is empty. A `<pre>` in the return signals HTML to the sender.
     """
     if not resp or resp.get("status") != "ok":
         return None
@@ -206,17 +360,138 @@ def render_payload(resp: dict) -> str | None:
             return payload                      # non-dict JSON (list/number) — leave as-is
     if isinstance(payload, dict):
         text = payload.get("text")
-        return text if isinstance(text, str) else _dict_to_table(payload)
+        return text if isinstance(text, str) else render_report(payload)
     return str(payload)                          # non-str, non-dict (list/number)
 
 
-def deliver(resp: dict, fallback_text: str, chat_id: str | None = None) -> dict:
-    """Post an agent narrative; if the agent timed out / returned no payload, post
-    the deterministic fallback instead — so a stuck agent never silences the digest."""
+_TG_LIMIT = 4096   # Telegram's per-message character ceiling
+
+
+def _html_to_plain(html_text: str) -> str:
+    """Strip `<pre>` markup and unescape entities — the plain-text body for the
+    400 fallback. The table's alignment survives (it's just spaces); only the tags
+    and escapes go, so a formatting-driven 400 still delivers readable data."""
+    stripped = html_text.replace("<pre>", "").replace("</pre>", "")
+    return html.unescape(stripped)
+
+
+_PRE_OVERHEAD = len("<pre></pre>")
+_TRUNC_MARK = "…[truncated]"
+
+
+def _hard_slice(text: str, budget: int) -> str:
+    """Last-resort truncation of a SINGLE over-budget row/line, with a VISIBLE
+    marker (the one place a mid-value cut is the lesser evil — silent loss on a
+    C&C channel is worse). Never leaves a dangling partial entity (`&am`), so the
+    result stays parse-safe, and its length is ≤ budget. Applied only to body text,
+    never to a string containing `<pre>` tags."""
+    keep = max(0, budget - len(_TRUNC_MARK))
+    out = text[:keep]
+    amp = out.rfind("&")
+    if amp != -1 and ";" not in out[amp:]:      # would cut inside an entity
+        out = out[:amp]
+    return out + _TRUNC_MARK
+
+
+def _split_for_telegram(html_text: str, limit: int = _TG_LIMIT) -> list[str]:
+    """Split a rendered HTML report into parts each ≤ `limit`, never cutting inside
+    a `<pre>` tag. INVARIANT: every returned part is ≤ `limit` — so neither the HTML
+    send nor its plain-text 400-retry can ever be rejected for length (which would
+    be a silent drop). Achieved by:
+
+    - budgeting against `eff = limit - reserve` so the `(i/n)` prefix (added after
+      packing) can never push a part over;
+    - for any block over `eff`, locating its embedded `<pre>` (blocks are
+      `[header\\n]<pre>body</pre>`, so a `startswith('<pre>')` test misses the
+      header-prefixed ones) and splitting the body on WHOLE ROWS, each fragment
+      re-wrapped; the header becomes its own small unit;
+    - hard-slicing (with a visible marker) any single row longer than a fragment's
+      whole budget — the only mid-value cut, and never silent."""
+    reserve = 12                                 # room for a "(nnn/nnn)\n" prefix
+    eff = max(1, limit - reserve)
+    row_budget = eff - _PRE_OVERHEAD
+
+    units: list[str] = []
+    for b in [b for b in html_text.split("\n\n") if b != ""]:
+        if len(b) <= eff:
+            units.append(b)
+            continue
+        i = b.find("<pre>")
+        if i == -1:                              # oversized plain text (no table)
+            units.append(_hard_slice(b, eff))
+            continue
+        header = b[:i].rstrip("\n")
+        body = b[i + len("<pre>"):b.rfind("</pre>")]
+        if header:
+            units.append(header if len(header) <= eff else _hard_slice(header, eff))
+        frag: list[str] = []
+        frag_len = _PRE_OVERHEAD
+        for row in body.split("\n"):
+            if len(row) > row_budget:            # one row too big for any fragment
+                if frag:
+                    units.append(_wrap_pre("\n".join(frag)))
+                    frag, frag_len = [], _PRE_OVERHEAD
+                units.append(_wrap_pre(_hard_slice(row, row_budget)))
+                continue
+            add = len(row) + (1 if frag else 0)
+            if frag and frag_len + add > eff:
+                units.append(_wrap_pre("\n".join(frag)))
+                frag, frag_len = [], _PRE_OVERHEAD
+                add = len(row)
+            frag.append(row)
+            frag_len += add
+        if frag:
+            units.append(_wrap_pre("\n".join(frag)))
+
+    # Pack units (each ≤ eff) into parts, keeping each part ≤ eff.
+    parts: list[str] = []
+    cur = ""
+    for u in units:
+        candidate = u if not cur else f"{cur}\n\n{u}"
+        if cur and len(candidate) > eff:
+            parts.append(cur)
+            cur = u
+        else:
+            cur = candidate
+    if cur:
+        parts.append(cur)
+    if not parts:
+        return [html_text]
+    if len(parts) == 1:
+        return parts
+    n = len(parts)
+    return [f"({i}/{n})\n{p}" for i, p in enumerate(parts, 1)]
+
+
+def send_reply(resp: dict, chat_id: str | None, fallback) -> None:
+    """Post an agent reply, owning HTML-vs-plain routing and the 400 fallback.
+
+    - No completed payload → post `fallback` (a str, or a zero-arg callable invoked
+      lazily) as plain text — so a stuck/timed-out turn never silences the channel.
+    - An HTML report (the rendered string contains a `<pre>` block — the only
+      producer is `render_report`) → split at 4096 on block/row boundaries and post
+      each part with parse_mode=HTML; if a part 400s, retry it ONCE as plain text
+      (tags stripped, entities unescaped). The 400→plain retry is the non-negotiable
+      safety net: a formatting bug can degrade readability but never delivery.
+    - A plain narrative → post as-is (no parse_mode)."""
     text = render_payload(resp)
     if text is None:
-        text = fallback_text
-    return tg_send(text, chat_id)
+        text = fallback() if callable(fallback) else fallback
+        tg_send(text, chat_id)
+        return
+    if "<pre>" in text:
+        for part in _split_for_telegram(text):
+            r = tg_send(part, chat_id, parse_mode="HTML")
+            if r.get("ok") is False and r.get("error_code") == 400:
+                tg_send(_html_to_plain(part), chat_id)   # one plain retry — never silent
+        return
+    tg_send(text, chat_id)
+
+
+def deliver(resp: dict, fallback_text: str, chat_id: str | None = None) -> None:
+    """Back-compat shim over `send_reply` (cron digest/surge handlers import it):
+    post the agent narrative/report, else the deterministic fallback text."""
+    send_reply(resp, chat_id, fallback_text)
 
 
 # Per-session_id locks serialize same-session agent turns so two DMs never
@@ -310,9 +585,10 @@ def _run_agent_turn(chat_id, message_id, message) -> None:
     except Exception as exc:  # noqa: BLE001 — an HTTP timeout/error must not drop the reply
         print(f"WARN telegram-bridge: session_send failed: {exc}", file=sys.stderr)
         resp = None
-    rendered = render_payload(resp)
-    tg_send(rendered if rendered is not None else _deterministic_snapshot(), str(chat_id))
-    react("👍" if rendered is not None else "🤔")   # 🤔 = deterministic fallback was posted
+    answered = render_payload(resp) is not None
+    # pass the snapshot as a CALLABLE so it's computed only when there's no answer
+    send_reply(resp, str(chat_id), _deterministic_snapshot)
+    react("👍" if answered else "🤔")   # 🤔 = deterministic fallback was posted
 
 
 def process_update(update: dict) -> bool:

@@ -22,7 +22,9 @@ def calls(monkeypatch):
         rec.calls.append((url, payload))
         for frag, resp in rec.canned.items():
             if frag in url:
-                return resp
+                # a callable canned response is invoked with (url, payload) — lets a
+                # test return a 400 on the first sendMessage and success on the retry
+                return resp(url, payload) if callable(resp) else resp
         return {}
     monkeypatch.setattr(bridge, "_http_post_json", fake)
     monkeypatch.setattr(bridge, "BOT_TOKEN", "T")
@@ -109,27 +111,30 @@ def test_render_payload_dict_branch_unchanged():
 # render_payload must table it, NEVER post raw json.dumps — a mechanism the agent's
 # per-turn wrapper cannot override.
 
-def test_render_payload_textless_dict_becomes_table():
+def test_render_payload_textless_dict_becomes_report():
+    # A text-less dict is now rendered as an HTML <pre> report, never raw JSON.
     out = bridge.render_payload(
         {"status": "ok", "payload": {"gpu_mode": "comfyui", "firing_alerts": "none"}})
     assert "gpu_mode" in out and "comfyui" in out
     assert "firing_alerts" in out and "none" in out
     assert not out.lstrip().startswith("{")        # NOT raw JSON
-    assert out.count("\n") == 1                      # one row per top-level key
+    assert "<pre>" in out                            # HTML report → sender opts into HTML
 
 
-def test_render_payload_textless_dict_string_becomes_table():
+def test_render_payload_textless_dict_string_becomes_report():
     out = bridge.render_payload({"status": "ok", "payload": '{"a": 1, "b": "two"}'})
     assert not out.lstrip().startswith("{")
     assert "a" in out and "b" in out and "two" in out
+    assert "<pre>" in out
 
 
-def test_render_payload_nested_dict_one_row_per_top_key():
+def test_render_payload_nested_dict_rendered_not_raw_json():
     out = bridge.render_payload(
         {"status": "ok", "payload": {"summary": {"overall": "quiet"}, "count": 5}})
-    assert out.count("\n") == 1                      # 2 top-level keys → 2 rows
-    assert "summary" in out and "count" in out
-    assert "overall" in out                          # nested value compacted inline
+    assert "<pre>" in out
+    assert "summary" in out.lower() and "count" in out   # summary → humanized header
+    assert "overall" in out                          # nested value rendered, not dropped
+    assert not out.lstrip().startswith("{")
 
 
 def test_render_payload_non_string_text_key_is_tabled_not_raw():
@@ -137,6 +142,238 @@ def test_render_payload_non_string_text_key_is_tabled_not_raw():
     out = bridge.render_payload({"status": "ok", "payload": '{"text": 123}'})
     assert not out.lstrip().startswith("{")
     assert "text" in out and "123" in out
+
+
+# --- render_report: monospace <pre> tables from a domain dict --------------------
+# The captured live /edge_traffic payload is the primary fixture: a leading scalar,
+# a list-of-dicts with a RAGGED key set (one row carries `country`, others don't),
+# and a scalar list of raw log lines (some with HTML-sensitive characters).
+
+def _edge_payload():
+    return {
+        "window": "last_24h",
+        "top_scanned_paths": [
+            {"path": f"/scan/{i}.php", "count": 20 - i} for i in range(11)
+        ],  # 11 rows → forces the 10-row cap
+        "top_attacker_ips": [
+            {"ip": "52.152.150.151", "count": 266, "org": "Microsoft Corporation", "banned": False},
+            {"ip": "4.204.201.85", "count": 144, "org": "Microsoft Corporation", "banned": False},
+            # ragged: this row ALSO carries `country`
+            {"ip": "45.148.10.244", "count": 45, "org": "TECHOFF SRV LIMITED", "country": "AD", "banned": False},
+            {"ip": "20.220.225.223", "count": 42, "org": "Microsoft Corporation", "banned": True},
+        ],
+        "crowdsec_bans": [
+            'time="2026-07-21T21:00:36Z" level=info msg="4h ban on Ip 20.220.225.223"',
+            'ua="Mozilla/5.0 <bot> & spider" note=blocked',  # HTML-sensitive: < > &
+        ],
+    }
+
+
+def test_render_report_list_of_dicts_is_aligned_table():
+    out = bridge.render_report(_edge_payload())
+    # header names present (upper-cased), one line per row, real IP value present
+    assert "IP" in out and "COUNT" in out and "ORG" in out and "BANNED" in out
+    assert "52.152.150.151" in out
+    # NOT escaped one-line JSON
+    assert "[{" not in out
+    assert '":"' not in out and '","' not in out
+
+
+def test_render_report_ragged_keys_single_country_column_blank_cell():
+    out = bridge.render_report(_edge_payload())
+    assert out.count("COUNTRY") == 1              # the ragged key appears exactly once
+    assert "AD" in out                             # present for the row that has it
+    # a row without `country` must render blank, never the literal None
+    assert "None" not in out
+
+
+def test_render_report_column_order_is_first_seen():
+    out = bridge.render_report(_edge_payload())
+    hdr = next(ln for ln in out.splitlines() if "IP" in ln and "COUNT" in ln)
+    assert hdr.index("IP") < hdr.index("COUNT") < hdr.index("ORG") < hdr.index("BANNED")
+    assert hdr.index("BANNED") < hdr.index("COUNTRY")   # country first seen later → last
+
+
+def test_render_report_row_cap_ten_plus_more_no_midcut():
+    out = bridge.render_report(_edge_payload())
+    assert "+1 more" in out                         # 11 scanned paths → 10 shown + 1 more
+    # the 10 shown paths appear whole (never truncated mid-value)
+    for i in range(10):
+        assert f"/scan/{i}.php" in out
+    assert "/scan/10.php" not in out               # the 11th is folded into "+1 more"
+
+
+def test_render_report_scalar_list_one_per_line_whole():
+    out = bridge.render_report(_edge_payload())
+    # each ban log line appears WHOLE (not truncated at 200 chars, not JSON-listed)
+    assert '4h ban on Ip 20.220.225.223' in out
+    assert '["' not in out                          # not a json.dumps'd list
+
+
+def test_render_report_html_escapes_all_values():
+    out = bridge.render_report(_edge_payload())
+    # the HTML-sensitive ban line is escaped
+    assert "&lt;bot&gt;" in out and "&amp; spider" in out
+    # the ONLY literal angle brackets in the whole output are the <pre> tags
+    stripped = out.replace("<pre>", "").replace("</pre>", "")
+    assert "<" not in stripped and ">" not in stripped
+
+
+def test_render_report_pre_tags_balanced():
+    out = bridge.render_report(_edge_payload())
+    assert out.count("<pre>") == out.count("</pre>") >= 1
+
+
+# --- Transport: opt-in HTML parse_mode, 4096 split, 400 -> plain fallback --------
+
+def test_tg_send_parse_mode_opt_in(calls):
+    bridge.tg_send("x", parse_mode="HTML")
+    sent = _sent(calls, "/sendMessage")
+    assert sent[-1]["parse_mode"] == "HTML"
+
+
+def test_tg_send_default_still_plain(calls):
+    # the default path is unchanged — no parse_mode key (the HTML-400 dodge)
+    bridge.tg_send("x")
+    assert "parse_mode" not in _sent(calls, "/sendMessage")[-1]
+
+
+def test_split_for_telegram_single_block_no_prefix():
+    body = bridge._wrap_pre("short")
+    parts = bridge._split_for_telegram(body)
+    assert len(parts) == 1
+    assert not parts[0].startswith("(")            # no (i/n) prefix for a single part
+
+
+def test_split_for_telegram_multi_part_balanced_and_prefixed():
+    # a report far larger than the limit → multiple parts, each ≤ limit, each with
+    # balanced <pre> tags and a (i/n) prefix
+    big = "\n\n".join(bridge._wrap_pre("row " + "x" * 500) for _ in range(20))
+    parts = bridge._split_for_telegram(big, limit=4096)
+    assert len(parts) >= 2
+    for i, p in enumerate(parts, 1):
+        assert len(p) <= 4096
+        assert p.count("<pre>") == p.count("</pre>")
+        assert p.startswith(f"({i}/{len(parts)})")
+
+
+def test_split_oversized_single_pre_splits_on_rows():
+    # one <pre> whose body alone exceeds the limit is split on whole rows, each
+    # fragment re-wrapped — never a cut inside a tag
+    rows = "\n".join(f"row-{i} " + "y" * 80 for i in range(200))
+    parts = bridge._split_for_telegram(bridge._wrap_pre(rows), limit=2000)
+    assert len(parts) >= 2
+    for p in parts:
+        assert p.count("<pre>") == p.count("</pre>") >= 1
+        assert "row-0 " in p or "row-" in p          # rows preserved whole
+
+
+def test_split_header_prefixed_oversized_section_is_split():
+    # REGRESSION: a section block is `Header\n<pre>...</pre>` — it does NOT start
+    # with `<pre>`, so the old prefix-guarded explode skipped it and emitted a
+    # single >4096 part → HTML 400 → plain retry also >4096 → silent drop.
+    payload = {"attackers": [{"ip": f"1.2.3.{i}", "note": "Z" * 500} for i in range(10)]}
+    out = bridge.render_report(payload)
+    assert len(out) > 4096                         # the section alone overflows
+    parts = bridge._split_for_telegram(out, limit=4096)
+    assert len(parts) >= 2
+    for p in parts:
+        assert len(p) <= 4096                      # INVARIANT: no part over the limit
+        assert p.count("<pre>") == p.count("</pre>")
+
+
+def test_split_single_row_longer_than_limit_is_hard_sliced():
+    # REGRESSION: a single value larger than the limit (a giant log line) must be
+    # visibly truncated, NOT emitted as an over-limit part that 400s silently.
+    out = bridge.render_report({"logs": ["X" * 8000]})
+    parts = bridge._split_for_telegram(out, limit=4096)
+    assert parts and all(len(p) <= 4096 for p in parts)
+    assert any("truncated" in p for p in parts)    # visible marker, never silent
+    assert all(p.count("<pre>") == p.count("</pre>") for p in parts)
+
+
+def test_split_invariant_every_part_within_limit():
+    # Property: for a big multi-table report, EVERY part (with its (i/n) prefix) is
+    # ≤ limit — the guarantee that neither HTML nor the plain retry can 400 on size.
+    big = {f"table_{t}": [{"ip": f"10.0.{t}.{i}", "org": "Org " * 40} for i in range(8)]
+           for t in range(12)}
+    parts = bridge._split_for_telegram(bridge.render_report(big), limit=4096)
+    assert len(parts) >= 2
+    assert all(len(p) <= 4096 for p in parts)
+
+
+def test_render_report_escapes_column_header_keys():
+    # REGRESSION: header cells were built from raw keys (c.upper()), so a key with
+    # `<`/`>`/`&` leaked bare markup into the <pre> and 400'd. Now escaped.
+    out = bridge.render_report({"rows": [{"a&b<c>": 1}]})
+    assert "A&amp;B&lt;C&gt;" in out               # escaped header, entities intact
+    assert "&AMP;" not in out                       # uppercase applied BEFORE escape
+    stripped = out.replace("<pre>", "").replace("</pre>", "")
+    assert "<" not in stripped and ">" not in stripped
+
+
+def test_oversized_report_delivers_not_silently_dropped(calls):
+    # END-TO-END: the exact silent-drop scenario. A giant value → send_reply must
+    # deliver at least one part ≤ 4096 that Telegram would accept.
+    def sender(url, payload):
+        # model Telegram: reject anything over 4096
+        return {"ok": False, "error_code": 400} if len(payload.get("text", "")) > 4096 else {"ok": True}
+    calls.canned["/sendMessage"] = sender
+    bridge.send_reply({"status": "ok", "payload": {"logs": ["Q" * 9000]}}, "100", fallback="fb")
+    sent = _sent(calls, "/sendMessage")
+    assert sent, "nothing was sent — the silent-drop regression is back"
+    assert any(len(m["text"]) <= 4096 for m in sent)   # at least one deliverable message
+
+
+def test_send_reply_report_posts_html(calls):
+    resp = {"status": "ok", "payload": {"a": 1, "b": 2}}
+    bridge.send_reply(resp, "100", fallback="fb")
+    sent = _sent(calls, "/sendMessage")
+    assert sent[-1]["parse_mode"] == "HTML"
+    assert "<pre>" in sent[-1]["text"]
+
+
+def test_send_reply_narrative_posts_plain(calls):
+    resp = {"status": "ok", "payload": {"text": "just prose"}}
+    bridge.send_reply(resp, "100", fallback="fb")
+    sent = _sent(calls, "/sendMessage")
+    assert sent[-1]["text"] == "just prose"
+    assert "parse_mode" not in sent[-1]
+    assert "<pre>" not in sent[-1]["text"]
+
+
+def test_send_reply_400_falls_back_to_plain(calls):
+    # first HTML sendMessage 400s → exactly one retry, no parse_mode, data preserved,
+    # no <pre> in the fallback body
+    state = {"n": 0}
+
+    def sender(url, payload):
+        state["n"] += 1
+        return {"ok": False, "error_code": 400} if state["n"] == 1 else {"ok": True}
+    calls.canned["/sendMessage"] = sender
+    resp = {"status": "ok", "payload": {"marker_key": "marker_val"}}
+    bridge.send_reply(resp, "100", fallback="fb")
+    sent = _sent(calls, "/sendMessage")
+    assert len(sent) == 2                             # one HTML attempt + one plain retry
+    assert sent[0]["parse_mode"] == "HTML"
+    assert "parse_mode" not in sent[1]
+    assert "<pre>" not in sent[1]["text"]
+    assert "marker_key" in sent[1]["text"] and "marker_val" in sent[1]["text"]
+
+
+def test_send_reply_fallback_callable_used_only_on_none(calls):
+    used = {"called": False}
+
+    def fb():
+        used["called"] = True
+        return "LAZY FALLBACK"
+    # a completed turn must NOT invoke the callable
+    bridge.send_reply({"status": "ok", "payload": {"text": "ok"}}, "100", fallback=fb)
+    assert used["called"] is False
+    # an empty turn invokes it lazily
+    bridge.send_reply({"status": "timeout", "payload": None}, "100", fallback=fb)
+    assert used["called"] is True
+    assert _sent(calls, "/sendMessage")[-1]["text"] == "LAZY FALLBACK"
 
 
 # --- DM path: deterministic fallback (never a bare "(no reply)" / silent death) ---

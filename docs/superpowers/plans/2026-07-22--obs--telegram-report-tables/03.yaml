@@ -1,0 +1,42 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Docs + gotchas — parse_mode posture change
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Amend the frank-gotchas one-liner and topic prose
+  steps:
+  - id: P3.T1.S1
+    text: |
+      In `agents/rules/frank-gotchas.md`, under the Observability digest section, add a
+      one-liner: alert-agent report rendering now opts into `parse_mode=HTML` with `<pre>`
+      monospace tables and STRICT per-value `html.escape`, PLUS a one-shot plain-text
+      fallback if `sendMessage` 400s — so a formatting bug can never silence the C&C
+      channel; free-text narratives stay plain. Point at the topic file.
+  - id: P3.T1.S2
+    text: |
+      In `docs/runbooks/frank-gotchas/obs-digest.md`, add the full prose: the three
+      original defects (json.dumps nesting, 200-char silent truncation, proportional-font
+      misalignment), the fix (render_report → `<pre>` tables, union-of-keys columns, 10-row
+      cap + `+N more`, 4096 split into `(i/n)` parts on block/row boundaries), the escaping
+      invariant (only `<pre>` tags are literal `<`/`>`), and the non-negotiable 400→plain
+      fallback. Reference `apps/alert-agent/telegram-bridge/tg_bridge/bridge.py` and the
+      spec.
+state:
+  steps:
+    P3.T1.S1:
+      state: x
+      ticked_at: '2026-07-22T19:09:14+00:00'
+      note: null
+    P3.T1.S2:
+      state: x
+      ticked_at: '2026-07-22T19:09:15+00:00'
+      note: null
+  completion:
+    at: '2026-07-22T19:09:17+00:00'
+    note: null
+    observed_prs: []
