@@ -15,8 +15,8 @@ def _read(rel: str) -> str:
 
 def test_crontab_has_daily_cred_expiry_check():
     cron = _read("manifests/files/.crontab")
-    line = next((l for l in cron.splitlines()
-                 if "cred-expiry-check" in l and not l.lstrip().startswith("#")), None)
+    line = next((ln for ln in cron.splitlines()
+                 if "cred-expiry-check" in ln and not ln.lstrip().startswith("#")), None)
     assert line is not None, "no cred-expiry-check cron line"
     assert line.split()[:5] == ["0", "9", "*", "*", "*"]              # daily 09:00
     assert line.endswith("/opt/alert-agent-bin/cred-expiry-check")
