@@ -381,3 +381,59 @@ kind, instr = bridge.expand_command("/edge_traffic")
 print(bridge.render_report(bridge.session_send(instr, session_id="fmt-check", timeout_s=240)["payload"]))
 '
 ```
+
+## alert-agent Claude-credential expiry alert
+
+**2026-07-22 (frank cred-expiry-alert).** The alert-agent's Claude OAuth
+**refresh token expired silently 2026-07-18** and the C&C Telegram bot went dead
+for 3 days with no signal: the pod stayed `3/3 Running`, ArgoCD stayed green, and
+the failure (`Login expired · Please run /login`) lived inside a tmux pane —
+invisible to every existing probe. The token is a hard ~30-day clock
+(`refreshTokenExpiresAt`, epoch-ms, in `/home/agent/.claude/.credentials.json` on
+the `alert-agent-home` PVC; `expiresAt` is `0`).
+
+**Design — dual signal, fails independently.** A standalone canary pod is
+impossible: the credential lives on an RWO PVC held by the agent pod, and the pod
+runs `automountServiceAccountToken: false` with no RBAC (no `kubectl exec` path).
+So the check is a **daily cron in the `agent` container** (the one place that
+already mounts the PVC, has the Telegram secret via `envFrom`, and `tg_bridge.tg_send`
+on `PYTHONPATH`), added to the existing supercronic `.crontab` (`0 9 * * *
+/opt/alert-agent-bin/cred-expiry-check`):
+
+- **Expiring-soon warning** — `handlers/cred_expiry.py`'s pure
+  `evaluate_expiry(creds_text, now_ms)` computes `days_left` and a tier
+  (`ok>7`, `notice≤7`, `soon≤3`, `urgent≤1`, `expired≤0`, `error`); when
+  `tier != ok` the runner sends a plain-text Telegram warning directly via
+  `tg_send`, wording escalating with urgency. A missing/unparseable/field-less
+  credential → `error` tier + a warning (never a silent skip). A `tg_send`
+  failure is swallowed so it can't suppress the heartbeat.
+- **Checker-died dead-man** — the runner ALWAYS prints a
+  `cred-expiry-check days_left=N tier=… refresh_expires=… ts=…` heartbeat line to
+  stdout → supercronic → fluent-bit → VictoriaLogs. A Grafana file-provisioned
+  rule (`alert-agent-cred-expiry-heartbeat-stale`, `feature-health` folder) fires
+  if that line stops appearing (cron broke / pod down / container wedged),
+  paging Telegram directly via `telegram_direct: "true"` — bypassing the LLM
+  agent, because the warner being down is exactly when the agent can't be trusted
+  to triage its own outage.
+
+The two signals are deliberately independent: the script's own `tg_send` needs no
+metrics pipeline; the Grafana rule needs no working agent.
+
+**The `_msg` vs `log` VictoriaLogs-field trap.** Frank's VictoriaLogs carries the
+log message in the **`_msg`** field. The Hop CrowdSec canary rule queries
+`log:"crowdsec-ban-canary verdict"` because Hop's fluent-bit maps the message to a
+`log` field — but on Frank that field is empty. Verified live:
+`kubernetes.namespace_name:alert-agent AND _msg:"cred-expiry-check" | stats count()`
+returns a real count, while the same query with `log:"…"` returns **0**. A
+copy-paste of the Hop rule would make the dead-man permanently blind (always 0).
+The Frank rule uses `_msg:`; a guard test
+(`scripts/tests/test_cred_expiry_alert_rule.py`) pins the field, `noDataState: OK`,
+the `telegram_direct` label, and the >24h window.
+
+**Deploy notes.** Ships via ConfigMap (no image rebuild); ArgoCD rolls the pod.
+File-provisioned Grafana rules are read at boot — **restart the grafana pod** after
+the CM change. On first deploy, run the check once in-container to seed a heartbeat
+before the rule's `for: 2h` could fire on the empty window. Verify end-to-end
+(heartbeat line in VictoriaLogs + a forced-near-expiry warning delivered + the rule
+loaded) — a rule that Synced is not a rule that fires. Spec:
+`docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md`.
