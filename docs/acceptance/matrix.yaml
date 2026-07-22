@@ -286,27 +286,39 @@ rows:
       table in Telegram, not escaped one-line JSON.
     origin:
     - frank:docs/superpowers/specs/2026-07-22--obs--telegram-report-tables-design.md
-    levels: {}
-    status: not-implemented
-    notes: ''
+    levels:
+      unit:
+      - frank:apps/alert-agent/telegram-bridge/tests/test_bridge.py
+    status: skipped
+    notes: Unit-proven by render_report tests (aligned table, ragged-key union columns,
+      first-seen order) over the captured live /edge_traffic fixture. Local guard —
+      frank does not CI-run apps/*/tests; live-observed post-merge (report-tables-live-observed).
   - id: report-tables-no-silent-truncation
     capability: alert-agent report formatting
     acceptance: Over-cap lists show a +N more footer; no value is ever cut mid-character
       or mid-JSON.
     origin:
     - frank:docs/superpowers/specs/2026-07-22--obs--telegram-report-tables-design.md
-    levels: {}
-    status: not-implemented
-    notes: ''
+    levels:
+      unit:
+      - frank:apps/alert-agent/telegram-bridge/tests/test_bridge.py
+    status: skipped
+    notes: Unit-proven — 11-row fixture renders 10 rows + "+1 more", each shown value
+      whole; scalar-list entries appear whole (the 200-char json-truncation defect is
+      gone). Local guard (no CI run); live-observed post-merge.
   - id: report-tables-html-escape-safe
     capability: alert-agent report formatting
     acceptance: Values containing angle brackets or ampersands deliver (never a silent
       HTML-400), proven by unit test and the 400-to-plain fallback path.
     origin:
     - frank:docs/superpowers/specs/2026-07-22--obs--telegram-report-tables-design.md
-    levels: {}
-    status: not-implemented
-    notes: ''
+    levels:
+      unit:
+      - frank:apps/alert-agent/telegram-bridge/tests/test_bridge.py
+    status: skipped
+    notes: Unit-proven — every value html.escaped (only <pre> tags are literal angle
+      brackets); send_reply retries once as plain text on a canned 400, data preserved.
+      Local guard (no CI run); the escape path is exercised end-to-end live post-merge.
   - id: report-tables-live-observed
     capability: alert-agent report formatting
     acceptance: A live command turn in the deployed pod renders a real monospace table
