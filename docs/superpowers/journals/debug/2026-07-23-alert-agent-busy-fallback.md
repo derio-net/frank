@@ -75,3 +75,22 @@ LIVE PROOF against the real broken credential in alert-agent-54cf5cb9-cxqb4:
   fixed code:   TIER= error WARN= True    tier=error reason=blank-token
 
 NOT fixed here (follow-up): the image's login MOTD prints '✓ claude (~/.claude/.credentials.json, age 1d)' from file PRESENCE alone — same blindness, but it lives in the agent-images repo.
+
+<!-- fr:journal kind=finding scope=debug id=f1abaf42efe9 created=2026-07-23T22:43:00 state=fixed -->
+### f1abaf42efe9 · finding [fixed] · Live verification complete — fix proven on BOTH real credential states
+
+Operator re-logged in (manual op obs-alert-agent-claude-login); clock reset to 2026-08-21 (28 days).
+
+Service restored — a real agent turn completes:
+
+    agent-session send -> {"status": "ok", "turn": 1, "payload": {"text": "ok"}, "started": true}
+
+Full truth table against LIVE credentials (not fixtures):
+
+    state                     shipped code        fixed code
+    blank tokens (broken)     tier=ok  WARN=False tier=error WARN=True reason=blank-token
+    fresh login (healthy)     tier=ok  WARN=False tier=ok    WARN=False
+
+So the fix flags the real failure and does NOT false-positive on the real healthy
+credential. Heartbeat re-seeded to VictoriaLogs via the /proc/1/fd/1 redirect; the
+dead-man rule's window is fed.
