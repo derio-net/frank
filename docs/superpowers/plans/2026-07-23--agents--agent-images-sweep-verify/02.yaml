@@ -66,6 +66,23 @@ tasks:
       pin as current, and that it resolves `talosctl` against the cluster and `omnictl` against
       the Omni server rather than against GitHub latest. Then update this plan's status and the
       acceptance rows with the live evidence.
+  - id: P2.T2.S7
+    text: |
+      MANUAL — set `agent.intent_ack_continuation: true` in the Hermes agent
+      `config.yaml` on the PVC (manual-op `orch-hermes-config-provider`).
+
+      Required by the 0.19.0 bump. Hermes 0.15.2 hardcoded its announce-only-turn
+      countermeasure to `api_mode == "codex_responses"`, so it never fired on the
+      OpenAI-compatible LiteLLM path Frank uses; agent-images carried a local patch
+      widening that gate. In 0.19.0 upstream replaced the hardcoded gate with a
+      config knob (`auto` -> codex_only, `true`/`always` -> all api_modes,
+      `false` -> off), so the patch was retired. Without this config line Hermes
+      silently reverts to codex-only continuation on `chat_completions` — a
+      behaviour regression with no error and no failed pod.
+
+      Verify by confirming the setting is live in the pod's config.yaml and that a
+      multi-step Hermes turn still auto-continues rather than stopping after an
+      announce-only reply.
 state:
   steps:
     P2.T1.S1:
@@ -97,6 +114,10 @@ state:
       ticked_at: null
       note: null
     P2.T2.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S7:
       state: ' '
       ticked_at: null
       note: null

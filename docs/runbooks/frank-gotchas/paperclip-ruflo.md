@@ -170,7 +170,7 @@ Bugs (2) and (3) were latent because the file paths only execute once files exis
 
 Make `RvfGridFSBucket` faithfully implement the GridFS contract in **one file, with zero caller patches**: a real `Writable` in **objectMode** (so it absorbs the `ArrayBuffer`/`Uint8Array`/`Buffer`/string at the shim boundary via `Buffer.from`, fixing both the `.once` crash *and* the corruption), a real `Readable` via `Readable.from`, and a **synchronous** cursor exposing both `next()` and `toArray()`. Storage stays base64 (download decodes → `downloadFile` re-encodes for its `{type:"base64"}` return; round-trip preserved). Applied as a `git apply` patch in `agent-images/ruflo-server/patches/rvf-gridfs-parity.patch`, guarded by a build-time `grep -q`. Verified end-to-end against the live deployed bundle + RVF store (`docs/superpowers/plans/2026-05-27--orch--ruflo-upload-fix/phase3-evidence.md`): ArrayBuffer upload → `finish` → byte-exact base64 round-trip → `.pipe()` copy-on-fork, plus HTTP-route multipart upload + `downloadFile()` read-back.
 
-Filed upstream as [ruvnet/ruflo#2293](https://github.com/ruvnet/ruflo/pull/2293) (target file was unchanged for 150+ commits, so it applies on current `main`); the same PR also carries the `wasm://` allow-line below. Once it merges, drop both local patches on the next agent-images bump.
+Filed upstream as [ruvnet/ruflo#2293](https://github.com/ruvnet/ruflo/pull/2293) (target file **still** unchanged — re-measured 2026-07-23 across 607 upstream commits, `rvf.ts` and `urlSafety.ts` are byte-identical, so both patches still apply; the PR is still **open**); the same PR also carries the `wasm://` allow-line below. Once it merges, drop both local patches on the next agent-images bump.
 
 ### Why we don't just switch backends
 
