@@ -451,3 +451,67 @@ end-to-end: heartbeat in VictoriaLogs + a forced-near-expiry warning delivered
 the rule loaded and evaluating (state inactive/health ok against a live heartbeat).
 A rule that Synced is not a rule that fires. Live-proven 2026-07-22. Spec:
 `docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md`.
+
+### The clock is necessary, never sufficient — blanked tokens (2026-07-23)
+
+**One day after the guard shipped, it missed the very next outage.** The C&C bot
+answered every DM with `agent busy — deterministic snapshot` for ~14h while
+`cred-expiry-check` cheerfully printed `days_left=26 tier=ok`.
+
+The credential file was intact, well-formed, and its clock read 26 days out — but
+**both tokens were empty strings**:
+
+```
+accessToken            type=str  len=0     <- blank
+refreshToken           type=str  len=0     <- blank
+expiresAt              0
+refreshTokenExpiresAt  2026-08-19          <- still 26 days out
+```
+
+claude **blanks `accessToken`/`refreshToken` when a refresh fails** (invalid_grant)
+and leaves the surrounding metadata untouched, so the expiry clock keeps reading
+healthy over a credential that is already dead. Proven in the container:
+
+```
+$ claude -p 'reply with the single word OK'
+Failed to authenticate: OAuth session expired and could not be refreshed
+```
+
+**Recognising it — the symptom is NOT an alert.** Nothing pages; the tell is the
+Telegram channel falling back to the deterministic snapshot. Then, in the `agent`
+container:
+
+- `ps -eo pid,args` shows the agent-session server running but **no tmux server and
+  no claude process at all** (`tmux ls` → `no server running on /tmp/tmux-1000/default`).
+  claude dies on launch, and tmux exits with its last pane.
+- agent log: `agent-session: session alert-agent-tg-<chat> not ready after 30.0s; proceeding`
+- bridge log: `WARN telegram-bridge: session_send failed: timed out`
+- then `bridge.py::_deterministic_snapshot()` posts the frank-facts fallback and
+  reacts 🤔 instead of 👍.
+
+**Fix.** `evaluate_expiry` now returns `tier=error reason=blank-token` (warn=True)
+whenever the nested `claudeAiOauth` blob carries no non-empty string `refreshToken` —
+checked BEFORE any clock arithmetic, because a blank token is dead now whatever the
+calendar says. The warning deliberately omits the days-remaining figure: quoting a
+healthy clock is precisely what made this invisible. The top-level defensive shape
+stays clock-only (never seen live; we can't name its token field). The heartbeat
+gained a `reason=<slug>` token — additive, since the dead-man rule matches only the
+literal `cred-expiry-check`.
+
+**The fixture encoded the bug.** `tests/test_cred_expiry.py::_creds()` hard-coded
+`"refreshToken": ""` — the exact live-broken shape — and asserted `tier=ok`. Whoever
+built it (2026-07-22) most likely copied a live credentials file and redacted the
+secret by blanking it; the redaction silently became the suite's definition of
+"healthy". Changing the fixture to a non-empty token broke *nothing*, which is the
+proof the old suite never exercised the token at all. **When a fixture is derived
+from redacted production data, the redaction is part of the fixture — assert on what
+you blanked out.**
+
+**Still blind (follow-up).** The image's login MOTD prints
+`✓ claude (~/.claude/.credentials.json, age 1d)` from file *presence* alone, so it
+says ✓ over a blank credential. That lives in the `agent-images` repo, not here.
+
+**Recovery** is the usual re-login — manual op `obs-alert-agent-claude-login`
+(attach the agent tmux in the `agent` container, run `/login`). The fix makes the
+*next* occurrence page within a day instead of being noticed by a human wondering
+why the bot got terse.

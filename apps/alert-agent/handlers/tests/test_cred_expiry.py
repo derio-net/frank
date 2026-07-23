@@ -10,12 +10,19 @@ NOW_MS = 1_753_000_000_000          # fixed test clock
 DAY_MS = 86_400_000
 
 
-def _creds(days_out: float) -> str:
+def _creds(days_out: float, refresh_token: str | None = "rt-abc123") -> str:
     # The REAL claude credentials.json nests the field under `claudeAiOauth`
     # (confirmed live 2026-07-22) — NOT top-level.
-    return json.dumps({"claudeAiOauth": {
-        "refreshToken": "", "expiresAt": 0,
-        "refreshTokenExpiresAt": int(NOW_MS + days_out * DAY_MS)}})
+    #
+    # `refresh_token` MUST default to a non-empty value: this fixture used to hard-code
+    # `""`, which is precisely the live-BROKEN shape (2026-07-23), so the suite asserted
+    # that a dead credential was healthy. Pass refresh_token="" / None to build the
+    # broken shape deliberately.
+    oauth = {"expiresAt": 0,
+             "refreshTokenExpiresAt": int(NOW_MS + days_out * DAY_MS)}
+    if refresh_token is not None:
+        oauth["refreshToken"] = refresh_token
+    return json.dumps({"claudeAiOauth": oauth})
 
 
 def _creds_flat(days_out: float) -> str:
@@ -83,6 +90,58 @@ def test_broken_cred_is_error_tier_and_warns(bad):
     assert v.days_left is None
     assert v.should_warn is True
     assert "<" not in v.message and ">" not in v.message and "&" not in v.message
+
+
+# --- blanked tokens: a healthy CLOCK does not mean a usable CREDENTIAL ---------
+
+# Incident 2026-07-23: the C&C bot answered every DM with the deterministic-snapshot
+# fallback for ~14h. The credential file was intact and its clock read 26 days out, but
+# BOTH tokens had been blanked to "" (claude clears them when a refresh fails, leaving
+# the metadata behind). `claude -p` said "Failed to authenticate: OAuth session expired
+# and could not be refreshed", the tmux pane died on launch, every turn timed out — and
+# this check reported `tier=ok WARN=False`. The clock is necessary, never sufficient.
+
+@pytest.mark.parametrize("blank", ["", "   ", None])
+def test_blank_or_missing_refresh_token_is_error_despite_healthy_clock(blank):
+    v = ce.evaluate_expiry(_creds(26, refresh_token=blank), NOW_MS)
+    assert v.tier == "error"          # NOT "ok" — this is the whole bug
+    assert v.should_warn is True
+    assert v.days_left is None
+
+
+@pytest.mark.parametrize("bad", [0, 123, True, [], {}])
+def test_non_string_refresh_token_is_error(bad):
+    doc = json.loads(_creds(26))
+    doc["claudeAiOauth"]["refreshToken"] = bad
+    v = ce.evaluate_expiry(json.dumps(doc), NOW_MS)
+    assert v.tier == "error" and v.should_warn is True
+
+
+def test_blank_token_message_names_the_real_fault_and_is_plain_text():
+    m = ce.evaluate_expiry(_creds(26, refresh_token=""), NOW_MS).message
+    # must not read as "expires in 26 days" — the operator action is re-login NOW
+    assert "26" not in m
+    assert "login" in m.lower()
+    assert "<" not in m and ">" not in m and "&" not in m
+
+
+def test_blank_token_heartbeat_is_stable_single_line_error():
+    hb = ce.evaluate_expiry(_creds(26, refresh_token=""), NOW_MS).heartbeat
+    assert "\n" not in hb
+    assert hb.startswith("cred-expiry-check")   # the Grafana dead-man rule matches this
+    assert "tier=error" in hb
+
+
+def test_healthy_token_with_far_clock_is_still_ok():
+    # the fix must not turn every healthy credential into an error
+    v = ce.evaluate_expiry(_creds(26), NOW_MS)
+    assert v.tier == "ok" and v.should_warn is False and v.days_left == 26
+
+
+def test_flat_fallback_shape_keeps_clock_only_semantics():
+    # The top-level shape is a defensive tolerance for a schema we have never seen live;
+    # we cannot demand a token field we do not know the name of. Clock-only, as before.
+    assert ce.evaluate_expiry(_creds_flat(26), NOW_MS).tier == "ok"
 
 
 # --- heartbeat line ----------------------------------------------------------
