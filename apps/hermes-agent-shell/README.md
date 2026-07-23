@@ -79,7 +79,7 @@ the official image can be told NOT to spawn its embedded PG. Not attempted here.
    deployment now passes `args: [gateway, run]`, which the image auto-redirects to
    its supervised s6 `main-hermes` service. Verified it stays up.
 3. **Sidecar image SHA — RESOLVED (pinned).** Pinned to the permanent main-build
-   SHA `ghcr.io/derio-net/hermes-agent-shell-ssh:a59f49998b0001cd49d635dd261e9ef238ed89a8`
+   SHA `ghcr.io/derio-net/hermes-agent-shell-ssh:c7a80f6fce51471732980d8c7f2b684b4e602299`
    (agent-images#136 merged; the 820c1fb main build published it). The
    agent-images-bump workflow re-pins it on future bumps (it is in AGENT_IMAGES).
 
