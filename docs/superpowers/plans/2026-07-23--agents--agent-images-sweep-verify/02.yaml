@@ -1,0 +1,127 @@
+schema_version: 2
+phase:
+  number: 2
+  title: '[manual] Post-merge live verification'
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - agent-shell-talosctl-cluster-skew
+  - agent-shell-sweep-boots-clean
+  - hermes-upgrade-reaches-pod
+  - ruflo-revendor-preserves-function
+  - agent-images-pin-drift-measurable
+tasks:
+- number: 1
+  title: Receive and check the automatic bump PR
+  steps:
+  - id: P2.T1.S1
+    text: |
+      MANUAL — depends on the agent-images build having published. After the agent-images PR
+      merges, its `repository_dispatch` fires and `.github/workflows/agent-images-bump.yml`
+      opens a bump PR here. Confirm the "Verify coverage" step passed: every 40-hex
+      `ghcr.io/derio-net/*` pin under `apps/` must equal the new agent-images SHA. A failure
+      there means an image is missing from the `AGENT_IMAGES` list, not that the bump is wrong.
+  - id: P2.T1.S2
+    text: |
+      MANUAL — check the PR's `skipped=` output. Any image listed there did NOT publish at the
+      new SHA and has deliberately been left at its previous pin by the per-image existence
+      gate. That is a real signal: it means one build leg failed, and that image is still
+      running the pre-sweep code.
+- number: 2
+  title: Verify each rebuilt shell live
+  steps:
+  - id: P2.T2.S1
+    text: |
+      MANUAL — talosctl skew closed. In `secure-agent-pod` (kali), run `talosctl version` and
+      confirm the client reports v1.12.6 and contacts the cluster without a skew warning. This
+      is the sweep's one correctness fix; it is the first thing to prove.
+  - id: P2.T2.S2
+    text: |
+      MANUAL — every rebuilt shell boots. Confirm all containers Ready across `alert-agent` (3
+      containers), `cnc-base`, `n8n-01`, `secure-agent-pod`, `paperclip`, `ruflo` and
+      `hermes-agent-shell`, with no s6 crashloop-bail in logs. This is what the s6 and Node
+      bumps put at risk.
+  - id: P2.T2.S3
+    text: |
+      MANUAL — Hermes actually upgraded in-pod. Run `hermes --version` INSIDE the running pod
+      (not against the image) and confirm 0.19.0, proving the `.seed-version` re-seed fired.
+      Then confirm provider resolution and `context_length` still match live reality per
+      `config.yaml` — a wrong context length degrades the agent loop silently.
+  - id: P2.T2.S4
+    text: |
+      MANUAL — ruflo survived the re-vendor. Confirm `/api/v2/feature-flags` answers and the UI
+      loads via its IngressRoute (`ruflo.cluster.derio.net`), then round-trip a file upload and
+      download — that is the observable proof the local GridFS patch still applies.
+  - id: P2.T2.S5
+    text: |
+      MANUAL — remaining surfaces. Confirm the hindsight sidecar's Postgres starts with no
+      PGDATA permission regression and its API answers; confirm SSH to `192.168.55.215` and the
+      VK UI on `:8081` still work; confirm the `cred-expiry-check` heartbeat still lands (its
+      Grafana dead-man rule staying quiet is the supercronic evidence).
+  - id: P2.T2.S6
+    text: |
+      MANUAL — re-run the audit script from agent-images and confirm it now reports every bumped
+      pin as current, and that it resolves `talosctl` against the cluster and `omnictl` against
+      the Omni server rather than against GitHub latest. Then update this plan's status and the
+      acceptance rows with the live evidence.
+  - id: P2.T2.S7
+    text: |
+      MANUAL — set `agent.intent_ack_continuation: true` in the Hermes agent
+      `config.yaml` on the PVC (manual-op `orch-hermes-config-provider`).
+
+      Required by the 0.19.0 bump. Hermes 0.15.2 hardcoded its announce-only-turn
+      countermeasure to `api_mode == "codex_responses"`, so it never fired on the
+      OpenAI-compatible LiteLLM path Frank uses; agent-images carried a local patch
+      widening that gate. In 0.19.0 upstream replaced the hardcoded gate with a
+      config knob (`auto` -> codex_only, `true`/`always` -> all api_modes,
+      `false` -> off), so the patch was retired. Without this config line Hermes
+      silently reverts to codex-only continuation on `chat_completions` — a
+      behaviour regression with no error and no failed pod.
+
+      Verify by confirming the setting is live in the pod's config.yaml and that a
+      multi-step Hermes turn still auto-continues rather than stopping after an
+      announce-only reply.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S6:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S7:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

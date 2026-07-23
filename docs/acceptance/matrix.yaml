@@ -390,3 +390,58 @@ rows:
       warning (tier=urgent). Grafana rule alert-agent-cred-expiry-heartbeat-stale loaded
       (provisioning API) and evaluates state=inactive/health=ok against the live heartbeat.
       Live-only.
+  - id: agent-shell-talosctl-cluster-skew
+    capability: Agent shells
+    acceptance: Operators driving Talos from an agent shell use a talosctl whose version
+      is supported against the running cluster, instead of one three minor versions
+      behind it.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
+    levels: {}
+    status: not-implemented
+    notes: Cluster measured at Talos v1.12.6 on all 7 nodes 2026-07-23; shells shipped
+      talosctl v1.9.5. Verify live in secure-agent-pod (kali) via 'talosctl version'
+      after the sweep.
+  - id: agent-shell-sweep-boots-clean
+    capability: Agent shells
+    acceptance: Every agent shell Frank deploys still boots and serves after the upstream
+      version sweep rebuilds it.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
+    levels: {}
+    status: not-implemented
+    notes: Covers alert-agent (3 containers), cnc-base, n8n-01, secure-agent-pod, paperclip,
+      ruflo, hermes-agent-shell. Per-image CI smoke jobs plus live pod readiness post-merge.
+  - id: hermes-upgrade-reaches-pod
+    capability: Agent shells
+    acceptance: A Hermes version bump actually reaches the running shell, rather than
+      shipping in the image while the pod keeps serving the old venv off its PVC.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
+    levels: {}
+    status: not-implemented
+    notes: Hermes venv is PVC-resident behind a .seed-version marker (frank#496) — image
+      content alone does not prove the upgrade. Verify via 'hermes --version' INSIDE
+      the running pod.
+  - id: ruflo-revendor-preserves-function
+    capability: Ruflo
+    acceptance: Ruflo still serves its UI and handles file upload and download after
+      the upstream re-vendor, proving the local GridFS and wasm-scheme patches survived.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
+    levels: {}
+    status: not-implemented
+    notes: Both patch targets measured byte-identical across the 607-commit range 2026-07-23;
+      upstream PR ruvnet/ruflo#2293 still open, so both patches remain required. Verify
+      via /api/v2/feature-flags plus a file round-trip.
+  - id: agent-images-pin-drift-measurable
+    capability: Agent image maintenance
+    acceptance: An operator can re-measure how far every agent-images pin has drifted
+      from upstream on demand, without redoing the manual registry-by-registry reconnaissance.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
+    levels: {}
+    status: not-implemented
+    notes: On-demand script, no scheduled watcher (decision d3). Must compare talosctl
+      against the live cluster and omnictl against the live Omni server, not against
+      GitHub latest.

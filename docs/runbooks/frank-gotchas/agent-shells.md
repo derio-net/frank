@@ -570,3 +570,182 @@ masking the next. The durable, reusable lessons (not the per-incident details):
   interactive DM at 2 min: with threaded turns (per-session lock) a long turn doesn't block the
   consumer, so the bridge uses `DM_TIMEOUT_S=600`; pair with a SKILL "answer fast/focused, lead
   with the pre-computed facts" nudge so most answers finish in well under a minute.
+
+## Upstream version pins in agent-images (2026-07-23 sweep)
+
+Nothing watched the version pins in `derio-net/agent-images`, so between
+hand-measurements every one of them drifted untracked. The first full
+measurement (2026-07-23) found one pin actively wrong and several multi-release
+gaps. What follows is what that measurement taught, not a changelog.
+
+### talosctl must track the cluster, and "latest" is the wrong fix
+
+The shells shipped `talosctl v1.9.5` against a cluster running **Talos v1.12.6**
+on all seven nodes — three minor versions of skew, where Talos supports only
+±1. There was no alert and no symptom: an out-of-support client mostly works
+until a call hits API drift, and then fails in a way that reads like a cluster
+problem rather than a client problem.
+
+The obvious fix is the wrong one. Upstream latest was `v1.13.7`; pinning there
+puts the client *ahead* of the nodes and re-creates the same drift the moment
+the cluster lags. **The target is the cluster's version.**
+
+- `LAST_MEASURED_CLUSTER_TALOS` in `scripts/version_audit.py` (agent-images) is
+  the single source of truth.
+- `scripts/tests/test_talosctl_pin_parity.py` enforces two things: that
+  `infra-shell` and `kali` pin the *same* value (they can silently drift apart —
+  nothing made them move together), and that both equal that constant.
+- **After a cluster Talos upgrade:** update the constant; the test then names
+  the Dockerfiles still needing the bump.
+
+Same exposure with a wider tolerance: `kubectl` in `infra-shell`/`kali` is
+fetched from `dl.k8s.io/release/stable.txt` — always latest, unpinned. It is
+within ±1 of the cluster's v1.35.3 today by luck, not by design.
+
+`omnictl` has the same shape and a harder problem: it must track the running
+**Omni server**, whose version is *not recorded in this repo* (it lives in an
+`omni.env` on the Omni host; `omni/omni/compose.yaml` only interpolates
+`${OMNI_IMG_TAG}`). The audit reports it `unknown` rather than guessing — a
+wrong omnictl is worse than an old one, because it is the client for the one
+control plane you need during a recovery.
+
+### agent-images CI does not build pull requests
+
+`build.yaml` triggers on **push to `main` only** (`paths-ignore: docs/**`),
+`workflow_dispatch` and `repository_dispatch` — **never `pull_request`**. Two
+consequences that have to be internalised together:
+
+1. A bump PR shows a green checkmark and has built *nothing*.
+2. Pushing the feature branch does not build it either, because the push
+   trigger is branch-restricted.
+
+```bash
+gh workflow run build.yaml --ref <branch>    # the ONLY way to exercise a branch
+gh run watch
+```
+
+The per-image `smoke-test-*` jobs it runs assert `/init` boots under a
+K8s-equivalent securityContext — precisely the failure an s6 or Node bump
+causes. They are the control that makes those bumps acceptable at all.
+
+### A Hermes bump can miss the pod entirely
+
+The Hermes venv is built as a relocatable seed at `/opt/hermes-agent` and copied
+onto the `/home/agent` PVC on first boot, gated by a `.seed-version` marker
+(frank#496). `cont-init.d/35-hermes-venv-seed` re-seeds only when the seed's
+marker differs from the live one.
+
+So **the image is not the evidence**. An image shipping 0.19.0 and a pod serving
+0.15.2 is a perfectly healthy-looking state: pod Ready, ArgoCD Synced, nothing
+red. Verify with `hermes --version` **inside the running pod**.
+
+The marker must stay derived from `${HERMES_VERSION}` — a literal would freeze
+every existing PVC at whatever it seeded first. Guarded by
+`scripts/tests/test_hermes_seed_marker.py` in agent-images.
+
+Also remember `config.yaml` is PVC state (manual-op `orch-hermes-config-provider`):
+the provider **mapping** (model-string prefixes do NOT pin the provider) and the
+`context_length` overrides must equal live reality, or the compressor engages
+against a wrong boundary and poisons the session.
+
+**The calver/semver trap.** `hermes-agent` publishes **calver** git and Docker
+tags but **semver** on PyPI:
+
+| git / Docker tag | PyPI version |
+|---|---|
+| `v2026.5.29.2` | 0.15.2 |
+| `v2026.7.7.2`  | 0.18.2 |
+| `v2026.7.20`   | 0.19.0 |
+
+Because the two pins look like different products, nothing surfaced that
+`hermes-agent-shell` (PyPI 0.15.2) and `hermes-agent-shell-ssh` (Docker
+`v2026.7.7.2`) — two containers in the **same pod** — were running upstream
+releases seven weeks apart. Both now land on `v2026.7.20`. When bumping one,
+map it through this table and check the other.
+
+### Hermes 0.19.0 retired a local patch — and moved the behaviour into config
+
+The 2026-07-23 branch build failed on `hermes-agent-shell` with
+`patch failed: agent/conversation_loop.py:4180 ... patch does not apply`. That was
+a **third** local patch (`hermes-autocontinue-chat-completions.patch`) that the
+sweep's risk assessment had not inventoried — it had covered the seed marker and
+the config schema, but not the patch set.
+
+The `git apply` is deliberately zero-fuzz precisely so this fails loudly rather
+than silently no-opping. It worked as designed.
+
+The right response was to ask *why* it no longer applies, not to rebase it:
+
+- **0.15.2** hardcoded the "announce-only turn" countermeasure (inject
+  `[System: Continue now…]`) to `api_mode == "codex_responses"`. Frank drives
+  Hermes over an OpenAI-compatible LiteLLM endpoint (`api_mode
+  "chat_completions"`), so it never fired — hence the local patch widening the gate.
+- **0.19.0** replaced that hardcoded gate with a real config knob,
+  `intent_ack_continuation` (see `agent_runtime_helpers.intent_ack_continuation_mode`),
+  with four modes mirroring `tool_use_enforcement`:
+
+  | value | resolved mode | behaviour |
+  |---|---|---|
+  | `"auto"` (**default**) | `codex_only` | the old hardcoded behaviour |
+  | `true` / `always` / `on` | `all` | fires on **every** api_mode ← what our patch forced |
+  | `false` / `never` / `off` | `off` | never continue |
+  | `[list]` | `all` if a substring matches the active model | per-model |
+
+So the patch was **obsolete, not broken**, and was dropped rather than rebased.
+
+**The consequence is a config requirement, not a code one.** The default is
+`auto`, so unless the agent `config.yaml` sets:
+
+```yaml
+agent:
+  intent_ack_continuation: true
+```
+
+Hermes silently reverts to codex-only continuation on Frank's `chat_completions`
+path — no error, no failed pod, just an agent that stops after an announce-only
+reply. `config.yaml` is PVC state (manual-op `orch-hermes-config-provider`), so
+no image change can do this for you.
+
+The seed-marker suffix now reads `+nopatches1` — it records the local *patch set*,
+which is empty.
+
+### Measuring drift against a monorepo
+
+`ruflo` looked like the scariest item in the sweep ("607 commits behind") and
+measured as one of the safest. Two traps:
+
+1. **GitHub's compare API caps `.files[]` at 300 entries.** A `grep` over the
+   truncated list reported *zero* changes in the subtree — a confident false
+   negative.
+2. **`ruvnet/ruflo` is a monorepo**, and agent-images builds only
+   `ruflo/src/ruvocal/`. Repo-wide commit counts say nothing about it.
+
+Measured properly — enumerate `git/trees/<ref>:<subtree>?recursive=1` at both
+refs and diff the path→blob-SHA maps — the range was **501 blobs at both refs,
+no paths added or removed, exactly one changed file**. Both local patch targets
+were byte-identical, so the patches still applied (proved locally with
+`docker build --target source`, which runs the four post-apply `grep` guards).
+
+The one changed file was **ADR-166 security hardening** closing a disclosed
+unauthenticated RCE chain in `mcp-bridge` (deny-by-default `terminal_execute`,
+loopback bind, bearer auth, CORS allowlist). It is not in our runtime stage.
+
+Residual risk no pin controls: `package.json` was byte-identical, so its semver
+ranges still resolve to whatever npm publishes **at build time**. "No source
+change" never means "identical image".
+
+### Two pin classes — read a version table with this in mind
+
+- **Bootstrap** (`claude-code`, `codex`, `opencode`): the Dockerfile line is a
+  first-boot seed only. The CLI self-updates in-pod and floats forward via the
+  shell inventory's `harnesses:` key, so a nine-release gap is near-meaningless.
+- **Rebuild-only** (everything else): the image rebuild is the *only* refresh
+  path. This is where staleness is real.
+
+Three things float untracked on **every** rebuild regardless: `agy` (vendor
+install script, no pin, no self-update), `kubectl` (from `stable.txt`), and the
+unpinned `@anthropic-ai/claude-code`. Any rebuild silently moves them.
+
+Run the audit on demand: `cd scripts && uv run python version_audit.py`
+(agent-images). It is a report, not a gate — always exits 0, and there is
+deliberately no scheduled watcher opening drift PRs.
