@@ -437,8 +437,17 @@ the `telegram_direct` label, and the >24h window.
 
 **Deploy notes.** Ships via ConfigMap (no image rebuild); ArgoCD rolls the pod.
 File-provisioned Grafana rules are read at boot — **restart the grafana pod** after
-the CM change. On first deploy, run the check once in-container to seed a heartbeat
-before the rule's `for: 2h` could fire on the empty window. Verify end-to-end
-(heartbeat line in VictoriaLogs + a forced-near-expiry warning delivered + the rule
-loaded) — a rule that Synced is not a rule that fires. Spec:
+the CM change. On first deploy, seed a heartbeat before the rule's `for: 2h` could
+fire on the empty window — **but the seed must reach VictoriaLogs**: a plain
+`kubectl exec … cred-expiry-check` writes to the *exec session's* stdout, NOT the
+container's PID-1 stream that fluent-bit tails, so it never lands in VL. Seed with
+a redirect to PID 1: `kubectl exec -n alert-agent deploy/alert-agent -c agent -- sh
+-c '/opt/alert-agent-bin/cred-expiry-check > /proc/1/fd/1 2>&1'`, then confirm
+`… _msg:"cred-expiry-check" | stats count()` ≥ 1. (The daily 09:00 supercronic run
+reaches VL naturally — supercronic captures its child's stdout, same as
+`surge-gate` — so only the manual first-deploy seed needs the redirect.) Verify
+end-to-end: heartbeat in VictoriaLogs + a forced-near-expiry warning delivered
+(`CRED_PATH` → a temp `{"claudeAiOauth":{"refreshTokenExpiresAt":…}}` 2 days out) +
+the rule loaded and evaluating (state inactive/health ok against a live heartbeat).
+A rule that Synced is not a rule that fires. Live-proven 2026-07-22. Spec:
 `docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md`.

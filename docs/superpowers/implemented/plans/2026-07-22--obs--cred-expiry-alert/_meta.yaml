@@ -1,6 +1,6 @@
 schema_version: 2
 plan: 2026-07-22--obs--cred-expiry-alert
-spec: docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
+spec: 2026-07-22--obs--cred-expiry-alert-design.md
 target_repo: derio-net/frank
 fr_version: '>=3.7.0,<4.0.0'
 created: '2026-07-22'

@@ -377,5 +377,10 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-22--obs--cred-expiry-alert-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: Live proof 2026-07-22 (after PR 671 plus the PR 673 nested-field fix rolled).
+      Heartbeat run against the REAL cred gave days_left=27 tier=ok; seeded to VictoriaLogs
+      (dead-man query value=1). Forced 2-days-out cred via CRED_PATH delivered a real Telegram
+      warning (tier=urgent). Grafana rule alert-agent-cred-expiry-heartbeat-stale loaded
+      (provisioning API) and evaluates state=inactive/health=ok against the live heartbeat.
+      Live-only.

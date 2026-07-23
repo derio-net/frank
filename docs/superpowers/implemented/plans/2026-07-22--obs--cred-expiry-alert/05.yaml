@@ -34,10 +34,12 @@ tasks:
 state:
   steps:
     P5.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-22T21:21:51+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-07-22T21:21:52+00:00'
+    note: 'Live-verified 2026-07-22 after #671+#673: heartbeat tier=ok days_left=27
+      in VL, forced-near-expiry Telegram warning delivered, dead-man rule loaded +
+      inactive/ok. Nested-field bug (#673) found here.'
     observed_prs: []
