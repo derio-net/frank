@@ -1,0 +1,120 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Record what the sweep taught
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Hot one-liners in the always-loaded gotchas file
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Add a one-liner to the `### Agent shells` section of `agents/rules/frank-gotchas.md`:
+      agent-shell `talosctl` must track the CLUSTER's Talos version, not GitHub's latest —
+      Talos supports only +/-1 minor of client skew, and the shells sat at v1.9.5 against a
+      v1.12.6 cluster (2026-07-23) with no alert and no symptom until someone ran a command that
+      happened to need the newer API. Note that the same exposure exists for `kubectl`, which
+      `infra-shell`/`kali` fetch from `dl.k8s.io/release/stable.txt` (always latest, unpinned).
+  - id: P1.T1.S2
+    text: |
+      Add a one-liner: `derio-net/agent-images`' `build.yaml` runs on **push to main only**
+      (`paths-ignore: docs/**`), `workflow_dispatch` and `repository_dispatch` — **never on
+      `pull_request`**. A bump PR there is green-looking and completely unbuilt; validating a
+      branch requires `gh workflow run build.yaml --ref <branch>`. Pushing the branch is NOT
+      enough, because the push trigger is branch-restricted to main.
+  - id: P1.T1.S3
+    text: |
+      Add a one-liner: a Hermes version bump can ship in the image while the pod keeps serving
+      the OLD venv — the venv is PVC-resident behind a `.seed-version` marker (frank#496), so
+      the image is not the evidence. Verify with `hermes --version` INSIDE the running pod.
+  - id: P1.T1.S4
+    text: |
+      Add a one-liner capturing the measurement trap, since it generalises well beyond ruflo:
+      GitHub's compare API caps `.files[]` at 300 entries, so a `grep` over a large range
+      silently reports "no changes" in a subtree that did change. For a monorepo dependency,
+      measure drift at the **subtree you actually build** by diffing tree/blob SHAs — "607
+      commits behind" collapsed to exactly one changed file when measured that way.
+- number: 2
+  title: Full prose in the per-topic runbook
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Add the full prose for the talosctl-skew and `pull_request`-blind-CI gotchas to
+      `docs/runbooks/frank-gotchas/agent-shells.md`, including the measured values (cluster
+      v1.12.6 on all 7 nodes; shells at v1.9.5; upstream latest v1.13.7) and the rule that the
+      target is the cluster version, not latest. State why: pinning to latest re-creates the
+      drift in the opposite direction the moment the cluster lags.
+  - id: P1.T2.S2
+    text: |
+      Add prose for the Hermes seed-marker trap to the same file: the relocatable seed venv at
+      `/opt/hermes-agent`, the `cp -a` onto the PVC on first boot, the `.seed-version` gate, and
+      the resulting "image ships N, pod runs N-1" failure mode — plus the recovery (confirm the
+      marker changed, or force a re-seed) and the reminder that `config.yaml` provider mapping
+      and `context_length` are PVC state that a version jump can invalidate.
+  - id: P1.T2.S3
+    text: |
+      Record the two-pin-class distinction (bootstrap vs rebuild-only) in the same file, and
+      name the three pins that float untracked on every rebuild — `agy`, `kubectl` (from
+      `stable.txt`) and the unpinned `@anthropic-ai/claude-code`. A future maintainer reading a
+      version table needs to know which rows are worth acting on.
+- number: 3
+  title: Correct a stale claim this sweep disproved
+  steps:
+  - id: P1.T3.S1
+    text: |
+      `docs/runbooks/frank-gotchas/paperclip-ruflo.md` records the ruvocal GridFS shim fix as
+      "upstreamed ruvnet/ruflo#2293". Measured 2026-07-23, that PR is **open, not merged**, and
+      upstream HEAD carries none of `new Writable` / `Readable.from` / `next: async`. Correct
+      the entry to say the fix was *filed* upstream and remains a local patch, so nobody drops
+      the patch believing upstream now carries it.
+- number: 4
+  title: Validate
+  steps:
+  - id: P1.T4.S1
+    text: |
+      Run `scripts/validate-plans.sh docs/superpowers/plans/2026-07-23--agents--agent-images-sweep-verify`
+      and `uv run pytest scripts/tests/` and confirm both pass before completing the phase.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

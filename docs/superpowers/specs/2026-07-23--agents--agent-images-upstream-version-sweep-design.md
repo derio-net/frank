@@ -344,8 +344,15 @@ Small by design; the bump arrives automatically.
 - **The audit script itself becomes a pin to maintain.** It hardcodes how to reach four registry
   APIs; those change. It is on-demand precisely so a break is discovered when someone runs it, not
   as a red CI light nobody reads.
-- **`agy` floats on every rebuild** (§2). This sweep rebuilds every image, so `agy` changes as a
-  side effect, untracked and unverified. Out of scope, but it is a real uncontrolled variable.
+- **Three things float on every rebuild, untracked** — `agy` (vendor script, no pin, no self-update),
+  `kubectl` (`infra-shell`/`kali` fetch `dl.k8s.io/release/stable.txt`, i.e. always latest), and
+  `@anthropic-ai/claude-code` (unpinned `npm i -g`). This sweep rebuilds every image, so all three
+  change as a side effect, unverified. Out of scope, but they are real uncontrolled variables — and
+  note `kubectl`-from-`stable.txt` has exactly the skew exposure §3.1 describes for `talosctl`, just
+  with a wider support window (±1 minor against the cluster's v1.35.3).
+- **The images are amd64-only** (`build.yaml` sets no `platforms:`, and `agent-shell-base` hardcodes
+  the `s6-overlay-x86_64` tarball). Consistent today, but it means the s6 bump needs no arch
+  handling — and that these shells cannot schedule on the arm64 Pi nodes.
 
 ---
 
