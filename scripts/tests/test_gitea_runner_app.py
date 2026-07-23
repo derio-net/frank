@@ -17,6 +17,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RUNNER_DIR = REPO_ROOT / "apps/gitea-runner/manifests"
 
 
+def _runner_config():
+    """The act_runner config, now a configMapGenerator SOURCE file.
+
+    It is no longer a ConfigMap manifest — see kustomization.yaml and
+    test_config_edit_rolls_the_pod for why that move is load-bearing.
+    """
+    return yaml.safe_load((RUNNER_DIR / "files/config.yaml").read_text())
+
+
 def _load(name):
     docs = [
         d
@@ -90,8 +99,7 @@ def test_deployment_shape():
 
 
 def test_runner_config():
-    cms = [d for d in _load("config.yaml") if d["kind"] == "ConfigMap"]
-    config = yaml.safe_load(cms[0]["data"]["config.yaml"])
+    config = _runner_config()
     assert config["runner"]["capacity"] == 2
     labels = config["runner"]["labels"]
     assert any(
@@ -125,9 +133,7 @@ def test_job_containers_can_reach_the_docker_daemon():
     So `network: host` is load-bearing for BOTH halves, and DOCKER_HOST must
     be injected explicitly because act_runner will not do it for a TCP host.
     """
-    cms = [d for d in _load("config.yaml") if d["kind"] == "ConfigMap"]
-    config = yaml.safe_load(cms[0]["data"]["config.yaml"])
-    container = config["container"]
+    container = _runner_config()["container"]
 
     assert container.get("network") == "host", (
         "job containers on a bridge network can reach neither the DinD "
@@ -178,3 +184,80 @@ def test_root_application():
     assert "ServerSideApply=true" in opts
     # namespace ships as a manifest (it carries the PSS labels)
     assert "CreateNamespace=false" in opts
+
+
+def test_config_edit_rolls_the_pod():
+    """A config edit must change the pod spec, or the runner never reloads it.
+
+    act_runner reads /config/config.yaml exactly ONCE, at boot. Shipped as a
+    plain ConfigMap the name never changes, so ArgoCD applies new content to a
+    ConfigMap the running pod has already read: the app reports Synced, the
+    live ConfigMap holds the new config, and the runner keeps serving the old
+    one indefinitely. That is precisely what happened deploying frank#674 on
+    2026-07-23 — the fix reached the cluster but not the runner until a manual
+    `kubectl rollout restart`. Same shape as the gitea `gitea-inline-config`
+    gotcha.
+
+    kustomize's configMapGenerator hash-suffixes the name and rewrites the
+    Deployment's volume reference, so an edit changes the POD SPEC and ArgoCD
+    rolls it. This pins the three parts that make that work.
+    """
+    kustomization = yaml.safe_load((RUNNER_DIR / "kustomization.yaml").read_text())
+
+    gens = kustomization.get("configMapGenerator") or []
+    assert any(g.get("name") == "act-runner-config" for g in gens), (
+        "act-runner-config must be GENERATED (hash-suffixed), not a literal "
+        f"ConfigMap manifest, or config edits never reach the runner: {gens}"
+    )
+
+    # the literal manifest must be gone, or both would be applied
+    assert not (RUNNER_DIR / "config.yaml").exists(), (
+        "a literal config.yaml ConfigMap manifest still exists alongside the "
+        "generator — the unhashed one would win and never roll the pod"
+    )
+
+    # generator source must be in resources' sibling dir and non-empty
+    assert (RUNNER_DIR / "files/config.yaml").read_text().strip()
+
+    # the Deployment must reference the generator's name so kustomize rewrites it
+    deploy = [d for d in _load("deployment.yaml") if d["kind"] == "Deployment"][0]
+    vols = deploy["spec"]["template"]["spec"]["volumes"]
+    cm_vols = [v["configMap"]["name"] for v in vols if "configMap" in v]
+    assert "act-runner-config" in cm_vols, cm_vols
+
+
+def test_prune_is_enabled_but_stateful_resources_opt_out():
+    """prune: true is required by the generator — and must not reach state.
+
+    Hash-suffixed ConfigMaps orphan the previous one on every edit, so without
+    prune the app sits OutOfSync forever. But unlike homepage (the repo's other
+    prune: true app, which holds only a Deployment/Service/ConfigMaps) this app
+    owns the two things the repo-wide `prune: false` rule exists to protect:
+    the PVC holding the runner's registration identity (/data/.runner), and the
+    registration-token ExternalSecret. Both opt out individually.
+    """
+    app = yaml.safe_load(
+        (REPO_ROOT / "apps/root/templates/gitea-runner.yaml")
+        .read_text()
+        .replace("{{ .Values.repoURL }}", "REPO")
+        .replace("{{ .Values.targetRevision }}", "REV")
+        .replace("{{ .Values.destination.server }}", "SERVER")
+    )
+    automated = app["spec"]["syncPolicy"]["automated"]
+    assert automated.get("prune") is True, (
+        "configMapGenerator orphans a ConfigMap on every config edit; without "
+        f"prune the app sits OutOfSync forever: {automated}"
+    )
+
+    for fname, kind in (
+        ("pvc.yaml", "PersistentVolumeClaim"),
+        ("externalsecret-runner-token.yaml", "ExternalSecret"),
+    ):
+        doc = [d for d in _load(fname) if d["kind"] == kind][0]
+        opts = (doc["metadata"].get("annotations") or {}).get(
+            "argocd.argoproj.io/sync-options", ""
+        )
+        assert "Prune=false" in opts, (
+            f"{kind} is prunable while the app runs prune: true — this is the "
+            "runner's persistent identity / credential"
+        )

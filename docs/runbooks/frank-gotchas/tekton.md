@@ -114,6 +114,19 @@ Guarded by `scripts/tests/test_gitea_runner_app.py::test_job_containers_can_reac
 
 **Why this hid for so long:** of the 14 workflows across the 5 mirrors only `cnc-fr`/`cnc-frd`/`cnc-fru` use the docker CLI. The migration's "smoke-proven" evidence ran on `second-brain`, one of the two repos that don't — so the gap only surfaced when `CI_AUTHORITY=gitea` made Gitea the sole authority. Full prose: `docs/superpowers/debugging/2026-07-22--cicd--gitea-job-containers-cannot-reach-dind.md`.
 
+## Gitea Actions runner: a config edit does NOT roll the pod by itself
+
+`act_runner` reads `/config/config.yaml` exactly **once, at boot**. Shipped as a plain ConfigMap the name never changes, so ArgoCD writes new content into a ConfigMap the running pod has already read: **the app reports Synced, the live ConfigMap holds the new config, and the runner keeps serving the old one indefinitely.** Bit on 2026-07-23 deploying frank#674 — ArgoCD was `Synced` at the merge commit and the ConfigMap carried `network: "host"`, while the runner still had the previous day's config; it only took effect after a manual `kubectl rollout restart deploy/act-runner`. Same shape as the gitea `gitea-inline-config` gotcha.
+
+Fixed by shipping the config through Kustomize `configMapGenerator` (`apps/gitea-runner/manifests/kustomization.yaml`), which hash-suffixes the name (`act-runner-config-<hash>`) and rewrites the Deployment's volume reference — so an edit changes the **pod spec** and ArgoCD rolls it automatically. The config itself now lives at `manifests/files/config.yaml`; do not convert it back to a literal ConfigMap manifest.
+
+That requires `prune: true` on the Application (each edit orphans the previous ConfigMap, else permanent OutOfSync). Unlike homepage — the repo's other `prune: true` app, which holds only a Deployment/Service/ConfigMaps — this app owns exactly what the repo-wide `prune: false` rule protects, so both opt out individually with `argocd.argoproj.io/sync-options: Prune=false`:
+
+- `act-runner-data` PVC — the runner's registration identity (`/data/.runner`)
+- the registration-token ExternalSecret
+
+Guarded by `test_config_edit_rolls_the_pod` and `test_prune_is_enabled_but_stateful_resources_opt_out`.
+
 ## Gitea Actions runner: registration is one-shot PVC state
 
 `act_runner` registers against Gitea once and persists its identity in `/data/.runner` on the PVC. Rotating `STOA_GITEA_RUNNER_TOKEN` (or re-minting the registration token) does **NOT** re-register an already-registered runner — the token is only read when `/data/.runner` is absent. To force a fresh registration: scale the Deployment to 0, delete `/data/.runner` (or the whole PVC — the tool cache is rebuildable), scale back up. Symptom of a half-dead registration: runner pod healthy but the Gitea admin runners page shows it Offline.
