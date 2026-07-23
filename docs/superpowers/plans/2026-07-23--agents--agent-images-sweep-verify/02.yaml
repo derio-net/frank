@@ -86,42 +86,55 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-23T19:21:01+00:00'
+      note: 'Bump PR #680 coverage passed; all 8 deployed images -> c7a80f6'
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-23T19:21:02+00:00'
+      note: skipped= empty; every image published at the merge SHA
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-23T19:21:04+00:00'
+      note: 'kali talosctl client Tag: v1.12.6 = cluster; skew closed'
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-23T19:21:05+00:00'
+      note: alert-agent x3/n8n-01/secure-agent-pod/paperclip/ruflo/hermes all Running
+        c7a80f6; s6 clean. cnc-base runner not deployed (pre-existing)
     P2.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-23T19:21:06+00:00'
+      note: ssh sidecar = Hermes Agent v0.19.0; see S7 note re topology + config
     P2.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-23T19:21:08+00:00'
+      note: ruflo /api/v2/feature-flags OK; GridFS+wasm patches present in running
+        build
     P2.T2.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-23T19:21:09+00:00'
+      note: hindsight/ssh Ready (no PGDATA CrashLoop); SSH .215/VK .218 LBs up; supercronic
+        running + cred-expiry live
     P2.T2.S6:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-23T19:21:10+00:00'
+      note: audit reports all pins ok; talosctl anchor resolves to cluster v1.12.6
     P2.T2.S7:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-07-23T19:21:27+00:00'
+      note: 'N/A for current deployment (finding 2026-07-23): the retired auto-continue
+        patch lived in the base hermes-agent-shell image, which is NOT deployed. The
+        pod''s runtime hermes container is manifest-pinned docker.io/nousresearch/hermes-agent:v2026.7.7.2
+        (=0.18.2), which never carried our patch and predates the intent_ack_continuation
+        knob (added 0.19.0). So there is no behaviour to preserve. Becomes relevant
+        only if the runtime hermes manifest pin is later moved to >=0.19.0 (a separate
+        decision, out of this sweep).'
   completion:
-    at: null
-    note: null
+    at: '2026-07-23T19:21:40+00:00'
+    note: 'All live verification done 2026-07-23 (Test Plan steps 3-10 pass): talosctl
+      v1.12.6=cluster, all deployed shells Running on c7a80f6 with s6 clean, ruflo
+      serving with patches present, hermes ssh sidecar 0.19.0, audit anchor resolves.
+      S7 (intent_ack config) marked N/A per the deployment-topology finding. cnc-base
+      runner not deployed (pre-existing).'
     observed_prs: []
