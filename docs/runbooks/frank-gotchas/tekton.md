@@ -127,6 +127,49 @@ That requires `prune: true` on the Application (each edit orphans the previous C
 
 Guarded by `test_config_edit_rolls_the_pod` and `test_prune_is_enabled_but_stateful_resources_opt_out`.
 
+## Re-triggering mirror CI with an empty commit is PATH-FILTER-BLIND
+
+The quick way to re-run a mirror's CI is to push an empty commit (same tree, new sha) to the PR branch. That works only where the workflow's `push:` trigger has no `paths:` filter — an empty commit changes **zero files**, so every paths-filtered workflow correctly matches nothing and no Gitea run is created at all.
+
+The failure mode is misleading: the branch syncs to Gitea fine, the sha is correct, the runner is healthy, and there are simply **no runs and no `gitea-actions/*` statuses** — which reads exactly like a broken mirror or a dead webhook. Chased on 2026-07-23 against `cnc-fr#94` before spotting that all three of its push workflows (`acceptance-report`, `compose-smoke`, `parity`) are paths-filtered; `cnc-fru`/`cnc-frd`/`second-brain` are not, which is why only `cnc-fr` looked broken.
+
+Check before diagnosing anything else:
+
+```bash
+gh api repos/agentic-stoa/<repo>/commits/<sha> --jq '.files|length'   # 0 = empty commit
+gh api repos/agentic-stoa/<repo>/contents/.github/workflows/<wf>.yml?ref=<branch> \
+  --jq .content | base64 -d | awk '/^on:/{f=1} f{print} /^jobs:/{exit}'
+```
+
+To actually exercise a paths-filtered workflow, touch a path it matches — or merge the PR, since `main` is normally in the branch filter and the merge commit carries the real diff.
+
+## `actions/setup-go@v6` fails on the runner image — UNRESOLVED
+
+Go jobs on the stoa mirrors fail inside `actions/setup-go@v6` with an **empty binary path**:
+
+```
+/bin/sh: 1: version: not found
+::error::Command failed:  version
+  ❌  Failure - Main actions/setup-go@v6
+```
+
+(note the two spaces — the executable resolved to `''`, so act ran `sh -c " version"`.)
+
+**This is not the DinD/`network: host` work** — other `setup-*` actions run through the identical path and succeed:
+
+| action | version source | result |
+|---|---|---|
+| `actions/setup-node@v6` (cnc-fru `test`) | `node-version: 22` explicit | success 4m10s |
+| `actions/setup-node@v4` (cnc-fru `e2e`) | explicit | success 6m30s |
+| `actions/setup-python@v5` (second-brain) | explicit | success |
+| `actions/setup-go@v6` (cnc-frd `lint`, `test`) | `go-version-file: go.mod` | **failure** |
+
+So it is neither "act_runner breaks @v6 actions" nor a networking problem. Action fetching is fine (the log shows the action cloning and checking out cleanly into `/root/.cache/act`), and `go.mod` is well-formed (`go 1.25.7`).
+
+**Leading hypothesis, NOT confirmed:** the failing case is the only one resolving its version from a *file* rather than an explicit `with:` version, so file-derived resolution returning empty is the next thing to test — e.g. pin `go-version:` explicitly in one workflow and compare. Do not treat that as the fix until it is verified.
+
+Affects `cnc-frd` (`lint`, `test`) and any other Go job on the mirrors. `image-smoke` in the same workflow passes, so this is job-scoped, not repo-scoped.
+
 ## Gitea Actions runner: registration is one-shot PVC state
 
 `act_runner` registers against Gitea once and persists its identity in `/data/.runner` on the PVC. Rotating `STOA_GITEA_RUNNER_TOKEN` (or re-minting the registration token) does **NOT** re-register an already-registered runner — the token is only read when `/data/.runner` is absent. To force a fresh registration: scale the Deployment to 0, delete `/data/.runner` (or the whole PVC — the tool cache is rebuildable), scale back up. Symptom of a half-dead registration: runner pod healthy but the Gitea admin runners page shows it Offline.
