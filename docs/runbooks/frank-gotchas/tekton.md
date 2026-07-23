@@ -127,6 +127,47 @@ That requires `prune: true` on the Application (each edit orphans the previous C
 
 Guarded by `test_config_edit_rolls_the_pod` and `test_prune_is_enabled_but_stateful_resources_opt_out`.
 
+## Re-triggering mirror CI with an empty commit is PATH-FILTER-BLIND
+
+The quick way to re-run a mirror's CI is to push an empty commit (same tree, new sha) to the PR branch. That works only where the workflow's `push:` trigger has no `paths:` filter — an empty commit changes **zero files**, so every paths-filtered workflow correctly matches nothing and no Gitea run is created at all.
+
+The failure mode is misleading: the branch syncs to Gitea fine, the sha is correct, the runner is healthy, and there are simply **no runs and no `gitea-actions/*` statuses** — which reads exactly like a broken mirror or a dead webhook. Chased on 2026-07-23 against `cnc-fr#94` before spotting that all three of its push workflows (`acceptance-report`, `compose-smoke`, `parity`) are paths-filtered; `cnc-fru`/`cnc-frd`/`second-brain` are not, which is why only `cnc-fr` looked broken.
+
+Check before diagnosing anything else:
+
+```bash
+gh api repos/agentic-stoa/<repo>/commits/<sha> --jq '.files|length'   # 0 = empty commit
+gh api repos/agentic-stoa/<repo>/contents/.github/workflows/<wf>.yml?ref=<branch> \
+  --jq .content | base64 -d | awk '/^on:/{f=1} f{print} /^jobs:/{exit}'
+```
+
+To actually exercise a paths-filtered workflow, touch a path it matches — or merge the PR, since `main` is normally in the branch filter and the merge commit carries the real diff.
+
+## `actions/setup-go@v6` intermittently resolves an EMPTY binary path — UNRESOLVED
+
+A Go job can fail inside `actions/setup-go@v6` with an empty binary path:
+
+```
+/bin/sh: 1: version: not found
+::error::Command failed:  version
+  ❌  Failure - Main actions/setup-go@v6
+```
+
+(the doubled space is the tell — the executable resolved to `''`, so act ran `sh -c " version"`.)
+
+**It is intermittent, not deterministic.** In one cnc-frd run (2026-07-23, sha 2832735b) `lint` failed this way while `test` — the *same* `actions/setup-go@v6` with the *same* `go-version-file: go.mod`, in the same workflow and same run — completed setup-go fine and went on to run the Go suite for 112s. So it is not the action version, not the version source, and not `go.mod`.
+
+**Ruled out by evidence:**
+
+- *"act_runner breaks @v6 actions"* — `actions/setup-node@v6` (cnc-fru `test`) and `setup-python@v5` (second-brain) succeed through the identical path.
+- *"the DinD / `network: host` change"* — `image-smoke` in the very same workflow went red→green on that change, and `test`'s postgres service came up on `network="host"` and served the suite.
+- *"file-derived version resolution"* — disproven directly: `test` uses the identical `go-version-file: go.mod` and works.
+- *"action fetching is broken"* — the log shows actions cloning and checking out cleanly into `/root/.cache/act`.
+
+**Leading hypothesis, NOT confirmed: concurrency.** `capacity: 2` let `lint` (task 302) and `test` (task 301) run simultaneously, five seconds apart, sharing the runner's `/root/.cache/act`. A race between two concurrent setup-go instances would explain intermittency. **Next experiment:** re-run with `capacity: 1`, or trigger `lint` alone, and see whether it stops reproducing. Do not treat that as the fix until verified.
+
+Note the same runs surface a genuine application failure — cnc-frd's `TestMemoryApproveReadOnlyBundle` fails on its own assertion, which is a cnc-frd code issue, not CI.
+
 ## Gitea Actions runner: registration is one-shot PVC state
 
 `act_runner` registers against Gitea once and persists its identity in `/data/.runner` on the PVC. Rotating `STOA_GITEA_RUNNER_TOKEN` (or re-minting the registration token) does **NOT** re-register an already-registered runner — the token is only read when `/data/.runner` is absent. To force a fresh registration: scale the Deployment to 0, delete `/data/.runner` (or the whole PVC — the tool cache is rebuildable), scale back up. Symptom of a half-dead registration: runner pod healthy but the Gitea admin runners page shows it Offline.
