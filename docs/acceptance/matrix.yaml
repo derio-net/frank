@@ -326,8 +326,14 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-22--obs--telegram-report-tables-design.md
     levels: {}
-    status: not-implemented
-    notes: ''
+    status: skipped
+    notes: Live proof 2026-07-22 (PR 668 merged, ArgoCD synced fb6e41c, pod rolled onto
+      bridge-cm with render_report/send_reply/_split_for_telegram present). Drove a
+      realistic /edge_traffic payload through the DEPLOYED render_payload then send_reply,
+      producing aligned monospace column tables, a ragged COUNTRY column with blank cells,
+      a value with angle-brackets and ampersand HTML-escaped, sendMessage parse_mode=HTML. Fed the
+      exact deployed code path (the agent turn itself hit the pre-existing DM latency
+      ceiling, out of scope here). Local guard — no CI run.
   - id: cred-expiry-warns-before-expiry
     capability: alert-agent credential expiry
     acceptance: When the refresh token is 7 or fewer days from expiry, the daily check
