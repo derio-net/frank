@@ -1712,3 +1712,16 @@ images:
       of Frank''s own workshop wall. A thin conveyor of green status lamps runs from the right pane back
       toward the left pane''s frame, carrying tiny lit check-marks. Workshop-practical mood, warm tungsten
       light over the bench, faint amusement in the scene.'
+- key: ops-29-agent-image-version-hygiene
+  aspect_ratio: '16:9'
+  output: blog/content/docs/operating/29-agent-image-version-hygiene/cover.png
+  description: "Cover for operating post 29 — Keeping the Agent-Image Pins Honest"
+  composition:
+    reference_images:
+      primary: .reference-pool/operating/reference/frank-lab-coat-shirt.png
+    modifiers:
+      series: operating
+      mood: "skeptical"
+      clothing: "Frank wears a white lab coat over a dark crew-neck t-shirt, sleeves pushed back."
+    scene: |
+      Frank stands at a workbench in a dim ops room, holding up a small stamped metal shipping tag reading "v1.9.5" in one hand and comparing it against a wall-mounted panel behind the bench that displays "v1.12.6" in steady green. His head is tilted slightly toward the panel, having just caught the mismatch. On the bench beside him a row of labelled parts bins recedes into shadow, each with a small blank tag hanging from it. A desk lamp throws warm light across the bench while cool green glow from the panel catches the side of his face. The ONLY readable text: "v1.9.5", "v1.12.6" — no other captions, no watermarks.
