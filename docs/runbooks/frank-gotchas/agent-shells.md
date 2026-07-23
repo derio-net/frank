@@ -783,3 +783,87 @@ Consequences worth remembering:
   container is upstream 0.18.2, which never carried our patch and predates the config
   knob. The config op becomes relevant only if the manifest's runtime tag is bumped to
   ≥0.19.0.
+
+## agent-session `--resume`: a transcript stranded in a stale project dir (2026-07-23)
+
+**Symptom.** The C&C Telegram bot answers *every* DM with `agent busy — deterministic
+snapshot`, indefinitely, with a perfectly valid credential. Nothing pages: the pod is
+`3/3 Running`, ArgoCD is green, `cred-expiry-check` prints `tier=ok`.
+
+**How the session dies.** `agent-session::launch_command` picks between two launches:
+
+```
+transcript exists -> claude --resume <uuid>
+no transcript     -> claude --session-id <uuid>
+```
+
+The existence test, `_session_jsonl_exists`, globs **across all project dirs**:
+
+```python
+glob.glob(os.path.join(HOME, ".claude", "projects", "*", uuid + ".jsonl"))
+```
+
+But claude resolves `--resume` **within the single project dir derived from the launch
+cwd**. So a transcript sitting in some *other* project dir makes the predicate say
+"resume this" and claude then say:
+
+```
+$ cd /home/agent && claude --resume 63abf571-… --permission-mode auto
+No conversation found with session ID: 63abf571-b929-52a5-ba8b-5353059493e6
+EXIT=1
+```
+
+claude exits 1, the pane dies, tmux tears down its last session, `wait_ready` burns its
+full 30 s (`not ready after 30.0s; proceeding`), `session_send` times out, and the
+bridge posts the deterministic snapshot. **Nothing self-heals** — every DM takes the
+identical path forever.
+
+**The predicate is broader than the behaviour it predicts.** That is the whole bug: a
+check that exists solely to forecast what claude will do must use claude's own scoping
+rule.
+
+**What activated it.** The `-e PWD=HOME` fix in `_create_session` (the one whose long
+comment explains that the s6 scandir leaked in as `$PWD`) corrected where *new*
+transcripts are written — and migrated *nothing*. Any session whose transcript predates
+that fix lives under `-run-s6-legacy-services-agent-session-server` while the session now
+launches from `/home/agent`. The transcript became unreachable the moment the fixed image
+shipped (frank's c7a80f6 sweep). A fix that changes where state lives needs a migration
+for the state already there.
+
+**Diagnosis — compare project dirs.** A working session and a wedged one differ only here:
+
+```
+wedged  -> ~/.claude/projects/-run-s6-legacy-services-agent-session-server/<uuid>.jsonl
+healthy -> ~/.claude/projects/-home-agent/<uuid>.jsonl
+```
+
+Corroborating signals: `ps` in the `agent` container shows the session server up but **no
+tmux server and no claude process**; `tmux ls` → `no server running`. A hand-made session
+(`--session-id`, no prior transcript) launches fine, which isolates the resume path.
+
+**Recovery — relocate, don't delete.** Copy the transcript into the project dir the launch
+cwd derives:
+
+```sh
+U=<session-uuid>
+cp ~/.claude/projects/-run-s6-legacy-services-agent-session-server/$U.jsonl \
+   ~/.claude/projects/-home-agent/$U.jsonl
+```
+
+Verified live: the next drive returned `turn=46` — the full 45-turn history came back, and
+the pane rendered the real prior alert chatter. Deleting the transcript also restores
+service (it falls through to `--session-id`) but throws the conversation away; relocating
+is strictly better.
+
+**`--session-id` is safe across project dirs.** Probed live: `claude --session-id <uuid>`
+starts a healthy REPL *even when* a transcript with that uuid exists in a different project
+dir — claude's "Session ID already in use" guard is project-scoped too. So the durable fix
+(scope the glob to the launch cwd) cannot strand a caller in a session-id collision.
+
+**Durable fix lives in `agent-images`**, not here: `/usr/local/bin/agent-session`, baked into
+`multi-agent-shell`. `_session_jsonl_exists` should glob the project dir for the launch cwd
+rather than `projects/*`. Frank's `apps/n8n-01/manifests/agent-session-driver.yaml` is an
+older copy of the driver that predates the resume logic — patching it fixes nothing.
+
+**Related blind spot.** The image's login MOTD prints `✓ claude (…, age 0d)` from file
+presence alone, so it reads ✓ through both this failure and the blank-token one.
