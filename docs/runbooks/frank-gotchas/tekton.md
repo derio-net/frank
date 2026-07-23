@@ -143,30 +143,56 @@ gh api repos/agentic-stoa/<repo>/contents/.github/workflows/<wf>.yml?ref=<branch
 
 To actually exercise a paths-filtered workflow, touch a path it matches — or merge the PR, since `main` is normally in the branch filter and the merge commit carries the real diff.
 
-## `actions/setup-go@v6` intermittently resolves an EMPTY binary path — UNRESOLVED
+## The shared DinD daemon has no per-job isolation — two failure modes
 
-A Go job can fail inside `actions/setup-go@v6` with an empty binary path:
+GitHub-hosted runners give every job a **fresh VM**: an empty tool cache, an empty Docker daemon, free port and name space. Frank's `act_runner` gives every job a **container against one long-lived shared DinD daemon**. Workflows written for the former quietly depend on that freshness, and two distinct failures fall out. Both were diagnosed on cnc-frd on 2026-07-23, and both are reproducible.
+
+### 1. Concurrent identical tool installs race the SHARED tool cache
+
+`actions/setup-go@v6` can fail having apparently succeeded:
 
 ```
+Successfully cached go to /opt/hostedtoolcache/go/1.25.7/x64
+Added go to the path
+Successfully set up Go version 1.25.7
 /bin/sh: 1: version: not found
 ::error::Command failed:  version
   ❌  Failure - Main actions/setup-go@v6
 ```
 
-(the doubled space is the tell — the executable resolved to `''`, so act ran `sh -c " version"`.)
+The doubled space is the tell: the executable resolved to `''`, so act ran `sh -c " version"`. setup-go resolved, downloaded, extracted and cached Go correctly, then failed at its very last act — resolving `go` from PATH.
 
-**It is intermittent, not deterministic.** In one cnc-frd run (2026-07-23, sha 2832735b) `lint` failed this way while `test` — the *same* `actions/setup-go@v6` with the *same* `go-version-file: go.mod`, in the same workflow and same run — completed setup-go fine and went on to run the Go suite for 112s. So it is not the action version, not the version source, and not `go.mod`.
+act mounts `/opt/hostedtoolcache` as a **volume shared by all concurrent jobs**. With `capacity: 2`, `test` (task 301) and `lint` (task 302) started five seconds apart and both installed the *same* Go 1.25.7 into that shared path. One won; the other got an unusable tree.
 
-**Ruled out by evidence:**
+**It is not intermittent — it is deterministic on cold cache + concurrency**, which is exactly why it looks random. Proven by re-running with the cache warm and the same 5-second concurrency: `lint` went `failure` → **`success` in 1m26s**, no other change. Expect it to return on any tool-version bump (the first run after it is cold again); a re-run clears it because the cache is then warm.
 
-- *"act_runner breaks @v6 actions"* — `actions/setup-node@v6` (cnc-fru `test`) and `setup-python@v5` (second-brain) succeed through the identical path.
-- *"the DinD / `network: host` change"* — `image-smoke` in the very same workflow went red→green on that change, and `test`'s postgres service came up on `network="host"` and served the suite.
-- *"file-derived version resolution"* — disproven directly: `test` uses the identical `go-version-file: go.mod` and works.
-- *"action fetching is broken"* — the log shows actions cloning and checking out cleanly into `/root/.cache/act`.
+Ruled out along the way: @v6 actions in general (`setup-node@v6`, `setup-python@v5` pass), the DinD/`network: host` work, file-derived version resolution (`test` uses the identical `go-version-file` and passed), and action fetching.
 
-**Leading hypothesis, NOT confirmed: concurrency.** `capacity: 2` let `lint` (task 302) and `test` (task 301) run simultaneously, five seconds apart, sharing the runner's `/root/.cache/act`. A race between two concurrent setup-go instances would explain intermittency. **Next experiment:** re-run with `capacity: 1`, or trigger `lint` alone, and see whether it stops reproducing. Do not treat that as the fix until verified.
+### 2. Fixed-name Docker resources leak between jobs and collide
 
-Note the same runs surface a genuine application failure — cnc-frd's `TestMemoryApproveReadOnlyBundle` fails on its own assertion, which is a cnc-frd code issue, not CI.
+```
+Error response from daemon: network with name smoke already exists
+  ❌  Failure - Main serve + healthz
+```
+
+Workflows create fixed-name resources (`docker network create smoke`, `--name pg`, `--name cncd`). On a fresh VM those names are always free. Here the daemon persists across jobs **and across repos** — cnc-fr, cnc-fru and cnc-frd all use the name `smoke` — and a job that fails skips its cleanup, so orphans accumulate.
+
+cnc-frd's `image-smoke` removes `cncd` but never `pg` or the network, so **it can only succeed once**: the run after a success collides. Observed exactly that (`success 1m58s` → `failure 39s`), with a leftover `smoke` network and a `pg` container up 41 minutes still on the daemon.
+
+Note this is not caused by the `network: host` change — before that fix the job died at `docker build` in 5s and never got far enough to create anything.
+
+Inspect and clear orphans (only when no job is running):
+
+```bash
+kubectl -n gitea-runner exec deploy/act-runner -c dind -- docker ps -a --format '{{.Names}}\t{{.Status}}'
+kubectl -n gitea-runner exec deploy/act-runner -c dind -- docker network ls
+# safe only if `docker ps` shows no GITEA-ACTIONS-* container:
+kubectl -n gitea-runner exec deploy/act-runner -c dind -- sh -c 'docker rm -f pg; docker network rm smoke'
+```
+
+`/var/lib/docker` is an emptyDir, so a runner pod restart also clears everything.
+
+**Durable remedies** (neither applied yet): workflow-side, use run-scoped names (`smoke-${{ github.run_id }}`) and clean up with `if: always()`; runner-side, prune orphans between jobs. `capacity: 1` would serialise both failure modes away at the cost of halving throughput.
 
 ## Gitea Actions runner: registration is one-shot PVC state
 
