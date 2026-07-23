@@ -17,6 +17,20 @@ spec:
   syncPolicy:
     automated:
       selfHeal: true
+      # prune: true is required because the runner config ships via Kustomize
+      # configMapGenerator (hash-suffixed names) so that a config edit rolls
+      # the pod — act_runner reads its config only at boot. Each edit creates a
+      # new ConfigMap and orphans the old one; without prune the app would show
+      # OutOfSync forever.
+      #
+      # Unlike homepage (the other prune: true app, which holds nothing but a
+      # Deployment/Service/ConfigMaps), this app DOES hold what the repo-wide
+      # prune: false rule protects: the act-runner-data PVC carries the
+      # runner's registration identity (/data/.runner), and the registration
+      # token is an ExternalSecret. Both carry an explicit
+      # `argocd.argoproj.io/sync-options: Prune=false` annotation, so pruning
+      # can only ever reap the generated ConfigMaps.
+      prune: true
     syncOptions:
       # namespace ships as a manifest — it carries the PodSecurity labels
       - CreateNamespace=false

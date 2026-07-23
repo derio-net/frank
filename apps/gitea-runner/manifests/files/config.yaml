@@ -1,0 +1,49 @@
+# act_runner configuration.
+#
+# NOTE: this file is rendered into the act-runner-config ConfigMap by
+# kustomize's configMapGenerator, which appends a content-hash suffix to the
+# name and rewrites the Deployment's volume reference. That hash is what makes
+# a config edit ROLL THE POD: act_runner reads this file once at boot, so a
+# plain (unhashed) ConfigMap would sync green while the runner kept serving
+# the previous config indefinitely. Do not "simplify" it back to a literal
+# ConfigMap manifest.
+log:
+  level: info
+runner:
+  capacity: 2
+  timeout: 45m
+  fetch_timeout: 10s
+  fetch_interval: 5s
+  # ubuntu-latest maps to Gitea's runner image so `runs-on: ubuntu-latest`
+  # workflows run unmodified. node/go/python setup-actions install on top.
+  labels:
+    - "ubuntu-latest:docker://gitea/runner-images:ubuntu-latest"
+cache:
+  enabled: true
+  dir: /data/cache
+container:
+  docker_host: "tcp://localhost:2375"
+  # Job containers are SIBLINGS of the DinD daemon, not its host — so the
+  # two things a GitHub-hosted runner gives for free both have to be wired
+  # back by hand, or every workflow that shells out to `docker` breaks:
+  #
+  #  1. the daemon itself. act_runner only mounts the docker host into job
+  #     containers when it is a unix socket; ours is TCP, so a job gets no
+  #     DOCKER_HOST at all and the CLI falls back to the missing
+  #     /var/run/docker.sock ("no such file or directory"). Inject it.
+  #  2. published ports. `docker run -p 8088:80` publishes on the DinD
+  #     host, so a job's own `curl http://localhost:8088` misses it.
+  #
+  # network: host puts jobs in the DinD/pod netns, which fixes BOTH —
+  # measured on the live daemon 2026-07-22:
+  #     bridge  daemon localhost:2375 FAIL   published port FAIL
+  #     host    daemon localhost:2375 OK     published port OK
+  #
+  # Trade-off: with capacity 2, two concurrent docker-using jobs now share
+  # one port namespace, so fixed published ports (cnc-fru's 8088) can
+  # collide. The shared daemon already made fixed container/network NAMES
+  # collide the same way, so this widens an existing hazard rather than
+  # introducing one. Drop capacity to 1 if it ever bites.
+  network: "host"
+  options: "-e DOCKER_HOST=tcp://localhost:2375"
+  force_pull: false

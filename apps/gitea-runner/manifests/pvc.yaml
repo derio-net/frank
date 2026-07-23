@@ -5,6 +5,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  annotations:
+    # The app runs prune: true so kustomize's hash-suffixed
+    # ConfigMaps get garbage-collected. This resource is exactly
+    # what the repo-wide prune: false rule exists to protect, so
+    # it opts out individually.
+    argocd.argoproj.io/sync-options: Prune=false
   name: act-runner-data
   namespace: gitea-runner
 spec:

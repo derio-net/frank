@@ -1,0 +1,32 @@
+# configMapGenerator appends a content-hash suffix to act-runner-config
+# (act-runner-config-<hash>) and rewrites the Deployment's volume reference to
+# match. Any edit to files/config.yaml changes the hash, which changes the pod
+# spec, which makes ArgoCD roll the pod automatically.
+#
+# This is required because act_runner reads /config/config.yaml ONCE AT BOOT.
+# With a plain ConfigMap the app syncs green and the ConfigMap holds the new
+# content while the running runner keeps serving the OLD config forever —
+# exactly what happened on 2026-07-23 deploying frank#674, where the fix
+# reached the cluster but not the runner until a manual `rollout restart`.
+# Same failure shape as the gitea `gitea-inline-config` gotcha, and the same
+# remedy homepage already uses for its subPath-mounted configs.
+#
+# No top-level `namespace:` on purpose: namespace.yaml ships here (it carries
+# the PodSecurity labels, CreateNamespace=false), and kustomize's namespace
+# transformer is not something to point at a Namespace object. Every other
+# manifest already sets metadata.namespace explicitly; the generated ConfigMap
+# gets it from the generator entry below.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - pvc.yaml
+  - externalsecret-runner-token.yaml
+
+configMapGenerator:
+  - name: act-runner-config
+    namespace: gitea-runner
+    files:
+      - config.yaml=files/config.yaml
