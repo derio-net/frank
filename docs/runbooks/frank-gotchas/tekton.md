@@ -143,9 +143,9 @@ gh api repos/agentic-stoa/<repo>/contents/.github/workflows/<wf>.yml?ref=<branch
 
 To actually exercise a paths-filtered workflow, touch a path it matches — or merge the PR, since `main` is normally in the branch filter and the merge commit carries the real diff.
 
-## `actions/setup-go@v6` fails on the runner image — UNRESOLVED
+## `actions/setup-go@v6` intermittently resolves an EMPTY binary path — UNRESOLVED
 
-Go jobs on the stoa mirrors fail inside `actions/setup-go@v6` with an **empty binary path**:
+A Go job can fail inside `actions/setup-go@v6` with an empty binary path:
 
 ```
 /bin/sh: 1: version: not found
@@ -153,22 +153,20 @@ Go jobs on the stoa mirrors fail inside `actions/setup-go@v6` with an **empty bi
   ❌  Failure - Main actions/setup-go@v6
 ```
 
-(note the two spaces — the executable resolved to `''`, so act ran `sh -c " version"`.)
+(the doubled space is the tell — the executable resolved to `''`, so act ran `sh -c " version"`.)
 
-**This is not the DinD/`network: host` work** — other `setup-*` actions run through the identical path and succeed:
+**It is intermittent, not deterministic.** In one cnc-frd run (2026-07-23, sha 2832735b) `lint` failed this way while `test` — the *same* `actions/setup-go@v6` with the *same* `go-version-file: go.mod`, in the same workflow and same run — completed setup-go fine and went on to run the Go suite for 112s. So it is not the action version, not the version source, and not `go.mod`.
 
-| action | version source | result |
-|---|---|---|
-| `actions/setup-node@v6` (cnc-fru `test`) | `node-version: 22` explicit | success 4m10s |
-| `actions/setup-node@v4` (cnc-fru `e2e`) | explicit | success 6m30s |
-| `actions/setup-python@v5` (second-brain) | explicit | success |
-| `actions/setup-go@v6` (cnc-frd `lint`, `test`) | `go-version-file: go.mod` | **failure** |
+**Ruled out by evidence:**
 
-So it is neither "act_runner breaks @v6 actions" nor a networking problem. Action fetching is fine (the log shows the action cloning and checking out cleanly into `/root/.cache/act`), and `go.mod` is well-formed (`go 1.25.7`).
+- *"act_runner breaks @v6 actions"* — `actions/setup-node@v6` (cnc-fru `test`) and `setup-python@v5` (second-brain) succeed through the identical path.
+- *"the DinD / `network: host` change"* — `image-smoke` in the very same workflow went red→green on that change, and `test`'s postgres service came up on `network="host"` and served the suite.
+- *"file-derived version resolution"* — disproven directly: `test` uses the identical `go-version-file: go.mod` and works.
+- *"action fetching is broken"* — the log shows actions cloning and checking out cleanly into `/root/.cache/act`.
 
-**Leading hypothesis, NOT confirmed:** the failing case is the only one resolving its version from a *file* rather than an explicit `with:` version, so file-derived resolution returning empty is the next thing to test — e.g. pin `go-version:` explicitly in one workflow and compare. Do not treat that as the fix until it is verified.
+**Leading hypothesis, NOT confirmed: concurrency.** `capacity: 2` let `lint` (task 302) and `test` (task 301) run simultaneously, five seconds apart, sharing the runner's `/root/.cache/act`. A race between two concurrent setup-go instances would explain intermittency. **Next experiment:** re-run with `capacity: 1`, or trigger `lint` alone, and see whether it stops reproducing. Do not treat that as the fix until verified.
 
-Affects `cnc-frd` (`lint`, `test`) and any other Go job on the mirrors. `image-smoke` in the same workflow passes, so this is job-scoped, not repo-scoped.
+Note the same runs surface a genuine application failure — cnc-frd's `TestMemoryApproveReadOnlyBundle` fails on its own assertion, which is a cnc-frd code issue, not CI.
 
 ## Gitea Actions runner: registration is one-shot PVC state
 
