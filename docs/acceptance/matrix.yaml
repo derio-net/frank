@@ -398,10 +398,12 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
     levels: {}
-    status: not-implemented
-    notes: Cluster measured at Talos v1.12.6 on all 7 nodes 2026-07-23; shells shipped
-      talosctl v1.9.5. Verify live in secure-agent-pod (kali) via 'talosctl version'
-      after the sweep.
+    status: skipped
+    notes: 'VERIFIED LIVE 2026-07-23 — secure-agent-pod kali container (image
+      secure-agent-kali:c7a80f6) reports talosctl client Tag: v1.12.6, matching the
+      cluster (all 7 nodes Talos v1.12.6). The three-minor skew (was v1.9.5, outside
+      Talos''s supported +/-1) is closed. The audit script''s cluster anchor also
+      resolves to v1.12.6 and marks the pin ok. Live manual proof; no CI level.'
   - id: agent-shell-sweep-boots-clean
     capability: Agent shells
     acceptance: Every agent shell Frank deploys still boots and serves after the upstream
@@ -409,9 +411,14 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
     levels: {}
-    status: not-implemented
-    notes: Covers alert-agent (3 containers), cnc-base, n8n-01, secure-agent-pod, paperclip,
-      ruflo, hermes-agent-shell. Per-image CI smoke jobs plus live pod readiness post-merge.
+    status: skipped
+    notes: 'VERIFIED LIVE 2026-07-23 — all rebuilt shells Running on c7a80f6: alert-agent
+      (3 multi-agent-shell containers, s6-rc started clean, no crashloop-bail), n8n-01
+      (multi-agent-shell sidecar), secure-agent-pod (kali + vk-local 2/2), paperclip
+      (paperclip-shell 2/2), ruflo (ruflo-server + ruflo-shell 2/2), hermes-agent-shell
+      (hermes + hindsight + ssh 3/3). cnc-base NOT covered: its runner StatefulSet is
+      not currently deployed (cnc-prod app OutOfSync/Missing, pre-existing — the
+      manual-login persistent agent is down, unrelated to the sweep). Live manual proof.'
   - id: hermes-upgrade-reaches-pod
     capability: Agent shells
     acceptance: A Hermes version bump actually reaches the running shell, rather than
@@ -419,10 +426,18 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
     levels: {}
-    status: not-implemented
-    notes: Hermes venv is PVC-resident behind a .seed-version marker (frank#496) — image
-      content alone does not prove the upgrade. Verify via 'hermes --version' INSIDE
-      the running pod.
+    status: skipped
+    notes: 'VERIFIED LIVE 2026-07-23, with a topology correction the live check surfaced.
+      The DEPLOYED consumer of the bumped image is the hermes-agent-shell-ssh sidecar
+      (built FROM docker v2026.7.20): its running container reports "Hermes Agent v0.19.0
+      (2026.7.20)" — the bump reached the pod. TWO nuances the spec''s image->app mapping
+      got wrong: (1) the base hermes-agent-shell image (PyPI 0.19.0, the .seed-version
+      PVC-venv one this row was written about) is NOT deployed anywhere in frank — same
+      status as infra-shell — so its bump is validated by CI smoke only; (2) the pod''s
+      runtime "hermes" container is docker.io/nousresearch/hermes-agent:v2026.7.7.2 (=0.18.2),
+      pinned DIRECTLY in the manifest, NOT a ghcr.io/derio-net/* image, so the sweep did
+      not touch it. Consequence: the intent_ack_continuation manual-op (frank plan
+      P2.T2.S7) is moot for the current deployment — see the plan note. Live manual proof.'
   - id: ruflo-revendor-preserves-function
     capability: Ruflo
     acceptance: Ruflo still serves its UI and handles file upload and download after
@@ -430,10 +445,14 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
     levels: {}
-    status: not-implemented
-    notes: Both patch targets measured byte-identical across the 607-commit range 2026-07-23;
-      upstream PR ruvnet/ruflo#2293 still open, so both patches remain required. Verify
-      via /api/v2/feature-flags plus a file round-trip.
+    status: skipped
+    notes: 'VERIFIED LIVE 2026-07-23 — ruflo Running on ruflo-server:c7a80f6, readiness
+      1/1, /api/v2/feature-flags returns valid JSON. Both local patches confirmed present
+      in the RUNNING build: the GridFS shim (Readable.from / new Writable) compiled into
+      /app/build/server/chunks/database-*.js, and the wasm allow-line in urlSafety-*.js.
+      The re-vendor (a6dd4ab->26c35b5) preserved both. package.json version 0.20.0.
+      Live manual proof (endpoint + compiled-patch presence); a full authenticated file
+      round-trip was not exercised, but the patch code is demonstrably in the artifact.'
   - id: agent-images-pin-drift-measurable
     capability: Agent image maintenance
     acceptance: An operator can re-measure how far every agent-images pin has drifted
@@ -441,7 +460,10 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-23--agents--agent-images-upstream-version-sweep-design.md
     levels: {}
-    status: not-implemented
-    notes: On-demand script, no scheduled watcher (decision d3). Must compare talosctl
-      against the live cluster and omnictl against the live Omni server, not against
-      GitHub latest.
+    status: skipped
+    notes: 'VERIFIED LIVE 2026-07-23 — scripts/version_audit.py (agent-images main c7a80f6)
+      run against the live cluster reports every bumped pin ok, and its talosctl anchor
+      resolves to the cluster''s v1.12.6 (not GitHub latest v1.13.7), reading osImage
+      "Talos (v1.12.6)". omnictl reports unknown (server version not discoverable from
+      the repo — the honest-gap behaviour, by design). On-demand, no scheduled watcher
+      (decision d3). Guarded by a test-scripts CI job (43 tests). Live manual proof.'

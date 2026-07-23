@@ -1,7 +1,7 @@
 # agent-images Upstream Version Sweep
 
 **Layer:** agents (cross-repo — `derio-net/agent-images` owns the pin bumps; `derio-net/frank` owns live verification + docs)
-**Status:** Draft
+**Status:** Deployed
 **Date:** 2026-07-23
 **Repo:** `derio-net/frank` (spec home) / `derio-net/agent-images` (primary change)
 **Motivated by:** no upstream-version watcher exists for `agent-images`. Every pin in every

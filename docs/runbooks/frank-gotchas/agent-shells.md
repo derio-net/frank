@@ -749,3 +749,37 @@ unpinned `@anthropic-ai/claude-code`. Any rebuild silently moves them.
 Run the audit on demand: `cd scripts && uv run python version_audit.py`
 (agent-images). It is a report, not a gate — always exits 0, and there is
 deliberately no scheduled watcher opening drift PRs.
+
+### The frank hermes-agent-shell pod has three Hermes provenances
+
+The 2026-07-23 version sweep assumed (in its spec's image→app mapping) that the base
+`hermes-agent-shell` image — the one with the PyPI venv and the `.seed-version` PVC
+re-seed mechanism (frank#496) — is what runs in the cluster. **It isn't.** Live
+verification found the deployed pod carries three *different* Hermes provenances, and
+only one of them is a swept agent-image:
+
+| Container | Image | Swept? |
+|---|---|---|
+| `hermes` (runtime agent/dashboard/API) | `docker.io/nousresearch/hermes-agent:v2026.7.7.2` — **pinned directly in the manifest** | **No** — not a `ghcr.io/derio-net/*` image, so the agent-images bump workflow never rewrites it |
+| `ssh` (operator CLI sidecar) | `hermes-agent-shell-ssh`, built FROM that same upstream docker tag (v2026.7.20 in the sweep) | Yes |
+| `hindsight` (memory sidecar) | `hermes-agent-shell-hindsight` | Yes |
+
+And the base `hermes-agent-shell` image (PyPI `HERMES_VERSION`, the `.seed-version`
+venv) is **built but deployed nowhere** — same status as `infra-shell`.
+
+Consequences worth remembering:
+
+- **A `HERMES_VERSION` (PyPI) bump changes nothing running.** It rebuilds an
+  undeployed image; verify it via CI smoke, not a live pod.
+- **To move the running agent's Hermes, edit the manifest's upstream docker tag**
+  (`docker.io/nousresearch/hermes-agent:<tag>`), not an agent-image. That tag is
+  calver — map it through the calver/semver table above.
+- **The `ssh` sidecar and the `hermes` runtime can be different versions** (they were:
+  v2026.7.20 vs v2026.7.7.2 after the sweep) because one is built FROM the tag and the
+  other pins it directly. `hermes --version` gives a different answer per container.
+- **The retired auto-continue patch (and its `intent_ack_continuation` config
+  follow-up) only ever mattered for the base image.** Since that image isn't deployed,
+  retiring the patch has no effect on the running agent — the runtime `hermes`
+  container is upstream 0.18.2, which never carried our patch and predates the config
+  knob. The config op becomes relevant only if the manifest's runtime tag is bumped to
+  ≥0.19.0.
