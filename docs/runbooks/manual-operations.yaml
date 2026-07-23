@@ -1887,6 +1887,23 @@ operations:
   - Each of the 5 repos shows an Actions tab in the Gitea UI (unit enabled)
   - Push any commit to a mirrored repo's sync branch → Gitea Actions run starts → gitea-listener logs show a received status event → matching commit status appears on GitHub sha with context gitea-actions/*
   status: done
+- id: cicd-stoa-ci-authority-cutover
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/plans/2026-07-19-cicd-stoa-mirror-gitea-actions/05.yaml
+  when: At cutover (Gitea half done 2026-07-22, ahead of the planned August week — the GitHub Actions minutes tier was exhausted, so CI_AUTHORITY=github meant NOTHING was authoritative). Reverse the same way when GitHub Actions is available again.
+  why_manual: Actions variables are per-forge UI/API state on both sides, not chart values.
+  commands:
+  - '# CI_AUTHORITY IS TWO VARIABLES, ONE PER FORGE — NOT ONE. The guard is: if (vars.CI_AUTHORITY || github) == (github.server_url == https://github.com && github || gitea). Each forge reads its OWN variable namespace, so flipping only Gitea makes BOTH sides run — Gitea because its variable now says gitea, GitHub because its variable is unset and defaults to github. "Flip one variable, not five repos" is true per forge, not overall.'
+  - '# Gitea half (DONE 2026-07-22) — org variable; admin creds live in secret gitea-secrets (ns gitea, keys username/password): curl -X PUT -u "$GU:$GP" -H "Content-Type: application/json" -d ''{"value":"gitea"}'' http://gitea-http.gitea.svc.cluster.local:3000/api/v1/orgs/agentic-stoa/actions/variables/CI_AUTHORITY   (expect HTTP 204; read back with GET on .../actions/variables)'
+  - '# GitHub half (DONE 2026-07-22) — MUST BE REPO-LEVEL, NOT ORG-LEVEL. The agentic-stoa GitHub plan does not allow ORGANIZATION variables to be used by PRIVATE repos ("Organization variables cannot be used by private repositories with your plan"), and every mirror is private — so the org-level lever the plan assumed does not exist here. REPOSITORY variables are NOT plan-gated and work fine. Needs repo admin (the personal YiannisDermitzakis account has it; the clawdia token does not — permissions.admin=false). Set on all 5: for r in second-brain cnc-fr cnc-frd cnc-fru hermes-brain; do gh api -X POST /repos/agentic-stoa/$r/actions/variables -f name=CI_AUTHORITY -f value=gitea; done'
+  - '# REVERSE (August, when the GitHub Actions minutes tier is available again): delete the 5 repo variables (gh api -X DELETE /repos/agentic-stoa/$r/actions/variables/CI_AUTHORITY) so they fall back to the default github, AND set the Gitea org variable back to github. Both halves, or you land in the same split-authority state.'
+  verify:
+  - 'Gitea side: push to a mirrored PR branch → jobs RUN (not skipped) → gitea-actions/* statuses on the GitHub sha go pending → success/failure with real durations. Proven 2026-07-22 on second-brain#18 (3/3 success).'
+  - 'GitHub side: the same push produces GitHub check runs with conclusion skipped, not failure. Proven 2026-07-22 on cnc-fru#36 sha aac669d1 (test/e2e/smoke all skipped).'
+  - 'Related: a skipped Gitea job no longer strands the GitHub status on pending — see frank#670 (gh_state CEL overlay) and docs/runbooks/frank-gotchas/tekton.md.'
+  - 'KNOWN GAP (not covered by the guard PRs): release.yml in cnc-frd and cnc-fru has ZERO CI_AUTHORITY guards, so it is unaffected by either side of the flip. Every other workflow across the 5 mirrors is fully guarded.'
+  status: done
 - id: obs-alert-agent-claude-login
   layer: obs
   app: alert-agent

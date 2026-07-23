@@ -51,6 +51,37 @@ Fixed 2026-07-22 by narrowing the vocabulary in the `gitea-status-bridge` CEL ov
 
 Note the bridge does **not** backfill: Gitea never re-sends a status for a job that already finished, so statuses stranded before the fix must be overwritten once by hand.
 
+## `CI_AUTHORITY` is two variables, one per forge
+
+The parallel-running guard on the stoa mirrors is a job-level condition:
+
+```yaml
+if: (vars.CI_AUTHORITY || 'github') == (github.server_url == 'https://github.com' && 'github' || 'gitea')
+```
+
+The design note says cutover is *"flip one variable, not edit five repos again"* — true **per forge**, and easy to misread as one variable overall. `vars.CI_AUTHORITY` resolves in the **forge that is running the workflow**, and Gitea and GitHub have entirely separate Actions-variable namespaces. Setting only Gitea's leaves GitHub's unset, which falls back to `'github'` — so **both** sides consider themselves authoritative and both run.
+
+A real cutover is therefore two writes:
+
+- **Gitea** — org variable, settable via API with the admin creds in secret `gitea-secrets` (ns `gitea`, keys `username`/`password`):
+  ```bash
+  curl -X PUT -u "$GU:$GP" -H 'Content-Type: application/json' -d '{"value":"gitea"}' \
+    http://gitea-http.gitea.svc.cluster.local:3000/api/v1/orgs/agentic-stoa/actions/variables/CI_AUTHORITY
+  ```
+  (HTTP 204; the `tekton-bot` token is **not** enough — it lacks `read:organization`.)
+- **GitHub** — **must be REPO-level, not org-level.** The `agentic-stoa` GitHub plan does not allow *organization* variables to be used by **private** repos (`"Organization variables cannot be used by private repositories with your plan"`), and every mirror is private — so the single org-level lever the migration plan assumed **does not exist on this plan**. *Repository* variables are not plan-gated and work fine; it is 5 writes instead of 1. Needs repo `admin`: the personal account has it, the `clawdia` token does not (`permissions.admin=false`).
+  ```bash
+  for r in second-brain cnc-fr cnc-frd cnc-fru hermes-brain; do
+    gh api -X POST "/repos/agentic-stoa/$r/actions/variables" -f name=CI_AUTHORITY -f value=gitea
+  done
+  ```
+
+Symptom of doing only the Gitea half: Gitea jobs run and report correctly, while GitHub jobs *also* run — visible as `failure` check runs rather than `skipped` ones. Both halves flipped to `gitea` on 2026-07-22 (proven on `cnc-fru#36` sha `aac669d1`: GitHub `test`/`e2e`/`smoke` all `skipped`). **Reversing in August needs both halves too** — delete the 5 repo variables *and* set the Gitea org variable back to `github`, or you land in the mirror-image split.
+
+Unrelated to the variable but adjacent: `release.yml` in `cnc-frd` and `cnc-fru` carries **no** `CI_AUTHORITY` guard at all, so it is unaffected by either side of the flip. Every other workflow across the 5 mirrors is fully guarded.
+
+Manual op: `cicd-stoa-ci-authority-cutover`.
+
 ## Gitea Actions runner: registration is one-shot PVC state
 
 `act_runner` registers against Gitea once and persists its identity in `/data/.runner` on the PVC. Rotating `STOA_GITEA_RUNNER_TOKEN` (or re-minting the registration token) does **NOT** re-register an already-registered runner — the token is only read when `/data/.runner` is absent. To force a fresh registration: scale the Deployment to 0, delete `/data/.runner` (or the whole PVC — the tool cache is rebuildable), scale back up. Symptom of a half-dead registration: runner pod healthy but the Gitea admin runners page shows it Offline.
