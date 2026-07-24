@@ -473,7 +473,7 @@ rows:
       kali+vk-local, hermes-agent-shell hermes+ssh) observe FR_ISOLATION_TARGET=worktree,
       enabling super-fr host-worktree isolation in-pod.
     origin:
-    - frank:docs/superpowers/specs/2026-07-24-fr-isolation-target-worktree-design.md
+    - frank:docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md
     levels: {}
     status: not-implemented
     notes: 'Verify post-merge: kubectl exec into each container, env | grep FR_ISOLATION_TARGET
@@ -484,7 +484,7 @@ rows:
     acceptance: Agents logging in over SSH/Mosh on either pod also see FR_ISOLATION_TARGET=worktree
       despite sshd env scrubbing (profile.d re-export shims).
     origin:
-    - frank:docs/superpowers/specs/2026-07-24-fr-isolation-target-worktree-design.md
+    - frank:docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md
     levels: {}
     status: not-implemented
     notes: 'Verify post-merge: bash -lc ''echo $FR_ISOLATION_TARGET'' in an SSH login

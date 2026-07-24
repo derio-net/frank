@@ -1,4 +1,4 @@
-# Journal: fr-isolation-target-worktree
+# Journal: 2026-07-24--agents--fr-isolation-target-env
 
 <!-- fr:journal kind=decision scope=spec id=qa-ssh-coverage created=2026-07-24T16:46:10 -->
 ### qa-ssh-coverage · decision · Full SSH coverage: env on all 4 agent containers + profile.d shims on both pods

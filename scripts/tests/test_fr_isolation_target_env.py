@@ -4,7 +4,7 @@ super-fr v3.15.0 shipped docker-less isolation host modes: with
 `FR_ISOLATION_TARGET=worktree` in the process env, `fr isolation up/exec/down`
 runs as a plain git worktree in the host env (no docker/devcontainer), making
 fr-goal / fr-brainstorming / fr-debugging runnable inside Frank's unprivileged
-agent pods. See docs/superpowers/specs/2026-07-24-fr-isolation-target-worktree-design.md.
+agent pods. See docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md.
 
 Two things must both hold, or an SSH agent silently falls back to devcontainer
 mode and fails:
@@ -19,6 +19,7 @@ mode and fails:
 Both are load-bearing, so this test locks both.
 """
 
+import re
 from pathlib import Path
 
 import yaml  # hard dep (pyproject) — a missing yaml must ERROR, not silently skip
@@ -51,11 +52,24 @@ def _env_value(container: dict, name: str):
     return None
 
 
+def _reexport_loop_covers(script: str, var: str) -> bool:
+    """True when the shim's `for … in <list>; do` loop line itself names var.
+
+    A bare substring check would also match a comment mentioning the var while
+    the loop line no longer carries it — assert on the loop line.
+    """
+    return bool(re.search(rf"for _\w+ in [^\n]*\b{re.escape(var)}\b[^\n]*; do", script))
+
+
 def test_env_in_all_agent_containers():
     """kali, vk-local, hermes, ssh each carry FR_ISOLATION_TARGET=worktree."""
-    containers = {}
-    containers.update(_containers(SECURE_AGENT_DEPLOY))
-    containers.update(_containers(HERMES_DEPLOY))
+    secure = _containers(SECURE_AGENT_DEPLOY)
+    hermes = _containers(HERMES_DEPLOY)
+    # Keep the namespaces separate: a future name collision across the two
+    # deployments must fail loudly, not silently shadow one entry.
+    overlap = secure.keys() & hermes.keys()
+    assert not overlap, f"container names collide across deployments: {overlap}"
+    containers = {**secure, **hermes}
 
     for name in REQUIRED_CONTAINERS:
         assert name in containers, f"container {name!r} not found in the deployments"
@@ -78,9 +92,9 @@ def test_hermes_shim_reexports_var():
     assert cm["kind"] == "ConfigMap"
     assert cm["metadata"]["name"] == "hermes-agent-shell-env"
     script = cm["data"]["35-hermes-agent-shell-byok-env.sh"]
-    assert "FR_ISOLATION_TARGET" in script, (
-        "the hermes 35-…-byok-env.sh re-export loop must include FR_ISOLATION_TARGET "
-        "so it survives sshd's env scrub into the login shell"
+    assert _reexport_loop_covers(script, "FR_ISOLATION_TARGET"), (
+        "the hermes 35-…-byok-env.sh re-export loop line must include "
+        "FR_ISOLATION_TARGET so it survives sshd's env scrub into the login shell"
     )
 
 
@@ -91,8 +105,8 @@ def test_kali_shim_configmap_and_mount():
     assert cm["metadata"]["name"] == "secure-agent-pod-env"
     assert cm["metadata"]["namespace"] == "secure-agent-pod"
     script = cm["data"]["35-secure-agent-pod-fr-env.sh"]
-    assert "FR_ISOLATION_TARGET" in script, (
-        "the kali 35-secure-agent-pod-fr-env.sh re-export loop must include "
+    assert _reexport_loop_covers(script, "FR_ISOLATION_TARGET"), (
+        "the kali 35-secure-agent-pod-fr-env.sh re-export loop line must include "
         "FR_ISOLATION_TARGET"
     )
 
@@ -105,3 +119,15 @@ def test_kali_shim_configmap_and_mount():
         "the shim must be a single-file subPath mount"
     )
     assert m.get("readOnly") is True, "the shim mount must be readOnly"
+
+    # Pin the volume→ConfigMap linkage: a typo'd configMap.name leaves the pod
+    # stuck ContainerCreating — and with strategy Recreate the old pod is
+    # already gone, i.e. a full agent-shell outage that syncs "forever".
+    pod_spec = _load(SECURE_AGENT_DEPLOY)["spec"]["template"]["spec"]
+    volumes = {v["name"]: v for v in pod_spec.get("volumes", [])}
+    vol_name = m.get("name")
+    assert vol_name in volumes, f"kali shim mount references undefined volume {vol_name!r}"
+    assert volumes[vol_name].get("configMap", {}).get("name") == cm["metadata"]["name"], (
+        f"volume {vol_name!r} must reference the shim ConfigMap "
+        f"{cm['metadata']['name']!r} — a mismatch strands the pod in ContainerCreating"
+    )

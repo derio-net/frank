@@ -1,6 +1,6 @@
 # FR_ISOLATION_TARGET=worktree on agent pods
 
-**Spec:** docs/superpowers/specs/2026-07-24-fr-isolation-target-worktree-design.md
+**Spec:** docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md
 **Status:** In Progress
 **Origin:** frank#686 (super-fr v3.15.0 isolation host modes, derio-net/super-fr#397)
 

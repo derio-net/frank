@@ -142,7 +142,7 @@ Workarounds, in order of cleanliness:
 
 super-fr v3.15.0 (derio-net/super-fr#397) shipped docker-less isolation host modes. **Host-worktree mode** activates when the process env carries `FR_ISOLATION_TARGET=worktree`: `fr isolation up/exec/down` runs as a plain git worktree in the host env — zero docker/devcontainer calls — so `fr-goal` / `fr-brainstorming` / `fr-debugging` become runnable inside Frank's unprivileged agent pods (which cannot spawn a devcontainer). Unknown values fail closed; a host without the variable is unchanged (still devcontainer mode). frank#686.
 
-Frank declares the variable on **every agent-bearing container**, across both pods (spec: `docs/superpowers/specs/2026-07-24-fr-isolation-target-worktree-design.md`):
+Frank declares the variable on **every agent-bearing container**, across both pods (spec: `docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md`):
 
 | Deployment | Container | Why |
 |---|---|---|

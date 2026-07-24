@@ -111,7 +111,7 @@ timing by choosing when to merge.
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-07-24-fr-isolation-target-env | `derio-net/frank` | `2026-07-24-fr-isolation-target-env` | — |
+| 2026-07-24--agents--fr-isolation-target-env | `derio-net/frank` | `2026-07-24--agents--fr-isolation-target-env` | — |
 
 ## Test Plan
 
