@@ -1,0 +1,38 @@
+# fr host-worktree isolation profile.d shim for the secure-agent-pod's kali
+# container.
+#
+# WHY THIS EXISTS:
+# The kali image's sshd runs `UsePAM no` with no `PermitUserEnvironment`
+# (agent-images/agent-shell-base/sshd_config), so the K8s-injected container
+# env — here FR_ISOLATION_TARGET=worktree, set on PID 1 by the Deployment — is
+# scrubbed from the interactive SSH/Mosh login shell. The "sshd scrubs
+# container env on login" gotcha (docs/runbooks/frank-gotchas/agent-shells.md).
+# Without this shim, an agent SSHing in and running fr-goal / fr-brainstorming /
+# fr-debugging would silently fall back to devcontainer mode and fail; the env
+# only reaches `kubectl exec` sessions and VK executor children.
+#
+# Fix (no agent-images change, same pattern as the hermes byok-env shim): mount
+# this drop-in into /etc/profile.d via subPath. It re-exports FR_ISOLATION_TARGET
+# from /proc/1/environ — readable because the whole kali container runs as
+# UID 1000, so PID 1 is the same UID; this is the escape hatch the gotcha names.
+# Numbered 35- so it runs before the image's 50-…-motd.sh.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: secure-agent-pod-env
+  namespace: secure-agent-pod
+data:
+  35-secure-agent-pod-fr-env.sh: |
+    # Re-export fr host-worktree env scrubbed by sshd (UsePAM no, no
+    # PermitUserEnvironment). Login shells only; non-interactive
+    # `ssh host -- cmd` skips profile.d — use `kubectl exec` for that.
+    if [ -r /proc/1/environ ]; then
+        for _fv in FR_ISOLATION_TARGET; do
+            eval "_fcur=\${$_fv:-}"
+            if [ -z "$_fcur" ]; then
+                _fval=$(tr '\0' '\n' < /proc/1/environ | sed -n "s/^${_fv}=//p" | head -n1)
+                [ -n "$_fval" ] && export "$_fv=$_fval"
+            fi
+        done
+        unset _fv _fcur _fval
+    fi

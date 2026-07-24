@@ -138,6 +138,30 @@ Workarounds, in order of cleanliness:
 - (b) use `kubectl exec` instead of `ssh` for env-dependent reconcile invocations
 - (c) accept the silence and rely on MOTD as the SSH-path failure surface (the MOTD line is unaffected — it's written from `last-reconcile.motd` regardless of env)
 
+## `FR_ISOLATION_TARGET=worktree` on the agent pods — docker-less in-pod fr isolation
+
+super-fr v3.15.0 (derio-net/super-fr#397) shipped docker-less isolation host modes. **Host-worktree mode** activates when the process env carries `FR_ISOLATION_TARGET=worktree`: `fr isolation up/exec/down` runs as a plain git worktree in the host env — zero docker/devcontainer calls — so `fr-goal` / `fr-brainstorming` / `fr-debugging` become runnable inside Frank's unprivileged agent pods (which cannot spawn a devcontainer). Unknown values fail closed; a host without the variable is unchanged (still devcontainer mode). frank#686.
+
+Frank declares the variable on **every agent-bearing container**, across both pods (spec: `docs/superpowers/specs/2026-07-24-fr-isolation-target-worktree-design.md`):
+
+| Deployment | Container | Why |
+|---|---|---|
+| `secure-agent-pod` | `kali` | interactive agent shell (SSH + `kubectl exec`) |
+| `secure-agent-pod` | `vk-local` | spawns VK executor processes — they inherit this env |
+| `hermes-agent-shell` | `hermes` | gateway runs the agent's terminal commands |
+| `hermes-agent-shell` | `ssh` | interactive sidecar (SSH/Mosh + `kubectl exec`) |
+
+Excluded on purpose: `hindsight` (Postgres/embedder sidecar, no agent processes).
+
+**A plain env var is not sufficient on its own.** Both pods serve interactive agents over SSH/Mosh, and sshd (`UsePAM no`, no `PermitUserEnvironment`) scrubs the container env from login shells — the "sshd scrubs container env on login" gotcha above. Env-only would cover VK executors (children of `vk-local`) and `kubectl exec` sessions, but an agent SSHing in would see NO `FR_ISOLATION_TARGET` and silently fall back to devcontainer mode → fail. So the var is also re-exported into SSH login shells via the established `/proc/1/environ` profile.d-shim pattern (readable because these containers run entirely as UID 1000, so PID 1 is the same UID):
+
+- **hermes** — the existing `apps/hermes-agent-shell/manifests/configmap-byok-env.yaml` (`35-hermes-agent-shell-byok-env.sh`) already re-exports the BYOK vars; `FR_ISOLATION_TARGET` was added to its loop list (`OPENAI_BASE_URL OPENAI_API_KEY FR_ISOLATION_TARGET`). No new mount.
+- **kali** — a new `apps/secure-agent-pod/manifests/configmap-fr-env.yaml` (ConfigMap `secure-agent-pod-env`, key `35-secure-agent-pod-fr-env.sh`) follows the hermes pattern exactly, re-exporting only `FR_ISOLATION_TARGET`. The `kali` container mounts it single-file via subPath at `/etc/profile.d/35-secure-agent-pod-fr-env.sh` (readOnly). Numbered `35-` so it runs before the image's `50-…-motd.sh`. `vk-local` needs no shim (no sshd; executors inherit the process env directly).
+
+Both shim files are subPath mounts — kubelet never live-updates them — but the value is static, so a normal pod roll suffices. Both Deployments use `strategy: Recreate`, so ArgoCD auto-sync on merge rolls each pod (briefly dropping live SSH/tmux/VK sessions); the operator controls timing by choosing when to merge.
+
+The whole contract (all four containers carry the var, both shims re-export it, the kali shim ConfigMap exists and is mounted) is pinned by the guard test `scripts/tests/test_fr_isolation_target_env.py`. Verify live with `kubectl exec … -- sh -c 'echo $FR_ISOLATION_TARGET'` (process env) and `kubectl exec … -- bash -lc 'echo $FR_ISOLATION_TARGET'` (login-shell path, proves the profile.d shim).
+
 ## secure-agent-kali build: pin `kali.download`, never the `http.kali.org` redirector
 
 The `agent-images` kali Dockerfile builds on `debian:bookworm-slim` → `agent-base` → `agent-shell-base`, then adds the kali-rolling repo and `apt-get dist-upgrade`s onto it. The repo URL **must** be the official Cloudflare-backed CDN `https://kali.download/kali`, not `https://http.kali.org/kali`.

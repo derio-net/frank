@@ -164,6 +164,11 @@ spec:
               value: "1000"
             - name: HERMES_GID
               value: "1000"
+            # super-fr host-worktree isolation mode (frank#686) — fr isolation
+            # runs as a plain git worktree, no docker needed. The gateway runs
+            # the agent's terminal commands, which inherit this env.
+            - name: FR_ISOLATION_TARGET
+              value: "worktree"
           envFrom:
             # BYOK inference auth (OPENAI_BASE_URL + OPENAI_API_KEY). optional:
             # true so the pod boots before the manual bootstrap mints
@@ -252,6 +257,11 @@ spec:
             # stuck servers fast enough to keep ports available.
             - name: MOSH_SERVER_NETWORK_TMOUT
               value: "3600"
+            # super-fr host-worktree isolation mode (frank#686) — fr isolation
+            # runs as a plain git worktree, no docker needed. Re-exported into
+            # SSH login shells by the byok-env profile.d shim (sshd scrubs env).
+            - name: FR_ISOLATION_TARGET
+              value: "worktree"
           envFrom:
             # Same BYOK auth so `hermes` invoked from the SSH shell reaches
             # LiteLLM. The 35-…-byok-env.sh profile.d shim re-exports these into

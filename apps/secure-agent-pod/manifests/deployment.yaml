@@ -54,6 +54,12 @@ spec:
             secretName: agent-github-token
             optional: true
             defaultMode: 0440
+        # fr host-worktree isolation profile.d shim — re-exports
+        # FR_ISOLATION_TARGET into SSH login shells (sshd scrubs PID 1's env).
+        - name: fr-env
+          configMap:
+            name: secure-agent-pod-env
+            defaultMode: 0644
       containers:
         - name: kali
           image: ghcr.io/derio-net/secure-agent-kali:c7a80f6fce51471732980d8c7f2b684b4e602299
@@ -88,6 +94,11 @@ spec:
             # 1h reaps stuck servers fast enough to keep ports available.
             - name: MOSH_SERVER_NETWORK_TMOUT
               value: "3600"
+            # super-fr host-worktree isolation mode (frank#686) — fr isolation
+            # runs as a plain git worktree, no docker needed. Re-exported into
+            # SSH login shells by the fr-env profile.d shim (sshd scrubs env).
+            - name: FR_ISOLATION_TARGET
+              value: "worktree"
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1
@@ -106,6 +117,12 @@ spec:
               readOnly: true
             - name: github-token
               mountPath: /var/run/github
+              readOnly: true
+            # fr-env profile.d shim (single-file subPath) — re-exports the
+            # sshd-scrubbed FR_ISOLATION_TARGET into the interactive login shell.
+            - name: fr-env
+              mountPath: /etc/profile.d/35-secure-agent-pod-fr-env.sh
+              subPath: 35-secure-agent-pod-fr-env.sh
               readOnly: true
           securityContext:
             runAsUser: 1000
@@ -160,6 +177,11 @@ spec:
             # the bridge-feed ceiling and (b) a soak under realistic, busy load.
             - name: VK_MAX_CONCURRENT_EXECUTIONS
               value: "4"
+            # super-fr host-worktree isolation mode (frank#686) — fr isolation
+            # runs as a plain git worktree, no docker needed. VK executor
+            # processes spawned here inherit this env (no sshd → no shim needed).
+            - name: FR_ISOLATION_TARGET
+              value: "worktree"
           envFrom:
             - secretRef:
                 name: agent-secrets-tier1
