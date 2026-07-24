@@ -248,6 +248,28 @@ spec:
           # agent-images-bump AGENT_IMAGES list, so future bumps re-pin it here.
           image: ghcr.io/derio-net/hermes-agent-shell-ssh:42ecbdd908a5bf6b712532028b880262559ad8f9
           imagePullPolicy: IfNotPresent
+          # BYOK-secret env snapshot (frank#688). This sidecar has no s6/init:
+          # the image entrypoint exec's sshd, which becomes PID 1 and OpenSSH
+          # overwrites its environ region with the process title — so the
+          # login-shell shim's /proc/1/environ read yields proctitle junk, not
+          # the env, and `hermes` over SSH loses its LiteLLM auth. Wrap the
+          # entrypoint: while THIS process still holds the full container env,
+          # snapshot the dynamic BYOK secrets to the run-env memory tmpfs, then
+          # `exec` the image entrypoint (NOT raw sshd — the entrypoint owns the
+          # host-key + authorized_keys first-boot prep). The 35-…-byok-env.sh
+          # shim reads /run/hermes-env/byok back into login shells. Static
+          # FR_ISOLATION_TARGET keeps its literal shim fallback (#689); only the
+          # secrets need capturing. `printenv | grep` matches nothing → empty
+          # 0600 file (umask) before the LLM secret syncs — harmless. The path
+          # here MUST match the shim's read path (scripts/tests/
+          # test_hermes_ssh_byok_env_snapshot.py locks both + the exec target).
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              umask 077
+              printenv | grep -E '^(OPENAI_BASE_URL|OPENAI_API_KEY)=' \
+                > /run/hermes-env/byok 2>/dev/null || true
+              exec /usr/local/bin/hermes-ssh-sidecar-entrypoint.sh
           env:
             - name: HERMES_HOME
               value: /opt/data
@@ -299,6 +321,11 @@ spec:
               mountPath: /opt/data/home
             - name: repos
               mountPath: /opt/data/home/repos
+            # tmpfs for the BYOK-secret env snapshot the command wrapper writes
+            # before exec'ing sshd (frank#688). Memory-backed → secrets stay in
+            # RAM, never hit disk, and are wiped on restart.
+            - name: run-env
+              mountPath: /run/hermes-env
             # SSH host + authorized keys — SOPS-managed Secret, sidecar only.
             - name: ssh-keys
               mountPath: /etc/ssh-keys
@@ -503,6 +530,14 @@ spec:
             secretName: hermes-agent-shell-ssh-keys
             optional: true
             defaultMode: 0400
+        - name: run-env
+          # BYOK-secret env snapshot tmpfs (frank#688) — the ssh sidecar's
+          # command wrapper writes /run/hermes-env/byok here before exec'ing
+          # sshd; the byok-env shim reads it into login shells. Memory medium
+          # keeps the secrets off disk; fsGroup 1000 makes it writable by the
+          # UID-1000 sidecar.
+          emptyDir:
+            medium: Memory
         - name: byok-env
           configMap:
             name: hermes-agent-shell-env
