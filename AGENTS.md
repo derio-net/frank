@@ -53,11 +53,15 @@ Agent-neutral rules live in `agents/rules/`:
 Repo-local skills are stored in `agents/skills/`. When a task matches a skill,
 read that skill's `SKILL.md` before acting.
 
+- `awx-onboard-hosts`: `agents/skills/awx-onboard-hosts/SKILL.md`
 - `bump-image`: `agents/skills/bump-image/SKILL.md`
 - `deploy-app`: `agents/skills/deploy-app/SKILL.md`
 - `expose-service`: `agents/skills/expose-service/SKILL.md`
 - `falco-triage`: `agents/skills/falco-triage/SKILL.md`
+- `frank-alert-triage`: `agents/skills/frank-alert-triage/SKILL.md`
+- `hop-trace-analysis`: `agents/skills/hop-trace-analysis/SKILL.md`
 - `oidc-onboard`: `agents/skills/oidc-onboard/SKILL.md`
+- `post-deploy`: `agents/skills/post-deploy/SKILL.md`
 - `sync-runbook`: `agents/skills/sync-runbook/SKILL.md`
 - `update-readme`: `agents/skills/update-readme/SKILL.md`
 
