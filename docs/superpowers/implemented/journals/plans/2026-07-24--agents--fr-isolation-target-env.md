@@ -39,3 +39,8 @@ P2.T2.S2 smoke: kali login shell (env -i bash -lc) printed worktree, hermes ssh 
 ### smoke-results · discovery · P2 smoke results: env 4/4 live; kali login shell proven; in-pod fr walk blocked by fr 3.14.0
 
 Post-merge roll (both pods Recreate'd, Ready): kubectl exec env checks 4/4 = worktree (row fr-isolation-env-in-pods flipped to skipped, live-proven). kali login-shell re-export proven under env -i. In-pod fr walk (P2.T2.S3): fr CLI present on secure-agent-pod PVC but at 3.14.0 < 3.15.0 (host-worktree mode ships in 3.15.0) — pod-provisioning gap, walk deferred to the agents' own plugin update; env contract independently proven.
+
+<!-- fr:journal kind=discovery scope=plan id=closeout created=2026-07-24T18:08:27 -->
+### closeout · discovery · Close-out: all frank-side claims live-proven; plan archived
+
+PR#687 (feature) + PR#689 (hermes ssh static-export fix) merged; hermes pod rollout-restarted for the subPath CM. Final state: env 4/4 containers, login shells green on both pods, both acceptance rows skipped (live manual proof 2026-07-24). Open ends outside this plan: frank#688 (ssh-sidecar BYOK re-export dead — sshd PID 1), pod fr CLI 3.14.0 needs the agents' own update to 3.15.0 before in-pod walks, super-fr hermes-agent-compat Phase 8 operator-owned.
