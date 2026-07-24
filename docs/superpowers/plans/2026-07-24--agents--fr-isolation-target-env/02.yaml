@@ -1,0 +1,62 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Merge, roll, and live verification
+  tag: manual
+  depends_on:
+  - 1
+  tracking_issue: null
+  acceptance:
+  - fr-isolation-env-in-pods
+  - fr-isolation-env-ssh-login
+tasks:
+- number: 1
+  title: 'Operator: merge the PR'
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      Merge the PR when a brief session drop is acceptable: both Deployments use strategy Recreate, so the ArgoCD auto-sync roll drops live SSH/tmux/VK sessions on secure-agent-pod and hermes-agent-shell for the pod-restart window.
+- number: 2
+  title: Agent smoke test (post-roll)
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      Verify env in all four containers: for each of (secure-agent-pod/kali, secure-agent-pod/vk-local, hermes-agent-shell/hermes, hermes-agent-shell/ssh) run `kubectl exec deploy/<name> -c <container> -- env | grep FR_ISOLATION_TARGET` → `FR_ISOLATION_TARGET=worktree`.
+  - id: P2.T2.S2
+    text: |-
+      Login-shell coverage: on each pod run `kubectl exec … -c <ssh-container> -- bash -lc 'echo $FR_ISOLATION_TARGET'` (and/or a real SSH login) → prints worktree, proving the profile.d shims survive sshd scrubbing.
+  - id: P2.T2.S3
+    text: |-
+      If the fr CLI is present on the secure-agent-pod PVC: run one minimal in-pod walk `fr isolation up --branch feat/smoke` → `fr isolation exec -- true` → `fr isolation down` and confirm no docker/devcontainer invocation. If fr is absent, record that as a separate pod-provisioning gap — the env contract is already proven by S1–S2. Then flip acceptance rows fr-isolation-env-in-pods and fr-isolation-env-ssh-login to skipped (live manual proof, dated).
+- number: 3
+  title: 'Operator: super-fr Phase 8'
+  steps:
+  - id: P2.T3.S1
+    text: |-
+      Operator-owned, outside this repo: the live hermes in-pod fr-goal walk (super-fr hermes-agent-compat Phase 8) and the VK workspace spot-check, flipping super-fr's isolation-host-worktree-e2e row. This plan only records completion.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

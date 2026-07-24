@@ -1,19 +1,22 @@
-# BYOK-env profile.d shim for the hermes-agent-shell pod.
+# BYOK-env (and fr host-worktree) profile.d shim for the hermes-agent-shell pod.
 #
 # WHY THIS EXISTS (the load-bearing part of this deploy):
 # agent-shell-base's sshd runs `UsePAM no` with no `PermitUserEnvironment`
 # (agent-images/agent-shell-base/sshd_config), so the K8s-injected container
-# env — OPENAI_BASE_URL / OPENAI_API_KEY, set on PID 1 by the Deployment's
-# envFrom — is scrubbed from the interactive SSH/Mosh login shell. The
-# "sshd scrubs container env on login" gotcha
+# env — OPENAI_BASE_URL / OPENAI_API_KEY (BYOK inference), plus
+# FR_ISOLATION_TARGET (super-fr host-worktree isolation mode, frank#686), all
+# set on PID 1 by the Deployment — is scrubbed from the interactive SSH/Mosh
+# login shell. The "sshd scrubs container env on login" gotcha
 # (docs/runbooks/frank-gotchas/agent-shells.md). Since this pod's whole job is
 # running `hermes` interactively over SSH, hermes launched from the shell would
 # silently fail to reach LiteLLM, and the image's own 50-…-motd.sh would print
-# "OPENAI_BASE_URL not set" on every login despite this manifest setting it.
+# "OPENAI_BASE_URL not set" on every login despite this manifest setting it;
+# likewise fr-goal / fr-brainstorming / fr-debugging would fall back to
+# devcontainer mode and fail without FR_ISOLATION_TARGET in the login shell.
 #
 # Fix without an agent-images change: mount this drop-in into /etc/profile.d via
 # subPath (same mechanism paperclip uses for its 60-…-tips.sh). It re-exports
-# the BYOK vars from /proc/1/environ — readable because the whole container runs
+# the vars from /proc/1/environ — readable because the whole container runs
 # as UID 1000, so PID 1 is the same UID; this is the escape hatch the gotcha
 # names. Numbered 35- so it runs before the 50- auth-status MOTD.
 apiVersion: v1
@@ -23,11 +26,11 @@ metadata:
   namespace: hermes-agent-shell
 data:
   35-hermes-agent-shell-byok-env.sh: |
-    # Re-export BYOK env scrubbed by sshd (UsePAM no, no PermitUserEnvironment).
-    # Login shells only; non-interactive `ssh host -- cmd` skips profile.d —
-    # use `kubectl exec` for that.
+    # Re-export BYOK + fr host-worktree env scrubbed by sshd (UsePAM no, no
+    # PermitUserEnvironment). Login shells only; non-interactive
+    # `ssh host -- cmd` skips profile.d — use `kubectl exec` for that.
     if [ -r /proc/1/environ ]; then
-        for _hv in OPENAI_BASE_URL OPENAI_API_KEY; do
+        for _hv in OPENAI_BASE_URL OPENAI_API_KEY FR_ISOLATION_TARGET; do
             eval "_hcur=\${$_hv:-}"
             if [ -z "$_hcur" ]; then
                 _hval=$(tr '\0' '\n' < /proc/1/environ | sed -n "s/^${_hv}=//p" | head -n1)

@@ -1,0 +1,82 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Declare FR_ISOLATION_TARGET=worktree with SSH login-shell coverage
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - fr-isolation-env-in-pods
+  - fr-isolation-env-ssh-login
+tasks:
+- number: 1
+  title: Guard test first (RED)
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      Write scripts/tests/test_fr_isolation_target_env.py in the existing scripts/tests/ pattern (pytest + yaml, REPO_ROOT = Path(__file__).resolve().parents[2]). Three tests: (1) test_env_in_all_agent_containers — parse apps/secure-agent-pod/manifests/deployment.yaml and apps/hermes-agent-shell/manifests/deployment.yaml; assert containers kali, vk-local, hermes, ssh each carry env name FR_ISOLATION_TARGET value "worktree" (hindsight explicitly absent from the required set); (2) test_hermes_shim_reexports_var — assert the 35-hermes-agent-shell-byok-env.sh script in apps/hermes-agent-shell/manifests/configmap-byok-env.yaml contains FR_ISOLATION_TARGET in its re-export loop list; (3) test_kali_shim_configmap_and_mount — assert apps/secure-agent-pod/manifests/configmap-fr-env.yaml defines ConfigMap secure-agent-pod-env with key 35-secure-agent-pod-fr-env.sh re-exporting FR_ISOLATION_TARGET, and the kali container mounts it at /etc/profile.d/35-secure-agent-pod-fr-env.sh via subPath readOnly.
+  - id: P1.T1.S2
+    text: |-
+      Run `python -m pytest scripts/tests/test_fr_isolation_target_env.py -v` and confirm all three tests FAIL (RED) for the right reasons (missing env entries, missing shim var, missing file) — not for collection/parse errors.
+- number: 2
+  title: Manifest changes (GREEN)
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      apps/secure-agent-pod/manifests/deployment.yaml: add to BOTH the kali and vk-local containers' env lists: `- name: FR_ISOLATION_TARGET` / `value: "worktree"` with a short comment: super-fr host-worktree isolation mode (frank#686) — fr isolation runs as a plain git worktree, no docker needed.
+  - id: P1.T2.S2
+    text: |-
+      apps/hermes-agent-shell/manifests/deployment.yaml: add the same env entry + comment to BOTH the hermes and ssh containers. Do NOT touch hindsight.
+  - id: P1.T2.S3
+    text: |-
+      apps/hermes-agent-shell/manifests/configmap-byok-env.yaml: extend the re-export loop list from `OPENAI_BASE_URL OPENAI_API_KEY` to `OPENAI_BASE_URL OPENAI_API_KEY FR_ISOLATION_TARGET`; update the header comment to mention fr host-worktree mode alongside BYOK.
+  - id: P1.T2.S4
+    text: |-
+      Create apps/secure-agent-pod/manifests/configmap-fr-env.yaml: ConfigMap secure-agent-pod-env (namespace secure-agent-pod), data key 35-secure-agent-pod-fr-env.sh — same /proc/1/environ re-export shim as the hermes one (readable because the kali container runs fully as UID 1000), loop list containing FR_ISOLATION_TARGET only, numbered 35- to run before the image's 50-…-motd.sh. In deployment.yaml add volume fr-env (configMap secure-agent-pod-env) and a kali volumeMount at /etc/profile.d/35-secure-agent-pod-fr-env.sh (subPath, readOnly). vk-local gets no mount (no sshd).
+  - id: P1.T2.S5
+    text: |-
+      Run `python -m pytest scripts/tests/test_fr_isolation_target_env.py -v` → all three tests PASS (GREEN). Then run the full local guard suite `python -m pytest scripts/tests/ -q` to confirm no other guard regressed (test_cert_expiry_canary has a known pre-existing failure on main; anything else new is a regression to fix).
+- number: 3
+  title: Documentation
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Add a one-liner to agents/rules/frank-gotchas.md (Agent shells section): both agent pods declare FR_ISOLATION_TARGET=worktree (super-fr host-worktree isolation — fr-goal/fr-brainstorming/ fr-debugging run in-pod docker-less); SSH login shells get it via profile.d re-export shims (sshd scrubs env). Add the matching full prose to docs/runbooks/frank-gotchas/agent-shells.md: which containers, the two shim files, and that the guard test scripts/tests/test_fr_isolation_target_env.py pins it all.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-24T15:05:34+00:00'
+      note: null
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-24T15:05:36+00:00'
+      note: null
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-07-24T15:05:38+00:00'
+      note: null
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-07-24T15:05:39+00:00'
+      note: null
+    P1.T2.S3:
+      state: x
+      ticked_at: '2026-07-24T15:05:40+00:00'
+      note: null
+    P1.T2.S4:
+      state: x
+      ticked_at: '2026-07-24T15:05:41+00:00'
+      note: null
+    P1.T2.S5:
+      state: x
+      ticked_at: '2026-07-24T15:05:42+00:00'
+      note: null
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-07-24T15:05:43+00:00'
+      note: null
+  completion:
+    at: '2026-07-24T15:06:29+00:00'
+    note: null
+    observed_prs: []
