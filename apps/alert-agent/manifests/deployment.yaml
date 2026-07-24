@@ -81,8 +81,11 @@ spec:
             - { name: skill, mountPath: /home/agent/CLAUDE.md, subPath: SKILL.md }
           resources:
             requests: { cpu: 50m, memory: 256Mi }
-            # claude TUI + tmux: one shared "alert-agent-ops" session for surge/
-            # digest/grafana + one per inbound chat. 8Gi (not 3Gi) so the NATIVE
+            # claude TUI + tmux: one session per autonomous stream (alert-agent-
+            # surge / -digest / -webhook-<alertname>) + one per inbound chat —
+            # isolated so stale context never bleeds across streams (frank#599).
+            # Each is created lazily and the alertname set is finite (blog-edge
+            # rules), so the count stays bounded. 8Gi (not 3Gi) so the NATIVE
             # claude build's background auto-updater — which buffers the ~245MB
             # download ~17x in anon memory, peaking ~4.2-4.5GiB — fits without a
             # group-OOM (frank-gotchas/agent-shells.md; hermes was raised 4->8 for

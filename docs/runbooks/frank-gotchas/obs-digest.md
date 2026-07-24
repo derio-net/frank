@@ -515,3 +515,55 @@ says ✓ over a blank credential. That lives in the `agent-images` repo, not her
 (attach the agent tmux in the `agent` container, run `/login`). The fix makes the
 *next* occurrence page within a day instead of being noticed by a human wondering
 why the bot got terse.
+
+## alert-agent stale-context bleed — one shared session drowned live triage in resolved history (frank#599)
+
+**Symptom.** On 2026-06-21 the CrowdSec ban-pipeline canary dead-man's-switch test
+(`crowdsec-canary-heartbeat-stale`) routed to the alert-agent, which produced a
+**confidently FALSE** report: *"none of the current scan IPs (20.9.39.209,
+20.206.64.115, 20.250.14.139, 104.210.140.136 — Azure AS8075) are banned; CrowdSec
+agent blind since 11:37Z yesterday; no bans since 09:55Z."* CrowdSec was in fact
+actively banning (bans at 13:30/13:33/13:47/13:59Z). The "blind since 11:37Z / no
+bans since 09:55Z" is the **resolved #594 rotation-blindness incident, verbatim** —
+the agent surfaced stale context as if current and misattributed unrelated Azure IPs.
+
+**Root cause.** All three autonomous analytical wakes — grafana-alert triage
+(`handlers/webhook.py`), surge and digest (`handlers/orchestration.py`) — drove ONE
+shared persistent agent session, `alert-agent-ops`. The agent-session server
+(`multi-agent-shell` image, `/usr/local/lib/multi-agent-shell/agent-session`; NOT in
+this repo) maps a `session_id` → a deterministic uuid5 → `claude --session-id`
+(create-or-resume), keeping **one long-lived claude process per id**. It only resets
+context via `submit(id, "/clear")` when a session has been idle longer than
+`IDLE_RESET_S` (env `AGENT_SESSION_IDLE_RESET_S` / `STOA_IDLE_RESET_S`, **default
+12h**). Every analytical wake refreshed `alert-agent-ops`'s `last_activity`, so on
+any active day the wakes were < 12h apart, the idle-reset never fired, and a prior
+wake's narrative (the live-#594 incident, most plausibly carried in by the daily
+digest, which reports CrowdSec status) persisted in the context window and bled into
+the later, unrelated canary triage. The prompt's *"using ONLY the facts below"*
+can't retract what is already in the window.
+
+**Why not just unique-session-per-wake.** The server has **no reaper**, and each live
+claude session is ~370–410 MB RSS; unique-per-wake ids would spawn an unbounded
+number of ~400 MB processes and OOM the 8 Gi pod. Ruled out.
+
+**Fix (frank layer, `apps/alert-agent/handlers/`).** Each autonomous stream now
+rides its OWN session, and alert triage is keyed **per alertname**:
+`alert-agent-surge`, `alert-agent-digest`, and `alert-agent-webhook-<alertname>`
+(sanitized to the server's `^[A-Za-z0-9_-]{1,128}` rule; prefix-only fallback when
+`alertname` is absent). Properties: streams are mutually isolated (a digest/surge
+narrative can never surface in an alert triage); different alert *types* are isolated
+from each other; the same alert re-firing (`repeat_interval`) reuses its own context;
+two firings of the same alert > `IDLE_RESET_S` apart (a new incident) get the
+server's idle `/clear`; and the digest is guaranteed-fresh (24 h cadence > 12 h
+idle). The distinct-alertname set is finite (blog-edge rules), so the session count
+stays bounded — no OOM. Pinned by `handlers/tests/test_session_isolation.py`.
+
+**Already-mitigated + durable follow-up.** #598 independently re-routes the
+dead-man's-switch (`telegram_direct=true`) **directly to Telegram, bypassing the
+agent** — so the exact observed alert no longer reaches the LLM at all; this fix
+hardens the *general* agent-triaged path (other blog-edge alerts still wake the
+agent). The **durable root fix belongs in the agent-session server**
+(`agent-images` / `multi-agent-shell`): a per-request `fresh`/reset flag so a
+one-shot analytical turn can force a clean context (same `session_id`, forced
+`/clear`) regardless of idle timing — the correct primitive the frank-side session
+split only approximates. Recommended as an `agent-images` follow-up.
