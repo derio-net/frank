@@ -406,6 +406,64 @@ data:
             annotations:
               summary: "Secure agent pod {{ $labels.pod }} not in Running phase"
 
+      # --- VK executor pool wedged (eval every 5m) ---
+      # Detects the leaked-permit wedge (2026-07-24 incident, frank#692): a
+      # 30s-timeout MCP client abandons a spawn, vk-local's Child::wait() is
+      # cancelled, the child dies unreaped, and its concurrency permit is never
+      # released. Leaks accumulate to VK_MAX_CONCURRENT_EXECUTIONS and every
+      # later dispatch queues forever — pod 2/2 Running, ArgoCD green, agents
+      # silently hang. Signature: active pinned at max with a non-draining
+      # queue. `for: 1h` clears the worst legitimate case (a mass dispatch of
+      # long coding runs saturating 8 slots drains its queue well inside an
+      # hour); a wedge holds the state indefinitely. The bool-product expr
+      # always returns 0/1 while the scrape is alive, so NoData really means
+      # "scrape dead" → noDataState: Alerting surfaces it as DatasourceNoData,
+      # which health-bridge caps at degraded (blindness ≠ death). Routed via
+      # health_bridge_only="true": severity=critical drives the dead→bug-issue
+      # lifecycle but never pages Telegram. Root-cause fix: super-fr#404.
+      # Recovery + full prose: docs/runbooks/frank-gotchas/agent-shells.md.
+      - orgId: 1
+        name: vk-executor-pool
+        folder: feature-health
+        interval: 5m
+        rules:
+          - uid: vk-executor-pool-wedged
+            title: VK Executor Pool Wedged
+            condition: C
+            data:
+              - refId: A
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: P4169E866C3094E38
+                model:
+                  refId: A
+                  expr: '(vibekanban_active_executions >= bool vibekanban_max_executions) * (vibekanban_queued_executions >= bool 1)'
+                  instant: true
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+              - refId: B
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model: { refId: B, type: reduce, expression: A, reducer: last, settings: { mode: dropNN } }
+              - refId: C
+                relativeTimeRange: { from: 600, to: 0 }
+                datasourceUid: __expr__
+                model:
+                  refId: C
+                  type: threshold
+                  expression: B
+                  conditions:
+                    - evaluator: { type: gt, params: [0.5] }
+            noDataState: Alerting
+            execErrState: Error
+            for: 1h
+            labels:
+              severity: critical
+              health_bridge_only: "true"
+              github_issue: "frank-ops#18"
+            annotations:
+              summary: "VK executor pool wedged: active executions pinned at the cap with a non-draining queue for 1h - leaked permits from dead executors likely hold every slot; newly dispatched agents hang silently"
+              runbook: "Recovery: kubectl -n secure-agent-pod exec deploy/secure-agent-pod -c vk-local -- kill -TERM 1 (restart runs orphan-cleanup, frees permits). Check vibekanban_active/queued/max_executions in VMUI and defunct sh children in the container. Full prose: docs/runbooks/frank-gotchas/agent-shells.md"
+
       # =====================================================================
       # LAYER TRACKERS (Derio Ops board, derio-net/frank-ops — private)
       # Labels: severity + github_issue=frank-ops#<LAYER>
