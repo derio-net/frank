@@ -97,8 +97,26 @@ The bridge's MCP client (`/opt/scripts/vk_mcp_client.py:76`) defaults `_recv(tim
 3. The child shell process runs to completion (`|| true` ensures exit 0) but **vibe-kanban never calls `waitpid()`** because the wait future was cancelled. Child → zombie. DB row stays `status='running'` forever.
 4. UI shows the workspace stuck "active" with no output. New bridge cycles add more.
 
+**Terminal form — the wedged executor pool (2026-07-24 incident)**: every zombie
+row also holds a `VK_MAX_CONCURRENT_EXECUTIONS` semaphore permit that is never
+released (the permit is freed on collection, and collection was cancelled). The
+cap does not time permits out, so leaks are cumulative and terminal: once
+`active == max` is reached on dead executions, **every subsequent spawn queues
+forever** — "my agents hang" with the pod 2/2 Running, zero restarts, ArgoCD
+green. Live signature at `/metrics`: `vibekanban_active_executions` ==
+`vibekanban_max_executions` with `vibekanban_queued_executions` > 0 while `ps`
+shows no live executor processes (only `[sh] <defunct>`). 2026-07-24: 10 rows
+stuck `running` (codingagent + setupscript + cleanupscript — so the reap-miss
+is any cancelled request future, not just the bridge path), active pinned at
+4/4, 10 spawns queued. The cap was raised 4 → 8 the same day (throughput
+headroom, NOT a fix — more concurrency means heavier PV contention, slower
+setupscripts, and more 30 s-timeout leaks until the client fix ships).
+
 **Detection signals** (any one is sufficient):
 
+- `/metrics` on vk-local :8081 — `vibekanban_active_executions` pinned at
+  `vibekanban_max_executions` with `vibekanban_queued_executions` > 0 and not
+  draining.
 - `ps -eo pid,etime,comm,args` inside vk-local shows multiple `[sh] <defunct>` children of `vibe-kanban` PID 7.
 - `python3 -c "import sqlite3; ..."` against `/home/claude/.local/share/vibe-kanban/db.v2.sqlite`:
   `SELECT status, COUNT(*) FROM execution_processes GROUP BY status` shows multiple `running` rows whose `created_at` is >5 min ago and `completed_at IS NULL`.
@@ -124,6 +142,13 @@ cd /var/tmp/vibe-kanban/worktrees/<hash>-<name>/frank && git status && git log -
 **Durable fix** lives upstream of frank — in the bridge code, migrated from `derio-net/agent-images` to `derio-net/super-fr` (the `fr_vk.bridge` module). Two changes are needed there:
 1. Bump the MCP client's `_recv` default timeout from `30.0` to `180.0`.
 2. Wrap the `sync_issue()` invocation in the bridge `main()` with `try/except TimeoutError: continue` so a single slow call doesn't kill the whole cycle.
+
+Status 2026-07-24: NOT yet shipped — the deployed `fr_vk/_mcp_client.py` (fr
+v3.15.0 on the kali container) still defaults `_recv(timeout=30.0)`, and the
+exact `TimeoutError: No response from MCP server within 30.0s` traceback fired
+at 08:58 UTC that morning. Note the same `VkMcpClient` is used by every fr → VK
+dispatch path (`fr apply --to vk` included), so any dispatcher can leak permits,
+not only the supercronic bridge.
 
 There's also an upstream `vibe-kanban` server-side bug — the request-handler future should not own the `Child::wait()` lifetime; child processes should be tracked in a global registry with a background reaper. That's a forked-fork change in `derio-net/vibe-kanban`, lower priority once the timeout is bumped.
 

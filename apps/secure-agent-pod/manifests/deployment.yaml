@@ -162,11 +162,14 @@ spec:
               value: "https://vk.cluster.derio.net"
             - name: VK_SHARED_RELAY_API_BASE
               value: "https://vk.cluster.derio.net"
-            # Cap concurrent executor spawns at 4 (Phase 4 / Option B1 of
+            # Cap concurrent executor spawns (semaphore permits; introduced as 4
+            # in Phase 4 / Option B1 of
             # docs/superpowers/archived-plans/2026-04-30--agents--vk-local-oom-remediation/_prose.md).
-            # Design worst-case live cgroup: ~220 MiB saturated-idle + 4 × 480 MiB
-            # ≈ 2,140 MiB. Spawns past the cap queue (see
-            # `vibekanban_queued_executions` at /metrics).
+            # Raised 4 → 8 on 2026-07-24: design worst-case live cgroup
+            # ~220 MiB saturated-idle + 8 × 480 MiB (soak-derived per-execution
+            # figure) ≈ 4.1 GiB, inside the 8 Gi limit with ~2× headroom.
+            # Spawns past the cap queue (see `vibekanban_queued_executions`
+            # at /metrics).
             #
             # 2026-05-18 incident: bridge dispatched 8 cards; vk-local OOMKilled
             # at the 4 Gi limit despite the cap. Soak-derived 4 Gi (PR #264,
@@ -175,8 +178,21 @@ spec:
             # eat the headroom. The limit was restored to 8 Gi (the pre-soak
             # value) as the safety net. Do not dial back without (a) revalidating
             # the bridge-feed ceiling and (b) a soak under realistic, busy load.
+            #
+            # CAUTION: permits LEAK when an MCP/HTTP client with a short timeout
+            # (fr_vk._mcp_client _recv default 30 s) drops a spawn request —
+            # the server-side Child::wait() future is cancelled, the child goes
+            # defunct unreaped, the execution_processes row stays 'running',
+            # and the permit is never released. Leaked permits accumulate to
+            # the cap and wedge the pool (2026-07-24 incident: active==4,
+            # queued==10, zero live executors). More concurrency ⇒ heavier PV
+            # contention ⇒ slower setupscripts ⇒ MORE 30 s-timeout leaks, so
+            # this bump is throughput headroom, not a fix — the cure is the
+            # fr_vk timeout bump in super-fr. Wedge recovery:
+            # docs/runbooks/frank-gotchas/agent-shells.md (kill -TERM 1 in
+            # vk-local; orphan-cleanup frees the rows on restart).
             - name: VK_MAX_CONCURRENT_EXECUTIONS
-              value: "4"
+              value: "8"
             # super-fr host-worktree isolation mode (frank#686) — fr isolation
             # runs as a plain git worktree, no docker needed. VK executor
             # processes spawned here inherit this env (no sshd → no shim needed).
