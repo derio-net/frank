@@ -76,6 +76,14 @@ data:
             matchers:
               - gpu_timeshare="true"
             continue: false
+          # Generic "critical for health-bridge, but do not page" escape hatch
+          # (same trick as canary_watchdog above: severity=critical drives the
+          # dead→bug-issue lifecycle, this route keeps it off Telegram). MUST
+          # precede the severity routes. First user: vk-executor-pool-wedged.
+          - receiver: "Health Bridge Webhook"
+            matchers:
+              - health_bridge_only="true"
+            continue: false
           - receiver: "Telegram - Willikins"
             matchers:
               - severity=critical

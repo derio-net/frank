@@ -114,6 +114,13 @@ setupscripts, and more 30 s-timeout leaks until the client fix ships).
 
 **Detection signals** (any one is sufficient):
 
+- **Automated**: Grafana rule `vk-executor-pool-wedged` (feature-health,
+  `health_bridge_only="true"` → Health Bridge bug-issue only, no Telegram)
+  fires when `active >= max` AND `queued > 0` hold for 1 h. The vk-local
+  `/metrics` endpoint is scraped via the existing `VMPodScrape` (vk-http :8081,
+  30 s); the rule's bool-product expr returns 0/1 while the scrape is alive, so
+  NoData strictly means "scrape dead" (surfaced as DatasourceNoData → degraded).
+  Guard: `scripts/tests/test_vk_wedge_alert.py`.
 - `/metrics` on vk-local :8081 — `vibekanban_active_executions` pinned at
   `vibekanban_max_executions` with `vibekanban_queued_executions` > 0 and not
   draining.
