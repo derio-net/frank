@@ -246,7 +246,7 @@ spec:
           # agent-images#136 merged, and the 820c1fb main build published this
           # tag (verified present on GHCR). hermes-agent-shell-ssh is in the
           # agent-images-bump AGENT_IMAGES list, so future bumps re-pin it here.
-          image: ghcr.io/derio-net/hermes-agent-shell-ssh:c7a80f6fce51471732980d8c7f2b684b4e602299
+          image: ghcr.io/derio-net/hermes-agent-shell-ssh:42ecbdd908a5bf6b712532028b880262559ad8f9
           imagePullPolicy: IfNotPresent
           env:
             - name: HERMES_HOME
@@ -379,7 +379,7 @@ spec:
           # → 28de3ab + the exec probes below was the validated combination →
           # re-pinned to the permanent main-build SHA 820c1fb (same code rebuilt
           # on main; agent-images sidecar dir merged, tag verified on GHCR).
-          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:c7a80f6fce51471732980d8c7f2b684b4e602299
+          image: ghcr.io/derio-net/hermes-agent-shell-hindsight:42ecbdd908a5bf6b712532028b880262559ad8f9
           imagePullPolicy: IfNotPresent
           env:
             # PGDATA on the mounted PVC (isolated from /opt/data). The image
