@@ -467,3 +467,25 @@ rows:
       "Talos (v1.12.6)". omnictl reports unknown (server version not discoverable from
       the repo — the honest-gap behaviour, by design). On-demand, no scheduled watcher
       (decision d3). Guarded by a test-scripts CI job (43 tests). Live manual proof.'
+  - id: fr-isolation-env-in-pods
+    capability: In-pod fr isolation (host-worktree mode)
+    acceptance: Agent processes in all four agent-bearing containers (secure-agent-pod
+      kali+vk-local, hermes-agent-shell hermes+ssh) observe FR_ISOLATION_TARGET=worktree,
+      enabling super-fr host-worktree isolation in-pod.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-24-fr-isolation-target-worktree-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'Verify post-merge: kubectl exec into each container, env | grep FR_ISOLATION_TARGET
+      == worktree. Guard test scripts/tests/test_fr_isolation_target_env.py pins the
+      manifests.'
+  - id: fr-isolation-env-ssh-login
+    capability: In-pod fr isolation (host-worktree mode)
+    acceptance: Agents logging in over SSH/Mosh on either pod also see FR_ISOLATION_TARGET=worktree
+      despite sshd env scrubbing (profile.d re-export shims).
+    origin:
+    - frank:docs/superpowers/specs/2026-07-24-fr-isolation-target-worktree-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'Verify post-merge: bash -lc ''echo $FR_ISOLATION_TARGET'' in an SSH login
+      shell on both pods prints worktree.'
