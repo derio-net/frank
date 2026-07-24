@@ -475,10 +475,11 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-24--agents--fr-isolation-target-env-design.md
     levels: {}
-    status: not-implemented
-    notes: 'Verify post-merge: kubectl exec into each container, env | grep FR_ISOLATION_TARGET
-      == worktree. Guard test scripts/tests/test_fr_isolation_target_env.py pins the
-      manifests.'
+    status: skipped
+    notes: Live manual proof 2026-07-24 post-PR#687 roll — kubectl exec in all four
+      containers (kali, vk-local, hermes, ssh) printed FR_ISOLATION_TARGET=worktree.
+      Guard test scripts/tests/test_fr_isolation_target_env.py pins the manifests
+      in CI-less local runs.
   - id: fr-isolation-env-ssh-login
     capability: In-pod fr isolation (host-worktree mode)
     acceptance: Agents logging in over SSH/Mosh on either pod also see FR_ISOLATION_TARGET=worktree

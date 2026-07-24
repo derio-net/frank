@@ -37,21 +37,24 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-24T15:57:37+00:00'
       note: null
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-24T15:57:38+00:00'
       note: null
     P2.T2.S2:
       state: ' '
       ticked_at: null
       note: null
     P2.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: '-'
+      ticked_at: '2026-07-24T15:57:40+00:00'
+      note: fr CLI on secure-agent-pod PVC is 3.14.0 < 3.15.0 (host-worktree mode)
+        — walk deferred to the pod's own plugin update; env contract proven by S1/S2.
+        in-pods row flipped to skipped (live-proven); ssh-login row flips after the
+        hermes shim static-export fix is live.
     P2.T3.S1:
       state: ' '
       ticked_at: null
