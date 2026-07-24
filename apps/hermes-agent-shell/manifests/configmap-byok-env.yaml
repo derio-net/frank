@@ -19,6 +19,19 @@
 # the vars from /proc/1/environ — readable because the whole container runs
 # as UID 1000, so PID 1 is the same UID; this is the escape hatch the gotcha
 # names. Numbered 35- so it runs before the 50- auth-status MOTD.
+#
+# CAVEAT (live-verified 2026-07-24, post-#687 smoke test): in THIS pod's ssh
+# sidecar the /proc/1/environ escape hatch is DEAD — PID 1 is sshd itself
+# (hermes-agent-shell-ssh has no s6 init), and OpenSSH overwrites its
+# argv/environ region with the process title ("sshd: … [listener] …"), so
+# /proc/1/environ returns proctitle bytes, not the env. The loop below is
+# therefore vacuous here (kept: it documents intent and works wherever an
+# init preserves environ, e.g. secure-agent-pod's kali under s6).
+# FR_ISOLATION_TARGET is a STATIC value, so it gets a literal fallback export
+# below — keep it equal to the Deployment env (pinned by
+# scripts/tests/test_fr_isolation_target_env.py). The DYNAMIC BYOK vars
+# (OPENAI_BASE_URL/OPENAI_API_KEY) cannot be fixed this way and are broken in
+# ssh-sidecar login shells — tracked separately (see the agent-shells gotcha).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -39,3 +52,8 @@ data:
         done
         unset _hv _hcur _hval
     fi
+    # Static fallback: sshd is PID 1 in this sidecar and clobbers
+    # /proc/1/environ with its proctitle, so the loop above never fires here.
+    # FR_ISOLATION_TARGET is static config, not a secret — export the literal.
+    # MUST match the Deployment's env value (guard-tested).
+    [ -z "${FR_ISOLATION_TARGET:-}" ] && export FR_ISOLATION_TARGET=worktree

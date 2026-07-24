@@ -29,3 +29,13 @@ Fixed: per-deployment dicts with an explicit disjoint-keys assertion before merg
 ### rev-naming-convention · finding [fixed] · Spec/plan names dropped the YYYY-MM-DD--<layer>-- convention (Minor)
 
 Renamed spec to 2026-07-24--agents--fr-isolation-target-env-design.md and plan folder/journals to 2026-07-24--agents--fr-isolation-target-env (43 chars, under the vk 45-char label limit); all references updated (matrix origins, _meta.yaml slug+spec, prose, spec plan-table, test docstring, agent-shells.md); self-review re-passed.
+
+<!-- fr:journal kind=finding scope=plan id=smoke-sshd-pid1-environ created=2026-07-24T17:56:44 state=fixed -->
+### smoke-sshd-pid1-environ · finding [fixed] · hermes ssh sidecar: /proc/1/environ is proctitle junk (sshd is PID 1) — login-shell re-export dead
+
+P2.T2.S2 smoke: kali login shell (env -i bash -lc) printed worktree, hermes ssh printed MISSING. Root cause: hermes-agent-shell-ssh has no init — PID 1 IS sshd, and OpenSSH overwrites argv/environ with its proctitle, so the shim's /proc/1/environ read returns 'sshd: … [listener] …' bytes. Fixed for FR_ISOLATION_TARGET with a static fallback export in the shim (static config, not a secret; guard-pinned to the Deployment value). Side discovery: the sidecar's BYOK (OPENAI_*) re-export is dead for the same reason — pre-existing since the official-image migration, filed as frank#688 (secrets can't be hardcoded; needs env-dump wrapper or image init).
+
+<!-- fr:journal kind=discovery scope=plan id=smoke-results created=2026-07-24T17:56:46 -->
+### smoke-results · discovery · P2 smoke results: env 4/4 live; kali login shell proven; in-pod fr walk blocked by fr 3.14.0
+
+Post-merge roll (both pods Recreate'd, Ready): kubectl exec env checks 4/4 = worktree (row fr-isolation-env-in-pods flipped to skipped, live-proven). kali login-shell re-export proven under env -i. In-pod fr walk (P2.T2.S3): fr CLI present on secure-agent-pod PVC but at 3.14.0 < 3.15.0 (host-worktree mode ships in 3.15.0) — pod-provisioning gap, walk deferred to the agents' own plugin update; env contract independently proven.

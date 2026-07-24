@@ -96,6 +96,15 @@ def test_hermes_shim_reexports_var():
         "the hermes 35-…-byok-env.sh re-export loop line must include "
         "FR_ISOLATION_TARGET so it survives sshd's env scrub into the login shell"
     )
+    # The ssh sidecar's PID 1 is sshd, which clobbers /proc/1/environ with its
+    # proctitle — the loop is vacuous THERE, so the static fallback export is
+    # what actually delivers the var to login shells. Its literal must stay in
+    # lockstep with the Deployment env value.
+    assert re.search(r"export FR_ISOLATION_TARGET=worktree\b", script), (
+        "the hermes shim must carry the static fallback "
+        "'export FR_ISOLATION_TARGET=worktree' — /proc/1/environ is proctitle "
+        "junk when sshd is PID 1 (ssh sidecar), so the environ loop never fires"
+    )
 
 
 def test_kali_shim_configmap_and_mount():
