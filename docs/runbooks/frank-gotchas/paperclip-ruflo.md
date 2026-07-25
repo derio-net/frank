@@ -436,6 +436,80 @@ Worker tokens bill Anthropic (subscription), NOT LiteLLM — the local-only post
 
 Cookbook corrected 2026-06-05: `operating/24-ruflo`.
 
+### `hive-mind spawn --claude` needs a valid `./.mcp.json` in the cwd (frank#475) {#hive-mind-mcp-config}
+
+`spawn --claude` resolves Claude Code's `--mcp-config` from a fixed candidate
+list, in order: `./.mcp.json` (launch cwd) → `~/.claude.json` → `~/.claude/mcp.json`.
+With no `./.mcp.json` it falls to `~/.claude.json`, whose **root `mcpServers` key
+is `null`** — Claude Code 2.x stores MCP servers *per-project* (`projects[cwd].mcpServers`),
+never at the root. Claude Code 2.1.x validates the referenced config and rejects
+it before any model call:
+
+```
+[INFO] Spawned worker MCP config: /home/agent/.claude.json
+Error: Invalid MCP configuration:
+mcpServers: Invalid input: expected record, received undefined
+[ERROR] Claude Code exited with code 1
+```
+
+Re-verified STILL reproducing 2026-07-25 on the then-current pins (claude-flow
+**v3.10.46** × Claude Code **2.1.163**) — the version bumps since the 2026-06-05
+first report (v3.10.37 × 2.1.150) did not fix it. The **only** reliable lever is
+candidate #1: seed a valid `./.mcp.json` in the launch dir (`cp ~/.mcp.json .mcp.json`
+— `~/.mcp.json`, written by `ruflo init`, has a proper `mcpServers` record). With
+it present, `spawn --claude` points CC at the cwd file and the worker launches
+fully (`subtype:init`, `mcp_servers:[ruflo]`). The `claude-local` shim
+(below) seeds it automatically. **Trap:** the explicit `--mcp-config <path>` flag
+is *inert* — claude-flow's arg parser normalizes `mcp-config` → `mcpConfig`
+(camelCase) but the launch code reads `flags['mcp-config']` (kebab), so it's
+always `undefined` and the auto-detect runs regardless (the same key-normalization
+bug class the in-tree `#2269` comment fixed for `dangerously-skip-permissions`
+but missed here).
+
+### `claude-local` — swarm workers on the local qwen lineup via LiteLLM (frank#472) {#claude-local}
+
+By default swarm workers authenticate against the Anthropic subscription
+(`claude /login`, persisted on the shell-home PVC). `claude-local`
+(profile.d shim `apps/ruflo/manifests/configmap-shell-claude-local.yaml`,
+mounted subPath at `/etc/profile.d/61-ruflo-claude-local.sh`, mirroring the
+hermes BYOK pattern) switches a run to the **local qwen lineup through LiteLLM**
+by pointing Claude Code at the gateway with the `ANTHROPIC_*` env:
+
+- `ANTHROPIC_BASE_URL=http://litellm.litellm.svc:4000` (LiteLLM serves the
+  Anthropic `/v1/messages` format and translates tool-use ↔ OpenAI tools),
+- `ANTHROPIC_AUTH_TOKEN` = the existing `OPENAI_API_KEY` LiteLLM virtual key
+  (ruflo-llm ExternalSecret, added to the shell container's `envFrom`; LiteLLM
+  accepts one virtual key across both API shapes — reused rather than minting a
+  dedicated key so the change stays declarative, a dedicated ESO key for spend
+  attribution is a follow-up),
+- `ANTHROPIC_MODEL=qwen-coder-14b`, `ANTHROPIC_SMALL_FAST_MODEL=gemma-12b`
+  (override the primary per run with `RUFLO_LOCAL_MODEL`).
+
+Switchable per run: `claude-local <cmd>` runs one command locally and leaves the
+shell default (subscription) untouched; bare `claude-local` exports into the
+current shell. It also seeds `./.mcp.json` (the #475 fix above). Login shells
+only — verify with `ssh ruflo 'bash -lc …'`, never `ssh ruflo -- cmd` (profile.d
+skip). It falls back to reading the key from `/proc/1/environ` when sshd scrubs
+the login shell (works here — PID 1 is s6, not sshd).
+
+**Two backend requirements before a local run completes** (both proven 2026-07-25,
+launch verified, full completion pending):
+
+1. **LiteLLM `drop_params: true`** (`apps/litellm/values.yaml` → `litellm_settings`).
+   Claude Code 2.1.x sends a `context_management` param on every request, which
+   the `ollama_chat` provider rejects: `400 litellm.UnsupportedParamsError:
+   ollama_chat does not support parameters: ['context_management']`. `drop_params`
+   strips it (and only params the provider can't take — supporting providers are
+   unaffected); the error message itself prescribes exactly this.
+2. **Ollama up on gpu-1.** The local models are Ollama, which time-shares the GPU
+   with ComfyUI (only one up at a time). Scaled to 0 → LiteLLM returns a Cilium
+   EPERM connection error (`Cannot connect to host ollama…11434 [Operation not
+   permitted]`). Flip the GPU switcher to Ollama first.
+
+Expect a quality cliff — the Claude Code harness is tuned for Claude models;
+measuring that cliff (same sandbox task, subscription vs. local workers) is the
+competing-paradigms experiment's whole point.
+
 ### shell-inventory `paperclip-shared` section
 
 The `configmap-shell-inventory.yaml` has a `paperclip-shared:` section (distinct from `npm-global:`, `pipx:`, `cargo:` which target the shell sidecar's home PV). It declares tools that must land on `/paperclip` for the paperclip container to reach them:

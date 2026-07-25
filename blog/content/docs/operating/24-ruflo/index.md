@@ -102,16 +102,55 @@ Uses `Recreate` strategy (three RWO PVCs). Expect 30–60s downtime.
 
 ### Run a Claude-Flow Swarm
 
+Swarm *workers are Claude Code processes* — `hive-mind spawn --claude` launches
+one in your terminal (the Queen), and the hive dies with the session. Use
+`bash -lc` over SSH so the `claude-local` profile.d shim is loaded (non-login
+`ssh ruflo -- cmd` skips it).
+
 ```bash
 ssh ruflo
-claude-flow version      # v3.10.x
-claude-flow status       # should reach ruvocal at localhost:3000
-claude -p "reply with exactly: AUTH-OK" --model haiku  # must succeed
-
 cd /workspace/projects/<repo>
-claude-flow swarm init -m 3
-claude-flow swarm start -o "task description" -s development
+claude-flow hive-mind init                        # writes .claude-flow/ (NOT .mcp.json)
+claude-flow hive-mind spawn --claude -o "task description" -m 3
 ```
+
+**The `.mcp.json` launch requirement (frank#475).** `spawn --claude` resolves
+Claude Code's `--mcp-config` from `[./.mcp.json, ~/.claude.json, ~/.claude/mcp.json]`
+in order. With no `./.mcp.json` it falls to `~/.claude.json`, whose root
+`mcpServers` is `null` (Claude Code 2.x stores MCP servers *per-project*, not at
+the root), and CC rejects it:
+
+```
+Error: Invalid MCP configuration:
+mcpServers: Invalid input: expected record, received undefined
+```
+
+Seed a valid `./.mcp.json` in the launch dir first (`cp ~/.mcp.json .mcp.json`)
+— or just use `claude-local` below, which seeds it for you. (The explicit
+`--mcp-config` flag is inert upstream — a kebab/camel key-normalization bug.)
+
+**Auth: subscription vs. local models.** By default workers use the Anthropic
+subscription (`claude` → `/login` once; persists on the shell-home PVC — re-run
+if the OAuth token has expired). To run workers on the **local qwen lineup via
+LiteLLM** instead (competing-paradigms experiment, frank#472), wrap the spawn in
+`claude-local` — it seeds `.mcp.json` and exports the `ANTHROPIC_*` env for that
+run, leaving the shell's default (subscription) untouched:
+
+```bash
+claude-local claude-flow hive-mind spawn --claude -o "task description" -m 3
+# pick a different local model per run:
+RUFLO_LOCAL_MODEL=qwen-think-14b claude-local claude-flow hive-mind spawn --claude -o "…"
+# or export into the shell once, then run several commands locally:
+claude-local
+claude-flow hive-mind spawn --claude -o "…"
+```
+
+Local workers need **Ollama up** on gpu-1 (it time-shares the GPU with ComfyUI —
+flip the GPU switcher first) and LiteLLM's `drop_params: true`
+(`apps/litellm/values.yaml`), which strips Claude Code 2.1.x's `context_management`
+request param that the `ollama_chat` provider would otherwise 400 on. Expect a
+quality cliff — the Claude Code harness is tuned for Claude models; measuring
+that cliff is the whole point of the experiment.
 
 ## Recover
 

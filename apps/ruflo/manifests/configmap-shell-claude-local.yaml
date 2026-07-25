@@ -1,0 +1,127 @@
+# claude-local — the ruflo local-model swarm switch (frank#472) + the #475
+# launch fix, in one profile.d drop-in. Mirrors the hermes-agent-shell BYOK
+# profile.d pattern (apps/hermes-agent-shell/manifests/configmap-byok-env.yaml).
+#
+# WHAT IT DOES
+# `hive-mind spawn --claude` launches Claude Code workers. By default those
+# workers authenticate against the Anthropic subscription (`claude /login`,
+# persisted on the shell-home PVC). Calling `claude-local <cmd>` instead points
+# Claude Code at the in-cluster LiteLLM gateway via the ANTHROPIC_* env, so the
+# workers run on the local qwen lineup (competing-paradigms experiment, #472).
+# Switchable per run: no call = subscription; wrap a command = local models.
+#
+#   claude-local claude-flow hive-mind spawn --claude -o "build a REST API"
+#   claude-local            # export ANTHROPIC_* into the current shell, then
+#                           # run any number of claude-flow commands locally
+#   RUFLO_LOCAL_MODEL=qwen-think-14b claude-local claude-flow hive-mind spawn --claude -o "…"
+#
+# THE #475 LAUNCH FIX (why the swarm couldn't start at all)
+# claude-flow v3.10.x resolves Claude Code's `--mcp-config` from, in order:
+#   1. ./.mcp.json in the launch cwd
+#   2. ~/.claude.json
+#   3. ~/.claude/mcp.json
+# With no ./.mcp.json it falls to ~/.claude.json, whose ROOT `mcpServers` key is
+# null — Claude Code 2.x stores MCP servers per-project (projects[cwd].mcpServers),
+# not at the root. Claude Code 2.1.x then rejects the config with
+#   Error: Invalid MCP configuration:
+#   mcpServers: Invalid input: expected record, received undefined
+# and the worker exits 1 before any model call. (The explicit `--mcp-config`
+# flag is also inert upstream: the parser normalizes `mcp-config` -> `mcpConfig`
+# camelCase but the code reads flags['mcp-config'] — the same bug class the
+# in-tree #2269 comment fixed for `dangerously-skip-permissions` but missed
+# here.) So the only reliable lever is candidate #1: seed a valid ./.mcp.json in
+# the cwd. claude-local does that (idempotent, never clobbers an existing one).
+# Subscription runs need the same seed — run `claude-local` once to drop it, or
+# `cp ~/.mcp.json ./.mcp.json` by hand.
+#
+# THE KEY
+# ANTHROPIC_AUTH_TOKEN reuses OPENAI_API_KEY — the LiteLLM virtual key already
+# synced into this pod by the ruflo-llm ExternalSecret (added to the shell
+# container's envFrom in deployment.yaml). LiteLLM accepts one virtual key
+# across /v1/messages (Anthropic) and /v1/chat/completions (OpenAI). Reused
+# rather than minting a dedicated key so the change stays declarative (minting
+# is a LiteLLM-admin runtime op); a dedicated ESO-backed key for clean spend
+# attribution is a documented follow-up on #472. sshd scrubs the container env
+# from login shells (UsePAM no, no PermitUserEnvironment — the agent-shells
+# gotcha), so the function falls back to reading the key from PID 1's env; in
+# this sidecar PID 1 is s6 (not sshd), so /proc/1/environ is the real env.
+#
+# THE MODEL BACKEND
+# The local models are Ollama on gpu-1, which time-shares the GPU with ComfyUI
+# (only one is up at a time). If Ollama is scaled to 0, LiteLLM returns a
+# connection error — flip the GPU switcher to Ollama first. LiteLLM also needs
+# `drop_params: true` (apps/litellm/values.yaml) so Claude Code 2.1.x's
+# `context_management` request param is dropped for the ollama_chat provider
+# instead of 400-ing.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ruflo-shell-claude-local
+  namespace: ruflo-system
+data:
+  61-ruflo-claude-local.sh: |
+    # Numbered 61- so it loads after the image-baked 60-…-banner.sh MOTD.
+    # bash-only (hyphenated function name); guard so a POSIX-sh login shell
+    # that happens to source profile.d doesn't choke on the definition.
+    if [ -n "${BASH_VERSION:-}" ]; then
+      claude-local() {
+        # LiteLLM virtual key: prefer the injected container env, fall back to
+        # PID 1's env (sshd scrubs login shells; s6 is PID 1 here so
+        # /proc/1/environ is the real container env).
+        local _key="${OPENAI_API_KEY:-}"
+        if [ -z "$_key" ] && [ -r /proc/1/environ ]; then
+          _key=$(tr '\0' '\n' < /proc/1/environ | sed -n 's/^OPENAI_API_KEY=//p' | head -n1)
+        fi
+        if [ -z "$_key" ]; then
+          echo "claude-local: no LiteLLM key — OPENAI_API_KEY unset (ruflo-llm ExternalSecret synced?)" >&2
+          return 1
+        fi
+
+        # #475 launch fix: seed a valid ./.mcp.json (candidate #1 of
+        # claude-flow's --mcp-config auto-detect) so Claude Code doesn't fall
+        # back to ~/.claude.json's null root mcpServers and reject the config.
+        if [ ! -f ./.mcp.json ]; then
+          if [ -f "$HOME/.mcp.json" ]; then
+            cp "$HOME/.mcp.json" ./.mcp.json
+          else
+            cat > ./.mcp.json <<'JSON'
+    {
+      "mcpServers": {
+        "ruflo": {
+          "command": "npx",
+          "args": ["-y", "ruflo@latest", "mcp", "start"],
+          "env": {
+            "npm_config_update_notifier": "false",
+            "CLAUDE_FLOW_MODE": "v3",
+            "CLAUDE_FLOW_HOOKS_ENABLED": "true"
+          },
+          "autoStart": false
+        }
+      }
+    }
+    JSON
+          fi
+          echo "claude-local: seeded ./.mcp.json (#475 launch fix)" >&2
+        fi
+
+        local _base="${LITELLM_BASE_URL:-http://litellm.litellm.svc:4000}"
+        local _model="${RUFLO_LOCAL_MODEL:-qwen-coder-14b}"
+        local _small="${RUFLO_LOCAL_SMALL_MODEL:-gemma-12b}"
+        if [ "$#" -eq 0 ]; then
+          # Persistent switch: export into the current shell.
+          export ANTHROPIC_BASE_URL="$_base"
+          export ANTHROPIC_AUTH_TOKEN="$_key"
+          export ANTHROPIC_MODEL="$_model"
+          export ANTHROPIC_SMALL_FAST_MODEL="$_small"
+          echo "claude-local: ANTHROPIC_* -> $_base (model $_model, small $_small). Subsequent claude/claude-flow in this shell run on local models." >&2
+        else
+          # Per-run switch: run one command against local models, leaving the
+          # shell's default (subscription) untouched.
+          ANTHROPIC_BASE_URL="$_base" \
+          ANTHROPIC_AUTH_TOKEN="$_key" \
+          ANTHROPIC_MODEL="$_model" \
+          ANTHROPIC_SMALL_FAST_MODEL="$_small" \
+          "$@"
+        fi
+      }
+    fi
