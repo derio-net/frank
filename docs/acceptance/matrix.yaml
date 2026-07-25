@@ -498,7 +498,7 @@ rows:
       see live CPU/memory utilization for all 7 nodes (incl. both raspis) and pods across
       namespaces.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--obs--metrics-api-server-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--obs--metrics-api-server-design.md
     levels: {}
     status: skipped
     notes: 'Served by metrics-server (metrics.k8s.io). Live proof 2026-07-25 (PR #699
@@ -513,7 +513,7 @@ rows:
     acceptance: A CPU/memory HorizontalPodAutoscaler can read live utilization (HPA
       TARGETS shows a real percentage, not <unknown>) and act on it.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--obs--metrics-api-server-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--obs--metrics-api-server-design.md
     levels: {}
     status: skipped
     notes: 'Live proof 2026-07-25: a throwaway CPU HPA on monitoring/blackbox-exporter
