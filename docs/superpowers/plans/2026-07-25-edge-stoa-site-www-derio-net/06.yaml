@@ -1,0 +1,110 @@
+schema_version: 2
+phase:
+  number: 6
+  title: '[manual] Operator enrollment and first live build'
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  tracking_issue: null
+  acceptance:
+  - www-changes-reach-production
+tasks:
+- number: 1
+  title: Repair frank-gitops-push (prerequisite, also un-breaks cnc-promotion)
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      MANUAL. The derio-net App PEM must exist in tekton-pipelines, not
+      just secure-agent-pod (ESO resolves privateKey.secretRef in the
+      CONSUMING namespace). From a host with SOPS + the age key:
+        sops -d secrets/github-app/github-app-derio-key.yaml \
+          | sed 's/namespace: secure-agent-pod/namespace: tekton-pipelines/' \
+          | kubectl apply -f -
+      Then commit a durable copy as
+      secrets/github-app/github-app-derio-key-tekton.yaml (SOPS-encrypted,
+      namespace tekton-pipelines) so it survives a rebuild.
+      VERIFY: `kubectl -n tekton-pipelines get externalsecret
+      frank-gitops-push` reports SecretSynced/True, and the
+      frank-gitops-push Secret exists.
+- number: 2
+  title: Enroll agentic-stoa/site in the mirror and CI platform
+  steps:
+  - id: P6.T2.S1
+    text: |-
+      MANUAL. Create the Gitea mirror repo and backfill (pattern:
+      cicd-stoa-mirror-remaining-repos), add the GitHub webhook to
+      https://webhooks.hop.derio.net/ (events: push, pull_request,
+      secret from Infisical STOA_GITHUB_WEBHOOK_SECRET), and enable the
+      Actions unit: PATCH the Gitea repo with {"has_actions": true} —
+      instance-level actions.ENABLED does NOT switch it on for a repo
+      created afterwards, and the failure is a silent no-run.
+      VERIFY: the repo shows an Actions tab; a push to GitHub main lands
+      on the Gitea mirror.
+  - id: P6.T2.S2
+    text: |-
+      MANUAL. Trigger the first Gitea Actions run, then make the GHCR
+      package public (Settings -> Package -> Change visibility) so Hop
+      can pull anonymously — Hop has no ESO and no imagePullSecrets, and
+      a private package would need a manually-rotated credential on a
+      cluster that cannot rotate it (see the spec's trade-off note).
+      VERIFY: `docker manifest inspect ghcr.io/agentic-stoa/site:<sha>`
+      succeeds unauthenticated.
+  - id: P6.T2.S3
+    text: |-
+      MANUAL. Confirm the promotion closes the loop: site-promotion
+      commits the real tag into clusters/hop/apps/www, ArgoCD on Hop
+      syncs, the www pod goes Ready, and https://www.derio.net serves the
+      built page instead of the handle_errors fallback.
+      Then walk the spec's Test Plan steps 1-7.
+  - id: P6.T2.S4
+    text: |-
+      MANUAL (post-launch). Close the probe gap the fallback creates.
+      While the holding page is live, www's handle_errors block answers 200
+      when the backend is down, so the blackbox probe catches an EDGE outage
+      but NOT a www-backend outage. Once the real page is serving (previous
+      step verified), tighten the www probe so the fallback becomes a failure
+      signal instead of a silent pass:
+        - add a blackbox module asserting page content (e.g. fail_if_not_matches_regexp
+          on a string only the built page contains, such as the analytics beacon), and
+        - point the https://www.derio.net VMProbe target at that module.
+      Do NOT do this before launch — the fallback IS the intended state until
+      then, and a content check would page continuously.
+      VERIFY: scale the www Deployment to 0; probe_success for
+      https://www.derio.net goes to 0 and layer-17-edge-down fires; scale back.
+state:
+  steps:
+    P6.T1.S1:
+      state: x
+      ticked_at: '2026-07-25T22:34:32+00:00'
+      note: 'Repaired 2026-07-26: derio App PEM applied into tekton-pipelines; ExternalSecret
+        SecretSyncedError -> SecretSynced/True after 1477 failures since 2026-07-18;
+        durable SOPS copy committed. Un-blocks cnc-promotion too.'
+    P6.T2.S1:
+      state: x
+      ticked_at: '2026-07-25T22:34:35+00:00'
+      note: 'Enrolled 2026-07-26: Gitea repo created + backfilled to 51ffc129 (==
+        GitHub main), has_actions true, GitHub webhook id 656957779 ping 202 OK, config
+        identical to second-brain.'
+    P6.T2.S2:
+      state: x
+      ticked_at: '2026-07-25T22:43:07+00:00'
+      note: '2026-07-26: first build green, image published; package flipped public
+        by operator. Verified anonymously (API visibility=public; anon-token manifest
+        GET 200 for both latest and the sha) — NOT via docker manifest inspect. Image
+        is amd64/linux, matching hop-1.'
+    P6.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S4:
+      state: ' '
+      ticked_at: null
+      note: ''
+  completion:
+    at: null
+    note: null
+    observed_prs: []

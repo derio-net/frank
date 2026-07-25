@@ -1395,7 +1395,11 @@ data:
               runbook: "kubectl get nodes gpu-1; kubectl -n ollama get deploy ollama; kubectl -n comfyui get deploy comfyui; probe_success{probe_group=gpu_timeshare} in VMUI"
 
       # --- Layer 17 — Public Edge / Hop (frank-ops#17) ---
-      # Blackbox probe on blog.derio.net (already in VMProbe).
+      # Blackbox probes on blog.derio.net and www.derio.net (both in VMProbe).
+      # ONE rule, regex-matched over both public sites: the summary already
+      # interpolates {{ $labels.instance }}, so the firing alert names which
+      # site is down. A per-site copy would be two rules to keep in sync for
+      # no extra signal.
       - orgId: 1
         name: layer-17-edge-down
         folder: feature-health
@@ -1410,7 +1414,7 @@ data:
                 datasourceUid: P4169E866C3094E38
                 model:
                   refId: A
-                  expr: 'probe_success{instance="https://blog.derio.net"}'
+                  expr: 'probe_success{instance=~"https://(blog|www)\\.derio\\.net"}'
                   instant: true
                   intervalMs: 1000
                   maxDataPoints: 43200

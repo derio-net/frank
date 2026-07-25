@@ -106,6 +106,41 @@ spec:
           kind: TriggerBinding
       template:
         ref: stoa-status-bridge-template
+    # ──────────────────────────────────────────────────────────────────
+    # www.derio.net promotion (2026-07-25). Gitea Actions builds
+    # agentic-stoa/site and pushes ghcr.io/agentic-stoa/site:<sha>; this
+    # trigger moves that tag into clusters/hop/apps/www so ArgoCD on Hop
+    # rolls it out.
+    #
+    # Fires on the MIRROR's push, not on the build's status, because the
+    # image tag is the commit sha by construction — the status event carries
+    # no additional information and would double-fire (one status per job).
+    #
+    # refs/heads/main only: sync-pr-** branches exist on the mirror for PR
+    # CI and must never reach production. The generic gitea-push trigger
+    # above excludes agentic-stoa/* wholesale, so this is additive.
+    # ──────────────────────────────────────────────────────────────────
+    - name: agentic-stoa-site-promotion
+      interceptors:
+        - ref:
+            name: "cel"
+            kind: ClusterInterceptor
+          params:
+            - name: "filter"
+              value: >-
+                header.match('X-Gitea-Event', 'push') &&
+                body.repository.full_name == 'agentic-stoa/site' &&
+                body.ref == 'refs/heads/main'
+            - name: "overlays"
+              value:
+                - key: sha
+                  expression: "body.after"
+      bindings:
+        - name: sha
+          value: $(extensions.sha)
+          kind: TriggerBinding
+      template:
+        ref: site-promotion-template
     # NOTE 2026-05-13 (rework Phase 4): the per-repo agentic-stoa CI triggers
     # (agentic-stoa-hum-ci, agentic-stoa-content-factory-ci) moved out of this
     # gitea-listener to the new github-listener (apps/tekton/triggers/
@@ -159,6 +194,32 @@ spec:
           - {name: context,        value: $(tt.params.context)}
           - {name: description,    value: $(tt.params.description)}
           - {name: target-url,     value: $(tt.params.target-url)}
+        taskRunTemplate:
+          podTemplate:
+            nodeSelector:
+              kubernetes.io/hostname: pc-1
+---
+# Scaffolds the www promotion PipelineRun. Params only — site-promotion clones
+# frank itself rather than taking a workspace, matching cnc-promotion.
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: site-promotion-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: sha
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: site-promotion-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef:
+          name: site-promotion
+        params:
+          - {name: sha, value: $(tt.params.sha)}
         taskRunTemplate:
           podTemplate:
             nodeSelector:

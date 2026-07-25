@@ -234,3 +234,50 @@ machine:
 Applied staged via `omnictl apply -f` (manual-op `net-apply-cluster-nameservers`), gpu-1 first (the static host proves the mechanism — DHCP does not supply *its* DNS). A repo guard `scripts/tests/test_cluster_wide_nameservers.py` fails if any static-NIC patch (`dhcp: false` + `addresses`) ships without this cluster-wide patch. Static-NIC patches (e.g. `patches/phase04-gpu/404-gpu1-usb-25g-nic.yaml`) must **not** add their own nameservers — the cluster patch is the single source of truth.
 
 **Emergency unblock (if you must boot a static host before the patch is live):** temporarily allow that host → `1.1.1.1`/`8.8.8.8:53` (or its intended internal resolvers) through the ACL so it resolves → syncs time → boots → connects to Omni → then apply the declarative patch and re-tighten. There is no console-only workaround if nothing the host can reach answers `:53` (the gateway `192.168.55.1` does **not** run DNS).
+
+## Caddy vhosts whose backend may not exist yet: use `handle_errors`
+
+**2026-07-25, www.derio.net.** Replacing a static `respond` with a
+`reverse_proxy` is not a neutral swap. Before the change the vhost served a
+holding page unconditionally; after it, any moment the backend Service has no
+ready pod the visitor gets a **502** — strictly worse than what was there
+before.
+
+That bites hardest on the very first deploy, when the backend image does not
+exist yet (here: the site image is only built after an operator-run enrollment
+of the source repo into the Gitea mirror, which necessarily happens *after* the
+GitOps merge).
+
+The fix is to make degradation explicit:
+
+```
+www.derio.net {
+  log
+  crowdsec
+  import security_headers
+  reverse_proxy www.www-system.svc:8080
+  handle_errors {
+    respond "Coming soon." 200
+  }
+}
+```
+
+Two things this buys:
+
+1. **It decouples the merge from the operator's manual pass.** The PR can land
+   whenever; the site simply keeps serving the holding page until the first
+   image is promoted. Without it the merge and the enrollment must be
+   choreographed, which is exactly the kind of ordering constraint that gets
+   forgotten.
+2. **It keeps paying in steady state.** A crashed pod, a bad image, or a
+   rolling update shows visitors a holding page instead of a gateway error.
+
+The deployment's image is pinned to a 40-zero sha for the same reason — a sha
+that cannot resolve, so nothing accidentally serves a stale or unintended
+image before the first real promotion.
+
+Trade-off to know: `handle_errors` will also mask a genuine backend fault
+behind a friendly 200. The blackbox probe therefore checks
+`https://www.derio.net` for reachability, and the real signal that the site is
+serving *content* rather than the fallback is the deploy verification step
+(`curl -s https://www.derio.net | grep counter.derio.net`).

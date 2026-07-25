@@ -227,6 +227,7 @@ The following UIs are exposed via Cilium L2 LoadBalancer with fixed IPs:
 | Headscale | headscale.hop.derio.net | Public |
 | Headplane | headplane.hop.derio.net | Mesh only |
 | Blog | blog.derio.net/frank | Public |
+| Site (www) | www.derio.net | Public |
 | Landing | entry.hop.derio.net | Mesh only |
 | GitHub webhooks relay | webhooks.hop.derio.net | Public (forwards to Frank's `el-github-listener` at 192.168.55.223 over the Tailscale mesh; HMAC-validated by both Caddy and the EventListener) |
 
@@ -313,6 +314,7 @@ argocd app list
 | headplane | headscale-system | Headscale web UI at /admin/ (mesh-only access) |
 | caddy | caddy-system | Reverse proxy + TLS, hostPort 80/443, Cloudflare DNS challenge |
 | blog | blog-system | Hugo static site (ghcr.io/derio-net/frank-blog:latest) |
+| www | www-system | Public site at www.derio.net (Astro, `ghcr.io/agentic-stoa/site`, tag promoted by the `site-promotion` Tekton pipeline). Caddy vhost carries a `handle_errors` fallback so an absent/crashed backend serves a holding page rather than a 502 |
 | landing | landing-system | Private landing page (mesh-only) |
 | storage | kube-system | Local StorageClass + static PVs on Hetzner Volume |
 | fluent-bit | monitoring | Log shipping to Frank VictoriaLogs LB IP (192.168.55.225) via Tailscale subnet route |

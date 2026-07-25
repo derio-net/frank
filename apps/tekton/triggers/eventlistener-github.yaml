@@ -173,6 +173,9 @@ spec:
     # feeds the live-mirror-sync EventListener (stoa-live-mirror-sync app).
     # second-brain/hermes-brain/flexible-health (added 2026-07-19) run their
     # CI as Gitea Actions on the mirror, not as Tekton pipelines.
+    # `site` (added 2026-07-25) is the www.derio.net source: main-sync only —
+    # its Gitea Actions build produces the image, and a separate Gitea push
+    # trigger fires site-promotion to move the tag onto the Hop edge.
     # ──────────────────────────────────────────────────────────────────
     - name: agentic-stoa-main-sync
       interceptors:
@@ -190,7 +193,7 @@ spec:
           params:
             - name: filter
               value: >-
-                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies', 'agentic-stoa/cnc-fr', 'agentic-stoa/cnc-frd', 'agentic-stoa/cnc-fru', 'agentic-stoa/second-brain', 'agentic-stoa/hermes-brain', 'agentic-stoa/flexible-health']
+                body.repository.full_name in ['agentic-stoa/hum', 'agentic-stoa/content-factory', 'agentic-stoa/stoa-blog', 'agentic-stoa/companies', 'agentic-stoa/cnc-fr', 'agentic-stoa/cnc-frd', 'agentic-stoa/cnc-fru', 'agentic-stoa/second-brain', 'agentic-stoa/hermes-brain', 'agentic-stoa/flexible-health', 'agentic-stoa/site']
                 && body.ref == 'refs/heads/main'
             - name: overlays
               value:

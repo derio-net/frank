@@ -268,3 +268,61 @@ kubectl -n gitea exec deploy/gitea -- grep -A1 '\[actions\]' /data/gitea/conf/ap
 
 The PodSecurity "restricted" warnings on restart are warn-level only
 (pre-existing for this chart's init containers).
+
+## ESO GithubAccessToken: the PEM must live in the CONSUMER's namespace
+
+**Found 2026-07-25.** `frank-gitops-push` (ns `tekton-pipelines`) had been in
+`SecretSyncedError` since 2026-07-18 — 1477 consecutive failures:
+
+```
+error processing spec.dataFrom[0].sourceRef.generatorRef, err: error using
+generator: error getting GH pem from secret: secrets
+"github-app-derio-key" not found
+```
+
+The `github-app-derio` ClusterGenerator names `github-app-derio-key`, and ESO
+resolves `auth.privateKey.secretRef` **in the namespace of the consuming
+ExternalSecret**, ignoring any `secretRef.namespace`. That PEM existed only in
+`secure-agent-pod`, which has its own ExternalSecret for the same App.
+
+### Why it stayed invisible
+
+- ArgoCD is green — an ExternalSecret that never materialises is not an
+  out-of-sync resource.
+- The **sibling generator works**. `github-app-stoa-key` *is* in
+  `tekton-pipelines`, so `stoa-github-mirror` syncs perfectly. "The other App
+  token is fine" reads as evidence that the mechanism is healthy. It isn't.
+- The only consumer at the time was `cnc-promotion`, which runs on merge to a
+  cnc repo. Nothing exercised it daily, so **CNC staging/prod tag promotion
+  into `derio-net/frank` was silently unable to authenticate** for a week.
+
+### Recovery
+
+```bash
+# The PEM must exist in EVERY namespace that consumes the generator.
+source .env
+sops -d secrets/github-app/github-app-derio-key.yaml \
+  | sed 's/namespace: secure-agent-pod/namespace: tekton-pipelines/' \
+  | kubectl apply -f -
+
+# ESO caches the failure; force a resync rather than waiting out refreshInterval.
+kubectl -n tekton-pipelines annotate externalsecret frank-gitops-push \
+  force-sync=$(date +%s) --overwrite
+
+kubectl -n tekton-pipelines get externalsecret frank-gitops-push   # SecretSynced / True
+```
+
+Commit a durable SOPS copy targeting `tekton-pipelines` so a rebuild does not
+regress it. Manual op: `cicd-frank-gitops-push-derio-key`.
+
+### Generalisation
+
+Before adding a consumer of an existing `GithubAccessToken` ClusterGenerator in
+a **new namespace**, check the PEM is there:
+
+```bash
+kubectl get secret <generator-key-name> -A
+```
+
+An empty result in the target namespace means the ExternalSecret will fail
+closed and quietly.

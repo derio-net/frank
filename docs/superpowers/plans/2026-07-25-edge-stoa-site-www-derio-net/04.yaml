@@ -1,0 +1,56 @@
+schema_version: 2
+phase:
+  number: 4
+  title: 'Observability: uptime probe and Layer 17 alerting'
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - www-outage-is-visible
+  - www-traffic-is-observable
+tasks:
+- number: 1
+  title: Probe and alert coverage for the second edge site
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      RED. Add `scripts/tests/test_www_edge_monitoring.py` asserting
+      https://www.derio.net is a target of the feature-health-probes
+      VMProbe in apps/blackbox-exporter/manifests/vmprobe.yaml, and that
+      the layer-17-edge-down rule in
+      apps/grafana-alerting/manifests/alert-rules-cm.yaml matches BOTH
+      edge instances (regex over blog and www) rather than hardcoding
+      blog.derio.net. Run it. EXPECT: fails.
+  - id: P4.T1.S2
+    text: |-
+      GREEN. Add the www target to the VMProbe, and widen the
+      layer-17-edge-down expr to
+      `probe_success{instance=~"https://(blog|www)\\.derio\\.net"}`.
+      Keep the reduce/threshold chain and `for: 5m` unchanged — the
+      summary already interpolates {{ $labels.instance }}, so the firing
+      alert names which site is down without a second rule.
+      Run the test. EXPECT: passes.
+  - id: P4.T1.S3
+    text: |-
+      VERIFY. Sanity-check the alert rule YAML still parses as the
+      provisioning file expects (python yaml.safe_load over the
+      ConfigMap's embedded document). EXPECT: parses.
+state:
+  steps:
+    P4.T1.S1:
+      state: x
+      ticked_at: '2026-07-25T19:24:52+00:00'
+      note: null
+    P4.T1.S2:
+      state: x
+      ticked_at: '2026-07-25T19:24:52+00:00'
+      note: null
+    P4.T1.S3:
+      state: x
+      ticked_at: '2026-07-25T19:24:52+00:00'
+      note: null
+  completion:
+    at: '2026-07-25T19:24:52+00:00'
+    note: null
+    observed_prs: []

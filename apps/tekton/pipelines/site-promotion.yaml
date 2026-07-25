@@ -1,0 +1,152 @@
+# Promote a built agentic-stoa/site image onto the Hop edge.
+#
+# Gitea Actions on Frank builds and pushes ghcr.io/agentic-stoa/site:<sha>.
+# This pipeline is the only thing that moves that tag into the GitOps repo;
+# ArgoCD on Hop does the rest.
+#
+# Why Tekton owns the bump rather than the workflow itself: pushing to
+# derio-net/frank needs a derio-net credential, and the stoa App token
+# (stoa-github-mirror) is scoped to agentic-stoa. frank-gitops-push already
+# mints a short-lived derio-net installation token in this namespace for
+# exactly this purpose, so no new credential is introduced. cnc-promotion
+# proves the same shape.
+#
+# NOTE: frank-gitops-push was found in SecretSyncedError on 2026-07-25
+# (github-app-derio-key missing from tekton-pipelines — ESO resolves the
+# privateKey secretRef in the CONSUMING namespace). Repairing it is a manual
+# op in this plan's final phase and is a hard prerequisite for this pipeline.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: site-promotion
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: sha
+      type: string
+      description: Commit sha of agentic-stoa/site whose image should go live.
+  tasks:
+    - name: promote
+      params:
+        - name: sha
+          value: $(params.sha)
+      taskSpec:
+        params:
+          - name: sha
+            type: string
+        steps:
+          - name: update-and-push
+            image: alpine/git:2.47.2
+            env:
+              - name: HOME
+                value: /tekton/home
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: frank-gitops-push
+                    key: token
+              # Read-only, agentic-stoa-scoped. Needed ONLY to resolve
+              # ancestry between two site commits — see the ordering guard
+              # below. Already present in this namespace for the mirror
+              # pipelines, so no new credential is introduced.
+              - name: STOA_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: stoa-github-mirror
+                    key: token
+              - name: OUR_SHA
+                value: $(params.sha)
+            computeResources:
+              requests:
+                cpu: 50m
+                memory: 128Mi
+              limits:
+                memory: 256Mi
+            script: |
+              #!/bin/sh
+              set -eu
+
+              # Idempotent, race-safe push loop. Each attempt starts from a
+              # clean origin/main rather than rebasing, because two builds
+              # landing together on the same image line leave `pull --rebase`
+              # in a conflicted working tree (the failure the blog workflow
+              # was rewritten to avoid).
+              MANIFEST=clusters/hop/apps/www/manifests/deployment.yaml
+              IMAGE=ghcr.io/agentic-stoa/site
+
+              git config --global --add safe.directory '*'
+              git config --global user.name stoa-fr-automation
+              git config --global user.email stoa-fr-automation@users.noreply.github.com
+
+              cd /tekton/home
+              git clone --depth 50 \
+                "https://x-access-token:${GITHUB_TOKEN}@github.com/derio-net/frank.git" frank
+              cd frank
+
+              i=1
+              while [ "$i" -le 5 ]; do
+                git fetch origin main
+                git reset --hard origin/main
+
+                CURRENT_SHA=$(sed -n "s|.*image: ${IMAGE}:\([a-f0-9]\{40\}\).*|\1|p" "$MANIFEST" | head -1)
+                if [ -z "$CURRENT_SHA" ]; then
+                  echo "could not parse current image sha from $MANIFEST" >&2
+                  exit 1
+                fi
+
+                if [ "$CURRENT_SHA" = "$OUR_SHA" ]; then
+                  echo "already pinned to $OUR_SHA — nothing to do"
+                  exit 0
+                fi
+
+                # Ordering guard: if our build is an ANCESTOR of what is
+                # already deployed, a newer build won the race — yield rather
+                # than moving production backwards.
+                #
+                # This must be resolved in the SITE repo, not here. Both shas
+                # are agentic-stoa/site commits; frank's object database has
+                # never heard of them, so running merge-base in this clone
+                # errors out and (with stderr discarded) reads as "not an
+                # ancestor" — an guard that silently never fires. The blog
+                # workflow gets away with the in-place form only because there
+                # the shas are frank's own.
+                if [ ! -d /tekton/home/site.git ]; then
+                  git clone --bare --filter=blob:none --depth 100 \
+                    "https://x-access-token:${STOA_TOKEN}@github.com/agentic-stoa/site.git" \
+                    /tekton/home/site.git
+                fi
+                if git --git-dir=/tekton/home/site.git cat-file -e "${CURRENT_SHA}^{commit}" 2>/dev/null &&
+                   git --git-dir=/tekton/home/site.git cat-file -e "${OUR_SHA}^{commit}" 2>/dev/null; then
+                  if git --git-dir=/tekton/home/site.git merge-base --is-ancestor "$OUR_SHA" "$CURRENT_SHA"; then
+                    echo "race lost: $CURRENT_SHA is already deployed and is newer than $OUR_SHA"
+                    exit 0
+                  fi
+                else
+                  # Either sha is outside the fetched window (force-push, or a
+                  # very old pin). Fail loudly rather than pretending the
+                  # ordering was checked.
+                  echo "WARNING: cannot resolve ordering between $OUR_SHA and $CURRENT_SHA in agentic-stoa/site; proceeding with last-writer-wins" >&2
+                fi
+
+                sed -i "s|image: ${IMAGE}:.*|image: ${IMAGE}:${OUR_SHA}  # updated by CI — do not pin manually|" "$MANIFEST"
+                git add "$MANIFEST"
+                if git diff --cached --quiet; then
+                  echo "no-op after edit — nothing to commit"
+                  exit 0
+                fi
+
+                SHORT=$(echo "$OUR_SHA" | cut -c1-7)
+                git commit -m "deploy(edge): promote www image to ${SHORT}"
+
+                if git push origin HEAD:main; then
+                  echo "pushed on attempt $i"
+                  exit 0
+                fi
+
+                echo "push rejected (attempt $i/5) — retrying from a fresh checkout"
+                sleep $((i * 2))
+                i=$((i + 1))
+              done
+
+              echo "failed to push manifest update after 5 attempts" >&2
+              exit 1

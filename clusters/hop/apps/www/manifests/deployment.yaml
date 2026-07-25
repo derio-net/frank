@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: www
+  namespace: www-system
+  labels:
+    app.kubernetes.io/name: www
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: www
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: www
+    spec:
+      containers:
+        - name: www
+          # Built from agentic-stoa/site by Gitea Actions on Frank; the tag is
+          # rewritten here by the site-promotion Tekton pipeline.
+          #
+          # The 40-zero placeholder is intentional: it is a sha that cannot
+          # exist, so this pod stays unschedulable-by-image until the first
+          # real promotion lands. That is safe because the edge Caddy vhost
+          # carries a handle_errors fallback serving the holding page whenever
+          # this backend is unreachable — visitors see today's behaviour, not
+          # a 502.
+          image: ghcr.io/agentic-stoa/site:0000000000000000000000000000000000000000  # updated by CI — do not pin manually
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
