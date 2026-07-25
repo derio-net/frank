@@ -123,30 +123,30 @@ tasks:
 state:
   steps:
     P1.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'Pinned chart 3.13.1 (appVersion 0.8.1), current stable > plan baseline 3.12.2 (plan permitted a bump); 3.13.1 adds conditional insecureSkipTLSVerify rendering.'
     P1.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'apps/metrics-server/values.yaml created. resources set 25m/100Mi req, 256Mi limit (safer headroom than the plan draft 20m/64Mi/128Mi as pod count grows).'
     P1.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'apps/root/templates/metrics-server.yaml created, multi-source, ns kube-system, targetRevision 3.13.1.'
     P1.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'No name collision under apps/root/templates/; project infrastructure matches victoria-metrics/blackbox-exporter.'
     P1.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'Gotcha one-liner added to frank-gotchas.md (Other in-cluster apps), pointing at the design spec for prose.'
     P1.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'validate-agent-config.sh + validate-plans.sh pass; values.yaml parses; Application CR structurally valid (chart 3.13.1, ns kube-system, 2 sources).'
   completion:
-    at: null
-    note: null
+    at: '2026-07-25T05:41:20+00:00'
+    note: 'metrics-server ArgoCD app authored + validated. Deploy/verify (Phase 2) and docs (Phase 3) are manual, post-merge.'
     observed_prs: []
