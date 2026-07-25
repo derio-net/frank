@@ -16,7 +16,8 @@ commands:
 verify:
 - kubectl -n tekton-pipelines get externalsecret frank-gitops-push   # STATUS SecretSynced, READY True
 - kubectl -n tekton-pipelines get secret frank-gitops-push -o jsonpath='{.metadata.name}'
-status: pending
+- '# EXECUTED 2026-07-26 via scripts/tmp/phase6-operator-steps.sh. ExternalSecret flipped SecretSyncedError -> SecretSynced/True and the frank-gitops-push Secret was minted, ending a 1477-failure run that began 2026-07-18. cnc-promotion, the pre-existing consumer, could not authenticate for that whole period and is un-blocked as a side effect. Durable copy committed as secrets/github-app/github-app-derio-key-tekton.yaml (SOPS-encrypted, namespace tekton-pipelines, mode 0600) so a namespace rebuild cannot silently reintroduce it.'
+status: done
 
 # manual-operation
 id: cicd-stoa-site-gitea-mirror
@@ -48,7 +49,9 @@ commands:
 verify:
 - Recent Deliveries shows 200 on the ping event
 - kubectl -n tekton-pipelines logs -l eventlistener=github-listener --tail=20
-status: pending
+- '# EXECUTED 2026-07-26. Hook id 656957779; ping delivered status=OK code=202 (the EventListener answers 202 Accepted, not 200 — 202 is the healthy value here). Config verified byte-identical to the in-service second-brain hook: url https://webhooks.hop.derio.net/, content_type json, insecure_ssl 0, events [pull_request, push], secret set, active.'
+- '# TRAP: no scope refresh was needed. `gh` refuses `auth refresh` while GITHUB_TOKEN is set, and that env token resolves to clawdia-ai-assistant, which is what actually 404''d with "needs the admin:repo_hook scope". The keyring account (YiannisDermitzakis) already had `repo`, which on a classic PAT INCLUDES repository webhooks. Prefix with `env -u GITHUB_TOKEN` rather than widening any token.'
+status: done
 
 # manual-operation
 id: cicd-stoa-site-ghcr-package-public

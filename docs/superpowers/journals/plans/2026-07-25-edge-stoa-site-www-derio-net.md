@@ -59,3 +59,8 @@ Both new triggers are edits to existing `.spec.triggers[]` arrays — the exact 
 ### p6-webhook-scope · finding [open] · Webhook creation blocked: session gh token lacks admin:repo_hook (phase 6)
 
 `POST repos/agentic-stoa/site/hooks` returns 404 + 'needs the admin:repo_hook scope'. Token has repo, workflow, read:org, read:packages, admin:public_key, gist. Handed to the operator in `scripts/tmp/phase6-operator-steps.sh`, which refreshes the scope and then creates the hook with config copied verbatim from the in-service second-brain hook, reading the shared secret live from the cluster.
+
+<!-- fr:journal kind=discovery scope=plan id=p6-gitops-push-repaired created=2026-07-26T00:34:58 phase=6 -->
+### p6-gitops-push-repaired · discovery · frank-gitops-push repaired; cnc-promotion un-blocked as a side effect (phase 6)
+
+Operator ran the hand-off script. The derio App PEM is now in tekton-pipelines, the ExternalSecret went SecretSyncedError -> SecretSynced/True and the frank-gitops-push Secret was minted — ending a 1477-failure run that started 2026-07-18. Because cnc-promotion is the pre-existing consumer of that Secret, CNC tag promotion into derio-net/frank had been unable to authenticate for that entire window; it is fixed here as a side effect. The durable SOPS copy (secrets/github-app/github-app-derio-key-tekton.yaml, namespace tekton-pipelines) is committed so a namespace rebuild cannot silently reintroduce the break.
