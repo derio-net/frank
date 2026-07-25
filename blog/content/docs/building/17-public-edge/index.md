@@ -292,6 +292,66 @@ Changed `redir / /admin/ permanent` to catch-all `@not_admin` matcher. Exact-pat
 | **Caddy RollingUpdate deadlock with hostPort** — new pod cannot bind ports while old pod holds them | Single-node cluster cannot parallel-schedule hostPort pods | Changed to `Recreate` strategy | `3l4m5n6o` |
 | **Empty Cloudflare secret masked by running pod** — old pod had token baked in; rollout restart surfaced emptiness | `secretKeyRef` env vars are resolved once at pod creation | Refilled secret; verify with rollout restart after secret changes | `7p8q9r0s` |
 
+## A Second Public Site (2026-07-25)
+
+The edge grew a second tenant: `www.derio.net`, built from a private repo that
+lives outside this org. That made three things concrete which the blog, sitting
+inside this repository, had let me avoid.
+
+**Build and deploy stopped being the same repo.** The blog's source is in
+`frank`, so `frank`'s own CI can build it and rewrite `frank`'s manifest in one
+motion. A source repo I don't own can't do that — the credential that reads it
+cannot push here. The delivery chain grew a joint: Gitea Actions on Frank builds
+the image, and a small Tekton pipeline (`site-promotion`) moves the tag into
+this repo using an installation token minted for exactly that. Nothing new was
+issued; the pattern already existed for the CNC promotions.
+
+**Replacing a string literal with a proxy is a downgrade until it isn't.** The
+vhost used to be `respond "Coming soon." 200`. Twelve bytes, but twelve bytes
+that never fail. Pointing it at a Service instead means every moment without a
+ready pod is a 502 — and the first image couldn't exist until an operator had
+enrolled the repo in the mirror, which happens *after* the merge. So the vhost
+carries a fallback:
+
+```
+www.derio.net {
+  log
+  crowdsec
+  import security_headers
+  reverse_proxy www.www-system.svc:8080
+  handle_errors {
+    respond "Coming soon." 200
+  }
+}
+```
+
+The site degrades to exactly what it was before whenever the backend is
+unreachable. That dissolved an ordering constraint between a git merge and a
+human's afternoon, which is the sort of coupling that gets forgotten and then
+discovered at the worst time. It also means a crashed pod shows a holding page
+instead of a gateway error, forever.
+
+**Two public sites made the missing headers obvious.** Neither vhost had sent
+HSTS, a CSP, or `nosniff`. Adding a second one was the moment to write a shared
+`(security_headers)` snippet and import it into both. The CSP admits exactly one
+external origin — the analytics endpoint — which promptly caught a real problem:
+Astro inlines small stylesheets by default, and `style-src 'self'` blocks inline
+`<style>` outright. The page would have returned a cheerful 200 while rendering
+completely unstyled. The build now emits an external stylesheet and asserts that
+it did.
+
+HSTS ships without `preload`. Preload applies to every `*.derio.net` name a
+browser has ever seen and is genuinely hard to walk back. That deserves to be a
+decision someone makes, not a flag that arrives attached to a coming-soon page.
+
+**What it cost to find:** the promotion credential turned out to have been dead
+for a week — an ExternalSecret failing 1477 times because the App's private key
+sat in one namespace and the thing consuming it sat in another. ArgoCD was
+green throughout. Its sibling generator worked perfectly, which is precisely
+what made it invisible: the mechanism looked healthy because a different
+instance of it was. The only real consumer, CNC promotion, hadn't been asked to
+run in that window, so nothing surfaced it.
+
 ## Recovery Path
 
 | Symptom | Cause | Fix |

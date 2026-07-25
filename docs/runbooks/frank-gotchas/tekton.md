@@ -197,3 +197,29 @@ kubectl -n gitea-runner exec deploy/act-runner -c dind -- sh -c 'docker rm -f pg
 ## Gitea Actions runner: registration is one-shot PVC state
 
 `act_runner` registers against Gitea once and persists its identity in `/data/.runner` on the PVC. Rotating `STOA_GITEA_RUNNER_TOKEN` (or re-minting the registration token) does **NOT** re-register an already-registered runner — the token is only read when `/data/.runner` is absent. To force a fresh registration: scale the Deployment to 0, delete `/data/.runner` (or the whole PVC — the tool cache is rebuildable), scale back up. Symptom of a half-dead registration: runner pod healthy but the Gitea admin runners page shows it Offline.
+
+## Dual-forge repos: `.github/workflows/`, and `has_actions` on new mirrors
+
+**2026-07-25, agentic-stoa/site.** Two silent no-run traps when a repo is meant
+to build on both GitHub and Frank's Gitea:
+
+**1. Workflow path.** Gitea Actions reads **both** `.gitea/workflows/` and
+`.github/workflows/`; GitHub reads only the latter. So a workflow placed in
+`.gitea/workflows/` runs on Frank and is **invisible to GitHub** — no error, no
+skipped check, simply nothing. Put the workflow in `.github/workflows/` and one
+file serves both forges. That is what makes the `CI_AUTHORITY` guard pattern
+work at all, since the same file must evaluate on both sides.
+
+**2. `has_actions` is not retrofitted.** Instance-level `config.actions.ENABLED`
+switches Actions on for the *instance*, but a repo created afterwards does not
+automatically get the Actions **unit** enabled. The repo mirrors fine, pushes
+land, and no workflow ever runs — with no Actions tab to hint at why:
+
+```bash
+curl -s -X PATCH http://192.168.55.209:3000/api/v1/repos/agentic-stoa/<repo> \
+  -H 'Authorization: token <token>' -H 'Content-Type: application/json' \
+  -d '{"has_actions": true}'
+```
+
+Idempotent; safe to re-run across every mirror. Verify by the presence of the
+Actions tab in the Gitea UI before concluding a workflow is broken.

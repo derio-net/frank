@@ -276,6 +276,71 @@ The Hetzner Volume survives server deletion. Reattach to the new server and Head
 | `hcloud volume list` | Check Hetzner Volume status |
 | `kubectl -n headscale-system exec deploy/headscale -- ls /var/lib/headscale/backups/` | List DB backups |
 
+## Operating www.derio.net
+
+The second public site on the edge. Source lives in a private repo; only the
+deployment manifest and the vhost live here.
+
+### Is it serving the real page or the fallback?
+
+The vhost falls back to a holding page when its backend is unreachable, so a
+200 alone does not mean the site is healthy. Check for content:
+
+```bash
+curl -sI https://www.derio.net | head -1          # 200 either way
+curl -s  https://www.derio.net | grep -q counter.derio.net \
+  && echo "serving the built page" || echo "serving the fallback"
+```
+
+If it is on the fallback, the backend is the place to look:
+
+```bash
+source .env_hop
+kubectl -n www-system get pods
+kubectl -n www-system describe pod -l app.kubernetes.io/name=www | tail -20
+```
+
+An `ImagePullBackOff` on a 40-zero tag means no promotion has ever run — the
+placeholder is still in place.
+
+### A change was merged but the site is unchanged
+
+The chain has four hops, and each one fails quietly:
+
+```bash
+# 1. Did the mirror receive it?
+kubectl -n tekton-pipelines logs -l eventlistener=github-listener --tail=20
+
+# 2. Did Gitea Actions build it? (Gitea UI -> agentic-stoa/site -> Actions)
+#    No Actions tab at all means the repo's Actions unit was never enabled.
+
+# 3. Did promotion run?
+kubectl -n tekton-pipelines get pipelinerun \
+  -l tekton.dev/pipeline=site-promotion --sort-by=.metadata.creationTimestamp | tail -5
+
+# 4. Did ArgoCD roll it?
+kubectl -n argocd get application www -o wide      # on Hop
+```
+
+A promotion run that fails on `git push` almost always means the derio-net
+installation token is not materialising — see `frank-gitops-push` in the
+storage/secrets runbook. That same credential backs CNC promotion, so if it is
+broken here it is broken there too.
+
+### Response headers
+
+Both public sites import a shared Caddy snippet. To verify after a Caddy change:
+
+```bash
+curl -sI https://www.derio.net  | grep -iE "strict-transport|content-security|x-content-type"
+curl -sI https://blog.derio.net | grep -iE "strict-transport|content-security|x-content-type"
+```
+
+The CSP permits exactly one external origin (analytics). If a page starts
+loading anything else — a font, a script, an embed — the browser blocks it
+silently while the page still returns 200. Check the browser console, not the
+server, when analytics or an embed "just stops working".
+
 ## References
 
 - [Building Post — Hopping Through the Portal]({{< relref "/docs/building/17-public-edge" >}})
