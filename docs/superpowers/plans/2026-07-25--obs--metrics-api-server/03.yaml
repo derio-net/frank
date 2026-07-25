@@ -1,0 +1,65 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Post-Deploy Checklist
+  tag: manual
+  depends_on: [2]
+  acceptance: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Documentation and status
+  steps:
+  - id: P3.T1.S1
+    text: |
+      Expose externally — SKIPPED. metrics-server is an internal control-plane
+      API consumed via the aggregation layer / kubectl, not a human-facing UI.
+      No Traefik IngressRoute, no homepage tile.
+  - id: P3.T1.S2
+    text: |
+      Write the building blog post with the `/blog-craft:blog-post` skill:
+      the Metrics API layer, the #394 fork and why metrics-server-now beats
+      routing resource metrics through VM, the Talos `--kubelet-insecure-tls`
+      gotcha, and the deferred VM-backed adapter. Add the new layer to
+      `blog/data/roadmap.yaml`.
+  - id: P3.T1.S3
+    text: |
+      Write the operating blog post with `/blog-craft:blog-post`: day-to-day
+      commands (`kubectl top nodes/pods`, checking `v1beta1.metrics.k8s.io`
+      APIService health, reading metrics-server logs for scrape errors, the
+      single-replica/aggregation-layer tradeoff, and how to add a CPU/mem HPA).
+  - id: P3.T1.S4
+    text: |
+      Run `/update-readme` to sync Technology Stack, Repository Structure,
+      Service Access, and Current Status for the new metrics-server app.
+  - id: P3.T1.S5
+    text: |
+      Open the deferred follow-up issue "VM-backed prometheus-adapter for
+      custom/external Metrics API", link it from the spec's §Deferred scope and
+      from #394. Then set the plan/spec `**Status:**` to `Deployed`.
+state:
+  steps:
+    P3.T1.S1:
+      state: '-'
+      ticked_at: null
+      note: skipped — internal control-plane API, no external exposure
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
