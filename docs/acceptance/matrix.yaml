@@ -492,3 +492,24 @@ rows:
       (environ-loop shim, s6 PID 1, post-#687 roll) and on hermes ssh (static-export
       shim, PR#689 + rollout restart; /proc/1/environ is proctitle junk there since
       sshd is PID 1). Guard test pins both shims.
+  - id: metrics-api-kubectl-top
+    capability: Resource Metrics API
+    acceptance: An operator can run 'kubectl top nodes' and 'kubectl top pods -A' and
+      see live CPU/memory utilization for all 7 nodes (incl. both raspis) and pods across
+      namespaces.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-25--obs--metrics-api-server-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'Served by metrics-server (metrics.k8s.io). Verify: v1beta1.metrics.k8s.io
+      APIService Available=True; 7 non-empty node rows.'
+  - id: metrics-api-cpu-hpa
+    capability: Resource Metrics API
+    acceptance: A CPU/memory HorizontalPodAutoscaler can read live utilization (HPA
+      TARGETS shows a real percentage, not <unknown>) and act on it.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-25--obs--metrics-api-server-design.md
+    levels: {}
+    status: not-implemented
+    notes: Proven end-to-end with a throwaway CPU HPA against an existing Deployment,
+      then removed. No standing HPA ships.
