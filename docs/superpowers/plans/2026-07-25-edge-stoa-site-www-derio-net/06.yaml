@@ -90,9 +90,12 @@ state:
         GitHub main), has_actions true, GitHub webhook id 656957779 ping 202 OK, config
         identical to second-brain.'
     P6.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T22:43:07+00:00'
+      note: '2026-07-26: first build green, image published; package flipped public
+        by operator. Verified anonymously (API visibility=public; anon-token manifest
+        GET 200 for both latest and the sha) — NOT via docker manifest inspect. Image
+        is amd64/linux, matching hop-1.'
     P6.T2.S3:
       state: ' '
       ticked_at: null

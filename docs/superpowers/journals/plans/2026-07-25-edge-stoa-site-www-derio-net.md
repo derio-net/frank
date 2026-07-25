@@ -64,3 +64,8 @@ Both new triggers are edits to existing `.spec.triggers[]` arrays — the exact 
 ### p6-gitops-push-repaired · discovery · frank-gitops-push repaired; cnc-promotion un-blocked as a side effect (phase 6)
 
 Operator ran the hand-off script. The derio App PEM is now in tekton-pipelines, the ExternalSecret went SecretSyncedError -> SecretSynced/True and the frank-gitops-push Secret was minted — ending a 1477-failure run that started 2026-07-18. Because cnc-promotion is the pre-existing consumer of that Secret, CNC tag promotion into derio-net/frank had been unable to authenticate for that entire window; it is fixed here as a side effect. The durable SOPS copy (secrets/github-app/github-app-derio-key-tekton.yaml, namespace tekton-pipelines) is committed so a namespace rebuild cannot silently reintroduce the break.
+
+<!-- fr:journal kind=discovery scope=plan id=p6-premerge-compat created=2026-07-26T00:43:10 phase=6 -->
+### p6-premerge-compat · discovery · Pre-merge compatibility checks: arch, ports and listen address all match (phase 6)
+
+The published image is a SINGLE-arch manifest (no index), so architecture is not negotiable at pull time — verified `amd64/linux` against hop-1's `amd64/linux`. Port path verified end to end rather than assumed: the Dockerfile writes a Caddyfile listening on :8080 and EXPOSEs 8080; the Deployment declares containerPort 8080 named http; the Service maps 8080 -> targetPort http. This was worth checking pre-merge precisely BECAUSE of the handle_errors fallback — a listen-port or arch mismatch would leave the pod never-Ready while the edge kept serving the holding page with a 200, which is the exact blind spot P6.T2.S4 exists to close.
