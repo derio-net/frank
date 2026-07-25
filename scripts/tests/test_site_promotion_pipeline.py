@@ -53,10 +53,21 @@ def test_pipeline_uses_the_derio_net_credential() -> None:
     """
     code = _code(PIPELINE)
     assert "frank-gitops-push" in code, "promotion must use the derio-net token"
-    assert "stoa-github-mirror" not in code, (
-        "stoa-github-mirror is scoped to agentic-stoa and cannot push to "
-        "derio-net/frank"
-    )
+
+    # The two tokens are not interchangeable, and the split matters:
+    #   - derio-net/frank  -> GITHUB_TOKEN (frank-gitops-push). Push rights.
+    #   - agentic-stoa/*   -> STOA_TOKEN (stoa-github-mirror). Read-only here,
+    #                         used solely to resolve commit ancestry.
+    # Crossing them fails at push time with a 403, after a green build.
+    for line in code.splitlines():
+        if "github.com/derio-net/frank" in line:
+            assert "GITHUB_TOKEN" in line, (
+                f"frank must be cloned with the derio-net token: {line.strip()}"
+            )
+        if "github.com/agentic-stoa/" in line:
+            assert "STOA_TOKEN" in line, (
+                f"agentic-stoa must be read with the stoa token: {line.strip()}"
+            )
 
 
 def test_pipeline_targets_the_www_manifest() -> None:
@@ -81,6 +92,18 @@ def test_promotion_is_idempotent_and_race_safe() -> None:
     assert "reset --hard origin/main" in code, "each attempt must start clean"
     assert "merge-base --is-ancestor" in code, (
         "must yield when a newer build already won the race"
+    )
+    # The ordering guard compares two agentic-stoa/site shas. frank's object
+    # database does not contain them, so running merge-base in the frank clone
+    # errors and reads as "not an ancestor" — a guard that never fires. It has
+    # to be resolved against the site repo.
+    guard = code[code.index("merge-base --is-ancestor") - 900 : code.index("merge-base --is-ancestor") + 200]
+    assert "--git-dir=" in guard, (
+        "merge-base must run against the site repo, not the frank clone — "
+        "the shas being compared are site commits"
+    )
+    assert "agentic-stoa/site.git" in code, (
+        "the ordering guard needs the site repo's history to resolve ancestry"
     )
 
 

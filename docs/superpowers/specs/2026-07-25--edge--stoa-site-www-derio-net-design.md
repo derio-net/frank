@@ -131,10 +131,19 @@ already proves the pattern (clone frank → `sed` the tag → commit → push ma
 `site-promotion` is that pipeline narrowed to one manifest. **No new credential
 is introduced anywhere in this design.**
 
-The bump commit must be idempotent and race-safe. It reuses the blog workflow's
-proven loop shape (fetch → reset → compare current vs our SHA → yield if ours is
-an ancestor → commit → retry on rejected push) rather than a naive
-`pull --rebase`.
+The bump commit must be idempotent and race-safe: reset to `origin/main` on each
+attempt (never `pull --rebase`, which leaves a conflicted tree when two builds
+touch the same line), exit clean when already pinned, yield when a newer build
+already won, and retry on a rejected push.
+
+One deviation from the blog workflow, found in review: the ordering check must
+run against **agentic-stoa/site**, not the frank clone. Both shas being compared
+are *site* commits, and frank's object database has never seen them — so
+`git merge-base` there errors out and, with stderr discarded, reads as "not an
+ancestor", producing a guard that silently never fires. The pipeline therefore
+fetches the site repo's history (using the already-present, read-only
+`stoa-github-mirror` token) to resolve ancestry, and says so loudly when either
+sha falls outside the fetched window rather than pretending the check happened.
 
 #### Blocking prerequisite discovered while verifying this design
 
@@ -216,6 +225,15 @@ CSP is verified against the *rendered* page (blog included) before merge; a CSP
 that silently breaks GoatCounter would take analytics down without taking the
 site down, which is exactly the kind of quiet failure this estate keeps
 cataloguing.
+
+**Trade-off the fallback creates.** Because `handle_errors` answers 200, a
+blackbox probe of `https://www.derio.net` stays green when the *backend* is
+down — it catches an edge/Caddy outage only. That is correct while the holding
+page is the intended state (a content assertion would page continuously before
+launch), but it means Layer 17 under-covers this site until the real page
+ships. Closing it is a post-launch step, not a permanent gap: once the built
+page is live the www probe moves to a module asserting page content, so serving
+the fallback becomes a failure signal rather than a silent pass.
 
 ### 6. Observability: blog parity
 

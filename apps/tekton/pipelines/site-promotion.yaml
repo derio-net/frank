@@ -45,6 +45,15 @@ spec:
                   secretKeyRef:
                     name: frank-gitops-push
                     key: token
+              # Read-only, agentic-stoa-scoped. Needed ONLY to resolve
+              # ancestry between two site commits — see the ordering guard
+              # below. Already present in this namespace for the mirror
+              # pipelines, so no new credential is introduced.
+              - name: STOA_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: stoa-github-mirror
+                    key: token
               - name: OUR_SHA
                 value: $(params.sha)
             computeResources:
@@ -90,12 +99,33 @@ spec:
                   exit 0
                 fi
 
-                # If our build is an ancestor of what is already deployed, a
-                # newer build won the race. Yield quietly rather than moving
-                # production backwards.
-                if git merge-base --is-ancestor "$OUR_SHA" "$CURRENT_SHA" 2>/dev/null; then
-                  echo "race lost: $CURRENT_SHA already deployed and is newer than $OUR_SHA"
-                  exit 0
+                # Ordering guard: if our build is an ANCESTOR of what is
+                # already deployed, a newer build won the race — yield rather
+                # than moving production backwards.
+                #
+                # This must be resolved in the SITE repo, not here. Both shas
+                # are agentic-stoa/site commits; frank's object database has
+                # never heard of them, so running merge-base in this clone
+                # errors out and (with stderr discarded) reads as "not an
+                # ancestor" — an guard that silently never fires. The blog
+                # workflow gets away with the in-place form only because there
+                # the shas are frank's own.
+                if [ ! -d /tekton/home/site.git ]; then
+                  git clone --bare --filter=blob:none --depth 100 \
+                    "https://x-access-token:${STOA_TOKEN}@github.com/agentic-stoa/site.git" \
+                    /tekton/home/site.git
+                fi
+                if git --git-dir=/tekton/home/site.git cat-file -e "${CURRENT_SHA}^{commit}" 2>/dev/null &&
+                   git --git-dir=/tekton/home/site.git cat-file -e "${OUR_SHA}^{commit}" 2>/dev/null; then
+                  if git --git-dir=/tekton/home/site.git merge-base --is-ancestor "$OUR_SHA" "$CURRENT_SHA"; then
+                    echo "race lost: $CURRENT_SHA is already deployed and is newer than $OUR_SHA"
+                    exit 0
+                  fi
+                else
+                  # Either sha is outside the fetched window (force-push, or a
+                  # very old pin). Fail loudly rather than pretending the
+                  # ordering was checked.
+                  echo "WARNING: cannot resolve ordering between $OUR_SHA and $CURRENT_SHA in agentic-stoa/site; proceeding with last-writer-wins" >&2
                 fi
 
                 sed -i "s|image: ${IMAGE}:.*|image: ${IMAGE}:${OUR_SHA}  # updated by CI — do not pin manually|" "$MANIFEST"
