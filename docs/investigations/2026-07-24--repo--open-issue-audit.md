@@ -82,6 +82,10 @@ reproducible and its practical driver is gone.
 - `13-self-hosted-cicd/tekton-pipelinerun-TODO.png`
 - `14-progressive-delivery/argo-rollouts-canary-TODO.png`
 
+Plus a **6th stub outside the paper bundles**, missed by the issue's original list and by this
+audit's first pass: `docs/papers-dossiers/10-self-hosted-inference/inference-dashboard-TODO.png`
+(a dossier-side artefact, not blog-rendered — capture it alongside paper 10's shot).
+
 → **Keep open, update the checklist** to the remaining 5 (tick the 8 captured). Note the two
 GPU/Ollama-coupled shots (05, and the inference dashboard 10) are best captured while the GPU
 is on Ollama — piggyback on #554's hand-back window.
@@ -190,3 +194,55 @@ issue down to the residual actuation-verb + guard; drop the "skills invisible" f
 - RE-VERIFY then decide: **#475** (→ **#472**).
 - RE-SCOPE: **#581** (surfacing done; actuation-verb + guard remain).
 - KEEP PARKED/GATED: **#160**, **#161** (backlog), **#554** (GPU hand-back).
+
+---
+
+## Outcome — closure status (updated 2026-07-25)
+
+**8 of the 13 are now closed; 5 remain open.** The six VK cards scheduled off this audit
+(FFE-231 … FFE-236) were picked up and executed overnight, which closed four more.
+
+### Closed (8)
+
+| # | How | Evidence |
+|---|---|---|
+| 477 | audit — obsolete | ai-alert-helper retired → alert-agent |
+| 162 | audit — obsolete | image + measurement windows gone; 8 Gi resolved the driver |
+| 161 | audit — merged → #160 | B2/B3 are one decision |
+| 472 | audit — merged → #475 | blocked-by; consolidated |
+| 688 | **fixed** (PR #694) | BYOK secrets captured for hermes ssh sidecar login shells |
+| 599 | **fixed** (PR #695) | alert-agent triage sessions isolated (stale-context bleed) + canary telegram confirmed |
+| 581 | **fixed** (PR #696/#697) | `agents/skills/post-deploy` orchestrator verb + cross-agent registration guard |
+| 475 | **fixed** (PR #698) | ruflo `.mcp.json` launch fix + `claude-local` shim (also delivered #472's half) |
+
+### Still open (5) — and why
+
+| # | Blocker | Closable? |
+|---|---|---|
+| **394** | Code merged (PR #699), but the PR states *"the seed issue stays open until Phase 2 deploys and proves the capability end-to-end."* | **Nearly** — see below |
+| **597** | staging-vCluster gate: PR #551 + runs-fr#21 still unrebased/unmerged; Phase 7 manual wiring + green/red test not run | No — work not started |
+| **609** | 5 `*-TODO.png` stubs still on `main` (+ a 6th in `docs/papers-dossiers/10-self-hosted-inference/`, missed in the original list) | No — screenshots uncaptured |
+| **554** | Requires Ollama active on gpu-1; ComfyUI still holds the GPU | No — genuinely gated |
+| **160** | Parked backlog by design; B2/B3 triggers unmet (vk-local stable at 8 Gi) | No — intentionally open |
+
+### #394 — live verification run 2026-07-25 (read-only)
+
+Two of the three Phase-2 legs are **proven live**:
+
+- `metrics-server` ArgoCD app → **Synced / Healthy**
+- `v1beta1.metrics.k8s.io` APIService → **Available=True**
+- `kubectl top nodes` → **7/7 non-empty rows**, both raspis included (raspi-1 50 %, raspi-2 56 % mem)
+- `kubectl top pods -A` → **191 rows**
+- metrics-server logs → **no `x509` / scrape errors**
+
+So acceptance row `metrics-api-kubectl-top` is satisfiable **today**. Outstanding before close:
+
+1. **`metrics-api-cpu-hpa`** — the throwaway CPU-HPA smoke test (a live mutation; must show a
+   real `TARGETS` %, not `<unknown>`, then be deleted). Both acceptance rows still read
+   `not-implemented` on `main`.
+2. **Phase 3** — post-deploy close-out (building + operating posts, `/update-readme`, open the
+   deferred VM-backed prometheus-adapter follow-up, plan/spec Status → Deployed).
+
+Per the repo's own rule — *"a layer is not Deployed until its workflow has been triggered +
+observed end-to-end"* — #394 stays open until (1) and (2) land. It is the only open issue whose
+close is a short, well-defined step rather than a project.
