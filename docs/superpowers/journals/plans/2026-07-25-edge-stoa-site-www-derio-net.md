@@ -55,10 +55,16 @@ The manual-op said to wait for the frank merge because 'triggers live'. Inspecti
 
 Both new triggers are edits to existing `.spec.triggers[]` arrays — the exact shape that silently froze EventListener updates from 2026-06-13 to 2026-07-20 while syncs reported Succeeded. Confirmed the tekton-extras EventListener rule is now only `.spec.namespaceSelector | select(. == {})` (no array-item path), and `scripts/tests/test_tekton_ignore_rules_no_arrays.py` passes (2 passed). Latent and unchanged: the Pipeline/Task rules still use array-item expressions, so the NEW site-promotion Pipeline applies cleanly on create but a future edit to its `.spec.tasks` would be frozen — pre-existing and already tracked, not introduced here.
 
-<!-- fr:journal kind=finding scope=plan id=p6-webhook-scope created=2026-07-26T00:20:54 phase=6 state=open -->
-### p6-webhook-scope · finding [open] · Webhook creation blocked: session gh token lacks admin:repo_hook (phase 6)
+<!-- fr:journal kind=finding scope=plan id=p6-webhook-scope created=2026-07-26T00:20:54 phase=6 state=fixed -->
+### p6-webhook-scope · finding [fixed] · Webhook creation blocked — GITHUB_TOKEN selecting the wrong account, NOT a missing scope (phase 6)
 
-`POST repos/agentic-stoa/site/hooks` returns 404 + 'needs the admin:repo_hook scope'. Token has repo, workflow, read:org, read:packages, admin:public_key, gist. Handed to the operator in `scripts/tmp/phase6-operator-steps.sh`, which refreshes the scope and then creates the hook with config copied verbatim from the in-service second-brain hook, reading the shared secret live from the cluster.
+Initially diagnosed as a scope gap: `POST repos/agentic-stoa/site/hooks` returned 404 + "needs the `admin:repo_hook` scope", and `gh auth refresh` then refused outright. **That diagnosis was wrong**, and both symptoms had a single cause — the `GITHUB_TOKEN` env var resolves to `clawdia-ai-assistant` and overrides the keyring account, so the 404 was clawdia's, and `gh` refuses to refresh a token supplied by the environment.
+
+The keyring account (`YiannisDermitzakis`) already carried `repo`, which on a classic PAT **includes repository webhooks**. No scope was widened. Creating the hook with `env -u GITHUB_TOKEN` succeeded immediately: id 656957779, ping delivered `status=OK code=202`, config byte-identical to the in-service second-brain hook.
+
+Two things carried forward: the `gh auth refresh` the hand-off script opened was unnecessary (worth revoking `admin:repo_hook` if it was granted), and the EventListener answers **202 Accepted**, so the runbook's "shows 200 on the ping event" was wrong by one code. Both recorded in the runbook.
+
+Not to be confused with the separate, real webhook defect found later the same session: the missing *Gitea* push webhook to the gitea-listener (`p6-gitea-push-webhook-missing`), which is what actually blocked promotion.
 
 <!-- fr:journal kind=discovery scope=plan id=p6-gitops-push-repaired created=2026-07-26T00:34:58 phase=6 -->
 ### p6-gitops-push-repaired · discovery · frank-gitops-push repaired; cnc-promotion un-blocked as a side effect (phase 6)
