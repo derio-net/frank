@@ -55,9 +55,6 @@ for path in \
   agents/rules/repo-principles.md \
   agents/rules/repo-workflows.md \
   agents/rules/third-party-privacy.md \
-  agents/skills/deploy-app/SKILL.md \
-  agents/skills/sync-runbook/SKILL.md \
-  agents/skills/update-readme/SKILL.md \
   agents/reviewers/code-reviewer.md \
   agents/reviewers/k8s-manifest-reviewer.md; do
   require_file "$path"
@@ -74,12 +71,48 @@ require_grep 'canonical agent instructions live in `AGENTS.md`' CLAUDE.md \
 require_grep 'see: \[AGENTS.md\]\(AGENTS.md\)' GEMINI.md \
   "GEMINI.md must be an adapter that points back to AGENTS.md"
 
-# blog authoring (blog-post/media/papers) moved to the blog-craft plugin; only
-# frank-owned repo-local skills are validated here.
-for alias in deploy-app sync-runbook update-readme; do
-  require_grep "agents/skills/$alias/SKILL.md" AGENTS.md \
-    "AGENTS.md must map /$alias to the shared skill"
+# Cross-agent skill-registration guard (frank#581 fix #4).
+# Every repo-local skill under agents/skills/ must be registered for every
+# supported harness:
+#   - reachable to Claude Code via the `.claude/skills -> ../agents/skills`
+#     symlink (asserted once for all skills in the adapter loop below), AND
+#   - declared in AGENTS.md's Shared Skills registry — the single canonical file
+#     that codex/opencode/antigravity/gemini/pi read.
+# Discovery-driven (globs agents/skills/*), so a NEW skill can't silently be
+# claude-only or invisible-to-AGENTS.md — this is what prevents skill drift from
+# recurring. It subsumes the old hardcoded alias allowlist. (Blog authoring —
+# blog-post/media/papers — lives in the blog-craft plugin, not agents/skills/,
+# so it is out of scope here by construction.)
+for skill_dir in agents/skills/*/; do
+  skill="$(basename "$skill_dir")"
+  skill_md="${skill_dir}SKILL.md"
+  if [ ! -f "$skill_md" ]; then
+    fail "skill directory $skill_dir has no SKILL.md (not a first-class invocable skill)"
+    continue
+  fi
+  # Read the frontmatter `name:` bounded to the leading `---` block (so a body
+  # line beginning `name:` can't be picked up), stripping whitespace and any
+  # surrounding quotes (unquoted and "double-quoted" YAML scalars both work).
+  declared_name="$(awk '
+    /^---[[:space:]]*$/ { n++; next }
+    n == 1 && /^name:[[:space:]]*/ { sub(/^name:[[:space:]]*/, ""); print; exit }
+  ' "$skill_md" | tr -d '[:space:]"')"
+  if [ "$declared_name" != "$skill" ]; then
+    fail "agents/skills/$skill/SKILL.md frontmatter name '$declared_name' must equal the directory name '$skill' (so the skill surfaces under the expected verb)"
+  fi
+  # Anchor to a Shared Skills *registry* list line (`- ...agents/skills/<name>...`),
+  # NOT any mention — the aliases prose also names some skills, and a registry
+  # deletion must still fail even while the prose keeps the path.
+  require_grep "^-[[:space:]].*agents/skills/$skill/SKILL\.md" AGENTS.md \
+    "AGENTS.md must declare the shared skill agents/skills/$skill in the Shared Skills registry list"
 done
+
+# Reverse direction: every skill AGENTS.md declares must actually exist, so a
+# renamed/removed skill can't leave a dangling registration pointing at nothing.
+while IFS= read -r ref; do
+  [ -n "$ref" ] || continue
+  [ -f "$ref" ] || fail "AGENTS.md declares $ref but no such skill exists (dangling registration)"
+done < <(grep -oE 'agents/skills/[A-Za-z0-9_-]+/SKILL\.md' AGENTS.md | sort -u)
 
 for adapter in \
   ".claude/skills:../agents/skills" \
