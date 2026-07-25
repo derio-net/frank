@@ -24,3 +24,38 @@ The sync-runbook procedure sorts by (layer, id), but the live file is grouped by
 ### r5-sh-not-bash · discovery · Check scripts had to be POSIX sh — the image build stage has no bash
 
 The Dockerfile runs the build checks inside node:22-alpine, which ships no bash. The scripts started as bash with 'set -euo pipefail'. Converted to /bin/sh with 'set -eu' (no pipes, so pipefail was never load-bearing) and rewrote a fragile 'grep -q X && fail' construct as an explicit if/then — under set -e that pattern is only safe because it is not the final command of the list, which is too subtle to leave in place.
+
+<!-- fr:journal kind=decision scope=plan id=p6-age-key created=2026-07-26T00:08:06 phase=6 -->
+### p6-age-key · decision · Operator supplies the age key; both halves of the gitops-push repair land (phase 6)
+
+No age key on the Mac (`~/.config/sops/age/` absent, nothing in shell config), so the durable SOPS copy was blocked. Operator will make the key available. Plan: repair the cluster immediately by copying `github-app-derio-key` from `secure-agent-pod` to `tekton-pipelines` (no SOPS needed for the live half), then commit `secrets/github-app/github-app-derio-key-tekton.yaml` once the key is present, so a rebuild cannot silently reintroduce the break.
+
+<!-- fr:journal kind=decision scope=plan id=p6-merge-order created=2026-07-26T00:08:09 phase=6 -->
+### p6-merge-order · decision · Enroll pre-merge, operator merges, loop closes post-merge (phase 6)
+
+P6.T2.S3 needs the `www` app and `site-promotion` pipeline live on main, so it cannot run before the merge. Everything pre-merge-able (T1.S1 repair, Gitea repo + backfill + has_actions, GitHub webhook, first build) runs now and is pushed to PR 704 with evidence. Operator merges. S3 verification and the post-launch S4 probe tightening land in a close-out PR.
+
+<!-- fr:journal kind=decision scope=plan id=p6-ghcr-visibility created=2026-07-26T00:08:12 phase=6 -->
+### p6-ghcr-visibility · decision · GHCR visibility flip stays operator-driven; package remains public per spec (phase 6)
+
+Container package visibility has no REST endpoint and the session token lacks packages write, so the flip is a web-UI action. Agent stops after the first build publishes the package, hands the operator the exact URL, then verifies with an unauthenticated `docker manifest inspect`. Public (not private + a Hop pull secret) is unchanged from the spec's trade-off.
+
+<!-- fr:journal kind=finding scope=plan id=p6-ghcr-verify-falsepositive created=2026-07-26T00:20:51 phase=6 state=fixed -->
+### p6-ghcr-verify-falsepositive · finding [fixed] · GHCR visibility check could not fail: docker manifest inspect reads a cached ghcr login (phase 6)
+
+The manual-op verified the package was public with `docker manifest inspect ghcr.io/agentic-stoa/site:<sha>  # succeeds with no credentials`. That command consults `~/.docker/config.json`; on the operator Mac (Docker Desktop, `credsStore: desktop`, `ghcr.io` present in auths) it succeeds against a PRIVATE package, so the check cannot fail on the very host it would be run from. Observed live 2026-07-26: inspect passed, while `gh api orgs/agentic-stoa/packages/container/site --jq .visibility` returned `private` and an anonymous token fetch of `/v2/agentic-stoa/site/manifests/latest` returned HTTP 403. This matters because Hop has no imagePullSecrets — it pulls with genuinely no credentials, which is precisely the condition the old check failed to reproduce. FIXED: verify now asserts the API `visibility` field AND performs an anonymous-token manifest GET expecting 200, with the false-positive documented inline.
+
+<!-- fr:journal kind=discovery scope=plan id=p6-enrollment-ordering created=2026-07-26T00:20:52 phase=6 -->
+### p6-enrollment-ordering · discovery · Gitea enrollment does not depend on the frank PR; only the ongoing sync does (phase 6)
+
+The manual-op said to wait for the frank merge because 'triggers live'. Inspecting the diff shows the PR only widens the `agentic-stoa-main-sync` CEL filter and adds an `agentic-stoa-site-promotion` trigger — both are ONGOING-sync concerns. Repo creation, the one-shot backfill and `has_actions` are pure Gitea state, and the first build runs on the Gitea mirror via workflow_dispatch, independent of frank entirely. So enrollment was safely front-loaded; the only cost is possible mirror drift until merge, closed by re-running the backfill.
+
+<!-- fr:journal kind=discovery scope=plan id=p6-eventlistener-freeze-clear created=2026-07-26T00:20:53 phase=6 -->
+### p6-eventlistener-freeze-clear · discovery · Verified the array-item ignoreDifferences freeze cannot swallow these trigger additions (phase 6)
+
+Both new triggers are edits to existing `.spec.triggers[]` arrays — the exact shape that silently froze EventListener updates from 2026-06-13 to 2026-07-20 while syncs reported Succeeded. Confirmed the tekton-extras EventListener rule is now only `.spec.namespaceSelector | select(. == {})` (no array-item path), and `scripts/tests/test_tekton_ignore_rules_no_arrays.py` passes (2 passed). Latent and unchanged: the Pipeline/Task rules still use array-item expressions, so the NEW site-promotion Pipeline applies cleanly on create but a future edit to its `.spec.tasks` would be frozen — pre-existing and already tracked, not introduced here.
+
+<!-- fr:journal kind=finding scope=plan id=p6-webhook-scope created=2026-07-26T00:20:54 phase=6 state=open -->
+### p6-webhook-scope · finding [open] · Webhook creation blocked: session gh token lacks admin:repo_hook (phase 6)
+
+`POST repos/agentic-stoa/site/hooks` returns 404 + 'needs the admin:repo_hook scope'. Token has repo, workflow, read:org, read:packages, admin:public_key, gist. Handed to the operator in `scripts/tmp/phase6-operator-steps.sh`, which refreshes the scope and then creates the hook with config copied verbatim from the in-service second-brain hook, reading the shared secret live from the cluster.

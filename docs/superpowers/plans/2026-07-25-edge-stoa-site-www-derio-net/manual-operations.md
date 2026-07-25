@@ -23,7 +23,7 @@ id: cicd-stoa-site-gitea-mirror
 layer: cicd
 app: gitea
 plan: docs/superpowers/plans/2026-07-25-edge-stoa-site-www-derio-net/06.yaml
-when: After the frank PR merges (triggers live); before the GitHub webhook is added.
+when: Any time before the GitHub webhook is added. Refined 2026-07-26 — this does NOT have to wait for the frank PR. Repo creation and the one-shot backfill are pure Gitea state; only the ONGOING sync needs the agentic-stoa-main-sync trigger, which the PR widens. Doing it early just means the mirror can drift from GitHub until the merge, and a re-run of the backfill closes any drift.
 why_manual: Gitea repo creation + history backfill uses stoa-bot credentials; one-time per repo (pattern of cicd-stoa-mirror-remaining-repos).
 commands:
 - 'curl -s -X POST http://192.168.55.209:3000/api/v1/orgs/agentic-stoa/repos -H ''Authorization: token <stoa-bot token from Infisical>'' -H ''Content-Type: application/json'' -d ''{"name": "site", "private": true, "default_branch": "main"}'''
@@ -31,7 +31,9 @@ commands:
 - '# Enable the Actions unit. Instance-level actions.ENABLED does NOT switch it on for a repo created afterwards, and the failure mode is a SILENT no-run: curl -s -X PATCH http://192.168.55.209:3000/api/v1/repos/agentic-stoa/site -H ''Authorization: token <token>'' -H ''Content-Type: application/json'' -d ''{"has_actions": true}'''
 verify:
 - 'Gitea UI: agentic-stoa/site exists, main matches GitHub main HEAD sha, and an Actions tab is present'
-status: pending
+- '# EXECUTED 2026-07-26. Repo created (HTTP 201, private, default_branch main); backfill pushed via git push --mirror; has_actions PATCHed true (HTTP 200). Gitea main == GitHub main == 51ffc12954163f3c221fc598ed548209b7f48f60. Executed with the gitea_admin account rather than stoa-bot; access parity verified instead of assumed — both org teams (Owners, stoa-agents) carry includes_all_repositories=true, so site was auto-added to both, and stoa-bot (Owners + stoa-agents) and tekton-bot (stoa-agents, repo.code=write) reach it exactly as they reach second-brain.'
+- '# The backfill push itself fired a Gitea Actions run (id 546, push) alongside the dispatched one (id 547); BOTH completed successfully, so this repo dodged the shared-hostedtoolcache race that concurrent cold-cache runs can hit. Image published with tags <sha> and latest.'
+status: done
 
 # manual-operation
 id: cicd-stoa-site-github-webhook
@@ -60,7 +62,9 @@ commands:
 - 'GitHub UI: agentic-stoa -> Packages -> site -> Package settings -> Change visibility -> Public'
 - '# WHY PUBLIC: Hop has no External Secrets Operator and no imagePullSecrets anywhere — every pull there is anonymous. A private package would need Hop''s first pull secret, backed by a long-lived manually-rotated token on a cluster that cannot rotate it, which is the silent-credential-expiry failure class this estate keeps hitting. The artifact is a public website, so the package exposes nothing the site does not already serve. Escalation path if pre-launch confidentiality ever matters: flip to private and add a SOPS-managed pull secret on Hop, accepting the rotation burden.'
 verify:
-- docker manifest inspect ghcr.io/agentic-stoa/site:<sha>   # succeeds with no credentials
+- '# DO NOT verify with `docker manifest inspect`. It reads ~/.docker/config.json, so on any host that has ever run `docker login ghcr.io` (Docker Desktop keeps this in the "desktop" credsStore) it succeeds against a PRIVATE package and the check cannot fail. Observed 2026-07-26: inspect passed while the API reported visibility=private and an anonymous pull returned 403. Hop pulls with no credentials at all, so anonymity has to be forced, not merely omitted.'
+- 'gh api orgs/agentic-stoa/packages/container/site --jq .visibility   # want: public'
+- 'curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $(curl -s ''https://ghcr.io/token?scope=repository:agentic-stoa/site:pull&service=ghcr.io'' | python3 -c ''import sys,json;print(json.load(sys.stdin).get("token",""))'')" -H ''Accept: application/vnd.oci.image.index.v1+json'' https://ghcr.io/v2/agentic-stoa/site/manifests/latest   # want: 200 (403 = still private)'
 status: pending
 
 # manual-operation
