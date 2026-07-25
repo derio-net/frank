@@ -32,9 +32,11 @@ negligible at 7 nodes). See the spec for the full costed fork.
   serving certs not signed by the cluster CA; without this flag every scrape
   fails `x509: certificate signed by unknown authority` and `top` stays empty
   while the pod looks Ready.
-- **`--kubelet-preferred-address-types=InternalIP`** so metrics-server reaches
-  kubelets by node InternalIP (matches how VM scrapes; avoids arm64 hostname-
-  resolution edge cases on the raspis).
+- **No `--kubelet-preferred-address-types` override needed.** The chart default
+  is already `InternalIP,ExternalIP,Hostname` (InternalIP-first); Frank's nodes
+  all have static InternalIPs, so kubelets resolve by IP and never hit the arm64
+  raspi hostname-resolution fallback. The chart's `args` value *appends*, so
+  re-specifying the flag would only duplicate it (review Finding 1).
 
 ## Phase map
 

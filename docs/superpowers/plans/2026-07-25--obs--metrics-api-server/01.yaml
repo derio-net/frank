@@ -32,12 +32,13 @@ tasks:
       # Talos kubelets present self-signed serving certs not signed by the
       # cluster CA. Without --kubelet-insecure-tls every scrape fails
       # `x509: certificate signed by unknown authority` and `kubectl top`
-      # stays empty while the pod looks Ready. InternalIP preferred-address
-      # matches how VictoriaMetrics scrapes kubelets and avoids arm64
-      # hostname-resolution edge cases on the raspis.
+      # stays empty while the pod looks Ready. `args` APPENDS to defaultArgs,
+      # which already sets --kubelet-preferred-address-types=InternalIP,
+      # ExternalIP,Hostname (InternalIP-first, correct for Frank's static-IP
+      # nodes) — so do NOT re-specify it (review Finding 1; would only append
+      # a duplicate).
       args:
         - --kubelet-insecure-tls
-        - --kubelet-preferred-address-types=InternalIP
 
       # Single replica — Frank is a learning cluster; metrics-server is
       # stateless and cheaply restarted. Documented tradeoff: the
@@ -45,12 +46,14 @@ tasks:
       # crashlooping metrics-server can slow discovery-touching kubectl calls.
       replicas: 1
 
+      # Modest footprint that also fits the raspis; limit keeps headroom above
+      # the chart's 200Mi request-default working set as Frank scales.
       resources:
         requests:
-          cpu: 20m
-          memory: 64Mi
+          cpu: 25m
+          memory: 100Mi
         limits:
-          memory: 128Mi
+          memory: 256Mi
       END_FILE
 - number: 2
   title: Create the Application CR
@@ -76,7 +79,7 @@ tasks:
         sources:
           - repoURL: https://kubernetes-sigs.github.io/metrics-server/
             chart: metrics-server
-            targetRevision: "3.12.2"
+            targetRevision: "3.13.1"
             helm:
               releaseName: metrics-server
               valueFiles:
