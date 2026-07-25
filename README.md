@@ -30,6 +30,7 @@ Enterprise-grade Kubernetes cluster on Talos Linux across heterogeneous hardware
 | GPU (NVIDIA) | GPU Operator | RTX 5070 Ti on gpu-1, driver-less (host driver), validation markers DaemonSet |
 | GPU (Intel) | Intel GPU Resource Driver | DRA-based iGPU sharing on mini-1/2/3 (K8s 1.35) |
 | Metrics | VictoriaMetrics | VMSingle + Alertmanager + node/kube-state exporters |
+| Metrics API | metrics-server | Serves aggregated `metrics.k8s.io` (`kubectl top` + CPU/mem HPA) in kube-system; `--kubelet-insecure-tls` for Talos self-signed kubelet certs. Custom/external metrics deferred to a VM-backed prometheus-adapter |
 | Logs | VictoriaLogs + Fluent Bit | Centralised log aggregation and querying |
 | Dashboards | Grafana | Pre-provisioned datasources (VictoriaMetrics, VictoriaLogs, GoatCounter via Infinity), Feature Health + Blog Edge dashboards, Telegram alerting |
 | Blog Analytics | GoatCounter | Cookieless, single-binary; mesh-only admin at counter.cluster.derio.net, public beacon at counter.derio.net (LB 192.168.55.224, Caddy reverse-proxy from Hop) |

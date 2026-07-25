@@ -500,9 +500,14 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-25--obs--metrics-api-server-design.md
     levels: {}
-    status: not-implemented
-    notes: 'Served by metrics-server (metrics.k8s.io). Verify: v1beta1.metrics.k8s.io
-      APIService Available=True; 7 non-empty node rows.'
+    status: skipped
+    notes: 'Served by metrics-server (metrics.k8s.io). Live proof 2026-07-25 (PR #699
+      merged, root App-of-Apps synced to f530f0dd, metrics-server app Synced): kubectl
+      top nodes returned all 7 nodes with live CPU/mem incl. both arm64 raspis
+      (raspi-1 483m/12%/1663Mi, raspi-2 603m/15%/1861Mi, gpu-1 4785m/14%, mini-1/2/3,
+      pc-1); kubectl top pods -A non-empty across namespaces; v1beta1.metrics.k8s.io
+      APIService Available=True; metrics-server logs clean (no x509/scrape errors).
+      Live manual proof — no CI level (frank does not run kubectl-top in CI).'
   - id: metrics-api-cpu-hpa
     capability: Resource Metrics API
     acceptance: A CPU/memory HorizontalPodAutoscaler can read live utilization (HPA
@@ -510,6 +515,10 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-25--obs--metrics-api-server-design.md
     levels: {}
-    status: not-implemented
-    notes: Proven end-to-end with a throwaway CPU HPA against an existing Deployment,
-      then removed. No standing HPA ships.
+    status: skipped
+    notes: 'Live proof 2026-07-25: a throwaway CPU HPA on monitoring/blackbox-exporter
+      (idle, 10m CPU request) reported TARGETS resolving from <unknown> to a real
+      40%/80% percentage once the HPA controller queried the Metrics API, proving
+      resource metrics feed the HPA control loop; HPA then deleted (no standing HPA
+      ships) and blackbox-exporter stayed 1/1 (no scale drift). Live manual proof —
+      no CI level.'

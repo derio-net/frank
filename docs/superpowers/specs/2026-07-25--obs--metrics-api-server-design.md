@@ -1,7 +1,7 @@
 # Metrics API on Frank — serve `metrics.k8s.io`
 
 **Layer:** obs (Observability — new workload under `apps/`)
-**Status:** Draft
+**Status:** Deployed
 **Date:** 2026-07-25
 **Repo:** `derio-net/frank`
 **Motivated by:** #394 — `kubectl top nodes` fails with `error: Metrics API not available`.

@@ -1668,6 +1668,24 @@ images:
       the keyboard an open dog-eared paper manual titled "config.yaml" with a tiny brass key resting on
       it as a bookmark. Cool monitor glow on Frank''s face, warm desk lamp from the side. The ONLY readable
       text: "401 openrouter", "alive", "litellm", "config.yaml" — no other captions, no watermarks.'
+- key: ops-29-metrics-api
+  aspect_ratio: '16:9'
+  output: blog/content/docs/operating/29-metrics-api/cover.png
+  description: Operating the Metrics API — Frank diagnosing a patient that looks alive but
+    isn't reporting; a green 'Ready' lamp beside a flat vitals line, magnifier on an 'x509' tag
+  composition:
+    reference_images:
+      primary: .reference-pool/operating/reference/frank-lab-coat-shirt.png
+    modifiers:
+      series: operating
+      mood: focused
+      clothing: operating[tshirt_rolled_sleeves]
+    scene: 'Frank seated at an ops terminal, diagnosing a patient that looks alive but is not
+      reporting. On the main monitor: a green lamp labelled "Ready" glowing right next to a
+      completely flat vitals line, and Frank holds a magnifying glass over a small red tag reading
+      "x509". A second smaller screen shows an empty "top" table with blank rows. The ONLY readable
+      text: "Ready", "x509", "top" — no other captions, no watermarks. Cool screen glow, warm desk
+      lamp from the side, focused diagnostic mood.'
 - key: building-34-first-vcluster-tenant
   aspect_ratio: '16:9'
   output: blog/content/docs/building/34-first-vcluster-tenant/cover.png
@@ -1712,3 +1730,22 @@ images:
       of Frank''s own workshop wall. A thin conveyor of green status lamps runs from the right pane back
       toward the left pane''s frame, carrying tiny lit check-marks. Workshop-practical mood, warm tungsten
       light over the bench, faint amusement in the scene.'
+- key: building-36-metrics-api
+  aspect_ratio: '16:9'
+  output: blog/content/docs/building/36-metrics-api/cover.png
+  description: The Metrics API — Frank reading his own vitals, seven heartbeat traces
+    on a monitor with the last one jumping from flat to beating
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-lab-coat-gear-shirt-2.png
+    modifiers:
+      series: building
+      mood: focused
+      clothing: building[overalls_lab]
+    scene: 'Frank in a clinical monitoring bay, pressing a stethoscope against his own
+      server-rack chest while watching a large vitals monitor. The monitor shows SEVEN live
+      heartbeat traces stacked in a column, each with a small node tag; six pulse steadily and
+      the seventh has just jumped from a flat line into a beat. A compact readout panel to the
+      side reads "top" with tidy rows of numbers. The ONLY readable text: "top" and the seven
+      tiny node tags — no other captions, no watermarks. Cool medical-monitor glow on his face,
+      warm key light from the side, focused clinical mood.'

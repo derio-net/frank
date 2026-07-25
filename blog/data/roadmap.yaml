@@ -93,9 +93,11 @@ layers:
       - Telegram alerting
       - Health Bridge (GitHub lifecycle)
       - Edge Observability (blog analytics, edge security, AI alerts)
+      - metrics-server (metrics.k8s.io — kubectl top + CPU/mem HPA)
     tags:
       - VMSingle
       - Feature Health
+      - metrics.k8s.io
       - health-bridge
       - GoatCounter
       - CrowdSec

@@ -44,22 +44,22 @@ state:
       ticked_at: null
       note: skipped — internal control-plane API, no external exposure
     P3.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'Building post blog/content/docs/building/36-metrics-api/index.md written; Capability Map row + roadmap.yaml obs sub-item added. Cover image ENTRY added to prompt_for_images.yaml (building-36-metrics-api); PNG generation deferred (.env_common/API key not present on this host).'
     P3.T1.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'Operating post blog/content/docs/operating/29-metrics-api/index.md written (health checks, adding an HPA, the pod-Ready-but-top-empty failure mode). Cover entry ops-29-metrics-api added; PNG generation deferred.'
     P3.T1.S4:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'README Technology Stack: added a Metrics API / metrics-server row.'
     P3.T1.S5:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'Deferred follow-up issue #701 (VM-backed prometheus-adapter) opened and linked from spec §Deferred scope + #394. Spec Status set to Deployed.'
   completion:
-    at: null
-    note: null
+    at: '2026-07-25T06:14:30+00:00'
+    note: 'Post-deploy docs complete: building + operating posts, roadmap/capability-map, README, deferred issue #701, Status=Deployed. Remaining: generate the two cover PNGs on a host with the image pipeline (entries already in prompt_for_images.yaml).'
     observed_prs: []
