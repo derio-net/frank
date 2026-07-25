@@ -83,6 +83,10 @@ spec:
         - name: shell-inventory
           configMap:
             name: ruflo-shell-inventory
+        - name: shell-claude-local
+          configMap:
+            name: ruflo-shell-claude-local
+            defaultMode: 0644
 
       containers:
         # ----- ruvocal (the multi-agent web server) ------------------
@@ -197,11 +201,27 @@ spec:
             - secretRef:
                 name: ruflo-shell-alerts
                 optional: true
+            # LiteLLM virtual key (OPENAI_API_KEY) + OPENAI_BASE_URL, the same
+            # ESO-produced Secret the ruvocal container uses. The `claude-local`
+            # profile.d shim reuses OPENAI_API_KEY as ANTHROPIC_AUTH_TOKEN to run
+            # Claude Code swarm workers on the local qwen lineup via LiteLLM
+            # (frank#472). `optional: true` for the same reason as ruvocal's:
+            # an ESO hiccup should not CreateContainerConfigError the sidecar.
+            - secretRef:
+                name: ruflo-llm
+                optional: true
           volumeMounts:
             - { name: shell-home,      mountPath: /home/agent }
             - { name: workspace,       mountPath: /workspace }
             - { name: shell-ssh-keys,  mountPath: /etc/ssh-keys, readOnly: true }
             - { name: shell-inventory, mountPath: /etc/ruflo-shell, readOnly: true }
+            # claude-local swarm switch (frank#472) + the #475 launch fix.
+            # Single-file subPath into /etc/profile.d so it loads in login shells
+            # (numbered 61- to run after the image-baked 60-…-banner MOTD).
+            - name: shell-claude-local
+              mountPath: /etc/profile.d/61-ruflo-claude-local.sh
+              subPath: 61-ruflo-claude-local.sh
+              readOnly: true
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000

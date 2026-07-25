@@ -250,6 +250,13 @@ proxy_config:
 
   litellm_settings:
     default_model: mistral-small-24b
+    # Drop request params the target provider doesn't support instead of
+    # 400-ing. Needed for Claude Code 2.1.x swarm workers (frank#472): CC sends
+    # a `context_management` param on every request, which the ollama_chat
+    # provider rejects ("ollama_chat does not support parameters:
+    # ['context_management']"). drop_params only strips params the provider
+    # can't take — providers that DO support a param are unaffected.
+    drop_params: true
 
   general_settings:
     master_key: os.environ/LITELLM_MASTER_KEY
