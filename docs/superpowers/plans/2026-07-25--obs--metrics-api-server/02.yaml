@@ -1,0 +1,118 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Deploy and verify the Metrics API end-to-end
+  tag: manual
+  depends_on: [1]
+  acceptance:
+    - metrics-api-kubectl-top
+    - metrics-api-cpu-hpa
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Deploy via ArgoCD
+  steps:
+  - id: P2.T1.S1
+    text: |
+      Merge the PR to `main`. ArgoCD tracks `main`, so the root App-of-Apps
+      picks up `metrics-server` and auto-syncs. Confirm the Application appears
+      and reaches Synced: `kubectl get application metrics-server -n argocd`.
+  - id: P2.T1.S2
+    text: |
+      Confirm the aggregated APIService settles Available: `kubectl get
+      apiservice v1beta1.metrics.k8s.io` → `AVAILABLE=True`. It may read
+      `False` transiently until the first kubelet scrape lands (~15-30s) — wait
+      for it to settle rather than assuming Synced == working. An UNavailable
+      aggregated APIService can make kube-apiserver discovery fail, surfacing as
+      `ComparisonError` on OTHER ArgoCD apps cluster-wide — so also confirm no
+      neighboring Application flipped to `ComparisonError` (`argocd app list` /
+      `kubectl get applications -n argocd`) before calling this Deployed.
+- number: 2
+  title: Prove kubectl top on all 7 nodes and across pods
+  steps:
+  - id: P2.T2.S1
+    text: |
+      `kubectl top nodes` returns 7 rows with non-empty CPU/mem for every node
+      including both raspis (mini-1/2/3, gpu-1, pc-1, raspi-1, raspi-2). arm64
+      nodes have their own scrape path here, so prove them explicitly — a green
+      APIService does not guarantee per-node rows.
+  - id: P2.T2.S2
+    text: |
+      `kubectl top pods -A` returns non-empty CPU/mem for a sample of pods.
+  - id: P2.T2.S3
+    text: |
+      `kubectl -n kube-system logs deploy/metrics-server` shows no
+      `x509`/`unable to fully scrape metrics` errors after warm-up. If x509
+      appears, `--kubelet-insecure-tls` is missing or not applied — fix in
+      values and re-sync.
+- number: 3
+  title: Prove a CPU/mem HPA is functional (throwaway)
+  steps:
+  - id: P2.T3.S1
+    text: |
+      Create a throwaway CPU HPA against an existing low-risk Deployment (e.g.
+      `kubectl autoscale deployment <target> -n <ns> --cpu-percent=80 --min=1
+      --max=2`). Pick a Deployment that already declares CPU `requests` (HPA
+      needs a request to compute a percentage).
+  - id: P2.T3.S2
+    text: |
+      `kubectl get hpa -n <ns>` shows a real `TARGETS` percentage (e.g.
+      `12%/80%`), NOT `<unknown>/80%`. `<unknown>` means the resource metrics
+      path is not actually feeding the HPA controller — investigate before
+      claiming success.
+  - id: P2.T3.S3
+    text: |
+      Delete the throwaway HPA: `kubectl delete hpa <name> -n <ns>`. No HPA
+      ships as a Frank workload — this was proof only.
+- number: 4
+  title: Record acceptance evidence
+  steps:
+  - id: P2.T4.S1
+    text: |
+      Flip the two acceptance rows in `docs/acceptance/matrix.yaml` from
+      `not-implemented` once evidence exists: `metrics-api-kubectl-top` (paste
+      the `kubectl top nodes` 7-row output + APIService Available=True) and
+      `metrics-api-cpu-hpa` (paste the HPA `TARGETS` percentage line). Use `fr
+      acceptance` tooling to update status; do not hand-edit YAML shapes.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T3.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T4.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

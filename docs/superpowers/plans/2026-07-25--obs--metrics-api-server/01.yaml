@@ -1,0 +1,155 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Author and validate the metrics-server ArgoCD app
+  tag: agentic
+  depends_on: []
+  acceptance: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Create the metrics-server Helm values
+  steps:
+  - id: P1.T1.S1
+    text: |
+      Confirm the current stable chart version before pinning: the upstream
+      chart is `metrics-server` from repo
+      `https://kubernetes-sigs.github.io/metrics-server/`. Use the latest
+      stable `targetRevision` (3.12.2 is the known-good baseline at plan time —
+      bump only if a newer patch is current). Record the chosen version; it is
+      referenced again in Task 2.
+  - id: P1.T1.S2
+    text: |
+      Create `apps/metrics-server/values.yaml` with the Talos-required args and
+      a modest footprint (single replica, tiny requests so it also fits the
+      raspis' budget). Only values that differ from upstream defaults:
+
+      BEGIN_FILE apps/metrics-server/values.yaml
+      # metrics-server — serves the aggregated resource Metrics API
+      # (metrics.k8s.io). Restores `kubectl top` and unblocks CPU/mem HPA.
+      # See docs/superpowers/specs/2026-07-25--obs--metrics-api-server-design.md
+
+      # Talos kubelets present self-signed serving certs not signed by the
+      # cluster CA. Without --kubelet-insecure-tls every scrape fails
+      # `x509: certificate signed by unknown authority` and `kubectl top`
+      # stays empty while the pod looks Ready. `args` APPENDS to defaultArgs,
+      # which already sets --kubelet-preferred-address-types=InternalIP,
+      # ExternalIP,Hostname (InternalIP-first, correct for Frank's static-IP
+      # nodes) — so do NOT re-specify it (review Finding 1; would only append
+      # a duplicate).
+      args:
+        - --kubelet-insecure-tls
+
+      # Single replica — Frank is a learning cluster; metrics-server is
+      # stateless and cheaply restarted. Documented tradeoff: the
+      # metrics.k8s.io APIService gates the aggregation layer, so a
+      # crashlooping metrics-server can slow discovery-touching kubectl calls.
+      replicas: 1
+
+      # Modest footprint that also fits the raspis; limit keeps headroom above
+      # the chart's 200Mi request-default working set as Frank scales.
+      resources:
+        requests:
+          cpu: 25m
+          memory: 100Mi
+        limits:
+          memory: 256Mi
+      END_FILE
+- number: 2
+  title: Create the Application CR
+  steps:
+  - id: P1.T2.S1
+    text: |
+      Create `apps/root/templates/metrics-server.yaml` as a multi-source
+      Application (upstream chart + `$values/apps/metrics-server/values.yaml`),
+      mirroring the victoria-metrics template. Destination namespace
+      `kube-system` (already exists — no CreateNamespace, no ns template).
+      Pin `targetRevision` to the version chosen in P1.T1.S1.
+
+      BEGIN_FILE apps/root/templates/metrics-server.yaml
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: metrics-server
+        namespace: argocd
+        finalizers:
+          - resources-finalizer.argocd.argoproj.io
+      spec:
+        project: infrastructure
+        sources:
+          - repoURL: https://kubernetes-sigs.github.io/metrics-server/
+            chart: metrics-server
+            targetRevision: "3.13.1"
+            helm:
+              releaseName: metrics-server
+              valueFiles:
+                - $values/apps/metrics-server/values.yaml
+          - repoURL: {{ .Values.repoURL }}
+            targetRevision: {{ .Values.targetRevision }}
+            ref: values
+        destination:
+          server: {{ .Values.destination.server }}
+          namespace: kube-system
+        syncPolicy:
+          automated:
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=false
+            - ServerSideApply=true
+            - RespectIgnoreDifferences=true
+      END_FILE
+  - id: P1.T2.S2
+    text: |
+      Sanity-check the Application against the repo's project/label
+      conventions: `project: infrastructure` matches the other monitoring apps
+      (victoria-metrics, blackbox-exporter); confirm no other app already
+      claims the name `metrics-server` under `apps/root/templates/`.
+- number: 3
+  title: Document the Talos gotcha
+  steps:
+  - id: P1.T3.S1
+    text: |
+      Add a one-line gotcha under the Observability section of
+      `agents/rules/frank-gotchas.md`: metrics-server on Talos needs
+      `--kubelet-insecure-tls` (self-signed kubelet serving certs) or every
+      scrape 500s with x509 and `kubectl top` stays empty while the pod is
+      Ready. Point it at the design spec for full prose (there is no dedicated
+      per-topic runbook file for this small a layer; the spec is the source).
+- number: 4
+  title: Validate the repo changes
+  steps:
+  - id: P1.T4.S1
+    text: |
+      Run `scripts/validate-agent-config.sh` and `scripts/validate-plans.sh
+      docs/superpowers/plans/2026-07-25--obs--metrics-api-server`. Lint the two
+      new YAML files (`python -c "import yaml,sys; [yaml.safe_load_all(open(f)) and None for f in sys.argv[1:]]" apps/metrics-server/values.yaml` for the values; the Application CR contains Helm `{{ }}` templating so validate it structurally rather than as plain YAML). Fix any schema/path issues before completing the phase.
+state:
+  steps:
+    P1.T1.S1:
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'Pinned chart 3.13.1 (appVersion 0.8.1), current stable > plan baseline 3.12.2 (plan permitted a bump); 3.13.1 adds conditional insecureSkipTLSVerify rendering.'
+    P1.T1.S2:
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'apps/metrics-server/values.yaml created. resources set 25m/100Mi req, 256Mi limit (safer headroom than the plan draft 20m/64Mi/128Mi as pod count grows).'
+    P1.T2.S1:
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'apps/root/templates/metrics-server.yaml created, multi-source, ns kube-system, targetRevision 3.13.1.'
+    P1.T2.S2:
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'No name collision under apps/root/templates/; project infrastructure matches victoria-metrics/blackbox-exporter.'
+    P1.T3.S1:
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'Gotcha one-liner added to frank-gotchas.md (Other in-cluster apps), pointing at the design spec for prose.'
+    P1.T4.S1:
+      state: x
+      ticked_at: '2026-07-25T05:41:20+00:00'
+      note: 'validate-agent-config.sh + validate-plans.sh pass; values.yaml parses; Application CR structurally valid (chart 3.13.1, ns kube-system, 2 sources).'
+  completion:
+    at: '2026-07-25T05:41:20+00:00'
+    note: 'metrics-server ArgoCD app authored + validated. Deploy/verify (Phase 2) and docs (Phase 3) are manual, post-merge.'
+    observed_prs: []

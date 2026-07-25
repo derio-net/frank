@@ -1,0 +1,34 @@
+# metrics-server — serves the aggregated resource Metrics API
+# (metrics.k8s.io). Restores `kubectl top` and unblocks CPU/mem HPA.
+# See docs/superpowers/specs/2026-07-25--obs--metrics-api-server-design.md
+
+# Talos kubelets present self-signed serving certs not signed by the cluster
+# CA. Without --kubelet-insecure-tls every scrape fails
+# `x509: certificate signed by unknown authority` and `kubectl top` stays
+# empty while the pod looks Ready. `args` APPENDS to the chart's defaultArgs,
+# so this only adds the flag — it doesn't clobber the defaults.
+#
+# We deliberately do NOT set --kubelet-preferred-address-types: the chart
+# default is already `InternalIP,ExternalIP,Hostname` (InternalIP first), which
+# is exactly what we want — every Frank node has a static InternalIP, so
+# kubelets resolve by IP and never fall back to Hostname (the arm64
+# raspi hostname-resolution edge case). Re-specifying it would only append a
+# duplicate flag, not restrict the list.
+args:
+  - --kubelet-insecure-tls
+
+# Single replica — Frank is a learning cluster; metrics-server is stateless
+# and cheaply restarted. Documented tradeoff: the metrics.k8s.io APIService
+# gates the aggregation layer, so a crashlooping metrics-server can slow
+# discovery-touching kubectl calls.
+replicas: 1
+
+# Modest footprint so it also schedules on the raspis' budget. metrics-server
+# memory grows with pod/node count, so the limit keeps headroom above the
+# chart's 200Mi request-default working set as Frank scales.
+resources:
+  requests:
+    cpu: 25m
+    memory: 100Mi
+  limits:
+    memory: 256Mi
