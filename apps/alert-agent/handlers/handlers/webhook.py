@@ -8,12 +8,36 @@ contact point). stdlib http.server. `process_request` is the testable core.
 from __future__ import annotations
 import json
 import os
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from frank_facts import facts
 from tg_bridge import bridge
 
 PORT = int(os.environ.get("GRAFANA_WEBHOOK_PORT", "8090"))
+
+# Alert triage runs on a session that is BOTH separate from the surge/digest
+# streams (orchestration.py) AND per-alertname. The agent-session server keeps one
+# long-lived claude session per id and only /clear's its context after IDLE_RESET_S
+# of idleness, so a shared session let a prior wake's narrative (the resolved #594
+# incident) bleed into a later, UNRELATED triage as if current (frank#599). Keying
+# the session on the alertname means:
+#   - two different alert types can never bleed into each other;
+#   - the same alert re-firing (repeat_interval) reuses its own context (correct);
+#   - two firings of the same alert >IDLE_RESET_S apart (a NEW incident) get the
+#     server's idle /clear, so a resolved incident can't resurface.
+# Bounded: the number of distinct alertnames that reach the agent is the finite set
+# of blog-edge alert rules, so this never spawns an unbounded number of sessions.
+_SESSION_PREFIX = "alert-agent-webhook"
+_SANITIZE_RE = re.compile(r"[^A-Za-z0-9]+")
+
+
+def _session_id_for(alert_labels: dict) -> str:
+    """A per-alertname session id, constrained to the server's
+    ``^[A-Za-z0-9_-]{1,128}`` rule (non-alnum runs → single '-', trimmed, capped)."""
+    name = alert_labels.get("alertname", "")
+    slug = _SANITIZE_RE.sub("-", name).strip("-").lower()[:64]
+    return f"{_SESSION_PREFIX}-{slug}" if slug else _SESSION_PREFIX
 
 
 def _render_alert(alert: dict, sheet: dict) -> str:
@@ -30,7 +54,7 @@ def handle_alert(alert_labels: dict) -> None:
     prompt = ("A Grafana alert is firing. Investigate and explain what it means + likely cause, "
               "using ONLY the facts below. Reply as JSON {\"text\": \"<narrative>\"}.\n\n"
               f"alert={json.dumps(alert_labels)}\nfacts={json.dumps(sheet)}")
-    resp = bridge.session_send(prompt, session_id="alert-agent-ops")
+    resp = bridge.session_send(prompt, session_id=_session_id_for(alert_labels))
     bridge.deliver(resp, fallback)
 
 

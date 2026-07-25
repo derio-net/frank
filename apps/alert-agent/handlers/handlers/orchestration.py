@@ -18,6 +18,15 @@ from tg_bridge import bridge
 STATE_PATH = os.environ.get("SURGE_STATE_PATH", os.path.expanduser("~/.alert-agent/surge-state.json"))
 COOLDOWN_HOURS = float(os.environ.get("SURGE_COOLDOWN_HOURS", "6"))
 
+# Each autonomous analytical stream drives its OWN agent session — never a shared
+# one. The agent-session server keeps a long-lived claude session per id and only
+# resets its context after IDLE_RESET_S of idleness, so sharing let a prior wake's
+# narrative (the resolved #594 incident) bleed into a later, unrelated triage
+# (frank#599). The digest stream is also guaranteed-fresh this way: its 24h cadence
+# always exceeds the server's idle-reset window, so each daily run starts clean.
+SURGE_SESSION_ID = "alert-agent-surge"
+DIGEST_SESSION_ID = "alert-agent-digest"
+
 _RANK = {None: 0, "Notable": 1, "Major": 2}
 
 
@@ -84,7 +93,7 @@ def run_surge(now: datetime | None = None) -> bool:
               "Reply as JSON {\"text\": \"<a few short lines or a compact plain-text table>\"} — "
               "the table goes inside text.\n\n"
               f"verdict={json.dumps(verdict)}\nfacts={json.dumps(sheet)}")
-    resp = bridge.session_send(prompt, session_id="alert-agent-ops")
+    resp = bridge.session_send(prompt, session_id=SURGE_SESSION_ID)
     bridge.deliver(resp, fallback)
     return True
 
@@ -110,5 +119,5 @@ def run_digest(now: datetime | None = None) -> None:
               "Reply as JSON {\"text\": \"<a compact plain-text table or a few short lines>\"} — "
               "the table goes inside text.\n\n"
               f"facts={json.dumps(sheet)}")
-    resp = bridge.session_send(prompt, session_id="alert-agent-ops")
+    resp = bridge.session_send(prompt, session_id=DIGEST_SESSION_ID)
     bridge.deliver(resp, fallback)
