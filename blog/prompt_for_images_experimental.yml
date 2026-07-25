@@ -1,0 +1,997 @@
+# Experimental Codex banner prompts.
+#
+# These entries document the 16 handoff ideas not selected for the current
+# production banners. They are intentionally marked `operator_generated: true`
+# so blog/scripts/generate-images.py will skip them. Generate them from Codex,
+# not the current Gemini blog-craft path, until blog-craft has an OpenAI/Codex
+# banner route with native 3:1 generation, reference images, and hard-gated crops.
+#
+# Required gate: accept only native 3:1 source sheets. For observed Codex
+# 2172x724 outputs, crop to 2169x241 stripes for exact 9:1 banners.
+images:
+- key: idea-building-1-the-girder
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-building-1-the-girder/idea-building-1-the-girder-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-building-1-the-girder.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-building-1-the-girder.txt
+    reference_image: .reference-pool/building/reference/frank-work-clothes-hard-hat.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-work-clothes-hard-hat.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears dirty/patched work clothes.
+      
+      Frank's expression is determined — jaw set, brow level, eyes forward and focused.
+      
+      Frank strides along a scaffold plank that spans the full width of the ultra-wide frame, carrying a rack-mount server overhead on one shoulder like a steel girder, his other arm out for balance. Behind and below him a half-built server rack rises through the frame — bare frame rails at the left, fully populated and lit at the right, the build visibly progressing across the strip. Sparks drift through the air. Warm work-lamp light from above, deep shadow below. Edges fade into darkness. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-building-3-the-lift
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-building-3-the-lift/idea-building-3-the-lift-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-building-3-the-lift.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-building-3-the-lift.txt
+    reference_image: .reference-pool/building/reference/frank-work-clothes-hard-hat.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-work-clothes-hard-hat.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears overalls.
+      
+      Frank's expression is focused — brow lowered in concentration, eyes locked on his work, mouth still.
+      
+      Frank sits in the cab of a small gantry crane at the left of the ultra-wide frame, both hands on the levers, looking right. The crane's boom extends across the entire width, and from its hook a single server node hangs on cables, descending into a waiting gap in a half-built rack at the far right. Two more nodes wait on pallets in the middle distance. The eye travels the whole width along the boom. Cool blue rack glow, one warm overhead lamp, edges fading into darkness. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-building-4-the-plan
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-building-4-the-plan/idea-building-4-the-plan-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-building-4-the-plan.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-building-4-the-plan.txt
+    reference_image: .reference-pool/building/reference/frank-lab-coat-jean-overalls-1.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-lab-coat-jean-overalls-1.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears overalls under a lab coat.
+      
+      Frank's expression is focused — brow lowered in concentration, eyes locked on his work, mouth still.
+      
+      A vast schematic is unrolled across a table filling the bottom two-thirds of the ultra-wide frame, running edge to edge — node diagrams, network lines and rack elevations drawn as fine blue line-work on dark paper, purely geometric with no lettering. Frank leans over it at centre-left on both fists, studying it, a pencil behind his ear. Behind him, softly out of focus, stands the real thing: the same layout half-built in actual hardware, its lights coming on in the same pattern as the drawing. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-building-5-the-chain
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-building-5-the-chain/idea-building-5-the-chain-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-building-5-the-chain.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-building-5-the-chain.txt
+    reference_image: .reference-pool/building/reference/frank-work-clothes-1.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-work-clothes-1.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears dirty/patched work clothes.
+      
+      Frank's expression is focused — brow lowered in concentration, eyes locked on his work, mouth still.
+      
+      Seven deliberately mismatched machines stand in a row spanning the full width of the ultra-wide frame — a tiny single-board computer, three identical mini-PCs, a battered beige tower, a large GPU box, another small board. Frank kneels at one of them near the centre, bolting a thick cable from its neighbour into its port. Every machine to his left is already linked and glowing; every machine to his right is dark and unconnected. Heterogeneity is the subject. Edges fade into darkness. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-landing-1-assembly-line
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-landing-1-assembly-line/idea-landing-1-assembly-line-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-landing-1-assembly-line.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-landing-1-assembly-line.txt
+    reference_image: .reference-pool/building/reference/frank-server-torso.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-server-torso.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank's torso/body is exposed server hardware
+      
+      Frank's expression is determined — jaw set, brow level, eyes forward and focused.
+      
+      Frank walks left to right along the full width of the strip, assembling himself as he goes. This is ONE character shown at four successive stages of a single walk, like a stop-motion strip — not four separate characters. At the far left he is a bare armature of cables and a naked motherboard spine taking its first step; next he has a ribcage of drive bays; by the centre he has torso plating, one arm and half a face; at the far right he is complete, mid-stride, fist clenched. Server parts drift in from above and below to meet him at each stage. Deep dark void behind, faint green PCB traces receding, blue arcs snapping between the incoming parts. The dark floor he walks on runs unbroken across the full width and down to the bottom edge. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, ground and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-landing-2-the-strike
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-landing-2-the-strike/idea-landing-2-the-strike-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-landing-2-the-strike.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-landing-2-the-strike.txt
+    reference_image: .reference-pool/building/reference/frank-server-torso.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-server-torso.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank's torso/body is exposed server hardware
+      
+      Frank lies dormant on a long slab running the entire width of the frame, arms at his sides, eyes closed, face slack. A single enormous fork of white-blue lightning descends from the top edge and splits into a dozen branches that travel horizontally along the slab's length, entering him at temples, chest and feet. Every LED in the surrounding rack hardware ignites in sequence outward from him to the left and right, like a fuse lit in both directions. This is the instant before he opens his eyes. Edges fade into darkness. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-landing-3-cross-section
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-landing-3-cross-section/idea-landing-3-cross-section-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-landing-3-cross-section.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-landing-3-cross-section.txt
+    reference_image: .reference-pool/building/reference/frank-server-torso.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-server-torso.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank's torso/body is exposed server hardware
+      
+      A cutaway view of one very long server rack seen side-on, filling the whole ultra-wide strip, bay upon bay receding to the left and right edges and continuing below the centre bay down to the bottom edge of the frame. Curled inside the central bay, fitted like an engine into a chassis, is Frank: knees drawn up, cables from his back plugged into the backplane, eyes closed, face calm and asleep. Bundled cable looms run the full width past him in both directions, glowing faintly blue. The machine and the creature are plainly the same object. There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, ground and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-landing-4-the-spine
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-landing-4-the-spine/idea-landing-4-the-spine-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-landing-4-the-spine.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-landing-4-the-spine.txt
+    reference_image: .reference-pool/building/reference/frank-server-torso.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-server-torso.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank's torso/body is exposed server hardware
+      
+      Frank's expression is curious — head tilted, brow lifted, eyes wide and attentive.
+      
+      A single armoured cable runs dead horizontally across the entire frame at mid-height, taut like a power line. Hanging from it at intervals on shorter drop cables are the cluster's machines — a small single-board computer, a mini-PC, a tower, a large GPU box — suspended like a mobile, each glowing softly. Frank hangs by both hands from the centre of the line, feet dangling, head turned to look along its length toward the right. Sparse blue arcs travel the cable. Deep black background, edges fading into darkness. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-operating-2-the-wall
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-operating-2-the-wall/idea-operating-2-the-wall-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-operating-2-the-wall.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-operating-2-the-wall.txt
+    reference_image: .reference-pool/operating/reference/frank-lab-coat-gear-shirt-4.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/operating/reference/frank-lab-coat-gear-shirt-4.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears an open white lab coat over a dark grey-teal t-shirt printed with an orange gear graphic, a brown leather tool belt with a wrench tucked into it, dark jeans and brown boots.
+      
+      Frank's expression is alarmed — eyes wide, brow lifted high, mouth slightly open.
+      
+      A control-room wall of monitors fills the entire ultra-wide frame edge to edge and from the top of the image down to the desk surface, three rows deep, every screen carrying wordless line graphs, bar charts and scrolling waveforms — one single panel among them glowing alarm-red while the rest glow green and blue. Frank sits at the centre in a wheeled chair, seen from behind and slightly to one side, small against the wall, one hand raised pointing at the red panel. The dark desk and floor fill the bottom of the frame to its very edge. Cool screen glow washes the room; a single warm desk lamp at his elbow. The charts carry no readable characters whatsoever. There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, ground and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-operating-3-the-aisle
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-operating-3-the-aisle/idea-operating-3-the-aisle-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-operating-3-the-aisle.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-operating-3-the-aisle.txt
+    reference_image: .reference-pool/operating/reference/frank-work-clothes.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/operating/reference/frank-work-clothes.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears t-shirt with rolled-up sleeves.
+      
+      Frank's expression is cautious — alert but not anxious; brow level, eyes scanning, mouth neutral.
+      
+      Deep one-point perspective down a long server-rack aisle. Tall racks stand flush against the LEFT edge of the ultra-wide frame and march away to a vanishing point at the far right, with a second run of racks along the opposite wall — no part of the frame is empty. Frank walks away from the viewer at centre-left, a torch in one hand throwing a bright cone onto one rack face. Cable trays loop overhead down the entire length of the aisle and hundreds of tiny LEDs recede into the distance along both walls. The dark floor of the aisle fills the lower frame down to the bottom edge. Quiet, nocturnal and seemingly endless. There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, ground and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-operating-4-the-swap
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-operating-4-the-swap/idea-operating-4-the-swap-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-operating-4-the-swap.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-operating-4-the-swap.txt
+    reference_image: .reference-pool/operating/reference/frank-lab-coat-shirt.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/operating/reference/frank-lab-coat-shirt.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears t-shirt with rolled-up sleeves.
+      
+      Frank's expression is skeptical — one brow raised higher than the other, mouth flat, eyes narrowed.
+      
+      Frank stands on a rolling library ladder at the centre of the ultra-wide frame, one arm buried to the shoulder inside an open server rack, the other holding a failed hard drive out at arm's length and regarding it with flat disapproval. A continuous run of racks fills the full width behind him and extends from the top of the frame down to the dark floor at the bottom edge. A bundle of loose cables droops in one long horizontal catenary across the whole frame at chest height. Spare drives are stacked on the ladder's tray. Routine, faintly tedious competence. There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, ground and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-operating-5-on-call
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-operating-5-on-call/idea-operating-5-on-call-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-operating-5-on-call.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-operating-5-on-call.txt
+    reference_image: .reference-pool/operating/reference/frank-work-clothes.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/operating/reference/frank-work-clothes.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears t-shirt with rolled-up sleeves.
+      
+      A long desk spans the entire ultra-wide frame, its front panel facing the viewer and filling the lower third of the image down to the bottom edge. Frank is slumped fast asleep at the centre, large in frame, cheek flat on the desk, one arm hanging, eyes closed. Along the desk in both directions: a cold mug, scattered cable ties, an open laptop, a half-eaten sandwich, three empty cans, a tangle of cable. At the far right a single pager lies face-up glowing an urgent red that lights that end of the frame — and he has not woken up. Everything else is cool blue and still. Racks stand behind the desk across the full width. The pager glows but displays no readable characters. There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, ground and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-papers-1-the-long-bench
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-papers-1-the-long-bench/idea-papers-1-the-long-bench-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-papers-1-the-long-bench.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-papers-1-the-long-bench.txt
+    reference_image: .reference-pool/papers/reference/frank-white-shirt-black-tie-1.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/papers/reference/frank-white-shirt-black-tie-1.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears a thin black necktie over a white button-down dress shirt, small senior reading glasses perched low on the nose.
+      
+      Frank's expression is weighing — measured, slightly squinting, the look of someone judging an option.
+      
+      An archive reading bench runs the entire width of the ultra-wide frame. Frank stands at the centre holding a document in each hand, held slightly apart, comparing them. Spread along the bench toward both edges are two long parallel rows of papers, folders and pinned printouts — one row running off to the left, a rival row running off to the right, each with its own character. He is deciding between two entire worldviews. The pages carry only diagram shapes and grey line-work, never lettering. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-papers-2-the-board
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-papers-2-the-board/idea-papers-2-the-board-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-papers-2-the-board.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-papers-2-the-board.txt
+    reference_image: .reference-pool/papers/reference/frank-white-shirt-sleeves-up-black-tie-1.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/papers/reference/frank-white-shirt-sleeves-up-black-tie-1.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears a thin black necktie over a white button-down dress shirt, small senior reading glasses perched low on the nose.
+      
+      Frank's expression is focused — brow lowered in concentration, eyes locked on his work, mouth still.
+      
+      A wall of pinned documents fills the full width of the ultra-wide frame and its full height, sheets running from the top of the image down past the stepladder to the bottom edge in a loose grid of dozens, connected by taut red string running in long diagonals across the entire composition. Frank stands on a short stepladder at centre-right, one hand pressing a fresh sheet into place, the other holding the spool of string, head turned to trace a connection running away to the left. Obsessive and methodical. The sheets carry diagrams, blocks and grey line-work only — no readable words. There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, ground and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-papers-3-the-balance
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-papers-3-the-balance/idea-papers-3-the-balance-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-papers-3-the-balance.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-papers-3-the-balance.txt
+    reference_image: .reference-pool/papers/reference/frank-white-shirt-black-tie-2.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/papers/reference/frank-white-shirt-black-tie-2.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears a thin black necktie over a white button-down dress shirt, small senior reading glasses perched low on the nose.
+      
+      Frank's expression is skeptical — one brow raised higher than the other, mouth flat, eyes narrowed.
+      
+      An enormous balance scale dominates the ultra-wide frame, its beam running almost the entire width at head height and its heavy pedestal base standing on a dark floor that fills the lower frame to the bottom edge. In the left pan sits a neat stack of polished, glossy vendor hardware, brightly lit. In the right pan sits a mismatched heap of homelab gear — a tiny single-board computer, a battered tower, a coil of cable — resting slightly lower. Frank stands beneath the pivot at the centre, hands on hips, head tilted, visibly unimpressed by both pans. There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, ground and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.
+- key: idea-papers-4-the-projection
+  operator_generated: true
+  generator: codex-imagegen
+  model: Codex built-in image_gen tool; exact OpenAI backend model is not exposed by the CLI tool
+  aspect_ratio: '3:1'
+  image_size: native
+  output: .regen-archive/idea-papers-4-the-projection/idea-papers-4-the-projection-openai-native3x1-candidate.png
+  description: Experimental Codex 3x9:1 banner sheet candidate for idea-papers-4-the-projection.
+  codex_generation:
+    source_prompt: docs/runbooks/banner-generation-handoff/prompts/idea-papers-4-the-projection.txt
+    reference_image: .reference-pool/papers/reference/frank-white-lab-coat.png
+    source_aspect_ratio: "3:1"
+    observed_source_dimensions: 2172x724
+    crop_aspect_ratio: "9:1"
+    crop_dimensions: 2169x241
+    quality_gate: Reject non-3:1 sources; never stretch or squeeze to fit.
+  composition:
+    reference_images:
+      primary: .reference-pool/papers/reference/frank-white-lab-coat.png
+    scene: |-
+      Create one native 3:1 image sheet composed of three independent horizontal banner stripes stacked top-to-bottom. Each stripe must be a complete standalone ultra-wide 9:1 banner, not a cropped slice of one continuous scene. Use the same basic image in all three stripes with small composition and lighting variations, so each stripe can be reviewed independently.
+      
+      Each stripe must preserve the scene's full intended composition inside that stripe. Do not stretch, squeeze, letterbox, or pad the artwork. Keep a strong non-Frank horizontal structure spanning the frame so the model does not duplicate Frank to fill space. Show exactly one Frank per stripe unless the scene explicitly says otherwise. No text, no labels, no logos, no watermarks.
+      
+      Native output target used in Codex: 3:1 source sheet. Observed accepted source dimensions from Codex built-in image_gen: 2172x724. Valid crop recipe from that source: crop each stripe to 2169x241, producing exact 9:1 banners.
+      
+      Scene for each stripe:
+      Frank — a chibi-proportioned green Frankenstein monster. Uneven
+      cartoon-green skin with brown / reddish-tan sewn-on patches across the
+      cheek and jaw (horizontal stitch lines crossing each; brown against
+      green, NOT mechanical implants). Each eye is a solid BLACK circle
+      with a single small WHITE pupil-dot — no glow. No nose. Messy black
+      flat-top hair with jagged spiky peaks. Thick raised brow ridge, no
+      eyebrows. A horizontal stitched scar across the upper forehead with
+      a small rectangular RED bandage over it above the right eye. Two
+      symmetric RJ45-connector bolts on the temples, each sparking
+      faint blue. Hands stitched onto the arms with visible scar lines
+      around the wrists. Cartoon illustration, thick outlines, vibrant
+      colours.
+      
+      Dark server-room aesthetic. Deep navy or near-black background;
+      studio-style framing rather than a documentary photograph.
+      Small flecks of bright white / electric-blue sparks scattered
+      through the scene; faint blue glow on metal edges and from any
+      small LED indicators in the frame.
+      Lighting is a single warm overhead source unless the scene says
+      otherwise; soft falloff into deep shadow rather than uniform fill.
+      
+      The reference images attached to this request are ANCHORS, not subjects to render.
+      
+      The FIRST reference image is the canonical character-design sheet. Use this to tune the hero's appearance
+      
+      There is exactly ONE Frank in the final image, regardless of how many reference images show him.
+      
+      Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
+      and body language to fit the scene's action.
+      
+      Frank wears a white lab coat over a white button-down dress shirt and thin black necktie, small senior reading glasses perched low on the nose.
+      
+      Frank's expression is determined — jaw set, brow level, eyes forward and focused.
+      
+      A dark lecture room. A very wide chart is projected across the entire back wall of the ultra-wide frame, edge to edge — a quadrant plot of scattered glowing blue points and thin axis lines, carrying no words or numbers at all. Frank stands at the left inside the projector beam, one arm raised into the light so his silhouette falls across the chart, pointing at a lone outlier point near the right edge. Dust motes hang in the beam. Rows of empty chairs in silhouette run the full width across the foreground, filling the bottom of the frame down to its very edge. There is exactly ONE Frank in this image — a single figure, appearing once and only once anywhere in the frame. CRITICAL FRAMING: the illustration fills the ENTIRE canvas, edge to edge and top to bottom. The floor, ground and background continue all the way down to the very bottom edge of the image. There must be NO pale band, NO white or light-grey strip, NO blank margin, NO ground fog, haze, mist or smoke across the lower part of the frame, and no letterboxing. The bottom edge of the image is dark, not bright. ABSOLUTELY NO TEXT anywhere in the image — pure illustration only, no words, no title, no labels, no numbers.

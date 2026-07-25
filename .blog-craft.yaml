@@ -57,6 +57,27 @@ image:
       - reference_guidance[anchor]
       - reference_guidance[scenery_reference_image]
       - scene
+    # Series header strips. Same as hero, plus banner_style — which explains the
+    # 2nd/3rd attached images (existing banner = layout/palette authority,
+    # lettering crop = typeface authority). Needed because the only model that
+    # renders 8:1 garbles invented lettering; matching a crop is reliable.
+    banner:
+      - base_character
+      - base_atmosphere
+      - reference_guidance[anchor]
+      - reference_guidance[character]
+      - reference_guidance[banner_lettering]
+      - reference_guidance[single_hero]
+      - reference_guidance[drawing_instructions]
+      - clothing
+      - mood
+      - scene
+    # Widen an EXISTING banner 6:1 -> 8:1. Intentionally omits base_character and
+    # drawing_instructions: those tell the model to redraw Frank and vary his pose,
+    # which would destroy the artwork we are trying to preserve.
+    banner_transform:
+      - reference_guidance[banner_transform]
+      - scene
   layers:
     base_character: |-
       Frank — a chibi-proportioned green Frankenstein monster. Uneven
@@ -90,6 +111,24 @@ image:
       drawing_instructions: |-
         Redraw Frank from scratch in the scene's perspective and lighting; vary his pose, angle, head turn,
         and body language to fit the scene's action.
+      banner_lettering: |-
+        The SECOND reference image is a crop of the exact title lettering. The title text in
+        your output must match it exactly in typeface, letter weight, spacing and blue glow —
+        do not substitute a different font. Spell every word exactly as given, with correct,
+        cleanly formed, unbroken letters.
+      banner_transform: |-
+        The FIRST reference image is this banner's existing finished artwork, at a 6:1 aspect
+        ratio. Your task is a CANVAS WIDENING, not a redraw: reproduce that artwork at 8:1.
+        Every existing element — the figure, its pose, outfit and expression, the title
+        lettering, the icons, the colours, the glow, the lighting — must be preserved faithfully
+        and must NOT be redrawn, restyled, recoloured, moved or resized relative to the image
+        height. Widen the canvas by extending the existing background (circuit-board texture,
+        PCB traces, lightning arcs, darkness) outward to the left and right so the composition
+        fills the wider frame naturally and fades into darkness at both edges. Introduce no new
+        subjects, no new props and no new text.
+        The SECOND reference image, when attached, is a crop of the exact title lettering: the
+        title in your output must match it exactly in typeface, letter weight, spacing and blue
+        glow, with correct, cleanly formed, unbroken letters.
     clothing:
       generic:
         default: Frank's torso/body is exposed server hardware
@@ -103,6 +142,7 @@ image:
         lying_open_access: Frank's is lying on his back, torso has an open access panel exposing a device under maintenance
         hoodie_and_sunglasses: Frank wears a hoodie and sunglasses.
         tshirt_rolled_sleeves: Frank wears t-shirt with rolled-up sleeves.
+        lab_coat: Frank wears an open white lab coat over a dark grey-teal t-shirt printed with an orange gear graphic, a brown leather tool belt with a wrench tucked into it, dark jeans and brown boots.
       papers:
         default: Frank wears a thin black necktie over a white button-down dress shirt, small senior reading glasses perched low on the nose.
         white_lab_coat: Frank wears a white lab coat over a white button-down dress shirt and thin black necktie, small senior reading glasses perched low on the nose.
