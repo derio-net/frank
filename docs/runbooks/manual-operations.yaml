@@ -767,7 +767,7 @@ operations:
   - 'curl -sI https://www.derio.net | head -1   # 200, and the body is the built page, not the handle_errors holding page'
   - curl -s https://www.derio.net | grep -q "counter.derio.net" && echo analytics-wired
   - 'git -C <frank> log --oneline -1 clusters/hop/apps/www/manifests/deployment.yaml   # a deploy(edge) commit from stoa-fr-automation'
-  status: pending
+  status: done
 - id: gpu-bios-f3-to-f6
   layer: gpu
   app: gpu-operator
@@ -1933,7 +1933,7 @@ operations:
   verify:
   - kubectl -n tekton-pipelines get externalsecret frank-gitops-push
   - kubectl -n tekton-pipelines get secret frank-gitops-push -o jsonpath='{.metadata.name}'
-  status: pending
+  status: done
 - id: cicd-stoa-site-gitea-mirror
   layer: cicd
   app: gitea
@@ -1946,7 +1946,7 @@ operations:
   - '# Enable the Actions unit. Instance-level actions.ENABLED does NOT switch it on for a repo created afterwards, and the failure mode is a SILENT no-run: curl -s -X PATCH http://192.168.55.209:3000/api/v1/repos/agentic-stoa/site -H ''Authorization: token <token>'' -H ''Content-Type: application/json'' -d ''{"has_actions": true}'''
   verify:
   - 'Gitea UI: agentic-stoa/site exists, main matches GitHub main HEAD sha, and an Actions tab is present'
-  status: pending
+  status: done
 - id: cicd-stoa-site-github-webhook
   layer: cicd
   app: tekton
@@ -1959,7 +1959,23 @@ operations:
   verify:
   - Recent Deliveries shows 200 on the ping event
   - kubectl -n tekton-pipelines logs -l eventlistener=github-listener --tail=20
-  status: pending
+  status: done
+- id: cicd-stoa-site-gitea-push-webhook
+  layer: cicd
+  app: gitea
+  plan: docs/superpowers/plans/2026-07-25-edge-stoa-site-www-derio-net/06.yaml
+  when: After the Gitea mirror repo exists. REQUIRED for promotion — without it the loop silently never closes.
+  why_manual: Gitea webhook config is per-repo API/UI state; no IaC for it in our setup.
+  commands:
+  - '# GAP FOUND 2026-07-26, absent from the original plan. Phase 3 added an agentic-stoa-site-promotion trigger to the gitea-listener EventListener but nothing was ever provisioned to DELIVER a Gitea push event to it. The org-level Gitea webhook (id 4) sends ONLY `status` events (that is the stoa-status-bridge path), and the single per-repo push webhook in the org (companies) points at el-live-mirror-sync, a different listener. So the trigger was live and correct and could never fire. The symptom is indistinguishable from a broken pipeline: mirror syncs, Actions go green, image publishes, and NO site-promotion PipelineRun is ever created.'
+  - 'curl -s -X POST http://192.168.55.209:3000/api/v1/repos/agentic-stoa/site/hooks -u <gitea admin> -H ''Content-Type: application/json'' -d ''{"type":"gitea","active":true,"events":["push"],"config":{"url":"http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080","content_type":"json","http_method":"post"}}'''
+  - '# No webhook secret: agentic-stoa-site-promotion validates with a `cel` interceptor only (repo full_name + ref), with no secret-validation interceptor. Scoped to the `site` repo rather than an org-wide push hook, so the other ten repos do not suddenly start delivering pushes to the gitea-listener.'
+  verify:
+  - 'curl -s -u <gitea admin> http://192.168.55.209:3000/api/v1/repos/agentic-stoa/site/hooks   # a push hook to el-gitea-listener'
+  - kubectl -n tekton-pipelines logs -l eventlistener=gitea-listener --tail=30 | grep agentic-stoa-site-promotion
+  - 'kubectl -n tekton-pipelines get pipelinerun | grep site-promotion   # one run per push to main'
+  - '# EXECUTED 2026-07-26 — hook id 5. First promotion (site-promotion-5rxtq) Succeeded and pushed 7db3418 to frank main.'
+  status: done
 - id: cicd-stoa-site-ghcr-package-public
   layer: cicd
   app: www
@@ -1972,7 +1988,7 @@ operations:
   - '# WHY PUBLIC: Hop has no External Secrets Operator and no imagePullSecrets anywhere — every pull there is anonymous. A private package would need Hop''s first pull secret, backed by a long-lived manually-rotated token on a cluster that cannot rotate it, which is the silent-credential-expiry failure class this estate keeps hitting. The artifact is a public website, so the package exposes nothing the site does not already serve. Escalation path if pre-launch confidentiality ever matters: flip to private and add a SOPS-managed pull secret on Hop, accepting the rotation burden.'
   verify:
   - docker manifest inspect ghcr.io/agentic-stoa/site:<sha>
-  status: pending
+  status: done
 - id: obs-alert-agent-claude-login
   layer: obs
   app: alert-agent

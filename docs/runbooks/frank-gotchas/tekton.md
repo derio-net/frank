@@ -223,3 +223,106 @@ curl -s -X PATCH http://192.168.55.209:3000/api/v1/repos/agentic-stoa/<repo> \
 
 Idempotent; safe to re-run across every mirror. Verify by the presence of the
 Actions tab in the Gitea UI before concluding a workflow is broken.
+
+## A gitea-listener trigger has no delivery path until you add a per-repo Gitea webhook
+
+*Discovered 2026-07-26 closing the loop on the `www.derio.net` rollout (frank#704).*
+
+### What happened
+
+Phase 3 of the plan added an `agentic-stoa-site-promotion` trigger to the
+`gitea-listener` EventListener: on a Gitea `push` to `agentic-stoa/site` main,
+fire the `site-promotion` pipeline and move the image tag onto the Hop edge.
+
+After the merge, everything upstream of the promotion worked and the promotion
+never ran:
+
+- GitHub push → webhook `202` → `agentic-stoa-main-sync` PipelineRun `Succeeded`
+- Gitea mirror advanced to the new sha (verified byte-identical to GitHub)
+- Gitea Actions built and pushed `ghcr.io/agentic-stoa/site:<sha>`
+- `kubectl get pipelinerun | grep site-promotion` → **nothing, ever**
+
+The trigger itself was fine. `kubectl get eventlistener gitea-listener -o
+jsonpath='{.spec.triggers[*].name}'` listed `agentic-stoa-site-promotion`, the
+CEL filter was correct, and the `site-promotion` Pipeline and TriggerTemplate
+both existed. It simply never received an event.
+
+### Root cause
+
+**Nothing in the repo provisions Gitea → EventListener delivery.** Two things
+disguised this:
+
+1. There **is** an org-level Gitea webhook (`/api/v1/orgs/agentic-stoa/hooks`,
+   id 4) pointing at `el-gitea-listener` — but its `events` list is
+   **`["status"]` only**. That is the `stoa-status-bridge` path. It delivers no
+   `push` events to anything.
+2. Exactly one agentic-stoa repo (`companies`) has a per-repo `push` webhook,
+   and it points at **`el-live-mirror-sync`** — the reverse Gitea→GitHub mirror,
+   a different EventListener entirely.
+
+So a survey of "do stoa repos have webhooks?" answers *yes* twice over while
+still leaving `push`→`gitea-listener` with **zero** delivery paths, in any repo.
+
+### Why it is dangerous
+
+The symptom is indistinguishable from a broken pipeline, and every component you
+would naturally suspect reports healthy:
+
+| Check | Says |
+|---|---|
+| ArgoCD | `Synced` / `Healthy` |
+| EventListener triggers | present and correct |
+| Pipeline / TriggerTemplate | present |
+| Mirror sync | `Succeeded` |
+| Gitea Actions | green, image published |
+| EventListener logs | *silent* — no rejection to find, the request never arrives |
+
+There is no error anywhere. The natural next move — debugging the CEL filter or
+the pipeline — is looking in the wrong place entirely.
+
+### Fix
+
+Add a per-repo `push` webhook. Scope it to the repo rather than adding an
+org-wide `push` hook, or every other repo in the org starts delivering pushes to
+the gitea-listener:
+
+```bash
+curl -s -X POST http://192.168.55.209:3000/api/v1/repos/agentic-stoa/<repo>/hooks \
+  -u "$GITEA_ADMIN" -H 'Content-Type: application/json' \
+  -d '{"type":"gitea","active":true,"events":["push"],
+       "config":{"url":"http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080",
+                 "content_type":"json","http_method":"post"}}'
+```
+
+No webhook secret: these triggers validate with a `cel` interceptor only
+(repo `full_name` + `ref`), with no secret-validation interceptor. The in-cluster
+`.svc.cluster.local` target requires `webhook.ALLOWED_HOST_LIST` to include
+`*.svc.cluster.local`, which it already does.
+
+### Verifying, without waiting for a real push
+
+Gitea's test-delivery endpoint sends a genuine push payload for the default
+branch's current HEAD, so you can exercise the whole trigger without adding a
+commit:
+
+```bash
+curl -s -X POST -u "$GITEA_ADMIN" \
+  http://192.168.55.209:3000/api/v1/repos/agentic-stoa/<repo>/hooks/<id>/tests   # 204
+kubectl -n tekton-pipelines logs -l eventlistener=gitea-listener --tail=30 \
+  | grep <trigger-name>
+```
+
+A fired trigger logs `ResolvedParams : [{Name:sha Value:<sha>}]` with
+`"/trigger":"<trigger-name>"`, immediately followed by `creating resource
+tekton.dev/v1, Resource=pipelineruns`.
+
+**Do not conclude it failed from `kubectl get pipelinerun` alone** — the
+`tekton.dev/pipeline=<name>` label selector does not match these runs; grep the
+run names or read the listener log instead. That mistake cost a round of
+debugging here after the trigger had, in fact, fired correctly.
+
+### Checklist when adding any gitea-listener trigger
+
+1. Add the trigger + TriggerTemplate to `apps/tekton/triggers/eventlistener.yaml`.
+2. **Add a per-repo Gitea `push` webhook to `el-gitea-listener`** ← the step with no IaC.
+3. Test-deliver it and confirm the trigger name appears in the listener log.
