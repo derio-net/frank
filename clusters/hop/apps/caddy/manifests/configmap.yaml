@@ -29,6 +29,35 @@ data:
       }
     }
 
+    # Shared response headers for the PUBLIC content sites (www, blog).
+    # Deliberately not applied to the mesh-only vhosts or the webhook
+    # receiver: those serve APIs and admin UIs with different needs.
+    #
+    # CSP note — the only external origin either site loads is
+    # counter.derio.net (GoatCounter). Adding any other third-party script,
+    # font, stylesheet or fetch target to a site REQUIRES widening this policy
+    # in the same change: the browser blocks it while the page still returns
+    # 200, so no server-side check catches the breakage.
+    #
+    # style-src is 'self' with no 'unsafe-inline', which means the site images
+    # must emit external stylesheets rather than inline <style> blocks.
+    # agentic-stoa/site pins that with its own build check.
+    #
+    # HSTS intentionally omits `preload`. Preload applies to every
+    # *.derio.net name a browser has seen and is hard to walk back; promoting
+    # to it is a separate, deliberate decision.
+    (security_headers) {
+      header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(), camera=(), microphone=(), browsing-topics=()"
+        Content-Security-Policy "default-src 'self'; script-src 'self' https://counter.derio.net; connect-src 'self' https://counter.derio.net; style-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
+        # Caddy advertises itself by default; no reason to help fingerprinting.
+        -Server
+      }
+    }
+
     # --- Public routes ---
 
     # Headscale coordination server (public — clients must reach it)
@@ -45,6 +74,7 @@ data:
       # CrowdSec HTTP handler — blocks before reverse_proxy if the
       # client IP is currently in an active decision.
       crowdsec
+      import security_headers
       handle /frank* {
         reverse_proxy blog.blog-system.svc:8080
       }
@@ -53,9 +83,24 @@ data:
       }
     }
 
-    # Portfolio / personal site (public — placeholder for now)
+    # Public site (www) — built from agentic-stoa/site, served by the `www`
+    # Deployment in www-system. Same treatment as the blog: per-site JSON
+    # access log to VictoriaLogs, CrowdSec bouncer, hardened headers.
+    #
+    # handle_errors is load-bearing, not decoration. The site image does not
+    # exist until the repo has been enrolled in the Gitea mirror and CI has
+    # run once, so without this fallback the first deploy would turn
+    # www.derio.net from a holding page into a 502. It keeps paying afterwards:
+    # a crashed or rolling pod shows the holding page instead of a gateway
+    # error.
     www.derio.net {
-      respond "Coming soon." 200
+      log
+      crowdsec
+      import security_headers
+      reverse_proxy www.www-system.svc:8080
+      handle_errors {
+        respond "Coming soon." 200
+      }
     }
 
     # Analytics ingest (public) — reverse-proxies over Tailscale mesh to
