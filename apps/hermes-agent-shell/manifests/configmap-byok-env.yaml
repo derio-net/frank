@@ -27,11 +27,17 @@
 # /proc/1/environ returns proctitle bytes, not the env. The loop below is
 # therefore vacuous here (kept: it documents intent and works wherever an
 # init preserves environ, e.g. secure-agent-pod's kali under s6).
-# FR_ISOLATION_TARGET is a STATIC value, so it gets a literal fallback export
-# below — keep it equal to the Deployment env (pinned by
-# scripts/tests/test_fr_isolation_target_env.py). The DYNAMIC BYOK vars
-# (OPENAI_BASE_URL/OPENAI_API_KEY) cannot be fixed this way and are broken in
-# ssh-sidecar login shells — tracked separately (see the agent-shells gotcha).
+#
+# TWO fallbacks recover the vars in the ssh sidecar (frank#688):
+#   • FR_ISOLATION_TARGET is a STATIC value → a literal fallback export at the
+#     end (pinned by scripts/tests/test_fr_isolation_target_env.py, kept equal
+#     to the Deployment env).
+#   • the DYNAMIC BYOK secrets (OPENAI_BASE_URL/OPENAI_API_KEY) can't be
+#     hardcoded → the ssh container's command wrapper snapshots them from the
+#     container env to the /run/hermes-env/byok memory tmpfs BEFORE exec'ing
+#     sshd (while that process still has the env), and the middle block below
+#     reads them back. Pinned by
+#     scripts/tests/test_hermes_ssh_byok_env_snapshot.py.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -47,6 +53,22 @@ data:
             eval "_hcur=\${$_hv:-}"
             if [ -z "$_hcur" ]; then
                 _hval=$(tr '\0' '\n' < /proc/1/environ | sed -n "s/^${_hv}=//p" | head -n1)
+                [ -n "$_hval" ] && export "$_hv=$_hval"
+            fi
+        done
+        unset _hv _hcur _hval
+    fi
+    # tmpfs snapshot fallback for the DYNAMIC BYOK secrets (frank#688). The
+    # ssh sidecar's command wrapper dumps OPENAI_BASE_URL/OPENAI_API_KEY here
+    # before exec'ing sshd, because sshd (PID 1) clobbers /proc/1/environ with
+    # its proctitle — this file is the only source of the secrets in the ssh
+    # login shell. Path MUST match the Deployment command wrapper (guard-tested
+    # by scripts/tests/test_hermes_ssh_byok_env_snapshot.py).
+    if [ -r /run/hermes-env/byok ]; then
+        for _hv in OPENAI_BASE_URL OPENAI_API_KEY; do
+            eval "_hcur=\${$_hv:-}"
+            if [ -z "$_hcur" ]; then
+                _hval=$(sed -n "s/^${_hv}=//p" /run/hermes-env/byok | head -n1)
                 [ -n "$_hval" ] && export "$_hv=$_hval"
             fi
         done
