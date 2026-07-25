@@ -77,42 +77,42 @@ tasks:
 state:
   steps:
     P2.T1.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'PR #699 merged to main (f530f0dd); root App-of-Apps refreshed and reconciled, metrics-server Application created + Synced.'
     P2.T1.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'v1beta1.metrics.k8s.io APIService settled Available=True (False→True over ~30s). No neighboring ArgoCD app in ComparisonError.'
     P2.T2.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'kubectl top nodes returned all 7 nodes with live CPU/mem incl. both arm64 raspis (raspi-1 483m/1663Mi, raspi-2 603m/1861Mi, gpu-1 4785m, mini-1/2/3, pc-1).'
     P2.T2.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'kubectl top pods -A non-empty across namespaces (agents, alert-agent, argo-rollouts, ...).'
     P2.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'metrics-server logs clean — only the normal DynamicServingCertificateController startup line; no x509/unable-to-scrape errors.'
     P2.T3.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'Throwaway CPU HPA created on monitoring/blackbox-exporter (idle, 10m CPU request, min=1 max=2).'
     P2.T3.S2:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'HPA TARGETS resolved <unknown> → 40%/80% once the controller queried the Metrics API — real percentage, resource metrics feed the HPA loop.'
     P2.T3.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'HPA deleted; blackbox-exporter stayed 1/1 (no scale drift, no ArgoCD selfHeal fight). No standing HPA ships.'
     P2.T4.S1:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T06:14:30+00:00'
+      note: 'Acceptance rows metrics-api-kubectl-top + metrics-api-cpu-hpa flipped not-implemented→skipped with dated live-proof evidence; fr acceptance check green.'
   completion:
-    at: null
-    note: null
+    at: '2026-07-25T06:14:30+00:00'
+    note: 'Metrics API live and verified end-to-end: kubectl top on all 7 nodes, APIService Available, CPU HPA reads real TARGETS. Acceptance evidence recorded.'
     observed_prs: []
