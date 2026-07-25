@@ -5,12 +5,17 @@
 # Talos kubelets present self-signed serving certs not signed by the cluster
 # CA. Without --kubelet-insecure-tls every scrape fails
 # `x509: certificate signed by unknown authority` and `kubectl top` stays
-# empty while the pod looks Ready. InternalIP preferred-address matches how
-# VictoriaMetrics scrapes kubelets and avoids arm64 hostname-resolution edge
-# cases on the raspis.
+# empty while the pod looks Ready. `args` APPENDS to the chart's defaultArgs,
+# so this only adds the flag — it doesn't clobber the defaults.
+#
+# We deliberately do NOT set --kubelet-preferred-address-types: the chart
+# default is already `InternalIP,ExternalIP,Hostname` (InternalIP first), which
+# is exactly what we want — every Frank node has a static InternalIP, so
+# kubelets resolve by IP and never fall back to Hostname (the arm64
+# raspi hostname-resolution edge case). Re-specifying it would only append a
+# duplicate flag, not restrict the list.
 args:
   - --kubelet-insecure-tls
-  - --kubelet-preferred-address-types=InternalIP
 
 # Single replica — Frank is a learning cluster; metrics-server is stateless
 # and cheaply restarted. Documented tradeoff: the metrics.k8s.io APIService

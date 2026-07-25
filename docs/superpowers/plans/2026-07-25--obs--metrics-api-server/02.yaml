@@ -22,7 +22,11 @@ tasks:
       Confirm the aggregated APIService settles Available: `kubectl get
       apiservice v1beta1.metrics.k8s.io` → `AVAILABLE=True`. It may read
       `False` transiently until the first kubelet scrape lands (~15-30s) — wait
-      for it to settle rather than assuming Synced == working.
+      for it to settle rather than assuming Synced == working. An UNavailable
+      aggregated APIService can make kube-apiserver discovery fail, surfacing as
+      `ComparisonError` on OTHER ArgoCD apps cluster-wide — so also confirm no
+      neighboring Application flipped to `ComparisonError` (`argocd app list` /
+      `kubectl get applications -n argocd`) before calling this Deployed.
 - number: 2
   title: Prove kubectl top on all 7 nodes and across pods
   steps:

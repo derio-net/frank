@@ -146,9 +146,12 @@ Recorded now so the boundary is explicit and the follow-up is trackable:
 - **Talos self-signed kubelet cert** → `--kubelet-insecure-tls` is mandatory; without it every
   scrape 500s and `top` stays empty while the pod looks Ready. (New gotcha one-liner for
   `frank-gotchas.md` if not already implied elsewhere.)
-- **raspi reachability:** `InternalIP` preferred-address-type avoids arm64 hostname-resolution
-  edge cases; verify both raspis actually report rows (they pass the VM label limit already, so
-  cadvisor data exists — but metrics-server has its own scrape path, so prove it independently).
+- **raspi reachability:** the chart's default `--kubelet-preferred-address-types=InternalIP,
+  ExternalIP,Hostname` (InternalIP-first) already avoids the arm64 hostname-resolution edge
+  case — every Frank node has a static InternalIP, so no explicit override is needed (the
+  chart's `args` value appends, so re-specifying would only duplicate the flag). Verify both
+  raspis actually report rows (they pass the VM label limit already, so cadvisor data exists —
+  but metrics-server has its own scrape path, so prove it independently).
 - **Argo health:** metrics-server's APIService can read `Degraded` transiently until the first
   scrape lands; confirm it settles `Available=True` rather than assuming Synced == working.
 - **Single replica + aggregation layer:** documented tradeoff, not a blocker at Frank's scale.
