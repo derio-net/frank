@@ -1,0 +1,125 @@
+schema_version: 2
+phase:
+  number: 1
+  title: Scaffold and publish the agentic-stoa/site repo
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - www-serves-versioned-page
+tasks:
+- number: 1
+  title: Astro project that builds a coming-soon page
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      RED. In a scratch working dir (NOT inside the frank worktree — stoa
+      content is never vendored into frank), create the Astro project
+      skeleton and a build smoke check that fails first:
+        mkdir -p /tmp/stoa-site && cd /tmp/stoa-site && git init -b main
+      Write `scripts/check-build.sh` asserting that `dist/index.html`
+      exists after a build and contains the coming-soon headline and the
+      GoatCounter beacon URL. Run it.
+      EXPECT: fails — no dist/, no project yet.
+  - id: P1.T1.S2
+    text: |-
+      GREEN. Write the Astro project files directly (the interactive
+      `npm create astro` scaffolder is not agent-usable): package.json (astro dependency, `build`/`dev` scripts),
+      astro.config.mjs with `output: 'static'` and
+      `site: 'https://www.derio.net'`, src/layouts/Base.astro (meta,
+      viewport, the GoatCounter script tag pointing at
+      https://counter.derio.net/count.js), src/pages/index.astro (the
+      coming-soon content), and src/styles. Then:
+        npm install && npm run build && bash scripts/check-build.sh
+      EXPECT: build succeeds, check passes.
+  - id: P1.T1.S3
+    text: |-
+      OPTIONAL REFACTOR. Extract repeated head/meta markup into Base.astro
+      if index.astro duplicates it; keep the build green. Skip if clean.
+- number: 2
+  title: Container image and CI workflow
+  steps:
+  - id: P1.T2.S1
+    text: |-
+      RED. Add `scripts/check-image.sh` asserting the Dockerfile is a
+      two-stage build whose runtime stage is caddy:2.9-alpine, EXPOSEs
+      8080, and copies dist/ into /usr/share/caddy — matching the blog
+      image's proven runtime shape (blog/Dockerfile). Run it.
+      EXPECT: fails — no Dockerfile.
+  - id: P1.T2.S2
+    text: |-
+      GREEN. Write the Dockerfile (stage 1 node:22-alpine runs
+      `npm ci && npm run build`; stage 2 caddy:2.9-alpine serves dist on
+      :8080 with a Cache-Control header). Write
+      `.github/workflows/ci.yml` — path chosen because Gitea Actions reads
+      `.github/workflows/`, so ONE file serves both forges:
+        - triggers: push to main, push to 'sync-pr-**' (Gitea-only
+          branches; GitHub never fires them), pull_request, workflow_dispatch
+        - job `build`: checkout, setup-node, npm ci, npm run build,
+          run both check scripts (always runs, both forges)
+        - job `image`: needs build; guarded
+          `if: (vars.CI_AUTHORITY || 'github') == (github.server_url ==
+          'https://github.com' && 'github' || 'gitea')`; logs into ghcr.io
+          with `${{ secrets.STOA_CI_GH_TOKEN || secrets.GITHUB_TOKEN }}`
+          and pushes ghcr.io/agentic-stoa/site:${{ github.sha }} + :latest
+      Run `bash scripts/check-image.sh`.
+      EXPECT: passes.
+- number: 3
+  title: Agent instructions and publish
+  steps:
+  - id: P1.T3.S1
+    text: |-
+      Write CLAUDE.md (pointing at AGENTS.md, per this estate's adapter
+      convention) and AGENTS.md covering: what the repo is (the public
+      site for www.derio.net), the build/deploy path (Gitea Actions ->
+      GHCR -> Tekton site-promotion -> frank -> ArgoCD on Hop), the CSP
+      constraint (any new third-party script needs the Caddy CSP in frank
+      updated in lockstep or it is silently blocked), and a note that the
+      deployment manifest lives in derio-net/frank, not here. Add
+      .gitignore (node_modules, dist, .astro).
+  - id: P1.T3.S2
+    text: |-
+      Publish to the empty repo. Commit with a meaningful message, then:
+        TOK=$(kubectl -n tekton-pipelines get secret stoa-github-mirror \
+              -o jsonpath='{.data.token}' | base64 -d)
+        git -C /tmp/stoa-site remote add origin \
+          "https://x-access-token:${TOK}@github.com/agentic-stoa/site.git"
+        git -C /tmp/stoa-site push -u origin main
+      VERIFY: `gh api repos/agentic-stoa/site/branches --jq '.[].name'`
+      (with the same token) lists `main`, and the tree contains
+      .github/workflows/ci.yml.
+      NOTE: the ESO-minted token is ~1h-lived; re-read it if the push 401s.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

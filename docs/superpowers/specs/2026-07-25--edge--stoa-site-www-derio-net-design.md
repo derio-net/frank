@@ -179,8 +179,20 @@ www.derio.net {
   crowdsec
   import security_headers
   reverse_proxy www.www-system.svc:8080
+  handle_errors {
+    respond "Coming soon." 200
+  }
 }
 ```
+
+**The `handle_errors` fallback is load-bearing, not decoration.** Without it,
+merging this PR would point Caddy at a backend whose first image does not exist
+until the operator has finished the enrollment ops — turning `www.derio.net`
+from "Coming soon." into a 502. With it, the vhost degrades to exactly today's
+behaviour whenever the backend is unreachable. That removes the ordering
+dependency between this PR and the manual phase entirely, and it keeps paying
+afterwards: a crashed `www` pod shows visitors a holding page instead of a
+gateway error.
 
 ### 5. Security headers (new, and retrofitted to the blog)
 

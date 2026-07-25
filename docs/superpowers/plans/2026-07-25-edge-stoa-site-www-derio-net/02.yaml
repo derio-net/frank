@@ -1,0 +1,94 @@
+schema_version: 2
+phase:
+  number: 2
+  title: Serve www.derio.net from a container, with hardened headers
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - www-serves-versioned-page
+  - www-hardened-response-headers
+tasks:
+- number: 1
+  title: Hop www application
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      RED. Add `scripts/tests/test_www_app_manifests.py` asserting:
+      clusters/hop/apps/www/manifests/{deployment,service}.yaml exist;
+      the Deployment image is ghcr.io/agentic-stoa/site pinned to a
+      40-char sha carrying the CI-owned pin marker used by the blog
+      deployment (see clusters/hop/apps/blog/manifests/deployment.yaml); containerPort and Service port are both 8080; a readiness
+      probe on /; and that root Application + namespace CRs exist under
+      clusters/hop/apps/root/templates/. Run it.
+      EXPECT: fails.
+  - id: P2.T1.S2
+    text: |-
+      GREEN. Create clusters/hop/apps/www/manifests/{deployment,service}.yaml
+      (namespace www-system, replicas 1, modelled on
+      clusters/hop/apps/blog/manifests/) and
+      clusters/hop/apps/root/templates/{www.yaml,ns-www.yaml} modelled on
+      the blog/ns-blog pair. Pin the image to the placeholder sha
+      0000000000000000000000000000000000000000 — the first real tag
+      arrives via site-promotion; the Caddy fallback (task 2) means this
+      is invisible to visitors.
+      Run the test. EXPECT: passes.
+- number: 2
+  title: 'Caddy: security headers snippet, www vhost, blog retrofit'
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      RED. Add `scripts/tests/test_caddy_security_headers.py` asserting
+      the Hop Caddyfile defines a `(security_headers)` snippet containing
+      Strict-Transport-Security (max-age >= 31536000, includeSubDomains,
+      and explicitly NOT `preload`), X-Content-Type-Options: nosniff,
+      Referrer-Policy, Permissions-Policy and a Content-Security-Policy
+      whose script-src/connect-src allow https://counter.derio.net and
+      whose frame-ancestors is 'none'; that BOTH the www.derio.net and
+      blog.derio.net blocks `import security_headers`; that the www block
+      has `log`, `crowdsec`, a reverse_proxy to www.www-system.svc:8080
+      and a `handle_errors` fallback responding "Coming soon." 200.
+      Run it. EXPECT: fails.
+  - id: P2.T2.S2
+    text: |-
+      GREEN. Edit clusters/hop/apps/caddy/manifests/configmap.yaml:
+      define the (security_headers) snippet at top level; replace the
+      www.derio.net `respond` one-liner with the logged, crowdsec-gated,
+      header-importing reverse_proxy + handle_errors fallback; add
+      `import security_headers` to the blog block. Leave mesh-only and
+      webhook vhosts untouched.
+      Run the test. EXPECT: passes.
+  - id: P2.T2.S3
+    text: |-
+      REFACTOR/VERIFY. Validate the Caddyfile parses before it can break
+      the public edge:
+        kubectl -n caddy-system exec deploy/caddy -- caddy validate \
+          --adapter caddyfile --config /dev/stdin < <rendered Caddyfile>
+      (or `caddy fmt --diff`). EXPECT: valid; no adapter warnings other
+      than pre-existing ones.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

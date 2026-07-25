@@ -1,0 +1,84 @@
+schema_version: 2
+phase:
+  number: 6
+  title: '[manual] Operator enrollment and first live build'
+  tag: manual
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  - 5
+  tracking_issue: null
+  acceptance:
+  - www-changes-reach-production
+tasks:
+- number: 1
+  title: Repair frank-gitops-push (prerequisite, also un-breaks cnc-promotion)
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      MANUAL. The derio-net App PEM must exist in tekton-pipelines, not
+      just secure-agent-pod (ESO resolves privateKey.secretRef in the
+      CONSUMING namespace). From a host with SOPS + the age key:
+        sops -d secrets/github-app/github-app-derio-key.yaml \
+          | sed 's/namespace: secure-agent-pod/namespace: tekton-pipelines/' \
+          | kubectl apply -f -
+      Then commit a durable copy as
+      secrets/github-app/github-app-derio-key-tekton.yaml (SOPS-encrypted,
+      namespace tekton-pipelines) so it survives a rebuild.
+      VERIFY: `kubectl -n tekton-pipelines get externalsecret
+      frank-gitops-push` reports SecretSynced/True, and the
+      frank-gitops-push Secret exists.
+- number: 2
+  title: Enroll agentic-stoa/site in the mirror and CI platform
+  steps:
+  - id: P6.T2.S1
+    text: |-
+      MANUAL. Create the Gitea mirror repo and backfill (pattern:
+      cicd-stoa-mirror-remaining-repos), add the GitHub webhook to
+      https://webhooks.hop.derio.net/ (events: push, pull_request,
+      secret from Infisical STOA_GITHUB_WEBHOOK_SECRET), and enable the
+      Actions unit: PATCH the Gitea repo with {"has_actions": true} —
+      instance-level actions.ENABLED does NOT switch it on for a repo
+      created afterwards, and the failure is a silent no-run.
+      VERIFY: the repo shows an Actions tab; a push to GitHub main lands
+      on the Gitea mirror.
+  - id: P6.T2.S2
+    text: |-
+      MANUAL. Trigger the first Gitea Actions run, then make the GHCR
+      package public (Settings -> Package -> Change visibility) so Hop
+      can pull anonymously — Hop has no ESO and no imagePullSecrets, and
+      a private package would need a manually-rotated credential on a
+      cluster that cannot rotate it (see the spec's trade-off note).
+      VERIFY: `docker manifest inspect ghcr.io/agentic-stoa/site:<sha>`
+      succeeds unauthenticated.
+  - id: P6.T2.S3
+    text: |-
+      MANUAL. Confirm the promotion closes the loop: site-promotion
+      commits the real tag into clusters/hop/apps/www, ArgoCD on Hop
+      syncs, the www pod goes Ready, and https://www.derio.net serves the
+      built page instead of the handle_errors fallback.
+      Then walk the spec's Test Plan steps 1-7.
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

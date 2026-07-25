@@ -1,0 +1,75 @@
+schema_version: 2
+phase:
+  number: 5
+  title: 'Documentation: gotchas, runbook, blog and README'
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  - 3
+  - 4
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Runbook manual-operation blocks
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Author `# manual-operation` YAML blocks in the plan's phase 6 file
+      for every operator step (credential repair, Gitea mirror + backfill,
+      GitHub webhook, has_actions, GHCR package visibility, first build).
+      Then run `/sync-runbook` to merge them into
+      docs/runbooks/manual-operations.yaml.
+      VERIFY: the new ids appear in the runbook with status pending.
+- number: 2
+  title: Gotchas
+  steps:
+  - id: P5.T2.S1
+    text: |-
+      Add one-liners to agents/rules/frank-gotchas.md and full prose to
+      the matching docs/runbooks/frank-gotchas/ topic files:
+        - storage-secrets-ssa.md: the github-app-derio-key /
+          frank-gitops-push same-namespace break, how it presents (silent
+          SecretSyncedError; cnc-promotion cannot push), and the fix.
+        - networking.md (or a new edge note): the Caddy handle_errors
+          fallback pattern for a vhost whose backend may not exist yet.
+        - tekton.md: `.github/workflows/` is the correct path for a repo
+          that must build on BOTH forges; `.gitea/workflows/` is
+          Gitea-only and silently invisible to GitHub.
+- number: 3
+  title: Blog and README
+  steps:
+  - id: P5.T3.S1
+    text: |-
+      Retroactively extend the Layer 17 edge posts (building/ and
+      operating/) with the second public site: the cross-org
+      build->deploy path, the security-headers snippet, and the
+      graceful-degradation vhost. Infra mechanics only — name the repo,
+      no business detail (agents/rules/third-party-privacy.md). This is a
+      normal markdown edit of existing posts, NOT a new post.
+  - id: P5.T3.S2
+    text: |-
+      Run `/update-readme` to sync Service Access and Current Status with
+      the new www app and the site repo.
+state:
+  steps:
+    P5.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P5.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

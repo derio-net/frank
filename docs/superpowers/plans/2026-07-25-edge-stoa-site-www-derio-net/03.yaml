@@ -1,0 +1,84 @@
+schema_version: 2
+phase:
+  number: 3
+  title: 'Automated delivery: mirror trigger and site-promotion pipeline'
+  tag: agentic
+  depends_on:
+  - 2
+  tracking_issue: null
+  acceptance:
+  - www-changes-reach-production
+tasks:
+- number: 1
+  title: site-promotion Tekton pipeline
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      RED. Add `scripts/tests/test_site_promotion_pipeline.py` asserting
+      apps/tekton/pipelines/site-promotion.yaml exists; reads its token
+      from secretKeyRef frank-gitops-push/token; targets
+      clusters/hop/apps/www/manifests/deployment.yaml; commits as
+      stoa-fr-automation; and implements the idempotent race-safe loop
+      (fetch+reset per attempt, exit 0 when already pinned, exit 0 when
+      our sha is an ancestor of current, retry on rejected push) rather
+      than `pull --rebase`. Run it. EXPECT: fails.
+  - id: P3.T1.S2
+    text: |-
+      GREEN. Write apps/tekton/pipelines/site-promotion.yaml, modelled on
+      apps/tekton/pipelines/cnc-promotion.yaml's update-and-push task
+      (alpine/git, HOME=/tekton/home, clone frank via
+      x-access-token) but narrowed to one manifest and carrying the
+      blog workflow's idempotent retry loop. Param: `sha`.
+      Run the test. EXPECT: passes.
+- number: 2
+  title: EventListener wiring on both forges
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      RED. Extend `scripts/tests/test_site_promotion_pipeline.py` (or add
+      a sibling) asserting: agentic-stoa/site is present in the
+      agentic-stoa-main-sync CEL filter in
+      apps/tekton/triggers/eventlistener-github.yaml; and
+      apps/tekton/triggers/eventlistener.yaml carries a trigger firing
+      site-promotion on a Gitea push event filtered to
+      agentic-stoa/site on refs/heads/main. Run it. EXPECT: fails.
+  - id: P3.T2.S2
+    text: |-
+      GREEN. Add agentic-stoa/site to the main-sync CEL filter, and add
+      the site-promotion trigger + TriggerTemplate to the gitea listener,
+      following the existing gitea-push / gitea-status-bridge shapes
+      (including the pc-1 nodeSelector used by the sibling templates).
+      Run the tests. EXPECT: pass.
+  - id: P3.T2.S3
+    text: |-
+      VERIFY. Confirm no ArgoCD array-item ignore rule freezes the
+      EventListener triggers array (the documented
+      RespectIgnoreDifferences trap): run
+      `python scripts/tests/test_tekton_ignore_rules_no_arrays.py`.
+      EXPECT: passes.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
