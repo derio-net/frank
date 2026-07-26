@@ -1,0 +1,98 @@
+schema_version: 2
+phase:
+  number: 6
+  title: '[manual] Operator enrollment and post-merge verification'
+  tag: manual
+  depends_on: []
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Pre-merge — the one value an agent cannot know
+  steps:
+  - id: P6.T1.S1
+    text: |-
+      Install the `derio-fr-automation` GitHub App (3994132) into the
+      `derio-homelab` org, granting it access to `kid-laptops` only.
+      Capture the installation id from the URL
+      (`.../settings/installations/<installID>`) or via
+      `gh api /orgs/derio-homelab/installations`.
+      Replace `REPLACE_AFTER_APP_INSTALL` in
+      `apps/tekton/manifests/clustergenerator-derio-homelab-github-app.yaml`
+      and push to THIS PR before merging — merging with the sentinel in
+      place would create a permanently failing ExternalSecret while ArgoCD
+      stayed green.
+      Also apply the App private key into `tekton-pipelines` if not already
+      present there.
+- number: 2
+  title: Post-merge — Gitea side and webhooks
+  steps:
+  - id: P6.T2.S1
+    text: |-
+      Create the Gitea org `derio-homelab` and repo `kid-laptops`, PUBLIC
+      within Gitea (the git resolver in URL mode cannot authenticate).
+      Grant the Gitea push bot write access.
+  - id: P6.T2.S2
+    text: |-
+      Create the GitHub webhook on derio-homelab/kid-laptops pointing at
+      `https://webhooks.hop.derio.net`, content-type json, secret matching
+      `derio-homelab-github-webhook-secret`, push events.
+      Note: `gh` must run with GITHUB_TOKEN unset to use the account that
+      owns the org.
+  - id: P6.T2.S3
+    text: |-
+      Create the GITEA webhook on the mirror repo pointing at
+      `http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080`,
+      push events, no secret (these triggers validate with `cel` only).
+      This is the step most likely to be skipped: adding a trigger to
+      gitea-listener provisions nothing that delivers to it, and the
+      failure mode is a mirror that syncs perfectly while no PipelineRun
+      is ever created.
+- number: 3
+  title: Post-merge — run the Test Plan and report
+  steps:
+  - id: P6.T3.S1
+    text: |-
+      Execute the spec's Test Plan steps 1-7: push a trivial commit,
+      confirm the mirror, confirm EXACTLY ONE PipelineRun in
+      `kid-laptops-ci`, confirm clone/lint/syntax/unit-tests green and
+      molecule SKIPPED (not failed), and confirm the SA authorisation
+      check answers yes.
+  - id: P6.T3.S2
+    text: |-
+      Report the run on derio-homelab/kid-laptops#43: Tekton versions and
+      resolver state, the Harbor-to-Zot correction, the inverted build-host
+      correction, KubeVirt's absence and the companion spec, what is
+      deferred (requirements 7 and 8) and why.
+      Do NOT flip their acceptance rows —
+      `every-push-runs-ci-pipeline` is only half satisfied while molecule
+      is skipped and `base-role-verified-in-ci-vm` is not satisfied at all.
+state:
+  steps:
+    P6.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T3.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P6.T3.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

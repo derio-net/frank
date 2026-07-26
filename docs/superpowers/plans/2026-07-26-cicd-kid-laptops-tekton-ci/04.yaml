@@ -1,0 +1,88 @@
+schema_version: 2
+phase:
+  number: 4
+  title: kid-laptops companion PR
+  tag: agentic
+  depends_on:
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Real registry coordinates and a conditional molecule stage
+  steps:
+  - id: P4.T1.S1
+    text: |-
+      Work in a scratch clone, NEVER inside the frank worktree — kid-laptops
+      is a separate private repo and must not be vendored here:
+        cd /tmp && rm -rf kid-laptops-pr
+        env -u GITHUB_TOKEN gh repo clone derio-homelab/kid-laptops kid-laptops-pr
+        cd /tmp/kid-laptops-pr && git checkout -b feat/frank-ci-coordinates
+      Run their existing suite first to establish a green baseline:
+        uv sync --frozen && uv run pytest -q
+      EXPECT: green (or record which tests were already failing).
+  - id: P4.T1.S2
+    text: |-
+      RED. Their `tests/test_tekton_contract.py` already fails if
+      `pipelinerun-example.yaml` drifts from `pipeline.yaml`. Add a test
+      asserting the molecule tasks are gated: `pipeline.yaml` declares a
+      param `enable-molecule` defaulting to "false", and BOTH
+      `molecule-base` and `molecule-teardown` carry a `when` expression on
+      it. Also assert no file in the repo references `harbor.frank.derio.net`.
+      EXPECT: fails on both counts.
+  - id: P4.T1.S3
+    text: |-
+      GREEN. In `ci/tekton/pipeline.yaml`: add the `enable-molecule` param
+      (default "false") and a `when` guard on `molecule-base` and on the
+      `finally` task `molecule-teardown`. Replace the containerdisk-image
+      default with `192.168.55.210:5000/kid-laptops/fedora-ci:f43` in all
+      three places that must agree — `ci/tekton/pipeline.yaml`,
+      `roles/base/molecule/kubevirt/vars/main.yml`,
+      `provisioning/build-containerdisk.sh` (REGISTRY/PROJECT).
+      Update `pipelinerun-example.yaml` to match so the contract test stays
+      green.
+      Run: `uv run pytest -q`
+      EXPECT: green.
+  - id: P4.T1.S4
+    text: |-
+      Make `provisioning/build-containerdisk.sh` actually runnable where it
+      will now run. Replace the `mkksiso` step with the HTTP-served
+      kickstart pattern the sibling `kid-laptops-box.pkr.hcl` already uses
+      (`http_directory` + `inst.ks=http://{{.HTTPIP}}:{{.HTTPPort}}/...`),
+      removing the only Linux-only dependency, and correct the preflight
+      comment block: the MacBook is Intel with HVF-accelerated
+      qemu/packer/docker present; Talos has none of them and no shell.
+      Run shellcheck and `packer validate`.
+      EXPECT: both clean.
+  - id: P4.T1.S5
+    text: |-
+      Commit and open the PR against derio-homelab/kid-laptops, body
+      explaining: why the coordinates changed (no Harbor on Frank), why
+      molecule is now gated (no KubeVirt yet, so an ungated pipeline can
+      never go green), and that the build-host comment was inverted.
+      Link frank's PR and issue #43. Do NOT merge it.
+state:
+  steps:
+    P4.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S4:
+      state: ' '
+      ticked_at: null
+      note: null
+    P4.T1.S5:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

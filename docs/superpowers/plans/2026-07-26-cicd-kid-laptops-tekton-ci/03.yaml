@@ -1,0 +1,98 @@
+schema_version: 2
+phase:
+  number: 3
+  title: Gitea push to kid-laptops PipelineRun
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  tracking_issue: null
+  acceptance:
+  - kid-laptops-mirror-push-creates-one-pipelinerun
+  - kid-laptops-python-checks-run-per-push
+tasks:
+- number: 1
+  title: Stop the generic gitea-push trigger from double-firing
+  steps:
+  - id: P3.T1.S1
+    text: |-
+      RED. Add `scripts/tests/test_gitea_generic_trigger_exclusions.py`
+      asserting the `gitea-push` trigger's CEL filter in
+      `apps/tekton/triggers/eventlistener.yaml` excludes BOTH
+      `agentic-stoa/` and `derio-homelab/` prefixes.
+      Today the filter is only `!...startsWith('agentic-stoa/')`, so a
+      kid-laptops push matches it as well as its own trigger and creates a
+      SECOND, failing `gitea-ci-*` PipelineRun on every push.
+      EXPECT: fails — only the agentic-stoa exclusion is present.
+  - id: P3.T1.S2
+    text: |-
+      GREEN. Extend the filter to exclude `derio-homelab/` too. Add a
+      comment stating why the exclusion list exists at all: every repo
+      with a dedicated trigger must be subtracted from the generic one, or
+      it gets two runs.
+      Run the test.
+      EXPECT: passes.
+- number: 2
+  title: TriggerBinding, TriggerTemplate and the CI trigger
+  steps:
+  - id: P3.T2.S1
+    text: |-
+      RED. Add `scripts/tests/test_kid_laptops_pipelinerun_contract.py`
+      asserting the generated PipelineRun matches kid-laptops'
+      `ci/tekton/pipelinerun-example.yaml` contract:
+        - `pipelineRef.resolver: git`, params url / revision / pathInRepo
+          = `ci/tekton/pipeline.yaml`
+        - pipeline params `repo-url`, `revision`, `run-id`
+        - `revision` bound to the pushed SHA, NOT a branch name
+        - `run-id` contains BOTH a short-sha substitution and `$(uid)` —
+          the request calls a run-id collision catastrophic, and Tekton
+          documents `$(uid)` only as "a random value", not a unique one
+        - workspace `source` is a volumeClaimTemplate of at least 2Gi
+        - `taskRunSpecs` binds `kid-laptops-ci-kubevirt` to
+          `molecule-base` and `molecule-teardown` only
+        - namespace `kid-laptops-ci`
+      EXPECT: fails.
+  - id: P3.T2.S2
+    text: |-
+      GREEN. Create `apps/tekton/triggers/kid-laptops-ci.yaml` with the
+      TriggerBinding (repo-url from `body.repository.clone_url`, revision
+      from `body.after`) and the TriggerTemplate producing that
+      PipelineRun, with `storageClassName: longhorn-cicd` on the workspace
+      (numberOfReplicas 1, dataLocality best-effort — verified not
+      node-pinned, so it does not constrain scheduling).
+      Add the `kid-laptops-push` trigger to `gitea-listener` filtering on
+      `header.match('X-Gitea-Event','push')` and the repo full name, with a
+      CEL overlay computing the short SHA (`body.after.substring(0,7)`).
+      Run both phase-3 tests.
+      EXPECT: pass.
+  - id: P3.T2.S3
+    text: |-
+      OPTIONAL REFACTOR. If the three tripwire test files repeat YAML-
+      loading boilerplate, extract a small shared helper. Keep green. Skip
+      if there is nothing to clean.
+state:
+  steps:
+    P3.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P3.T2.S3:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

@@ -1,0 +1,96 @@
+schema_version: 2
+phase:
+  number: 2
+  title: GitHub to Gitea mirror wiring
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - kid-laptops-push-mirrors-to-gitea
+tasks:
+- number: 1
+  title: derio-homelab GitHub App credential
+  steps:
+  - id: P2.T1.S1
+    text: |-
+      RED. Extend `scripts/tests/test_kid_laptops_ci_rbac.py` (or add
+      `scripts/tests/test_kid_laptops_mirror_wiring.py`) asserting:
+        - `apps/tekton/manifests/clustergenerator-derio-homelab-github-app.yaml`
+          declares a ClusterGenerator `github-app-derio-homelab` of kind
+          `GithubAccessToken` with appID "3994132" (the existing
+          derio-fr-automation App).
+        - its `auth.privateKey.secretRef` names a Secret WITHOUT a
+          `namespace:` field. ESO resolves that ref in the CONSUMING
+          ExternalSecret's namespace and silently ignores `namespace:` —
+          asserting its absence stops someone re-introducing the trap that
+          left `frank-gitops-push` in SecretSyncedError for seven days.
+        - `apps/tekton/manifests/externalsecret-derio-homelab-github-mirror.yaml`
+          targets a Secret in `tekton-pipelines` and consumes that
+          generator via `dataFrom.sourceRef.generatorRef`.
+        - `refreshInterval` is strictly less than 60m (the installation
+          token TTL).
+      EXPECT: fails — files absent.
+  - id: P2.T1.S2
+    text: |-
+      GREEN. Write both manifests, modelled on
+      `clustergenerator-stoa-github-app.yaml` and
+      `externalsecret-stoa-github-mirror.yaml`. Target Secret name
+      `derio-homelab-github-mirror`, key `token`, refreshInterval 45m.
+      Set `installID: "REPLACE_AFTER_APP_INSTALL"` with a comment naming
+      manual operation `cicd-kid-laptops-github-app-install`: no App is
+      installed on derio-homelab today (verified via
+      `gh api /orgs/derio-homelab/installations` — empty), so the id cannot
+      be known until the operator installs it. The operator fills this in
+      on the same PR BEFORE merge, so a broken ExternalSecret never reaches
+      the cluster.
+      Run the test.
+      EXPECT: passes.
+- number: 2
+  title: main-sync trigger on the GitHub EventListener
+  steps:
+  - id: P2.T2.S1
+    text: |-
+      RED. Extend the wiring test to assert
+      `apps/tekton/triggers/eventlistener-github.yaml` contains a trigger
+      named `derio-homelab-kid-laptops-main-sync` that:
+        - filters `body.repository.full_name == 'derio-homelab/kid-laptops'
+          && body.ref == 'refs/heads/main'`
+        - binds github-repo, gitea-repo, sha (from `body.after`) and
+          ref-to `refs/heads/main`
+        - uses the `github` ClusterInterceptor with eventTypes ["push"]
+      EXPECT: fails.
+  - id: P2.T2.S2
+    text: |-
+      GREEN. Add the trigger, copying the shape of
+      `agentic-stoa-main-sync` but as its own trigger rather than extending
+      that one's repo list — the stoa trigger's `secretRef` is
+      `stoa-github-webhook-secret` and a derio-homelab hook signs with its
+      own secret. Reference a new `derio-homelab-github-webhook-secret`
+      and add the matching ExternalSecret alongside it.
+      Reuse the existing `agentic-stoa-main-sync-template` only if its
+      TriggerTemplate is repo-agnostic; otherwise add a sibling template.
+      Verify by reading the template's resourcetemplate, not by assuming.
+      Run the test.
+      EXPECT: passes.
+state:
+  steps:
+    P2.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P2.T2.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []

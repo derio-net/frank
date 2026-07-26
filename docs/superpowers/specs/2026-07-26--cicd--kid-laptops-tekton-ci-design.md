@@ -233,6 +233,12 @@ scripts/tests/test_kid_laptops_ci_triggers.py    # tripwires
 docs/runbooks/manual-operations.yaml             # + 4 manual ops
 ```
 
+## Implementation Plans
+
+| Plan | Repo | File | Depends on |
+|------|------|------|------------|
+| 2026-07-26-cicd-kid-laptops-tekton-ci | `derio-net/frank` | `2026-07-26-cicd-kid-laptops-tekton-ci` | — |
+
 ## Manual operations
 
 1. Install the `derio-fr-automation` GitHub App into `derio-homelab`; record `installID`.

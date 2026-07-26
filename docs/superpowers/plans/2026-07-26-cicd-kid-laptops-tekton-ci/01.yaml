@@ -1,0 +1,62 @@
+schema_version: 2
+phase:
+  number: 1
+  title: CI namespace and VirtualMachineInstance RBAC
+  tag: agentic
+  depends_on: []
+  tracking_issue: null
+  acceptance:
+  - kid-laptops-ci-sa-can-manage-vmis
+tasks:
+- number: 1
+  title: kid-laptops-ci namespace, ServiceAccount, Role and RoleBindings
+  steps:
+  - id: P1.T1.S1
+    text: |-
+      RED. Write `scripts/tests/test_kid_laptops_ci_rbac.py`. It parses the
+      YAML (no cluster access) and asserts:
+        - `apps/root/templates/ns-kid-laptops-ci.yaml` declares a Namespace
+          named `kid-laptops-ci`.
+        - `apps/tekton/manifests/kid-laptops-ci-rbac.yaml` contains a
+          ServiceAccount `kid-laptops-ci-kubevirt` in `kid-laptops-ci`.
+        - a Role whose rules are EXACTLY apiGroups ["kubevirt.io"],
+          resources ["virtualmachineinstances"], verbs
+          ["get","list","watch","create","delete"] — assert the verb SET,
+          so a later widening (e.g. adding "*") fails the test. This is
+          the request's requirement 5 verbatim.
+        - a RoleBinding granting the ClusterRole
+          `tekton-triggers-eventlistener-roles` to ServiceAccount
+          `tekton-triggers-sa` (namespace `tekton-pipelines`) INSIDE
+          `kid-laptops-ci`. Without it the EventListener cannot create a
+          PipelineRun in that namespace — `tekton-triggers-sa`'s existing
+          binding is namespace-scoped to `tekton-pipelines`.
+      Run: `uv run pytest scripts/tests/test_kid_laptops_ci_rbac.py -q`
+      EXPECT: fails — neither manifest exists.
+  - id: P1.T1.S2
+    text: |-
+      GREEN. Create `apps/root/templates/ns-kid-laptops-ci.yaml` following
+      the `ns-longhorn.yaml` idiom but WITHOUT the privileged pod-security
+      labels — nothing here needs them (the VMI is created by the API, the
+      privileged pod is virt-launcher in KubeVirt's own namespace). Then
+      create `apps/tekton/manifests/kid-laptops-ci-rbac.yaml` with the
+      ServiceAccount, Role and both RoleBindings, each with an explicit
+      `namespace: kid-laptops-ci`.
+      Add a header comment recording that the Role is valid before KubeVirt
+      exists (RBAC rules are strings; the API server does not resolve them
+      against installed CRDs), so a reader does not "fix" it.
+      Run the test.
+      EXPECT: passes.
+state:
+  steps:
+    P1.T1.S1:
+      state: ' '
+      ticked_at: null
+      note: null
+    P1.T1.S2:
+      state: ' '
+      ticked_at: null
+      note: null
+  completion:
+    at: null
+    note: null
+    observed_prs: []
