@@ -1,7 +1,16 @@
 # VMs — Design
 
 **Date:** 2026-03-07
-**Status:** Deferred — KubeVirt never deployed (no `apps/kubevirt`); spec retained as future-work reference.
+**Status:** Superseded by [`2026-07-26--virt--kubevirt-vms-design.md`](2026-07-26--virt--kubevirt-vms-design.md) (2026-07-26). Never deployed (no `apps/kubevirt`); retained for provenance.
+
+> **Why superseded rather than edited.** Two things had gone stale. The version
+> assumption: this spec predates Frank's move to Kubernetes v1.35, and KubeVirt
+> v1.7 supports only up to 1.34 — an install from this document would have been
+> unsupported on first apply. And the scope: "specific use cases will emerge from
+> experimentation" has since resolved into two concrete ones (CI VMs for
+> `derio-homelab/kid-laptops`, and a persistent Windows VM) that pull the design
+> in different directions. The successor keeps this spec's component choices and
+> its 192.168.55.205 reservation, and replaces its assumptions with measurements.
 
 ## Overview
 
