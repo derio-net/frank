@@ -32,23 +32,52 @@
 # in the same change: the browser blocks it while the page still returns
 # 200, so no server-side check catches the breakage.
 #
-# style-src is 'self' with no 'unsafe-inline', which means the site images
-# must emit external stylesheets rather than inline <style> blocks.
-# agentic-stoa/site pins that with its own build check.
-#
 # HSTS intentionally omits `preload`. Preload applies to every
 # *.derio.net name a browser has seen and is hard to walk back; promoting
 # to it is a separate, deliberate decision.
+#
+# The CSP is NOT in this snippet: www and the blog need different style-src
+# values, and the difference is load-bearing enough to be stated per-site
+# rather than hidden behind a shared default. See csp_strict / csp_blog.
 (security_headers) {
   header {
     Strict-Transport-Security "max-age=31536000; includeSubDomains"
     X-Content-Type-Options "nosniff"
     Referrer-Policy "strict-origin-when-cross-origin"
     Permissions-Policy "geolocation=(), camera=(), microphone=(), browsing-topics=()"
-    Content-Security-Policy "default-src 'self'; script-src 'self' https://counter.derio.net; connect-src 'self' https://counter.derio.net; style-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
     # Caddy advertises itself by default; no reason to help fingerprinting.
     -Server
   }
+}
+
+# CSP for www (agentic-stoa/site) — fully strict: style-src 'self' with no
+# 'unsafe-inline'. That site emits external stylesheets only and pins the
+# constraint with its own build check, so it can hold this line.
+(csp_strict) {
+  header Content-Security-Policy "default-src 'self'; script-src 'self' https://counter.derio.net; connect-src 'self' https://counter.derio.net; style-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
+}
+
+# CSP for the blog — identical EXCEPT style-src carries 'unsafe-inline'.
+#
+# This is a deliberate, measured concession, not drift. The blog is Hugo +
+# the Hextra theme, and Hextra emits inline style attributes structurally,
+# not sloppily: `cards.html` renders style="--hextra-cards-grid-cols: {N}"
+# and `card.html` renders a templated style="{{ $imageStyle | safeCSS }}".
+# Those are per-invocation computed values; no external stylesheet can carry
+# them. Verified against v0.12.3 (latest, 2026-07-26) — identical to the
+# pinned v0.12.1, so this is not a "wait for the next release" situation.
+#
+# Applying the strict snippet here on 2026-07-26 (#704, for www-parity) took
+# the blog down visually while every server-side check stayed green: all
+# three card lists rendered as bare text and EVERY syntax-highlighted code
+# block lost its colours. A CSP violation is a browser-side drop — 200 OK,
+# ArgoCD Synced, nothing paged.
+#
+# script-src stays strict, with no 'unsafe-inline'. That is the half that
+# actually stops XSS, and the blog build now holds it: scripts/check_blog_build.py
+# fails the build on any inline <script> or off-origin asset.
+(csp_blog) {
+  header Content-Security-Policy "default-src 'self'; script-src 'self' https://counter.derio.net; connect-src 'self' https://counter.derio.net; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
 }
 
 # --- Public routes ---
@@ -68,6 +97,7 @@ blog.derio.net {
   # client IP is currently in an active decision.
   crowdsec
   import security_headers
+  import csp_blog
   handle /frank* {
     reverse_proxy blog.blog-system.svc:8080
   }
@@ -90,6 +120,7 @@ www.derio.net {
   log
   crowdsec
   import security_headers
+  import csp_strict
   reverse_proxy www.www-system.svc:8080
   handle_errors {
     # The site-level `import security_headers` above does NOT reach here.
@@ -99,6 +130,7 @@ www.derio.net {
     # mutations are not applied to it. Re-importing keeps the hardening
     # promise true during an outage, which is exactly when it matters.
     import security_headers
+    import csp_strict
     respond "Coming soon." 200
   }
 }
