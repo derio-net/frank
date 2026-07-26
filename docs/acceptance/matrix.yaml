@@ -528,7 +528,7 @@ rows:
       over valid TLS, served from a versioned container image rather than a hard-coded
       Caddy string.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
     levels: {}
     status: skipped
     notes: Live proof 2026-07-26 - https://www.derio.net returns HTTP/2 200 over valid TLS serving
@@ -541,7 +541,7 @@ rows:
     acceptance: A content change pushed to the private site repo reaches www.derio.net
       automatically, without an operator touching the Frank or Hop clusters.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
     levels: {}
     status: skipped
     notes: Live proof 2026-07-26 - observed end to end TWICE, the second time fully unattended.
@@ -558,7 +558,7 @@ rows:
       response headers — HSTS, nosniff, Referrer-Policy, Permissions-Policy and a Content-Security-Policy
       — without breaking analytics.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
     levels: {}
     status: skipped
     notes: Live proof 2026-07-26 - both www.derio.net and blog.derio.net return HSTS (max-age=31536000,
@@ -574,7 +574,7 @@ rows:
     acceptance: If www.derio.net stops answering, the operator is alerted through the
       same Layer 17 edge path that already covers the blog.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
     levels: {}
     status: skipped
     notes: Live proof 2026-07-26 - probe_success for the www instance exists in the feature_health
@@ -591,7 +591,7 @@ rows:
     acceptance: Requests to www.derio.net are searchable in central logging and counted
       in analytics, and abusive clients are blocked at the edge by CrowdSec.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
     levels: {}
     status: skipped
     notes: Live proof 2026-07-26 - VictoriaLogs returned 77 hits for the www.derio.net request
