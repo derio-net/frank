@@ -612,3 +612,11 @@
   list-style: none;
   padding-left: 1rem;
 }
+
+/* Footer "clear read history" link. Was an inline style attribute in
+   layouts/partials/custom/footer.html; moved here when blog.derio.net gained a
+   CSP so the whole footer control is external and cacheable. */
+.clear-read-history {
+  font-size: 0.75rem;
+  opacity: 0.5;
+}

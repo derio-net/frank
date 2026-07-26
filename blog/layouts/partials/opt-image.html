@@ -30,11 +30,24 @@
     {{- $pt := cond (gt $srcW $maxW) (try ($r.Resize (printf "%dx %s q%d" $maxW $fmt $q))) (try ($r.Process (printf "%s q%d" $fmt $q))) -}}
     {{- if not $pt.Err -}}
       {{- $primary = $pt.Value -}}
-      {{- range $w := (slice 480 960 $maxW) -}}
-        {{- /* clamp to BOTH the source width and the cap (matters when maxWidth < 960) */ -}}
-        {{- if and (le $w $srcW) (le $w $maxW) -}}
+      {{- /* The top candidate must be the PRIMARY's own width, never the cap.
+             When the source is narrower than the cap — banners 2169 < 2560,
+             covers 1424 < 1600 — a cap-derived candidate fails the clamp and is
+             dropped, leaving NOTHING in the srcset that matches the primary.
+             That is not merely a missing size: per the HTML spec, a srcset
+             carrying `w` descriptors removes `src` from the candidate list
+             entirely, so the full-resolution file this partial just generated
+             becomes unreachable and every banner renders upscaled from 960w.
+             Pinned by scripts/check_blog_build.py. */ -}}
+      {{- $topW := $primary.Width -}}
+      {{- range $w := (slice 480 960 $topW) -}}
+        {{- if lt $w $topW -}}
           {{- $dt := try ($r.Resize (printf "%dx %s q%d" $w $fmt $q)) -}}
           {{- if not $dt.Err -}}{{- $srcset = $srcset | append (printf "%s %dw" $dt.Value.RelPermalink $dt.Value.Width) -}}{{- end -}}
+        {{- else if eq $w $topW -}}
+          {{- /* reuse the primary itself — re-Resizing to its own width would
+                 emit a byte-identical second file under a different hash */ -}}
+          {{- $srcset = $srcset | append (printf "%s %dw" $primary.RelPermalink $primary.Width) -}}
         {{- end -}}
       {{- end -}}
     {{- end -}}
