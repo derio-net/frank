@@ -23,11 +23,31 @@ WWW = "https://www.derio.net"
 BLOG = "https://blog.derio.net"
 
 
-def _feature_health_targets() -> list[str]:
+def _feature_health_probes() -> list[dict]:
+    """Every VMProbe in the feature_health group.
+
+    Deliberately keyed on the probe_group LABEL, not the VMProbe name: www was
+    split into its own object (www-content-probe) purely because a VMProbe
+    carries one module and www needs a content-asserting one. Matching on the
+    name would have made a monitoring-fidelity upgrade look like a regression.
+    """
+    out = []
     for doc in yaml.safe_load_all(VMPROBE.read_text()):
-        if doc and doc.get("metadata", {}).get("name") == "feature-health-probes":
-            return doc["spec"]["targets"]["staticConfig"]["targets"]
-    raise AssertionError("feature-health-probes VMProbe not found")
+        if not doc or doc.get("kind") != "VMProbe":
+            continue
+        static = doc["spec"]["targets"]["staticConfig"]
+        if static.get("labels", {}).get("probe_group") == "feature_health":
+            out.append(doc)
+    assert out, "no feature_health VMProbes found"
+    return out
+
+
+def _feature_health_targets() -> list[str]:
+    return [
+        t
+        for doc in _feature_health_probes()
+        for t in doc["spec"]["targets"]["staticConfig"]["targets"]
+    ]
 
 
 def test_www_is_probed() -> None:
@@ -37,6 +57,25 @@ def test_www_is_probed() -> None:
     )
     # The blog must not be dropped while adding www.
     assert BLOG in targets
+
+
+def test_www_probe_asserts_page_content_not_just_status() -> None:
+    """A status-only probe of www cannot fail.
+
+    The Hop vhost ends in `handle_errors { respond "Coming soon." 200 }`, so an
+    unreachable backend still answers 200. Under a status-only module the probe
+    reports success while visitors get the holding page — the outage is
+    invisible, which is the exact thing this file exists to prevent.
+    """
+    modules = {
+        doc["spec"]["module"]
+        for doc in _feature_health_probes()
+        if WWW in doc["spec"]["targets"]["staticConfig"]["targets"]
+    }
+    assert modules == {"www_content"}, (
+        f"{WWW} must be probed ONLY by the content-asserting module; found {modules}. "
+        "A status-only module would pass against the handle_errors fallback."
+    )
 
 
 def test_layer_17_rule_covers_both_public_sites() -> None:

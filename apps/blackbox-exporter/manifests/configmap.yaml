@@ -51,6 +51,37 @@ data:
           preferred_ip_protocol: ip4
           tls_config:
             insecure_skip_verify: true
+      # --- www.derio.net content probe (Layer 17) ----------------------------
+      # www's edge vhost carries a `handle_errors` fallback that answers 200 with
+      # the old holding page whenever the backend is unreachable. That is the
+      # intended behaviour for visitors — they see a page, not a 502 — but it
+      # makes a plain status-code probe BLIND to a www-backend outage: the pod can
+      # be gone and http_2xx still reports success. This module closes that gap by
+      # asserting a string only the BUILT page contains, so the fallback fails the
+      # probe and layer-17-edge-down fires.
+      #
+      # The token is the analytics beacon. That deliberately couples uptime to the
+      # analytics wiring: if the beacon disappears, "traffic is observable" has
+      # stopped being true and the probe SHOULD complain. Do not swap it for a
+      # copy string — marketing copy changes, and a probe that breaks on a wording
+      # edit trains people to ignore it.
+      #
+      # fail_if_body_NOT_matches_regexp is the non-inverted form: fail when the
+      # token is ABSENT. The inverse field would pass on the fallback, which is the
+      # exact bug this module exists to catch (guarded by tests/assert-modules.sh).
+      www_content:
+        prober: http
+        timeout: 10s
+        http:
+          # See note above — keep in sync with facts.PROBE_UA_TOKEN.
+          headers:
+            User-Agent: "Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"
+          valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+          valid_status_codes: [200]
+          follow_redirects: false
+          preferred_ip_protocol: ip4
+          fail_if_body_not_matches_regexp:
+            - 'counter\.derio\.net'
       tcp_connect:
         prober: tcp
         timeout: 5s

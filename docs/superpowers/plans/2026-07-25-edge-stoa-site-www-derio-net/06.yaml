@@ -97,9 +97,14 @@ state:
         GET 200 for both latest and the sha) — NOT via docker manifest inspect. Image
         is amd64/linux, matching hop-1.'
     P6.T2.S3:
-      state: ' '
-      ticked_at: null
-      note: null
+      state: x
+      ticked_at: '2026-07-25T23:06:12+00:00'
+      note: 'Verified live 2026-07-26. Full chain: GitHub push 7244f31 -> webhook
+        202 -> agentic-stoa-main-sync (29s) -> Gitea mirror -> Gitea Actions green
+        -> ghcr image -> site-promotion -> commit 7db3418 on frank main -> ArgoCD
+        Hop -> pod 1/1 Running on the promoted tag. Test Plan 1-7 all pass. Required
+        an UNPLANNED fix: the Gitea push webhook to el-gitea-listener did not exist
+        (see new manual-op cicd-stoa-site-gitea-push-webhook).'
     P6.T2.S4:
       state: ' '
       ticked_at: null

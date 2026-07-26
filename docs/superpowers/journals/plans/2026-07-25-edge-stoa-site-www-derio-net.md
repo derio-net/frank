@@ -55,10 +55,16 @@ The manual-op said to wait for the frank merge because 'triggers live'. Inspecti
 
 Both new triggers are edits to existing `.spec.triggers[]` arrays — the exact shape that silently froze EventListener updates from 2026-06-13 to 2026-07-20 while syncs reported Succeeded. Confirmed the tekton-extras EventListener rule is now only `.spec.namespaceSelector | select(. == {})` (no array-item path), and `scripts/tests/test_tekton_ignore_rules_no_arrays.py` passes (2 passed). Latent and unchanged: the Pipeline/Task rules still use array-item expressions, so the NEW site-promotion Pipeline applies cleanly on create but a future edit to its `.spec.tasks` would be frozen — pre-existing and already tracked, not introduced here.
 
-<!-- fr:journal kind=finding scope=plan id=p6-webhook-scope created=2026-07-26T00:20:54 phase=6 state=open -->
-### p6-webhook-scope · finding [open] · Webhook creation blocked: session gh token lacks admin:repo_hook (phase 6)
+<!-- fr:journal kind=finding scope=plan id=p6-webhook-scope created=2026-07-26T00:20:54 phase=6 state=fixed -->
+### p6-webhook-scope · finding [fixed] · Webhook creation blocked — GITHUB_TOKEN selecting the wrong account, NOT a missing scope (phase 6)
 
-`POST repos/agentic-stoa/site/hooks` returns 404 + 'needs the admin:repo_hook scope'. Token has repo, workflow, read:org, read:packages, admin:public_key, gist. Handed to the operator in `scripts/tmp/phase6-operator-steps.sh`, which refreshes the scope and then creates the hook with config copied verbatim from the in-service second-brain hook, reading the shared secret live from the cluster.
+Initially diagnosed as a scope gap: `POST repos/agentic-stoa/site/hooks` returned 404 + "needs the `admin:repo_hook` scope", and `gh auth refresh` then refused outright. **That diagnosis was wrong**, and both symptoms had a single cause — the `GITHUB_TOKEN` env var resolves to `clawdia-ai-assistant` and overrides the keyring account, so the 404 was clawdia's, and `gh` refuses to refresh a token supplied by the environment.
+
+The keyring account (`YiannisDermitzakis`) already carried `repo`, which on a classic PAT **includes repository webhooks**. No scope was widened. Creating the hook with `env -u GITHUB_TOKEN` succeeded immediately: id 656957779, ping delivered `status=OK code=202`, config byte-identical to the in-service second-brain hook.
+
+Two things carried forward: the `gh auth refresh` the hand-off script opened was unnecessary (worth revoking `admin:repo_hook` if it was granted), and the EventListener answers **202 Accepted**, so the runbook's "shows 200 on the ping event" was wrong by one code. Both recorded in the runbook.
+
+Not to be confused with the separate, real webhook defect found later the same session: the missing *Gitea* push webhook to the gitea-listener (`p6-gitea-push-webhook-missing`), which is what actually blocked promotion.
 
 <!-- fr:journal kind=discovery scope=plan id=p6-gitops-push-repaired created=2026-07-26T00:34:58 phase=6 -->
 ### p6-gitops-push-repaired · discovery · frank-gitops-push repaired; cnc-promotion un-blocked as a side effect (phase 6)
@@ -69,3 +75,18 @@ Operator ran the hand-off script. The derio App PEM is now in tekton-pipelines, 
 ### p6-premerge-compat · discovery · Pre-merge compatibility checks: arch, ports and listen address all match (phase 6)
 
 The published image is a SINGLE-arch manifest (no index), so architecture is not negotiable at pull time — verified `amd64/linux` against hop-1's `amd64/linux`. Port path verified end to end rather than assumed: the Dockerfile writes a Caddyfile listening on :8080 and EXPOSEs 8080; the Deployment declares containerPort 8080 named http; the Service maps 8080 -> targetPort http. This was worth checking pre-merge precisely BECAUSE of the handle_errors fallback — a listen-port or arch mismatch would leave the pod never-Ready while the edge kept serving the holding page with a 200, which is the exact blind spot P6.T2.S4 exists to close.
+
+<!-- fr:journal kind=finding scope=plan id=p6-gitea-push-webhook-missing created=2026-07-26T01:09:22 phase=6 state=fixed -->
+### p6-gitea-push-webhook-missing · finding [fixed] · The promotion trigger had no delivery path: no Gitea push webhook existed (phase 6)
+
+Phase 3 added an `agentic-stoa-site-promotion` trigger to the gitea-listener, but nothing provisions Gitea→EventListener delivery. The org webhook sends **only `status`** events, and the one per-repo push hook in the org (companies) targets `el-live-mirror-sync`, a different listener — so `push`→`gitea-listener` had ZERO delivery paths in any repo. Everything upstream reported healthy (mirror Succeeded, Actions green, image published, ArgoCD Synced, trigger present and correct, listener logs silent because the request never arrived), so it read as a broken pipeline rather than a missing webhook. FIXED: per-repo push hook (id 5) to el-gitea-listener, scoped to `site` so the other ten repos don't start delivering pushes. Verified by Gitea test-delivery firing the trigger, then a real promotion. New manual-op `cicd-stoa-site-gitea-push-webhook`; gotcha one-liner + full prose in tekton.md.
+
+<!-- fr:journal kind=finding scope=plan id=p6-handle-errors-unhardened created=2026-07-26T01:09:23 phase=6 state=fixed -->
+### p6-handle-errors-unhardened · finding [fixed] · handle_errors served the fallback with no security headers at all (phase 6)
+
+Measured live while the backend was unpullable: `www.derio.net` returned 200 with NO HSTS, CSP, Referrer-Policy or Permissions-Policy, and leaked `Server: Caddy` despite the snippet's `-Server` — because Caddy runs `handle_errors` as its own handler chain and the site-level `import security_headers` does not reach it. This is worst-case timing by construction: the fallback only serves during an outage. It also directly weakened the plan's own 'hardened headers on both sites' acceptance row. FIXED by re-importing the snippet inside `handle_errors`, proven at config level rather than by hope: adapting both revisions with Hop's real caddy-cloudflare:2.11.3 image shows `.apps.http.servers.srv0.errors` gaining HSTS/CSP/Server-strip (origin/main: all False; this branch: all True).
+
+<!-- fr:journal kind=finding scope=plan id=p6-caddy-never-reloads created=2026-07-26T01:09:24 phase=6 state=fixed -->
+### p6-caddy-never-reloads · finding [fixed] · Caddy served the old config for 62 days of pod uptime while ArgoCD reported Synced (phase 6)
+
+After the merge the caddy app was Synced at the new revision and the pod's own /etc/caddy/Caddyfile contained the new snippet (the mount is a directory, not subPath, so kubelet DOES live-update it) — but Caddy parses config once at boot, runs without --watch, and the Deployment has no content hash, so the 62-day-old pod kept serving the old routes. Both public sites answered with zero security headers while every status surface was green. Recovered with an in-pod `caddy validate` then `caddy reload` (zero-downtime; a rollout restart would be a real edge outage here because the Deployment is Recreate + hostPort). Documented in hop-gotchas.md; durable fix is a kustomize configMapGenerator, same shape as the gitea-inline-config and homepage traps.

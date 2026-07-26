@@ -54,6 +54,24 @@ verify:
 status: done
 
 # manual-operation
+id: cicd-stoa-site-gitea-push-webhook
+layer: cicd
+app: gitea
+plan: docs/superpowers/plans/2026-07-25-edge-stoa-site-www-derio-net/06.yaml
+when: After the Gitea mirror repo exists. REQUIRED for promotion — without it the loop silently never closes.
+why_manual: Gitea webhook config is per-repo API/UI state; no IaC for it in our setup.
+commands:
+- '# GAP FOUND 2026-07-26, absent from the original plan. Phase 3 added an agentic-stoa-site-promotion trigger to the gitea-listener EventListener but nothing was ever provisioned to DELIVER a Gitea push event to it. The org-level Gitea webhook (id 4) sends ONLY `status` events (that is the stoa-status-bridge path), and the single per-repo push webhook in the org (companies) points at el-live-mirror-sync, a different listener. So the trigger was live and correct and could never fire. The symptom is indistinguishable from a broken pipeline: mirror syncs, Actions go green, image publishes, and NO site-promotion PipelineRun is ever created.'
+- 'curl -s -X POST http://192.168.55.209:3000/api/v1/repos/agentic-stoa/site/hooks -u <gitea admin> -H ''Content-Type: application/json'' -d ''{"type":"gitea","active":true,"events":["push"],"config":{"url":"http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080","content_type":"json","http_method":"post"}}'''
+- '# No webhook secret: agentic-stoa-site-promotion validates with a `cel` interceptor only (repo full_name + ref), with no secret-validation interceptor. Scoped to the `site` repo rather than an org-wide push hook, so the other ten repos do not suddenly start delivering pushes to the gitea-listener.'
+verify:
+- 'curl -s -u <gitea admin> http://192.168.55.209:3000/api/v1/repos/agentic-stoa/site/hooks   # a push hook to el-gitea-listener'
+- 'kubectl -n tekton-pipelines logs -l eventlistener=gitea-listener --tail=30 | grep agentic-stoa-site-promotion'
+- 'kubectl -n tekton-pipelines get pipelinerun | grep site-promotion   # one run per push to main'
+- '# EXECUTED 2026-07-26 — hook id 5. First promotion (site-promotion-5rxtq) Succeeded and pushed 7db3418 to frank main.'
+status: done
+
+# manual-operation
 id: cicd-stoa-site-ghcr-package-public
 layer: cicd
 app: www
@@ -68,7 +86,8 @@ verify:
 - '# DO NOT verify with `docker manifest inspect`. It reads ~/.docker/config.json, so on any host that has ever run `docker login ghcr.io` (Docker Desktop keeps this in the "desktop" credsStore) it succeeds against a PRIVATE package and the check cannot fail. Observed 2026-07-26: inspect passed while the API reported visibility=private and an anonymous pull returned 403. Hop pulls with no credentials at all, so anonymity has to be forced, not merely omitted.'
 - 'gh api orgs/agentic-stoa/packages/container/site --jq .visibility   # want: public'
 - 'curl -s -o /dev/null -w "%{http_code}\n" -H "Authorization: Bearer $(curl -s ''https://ghcr.io/token?scope=repository:agentic-stoa/site:pull&service=ghcr.io'' | python3 -c ''import sys,json;print(json.load(sys.stdin).get("token",""))'')" -H ''Accept: application/vnd.oci.image.index.v1+json'' https://ghcr.io/v2/agentic-stoa/site/manifests/latest   # want: 200 (403 = still private)'
-status: pending
+- '# EXECUTED 2026-07-26 (operator flipped it). Verified the way Hop actually pulls: API visibility=public, an anonymous ghcr token IS issued (none was before), and anonymous GETs of manifests/latest and manifests/<sha> both return 200 where they returned 403 while private. Image is a single-arch amd64/linux manifest matching hop-1.'
+status: done
 
 # manual-operation
 id: cicd-stoa-site-first-promotion
@@ -85,5 +104,7 @@ verify:
 - 'curl -sI https://www.derio.net | head -1   # 200, and the body is the built page, not the handle_errors holding page'
 - 'curl -s https://www.derio.net | grep -q "counter.derio.net" && echo analytics-wired'
 - 'git -C <frank> log --oneline -1 clusters/hop/apps/www/manifests/deployment.yaml   # a deploy(edge) commit from stoa-fr-automation'
-status: pending
+- '# EXECUTED 2026-07-26. Full chain observed: GitHub push 7244f31 -> webhook 202 -> agentic-stoa-main-sync (29s) -> Gitea mirror -> Actions green -> ghcr image -> site-promotion-5rxtq -> commit 7db3418 "deploy(edge): promote www image to 7244f31" on frank main (pushed on attempt 1) -> ArgoCD Hop -> pod 1/1 Running. Needed the previously-missing Gitea push webhook first (cicd-stoa-site-gitea-push-webhook).'
+- '# The promotion log carries `WARNING: cannot resolve ordering between <sha> and 0000...0 in agentic-stoa/site; proceeding with last-writer-wins`. That is the ordering guard behaving CORRECTLY against the 40-zero placeholder, not a fault; it disappears once a real sha is the incumbent.'
+status: done
 ```

@@ -99,6 +99,13 @@ data:
       import security_headers
       reverse_proxy www.www-system.svc:8080
       handle_errors {
+        # The site-level `import security_headers` above does NOT reach here.
+        # Verified live 2026-07-26: while the backend was unpullable, the
+        # fallback served 200 with no HSTS/CSP and even leaked `Server: Caddy`,
+        # because handle_errors runs its own handler chain and the outer header
+        # mutations are not applied to it. Re-importing keeps the hardening
+        # promise true during an outage, which is exactly when it matters.
+        import security_headers
         respond "Coming soon." 200
       }
     }
