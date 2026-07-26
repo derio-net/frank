@@ -1,0 +1,14 @@
+# CI namespace for derio-homelab/kid-laptops (issue #43).
+#
+# Deliberately NOT pod-security privileged, unlike ns-longhorn / ns-gpu-operator.
+# Nothing scheduled here needs it: the Tekton tasks are ordinary pods, and the
+# VirtualMachineInstance this namespace's ServiceAccount creates is realised as
+# a virt-launcher pod by KubeVirt, in KubeVirt's own namespace, under KubeVirt's
+# own service account. Granting privileged here would widen the blast radius of
+# a CI job for no capability gained.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kid-laptops-ci
+  labels:
+    app.kubernetes.io/part-of: kid-laptops-ci
