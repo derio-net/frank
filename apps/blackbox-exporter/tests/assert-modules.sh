@@ -1,18 +1,19 @@
 #!/usr/bin/env bash
 # Assert the GPU-time-share probe modules exist in the blackbox-exporter config
 # and that the whole config still validates (blackbox --config.check).
-# The config is embedded in configmap.yaml under data["blackbox.yml"]; we extract
-# it with PyYAML (via uv, no system dep) and feed it to the real exporter binary.
+# The config lives at manifests/files/blackbox.yml — a Kustomize generator input
+# since 2026-07-26, so an edit hashes into the pod spec and the exporter actually
+# re-reads it. No YAML extraction needed any more; feed the file straight in.
 # Plan: 2026-06-15--obs--gpu-timeshare-health-probes (Phase 1).
 set -euo pipefail
 cd "$(dirname "$0")/../../.."   # repo root
-CM=apps/blackbox-exporter/manifests/configmap.yaml
+CM=apps/blackbox-exporter/manifests/files/blackbox.yml
 BB=/tmp/bb-assert.yml
 
 uv run --quiet --with pyyaml python3 - "$CM" "$BB" <<'PY'
 import sys, yaml
 cm, out = sys.argv[1], sys.argv[2]
-cfg = yaml.safe_load(open(cm))["data"]["blackbox.yml"]
+cfg = open(cm).read()
 open(out, "w").write(cfg)
 mods = yaml.safe_load(cfg).get("modules", {})
 missing = [m for m in ("litellm_chat", "comfyui_object_info", "www_content") if m not in mods]

@@ -1,0 +1,39 @@
+# configMapGenerator hashes the Caddyfile into the pod spec, so an edit to
+# files/Caddyfile rolls the pod and the new config actually takes effect.
+#
+# WHY THIS WAS NEEDED: Caddy parses its config once at boot and runs without
+# --watch, and the Deployment carried no content hash — so a plain ConfigMap
+# synced green, kubelet updated the file inside the pod (a directory mount, not
+# subPath), and the running server kept the OLD routes indefinitely. Measured on
+# 2026-07-26: this pod was 63 DAYS old and both public sites were still serving
+# without the security_headers snippet that git had had for hours. It took a
+# manual in-pod `caddy reload` to apply.
+#
+# THE TRADE-OFF, stated plainly: this Deployment is `Recreate` with hostPort
+# 80/443, so a config change now costs a brief PUBLIC EDGE OUTAGE — the old pod
+# must release the ports before the new one binds them. That is a real cost, and
+# it is the right one: a few seconds of downtime on a deliberate, reviewed change
+# beats two months of silently serving stale config. terminationGracePeriodSeconds
+# is lowered to 5 in deployment.yaml to keep the window short (Caddy drains fast).
+#
+# Alternatives considered and rejected:
+#   - `caddy run --watch`: would be zero-downtime, but an attempt to verify it
+#     against a kubelet-style ConfigMap projection was INCONCLUSIVE (Docker on
+#     macOS could not even read the symlinked file), and the public edge is not
+#     the place to deploy an unverified mechanism. Caddy's own docs frame --watch
+#     as development-oriented. Revisit with a real Linux test.
+#   - a reload sidecar / PostSync hook calling the admin API: zero-downtime and
+#     the admin API IS reachable in-pod (127.0.0.1:2019), but it is a new
+#     component to build and own for a config that changes rarely.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - pvc.yaml
+
+configMapGenerator:
+  - name: caddy-config
+    namespace: caddy-system
+    files:
+      - Caddyfile=files/Caddyfile

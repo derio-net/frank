@@ -16,7 +16,17 @@ spec:
     namespace: caddy-system
   syncPolicy:
     automated:
-      prune: false
+      # prune: true is REQUIRED because the Caddyfile ships via Kustomize
+      # configMapGenerator (clusters/hop/apps/caddy/manifests/kustomization.yaml).
+      # Every edit renders a NEW hash-suffixed ConfigMap and orphans the old one;
+      # without prune they accumulate forever and the app sits permanently
+      # OutOfSync — which is how the caddy-config staleness hid in the first place.
+      #
+      # The caddy-data PVC carries Caddy's ACME certificate store and is exempted
+      # with `argocd.argoproj.io/sync-options: Prune=false` on the resource itself.
+      # Losing it means re-issuing every public cert into Let's Encrypt rate
+      # limits with the edge down. Do not remove that annotation.
+      prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
