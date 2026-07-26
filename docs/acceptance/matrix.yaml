@@ -528,55 +528,74 @@ rows:
       over valid TLS, served from a versioned container image rather than a hard-coded
       Caddy string.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
     levels: {}
-    status: not-implemented
-    notes: Verified post-merge by Test Plan step 1 (curl -sI returns 200 and the body
-      is the built page).
+    status: skipped
+    notes: Live proof 2026-07-26 - https://www.derio.net returns HTTP/2 200 over valid TLS serving
+      the built page (867 bytes of Astro output, external stylesheet applied), from image ghcr.io/agentic-stoa/site:<sha>
+      rather than the old 12-byte respond-literal. Image is a single-arch amd64/linux manifest
+      matching hop-1; the tag in clusters/hop/apps/www was written by the site-promotion pipeline,
+      not by hand. Test Plan step 1.
   - id: www-changes-reach-production
     capability: Public marketing site (www.derio.net)
     acceptance: A content change pushed to the private site repo reaches www.derio.net
       automatically, without an operator touching the Frank or Hop clusters.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
     levels: {}
-    status: not-implemented
-    notes: 'The end-to-end claim that proves the layer: GitHub push -> Gitea mirror
-      -> Gitea Actions build -> image -> Tekton tag bump into frank -> ArgoCD on Hop.
-      Test Plan step 6. Blocked until frank-gitops-push is repaired (spec section 3).'
+    status: skipped
+    notes: Live proof 2026-07-26 - observed end to end TWICE, the second time fully unattended.
+      A page-content change pushed to the site repo main produced GitHub webhook 202, then agentic-stoa-main-sync,
+      then the Gitea mirror at the same sha, then Gitea Actions green, then the GHCR image, then
+      a site-promotion PipelineRun, then commit 74e9874c on frank main promoting the www image,
+      then ArgoCD on Hop, then pod 1/1 on the new tag, then the changed page live. No operator
+      touched either cluster. Required an UNPLANNED fix first - the Gitea push webhook to el-gitea-listener
+      did not exist, so the promotion trigger had no delivery path (manual-op cicd-stoa-site-gitea-push-webhook).
+      Test Plan step 6.
   - id: www-hardened-response-headers
     capability: Public marketing site (www.derio.net)
     acceptance: Both public sites (www.derio.net and blog.derio.net) return hardened
       response headers — HSTS, nosniff, Referrer-Policy, Permissions-Policy and a Content-Security-Policy
       — without breaking analytics.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
     levels: {}
-    status: not-implemented
-    notes: Test Plan steps 2 and 3; the CSP check includes an empty browser console,
-      so a policy that silently kills GoatCounter fails the row.
+    status: skipped
+    notes: Live proof 2026-07-26 - both www.derio.net and blog.derio.net return HSTS (max-age=31536000,
+      includeSubDomains, deliberately NO preload), nosniff, Referrer-Policy, Permissions-Policy
+      and the CSP, with the Server header stripped. Analytics unbroken and the CSP proven ENFORCED
+      rather than merely present - in a real browser the GoatCounter beacon fired on path / while
+      an injected inline style element was blocked (style-src-elem violation), with zero violations
+      from the page itself. Also verified on the handle_errors FALLBACK path, which originally
+      served with all five headers missing and leaked the Server header - fixed in PR 705 and
+      re-verified by scaling the backend to 0. Test Plan steps 2 and 3.
   - id: www-outage-is-visible
     capability: Public marketing site (www.derio.net)
     acceptance: If www.derio.net stops answering, the operator is alerted through the
       same Layer 17 edge path that already covers the blog.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
     levels: {}
-    status: not-implemented
-    notes: 'Test Plan step 5: probe_success for the www instance exists, and the layer-17-edge-down
-      rule matches both edge instances. KNOWN LIMIT while the holding page is live:
-      the vhost handle_errors fallback answers 200 when the backend is unreachable,
-      so the probe catches an EDGE outage but not a www-backend outage. Asserting page
-      content is deferred until the real page ships — before then the fallback IS the
-      intended state and a content check would page continuously. Closed by phase 6
-      step P6.T2.S4.'
+    status: skipped
+    notes: Live proof 2026-07-26 - probe_success for the www instance exists in the feature_health
+      group and the layer-17-edge-down matcher returns exactly the two edge instances (blog and
+      www), excluding the neighbouring frank.derio.net probes. The KNOWN LIMIT recorded when this
+      row was written is now CLOSED by P6.T2.S4 - the probe uses the content-asserting www_content
+      module, so with the backend scaled to 0 probe_success went from 1 to 0 within 20s, where
+      the old status-only module would have stayed at 1 forever against the fallback 200. Recovered
+      to 1 within 30s of scale-up. NOT held for the rule for:5m - layer-17-edge-down is severity:critical
+      with github_issue frank-ops#17, so a deliberate fire would page and file a bug; rule coverage
+      was proven independently by the matcher query. Test Plan step 5.
   - id: www-traffic-is-observable
     capability: Public marketing site (www.derio.net)
     acceptance: Requests to www.derio.net are searchable in central logging and counted
       in analytics, and abusive clients are blocked at the edge by CrowdSec.
     origin:
-    - frank:docs/superpowers/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
+    - frank:docs/superpowers/implemented/specs/2026-07-25--edge--stoa-site-www-derio-net-design.md
     levels: {}
-    status: not-implemented
-    notes: Test Plan steps 3, 4 and 7 — VictoriaLogs by request.host, GoatCounter pageview
-      under path /, and CrowdSec parsed-line growth.
+    status: skipped
+    notes: Live proof 2026-07-26 - VictoriaLogs returned 77 hits for the www.derio.net request
+      host scoped to kubernetes.host hop-1 (the vhost new log directive); a real browser fired
+      the GoatCounter beacon at counter.derio.net with path /; and CrowdSec caddy-logs cs_node_hits_ok_total
+      rose by 11 across 10 requests to www, confirming the crowdsec directive parses the new vhost
+      access log. Test Plan steps 3, 4 and 7.
