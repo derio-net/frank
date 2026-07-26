@@ -106,10 +106,30 @@ state:
         an UNPLANNED fix: the Gitea push webhook to el-gitea-listener did not exist
         (see new manual-op cicd-stoa-site-gitea-push-webhook).'
     P6.T2.S4:
-      state: ' '
-      ticked_at: null
-      note: ''
+      state: x
+      ticked_at: '2026-07-26T12:09:48+00:00'
+      note: 'Verified live 2026-07-26. Deployed www_content module + www-content-probe;
+        blackbox needed a SIGHUP (it had been running a 15-day-old config, so the
+        VMProbe scraped an unknown module and 400''d until reloaded). With selfHeal
+        suspended on root+www and www scaled to 0: probe_success went 1 -> 0 within
+        20s (pre-fix it would have stayed 1 forever on the handle_errors 200), and
+        the fallback served all 5 security headers with no Server leak, proving the
+        Caddy fix too. Recovered to 1 within 30s of scale-up; selfHeal and the full
+        automated map restored, www Synced/Healthy. Deliberately did NOT hold for
+        the alert''s for:5m — layer-17-edge-down is severity:critical with github_issue
+        frank-ops#17, so a real fire would page and file a bug; the rule''s coverage
+        was already proven independently (live matcher returns exactly blog+www).'
   completion:
-    at: null
-    note: null
+    at: '2026-07-26T12:10:25+00:00'
+    note: 'All 5 steps executed and verified live 2026-07-26, operator-driven where
+      credentials or UI state required it. frank-gitops-push repaired (1477-failure
+      run since 2026-07-18 ended; cnc-promotion un-blocked as a side effect). agentic-stoa/site
+      enrolled: Gitea mirror, has_actions, GitHub webhook, plus an UNPLANNED Gitea
+      push webhook the plan never provisioned — without it the promotion trigger had
+      no delivery path and the loop could never close. GHCR package public, verified
+      anonymously rather than via docker manifest inspect. Delivery chain observed
+      twice end to end, the second time fully unattended (page-content change -> mirror
+      -> Actions -> GHCR -> promotion -> ArgoCD -> live). Probe tightened and proven:
+      probe_success 1 -> 0 within 20s of scaling the backend to 0, where pre-fix it
+      would have stayed 1 on the handle_errors 200.'
     observed_prs: []
