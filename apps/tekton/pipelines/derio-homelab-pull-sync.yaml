@@ -1,0 +1,140 @@
+# Pulls a ref from GitHub (derio-homelab org) and pushes it into the matching
+# Gitea-replica repo. The derio-homelab twin of `github-pull-sync`.
+#
+# WHY THIS IS A SEPARATE PIPELINE RATHER THAN A PARAM ON github-pull-sync
+#
+# The obvious change is to add a `token-secret` param to github-pull-sync and
+# pass a different Secret name. That edit lands in `.spec.tasks[]` — and
+# apps/root/templates/tekton-extras.yaml carries array-item jqPathExpressions
+# on `.spec.tasks[]?` for Pipelines. With RespectIgnoreDifferences=true those
+# make ArgoCD carry the LIVE array into every apply, so the edit is discarded
+# while syncs report Succeeded. That exact mechanism froze the cnc and
+# gitea-actions EventListener triggers from Jun 13 to Jul 20 with no signal
+# anywhere; the risk is documented as still open for Pipeline/Task rules.
+#
+# A brand-new Pipeline object has no live array to be carried over, so it
+# applies in full. The duplication is the price of an apply that actually
+# happens, and it buys a second thing: per-org credentials stay visibly
+# per-org instead of becoming a param nobody audits.
+#
+# Idempotent — the push is --force against the destination ref. Gitea is a
+# replica; force-overwrite is the correct semantics.
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: derio-homelab-pull-sync
+  namespace: tekton-pipelines
+spec:
+  description: Fetch a ref from GitHub (derio-homelab) and push it into Gitea.
+  params:
+    - name: github-repo
+      description: "GitHub repo full name (e.g. derio-homelab/kid-laptops)"
+      type: string
+    - name: gitea-repo
+      description: "Gitea repo full name (typically same as github-repo)"
+      type: string
+    - name: sha
+      description: "Commit SHA to fetch from GitHub"
+      type: string
+    - name: ref-to
+      description: "Destination ref on Gitea (e.g. refs/heads/main)"
+      type: string
+  workspaces:
+    - name: source
+      description: "Working dir for the local clone"
+    - name: ssh-creds
+      description: "SSH private key for pushing to Gitea"
+  tasks:
+    - name: pull-and-push
+      workspaces:
+        - name: source
+          workspace: source
+        - name: ssh
+          workspace: ssh-creds
+      taskSpec:
+        params:
+          - name: github-repo
+            type: string
+          - name: gitea-repo
+            type: string
+          - name: sha
+            type: string
+          - name: ref-to
+            type: string
+        workspaces:
+          - name: source
+          - name: ssh
+            mountPath: /workspace/ssh-creds
+        steps:
+          - name: pull-from-github-push-to-gitea
+            image: alpine/git:2.47.2
+            computeResources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                memory: 1Gi
+            securityContext:
+              allowPrivilegeEscalation: false
+              runAsNonRoot: true
+              runAsUser: 65534
+              capabilities:
+                drop: ["ALL"]
+              seccompProfile:
+                type: RuntimeDefault
+            env:
+              - name: HOME
+                value: /tekton/home
+              - name: GITHUB_TOKEN
+                valueFrom:
+                  secretKeyRef:
+                    name: derio-homelab-github-mirror
+                    key: token
+            script: |
+              #!/bin/sh
+              set -eu
+
+              # Both endpoints are in-cluster / on the trusted LAN, and Gitea's
+              # SSH LB advertises only an RSA host key while the client prefers
+              # ed25519 — strict checking would fail on a missing known_hosts
+              # entry rather than on anything meaningful. Disabled via
+              # GIT_SSH_COMMAND at the call site.
+              mkdir -p "$HOME/.ssh"
+              cp /workspace/ssh-creds/id_rsa "$HOME/.ssh/id_rsa"
+              chmod 600 "$HOME/.ssh/id_rsa"
+
+              # The PVC workspace may be root-owned; this avoids git's
+              # "dubious ownership" refusal.
+              git config --global --add safe.directory '*'
+
+              cd "$(workspaces.source.path)"
+
+              # Full clone (no --depth): the push needs every parent commit the
+              # destination might be missing.
+              git clone "https://x-access-token:${GITHUB_TOKEN}@github.com/$(params.github-repo).git" repo
+              cd repo
+
+              git cat-file -e "$(params.sha)" || {
+                echo "SHA $(params.sha) not reachable from the default branch — fetching explicitly"
+                git fetch origin "$(params.sha)"
+              }
+
+              ORG_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $1}')"
+              REPO_NAME="$(echo "$(params.gitea-repo)" | awk -F/ '{print $NF}')"
+
+              git remote remove gitea 2>/dev/null || true
+              git remote add gitea "ssh://git@192.168.55.209:2222/${ORG_NAME}/${REPO_NAME}.git"
+
+              echo "Pushing $(params.sha) → gitea:$(params.ref-to)"
+              GIT_SSH_COMMAND="ssh -i $HOME/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR" \
+                git push --force gitea "$(params.sha):$(params.ref-to)"
+              echo "OK"
+      params:
+        - name: github-repo
+          value: "$(params.github-repo)"
+        - name: gitea-repo
+          value: "$(params.gitea-repo)"
+        - name: sha
+          value: "$(params.sha)"
+        - name: ref-to
+          value: "$(params.ref-to)"
