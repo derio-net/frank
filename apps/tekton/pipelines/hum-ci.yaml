@@ -59,7 +59,23 @@ spec:
     - name: shared-workspace
     - name: ssh-creds
   tasks:
+    # FREEZE PROBE (2026-07-26, temporary — remove once the result is recorded).
+    #
+    # Settles whether `select(...)`-guarded array-item jqPathExpressions in
+    # tekton-extras' ignoreDifferences actually freeze `.spec.tasks`, as the
+    # #664 EventListener incident concluded. Nothing in the repo's history
+    # discriminates: the only prior .spec.tasks change since those rules landed
+    # was adding `kind: Task`, whose value equals the server default, so live
+    # matches git whether or not updates apply. A live-patch attempt was
+    # confounded because tekton-extras sits permanently OutOfSync (ArgoCD tracks
+    # ~1680 ephemeral PipelineRuns) and selfHeal has backed off.
+    #
+    # `timeout` is inert here — hum-ci is dormant, zero retained runs — and is
+    # covered by NO ignore rule. So if the array is not frozen, this value must
+    # appear live after an explicit sync. If it does not, the freeze is real and
+    # stoa-live-mirror-sync's identical rules are a genuine hazard.
     - name: pull-and-push
+      timeout: "59m0s"
       workspaces:
         - name: source
           workspace: shared-workspace
