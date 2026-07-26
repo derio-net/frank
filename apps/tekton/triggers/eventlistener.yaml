@@ -17,10 +17,16 @@ spec:
             name: "cel"
             kind: ClusterInterceptor
           params:
+            # Every repo that has its own dedicated trigger below must be
+            # SUBTRACTED here, or its pushes match both filters and produce two
+            # PipelineRuns — the second being this generic gitea-ci pipeline,
+            # which fails. The failing run carries the generic name, so it reads
+            # as an unrelated CI problem rather than a routing bug.
             - name: "filter"
               value: >-
                 header.match('X-Gitea-Event', 'push') &&
-                !body.repository.full_name.startsWith('agentic-stoa/')
+                !body.repository.full_name.startsWith('agentic-stoa/') &&
+                !body.repository.full_name.startsWith('derio-homelab/')
             - name: "overlays"
               value:
                 - key: branch_name
@@ -141,6 +147,42 @@ spec:
           kind: TriggerBinding
       template:
         ref: site-promotion-template
+    # ──────────────────────────────────────────────────────────────────
+    # kid-laptops CI (2026-07-26, derio-homelab/kid-laptops#43).
+    #
+    # Second hop of the two-hop path: the github-listener mirrors a GitHub push
+    # into Gitea, and Gitea's own push webhook lands here to start CI.
+    #
+    # The pipeline itself is NOT defined on Frank — it is fetched by Tekton's
+    # git resolver from the repo at the tested commit, so the pipeline and the
+    # code under test are always the same revision. That is the design decision
+    # kid-laptops built around, and it is why the Gitea mirror repo has to be
+    # readable anonymously (the resolver's URL mode cannot authenticate).
+    #
+    # The generic gitea-push trigger above excludes derio-homelab/ so this is
+    # the ONLY trigger that fires for these pushes.
+    # ──────────────────────────────────────────────────────────────────
+    - name: kid-laptops-push
+      interceptors:
+        - ref:
+            name: "cel"
+            kind: ClusterInterceptor
+          params:
+            - name: "filter"
+              value: >-
+                header.match('X-Gitea-Event', 'push') &&
+                body.repository.full_name == 'derio-homelab/kid-laptops'
+            - name: "overlays"
+              value:
+                # The VMI name is derived from run-id, so it must be a short DNS
+                # label. A full 40-char SHA plus a prefix would exceed it.
+                - key: short_sha
+                  expression: "body.after.substring(0, 7)"
+      bindings:
+        - ref: kid-laptops-push-binding
+          kind: TriggerBinding
+      template:
+        ref: kid-laptops-ci-template
     # NOTE 2026-05-13 (rework Phase 4): the per-repo agentic-stoa CI triggers
     # (agentic-stoa-hum-ci, agentic-stoa-content-factory-ci) moved out of this
     # gitea-listener to the new github-listener (apps/tekton/triggers/
