@@ -174,10 +174,18 @@ spec:
                 body.repository.full_name == 'derio-homelab/kid-laptops'
             - name: "overlays"
               value:
-                # The VMI name is derived from run-id, so it must be a short DNS
-                # label. A full 40-char SHA plus a prefix would exceed it.
+                # The VMI name is derived from run-id, so it must stay a short
+                # DNS label — a full 40-char SHA plus a prefix would exceed it.
+                #
+                # `truncate` and not `substring`: truncate is one of Tekton's
+                # own CEL interceptor functions (documented as
+                # `<string>.truncate(uint) -> string`, with `body.commit.sha
+                # .truncate(5)` as the reference example). `substring` comes
+                # from a cel-go extension whose presence here is not documented,
+                # and a missing CEL function fails the interceptor at event
+                # time — the webhook 202s and no PipelineRun appears.
                 - key: short_sha
-                  expression: "body.after.substring(0, 7)"
+                  expression: "body.after.truncate(7)"
       bindings:
         - ref: kid-laptops-push-binding
           kind: TriggerBinding

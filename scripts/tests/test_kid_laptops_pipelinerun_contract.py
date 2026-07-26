@@ -67,8 +67,13 @@ def test_kid_laptops_push_trigger_targets_only_that_repo() -> None:
     assert "X-Gitea-Event" in cel_filter and "push" in cel_filter
 
     overlays = next(p for p in cel if p["name"] == "overlays")["value"]
-    keys = {o["key"] for o in overlays}
-    assert "short_sha" in keys, f"expected a short_sha overlay, got {keys}"
+    by_key = {o["key"]: o["expression"] for o in overlays}
+    assert "short_sha" in by_key, f"expected a short_sha overlay, got {set(by_key)}"
+    # truncate() is a Tekton CEL interceptor builtin; substring() comes from a
+    # cel-go extension whose availability here is undocumented. A missing CEL
+    # function fails at event time — the webhook 202s and nothing is created.
+    assert "truncate(" in by_key["short_sha"], by_key["short_sha"]
+    assert "substring(" not in by_key["short_sha"], by_key["short_sha"]
 
 
 def test_pipelinerun_matches_the_kid_laptops_contract() -> None:
