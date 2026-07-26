@@ -26,7 +26,7 @@ spec:
           # carries a handle_errors fallback serving the holding page whenever
           # this backend is unreachable — visitors see today's behaviour, not
           # a 502.
-          image: ghcr.io/agentic-stoa/site:7244f3105cb360b1a4137279c3798a44ae392b72  # updated by CI — do not pin manually
+          image: ghcr.io/agentic-stoa/site:3d7d24d673485a425b5572bf7f132864b685a016  # updated by CI — do not pin manually
           ports:
             - name: http
               containerPort: 8080
