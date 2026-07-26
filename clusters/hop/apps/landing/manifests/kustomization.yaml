@@ -1,0 +1,23 @@
+# configMapGenerator hashes both of landing's configs into its pod spec, so an
+# edit to files/index.html or files/Caddyfile rolls the pod automatically.
+# Caddy parses its Caddyfile once at boot, so with a plain ConfigMap the app
+# syncs green while the running server keeps serving the old page and routes.
+#
+# Rolling is free here, unlike the public edge: landing is RollingUpdate with no
+# hostPort, so a config change causes no downtime at all.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+configMapGenerator:
+  - name: landing-html
+    namespace: landing-system
+    files:
+      - index.html=files/index.html
+  - name: landing-caddy
+    namespace: landing-system
+    files:
+      - Caddyfile=files/Caddyfile

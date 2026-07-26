@@ -17,7 +17,10 @@ from pathlib import Path
 import yaml
 
 REPO = Path(__file__).resolve().parents[2]
-BLACKBOX_CM = REPO / "apps/blackbox-exporter/manifests/configmap.yaml"
+# The blackbox config moved out of an inline ConfigMap into a Kustomize
+# generator input (2026-07-26), so an edit hashes into the pod spec and the
+# exporter actually re-reads it instead of serving a boot-time snapshot.
+BLACKBOX_CONFIG = REPO / "apps/blackbox-exporter/manifests/files/blackbox.yml"
 VMPROBE_FILE = REPO / "apps/blackbox-exporter/manifests/vmprobe.yaml"
 NOTIF_POLICY_CM = REPO / "apps/grafana-alerting/manifests/notification-policy-cm.yaml"
 ALERT_RULES_CM = REPO / "apps/grafana-alerting/manifests/alert-rules-cm.yaml"
@@ -28,8 +31,7 @@ PROBE_UA = "Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"
 
 
 def _blackbox_modules():
-    cm = yaml.safe_load(BLACKBOX_CM.read_text())
-    return yaml.safe_load(cm["data"]["blackbox.yml"])["modules"]
+    return yaml.safe_load(BLACKBOX_CONFIG.read_text())["modules"]
 
 
 def _vmprobe_docs():

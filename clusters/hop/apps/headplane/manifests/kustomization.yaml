@@ -1,0 +1,24 @@
+# configMapGenerator hashes headplane's OWN config into its pod spec, so an edit
+# to files/config.yaml rolls the pod. Headplane v0.5+ requires a config.yaml and
+# reads it at boot, so a plain ConfigMap would sync green while the running pod
+# kept the old settings.
+#
+# NOTE the deliberate asymmetry: the Deployment also mounts `headscale-config`,
+# which is owned by the SEPARATE headscale Application. That reference is left
+# literal on purpose — it is not generated here, so kustomize leaves it alone,
+# which is exactly what we want. Hashing headscale-config (in its own app) would
+# rename it and break this mount; headplane runs with config_strict: true and
+# would crashloop. See the headscale exclusion note in the PR.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - rbac.yaml
+  - service.yaml
+
+configMapGenerator:
+  - name: headplane-config
+    namespace: headscale-system
+    files:
+      - config.yaml=files/config.yaml

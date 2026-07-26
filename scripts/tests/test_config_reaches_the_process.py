@@ -1,0 +1,166 @@
+"""Tripwire: a ConfigMap edit must actually reach the process that reads it.
+
+THE FAILURE CLASS. A workload mounts a plain (unhashed) ConfigMap; the process
+parses that config once at boot; the pod spec contains no content hash. Then a
+config change syncs green, kubelet even updates the file inside the pod for a
+directory mount — and the running process serves the OLD config indefinitely.
+ArgoCD says Synced, the ConfigMap says new, the process says old, and nothing
+anywhere says "stale".
+
+It hit three times in a single session (2026-07-26):
+
+  * Hop caddy               63-day-old pod, both public sites served without the
+                            security_headers snippet git had had for hours
+  * blackbox-exporter       15-day-old pod; a new probe module made vmagent scrape
+                            `module=www_content` against a process that had never
+                            heard of it -> /probe 400 -> the www uptime series went
+                            ABSENT, briefly worse than the blind spot being fixed
+  * gitea act_runner        (frank#674) config correct in-cluster, runner stale
+
+The cure the repo already uses in four apps: a Kustomize configMapGenerator. The
+hash-suffixed name lands in the pod spec, so ArgoCD rolls the pod on any content
+change and "Synced" starts meaning "serving".
+
+WHAT THIS TEST DOES. It does not demand every workload be converted — some
+genuinely should not be (see EXEMPT below). It demands the exposure be an
+explicit, reviewed list rather than an accident. A new workload that mounts a
+plain ConfigMap fails here until someone either converts it or records why not.
+"""
+from __future__ import annotations
+
+import pathlib
+
+import yaml
+
+REPO = pathlib.Path(__file__).resolve().parents[2]
+ROOTS = ("apps", "clusters/hop/apps")
+WORKLOADS = ("Deployment", "DaemonSet", "StatefulSet")
+
+# Workloads that may mount a plain ConfigMap, each with the reason it is not
+# converted. Keys are "<app-dir>:<workload-name>". Adding an entry is a
+# deliberate, reviewable act; that is the entire point of this list.
+EXEMPT: dict[str, str] = {
+    # Cross-Application ConfigMap. headscale-config is defined by the headscale
+    # app and ALSO mounted by headplane (a separate ArgoCD Application, which
+    # runs config_strict: true). Hashing it would rename it and crashloop
+    # headplane, and Kustomize cannot rewrite a reference across Applications.
+    # Headscale config changes are rare (last: 2026-05-11); a roll here is a STUN
+    # blip, so the manual-reload discipline stays documented in hop-gotchas.md.
+    "clusters/hop/apps/headscale/manifests:headscale": "cross-app ConfigMap consumed by headplane",
+    # Upstream vendored Tekton release manifests. Not ours to restructure, and
+    # Tekton's controllers watch config-logging themselves.
+    "apps/tekton/vendor/pipelines:tekton-pipelines-controller": "vendored upstream; controller watches its own config",
+    "apps/tekton/vendor/pipelines:tekton-events-controller": "vendored upstream; controller watches its own config",
+    # Agent shells: the mounted ConfigMaps are login-shell shims and helper
+    # scripts read per-invocation or per-login, not parsed once by a daemon. A
+    # roll would evict live operator sessions for no correctness gain.
+    "apps/secure-agent-pod/manifests:secure-agent-pod": "profile.d shims read per-login; rolling evicts live sessions",
+    "apps/hermes-agent-shell/manifests:hermes-agent-shell": "profile.d shims read per-login; rolling evicts live sessions",
+    "apps/paperclip/manifests:paperclip": "shell inventory/motd read per-login; rolling evicts live sessions",
+    "apps/ruflo/manifests:ruflo": "shell inventory/motd read per-login; rolling evicts live sessions",
+    # n8n-01 mounts agent-session bootstrap/driver scripts, executed per session
+    # launch rather than parsed at boot.
+    "apps/n8n-01/manifests:n8n-01": "scripts executed per session launch, not parsed at boot",
+}
+
+
+def _uses_generator(app_dir: pathlib.Path) -> bool:
+    """True if a kustomization in or above this manifest dir generates ConfigMaps."""
+    for candidate in (app_dir / "kustomization.yaml", app_dir.parent / "kustomization.yaml"):
+        if not candidate.is_file():
+            continue
+        for doc in yaml.safe_load_all(candidate.read_text()):
+            if doc and doc.get("configMapGenerator"):
+                return True
+    return False
+
+
+def _plain_configmap_mounters() -> dict[str, list[str]]:
+    """{'<app-dir>:<workload>': [configmap names]} for unhashed ConfigMap mounts."""
+    found: dict[str, list[str]] = {}
+    for root in ROOTS:
+        for f in sorted((REPO / root).rglob("*.yaml")):
+            if "/files/" in str(f):
+                continue
+            try:
+                docs = list(yaml.safe_load_all(f.read_text()))
+            except yaml.YAMLError:
+                continue  # helm templates etc. — not our concern here
+            for d in docs:
+                if not d or d.get("kind") not in WORKLOADS:
+                    continue
+                tmpl = d["spec"]["template"]
+                cms = [v["configMap"]["name"]
+                       for v in (tmpl.get("spec", {}).get("volumes") or [])
+                       if v.get("configMap")]
+                if not cms:
+                    continue
+                ann = (tmpl.get("metadata") or {}).get("annotations") or {}
+                if any("checksum" in k or "hash" in k for k in ann):
+                    continue
+                if _uses_generator(f.parent):
+                    continue
+                key = f"{f.parent.relative_to(REPO)}:{d['metadata']['name']}"
+                found[key] = cms
+    return found
+
+
+def test_no_unreviewed_plain_configmap_mounts():
+    """Every plain-ConfigMap mounter must be converted or explicitly exempted."""
+    found = _plain_configmap_mounters()
+    unreviewed = {k: v for k, v in found.items() if k not in EXEMPT}
+    assert not unreviewed, (
+        "These workloads mount a plain ConfigMap with no content hash in the pod "
+        "spec, so a config change can sync green while the process keeps the old "
+        "config:\n"
+        + "\n".join(f"  - {k}  (configMaps: {', '.join(v)})" for k, v in sorted(unreviewed.items()))
+        + "\n\nFix by adding a Kustomize configMapGenerator (see "
+          "apps/blackbox-exporter/manifests/kustomization.yaml for the pattern, and "
+          "set prune: true on the Application), or add an EXEMPT entry in this file "
+          "stating why rolling on config change is wrong for it."
+    )
+
+
+def test_exempt_list_has_no_dead_entries():
+    """A stale exemption is how a converted app quietly keeps a free pass."""
+    found = _plain_configmap_mounters()
+    dead = sorted(set(EXEMPT) - set(found))
+    assert not dead, (
+        "EXEMPT entries that no longer mount a plain ConfigMap — delete them so the "
+        "list keeps meaning something:\n" + "\n".join(f"  - {k}" for k in dead)
+    )
+
+
+def test_converted_apps_actually_hash_into_the_pod_spec():
+    """The four converted apps must really carry a generator, not just a file move."""
+    for app_dir in (
+        "apps/blackbox-exporter/manifests",
+        "clusters/hop/apps/caddy/manifests",
+        "clusters/hop/apps/headplane/manifests",
+        "clusters/hop/apps/landing/manifests",
+    ):
+        d = REPO / app_dir
+        assert (d / "kustomization.yaml").is_file(), f"{app_dir}: no kustomization.yaml"
+        assert _uses_generator(d), f"{app_dir}: kustomization has no configMapGenerator"
+        # The generated content must live in files/, not inline, or the hash is
+        # computed over a literal that is easy to edit in the wrong place.
+        assert (d / "files").is_dir(), f"{app_dir}: no files/ dir for generator inputs"
+
+
+def test_prune_true_wherever_a_generator_orphans_configmaps():
+    """A generator without prune leaves the app permanently OutOfSync."""
+    import re
+
+    expected_prune = {
+        "apps/root/templates/blackbox-exporter.yaml",
+        "clusters/hop/apps/root/templates/caddy.yaml",
+        "clusters/hop/apps/root/templates/headplane.yaml",
+        "clusters/hop/apps/root/templates/landing.yaml",
+    }
+    for rel in sorted(expected_prune):
+        text = (REPO / rel).read_text()
+        # Match the setting, not the prose explaining it.
+        assert re.search(r"^\s+prune: true\s*$", text, re.M), (
+            f"{rel}: its app ships a configMapGenerator but does not set prune: true, "
+            "so orphaned hash-suffixed ConfigMaps will accumulate"
+        )

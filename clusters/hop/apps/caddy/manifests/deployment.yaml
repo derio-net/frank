@@ -17,6 +17,15 @@ spec:
       labels:
         app.kubernetes.io/name: caddy
     spec:
+      # Recreate + hostPort 80/443 means the old pod must release the ports
+      # before the new one binds them, so every roll is a brief PUBLIC EDGE
+      # outage. Now that a Caddyfile edit rolls this pod on purpose (see
+      # kustomization.yaml), the default 30s grace period would be the dominant
+      # term in that outage for no benefit: Caddy handles SIGTERM by draining
+      # and exiting promptly, and this serves static pages and short-lived
+      # reverse-proxy requests, not long uploads. 5s keeps the window to a few
+      # seconds while still allowing an orderly shutdown.
+      terminationGracePeriodSeconds: 5
       containers:
         - name: caddy
           image: ghcr.io/derio-net/caddy-cloudflare:2.11.3

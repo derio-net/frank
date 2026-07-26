@@ -26,14 +26,16 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CADDY_CM = REPO_ROOT / "clusters/hop/apps/caddy/manifests/configmap.yaml"
+# The Caddyfile moved out of an inline ConfigMap into a Kustomize generator
+# input (2026-07-26), so that an edit hashes into the pod spec and actually
+# reaches the running Caddy. Read the file directly now.
+CADDY_FILE = REPO_ROOT / "clusters/hop/apps/caddy/manifests/files/Caddyfile"
 
 ANALYTICS_ORIGIN = "https://counter.derio.net"
 
 
 def caddyfile() -> str:
-    cm = yaml.safe_load(CADDY_CM.read_text())
-    return cm["data"]["Caddyfile"]
+    return CADDY_FILE.read_text()
 
 
 def _block(text: str, host: str) -> str:

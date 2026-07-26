@@ -1,0 +1,33 @@
+# configMapGenerator appends a content-hash suffix to blackbox-exporter-config
+# and rewrites the Deployment's volume reference to match. Any edit to
+# files/blackbox.yml changes the hash, changes the pod spec, and makes ArgoCD
+# roll the pod automatically.
+#
+# This is required because blackbox_exporter parses its config ONCE AT BOOT and
+# reloads only on SIGHUP. With a plain ConfigMap the app syncs green, the
+# ConfigMap holds the new content, kubelet even updates the file inside the pod
+# (a directory mount, not subPath) — and the running process keeps serving the
+# OLD module set indefinitely.
+#
+# That is not hypothetical. On 2026-07-26 the www_content module was added and
+# the pod had been up for 15 days: vmagent began scraping `module=www_content`
+# against a process that had never heard of it, /probe returned HTTP 400, and
+# the www uptime series went ABSENT — briefly leaving the site with no uptime
+# signal at all, which is strictly worse than the blind spot being fixed. It
+# needed a manual `kill -HUP 1`. Third instance of this class in one session,
+# after Hop's caddy and the gitea act_runner.
+#
+# Same remedy as apps/gitea-runner/manifests and apps/homepage/manifests.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - external-secret-litellm-key.yaml
+  - vmprobe.yaml
+
+configMapGenerator:
+  - name: blackbox-exporter-config
+    namespace: monitoring
+    files:
+      - blackbox.yml=files/blackbox.yml

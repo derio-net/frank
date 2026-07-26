@@ -16,7 +16,15 @@ spec:
     namespace: headscale-system
   syncPolicy:
     automated:
-      prune: false
+      # prune: true is required because headplane's config ships via Kustomize
+      # configMapGenerator; each edit orphans the previous hash-suffixed ConfigMap.
+      # Nothing stateful lives in this app (Deployment, Service, RBAC only), so no
+      # per-resource Prune=false exemption is needed.
+      #
+      # Note this app also MOUNTS headscale-config, owned by the headscale
+      # Application. That ConfigMap is not generated here and not pruned by this
+      # app — see the headscale exclusion note in kustomization.yaml.
+      prune: true
       selfHeal: true
     syncOptions:
       - ServerSideApply=true

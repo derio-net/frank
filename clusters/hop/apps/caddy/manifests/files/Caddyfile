@@ -1,0 +1,156 @@
+# Global options
+{
+  email admin@derio.net
+  acme_dns cloudflare {env.CF_API_TOKEN}
+  # Default logger for ALL sites — Caddy applies this to per-site
+  # access logs unless overridden. Output JSON to stdout so fluent-bit
+  # can tail /var/log/containers/caddy-* and ship to VictoriaLogs.
+  log {
+    output stdout
+    format json
+    level INFO
+  }
+  # CrowdSec bouncer — runs before reverse_proxy/handle directives.
+  # Polls crowdsec-service.crowdsec-system every 10s for decisions
+  # and 403s any matching client IP at the edge.
+  # NOTE: the chart's service name is `crowdsec-service` (not -lapi).
+  order crowdsec first
+  crowdsec {
+    api_url http://crowdsec-service.crowdsec-system.svc:8080
+    api_key {env.CROWDSEC_BOUNCER_API_KEY}
+    ticker_interval 10s
+  }
+}
+
+# Shared response headers for the PUBLIC content sites (www, blog).
+# Deliberately not applied to the mesh-only vhosts or the webhook
+# receiver: those serve APIs and admin UIs with different needs.
+#
+# CSP note — the only external origin either site loads is
+# counter.derio.net (GoatCounter). Adding any other third-party script,
+# font, stylesheet or fetch target to a site REQUIRES widening this policy
+# in the same change: the browser blocks it while the page still returns
+# 200, so no server-side check catches the breakage.
+#
+# style-src is 'self' with no 'unsafe-inline', which means the site images
+# must emit external stylesheets rather than inline <style> blocks.
+# agentic-stoa/site pins that with its own build check.
+#
+# HSTS intentionally omits `preload`. Preload applies to every
+# *.derio.net name a browser has seen and is hard to walk back; promoting
+# to it is a separate, deliberate decision.
+(security_headers) {
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "geolocation=(), camera=(), microphone=(), browsing-topics=()"
+    Content-Security-Policy "default-src 'self'; script-src 'self' https://counter.derio.net; connect-src 'self' https://counter.derio.net; style-src 'self'; img-src 'self' data:; font-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
+    # Caddy advertises itself by default; no reason to help fingerprinting.
+    -Server
+  }
+}
+
+# --- Public routes ---
+
+# Headscale coordination server (public — clients must reach it)
+headscale.hop.derio.net {
+  reverse_proxy headscale.headscale-system.svc:8080
+}
+
+# Blog (public)
+blog.derio.net {
+  # Per-site access log — emits JSON request lines using the default
+  # logger set in the global block. Fluent-bit on Hop tails these
+  # via /var/log/containers/caddy-* and ships to Frank VictoriaLogs.
+  log
+  # CrowdSec HTTP handler — blocks before reverse_proxy if the
+  # client IP is currently in an active decision.
+  crowdsec
+  import security_headers
+  handle /frank* {
+    reverse_proxy blog.blog-system.svc:8080
+  }
+  handle {
+    redir https://blog.derio.net/frank{uri} permanent
+  }
+}
+
+# Public site (www) — built from agentic-stoa/site, served by the `www`
+# Deployment in www-system. Same treatment as the blog: per-site JSON
+# access log to VictoriaLogs, CrowdSec bouncer, hardened headers.
+#
+# handle_errors is load-bearing, not decoration. The site image does not
+# exist until the repo has been enrolled in the Gitea mirror and CI has
+# run once, so without this fallback the first deploy would turn
+# www.derio.net from a holding page into a 502. It keeps paying afterwards:
+# a crashed or rolling pod shows the holding page instead of a gateway
+# error.
+www.derio.net {
+  log
+  crowdsec
+  import security_headers
+  reverse_proxy www.www-system.svc:8080
+  handle_errors {
+    # The site-level `import security_headers` above does NOT reach here.
+    # Verified live 2026-07-26: while the backend was unpullable, the
+    # fallback served 200 with no HSTS/CSP and even leaked `Server: Caddy`,
+    # because handle_errors runs its own handler chain and the outer header
+    # mutations are not applied to it. Re-importing keeps the hardening
+    # promise true during an outage, which is exactly when it matters.
+    import security_headers
+    respond "Coming soon." 200
+  }
+}
+
+# Analytics ingest (public) — reverse-proxies over Tailscale mesh to
+# GoatCounter on Frank (Cilium L2 LoadBalancer 192.168.55.224).
+# The mesh-only admin UI lives at https://counter.cluster.derio.net.
+counter.derio.net {
+  log
+  reverse_proxy 192.168.55.224:8080
+}
+
+# --- Private routes (Tailscale mesh only) ---
+
+# Headplane (Headscale admin UI — app lives at /admin/ base path)
+headplane.hop.derio.net {
+  @not_mesh not remote_ip 100.64.0.0/10
+  respond @not_mesh "Forbidden" 403
+  @not_admin not path /admin /admin/*
+  redir @not_admin /admin/ permanent
+  reverse_proxy headplane.headscale-system.svc:3000
+}
+
+# Private landing page
+entry.hop.derio.net {
+  @not_mesh not remote_ip 100.64.0.0/10
+  respond @not_mesh "Forbidden" 403
+  reverse_proxy landing.landing-system.svc:8080
+}
+
+# Note: DERP relay traffic goes through the main headscale.hop.derio.net
+# block above — Headscale handles /derp paths internally. No separate
+# route block needed.
+
+# --- Webhook ingress (public — GitHub fires from internet) ---
+
+# GitHub webhook → Tekton github-listener on Frank, via Tailscale mesh.
+# Caddy terminates public TLS; Tekton's `github` interceptor validates
+# the X-Hub-Signature-256 HMAC server-side (Caddy does NOT HMAC-validate;
+# the interceptor is the canonical Tekton path).
+#
+# Target IP is Frank's github-listener LB Service at 192.168.55.223
+# (claimed in .claude/rules/frank-infrastructure.md). The Service itself
+# is created in Phase 2 of the stoa-gitea-primary-rework-1 plan; until
+# then this route returns 502, which is expected during the rollout.
+webhooks.hop.derio.net {
+  reverse_proxy 192.168.55.223:8080 {
+    # Pass through GitHub's signature/event/delivery headers verbatim
+    # so the Tekton interceptor sees them on Frank.
+    header_up X-Hub-Signature-256 {http.request.header.X-Hub-Signature-256}
+    header_up X-GitHub-Event       {http.request.header.X-GitHub-Event}
+    header_up X-GitHub-Delivery    {http.request.header.X-GitHub-Delivery}
+    header_up X-Hub-Signature      {http.request.header.X-Hub-Signature}
+  }
+}
