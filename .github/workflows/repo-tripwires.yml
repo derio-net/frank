@@ -1,0 +1,100 @@
+name: Repo Tripwires
+
+# Runs scripts/tests/ — the repo's tripwire suite.
+#
+# WHY THIS EXISTS: until 2026-07-26 nothing ran these. 38 test files had been
+# written specifically to catch silent regressions (CrowdSec going blind, a
+# Tekton ignore-rule freezing an EventListener array, a probe that cannot fail),
+# and every one only fired if a human remembered to run pytest. Several gotchas
+# in agents/rules/ admit it in passing — "a LOCAL guard; no CI runs
+# scripts/tests/". The cost was measured the day this landed: five cases in
+# test_sync_dossier_to_data.py had been failing continuously since 2026-07-04
+# because the script under test moved AND changed CLI shape, and nobody knew.
+#
+# It also makes the papers/dossier validators a PR gate. deploy-blog.yml already
+# runs `sync_dossier_to_data.py --check`, but only on `push: main` with
+# `paths: blog/**` — so today a PR can break dossier sync, merge green, and fail
+# afterwards on the deploy job. The CLI-contract case in the tripwire suite
+# closes that as a pre-merge check.
+#
+# No `paths:` filter, on purpose. These tests span apps/, clusters/, blog/,
+# docs/, scripts/ and .github/ — a filter narrow enough to be meaningful would
+# be wrong more often than it saved minutes, and on a PR page "no run" is
+# indistinguishable from "passed".
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repo-tripwires-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tripwires:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: actions/setup-python@42375524e23c412d93fb67b49958b491fce71c38 # v5.4.0
+        with:
+          python-version: "3.12"
+
+      # Nothing in this suite talks to Frank or Hop — by design. Two suites do
+      # shell out, though:
+      #   test_argocd_vcluster_pod_exclusion -> `helm template` (remote argo-helm)
+      #   test_series_index_* -> a real `hugo --minify` of the production site
+      - uses: azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0
+        with:
+          version: v3.16.3
+
+      # Hextra is a Hugo MODULE (blog/go.mod), not a submodule, so Go is
+      # required and `hugo mod get` must run before any build. build_site() in
+      # the tests invokes bare `hugo --minify`, which only works on a warm
+      # module cache — hence the explicit fetch below.
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+
+      - uses: peaceiris/actions-hugo@75d2e84710de30f6ff7268e08f310b60ef14033f # v3.0.0
+        with:
+          # Keep in lockstep with deploy-blog.yml. A version skew here would
+          # assert against different HTML than the site actually publishes.
+          hugo-version: "0.157.0"
+          extended: true
+
+      - name: Fetch Hugo modules
+        working-directory: blog
+        run: hugo mod get
+
+      - name: Install python deps
+        run: python -m pip install --disable-pip-version-check pytest pyyaml
+
+      # -rfE surfaces failures and errors in the log tail; -rx lists xfails so a
+      # declared-but-unfixed guard stays visible rather than silently green.
+      #
+      # `set -o pipefail` is LOAD-BEARING. GitHub's default shell is `bash -e`,
+      # WITHOUT pipefail, so `pytest | tee` would exit with tee's status (0) and
+      # this job would report success on every failing test — a CI gate that
+      # cannot fail, which is the exact bug class this suite exists to catch.
+      - name: Run tripwires
+        shell: bash
+        run: |
+          set -o pipefail
+          pytest scripts/tests/ -q -rfEx | tee tripwires.log
+
+      - name: Summarise
+        if: always()
+        run: |
+          {
+            echo "## Repo tripwires"
+            echo
+            echo '```'
+            tail -n 40 tripwires.log || echo "(no output captured)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
