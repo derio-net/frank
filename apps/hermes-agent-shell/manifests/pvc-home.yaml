@@ -15,5 +15,6 @@ spec:
       # .ssh, .gitconfig, .config/gh, and the compat .hermes.md. Its
       # pre-migration contents are seeded into the new /opt/data layout in
       # Phase 2 before it is re-pointed. Keeping the name preserves the bound
-      # Longhorn volume (no reprovision). 20Gi unchanged.
-      storage: 20Gi
+      # Longhorn volume (no reprovision). Resize it in place to provide enough
+      # headroom for Hermes, developer tooling, and transient fr worktrees.
+      storage: 40Gi
