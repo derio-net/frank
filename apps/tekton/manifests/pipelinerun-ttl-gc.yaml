@@ -71,9 +71,20 @@ spec:
               # Native K8s containers use `resources` (Tekton CRDs use
               # `computeResources` — see frank-gotchas.md). This is a
               # CronJob/batch.v1, not a Tekton Task, so plain `resources`.
+              # 128Mi OOMKilled this job (exit 137) from 2026-07-25 onward: a
+              # single `kubectl get pipelinerun` over ~1800 PipelineRuns holds
+              # every object in memory before the jsonpath template runs, and
+              # that had outgrown 128Mi. Reproduced deliberately at the old limit
+              # — the container died before printing a single deletion.
+              #
+              # The failure is self-reinforcing, which is why this gets real
+              # headroom rather than a tight limit: the job's memory cost scales
+              # with the backlog it exists to remove, so each failed run makes
+              # the next one likelier to fail. A garbage collector that OOMs in
+              # proportion to the garbage.
               resources:
                 requests: { cpu: 50m, memory: 64Mi }
-                limits:   { memory: 128Mi }
+                limits:   { memory: 1Gi }
               command: ["/bin/bash", "-eu", "-o", "pipefail", "-c"]
               args:
                 - |
@@ -81,16 +92,27 @@ spec:
                   CUTOFF=$(date -u -d "${AGE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
                   echo "Deleting PipelineRuns in tekton-pipelines completed before ${CUTOFF}"
 
-                  COUNT=0
-                  kubectl get pipelinerun -n tekton-pipelines \
-                    -o jsonpath='{range .items[?(@.status.completionTime)]}{.metadata.name}{"\t"}{.status.completionTime}{"\n"}{end}' | \
+                  # --chunk-size paginates the LIST so the API response is never
+                  # one enormous payload. It bounds peak transfer, not the final
+                  # aggregate kubectl builds for templating — the memory limit
+                  # above is what covers that.
+                  DELETED=0
                   while IFS=$'\t' read -r name ct; do
                     [ -z "$name" ] && continue
                     # ISO-8601 sorts lexically — string < works
                     if [ "$ct" \< "$CUTOFF" ]; then
                       echo "  deleting $name (completed $ct)"
                       kubectl delete pipelinerun -n tekton-pipelines "$name" --ignore-not-found
-                      COUNT=$((COUNT + 1))
+                      DELETED=$((DELETED + 1))
                     fi
-                  done
-                  echo "GC complete (note: while-loop COUNT doesn't propagate from subshell — see kubectl output above for actual deletions)"
+                  done < <(kubectl get pipelinerun -n tekton-pipelines --chunk-size=100 \
+                    -o jsonpath='{range .items[?(@.status.completionTime)]}{.metadata.name}{"\t"}{.status.completionTime}{"\n"}{end}')
+
+                  # Process substitution instead of a pipe, so the loop runs in
+                  # THIS shell and the count survives (the old pipeline put the
+                  # loop in a subshell, which is why it could only apologise for
+                  # not knowing what it had done).
+                  REMAINING=$(kubectl get pipelinerun -n tekton-pipelines --no-headers 2>/dev/null | wc -l)
+                  # Machine-greppable summary — a log-based alert can watch this
+                  # line, since a silent GC failure is exactly how this broke.
+                  echo "pipelinerun-ttl-gc result deleted=${DELETED} remaining=${REMAINING} cutoff=${CUTOFF}"
