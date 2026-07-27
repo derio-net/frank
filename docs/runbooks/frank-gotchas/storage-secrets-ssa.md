@@ -326,3 +326,66 @@ kubectl get secret <generator-key-name> -A
 
 An empty result in the target namespace means the ExternalSecret will fail
 closed and quietly.
+
+## A PR-branch ExternalSecret is absent, not slow (2026-07-27)
+
+**Symptom.** You wire up a new ExternalSecret, apply its private key, then wait
+for it to sync. It never does. `kubectl get externalsecret <name> -o
+jsonpath='{.status.conditions[0].reason}'` returns nothing — not `SecretSyncedError`,
+not `SecretSynced`, just empty — indefinitely. It reads as a slow or wedged
+reconcile.
+
+**Cause.** ArgoCD syncs `apps/**` from **`main`**. An ExternalSecret and its
+ClusterGenerator that live only on a feature branch are **not on the cluster at
+all**. There is nothing for ESO to reconcile, so there is no status to poll.
+
+```console
+$ kubectl -n tekton-pipelines get externalsecret derio-homelab-github-mirror
+Error from server (NotFound): externalsecrets.external-secrets.io
+  "derio-homelab-github-mirror" not found
+```
+
+The trap is that a verification script written as `kubectl annotate … || true`
+followed by a status poll **swallows the `NotFound`** and then waits on a status
+that can never appear. This is the same failure *shape* as the `frank-gitops-push`
+incident: nothing is red, the object is simply absent, and absence has no status
+field to look wrong.
+
+**Verifying a new GitHub App credential before merge.** Split it in two.
+
+*Without the cluster* — proves App id, installation id, private key and granted
+permissions, which is everything that can actually be wrong at that point:
+
+```bash
+uv run --with 'pyjwt[crypto]' --with requests python3 - <<'EOF'
+import time, jwt, requests
+key = open("app.pem","rb").read()
+now = int(time.time())
+# iat backdated 60s: GitHub rejects a JWT whose iat is even slightly ahead of
+# its own clock.
+a = jwt.encode({"iat": now-60, "exp": now+540, "iss": "<APP_ID>"}, key, algorithm="RS256")
+r = requests.post("https://api.github.com/app/installations/<INSTALL_ID>/access_tokens",
+                  headers={"Authorization": f"Bearer {a}"})
+print(r.status_code, r.json().get("token","")[:12])
+EOF
+```
+
+*With the cluster* — `kubectl apply -f` the ClusterGenerator and ExternalSecret
+out-of-band. They are headed for `main` anyway and ArgoCD adopts them on merge
+via ServerSideApply.
+
+**Always probe a PRIVATE repo.** A public repo reads with no token at all, so a
+green probe against one proves nothing about the credential. Check the
+installation's reach too — `GET /installation/repositories` should return
+exactly the repos you scoped it to:
+
+```console
+$ curl -s -H "Authorization: Bearer $TOKEN" \
+    https://api.github.com/installation/repositories | jq '.total_count'
+1
+```
+
+**Related:** narrowing an installation's repository selection invalidates cached
+tokens. After tightening scope, force a fresh mint
+(`kubectl annotate externalsecret … force-sync=$(date +%s) --overwrite`) and
+re-probe — otherwise you are testing a token issued under the old, wider scope.

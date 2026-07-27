@@ -196,7 +196,11 @@ the tested commit — by design. The mechanism, for whoever picks it up:
 - a `finally` task in `ci/tekton/pipeline.yaml` posting to GitHub's status API
   (frank's `apps/tekton/tasks/github-status.yaml` is a working model), plus
 - a GitHub token Secret in `kid-laptops-ci`, minted by the same App-installation
-  generator as the mirror credential, needing `statuses:write`.
+  generator as the mirror credential.
+
+The `statuses:write` permission is **already granted** on the
+`homelab-fr-automation` installation, so this needs no second trip through the
+GitHub UI — only the `finally` task and the Secret.
 
 Deferring is also right on sequencing: a merge gate that gates on lint alone,
 while the molecule half is skipped, would assert more confidence than the
@@ -206,9 +210,21 @@ pipeline currently earns.
 
 The mirror needs read access to a **private repo in a third GitHub org**.
 `derio-homelab` is neither `derio-net` nor `agentic-stoa`, so neither existing
-generator covers it. Following the established least-privilege pattern: install
-the existing `derio-fr-automation` App (3994132) into `derio-homelab`, and add a
-`github-app-derio-homelab` ClusterGenerator + ExternalSecret.
+generator covers it.
+
+Reusing `derio-fr-automation` (3994132) was the first plan and was rejected on
+inspection: that App is private to `derio-net` ("Only on this account"), so
+installing it elsewhere requires flipping it to "Any account" — a setting
+GitHub only lets you flip back while the App has no installations outside the
+owner account, and which publicly lists the App's name, description and
+permission set. A near-one-way door, bought for nothing.
+
+Instead: a third App, **`homelab-fr-automation` (4403773)**, owned by
+`derio-homelab`, matching the one-App-per-org shape already in place. Installed
+scoped to `kid-laptops` only (`repository_selection: selected`, one repo), with
+`contents:read`, `metadata:read` and `statuses:write` — the last not needed by
+the mirror but granted up front, since adding a permission later forces every
+installation to re-approve, and requirement 8 will want it.
 
 ESO resolves `auth.privateKey.secretRef` in the **consuming ExternalSecret's**
 namespace and ignores `secretRef.namespace` — so the App private key must exist

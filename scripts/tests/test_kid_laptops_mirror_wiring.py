@@ -36,7 +36,12 @@ PULL_SYNC = REPO / "apps/tekton/pipelines/derio-homelab-pull-sync.yaml"
 SHARED_PULL_SYNC = REPO / "apps/tekton/pipelines/github-pull-sync.yaml"
 EL_GITHUB = REPO / "apps/tekton/triggers/eventlistener-github.yaml"
 
-DERIO_FR_AUTOMATION_APP_ID = "3994132"
+# homelab-fr-automation, owned by derio-homelab. NOT derio-fr-automation (3994132):
+# that App is private to derio-net, so installing it here would have required
+# flipping it to "Any account" — a setting GitHub only lets you flip back while
+# there are no installations outside the owner account.
+HOMELAB_APP_ID = "4403773"
+HOMELAB_KEY_SECRET = "github-app-homelab-key"
 TRIGGER_NAME = "derio-homelab-kid-laptops-main-sync"
 REPO_FULL_NAME = "derio-homelab/kid-laptops"
 
@@ -52,12 +57,20 @@ def _one(path: Path, kind: str) -> dict:
     return matches[0]
 
 
-def test_generator_uses_the_existing_derio_app() -> None:
+def test_generator_uses_the_orgs_own_app_and_key() -> None:
     gen = _one(GENERATOR, "ClusterGenerator")
     assert gen["metadata"]["name"] == "github-app-derio-homelab"
     spec = gen["spec"]
     assert spec["kind"] == "GithubAccessToken"
-    assert spec["generator"]["githubAccessTokenSpec"]["appID"] == DERIO_FR_AUTOMATION_APP_ID
+    gen_spec = spec["generator"]["githubAccessTokenSpec"]
+    assert gen_spec["appID"] == HOMELAB_APP_ID, (
+        "must be derio-homelab's own App, not derio-net's derio-fr-automation"
+    )
+    # A real installation id, not a leftover sentinel.
+    assert gen_spec["installID"].isdigit(), gen_spec["installID"]
+    # Per-org key: reusing github-app-derio-key would put both orgs behind one
+    # private key, losing the per-org revocation that motivated a separate App.
+    assert gen_spec["auth"]["privateKey"]["secretRef"]["name"] == HOMELAB_KEY_SECRET
 
 
 def test_generator_private_key_ref_omits_namespace() -> None:

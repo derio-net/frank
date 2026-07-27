@@ -2064,15 +2064,19 @@ operations:
   app: tekton
   plan: 2026-07-26-cicd-kid-laptops-tekton-ci
   when: BEFORE merging the frank PR for kid-laptops CI
-  why_manual: Installing a GitHub App into an org is a UI consent action, and the resulting installation id cannot be derived by an agent. Verified absent — `gh api /orgs/derio-homelab/installations` returns an empty list. Merging with the REPLACE_AFTER_APP_INSTALL sentinel still in place would create a permanently failing ExternalSecret while ArgoCD reported green.
+  why_manual: Creating and installing a GitHub App is a UI consent action, and neither the App id nor the installation id can be derived by an agent. Reusing derio-fr-automation was rejected — it is private to derio-net, and installing it here would require flipping it to "Any account", which GitHub only lets you flip back while there are no outside installations.
   commands:
-  - Install App derio-fr-automation (3994132) into org derio-homelab, repository access scoped to kid-laptops ONLY.
-  - env -u GITHUB_TOKEN gh api /orgs/derio-homelab/installations --jq '.installations[].id'
-  - Replace REPLACE_AFTER_APP_INSTALL in apps/tekton/manifests/clustergenerator-derio-homelab-github-app.yaml and push to the SAME PR.
-  - "Ensure Secret github-app-derio-key exists in namespace tekton-pipelines — ESO resolves privateKey.secretRef in the CONSUMING ExternalSecret's namespace and IGNORES secretRef.namespace."
+  - "Create App homelab-fr-automation under the derio-homelab org: https://github.com/organizations/derio-homelab/settings/apps/new"
+  - "Settings that matter: UNTICK Webhook->Active (no webhook URL exists, and it is ticked by default); Repository permissions Contents=Read-only, Metadata=Read-only, Commit statuses=Read and write (for requirement 8 later; adding it afterwards forces every installation to re-approve); Where can this App be installed = Only on this account."
+  - Generate a private key and download the .pem.
+  - Install the App on derio-homelab with Only select repositories -> kid-laptops.
+  - "Then run the wiring script, which does everything else (SOPS-encrypt the key, apply it out-of-band, patch appID/installID into the ClusterGenerator, verify the token twice): bash scripts/tmp/setup-homelab-app.sh <path-to.pem>"
+  - Commit secrets/github-app/github-app-homelab-key.yaml and the patched ClusterGenerator to the SAME PR before merging.
   verify:
+  - "env -u GITHUB_TOKEN gh api /orgs/derio-homelab/installations --jq '.installations[] | select(.app_id==4403773) | {repository_selection, permissions}'   # selected; contents=read, statuses=write"
   - "kubectl -n tekton-pipelines get externalsecret derio-homelab-github-mirror -o jsonpath='{.status.conditions[0].reason}'   # SecretSynced"
-  status: pending
+  - "curl -s -o /dev/null -w '%{http_code}' -H \"Authorization: Bearer $TOKEN\" https://api.github.com/repos/derio-homelab/kid-laptops   # 200 — verify against the PRIVATE repo; a public one reads with no token and masks a broken credential"
+  status: done 2026-07-27 — App homelab-fr-automation (4403773), install 149345112, scoped to kid-laptops only; chain verified from PEM and via ESO
 - id: cicd-kid-laptops-infisical-webhook-secret
   layer: cicd
   app: tekton
