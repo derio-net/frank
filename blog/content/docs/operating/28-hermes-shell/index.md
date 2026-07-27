@@ -9,7 +9,7 @@ summary: "Checking the Hindsight memory sidecar's health, the two-tier memory ba
 weight: 29
 reader_goal: "Verify Hindsight memory health, back up and restore the memory database, diagnose retain-vs-recall failures, and connect via SSH/Mosh."
 diataxis: [how-to, reference]
-last_updated: 2026-07-15
+last_updated: 2026-07-27
 last_updated_commit: https://github.com/derio-net/frank/commit/4541ee68
 ---
 
@@ -148,6 +148,30 @@ kubectl -n hermes-agent-shell exec -c hindsight deploy/hermes-agent-shell -- \
 
 If not authenticated, log in: `kubectl exec -it -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- claude` and complete the OAuth flow. Recall (local `BAAI/bge-small-en-v1.5` embeddings) is unaffected — it works without any {{< abbr "LLM" >}} auth.
 
+### The Tool-Home Volume Fills
+
+`hermes-agent-shell-home` is `$HOME` for every container, mounted at `/opt/data/home`. It reached 100% on 2026-07-27, which failed a fresh `fr` worktree checkout with `No space left on device`. Nothing alerted — there is still no PVC capacity rule.
+
+It is **not** a dotfile volume, which is how it came to be sized at 20Gi. Measured at 19G used:
+
+```
+.local/opt/hermes-agent   6.0G   the PVC-resident Hermes venv
+.vscode-server            3.3G
+.cache                    1.9G   playwright, uv, huggingface, pip, fr
+.local/{micromamba,share} 2.5G   mise, mamba, uv, claude
+worktrees                 1.3G   fr isolation checkouts
+```
+
+Growth is dominated by tool installs and caches — the worktrees that exposed it are ~7%. So prune caches before reaching for more capacity:
+
+```bash
+# -x matters: `repos` is a SEPARATE PVC mounted inside home, so du double-counts without it
+kubectl -n hermes-agent-shell exec -c ssh deploy/hermes-agent-shell -- \
+  du -xh -d 2 /opt/data/home | sort -h | tail -25
+```
+
+The volume was expanded 20Gi → 40Gi (`apps/hermes-agent-shell/manifests/pvc-home.yaml`, guarded by `scripts/tests/test_hermes_agent_shell_home_pvc.py`). If you expand it again, check Longhorn provisioning headroom first — the ceiling counts declared replica size, not bytes written, and refuses silently. See [Storage and Backups]({{< relref "/docs/operating/02-storage-backups" >}}) and [Operating on Green]({{< relref "/docs/operating/30-silent-failure" >}}).
+
 ## Missteps
 
 | What we assumed | Why it was wrong | What it cost |
@@ -174,3 +198,4 @@ If not authenticated, log in: `kubectl exec -it -n hermes-agent-shell -c hindsig
 - [willikins#285](https://github.com/derio-net/willikins/issues/285) — official-image migration
 - `docs/runbooks/frank-gotchas/agent-shells.md` — restore mechanic detail
 - [Operating on Local Inference]({{< relref "/docs/operating/07-inference" >}})
+- [Operating on Green]({{< relref "/docs/operating/30-silent-failure" >}}) — four ways a green tile diverges from reality

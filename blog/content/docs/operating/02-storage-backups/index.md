@@ -9,7 +9,7 @@ summary: "Day-to-day commands for managing Longhorn volumes, checking backup hea
 weight: 3
 reader_goal: "Check Longhorn volume health, manage R2 backups, expand a volume, restore from backup, and debug degraded volumes, failed backups, or stuck attachments — without relying on the Longhorn UI."
 diataxis: [how-to, reference]
-last_updated: 2026-07-15
+last_updated: 2026-07-27
 last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad87bb6dcaa9b0162e5fb0e127
 ---
 
@@ -158,6 +158,33 @@ The underlying Longhorn volume and filesystem expand automatically. No pod resta
 ```bash
 xfs_growfs /
 ```
+
+**"Automatically" assumes Longhorn accepts the request — and it may not.** Longhorn's provisioning ceiling counts each replica's *declared* size, not bytes written, so a node can be half-empty and still refuse to grow a volume:
+
+```
+size + StorageScheduled <= (StorageMax - StorageReserved) * overProvisioningPercentage%
+```
+
+When that clause fails, the API server still accepts the patch and ArgoCD still reports `Synced` — `status.capacity.storage` simply never changes. Measured 2026-07-27 while growing a 20Gi volume: two of its three replicas sat on nodes with 5Gi and **−4Gi** of headroom, while those disks were roughly 55% physically written.
+
+So check headroom on the nodes hosting the replicas *before* expanding:
+
+```bash
+kubectl -n longhorn-system get nodes.longhorn.io -o json | jq -r '
+  .items[] | .metadata.name as $n |
+  (.status.diskStatus | to_entries[] |
+    "\($n) scheduled=\((.value.storageScheduled/1073741824)|floor)Gi " +
+    "max=\((.value.storageMaximum/1073741824)|floor)Gi")'
+```
+
+and verify afterwards against the artifact rather than the sync status:
+
+```bash
+kubectl -n <namespace> get pvc <pvc-name> -o jsonpath='{.status.capacity.storage}{"\n"}'
+kubectl -n <namespace> exec deploy/<app> -- df -h <mountpath>
+```
+
+Frank's ceiling was raised from the chart default of 100% to 150% (`apps/longhorn/values.yaml`); the physical guard, `storageMinimalAvailablePercentage: 15`, is untouched and remains what actually prevents filling a disk. Full treatment of this failure mode in [Operating on Green]({{< relref "/docs/operating/30-silent-failure" >}}).
 
 ### Trigger a Manual Backup
 
