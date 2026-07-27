@@ -15,7 +15,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/4541ee68
 
 {{< last-updated >}}
 
-Companion to [Rebuilding the Hermes Shell](/docs/building/33-hermes-shell). The pod is now three containers: `hermes`, `ssh`, and `hindsight`. Most of what changed is the memory sidecar — a supervised PostgreSQL + Hindsight process on an isolated PVC.
+Companion to [Rebuilding the Hermes Shell](/docs/building/33-hermes-shell). The pod is now three containers: `hermes`, `ssh`, and `hindsight`. Most of what changed is the memory sidecar — a supervised PostgreSQL + Hindsight process on an isolated {{< abbr "PVC" >}}.
 
 ```mermaid
 graph LR
@@ -118,7 +118,7 @@ kubectl exec -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- \
 kubectl -n hermes-agent-shell logs deploy/hermes-agent-shell -c hermes --tail=30
 ```
 
-Missing `args: ["gateway","run"]` — the bare entrypoint runs an interactive TUI. Ensure the manifest sets the gateway args. If `chown`-related: `chown -R hermes:hermes /opt/data`.
+Missing `args: ["gateway","run"]` — the bare entrypoint runs an interactive {{< abbr "TUI" >}}. Ensure the manifest sets the gateway args. If `chown`-related: `chown -R hermes:hermes /opt/data`.
 
 ### `hindsight` CrashLoops After Restart
 
@@ -146,7 +146,7 @@ kubectl -n hermes-agent-shell exec -c hindsight deploy/hermes-agent-shell -- \
   bash -lc 'claude status 2>&1 | grep -i "logged\|authenticated\|session"'
 ```
 
-If not authenticated, log in: `kubectl exec -it -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- claude` and complete the OAuth flow. Recall (local `BAAI/bge-small-en-v1.5` embeddings) is unaffected — it works without any LLM auth.
+If not authenticated, log in: `kubectl exec -it -n hermes-agent-shell -c hindsight deploy/hermes-agent-shell -- claude` and complete the OAuth flow. Recall (local `BAAI/bge-small-en-v1.5` embeddings) is unaffected — it works without any {{< abbr "LLM" >}} auth.
 
 ## Missteps
 

@@ -118,13 +118,13 @@ GPU containers on Talos need the nvidia runtime set as default:
     base_runtime_spec = "/etc/cri/conf.d/base-spec.json"
 ```
 
-This config lives in a Talos machine config patch applied via Omni. The problem: Layer 5 had deployed a **cluster-wide** CDI containerd patch creating the same file path (`/etc/cri/conf.d/20-customization.part`) with CDI directory config only. When both patches target the same file with `op: create`, Talos hits:
+This config lives in a Talos machine config patch applied via Omni. The problem: Layer 5 had deployed a **cluster-wide** {{< abbr "CDI" >}} containerd patch creating the same file path (`/etc/cri/conf.d/20-customization.part`) with CDI directory config only. When both patches target the same file with `op: create`, Talos hits:
 
 ```
 resource EtcFileSpecs.files.talos.dev already exists
 ```
 
-The node enters a 35-minute reboot loop. CRI never registers. The node becomes `NotReady`.
+The node enters a 35-minute reboot loop. {{< abbr "CRI" >}} never registers. The node becomes `NotReady`.
 
 **The fix:** replace the cluster-wide CDI patch with machine-specific patches, each scoped by `omni.sidero.dev/cluster-machine` label. Each node gets one patch that covers everything that file needs:
 
@@ -164,13 +164,13 @@ runtimes:
     baseRuntimeSpec: /etc/cri/conf.d/base-spec.json  # present
 ```
 
-The `runc` runtime has a `baseRuntimeSpec` pointing to Talos's OCI base spec. The `nvidia` runtime has an empty one. The base spec contains the OCI process and Linux namespace config that kubelet expects — without it, kubelet cannot track the container lifecycle.
+The `runc` runtime has a `baseRuntimeSpec` pointing to Talos's {{< abbr "OCI" >}} base spec. The `nvidia` runtime has an empty one. The base spec contains the OCI process and Linux namespace config that kubelet expects — without it, kubelet cannot track the container lifecycle.
 
 **The fix:** add `base_runtime_spec = "/etc/cri/conf.d/base-spec.json"` to the nvidia runtime config in the Talos patch. After a reboot, GPU pods get IPs and `PodReadyToStartContainers` flips to `True`.
 
 ## Issue 4: PostStart Hook + nvidia exec
 
-Ollama finally starts — detects the GPU, reports 15.9 GiB VRAM — and immediately crashes. `CrashLoopBackOff` with exit code 0.
+Ollama finally starts — detects the GPU, reports 15.9 GiB {{< abbr "VRAM" >}} — and immediately crashes. `CrashLoopBackOff` with exit code 0.
 
 The Helm chart generates a `postStart` hook that pulls models:
 
@@ -196,7 +196,7 @@ ollama:
 kubectl exec -n ollama deploy/ollama -- ollama pull qwen3.5:9b
 ```
 
-Models persist on the Longhorn PVC, so they survive restarts.
+Models persist on the Longhorn {{< abbr "PVC" >}}, so they survive restarts.
 
 ## The Result
 
@@ -239,7 +239,7 @@ Full GPU inference. The stack — LiteLLM gateway, Ollama, NVIDIA device plugin,
 
 - [AI Workloads on Talos Linux](https://www.siderolabs.com/blog/ai-workloads-on-talos-linux/) — Siderolabs blog
 - [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/) — Official docs
-- [Container Device Interface (CDI)](https://github.com/cncf-tags/container-device-interface) — CNCF spec
+- [Container Device Interface (CDI)](https://github.com/cncf-tags/container-device-interface) — {{< abbr "CNCF" >}} spec
 - [Talos Containerd Config](https://www.talos.dev/v1.12/reference/configuration/extensions/containerd/) — Talos docs
 
 **Next: [Unified Auth — Authentik SSO](/docs/building/13-unified-auth)**

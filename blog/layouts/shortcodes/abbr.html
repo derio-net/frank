@@ -1,0 +1,48 @@
+{{- /* Abbreviation with a click-to-open definition panel (docs/CONFIG.md §9).
+
+         {{< abbr "NUT" >}}            looks up and displays NUT
+         {{< abbr "SLO" "SLOs" >}}     looks up SLO, displays SLOs
+
+       The optional second argument is how plurals and possessives work without
+       forking a registry entry. It is positional rather than named (`text=…`)
+       because Hugo refuses to mix positional and named parameters in one
+       shortcode call, and making the common case `{{< abbr term="NUT" >}}` was
+       the worse trade.
+
+       Definitions come from data/glossary.yaml (site.Data.glossary), whose
+       entries carry `name`, `description` and an optional `url`.
+
+       Zero JavaScript: the trigger is a <button popovertarget> and the panel a
+       <span popover>, so click/tap, Esc, click-away, keyboard focus and
+       top-layer stacking are all native browser behaviour. The inner <abbr
+       title> carries the expansion for screen readers and gives a hover tooltip
+       where the Popover API is unavailable.
+
+       A key with no registry entry calls errorf and FAILS the build — a marker
+       with nothing behind it is a broken promise to the reader. scripts/
+       validate_glossary.py catches it earlier; this is the backstop. */ -}}
+{{- $key := .Get 0 -}}
+{{- $display := default $key (.Get 1) -}}
+{{- $entry := index (default (dict) site.Data.glossary) $key -}}
+{{- if not $entry -}}
+  {{- errorf "abbr: %q has no entry in data/glossary.yaml (%s)" $key .Page.File.Path -}}
+{{- else -}}
+{{- $id := printf "abbr-%s-%d" (anchorize $key) .Ordinal -}}
+{{- /* The anchor name is derived from $id in the same breath, so the pair can
+       never drift: --abbr-nut-0 belongs to #abbr-nut-0 and nothing else. It has
+       to be per-occurrence — one shared name would anchor every panel on the
+       page to whichever trigger the browser resolved first — and it has to be
+       an inline style, because no stylesheet can address a single shortcode
+       instance. Browsers without CSS anchor positioning drop both declarations
+       and fall through to the docked panel in glossary.css (#49, spec §5a).
+
+       safeCSS is required, not decorative: Go's context-aware escaper treats a
+       style attribute as a CSS context and replaces any interpolated value it
+       cannot prove safe with the literal string ZgotmplZ. Both values are built
+       here from $id, which is anchorize output plus an integer ordinal — a
+       dashed-ident by construction, with no author input reaching it. */ -}}
+{{- $anchor := printf "--%s" $id -}}
+{{- $anchorName := printf "anchor-name: %s" $anchor | safeCSS -}}
+{{- $anchorRef := printf "position-anchor: %s" $anchor | safeCSS -}}
+<button type="button" class="abbr-trigger" popovertarget="{{ $id }}" style="{{ $anchorName }}" aria-label="Expand abbreviation: {{ $key }}"><abbr title="{{ $entry.name }}">{{ $display }}</abbr></button><span popover id="{{ $id }}" class="abbr-panel" style="{{ $anchorRef }}"><strong class="abbr-name">{{ $entry.name }}</strong><span class="abbr-desc">{{ $entry.description }}</span>{{ with $entry.url }}<a class="abbr-link" href="{{ . }}">Read more</a>{{ end }}</span>
+{{- end -}}

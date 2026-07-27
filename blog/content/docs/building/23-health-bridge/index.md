@@ -115,7 +115,7 @@ The lifecycle state update itself is unconditional and idempotent.
 
 ### Deployment
 
-Single-replica Deployment in the monitoring namespace, ArgoCD-managed. Non-secret config in a ConfigMap; secrets (GitHub PAT, webhook secret) from Infisical via ExternalSecret.
+Single-replica Deployment in the monitoring namespace, ArgoCD-managed. Non-secret config in a ConfigMap; secrets (GitHub {{< abbr "PAT" >}}, webhook secret) from Infisical via ExternalSecret.
 
 Resources: 10m CPU request, 16Mi memory request, 32Mi limit. Go binary in a distroless image under 15MB.
 
@@ -143,11 +143,11 @@ The "Derio Ops" project had 20 Layer tracker Issues sitting there with manually-
 
 ### One Alert Rule Per Layer
 
-Rules live in `apps/grafana-alerting/manifests/alert-rules-cm.yaml` — file-provisioned, read on boot, reloaded by restarting Grafana. No click-ops. Each rule follows the SSE three-step format with `labels.github_issue: "frank-ops#<LAYER>"` attached.
+Rules live in `apps/grafana-alerting/manifests/alert-rules-cm.yaml` — file-provisioned, read on boot, reloaded by restarting Grafana. No click-ops. Each rule follows the {{< abbr "SSE" >}} three-step format with `labels.github_issue: "frank-ops#<LAYER>"` attached.
 
 Severity mapping:
 - `firing + warning` → `degraded`
-- `firing + critical` → `dead` (reserved for load-bearing layers: OS/HA, GitOps, Authentik, Traefik)
+- `firing + critical` → `dead` (reserved for load-bearing layers: OS/{{< abbr "HA" >}}, GitOps, Authentik, Traefik)
 
 **Multi-instance per rule** was the biggest upgrade. The first instinct: a single aggregated scalar per rule. Problem: Telegram messages become useless — *"Layer 3 is degraded"* tells the operator nothing.
 

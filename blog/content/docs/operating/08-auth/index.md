@@ -15,7 +15,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
 
 {{< last-updated >}}
 
-This is the operational companion to [Unified Auth]({{< relref "/docs/building/13-unified-auth" >}}). That post covers the OIDC provider setup and forward auth proxy configuration. This one is what you type when users can't log in, the login page loops, or clicking a forward-auth-protected service redirects your browser to `http://0.0.0.0:9000` — a bug we shipped and fixed.
+This is the operational companion to [Unified Auth]({{< relref "/docs/building/13-unified-auth" >}}). That post covers the {{< abbr "OIDC" >}} provider setup and forward auth proxy configuration. This one is what you type when users can't log in, the login page loops, or clicking a forward-auth-protected service redirects your browser to `http://0.0.0.0:9000` — a bug we shipped and fixed.
 
 Before any of the commands below, source the environment:
 
@@ -26,7 +26,7 @@ source .env_devops   # sets OMNICONFIG + service accounts
 
 ## What Healthy Looks Like
 
-Authentication is healthy when Authentik at `192.168.55.211:9000` is responding, all OIDC providers show valid status in the admin UI, and users can log into ArgoCD, Grafana, and Infisical via SSO without errors. Forward auth passes requests through for Longhorn UI, Hubble UI, and Sympozium without redirect loops.
+Authentication is healthy when Authentik at `192.168.55.211:9000` is responding, all OIDC providers show valid status in the admin UI, and users can log into ArgoCD, Grafana, and Infisical via {{< abbr "SSO" >}} without errors. Forward auth passes requests through for Longhorn UI, Hubble UI, and Sympozium without redirect loops.
 
 {{< screenshot src="authentik-providers-healthy.png" caption="Authentik admin UI: all cluster OIDC and proxy providers with healthy status" >}}
 
@@ -105,7 +105,7 @@ The Authentik admin UI at `http://192.168.55.211:9000/if/admin/` is often faster
 
 1. Generate a new secret in Authentik admin UI under the provider settings
 2. Update the secret in Infisical (the source of truth)
-3. Force ESO to resync: `kubectl annotate es <name> -n <ns> force-sync=$(date +%s) --overwrite`
+3. Force {{< abbr "ESO" >}} to resync: `kubectl annotate es <name> -n <ns> force-sync=$(date +%s) --overwrite`
 4. Restart the affected service to pick up the new secret
 
 For Grafana specifically, the secret key name must be exactly `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` in the Kubernetes Secret — not `client_secret` or `clientSecret`. Authentik sets it one way; Grafana's envFrom reads it by that exact key.
@@ -165,7 +165,7 @@ curl -s -H "Authorization: Bearer <token>" \
 ```
 
 Common causes:
-- Redirect URI mismatch — must be exact, including trailing slash
+- Redirect {{< abbr "URI" >}} mismatch — must be exact, including trailing slash
 - `redirect_uris` must be a list in the Authentik 2026.x API (not a single string)
 - Missing `invalidation_flow` in provider config (required in 2026.x)
 

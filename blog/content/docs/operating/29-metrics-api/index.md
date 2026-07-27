@@ -33,7 +33,7 @@ kubectl get pods -n kube-system -l app.kubernetes.io/name=metrics-server
 kubectl top nodes
 ```
 
-If `kubectl top nodes` prints seven rows with non-zero CPU/mem, everything downstream (HPAs, `kubectl top pods`) works. That is the real health signal — not pod readiness (see the failure mode below).
+If `kubectl top nodes` prints seven rows with non-zero CPU/mem, everything downstream ({{< abbr "HPA" "HPAs" >}}, `kubectl top pods`) works. That is the real health signal — not pod readiness (see the failure mode below).
 
 ## Adding a CPU/memory HPA
 
@@ -47,7 +47,7 @@ kubectl get hpa <name> -n <ns>
 
 For anything ArgoCD-managed, declare the HPA in git rather than imperatively, and add an `ignoreDifferences` on `/spec/replicas` for the target Deployment so ArgoCD and the HPA don't fight over the replica count.
 
-> **Note:** this is CPU/memory autoscaling only. Scaling on *custom* metrics (queue depth, RPS, tokens/s) needs a separate adapter that Frank does not run yet — tracked in [#701](https://github.com/derio-net/frank/issues/701). metrics-server serves `metrics.k8s.io` and nothing else.
+> **Note:** this is CPU/memory autoscaling only. Scaling on *custom* metrics (queue depth, {{< abbr "RPS" >}}, tokens/s) needs a separate adapter that Frank does not run yet — tracked in [#701](https://github.com/derio-net/frank/issues/701). metrics-server serves `metrics.k8s.io` and nothing else.
 
 ## The failure mode: pod Ready, `top` empty
 
@@ -60,7 +60,7 @@ kubectl logs -n kube-system -l app.kubernetes.io/name=metrics-server --tail=50
 ```
 
 - **`x509: certificate signed by unknown authority`** → the `--kubelet-insecure-tls` arg is missing or didn't apply. Talos kubelets use self-signed serving certs; without that flag every scrape is rejected. Confirm the flag is live: `kubectl get deploy metrics-server -n kube-system -o jsonpath='{.spec.template.spec.containers[0].args}'`. It is set in `apps/metrics-server/values.yaml`.
-- **`unable to fully scrape metrics ... <node>`** for one node → that kubelet is unreachable (node NotReady, NIC flap, firewall). Cross-check `kubectl get nodes` and that node's health.
+- **`unable to fully scrape metrics ... <node>`** for one node → that kubelet is unreachable (node NotReady, {{< abbr "NIC" >}} flap, firewall). Cross-check `kubectl get nodes` and that node's health.
 - **Clean logs but `top` empty for ~30s after a restart** → normal. The APIService reads `Available=False` until the first scrape window lands. Wait, don't restart.
 
 ## Restart / resync

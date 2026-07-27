@@ -24,21 +24,21 @@ This post is a **living document**: it gets updated as new technologies and capa
 |------------|----------------------|
 | **Talos Linux + Omni** | Immutable OS, declarative machine config, secure bootstrap |
 | **Cilium (eBPF)** | Kube-proxy replacement, L2 LoadBalancer, Hubble UI (`192.168.55.202`) |
-| **Longhorn** | Distributed block storage, GPU-local StorageClass, 3-replica HA, UI (`192.168.55.201`) |
+| **Longhorn** | Distributed block storage, GPU-local StorageClass, 3-replica {{< abbr "HA" >}}, UI (`192.168.55.201`) |
 | **ArgoCD** | GitOps, App-of-Apps, self-healing, drift detection |
 | **NVIDIA GPU Operator** | GPU scheduling, AI/ML workloads, container toolkit |
-| **Intel GPU DRA Driver** | iGPU sharing via DRA, namespace-scoped GPU access |
+| **Intel GPU {{< abbr "DRA" >}} Driver** | iGPU sharing via DRA, namespace-scoped GPU access |
 | **OpenRGB** | LED control from K8s (just for fun) |
 | **VictoriaMetrics + Grafana** | Cluster-wide metrics, alerting, dashboards, Grafana UI (`192.168.55.203`) |
 | **VictoriaLogs + Fluent Bit** | Centralised log aggregation and querying |
-| **Longhorn Backup + Cloudflare R2** | PVC backup/restore, daily + weekly schedules, offsite storage |
+| **Longhorn Backup + Cloudflare R2** | {{< abbr "PVC" >}} backup/restore, daily + weekly schedules, offsite storage |
 | **Infisical + External Secrets Operator** | Secret management with audit trail, ExternalSecret → K8s Secret sync (`192.168.55.204`) |
-| **Ollama** | Local LLM inference on gpu-1's RTX 5070 (qwen3.5:9b, deepseek-coder:6.7b) |
+| **Ollama** | Local {{< abbr "LLM" >}} inference on gpu-1's RTX 5070 (qwen3.5:9b, deepseek-coder:6.7b) |
 | **LiteLLM** | Unified OpenAI-compatible gateway, virtual keys, spend tracking (`192.168.55.206`) |
 | **OpenRouter** | Free-tier cloud model aggregation (DeepSeek R1, Gemini Flash, Llama 3.3 70B) |
-| **Sympozium** | Kubernetes-native agentic control plane — agent=Pod, policy=CRD, execution=Job (`192.168.55.207`) |
-| **cert-manager** | Automated TLS certificate lifecycle for webhooks and internal services |
-| **Authentik** | Unified SSO — OIDC for ArgoCD, Grafana, Infisical; forward-auth proxy for Longhorn, Hubble, Sympozium (`192.168.55.211`) |
+| **Sympozium** | Kubernetes-native agentic control plane — agent=Pod, policy={{< abbr "CRD" >}}, execution=Job (`192.168.55.207`) |
+| **cert-manager** | Automated {{< abbr "TLS" >}} certificate lifecycle for webhooks and internal services |
+| **Authentik** | Unified {{< abbr "SSO" >}} — {{< abbr "OIDC" >}} for ArgoCD, Grafana, Infisical; forward-auth proxy for Longhorn, Hubble, Sympozium (`192.168.55.211`) |
 | **vCluster** | Virtual K8s clusters inside Frank — disposable sandboxes with own API server, resource quotas, network policies |
 | **Paperclip** | AI agent orchestrator — virtual companies with org charts, budgets, and delegation chains; complements Sympozium (`192.168.55.212`) |
 | **ComfyUI** | Diffusion model serving — video (LTX-2.3), image (SDXL), audio (Stable Audio), node-based workflow editor (`192.168.55.213`) |
@@ -51,23 +51,23 @@ This post is a **living document**: it gets updated as new technologies and capa
 | **n8n** | Per-user workflow automation — 400+ integrations, visual node editor, webhook triggers, Authentik forward-auth (`192.168.55.216`) |
 | **Blackbox Exporter + Pushgateway** | Feature-level health monitoring — HTTP endpoint probes, cron heartbeat ingestion, Grafana alerting to Telegram |
 | **Health Bridge** | Grafana alert → GitHub Project lifecycle state bridge — automatic degraded/dead/healthy transitions, issue comments, bug issue creation |
-| **Traefik (in-cluster)** | In-cluster ingress controller, wildcard TLS (`*.cluster.derio.net`), ACME via Cloudflare DNS-01, Authentik forward-auth for 12 services (`192.168.55.220`) |
-| **VK Remote (self-hosted)** | Self-hosted VibeKanban kanban API — PostgreSQL 16, ElectricSQL real-time sync, Rust/Axum server, local JWT auth, Authentik SSO ingress (`vk.cluster.derio.net`) |
-| **VK Relay** | WebSocket relay sidecar tunneling browser API calls to local VK agent server via yamux multiplexing, SPAKE2 pairing, Ed25519 request signing |
+| **Traefik (in-cluster)** | In-cluster ingress controller, wildcard TLS (`*.cluster.derio.net`), {{< abbr "ACME" >}} via Cloudflare DNS-01, Authentik forward-auth for 12 services (`192.168.55.220`) |
+| **{{< abbr "VK" >}} Remote (self-hosted)** | Self-hosted VibeKanban kanban API — PostgreSQL 16, ElectricSQL real-time sync, Rust/Axum server, local {{< abbr "JWT" >}} auth, Authentik SSO ingress (`vk.cluster.derio.net`) |
+| **VK Relay** | WebSocket relay sidecar tunneling browser API calls to local VK agent server via yamux multiplexing, {{< abbr "SPAKE2" >}} pairing, Ed25519 request signing |
 | **gethomepage.dev** | Cluster dashboard at `master.cluster.derio.net` — service catalog with HTTP health indicators, custom bookmarks |
 | **Gitea** | Self-hosted git forge with GitHub pull-mirror, Authentik OIDC SSO (`192.168.55.209`) |
 | **Tekton** | K8s-native CI/CD pipelines — webhook-driven clone, test, build, sign, report status on pc-1 |
-| **Zot** | OCI container/artifact registry with cert-manager TLS and cosign image signing (`192.168.55.210`) |
+| **Zot** | {{< abbr "OCI" >}} container/artifact registry with cert-manager TLS and cosign image signing (`192.168.55.210`) |
 | **agent-images** | Shared base image + per-pod children repo — `agent-base` toolchain + `secure-agent-kali` / `vk-local` children, matrix CI, cross-repo `repository_dispatch`, lockstep bumper PR |
-| **Ruflo (claude-flow + ruvocal)** | Swarm-style AI orchestrator — hybrid pod (ruvocal SSR + agent-shell-base sidecar), LiteLLM-only egress, SSH+Mosh shell on `192.168.55.222`, web UI at `ruflo.cluster.derio.net` |
+| **Ruflo (claude-flow + ruvocal)** | Swarm-style AI orchestrator — hybrid pod (ruvocal {{< abbr "SSR" >}} + agent-shell-base sidecar), LiteLLM-only egress, SSH+Mosh shell on `192.168.55.222`, web UI at `ruflo.cluster.derio.net` |
 | **The Frank Papers** | Third blog series — research-grade landscape reviews framed as decisions; dossier gate (`validate-dossier.py` + pre-commit hook), Mermaid Frank theme, five `papers/` shortcodes, render-time cross-series backlinks. **Prologue published 2026-05-18:** [Why Run Your Own Cluster in 2026?](/docs/papers/00-why-homelab-in-2026) |
 | **GoatCounter** | Cookieless blog analytics — public beacon via Hop's Caddy at `counter.derio.net`, mesh-only admin at `counter.cluster.derio.net` with Authentik forward-auth (`192.168.55.224`) |
 | **CrowdSec + caddy-crowdsec-bouncer** | Edge HTTP security — agent tails Caddy logs on Hop, Caddy bouncer enforces decisions locally without round-tripping to Frank |
 | **Falco (modern_ebpf) + Falcosidekick** | Container runtime security on Talos — Loki output to VictoriaLogs (Loki push protocol) + direct Telegram for `priority:critical` |
 | **ai-alert-helper** | FastAPI service — daily blog digest, alert-time LLM enrichment, surge detection (hour-of-day baseline computed in Python because LogsQL has no `quantile_over_time`); LiteLLM-backed swap contract for future Sympozium |
-| **AWX** | Ansible automation controller — the imperative arm reaching non-Talos home-lab hosts over SSH; operator + `AWX` CR (two-layer reconcile), native OIDC SSO via Authentik, Gitea-backed Job Templates |
-| **hermes (Nous Research)** | Terminal-native agent CLI in a dedicated `agent-shell-base` pod on gpu-1 — BYOK to LiteLLM (provider pinned via `config.yaml` mapping), profile.d shim defeating the sshd env-scrub, SSH+Mosh on `192.168.55.226` |
-| **metrics-server** | Aggregated resource Metrics API (`metrics.k8s.io`) on Talos — restores `kubectl top nodes/pods` and unblocks CPU/memory HPA; `--kubelet-insecure-tls` for self-signed kubelet certs. Custom/external metrics deferred to a VM-backed prometheus-adapter |
+| **AWX** | Ansible automation controller — the imperative arm reaching non-Talos home-lab hosts over SSH; operator + `AWX` {{< abbr "CR" >}} (two-layer reconcile), native OIDC SSO via Authentik, Gitea-backed Job Templates |
+| **hermes (Nous Research)** | Terminal-native agent CLI in a dedicated `agent-shell-base` pod on gpu-1 — {{< abbr "BYOK" >}} to LiteLLM (provider pinned via `config.yaml` mapping), profile.d shim defeating the sshd env-scrub, SSH+Mosh on `192.168.55.226` |
+| **metrics-server** | Aggregated resource Metrics API (`metrics.k8s.io`) on Talos — restores `kubectl top nodes/pods` and unblocks CPU/memory {{< abbr "HPA" >}}; `--kubelet-insecure-tls` for self-signed kubelet certs. Custom/external metrics deferred to a VM-backed prometheus-adapter |
 
 ## Cluster State
 

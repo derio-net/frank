@@ -22,7 +22,7 @@ Two components join the monitoring namespace alongside VictoriaMetrics and Grafa
 
 | Component | Role | How It Works |
 |-----------|------|-------------|
-| **Blackbox Exporter** | HTTP endpoint probing | Receives probe requests from VictoriaMetrics via VMProbe CRD, tests HTTP endpoints, reports `probe_success` |
+| **Blackbox Exporter** | HTTP endpoint probing | Receives probe requests from VictoriaMetrics via VMProbe {{< abbr "CRD" >}}, tests HTTP endpoints, reports `probe_success` |
 | **Pushgateway** | Heartbeat metric ingestion | Cron scripts push `willikins_heartbeat_last_success_timestamp` after each successful run |
 
 ```mermaid
@@ -160,7 +160,7 @@ Five alert rules in the "Feature Health" folder, all created via the Grafana pro
 
 ### Grafana 12.x SSE Format
 
-The biggest gotcha: Grafana 12.x uses Server-Side Expressions (SSE) that require a specific three-step format for alert rules. The classic condition format (`datasourceUid: "-100"`) that older tutorials show no longer works.
+The biggest gotcha: Grafana 12.x uses Server-Side Expressions ({{< abbr "SSE" >}}) that require a specific three-step format for alert rules. The classic condition format (`datasourceUid: "-100"`) that older tutorials show no longer works.
 
 Each rule needs three data entries:
 

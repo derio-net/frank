@@ -72,7 +72,7 @@ dashboard:
   enabled: false
 ```
 
-Two ArgoCD apps: `argo-rollouts` (Helm chart) and `argo-rollouts-extras` (supplemental RBAC).
+Two ArgoCD apps: `argo-rollouts` (Helm chart) and `argo-rollouts-extras` (supplemental {{< abbr "RBAC" >}}).
 
 ### The Cilium Plugin That Never Existed
 
@@ -214,7 +214,7 @@ Fixing the plugin exposed four additional bugs, each masked by the previous:
 1. **Over-broad canary Service selector** (caught in code review) — `service-canary.yaml` selected all litellm pods, not just canary ones. Would have double-counted traffic if the L7 design had worked.
 2. **`workloadRef.scaleDown` defaults to `never`** — the Rollout never scaled the Helm Deployment to 0. Six pods ran instead of five. The field `workloadRef.scaleDown: onsuccess` was missing.
 3. **AnalysisTemplate query only caught 5xx errors** — `status=~"5.."` missed all 4xx errors. A canary serving 100% 4xx would evaluate as 0% error and be auto-promoted as healthy.
-4. **The metric source does not exist** — `litellm_request_total` was never exposed. OSS LiteLLM has no `/metrics` endpoint (Enterprise feature). The AnalysisRun panicked on empty result vector.
+4. **The metric source does not exist** — `litellm_request_total` was never exposed. {{< abbr "OSS" >}} LiteLLM has no `/metrics` endpoint (Enterprise feature). The AnalysisRun panicked on empty result vector.
 
 The fix: pause-only canary with no metric-gating until a real signal source lands. The replica-count approach completed two end-to-end round-trips after these fixes.
 

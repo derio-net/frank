@@ -34,8 +34,8 @@ related_operating: "docs/operating/06-secrets"
 
 Secrets management is a five-job problem — storage, distribution,
 rotation, audit, and the bootstrap chicken-and-egg — and the six
-contenders in 2026 (Infisical, ESO + SOPS-in-Git, HashiCorp Vault,
-Sealed Secrets, AWS Secrets Manager + CSI, and the null-hypothesis
+contenders in 2026 (Infisical, {{< abbr "ESO" >}} + {{< abbr "SOPS" >}}-in-Git, HashiCorp Vault,
+Sealed Secrets, AWS Secrets Manager + {{< abbr "CSI" >}}, and the null-hypothesis
 plaintext-in-Git) each treat one or two of those jobs as primary and
 demand a tax from the operator for the rest.
 
@@ -51,8 +51,8 @@ Compliance audit → Vault. Single cloud → cloud Secrets Manager + CSI.
 ## §1 — The capability
 
 A change is ready to ship. The Helm chart wants a database password. The
-controller wants an API token. The cron job wants a service-account JWT.
-The dashboard wants an OIDC client secret. The new app does not even have
+controller wants an API token. The cron job wants a service-account {{< abbr "JWT" >}}.
+The dashboard wants an {{< abbr "OIDC" >}} client secret. The new app does not even have
 an admin password yet — it needs one minted, written to a secret store,
 and made available to the pod the moment it starts. And the chart that
 ships the secret store *itself* wants its own admin password, its own
@@ -81,7 +81,7 @@ flowchart LR
 Five jobs in one capability — storage, distribution, rotation, audit, and
 bootstrap. The vendor space *splits* on which job is primary and which
 dependency is mandatory. Some options optimise for storage and let the
-others fall out of the design; others assume a cloud KMS and refuse to
+others fall out of the design; others assume a cloud {{< abbr "KMS" >}} and refuse to
 exist without it; one of them is "the secret store itself needs secrets
 to exist", and the only honest answer to that is an out-of-band loop the
 declarative-everything principle reluctantly carves out as the single
@@ -98,12 +98,12 @@ documented bootstrap loop that pretends to no magic.
 
 Six options dominate secrets management on Kubernetes in 2026, and they
 split on two axes. The horizontal axis is *where the source of truth
-lives* — cloud-managed on the left (you outsource the server, IAM gates
+lives* — cloud-managed on the left (you outsource the server, {{< abbr "IAM" >}} gates
 access), self-hosted on the right (you run the server, your keys, your
 storage). The vertical axis is *credential dynamism* — plain key-value
 storage on the bottom (the secret is what you put in), dynamic credentials
 on the top (the store mints a short-lived credential on read, signs a
-PKI certificate, or rotates a backend password on a schedule).
+{{< abbr "PKI" >}} certificate, or rotates a backend password on a schedule).
 
 {{< papers/landscape axes="x:cloud-managed↔self-hosted,y:plain-storage↔dynamic-credentials" >}}
         title Secrets management — 2026
@@ -133,7 +133,7 @@ without secrets that do not yet exist anywhere.
 **Infisical** optimises for day-one ergonomics. A web UI exists from the
 first deploy; projects, environments, and identities map onto the mental
 model most teams already have; the Helm chart is one app, the
-ClusterSecretStore is one CR, ESO does the syncing. The trade is the
+ClusterSecretStore is one {{< abbr "CR" >}}, ESO does the syncing. The trade is the
 bootstrap loop — Infisical needs an admin password, an encryption key,
 and a database URL *before* it can run, and those have to come from
 somewhere that is not Infisical.
@@ -421,7 +421,7 @@ becomes "find every consumer of this credential by grep". Sealed
 Secrets' re-encrypt-on-controller-key-rotation becomes a multi-hour
 ceremony. Infisical's UI starts paying for itself the moment two
 engineers need to read the same secret from different terminals on
-the same Tuesday. Vault's namespaces and ACLs start mattering. The
+the same Tuesday. Vault's namespaces and {{< abbr "ACL" "ACLs" >}} start mattering. The
 crossover is not a number — it is "how many secrets can one engineer
 hold in their head simultaneously?" Below the threshold, simpler is
 better; above it, simpler becomes the bottleneck.
@@ -436,7 +436,7 @@ sync, the consumer pods must restart to pick up the new env var, and
 credentials (Vault's database secrets engine, AWS Secrets Manager's
 auto-rotate) sidestep this entirely: each pod gets a fresh short-lived
 credential on a schedule the secret store controls. For a regulated
-environment with a 24-hour rotation SLO, Vault and AWS Secrets Manager
+environment with a 24-hour rotation {{< abbr "SLO" >}}, Vault and AWS Secrets Manager
 are the only options that can keep up.
 
 **Audit-log demand.** No compliance framework, no auditor, no
@@ -634,7 +634,7 @@ ergonomic (no `envFrom`, no `secretRef`, harder Helm portability). ESO
 is winning adoption but CSI is winning the security-first crowd. The
 two are not strictly exclusive — some teams run both — but the long
 arc bends toward CSI for high-security environments and ESO for
-day-one ergonomics. Watch what the OpenShift and EKS defaults pick.
+day-one ergonomics. Watch what the OpenShift and {{< abbr "EKS" >}} defaults pick.
 
 **Sealed Secrets is becoming a deployment-only artefact.**
 Encrypt-in-Git is great for bootstrap and disaster recovery; it is

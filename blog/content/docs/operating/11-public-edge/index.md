@@ -22,11 +22,11 @@ Hop is a single-node Talos cluster on a CX23 Hetzner VM. Everything about it dif
 | Concern | Frank | Hop |
 |---------|-------|-----|
 | Talos management | Omni (UI + API) | `talosctl` directly |
-| CNI | Cilium (eBPF, L2 LB) | Flannel (default) |
-| Storage | Longhorn (distributed) | Static PVs on Hetzner Volume |
-| Nodes | 7 (HA control plane) | 1 (control-plane + worker) |
+| {{< abbr "CNI" >}} | Cilium (eBPF, L2 {{< abbr "LB" >}}) | Flannel (default) |
+| Storage | Longhorn (distributed) | Static {{< abbr "PV" "PVs" >}} on Hetzner Volume |
+| Nodes | 7 ({{< abbr "HA" >}} control plane) | 1 (control-plane + worker) |
 | Ingress | Traefik | Caddy hostPort (80/443) |
-| Ingress auth | Authentik SSO | CrowdSec bouncer + tailscale ACL |
+| Ingress auth | Authentik {{< abbr "SSO" >}} | CrowdSec bouncer + tailscale {{< abbr "ACL" >}} |
 | Remote access | LAN only | Tailscale mesh + public endpoints |
 
 **Hop has no redundancy.** A node reboot means all services are down. A botched Talos upgrade means rebuilding from Packer snapshot. Treat Hop as a pet.
@@ -203,7 +203,7 @@ kubectl -n crowdsec-system exec deploy/crowdsec-lapi -- cscli metrics
 The ban pipeline can fail silently. A CrowdSec canary exists that pages when no new bans appear over a threshold — but the canary itself depends on the pipeline being wired correctly. Known failure modes:
 
 - **Caddy logs not ingested** — CrowdSec needs `container_runtime=containerd` in its Caddy parser config to parse Caddy's JSON logs correctly ([#584](https://github.com/derio-net/frank/pull/584)).
-- **LAPI data not persisted** — If the LAPI pod restarts without a PVC, it forgets all decisions. The fix was adding a PVC for `/var/lib/crowdsec/data` ([#583](https://github.com/derio-net/frank/pull/583)).
+- **{{< abbr "LAPI" >}} data not persisted** — If the LAPI pod restarts without a {{< abbr "PVC" >}}, it forgets all decisions. The fix was adding a PVC for `/var/lib/crowdsec/data` ([#583](https://github.com/derio-net/frank/pull/583)).
 - **Bouncer can't reach LAPI** — The Caddy CrowdSec bouncer was initially pointed at the wrong service name. Fixed in [#574](https://github.com/derio-net/frank/pull/574).
 - **Log rotation kills ingestion** — Caddy's log rotation closes the file descriptor. CrowdSec needs `poll_without_inotify: true` to detect the new log file ([#594](https://github.com/derio-net/frank/pull/594)).
 
@@ -336,7 +336,7 @@ curl -sI https://www.derio.net  | grep -iE "strict-transport|content-security|x-
 curl -sI https://blog.derio.net | grep -iE "strict-transport|content-security|x-content-type"
 ```
 
-The CSP permits exactly one external origin (analytics). If a page starts
+The {{< abbr "CSP" >}} permits exactly one external origin (analytics). If a page starts
 loading anything else — a font, a script, an embed — the browser blocks it
 silently while the page still returns 200. Check the browser console, not the
 server, when analytics or an embed "just stops working".

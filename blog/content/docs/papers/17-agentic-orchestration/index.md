@@ -40,11 +40,11 @@ access, and fleet dispatch — and the six contenders in 2026
 and plain devcontainers / Codespaces) each treat one or two of those jobs
 as primary and demand a tax from the operator for the rest.
 
-Frank runs the self-hosted stack: per-PV secure-agent-pod for the
+Frank runs the self-hosted stack: per-{{< abbr "PV" >}} secure-agent-pod for the
 workstation, VibeKanban for ticket-driven fan-out, Paperclip and Sympozium
 for company-runner and control plane. The scars came at the seams — a
 `shareProcessNamespace` + s6 PID-1 fight that silently broke the pod, a
-30-second MCP timeout cascading into zombie `execution_processes`, a
+30-second {{< abbr "MCP" >}} timeout cascading into zombie `execution_processes`, a
 vk-local cgroup that drifted past 4 GB because concurrency limits do not
 bound cgroups.
 
@@ -53,7 +53,7 @@ policy + audit → Coder.com. Shared cloud IDE → GitPod.
 
 ## §1 — The capability
 
-A coding agent is running. It has a working tree, a shell, an LLM
+A coding agent is running. It has a working tree, a shell, an {{< abbr "LLM" >}}
 endpoint to call, and source-checkout privileges on at least one repo.
 The question this paper examines is not *whether* the agent runs —
 every shell can do that — but *where it runs, with what blast radius,
@@ -88,7 +88,7 @@ flowchart LR
 The vendor space splits on which of those jobs each option treats as
 primary. A laptop devcontainer treats access as the only real job and
 folds isolation, state, and orchestration into "your laptop". Coder.com
-treats orchestration as a first-class CRUD over Terraform-managed
+treats orchestration as a first-class {{< abbr "CRUD" >}} over Terraform-managed
 workspaces and lets the agent be whatever boots inside. Frank's
 secure-agent-pod treats isolation and persistent state as the design
 centre — per-PV, per-pod, sshd at port 22, Mosh on UDP for resilience
@@ -167,7 +167,7 @@ Where VibeKanban dispatches single tickets, Paperclip dispatches
 weight: more moving parts, more state, more places to debug.
 
 **Coder.com** is the managed answer. Terraform-managed Kubernetes or
-VM workstations with policy-as-code, RBAC, audit logs:
+VM workstations with policy-as-code, {{< abbr "RBAC" >}}, audit logs:
 
 {{< papers/pullquote source="Coder.com — Platform documentation" url="https://coder.com/docs" >}}
 Coder is a self-hosted cloud development environment platform that
@@ -181,7 +181,7 @@ how workspaces are provisioned, and you adapt.
 
 **GitPod** is the lighter cloud-devcontainer answer — ephemeral
 browser-based VS Code workspaces backed by `.devcontainer.json`, with
-auto-prebuilds and OIDC. Self-host with Flex or run on GitPod's infra.
+auto-prebuilds and {{< abbr "OIDC" >}}. Self-host with Flex or run on GitPod's infra.
 Strong for the "many short-lived workspaces" pattern, weaker for
 "long-running tmux session over Mosh".
 
@@ -245,7 +245,7 @@ inside a tmux session backed by the PV; on pod reschedule
 tmux-resurrect restores the windows. SSH provides the standard front
 door; Mosh provides resilient roaming for operators on the road. The
 isolation boundary is the pod itself — namespace, cgroup, network
-policy, and the PV is single-attach Longhorn (RWO).
+policy, and the PV is single-attach Longhorn ({{< abbr "RWO" >}}).
 
 The failure mode is *anything that fights PID 1*. The vendor docs are
 explicit:
@@ -316,7 +316,7 @@ flowchart TD
 Sympozium is the web control plane; Paperclip is the runtime. The
 *shell sidecar* exists for humans to SSH into and install agent CLIs;
 the *app container* runs the test environment and heartbeat
-orchestrator. Both mount the shared `/paperclip` PVC, but they do not
+orchestrator. Both mount the shared `/paperclip` {{< abbr "PVC" >}}, but they do not
 share a process namespace and they do not share `PATH` — a CLI
 installed in the shell sidecar is invisible to the app container
 unless you PATH-suffix it explicitly. That seam is the §5 container-
@@ -419,7 +419,7 @@ through the LLM gateway, plus a `gh` CLI pulling source, plus a
 package install for the relay sidecar, runs roughly 500 MB – 1 GB per
 agent-hour on a busy day. At ten concurrent agents this is 10–20 GB/h
 egress — well below a residential ISP cap, well above what hobbyist
-VPS plans bundle, and the price line where managed platforms start
+{{< abbr "VPS" >}} plans bundle, and the price line where managed platforms start
 making sense.
 
 The fourth axis is harder to quantify and is *what fraction of agent
@@ -468,7 +468,7 @@ failure mode is silence.*
 {{< /papers/scar >}}
 
 {{< papers/scar date="2026-04-22" >}}
-vk-issue-bridge's MCP RPC has a 30-second timeout. When a long agent
+vk-issue-bridge's MCP {{< abbr "RPC" >}} has a 30-second timeout. When a long agent
 task overran it, the bridge crashed; the vk-local request handler's
 Future dropped; `Child::wait()` was cancelled; the setup and cleanup
 shell scripts ran to completion and exited, but the parent process
@@ -592,7 +592,7 @@ or commit to per-PV for everything and accept the spin-up tax.
 
 **Agent-safety frameworks are becoming first-class.** Sandboxing,
 tool allowlists, network policies per agent, audit-log integration —
-the controls that used to be ad-hoc are getting standardized. CNCF's
+the controls that used to be ad-hoc are getting standardized. {{< abbr "CNCF" "CNCF's" >}}
 agent-safety work, Anthropic's published research on agentic
 misalignment, and the `securityProfile` field appearing in
 containers.dev are early signals. The mesh-required vendors in the

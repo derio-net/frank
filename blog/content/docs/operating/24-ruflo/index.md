@@ -59,10 +59,10 @@ graph LR
 ## What Healthy Looks Like
 
 - `ruflo` Deployment is `2/2 Running` in `ruflo-system`.
-- Web UI loads at `https://ruflo.cluster.derio.net` (Authentik SSO).
+- Web UI loads at `https://ruflo.cluster.derio.net` (Authentik {{< abbr "SSO" >}}).
 - SSH to `agent@192.168.55.222` succeeds.
 - All ExternalSecrets show `SecretSynced`.
-- Three PVCs (`ruflo-data`, `ruflo-shell-home`, `ruflo-workspace`) are `Bound`.
+- Three {{< abbr "PVC" "PVCs" >}} (`ruflo-data`, `ruflo-shell-home`, `ruflo-workspace`) are `Bound`.
 
 ## Verify
 
@@ -98,7 +98,7 @@ kubectl rollout restart deploy/ruflo -n ruflo-system
 kubectl rollout status deploy/ruflo -n ruflo-system --timeout=120s
 ```
 
-Uses `Recreate` strategy (three RWO PVCs). Expect 30–60s downtime.
+Uses `Recreate` strategy (three {{< abbr "RWO" >}} PVCs). Expect 30–60s downtime.
 
 ### Run a Claude-Flow Swarm
 
@@ -117,7 +117,7 @@ claude-flow hive-mind spawn --claude -o "task description" -m 3
 **The `.mcp.json` launch requirement (frank#475).** `spawn --claude` resolves
 Claude Code's `--mcp-config` from `[./.mcp.json, ~/.claude.json, ~/.claude/mcp.json]`
 in order. With no `./.mcp.json` it falls to `~/.claude.json`, whose root
-`mcpServers` is `null` (Claude Code 2.x stores MCP servers *per-project*, not at
+`mcpServers` is `null` (Claude Code 2.x stores {{< abbr "MCP" >}} servers *per-project*, not at
 the root), and CC rejects it:
 
 ```
@@ -156,7 +156,7 @@ that cliff is the whole point of the experiment.
 
 ### 401 on Every Model Call
 
-The LiteLLM virtual key was revoked or rotated. Force ESO re-sync:
+The LiteLLM virtual key was revoked or rotated. Force {{< abbr "ESO" >}} re-sync:
 
 ```bash
 kubectl annotate externalsecret ruflo-llm -n ruflo-system \
@@ -199,11 +199,11 @@ Or restart the pod to re-fire the `cont-init.d` hook.
 | What we assumed | Why it was wrong | What it cost |
 |---|---|---|
 | `shareProcessNamespace: true` is fine for sidecar containers | s6-overlay v3 must be pid 1 in its container namespace. `shareProcessNamespace` breaks the init sequence — the shell container never reaches Ready. | Removed `shareProcessNamespace`, cross-container debugging now uses `kubectl exec -c`. |
-| The readiness probe against `/` is safe | ruvocal SSR-renders the model list at request time, so hitting `/` triggers a full upstream dependency check every probe cycle. A slow LiteLLM response flaps the probe. | Switched to `/api/v2/feature-flags` as the probe path. |
+| The readiness probe against `/` is safe | ruvocal {{< abbr "SSR" >}}-renders the model list at request time, so hitting `/` triggers a full upstream dependency check every probe cycle. A slow LiteLLM response flaps the probe. | Switched to `/api/v2/feature-flags` as the probe path. |
 | `OPENAI_API_KEY` is the OpenRouter key | LiteLLM authenticates against its own virtual key store. Using the raw OpenRouter key returns 401 on every model-list call. | Switched to a LiteLLM virtual key, documented the distinction. |
-| The data layer uses PostgreSQL | Ruflo uses RVF (a file-based JSON store). Without a PVC at `/app/db`, every restart starts fresh — all hives vanish. | Added the `ruflo-data` PVC, documented the RVF deviation. |
-| `mise install` activates the runtime immediately | `mise install` downloads the runtime but doesn't activate it. `npm install -g` without a prior `mise use -g node@20` writes to the system prefix and hits EACCES. | Manual `mise use -g` workaround until `agent-shell-base` auto-activates. |
-| SSH key rotation applies on secret update | The `cont-init.d/30-authorized-keys` hook only fires at pod boot. Rotating the SOPS-encrypted Secret mid-life has no effect. | Either `kubectl exec` the copy command or restart the pod. |
+| The data layer uses PostgreSQL | Ruflo uses {{< abbr "RVF" >}} (a file-based JSON store). Without a PVC at `/app/db`, every restart starts fresh — all hives vanish. | Added the `ruflo-data` PVC, documented the RVF deviation. |
+| `mise install` activates the runtime immediately | `mise install` downloads the runtime but doesn't activate it. `npm install -g` without a prior `mise use -g node@20` writes to the system prefix and hits {{< abbr "EACCES" >}}. | Manual `mise use -g` workaround until `agent-shell-base` auto-activates. |
+| SSH key rotation applies on secret update | The `cont-init.d/30-authorized-keys` hook only fires at pod boot. Rotating the {{< abbr "SOPS" >}}-encrypted Secret mid-life has no effect. | Either `kubectl exec` the copy command or restart the pod. |
 
 ## Quick Reference
 

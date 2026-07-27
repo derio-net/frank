@@ -14,13 +14,13 @@ last_updated: 2026-07-16
 
 I am a declarative cluster. Everything is reconstructable from this Git repository: every workload an ArgoCD `Application`, every byte of machine config a Talos patch. That is the whole point. It is also a wall.
 
-Because there is a category of machine I cannot touch: the Raspberry Pi on VLAN 10 running someone's DNS sinkhole, the mini-PC that boots Debian and will never run Talos. These are *imperative* machines — you reach them over SSH, run a thing, check the thing ran.
+Because there is a category of machine I cannot touch: the Raspberry Pi on {{< abbr "VLAN" >}} 10 running someone's DNS sinkhole, the mini-PC that boots Debian and will never run Talos. These are *imperative* machines — you reach them over SSH, run a thing, check the thing ran.
 
 Ansible has exactly that verb. So this layer — `auto` — is me growing an imperative arm: **AWX**, deployed *declaratively* so it can act *imperatively*.
 
 ## Two Operators, One Cluster
 
-ArgoCD installs the awx-operator Helm chart and applies an `AWX` custom resource. That is all ArgoCD manages. Then the *operator* takes over: it reconciles the CR into a Deployment for the web pod, the task pod, a StatefulSet for Postgres, migrations Job, Services. None of that is in Git.
+ArgoCD installs the awx-operator Helm chart and applies an `AWX` custom resource. That is all ArgoCD manages. Then the *operator* takes over: it reconciles the {{< abbr "CR" >}} into a Deployment for the web pod, the task pod, a StatefulSet for Postgres, migrations Job, Services. None of that is in Git.
 
 ```mermaid
 flowchart LR
@@ -54,7 +54,7 @@ The operator renders `value` as the right-hand side of a Python assignment: `SET
 
 ## The Second CrashLoop: A Volume That Wasn't Writable
 
-Postgres runs as UID 26. The Longhorn PVC is root-owned. No `fsGroup` on the operator-emitted StatefulSet:
+Postgres runs as {{< abbr "UID" >}} 26. The Longhorn {{< abbr "PVC" >}} is root-owned. No `fsGroup` on the operator-emitted StatefulSet:
 
 ```
 mkdir: cannot create directory '/var/lib/pgsql/data/userdata': Permission denied
@@ -64,7 +64,7 @@ Fix: `postgres_data_volume_init: true` — injects a root init container that `c
 
 ## The Login Page With No Login
 
-With Postgres up and `awx-web` running, navigating to `awx.cluster.derio.net` showed a username/password login with no OIDC button. A two-hour investigation found the actual problem: the Authentik blueprint had silently failed.
+With Postgres up and `awx-web` running, navigating to `awx.cluster.derio.net` showed a username/password login with no {{< abbr "OIDC" >}} button. A two-hour investigation found the actual problem: the Authentik blueprint had silently failed.
 
 Authentik 2026.2.1 changed the OAuth2 provider schema — `redirect_uris` must be a list, and `invalidation_flow` is required. The blueprint used the old format (newline-delimited string, no `invalidation_flow`). ArgoCD showed `Synced` because the ConfigMap existed, but the `BlueprintInstance` status was `error`.
 
@@ -86,7 +86,7 @@ curl -X PATCH http://awx/api/v2/settings/oidc/ \
   -d '{"SOCIAL_AUTH_OIDC_SECRET": "<value>"}'
 ```
 
-Re-read returned `$encrypted$`. The SSO button appeared. Two 200s that changed nothing, because a settings API that silently discards keys is indistinguishable from one that worked.
+Re-read returned `$encrypted$`. The {{< abbr "SSO" >}} button appeared. Two 200s that changed nothing, because a settings API that silently discards keys is indistinguishable from one that worked.
 
 ## The Gate: Ping Is a Promise
 

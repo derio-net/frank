@@ -12,9 +12,9 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-For 25 layers, every container image Frank ran came from somewhere else — Docker Hub, GHCR, upstream Helm charts. The cluster consumed images but never built them.
+For 25 layers, every container image Frank ran came from somewhere else — Docker Hub, {{< abbr "GHCR" >}}, upstream Helm charts. The cluster consumed images but never built them.
 
-This post changes that. We deploy a complete CI/CD platform on pc-1: **Gitea** mirrors GitHub repos locally, **Tekton** runs webhook-driven pipelines, **Zot** stores OCI container images, and **cosign** signs every image that comes out. All four are ArgoCD-managed, secrets flow through Infisical.
+This post changes that. We deploy a complete CI/CD platform on pc-1: **Gitea** mirrors GitHub repos locally, **Tekton** runs webhook-driven pipelines, **Zot** stores {{< abbr "OCI" >}} container images, and **cosign** signs every image that comes out. All four are ArgoCD-managed, secrets flow through Infisical.
 
 ## Architecture
 
@@ -57,15 +57,15 @@ flowchart LR
   SIGN -->|.sig artifact| REG
 ```
 
-Every component runs on pc-1 — the legacy desktop with 32GB RAM that previously sat idle in the Edge zone. A dedicated `longhorn-cicd` StorageClass pins PVCs to that node with single-replica storage. Not HA, but CI/CD pipelines are ephemeral — if pc-1 goes down, builds queue until it comes back.
+Every component runs on pc-1 — the legacy desktop with 32GB RAM that previously sat idle in the Edge zone. A dedicated `longhorn-cicd` StorageClass pins {{< abbr "PVC" "PVCs" >}} to that node with single-replica storage. Not {{< abbr "HA" >}}, but CI/CD pipelines are ephemeral — if pc-1 goes down, builds queue until it comes back.
 
 ## Prerequisites
 
 - **Longhorn** — persistent storage for Gitea repos and Zot image blobs
 - **Cilium L2** — LoadBalancer IPs for all three services
 - **Infisical + ExternalSecrets** — secrets for admin passwords, API tokens, push credentials
-- **cert-manager** — self-signed TLS for Zot registry
-- **Authentik** — OIDC SSO for Gitea, forward-auth for Tekton Dashboard
+- **cert-manager** — self-signed {{< abbr "TLS" >}} for Zot registry
+- **Authentik** — {{< abbr "OIDC" >}} {{< abbr "SSO" >}} for Gitea, forward-auth for Tekton Dashboard
 
 ## StorageClass: longhorn-cicd
 
@@ -134,7 +134,7 @@ Three vendored release YAMLs deployed as separate ArgoCD apps:
 
 | Component | Version | What It Does |
 |-----------|---------|-------------|
-| Tekton Pipelines | v0.65.2 | Pipeline controller, CRDs |
+| Tekton Pipelines | v0.65.2 | Pipeline controller, {{< abbr "CRD" "CRDs" >}} |
 | Tekton Triggers | v0.28.1 | EventListener, TriggerBinding, TriggerTemplate |
 | Tekton Dashboard | v0.52.0 | Web UI |
 
@@ -159,7 +159,7 @@ spec:
                 header.match('X-Gitea-Event', 'push')
 ```
 
-Important gotcha: the plan originally used the `github` ClusterInterceptor for webhook validation, but Gitea sends `X-Gitea-Event` headers instead of `X-GitHub-Event`. The GitHub interceptor silently drops anything without the expected header. Switched to a CEL interceptor that explicitly matches `X-Gitea-Event: push`.
+Important gotcha: the plan originally used the `github` ClusterInterceptor for webhook validation, but Gitea sends `X-Gitea-Event` headers instead of `X-GitHub-Event`. The GitHub interceptor silently drops anything without the expected header. Switched to a {{< abbr "CEL" >}} interceptor that explicitly matches `X-Gitea-Event: push`.
 
 ### The gitea-ci Pipeline
 
@@ -286,11 +286,11 @@ Two webhook events drive the chain:
 ### Why a Caddy Relay on Hop
 
 GitHub webhooks originate from the public internet. Frank's EventListener lives on the LAN at `192.168.55.223:8080` — not reachable from outside. Three options considered:
-1. **Public-LB the EventListener** — punctures LAN-only posture.
+1. **Public-{{< abbr "LB" >}} the EventListener** — punctures LAN-only posture.
 2. **Cloudflare Tunnel from Frank** — adds unwanted dependency.
 3. **Caddy reverse-proxy on Hop** — reuse existing public edge, mesh-forward to Frank via Tailscale.
 
-(3) won. Caddy validates TLS to GitHub (Cloudflare DNS-01 cert), forwards the signed payload verbatim. Two-layer HMAC checking is intentional — Caddy rejects garbage at L7; the EventListener is authoritative.
+(3) won. Caddy validates TLS to GitHub (Cloudflare DNS-01 cert), forwards the signed payload verbatim. Two-layer {{< abbr "HMAC" >}} checking is intentional — Caddy rejects garbage at L7; the EventListener is authoritative.
 
 One gotcha: Hop needs `--accept-routes` in Tailscale args for `192.168.55.0/24` to route through the mesh subnet router.
 
@@ -305,7 +305,7 @@ Both `github-status` and `gitea-status` Tasks live in the single `finally` block
 
 Inlined fetch+push (not the catalog `git-clone` Task — the catalog task does `--depth` only, cannot do `git fetch` for cross-fork PR refs). Uses token-auth URL for GitHub fetch (`https://x-access-token:${TOKEN}@github.com/...`) and SSH for Gitea push.
 
-One trap: `GIT_SSH_COMMAND` must point explicitly at `$HOME/.ssh/id_rsa` because the Tekton pod runs as UID 65534 (nobody), and OpenSSH's default key lookup walks `~/.ssh/id_*` against `/etc/passwd` HOME for that UID — which is `/`, where there is no readable `~/.ssh`.
+One trap: `GIT_SSH_COMMAND` must point explicitly at `$HOME/.ssh/id_rsa` because the Tekton pod runs as {{< abbr "UID" >}} 65534 (nobody), and OpenSSH's default key lookup walks `~/.ssh/id_*` against `/etc/passwd` HOME for that UID — which is `/`, where there is no readable `~/.ssh`.
 
 ## Extension: Gitea Actions (2026-07)
 

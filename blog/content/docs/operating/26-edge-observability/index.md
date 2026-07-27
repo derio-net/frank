@@ -110,7 +110,7 @@ kubectl exec -n crowdsec-system deploy/crowdsec-lapi -- \
 
 ### Re-Register the Caddy Bouncer
 
-If the bouncer drops after a LAPI restart:
+If the bouncer drops after a {{< abbr "LAPI" >}} restart:
 
 ```bash
 KEY=$(kubectl -n crowdsec-system get secret crowdsec-bouncer-keys \
@@ -187,14 +187,14 @@ _time:1h source:syscall AND kubernetes.namespace_name:kube-system \
   | stats by (rule) count() as c | sort by (c desc)
 ```
 
-Add exceptions for known patterns: Helm hooks, node problem detectors, CSI sidecars.
+Add exceptions for known patterns: Helm hooks, node problem detectors, {{< abbr "CSI" >}} sidecars.
 
 ## Missteps
 
 | What we assumed | Why it was wrong | What it cost |
 |---|---|---|
 | VictoriaLogs field names use underscores | Fluent-bit emits dotted `kubernetes.namespace_name` with `Merge_Log On`. Underscore-form queries return zero hits. | Burned an evening debugging empty query results. |
-| CrowdSec LAPI decisions survive pod restarts on Hop | The LAPI pod uses `emptyDir` — no PVC. Every restart wipes decisions and bouncer registrations. | Added `postStart` hook to re-register bouncer; manual fallback in the runbook. |
+| CrowdSec LAPI decisions survive pod restarts on Hop | The LAPI pod uses `emptyDir` — no {{< abbr "PVC" >}}. Every restart wipes decisions and bouncer registrations. | Added `postStart` hook to re-register bouncer; manual fallback in the runbook. |
 | The community blocklist works without enrollment | CrowdSec's community blocklists require an `app.crowdsec.net` account and enrollment token. Without enrollment, only local scenarios apply. | Deferred — free-tier sign-up pending. |
 | `enableServiceLinks: false` is safe for all pods | GoatCounter with `enableServiceLinks: false` can't resolve its SQLite path via environment variable injection. | Debugging session to identify the regression. |
 

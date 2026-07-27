@@ -15,7 +15,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
 
 {{< last-updated >}}
 
-This is the operational companion to [Building Secrets Management]({{< relref "/docs/building/09-secrets" >}}). That post covers the architecture decisions and the three chart bugs that nearly sank the deployment. This one covers what you actually type when an ExternalSecret shows `SecretSyncedError`, a rotated credential isn't picked up, or a SOPS file refuses to decrypt — plus the gotchas we discovered the hard way.
+This is the operational companion to [Building Secrets Management]({{< relref "/docs/building/09-secrets" >}}). That post covers the architecture decisions and the three chart bugs that nearly sank the deployment. This one covers what you actually type when an ExternalSecret shows `SecretSyncedError`, a rotated credential isn't picked up, or a {{< abbr "SOPS" >}} file refuses to decrypt — plus the gotchas we discovered the hard way.
 
 Before any of the commands below, source the environment:
 
@@ -30,7 +30,7 @@ Secrets on Frank flow through two layers:
 
 **Runtime secrets** live in Infisical. Applications never touch them directly. External Secrets Operator watches `ExternalSecret` resources, fetches values from Infisical via the `ClusterSecretStore`, and materializes them as native Kubernetes Secrets. The default refresh interval is 5 minutes.
 
-**Bootstrap secrets** are the credentials Infisical and ESO themselves need to start — database passwords, Redis passwords, Machine Identity credentials. These are SOPS-encrypted with age, stored in `secrets/`, and applied manually. They exist outside ArgoCD because ArgoCD cannot decrypt SOPS secrets during ServerSideApply.
+**Bootstrap secrets** are the credentials Infisical and {{< abbr "ESO" >}} themselves need to start — database passwords, Redis passwords, Machine Identity credentials. These are SOPS-encrypted with age, stored in `secrets/`, and applied manually. They exist outside ArgoCD because ArgoCD cannot decrypt SOPS secrets during ServerSideApply.
 
 The rule: if a secret is needed before Infisical is running, it's a SOPS bootstrap secret. Everything else goes into Infisical.
 
@@ -134,7 +134,7 @@ spec:
         metadataPolicy: None
 ```
 
-We always set `conversionStrategy`, `decodingStrategy`, and `metadataPolicy` explicitly now — omitting them caused perpetual ArgoCD OutOfSync because the CRD defaults them on the live object but git had no value (commit `ea842e7b`).
+We always set `conversionStrategy`, `decodingStrategy`, and `metadataPolicy` explicitly now — omitting them caused perpetual ArgoCD OutOfSync because the {{< abbr "CRD" >}} defaults them on the live object but git had no value (commit `ea842e7b`).
 
 4. Commit and push — ArgoCD syncs the ExternalSecret, ESO fetches the value from Infisical.
 

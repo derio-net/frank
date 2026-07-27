@@ -41,14 +41,14 @@ Datadog/New Relic, OpenSearch/Elastic) each treat one or two jobs
 as primary and the rest as supported-eventually.
 
 Frank runs Grafana with VictoriaMetrics as a Prometheus-compatible
-TSDB and Loki for logs, alerts file-provisioned from ConfigMaps to
+{{< abbr "TSDB" >}} and Loki for logs, alerts file-provisioned from ConfigMaps to
 Telegram. The scars came in the seams: file-provisioned alerts
-read-only in the UI, a Grafana 12.x SSE engine that broke half
+read-only in the UI, a Grafana 12.x {{< abbr "SSE" >}} engine that broke half
 Frank's alert rules on a minor-version bump, and an `ALERTS{}`
 series that does not exist in VictoriaMetrics.
 
 Frank's answer does not generalize. Laptop scale → Grafana Cloud
-free. Small OSS cluster → Frank's stack. Production multi-tenant
+free. Small {{< abbr "OSS" >}} cluster → Frank's stack. Production multi-tenant
 SaaS → Mimir+Tempo+Loki or Datadog/New Relic. Logs-first regulated
 industry → OpenSearch + Filebeat.
 
@@ -132,7 +132,7 @@ surface and bills as one thing).
 {{< papers/capability-matrix data="vendors" >}}
 
 The matrix grades the options on the five jobs from §1 plus the
-license axis, HA-shape, and small-cluster TCO. The TCO column
+license axis, {{< abbr "HA" >}}-shape, and small-cluster {{< abbr "TCO" >}}. The TCO column
 deserves more honesty than the matrix gives it — *cheap at homelab
 scale* really means *cheap on a single 3-node footprint with no
 in-cluster log retention beyond a week*, which is the only TCO axis
@@ -162,7 +162,7 @@ for SaaS-scale ingestion. The five-node minimum is unspoken but
 real.
 
 **Tempo / Jaeger** is the tracing side of the stack. Tempo is
-Grafana's object-store-backed trace backend; Jaeger is the CNCF
+Grafana's object-store-backed trace backend; Jaeger is the {{< abbr "CNCF" >}}
 predecessor with its own UI and its own data model. Neither matters
 to Frank yet — tracing earns its keep when you have services
 calling services in chains, which Frank does not.
@@ -490,7 +490,7 @@ expensive resource. One-to-three small clusters with no
 compliance constraint is where Frank lives: the OSS assembly is
 cheap to run and the scars are tolerable.
 
-A multi-tenant SaaS with revenue-grade SLA pushes the answer in
+A multi-tenant SaaS with revenue-grade {{< abbr "SLA" >}} pushes the answer in
 two directions at once. Either you scale the OSS assembly to
 Mimir-shaped horizontal sharding (with all the operational tax of
 running a horizontally sharded TSDB), or you pay Datadog / New
@@ -523,7 +523,7 @@ them affect the next few years of observability tooling.
 **OpenTelemetry collector as the universal agent.** OTel is eating
 the agent layer. Prometheus's own client libraries increasingly
 defer to it; Grafana's recent agent shipments converge on it;
-vendors of every shape now accept OTLP as a wire protocol. The
+vendors of every shape now accept {{< abbr "OTLP" >}} as a wire protocol. The
 two-decade-old "every vendor has its own agent" anti-pattern is
 finally dying, which means the choice of *agent* and the choice of
 *backend* are decoupling for the first time. The interesting
@@ -544,7 +544,7 @@ themselves explicitly.
 **AI-assisted alert triage.** Every commercial vendor is shipping
 "AI alert grouping" or "anomaly detection" of varying quality. The
 OSS side has not caught up. Whether the gap closes — and whether
-the closing is real signal or wrapper-around-an-LLM theatre — is
+the closing is real signal or wrapper-around-an-{{< abbr "LLM" >}} theatre — is
 the most consequential open question in this space for the next
 2–3 years. Frank does not have an opinion yet because Frank has
 not seen a real one work.

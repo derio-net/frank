@@ -12,7 +12,7 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-The cluster can reason, orchestrate, and generate media. But most real work is a chain of steps — fetch from an API, transform, call an LLM, post the result, repeat on a schedule. That is workflow automation.
+The cluster can reason, orchestrate, and generate media. But most real work is a chain of steps — fetch from an API, transform, call an {{< abbr "LLM" >}}, post the result, repeat on a schedule. That is workflow automation.
 
 [n8n](https://n8n.io/) is an open-source workflow automation platform with 400+ integrations, a visual node editor, and a webhook system. It runs as a single Node.js process backed by PostgreSQL.
 
@@ -41,7 +41,7 @@ flowchart LR
 
 ## Why Per-User Instances
 
-n8n's Community Edition does not support multi-user accounts with workflow isolation. SSO (OIDC/SAML) is enterprise-only, gated behind a $400/month license. The pattern is simple: `n8n-01`, `n8n-02`, `n8n-03` — each with its own namespace, PostgreSQL, PVC, and LoadBalancer IP. Adding an instance is a find-replace across ~6 files.
+n8n's Community Edition does not support multi-user accounts with workflow isolation. {{< abbr "SSO" >}} ({{< abbr "OIDC" >}}/{{< abbr "SAML" >}}) is enterprise-only, gated behind a $400/month license. The pattern is simple: `n8n-01`, `n8n-02`, `n8n-03` — each with its own namespace, PostgreSQL, {{< abbr "PVC" >}}, and LoadBalancer IP. Adding an instance is a find-replace across ~6 files.
 
 ## Why gpu-1
 
@@ -53,7 +53,7 @@ Two ArgoCD apps per instance:
 
 | Component | Type | Purpose |
 |-----------|------|---------|
-| `n8n-01` | Raw manifests | Deployment, Service (LB), PVC |
+| `n8n-01` | Raw manifests | Deployment, Service ({{< abbr "LB" >}}), PVC |
 | `n8n-01-postgresql` | Bitnami Helm chart | Standalone PostgreSQL, Longhorn storage |
 
 ### Authentication: The OIDC Detour
@@ -77,7 +77,7 @@ The plan included an init container to bootstrap the admin account via `n8n user
 
 ### Secrets and Encryption
 
-Three values in the SOPS-encrypted secret `secrets/n8n-01/n8n-01-secrets.yaml`:
+Three values in the {{< abbr "SOPS" >}}-encrypted secret `secrets/n8n-01/n8n-01-secrets.yaml`:
 
 | Key | Purpose |
 |-----|---------|
@@ -104,7 +104,7 @@ VMAgent auto-discovers these and feeds execution counts, durations, error rates 
 
 1. Copy `apps/n8n-01/` → `apps/n8n-<NN>/`, find-replace `n8n-01` → `n8n-<NN>`
 2. Copy `apps/n8n-01-postgresql/` → `apps/n8n-<NN>-postgresql/`, find-replace
-3. Copy the 3 Application CR templates, find-replace
+3. Copy the 3 Application {{< abbr "CR" >}} templates, find-replace
 4. Pick next available IP from `192.168.55.2xx` range
 5. Add proxy provider to `blueprints-proxy-providers.yaml`
 6. Create and encrypt `secrets/n8n-<NN>-secrets.yaml`
@@ -114,9 +114,9 @@ VMAgent auto-discovers these and feeds execution counts, durations, error rates 
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **OIDC init planned but unworkable** — n8n CE has no `user:create` CLI command, OIDC is enterprise-only | Community forums suggested `user:create` CLI exists; it does not in CE | Switched to Authentik forward-auth proxy; removed init container | `3a4b5c6d` |
+| **OIDC init planned but unworkable** — n8n {{< abbr "CE" >}} has no `user:create` CLI command, OIDC is enterprise-only | Community forums suggested `user:create` CLI exists; it does not in CE | Switched to Authentik forward-auth proxy; removed init container | `3a4b5c6d` |
 | **N8N_ENCRYPTION_KEY not set** — auto-generated key stored on filesystem, all credentials unrecoverable on PVC loss | Default n8n behavior generates a key on first boot without persisting it explicitly | Added `N8N_ENCRYPTION_KEY` from SOPS secret | `7d8e9f0g` |
-| **RollingUpdate deadlocks on RWO PVC** — new pod cannot attach while old pod holds the claim | Default strategy creates new pod before terminating old one | Changed to `Recreate` strategy | `1h2i3j4k` |
+| **RollingUpdate deadlocks on {{< abbr "RWO" >}} PVC** — new pod cannot attach while old pod holds the claim | Default strategy creates new pod before terminating old one | Changed to `Recreate` strategy | `1h2i3j4k` |
 
 ## Recovery Path
 

@@ -46,13 +46,13 @@ flowchart LR
 ```
 
 Three cross-cluster networking facts the design is built on:
-- **Tailscale subnet router advertises only home-LAN CIDRs** — not the kube service CIDR. Cross-cluster reach goes via Cilium L2 LoadBalancer IPs in `192.168.55.x`.
+- **Tailscale subnet router advertises only home-LAN {{< abbr "CIDR" "CIDRs" >}}** — not the kube service CIDR. Cross-cluster reach goes via Cilium L2 LoadBalancer IPs in `192.168.55.x`.
 - **Frank has no Alertmanager** — alerting is entirely Grafana-managed.
 - **Grafana lives as a subchart of victoria-metrics** — no `apps/grafana/values.yaml`.
 
 ## Phase 1 — Log Plumbing
 
-Extend the existing VictoriaLogs. Frank already had `apps/victoria-logs/` with 14d retention, 20Gi PVC. Bump retention to 30d, add a sibling LoadBalancer Service at `192.168.55.225` via the chart's `extraObjects`:
+Extend the existing VictoriaLogs. Frank already had `apps/victoria-logs/` with 14d retention, 20Gi {{< abbr "PVC" >}}. Bump retention to 30d, add a sibling LoadBalancer Service at `192.168.55.225` via the chart's `extraObjects`:
 
 ```yaml
 extraObjects:
@@ -111,7 +111,7 @@ Authentik blueprint for `counter.cluster.derio.net` — same manual outpost assi
 
 ## Phase 3 — Edge Security with CrowdSec
 
-CrowdSec runs as agent + LAPI. The agent tails Caddy logs, applies HTTP behavioral scenarios, writes ban decisions to LAPI. The Caddy bouncer module polls LAPI every 10s and returns 403 for banned IPs.
+CrowdSec runs as agent + {{< abbr "LAPI" >}}. The agent tails Caddy logs, applies HTTP behavioral scenarios, writes ban decisions to LAPI. The Caddy bouncer module polls LAPI every 10s and returns 403 for banned IPs.
 
 Build requires Go 1.25.7+ for `caddy-crowdsec-bouncer v0.12.1` — bumped Caddy from 2.9 to 2.11.3:
 
@@ -134,7 +134,7 @@ crowdsec {
 
 ### LAPI Persistence Problem
 
-Hop has no persistent volume available for CrowdSec — both existing PVs are bound. Without persistence, each LAPI restart wipes the bouncer registration, causing the Caddy bouncer to get `access forbidden` in a tight retry loop.
+Hop has no persistent volume available for CrowdSec — both existing {{< abbr "PV" "PVs" >}} are bound. Without persistence, each LAPI restart wipes the bouncer registration, causing the Caddy bouncer to get `access forbidden` in a tight retry loop.
 
 Fix: a postStart hook that re-registers the bouncer with a fixed key:
 
@@ -153,7 +153,7 @@ lifecycle:
           cscli bouncers add caddy-hop -k "$CADDY_HOP_BOUNCER_KEY" 2>/dev/null
 ```
 
-The postStart hook was treating a symptom, not the root cause. The CrowdSec *agent* is a separate machine registered in LAPI's SQLite DB — every LAPI restart also wiped the agent's machine row, so the still-running agent crashlooped (`ent: machine not found`), parsing zero Caddy logs. Two bugs stacked: the crashloop hid the parser misconfiguration (`container_runtime: docker` instead of `containerd` for Talos's CRI format). The dashboard was green through both.
+The postStart hook was treating a symptom, not the root cause. The CrowdSec *agent* is a separate machine registered in LAPI's SQLite DB — every LAPI restart also wiped the agent's machine row, so the still-running agent crashlooped (`ent: machine not found`), parsing zero Caddy logs. Two bugs stacked: the crashloop hid the parser misconfiguration (`container_runtime: docker` instead of `containerd` for Talos's {{< abbr "CRI" >}} format). The dashboard was green through both.
 
 Fix for both: persist LAPI onto a static PV backed by the existing Hetzner Volume subdirectory:
 
@@ -172,7 +172,7 @@ After the switch, `rollout restart daemonset/crowdsec-agent` to re-register agai
 
 ## Phase 4 — Falco on Talos
 
-Falco DaemonSet with `driver.kind: modern_ebpf` — the only viable driver on Talos (no kernel headers). Default rules do not reliably catch `kubectl exec` on Talos, but container CVE classes (cryptominer exec, suspicious file reads, DNS exfil) do trigger.
+Falco DaemonSet with `driver.kind: modern_ebpf` — the only viable driver on Talos (no kernel headers). Default rules do not reliably catch `kubectl exec` on Talos, but container {{< abbr "CVE" >}} classes (cryptominer exec, suspicious file reads, DNS exfil) do trigger.
 
 Falcosidekick sends to Loki output (VictoriaLogs natively accepts Loki push protocol at `/insert/loki/api/v1/push`) and Telegram for critical events:
 
@@ -200,7 +200,7 @@ customRules:
 A Python FastAPI service with two functions:
 
 1. **Daily digest** — summarizes the previous day's blog traffic into a ~200-word Telegram narrative.
-2. **Alert enrichment** — receives Grafana webhooks, adds LLM-generated context before routing to Telegram.
+2. **Alert enrichment** — receives Grafana webhooks, adds {{< abbr "LLM" >}}-generated context before routing to Telegram.
 3. **Surge detection** — compares current traffic to historical baseline, classifies anomalies.
 
 The fact-sheet contract is the swap point:
@@ -221,7 +221,7 @@ Day after deployment: every minute, an URGENT `DatasourceError`:
 [sse.readDataError] [A] got error: input data must be a wide series but got type long
 ```
 
-The VictoriaLogs Grafana datasource defaults to `queryType: instant` (long series). SSE `reduce` expects wide (Prometheus-style). Fix: `queryType: stats` in the alert rule model block.
+The VictoriaLogs Grafana datasource defaults to `queryType: instant` (long series). {{< abbr "SSE" >}} `reduce` expects wide (Prometheus-style). Fix: `queryType: stats` in the alert rule model block.
 
 ### The Digest Was Lying
 
@@ -239,7 +239,7 @@ Fixing the `request.host` filter let surge detection fire 370x baseline — on a
 
 ### Agentic Rewrite (June 2026)
 
-The FastAPI analyst was rebuilt as an agentic alert-agent: an autonomous `claude` session in the `multi-agent-shell` image, driven over a pod-local HTTP endpoint. The deterministic `facts.py`/`surge.py` survived as a `frank-facts` CLI the agent calls as a shell tool. Seven root causes hid behind "it did not answer" — including tmux-continuum resurrecting dead shells, cold-start missing the first keypress, OOM not graceful-restarting sessions, expired tokens, wrong `claude` binary in PATH, missing instructions (loaded `SKILL.md` instead of `CLAUDE.md`/`AGENTS.md`), and the answer arriving 5 minutes too slow for the 120s DM timeout.
+The FastAPI analyst was rebuilt as an agentic alert-agent: an autonomous `claude` session in the `multi-agent-shell` image, driven over a pod-local HTTP endpoint. The deterministic `facts.py`/`surge.py` survived as a `frank-facts` CLI the agent calls as a shell tool. Seven root causes hid behind "it did not answer" — including tmux-continuum resurrecting dead shells, cold-start missing the first keypress, {{< abbr "OOM" >}} not graceful-restarting sessions, expired tokens, wrong `claude` binary in PATH, missing instructions (loaded `SKILL.md` instead of `CLAUDE.md`/`AGENTS.md`), and the answer arriving 5 minutes too slow for the 120s DM timeout.
 
 Six of seven were invisible to ArgoCD. Synced, Healthy, three containers Running — could not answer a single DM.
 
@@ -261,7 +261,7 @@ Six of seven were invisible to ArgoCD. Synced, Healthy, three containers Running
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| Aggregated stats show data only from Frank nodes | Hop logs not reaching VictoriaLogs | Verify Hop fluent-bit output to `192.168.55.225:9428`; check Cross-VLAN routing via Tailscale |
+| Aggregated stats show data only from Frank nodes | Hop logs not reaching VictoriaLogs | Verify Hop fluent-bit output to `192.168.55.225:9428`; check Cross-{{< abbr "VLAN" >}} routing via Tailscale |
 | GoatCounter shows zero pageviews | Hugo snippet not in production build | Verify `hugo.Environment == "production"` guard in goatcounter.html |
 | CrowdSec not banning any IPs | Agent crashlooping due to LAPI state loss | Check LAPI pod logs; verify persistent PV exists and agent DaemonSet restarted |
 | Grafana alert rules show "input data must be wide series" | Alert rule uses `queryType: instant` for VictoriaLogs | Change to `queryType: stats` |

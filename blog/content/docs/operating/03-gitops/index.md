@@ -31,14 +31,14 @@ alias argocd='argocd --port-forward --port-forward-namespace argocd'
 
 ## Overview
 
-ArgoCD runs at `http://192.168.55.200` on a Cilium L2 LoadBalancer. **Note: the UI is plain HTTP** — `https://192.168.55.200` gives a TLS reset (`docs/runbooks/frank-gotchas/argocd.md:64-68`).
+ArgoCD runs at `http://192.168.55.200` on a Cilium L2 LoadBalancer. **Note: the UI is plain HTTP** — `https://192.168.55.200` gives a {{< abbr "TLS" >}} reset (`docs/runbooks/frank-gotchas/argocd.md:64-68`).
 
-A single root Application in `apps/root/` renders 76 child Application CRs — one per component. Key configuration:
+A single root Application in `apps/root/` renders 76 child Application {{< abbr "CR" "CRs" >}} — one per component. Key configuration:
 
 - **`application.resourceTrackingMethod: annotation`** (`apps/argocd/values.yaml:109`) — avoids Helm label conflicts for adoption
 - **`ServerSideApply=true`** on every app — avoids the 256KB annotation limit and enables resource adoption
 - **`selfHeal: true`** on every app — automatically corrects drift from the desired Git state
-- **`prune: false`** (default) — resources removed from Git are not deleted. Intentional — accidental deletion of a CNI or storage controller would be catastrophic.
+- **`prune: false`** (default) — resources removed from Git are not deleted. Intentional — accidental deletion of a {{< abbr "CNI" >}} or storage controller would be catastrophic.
 
 ```mermaid
 graph LR
@@ -197,7 +197,7 @@ argocd app get <app> --port-forward --port-forward-namespace argocd --show-opera
 
 The operation result shows exactly which resource failed and why. Two frequent culprits:
 
-- **Annotation size limit.** Kubernetes has a 256KB limit on annotation values. Large CRDs (Cilium's etc.) can exceed this. `ServerSideApply=true` in syncOptions avoids this — every Frank app uses it.
+- **Annotation size limit.** Kubernetes has a 256KB limit on annotation values. Large {{< abbr "CRD" "CRDs" >}} (Cilium's etc.) can exceed this. `ServerSideApply=true` in syncOptions avoids this — every Frank app uses it.
 - **Finalizer deadlocks.** A resource with a finalizer referencing a deleted controller hangs forever. Check `metadata.finalizers` and remove the offending entry.
 
 #### Recovery: manual sync drops syncOptions

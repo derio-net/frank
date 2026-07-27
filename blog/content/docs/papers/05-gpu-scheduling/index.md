@@ -36,8 +36,8 @@ related_operating: "docs/operating/04-gpu-compute"
 
 GPU scheduling on Kubernetes is a four-job problem — driver lifecycle,
 device discovery, allocation, partitioning — and the six contenders in 2026
-(NVIDIA GPU Operator, Intel GPU Resource Driver / DRA, AMD ROCm device
-plugin, NVIDIA MIG/MPS, Run.AI, and Volcano scheduler) each treat one or
+(NVIDIA GPU Operator, Intel GPU Resource Driver / {{< abbr "DRA" >}}, AMD ROCm device
+plugin, NVIDIA {{< abbr "MIG" >}}/{{< abbr "MPS" >}}, Run.AI, and Volcano scheduler) each treat one or
 two of those jobs as primary and demand a tax from the operator for the
 rest.
 
@@ -47,19 +47,19 @@ Driver on mini-1/2/3, with an in-house `gpu-switcher` brokering exclusive
 runtime access among Ollama, ComfyUI, and vLLM. The scars came in the
 seams: Talos refused NVIDIA's stock driver installer, the
 `nvidia.com/gpu:NoSchedule` taint re-asserted after every restart, Ollama
-tripped the cgroup OOM-killer with `OLLAMA_KEEP_ALIVE` pinning the page
+tripped the cgroup {{< abbr "OOM" >}}-killer with `OLLAMA_KEEP_ALIVE` pinning the page
 cache.
 
 Frank's answer does not generalize. Single GPU, single workload → device
 plugin alone. NVIDIA-only data-centre fleet → Operator + MIG/MPS.
-Multi-tenant batch at scale → Volcano (OSS) or Run.AI (commercial).
+Multi-tenant batch at scale → Volcano ({{< abbr "OSS" >}}) or Run.AI (commercial).
 
 ## §1 — The capability
 
 A pod requests `nvidia.com/gpu: 1`. The scheduler picks a node. The kubelet
 calls the device plugin. The plugin returns a device ID. The container
 runtime injects `/dev/nvidia0` into the pod's namespace. The application
-runs CUDA against the card.
+runs {{< abbr "CUDA" >}} against the card.
 
 Five hops, four vendor components, and a kernel module loaded at boot. The
 capability under examination is not "GPU access" in the abstract — that
@@ -107,7 +107,7 @@ two axes. The horizontal axis is *vendor scope* — does the option speak
 one vendor's hardware (NVIDIA-only, Intel-only, AMD-only) on the left, or
 abstract across vendors on the right? The vertical axis is *device-model
 generation* — the legacy Kubernetes device-plugin API at the bottom, the
-newer Dynamic Resource Allocation framework (KEP-4381 structured
+newer Dynamic Resource Allocation framework ({{< abbr "KEP" >}}-4381 structured
 parameters) at the top.
 
 {{< papers/landscape axes="x:single-vendor↔multi-vendor,y:device-plugin↔DRA" >}}
@@ -143,7 +143,7 @@ provision GPU.
 {{< /papers/pullquote >}}
 
 Five components in one operator: driver, container toolkit, device plugin,
-GPU Feature Discovery for node labelling, DCGM exporter for metrics. The
+GPU Feature Discovery for node labelling, {{< abbr "DCGM" >}} exporter for metrics. The
 trade is that the Operator wants to install the driver itself — and on
 immutable host operating systems (Talos, Bottlerocket, Flatcar) that
 assumption breaks. On Frank, `driver.enabled: false` plus a Talos system
@@ -204,7 +204,7 @@ homelab it is the wrong shape.
 
 {{< papers/pullquote source="Volcano — A Cloud Native Batch System" url="https://volcano.sh/en/docs/" >}}
 Volcano is a cloud native system for high-performance workloads, which
-has been accepted by Cloud Native Computing Foundation (CNCF) as its
+has been accepted by Cloud Native Computing Foundation ({{< abbr "CNCF" >}}) as its
 first and only official container batch scheduling project.
 {{< /papers/pullquote >}}
 
@@ -258,7 +258,7 @@ flowchart TD
 The Operator is six daemonsets coordinated by one controller. The driver
 daemonset compiles modules against the host kernel at install time (or, on
 Talos, is replaced by a system extension). The device plugin advertises
-`nvidia.com/gpu: <count>` to the scheduler. GFD labels the node with the
+`nvidia.com/gpu: <count>` to the scheduler. {{< abbr "GFD" >}} labels the node with the
 GPU model / memory / compute capability. DCGM exports metrics. The
 container toolkit injects `/dev/nvidia*` and library paths at runtime.
 
@@ -437,7 +437,7 @@ moderate N because pre-emption cascades are not policy-aware.
 **Driver re-validation cost.** Every node restart costs N seconds of GPU
 unavailability while the NVIDIA driver re-validates and the Operator re-
 advertises capacity. At one node it's free; at fifty nodes during a
-rolling kernel update it is the SLO budget. The same re-validation also
+rolling kernel update it is the {{< abbr "SLO" >}} budget. The same re-validation also
 re-asserts taints (see §5), which compounds the cost.
 
 The upstream Kubernetes documentation is explicit about why DRA is the
@@ -508,7 +508,7 @@ node has restarted.*
 {{< /papers/scar >}}
 
 {{< papers/scar date="2026-04-23" >}}
-Ollama reported `system memory` errors on gpu-1. Not VRAM — the
+Ollama reported `system memory` errors on gpu-1. Not {{< abbr "VRAM" >}} — the
 container's cgroup RAM ceiling. `OLLAMA_KEEP_ALIVE` had been tuned high
 to avoid model reloads, and the page cache for the loaded model weights
 pinned the cgroup near `resources.limits.memory`. The kernel's cgroup

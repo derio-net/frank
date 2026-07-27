@@ -1,5 +1,18 @@
+# blog-craft sync snapshot — GENERATED, DO NOT EDIT.
+#
+# The .blog-craft.yaml as of the last successful blog-craft sync (a bootstrap,
+# or `tools/update.py --apply`). update.py renders THIS file — not your current,
+# possibly-edited config — through the templates at `blog_craft_version`, to
+# recover an honest 3-way-merge base.
+#
+# Rendering the base with the *current* config makes every config edit look like
+# content blog-craft already shipped, so the merge reads your on-disk file as a
+# deliberate deletion and keeps the deletion. See derio-net/blog-craft#60.
+#
+# COMMIT THIS FILE. Without it the updater falls back to the current config and
+# says so. Delete it only to deliberately forget what was last synced.
 version: 5
-blog_craft_version: "v0.16.1"   # blog-craft RELEASE frank is synced to (was v0.16.0).
+blog_craft_version: "v0.16.0"   # blog-craft RELEASE frank is synced to (was v0.10.0).
                                 # update.py re-renders AT this tag to recover the
                                 # 3-way merge base — a wrong value silently degrades
                                 # every `merged` path to a baseless conflict. Bump

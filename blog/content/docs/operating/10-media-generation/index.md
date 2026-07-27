@@ -164,7 +164,7 @@ Known fixes:
 kubectl exec -n media comfyui-0 -- pip install torchaudio==torch
 ```
 
-**Custom node permission error** — Some custom nodes write to site-packages at import time. The fix was version-gating the PVC seed: the `stoa3`→`stoa4` upgrade introduced a PVC for custom nodes that needed the right `fsGroup`:
+**Custom node permission error** — Some custom nodes write to site-packages at import time. The fix was version-gating the {{< abbr "PVC" >}} seed: the `stoa3`→`stoa4` upgrade introduced a PVC for custom nodes that needed the right `fsGroup`:
 
 ```yaml
 # In the ComfyUI StatefulSet
@@ -190,7 +190,7 @@ kubectl exec -n media comfyui-0 -- nvidia-smi
 kubectl logs -n media deploy/gpu-switcher --tail=10
 ```
 
-The GPU switcher must be on the right profile — video models need the `video` profile, image models the `image` profile. If the profile is wrong, large models OOM immediately.
+The GPU switcher must be on the right profile — video models need the `video` profile, image models the `image` profile. If the profile is wrong, large models {{< abbr "OOM" >}} immediately.
 
 ### Pod Pending (No Available GPU)
 
@@ -234,9 +234,9 @@ The `comfyui-output` PVC and `comfyui-config` PVC were added separately from the
 
 | What we assumed | Why it was wrong | What it cost |
 |---|---|---|
-| `pip install torchaudio` would get the right version | The PIP index distributes a different build than the CUDA 12.8 wheel baked into the image. Installing without pinning broke audio-capable custom nodes (Wan, FishSpeech). | Two iterations to discover `torchaudio==torch` as the pin. |
-| Custom node PVC could be seeded at any time | The `stoa3→stoa5` PV hardening broke existing custom-node PVCs that didn't have the right version gate. | Three separate fixes across stoa3, stoa4, stoa5 (#549, #562). |
-| Cross-compiling a Go binary "just works" | The first `gpu-switcher` build used emulated amd64 (QEMU), which produced corrupted binaries. The second attempt passed the wrong platform string. The binary had to be rebuilt three times. | Three rebuild cycles and a force-push. |
+| `pip install torchaudio` would get the right version | The PIP index distributes a different build than the {{< abbr "CUDA" >}} 12.8 wheel baked into the image. Installing without pinning broke audio-capable custom nodes (Wan, FishSpeech). | Two iterations to discover `torchaudio==torch` as the pin. |
+| Custom node PVC could be seeded at any time | The `stoa3→stoa5` {{< abbr "PV" >}} hardening broke existing custom-node PVCs that didn't have the right version gate. | Three separate fixes across stoa3, stoa4, stoa5 (#549, #562). |
+| Cross-compiling a Go binary "just works" | The first `gpu-switcher` build used emulated amd64 ({{< abbr "QEMU" >}}), which produced corrupted binaries. The second attempt passed the wrong platform string. The binary had to be rebuilt three times. | Three rebuild cycles and a force-push. |
 | ComfyUI output directory is always persistent | The original ComfyUI manifest had no output PVC. After a pod restart, all generated media was gone. | Lost output files, then added the PVC in a follow-up PR. |
 
 ## Quick Reference

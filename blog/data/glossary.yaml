@@ -1,0 +1,816 @@
+# Blog-wide abbreviation registry for {{< abbr >}}. Operator-owned (content
+# class in blog-craft's path manifest) — /update never touches it.
+#
+# Keyed by the literal token as it appears in prose, CASE-SENSITIVE. Keep it
+# alphabetically sorted; the validator warns otherwise. A marker whose key is
+# missing here FAILS the Hugo build, by design.
+#
+# Scope discipline: a key here applies to EVERY post in the blog. Do not add a
+# term whose meaning is post-local — `L1`/`L2`/`L3`/`L4`/`L7` are the
+# self-hosted-inference paper's maturity tiers AND OSI layer numbers AND, for
+# `L2`, the Cilium layer-2 LoadBalancer that half the networking posts discuss.
+# One registry cannot hold three meanings for one key.
+#
+# CURATION (2026-07-27 full sweep, 83 posts). The scanner proposed 325 terms;
+# these are the ones that earn a reader's click. Four categories were dropped
+# on purpose, and the reasons are worth keeping so the next sweep re-applies
+# them rather than re-litigating:
+#
+#   1. Universal to this audience — API, UI, GPU, CPU, RAM, IP, URL, HTTP(S),
+#      SSH, JSON, YAML, HTML, DNS, TCP, UDP, VM, CI, CD, PR, OS, CLI, SQL, USB,
+#      BIOS, LED, RGB, ARM, SSD, HDD, GB/MB/KB/TB. A panel here is noise.
+#   2. Product and model names with no expansion to put in a panel — H100,
+#      A100, A10, RTX, NVIDIA, AWS, GCP, EC2, NGINX, Z790, Z77, CX22, CX23,
+#      SDXL, EVO, AWX, K10, LINBIT, BIRD, SKU.
+#   3. Scanner artefacts, not abbreviations — capitalised English (DOWN, UP,
+#      READY, CHANGED, HAS, HEY, NOT, IS, VS), file/env/UI tokens (README,
+#      PATH, HOME, PGDATA, TOC, TTY), section refs (F1, F3, F6, V2, V3, RHS),
+#      and outright noise (FOIFKIN, IT5701).
+#   4. Ambiguous without post context — SA, CM, DR, SAN, GA, CG, PG, R2, K8
+#      (the scanner's plural-stripped `K8s`, whose real key would be `K8s`).
+#
+# When adding: `name` is the literal expansion, `description` is what a reader
+# who just asked "sorry, what's that?" needs. If the expansion cannot be
+# established from the post, leave the term out — a wrong expansion in a
+# teaching blog is worse than none, because the reader cannot tell.
+
+ACL:
+  name: Access Control List
+  description: >-
+    An ordered list of allow/deny rules attached to a resource. In Headscale it
+    decides which mesh node may reach which service, independent of network
+    routing.
+ACME:
+  name: Automatic Certificate Management Environment
+  description: >-
+    The protocol Let's Encrypt uses to issue certificates to a server that can
+    prove it controls a domain. Frank's edge proves it over DNS rather than
+    HTTP, which is what lets it get certificates for hosts the internet cannot
+    reach.
+AES:
+  name: Advanced Encryption Standard
+  description: >-
+    The symmetric block cipher used almost everywhere data is encrypted at
+    rest, including the age keys behind SOPS-encrypted secrets in this repo.
+ARP:
+  name: Address Resolution Protocol
+  description: >-
+    How a machine finds the hardware address behind an IP on the local network.
+    Cilium's L2 announcements work by answering ARP for LoadBalancer addresses
+    that no physical NIC owns.
+BGP:
+  name: Border Gateway Protocol
+  description: >-
+    The routing protocol the internet runs on, also used inside clusters to
+    advertise service addresses to physical routers — the alternative to the
+    L2/ARP approach Frank uses.
+BPF:
+  name: Berkeley Packet Filter
+  description: >-
+    A tiny in-kernel virtual machine. Its extended form (eBPF) is how Cilium
+    implements networking, policy and load balancing without iptables.
+BYOK:
+  name: Bring Your Own Key
+  description: >-
+    A tool that expects you to supply an API key for a model provider rather
+    than brokering access itself. On Frank's agent shells these need a shim to
+    re-export the key into login shells, because sshd scrubs container env.
+CDI:
+  name: Container Device Interface
+  description: >-
+    A vendor-neutral spec for describing a device — a GPU, say — so a container
+    runtime can inject it without a bespoke plugin per vendor.
+CE:
+  name: Community Edition
+  description: >-
+    The free build of a product that also ships a paid one. Worth knowing which
+    you are running: n8n CE has no SSO, and LiteLLM's CE image emits none of
+    the Prometheus metrics its dashboards assume.
+CEL:
+  name: Common Expression Language
+  description: >-
+    A small, safe expression language for evaluating conditions inside
+    configuration. Tekton's triggers use it to decide whether an incoming
+    webhook should start a pipeline.
+CGNAT:
+  name: Carrier-Grade Network Address Translation
+  description: >-
+    When an ISP puts many customers behind one public address. It breaks
+    inbound connections, which is why a mesh network needs relays to reach
+    nodes that sit behind it.
+CIDR:
+  name: Classless Inter-Domain Routing
+  description: >-
+    The `10.0.0.0/8` notation for an address range — the number after the slash
+    is how many leading bits are fixed. Pod, service and LoadBalancer ranges are
+    all expressed this way.
+CNCF:
+  name: Cloud Native Computing Foundation
+  description: >-
+    The foundation that hosts Kubernetes and most of the projects around it.
+    "CNCF project" is a statement about governance, not quality or maturity.
+CNI:
+  name: Container Network Interface
+  description: >-
+    The plugin contract Kubernetes uses to give pods networking. Cilium is
+    Frank's CNI; swapping it changes how every packet in the cluster is
+    handled.
+CR:
+  name: Custom Resource
+  description: >-
+    An object of a type Kubernetes did not ship with, added by a CRD. Frank's
+    ArgoCD Applications, Rollouts and Tekton Pipelines are all CRs.
+CRD:
+  name: CustomResourceDefinition
+  description: >-
+    The object that teaches the Kubernetes API a new resource type. Install a
+    CRD and the API server starts serving a kind it has never heard of, with
+    validation and RBAC like any built-in.
+CRI:
+  name: Container Runtime Interface
+  description: >-
+    The contract between the kubelet and whatever actually runs containers —
+    containerd on Talos. It also decides the log format on disk, which is why
+    CrowdSec has to be told which runtime it is parsing.
+CRUD:
+  name: Create, Read, Update, Delete
+  description: >-
+    The four basic operations on stored data — shorthand for "the boring part
+    of an application".
+CRUSH:
+  name: Controlled Replication Under Scalable Hashing
+  description: >-
+    Ceph's placement algorithm. Clients compute where an object lives instead
+    of asking a lookup service, which is what lets it scale without a metadata
+    bottleneck.
+CSI:
+  name: Container Storage Interface
+  description: >-
+    The plugin contract for storage, the counterpart to CNI. Longhorn is
+    Frank's CSI driver: it turns a PVC into a real replicated volume.
+CSP:
+  name: Content Security Policy
+  description: >-
+    A response header telling the browser which sources of script, style and
+    images to trust. Frank's blog serves `script-src 'self'`, which is why
+    inline scripts had to be replaced rather than tolerated.
+CUDA:
+  name: Compute Unified Device Architecture
+  description: >-
+    NVIDIA's GPU programming platform. Practically, the layer every local
+    inference engine sits on, and the reason a driver/toolkit version mismatch
+    stops a model loading.
+CVE:
+  name: Common Vulnerabilities and Exposures
+  description: >-
+    The public catalogue of known security flaws, each with an identifier like
+    `CVE-2024-3094`. A CVE number is an index entry, not a severity.
+DCGM:
+  name: Data Center GPU Manager
+  description: >-
+    NVIDIA's GPU telemetry daemon. It is what exports utilisation, memory and
+    temperature to Prometheus so a GPU node can be observed like any other.
+DERP:
+  name: Designated Encrypted Relay for Packets
+  description: >-
+    Tailscale's relay protocol, used when two mesh nodes cannot reach each
+    other directly. Traffic stays end-to-end encrypted; the relay only forwards
+    it.
+DHCP:
+  name: Dynamic Host Configuration Protocol
+  description: >-
+    How a machine is handed an address and DNS servers on boot. Frank's nodes
+    deliberately do not use it — static addressing is why a missing nameserver
+    entry can strand a node entirely.
+DRA:
+  name: Dynamic Resource Allocation
+  description: >-
+    The Kubernetes API for requesting specialised hardware — GPUs and
+    accelerators — with far more expressiveness than the older device-plugin
+    counter model.
+DRBD:
+  name: Distributed Replicated Block Device
+  description: >-
+    Linux block-level replication between machines: writes land on more than
+    one host before they are acknowledged. The layer LINSTOR orchestrates.
+EACCES:
+  name: Error, Access Denied
+  description: >-
+    The POSIX errno for "permission denied". In containers it usually means a
+    uid mismatch against a mounted volume rather than a genuine access-control
+    decision.
+ECC:
+  name: Error-Correcting Code
+  description: >-
+    Memory that detects and repairs single-bit corruption instead of silently
+    passing it on. Standard on servers, usually absent on the consumer hardware
+    a homelab is built from.
+EKS:
+  name: Elastic Kubernetes Service
+  description: >-
+    Amazon's managed Kubernetes. Referenced here as the "someone else runs the
+    control plane" end of the build-versus-buy comparison.
+ESO:
+  name: External Secrets Operator
+  description: >-
+    The operator that pulls secrets from an external store into Kubernetes
+    Secrets. On Frank it mints short-lived GitHub App tokens, so no long-lived
+    credential is ever committed.
+FIDO2:
+  name: Fast Identity Online 2
+  description: >-
+    The standard behind hardware security keys and passkeys — the
+    phishing-resistant end of the authentication spectrum.
+FQDN:
+  name: Fully Qualified Domain Name
+  description: >-
+    A hostname written out completely, right down to the root — the difference
+    between `grafana` and `grafana.cluster.derio.net`. Which one resolves
+    depends on search domains.
+GDDR7:
+  name: Graphics Double Data Rate 7
+  description: >-
+    The memory standard on current NVIDIA consumer cards. It sets how much
+    model weight the card can hold at once — the 16GB figure that decides
+    which quantisation a model has to run at.
+GFD:
+  name: GPU Feature Discovery
+  description: >-
+    The component that labels a node with what its GPU actually is — model,
+    memory, driver — so scheduling can target hardware rather than hostnames.
+GGUF:
+  name: GPT-Generated Unified Format
+  description: >-
+    The single-file model format llama.cpp and Ollama load. Weights, tokeniser
+    and metadata travel together, which is why pulling an Ollama model gets you
+    one file rather than a directory tree.
+GHCR:
+  name: GitHub Container Registry
+  description: >-
+    GitHub's OCI registry at `ghcr.io`. Where Frank's CI-built images are
+    published before ArgoCD rolls them out.
+GKE:
+  name: Google Kubernetes Engine
+  description: >-
+    Google's managed Kubernetes, cited alongside EKS as the managed-control-plane
+    comparison point.
+HA:
+  name: High Availability
+  description: >-
+    Running enough redundant instances that losing one does not take the
+    service down. Frank's three control-plane nodes are its HA tier.
+HMAC:
+  name: Hash-based Message Authentication Code
+  description: >-
+    A signature computed from a payload and a shared secret. How a webhook
+    receiver proves a request really came from the forge that claims to have
+    sent it.
+HPA:
+  name: HorizontalPodAutoscaler
+  description: >-
+    The controller that adds and removes pod replicas based on a metric. It
+    needs a metrics API to be serving, which is a separate component from the
+    monitoring stack.
+HSTS:
+  name: HTTP Strict Transport Security
+  description: >-
+    A header telling browsers to only ever use HTTPS for a domain. It is
+    remembered and hard to undo, which is what makes a bad certificate on an
+    HSTS host a hard block rather than a warning.
+IAM:
+  name: Identity and Access Management
+  description: >-
+    The general term for who may do what to which resource. In Kubernetes that
+    job belongs to RBAC.
+ICMP:
+  name: Internet Control Message Protocol
+  description: >-
+    The protocol behind `ping` and path-MTU discovery. Blocking it wholesale
+    breaks more than it protects.
+IOPS:
+  name: Input/Output Operations Per Second
+  description: >-
+    How many discrete reads or writes a device sustains — the number that
+    matters for databases, as opposed to raw throughput.
+IPAM:
+  name: IP Address Management
+  description: >-
+    Whatever decides which address a pod or service gets. Cilium's LoadBalancer
+    IPAM hands out the `192.168.55.x` addresses Frank's services answer on.
+IPVS:
+  name: IP Virtual Server
+  description: >-
+    The kernel's load balancer, one of the ways kube-proxy can implement
+    Services. Cilium replaces this path with eBPF entirely.
+JVM:
+  name: Java Virtual Machine
+  description: >-
+    The runtime Java and Scala compile to. Relevant mostly for its memory
+    behaviour: heap limits and container limits are set separately, and
+    disagreeing is how pods get OOM-killed.
+JWT:
+  name: JSON Web Token
+  description: >-
+    A signed, self-describing token carrying claims — who you are, what you may
+    do, when it expires. Readable by anyone holding it, so the expiry and
+    signature are the only things protecting it.
+KEP:
+  name: Kubernetes Enhancement Proposal
+  description: >-
+    The design document behind any substantial Kubernetes feature. The place to
+    find out why an API looks the way it does, and what its graduation criteria
+    are.
+KMS:
+  name: Key Management Service
+  description: >-
+    A service that holds encryption keys and performs operations with them, so
+    the key itself never reaches the application asking.
+KSOPS:
+  name: Kustomize SOPS
+  description: >-
+    A Kustomize plugin that decrypts SOPS-encrypted manifests during a build,
+    so encrypted secrets can live in Git alongside everything else.
+KV:
+  name: Key-Value cache
+  description: >-
+    The attention keys and values a transformer keeps for tokens it has already
+    produced, so it need not recompute them each step. It grows with context
+    length and competes with the model weights for VRAM — which is what makes
+    context window a memory decision rather than a free knob.
+LAPI:
+  name: Local API
+  description: >-
+    CrowdSec's local decision service. Agents report parsed events to it and
+    bouncers ask it who to block — which means if its database is ephemeral,
+    the whole ban pipeline silently does nothing.
+LB:
+  name: Load Balancer
+  description: >-
+    Whatever spreads traffic across backends and gives them one address. On
+    Frank that is Cilium answering for an address on the LAN, not a cloud
+    appliance.
+LDAP:
+  name: Lightweight Directory Access Protocol
+  description: >-
+    The long-established protocol for querying a directory of users and groups.
+    Still the fallback when an application predates OIDC.
+LINSTOR:
+  name: LINBIT Storage Orchestrator
+  description: >-
+    The control plane that manages DRBD replicated volumes across a cluster —
+    an alternative to Longhorn in the same problem space.
+LLM:
+  name: Large Language Model
+  description: >-
+    A model trained to predict text, served behind a chat or completion
+    endpoint. On Frank these run locally on the GPU node rather than against a
+    hosted provider.
+LXC:
+  name: Linux Containers
+  description: >-
+    OS-level containers that behave like lightweight machines, with an init
+    system and multiple processes — closer to a small VM than to a
+    single-process application container.
+MCP:
+  name: Model Context Protocol
+  description: >-
+    The protocol that lets an AI agent call external tools over a documented
+    interface. It is how the agents on Frank reach the cluster rather than
+    guessing about it.
+MFA:
+  name: Multi-Factor Authentication
+  description: >-
+    Requiring more than a password — a second factor from a device you hold.
+    What a compromised password alone should not be enough to defeat.
+MIG:
+  name: Multi-Instance GPU
+  description: >-
+    NVIDIA's hardware partitioning of one GPU into isolated slices with their
+    own memory. A datacentre-card feature; consumer cards time-share instead,
+    which is why Frank's GPU is scheduled rather than divided.
+MOTD:
+  name: Message of the Day
+  description: >-
+    The banner printed on login. On Frank's agent shells it reports tool
+    versions and credential state, which makes it a status display rather than
+    decoration — and a misleading one if it only checks presence.
+MPS:
+  name: Multi-Process Service
+  description: >-
+    NVIDIA's mechanism for letting several processes share one GPU with less
+    context-switching overhead than plain time-slicing.
+NAS:
+  name: Network Attached Storage
+  description: >-
+    A box whose job is serving files over the network, typically via NFS or
+    SMB — storage as an appliance rather than as a cluster service.
+NAT:
+  name: Network Address Translation
+  description: >-
+    Rewriting addresses in flight so many machines can share one public
+    address. Convenient outbound, an obstacle inbound.
+NFD:
+  name: Node Feature Discovery
+  description: >-
+    The component that inspects each node and labels it with what it has — CPU
+    features, kernel modules, PCI devices — so workloads can select hardware by
+    capability instead of by hostname.
+NFS:
+  name: Network File System
+  description: >-
+    The long-standing protocol for mounting a remote directory as if it were
+    local. Simple and universal; its locking semantics are the usual source of
+    surprises.
+NIC:
+  name: Network Interface Card
+  description: >-
+    The network adapter itself. Worth naming precisely on Frank, where one
+    flapping onboard NIC took down every pod on a node at once.
+NPU:
+  name: Neural Processing Unit
+  description: >-
+    A dedicated inference accelerator, distinct from the GPU and usually far
+    more power-efficient for the models it supports.
+NTP:
+  name: Network Time Protocol
+  description: >-
+    How machines keep their clocks synchronised. Not optional on Talos: it
+    gates the kubelet on time sync, so a node that cannot reach a time server
+    never finishes booting.
+NUC:
+  name: Next Unit of Computing
+  description: >-
+    Intel's small-form-factor PC line. The shape of machine Frank's
+    control-plane nodes are: desktop silicon, server duty.
+NUMA:
+  name: Non-Uniform Memory Access
+  description: >-
+    On multi-socket machines, memory attached to one CPU is slower to reach
+    from another. Ignoring the topology costs real throughput.
+OCI:
+  name: Open Container Initiative
+  description: >-
+    The body behind the standard image and runtime formats. "OCI registry"
+    means any registry speaking that standard, not a specific vendor's.
+OIDC:
+  name: OpenID Connect
+  description: >-
+    An identity layer on top of OAuth 2.0: it adds a token saying *who* the
+    user is, not merely what the client may do. Frank's single sign-on speaks
+    it, with Authentik as the provider.
+OOM:
+  name: Out Of Memory
+  description: >-
+    What the kernel does when memory runs out — it kills a process by score,
+    not by fault. A container hitting its cgroup limit is killed the same way,
+    which is why the victim is often not the culprit.
+OPA:
+  name: Open Policy Agent
+  description: >-
+    A general policy engine: rules are written once and evaluated by whatever
+    needs to make an admission or authorisation decision.
+ORM:
+  name: Object-Relational Mapping
+  description: >-
+    A library presenting database rows as objects. Convenient until the
+    generated query is the thing you need to reason about.
+OSD:
+  name: Object Storage Daemon
+  description: >-
+    In Ceph, the process owning one disk. Cluster capacity and redundancy are
+    both expressed in terms of how many OSDs exist and where they sit.
+OSS:
+  name: Open Source Software
+  description: >-
+    Software whose source is public and freely modifiable. Worth flagging here
+    because several projects ship an OSS build alongside a paid one, and the
+    difference is often exactly the feature you wanted — LiteLLM's Prometheus
+    metrics are Enterprise-only.
+OTLP:
+  name: OpenTelemetry Protocol
+  description: >-
+    The vendor-neutral wire format for traces, metrics and logs — the thing
+    that makes swapping an observability backend a configuration change rather
+    than a re-instrumentation.
+P50:
+  name: 50th percentile
+  description: >-
+    The median: half of requests were faster. Useful for the typical case and
+    actively misleading about the worst one.
+P99:
+  name: 99th percentile
+  description: >-
+    Only one request in a hundred was slower. The number that reflects what
+    unhappy users actually experience, which an average hides.
+PAM:
+  name: Pluggable Authentication Modules
+  description: >-
+    The Linux framework deciding what happens at login. Where an SSH session's
+    environment and session setup are really determined.
+PAT:
+  name: Personal Access Token
+  description: >-
+    A long-lived GitHub credential that stands in for a password on API calls.
+    Frank prefers short-lived GitHub App installation tokens where it can — a
+    PAT does not rotate on its own, so it is a standing secret.
+  url: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens
+PDB:
+  name: PodDisruptionBudget
+  description: >-
+    A floor on how many replicas must stay available during voluntary
+    disruption. It is what makes a node drain wait instead of taking the last
+    healthy pod with it.
+PII:
+  name: Personally Identifiable Information
+  description: >-
+    Data that identifies a person. The category that decides whether something
+    may leave the cluster at all.
+PKI:
+  name: Public Key Infrastructure
+  description: >-
+    The machinery of certificate authorities, issuance and trust chains that
+    makes a certificate mean something.
+PSA:
+  name: Pod Security Admission
+  description: >-
+    The built-in gate enforcing pod security standards per namespace. Frank
+    labels namespaces `privileged` where hostPort or privileged pods are
+    genuinely required.
+PV:
+  name: PersistentVolume
+  description: >-
+    The actual piece of storage a PVC binds to. The claim is the request; the
+    PV is what satisfies it.
+PVC:
+  name: PersistentVolumeClaim
+  description: >-
+    A Kubernetes request for durable storage. The pod names a claim and the
+    storage layer — Longhorn on Frank — binds real disk behind it, so the data
+    outlives the pod.
+QEMU:
+  name: Quick Emulator
+  description: >-
+    The emulator and virtualiser underneath most Linux virtualisation,
+    including KubeVirt's virtual machines.
+QPS:
+  name: Queries Per Second
+  description: >-
+    Request rate. Paired with a latency percentile it describes a system's
+    load; alone it describes very little.
+RBAC:
+  name: Role-Based Access Control
+  description: >-
+    Kubernetes' permission model: roles list verbs on resources, bindings
+    attach them to identities. Default-deny, so an omitted rule reads exactly
+    like a broken component.
+RDMA:
+  name: Remote Direct Memory Access
+  description: >-
+    Network transfers that write straight into a remote machine's memory,
+    bypassing its CPU. The interconnect multi-node model training assumes.
+RPC:
+  name: Remote Procedure Call
+  description: >-
+    Calling a function that runs on another machine. The abstraction is the
+    point and also the trap — the network failure modes do not go away.
+RPS:
+  name: Requests Per Second
+  description: >-
+    Throughput measured at the edge. Frank's own uptime probe contributes a
+    steady background rate, which has to be excluded before a surge means
+    anything.
+RTO:
+  name: Recovery Time Objective
+  description: >-
+    How long a service may stay down after a failure before the outage is
+    unacceptable. A target that dictates backup design, not a measurement.
+RVF:
+  name: Ruvocal File format
+  description: >-
+    The JSON-on-disk store ruvocal keeps its state in. Worth knowing because it
+    ignores `DATABASE_URL` entirely — the data lives in a file, so it needs a
+    volume, not a database.
+RWO:
+  name: ReadWriteOnce
+  description: >-
+    A PVC access mode that lets exactly one node mount the volume read-write at
+    a time. It is the reason a RollingUpdate deadlocks: the replacement pod
+    cannot mount the volume until the outgoing pod releases it.
+RWX:
+  name: ReadWriteMany
+  description: >-
+    A volume many nodes may mount read-write at once. The mode that makes
+    rolling updates straightforward, and that Longhorn needs an extra layer to
+    provide.
+SAML:
+  name: Security Assertion Markup Language
+  description: >-
+    The XML-based single sign-on standard that predates OIDC. Still what many
+    enterprise applications support, and only that.
+SBOM:
+  name: Software Bill of Materials
+  description: >-
+    A machine-readable inventory of what is inside an artefact. What turns "are
+    we affected by this CVE?" into a query rather than an investigation.
+SCIM:
+  name: System for Cross-domain Identity Management
+  description: >-
+    The protocol for provisioning and deprovisioning accounts between systems —
+    the half of identity that OIDC does not cover.
+SIEM:
+  name: Security Information and Event Management
+  description: >-
+    The system that centralises security events and alerts on them. Frank's
+    VictoriaLogs plus alerting occupies this role without the label.
+SIGHUP:
+  name: Signal Hangup
+  description: >-
+    Historically "the terminal went away", conventionally repurposed as "reload
+    your configuration". Whether a process honours it decides if a config
+    change needs a restart.
+SIGSEGV:
+  name: Signal Segmentation Violation
+  description: >-
+    The signal sent when a process touches memory it does not own. Nearly
+    always a bug in the program, not in its configuration.
+SLA:
+  name: Service Level Agreement
+  description: >-
+    The contractual promise about a service, with consequences attached. The
+    commercial wrapper around an SLO.
+SLO:
+  name: Service Level Objective
+  description: >-
+    The numeric reliability target a service commits to — the line an error
+    budget is measured against.
+SLSA:
+  name: Supply-chain Levels for Software Artifacts
+  description: >-
+    A graded framework for how trustworthy a build pipeline is, from "it
+    happened somewhere" up to hermetic, reproducible and verifiably signed.
+SOC2:
+  name: Service Organization Control 2
+  description: >-
+    An audit of a provider's security and availability controls. Evidence of
+    process, which is not the same as evidence of security.
+SOPS:
+  name: Secrets OPerationS
+  description: >-
+    Mozilla's tool for encrypting the *values* in a YAML file while leaving the
+    keys readable, so an encrypted secret still reviews as a sensible diff.
+SPAKE2:
+  name: Simple Password-Authenticated Key Exchange
+  description: >-
+    A protocol that turns a short shared code into a strong mutual key without
+    exposing the code to eavesdroppers. The enrolment codes are single-use —
+    "please sign in again" usually means it was already spent.
+SRE:
+  name: Site Reliability Engineering
+  description: >-
+    Running production as an engineering problem: error budgets, toil
+    reduction, and treating operations as software.
+SSA:
+  name: Server-Side Apply
+  description: >-
+    Kubernetes applying changes field by field, with each manager owning the
+    fields it sets. Frank uses it everywhere — without it, large resources blow
+    the annotation size limit the old client-side path depends on.
+SSE:
+  name: Server-Side Expressions
+  description: >-
+    Grafana's alerting stage that transforms a query result before the alert
+    condition is evaluated. Grafana 12 requires the three-step
+    query → reduce → threshold form; the older classic-condition shape fails
+    with `sse.parseError`. Not Server-Sent Events, despite the initials.
+SSO:
+  name: Single Sign-On
+  description: >-
+    One login across many applications. On Frank, Authentik holds the session
+    and Traefik asks it before forwarding a request.
+SSR:
+  name: Server-Side Rendering
+  description: >-
+    Building the HTML on the server rather than in the browser. It means the
+    page load can reach databases and APIs, so a "simple" health check on `/`
+    may exercise the entire stack.
+STUN:
+  name: Session Traversal Utilities for NAT
+  description: >-
+    How a host discovers what its address looks like from outside, so two peers
+    behind NAT can attempt a direct connection.
+TCO:
+  name: Total Cost of Ownership
+  description: >-
+    Everything a thing costs over its life — hardware, power, and the hours
+    spent operating it. The last term is the one that decides self-host versus
+    rent.
+TGI:
+  name: Text Generation Inference
+  description: >-
+    Hugging Face's model-serving engine — one of the cluster-scale alternatives
+    to Ollama, aimed at many concurrent users rather than one workstation.
+  url: https://huggingface.co/docs/text-generation-inference
+TLS:
+  name: Transport Layer Security
+  description: >-
+    The encryption under HTTPS and most other secure protocols. What a
+    certificate is for, and what fails visibly when the certificate does not
+    match the hostname.
+TOTP:
+  name: Time-based One-Time Password
+  description: >-
+    The rotating six-digit code from an authenticator app. A second factor, and
+    a phishable one — unlike FIDO2.
+TPOT:
+  name: Time Per Output Token
+  description: >-
+    How long the model takes to emit each token after the first. This is what a
+    reader perceives as generation speed, as distinct from time-to-first-token,
+    which is how long they wait before anything appears.
+TSDB:
+  name: Time Series Database
+  description: >-
+    A database built for timestamped numeric series. VictoriaMetrics is
+    Frank's; the shape of the data is why it compresses so much better than a
+    general-purpose store.
+TTL:
+  name: Time To Live
+  description: >-
+    How long a value stays valid before it must be fetched again. Sets how long
+    a stale DNS answer or cache entry can keep being wrong after the fix.
+TUI:
+  name: Text User Interface
+  description: >-
+    A full-screen interface drawn in the terminal. Interactive like a GUI,
+    which is why such tools do not compose with piped, non-interactive
+    automation.
+UID:
+  name: User Identifier
+  description: >-
+    The number Linux actually checks for file permissions — the name is a
+    lookup. In containers a uid mismatch against a mounted volume is the usual
+    cause of a permission error.
+UKI:
+  name: Unified Kernel Image
+  description: >-
+    Kernel, initrd and command line in one signed binary. What lets Secure Boot
+    verify the whole boot path instead of just the loader.
+URI:
+  name: Uniform Resource Identifier
+  description: >-
+    The general form a URL is a case of. The distinction matters where a scheme
+    identifies something that is not fetchable over the network.
+UUID:
+  name: Universally Unique Identifier
+  description: >-
+    A 128-bit identifier chosen so collisions are not worth planning for. Note
+    that Tekton's `$(uid)` is documented only as *random* — fine as a suffix,
+    wrong as an identity two concurrent runs could collide on.
+VK:
+  name: VibeKanban
+  description: >-
+    The task board Frank dispatches agent work through — the queue between a
+    written plan's phases and the agents that execute them.
+VLAN:
+  name: Virtual Local Area Network
+  description: >-
+    Tagging that splits one physical network into isolated logical ones, so
+    separation does not require separate cabling.
+VPC:
+  name: Virtual Private Cloud
+  description: >-
+    An isolated network inside a cloud provider. The rented equivalent of the
+    LAN Frank's nodes share.
+VPS:
+  name: Virtual Private Server
+  description: >-
+    A rented virtual machine with a public address. Hop, Frank's edge node, is
+    one — which is exactly why it holds the public entry point and Frank does
+    not.
+VRAM:
+  name: Video RAM
+  description: >-
+    Memory on the GPU itself. Both the model weights and the KV cache live
+    here, which makes it the binding constraint on what a single card can
+    serve.
+VXLAN:
+  name: Virtual Extensible LAN
+  description: >-
+    Wrapping layer-2 frames inside UDP so one logical network can span routed
+    infrastructure. A common CNI transport; Cilium can avoid it by routing pod
+    traffic natively.
+WAL:
+  name: Write-Ahead Log
+  description: >-
+    Recording an intended change before making it, so a crash mid-write can be
+    replayed rather than lost. How Postgres survives being killed.
+XDP:
+  name: eXpress Data Path
+  description: >-
+    A BPF hook running before the kernel builds its packet structures — the
+    earliest and fastest place to drop or redirect traffic.
+XFS:
+  name: X File System
+  description: >-
+    A journalling filesystem that handles large files and parallel I/O well.
+    One of the options underneath a Longhorn volume.

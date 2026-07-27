@@ -46,7 +46,7 @@ To follow this you need:
   the chart schema traps)
 - ArgoCD driving your cluster App-of-Apps ([Layer 5](../05-gitops/))
 - A way to get secrets *into* the vCluster ([Layer 9](../09-secrets/) — see
-  "Secrets arrive sideways" below; this bit has its own OSS trap)
+  "Secrets arrive sideways" below; this bit has its own {{< abbr "OSS" >}} trap)
 
 You almost certainly aren't deploying my tenant. That's fine — every step below
 is parameterized, and the failure mode is universal to *any* vCluster registered

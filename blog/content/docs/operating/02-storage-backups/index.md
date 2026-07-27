@@ -37,7 +37,7 @@ All volumes in the `default` group are backed up to a Cloudflare R2 bucket on tw
 - **Daily** at 02:00 UTC — 7 recovery points retained (`apps/longhorn/manifests/recurring-job-daily.yaml`)
 - **Weekly** on Sunday at 03:00 UTC — 4 recovery points retained (`apps/longhorn/manifests/recurring-job-weekly.yaml`)
 
-Both RecurringJobs target the R2 BackupTarget (`apps/longhorn/manifests/backup-target-default.yaml`, URL `s3://frank-longhorn-backups@auto/`). NFS backup target is disabled pending a Longhorn bug fix in v1.13 (`apps/longhorn/manifests/backup-target-nas.yaml`, entirely commented out).
+Both RecurringJobs target the R2 BackupTarget (`apps/longhorn/manifests/backup-target-default.yaml`, URL `s3://frank-longhorn-backups@auto/`). {{< abbr "NFS" >}} backup target is disabled pending a Longhorn bug fix in v1.13 (`apps/longhorn/manifests/backup-target-nas.yaml`, entirely commented out).
 
 ```mermaid
 graph LR
@@ -146,14 +146,14 @@ This shows per-node scheduling state and disk capacity. Both Raspberry Pi nodes 
 
 ### Expand a Volume
 
-Longhorn supports online volume expansion. Edit the PVC:
+Longhorn supports online volume expansion. Edit the {{< abbr "PVC" >}}:
 
 ```bash
 kubectl patch pvc <pvc-name> -n <namespace> \
   -p '{"spec":{"resources":{"requests":{"storage":"20Gi"}}}}'
 ```
 
-The underlying Longhorn volume and filesystem expand automatically. No pod restart needed for ext4. For XFS, run inside the pod:
+The underlying Longhorn volume and filesystem expand automatically. No pod restart needed for ext4. For {{< abbr "XFS" >}}, run inside the pod:
 
 ```bash
 xfs_growfs /
@@ -204,7 +204,7 @@ spec:
 EOF
 ```
 
-Then create a PV and PVC pointing to the restored volume, or use the Longhorn UI to create the PVC automatically.
+Then create a {{< abbr "PV" >}} and PVC pointing to the restored volume, or use the Longhorn UI to create the PVC automatically.
 
 ### Manage Snapshots
 
@@ -338,9 +338,9 @@ This clears the node assignment and lets Longhorn re-attach the volume when the 
 
 | What we assumed | Why it was wrong | What it cost |
 |-----------------|------------------|-------------|
-| Both daily and weekly backups can use separate targets (NFS + R2) | Longhorn `v1beta2` RecurringJob CRD has no `backupTargetName` field — only `concurrency, cron, groups, labels, name, parameters, retain, task` (#11392 closed without fix) | Both jobs route to single R2 target. NFS BackupTarget exists in the repo but is commented out (`apps/longhorn/manifests/backup-target-nas.yaml`). |
+| Both daily and weekly backups can use separate targets (NFS + R2) | Longhorn `v1beta2` RecurringJob {{< abbr "CRD" >}} has no `backupTargetName` field — only `concurrency, cron, groups, labels, name, parameters, retain, task` (#11392 closed without fix) | Both jobs route to single R2 target. NFS BackupTarget exists in the repo but is commented out (`apps/longhorn/manifests/backup-target-nas.yaml`). |
 | NFS backup target works | Longhorn 1.11 generates `host/path` instead of `host:/path` for NFS (bug #11412) | NFS target disabled until v1.13 fix. |
-| ArgoCD can manage the R2 backup secret through SSA | SOPS `.sops` metadata fields are rejected by ArgoCD's server-side apply — Secret goes OutOfSync immediately | R2 secret lives outside the manifests path, applied out-of-band via `sops --decrypt \| kubectl apply -f -` (`docs/runbooks/frank-gotchas/storage-secrets-ssa.md`). |
+| ArgoCD can manage the R2 backup secret through {{< abbr "SSA" >}} | {{< abbr "SOPS" >}} `.sops` metadata fields are rejected by ArgoCD's server-side apply — Secret goes OutOfSync immediately | R2 secret lives outside the manifests path, applied out-of-band via `sops --decrypt \| kubectl apply -f -` (`docs/runbooks/frank-gotchas/storage-secrets-ssa.md`). |
 | Longhorn v1.11.0 is stable | Instance Manager anonymous heap leaks ~0.9 GiB/day (`docs/investigations/2026-06-04--stor--raspi-1-memory-wedge-incident.md`) | raspi-1 wedged at 8 GiB RAM — power-cycle recovery. Pinned to v1.11.2. |
 | Volume health alerting is automatic | No ServiceMonitor scrapes Longhorn metrics — `longhorn_volume_robustness` is not surfaced | Fallback is `kube_pod_status_ready` on longhorn-manager pods. Alert rule exists but covers only pod liveness. |
 

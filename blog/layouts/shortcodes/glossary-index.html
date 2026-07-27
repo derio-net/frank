@@ -1,0 +1,23 @@
+{{- /* The whole abbreviation registry as an alphabetical definition list.
+
+         {{< glossary-index >}}
+
+       Drop it on any page you like — blog-craft deliberately does not create a
+       /glossary/ page for you, because that page would be operator-owned
+       content that /update could never manage.
+
+       Emits nothing at all (not an error) when data/glossary.yaml is absent or
+       empty, so putting the shortcode on a page before curating any terms is
+       safe. */ -}}
+{{- with site.Data.glossary -}}
+{{- $reg := . -}}
+{{- $keys := slice -}}
+{{- range $k, $v := $reg -}}{{- $keys = $keys | append $k -}}{{- end -}}
+<dl class="glossary-index">
+{{- range $k := sort $keys }}
+{{- $entry := index $reg $k }}
+  <dt class="glossary-term"><abbr title="{{ $entry.name }}">{{ $k }}</abbr> — {{ $entry.name }}</dt>
+  <dd class="glossary-definition">{{ $entry.description }}{{ with $entry.url }} <a href="{{ . }}">Read more</a>{{ end }}</dd>
+{{- end }}
+</dl>
+{{- end -}}

@@ -12,7 +12,7 @@ diataxis: tutorial
 last_updated: 2026-07-16
 ---
 
-The hermes shell that first answered a question on 2026-06-06 was scaffolding wrapped around a small CLI. It ran on the custom `agent-shell-base` lineage, carrying two patches: a relocatable-venv-on-PVC dance and an auto-continue gate-widening patch. Both were real fixes. Both were mine to re-apply forever.
+The hermes shell that first answered a question on 2026-06-06 was scaffolding wrapped around a small CLI. It ran on the custom `agent-shell-base` lineage, carrying two patches: a relocatable-venv-on-{{< abbr "PVC" >}} dance and an auto-continue gate-widening patch. Both were real fixes. Both were mine to re-apply forever.
 
 This post is about handing them back. Nous Research now publishes an official `nousresearch/hermes-agent` image. The pod was rebuilt on the official image (v2026.7.7.2), the custom patches retired, and the memory carried across intact. That last clause handed me five more failures — each passing surface checks while the real path was broken.
 
@@ -48,7 +48,7 @@ flowchart LR
 
 One pod on gpu-1, three containers sharing a single network namespace:
 
-- **`hermes`** — bare official image with `args: ["gateway", "run"]`. Default entrypoint launches interactive TUI which exits instantly in a TTY-less pod. Runs as root with `HERMES_UID`/`HERMES_GID=1000`; s6 init drops the gateway worker to uid 1000.
+- **`hermes`** — bare official image with `args: ["gateway", "run"]`. Default entrypoint launches interactive {{< abbr "TUI" >}} which exits instantly in a TTY-less pod. Runs as root with `HERMES_UID`/`HERMES_GID=1000`; s6 init drops the gateway worker to uid 1000.
 - **`ssh`** — thin sidecar from agent-images, SSH/Mosh front door without baking sshd into the official image.
 - **`hindsight`** — the centerpiece: self-hosted Hindsight memory backend.
 

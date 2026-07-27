@@ -39,13 +39,13 @@ Ten web UIs, three CLIs, and a gRPC service all want to ask the same
 question: who's on the other side of this URL? The identity-provider
 slot has seven serious vendors — Authentik, Keycloak, Authelia, Dex,
 Zitadel, Pomerium, Ory — split between forward-auth (cookie-validating
-proxies) and OIDC-native flows, and between homelab weight and
+proxies) and {{< abbr "OIDC" >}}-native flows, and between homelab weight and
 enterprise multi-tenancy.
 
 Frank picked Authentik because it does both forward-auth (Longhorn,
 Hubble, Zot, Homepage) and native OIDC (Grafana, ArgoCD, Gitea) in one
 Helm release. The scars: blueprints can't assign providers to the
-embedded outpost (manual Django ORM forever); `AUTHENTIK_HOST` unset
+embedded outpost (manual Django {{< abbr "ORM" >}} forever); `AUTHENTIK_HOST` unset
 returns `0.0.0.0` redirects; the 2026.x schema break required
 `invalidation_flow` and Bearer tokens.
 
@@ -94,7 +94,7 @@ it.
 ## §2 — The landscape
 
 The IdP space has three centres of gravity and a few outliers. The
-heavy-enterprise end runs Keycloak — Red Hat's CNCF-incubating product,
+heavy-enterprise end runs Keycloak — Red Hat's {{< abbr "CNCF" >}}-incubating product,
 shipped into more Fortune-500 stacks than any other open-source IdP.
 The homelab end runs Authelia — small, file-configured, forward-auth-
 only, glued to Traefik or nginx. The middle is where Authentik lives:
@@ -133,7 +133,7 @@ The Y-axis is the operational shape. Lightweight means "one file, one
 binary, one Postgres" — Authelia ships this. Multi-tenant means "tenant
 isolation is a primitive, not a deployment pattern" — Zitadel and
 Keycloak both. Authentik straddles the middle: a real database, real
-HA, but the multi-tenancy story is "deploy another instance" rather
+{{< abbr "HA" >}}, but the multi-tenancy story is "deploy another instance" rather
 than "create another realm."
 
 {{< papers/capability-matrix data="vendors" >}}
@@ -225,7 +225,7 @@ flowchart TD
 ```
 
 Keycloak does not do forward-auth. It does *everything else* — OIDC,
-SAML, SCIM, identity brokering, multi-realm federation, fine-grained
+{{< abbr "SAML" >}}, {{< abbr "SCIM" >}}, identity brokering, multi-realm federation, fine-grained
 authorisation policies. To protect an opaque web UI, you front
 Keycloak with **oauth2-proxy** (or Pomerium) and configure that proxy
 as the Traefik ForwardAuth target. The proxy speaks OIDC to Keycloak;
@@ -244,7 +244,7 @@ providers.
 
 Keycloak's centre of gravity is **brokering** — connecting one set of
 applications to one or more upstream IdPs (corporate AD, social
-login, another Keycloak realm). The cost is operational weight: a JVM,
+login, another Keycloak realm). The cost is operational weight: a {{< abbr "JVM" >}},
 an Infinispan cache, a much larger admin UI, and an upgrade story
 that historically requires migration scripts between major versions.
 For a single-tenant homelab, this is wildly more IdP than you need.
@@ -263,7 +263,7 @@ flowchart TD
 ```
 
 Dex deliberately refuses to store users. Its job is to translate
-between protocols: speak OIDC to your application, speak LDAP or
+between protocols: speak OIDC to your application, speak {{< abbr "LDAP" >}} or
 SAML or GitHub-OAuth to the *real* IdP behind it.
 
 {{< papers/pullquote source="Dex docs — A federated OpenID Connect provider" url="https://dexidp.io/docs/" >}}
@@ -277,7 +277,7 @@ like GitHub, Google, and Active Directory.
 This is why every ArgoCD installation ships Dex bundled — ArgoCD
 needs OIDC to delegate to *something*, but it doesn't want to own
 user management. Dex is the thinnest possible adapter. The trade-off
-is severe: no password reset flow, no MFA enrolment UI, no admin
+is severe: no password reset flow, no {{< abbr "MFA" >}} enrolment UI, no admin
 console. Projects that adopt Dex inevitably grow a "real" IdP behind
 it the moment they want password policies or per-user MFA — at which
 point Dex becomes vestigial protocol-translation glue, and you've
@@ -324,7 +324,7 @@ exactly the forward-auth pattern — nothing else.
 
 {{< papers/pullquote source="TechnoTim — Authelia + Traefik forward-auth" url="https://docs.technotim.com/posts/authelia-traefik/" >}}
 Authelia is an open-source authentication and authorization server
-providing two-factor authentication and single sign-on (SSO) for your
+providing two-factor authentication and single sign-on ({{< abbr "SSO" >}}) for your
 applications via a web portal. It acts as a companion of reverse
 proxies like nginx, Traefik or HAProxy to let them know whether
 requests should either be allowed or redirected to Authelia's portal
@@ -370,7 +370,7 @@ service across 50 services — that's 5000 forward-auth calls per
 second, every one of which terminates against the IdP's session
 store. The BeyondCorp paper's original deployment notes describe
 this fan-out as the dominant cost at Google scale; the standard
-mitigations (per-edge session caches, longer-lived cookies, JWT-as-
+mitigations (per-edge session caches, longer-lived cookies, {{< abbr "JWT" >}}-as-
 session) all trade security properties for latency. There is no
 forward-auth deployment at scale that doesn't have an opinion about
 this trade.
@@ -380,7 +380,7 @@ Keycloak put sessions in Postgres. Authelia puts them in Redis.
 Zitadel puts them in its event store. When that store hiccups, the
 IdP hiccups; when the IdP hiccups, every protected service starts
 returning 502 on forward-auth. Frank's Authentik runs against a
-single-replica Postgres on Longhorn (RWO PVC). It is not HA. A
+single-replica Postgres on Longhorn ({{< abbr "RWO" >}} {{< abbr "PVC" >}}). It is not HA. A
 managed cluster would use a managed Postgres with read replicas; a
 production homelab would replicate Authentik's Postgres separately.
 Frank's design *accepts* the single point of failure as part of the
@@ -471,7 +471,7 @@ find out the hard way.
 The 2026.x release ran every existing ProxyProvider blueprint
 through a stricter validator and failed all of them. The new schema
 required `invalidation_flow` (the post-logout redirect flow),
-`signing_key` as a UUID reference rather than a name, and
+`signing_key` as a {{< abbr "UUID" >}} reference rather than a name, and
 `redirect_uris` as an object shape rather than the scalar that used
 to be allowed. The API simultaneously moved from basic auth to
 Bearer tokens, breaking every automation script we'd written
@@ -544,12 +544,12 @@ make the §3 architectures look slightly out of date already.
 
 **Passkeys and WebAuthn-first identity.** Password forms are dying.
 Apple, Google, and Microsoft have all shipped passkey support in
-their consumer authenticators; FIDO2 hardware keys are a $25
+their consumer authenticators; {{< abbr "FIDO2" >}} hardware keys are a $25
 commodity. The next generation of IdPs assumes hardware-backed
 credentials by default — Authentik 2026.x added passkey enrolment to
 its default user flow; Zitadel's documentation now leads with
 passkeys rather than passwords. The blog posts about "how to set up
-TOTP MFA" already feel dated. By the time Paper 11 gets a v2, the
+{{< abbr "TOTP" >}} MFA" already feel dated. By the time Paper 11 gets a v2, the
 expected flow will be "log in with your fingerprint, never type a
 password" — and IdPs that don't make that flow first-class will be
 the ones with friction.
@@ -566,7 +566,7 @@ this paper lists LDAP: a compatibility checkbox, not a primary
 protocol.
 
 **Identity-aware proxies eating the forward-auth pattern.** Pomerium,
-Cloudflare Access, Google IAP, and Tailscale ACL-as-identity are
+Cloudflare Access, Google IAP, and Tailscale {{< abbr "ACL" >}}-as-identity are
 all converging on the same shape: an identity-aware proxy that
 combines SSO, mTLS, and authorisation policy in front of every
 service, with the IdP as a pluggable upstream. The "outpost in front

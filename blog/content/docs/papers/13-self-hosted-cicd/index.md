@@ -34,23 +34,23 @@ related_operating: "docs/operating/22-cicd-platform"
 ## TL;DR
 
 Self-hosted CI/CD on a homelab is a choice between *one tool or three*.
-The six contenders in 2026 (Gitea+Tekton+Zot, GitLab CE,
+The six contenders in 2026 (Gitea+Tekton+Zot, GitLab {{< abbr "CE" >}},
 Forgejo+Woodpecker, Drone CI, Jenkins, and the SaaS baseline GitHub
 Actions) split on integration shape (all-in-one vs three composable
 services) and Kubernetes-nativity (pods-as-build-steps vs
 agents-as-VMs); the cost curve is so lopsided that GitHub Actions is
 the rational answer until it isn't.
 
-Frank runs Gitea + Tekton + Zot. Three tools, three LB IPs (.209, .223,
-.210), pipelines as CRDs, registry on a Longhorn PVC. The scars came in
+Frank runs Gitea + Tekton + Zot. Three tools, three {{< abbr "LB" >}} IPs (.209, .223,
+.210), pipelines as {{< abbr "CRD" "CRDs" >}}, registry on a Longhorn {{< abbr "PVC" >}}. The scars came in
 the seams: a Tekton v1 Task whose `spec.resources` was silently eaten
 because the field is `computeResources`, an EventListener that dropped
 every Gitea webhook because the `github` interceptor filters
 `X-GitHub-Event` and Gitea sends `X-Gitea-Event`, a Zot chart pinned
-at v0.1.0 that turned out to lack TLS, auth, and persistence until
+at v0.1.0 that turned out to lack {{< abbr "TLS" >}}, auth, and persistence until
 v0.1.60+.
 
-Frank's answer does not generalize. Solo OSS dev → GitHub Actions.
+Frank's answer does not generalize. Solo {{< abbr "OSS" >}} dev → GitHub Actions.
 Tiny homelab wanting minimal ceremony → Forgejo + Woodpecker. Multi-
 team enterprise → GitLab CE.
 
@@ -125,7 +125,7 @@ identity is making every Step a container that runs in its own pod).
 {{< papers/capability-matrix data="vendors" >}}
 
 The matrix grades the options on integration, K8s-nativity,
-declarative YAML pipelines, native webhook triggers, bundled OCI
+declarative YAML pipelines, native webhook triggers, bundled {{< abbr "OCI" >}}
 registry, OSS licensing, operational overhead, and zero-cost SaaS.
 The mesh-required-equivalent column for CI/CD is *operational
 overhead* — the row that does the most work and that vendor docs
@@ -154,25 +154,25 @@ there are no seams. The benefit is real ergonomic integration. The
 cost is that GitLab is one of the heaviest self-hosted services in
 common use — multi-GB RAM baseline, Postgres + Redis + Sidekiq +
 GitLab Runner, and an upgrade story that is rightly feared. For a
-team that values RBAC, audit, and a single pane of glass, GitLab CE
+team that values {{< abbr "RBAC" >}}, audit, and a single pane of glass, GitLab CE
 is the answer.
 
 **Forgejo + Woodpecker** is the homelab pattern — two community-
 governed forks (Gitea → Forgejo, Drone → Woodpecker) chosen for
 minimal ceremony. Forgejo is a single Go binary; Woodpecker is a
 server + agent pair with a small footprint. No bundled registry; pair
-with whatever (often Docker Hub or GHCR). The one-tool-each shape
+with whatever (often Docker Hub or {{< abbr "GHCR" >}}). The one-tool-each shape
 is the most popular small-scale self-host combo on r/selfhosted, and
 deservedly so — at homelab scale it just works.
 
-**Drone CI** is now under CNCF stewardship; the architecture is
+**Drone CI** is now under {{< abbr "CNCF" >}} stewardship; the architecture is
 unchanged. Every pipeline step is a container, the YAML format is
 minimal, the server + agent model scales linearly. Drone's design is
 the architectural predecessor of Tekton's pods-as-steps approach.
 Picking Drone over Tekton is choosing a smaller engine with fewer
 moving parts and giving up the Kubernetes-CRD integration.
 
-**Jenkins** is the heritage incumbent. JVM controller, Groovy DSL
+**Jenkins** is the heritage incumbent. {{< abbr "JVM" >}} controller, Groovy DSL
 (plus declarative Pipeline syntax), thousands of plugins, two decades
 of accumulated patterns. The plugin ecosystem is genuinely
 unmatched; the operational tax is genuinely substantial. Jenkins is
@@ -222,7 +222,7 @@ Gitea sends a webhook on each push to a Tekton EventListener service
 fronted by a Cilium LoadBalancer. The EventListener applies a `cel`
 interceptor matching on the `X-Gitea-Event` header (the github
 interceptor doesn't work — see §5). On match, it creates a
-PipelineRun CR. The PipelineRun spawns one TaskRun per Task; each
+PipelineRun {{< abbr "CR" >}}. The PipelineRun spawns one TaskRun per Task; each
 TaskRun runs the Task's Steps in a single pod, one container per
 Step, sharing a workspace PVC. The final TaskRun pushes the built
 image to Zot at the cluster LB IP for the registry.
@@ -397,7 +397,7 @@ I run Gitea + Tekton + Zot. Three tools, three IPs (.209 Gitea HTTP +
 external webhooks). Pipelines as CRDs in `apps/tekton/manifests/`.
 Gitea webhooks fed through a `cel` interceptor matching on the
 `X-Gitea-Event` header. Zot pinned at v0.1.60+ with TLS, htpasswd
-auth from SOPS, and a Longhorn-backed PVC for image storage.
+auth from {{< abbr "SOPS" >}}, and a Longhorn-backed PVC for image storage.
 
 I did not pick this stack because three tools are intrinsically
 better than one. I picked it because every layer is a manifest in
@@ -415,7 +415,7 @@ We wrote a Tekton v1 Task with `spec.resources`. The CRD validation
 accepted it — silently, because `resources` is the v1beta1 field, and
 v1 wants `computeResources`. The whole ArgoCD Application went green;
 the build pod ran without the resource limits we believed we'd set;
-we discovered the typo only when a build OOM-killed the cluster
+we discovered the typo only when a build {{< abbr "OOM" >}}-killed the cluster
 scheduler. The schema migration from v1beta1 to v1 isn't graceful —
 it eats fields whose name differs by one letter, with no error and
 no warning. *A field-rename across a CRD major version is a category
@@ -509,7 +509,7 @@ understands the rest of the leaves before picking it.
 Three trends are worth naming. None are settled; all affect the next
 few years of self-hosted CI/CD on Kubernetes.
 
-**Tekton Chains is making supply-chain attestation default.** SLSA
+**Tekton Chains is making supply-chain attestation default.** {{< abbr "SLSA" >}}
 provenance, in-toto attestations, and sigstore signatures are moving
 from add-on tooling into the pipeline engine itself. Tekton Chains
 is the reference implementation; expect Drone, Woodpecker, and
@@ -518,7 +518,7 @@ next two years. The "supply chain story" row of the capability
 matrix is the one most likely to flip first.
 
 **OCI registries are absorbing arbitrary artefact storage.** Helm
-charts, Tekton Bundles, Cosign signatures, SBOMs, OPA policy bundles
+charts, Tekton Bundles, Cosign signatures, {{< abbr "SBOM" "SBOMs" >}}, {{< abbr "OPA" >}} policy bundles
 — all OCI-conformant now. Zot, Harbor, and GHCR all store "anything
 OCI" rather than just container images. The registry stops being a
 build output and becomes the artefact store for the whole supply

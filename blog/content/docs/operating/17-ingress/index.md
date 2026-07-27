@@ -27,7 +27,7 @@ source .env_devops   # sets OMNICONFIG + service accounts
 ## What Healthy Looks Like
 
 - All three Traefik pods are `Running`.
-- ACME certificates show `Ready: True` with a recent renewal date.
+- {{< abbr "ACME" >}} certificates show `Ready: True` with a recent renewal date.
 - The Homepage dashboard is accessible at `homepage.cluster.derio.net` and shows tiles for all services.
 - IngressRoutes resolve for both internal and external entrypoints.
 
@@ -147,7 +147,7 @@ Then visit `http://localhost:9000/dashboard/`.
 
 ### Restart Homepage Pod
 
-When tiles are stale, SSO is misconfigured, or the config needs to be refreshed:
+When tiles are stale, {{< abbr "SSO" >}} is misconfigured, or the config needs to be refreshed:
 
 ```bash
 kubectl rollout restart -n homepage deployment/homepage
@@ -251,7 +251,7 @@ The icon URL in the tile config may need updating. Edit the `services.yaml` entr
 | Command | What It Does |
 |---------|-------------|
 | `kubectl get pods -n traefik` | Check Traefik pods |
-| `kubectl get certificate -A` | List all TLS certificates |
+| `kubectl get certificate -A` | List all {{< abbr "TLS" >}} certificates |
 | `kubectl get ingressroute -A` | List all HTTP routes |
 | `kubectl describe ingressroute -n <ns> <name>` | Show route details |
 | `kubectl rollout restart -n homepage deploy/homepage` | Restart Homepage |

@@ -14,7 +14,7 @@ last_updated: 2026-07-15
 
 The cluster has a GPU. Layer 4 installed the NVIDIA operator. Layer 5 gave the mini nodes their Intel iGPUs. But none of that is useful until something actually runs inference.
 
-Layer 10 wires up a unified LLM gateway. Any tool on the network — agentic frameworks, document processors, coding assistants — talks to one OpenAI-compatible endpoint at `192.168.55.206:4000`. Behind that endpoint, requests route to either a local model on gpu-1's RTX 5070 Ti or a free cloud model via OpenRouter. The consumer never needs to know which.
+Layer 10 wires up a unified {{< abbr "LLM" >}} gateway. Any tool on the network — agentic frameworks, document processors, coding assistants — talks to one OpenAI-compatible endpoint at `192.168.55.206:4000`. Behind that endpoint, requests route to either a local model on gpu-1's RTX 5070 Ti or a free cloud model via OpenRouter. The consumer never needs to know which.
 
 ```mermaid
 flowchart LR
@@ -48,9 +48,9 @@ Ollama alone handles local models well. But the moment you want cloud fallback, 
 
 ## Local Models: What Fits in 16GB
 
-The RTX 5070 Ti has 16GB of GDDR7. That is the hard constraint. Five models in the current lineup, each chosen to fit alongside ~1.5GB of KV cache:
+The RTX 5070 Ti has 16GB of {{< abbr "GDDR7" >}}. That is the hard constraint. Five models in the current lineup, each chosen to fit alongside ~1.5GB of {{< abbr "KV" >}} cache:
 
-| Alias | Tag | Quant | VRAM | Context | Best For |
+| Alias | Tag | Quant | {{< abbr "VRAM" >}} | Context | Best For |
 |-------|-----|-------|------|---------|----------|
 | `mistral-small-24b` | `mistral-small3.2:24b` | Q4_K_M | ~14 GB | 128K | Default, function calling |
 | `gemma-12b` | `gemma4:12b` | Q4_K_M | ~9 GB | 256K | Multimodal — general vision |
@@ -58,7 +58,7 @@ The RTX 5070 Ti has 16GB of GDDR7. That is the hard constraint. Five models in t
 | `qwen-coder-14b` | `qwen2.5-coder:14b-instruct-q6_K` | Q6_K | ~12 GB | 32K | Code generation |
 | `qwen-think-14b` | `qwen3:14b` | Q4_K_M | ~10 GB | 32K | Reasoning with thinking mode |
 
-Only one model stays loaded at a time (`OLLAMA_MAX_LOADED_MODELS=1`). The default is kept warm for 24 hours (`OLLAMA_KEEP_ALIVE=24h`). Switching takes ~5 seconds — Ollama unloads one and loads the other from the Longhorn PVC.
+Only one model stays loaded at a time (`OLLAMA_MAX_LOADED_MODELS=1`). The default is kept warm for 24 hours (`OLLAMA_KEEP_ALIVE=24h`). Switching takes ~5 seconds — Ollama unloads one and loads the other from the Longhorn {{< abbr "PVC" >}}.
 
 ### Why Two Multimodal Models
 
@@ -114,7 +114,7 @@ Two ArgoCD apps — one for the Helm chart, one for the ExternalSecret:
 
 | App | Source | Purpose |
 |-----|--------|---------|
-| `litellm` | OCI Helm chart (`docker.litellm.ai/berriai/litellm-helm`) | Gateway + PostgreSQL |
+| `litellm` | {{< abbr "OCI" >}} Helm chart (`docker.litellm.ai/berriai/litellm-helm`) | Gateway + PostgreSQL |
 | `litellm-extras` | `apps/litellm/manifests/` | ExternalSecret for API keys |
 
 The model routing config maps aliases to backends:
@@ -143,7 +143,7 @@ Initial deployment used a `postStart` lifecycle hook to pull models on startup. 
 
 ### LiteLLM Image Tags
 
-The Helm chart generates an image tag from the chart version (e.g., `main-v1.81.13`). That tag does not exist on GHCR. Override it explicitly:
+The Helm chart generates an image tag from the chart version (e.g., `main-v1.81.13`). That tag does not exist on {{< abbr "GHCR" >}}. Override it explicitly:
 
 ```yaml
 image:
@@ -179,7 +179,7 @@ Any consumer on the network can use `192.168.55.206:4000` — local GPU models, 
 | **Ollama missing `nvidia` runtimeClassName** — Talos requires explicit GPU runtime selection; pods without it cannot access the GPU | Default containerd runtime does not expose NVIDIA devices; Talos needs `nvidia` runtime class | Added `runtimeClassName: nvidia` to ollama values | `c84049be` |
 | **LiteLLM image tag `main-v1.81.13` does not exist** — chart auto-generates a tag from chart version that has no matching GHCR image | The chart's tag template does not match the publishing convention on GHCR | Overrode with `main-stable` explicitly | `187d3689` |
 | **LiteLLM aliases used `ollama/` prefix, breaking streaming tool calls** — the `ollama/` provider produces malformed tool call JSON under `stream: true` | Ollama has two API paths: `/api/chat` (native) and `/v1/chat/completions` (OpenAI-compat); LiteLLM's `ollama/` uses the compat path which mishandles streaming | Changed aliases to `ollama_chat/` prefix for native stream-safe tool calling | `8277c154` |
-| **LiteLLM canary broken by Cilium traffic router plugin** — Argo Rollouts Cilium plugin was not installed; canary traffic splitting failed | The Cilium HTTP route CRD was not present; canary analysis got stuck in degraded state | Reverted to replica-count weighting for canary | `65dcabdb`, `b3f86231` |
+| **LiteLLM canary broken by Cilium traffic router plugin** — Argo Rollouts Cilium plugin was not installed; canary traffic splitting failed | The Cilium HTTP route {{< abbr "CRD" >}} was not present; canary analysis got stuck in degraded state | Reverted to replica-count weighting for canary | `65dcabdb`, `b3f86231` |
 | **OpenRouter free models churned during deployment** — 4 of 6 selected models were already retired from free tier between config authoring and deploy | Free model availability on OpenRouter shifts without notice | Verified list against live `/api/v1/models` instead of marketing page | `1d3c74d8` |
 
 ## References

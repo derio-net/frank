@@ -43,14 +43,14 @@ else for the rest.
 
 Frank runs Longhorn-native backup to Cloudflare R2. No Velero — ArgoCD
 plus git already restores every Kubernetes API object in under ten
-minutes, leaving only PVC contents and a small set of SOPS-encrypted
+minutes, leaving only {{< abbr "PVC" >}} contents and a small set of {{< abbr "SOPS" >}}-encrypted
 bootstrap secrets that must be applied before any restore can run. The
-scars: a Longhorn 1.11 NFS mount-string bug, a RecurringJob schema with
+scars: a Longhorn 1.11 {{< abbr "NFS" >}} mount-string bug, a RecurringJob schema with
 no per-job target field, secrets that live outside the backup tool's
 reach by design.
 
 Frank's answer does not generalize. No GitOps coverage → Kasten K10.
-Regulated workloads → Kasten K10. Paranoid → restic on a NAS.
+Regulated workloads → Kasten K10. Paranoid → restic on a {{< abbr "NAS" >}}.
 
 ## §1 — The capability
 
@@ -65,7 +65,7 @@ critical-path predecessor for the others?
 
 That is the capability under examination. Not "backup" in the abstract —
 Kubernetes already has VolumeSnapshot, Longhorn already ships a BackupTarget
-CRD, every storage vendor has a CSI driver that can produce a point-in-time
+{{< abbr "CRD" >}}, every storage vendor has a {{< abbr "CSI" >}} driver that can produce a point-in-time
 copy. The capability is *what happens between the cluster's state becoming
 unrecoverable and a hundred percent of that state being back on disk and
 serving traffic*: who owns the K8s API-object capture, who owns the volume
@@ -135,7 +135,7 @@ top of the storage layer with no extra control plane (top)?
 
 The matrix grades the options on K8s API-object capture, PVC data,
 application-awareness, deduplication, offsite shipment, whether it adds a
-control plane, RBAC/audit, and licensing. The control-plane column is the
+control plane, {{< abbr "RBAC" >}}/audit, and licensing. The control-plane column is the
 one that does the most work; it is also the one most vendor docs mention
 only after you have read the install guide.
 
@@ -159,7 +159,7 @@ already CRD-defined in git, Velero's API capture buys you very little.
 
 **Longhorn (native)** inverts the trade. There is no separate backup
 controller; the storage driver itself owns snapshot, dedup, and shipment.
-A BackupTarget CR points at an S3-compatible endpoint or an NFS share; a
+A BackupTarget {{< abbr "CR" >}} points at an S3-compatible endpoint or an NFS share; a
 RecurringJob CR schedules backups against a label-selected group of
 volumes; the longhorn-manager handles the rest. The Longhorn concepts docs
 describe the data model directly:
@@ -183,17 +183,17 @@ RBAC on every operation, audit trail, multi-cluster DR orchestration, and
 the *Blueprint* model — a CRD that describes how a specific application's
 operator quiesces and recovers, contributed back by the community for
 common databases. The trade is the licence fee, the operator footprint, and
-the second admin console. For a regulated production cluster with PII,
+the second admin console. For a regulated production cluster with {{< abbr "PII" >}},
 PCI, or HIPAA scope, the policy engine and audit trail are not optional;
 they are the reason Kasten exists.
 
 **TrilioVault** sits adjacent to Kasten. The product distinction is the
-integration surface — ITSM/SIEM hooks, multi-cloud DR orchestration as a
+integration surface — ITSM/{{< abbr "SIEM" >}} hooks, multi-cloud DR orchestration as a
 first-class concept. The capability shape is the same: application-aware
 capture with a full operator stack.
 
 **restic** is the file-format primitive everything else converges on.
-Content-defined chunking, SHA-256-keyed deduplication, AES-256-CTR
+Content-defined chunking, SHA-256-keyed deduplication, {{< abbr "AES" >}}-256-CTR
 encryption at rest, scrypt key derivation. It is not, by itself, a
 Kubernetes backup tool — it is a backup *engine* that the Kubernetes
 backup tools (notably Velero's File-System Backup mode) drive underneath.
@@ -345,14 +345,14 @@ with RBAC context.
 
 Restore is initiated against a captured Application — Kasten reconstructs
 the K8s API objects, the PVC contents, and the Blueprint-driven recovery
-hooks (e.g., "after restoring this Postgres, run the WAL replay step
+hooks (e.g., "after restoring this Postgres, run the {{< abbr "WAL" >}} replay step
 defined in the Blueprint"). The Blueprint model is the design space that
 makes Kasten worth its licence fee.
 
 The failure mode is the operator and policy-engine surface area itself.
 At a small cluster the policy engine has nothing to police and the
 audit trail has nothing to audit; at a regulated production cluster, it
-is the difference between passing the SOC2 review and not.
+is the difference between passing the {{< abbr "SOC2" >}} review and not.
 
 ### TrilioVault
 
@@ -575,12 +575,12 @@ equivalent CSI-snapshot-driven storage backup for other drivers) is
 enough — the K8s API-object backup that Velero or Kasten provides
 duplicates what the GitOps reconciler already does. Not on GitOps? You
 need a tool that captures the Kubernetes API surface as part of its
-primary work — Velero at the OSS end, Kasten or TrilioVault at the
+primary work — Velero at the {{< abbr "OSS" >}} end, Kasten or TrilioVault at the
 commercial-with-app-aware end.
 
 The fourth leaf is the *offline-resilient* override — teams whose threat
 model includes "the primary backup tool's own dependencies are
-compromised" (bucket wiped, KMS lost, restore tool itself the attack
+compromised" (bucket wiped, {{< abbr "KMS" >}} lost, restore tool itself the attack
 vector). The right answer there is a parallel restic copy on a NAS plus
 an encrypted offsite snapshot — separate keys, separate credentials,
 separate restore procedure. Heavier than the other leaves; earns its

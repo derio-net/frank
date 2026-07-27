@@ -186,7 +186,7 @@ EOF
 kubectl logs -n gitea deploy/gitea --tail=50 | grep -i mirror
 ```
 
-Check the `GITHUB_MIRROR_TOKEN` PAT hasn't expired. Verify `ALLOWED_HOST_LIST` in Gitea config includes GitHub.
+Check the `GITHUB_MIRROR_TOKEN` {{< abbr "PAT" >}} hasn't expired. Verify `ALLOWED_HOST_LIST` in Gitea config includes GitHub.
 
 ### Webhook Not Triggering a PipelineRun
 
@@ -200,9 +200,9 @@ kubectl logs -n tekton-pipelines -l eventlistener=github-listener --tail=200 \
 ```
 
 Known causes:
-- **Gitea sends `X-Gitea-Event`, not `X-GitHub-Event`** — the interceptor needs a CEL filter, not the `github` interceptor.
+- **Gitea sends `X-Gitea-Event`, not `X-GitHub-Event`** — the interceptor needs a {{< abbr "CEL" >}} filter, not the `github` interceptor.
 - **Caddy strips the event header** — Hop's Caddy may drop `X-GitHub-Event` on the webhooks relay. The EventListener sees a request with no event type.
-- **HMAC mismatch** — the webhook secret in GitHub doesn't match `STOA_GITHUB_WEBHOOK_SECRET` in Frank.
+- **{{< abbr "HMAC" >}} mismatch** — the webhook secret in GitHub doesn't match `STOA_GITHUB_WEBHOOK_SECRET` in Frank.
 
 ### PipelineRun Stuck in Pending
 
@@ -210,7 +210,7 @@ Known causes:
 kubectl describe pipelinerun -n tekton-pipelines <name>
 ```
 
-Check PVC provisioning (Longhorn health, pc-1 node status). The `longhorn-cicd` storage class must be available.
+Check {{< abbr "PVC" >}} provisioning (Longhorn health, pc-1 node status). The `longhorn-cicd` storage class must be available.
 
 ### PodSecurity Violation on Task Step
 
@@ -226,7 +226,7 @@ Fix: add `securityContext` to the Task step — `runAsNonRoot: true`, `capabilit
 kubectl logs -n tekton-pipelines <pod> -c step-clone
 ```
 
-`HOME=/` is read-only for UID 65534. Set `HOME=/tekton/home` env var on the step.
+`HOME=/` is read-only for {{< abbr "UID" >}} 65534. Set `HOME=/tekton/home` env var on the step.
 
 ### Zot Returns 401 on Push
 
@@ -272,7 +272,7 @@ Operational notes:
 | `resources` in Tekton Task YAML is equivalent to `computeResources` | The field was renamed. Using the old name causes `ComparisonError` in ArgoCD because the API normalises it. | Replaced all `resources` blocks with `computeResources`. |
 | Caddy on Hop passes all HTTP headers through to the upstream | Caddy's reverse proxy strips `X-GitHub-Event` unless explicitly configured. GitHub webhooks arrived at the EventListener without event headers. | Added `header_up X-GitHub-Event` to the Caddy relay route. |
 | A cosign key rotation is seamless | Old signatures stay valid with the old public key, but every consumer must know about both keys. If only the new `cosign.pub` is committed, old images fail verification. | Documented the dual-key window in the rotation procedure. |
-| The PipelineRun TTL GC is a nice-to-have cleanup | Before the GC was implemented, accumulated task pods from finished runs pushed the `kube_pod_status_ready` alert into false-positive territory. | Added the CronJob and rewrote the alert query to use deployment-scoped metrics. |
+| The PipelineRun {{< abbr "TTL" >}} GC is a nice-to-have cleanup | Before the GC was implemented, accumulated task pods from finished runs pushed the `kube_pod_status_ready` alert into false-positive territory. | Added the CronJob and rewrote the alert query to use deployment-scoped metrics. |
 
 ## Quick Reference
 

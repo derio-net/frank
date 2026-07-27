@@ -16,7 +16,7 @@ By Layer 5, the cluster had working networking, storage, and GPU compute — all
 
 That is not infrastructure. That is a collection of fragile coincidences.
 
-GitOps means the Git repo is the single source of truth for everything running on the cluster. Not just application code — the entire infrastructure stack: CNI, storage, GPU drivers, ingress, observability. Every change goes through a pull request. Every sync is automated. Drift is detected and corrected.
+GitOps means the Git repo is the single source of truth for everything running on the cluster. Not just application code — the entire infrastructure stack: {{< abbr "CNI" >}}, storage, GPU drivers, ingress, observability. Every change goes through a pull request. Every sync is automated. Drift is detected and corrected.
 
 This post covers the migration from Flux CD to ArgoCD, the Pulumi detour that did not work out, and building an App-of-Apps Helm chart to manage all workloads via GitOps — adopting Cilium and Longhorn in place without a single pod restart.
 
@@ -65,11 +65,11 @@ Omni and Pulumi occupy the same layer. Since Omni was already managing all seven
 Flux CD was deployed first. It worked for about a day before breaking with a `kustomization path not found` error that proved stubborn to debug. But the real issues were architectural:
 
 - **Flux has no UI.** Debugging sync failures means reading `kubectl` output and parsing YAML status conditions. ArgoCD ships a web dashboard showing the full resource tree, sync status, and diff for every application.
-- **Multi-source support.** ArgoCD pulls a Helm chart from an upstream registry and overlays values from a Git repo — in a single Application CR. Flux requires separate `HelmRepository`, `HelmRelease`, and `Kustomization` resources.
+- **Multi-source support.** ArgoCD pulls a Helm chart from an upstream registry and overlays values from a Git repo — in a single Application {{< abbr "CR" >}}. Flux requires separate `HelmRepository`, `HelmRelease`, and `Kustomization` resources.
 - **App-of-Apps.** ArgoCD has a first-class pattern for bootstrapping a cluster from a single Helm chart that renders child Application CRs. One `kubectl apply` declares every workload.
 - **Zero-downtime adoption.** ArgoCD takes ownership of existing resources through annotation-based tracking — no delete-and-recreate. Cilium and Longhorn were adopted in place.
 
-Flux was uninstalled (`flux uninstall`), its namespace deleted, its CRDs cleaned up. None of this touched the running Cilium or Longhorn pods — those were standalone Helm releases continuing independently.
+Flux was uninstalled (`flux uninstall`), its namespace deleted, its {{< abbr "CRD" "CRDs" >}} cleaned up. None of this touched the running Cilium or Longhorn pods — those were standalone Helm releases continuing independently.
 
 ```bash
 flux uninstall --silent
@@ -269,10 +269,10 @@ configs:
 ```
 
 - **Single replicas** — homelab, not production SaaS.
-- **`--insecure`** — Traefik handles TLS termination externally.
+- **`--insecure`** — Traefik handles {{< abbr "TLS" >}} termination externally.
 - **Cilium LoadBalancer IP** — pins ArgoCD to `192.168.55.200`.
 - **Node affinity to `zone: core`** — keeps ArgoCD on the minis, not the GPU node or Raspberry Pis.
-- **Dex disabled** — no SSO yet. Authentik integration planned.
+- **Dex disabled** — no {{< abbr "SSO" >}} yet. Authentik integration planned.
 
 ## What We Have Now
 
@@ -288,7 +288,7 @@ The two-layer split is clean: Omni owns the machines, ArgoCD owns the workloads.
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **ArgoCD scheduled on gpu-1** — the GPU node's taint toleration was missing, so ArgoCD server pods landed on the wrong node for weeks | Default scheduling placed ArgoCD on any available node; gpu-1 carried a `NoSchedule` taint but ArgoCD had no node affinity to avoid it | Added hard node affinity to `zone: core`, pinning ArgoCD to the mini NUCs | `b60d844c` |
+| **ArgoCD scheduled on gpu-1** — the GPU node's taint toleration was missing, so ArgoCD server pods landed on the wrong node for weeks | Default scheduling placed ArgoCD on any available node; gpu-1 carried a `NoSchedule` taint but ArgoCD had no node affinity to avoid it | Added hard node affinity to `zone: core`, pinning ArgoCD to the mini {{< abbr "NUC" "NUCs" >}} | `b60d844c` |
 | **50+ Application templates had explicit `prune: false`** — a cargo-cult default copy-pasted across every template | `prune: false` was set as a blanket default even for applications where pruning is safe and desired | Dropped `prune: false` from templates where auto-pruning is acceptable | `0bf146ac`, `62ca0e7c` |
 | **Namespace ownership conflicts with Sympozium extras** — two ArgoCD Applications claimed the same Namespace resource, causing sync fights | Companion Applications (extras) sometimes overlapped with parent Applications on Namespace ownership | Added explicit `namespace: {{ .Release.Namespace }}` scoping or split contested namespaces into dedicated Applications | `edfef589` |
 | **`ServerSideApply` not set initially** — early templates used client-side apply, which hit the 256KB annotation size limit on the large victoria-metrics chart | Client-side apply stores the entire last-applied-configuration in an annotation; large Helm charts exceed the annotation size limit | Switched all infrastructure templates to `ServerSideApply=true` | `83e2909f` |

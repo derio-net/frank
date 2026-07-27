@@ -17,7 +17,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/421d1dcd
 
 This is the operational companion to [Progressive Delivery with Argo Rollouts]({{< relref "/docs/building/19-progressive-delivery" >}}). That post covers the architecture. This one covers promoting rollouts, reading analysis results, and recovering from stuck or degraded states.
 
-> **2026-05-04 update** — The LiteLLM canary went through two rewrites in one day. First was a replica-count canary with `AnalysisRun` between pauses. Second is **pause-only** (no `AnalysisRun`) — because the `AnalysisTemplate` referenced `litellm_request_total`, a Prometheus metric the OSS LiteLLM image doesn't emit (it's Enterprise-only). The full postmortem (five latent bugs) is in the [building post]({{< relref "/docs/building/19-progressive-delivery#update-2026-05-04--the-canary-that-wasnt" >}}).
+> **2026-05-04 update** — The LiteLLM canary went through two rewrites in one day. First was a replica-count canary with `AnalysisRun` between pauses. Second is **pause-only** (no `AnalysisRun`) — because the `AnalysisTemplate` referenced `litellm_request_total`, a Prometheus metric the {{< abbr "OSS" >}} LiteLLM image doesn't emit (it's Enterprise-only). The full postmortem (five latent bugs) is in the [building post]({{< relref "/docs/building/19-progressive-delivery#update-2026-05-04--the-canary-that-wasnt" >}}).
 
 ```mermaid
 graph LR
@@ -43,8 +43,8 @@ graph LR
 
     router["Traffic Router<br/>(replica-count)"]
 
-    router -->|"100% weight"| svc_stable --> stable
-    router -->|"X% weight"| svc_canary --> canary
+    router -->|"100% weight"| svc_stable --> s1
+    router -->|"X% weight"| svc_canary --> c1
 
     Rollout -->|"step pause"| ar -->|"metric"| prom
     ar -->|"pass/fail"| Rollout
@@ -163,7 +163,7 @@ Check the Cilium traffic router plugin if the logs show `failed to get traffic r
 
 ### ArgoCD Drift on Rollout Replicas
 
-ArgoCD may try to reset `spec.replicas` on the Rollout back to the Git value. Add `ignoreDifferences` to the Application CR for `spec.replicas` on Rollout resources — same pattern as the GPU switcher.
+ArgoCD may try to reset `spec.replicas` on the Rollout back to the Git value. Add `ignoreDifferences` to the Application {{< abbr "CR" >}} for `spec.replicas` on Rollout resources — same pattern as the GPU switcher.
 
 ## Missteps
 

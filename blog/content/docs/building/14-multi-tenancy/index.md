@@ -12,7 +12,7 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-Every experiment on a shared cluster carries risk. Install a CRD that conflicts with production. Deploy a Helm chart that creates cluster-scoped resources you did not expect. Run a fuzz test that fills all available memory. On a homelab with one cluster, the blast radius is everything.
+Every experiment on a shared cluster carries risk. Install a {{< abbr "CRD" >}} that conflicts with production. Deploy a Helm chart that creates cluster-scoped resources you did not expect. Run a fuzz test that fills all available memory. On a homelab with one cluster, the blast radius is everything.
 
 Layer 14 adds vCluster — virtual Kubernetes clusters that run inside Frank. Each one has its own API server, its own namespaces, its own resources. From the inside it looks like a real cluster. From the outside it is a StatefulSet in a namespace.
 
@@ -54,7 +54,7 @@ Key properties:
 
 ## The Template Pattern
 
-Adding a vCluster should be as simple as adding a Helm values file and an ArgoCD Application CR. Values are split into two layers:
+Adding a vCluster should be as simple as adding a Helm values file and an ArgoCD Application {{< abbr "CR" >}}. Values are split into two layers:
 
 ```
 apps/vclusters/
@@ -81,7 +81,7 @@ To create a new vCluster: copy the Application CR, point it at a new values file
 | Persistence | 5Gi Longhorn | State survives pod restarts |
 | Resource quotas | 4 CPU / 8Gi / 50 pods / 20 services | Enough for experiments, bounded to prevent host starvation |
 | Network policies | Enabled | Virtual pods cannot reach host services by default |
-| Sync rules | Pods, Services, ConfigMaps, Secrets, PVCs, Ingresses → host; Nodes, StorageClasses → virtual | |
+| Sync rules | Pods, Services, ConfigMaps, Secrets, {{< abbr "PVC" "PVCs" >}}, Ingresses → host; Nodes, StorageClasses → virtual | |
 
 ## Deploying
 

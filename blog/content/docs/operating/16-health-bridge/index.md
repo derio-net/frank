@@ -181,7 +181,7 @@ kubectl annotate application -n argocd grafana-alerting \
 kubectl delete pod -n monitoring -l app.kubernetes.io/name=grafana
 ```
 
-Two gotchas: Grafana's RWO PVC + RollingUpdate deadlocks the rollout — scale to 0 briefly if it hangs. And always check for `parseError` in the new pod's logs before trusting the change.
+Two gotchas: Grafana's {{< abbr "RWO" >}} {{< abbr "PVC" >}} + RollingUpdate deadlocks the rollout — scale to 0 briefly if it hangs. And always check for `parseError` in the new pod's logs before trusting the change.
 
 ## Recover
 

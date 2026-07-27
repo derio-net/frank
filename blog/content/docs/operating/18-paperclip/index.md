@@ -59,7 +59,7 @@ graph LR
 - PostgreSQL pod is `1/1 Running`.
 - All four ExternalSecrets show `SecretSynced`.
 - The web UI responds at `http://192.168.55.212:3100`.
-- The shell sidecar LB is reachable at `192.168.55.221`.
+- The shell sidecar {{< abbr "LB" >}} is reachable at `192.168.55.221`.
 
 ## Verify
 
@@ -88,7 +88,7 @@ kubectl rollout restart deployment/paperclip -n paperclip-system
 kubectl get pods -n paperclip-system -w
 ```
 
-Uses `Recreate` strategy (RWO PVC — rolling update would deadlock). Expect 10–30s downtime.
+Uses `Recreate` strategy ({{< abbr "RWO" >}} {{< abbr "PVC" >}} — rolling update would deadlock). Expect 10–30s downtime.
 
 ### Reconcile Shell Inventory
 
@@ -129,7 +129,7 @@ kubectl describe pod -n paperclip-system -l app.kubernetes.io/name=paperclip | g
 Common causes:
 - **Database not ready** — Paperclip starts before PostgreSQL accepts connections.
 - **Missing secret** — `CreateContainerConfigError` if a non-optional ExternalSecret fails to sync. Check `kubectl get externalsecret -n paperclip-system`.
-- **OOM** — Paperclip's working set grew beyond 12Gi. Check `kubectl top pods -n paperclip-system`. If OOMKilled (exit 137), bump the memory limit in the deployment.
+- **{{< abbr "OOM" >}}** — Paperclip's working set grew beyond 12Gi. Check `kubectl top pods -n paperclip-system`. If OOMKilled (exit 137), bump the memory limit in the deployment.
 
 ### Multi-Attach Error on PVC
 

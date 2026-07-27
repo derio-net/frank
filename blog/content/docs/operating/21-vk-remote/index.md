@@ -51,7 +51,7 @@ graph LR
 - The init Job `postgres-vk-init-electric` shows `Completions: 1/1`.
 - PostgreSQL `wal_level` is `logical` and the replication slot `electric_slot_default` is `active`.
 - vk-remote responds on port 8081 with a healthy API.
-- Browser access works at `https://vk.cluster.derio.net` through Authentik SSO.
+- Browser access works at `https://vk.cluster.derio.net` through Authentik {{< abbr "SSO" >}}.
 
 ## Verify
 
@@ -97,7 +97,7 @@ kubectl -n agents rollout restart deploy/electric
 kubectl -n agents rollout status deploy/electric
 ```
 
-PostgreSQL uses `Recreate` strategy (RWO PVC) — expect brief downtime for the entire stack.
+PostgreSQL uses `Recreate` strategy ({{< abbr "RWO" >}} {{< abbr "PVC" >}}) — expect brief downtime for the entire stack.
 
 ### Login and Get a JWT Token
 

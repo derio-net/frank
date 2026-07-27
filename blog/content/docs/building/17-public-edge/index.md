@@ -12,7 +12,7 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-The Frank cluster lives behind residential NAT. Every service is reachable only from `192.168.55.x`. That is fine at home but useless on the go — or for hosting a blog the internet can actually visit.
+The Frank cluster lives behind residential {{< abbr "NAT" >}}. Every service is reachable only from `192.168.55.x`. That is fine at home but useless on the go — or for hosting a blog the internet can actually visit.
 
 This post covers deploying **Hop** — a single-node Talos cluster on Hetzner Cloud that acts as Frank's public face: a Headscale mesh for remote access, a Caddy reverse proxy for public services, and a container-hosted blog. It also covers the ten deviations from the original plan and what each taught about the gap between designing infrastructure and running it.
 
@@ -45,7 +45,7 @@ flowchart LR
 
 ## Why a Separate Cluster
 
-Three reasons for a VPS-based edge cluster rather than a single reverse proxy on a VPS:
+Three reasons for a {{< abbr "VPS" >}}-based edge cluster rather than a single reverse proxy on a VPS:
 
 1. **Mesh networking needs a public coordination point.** Headscale (the open-source Tailscale control server) must be reachable from the internet. Running it on Frank would require exposing Frank's IP — defeating the purpose.
 2. **GitOps consistency.** Hop uses the same ArgoCD App-of-Apps pattern as Frank. Adding a service means writing YAML and pushing to Git, not SSH-ing into a VPS.
@@ -73,7 +73,7 @@ Hetzner renamed CX22 to CX23 between spec authoring and deployment. Same specs, 
 
 ## Workloads: ArgoCD App-of-Apps
 
-Hop reuses Frank's GitOps pattern: a root Helm chart templating Application CRs. Seven applications versus Frank's 40+, all using raw manifests:
+Hop reuses Frank's GitOps pattern: a root Helm chart templating Application {{< abbr "CR" "CRs" >}}. Seven applications versus Frank's 40+, all using raw manifests:
 
 ```
 clusters/hop/apps/
@@ -98,7 +98,7 @@ kubectl apply -f <(helm template root clusters/hop/apps/root/)
 
 ### Storage: Static PVs on a Hetzner Volume
 
-No Longhorn on a single node. A Hetzner Volume (10GB block device) mounts at `/var/mnt/hop-data/` via Talos machine config. Static PVs point at subdirectories:
+No Longhorn on a single node. A Hetzner Volume (10GB block device) mounts at `/var/mnt/hop-data/` via Talos machine config. Static {{< abbr "PV" "PVs" >}} point at subdirectories:
 
 ```yaml
 apiVersion: v1
@@ -125,11 +125,11 @@ Simple, predictable, survives server rebuilds.
 
 ## Headscale: Mesh Coordination Point
 
-Headscale is the open-source Tailscale control server. A single pod with Headscale binary, ConfigMap for `config.yaml`, PVC for SQLite.
+Headscale is the open-source Tailscale control server. A single pod with Headscale binary, ConfigMap for `config.yaml`, {{< abbr "PVC" >}} for SQLite.
 
 ### Deviation 3: Tailscale DaemonSet
 
-The plan assumed Caddy could distinguish mesh traffic by source IP — Tailscale clients arrive with CGNAT addresses (`100.64.0.x`). But hop-1 itself was not on the mesh. Without hop-1 having a Tailscale interface, DERP relay traffic had its source NATted to the Headscale pod's cluster IP, and Caddy couldn't make access decisions.
+The plan assumed Caddy could distinguish mesh traffic by source IP — Tailscale clients arrive with {{< abbr "CGNAT" >}} addresses (`100.64.0.x`). But hop-1 itself was not on the mesh. Without hop-1 having a Tailscale interface, {{< abbr "DERP" >}} relay traffic had its source NATted to the Headscale pod's cluster IP, and Caddy couldn't make access decisions.
 
 The fix: a kernel-mode Tailscale DaemonSet on hop-1:
 
@@ -229,7 +229,7 @@ metadata:
 
 ### Custom Caddy Image
 
-Caddy's automatic TLS needs a Cloudflare DNS challenge plugin for wildcard certs:
+Caddy's automatic {{< abbr "TLS" >}} needs a Cloudflare DNS challenge plugin for wildcard certs:
 
 ```dockerfile
 FROM caddy:2.9-builder AS builder
@@ -332,7 +332,7 @@ discovered at the worst time. It also means a crashed pod shows a holding page
 instead of a gateway error, forever.
 
 **Two public sites made the missing headers obvious.** Neither vhost had sent
-HSTS, a CSP, or `nosniff`. Adding a second one was the moment to write a shared
+{{< abbr "HSTS" >}}, a {{< abbr "CSP" >}}, or `nosniff`. Adding a second one was the moment to write a shared
 `(security_headers)` snippet and import it into both. The CSP admits exactly one
 external origin — the analytics endpoint — which promptly caught a real problem:
 Astro inlines small stylesheets by default, and `style-src 'self'` blocks inline
