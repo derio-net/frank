@@ -1,5 +1,9 @@
 version: 5
-blog_craft_version: "v0.10.0"   # blog-craft release (v5 composition model, PR #44; was v0.9.0)
+blog_craft_version: "v0.16.0"   # blog-craft RELEASE frank is synced to (was v0.10.0).
+                                # update.py re-renders AT this tag to recover the
+                                # 3-way merge base — a wrong value silently degrades
+                                # every `merged` path to a baseless conflict. Bump
+                                # AFTER an apply, never before.
 
 # Hugo site lives under blog/; .blog-craft.yaml stays at the repo root.
 # blog-craft's /blog-post scaffolding and /update path mapping read this (v4).
@@ -219,6 +223,14 @@ features:
   banners:   { operator_generated: true }
   roadmap:   { enabled: true, data: data/roadmap.yaml }
   analytics: { provider: goatcounter, url: "https://counter.derio.net" }
+  # blog.derio.net serves `script-src 'self'` with no 'unsafe-inline', which
+  # drops Hextra's INLINE mermaid init. Diagrams still render (mermaid
+  # self-starts) but freeze in the light theme and stop following the toggle —
+  # silently, on all ~80 posts that use one. This materializes the external
+  # replacement. Do NOT turn it off while the CSP is on; do NOT turn it on for a
+  # blog without one (the theme's block would still run, racing two observers).
+  # blog-craft #58 / CONFIG.md §10; frank first shipped this locally in #710.
+  mermaid_csp_init: true
   # Mermaid palette is in custom.css (.content scoping = all docs posts).
   # css.mermaid_palette is not used because frank's theme applies global
   # SVG overrides via CSS nesting; the papers quadrant-chart selectors

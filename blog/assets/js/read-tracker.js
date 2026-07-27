@@ -51,9 +51,32 @@
     markCurrentAsRead();
   }
 
+  /* The "clear read history" footer link. This handler was an inline <script>
+     in custom/footer.html until a blog turned on `script-src 'self'`, which
+     dropped it silently — the link rendered and did nothing. It lives here
+     rather than in a second asset because it is the same feature and needs the
+     same STORAGE_KEY, and head-end.html already loads this file on every page. */
+  function bindClearLink() {
+    var link = document.getElementById('clear-read-history');
+    if (!link) return;
+    link.addEventListener('click', function (e) {
+      e.preventDefault();
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (err) {
+        /* localStorage unavailable (private mode, disabled) — nothing to clear */
+      }
+      window.location.reload();
+    });
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', markSidebarLinks);
+    document.addEventListener('DOMContentLoaded', function () {
+      markSidebarLinks();
+      bindClearLink();
+    });
   } else {
     markSidebarLinks();
+    bindClearLink();
   }
 })();

@@ -84,6 +84,13 @@
   color: #40c057;
 }
 
+/* The "clear read history" footer link. Styled here rather than with an inline
+   `style` attribute so the footer partial emits no inline markup at all. */
+.clear-read-history {
+  font-size: 0.75rem;
+  opacity: 0.5;
+}
+
 /* === Site-wide track banner injected by baseof.html — appears above the navbar on the homepage and every track page === */
 .site-track-banner {
   width: 100%;
@@ -611,12 +618,4 @@
 .papers-references-index .paper-reference-citations ul {
   list-style: none;
   padding-left: 1rem;
-}
-
-/* Footer "clear read history" link. Was an inline style attribute in
-   layouts/partials/custom/footer.html; moved here when blog.derio.net gained a
-   CSP so the whole footer control is external and cacheable. */
-.clear-read-history {
-  font-size: 0.75rem;
-  opacity: 0.5;
 }
