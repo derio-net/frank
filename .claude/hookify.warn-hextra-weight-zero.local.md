@@ -4,6 +4,9 @@ enabled: true
 event: file
 action: warn
 conditions:
+  # hookify matches file_path as the tool reports it — from the PROJECT root —
+  # so this pattern is repo-relative, not site-relative. On a blog whose Hugo
+  # site lives under site_dir the posts are at <site_dir>/content/ (#61).
   - field: file_path
     operator: regex_match
     pattern: blog/content/.*\.md$
@@ -14,17 +17,14 @@ conditions:
 
 ⚠️ **Hextra sidebar weight trap: `weight: 0`**
 
-This blog post sets `weight: 0`. Hugo treats `weight: 0` as "no weight set" and
-sorts those pages **LAST** in the Hextra sidebar — the recurring "00 is at the
-bottom" bug.
+Hugo treats `weight: 0` as "no weight set" and sorts those pages **LAST** in the
+Hextra sidebar — the recurring "00 is at the bottom" bug.
 
 **Fix — give it a non-zero weight:**
 
-- **Papers:** convention is `weight = paper_number + 1` (Paper 00 → `weight: 1`).
-  The `+1` offset exists precisely to dodge the zero-weight trap. Enforced by
-  `blog/scripts/validate_papers.py` (from blog-craft); see `agents/rules/repo-papers.md`.
-- **Building / operating posts:** weight matches the post number, but the **00**
-  overview post must use `weight: 1` (not `0`). Apply the same `+1` shift across
-  the series if you need to preserve strict numeric order without a collision.
-
-Canonical frontmatter rules: `agents/rules/repo-blog.md`.
+- Posts: weight matches the post number, but the **00** overview post must use
+  `weight: 1` (not `0`). Apply a `+1` shift across the series if you need strict
+  numeric order without a collision.
+- Papers: convention is `weight = paper_number + weight_offset`
+  (`content_types.papers.weight_offset`, default 1) — the offset exists precisely
+  to dodge the zero-weight trap. Enforced by `tools/validate_papers.py`.
