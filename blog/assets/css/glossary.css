@@ -1,0 +1,132 @@
+/* Abbreviation glossary — trigger + definition panel (docs/CONFIG.md §9).
+   Materialized only when features.glossary.enabled is true, and linked from
+   partials/custom/head-end.html BEFORE custom.css so a blog can override any of
+   this at equal specificity. */
+
+/* The trigger sits mid-sentence, so it must read as text with a hint, never as
+   a button. Everything here is undoing default button chrome. */
+.abbr-trigger {
+  all: unset;
+  cursor: help;
+  border-bottom: 1px dotted currentColor;
+  text-underline-offset: 2px;
+}
+
+.abbr-trigger:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.abbr-trigger abbr {
+  text-decoration: none;
+  cursor: inherit;
+}
+
+/* The panel lives in the top layer, so it needs no z-index of its own — but the
+   top layer decides *stacking*, not *coordinates*. An unpositioned [popover]
+   takes the UA default (inset: 0 plus margin: auto) and lands in the viewport's
+   block-start / inline-start corner, hundreds of pixels from the term and on
+   top of the page heading. That was #49.
+
+   Two paths, in this order:
+
+   1. This rule — the fallback for browsers without CSS anchor positioning,
+      which is still not universal. A bottom-centred dock, viewport-clamped: not
+      adjacent to the term, but the conventional definition-sheet shape, thumb-
+      reachable on a phone, and clear of the heading. It must never be allowed
+      to rot back into the corner, or the fallback becomes the bug.
+   2. The @supports block below, which anchors the panel to the trigger that
+      opened it. That is the placement the reader should actually get.
+
+   Spec §5a carries the contract; tests/unit/test_glossary_css.py pins it. */
+.abbr-panel {
+  position: fixed;
+  top: auto;
+  bottom: 1rem;
+  inset-inline: 0;
+  margin-inline: auto;
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #1f2328;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.abbr-panel::backdrop {
+  background: transparent;
+}
+
+.abbr-name {
+  display: block;
+  margin-bottom: 0.3rem;
+  font-weight: 600;
+}
+
+.abbr-desc {
+  display: block;
+}
+
+.abbr-link {
+  display: inline-block;
+  margin-top: 0.45rem;
+  font-size: 0.85em;
+}
+
+/* Dark mode follows the .read-marker convention already in custom.css. */
+:is(html.dark) .abbr-panel {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: #1b1f24;
+  color: #e6edf3;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+}
+
+/* Where anchor positioning exists, the panel opens next to the term instead of
+   docking at the foot of the viewport. `anchor-name` and `position-anchor` are
+   emitted inline by the abbr shortcode — one unique name per trigger/panel pair
+   — so this rule only supplies the geometry.
+
+   `inset: auto` and the explicit `margin` are not tidiness: the UA [popover]
+   sheet sets `inset: 0` and `margin: auto`, which inside a position area
+   stretch the panel across the whole area rather than sizing it to its content.
+
+   position-try-fallbacks is what keeps a term in the last line, or hard against
+   the inline edge, from opening a panel that runs off-screen.
+
+   Sizing (width, max-width, and everything cosmetic) is inherited from the rule
+   above — only the properties that place the box are restated here. */
+@supports (anchor-name: --x) {
+  .abbr-panel {
+    position-area: block-end span-inline-end;
+    position-try-fallbacks:
+      block-start span-inline-end,
+      block-end span-inline-start,
+      block-start span-inline-start;
+    inset: auto;
+    margin: 0.35rem 0;
+  }
+}
+
+/* The {{< glossary-index >}} definition list. */
+.glossary-index {
+  margin: 1rem 0;
+}
+
+.glossary-term {
+  font-weight: 600;
+  margin-top: 0.9rem;
+}
+
+.glossary-term abbr {
+  text-decoration: none;
+}
+
+.glossary-definition {
+  margin: 0.15rem 0 0 0;
+  opacity: 0.9;
+}

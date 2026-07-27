@@ -33,13 +33,13 @@ related_operating: "docs/operating/07-inference"
 ## TL;DR
 
 Inference is a build-versus-buy question dressed up in GPU language. The
-engine tier (Ollama, vLLM, llama.cpp, TGI) decides whether the model runs
+engine tier (Ollama, vLLM, llama.cpp, {{< abbr "TGI" >}}) decides whether the model runs
 on your metal; the gateway tier (LiteLLM, OpenRouter) decides whether
 anything sits in front of the engine. The two decisions are independent.
 
 Frank's stack is Ollama on a 16GB RTX 5070 Ti behind LiteLLM at
 `192.168.55.206`. The honest costs: qwen-vl-7b dropped from `q8_0` to
-`Q4_K_M` for the VRAM ceiling; LiteLLM's OSS image emits no `litellm_*`
+`Q4_K_M` for the {{< abbr "VRAM" >}} ceiling; LiteLLM's {{< abbr "OSS" >}} image emits no `litellm_*`
 Prometheus metrics (Enterprise-only); `OLLAMA_KEEP_ALIVE` pinned the
 container cgroup RAM and looked like a VRAM bug for hours.
 
@@ -50,7 +50,7 @@ for most teams — see §6.
 ## §1 — The capability
 
 The question I had to answer on Layer 10 was the same question every team
-who has ever wanted to run an LLM has had to answer: *where does inference
+who has ever wanted to run an {{< abbr "LLM" >}} has had to answer: *where does inference
 live?* In the cluster I am, in someone else's datacenter, or in some
 combination of both? It is a build-versus-buy question dressed up in GPU
 language, and the answer determines everything downstream — latency floor,
@@ -108,11 +108,11 @@ The OSS / self-hostable inference space has two tiers — engine and gateway
 
 The four engines fan out across the cost-vs-throughput trade. **Ollama**
 is the single-binary entry point — a Modelfile abstraction over llama.cpp
-plus GGUF, optimised for "I want a chat endpoint on my laptop, now." Its
+plus {{< abbr "GGUF" >}}, optimised for "I want a chat endpoint on my laptop, now." Its
 sibling **llama.cpp** lives even further to the leftmost floor: pure-C,
 CPU-only-possible, runs on a Raspberry Pi as gracefully as on a workstation.
 At the cluster-scale end, **vLLM** is what most of the commercial inference
-SaaS providers actually run under the hood — its block-allocated KV cache
+SaaS providers actually run under the hood — its block-allocated {{< abbr "KV" >}} cache
 (PagedAttention) is the load-bearing reason it handles concurrent users
 gracefully. **TGI** is HuggingFace's production-grade serving stack —
 continuous batching, tensor parallelism, more knobs than Ollama, more
@@ -294,7 +294,7 @@ the scheduler barely matters. Scale changes everything.
 own measurements pin this clearly:
 
 {{< papers/pullquote source="vLLM v0.6.0 performance update" url="https://blog.vllm.ai/2024/09/05/perf-update.html" >}}
-vLLM v0.6.0 delivers up to 2.7× higher throughput and 5× faster TPOT
+vLLM v0.6.0 delivers up to 2.7× higher throughput and 5× faster {{< abbr "TPOT" >}}
 compared to v0.5.3, on Llama 8B model — measured on ShareGPT dataset using
 a single H100 GPU. Across H100, A100, A10 GPUs, vLLM consistently
 outperforms TGI and TensorRT-LLM.
@@ -310,7 +310,7 @@ at homelab scale on a single consumer card. I have not run one myself.
 I should.
 
 **VRAM is the binding constraint, and quantisation is the model-quality
-knob.** A 16GB GDDR7 budget on the RTX 5070 Ti will not fit qwen-vl-7b at
+knob.** A 16GB {{< abbr "GDDR7" >}} budget on the RTX 5070 Ti will not fit qwen-vl-7b at
 `q8_0` plus a reasonable context window plus the KV cache plus the page
 cache. So qwen-vl-7b drops to `Q4_K_M`. That is a model-quality decision
 disguised as a performance one — measured perplexity climbs, downstream

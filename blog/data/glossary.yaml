@@ -1,0 +1,93 @@
+# Blog-wide abbreviation registry for {{< abbr >}}. Operator-owned (content
+# class in blog-craft's path manifest) — /update never touches it.
+#
+# Keyed by the literal token as it appears in prose, CASE-SENSITIVE. Keep it
+# alphabetically sorted; the validator warns otherwise. A marker whose key is
+# missing here FAILS the Hugo build, by design.
+#
+# Scope discipline: a key here applies to EVERY post in the blog. Do not add a
+# term whose meaning is post-local — `L1`/`L2`/`L3` are the self-hosted-inference
+# paper's own maturity tiers, and `L2` already means Cilium layer-2
+# LoadBalancer across the networking posts. One registry cannot hold both.
+
+GDDR7:
+  name: Graphics Double Data Rate 7
+  description: >-
+    The memory standard on current NVIDIA consumer cards. It sets how much
+    model weight the card can hold at once — the 16GB figure that decides
+    which quantisation a model has to run at.
+GGUF:
+  name: GPT-Generated Unified Format
+  description: >-
+    The single-file model format llama.cpp and Ollama load. Weights, tokeniser
+    and metadata travel together, which is why pulling an Ollama model gets you
+    one file rather than a directory tree.
+HA:
+  name: High Availability
+  description: >-
+    Running enough redundant instances that losing one does not take the
+    service down. Frank's three control-plane nodes are its HA tier.
+KV:
+  name: Key-Value cache
+  description: >-
+    The attention keys and values a transformer keeps for tokens it has already
+    produced, so it need not recompute them each step. It grows with context
+    length and competes with the model weights for VRAM — which is what makes
+    context window a memory decision rather than a free knob.
+LLM:
+  name: Large Language Model
+  description: >-
+    A model trained to predict text, served behind a chat or completion
+    endpoint. On Frank these run locally on the GPU node rather than against a
+    hosted provider.
+OSS:
+  name: Open Source Software
+  description: >-
+    Software whose source is public and freely modifiable. Worth flagging here
+    because several projects ship an OSS build alongside a paid one, and the
+    difference is often exactly the feature you wanted — LiteLLM's Prometheus
+    metrics are Enterprise-only.
+PAT:
+  name: Personal Access Token
+  description: >-
+    A long-lived GitHub credential that stands in for a password on API calls.
+    Frank prefers short-lived GitHub App installation tokens where it can — a
+    PAT does not rotate on its own, so it is a standing secret.
+  url: https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens
+PVC:
+  name: PersistentVolumeClaim
+  description: >-
+    A Kubernetes request for durable storage. The pod names a claim and the
+    storage layer — Longhorn on Frank — binds real disk behind it, so the data
+    outlives the pod.
+RWO:
+  name: ReadWriteOnce
+  description: >-
+    A PVC access mode that lets exactly one node mount the volume read-write at
+    a time. It is the reason a RollingUpdate deadlocks: the replacement pod
+    cannot mount the volume until the outgoing pod releases it.
+SSE:
+  name: Server-Side Expressions
+  description: >-
+    Grafana's alerting stage that transforms a query result before the alert
+    condition is evaluated. Grafana 12 requires the three-step
+    query → reduce → threshold form; the older classic-condition shape fails
+    with `sse.parseError`. Not Server-Sent Events, despite the initials.
+TGI:
+  name: Text Generation Inference
+  description: >-
+    Hugging Face's model-serving engine — one of the cluster-scale alternatives
+    to Ollama, aimed at many concurrent users rather than one workstation.
+  url: https://huggingface.co/docs/text-generation-inference
+TPOT:
+  name: Time Per Output Token
+  description: >-
+    How long the model takes to emit each token after the first. This is what a
+    reader perceives as generation speed, as distinct from time-to-first-token,
+    which is how long they wait before anything appears.
+VRAM:
+  name: Video RAM
+  description: >-
+    Memory on the GPU itself. Both the model weights and the KV cache live
+    here, which makes it the binding constraint on what a single card can
+    serve.

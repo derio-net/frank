@@ -235,6 +235,15 @@ features:
   # css.mermaid_palette is not used because frank's theme applies global
   # SVG overrides via CSS nesting; the papers quadrant-chart selectors
   # remain scoped to .paper-post only.
+  # Click-to-expand abbreviation definitions. An infra blog is abbreviation-dense
+  # (338 unique candidates across 83 posts), so terms are marked POST BY POST via
+  # /blog-craft:glossary, never in one blind sweep: a marker whose key is missing
+  # from data/glossary.yaml FAILS the Hugo build, by design. The registry is
+  # content-class, so /update never touches the definitions. No JS — the panel is
+  # <button popovertarget> + CSS anchor positioning, which is why this is safe
+  # under the same `script-src 'self'` CSP that forced mermaid_csp_init above.
+  # blog-craft #48 / CONFIG.md §9.
+  glossary:  { enabled: true, first_occurrence_only: true }
 
 voice: |
   Frank speaks as the cluster itself — conversational, technically precise,
