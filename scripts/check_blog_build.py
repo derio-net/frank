@@ -51,10 +51,20 @@ ALLOWED_ORIGINS = {"counter.derio.net"}
 # substring that survives minification. Anything NOT listed here fails the build,
 # so a theme bump that changes this markup surfaces as a failure and gets
 # re-reviewed rather than silently regressing.
+#
+# The value is (why, superseder) and BOTH halves are enforced. Tolerating on the
+# `why` alone was a one-directional check: it forgave the inline block without
+# ever asserting the replacement is loaded, so removing the superseder's <script>
+# tag left the build green while the behaviour died. That is not hypothetical —
+# the blog-craft v0.16.0 resync (#718) all but dropped exactly this
+# mermaid-init.js load, and this file would have said OK. `superseder` is matched
+# against the page's external <script src> values, so the excuse for tolerating
+# the inline copy has to be true ON THE SAME PAGE.
 TOLERATED_INLINE_SCRIPTS = {
     "dataset.original": (
         "hextra _partials/scripts/mermaid.html — dropped by script-src; "
-        "superseded by blog/assets/js/mermaid-init.js"
+        "superseded by blog/assets/js/mermaid-init.js",
+        "mermaid-init",
     ),
 }
 
@@ -78,8 +88,21 @@ def external_host(url: str) -> str | None:
     return None
 
 
+def external_script_srcs(html: str) -> list[str]:
+    """Every `<script src=...>` on the page. Collected in a separate pass because
+    a superseder is loaded from <head> while the inline block it replaces can sit
+    anywhere later — the check must not depend on document order."""
+    out = []
+    for m in TAG_RE.finditer(html):
+        if m.group(1).lower() == "script":
+            if src := attrs(m.group(2)).get("src", ""):
+                out.append(src)
+    return out
+
+
 def check_page(path: Path, rel: str, problems: list[str], tolerated: Counter) -> None:
     html = path.read_text(encoding="utf-8", errors="replace")
+    ext_srcs = external_script_srcs(html)
 
     for m in TAG_RE.finditer(html):
         tag = m.group(1).lower()
@@ -91,11 +114,23 @@ def check_page(path: Path, rel: str, problems: list[str], tolerated: Counter) ->
                 # Inline script: shipped, parsed, and then dropped by script-src.
                 body = html[m.end() : m.end() + 400]
                 known = next(
-                    (why for mark, why in TOLERATED_INLINE_SCRIPTS.items() if mark in body),
+                    (v for mark, v in TOLERATED_INLINE_SCRIPTS.items() if mark in body),
                     None,
                 )
                 if known:
-                    tolerated[known] += 1
+                    why, superseder = known
+                    if any(superseder in s for s in ext_srcs):
+                        tolerated[why] += 1
+                        continue
+                    problems.append(
+                        f"{rel}: inline <script> is tolerated only because "
+                        f"{superseder!r} supersedes it, but this page loads no "
+                        f"<script src> matching that — so the inline copy is "
+                        f"dropped by the CSP and nothing replaces it. The "
+                        f"behaviour is silently dead; restore the external asset "
+                        f"(or drop the TOLERATED_INLINE_SCRIPTS entry if the "
+                        f"theme no longer needs superseding)"
+                    )
                     continue
                 snippet = body[:90].replace("\n", " ").strip()
                 problems.append(
