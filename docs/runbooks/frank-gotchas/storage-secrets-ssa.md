@@ -389,3 +389,131 @@ $ curl -s -H "Authorization: Bearer $TOKEN" \
 tokens. After tightening scope, force a fresh mint
 (`kubectl annotate externalsecret … force-sync=$(date +%s) --overwrite`) and
 re-probe — otherwise you are testing a token issued under the old, wider scope.
+
+## Longhorn's provisioning ceiling silently refuses PVC expansion (2026-07-27)
+
+Expanding a bound Longhorn PVC is a one-line manifest change and a green
+ArgoCD tile. It is also a change with **no failure surface**: if Longhorn
+declines the expansion, nothing anywhere says so.
+
+The chain is: you bump `spec.resources.requests.storage` in git → the API
+server accepts it (the StorageClass sets `allowVolumeExpansion: true`) →
+external-resizer calls `ControllerExpandVolume` → Longhorn evaluates each
+replica's disk and refuses → `status.capacity.storage` stays at the old
+value. ArgoCD compares spec to git, finds them identical, and reports
+**Synced/Healthy**. The PVC is still `Bound`, the pod still `Running`, the
+filesystem is still the old size. The only honest signal is:
+
+```console
+$ kubectl -n <ns> get pvc <name> -o jsonpath='{.status.capacity.storage}'
+```
+
+and, definitively, `df -h` inside the pod. **A Synced Application is not
+evidence that a volume grew.**
+
+### Why it refuses: declared size, not written bytes
+
+Longhorn's scheduler gate (`IsSchedulableToDisk`) has two independent clauses:
+
+1. `StorageAvailable - size > StorageMaximum * minimalAvailablePercentage/100`
+   — the **physical** guard. Stops you actually filling a disk.
+2. `size + StorageScheduled <= (StorageMaximum - StorageReserved) * overProvisioningPercentage/100`
+   — the **accounting** guard. Counts every replica's *declared* size,
+   whether or not those bytes were ever written.
+
+Clause 2 is the one that bites, and it is entirely decoupled from real usage.
+A node hosting large, sparsely-written volumes is "full" to Longhorn while
+`df` on the underlying disk shows it half empty.
+
+Measured on Frank 2026-07-27, with `storageOverProvisioningPercentage` left at
+the chart default of 100 and a 30% reserve:
+
+```
+node       max   reserved  scheduled    ceiling   headroom   schedulable
+mini-1    929Gi    279Gi      645Gi       650Gi        5Gi      True
+mini-2    929Gi    279Gi      639Gi       650Gi       11Gi      True
+mini-3    929Gi    279Gi      654Gi       650Gi       -4Gi      False   <- over
+gpu-1    3724Gi      0Gi      725Gi      3724Gi     2999Gi      True
+```
+
+mini-3 was already past its ceiling and reporting it plainly, in a condition
+nobody reads:
+
+```
+reason=DiskPressure
+  Scheduling space condition failed: ScheduledTotal = 702361370624
+  (Size + StorageScheduled) is greater than ProvisionedLimit = 698184790016
+  (100% of StorageMax - StorageReserved)
+```
+
+Growing `hermes-agent-shell-home` by 20Gi needed 20Gi of headroom on *each* of
+its three replicas' disks — gpu-1 (fine), mini-1 (5Gi), mini-3 (−4Gi). Two of
+three would have refused.
+
+### Diagnosing before you try
+
+Compute headroom per node disk rather than trusting the `Schedulable`
+condition alone (a node one GiB under the ceiling reports `True` and still
+cannot absorb a 20Gi expansion):
+
+```console
+$ kubectl -n longhorn-system get nodes.longhorn.io -o json | jq -r '
+    .items[] | .metadata.name as $n |
+    (.status.diskStatus | to_entries[] |
+      "\($n) scheduled=\((.value.storageScheduled/1073741824)|floor)Gi " +
+      "max=\((.value.storageMaximum/1073741824)|floor)Gi")'
+```
+
+subtracting `.spec.disks[].storageReserved` to get the ceiling. Then find which
+nodes actually host the volume's replicas — only those matter:
+
+```console
+$ kubectl -n longhorn-system get replicas.longhorn.io -o json \
+    | jq -r --arg v "$VOL" '.items[]|select(.spec.volumeName==$v)|.spec.nodeID'
+```
+
+### Fixing it
+
+In order of preference:
+
+1. **Reclaim reservations.** Find volumes backing scaled-to-0 or deleted
+   workloads. Reservations persist through detach — a detached volume still
+   holds its full declared size. Note this only helps if the dead volumes
+   have replicas on the *blocking* node; verify per-node before assuming.
+2. **Raise the ceiling declaratively** —
+   `defaultSettings.storageOverProvisioningPercentage` in
+   `apps/longhorn/values.yaml`. This is what Frank did (100 → 150). It does
+   not weaken safety: `storageMinimalAvailablePercentage: 15` still blocks
+   scheduling on real disk pressure. Over-provisioning is policy;
+   minimal-available is the safety net.
+3. **Move the replica.** Delete the replica on the blocked node and let
+   Longhorn rebuild it somewhere with room (safe while the other two stay
+   healthy) — but it is an imperative fix that leaves no trace in git.
+
+A chart-level `defaultSettings` change does not always reach an already-created
+setting. Verify, and restart `longhorn-manager` if it did not take:
+
+```console
+$ kubectl -n longhorn-system get settings.longhorn.io \
+    storage-over-provisioning-percentage -o jsonpath='{.value}'
+```
+
+### Related: reservations held by resources ArgoCD cannot see
+
+The 75Gi that pushed mini-3 over its ceiling belonged to
+`hermes-agent-shell-migrate` — a Deployment, Service, two Secrets and five
+PVCs hand-created during the 2026-07-09 cutover and **never committed to
+git**. With the app at `prune: false`, ArgoCD had no mechanism to remove
+them; they were scaled to 0 and forgotten for 18 days.
+
+Reading the manifests will not find these. Read the cluster instead, and
+filter by ArgoCD's tracking annotation:
+
+```console
+$ kubectl -n <ns> get deploy,pvc,svc -o json | jq -r '.items[] |
+    "\(.kind)/\(.metadata.name)\t\(.metadata.annotations."argocd.argoproj.io/tracking-id" // "UNTRACKED")"'
+```
+
+Untracked Secrets are expected and correct here (SOPS-applied bootstrap
+secrets and ESO-generated Secrets both lack the annotation by design). An
+untracked **workload or PVC** is the finding.
