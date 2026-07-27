@@ -16,6 +16,18 @@ spec:
     namespace: monitoring
   syncPolicy:
     automated:
+      # prune: true is required because the probe config ships via Kustomize
+      # configMapGenerator (see apps/blackbox-exporter/manifests/kustomization.yaml).
+      # Every edit to files/blackbox.yml renders a NEW hash-suffixed ConfigMap and
+      # orphans the old one; without prune those accumulate forever and the app
+      # sits permanently OutOfSync.
+      #
+      # Safe here with no per-resource exceptions: this app holds a Deployment,
+      # Service, ExternalSecret and the VMProbes — all fully declared in git, and
+      # nothing stateful. The Secret the ExternalSecret mints is created by ESO,
+      # not tracked by ArgoCD, so prune cannot reach it. Contrast gitea-runner,
+      # where a PVC carries runner identity and needs Prune=false.
+      prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=false

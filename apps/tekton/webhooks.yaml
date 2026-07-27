@@ -1,0 +1,193 @@
+# Declared webhook delivery paths for Tekton EventListeners.
+#
+# WHY THIS FILE EXISTS. An EventListener trigger is only half a delivery path.
+# The other half — a webhook in Gitea or GitHub pointing at the listener — is
+# forge state with no IaC anywhere in this repo, so it is possible (and did
+# happen) to add a correct, live trigger that nothing can ever reach.
+#
+# On 2026-07-26 the `agentic-stoa-site-promotion` trigger shipped with no Gitea
+# push webhook behind it. Every surface said healthy: ArgoCD Synced, mirror
+# sync Succeeded, Gitea Actions green, image published — and the listener log
+# was SILENT, because the request never arrived. It reads as a broken pipeline
+# rather than a missing webhook, which is why it cost a debugging round.
+#
+# This file is the desired state. scripts/tests/test_webhook_delivery_paths.py
+# asserts, offline and at PR time, that every EventListener trigger which names
+# repositories has a declaration here that covers them. Adding a trigger without
+# adding its delivery path now fails CI instead of failing silently in
+# production.
+#
+# SCOPE, stated honestly: this declaration is checked against the EventListeners
+# in git. It is NOT yet reconciled against the live forges — a webhook deleted
+# by hand in Gitea would still pass. Closing that needs a verifier CronJob
+# (crowdsec-canary shape) comparing this file to the forge APIs; tracked as the
+# follow-up. Snapshotted while live reality matches, verified 2026-07-26.
+
+version: 1
+
+forges:
+  gitea:
+    # In-cluster; the listener services are reachable by cluster DNS.
+    base_url: http://192.168.55.209:3000
+    listener_url_template: http://el-{listener}.tekton-pipelines.svc.cluster.local:8080
+  github:
+    base_url: https://github.com
+    # Public ingress on Hop, proxied to the github-listener on Frank.
+    listener_url_template: https://webhooks.hop.derio.net/
+
+webhooks:
+  # ── Gitea ────────────────────────────────────────────────────────────────
+  - forge: gitea
+    scope: org
+    target: agentic-stoa
+    listener: gitea-listener
+    events: [status]
+    serves: [gitea-status-bridge]
+    note: >-
+      Org-level and status-ONLY. This is the commit-status bridge path. It is
+      the reason a missing push hook is easy to miss: a survey that asks "does
+      this org have a webhook?" answers yes while push delivery is absent.
+
+  - forge: gitea
+    scope: repo
+    target: agentic-stoa/site
+    listener: gitea-listener
+    events: [push]
+    serves: [agentic-stoa-site-promotion]
+    note: >-
+      Created 2026-07-26 to fix the gap above. Scoped to this repo rather than
+      an org-wide push hook, so the other ten repos do not start delivering
+      pushes to the gitea-listener. No secret: the trigger validates with a cel
+      interceptor on repo full_name + ref, with no secret-validation interceptor.
+
+  - forge: gitea
+    scope: repo
+    target: agentic-stoa/companies
+    listener: live-mirror-sync
+    events: [push]
+    serves: [companies-main-push]
+
+  - forge: gitea
+    scope: repo
+    target: derio-homelab/kid-laptops
+    listener: gitea-listener
+    events: [push]
+    serves: [kid-laptops-push]
+    note: >-
+      The mirror repo, created by manual-op cicd-kid-laptops-gitea-repo-create.
+      Second hop of a two-hop path: the github-listener force-pushes GitHub into
+      Gitea, and THIS hook turns that push into the CI PipelineRun. No secret —
+      the trigger validates with a cel interceptor on repo full_name only.
+      Declared before it exists: this file is desired state, and the manual op
+      cicd-kid-laptops-gitea-webhook creates it post-merge.
+
+  - forge: gitea
+    scope: repo
+    target: gitea_admin/test-ci
+    listener: gitea-listener
+    events: [push, pull_request]
+    serves: [gitea-push]
+    note: >-
+      The ONLY delivery path for the generic `gitea-push` trigger, which filters
+      to repos NOT under agentic-stoa/. Wired but unused: zero PipelineRuns from
+      it across 1672 retained (checked 2026-07-26). Vestigial from the
+      Gitea-native CI era, superseded by the GitHub-mirror architecture. Kept
+      declared rather than deleted so the trigger is not mistaken for orphaned —
+      decide deliberately whether to retire both together.
+
+  # ── GitHub ───────────────────────────────────────────────────────────────
+  # All eleven mirrored repos deliver push + pull_request to the github-listener
+  # via Hop. Verified complete 2026-07-26.
+  - forge: github
+    scope: repo
+    target: derio-homelab/kid-laptops
+    listener: github-listener
+    events: [push]
+    serves: [derio-homelab-kid-laptops-main-sync]
+    note: >-
+      push only, not pull_request: kid-laptops runs no PR-time CI on Frank yet
+      (the molecule stage is gated off until KubeVirt lands, so a PR mirror
+      would test only lint). Uses its OWN HMAC secret
+      (derio-homelab-github-webhook-secret), not the agentic-stoa one — sharing
+      it would couple two unrelated orgs' webhook authenticity to one value.
+      Created post-merge by manual-op cicd-kid-laptops-github-webhook.
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/hum
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [agentic-stoa-hum-pr, agentic-stoa-main-sync]
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/content-factory
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [agentic-stoa-content-factory-pr, agentic-stoa-main-sync]
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/stoa-blog
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [agentic-stoa-stoa-blog-pr, agentic-stoa-main-sync]
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/second-brain
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [agentic-stoa-second-brain-pr, agentic-stoa-main-sync]
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/hermes-brain
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [agentic-stoa-hermes-brain-pr, agentic-stoa-main-sync]
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/flexible-health
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [agentic-stoa-main-sync]
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/cnc-fr
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [agentic-stoa-cnc-fr-pr, agentic-stoa-main-sync]
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/cnc-frd
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [agentic-stoa-cnc-frd-pr, agentic-stoa-main-sync, cnc-image-promotion]
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/cnc-fru
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [agentic-stoa-cnc-fru-pr, agentic-stoa-main-sync]
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/companies
+    listener: github-listener
+    events: [push]
+    serves: [agentic-stoa-main-sync]
+    note: >-
+      push-only on purpose — there is no companies PR trigger on the
+      github-listener, unlike the other mirrored repos.
+
+  - forge: github
+    scope: repo
+    target: agentic-stoa/site
+    listener: github-listener
+    events: [push, pull_request]
+    serves: [agentic-stoa-main-sync]

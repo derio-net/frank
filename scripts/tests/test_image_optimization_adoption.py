@@ -31,12 +31,59 @@ def test_config_opts_into_optimization():
 
 
 def test_mechanism_templates_match_blog_craft():
-    """opt-image + render-image track blog-craft@5dc31f8 (no frank divergence)."""
-    for name, dest in (("opt-image.html", "partials/opt-image.html"),
-                       ("render-image.html", "_markup/render-image.html")):
+    """render-image tracks blog-craft@5dc31f8 (no frank divergence).
+
+    opt-image.html is a RECORDED divergence — pinned by the next test.
+    """
+    for name, dest in (("render-image.html", "_markup/render-image.html"),):
         live = open(os.path.join(BLOG, "layouts", dest), "rb").read()
         ref = open(os.path.join(FIX, name), "rb").read()
         assert live == ref, f"blog/layouts/{dest} diverges from blog-craft@5dc31f8"
+
+
+def test_opt_image_diverges_from_blog_craft_only_in_the_srcset_clamp():
+    """opt-image.html carries ONE deliberate fix ahead of blog-craft@5dc31f8.
+
+    Upstream builds the srcset from `slice 480 960 $maxW` and clamps each
+    candidate with `le $w $maxW` — comparing the cap against itself instead of
+    against the primary actually emitted. Whenever the SOURCE is narrower than
+    the cap (frank's banners are 2169w against a 2560 cap, covers 1424w against
+    1600) the top candidate is dropped and nothing in the srcset matches the
+    primary. Since the HTML spec removes `src` from the candidate list as soon
+    as a srcset uses `w` descriptors, the full-resolution file becomes
+    unreachable and every banner renders upscaled from 960w — measured at 2.0x
+    on a 1512px Retina viewport, and worse on wider screens.
+
+    That is an upstream defect, not a frank preference, so it belongs in
+    blog-craft. Until it lands there and frank re-syncs, this test pins the
+    divergence to exactly that hunk, so no OTHER drift can hide behind it.
+    """
+    live = open(os.path.join(BLOG, "layouts", "partials", "opt-image.html")).read()
+    ref = open(os.path.join(FIX, "opt-image.html")).read()
+
+    assert "(slice 480 960 $maxW)" in ref, (
+        "fixture is no longer the upstream copy this divergence was recorded "
+        "against — re-check whether blog-craft has fixed it upstream"
+    )
+    assert "(slice 480 960 $maxW)" not in live, (
+        "opt-image.html regressed to the upstream srcset clamp — banners will "
+        "silently render upscaled from 960w again"
+    )
+    assert "$topW := $primary.Width" in live, (
+        "the srcset's top candidate must be the primary's real width"
+    )
+
+    # Nothing outside the srcset loop may differ. Compare the parts either side
+    # of it: a change anywhere else is unrecorded drift, not this fix.
+    marker = "{{- if $primary -}}"
+    assert live.split(marker)[1] == ref.split(marker)[1], (
+        "opt-image.html diverges from blog-craft@5dc31f8 in its EMIT block — "
+        "that drift is not recorded anywhere"
+    )
+    preamble = "{{- /* decode the source width defensively"
+    assert live.split(preamble)[0] == ref.split(preamble)[0], (
+        "opt-image.html diverges from blog-craft@5dc31f8 in its preamble"
+    )
 
 
 def test_banners_relocated_to_assets():

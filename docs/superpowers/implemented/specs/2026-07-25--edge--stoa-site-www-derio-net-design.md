@@ -344,4 +344,4 @@ Everything else the platform already provides.
 
 | Plan | Repo | File | Depends on |
 |------|------|------|------------|
-| 2026-07-25-edge-stoa-site-www-derio-net | `derio-net/frank` | `docs/superpowers/plans/2026-07-25-edge-stoa-site-www-derio-net` | — |
+| 2026-07-25-edge-stoa-site-www-derio-net | `derio-net/frank` | `2026-07-25-edge-stoa-site-www-derio-net` | — |

@@ -26,14 +26,16 @@ from pathlib import Path
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CADDY_CM = REPO_ROOT / "clusters/hop/apps/caddy/manifests/configmap.yaml"
+# The Caddyfile moved out of an inline ConfigMap into a Kustomize generator
+# input (2026-07-26), so that an edit hashes into the pod spec and actually
+# reaches the running Caddy. Read the file directly now.
+CADDY_FILE = REPO_ROOT / "clusters/hop/apps/caddy/manifests/files/Caddyfile"
 
 ANALYTICS_ORIGIN = "https://counter.derio.net"
 
 
 def caddyfile() -> str:
-    cm = yaml.safe_load(CADDY_CM.read_text())
-    return cm["data"]["Caddyfile"]
+    return CADDY_FILE.read_text()
 
 
 def _block(text: str, host: str) -> str:
@@ -81,34 +83,108 @@ def test_baseline_headers_present() -> None:
         assert expected in matching[0], f"{header} does not contain {expected!r}"
 
 
+def _snippet(name: str) -> str:
+    """Return the body of the named Caddy snippet `(name) { ... }`."""
+    text = caddyfile()
+    start = text.index(f"({name}) {{")
+    depth = 0
+    for i in range(start, len(text)):
+        if text[i] == "{":
+            depth += 1
+        elif text[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    raise AssertionError(f"unbalanced snippet ({name})")
+
+
+def _policy(snippet: str) -> str:
+    """Return the Content-Security-Policy line from a named CSP snippet."""
+    csp = [ln for ln in _snippet(snippet).splitlines() if "Content-Security-Policy" in ln]
+    assert csp, f"({snippet}) defines no Content-Security-Policy"
+    return csp[0]
+
+
+def _directive(policy: str, name: str) -> str:
+    """Return one directive's full text from a CSP header line."""
+    for part in policy.split('"')[1].split(";"):
+        part = part.strip()
+        if part.split(" ")[0] == name:
+            return part
+    raise AssertionError(f"no {name!r} directive in {policy!r}")
+
+
 def test_csp_admits_analytics_and_forbids_framing() -> None:
+    for snippet in ("csp_strict", "csp_blog"):
+        policy = _policy(snippet)
+        assert "default-src 'self'" in policy, f"{snippet}: no default-src"
+        assert "frame-ancestors 'none'" in policy, (
+            f"{snippet}: frame-ancestors 'none' replaces X-Frame-Options; "
+            "without it the site is clickjackable"
+        )
+        # GoatCounter serves the script and receives the beacon.
+        assert f"script-src 'self' {ANALYTICS_ORIGIN}" in policy, (
+            f"{snippet}: CSP must allow the GoatCounter script, or analytics "
+            "dies silently"
+        )
+        assert ANALYTICS_ORIGIN in _directive(policy, "connect-src"), (
+            f"{snippet}: CSP must allow the GoatCounter beacon in connect-src"
+        )
+
+
+def test_script_src_stays_strict_on_both_sites() -> None:
+    """script-src is the half that actually stops XSS, so it stays strict.
+
+    The blog's build gate (scripts/check_blog_build.py) fails on any inline
+    <script> precisely so this line can keep holding.
+    """
+    for snippet in ("csp_strict", "csp_blog"):
+        script_src = _directive(_policy(snippet), "script-src")
+        assert "'unsafe-inline'" not in script_src, (
+            f"{snippet}: no 'unsafe-inline' in script-src — externalise the "
+            "script into blog/assets/js/ instead of widening the policy"
+        )
+
+
+def test_www_style_src_is_strict_but_the_blog_is_not() -> None:
+    """The asymmetry is deliberate and load-bearing, so assert BOTH halves.
+
+    www (agentic-stoa/site) emits external stylesheets only and pins that with
+    its own build check, so it holds style-src 'self'.
+
+    The blog is Hugo + Hextra, and Hextra emits inline style attributes
+    structurally, not sloppily: `cards.html` renders
+    style="--hextra-cards-grid-cols: {N}" and `card.html` a templated
+    style="{{ $imageStyle | safeCSS }}". Those are per-invocation computed
+    values no external stylesheet can carry — identical in v0.12.3, the latest
+    release as of 2026-07-26, so this is not a "wait for the next version"
+    situation. Applying the strict policy to the blog on 2026-07-26 (#704)
+    blanked every card list and every syntax-highlighted code block while the
+    server still returned 200 and ArgoCD stayed green.
+
+    Dropping 'unsafe-inline' from the blog therefore requires forking the theme
+    first. Delete this assertion only together with that work.
+    """
+    assert "'unsafe-inline'" not in _directive(_policy("csp_strict"), "style-src"), (
+        "www must keep style-src 'self' — it emits external stylesheets only"
+    )
+    assert "'unsafe-inline'" in _directive(_policy("csp_blog"), "style-src"), (
+        "the blog needs style-src 'unsafe-inline' until Hextra stops emitting "
+        "templated inline style attributes — see this test's docstring"
+    )
+
+
+def test_each_public_site_imports_headers_and_its_own_csp() -> None:
     text = caddyfile()
-    csp = [ln for ln in text.splitlines() if "Content-Security-Policy" in ln]
-    assert csp, "no Content-Security-Policy"
-    policy = csp[0]
-
-    assert "default-src 'self'" in policy
-    assert "frame-ancestors 'none'" in policy, (
-        "frame-ancestors 'none' replaces X-Frame-Options; without it the sites "
-        "are clickjackable"
-    )
-    # GoatCounter serves the script and receives the beacon.
-    assert f"script-src 'self' {ANALYTICS_ORIGIN}" in policy, (
-        "CSP must allow the GoatCounter script, or analytics dies silently"
-    )
-    assert ANALYTICS_ORIGIN in policy.split("connect-src")[1].split(";")[0], (
-        "CSP must allow the GoatCounter beacon in connect-src"
-    )
-    assert "'unsafe-inline'" not in policy.split("script-src")[1].split(";")[0], (
-        "no 'unsafe-inline' in script-src — the sites ship no inline scripts"
-    )
-
-
-def test_both_public_sites_import_the_snippet() -> None:
-    text = caddyfile()
-    for host in ("www.derio.net", "blog.derio.net"):
-        assert "import security_headers" in _block(text, host), (
+    for host, csp in (("www.derio.net", "csp_strict"), ("blog.derio.net", "csp_blog")):
+        block = _block(text, host)
+        assert "import security_headers" in block, (
             f"{host} does not import security_headers"
+        )
+        assert f"import {csp}" in block, f"{host} does not import {csp}"
+        other = "csp_blog" if csp == "csp_strict" else "csp_strict"
+        assert f"import {other}" not in block, (
+            f"{host} imports {other} — the two policies are not interchangeable"
         )
 
 
@@ -130,3 +206,13 @@ def test_www_degrades_to_the_holding_page() -> None:
     )
     errors = block[block.index("handle_errors") :]
     assert "Coming soon." in errors and "200" in errors
+    # handle_errors runs its own handler chain: the site-level header mutations
+    # do NOT reach it (verified live 2026-07-26, when the fallback served 200
+    # with no HSTS/CSP and leaked `Server: Caddy`). Both imports must be repeated
+    # inside the block or the hardening lapses exactly during an outage.
+    assert "import security_headers" in errors, (
+        "www's handle_errors fallback does not re-import security_headers"
+    )
+    assert "import csp_strict" in errors, (
+        "www's handle_errors fallback does not re-import csp_strict"
+    )

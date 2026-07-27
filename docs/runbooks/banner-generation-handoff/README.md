@@ -4,6 +4,66 @@ Everything needed to generate Frank's four series banners, including the prompts
 already written and the failure modes already measured. Written 2026-07-25, at the
 point of moving generation off the Gemini API to another model.
 
+## 0. Resolution requirement — read before generating
+
+**The banner renders full-bleed at `100vw`.** Its required pixel width is therefore
+`viewport_css_px × devicePixelRatio`, with no layout cap to hide behind. That number
+is large, and it is the single spec the next generation run has to hit:
+
+| viewport (CSS px) | DPR | device px needed |
+|---|---|---|
+| 1084 | 2 | 2168 |
+| 1512 (14" MBP) | 2 | 3024 |
+| 1728 (16" MBP) | 2 | 3456 |
+| 2560 (external) | 2 | 5120 |
+
+**Target a native sheet ≥ 3400px wide; ~5000px covers a 2560px external display.**
+
+### Where the current set stands (2026-07-26)
+
+The four shipped banners are `2169×241` (landing `2106×234`). That is *not* a
+downscale — `prompt_for_images.yaml` records `aspect_ratio: '3:1'`, `image_size:
+native`, and a native 3:1 sheet of `2169×723` cropped to 9:1 is exactly `2169×241`.
+It is the generator's full output.
+
+So they are crisp only up to about a **1084px viewport at DPR 2**, and soften from
+there: 1.39× upscale at 1512px, 1.59× at 1728px, 2.36× at 2560px. Accepted
+deliberately on 2026-07-26 rather than reverting the text-free redesign; recorded
+here so the next run fixes it at the source.
+
+For contrast, the pre-2026-07-25 Gemini set was **5088×832 native** (ar 6.12). The
+move to Codex is what cost the resolution, not any processing step in this runbook.
+
+### The upscale trap in step 5
+
+Step 5 below normalises the sheet with
+`sips --resampleHeightWidth 1280 3840`. **`sips` will happily UPSCALE.** Run that on
+a 2169-wide sheet and you get `3834×426` crops that are dimensionally correct and
+carry no additional detail — files that look fixed in a directory listing and
+identical in a browser.
+
+**Verify the native sheet width BEFORE cropping:**
+
+```bash
+sips -g pixelWidth -g pixelHeight <key>-openai-3stripe-source.png
+# < 3400 wide → regenerate. Do NOT normalise up and ship it.
+```
+
+### Two code-side ceilings to lift in the same change
+
+Both are no-ops today because the assets are smaller than the caps, and both will
+silently clip a better asset the moment one lands:
+
+1. `blog/hugo.toml` → `[params.imageOptimize] bannerMaxWidth = 2560`. A 5088-wide
+   source is resized down to 2560 on the way in. Raise it to match the new asset.
+2. `blog/layouts/partials/opt-image.html` builds srcset rungs `480 / 960 / <primary>`.
+   With a much larger primary, a phone needing ~1170px jumps straight to the full
+   file; add an intermediate rung (~1920) when the assets grow.
+
+The srcset itself is no longer a limit: frank#710 fixed the clamp that dropped the
+top candidate, so the primary's full width is now reachable by the browser. The
+asset's native width is the only remaining ceiling.
+
 ## Current OpenAI/Codex workflow
 
 Use this workflow for new banner ideation output in this repo. The Gemini notes
@@ -18,6 +78,8 @@ below remain useful history, but the current path is:
    `<key>-openai-3stripe-source.png`
 5. Normalize the source to exactly `3840x1280`:
    `<key>-openai-3stripe-3840x1280.png`
+   — but check the native width first (§0): `sips` upscales silently, and
+   normalising a 2169-wide sheet yields 3834px crops with no added detail.
 6. Crop three exact `9:1` banners from that normalized source:
    - `<key>-openai-3stripe-top-9x1.png`
    - `<key>-openai-3stripe-middle-9x1.png`

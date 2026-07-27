@@ -42,15 +42,3 @@ spec:
         - name: caddyfile
           configMap:
             name: landing-caddy
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: landing-caddy
-  namespace: landing-system
-data:
-  Caddyfile: |
-    :8080 {
-      root * /usr/share/caddy
-      file_server
-    }

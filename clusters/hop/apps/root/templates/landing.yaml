@@ -16,7 +16,11 @@ spec:
     namespace: landing-system
   syncPolicy:
     automated:
-      prune: false
+      # prune: true is required because both landing configs ship via Kustomize
+      # configMapGenerator; each edit orphans the previous hash-suffixed ConfigMap.
+      # Nothing stateful lives in this app (Deployment, Service only), so no
+      # per-resource Prune=false exemption is needed.
+      prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true

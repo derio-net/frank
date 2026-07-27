@@ -1,0 +1,121 @@
+modules:
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      # User-Agent identifies Frank's own uptime probes so the edge-traffic
+      # definition can exclude them. KEEP IN SYNC with facts.PROBE_UA_TOKEN
+      # in apps/ai-alert-helper/src/ai_alert_helper/facts.py.
+      # NOTE: this ~360/hr probe of blog.derio.net is ALSO the guaranteed Caddy
+      # traffic floor the Hop CrowdSec ban-pipeline canary relies on (it reads
+      # "0 lines in 5m" as broken, not idle). Retiring/re-pointing this probe
+      # away from the blog would make that canary false-positive — see the
+      # reciprocal note in docs/runbooks/frank-gotchas/obs-digest.md.
+      headers:
+        User-Agent: "Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200, 301, 302]
+      follow_redirects: true
+      preferred_ip_protocol: ip4
+  http_2xx_no_redirect:
+    prober: http
+    timeout: 10s
+    http:
+      # See note above — keep in sync with facts.PROBE_UA_TOKEN.
+      headers:
+        User-Agent: "Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"
+      valid_status_codes: [200]
+      follow_redirects: false
+      preferred_ip_protocol: ip4
+  # Cert-expiry canary module (issue #251): identical to http_2xx_no_redirect
+  # plus insecure_skip_verify, so the TLS handshake against an EXPIRED cert
+  # completes and probe_ssl_earliest_cert_expiry is emitted (the default
+  # module aborts the handshake before cert inspection — empirically
+  # confirmed on v0.25.0, see the parent plan's Deployment Deviations).
+  http_2xx_insecure_tls:
+    prober: http
+    timeout: 10s
+    http:
+      # See note above — keep in sync with facts.PROBE_UA_TOKEN.
+      headers:
+        User-Agent: "Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"
+      valid_status_codes: [200]
+      follow_redirects: false
+      preferred_ip_protocol: ip4
+      tls_config:
+        insecure_skip_verify: true
+  # --- www.derio.net content probe (Layer 17) ----------------------------
+  # www's edge vhost carries a `handle_errors` fallback that answers 200 with
+  # the old holding page whenever the backend is unreachable. That is the
+  # intended behaviour for visitors — they see a page, not a 502 — but it
+  # makes a plain status-code probe BLIND to a www-backend outage: the pod can
+  # be gone and http_2xx still reports success. This module closes that gap by
+  # asserting a string only the BUILT page contains, so the fallback fails the
+  # probe and layer-17-edge-down fires.
+  #
+  # The token is the analytics beacon. That deliberately couples uptime to the
+  # analytics wiring: if the beacon disappears, "traffic is observable" has
+  # stopped being true and the probe SHOULD complain. Do not swap it for a
+  # copy string — marketing copy changes, and a probe that breaks on a wording
+  # edit trains people to ignore it.
+  #
+  # fail_if_body_NOT_matches_regexp is the non-inverted form: fail when the
+  # token is ABSENT. The inverse field would pass on the fallback, which is the
+  # exact bug this module exists to catch (guarded by tests/assert-modules.sh).
+  www_content:
+    prober: http
+    timeout: 10s
+    http:
+      # See note above — keep in sync with facts.PROBE_UA_TOKEN.
+      headers:
+        User-Agent: "Frank-Blackbox-Probe/1.0 (+https://blog.derio.net)"
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200]
+      follow_redirects: false
+      preferred_ip_protocol: ip4
+      fail_if_body_not_matches_regexp:
+        - 'counter\.derio\.net'
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+  # --- GPU time-share end-to-end probes (Layers 11/16) -------------------
+  # gpu-1 hosts the only GPU and time-shares it between Ollama (inference)
+  # and ComfyUI (media) — exactly one is ever live. These probes assert the
+  # workload can actually DO ITS JOB, not just that pods exist (pod-existence
+  # metrics are blind to scale-to-0). Plan:
+  # docs/superpowers/plans/2026-06-15--obs--gpu-timeshare-health-probes
+  #
+  # Layer 11: a real chat completion through LiteLLM. bearer_token_file is the
+  # LiteLLM master key (synced from Infisical to the monitoring ns by ESO;
+  # mounted optional:true so a brief unsynced window fails the probe, not the
+  # pod). See apps/blackbox-exporter/manifests/external-secret-litellm-key.yaml.
+  litellm_chat:
+    prober: http
+    timeout: 25s
+    http:
+      method: POST
+      valid_status_codes: [200]
+      bearer_token_file: /etc/blackbox-secrets/litellm-master-key
+      headers:
+        Content-Type: application/json
+      body: |
+        {"model":"gemma-12b-nothin","max_tokens":4,"messages":[{"role":"user","content":"reply with the single word: ok"}]}
+      fail_if_body_not_matches_regexp:
+        - '"choices"'
+      preferred_ip_protocol: ip4
+  # Layer 16: ComfyUI API liveness. /object_info returns the loaded node set;
+  # matching a core node (KSampler) proves the server is up AND custom nodes
+  # imported — catches node-import failures, not just liveness. No auth
+  # in-cluster (SSO is ingress-only). NOTE: /object_info is a large
+  # (hundreds-of-KB) JSON doc — blackbox reads the whole body for the regexp;
+  # fine at 10s, but a future blackbox `body_size_limit` would truncate and
+  # break the match, so do not set one for this module.
+  comfyui_object_info:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      fail_if_body_not_matches_regexp:
+        - 'KSampler'
+      preferred_ip_protocol: ip4

@@ -82,7 +82,22 @@ title = "Frank, the Talos Cluster"
   [markup.highlight]
     codeFences = true
     lineNos = false
+    # `style` is inert while noClasses = false (below): it only seeds
+    # `hugo gen chromastyles`, and we emit no generated palette. Kept as the
+    # record of the previous look; the live palette comes from the theme.
     style = "monokai"
+    # Chroma defaults noClasses=true, stamping the palette onto every token as
+    # `<span style="color:#f92672">` — ~9,300 inline style attributes site-wide.
+    # blog.derio.net serves a CSP, a browser drops inline styles while the page
+    # still returns 200, and on 2026-07-26 that silently cost EVERY code block
+    # its highlighting with nothing failing server-side.
+    #
+    # Class-based output is also what Hextra expects: it ships
+    # assets/css/chroma/{light,dark}.css at `.highlight .chroma .<token>`
+    # specificity, so highlighting now follows the light/dark toggle instead of
+    # being monokai in both. Do NOT add a generated chroma stylesheet alongside
+    # it — one was tried and lost on specificity every time, silently.
+    noClasses = false
 
 [outputs]
   home = ["HTML", "RSS", "JSON"]

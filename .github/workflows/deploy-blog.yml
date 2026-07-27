@@ -59,6 +59,14 @@ jobs:
           hugo mod get
           hugo --minify
 
+      # The check the Caddy CSP comment assumes exists. blog.derio.net drops
+      # inline scripts and off-origin assets browser-side, and an image whose
+      # srcset cannot reach its own full resolution renders upscaled — all three
+      # are invisible server-side (200 OK, ArgoCD green). Only the built output
+      # shows them, so this runs here rather than in scripts/tests/.
+      - name: Check built output (CSP compatibility + responsive images)
+        run: python3 scripts/check_blog_build.py blog/public
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:

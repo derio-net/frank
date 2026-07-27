@@ -8,18 +8,13 @@
 {{- $res := .Page.Resources.GetMatch $src -}}
 {{- $url := $src -}}
 {{- with $res }}{{ $url = .RelPermalink }}{{ end -}}
-<div id="{{ $id }}" class="asciinema-container"></div>
-<script>
-(function() {
-  var theme = document.documentElement.classList.contains('dark') ? 'asciinema' : 'solarized-light';
-  AsciinemaPlayer.create('{{ $url }}', document.getElementById('{{ $id }}'), {
-    cols: {{ $cols }},
-    rows: {{ $rows }},
-    speed: {{ $speed }},
-    idleTimeLimit: {{ $idleTimeLimit }},
-    poster: '{{ $poster }}',
-    theme: theme,
-    fit: 'width'
-  });
-})();
-</script>
+{{- /* Config travels as data-* attributes; assets/js/asciinema-init.js consumes
+       them. This was a per-instance inline <script> until blog.derio.net gained
+       `script-src 'self'`, which drops inline blocks silently. */ -}}
+<div id="{{ $id }}" class="asciinema-container"
+     data-cast-src="{{ $url }}"
+     data-cols="{{ $cols }}"
+     data-rows="{{ $rows }}"
+     data-speed="{{ $speed }}"
+     data-idle-time-limit="{{ $idleTimeLimit }}"
+     data-poster="{{ $poster }}"></div>

@@ -3,6 +3,14 @@ kind: PersistentVolumeClaim
 metadata:
   name: caddy-data
   namespace: caddy-system
+  annotations:
+    # This app runs prune: true (the Caddyfile ships via configMapGenerator, so
+    # stale hash-suffixed ConfigMaps must be reaped). This PVC holds Caddy's ACME
+    # certificate store — losing it means re-issuing every public cert on next
+    # boot, straight into Let's Encrypt rate limits, with the public edge down
+    # meanwhile. Exempt it explicitly rather than trusting that it will never be
+    # absent from a render.
+    argocd.argoproj.io/sync-options: Prune=false
 spec:
   accessModes:
     - ReadWriteOnce
