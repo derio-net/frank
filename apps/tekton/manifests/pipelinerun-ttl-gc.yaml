@@ -1,4 +1,4 @@
-# Daily GC of completed PipelineRuns (success or failure) older than 7 days.
+# Daily GC of completed PipelineRuns (success or failure) older than 3 days.
 #
 # Why: Tekton doesn't TTL PipelineRuns natively. Their task pods stick around
 # for log inspection, which is good for the first hour or so but accumulates
@@ -6,6 +6,21 @@
 # alerts (see apps/grafana-alerting/manifests/alert-rules-cm.yaml — the
 # original alert query treated post-completion task pods as a degradation
 # signal; we fixed that query but this TTL is the proper hygiene anyway).
+#
+# 7 -> 3 days (2026-07-27): retention is not just clutter, it is monitoring
+# cardinality. At ~260 runs/day since the Gitea Actions migration, a 7-day
+# window held ~1800 PipelineRuns and left 1932 of Frank's 2124 pods as dead
+# Tekton pods. kube_pod_* was then 108,460 of ~120,000 kube-state-metrics
+# series, pushing its /metrics to 21.6 MiB — past vmagent's scrape cap, which
+# drops the WHOLE response and blinded all 25 kube_* alert-rule references
+# (see apps/victoria-metrics/values.yaml). The cap was raised to 32MB so
+# alerting does not depend on this number, but a 3-day window roughly halves
+# the payload and keeps the headroom real rather than nominal.
+#
+# 3 days still covers a Friday failure looked at on Monday morning? No — it
+# does not, and that is the trade being made deliberately. Anything worth
+# keeping past 72h should be captured from the run (logs, artifacts), not left
+# to live in etcd as a side effect of nobody deleting it.
 #
 # Bash + kubectl only — no jq, no python. Lexical ISO-8601 comparison works
 # because the format sorts naturally.
@@ -88,7 +103,7 @@ spec:
               command: ["/bin/bash", "-eu", "-o", "pipefail", "-c"]
               args:
                 - |
-                  AGE_DAYS=7
+                  AGE_DAYS=3
                   CUTOFF=$(date -u -d "${AGE_DAYS} days ago" +%Y-%m-%dT%H:%M:%SZ)
                   echo "Deleting PipelineRuns in tekton-pipelines completed before ${CUTOFF}"
 
