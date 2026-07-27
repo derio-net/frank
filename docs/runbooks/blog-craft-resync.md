@@ -59,6 +59,46 @@ CI, …); frank's authored content (`content/**`, `data/**`, images,
 `.blog-craft.yaml`) is `content`-class and left alone. `data/layer_palette.yaml`
 is content-class too — regenerate it explicitly (above), it is not auto-updated.
 
+## MANDATORY after every update: delete `blog/.github/`
+
+blog-craft materializes `.github/**` under `site_dir`, so an update **always
+re-adds** `blog/.github/workflows/blog-ci.yml` (an absent managed path is an
+`add`, unconditionally). GitHub only ever reads workflows from the **repo root**,
+so that copy runs nothing — it sat there inert from #667 until 2026-07-27, and
+its papers/mermaid/image gates never fired once. frank's live workflow is
+`.github/workflows/blog-ci.yml`; delete the re-added copy every time:
+
+```bash
+rm -rf blog/.github
+```
+
+`scripts/tests/test_blog_ci_at_repo_root.py` fails the PR if you forget, so this
+cannot ship silently again. Tracked upstream as **blog-craft#61** — drop this
+step once `.github/**` joins `map_dest`'s config-rooted allowlist.
+
+## `.blog-craft.sync.yaml` — commit it, and read the backfill warning once
+
+Since v0.16.1 the updater records the config it last synced, and renders the
+3-way base from THAT instead of your current one. Without it, enabling a
+`features.*` flag silently dropped that feature's contribution to every `merged`
+path — the base already contained it, so the merge read frank's file as a
+deliberate deletion (blog-craft#60; it cost frank the `Validate glossary` CI
+step, which had to be restored by hand). **Commit the file.**
+
+The very first update after upgrading still runs on the old, approximate base —
+the fix is not retroactive — and then records the snapshot. That one run prints
+the `merged` paths its fallback base resolved to `NOOP`, because recording a
+snapshot freezes whatever the tree holds, including anything an earlier run had
+already dropped. **Check them once; after that they are ordinary NOOPs with no
+warning left on them.** Frank's run named `blog/hugo.toml` and
+`blog/assets/css/custom.css`; both were verified benign on 2026-07-27 — hugo.toml
+differs only in key order (0 lines absent), and custom.css's 174 absent lines are
+blog-craft's `.content .mermaid` theme, which frank deliberately rewrote using
+`& .mermaid` nesting (76 rules; **0 non-mermaid selectors absent**).
+
+`NOOP` vs `MERGE` is worth internalising: a `NOOP` on a path you expected to
+change means the base is wrong, not that there was nothing to do.
+
 ## A reverted `framework` path is usually an UPSTREAM bug — fix it there
 
 Before adding anything to the table below, apply this test:
