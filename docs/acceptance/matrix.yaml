@@ -606,9 +606,14 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
     levels: {}
-    status: not-implemented
-    notes: 'Verified by the post-merge Test Plan (steps 1-3): push, github-pull-sync
-      PipelineRun succeeds, SHA present in Gitea.'
+    status: skipped
+    notes: 'Live proof 2026-07-27 — push to GitHub main, mirror PipelineRun
+      kid-laptops-main-sync-z4gh6 Succeeded, and the Gitea mirror head matched GitHub
+      at the identical SHA (5b895328edcf, later a72a3badc84a). Skipped rather than ci:
+      the delivery path is forge webhook state with no IaC, so a webhook deleted by
+      hand in either forge would break this silently. apps/tekton/webhooks.yaml declares
+      the desired paths and scripts/tests/test_webhook_delivery_paths.py enforces the
+      declaration at PR time, but nothing reconciles it against the live forges yet.'
   - id: kid-laptops-mirror-push-creates-one-pipelinerun
     capability: kid-laptops CI
     acceptance: A push to the Gitea mirror creates exactly one kid-laptops PipelineRun
@@ -616,10 +621,14 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
     levels: {}
-    status: not-implemented
-    notes: 'The ''exactly one'' half guards a real defect: the generic gitea-push trigger''s
-      agentic-stoa-only exclusion would otherwise also match derio-homelab. Tripwire
-      test plus Test Plan step 4.'
+    status: skipped
+    notes: 'Live proof 2026-07-27 — five real pushes produced exactly one PipelineRun
+      each in kid-laptops-ci and ZERO generic gitea-ci runs. The ''exactly one'' half
+      guarded a real defect: the generic gitea-push trigger''s agentic-stoa-only
+      exclusion would also have matched derio-homelab, adding a second failing run per
+      push under a generic name. The manifest half IS enforced in frank CI by
+      scripts/tests/test_kid_laptops_pipelinerun_contract.py (since #707); the live
+      half needs a real push, hence skipped rather than ci.'
   - id: kid-laptops-python-checks-run-per-push
     capability: kid-laptops CI
     acceptance: Every push to kid-laptops runs lint, ansible syntax-check and unit tests
@@ -627,10 +636,16 @@ rows:
     origin:
     - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
     levels: {}
-    status: not-implemented
-    notes: 'Deliberately narrower than the upstream row every-push-runs-ci-pipeline:
-      molecule is skipped until KubeVirt lands, so this claims only the Python/Ansible
-      half.'
+    status: skipped
+    notes: 'Live proof 2026-07-27 — PipelineRun kid-laptops-ci-fqs2h, 51s: clone,
+      lint, syntax and unit-tests all Succeeded against the pushed commit
+      (a72a3badc84a). Deliberately narrower than kid-laptops'' own
+      every-push-runs-ci-pipeline row: molecule-base and molecule-teardown are Skipped
+      on the enable-molecule gate until KubeVirt lands, so this claims ONLY the
+      Python/Ansible half. Reaching green needed two kid-laptops fixes CI itself
+      surfaced (#48 taskRefs resolved from git, #50 vault shim covering ansible-lint).
+      Not ci: the run is triggered by a push to kid-laptops, not by a frank PR, so a
+      frank-side change cannot be caught here.'
   - id: kid-laptops-ci-sa-can-manage-vmis
     capability: kid-laptops CI
     acceptance: The kid-laptops-ci-kubevirt ServiceAccount is authorised to create and
@@ -639,9 +654,12 @@ rows:
     - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
     levels: {}
     status: not-implemented
-    notes: Satisfiable before KubeVirt exists (RBAC rules do not validate against installed
-      CRDs) but only PROVABLE end-to-end after. Test Plan step 7 is an auth check, not
-      a VM.
+    notes: 'Deliberately still not-implemented. `kubectl auth can-i create
+      virtualmachineinstances` answers yes (checked 2026-07-27) while the API server
+      warns "the server doesn''t have a resource type ''virtualmachineinstances''" —
+      RBAC rules are opaque strings and are never resolved against installed CRDs, so
+      that yes is true and proves nothing. Provable only once KubeVirt is deployed
+      (spec 2026-07-26--virt--kubevirt-vms-design.md).'
   - id: frank-runs-virtual-machines
     capability: Virtualization
     acceptance: An operator can run a virtual machine on Frank and reach its console.
