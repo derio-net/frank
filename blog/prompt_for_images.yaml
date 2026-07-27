@@ -1945,3 +1945,16 @@ images:
       flat line into a beat. A compact readout panel to the side reads "top" with tidy rows of numbers.
       The ONLY readable text: "top" and the seven tiny node tags — no other captions, no watermarks. Cool
       medical-monitor glow on his face, warm key light from the side, focused clinical mood.'
+- key: ops-30-silent-failure
+  aspect_ratio: '16:9'
+  output: blog/content/docs/operating/30-silent-failure/cover.png
+  description: Operating on Green — Frank ignores a wall of green gauges and reads the tank
+    with a dipstick; every gauge is wired to something other than the tank
+  composition:
+    reference_images:
+      primary: .reference-pool/building/reference/frank-work-clothes-hard-hat.png
+    modifiers:
+      series: operating
+      mood: skeptical
+      clothing: Frank wears sturdy work clothes and a scuffed yellow hard hat.
+    scene: 'A cluttered plant room rather than a control centre — bare concrete, exposed pipework overhead, one squat storage tank at Frank''s side. Frank stands half-turned away from a wall panel of four large identical dial gauges, every needle resting well inside a wide green band, each dial stamped with a small brass plate. He is not looking at them. He is looking at the thing in his hands: a long steel dipstick he has just drawn from the tank, held up into the lamplight, its wet mark showing the level barely off the bottom. Behind him each gauge''s feed pipe visibly goes somewhere wrong — the first runs into a valve on the tank''s side that is plainly shut; the second ends in mid-air, cleanly cut, nothing attached to it; the third disappears into the back of a framed PHOTOGRAPH of this same tank hanging on the wall; the fourth loops around and plugs back into its own gauge housing. A fifth tank stands in the far corner with no gauge and no pipe running to it at all, quietly full. He already knows which reading he trusts. The ONLY readable text anywhere in the frame: the four brass plates, each reading "OK", and a chalked mark on the side of the tank reading "94%". Warm work-lamp light raking from one side, cool green spill from the gauge faces, deep shadow in the corners.'
