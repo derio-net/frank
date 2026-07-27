@@ -45,9 +45,9 @@ tasks:
       why_manual: config.yaml is hermes PVC state, seeded manually by design
         (precedent orch-hermes-config-provider); no declarative path into the PVC
       commands: |
-        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- python3 - <<'EOF'
+        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -c hermes -- python3 - <<'EOF'
         import yaml
-        p = "/home/agent/.hermes/config.yaml"
+        p = "/opt/data/config.yaml"
         c = yaml.safe_load(open(p))
         prov = c["providers"]["litellm"]
         prov["models"] = {
@@ -69,8 +69,8 @@ tasks:
         print("hermes config updated")
         EOF
       verify: |
-        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
-          python3 -c "import yaml; c=yaml.safe_load(open('/home/agent/.hermes/config.yaml')); \
+        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -c hermes -- \
+          python3 -c "import yaml; c=yaml.safe_load(open('/opt/data/config.yaml')); \
         print(c['model']['default'], \
               c['providers']['litellm']['models']['gemma-12b-64k-nothin'], \
               c['tool_output']['max_bytes'])"
@@ -89,10 +89,10 @@ tasks:
       when: after the fetch-text ConfigMap mount is live (pod restarted post-merge)
       why_manual: SOUL.md is hermes PVC state (seeded at first boot, then operator-owned)
       commands: |
-        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- bash -c \
-          'grep -q fetch-text /home/agent/.hermes/SOUL.md || printf "\n## Web reading\nFor web pages, ALWAYS use \`fetch-text <url>\` (size-capped text extraction) instead of raw curl — raw HTML floods your context window.\n" >> /home/agent/.hermes/SOUL.md'
+        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -c hermes -- bash -c \
+          'grep -q fetch-text /opt/data/SOUL.md || printf "\n## Web reading\nFor web pages, ALWAYS use \`fetch-text <url>\` (size-capped text extraction) instead of raw curl — raw HTML floods your context window.\n" >> /opt/data/SOUL.md'
       verify: |
-        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- grep -A2 "Web reading" /home/agent/.hermes/SOUL.md
+        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -c hermes -- grep -A2 "Web reading" /opt/data/SOUL.md
       status: pending
       ```
 - number: 3

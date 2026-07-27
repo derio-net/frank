@@ -33,9 +33,9 @@ tasks:
       when: after qwen36-a3b-64k aliases are live on the gateway, BEFORE the gate test
       why_manual: config.yaml is hermes PVC state (precedent orch-hermes-context-budgets)
       commands: |
-        kubectl exec -i -n hermes-agent-shell deploy/hermes-agent-shell -- python3 - <<'EOF'
+        kubectl exec -i -n hermes-agent-shell deploy/hermes-agent-shell -c hermes -- python3 - <<'EOF'
         import yaml
-        p = "/home/agent/.hermes/config.yaml"
+        p = "/opt/data/config.yaml"
         c = yaml.safe_load(open(p))
         c["providers"]["litellm"]["models"]["qwen36-a3b-64k"] = {"context_length": 65536}
         c["providers"]["litellm"]["models"]["qwen36-a3b-64k-nothin"] = {"context_length": 65536}
@@ -43,8 +43,8 @@ tasks:
         print("qwen 64k budgets added")
         EOF
       verify: |
-        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -- \
-          python3 -c "import yaml; print(yaml.safe_load(open('/home/agent/.hermes/config.yaml'))['providers']['litellm']['models']['qwen36-a3b-64k'])"
+        kubectl exec -n hermes-agent-shell deploy/hermes-agent-shell -c hermes -- \
+          python3 -c "import yaml; print(yaml.safe_load(open('/opt/data/config.yaml'))['providers']['litellm']['models']['qwen36-a3b-64k'])"
         # expect {'context_length': 65536}
       status: pending
       ```
@@ -82,9 +82,9 @@ tasks:
       when: after the agentic gate test passes
       why_manual: config.yaml is hermes PVC state
       commands: |
-        kubectl exec -i -n hermes-agent-shell deploy/hermes-agent-shell -- python3 - <<'EOF'
+        kubectl exec -i -n hermes-agent-shell deploy/hermes-agent-shell -c hermes -- python3 - <<'EOF'
         import yaml
-        p = "/home/agent/.hermes/config.yaml"
+        p = "/opt/data/config.yaml"
         c = yaml.safe_load(open(p))
         c["model"]["default"] = "qwen36-a3b-64k"
         yaml.safe_dump(c, open(p, "w"), sort_keys=False)

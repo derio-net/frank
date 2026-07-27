@@ -91,17 +91,17 @@ spec:
             - name: HERMES_HOME
               value: /opt/data
             # Dashboard is opt-in in the official image; enable it (decision 3).
-            # NB (Phase-3 blocker, VERIFIED 2026-07-09): this v0.18.2 image
+            # NB (VERIFIED 2026-07-09, RESOLVED at cutover): this v0.18.2 image
             # HARD-REFUSES to bind the dashboard (9119) to any non-loopback
             # interface unless an auth provider is configured ("There is no
             # unauthenticated public-bind option — bind 127.0.0.1 and tunnel in").
-            # So the Traefik IngressRoute + authentik-forwardauth plan is NOT
-            # sufficient on its own: Phase 3 must ALSO configure a dashboard auth
-            # provider (dashboard.basic_auth in config.yaml, or `hermes dashboard
-            # register`) in the migrated /opt/data, or the dashboard never binds
-            # for Traefik to reach. Likewise 8642/9119 did not bind at all in a
-            # fresh (unseeded, credential-less) boot — the probes below are
-            # UNVERIFIED against migrated state and must be reconfirmed in Phase 3.
+            # So a Traefik IngressRoute alone was NOT sufficient — the auth
+            # provider had to be configured too. It is: the three
+            # HERMES_DASHBOARD_BASIC_AUTH_* env below supply it, which is why the
+            # IngressRoute carries only ip-allowlist + security-headers and no
+            # forward-auth (apps/traefik/manifests/ingressroutes.yaml, frank#626).
+            # Both 8642 and 9119 bind in the live pod and the probes below are
+            # confirmed against real seeded state, not a fresh credential-less boot.
             - name: HERMES_DASHBOARD
               value: "1"
             # Dashboard basic-auth. HERMES_DASHBOARD=1 makes the v0.18.2 dashboard
@@ -111,10 +111,12 @@ spec:
             # (username/password + a session-signing secret) the dashboard needs.
             # Sourced from a SOPS-bootstrapped Secret applied out-of-band (like the
             # ssh-keys Secret — NOT ArgoCD-managed; see secrets/hermes-agent-shell/
-            # README.md). The migrate deployment used these same three keys from
-            # hermes-agent-shell-migrate-dashboard-auth; prod uses the stable name.
+            # README.md). Historical note: the temporary `hermes-agent-shell-migrate`
+            # deployment used these same three keys from a parallel
+            # `-migrate-dashboard-auth` Secret; that whole stack was purged
+            # 2026-07-27 and only the stable name exists now.
             # NOT optional: the dashboard genuinely needs them to bind, so the pod
-            # must not start until the Secret exists (apply it before merging this).
+            # must not start until the Secret exists.
             - name: HERMES_DASHBOARD_BASIC_AUTH_USERNAME
               valueFrom:
                 secretKeyRef:
@@ -136,15 +138,15 @@ spec:
             # are the ONLY mechanism that binds :8642. Without them the `hermes`
             # container boots (gateway + dashboard :9119 come up) but NOTHING
             # listens on :8642, so the tcpSocket probe on `api` never succeeds and
-            # the pod is stuck 2/3. Diagnosed by env-diffing the working temporary
-            # `hermes-agent-shell-migrate` deployment (which carried these) against
-            # prod (which lacked them). API_SERVER_KEY comes from a SOPS-bootstrapped
-            # Secret applied out-of-band (same pattern as the dashboard-auth /
-            # ssh-keys Secrets above — NOT ArgoCD-managed; see secrets/
-            # hermes-agent-shell/README.md). The migrate deployment used this exact
-            # key from hermes-agent-shell-migrate-api-key; prod uses the stable name.
+            # the pod is stuck 2/3. Originally diagnosed by env-diffing the working
+            # temporary `hermes-agent-shell-migrate` deployment (which carried
+            # these) against prod (which lacked them) — that stack was purged
+            # 2026-07-27, so this env block is now the only record of the finding.
+            # API_SERVER_KEY comes from a SOPS-bootstrapped Secret applied
+            # out-of-band (same pattern as the dashboard-auth / ssh-keys Secrets
+            # above — NOT ArgoCD-managed; see secrets/hermes-agent-shell/README.md).
             # NOT optional: the API server needs the key, so the pod must not start
-            # until the Secret exists (apply it before merging this).
+            # until the Secret exists.
             - name: API_SERVER_ENABLED
               value: "1"
             - name: API_SERVER_HOST
@@ -380,8 +382,9 @@ spec:
         # (this preserves decision 2 — a local_embedded backend would have
         # forced an image layer onto the main container instead).
         #
-        # Recipe baked into the image (ground-truth, extracted from the live
-        # hand-resurrected migrate stack, 2026-07-10):
+        # Recipe baked into the image (ground-truth, extracted 2026-07-10 from
+        # the hand-resurrected migrate stack — purged 2026-07-27, so this list is
+        # now the record rather than a pointer at something still on the cluster):
         #   • micromamba 2.8.1 base; env python 3.11
         #   • postgresql 18.4, loopback :5433, -k /tmp, listen_addresses=127.0.0.1
         #       DB `postgres`, role `hindsight`, locale C.UTF-8, pg_hba trust
@@ -481,8 +484,8 @@ spec:
           # /health is the hindsight-api liveness/readiness surface (port 8888).
           # PG stays loopback-only — NO containerPort declared for 5433.
           #
-          # EXEC probes, not httpGet (live-validated on the migrate deployment
-          # 2026-07-11): hindsight-api binds 127.0.0.1 ONLY, so an httpGet probe
+          # EXEC probes, not httpGet (live-validated 2026-07-11 on the since-purged
+          # migrate deployment): hindsight-api binds 127.0.0.1 ONLY, so an httpGet probe
           # (which the kubelet runs against the pod IP) gets connection-refused
           # and the container flaps forever — 37 restarts observed before this
           # fix. An exec probe runs `curl` INSIDE the container against loopback,
