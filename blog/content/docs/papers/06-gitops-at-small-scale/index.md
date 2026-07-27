@@ -96,7 +96,7 @@ job (opinionated), or a kit of controllers you compose yourself
 
 {{< papers/landscape axes="x:OSS↔commercial,y:unbundled↔opinionated" >}}
         title GitOps reconcilers — 2026
-        x-axis {{< abbr "OSS" >}} --> Commercial
+        x-axis OSS --> Commercial
         y-axis Unbundled --> Opinionated
         quadrant-1 "Opinionated · Commercial"
         quadrant-2 "Opinionated · OSS"

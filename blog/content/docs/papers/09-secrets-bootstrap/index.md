@@ -108,7 +108,7 @@ on the top (the store mints a short-lived credential on read, signs a
 {{< papers/landscape axes="x:cloud-managed↔self-hosted,y:plain-storage↔dynamic-credentials" >}}
         title Secrets management — 2026
         x-axis "Cloud managed" --> "Self-hosted"
-        y-axis "Plain {{< abbr "KV" >}}" --> "Dynamic credentials"
+        y-axis "Plain KV" --> "Dynamic credentials"
         quadrant-1 "Self-hosted · Dynamic"
         quadrant-2 "Cloud-managed · Dynamic"
         quadrant-3 "Cloud-managed · Plain"

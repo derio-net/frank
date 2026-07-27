@@ -106,7 +106,7 @@ replica set per PVC?
 
 {{< papers/landscape axes="x:OSS↔commercial,y:centralized↔distributed" >}}
         title Distributed storage on bare metal — 2026
-        x-axis {{< abbr "OSS" >}} --> Commercial
+        x-axis OSS --> Commercial
         y-axis Centralized --> "Replicated per volume"
         quadrant-1 "Per-volume · Commercial"
         quadrant-2 "Per-volume · OSS"

@@ -109,7 +109,7 @@ nodes (cloud-managed)?
     x-axis "Single class" --> "Multi class"
     y-axis "Bare metal" --> "Cloud managed"
     quadrant-1 "Multi · Cloud (Karpenter-style)"
-    quadrant-2 "Single · Cloud (one-shape {{< abbr "EKS" >}})"
+    quadrant-2 "Single · Cloud (one-shape EKS)"
     quadrant-3 "Single · Bare metal (all-NUC / all-RPi)"
     quadrant-4 "Multi · Bare metal (Frank)"
     "All-RPi homelab": [0.05, 0.05]
