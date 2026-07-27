@@ -9,7 +9,7 @@ summary: "How 20 of 52 ArgoCD apps were permanently OutOfSync, why it was seven 
 weight: 24
 reader_goal: "Diagnose and fix ArgoCD OutOfSync drift by classifying the root cause — CRD defaults, phantom diffs, orphan CRDs, zombie sub-charts, namespace fights, terminal hooks, and chart-operator disagreement."
 diataxis: [how-to, reference]
-last_updated: 2026-07-15
+last_updated: 2026-07-27
 last_updated_commit: https://github.com/derio-net/frank/commit/951c0c40
 ---
 
@@ -192,6 +192,33 @@ Symptom: apps where the chart or operator injects fields git doesn't specify —
 | infisical Deployment | `updatedAt: "2026-04-04 UTC 21:31:24"` (stamped every render) | `ignoreDifferences` |
 | infisical-postgresql {{< abbr "PDB" >}} | `maxUnavailable: ""` diverges from K8s default | `pdb.create: false` in values |
 
+### Class H: Stale Revision — the inverse failure (added 2026-07-27)
+
+Classes A–G are all the same shape: `OutOfSync` that means nothing. This one is the mirror image — **`Synced` that means nothing** — and it is worse, because the first kind is merely noisy while this kind is silent.
+
+Symptom: an Application reports `Synced/Healthy` minutes after a merge, while the live resource still holds pre-merge content. Seen twice in one session on 2026-07-27: `longhorn`'s rendered ConfigMap was missing a key the merged values add, and `hermes-agent-shell`'s PVC still requested the pre-merge size. `argocd.argoproj.io/refresh: hard` did **not** clear either.
+
+There is no `ignoreDifferences` fix here, because nothing is drifting. `Synced` is a claim about live matching *what ArgoCD fetched*, not about live matching `main`.
+
+Rule out your own manifest first — a chart silently dropping an unrecognised key looks identical from the cluster:
+
+```bash
+helm template <release> <chart> --version <ver> -f <values> | grep -A5 'name: <rendered-object>'
+```
+
+If the key renders locally and is absent live while the app claims `Synced`, force a real sync operation:
+
+```bash
+kubectl -n argocd patch application <app> --type=merge \
+  -p '{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'
+```
+
+Both cleared within seconds. Multi-source apps (upstream chart + a `$values` ref into this repo) look the most exposed, though the underlying cause was never established — the recovery is known, the mechanism is not.
+
+Distinguish it from ordinary poll lag before acting: an Application that has simply not polled the newest commit yet converges on its own within a few minutes and was never wrong, only behind. Compare `.status.sync.revision` against the commit you merged and wait one poll interval before forcing anything.
+
+The wider pattern — four distinct ways a green tile diverges from reality, and the check for each — is [Operating on Green]({{< relref "/docs/operating/30-silent-failure" >}}).
+
 ## The Unmasked Bug
 
 The most important fix wasn't about any of the seven drift classes.
@@ -236,3 +263,4 @@ I had a `trafficRouterPlugins` entry in `values.yaml` pointing at a Cilium plugi
 - [Operating on GitOps]({{< relref "/docs/operating/03-gitops" >}})
 - [ArgoCD `ignoreDifferences`](https://argo-cd.readthedocs.io/en/stable/user-guide/diffing/)
 - [Kubernetes ServerSideApply](https://kubernetes.io/docs/reference/using-api/server-side-apply/)
+- [Operating on Green]({{< relref "/docs/operating/30-silent-failure" >}}) — four ways a green tile diverges from reality

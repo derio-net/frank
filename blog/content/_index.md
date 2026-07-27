@@ -25,13 +25,13 @@ layout: hextra-home
   {{< card
     link="docs/building/"
     title="Building Frank"
-    subtitle="29 posts — from bare metal to a fully operational AI-hybrid cluster."
+    subtitle="From bare metal to a fully operational AI-hybrid cluster."
     image="/images/tile-building.png"
   >}}
   {{< card
     link="docs/operating/"
     title="Operating on Frank"
-    subtitle="20 posts — day-to-day commands, health checks, and debugging guides."
+    subtitle="Day-to-day commands, health checks, and debugging guides."
     image="/images/tile-operating.png"
   >}}
   {{< card

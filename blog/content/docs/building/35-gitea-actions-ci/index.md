@@ -9,7 +9,7 @@ summary: "GitHub Actions burned its free tier in 19 days, so the workflows now r
 weight: 36
 reader_goal: "Run your GitHub Actions workflows unchanged on a self-hosted Gitea mirror — runner, status writeback, parallel-safety — and diagnose the three failure modes that bite."
 diataxis: [how-to, explanation]
-last_updated: 2026-07-20
+last_updated: 2026-07-27
 ---
 
 On July 19th at around noon, my GitHub Actions free tier died. Not "ran low" —
@@ -311,6 +311,35 @@ failing runs' logs show every *test* step green and only the artifact upload
 red, which is exactly the shape that tempts you to shrug and move on. Don't:
 on one repo the artifact step ran under `if: always()` with
 `if-no-files-found: error`, which failed every mirror run outright.
+
+**The fourth thing, a week later (added 2026-07-27).** Moving CI onto the
+cluster moved its *cost* onto the cluster too, in a currency nobody was
+watching: Kubernetes objects. At roughly 260 PipelineRuns a day against a
+7-day retention {{< abbr "TTL" >}}, the cluster accumulated ~1,800
+PipelineRuns — and **1,932 of Frank's 2,124 pods were completed Tekton
+pods**. Three of every four pods on the cluster were dead CI.
+
+Nothing was wrong with that, until it crossed a limit nobody had considered
+alongside it. `kube_pod_*` grew to 108,460 of ~120,000 kube-state-metrics
+series, pushing its `/metrics` payload to 21.6 MiB — past vmagent's default
+`-promscrape.maxScrapeSize` of 16 MiB. VictoriaMetrics discards an oversized
+response **whole**, so every `kube_*` series vanished and all 25 `kube_*`
+references in the Grafana alert rules evaluated against nothing. Ironically,
+two of them were `kube_cronjob_status_last_successful_time` — the rule that
+reports a CronJob no longer succeeding was among the blinded, while the
+PipelineRun {{< abbr "GC" >}} CronJob had itself started failing.
+
+The fix was two independent changes, deliberately: the scrape cap went to
+32MB, and retention went 7 days → 3. The first sweep at the new TTL removed
+1,369 of 1,820 PipelineRuns in 100 seconds and took the cluster from 2,124
+pods to 656, and the scrape payload from 21.6 MiB to 7.3 MiB. Either change
+alone would have cleared the blackout; keeping both means alerting does not
+depend on a CI hygiene setting, and CI hygiene is not load-bearing for
+observability.
+
+The lesson generalises past Tekton: **a migration that changes where work
+runs also changes what that work costs, in units the destination measures.**
+Full write-up in [Operating on Green]({{< relref "/docs/operating/30-silent-failure" >}}).
 
 **On parallel running.** GitHub Actions stays enabled through August; the
 free tier resets on the 1st and the parallel week costs a few hundred of the
