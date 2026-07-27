@@ -43,8 +43,8 @@ graph LR
 
     router["Traffic Router<br/>(replica-count)"]
 
-    router -->|"100% weight"| svc_stable --> stable
-    router -->|"X% weight"| svc_canary --> canary
+    router -->|"100% weight"| svc_stable --> s1
+    router -->|"X% weight"| svc_canary --> c1
 
     Rollout -->|"step pause"| ar -->|"metric"| prom
     ar -->|"pass/fail"| Rollout

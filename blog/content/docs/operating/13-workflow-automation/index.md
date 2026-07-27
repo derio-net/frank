@@ -28,7 +28,8 @@ graph TB
             config["Config PVC"]
             data["Data PVC"]
         end
-        n8n --- mounts
+        n8n --- config
+        n8n --- data
     end
 
     subgraph svc["Service Layer"]

@@ -245,6 +245,26 @@ features:
   # blog-craft #48 / CONFIG.md §9.
   glossary:  { enabled: true, first_occurrence_only: true }
 
+# Blog-craft quality gates.
+#
+# mermaid_syntax is OFF because turning it on would fail CI on content that
+# already shipped, not on anything this branch changed. The gate rejects edges
+# that target a subgraph id (`svc --> mySubgraph`), and frank's back catalogue
+# has 50 of them across ~30 posts. That shape is legal Mermaid and renders
+# today; the gate's objection is that it lays out unpredictably. Fixing one is
+# not mechanical — you have to choose WHICH node inside the subgraph the edge
+# should really point at, which is a per-diagram judgement call.
+#
+# This is the first time anything has measured that, because the workflow
+# carrying this gate was never executed (see .github/workflows/blog-ci.yml).
+# The step stays wired there, so flipping this to true is the only action
+# needed once the diagrams are converted — no workflow edit.
+#
+# Two were converted here (operating/12, operating/13) as worked examples of
+# the fix: point the edge at a representative node inside the subgraph.
+quality:
+  mermaid_syntax: false
+
 voice: |
   Frank speaks as the cluster itself — conversational, technically precise,
   darkly self-aware. Teach through story; admit failures with the same weight

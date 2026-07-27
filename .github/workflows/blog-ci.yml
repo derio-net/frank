@@ -1,0 +1,108 @@
+# Blog validation gates — the blog-craft surface, wired where GitHub can see it.
+#
+# WHY THIS FILE IS AT THE REPO ROOT. blog-craft materializes its CI under the
+# Hugo site root, which for frank means `blog/.github/workflows/blog-ci.yml`.
+# GitHub Actions only ever reads `.github/workflows/` at the REPOSITORY root, so
+# that copy was inert from the day it arrived (#667) — its papers, mermaid and
+# image gates never ran once, while looking for all the world like they did.
+# Any blog-craft blog whose `site_dir` is not "." has this problem.
+#
+# The materialized copy also assumed CWD = site root (`--config .blog-craft.yaml`,
+# `docs/papers-dossiers/*`), which is wrong for frank twice over: the config and
+# the dossiers both live at the repo root. So it could not have passed even if
+# GitHub had run it. Paths below follow deploy-blog.yml, which is the invocation
+# style proven in the live workflow: repo root, `blog/scripts/…`, and
+# `working-directory: blog` only where Hugo genuinely needs it.
+#
+# The upstream `deploy` job is deliberately NOT carried over — it is a stub
+# (`echo "wire your registry + cluster manifest bump"`), and frank's real deploy
+# is deploy-blog.yml. Two deploy paths for one site is how you get a race.
+#
+# `scripts/tests/test_blog_ci_at_repo_root.py` fails if the inert copy comes
+# back, which it will: /update re-adds any managed path that is missing.
+name: blog
+
+# The two path lists are duplicated on purpose: GitHub Actions' workflow parser
+# does not resolve YAML anchors, so an `&anchor`/`*alias` pair here would not be
+# the DRY version of this — it would be a parse error or a silently empty filter.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "blog/**"
+      - ".blog-craft.yaml"
+      - "docs/papers-dossiers/**"
+      - ".github/workflows/blog-ci.yml"
+  pull_request:
+    paths:
+      - "blog/**"
+      - ".blog-craft.yaml"
+      - "docs/papers-dossiers/**"
+      - ".github/workflows/blog-ci.yml"
+
+jobs:
+  blog-validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Hextra is a Hugo module, so the build needs a Go toolchain to fetch it.
+      # Note there is deliberately no `hugo mod get` here: it resolves modules to
+      # latest and rewrites the theme pin in blog/go.mod, which would make CI
+      # test a different Hextra than the one committed.
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Setup Hugo
+        uses: peaceiris/actions-hugo@75d2e84710de30f6ff7268e08f310b60ef14033f # v3.0.0
+        with:
+          hugo-version: "0.157.0"
+          extended: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validator deps
+        run: pip install --quiet pyyaml
+
+      # Papers: keep data/papers in step with the dossiers, then gate each
+      # dossier and every post's frontmatter.
+      - name: Validate papers
+        run: |
+          python3 blog/scripts/sync_dossier_to_data.py --config .blog-craft.yaml --check
+          for d in docs/papers-dossiers/*/dossier.md; do
+            python3 blog/scripts/validate_dossier.py --config .blog-craft.yaml "$d"
+          done
+          python3 blog/scripts/validate_papers.py --config .blog-craft.yaml blog/content/docs/papers/*/index.md
+
+      # Abbreviation glossary gate: every abbr marker must have an entry in
+      # blog/data/glossary.yaml. A marker with nothing behind it is a broken
+      # promise to the reader — and it fails the Hugo build, so without this gate
+      # the failure surfaces on push-to-main rather than on the PR that caused it.
+      # Markers inside code fences are ignored, so a post documenting the
+      # shortcode is not gated on its own example.
+      - name: Validate glossary
+        run: python3 blog/scripts/validate_glossary.py --config .blog-craft.yaml blog/content/docs/*/*/index.md
+
+      # Mermaid syntax gate: lint every ```mermaid fence before render, so a
+      # broken diagram fails CI instead of shipping dead.
+      - name: Validate mermaid syntax
+        run: python3 blog/scripts/validate_mermaid.py --config .blog-craft.yaml blog/content/docs/*/*/index.md
+
+      # Image-entry gate: prompt_for_images.yaml entries stay generable — no
+      # duplicate keys, no dead `references:` paths, no selector that silently
+      # resolves to nothing (an out-of-range torso_variant would drop that layer
+      # from every future regen).
+      - name: Validate image entries
+        run: python3 blog/scripts/validate_images.py --config .blog-craft.yaml
+
+      - name: Hugo build
+        working-directory: blog
+        run: hugo --minify
