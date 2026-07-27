@@ -1,6 +1,31 @@
 defaultSettings:
   defaultReplicaCount: 3
   storageMinimalAvailablePercentage: 15
+  # Longhorn's provisioning ceiling counts each replica's DECLARED size, not the
+  # bytes actually written, so a node can be half-empty and still refuse to grow
+  # a volume by a single GiB. Measured 2026-07-27, with this left at the chart
+  # default of 100: every mini node sat within a few GiB of its ceiling
+  # ((StorageMaximum - StorageReserved) x 100%, i.e. 650Gi of 929Gi after the 30%
+  # reserve), and mini-3 was 4Gi OVER it and refusing replicas outright:
+  #
+  #   node     scheduled   ceiling   headroom   physically written
+  #   mini-1       645Gi     650Gi        5Gi   415Gi of 929Gi
+  #   mini-2       639Gi     650Gi       11Gi
+  #   mini-3       654Gi     650Gi       -4Gi   (Schedulable=False, DiskPressure)
+  #
+  # The reservations are dominated by legitimately large, sparsely-written model
+  # stores (comfyui-models 200Gi, ollama 200Gi) — there is no dead weight to
+  # reclaim on mini-1. That made a 20Gi expansion of an existing 3-replica volume
+  # impossible (frank#715, the Hermes tool-home PVC) while the disks themselves
+  # were only ~55% full. Raising the ceiling to 150% restores room to grow.
+  #
+  # This does NOT weaken the physical guard: storageMinimalAvailablePercentage
+  # above still blocks scheduling once a disk's real free space drops below 15%,
+  # which is the setting that actually prevents filling a disk. Over-provisioning
+  # is an accounting policy; minimal-available is the safety net. Note the
+  # ceiling is proportional, so small disks over-commit proportionally too
+  # (pc-1: 40Gi -> 60Gi on a 57Gi disk) — the 15% floor is what holds there.
+  storageOverProvisioningPercentage: 150
   nodeDownPodDeletionPolicy: delete-both-statefulset-and-deployment-pod
   defaultDataLocality: best-effort
 
