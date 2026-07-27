@@ -1,0 +1,50 @@
+schema_version: 2
+phase:
+  number: 5
+  title: Runbook, gotchas and repo docs
+  tag: agentic
+  depends_on:
+  - 1
+  - 2
+  - 3
+  tracking_issue: null
+tasks:
+- number: 1
+  title: Manual operations and gotchas
+  steps:
+  - id: P5.T1.S1
+    text: |-
+      Add four `# manual-operation` blocks to the plan prose and sync them:
+      `cicd-kid-laptops-github-app-install`,
+      `cicd-kid-laptops-gitea-repo-create`,
+      `cicd-kid-laptops-github-webhook`,
+      `cicd-kid-laptops-gitea-webhook`.
+      Each needs id/layer/app/plan/when/why_manual/commands/verify/status.
+      Then run the `/sync-runbook` skill to merge them into
+      `docs/runbooks/manual-operations.yaml`.
+      EXPECT: four new entries, existing entries' status preserved.
+  - id: P5.T1.S2
+    text: |-
+      Add one-liners to `agents/rules/frank-gotchas.md` under Tekton and
+      the full prose to `docs/runbooks/frank-gotchas/tekton.md`:
+        - the resolver flag lives in the `tekton-pipelines-resolvers`
+          namespace, so looking for `resolvers-feature-flags` in
+          `tekton-pipelines` returns NotFound and reads as "not installed"
+        - a repo with its own gitea-listener trigger MUST be subtracted
+          from the generic `gitea-push` filter or every push creates two
+          PipelineRuns, one failing
+      Keep the compact file to one line each per that file's own rule.
+state:
+  steps:
+    P5.T1.S1:
+      state: x
+      ticked_at: '2026-07-26T15:39:15+00:00'
+      note: null
+    P5.T1.S2:
+      state: x
+      ticked_at: '2026-07-26T15:39:17+00:00'
+      note: null
+  completion:
+    at: '2026-07-26T15:39:20+00:00'
+    note: null
+    observed_prs: []

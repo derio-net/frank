@@ -599,3 +599,55 @@ rows:
       the GoatCounter beacon at counter.derio.net with path /; and CrowdSec caddy-logs cs_node_hits_ok_total
       rose by 11 across 10 requests to www, confirming the crowdsec directive parses the new vhost
       access log. Test Plan steps 3, 4 and 7.
+  - id: kid-laptops-push-mirrors-to-gitea
+    capability: kid-laptops CI
+    acceptance: A push to derio-homelab/kid-laptops on GitHub reliably appears at the
+      same commit SHA in the in-cluster Gitea mirror.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'Verified by the post-merge Test Plan (steps 1-3): push, github-pull-sync
+      PipelineRun succeeds, SHA present in Gitea.'
+  - id: kid-laptops-mirror-push-creates-one-pipelinerun
+    capability: kid-laptops CI
+    acceptance: A push to the Gitea mirror creates exactly one kid-laptops PipelineRun
+      in kid-laptops-ci, and no second run from the generic gitea-ci trigger.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'The ''exactly one'' half guards a real defect: the generic gitea-push trigger''s
+      agentic-stoa-only exclusion would otherwise also match derio-homelab. Tripwire
+      test plus Test Plan step 4.'
+  - id: kid-laptops-python-checks-run-per-push
+    capability: kid-laptops CI
+    acceptance: Every push to kid-laptops runs lint, ansible syntax-check and unit tests
+      against the pushed commit, and the run is green when they pass.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
+    levels: {}
+    status: not-implemented
+    notes: 'Deliberately narrower than the upstream row every-push-runs-ci-pipeline:
+      molecule is skipped until KubeVirt lands, so this claims only the Python/Ansible
+      half.'
+  - id: kid-laptops-ci-sa-can-manage-vmis
+    capability: kid-laptops CI
+    acceptance: The kid-laptops-ci-kubevirt ServiceAccount is authorised to create and
+      delete VirtualMachineInstances in the kid-laptops-ci namespace.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-26--cicd--kid-laptops-tekton-ci-design.md
+    levels: {}
+    status: not-implemented
+    notes: Satisfiable before KubeVirt exists (RBAC rules do not validate against installed
+      CRDs) but only PROVABLE end-to-end after. Test Plan step 7 is an auth check, not
+      a VM.
+  - id: frank-runs-virtual-machines
+    capability: Virtualization
+    acceptance: An operator can run a virtual machine on Frank and reach its console.
+    origin:
+    - frank:docs/superpowers/specs/2026-07-26--virt--kubevirt-vms-design.md
+    levels: {}
+    status: not-implemented
+    notes: Design-only in this run; no KubeVirt on the cluster yet. Deliberately broad
+      — it is the claim the whole virt layer exists to make.

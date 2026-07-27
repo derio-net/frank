@@ -110,6 +110,11 @@ layers:
     name: Infrastructure Automation
     description: AWX Ansible controller for non-Talos / external devices
 
+  - code: virt
+    number: 21
+    name: Virtualization
+    description: KubeVirt VMs as pods, CDI disk import, VM management UI
+
   - code: repo
     name: Repository & Tooling
     description: Blog infrastructure, CI, repo restructuring, meta-tasks

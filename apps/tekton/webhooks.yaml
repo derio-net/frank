@@ -69,6 +69,20 @@ webhooks:
 
   - forge: gitea
     scope: repo
+    target: derio-homelab/kid-laptops
+    listener: gitea-listener
+    events: [push]
+    serves: [kid-laptops-push]
+    note: >-
+      The mirror repo, created by manual-op cicd-kid-laptops-gitea-repo-create.
+      Second hop of a two-hop path: the github-listener force-pushes GitHub into
+      Gitea, and THIS hook turns that push into the CI PipelineRun. No secret —
+      the trigger validates with a cel interceptor on repo full_name only.
+      Declared before it exists: this file is desired state, and the manual op
+      cicd-kid-laptops-gitea-webhook creates it post-merge.
+
+  - forge: gitea
+    scope: repo
     target: gitea_admin/test-ci
     listener: gitea-listener
     events: [push, pull_request]
@@ -84,6 +98,20 @@ webhooks:
   # ── GitHub ───────────────────────────────────────────────────────────────
   # All eleven mirrored repos deliver push + pull_request to the github-listener
   # via Hop. Verified complete 2026-07-26.
+  - forge: github
+    scope: repo
+    target: derio-homelab/kid-laptops
+    listener: github-listener
+    events: [push]
+    serves: [derio-homelab-kid-laptops-main-sync]
+    note: >-
+      push only, not pull_request: kid-laptops runs no PR-time CI on Frank yet
+      (the molecule stage is gated off until KubeVirt lands, so a PR mirror
+      would test only lint). Uses its OWN HMAC secret
+      (derio-homelab-github-webhook-secret), not the agentic-stoa one — sharing
+      it would couple two unrelated orgs' webhook authenticity to one value.
+      Created post-merge by manual-op cicd-kid-laptops-github-webhook.
+
   - forge: github
     scope: repo
     target: agentic-stoa/hum

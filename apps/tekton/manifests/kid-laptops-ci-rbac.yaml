@@ -1,0 +1,66 @@
+# RBAC for the kid-laptops CI pipeline (derio-homelab/kid-laptops issue #43,
+# requirement 5).
+#
+# THIS IS VALID BEFORE KUBEVIRT EXISTS — do not "fix" it.
+# RBAC rules are opaque strings; the API server never resolves them against
+# installed CRDs. So `kubevirt.io/virtualmachineinstances` is a perfectly legal
+# rule today, and becomes effective the moment KubeVirt is installed (see
+# docs/superpowers/specs/2026-07-26--virt--kubevirt-vms-design.md). The
+# corollary is that `kubectl auth can-i` answers yes for a resource that does
+# not exist — a true answer to a question nobody should mistake for proof that
+# the pipeline works end to end.
+#
+# The verb set is exactly what the request asked for. Widening it (in
+# particular to "*") would let a CI job mutate a VMI mid-run; the molecule
+# scenario only ever creates, polls and deletes. Guarded by
+# scripts/tests/test_kid_laptops_ci_rbac.py.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kid-laptops-ci-kubevirt
+  namespace: kid-laptops-ci
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kid-laptops-ci-kubevirt
+  namespace: kid-laptops-ci
+rules:
+  - apiGroups: ["kubevirt.io"]
+    resources: ["virtualmachineinstances"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kid-laptops-ci-kubevirt
+  namespace: kid-laptops-ci
+subjects:
+  - kind: ServiceAccount
+    name: kid-laptops-ci-kubevirt
+    namespace: kid-laptops-ci
+roleRef:
+  kind: Role
+  name: kid-laptops-ci-kubevirt
+  apiGroup: rbac.authorization.k8s.io
+---
+# The EventListener creates the PipelineRun, and it does so as
+# tekton-triggers-sa. That ServiceAccount's existing binding
+# (apps/tekton/manifests/triggers-rbac.yaml) is a RoleBinding scoped to
+# tekton-pipelines, so without this second binding the create is Forbidden —
+# and the only place that error appears is the el-gitea-listener pod log. The
+# webhook still returns 202 and Gitea shows a green delivery.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: tekton-triggers-kid-laptops-ci
+  namespace: kid-laptops-ci
+subjects:
+  - kind: ServiceAccount
+    name: tekton-triggers-sa
+    namespace: tekton-pipelines
+roleRef:
+  kind: ClusterRole
+  name: tekton-triggers-eventlistener-roles
+  apiGroup: rbac.authorization.k8s.io

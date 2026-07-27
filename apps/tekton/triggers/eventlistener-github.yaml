@@ -206,6 +206,48 @@ spec:
         - {name: ref-to,      value: "refs/heads/main", kind: TriggerBinding}
       template:
         ref: agentic-stoa-main-sync-template
+    # ──────────────────────────────────────────────────────────────────
+    # derio-homelab/kid-laptops mirror (2026-07-26, kid-laptops#43).
+    #
+    # A separate trigger rather than another entry in the agentic-stoa
+    # main-sync repo list, because everything underneath differs: a different
+    # webhook HMAC secret, a different App installation token, and therefore a
+    # different pull-sync Pipeline. Only the *shape* is shared.
+    #
+    # This is the first half of a two-hop path. It force-pushes the commit into
+    # Gitea; the Gitea push webhook then fires the kid-laptops CI trigger on
+    # gitea-listener. The second hop is why a push-sync was chosen over a Gitea
+    # pull-mirror — mirror-sync does not reliably emit push webhooks, and a real
+    # push does.
+    # ──────────────────────────────────────────────────────────────────
+    - name: derio-homelab-kid-laptops-main-sync
+      interceptors:
+        - name: github
+          ref: {name: github, kind: ClusterInterceptor}
+          params:
+            - name: secretRef
+              value:
+                secretName: derio-homelab-github-webhook-secret
+                secretKey: secret
+            - name: eventTypes
+              value: ["push"]
+        - name: cel
+          ref: {name: cel, kind: ClusterInterceptor}
+          params:
+            - name: filter
+              value: >-
+                body.repository.full_name == 'derio-homelab/kid-laptops'
+                && body.ref == 'refs/heads/main'
+            - name: overlays
+              value:
+                - {key: sha, expression: "body.after"}
+      bindings:
+        - {name: github-repo, value: "derio-homelab/kid-laptops", kind: TriggerBinding}
+        - {name: gitea-repo,  value: "derio-homelab/kid-laptops", kind: TriggerBinding}
+        - {name: sha,         value: $(extensions.sha), kind: TriggerBinding}
+        - {name: ref-to,      value: "refs/heads/main", kind: TriggerBinding}
+      template:
+        ref: derio-homelab-kid-laptops-main-sync-template
     # CNC source mirrors and CI. The image build remains in each CNC repo's
     # GitHub workflow; this listener mirrors and tests the exact SHA.
     - name: agentic-stoa-cnc-fr-pr
@@ -610,5 +652,53 @@ spec:
                 accessModes: [ReadWriteOnce]
                 storageClassName: longhorn-cicd
                 resources: {requests: {storage: 5Gi}}
+          - name: ssh-creds
+            secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}
+---
+# Scaffolds the derio-homelab mirror PipelineRun.
+#
+# Twin of agentic-stoa-main-sync-template, pointed at derio-homelab-pull-sync
+# (its own Pipeline — see that file's header for why the shared one could not
+# simply take a param).
+#
+# ssh-creds reuses stoa-bot-ssh-key: it is the Gitea *push identity*, not a
+# stoa-scoped credential, and that Gitea user is granted write on the mirror
+# repo. The name is a smell rather than a boundary violation, and is recorded
+# as a named gap in the spec — worth a rename when a third consumer appears.
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: derio-homelab-kid-laptops-main-sync-template
+  namespace: tekton-pipelines
+spec:
+  params:
+    - name: github-repo
+    - name: gitea-repo
+    - name: sha
+    - name: ref-to
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: kid-laptops-main-sync-
+        namespace: tekton-pipelines
+      spec:
+        pipelineRef: {name: derio-homelab-pull-sync}
+        params:
+          - {name: github-repo, value: $(tt.params.github-repo)}
+          - {name: gitea-repo,  value: $(tt.params.gitea-repo)}
+          - {name: sha,         value: $(tt.params.sha)}
+          - {name: ref-to,      value: $(tt.params.ref-to)}
+        taskRunTemplate:
+          podTemplate:
+            securityContext: {fsGroup: 65534}
+            nodeSelector: {kubernetes.io/hostname: pc-1}
+        workspaces:
+          - name: source
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                storageClassName: longhorn-cicd
+                resources: {requests: {storage: 2Gi}}
           - name: ssh-creds
             secret: {secretName: stoa-bot-ssh-key, defaultMode: 0600}

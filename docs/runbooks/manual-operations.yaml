@@ -2059,3 +2059,69 @@ operations:
   verify:
   - gpu-1 returns to Ready after a real reboot (NO time-sync boot-hang), resolvers from the config layer, single .31 (no .150), Omni CONNECTED true, GPU workloads Running — proving the declarative DNS prevents the incident
   status: pending
+- id: cicd-kid-laptops-github-app-install
+  layer: cicd
+  app: tekton
+  plan: 2026-07-26-cicd-kid-laptops-tekton-ci
+  when: BEFORE merging the frank PR for kid-laptops CI
+  why_manual: Creating and installing a GitHub App is a UI consent action, and neither the App id nor the installation id can be derived by an agent. Reusing derio-fr-automation was rejected — it is private to derio-net, and installing it here would require flipping it to "Any account", which GitHub only lets you flip back while there are no outside installations.
+  commands:
+  - "Create App homelab-fr-automation under the derio-homelab org: https://github.com/organizations/derio-homelab/settings/apps/new"
+  - "Settings that matter: UNTICK Webhook->Active (no webhook URL exists, and it is ticked by default); Repository permissions Contents=Read-only, Metadata=Read-only, Commit statuses=Read and write (for requirement 8 later; adding it afterwards forces every installation to re-approve); Where can this App be installed = Only on this account."
+  - Generate a private key and download the .pem.
+  - Install the App on derio-homelab with Only select repositories -> kid-laptops.
+  - "Then run the wiring script, which does everything else (SOPS-encrypt the key, apply it out-of-band, patch appID/installID into the ClusterGenerator, verify the token twice): bash scripts/tmp/setup-homelab-app.sh <path-to.pem>"
+  - Commit secrets/github-app/github-app-homelab-key.yaml and the patched ClusterGenerator to the SAME PR before merging.
+  verify:
+  - "env -u GITHUB_TOKEN gh api /orgs/derio-homelab/installations --jq '.installations[] | select(.app_id==4403773) | {repository_selection, permissions}'   # selected; contents=read, statuses=write"
+  - "kubectl -n tekton-pipelines get externalsecret derio-homelab-github-mirror -o jsonpath='{.status.conditions[0].reason}'   # SecretSynced"
+  - "curl -s -o /dev/null -w '%{http_code}' -H \"Authorization: Bearer $TOKEN\" https://api.github.com/repos/derio-homelab/kid-laptops   # 200 — verify against the PRIVATE repo; a public one reads with no token and masks a broken credential"
+  status: done 2026-07-27 — App homelab-fr-automation (4403773), install 149345112, scoped to kid-laptops only; chain verified from PEM and via ESO
+- id: cicd-kid-laptops-infisical-webhook-secret
+  layer: cicd
+  app: tekton
+  plan: 2026-07-26-cicd-kid-laptops-tekton-ci
+  when: Before creating the GitHub webhook
+  why_manual: Infisical secret values are created out-of-band; the ExternalSecret only reads them. Deliberately not reusing the agentic-stoa webhook secret — sharing it would couple two unrelated orgs' webhook authenticity to one value.
+  commands:
+  - "Create Infisical secret /derio-homelab/GITHUB_WEBHOOK_SECRET with a fresh random value: openssl rand -hex 32"
+  verify:
+  - "kubectl -n tekton-pipelines get secret derio-homelab-github-webhook-secret -o jsonpath='{.data.secret}' | wc -c   # non-zero"
+  status: pending
+- id: cicd-kid-laptops-gitea-repo-create
+  layer: cicd
+  app: gitea
+  plan: 2026-07-26-cicd-kid-laptops-tekton-ci
+  when: After the frank PR merges
+  why_manual: Gitea orgs and repos are not GitOps-managed on Frank; they are created via the admin API. PUBLIC visibility is a deliberate operator-owned trade-off — Tekton's git resolver in URL mode cannot authenticate and the kid-laptops contract pins that mode. Gitea is LAN-only (no ingress, no public DNS), but a repo that is private on GitHub becomes LAN-readable.
+  commands:
+  - Create org derio-homelab in Gitea (http://192.168.55.209:3000).
+  - "Create repo kid-laptops under it: PUBLIC, empty (no auto-init) so the first mirror push is not a non-fast-forward."
+  - Grant the Gitea push bot (owner of stoa-bot-ssh-key) write access to the repo.
+  verify:
+  - "curl -s http://192.168.55.209:3000/api/v1/repos/derio-homelab/kid-laptops | jq '.private'   # false"
+  status: pending
+- id: cicd-kid-laptops-github-webhook
+  layer: cicd
+  app: tekton
+  plan: 2026-07-26-cicd-kid-laptops-tekton-ci
+  when: After the frank PR merges and the Gitea repo exists
+  why_manual: Webhook creation needs org-owner credentials the cluster does not hold.
+  commands:
+  - GITHUB_TOKEN must be UNSET so gh uses the account that owns derio-homelab (the keyring token is a different identity).
+  - env -u GITHUB_TOKEN gh api repos/derio-homelab/kid-laptops/hooks -X POST -f name=web -F active=true -f 'events[]=push' -f config[url]=https://webhooks.hop.derio.net -f config[content_type]=json -f config[secret]=<value from Infisical>
+  verify:
+  - "kubectl -n tekton-pipelines logs deploy/el-github-listener --tail=20   # shows the event after a test push"
+  status: pending
+- id: cicd-kid-laptops-gitea-webhook
+  layer: cicd
+  app: gitea
+  plan: 2026-07-26-cicd-kid-laptops-tekton-ci
+  when: After the Gitea repo exists
+  why_manual: Gitea webhooks are per-repo and created via the API, not GitOps. THIS IS THE STEP MOST LIKELY TO BE SKIPPED — adding a trigger to gitea-listener provisions nothing that delivers to it, and the failure mode is a mirror that syncs perfectly, ArgoCD green, and no PipelineRun ever created, which reads as a broken pipeline rather than a missing webhook.
+  commands:
+  - "curl -u \"$GITEA_ADMIN\" -X POST http://192.168.55.209:3000/api/v1/repos/derio-homelab/kid-laptops/hooks -H 'Content-Type: application/json' -d '{\"type\":\"gitea\",\"active\":true,\"events\":[\"push\"],\"config\":{\"url\":\"http://el-gitea-listener.tekton-pipelines.svc.cluster.local:8080\",\"content_type\":\"json\"}}'"
+  - "No secret — the kid-laptops-push trigger validates with the cel interceptor only."
+  verify:
+  - "curl -s -u \"$GITEA_ADMIN\" http://192.168.55.209:3000/api/v1/repos/derio-homelab/kid-laptops/hooks | jq 'length'   # 1"
+  status: pending

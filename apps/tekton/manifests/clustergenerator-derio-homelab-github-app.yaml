@@ -1,0 +1,50 @@
+# GitHub App installation-token generator for the derio-homelab org.
+#
+# kid-laptops (derio-homelab/kid-laptops, issue #43) is private and sits in a
+# THIRD org: not derio-net (github-app-derio, secure-agent-pod) and not
+# agentic-stoa (github-app-stoa, tekton). Neither existing generator's token can
+# read it, so the mirror needs its own.
+#
+# It uses its OWN App — homelab-fr-automation (4403773), owned by derio-homelab.
+#
+# Reusing derio-fr-automation was considered and rejected. That App is private
+# to derio-net ("Only on this account"), so installing it here would have meant
+# flipping it to "Any account" — which GitHub will only let you flip BACK while
+# the App has no installations outside the owner account, and which publicly
+# lists the App's name, description and permission set. That is a near-one-way
+# door bought for nothing. One App per org also matches what is already here
+# (derio-net → derio-fr-automation, agentic-stoa → stoa-fr-automation) and keeps
+# key compromise scoped to a single org.
+#
+# Installed on derio-homelab scoped to kid-laptops ONLY (verified:
+# repository_selection=selected, total_count=1). Permissions: contents:read,
+# metadata:read, statuses:write — the last is not needed by the mirror but
+# satisfies requirement 8 (GitHub commit-status merge gate) in advance, since
+# adding a permission later forces every installation to re-approve.
+#
+# NOTE: ESO resolves auth.privateKey.secretRef in the CONSUMING ExternalSecret's
+# namespace (tekton-pipelines) and IGNORES secretRef.namespace — deliberately no
+# namespace field below. Getting this wrong leaves the ExternalSecret in
+# SecretSyncedError indefinitely while ArgoCD stays green; it hid for seven days
+# on frank-gitops-push. Guarded by
+# scripts/tests/test_kid_laptops_mirror_wiring.py.
+#
+# appID/installID were filled by the operator pre-merge via manual operation
+# `cicd-kid-laptops-github-app-install` — neither is derivable by an agent.
+# Verified end to end before merge: an installation token minted straight from
+# the PEM reads the private repo, and the ESO-minted token does too.
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: ClusterGenerator
+metadata:
+  name: github-app-derio-homelab
+spec:
+  kind: GithubAccessToken
+  generator:
+    githubAccessTokenSpec:
+      appID: "4403773"
+      installID: "149345112"
+      auth:
+        privateKey:
+          secretRef:
+            name: github-app-homelab-key
+            key: key
