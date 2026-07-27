@@ -227,6 +227,14 @@ FQDN:
     A hostname written out completely, right down to the root — the difference
     between `grafana` and `grafana.cluster.derio.net`. Which one resolves
     depends on search domains.
+GC:
+  name: Garbage Collection
+  description: >-
+    The periodic deletion of completed or orphaned objects so they stop consuming
+    storage, quota and monitoring cardinality. On Frank a CronJob does this for
+    Tekton PipelineRuns; Kubernetes separately garbage-collects any resource whose
+    owner has been deleted, which is why a PipelineRun's workspace PVC disappears
+    with it.
 GDDR7:
   name: Graphics Double Data Rate 7
   description: >-
