@@ -6,7 +6,7 @@ scaffolding under `blog/` are produced from the blog-craft templates
 blog-craft revision, pinned in `.blog-craft.yaml`:
 
 ```yaml
-blog_craft_version: "v0.10.0"   # blog-craft RELEASE frank is synced to
+blog_craft_version: "v0.16.0"   # blog-craft RELEASE frank is synced to
 ```
 
 Keep this accurate: `update.py` recovers the 3-way-merge base by **re-rendering
@@ -85,7 +85,33 @@ frank customizations, and all three were fixed upstream in v0.14.0:
 | `.reference-pool/README.md` | Documented the v4 reference precedence chain that v5 removed in 0.10.0, contradicting blog-craft's own `docs/CONFIG.md`. |
 
 After v0.14.0 these render identically to frank's copies and drop out of the
-update plan. Frank's *persona-specific* reference notes — the eye-design
+update plan — confirmed on 2026-07-27: `single.html` was absent from the plan
+entirely, and `generate-images.py` / `.reference-pool/README.md` came back as
+pure convergence.
+
+Second worked example (2026-07-27, blog-craft #58). Updating v0.10.0 → v0.15.0
+surfaced **one** genuine revert, and the same test sent it upstream rather than
+into the table below:
+
+| Path | The upstream gap |
+|------|------------------|
+| `blog/layouts/partials/custom/head-end.html` | Dropped the `mermaid-init.js` load. Hextra initialises mermaid from an **inline `<script>`** that frank's `script-src 'self'` discards; `mermaid.js` self-starts so diagrams still *appear*, but freeze in the light theme and stop following the dark/light toggle across every post that uses one. Frank shipped the external replacement in #710. Fixed upstream in **v0.16.0** as the opt-in `features.mermaid_csp_init`. |
+
+Two things about that one are worth keeping:
+
+- **It is the third instance of the class blog-craft #56 fixed twice** (the
+  read-tracker clear-link and the asciinema player). #56 missed it because its
+  guard, `test_templates_csp_safe.py`, builds a page with *no diagram* — so the
+  theme never loads its mermaid partial and the "no inline script" assertion
+  passed vacuously. A guard is only as wide as its fixture.
+- **It had to be opt-in upstream, unlike #56's fixes.** Those replaced inline
+  scripts blog-craft *itself* emitted, so nothing was left to collide with. This
+  one supersedes a script in the **pinned theme**, which blog-craft cannot
+  remove — a blog with no CSP still runs it, so an unconditional asset would
+  mean two initialisers racing. Hence frank must keep
+  `features.mermaid_csp_init: true` set for as long as the CSP is on.
+
+Frank's *persona-specific* reference notes — the eye-design
 invariant, the startled-expression trap, the head-only favicon sheet — moved to
 **`.reference-pool/PERSONA.md`**, which blog-craft never materializes (its
 manifest names `.reference-pool/README.md` explicitly, not a `**` glob) and
@@ -103,21 +129,49 @@ no upstream meaning. Exclude them from any `update.py --apply`:
 | `.github/workflows/blog-ci.yml` | Frank has its own blog CI + GitHub Pages deploy; blog-craft's generic workflow does not apply. |
 | `blog/README.md` | Frank's blog has no standalone README (frank's README is repo-root). |
 
-`blog/hugo.toml` is `merged`, not excluded, but a v0.14.0 update proposes only a
+`blog/hugo.toml` is `merged`, not excluded. It **no longer needs skipping**: at
+v0.16.0 the 3-way merge resolves byte-identical to frank's current file, so it
+drops out of the applied diff on its own. (Through v0.14.0 it proposed a
 re-ordering of the `[params.seriesIndex]` / `[params.imageOptimize]` blocks —
-semantically identical TOML that would drop frank's explanatory comments for no
-gain. Skip it unless a later release changes it substantively.
+semantically identical TOML that would have dropped frank's explanatory comments
+for no gain. That advice is obsolete; re-check rather than assume if a future
+release touches the file.)
 
-## Deferred (harmless) framework adds
+## Deferred framework adds — none outstanding
 
 The 2026-07-04 series-index re-sync (spec
 `docs/superpowers/specs/2026-07-04--repo--frank-series-index-resync-design.md`)
-deliberately **deferred** these blog-craft scaffold adds to keep that PR's diff
-surgical. A later full update may adopt them:
+deliberately **deferred** three blog-craft scaffold adds to keep that PR's diff
+surgical: `blog/.gitignore`, `blog/.hookify.warn-hextra-weight-zero.md`,
+`blog/static/images/.gitkeep`. All three are present as of 2026-07-27 and no
+longer appear in the plan. Nothing is deferred right now.
 
-- `blog/.gitignore`
-- `blog/.hookify.warn-hextra-weight-zero.md`
-- `blog/static/images/.gitkeep`
+## What the 2026-07-27 re-sync actually applied (v0.10.0 → v0.16.0)
+
+Sixteen paths, no conflicts. Everything except the mermaid fix above was
+convergence — several of the `framework` replaces were **comments-only** diffs
+(`opt-image.html`, `asciinema.html`, `footer.html`) or semantically identical
+(`generate-images.py`: one statement reordered).
+
+- **CSP hardening from blog-craft 0.15.0/0.16.0.** asciinema-player is now
+  vendored under `blog/assets/vendor/` (Apache-2.0, with `PROVENANCE.md`) and
+  served same-origin instead of from unpkg; the asciinema shortcode passes config
+  as `data-*`; `mermaid-init.js` becomes blog-craft-owned via
+  `features.mermaid_csp_init`.
+- **`read-history-clear.js` deleted.** blog-craft absorbed the clear-link handler
+  into `read-tracker.js` (same `STORAGE_KEY`, same reasoning frank used), so
+  frank's separate asset was orphaned — nothing loaded it after `head-end.html`
+  was replaced.
+- **De-duplicated `.clear-read-history`** in `custom.css`: blog-craft's rule
+  arrived with *byte-identical declarations* to frank's, so frank's later copy
+  was removed. No visual change.
+- **`opt-image.html` converged** — blog-craft #55 upstreamed frank #710's srcset
+  fix and cites `derio-net/frank#710` in the template comment.
+- **`blog/hugo.toml` unchanged**; `blog/scripts/glossary_scan.py` +
+  `validate_glossary.py` added (they ship unconditionally and only *run* when
+  `features.glossary.enabled`, which frank does not set).
+- Net rendered change: none expected beyond the asciinema/mermaid wiring — frank
+  was already running #710's fixes locally.
 
 ## What the 2026-07-04 re-sync actually applied
 

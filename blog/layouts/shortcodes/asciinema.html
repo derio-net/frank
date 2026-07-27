@@ -9,8 +9,10 @@
 {{- $url := $src -}}
 {{- with $res }}{{ $url = .RelPermalink }}{{ end -}}
 {{- /* Config travels as data-* attributes; assets/js/asciinema-init.js consumes
-       them. This was a per-instance inline <script> until blog.derio.net gained
-       `script-src 'self'`, which drops inline blocks silently. */ -}}
+       them. This was a per-instance inline <script> calling
+       AsciinemaPlayer.create() until a blog turned on `script-src 'self'`, which
+       drops inline blocks silently — the player simply never appeared, with no
+       build error. */ -}}
 <div id="{{ $id }}" class="asciinema-container"
      data-cast-src="{{ $url }}"
      data-cols="{{ $cols }}"

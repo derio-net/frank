@@ -31,22 +31,24 @@
     {{- if not $pt.Err -}}
       {{- $primary = $pt.Value -}}
       {{- /* The top candidate must be the PRIMARY's own width, never the cap.
-             When the source is narrower than the cap — banners 2169 < 2560,
-             covers 1424 < 1600 — a cap-derived candidate fails the clamp and is
-             dropped, leaving NOTHING in the srcset that matches the primary.
-             That is not merely a missing size: per the HTML spec, a srcset
-             carrying `w` descriptors removes `src` from the candidate list
-             entirely, so the full-resolution file this partial just generated
-             becomes unreachable and every banner renders upscaled from 960w.
-             Pinned by scripts/check_blog_build.py. */ -}}
+             Using $maxW compares the cap against itself: when the SOURCE is
+             narrower than the cap, that candidate fails the `le $w $srcW` clamp
+             and is dropped, leaving NOTHING in the srcset that matches the
+             primary. That is not merely a missing size — per the HTML spec, a
+             srcset carrying `w` descriptors removes `src` from the candidate
+             list entirely, so the full-resolution derivative this partial just
+             generated becomes unreachable and the image renders upscaled from
+             960w. Measured on frank (derio-net/frank#710): banners 2169w under a
+             2560 cap and covers 1424w under a 1600 cap, 179 affected images,
+             2.0x upscale on a 1512px viewport at DPR 2. */ -}}
       {{- $topW := $primary.Width -}}
       {{- range $w := (slice 480 960 $topW) -}}
         {{- if lt $w $topW -}}
           {{- $dt := try ($r.Resize (printf "%dx %s q%d" $w $fmt $q)) -}}
           {{- if not $dt.Err -}}{{- $srcset = $srcset | append (printf "%s %dw" $dt.Value.RelPermalink $dt.Value.Width) -}}{{- end -}}
         {{- else if eq $w $topW -}}
-          {{- /* reuse the primary itself — re-Resizing to its own width would
-                 emit a byte-identical second file under a different hash */ -}}
+          {{- /* reuse the primary rather than re-Resizing to its own width,
+                 which would emit a byte-identical second file */ -}}
           {{- $srcset = $srcset | append (printf "%s %dw" $primary.RelPermalink $primary.Width) -}}
         {{- end -}}
       {{- end -}}
