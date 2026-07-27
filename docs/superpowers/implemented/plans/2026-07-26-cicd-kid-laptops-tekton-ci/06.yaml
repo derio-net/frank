@@ -73,26 +73,35 @@ state:
       ticked_at: '2026-07-27T12:07:44+00:00'
       note: null
     P6.T2.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-27T18:05:37+00:00'
       note: null
     P6.T2.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-27T18:05:39+00:00'
       note: null
     P6.T2.S3:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-27T18:05:40+00:00'
       note: null
     P6.T3.S1:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-27T18:05:42+00:00'
       note: null
     P6.T3.S2:
-      state: ' '
-      ticked_at: null
+      state: x
+      ticked_at: '2026-07-27T18:05:43+00:00'
       note: null
   completion:
-    at: null
-    note: null
+    at: '2026-07-27T18:06:00+00:00'
+    note: 'Operator + agent, 2026-07-27. App homelab-fr-automation (4403773) created
+      and installed scoped to kid-laptops; Infisical /derio-homelab/GITHUB_WEBHOOK_SECRET
+      added in the frank-cluster project (it was first created in a sibling ''homelab''
+      project ESO cannot read); Gitea org + public repo created, stoa-bot granted
+      write; both webhooks created. Test Plan green: PipelineRun kid-laptops-ci-fqs2h,
+      51s, clone/lint/syntax/unit-tests Succeeded, molecule-base + molecule-teardown
+      Skipped on enable-molecule, exactly one PipelineRun and zero generic gitea-ci
+      runs. Reported on kid-laptops#43 (comment 5094966026). Required two follow-up
+      PRs in kid-laptops: #48 (taskRefs resolved from git — bare names needed a cluster-side
+      install) and #50 (vault shim hoisted to cover ansible-lint).'
     observed_prs: []
