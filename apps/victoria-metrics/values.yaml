@@ -20,6 +20,48 @@ vmsingle:
         requests:
           storage: 20Gi
 
+# vmagent — raise the per-scrape response cap.
+#
+# The kube-state-metrics scrape response outgrew VictoriaMetrics' default
+# -promscrape.maxScrapeSize (16MiB) and vmagent DISCARDED THE WHOLE RESPONSE,
+# marking the target down with:
+#
+#   the response from "http://<ksm>:8080/metrics" exceeds
+#   -promscrape.maxScrapeSize or max_scrape_size in the scrape
+#
+# Measured 2026-07-27: KSM /metrics = 21.6 MiB. The effect is total, not
+# partial — EVERY kube_* series vanished from VMSingle, and the 25 references
+# to kube_* across apps/grafana-alerting/manifests/alert-rules-cm.yaml were
+# evaluating against no data. Two of those references are
+# kube_cronjob_status_last_successful_time, so the rule that would report a
+# CronJob no longer succeeding was itself among the blinded. Nothing paged:
+# health-bridge deliberately caps synthetic DatasourceError/NoData at
+# `degraded`, so blindness is never mistaken for death.
+#
+# What drives the size is POD series: 108,460 of ~120,000, and 1932 of Frank's
+# 2124 pods are completed/errored Tekton pods. That is the DESIGNED 7-day
+# PipelineRun retention at current CI volume (~260 runs/day since the Gitea
+# Actions migration), not a backlog — the concurrent GC outage accounted for
+# only ~76 extra runs. So this cap and the GC's memory limit are two
+# independent limits crossed by one growth curve, not cause and effect.
+# Shortening the retention TTL would roughly halve this payload and is worth
+# considering separately; raising the cap is what restores alerting now.
+#
+# Note promscrape.streamParse is already on (a chart default, kept explicitly
+# below) — streaming does NOT exempt a response from maxScrapeSize; the cap is
+# enforced regardless. Same silent-drop family as the maxLabelsPerTimeseries
+# note on the kubelet scrape below: a limit is exceeded, data is dropped whole,
+# and the only symptom is an absence.
+#
+# extraArgs is restated in full rather than adding one key, so a values merge
+# can never silently drop the two chart defaults.
+vmagent:
+  spec:
+    extraArgs:
+      promscrape.dropOriginalLabels: "true"
+      promscrape.streamParse: "true"
+      promscrape.maxScrapeSize: "32MB"
+
 # Kubelet scrape (cadvisor + resources + probes + kubelet) — drop high-cardinality
 # node-meta labels. The chart's default relabelConfigs labelmap every
 # `__meta_kubernetes_node_label_*` onto every metric. On Frank's amd64 nodes
