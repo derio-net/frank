@@ -1,15 +1,33 @@
 name: Deploy Blog
 
+# The blog's real gate lives in build-pages (hugo build, check_blog_build.py,
+# validate-mermaid.mjs, the paper/dossier validators). Until #719 this workflow
+# had NO pull_request trigger, so none of it ran until AFTER merge: a PR could go
+# fully green while shipping a blog that does not build, or one whose CSP-dropped
+# assets leave a feature silently dead. #718 came within a diff-read of exactly
+# that. Validation now runs on PRs too; only the two deploying jobs stay
+# push-only, so a PR proves the build without publishing anything.
 on:
   push:
     branches: [main]
     paths:
       - "blog/**"
+  pull_request:
+    paths:
+      - "blog/**"
+      # the checker and validator themselves — a change to a gate must run the gate
+      - "scripts/check_blog_build.py"
+      - "scripts/validate-mermaid.mjs"
+      - ".github/workflows/deploy-blog.yml"
   workflow_dispatch:
 
+# Push runs share one serialized group, as before ("blog-deploy" -> the same
+# single lane, renamed only to key off the event). Each PR gets its OWN group so
+# a validation run can never queue behind or cancel a deploy, and superseded runs
+# on the same PR are cancelled.
 concurrency:
-  group: "blog-deploy"
-  cancel-in-progress: false
+  group: blog-deploy-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # GitHub Pages deployment
@@ -92,6 +110,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build-pages
+    # push-only: a PR validates the build, it never publishes it
+    if: github.event_name != 'pull_request'
     permissions:
       pages: write
       id-token: write
@@ -108,6 +128,10 @@ jobs:
   build-container:
     runs-on: ubuntu-latest
     needs: build-pages
+    # push-only: it pushes an image and commits a manifest tag update, neither of
+    # which a PR validation run should ever do (and a fork PR could not anyway —
+    # `pull_request` grants a read-only token with no secrets).
+    if: github.event_name != 'pull_request'
     permissions:
       contents: write
       packages: write
