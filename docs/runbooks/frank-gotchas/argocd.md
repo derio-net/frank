@@ -204,3 +204,56 @@ Known remaining debt: the Pipeline/Task rules in the same Application still
 use `.spec.tasks[]?` / `.spec.results[]?` expressions — Pipeline/Task UPDATES
 are frozen the same way until they get the explicit-defaults treatment
 (exempted in the tripwire; follow-up tracked in the plan's rework notes).
+
+## `Synced` against a stale revision (2026-07-27)
+
+Twice in one session, minutes after a merge to `main`, an Application reported
+`Synced/Healthy` while the cluster held pre-merge content:
+
+- **`longhorn`** — the merged values added
+  `defaultSettings.storageOverProvisioningPercentage: 150`. The live
+  `longhorn-default-setting` ConfigMap did not contain the key. Its *other*
+  settings from the same file (`storage-minimal-available-percentage: "15"`,
+  `default-replica-count: "3"`) were present, so the mechanism plainly worked —
+  just not for the new commit.
+- **`hermes-agent-shell`** — the merged manifest requested `storage: 40Gi`. The
+  live PVC still requested `20Gi`. Application: `Synced/Healthy`.
+
+Annotating `argocd.argoproj.io/refresh: hard` did **not** fix either. Both
+cleared within seconds of an explicit sync operation:
+
+```console
+$ kubectl -n argocd patch application <app> --type=merge \
+    -p '{"operation":{"sync":{"revision":"HEAD","syncOptions":["ServerSideApply=true","RespectIgnoreDifferences=true"]}}}'
+```
+
+Pass `syncOptions` explicitly — a manually-triggered sync does not inherit
+`spec.syncPolicy.syncOptions` (see the separate gotcha above).
+
+### Rule out your own manifest first
+
+Before concluding ArgoCD is stale, prove the desired state actually contains
+what you think it does. The alternative explanation — a Helm chart silently
+dropping an unrecognised `defaultSettings` key — looks identical from the
+cluster and is far more common:
+
+```console
+$ helm template lh longhorn/longhorn --version 1.11.2 -f apps/longhorn/values.yaml \
+    | grep -A5 'name: longhorn-default-setting'
+```
+
+If the key renders locally and is absent live while the app claims `Synced`,
+it is the sync, not the manifest.
+
+### Why it matters more than it looks
+
+Both Applications here are multi-source: an upstream chart plus a `$values`
+ref pointing at this repo. That shape appears to be the exposed one — the
+values half can be served from cache while the app compares clean against it.
+
+The consequence is that the *default* verification habit is wrong. A green
+Application tile is evidence that ArgoCD believes live matches what it fetched,
+not that live matches `main`. Assert on the artifact instead — the rendered
+ConfigMap key, `status.capacity.storage`, the field you actually changed — and
+prefer an in-pod check (`df`, `curl`, `grep` inside the container) where the
+distinction between "file on disk" and "process using it" also matters.

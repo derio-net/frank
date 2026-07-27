@@ -9,11 +9,25 @@ spec:
   storageClassName: longhorn
   resources:
     requests:
-      # REPURPOSED (2026-07-09 migration): this is the SAME PVC that today holds
-      # /home/agent in the single-container pod. In the two-container model it is
-      # reused (not deleted) as the tool-home volume mounted at /opt/data/home —
-      # .ssh, .gitconfig, .config/gh, and the compat .hermes.md. Its
-      # pre-migration contents are seeded into the new /opt/data layout in
-      # Phase 2 before it is re-pointed. Keeping the name preserves the bound
-      # Longhorn volume (no reprovision). 20Gi unchanged.
-      storage: 20Gi
+      # REPURPOSED (2026-07-09 migration, completed): this is the same PVC that
+      # held /home/agent in the old single-container pod, reused rather than
+      # deleted so the bound Longhorn volume survived the cutover. It is now the
+      # tool-home volume, mounted at /opt/data/home = $HOME for every container.
+      #
+      # It holds far more than dotfiles, and sizing it as if it were dotfiles is
+      # what put it at 94% (frank#715). Measured 2026-07-27 at 19G used:
+      #   .local/opt/hermes-agent  6.0G   the PVC-resident Hermes venv (frank#496)
+      #   .vscode-server           3.3G
+      #   .cache                   1.9G   playwright / uv / huggingface / pip / fr
+      #   .local/{micromamba,share} 2.5G  mise, mamba, uv, claude
+      #   worktrees                1.3G   fr isolation checkouts
+      # Note `repos` is a SEPARATE 20Gi PVC mounted at /opt/data/home/repos, so
+      # `du` here must use -x or it double-counts across the nested mount.
+      #
+      # Growth is dominated by tool installs and caches, not by the fr worktrees
+      # whose failure exposed it — so treat a future fill as a signal to prune
+      # caches, not automatically to double the volume again. Before ANY further
+      # expansion, check Longhorn provisioning headroom on the replica nodes:
+      # the ceiling counts declared size, not bytes written, and a refusal is
+      # silent (see frank-gotchas.md → Storage / Secrets / SSA).
+      storage: 40Gi

@@ -1,100 +1,129 @@
-# hermes-agent-shell — official-Hermes-first migration (willikins#285)
+# hermes-agent-shell
 
-Target state manifests for the two-container model. **Not yet live** — this PR
-is the reviewable Part 1 (manifests + new sidecar image). The live backup +
-cutover is Part 2, gated on operator review. See the design spec in the
-willikins repo (`docs/superpowers/specs/2026-07-09-hermes-official-migration-design.md`).
+Nous Research's official `hermes-agent` image running as a three-container pod
+on gpu-1, with an SSH sidecar for operators and a self-hosted Hindsight memory
+backend.
+
+**Live since the 2026-07-09 cutover** (willikins#285). This file documents the
+deployed state; the narrative of how it was built is in the blog posts
+`blog/content/docs/building/33-hermes-shell/` and
+`blog/content/docs/operating/28-hermes-shell/`.
 
 ## Topology
 
-One pod, two containers, sharing three RWO Longhorn PVCs:
+One pod, three containers sharing a network namespace:
 
 | Container | Image | Job |
 |---|---|---|
-| `hermes` | `docker.io/nousresearch/hermes-agent:v2026.7.7.2` (unmodified) | gateway API (8642) + dashboard (9119) + embedded Hindsight |
-| `ssh` | `ghcr.io/derio-net/hermes-agent-shell-ssh:<sha>` (new agent-images dir) | sshd (2222) + mosh (60032-60047) + `hermes` CLI passthrough |
+| `hermes` | `docker.io/nousresearch/hermes-agent:<calver>` (unmodified upstream) | gateway API (8642) + dashboard (9119) |
+| `ssh` | `ghcr.io/derio-net/hermes-agent-shell-ssh:<sha>` (agent-images) | sshd (2222) + mosh (60032-60047) + `hermes` CLI passthrough |
+| `hindsight` | `ghcr.io/derio-net/hermes-agent-shell-hindsight:<sha>` (agent-images) | Hindsight memory backend: PostgreSQL 18.4 + pgvector + `hindsight-api` on loopback |
 
-| PVC | Mount (both containers) | Contents |
-|---|---|---|
-| `hermes-agent-shell-data` (new) | `/opt/data` | Hermes profile: config, skills, cron, sessions, state DB, memory, SOUL.md, Hindsight client config **and** the embedded Hindsight Postgres data (see below) |
-| `hermes-agent-shell-home` (reused) | `/opt/data/home` | `.ssh`, `.gitconfig`, `.config/gh`, compat `.hermes.md` |
-| `hermes-agent-shell-repos` (new) | `/opt/data/home/repos` | Local working repos |
+Four RWO Longhorn PVCs:
 
-Routing: SSH/Mosh stays on the Cilium L2 LoadBalancer (`service.yaml`,
-`192.168.55.226`). Dashboard + API get a ClusterIP (`service-dashboard.yaml`)
-exposed via Traefik (`apps/traefik/manifests/ingressroutes.yaml`:
-`hermes.cluster.derio.net`, `hermes-api.cluster.derio.net`).
+| PVC | Size | Mounted at | Contents |
+|---|---|---|---|
+| `hermes-agent-shell-data` | 20Gi | `/opt/data` (hermes, ssh) | `HERMES_HOME` — config.yaml, skills, cron, sessions, state DB, memory, SOUL.md |
+| `hermes-agent-shell-home` | 40Gi | `/opt/data/home` (hermes, ssh) | `$HOME` — see the sizing note below |
+| `hermes-agent-shell-repos` | 20Gi | `/opt/data/home/repos` (hermes, ssh) | Local working repos |
+| `hermes-agent-shell-hindsight` | 5Gi | `/opt/hindsight` (hindsight only) | `PGDATA` for the memory backend |
 
-## Phase 0 finding — Hindsight is embedded, NOT an external service
+Note `repos` is mounted **inside** `home`. Any `du` across `$HOME` needs `-x`
+or it double-counts through the nested mount.
 
-The spec's Hindsight section (a separate first-class `hindsight-postgres`
-Deployment/Service the pod connects to over cluster DNS) was **provisional
-pending this live inventory**. The inventory (`kubectl exec` into the running
-pod, 2026-07-09) shows Hindsight is **not** an external service:
+### What is actually on the home volume
 
-- `hermes gateway run` (PID of the gateway) **spawns and supervises** two child
-  processes itself — not s6, not systemd:
-  1. **PostgreSQL 18.4** from a bundled **micromamba env** (`hindsight-pg`),
-     listening on port **5433** + a unix socket under `.local/pgsql`, `pg_hba`
-     = `trust`, role `hindsight`. Data dir `…/.local/pgsql/hindsight-data`.
-  2. **`hindsight-api`** — a Python console script from the `hindsight_api`
-     package in the Hermes venv, listening on `127.0.0.1:8888`. This is the
-     `local_external` "API" Hermes talks to; Hermes does not proxy it.
-- A `hermes_stack_watchdog.py` (tmux) keeps that stack alive.
+`$HOME` is not a dotfile volume — it carries every tool install and cache the
+agent has ever made, and sizing it as if it were dotfiles is what took it to
+94% full (frank#715). Measured 2026-07-27 at 19G used:
 
-Because the official image bundles and self-spawns the whole stack from its data
-dir, **this migration does NOT ship a standalone `hindsight-postgres`
-Deployment/Service/PVC.** Doing so would create dead infrastructure the gateway
-never connects to, unless Hindsight is also reconfigured away from
-`local_external` mode to a remote DSN — a larger change that needs the official
-image's actual on-disk layout confirmed against a real pull (Phase 3) and is out
-of scope for Part 1. The embedded Postgres data therefore lives on the `-data`
-PVC (as it does today on the single combined PVC), and memory continuity is
-preserved by the Phase 1/2 `pg_dump` + restore, not by externalization.
+```
+.local/opt/hermes-agent   6.0G   PVC-resident Hermes venv (frank#496)
+.vscode-server            3.3G
+.cache                    1.9G   playwright, uv, huggingface, pip, fr
+.local/{micromamba,share} 2.5G   mise, mamba, uv, claude
+worktrees                 1.3G   fr isolation checkouts
+```
 
-**Externalization option (deferred, operator decision):** if first-class,
-separately-managed Postgres is still wanted, the path is: stand up a PG18 service
-(with the same extensions — confirm `pgvector` etc. at backup time), set
-`HINDSIGHT_API_MIGRATION_DATABASE_URL` / the hindsight DSN to it, and confirm
-the official image can be told NOT to spawn its embedded PG. Not attempted here.
+Growth is dominated by tool installs and caches, not by the fr worktrees whose
+failure surfaced it. Treat a future fill as a signal to prune caches first.
+Nothing currently alerts on this volume filling.
 
-## Resolved in Part 1b (igor, 2026-07-09 — throwaway pod, now torn down)
+## Routing
 
-1. **Main-container securityContext — RESOLVED (relaxed to root + default caps).**
-   Validated against the real image both locally and in a disposable on-cluster
-   pod (`hermes-uid-test` namespace, deleted after): strict `runAsUser:1000 +
-   cap-drop:ALL` FAILS at s6 preinit (`/run belongs to uid 0 … lacking the
-   privileges to fix it`, exit 100); even `root + cap-drop:ALL` fails at
-   `s6-applyuidgid` (exit 111). The image boots only as **root with the default
-   cap set**. Under PSA `baseline` we can't drop-ALL-then-add-back the s6 caps
-   (baseline permits adding only `NET_BIND_SERVICE`), so the deployment now runs
-   the main container as root; `HERMES_UID/HERMES_GID=1000` remap the image's
-   internal `hermes` user (UID **10000**) to 1000, so the gateway worker actually
-   runs as 1000 and `/opt/data` ends up 1000-owned — "root to init, 1000 to work".
-   The **sidecar keeps the strict 1000 + cap-drop:ALL posture** (different image,
-   custom foreground sshd, no s6) — validated in agent-images CI + locally.
-2. **Entrypoint default is the INTERACTIVE TUI, not the gateway — RESOLVED.**
-   With no args the image's `main-wrapper.sh` execs interactive `hermes`, which
-   exits the moment it finds no TTY → in a pod that is CrashLoopBackOff. The
-   deployment now passes `args: [gateway, run]`, which the image auto-redirects to
-   its supervised s6 `main-hermes` service. Verified it stays up.
-3. **Sidecar image SHA — RESOLVED (pinned).** Pinned to the permanent main-build
-   SHA `ghcr.io/derio-net/hermes-agent-shell-ssh:42ecbdd908a5bf6b712532028b880262559ad8f9`
-   (agent-images#136 merged; the 820c1fb main build published it). The
-   agent-images-bump workflow re-pins it on future bumps (it is in AGENT_IMAGES).
+- **SSH / Mosh** — Cilium L2 LoadBalancer at `192.168.55.226` (`service.yaml`)
+- **Dashboard + gateway API** — ClusterIP (`service-dashboard.yaml`) exposed via
+  Traefik at `hermes.cluster.derio.net` and `hermes-api.cluster.derio.net`
+  (`apps/traefik/manifests/ingressroutes.yaml`)
 
-## Still-open flags for Phase 3 (the live migration dispatch)
+Those routes carry `ip-allowlist` + `security-headers` only. `authentik-forwardauth`
+was removed 2026-07-12: no authentik application was configured for these hosts,
+so the outpost 404'd every request — and the dashboard self-authenticates anyway
+(see below). SSO via authentik remains a possible follow-up.
 
-1. **Dashboard (9119) will not bind for Traefik without an auth provider.** The
-   v0.18.2 image HARD-REFUSES a non-loopback dashboard bind unless
-   `dashboard.basic_auth` is configured (or OAuth via `hermes dashboard
-   register`): *"There is no unauthenticated public-bind option."* So decision 3's
-   Traefik IngressRoute + `authentik-forwardauth` plan is necessary but NOT
-   sufficient — Phase 3 must also configure a dashboard auth provider in the
-   migrated `/opt/data`, or the dashboard never binds. In a fresh, unseeded,
-   credential-less boot neither **8642 nor 9119** bound at all, so the
-   readiness/liveness probes on `8642` are UNVERIFIED against migrated state and
-   must be reconfirmed (or retargeted) in Phase 3 before cutover.
-2. **Auto-continue patch (frank#496) is not in the official image.** Confirm
-   upstream fixed it between 0.15.2 and this image's Hermes 0.18.2, else apply the
-   patch-at-pod-start mitigation (spec Open Risks).
+## Bootstrap secrets (out-of-band, not ArgoCD-managed)
+
+SOPS-encrypted, applied from `secrets/hermes-agent-shell/` before the pod can
+start. Neither is optional — the container genuinely refuses to bind without them:
+
+- `hermes-agent-shell-dashboard-auth` — `HERMES_DASHBOARD_BASIC_AUTH_{USERNAME,PASSWORD,SECRET}`
+- `hermes-agent-shell-api-key` — `API_SERVER_KEY`
+
+`hermes-agent-shell-ssh-keys` follows the same pattern for operator SSH keys.
+
+## Design findings worth keeping
+
+**The dashboard hard-refuses an unauthenticated public bind.** The image will
+not bind 9119 to a non-loopback interface without an auth provider — *"there is
+no unauthenticated public-bind option"* — and that refusal loops and blocks the
+gateway API (8642) from binding at all, CrashLooping the whole container. An
+IngressRoute alone was never sufficient; the basic-auth env is what makes it work.
+
+**The gateway API port is env-driven, not config-driven.** There is no
+`api_server:` section in `config.yaml`. `API_SERVER_ENABLED` / `API_SERVER_HOST`
+/ `API_SERVER_KEY` are the only mechanism that binds 8642. Without them the pod
+comes up, the dashboard serves, and the pod sits at 2/3 forever with a
+tcpSocket probe that never passes.
+
+**Hindsight's backend is ours; its client is upstream's.** The official image
+ships the Hindsight *client* and, left alone, self-spawns a Postgres + API stack
+from its data dir under a tmux watchdog — an arrangement that survives until it
+does not, and takes the memory with it. The `hindsight` sidecar replaces that
+with a real container Kubernetes supervises, reached in `local_external` mode at
+`127.0.0.1:8888`. Only data lives on the PVC (`PGDATA=/opt/hindsight/pgdata`),
+which also put memory on its own volume inside Longhorn's recurring-backup group.
+
+**Probes must be `exec`, not `httpGet`.** `hindsight-api` binds `127.0.0.1`
+only; the kubelet runs `httpGet` against the pod IP and gets connection-refused
+forever (37 restarts before this was found). An exec probe curls loopback from
+inside the container, which is where the API actually listens.
+
+**The main container runs as root; the sidecars do not.** The upstream image
+boots only as root with the default capability set — strict `runAsUser: 1000` +
+`cap-drop: ALL` fails at s6 preinit, and even root + `cap-drop: ALL` fails at
+`s6-applyuidgid`. `HERMES_UID`/`HERMES_GID=1000` remap the image's internal user
+so the gateway worker still runs as 1000 and `/opt/data` ends up 1000-owned —
+"root to init, 1000 to work". The `ssh` sidecar keeps the strict posture.
+
+## Operational notes
+
+- `config.yaml` is **PVC state**, seeded by hand. `HERMES_HOME=/opt/data`, so the
+  live file is `/opt/data/config.yaml` — *not* `~/.hermes/config.yaml`, which
+  still exists as a stale pre-migration copy and is not what Hermes reads.
+  Manual ops: `orch-hermes-config-provider`, `orch-hermes-context-budgets`,
+  `orch-hermes-default-qwen64k`, `orch-hermes-qwen64k-budgets`.
+- The Hermes venv is PVC-resident and re-seeds only when its `.seed-version`
+  marker changes (frank#496) — so an image bump is **not** evidence the running
+  Hermes moved. Check `hermes --version` inside the pod.
+- The pod has three containers, so `kubectl exec` needs an explicit `-c`.
+
+## History
+
+The 2026-07-09 cutover ran alongside a temporary `hermes-agent-shell-migrate`
+stack (its own Deployment, Service, Secrets and five PVCs) used to validate the
+new topology against the old one. It was hand-created, never committed to git,
+and therefore invisible to ArgoCD's `prune: false` reconciliation — it sat at
+`replicas: 0` holding 75Gi of Longhorn reservations until it was purged
+2026-07-27. Findings originally attributed to "the migrate deployment" in
+`deployment.yaml` comments are preserved there as history, not as pointers to
+anything still on the cluster.
