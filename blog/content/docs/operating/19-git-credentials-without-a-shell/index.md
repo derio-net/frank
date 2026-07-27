@@ -50,7 +50,7 @@ flowchart TB
 
 ## Where the token actually lives
 
-Kubernetes injects env vars into the container's PID 1 at startup. `GITHUB_TOKEN` is there via `envFrom`. Everything PID 1 spawns directly (sshd, supercronic) inherits it. But **SSH sessions do not inherit PID 1's env** — OpenSSH builds a fresh environment from `/etc/environment`, PAM, and login shell init files.
+Kubernetes injects env vars into the container's PID 1 at startup. `GITHUB_TOKEN` is there via `envFrom`. Everything PID 1 spawns directly (sshd, supercronic) inherits it. But **SSH sessions do not inherit PID 1's env** — OpenSSH builds a fresh environment from `/etc/environment`, {{< abbr "PAM" >}}, and login shell init files.
 
 The usual workaround — sourcing `/proc/1/environ` in `.bashrc` — only works for interactive shells. VS Code's git plugin doesn't source `.bashrc`. Neither does cron, neither does any subprocess whose parent didn't set up the env explicitly.
 
@@ -84,7 +84,7 @@ Strictly more secure than the env-var approach:
 2. **Nothing touches disk.** The token is only materialised for the duration of one `tr` + `sed` pipeline per git call.
 3. **Smaller leakage surface.** The env-var approach puts `GITHUB_TOKEN` into every interactive shell's env, where it can leak via `env`, `ps e`, or shell history.
 
-Token rotation works the same: ESO updates the K8s Secret, you restart the pod, PID 1 gets the new value.
+Token rotation works the same: {{< abbr "ESO" >}} updates the K8s Secret, you restart the pod, PID 1 gets the new value.
 
 ## Recover
 

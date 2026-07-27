@@ -214,7 +214,7 @@ Your LED colors are now protected by GitOps from a threat that does not exist.
 
 ## What We Have Now
 
-To control six case fans we: ruled out I2C, ran a discovery pod, wrote a DaemonSet and ConfigMap, registered an ArgoCD Application, set up a namespace with PSA labels, built a custom container image with a GitHub Actions pipeline, ran 245 HID feature report writes with correct ioctls and verified register state, and reverse-engineered enough of the IT5701 protocol to know exactly why it does not work.
+To control six case fans we: ruled out I2C, ran a discovery pod, wrote a DaemonSet and ConfigMap, registered an ArgoCD Application, set up a namespace with {{< abbr "PSA" >}} labels, built a custom container image with a GitHub Actions pipeline, ran 245 HID feature report writes with correct ioctls and verified register state, and reverse-engineered enough of the IT5701 protocol to know exactly why it does not work.
 
 The fans are rainbow. They were rainbow when we started. They are rainbow now.
 

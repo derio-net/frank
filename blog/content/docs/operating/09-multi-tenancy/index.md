@@ -109,7 +109,7 @@ cp -r apps/vclusters/template/ apps/vclusters/<new-name>/
 ```
 
 2. Customize `apps/vclusters/<new-name>/values.yaml` — set the name, resource quotas, and any specific configuration.
-3. Add the ArgoCD Application CR in `apps/root/templates/vcluster-<new-name>.yaml` following the existing pattern.
+3. Add the ArgoCD Application {{< abbr "CR" >}} in `apps/root/templates/vcluster-<new-name>.yaml` following the existing pattern.
 4. Commit and push — ArgoCD picks it up automatically.
 
 ### Delete a Virtual Cluster
@@ -156,7 +156,7 @@ kubectl get pvc -n <vcluster-namespace>
 kubectl logs -n <vcluster-namespace> <vcluster-pod> -c vcluster --tail=100
 ```
 
-Common causes: PVC stuck pending (storage class issue), resource limits too low for the API server, or the host node where the StatefulSet is scheduled is under pressure.
+Common causes: {{< abbr "PVC" >}} stuck pending (storage class issue), resource limits too low for the API server, or the host node where the StatefulSet is scheduled is under pressure.
 
 ### Resources Not Syncing
 

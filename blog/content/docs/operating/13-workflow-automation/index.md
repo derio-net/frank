@@ -109,7 +109,7 @@ done
 
 1. Copy `apps/n8n/` to `apps/n8n-02/`.
 2. Update values (namespace, PG credentials, external URL).
-3. Add the ArgoCD Application CR in `apps/root/templates/n8n-02.yaml`.
+3. Add the ArgoCD Application {{< abbr "CR" >}} in `apps/root/templates/n8n-02.yaml`.
 4. Commit — ArgoCD picks it up.
 
 ### Upgrade n8n Version
@@ -133,7 +133,7 @@ kubectl -n n8n-01 logs deploy/n8n --tail=50 | grep -i error
 Common causes:
 - **Database connection refused** — PostgreSQL isn't running yet. The n8n pod will crash-loop until the database is ready. Check `kubectl -n n8n-01 get pods n8n-postgresql-0`.
 - **Migration failure** — Schema migration failed on upgrade. Check the full migration log: `kubectl -n n8n-01 logs deploy/n8n --tail=100 | grep -A 20 migration`.
-- **PVC not mounting** — Check events: `kubectl -n n8n-01 describe pod -l app.kubernetes.io/name=n8n`.
+- **{{< abbr "PVC" >}} not mounting** — Check events: `kubectl -n n8n-01 describe pod -l app.kubernetes.io/name=n8n`.
 
 ### PostgreSQL Won't Start
 

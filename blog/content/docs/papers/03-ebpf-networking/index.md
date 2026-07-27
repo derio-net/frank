@@ -32,13 +32,13 @@ related_operating: "docs/operating/01-cluster-nodes"
 ## TL;DR
 
 Six options dominate Kubernetes networking in 2026 — Cilium, Calico,
-kube-proxy + iptables, Istio, Linkerd2, and the cloud-managed VPC CNI —
+kube-proxy + iptables, Istio, Linkerd2, and the cloud-managed {{< abbr "VPC" >}} {{< abbr "CNI" >}} —
 and they split on two axes: kernel/eBPF vs userspace sidecars, and
 structured flow observability vs reactive `kubectl describe`.
 
 Frank runs Cilium. eBPF kube-proxy replacement on Talos, L2 LBIPAM,
 Hubble for flow observability, no service mesh. The scars came in the
-seams: an FQDN policy whose BPF rules persisted in the kernel for hours
+seams: an {{< abbr "FQDN" >}} policy whose {{< abbr "BPF" >}} rules persisted in the kernel for hours
 after deletion, an `lbipam.cilium.io/ips` annotation that left a Service
 `<pending>` for 41 days without `sharing-key`, half an hour spent
 hunting a feature gate Cilium 1.17 had already shipped on.
@@ -141,13 +141,13 @@ either bypass L7 policy or fall back to a sidecar mesh.
 
 **Calico** is the other eBPF-capable option. It started as the original
 NetworkPolicy implementation and has accumulated data planes: iptables,
-eBPF, and (more recently) VPP. BGP peering for bare-metal pod-IP
-routability is its differentiator; it can advertise pod CIDRs directly to
+eBPF, and (more recently) VPP. {{< abbr "BGP" >}} peering for bare-metal pod-IP
+routability is its differentiator; it can advertise pod {{< abbr "CIDR" "CIDRs" >}} directly to
 upstream routers in a way Cilium can but does not lead with. The trade is
 that Calico's observability surface is thinner than Cilium's — there's
-flow logging, but no Hubble equivalent in the OSS distribution.
+flow logging, but no Hubble equivalent in the {{< abbr "OSS" >}} distribution.
 
-**kube-proxy + iptables / IPVS** is the upstream default and the
+**kube-proxy + iptables / {{< abbr "IPVS" >}}** is the upstream default and the
 null-hypothesis baseline for everything else on this list. It pairs with
 any CNI plugin to provide the Service abstraction by writing iptables (or
 IPVS) rules from `Service`/`Endpoints` objects. The cost shows up at scale
@@ -162,7 +162,7 @@ the matrix is solving a problem you do not have yet.
 full L7 inspection, mTLS by default, retries and traffic management and
 fault injection as first-class features. The benefits are real; the cost
 is exactly proportional — the sidecar runs on every pod, the control
-plane runs, the per-request P50/P99 latency budget is everyone's
+plane runs, the per-request {{< abbr "P50" >}}/{{< abbr "P99" >}} latency budget is everyone's
 forever. Istio's place in the landscape is "the abstraction that catches
 everything Cilium gives up to stay in the kernel".
 
@@ -214,7 +214,7 @@ flowchart TD
 
 The cilium-agent on each node watches Kubernetes API objects
 (`CiliumNetworkPolicy`, `Service`, `Endpoints`) and compiles them into
-eBPF programs that attach to kernel hook points — XDP for the earliest
+eBPF programs that attach to kernel hook points — {{< abbr "XDP" >}} for the earliest
 fastest-path drop decisions, tc (traffic-control) for per-packet
 forwarding, socket hooks for connection-level policy. Per-endpoint and
 per-policy state lives in BPF maps; lookups are O(1). Hubble subscribes
@@ -294,9 +294,9 @@ configuration from Kubernetes objects and pushes xDS updates to every
 sidecar.
 
 The failure mode is that *every* request pays the sidecar tax — two
-extra TCP handshakes, two extra TLS handshakes (in the worst case),
-two extra hops through userspace Envoy. At 10 RPS this is invisible;
-at 10k RPS it's a real fraction of the SLO budget. The §4 numbers
+extra TCP handshakes, two extra {{< abbr "TLS" >}} handshakes (in the worst case),
+two extra hops through userspace Envoy. At 10 {{< abbr "RPS" >}} this is invisible;
+at 10k RPS it's a real fraction of the {{< abbr "SLO" >}} budget. The §4 numbers
 quantify it.
 
 ### Linkerd2
@@ -323,7 +323,7 @@ Same shape as Istio with two substantial differences: the proxy is
 written in Rust (not C++ Envoy) and the feature surface is smaller.
 mTLS is on by default; L7 routing via HTTPRoute is supported; many of
 Istio's more exotic features (fault injection, complex retry budgets,
-JWT validation) are not. The Rust micro-proxy is measurably faster
+{{< abbr "JWT" >}} validation) are not. The Rust micro-proxy is measurably faster
 than Envoy on the per-request fast path, with a smaller memory
 footprint per sidecar.
 
@@ -351,11 +351,11 @@ flowchart TD
     VPC --> P2
 ```
 
-The aws-node DaemonSet runs on each EKS worker. IPAMD allocates ENIs
+The aws-node DaemonSet runs on each {{< abbr "EKS" >}} worker. IPAMD allocates ENIs
 (elastic network interfaces) and secondary IP addresses from the VPC
 CIDR; each pod gets a real VPC IP, fully routable across the VPC,
 across peered VPCs, across Direct Connect. There is no overlay, no
-VXLAN, no encapsulation — the VPC fabric *is* the pod network.
+{{< abbr "VXLAN" >}}, no encapsulation — the VPC fabric *is* the pod network.
 
 The failure mode is ENI exhaustion: each EC2 instance type has a fixed
 limit on the number of ENIs and secondary IPs, so pod density per node
@@ -408,7 +408,7 @@ already runs Cilium; Jaeger / Tempo is a separate operational concern.
 
 I run Cilium. eBPF kube-proxy replacement on Talos, L2 LBIPAM
 announcing on `eth*`/`en*` interfaces, Hubble UI on `192.168.55.202`,
-IPAM in kubernetes mode. No service mesh. The whole configuration is
+{{< abbr "IPAM" >}} in kubernetes mode. No service mesh. The whole configuration is
 forty-seven lines of Helm values; the cluster has been running this
 shape since the day it was bootstrapped.
 
@@ -539,7 +539,7 @@ of this with its own Service Mesh features; Istio still does it more.
 The fourth branch is AWS-native. VPC CNI is correct; Cilium would
 be overkill and would fight the VPC fabric. If you need NetworkPolicy
 on AWS, chain Cilium *as a policy engine only* on top of VPC CNI —
-that's what GKE Dataplane V2 does by default, and what AWS supports
+that's what {{< abbr "GKE" >}} Dataplane V2 does by default, and what AWS supports
 explicitly via the security-groups-for-pods feature.
 
 This is the section where the paper has to be honest about its

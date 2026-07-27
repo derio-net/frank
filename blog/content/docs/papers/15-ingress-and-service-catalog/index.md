@@ -32,9 +32,9 @@ related_operating: "docs/operating/17-ingress"
 
 ## TL;DR
 
-Ingress in 2026 is three jobs stacked — hostname routing and TLS, auth
+Ingress in 2026 is three jobs stacked — hostname routing and {{< abbr "TLS" >}}, auth
 enforcement, and a catalogue humans can read — and six contenders
-(Traefik, Nginx, Contour/Gateway-API, per-app OIDC, service-mesh mTLS,
+(Traefik, Nginx, Contour/Gateway-API, per-app {{< abbr "OIDC" >}}, service-mesh mTLS,
 Cloudflare Access) each treat one or two as primary.
 
 Frank runs Traefik in-cluster + Authentik embedded outpost forward-auth +
@@ -45,7 +45,7 @@ but can't assign them to the embedded outpost, the `AUTHENTIK_HOST` env
 that defaults the redirect to `0.0.0.0:9000`.
 
 Frank's answer is not universal. Single-team behind Cloudflare Access:
-L1. ≥1000 QPS east-west: mesh mTLS. All-OIDC-native apps: per-app SDK.
+L1. ≥1000 {{< abbr "QPS" >}} east-west: mesh mTLS. All-OIDC-native apps: per-app SDK.
 Mixed apps at homelab QPS: in-cluster forward-auth. See §6.
 
 ## §1 — The capability
@@ -53,7 +53,7 @@ Mixed apps at homelab QPS: in-cluster forward-auth. See §6.
 Services are running inside the cluster. Traefik picks up an IngressRoute,
 the pods are healthy, the LoadBalancer has an IP. None of that answers the
 actual question a human at a laptop is asking: *can I open `grafana.cluster.derio.net`,
-sign in with my SSO, and look at a dashboard — without the operator wiring
+sign in with my {{< abbr "SSO" >}}, and look at a dashboard — without the operator wiring
 OIDC into every workload by hand?*
 
 That is the capability under examination, and "ingress" is doing three
@@ -113,9 +113,9 @@ or bolted on as a separate layer.
 
 {{< papers/capability-matrix data="vendors" >}}
 
-**Traefik + Authentik forward-auth.** K8s-native CRDs (`IngressRoute`,
+**Traefik + Authentik forward-auth.** K8s-native {{< abbr "CRD" "CRDs" >}} (`IngressRoute`,
 `Middleware`, `TraefikService`) and a `forwardAuth` middleware that turns
-SSO into a one-line chain on every route that wants it. Built-in ACME
+SSO into a one-line chain on every route that wants it. Built-in {{< abbr "ACME" >}}
 solves Let's Encrypt over Cloudflare DNS-01. The cost is the second
 component: every SSO-gated request takes a round-trip to the Authentik
 embedded outpost before reaching the upstream.
@@ -218,7 +218,7 @@ to the Authentik login flow if missing/expired), returns 200 with a
 batch of `X-authentik-*` headers, and Traefik forwards the original
 request plus those headers to Grafana. Failure mode: if the outpost
 returns 500, every SSO-gated service in the cluster goes dark
-simultaneously — which is exactly the blast radius the Cilium LB
+simultaneously — which is exactly the blast radius the Cilium {{< abbr "LB" >}}
 sharing-key gotcha (§5) used to surface, because the outpost Service
 was sharing an IP with another component that took it pending.
 
@@ -252,7 +252,7 @@ ingress — but the configuration surface is annotations on the standard
 profile is the same: oauth2-proxy down means every annotated Ingress goes
 401. The operator cost is the duplication: every `Ingress` needs the same
 two annotations, and there is no equivalent of "define one
-Middleware CR, reference it from twenty IngressRoutes".
+Middleware {{< abbr "CR" >}}, reference it from twenty IngressRoutes".
 
 ### Envoy / Contour (Gateway API) with ext_authz
 
@@ -475,7 +475,7 @@ blueprint applied cleanly. The provider appeared in the Authentik UI.
 Then nothing — forward-auth for the new route returned 404 from the
 embedded outpost. Authentik blueprints declaratively create proxy
 providers and applications, but adding a provider to the embedded
-outpost is NOT in the blueprint API. The required step is a Django-ORM
+outpost is NOT in the blueprint API. The required step is a Django-{{< abbr "ORM" >}}
 command: `outpost.providers.add(provider)`, run via `kubectl exec`
 against the authentik-server pod, after every fresh deploy (or whenever
 a new forward-auth service is added). It is the only out-of-band step
@@ -494,7 +494,7 @@ set `AUTHENTIK_HOST` env var on both server and worker pods to the
 external URL. Then, upgrading to Authentik 2026.x, every blueprint
 failed validation silently because the API now requires
 `invalidation_flow`, `redirect_uris` as a list of objects (not strings),
-and a `signing_key` UUID — none documented in upgrade notes. Two scars,
+and a `signing_key` {{< abbr "UUID" >}} — none documented in upgrade notes. Two scars,
 one lesson: the outpost's view of "what URL am I" and the API's view
 of "what shape is a proxy provider" both drift, silently, between
 versions.

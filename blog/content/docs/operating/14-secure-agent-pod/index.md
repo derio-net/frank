@@ -15,7 +15,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
 
 {{< last-updated >}}
 
-This is the operational companion to [Secure Agent Pod]({{< relref "/docs/building/21-secure-agent-pod" >}}). That post explains the architecture and security model. This one is what you type when you can't SSH in, a cron job went quiet, VibeKanban is unreachable, or the pod OOM-killed the sidecar mid-session.
+This is the operational companion to [Secure Agent Pod]({{< relref "/docs/building/21-secure-agent-pod" >}}). That post explains the architecture and security model. This one is what you type when you can't SSH in, a cron job went quiet, VibeKanban is unreachable, or the pod {{< abbr "OOM" >}}-killed the sidecar mid-session.
 
 Before any commands below, source the environment:
 
@@ -56,7 +56,7 @@ A healthy secure-agent-pod has:
 - SSH accessible at `192.168.55.215:22`
 - mosh accessible on UDP `192.168.55.219:60000-60015`
 - VibeKanban UI at `192.168.55.218:8081`
-- All running as UID 1000 (`claude`), no root
+- All running as {{< abbr "UID" >}} 1000 (`claude`), no root
 
 ## Verify
 
@@ -130,7 +130,7 @@ curl -s -o /dev/null -w "%{http_code}" http://192.168.55.218:8081
 
 ### GitHub Token Health
 
-The agent authenticates to GitHub with a rotating App installation token, not a PAT:
+The agent authenticates to GitHub with a rotating App installation token, not a {{< abbr "PAT" >}}:
 
 ```bash
 # Is ESO minting? (want READY=True)
@@ -200,7 +200,7 @@ The SSH and UDP services are on separate IPs by design (two distinct Cilium L2 L
 
 ### Managing Secrets
 
-**Tier 1 (Infisical / ESO):** Add the secret to Infisical, create/update the ExternalSecret manifest, commit — ArgoCD syncs. Restart the pod to pick up new env vars.
+**Tier 1 (Infisical / {{< abbr "ESO" >}}):** Add the secret to Infisical, create/update the ExternalSecret manifest, commit — ArgoCD syncs. Restart the pod to pick up new env vars.
 
 **Tier 2 (manual):**
 ```bash
@@ -293,7 +293,7 @@ The fix is restoring the pre-soak limit in `apps/secure-agent-pod/manifests/depl
 
 ### Host Key Changed Warning
 
-If SSH reports "WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED", the PVC was recreated:
+If SSH reports "WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED", the {{< abbr "PVC" >}} was recreated:
 
 ```bash
 ssh-keygen -R 192.168.55.215
@@ -306,7 +306,7 @@ ssh claude@192.168.55.215
 |---|---|---|
 | The vk-local sidecar would fit in 4Gi even under real workload | The 4Gi limit was sized on quiet soak metrics (p99 RSS 2.95GiB, queue depth max 3). Real workload had 8 active workspaces hitting executor cap=4, consuming the headroom. | OOMKill mid-session (commit `b6965077`). Restored to 8Gi. |
 | `secretRef.namespace` in an ESO `GithubAccessToken` generator controls where the key Secret lives | ESO v2.1.0 resolves the generator's secret reference in the consuming ExternalSecret's namespace, ignoring the `namespace` field entirely. | The generator silently failed for `secure-agent-pod` until we moved the private key Secret to that namespace (commit `eb5fa217`). |
-| A single `bash -c '... & ... & wait -n'` entrypoint is sufficient for process supervision | A SIGHUP to the in-pod Claude session manager propagated to the whole pgroup, killed supercronic, and through `wait -n` exited the container — taking SSH, mosh, and tmux with it. | Migrated to s6-overlay for signal-isolated per-service supervision (the 23:27 SIGHUP incident on 2026-04-26). |
+| A single `bash -c '... & ... & wait -n'` entrypoint is sufficient for process supervision | A {{< abbr "SIGHUP" >}} to the in-pod Claude session manager propagated to the whole pgroup, killed supercronic, and through `wait -n` exited the container — taking SSH, mosh, and tmux with it. | Migrated to s6-overlay for signal-isolated per-service supervision (the 23:27 SIGHUP incident on 2026-04-26). |
 
 ## Quick Reference
 

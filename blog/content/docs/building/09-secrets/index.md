@@ -12,9 +12,9 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-Layer 8 established that SOPS-encrypted secrets cannot live in ArgoCD-managed manifest paths. The fix — apply them out-of-band with `sops --decrypt | kubectl apply` — works for bootstrap secrets that exist before anything else runs. It does not work for runtime secrets that applications consume daily.
+Layer 8 established that {{< abbr "SOPS" >}}-encrypted secrets cannot live in ArgoCD-managed manifest paths. The fix — apply them out-of-band with `sops --decrypt | kubectl apply` — works for bootstrap secrets that exist before anything else runs. It does not work for runtime secrets that applications consume daily.
 
-Layer 9 replaces the runtime half. The goal: secrets live in a versioned, audited store; applications consume them as standard Kubernetes Secrets; no engineer ever touches a plaintext credential. The tooling is Infisical for the store and External Secrets Operator (ESO) to materialize secrets into the cluster.
+Layer 9 replaces the runtime half. The goal: secrets live in a versioned, audited store; applications consume them as standard Kubernetes Secrets; no engineer ever touches a plaintext credential. The tooling is Infisical for the store and External Secrets Operator ({{< abbr "ESO" >}}) to materialize secrets into the cluster.
 
 But deploying Infisical's standalone chart surfaced three bugs in quick succession — duplicate environment variables, hardcoded Redis password paths, and Bitnami image registry issues — that forced splitting one ArgoCD application into three.
 
@@ -75,7 +75,7 @@ The chart has two independent conditions that inject `DB_CONNECTION_URI`:
 
 There is no `else` branch. Enable the external secret path while disabling bundled PostgreSQL, both conditions fire, and the env var appears twice. Kubernetes accepts duplicate env vars without error — but the second value silently wins.
 
-The fix: split PostgreSQL into a separate ArgoCD app (`infisical-postgresql`) using the OCI Bitnami chart. With `postgresql.enabled: false` in the main `infisical` app, only the external secret path fires.
+The fix: split PostgreSQL into a separate ArgoCD app (`infisical-postgresql`) using the {{< abbr "OCI" >}} Bitnami chart. With `postgresql.enabled: false` in the main `infisical` app, only the external secret path fires.
 
 ### Bug 2: Redis Password Hardcoded
 

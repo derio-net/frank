@@ -170,7 +170,7 @@ kubectl rollout restart deployment -n monitoring victoria-metrics-operator
 
 ### Dashboard Shows No Data
 
-- Verify datasource UID is `P4169E866C3094E38`
+- Verify datasource {{< abbr "UID" >}} is `P4169E866C3094E38`
 - Table panels require `"format": "table"` on targets
 - `ALERTS{}` metric doesn't exist for Grafana-managed alerts — use `alertlist` panel type
 
@@ -179,7 +179,7 @@ kubectl rollout restart deployment -n monitoring victoria-metrics-operator
 | What we assumed | Why it was wrong | What it cost |
 |---|---|---|
 | Telegram contact point annotations are opaque strings — any format works | Telegram's HTML parser rejects `<node-ip>` as an invalid HTML tag. `parse_mode: Markdown` silently strips underscores in label values like `session_manager`. Both return HTTP 400/200 with no Grafana error. | Silent delivery failures on active alerts. An alert shows Firing in Grafana, the message appears sent, but no operator ever sees it. |
-| A NIC is either up or down — binary link-state monitoring is sufficient | Flapping NICs that go up-down-up within 5m are invisible to binary-down-state rules with `for: 5m`. gpu-1's enp3s0 flapped 76 times over ~8h — 0 alerts fired (commit `9ee2cde1`). | An 8-hour networking blind spot on the GPU node during active inference workloads. |
+| A {{< abbr "NIC" >}} is either up or down — binary link-state monitoring is sufficient | Flapping NICs that go up-down-up within 5m are invisible to binary-down-state rules with `for: 5m`. gpu-1's enp3s0 flapped 76 times over ~8h — 0 alerts fired (commit `9ee2cde1`). | An 8-hour networking blind spot on the GPU node during active inference workloads. |
 | The Grafana alerting ConfigMap alone controls what fires — provisioning files are watched at boot | Grafana reads provisioning files at startup. After editing the ConfigMap, the new rules don't take effect until Grafana restarts. | Multiple incidents where a rule change was committed and synced but alerts continued from the old rules. |
 
 ## Quick Reference
@@ -188,7 +188,7 @@ kubectl rollout restart deployment -n monitoring victoria-metrics-operator
 |-----------|-----------|------|---------|
 | Blackbox Exporter | monitoring | 9115 | HTTP endpoint probing |
 | Pushgateway | monitoring | 9091 | Heartbeat metric ingestion |
-| Grafana | monitoring | 3000 (LB: 192.168.55.203) | Dashboards + alerting |
+| Grafana | monitoring | 3000 ({{< abbr "LB" >}}: 192.168.55.203) | Dashboards + alerting |
 | Feature Health Dashboard | — | — | `/d/fh-overview/feature-health` |
 
 ## References

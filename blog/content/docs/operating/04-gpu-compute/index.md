@@ -15,7 +15,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/a8bed9a1d358b7ad8
 
 {{< last-updated >}}
 
-The cluster has two GPU paths: an NVIDIA RTX 5070 Ti on `gpu-1` managed by the GPU Operator, and Intel Arc iGPUs on the three mini nodes exposed through DRA (Dynamic Resource Allocation). Both have Talos-specific quirks, and both need different tools to inspect and troubleshoot.
+The cluster has two GPU paths: an NVIDIA RTX 5070 Ti on `gpu-1` managed by the GPU Operator, and Intel Arc iGPUs on the three mini nodes exposed through {{< abbr "DRA" >}} (Dynamic Resource Allocation). Both have Talos-specific quirks, and both need different tools to inspect and troubleshoot.
 
 This post covers day-to-day commands for checking GPU state, managing workloads, and debugging the issues you will eventually hit. For the build story, see [GPU Compute — NVIDIA and Intel]({{< relref "/docs/building/04-gpu-compute" >}}) and [GPU Containers on Talos — The Validation Fix]({{< relref "/docs/building/12-gpu-talos-fix" >}}).
 
@@ -74,7 +74,7 @@ The GPU Operator runs several pods on `gpu-1`. Check they are all healthy:
 kubectl get pods -n gpu-operator -o wide
 ```
 
-You should see pods for the device plugin, feature discovery, DCGM exporter, and validation markers DaemonSet — all `Running` and `1/1`.
+You should see pods for the device plugin, feature discovery, {{< abbr "DCGM" >}} exporter, and validation markers DaemonSet — all `Running` and `1/1`.
 
 To run `nvidia-smi`, exec into the DCGM exporter pod:
 
@@ -171,7 +171,7 @@ kubectl exec -n ollama $(kubectl get pod -n ollama \
   -o jsonpath='{.items[0].metadata.name}') -- ollama pull deepseek-coder:6.7b
 ```
 
-Models persist on the Longhorn PVC — one-time operation unless the PVC is lost.
+Models persist on the Longhorn {{< abbr "PVC" >}} — one-time operation unless the PVC is lost.
 
 ### Manage GPU Memory
 
@@ -185,7 +185,7 @@ kubectl delete pod -n ollama $(kubectl get pod -n ollama \
   -o jsonpath='{.items[0].metadata.name}')
 ```
 
-Models on the PVC remain available and load back into VRAM on the next request.
+Models on the PVC remain available and load back into {{< abbr "VRAM" >}} on the next request.
 
 ## Runbook
 

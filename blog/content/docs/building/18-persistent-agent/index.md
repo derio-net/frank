@@ -37,7 +37,7 @@ flowchart LR
 
 ## Why a Container Instead of a VM
 
-A Deployment with a PVC is simpler than a full VM:
+A Deployment with a {{< abbr "PVC" >}} is simpler than a full VM:
 
 - **Survives restarts** — 50Gi PVC at `/root` preserves home directory, tools, SSH host keys, and Claude Code config across pod restarts.
 - **Self-heals** — pod crashes → Kubernetes restarts it. gpu-1 reboots → pod comes back automatically.
@@ -100,7 +100,7 @@ Two worth noting:
 
 ## SSH Key as a Public Resource
 
-The `authorized_keys` file contains a public key — it is not sensitive. Instead of SOPS encryption, the key lives directly in `apps/kali/manifests/secret.yaml` and is managed by ArgoCD like any other resource.
+The `authorized_keys` file contains a public key — it is not sensitive. Instead of {{< abbr "SOPS" >}} encryption, the key lives directly in `apps/kali/manifests/secret.yaml` and is managed by ArgoCD like any other resource.
 
 ## The Always-On Agent
 

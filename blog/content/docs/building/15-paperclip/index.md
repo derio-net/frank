@@ -12,7 +12,7 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-Layer 11 gave the cluster a Kubernetes-native agentic control plane — Sympozium, where agents are Pods and policies are CRDs. Layer 15 adds a second perspective. [Paperclip](https://github.com/paperclipai/paperclip) organises agents differently — into virtual companies with org charts, budgets, reporting lines, and governance. Where Sympozium asks "which Kubernetes primitive models this agent?", Paperclip asks "what role would this agent have in a company?".
+Layer 11 gave the cluster a Kubernetes-native agentic control plane — Sympozium, where agents are Pods and policies are {{< abbr "CRD" "CRDs" >}}. Layer 15 adds a second perspective. [Paperclip](https://github.com/paperclipai/paperclip) organises agents differently — into virtual companies with org charts, budgets, reporting lines, and governance. Where Sympozium asks "which Kubernetes primitive models this agent?", Paperclip asks "what role would this agent have in a company?".
 
 Both run side by side. The cluster makes the comparison.
 
@@ -63,8 +63,8 @@ flowchart LR
 
 | App | Chart | Purpose |
 |-----|-------|---------|
-| `paperclip-db` | OCI Bitnami postgresql 14.1.10 | PostgreSQL, image from `mirror.gcr.io/bitnamilegacy` |
-| `paperclip` | Raw manifests | Deployment, ExternalSecrets, PVC, Service |
+| `paperclip-db` | {{< abbr "OCI" >}} Bitnami postgresql 14.1.10 | PostgreSQL, image from `mirror.gcr.io/bitnamilegacy` |
+| `paperclip` | Raw manifests | Deployment, ExternalSecrets, {{< abbr "PVC" >}}, Service |
 
 ## Deploying the Database
 
@@ -226,11 +226,11 @@ Layer 1 is the image — `ghcr.io/derio-net/paperclip-shell`, a thin extension o
 
 Layer 2 is the ConfigMap. On every container boot, `cont-init.d/40-shell-inventory` reads a YAML tool inventory, queries each manager (`mise`, `npm-global`, `pipx`, `cargo`), computes the diff, and converges. Idempotent — sub-second no-op when nothing changed.
 
-Layer 3 is the escape hatch. SSH in, install something ad-hoc, decide later if it earns a slot in the inventory. State lives on `paperclip-shell-home` (20Gi RWO PVC at `/home/agent`), so it survives pod restarts.
+Layer 3 is the escape hatch. SSH in, install something ad-hoc, decide later if it earns a slot in the inventory. State lives on `paperclip-shell-home` (20Gi {{< abbr "RWO" >}} PVC at `/home/agent`), so it survives pod restarts.
 
 ### Fail-Open with Telegram Alerting
 
-The installer fails open: on any non-zero exit, it fires a Telegram message via `@agent_zero_cc_bot` (reusing `FRANK_C2_TELEGRAM_BOT_TOKEN` / `FRANK_C2_TELEGRAM_CHAT_ID` from Infisical). The MOTD on next login shows the failure summary. Three visibility layers:
+The installer fails open: on any non-zero exit, it fires a Telegram message via `@agent_zero_cc_bot` (reusing `FRANK_C2_TELEGRAM_BOT_TOKEN` / `FRANK_C2_TELEGRAM_CHAT_ID` from Infisical). The {{< abbr "MOTD" >}} on next login shows the failure summary. Three visibility layers:
 
 1. `kubectl logs paperclip -c paperclip-shell` — full installer output
 2. MOTD on SSH login — last-reconcile summary
@@ -259,7 +259,7 @@ Layer 3 is the load-bearing one. We do not notice (2) unless we SSH in. Layer 3 
 | Pod CrashLoopBackOff with permission errors | `fsGroup` not set | Add `securityContext.fsGroup: 1000` |
 | New pod stuck CreateContainerConfigError | Missing secret (optional one not provisioned) | Add `optional: true` to the secretRef |
 | SSH unreachable on 192.168.55.221 | Shell sidecar not starting | Check `kubectl logs paperclip -c paperclip-shell` |
-| Agent JWT missing on first boot | Need to run onboard command | `kubectl exec -n paperclip-system deploy/paperclip -- pnpm paperclipai onboard` |
+| Agent {{< abbr "JWT" >}} missing on first boot | Need to run onboard command | `kubectl exec -n paperclip-system deploy/paperclip -- pnpm paperclipai onboard` |
 
 ## References
 

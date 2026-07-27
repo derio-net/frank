@@ -12,7 +12,7 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-In the secure-agent-pod post, we deployed a hardened Kali workstation with VibeKanban running in local mode — SQLite database, file-based sessions, same filesystem as the coding agent. The self-hosted VK remote web UI at `vk.cluster.derio.net` shows issues and workspace metadata, but it cannot display the actual workspace content: repos, sessions, diffs, terminal output. That data lives on the local VK server at `localhost:8081` inside secure-agent-pod, and the browser has no way to reach it.
+In the secure-agent-pod post, we deployed a hardened Kali workstation with VibeKanban running in local mode — SQLite database, file-based sessions, same filesystem as the coding agent. The self-hosted {{< abbr "VK" >}} remote web UI at `vk.cluster.derio.net` shows issues and workspace metadata, but it cannot display the actual workspace content: repos, sessions, diffs, terminal output. That data lives on the local VK server at `localhost:8081` inside secure-agent-pod, and the browser has no way to reach it.
 
 VK's architecture solves this with a **relay server** — the local server opens a persistent WebSocket tunnel to the relay, and the browser proxies API calls through that tunnel. The relay binary existed in the VK codebase (`crates/relay-tunnel`) but was never deployed in our self-hosted setup.
 
@@ -44,7 +44,7 @@ flowchart LR
   Browser <-->|SPAKE2 pairing| VK
 ```
 
-The relay runs as a **sidecar container** in the existing vk-remote pod — same image, different entrypoint. It shares the PostgreSQL database and JWT secret with the main container: no new secrets, no new database, no new pod.
+The relay runs as a **sidecar container** in the existing vk-remote pod — same image, different entrypoint. It shares the PostgreSQL database and {{< abbr "JWT" >}} secret with the main container: no new secrets, no new database, no new pod.
 
 ## Sidecar Deployment
 
@@ -111,7 +111,7 @@ The local server reads this and connects via WebSocket to `wss://vk.cluster.deri
 
 ## Pairing
 
-The relay requires a one-time cryptographic pairing using SPAKE2 key exchange:
+The relay requires a one-time cryptographic pairing using {{< abbr "SPAKE2" >}} key exchange:
 
 1. Port-forward local VK server: `kubectl port-forward deploy/secure-agent-pod 8081:8081`
 2. Open `http://localhost:8081`, go to Settings > Relay Settings > "Generate pairing code"

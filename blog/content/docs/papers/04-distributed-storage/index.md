@@ -35,33 +35,33 @@ related_operating: "docs/operating/02-storage-backups"
 ## TL;DR
 
 Distributed storage on bare-metal Kubernetes is a four-job problem —
-synchronous replication, snapshots, off-cluster backup, RWX — and the
+synchronous replication, snapshots, off-cluster backup, {{< abbr "RWX" >}} — and the
 six contenders in 2026 (Longhorn, Rook-Ceph, OpenEBS Mayastor,
-Piraeus/LINSTOR, Portworx, local-path-provisioner) each treat one job
+Piraeus/{{< abbr "LINSTOR" >}}, Portworx, local-path-provisioner) each treat one job
 as primary and the rest as supported-eventually.
 
 Frank runs Longhorn with three replicas across the three
 control-plane nodes. The scars came in the seams between Longhorn and
-the rest of the declarative stack: a RWO RollingUpdate deadlock, an
+the rest of the declarative stack: a {{< abbr "RWO" >}} RollingUpdate deadlock, an
 empty-ExternalSecret rejection, an ArgoCD-versus-secret-store fight
 settled by `ServerSideApply=true` plus `ignoreDifferences` on Secret
 data.
 
 Frank's answer does not generalize. One node → local-path. Two-to-four
 nodes → Longhorn (or Rook-Ceph if RWX is load-bearing). Five-plus →
-Rook-Ceph is the sweet spot. Production SLA on top of any leaf →
+Rook-Ceph is the sweet spot. Production {{< abbr "SLA" >}} on top of any leaf →
 Portworx or managed cloud storage.
 
 ## §1 — The capability
 
 Three nodes go in. Three replicas come out. Then one node is rebooted
 for a kernel update, and the only thing that matters is whether the
-PVC mounted at `/var/lib/postgresql/data` still answers a write.
+{{< abbr "PVC" >}} mounted at `/var/lib/postgresql/data` still answers a write.
 
 That is the capability under examination. Not "storage" in the
 abstract — Kubernetes already has the storage abstraction; it is
 called a PVC and it is provider-agnostic on purpose. The capability
-is the *thing on the other end of CSI* on a bare-metal cluster: who
+is the *thing on the other end of {{< abbr "CSI" >}}* on a bare-metal cluster: who
 keeps your bytes alive when a host you control disappears, and who
 pays the tax for keeping them alive?
 
@@ -100,13 +100,13 @@ Six options dominate distributed storage on bare-metal Kubernetes in
 licensing — open source on the left, commercial-with-contract on the
 right. The vertical axis is harder to name without picking a fight,
 so the diagram calls it *centralized* versus *replicated-per-volume*:
-does the system maintain one cluster-wide data plane (CRUSH map,
-metadata service, OSD pool), or does it stand up an independent
+does the system maintain one cluster-wide data plane ({{< abbr "CRUSH" >}} map,
+metadata service, {{< abbr "OSD" >}} pool), or does it stand up an independent
 replica set per PVC?
 
 {{< papers/landscape axes="x:OSS↔commercial,y:centralized↔distributed" >}}
         title Distributed storage on bare metal — 2026
-        x-axis OSS --> Commercial
+        x-axis {{< abbr "OSS" >}} --> Commercial
         y-axis Centralized --> "Replicated per volume"
         quadrant-1 "Per-volume · Commercial"
         quadrant-2 "Per-volume · OSS"
@@ -155,7 +155,7 @@ latency floor as the primary design constraint, and the design has
 aged well — newer projects in this space converge toward its
 shape.
 
-**Piraeus / LINSTOR** is DRBD with a Kubernetes wrapper. DRBD has
+**Piraeus / LINSTOR** is {{< abbr "DRBD" >}} with a Kubernetes wrapper. DRBD has
 been in the Linux kernel since 2009; LINBIT has been selling
 support for it since before Kubernetes existed. The unique trade
 is that synchronous replication runs inside the kernel rather than
@@ -279,9 +279,9 @@ flowchart TD
 Mayastor builds a *Nexus* (an NVMe-oF initiator) on the node
 running the workload, which front-ends one or more NVMe targets
 on other nodes. Writes are synchronously fanned out to all
-targets. The data path is NVMe-oF over TCP (or RDMA where the
+targets. The data path is NVMe-oF over TCP (or {{< abbr "RDMA" >}} where the
 fabric supports it), which means the latency floor is set by the
-NIC, not by a userspace storage engine.
+{{< abbr "NIC" >}}, not by a userspace storage engine.
 
 Failure recovery rebuilds the Nexus on a surviving node and
 re-mounts the volume. The bet of the architecture is that
@@ -383,7 +383,7 @@ count and the network is the bottleneck. On NVMe drives behind a
 1 GbE NIC, the network always is. The interesting consequence: if
 your workload is write-heavy and your fabric is unimpressive,
 moving from `replicaCount: 3` to `replicaCount: 1` is not a small
-optimisation — it is a 3× write-IOPS improvement, paid for with the
+optimisation — it is a 3× write-{{< abbr "IOPS" >}} improvement, paid for with the
 durability the cluster was supposedly there to provide. *Frank's
 default of three replicas is honest only because Frank has three
 control-plane nodes; the math of three-way replication is durable
@@ -409,7 +409,7 @@ nodes — `mini-1`, `mini-2`, `mini-3`. Not because the math of
 mathematically: losing two of three control-plane nodes loses
 both quorum *and* two of three replicas in one event), but
 because that was the geometry of the fleet I already had, and I
-was not going to buy a fourth NUC to satisfy a math problem.
+was not going to buy a fourth {{< abbr "NUC" >}} to satisfy a math problem.
 
 The honesty of that choice is what makes the resulting scars
 worth writing down. A managed cluster would have hidden every
@@ -442,7 +442,7 @@ re-discovers it.
 
 {{< papers/scar date="2026-04-12" >}}
 `ServerSideApply=true`, `prune: false`, and `ignoreDifferences` on
-Secret `/data` aren't decorations on the Application CR — they're
+Secret `/data` aren't decorations on the Application {{< abbr "CR" >}} — they're
 the only thing that prevents ArgoCD from fighting the secret store
 at every sync. Learning that the first time costs an afternoon;
 encoding it in every Application CR forever costs nothing. The
@@ -491,7 +491,7 @@ flowchart TD
 The first branch is node count. A single node has no distributed
 storage problem; `local-path-provisioner` is correct, full stop.
 At two-to-four nodes the question becomes whether RWX matters:
-Longhorn does RWX through NFS-on-top, which is workable for log
+Longhorn does RWX through {{< abbr "NFS" >}}-on-top, which is workable for log
 collectors and broken for write-heavy multi-writer workloads;
 Rook-Ceph's CephFS does RWX natively but extracts the five-node
 operational tax even when the cluster is small. At five-plus

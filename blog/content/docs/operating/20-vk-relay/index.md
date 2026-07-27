@@ -39,7 +39,7 @@ sequenceDiagram
 
 - The `vk-remote` pod has two containers: `vk-remote` and `relay-server`, both `Running`.
 - Relay server is listening on port 8082.
-- `GET https://vk.cluster.derio.net/v1/relay/connect` returns 401 (JWT auth required — means the relay is up and routing).
+- `GET https://vk.cluster.derio.net/v1/relay/connect` returns 401 ({{< abbr "JWT" >}} auth required — means the relay is up and routing).
 - A browser is paired and shows workspace data through the remote UI.
 
 ## Verify
@@ -114,7 +114,7 @@ kubectl -n agents logs deploy/vk-remote -c relay-server --tail=30
 
 If no tunnel connections appear:
 
-1. The local VK server (secure-agent-pod) may not be running — check `kubectl -n secure-agent-pod get pods`.
+1. The local {{< abbr "VK" >}} server (secure-agent-pod) may not be running — check `kubectl -n secure-agent-pod get pods`.
 2. `VK_SHARED_RELAY_API_BASE` may not be set — check the env var.
 3. Cilium `NetworkPolicy` may block egress to `vk.cluster.derio.net`.
 
@@ -122,7 +122,7 @@ If no tunnel connections appear:
 
 - Code expired (6-digit codes are short-lived — generate a fresh one).
 - Browser and local server not on the same relay — verify both point to `vk.cluster.derio.net`.
-- SPAKE2 key mismatch — regenerate and retry.
+- {{< abbr "SPAKE2" >}} key mismatch — regenerate and retry.
 
 ### Container Not at 2/2 Ready
 

@@ -35,7 +35,7 @@ related_operating: "docs/operating/01-cluster-nodes"
 ## TL;DR
 
 Same boxes or different boxes? Six fleet shapes split on that one
-question — all-RPi, all-NUC, heterogeneous bare metal, edge+core,
+question — all-RPi, all-{{< abbr "NUC" >}}, heterogeneous bare metal, edge+core,
 single beefy server + VMs, full-cloud node-pool-per-shape — and on
 which job each prizes: operator cost, learning surface, capacity,
 failure isolation, workload specialisation.
@@ -44,10 +44,10 @@ Frank picked heterogeneous bare metal: 3× Intel Ultra 5 minis,
 1× i9/RTX 5070 Ti, 1× 2013 Z77/i5-3570K, 2× RPi 4. The scars: pc-1's
 PSU browned out for 33 days under transient load (245-line
 investigation, PSU swap), gpu-1's network namespace silently breaks
-`kubectl port-forward`, the Intel iGPU needed a vendored DRA chart
+`kubectl port-forward`, the Intel iGPU needed a vendored {{< abbr "DRA" >}} chart
 for K8s 1.35.
 
-Frank's leaf isn't universal. Production-SRE jobs should homogenise;
+Frank's leaf isn't universal. Production-{{< abbr "SRE" >}} jobs should homogenise;
 homelab-as-software should pick single-beefy+VMs; regulated SaaS
 should pick full-cloud. See §6.
 
@@ -89,7 +89,7 @@ All-NUC fleets optimise operator cost surface to near zero and
 sacrifice the learning surface entirely. All-RPi fleets do the same
 on cheaper silicon. Frank's heterogeneous bare metal optimises the
 learning surface and pays for it in operator cost. Full-cloud Karpenter
-declares the heterogeneity in CRDs and hides the hardware completely.
+declares the heterogeneity in {{< abbr "CRD" "CRDs" >}} and hides the hardware completely.
 
 The production-SRE answer for production-SRE jobs is homogenize. That
 is right, and that doesn't make it right for a learning cluster. Both
@@ -109,7 +109,7 @@ nodes (cloud-managed)?
     x-axis "Single class" --> "Multi class"
     y-axis "Bare metal" --> "Cloud managed"
     quadrant-1 "Multi · Cloud (Karpenter-style)"
-    quadrant-2 "Single · Cloud (one-shape EKS)"
+    quadrant-2 "Single · Cloud (one-shape {{< abbr "EKS" >}})"
     quadrant-3 "Single · Bare metal (all-NUC / all-RPi)"
     quadrant-4 "Multi · Bare metal (Frank)"
     "All-RPi homelab": [0.05, 0.05]
@@ -148,14 +148,14 @@ intent — the heterogeneity is the *price* of pushing workloads to the
 edge, not the goal. Operates one image but multiple network classes
 and multiple latency regimes.
 
-**Single beefy server + VMs (Proxmox + LXC)** — the homelab default.
+**Single beefy server + VMs (Proxmox + {{< abbr "LXC" >}})** — the homelab default.
 One large bare-metal host runs a Kubernetes lab inside VMs or LXC
 containers. Skips real-hardware heterogeneity entirely. Perfectly
 rational if the goal is *Kubernetes-as-software* and not
 *Kubernetes-as-hardware-curriculum*. It is the leaf for people who
 have decided the hardware question is uninteresting.
 
-**Full-cloud node-pool-per-shape (EKS Karpenter / GKE node pools)** —
+**Full-cloud node-pool-per-shape (EKS Karpenter / {{< abbr "GKE" >}} node pools)** —
 heterogeneity outsourced. NodePool / NodeClass CRDs declare the
 shapes; the cloud materialises them on demand and recycles them when
 idle. Same scheduler problem, no hardware visible to the operator.
@@ -274,7 +274,7 @@ flowchart TD
 
 One image, three nodes, one diamond — `kubernetes.io/role` to pin
 control-plane workloads. Otherwise identical to the all-RPi shape on
-faster silicon. The image-bake is real (BIOS-update procedure, NIC
+faster silicon. The image-bake is real (BIOS-update procedure, {{< abbr "NIC" >}}
 driver pin, microcode rev) but it pays back on every node, every
 quarter. Production-SRE rituals exist for this fleet shape: a
 quarterly fleet-wide BIOS sweep, a microcode rev across the whole
@@ -475,8 +475,8 @@ the same idea at small N without the CRD layer.
 on a single old motherboard — the pc-1 case study, §5. At 50 nodes
 it is the driver matrix on the GPU class: Nvidia driver N+1 ships,
 the operator rolls it, three of the seven GPU nodes fail to
-re-register their CDI device because the kernel module hash drifted.
-At 500 nodes it is the firmware-vendor CVE that lands on a Tuesday
+re-register their {{< abbr "CDI" >}} device because the kernel module hash drifted.
+At 500 nodes it is the firmware-vendor {{< abbr "CVE" >}} that lands on a Tuesday
 afternoon and you have to roll only the 41 nodes that have that
 exact BIOS version. The *class of failure mode* changes with N; only
 the heterogeneous fleet teaches all three classes at once, because
@@ -501,12 +501,12 @@ The choice was deliberate, and so was the cost. Three scars are
 worth naming.
 
 {{< papers/scar date="2026-05-07" >}}
-pc-1 rebooted seven times in 33 days, no kernel panic, no OOM, no
+pc-1 rebooted seven times in 33 days, no kernel panic, no {{< abbr "OOM" >}}, no
 thermal trip, no watchdog. Inter-reboot intervals 4–11 days. The
 kernel logger streamed to Omni over SideroLink up until the second
 of each silence, then nothing — the failure was faster than printk.
 245 lines of VictoriaMetrics history, in-cluster privileged debug
-pods, hardware DMI inventory, and absence-of-ECC reasoning landed on
+pods, hardware DMI inventory, and absence-of-{{< abbr "ECC" >}} reasoning landed on
 "the 12-year-old PSU was browning out under transient load."
 PSU-swapped 2026-05-07; soak clean at T+3.87 days. A homogeneous
 fleet of 2025 NUCs would never have taught us what a silent hardware
@@ -650,7 +650,7 @@ ecosystem standardises on the NodePool vocabulary.
 **Dynamic Resource Allocation is the next inflection.** DRA (K8s
 1.32+, graduating through 1.34+) abstracts "what hardware does this
 pod need?" out of nodeSelector and into a first-class resource API.
-iGPU vs dGPU vs NPU vs storage accelerator stops being a per-vendor
+iGPU vs dGPU vs {{< abbr "NPU" >}} vs storage accelerator stops being a per-vendor
 wiring problem and starts being a DRA driver problem. Frank already
 runs this on the minis under a vendored chart — the patches in
 `phase05-mini-config/`. Expect the pattern to spread to every NIC,

@@ -28,8 +28,8 @@ source .env_devops   # sets OMNICONFIG + service accounts
 
 Frank's observability stack has four moving parts:
 
-- **VictoriaMetrics** (VMSingle + vmagent) — time-series metrics database and scraping engine (`monitoring` namespace, 20Gi Longhorn PVC, 1-month retention)
-- **Grafana** at `http://192.168.55.203` — dashboards and exploration, OIDC auth via Authentik
+- **VictoriaMetrics** (VMSingle + vmagent) — time-series metrics database and scraping engine (`monitoring` namespace, 20Gi Longhorn {{< abbr "PVC" >}}, 1-month retention)
+- **Grafana** at `http://192.168.55.203` — dashboards and exploration, {{< abbr "OIDC" >}} auth via Authentik
 - **Fluent Bit** — DaemonSet on all 7 nodes (including tainted control-plane and GPU nodes), shipping container logs
 - **VictoriaLogs** — log storage with 30-day retention, queryable through Grafana's Explore tab
 
@@ -165,7 +165,7 @@ To import a community dashboard (e.g. ID 1860 for Node Exporter Full):
 3. Enter the dashboard ID and click Load
 4. Select the VictoriaMetrics datasource and click Import
 
-Imported dashboards are saved to the 1Gi Longhorn PVC and survive pod restarts. One gotcha: because that PVC is `ReadWriteOnce`, we pinned Grafana's deployment strategy to `Recreate` (commit `e40c952d`). A `RollingUpdate` with a RWO volume means the new pod can't attach the PVC on a different node until the old pod releases it — which doesn't happen cleanly, so the rollout stalls for ~2 hours.
+Imported dashboards are saved to the 1Gi Longhorn PVC and survive pod restarts. One gotcha: because that PVC is `ReadWriteOnce`, we pinned Grafana's deployment strategy to `Recreate` (commit `e40c952d`). A `RollingUpdate` with a {{< abbr "RWO" >}} volume means the new pod can't attach the PVC on a different node until the old pod releases it — which doesn't happen cleanly, so the rollout stalls for ~2 hours.
 
 ### Adjusting Retention
 
@@ -210,7 +210,7 @@ curl -s 'http://localhost:8429/api/v1/label/__name__/values' | jq '.data[] | sel
 
 If a metric you expect is missing from VMSingle but the exporter is running, the most likely cause is **high-cardinality labels hitting the series limit**. VictoriaMetrics' default `-maxLabelsPerTimeseries=40` silently drops series that exceed it.
 
-We hit this in May 2026 (commit `193c3890`). The amd64 nodes' node-exporter metrics carried 60–135 labels each — NFD CPU feature labels (`feature_node_kubernetes_io_*`), Talos extension labels (`extensions_talos_dev_*`), NVIDIA driver labels (`nvidia_com_*`). The raspi nodes had ~33 labels and passed; the 5 amd64 nodes were silently dropped. VMSingle logged `ignoring series with N labels...` but no alert fired.
+We hit this in May 2026 (commit `193c3890`). The amd64 nodes' node-exporter metrics carried 60–135 labels each — {{< abbr "NFD" >}} CPU feature labels (`feature_node_kubernetes_io_*`), Talos extension labels (`extensions_talos_dev_*`), NVIDIA driver labels (`nvidia_com_*`). The raspi nodes had ~33 labels and passed; the 5 amd64 nodes were silently dropped. VMSingle logged `ignoring series with N labels...` but no alert fired.
 
 The fix was to drop those high-cardinality label groups in `apps/victoria-metrics/values.yaml`:
 
@@ -394,7 +394,7 @@ If a metric has an unbounded label (request ID, session token), either drop the 
 |---|---|---|
 | The default Helm scrape configs would capture all node metrics without issue | amd64 nodes carry 60-135 labels/series from NFD CPU features, Talos extensions, and NVIDIA driver labels — exceeding VictoriaMetrics' default `-maxLabelsPerTimeseries=40`. The raspi nodes (33 labels) passed silently, masking the failure. | 5/7 nodes' cadvisor data was silently dropped for weeks. No alert fired. Discovered during a routine dashboard review. |
 | `RollingUpdate` is the safe default for Grafana, even with a RWO PVC | A new Grafana pod on a different node can't attach the Longhorn PVC until the old pod releases it — but K8s won't terminate the old pod until the new one is healthy. The rollout deadlocks for ~2 hours. | ~2h deployment stalls on every config change until someone force-scales. |
-| A NIC is either up or down — binary link-state monitoring is sufficient | Flapping NICs that go up-down-up within 5m are invisible to binary-down-state rules with `for: 5m`. On June 8 2026, gpu-1's enp3s0 flapped 76 times over ~8 hours — 0 alerts fired. | An 8-hour networking blind spot on the GPU node during active inference workloads. |
+| A {{< abbr "NIC" >}} is either up or down — binary link-state monitoring is sufficient | Flapping NICs that go up-down-up within 5m are invisible to binary-down-state rules with `for: 5m`. On June 8 2026, gpu-1's enp3s0 flapped 76 times over ~8 hours — 0 alerts fired. | An 8-hour networking blind spot on the GPU node during active inference workloads. |
 | Telegram contact point annotations are opaque strings — any format works | Telegram's HTML parser rejects `<node-ip>` as an invalid HTML tag, returning HTTP 400 — which Grafana logs as "sent" with no error. Similarly, Markdown `parse_mode` silently strips underscores in label values. | Alert state changed to Firing in Grafana, the Telegram message dispatched, but the operator never saw it. Silent delivery failures are worse than no alert — they create a false sense of coverage. |
 
 ## Quick Reference
@@ -410,7 +410,7 @@ If a metric has an unbounded label (request ID, session token), either drop the 
 | `curl localhost:8429/api/v1/query?query=up` | Query metrics via API |
 | `curl localhost:9428/select/logsql/query?query=*&limit=10` | Query logs via API |
 | `curl localhost:8429/targets` | List vmagent scrape targets |
-| `curl localhost:8429/api/v1/status/tsdb` | TSDB cardinality stats |
+| `curl localhost:8429/api/v1/status/tsdb` | {{< abbr "TSDB" >}} cardinality stats |
 
 ## References
 

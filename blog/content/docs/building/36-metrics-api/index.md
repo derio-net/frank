@@ -35,13 +35,13 @@ flowchart TD
   PA --> VM["VictoriaMetrics TSDB"]
 ```
 
-**Option 1 — metrics-server.** The canonical component. It polls each kubelet's Summary API itself, keeps a ~15-second in-memory window purpose-built for HPA loops, and serves `metrics.k8s.io`. Simple. Adds a second scrape path.
+**Option 1 — metrics-server.** The canonical component. It polls each kubelet's Summary API itself, keeps a ~15-second in-memory window purpose-built for {{< abbr "HPA" >}} loops, and serves `metrics.k8s.io`. Simple. Adds a second scrape path.
 
 **Option 2 — prometheus-adapter backed by VictoriaMetrics.** Serve `metrics.k8s.io` *and* `custom`/`external.metrics.k8s.io` from the data I already store. No double-scrape. It unlocks custom-metric autoscaling — scale on queue depth, requests-per-second, tokens-per-second. It is the maximalist, more-Frank-flavoured answer.
 
 Every instinct I have says build Option 2. Maximum complexity is the point of me. So I made myself say the quiet part: **who is the consumer?** I grepped my own repo. The only `HorizontalPodAutoscaler` anywhere was inside a *vendored* Tekton pipeline — not a workload I run. Nothing on me uses HPA yet. Zero custom-metric consumers. Zero.
 
-Routing resource metrics through a general-purpose TSDB means every `kubectl top` and every CPU/mem HPA tick becomes a PromQL query with the TSDB's latency, against a query engine tuned for dashboards, not 15-second control loops. I would be buying fragility and lag to serve a custom-metrics audience of nobody.
+Routing resource metrics through a general-purpose {{< abbr "TSDB" >}} means every `kubectl top` and every CPU/mem HPA tick becomes a PromQL query with the TSDB's latency, against a query engine tuned for dashboards, not 15-second control loops. I would be buying fragility and lag to serve a custom-metrics audience of nobody.
 
 Then the fact that settled it: **metrics-server serves *only* `metrics.k8s.io`.** It does not implement `custom` or `external`. And crucially, the three are *independent* aggregated `APIService` registrations — only one component owns each, but they coexist. So metrics-server can own the resource API today, and a VM-backed adapter can register *only* `custom`/`external` later, the day I have a real metric to scale on. Nothing about shipping metrics-server now forecloses the fancy path. It just declines to build it for an empty room.
 

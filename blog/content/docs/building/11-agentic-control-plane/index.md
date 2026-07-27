@@ -14,7 +14,7 @@ last_updated: 2026-07-15
 
 The cluster can serve models. Layer 10 wired up Ollama and LiteLLM so anything on the network can call an OpenAI-compatible endpoint. But models behind an API are passive — they wait and respond. They do not act.
 
-Layer 11 makes them act. [Sympozium](https://sympozium.ai/) is a Kubernetes-native agentic control plane. Agents are Pods, policies are CRDs, and every execution is a Job. It maps agentic concepts to Kubernetes primitives that the cluster already knows how to manage.
+Layer 11 makes them act. [Sympozium](https://sympozium.ai/) is a Kubernetes-native agentic control plane. Agents are Pods, policies are {{< abbr "CRD" "CRDs" >}}, and every execution is a Job. It maps agentic concepts to Kubernetes primitives that the cluster already knows how to manage.
 
 ## The Architecture
 
@@ -46,9 +46,9 @@ flowchart LR
 
 | Component | CRD / Primitive | Purpose |
 |-----------|----------------|---------|
-| Controller Manager | AgentRun → Pod | Watches for AgentRun CRs, spawns ephemeral Jobs |
+| Controller Manager | AgentRun → Pod | Watches for AgentRun {{< abbr "CR" "CRs" >}}, spawns ephemeral Jobs |
 | Webhook | SympoziumPolicy | Intercepts AgentRun creation, enforces policy at admission |
-| NATS JetStream | StatefulSet + 1Gi Longhorn PVC | Durable event bus — agent status, skill invocations, inter-agent messages |
+| NATS JetStream | StatefulSet + 1Gi Longhorn {{< abbr "PVC" >}} | Durable event bus — agent status, skill invocations, inter-agent messages |
 | OTel Collector | DaemonSet | Ships traces and metrics from agent runs |
 | API Server | Deployment + LoadBalancer | REST API + web dashboard |
 
@@ -56,7 +56,7 @@ The load-bearing design choice: the controller reads its namespace from the down
 
 ## Prerequisites
 
-- **cert-manager** (sync wave `-1` so it deploys before Sympozium) — the webhook needs TLS certificates
+- **cert-manager** (sync wave `-1` so it deploys before Sympozium) — the webhook needs {{< abbr "TLS" >}} certificates
 - **LiteLLM** from Layer 10 — agents route through the inference gateway
 - **Longhorn** default StorageClass — NATS persistence uses a 1Gi PVC
 
@@ -84,7 +84,7 @@ metadata:
 
 ### sympozium (Git-Sourced Chart)
 
-The Sympozium chart is **not published** to any OCI or Helm registry. ArgoCD must source it directly from GitHub:
+The Sympozium chart is **not published** to any {{< abbr "OCI" >}} or Helm registry. ArgoCD must source it directly from GitHub:
 
 ```yaml
 sources:
@@ -211,7 +211,7 @@ The chart ships with a built-in `developer-team` PersonaPack — a 2-pizza dev t
 | `frontend-dev` | 1h sweep | Implement frontend/UI issues |
 | `qa-engineer` | 1h sweep | Test coverage, bug discovery |
 | `code-reviewer` | 30m sweep | Security/correctness/performance |
-| `devops-engineer` | 2h sweep | CI/CD health, CVE patching |
+| `devops-engineer` | 2h sweep | CI/CD health, {{< abbr "CVE" >}} patching |
 | `docs-writer` | 2h | Documentation drift, changelogs |
 
 ## Policy Enforcement
@@ -250,7 +250,7 @@ networkPolicy:
 
 ### Git-Sourced Chart, Not OCI
 
-The chart lives at `https://github.com/AlexsJones/sympozium.git`, `path: charts/sympozium`. There is no Helm or OCI registry. ArgoCD Application sources must use `repoURL` + `path` instead of `chart`. This is the same pattern as the vendored Intel GPU DRA driver.
+The chart lives at `https://github.com/AlexsJones/sympozium.git`, `path: charts/sympozium`. There is no Helm or OCI registry. ArgoCD Application sources must use `repoURL` + `path` instead of `chart`. This is the same pattern as the vendored Intel GPU {{< abbr "DRA" >}} driver.
 
 ### Image Tag Lags Behind Releases
 

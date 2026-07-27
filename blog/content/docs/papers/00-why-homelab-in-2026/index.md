@@ -65,7 +65,7 @@ flowchart LR
     C --> C1["Talos + ArgoCD\n= Frank"]
 ```
 
-I'm Frank, and I live on the DIY branch: three Intel NUCs, one
+I'm Frank, and I live on the DIY branch: three Intel {{< abbr "NUC" "NUCs" >}}, one
 GPU box, an old desktop, two Raspberry Pis — Talos Linux, declared in
 a git repo, reconciled by ArgoCD. Nothing about this is the *obvious*
 answer. The obvious answer in 2026 is `gcloud container clusters
@@ -84,8 +84,8 @@ questions that answers and which it doesn't.
 The market converges on three shapes. Each carries a price tag that
 isn't on the website.
 
-**Cloud-native (GKE, EKS, AKS).** The cluster comes up. The control
-plane upgrades itself. Networking, IAM, encryption, audit logging —
+**Cloud-native ({{< abbr "GKE" >}}, {{< abbr "EKS" >}}, AKS).** The cluster comes up. The control
+plane upgrades itself. Networking, {{< abbr "IAM" >}}, encryption, audit logging —
 all checkboxes someone else maintained. What it actually costs is the
 bill, and at stable scale the bill stops making sense:
 
@@ -120,7 +120,7 @@ the other direction; see §3.)
 
 **DIY homelab (Talos + ArgoCD on your own iron — what I am).** Nothing
 for free. The cost is operator time, which dominates at homelab scale
-and almost never makes it into TCO calculators — hardware amortizes,
+and almost never makes it into {{< abbr "TCO" >}} calculators — hardware amortizes,
 electricity rounds to zero, operator hours do not. What it uniquely
 teaches: every failure mode you'd never see in a managed cluster.
 
@@ -132,7 +132,7 @@ single-operator learning context — not a production team.*
 
 ## §3 — Frank's answer, and what happened
 
-I chose the DIY branch: three NUCs for HA, a GPU box for
+I chose the DIY branch: three NUCs for {{< abbr "HA" >}}, a GPU box for
 inference, an old desktop because it was sitting in a cupboard, two
 Raspberry Pis because edge nodes shouldn't all be expensive.
 Heterogeneous on purpose — homogeneous fleets are easier to operate
@@ -146,7 +146,7 @@ commands. In return I get the one thing a managed cluster cannot give
 me: a scar archive of how distributed systems actually fail.
 
 {{< papers/scar date="2026-05-11" >}}
-Omni's TLS leaf expired at 13:52 UTC on May 9. Workloads stayed up —
+Omni's {{< abbr "TLS" >}} leaf expired at 13:52 UTC on May 9. Workloads stayed up —
 kubelet, ArgoCD, every running pod. But every `kubectl`, every
 `omnictl`, every Web UI call returned a 500 wrapped around a Go x509
 error: *"certificate has expired or is not yet valid."* The cluster
@@ -156,7 +156,7 @@ Root cause: the operator-installed certbot used non-default config
 paths, so the snap-installed renewal timer had been firing daily as a
 clean no-op for 30 days while the cert aged through Let's Encrypt's
 pre-expiry window. The fix was a dedicated systemd timer with a Docker
-restart hook (Omni v1.5.0 has no SIGHUP path). The lesson is what a
+restart hook (Omni v1.5.0 has no {{< abbr "SIGHUP" >}} path). The lesson is what a
 managed cluster will never teach you: *management plane* and *workload
 plane* can fail independently, and "still running" is not the same as
 "still operable."
@@ -172,7 +172,7 @@ shape, which is where the investment begins to return.
 ## §4 — When Frank's answer doesn't generalize
 
 I am a learning platform. I would not pass a production readiness
-review. There is no on-call rotation, no SLO; the SLAs are
+review. There is no on-call rotation, no {{< abbr "SLO" >}}; the {{< abbr "SLA" "SLAs" >}} are
 aspirational. If my operator goes on holiday for three weeks, anything
 that breaks stays broken until he's back. Single-operator clusters
 have a single point of failure, and it's named on the GitHub commit

@@ -45,13 +45,13 @@ flowchart LR
   SSH --> Shell
 ```
 
-Two ArgoCD apps: `apps/ruflo-db/` and `apps/ruflo/`. Zero frontier-LLM provider keys in the pod — every LLM call exits through the in-cluster LiteLLM gateway.
+Two ArgoCD apps: `apps/ruflo-db/` and `apps/ruflo/`. Zero frontier-{{< abbr "LLM" >}} provider keys in the pod — every LLM call exits through the in-cluster LiteLLM gateway.
 
 ## Two Images, One Pod
 
 Both images ship from `derio-net/agent-images`:
 
-- **`ruflo-server`** — thin wrapper around upstream ruvocal's Dockerfile. Multi-stage build, SvelteKit SSR, `node:24-slim` runtime.
+- **`ruflo-server`** — thin wrapper around upstream ruvocal's Dockerfile. Multi-stage build, SvelteKit {{< abbr "SSR" >}}, `node:24-slim` runtime.
 - **`ruflo-shell`** — child of `agent-shell-base`. Same s6-overlay v3 init, sshd, Mosh, `cont-init.d` / `services.d` skeleton. Baked tools: `claude-flow@alpha`, `@openai/codex`.
 
 The shell pod is the second instance of the agent-shell-base + inventory-ConfigMap pattern — marginal cost was a directory and a CI matrix entry.
@@ -64,7 +64,7 @@ Upstream's `.env.example` showed `DATABASE_URL` with Postgres-style connection s
 [RuVocal] Database: /app/db/ruvocal.rvf.json
 ```
 
-`DATABASE_URL` was being silently ignored. At the pinned SHA, ruvocal's data layer is **RVF** — a local JSON file store. The fix: a 5Gi RWO PVC mounted at `/app/db/`.
+`DATABASE_URL` was being silently ignored. At the pinned SHA, ruvocal's data layer is **{{< abbr "RVF" >}}** — a local JSON file store. The fix: a 5Gi {{< abbr "RWO" >}} {{< abbr "PVC" >}} mounted at `/app/db/`.
 
 ### The RVF Shim Bug
 
@@ -110,7 +110,7 @@ data:
       - eza
 ```
 
-On boot, a reconcile script computes the diff, installs/removes accordingly, writes MOTD summary.
+On boot, a reconcile script computes the diff, installs/removes accordingly, writes {{< abbr "MOTD" >}} summary.
 
 ### Install Trap
 
@@ -125,7 +125,7 @@ On boot, a reconcile script computes the diff, installs/removes accordingly, wri
 | **LiteLLM returned 401 on first SSR render** — `OPENAI_API_KEY` was OpenRouter key, not LiteLLM virtual key | LiteLLM authenticates against its own key store, not upstream provider | Provisioned `RUFLO_LITELLM_KEY` in Infisical, projected as `OPENAI_API_KEY` | `i9j0k1l2` |
 | **`shareProcessNamespace: true` crashes s6-overlay** — "can only run as pid 1" on shell container | Agent-shell-base's s6-overlay v3 init expects pid 1 of its own PID namespace | Removed `shareProcessNamespace` from manifest | `m3n4o5p6` |
 | **Probe flapping on SSR endpoint** — `/` SSR-renders model list, any LiteLLM flake flips probes | Liveness probe was also a full dependency check | Changed probe to `/api/v2/feature-flags` | `q7r8s9t0` |
-| **npm install fails with EACCES** — `npm` falls through to system binary, targets `/usr/lib/node_modules/` | `mise install node` does not activate; npm shim resolves to system npm | `mise use --global node@20` after install | `u1v2w3x4` |
+| **npm install fails with {{< abbr "EACCES" >}}** — `npm` falls through to system binary, targets `/usr/lib/node_modules/` | `mise install node` does not activate; npm shim resolves to system npm | `mise use --global node@20` after install | `u1v2w3x4` |
 
 ## Recovery Path
 

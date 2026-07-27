@@ -16,7 +16,7 @@ A cluster without backups is a disaster waiting to happen. But the scope depends
 
 Frank is fully GitOps-managed. If the cluster evaporates tonight, ArgoCD restores every Deployment, Service, ConfigMap, and StorageClass in under ten minutes. The one thing it cannot restore is the *contents* of PersistentVolumes: the VictoriaMetrics time-series, Grafana dashboards, application state. Layer 8 protects that data.
 
-But three Longhorn 1.11 bugs and limitations turned what should have been a simple BackupTarget + RecurringJob config into a week of workarounds. SOPS-encrypted secrets cannot live in ArgoCD manifest paths. RecurringJobs have no `backupTargetName` field — you cannot route jobs to specific targets. And the NFS backup target is broken by a mount-path formatting bug that will not be fixed until Longhorn 1.13.
+But three Longhorn 1.11 bugs and limitations turned what should have been a simple BackupTarget + RecurringJob config into a week of workarounds. {{< abbr "SOPS" >}}-encrypted secrets cannot live in ArgoCD manifest paths. RecurringJobs have no `backupTargetName` field — you cannot route jobs to specific targets. And the {{< abbr "NFS" >}} backup target is broken by a mount-path formatting bug that will not be fixed until Longhorn 1.13.
 
 ```mermaid
 flowchart LR
@@ -44,26 +44,26 @@ flowchart LR
 
 ## Why Not Velero
 
-The default answer to "Kubernetes backup" is Velero. It backs up API objects and PVC data, handles restores, and has broad ecosystem support. For clusters where workload configuration is not in source control, it is genuinely the right tool.
+The default answer to "Kubernetes backup" is Velero. It backs up API objects and {{< abbr "PVC" >}} data, handles restores, and has broad ecosystem support. For clusters where workload configuration is not in source control, it is genuinely the right tool.
 
 For Frank, Velero's job overlaps almost entirely with what git and ArgoCD already provide. That leaves only PVC data backup — which Longhorn handles natively, with a richer snapshot model, first-class UI, and no extra control-plane components. No Velero. Longhorn does the work.
 
 ## The Backup Architecture
 
-Longhorn uses two CRDs for backup:
+Longhorn uses two {{< abbr "CRD" "CRDs" >}} for backup:
 
 - **`BackupTarget`** — defines where backups are stored (NFS or S3-compatible endpoint)
 - **`RecurringJob`** — defines a schedule applied to a group of volumes
 
 Both live in `longhorn-system` and are picked up by the existing `longhorn-extras` ArgoCD Application. No new app needed.
 
-The original plan was dual-target: a local NAS (NFS) for fast daily restores, and Cloudflare R2 for offsite weekly backups. Execution surfaced three Longhorn 1.11 limitations that changed the final shape.
+The original plan was dual-target: a local {{< abbr "NAS" >}} (NFS) for fast daily restores, and Cloudflare R2 for offsite weekly backups. Execution surfaced three Longhorn 1.11 limitations that changed the final shape.
 
 ## Gotcha 1: SOPS Secrets vs ArgoCD ServerSideApply
 
 The R2 API credentials need to be a Kubernetes Secret. The repo uses SOPS/age encryption — files matching `*.yaml` have their `data` and `stringData` fields encrypted at rest.
 
-The natural instinct is to drop `r2-secret.yaml` into `apps/longhorn/manifests/` alongside the other Longhorn CRs. This fails:
+The natural instinct is to drop `r2-secret.yaml` into `apps/longhorn/manifests/` alongside the other Longhorn {{< abbr "CR" "CRs" >}}. This fails:
 
 ```text
 failed to create typed patch object (longhorn-system/longhorn-r2-secret; /v1, Kind=Secret):
@@ -90,7 +90,7 @@ ignoreDifferences:
       - /data
 ```
 
-The lesson: SOPS-encrypted secrets and ArgoCD ServerSideApply do not mix in a raw manifest path. Encrypted secrets need to be applied out-of-band, or a SOPS decryption plugin (KSOPS) needs to be wired into ArgoCD.
+The lesson: SOPS-encrypted secrets and ArgoCD ServerSideApply do not mix in a raw manifest path. Encrypted secrets need to be applied out-of-band, or a SOPS decryption plugin ({{< abbr "KSOPS" >}}) needs to be wired into ArgoCD.
 
 ## Gotcha 2: RecurringJob Has No `backupTargetName`
 
@@ -178,7 +178,7 @@ Every volume in the `default` group gets:
 - Daily backup to R2 at 02:00, 7 recovery points (one week)
 - Weekly backup to R2 on Sunday at 03:00, 4 recovery points (one month)
 
-| Scenario | Recovery path | RTO |
+| Scenario | Recovery path | {{< abbr "RTO" >}} |
 |----------|--------------|-----|
 | Volume corruption | Longhorn UI → restore from latest daily | ~10 min |
 | Node failure | Longhorn replicas absorb it | 0 |

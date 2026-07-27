@@ -35,10 +35,10 @@ related_operating: "docs/operating/11-public-edge"
 
 ## TL;DR
 
-Public exposure from a home cluster is a five-job problem: NAT traversal,
-TLS termination, DNS, reverse proxy, mesh coordination. The 2026 vendor
+Public exposure from a home cluster is a five-job problem: {{< abbr "NAT" >}} traversal,
+{{< abbr "TLS" >}} termination, DNS, reverse proxy, mesh coordination. The 2026 vendor
 space splits on one question — cede the edge to someone else (Cloudflare
-Tunnel, Tailscale Funnel, ngrok) or run your own (tiny VPS with Headscale
+Tunnel, Tailscale Funnel, ngrok) or run your own (tiny {{< abbr "VPS" >}} with Headscale
 + Caddy, or a multi-region cluster with Rancher Fleet).
 
 Frank runs the middle path: a single-node Talos cluster called Hop on a
@@ -127,7 +127,7 @@ also be reachable from the public internet.
 The matrix grades the five options on whether you need to run an edge
 node at all, whether a free tier is viable for real use, who terminates
 TLS, whether the option survives CG-NAT, whether you can bring your own
-domain, whether the data plane is mesh-shaped, whether the option is OSS
+domain, whether the data plane is mesh-shaped, whether the option is {{< abbr "OSS" >}}
 without a contract, and whether you own the data plane end-to-end. The
 "you own the data plane" column does most of the work — every other
 column is either always-yes or differs by one row.
@@ -135,7 +135,7 @@ column is either always-yes or differs by one row.
 **Cloudflare Tunnel** optimises for zero edge infrastructure. The
 `cloudflared` daemon dials out from inside the cluster, Cloudflare's
 edge serves the public hostname, the free tier covers most homelab
-volumes, and you get a TLS cert without touching ACME. The trade —
+volumes, and you get a TLS cert without touching {{< abbr "ACME" >}}. The trade —
 which Cloudflare names in its own documentation — is that TLS is
 terminated at Cloudflare's edge:
 
@@ -208,7 +208,7 @@ tunnel daemon dies, your domain stays up but is unreachable until
 cloudflared reconnects — typically seconds. If Cloudflare's edge dies,
 the same. Blast radius is bounded to "whatever traffic was in flight";
 the cluster itself is unaffected. ngrok is architecturally identical
-with a different vendor name on the PoP box and different SLAs.
+with a different vendor name on the PoP box and different {{< abbr "SLA" "SLAs" >}}.
 
 **Shape B — mesh-overlay-as-edge (Tailscale Funnel).** TLS terminates
 on the node itself, not on the vendor's edge. Tailscale runs a TCP
@@ -265,7 +265,7 @@ At runtime, Caddy holds the only listeners on 80/443. The Tailscale
 DaemonSet on hop-1 runs in kernel mode with hostNetwork — without that,
 Caddy would see every mesh request as coming from `127.0.0.1` and the
 "mesh-only services" boundary would collapse. Headscale persists its
-SQLite DB and ACL config to a Hetzner Volume mounted at a fixed path.
+SQLite DB and {{< abbr "ACL" >}} config to a Hetzner Volume mounted at a fixed path.
 Failure mode: hop-1 itself goes down and everything Hop serves —
 public blog, Headscale control plane, mesh-only landing page — goes
 down with it. This is the single-node-cluster blast radius made
@@ -288,7 +288,7 @@ around the hundred-concurrent-connections mark. Cloudflare's free
 Tunnel limits are generous-but-real; ngrok's free tier is openly
 tighter and the paid plans exist for exactly this reason. Above
 roughly a hundred concurrent connections — say, an agent control plane
-that opens long-lived SSE streams to every dashboard tab — the
+that opens long-lived {{< abbr "SSE" >}} streams to every dashboard tab — the
 calculus changes and either you pay or you move off the SaaS edge.
 
 The second axis is *mesh peer fan-out*. Tailscale's mesh is free up to
@@ -296,7 +296,7 @@ the current TOS threshold (in the low-three-digit node count, subject
 to change), then priced per seat. Headscale is uncapped because you
 run it; the cost is operating it. The node-count knob also costs CPU
 on the coordination server — every node that joins generates key
-exchanges, ACL evaluations, and DERP heartbeats. Frank's Hop runs on a
+exchanges, ACL evaluations, and {{< abbr "DERP" >}} heartbeats. Frank's Hop runs on a
 2-vCPU Hetzner CX23, which is comfortable for the current tailnet of
 under thirty nodes and would start tightening somewhere north of a
 hundred.
@@ -350,7 +350,7 @@ and stayed there forever — the old pod still held hostPort 80/443
 and the new pod couldn't bind. On a single-node cluster, RollingUpdate
 is a structural deadlock for any hostPort-using Deployment. The fix
 is `strategy: Recreate` on every Deployment that binds a hostPort
-(Caddy on 80/443, Headscale's STUN on 3478/UDP, the Tailscale
+(Caddy on 80/443, Headscale's {{< abbr "STUN" >}} on 3478/UDP, the Tailscale
 DaemonSet's privileged hostNetwork). It is a property of the edge
 model — one node, one port-binding pod at a time — not a Caddy bug.
 {{< /papers/scar >}}

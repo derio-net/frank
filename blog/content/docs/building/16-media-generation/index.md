@@ -12,7 +12,7 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-The cluster has one GPU. Layer 10 gave it to Ollama for LLM inference. This layer adds a second consumer — ComfyUI for diffusion-based media generation — and a mechanism to share the hardware between them.
+The cluster has one GPU. Layer 10 gave it to Ollama for {{< abbr "LLM" >}} inference. This layer adds a second consumer — ComfyUI for diffusion-based media generation — and a mechanism to share the hardware between them.
 
 ```mermaid
 flowchart LR
@@ -33,7 +33,7 @@ flowchart LR
   ArgoCD -->|doesn't fight| Switcher
 ```
 
-The constraint: the RTX 5070 Ti has 16GB of GDDR7. LTX-2.3 needs 8-12GB. Ollama with a 9B model uses 6-7GB. Both cannot run simultaneously.
+The constraint: the RTX 5070 Ti has 16GB of {{< abbr "GDDR7" >}}. LTX-2.3 needs 8-12GB. Ollama with a 9B model uses 6-7GB. Both cannot run simultaneously.
 
 The solution is time-sharing: scale one workload to zero, let the other use the full GPU, swap when needed. Both Deployments request `nvidia.com/gpu: 1`, so Kubernetes will not schedule them concurrently.
 
@@ -61,7 +61,7 @@ containers:
 ```
 
 Key decisions:
-- **100Gi PVC** on Longhorn `gpu-local` — models are large (LTX-2.3 ~4GB, SDXL ~7GB). Mounts at `/workspace`.
+- **100Gi {{< abbr "PVC" >}}** on Longhorn `gpu-local` — models are large (LTX-2.3 ~4GB, SDXL ~7GB). Mounts at `/workspace`.
 - **Starts at 0 replicas** — Ollama is the default. ComfyUI only runs when switched via the GPU Switcher.
 - **Node affinity** to gpu-1.
 
@@ -79,7 +79,7 @@ Format: `name:namespace:deployment`. On each status check, it queries the K8s AP
 
 ArgoCD's self-heal normally detects drift between Git and the live cluster. If Git says `replicas: 0` for ComfyUI but the Switcher just scaled it to 1, ArgoCD would scale it back.
 
-The fix: `ignoreDifferences` on `spec.replicas` in both Application CRs:
+The fix: `ignoreDifferences` on `spec.replicas` in both Application {{< abbr "CR" "CRs" >}}:
 
 ```yaml
 spec:
@@ -124,9 +124,9 @@ docker buildx build --platform linux/amd64 \
   --push .
 ```
 
-First attempt used Docker's `--platform` on the full multi-stage build, which ran the Go compiler under QEMU — and crashed with a SIGSEGV in the GC. The working approach: compile natively with `GOARCH=amd64`, then use a single-stage Dockerfile that copies the pre-built binary.
+First attempt used Docker's `--platform` on the full multi-stage build, which ran the Go compiler under {{< abbr "QEMU" >}} — and crashed with a {{< abbr "SIGSEGV" >}} in the GC. The working approach: compile natively with `GOARCH=amd64`, then use a single-stage Dockerfile that copies the pre-built binary.
 
-Second attempt pushed an image with `arm64` in its OCI manifest despite containing an amd64 binary — Docker inherits manifest platform from the build host. Explicit `--platform linux/amd64` fixed it.
+Second attempt pushed an image with `arm64` in its {{< abbr "OCI" >}} manifest despite containing an amd64 binary — Docker inherits manifest platform from the build host. Explicit `--platform linux/amd64` fixed it.
 
 ## Model Downloads
 
@@ -156,7 +156,7 @@ wget -P checkpoints/ https://huggingface.co/stabilityai/stable-diffusion-xl-base
 |---------|-------|-----|
 | GPU Switcher shows wrong state | ArgoCD reverted replica count | Check `ignoreDifferences` is in place; re-scale via Switcher |
 | ComfyUI node shows empty dropdown | Model in wrong `models/` subdirectory | Move model to correct folder path; restart ComfyUI pod |
-| Switcher pod crash looping | RBAC missing for deployment patches | Verify ClusterRole has `deployments/scale` + `patch` verbs |
+| Switcher pod crash looping | {{< abbr "RBAC" >}} missing for deployment patches | Verify ClusterRole has `deployments/scale` + `patch` verbs |
 | Can't reach ComfyUI on 192.168.55.213 | GPU not switched yet | Use GPU Switcher to activate ComfyUI (scales Ollama to 0) |
 
 ## References

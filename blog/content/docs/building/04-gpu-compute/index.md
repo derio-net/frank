@@ -16,7 +16,7 @@ Two GPU stories converged on the same cluster, and neither was straightforward.
 
 The NVIDIA side started with a card that booted fans and RGB but refused to appear on the PCIe bus. The RTX 5070 was physically installed, powered, seated — and completely invisible to the kernel. Diagnostics showed no vendor ID, no BAR regions, no device of any kind. The software stack was ready and waiting; the hardware just would not cooperate.
 
-The Intel side was a different kind of challenge. The three mini nodes each have an integrated Arc GPU that shares system RAM. These are not suitable for LLM inference (memory bandwidth is the bottleneck), but they are perfect for media transcoding and vision workloads. The catch: Kubernetes 1.35 had removed the `v1beta1` DRA API that the upstream Intel driver chart depended on. Every chart template needed patching before it would work.
+The Intel side was a different kind of challenge. The three mini nodes each have an integrated Arc GPU that shares system RAM. These are not suitable for {{< abbr "LLM" >}} inference (memory bandwidth is the bottleneck), but they are perfect for media transcoding and vision workloads. The catch: Kubernetes 1.35 had removed the `v1beta1` {{< abbr "DRA" >}} API that the upstream Intel driver chart depended on. Every chart template needed patching before it would work.
 
 Both paths required Talos extensions, kernel-level config, and some chart surgery. This post walks through both.
 
@@ -41,7 +41,7 @@ flowchart LR
 
 ## Part 1: NVIDIA GPU Operator
 
-The plan for gpu-1 was straightforward: install NVIDIA's Talos extensions, load the kernel modules, deploy the GPU Operator via Helm, and start scheduling CUDA workloads. The infrastructure side worked. The hardware had other ideas.
+The plan for gpu-1 was straightforward: install NVIDIA's Talos extensions, load the kernel modules, deploy the GPU Operator via Helm, and start scheduling {{< abbr "CUDA" >}} workloads. The infrastructure side worked. The hardware had other ideas.
 
 ### Talos Extensions for NVIDIA
 
@@ -102,7 +102,7 @@ operator:
   defaultRuntime: containerd
 ```
 
-`driver.enabled: false` because Talos provides the kernel modules. `toolkit.enabled: false` because Talos provides the container toolkit. The operator still handles device discovery, the device plugin, GPU feature discovery, and the DCGM exporter — all the Kubernetes-level plumbing.
+`driver.enabled: false` because Talos provides the kernel modules. `toolkit.enabled: false` because Talos provides the container toolkit. The operator still handles device discovery, the device plugin, GPU feature discovery, and the {{< abbr "DCGM" >}} exporter — all the Kubernetes-level plumbing.
 
 The ArgoCD Application uses NVIDIA's official Helm chart at `v25.10.1`:
 
@@ -180,13 +180,13 @@ Mon Apr 20 17:23:30 2026
 
 ## Part 2: Intel Arc iGPU via DRA
 
-The three mini nodes each have an Intel Core Ultra with an integrated Intel Arc GPU. These share system RAM instead of having dedicated VRAM — unsuitable for LLM inference, but excellent for hardware video transcode (Quick Sync), computer vision via OpenVINO, and OpenCL compute. More importantly, they gave us a reason to implement DRA — the replacement for the Kubernetes device plugin model.
+The three mini nodes each have an Intel Core Ultra with an integrated Intel Arc GPU. These share system RAM instead of having dedicated {{< abbr "VRAM" >}} — unsuitable for LLM inference, but excellent for hardware video transcode (Quick Sync), computer vision via OpenVINO, and OpenCL compute. More importantly, they gave us a reason to implement DRA — the replacement for the Kubernetes device plugin model.
 
 ### Why DRA Over Device Plugins
 
 Kubernetes device plugins (since v1.10) expose hardware through opaque integers in `resources.limits` — `nvidia.com/gpu: 1`. It works, but it has limitations that become painful as hardware diversity grows:
 
-- Devices are integers — you cannot express "I want a GPU with at least 4GB VRAM" or "same NUMA node as my CPU."
+- Devices are integers — you cannot express "I want a GPU with at least 4GB VRAM" or "same {{< abbr "NUMA" >}} node as my CPU."
 - Allocation is first-come-first-served with no structured claim semantics.
 - No standard way for a device to be shared between containers in a pod.
 
@@ -194,7 +194,7 @@ Dynamic Resource Allocation (DRA), GA in Kubernetes 1.32, uses `resource.k8s.io/
 
 **ResourceSlice** — Published by the driver on each node. It advertises available devices with structured attributes (device model, memory, features). Unlike a device plugin's flat integer, the slice carries enough information for the scheduler to match against capability requirements.
 
-**DeviceClass** — A cluster-wide object that selects devices using CEL expressions:
+**DeviceClass** — A cluster-wide object that selects devices using {{< abbr "CEL" >}} expressions:
 
 ```yaml
 apiVersion: resource.k8s.io/v1
@@ -207,7 +207,7 @@ spec:
       expression: device.driver == "gpu.intel.com"
 ```
 
-**ResourceClaim** — The pod-side object. Instead of `resources.limits`, the pod declares a claim referencing the DeviceClass. The scheduler finds a matching device, binds the claim, and the kubelet plugin injects it via CDI.
+**ResourceClaim** — The pod-side object. Instead of `resources.limits`, the pod declares a claim referencing the DeviceClass. The scheduler finds a matching device, binds the claim, and the kubelet plugin injects it via {{< abbr "CDI" >}}.
 
 ```yaml
 apiVersion: v1
@@ -301,7 +301,7 @@ spec:
       resources:   ["resourceslices"]
 ```
 
-**3. Namespace PSA label** — the DRA driver DaemonSet uses `hostPath` volumes. Pod Security Admission blocks this by default:
+**3. Namespace {{< abbr "PSA" >}} label** — the DRA driver DaemonSet uses `hostPath` volumes. Pod Security Admission blocks this by default:
 ```yaml
 metadata:
   labels:
@@ -316,7 +316,7 @@ volumes:
     path: /var/cdi/dynamic
 ```
 
-**5. Image update** — upstream used Docker Hub `v0.7.0`. Updated to GHCR `v0.9.1` with `resource.k8s.io/v1` support:
+**5. Image update** — upstream used Docker Hub `v0.7.0`. Updated to {{< abbr "GHCR" >}} `v0.9.1` with `resource.k8s.io/v1` support:
 ```yaml
 image:
   repository: ghcr.io/intel/intel-resource-drivers-for-kubernetes
@@ -399,6 +399,6 @@ Both `card0` (display) and `renderD128` (compute/render) are present. The GPU is
 - [NVIDIA GPU Support on Talos Linux](https://docs.siderolabs.com/talos/v1.9/configure-your-talos-cluster/hardware-and-drivers/nvidia-gpu-proprietary) — Talos extensions for NVIDIA
 - [Kubernetes Dynamic Resource Allocation](https://kubernetes.io/docs/concepts/scheduling-eviction/dynamic-resource-allocation/) — ResourceSlice, DeviceClass, ResourceClaim
 - [Intel Resource Drivers for Kubernetes](https://github.com/intel/intel-resource-drivers-for-kubernetes) — DRA-based GPU resource driver
-- [Container Device Interface (CDI)](https://github.com/cncf-tags/container-device-interface) — CNCF specification for runtime device injection
+- [Container Device Interface (CDI)](https://github.com/cncf-tags/container-device-interface) — {{< abbr "CNCF" >}} specification for runtime device injection
 
 **Next: [GitOps Everything with ArgoCD](/docs/building/05-gitops)**

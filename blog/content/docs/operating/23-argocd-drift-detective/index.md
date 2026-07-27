@@ -70,7 +70,7 @@ On my cluster the output was dominated by three kinds: `ExternalSecret` (10 apps
 
 ### Class A: CRD Schema Defaults
 
-Symptom: every `ExternalSecret` drifts with fields like `deletionPolicy: Retain`, `conversionStrategy: Default` that the CRD schema injects but git doesn't have.
+Symptom: every `ExternalSecret` drifts with fields like `deletionPolicy: Retain`, `conversionStrategy: Default` that the {{< abbr "CRD" >}} schema injects but git doesn't have.
 
 **Fix:** pin the defaults in git so the manifest matches what the CRD writes.
 
@@ -190,7 +190,7 @@ Symptom: apps where the chart or operator injects fields git doesn't specify —
 | gpu-operator ClusterPolicy | Dozens of unset sub-fields defaulted by webhook | `ignoreDifferences` on `/spec` wholesale |
 | vcluster-experiments StatefulSet | `vClusterConfigHash`, `whenScaled`, `revisionHistoryLimit` | Per-pointer `ignoreDifferences` |
 | infisical Deployment | `updatedAt: "2026-04-04 UTC 21:31:24"` (stamped every render) | `ignoreDifferences` |
-| infisical-postgresql PDB | `maxUnavailable: ""` diverges from K8s default | `pdb.create: false` in values |
+| infisical-postgresql {{< abbr "PDB" >}} | `maxUnavailable: ""` diverges from K8s default | `pdb.create: false` in values |
 
 ## The Unmasked Bug
 

@@ -50,7 +50,7 @@ flowchart LR
 
 Three reasons:
 
-1. **Proxy outpost** — services with no OIDC support (Longhorn, Hubble, Sympozium) get authentication via a reverse proxy in front of Traefik. No code changes, no sidecars.
+1. **Proxy outpost** — services with no {{< abbr "OIDC" >}} support (Longhorn, Hubble, Sympozium) get authentication via a reverse proxy in front of Traefik. No code changes, no sidecars.
 2. **Blueprint system** — providers, applications, and groups can be defined as YAML. In theory, this makes configuration declarative and GitOps-friendly. In practice, blueprint YAML syntax is sensitive — see below.
 3. **Self-hosted and free** — the open-source edition includes everything: OIDC, proxy providers, group management, admin UI.
 
@@ -58,9 +58,9 @@ Three reasons:
 
 ### Pattern 1: Native OIDC
 
-Services that support OpenID Connect get a dedicated OAuth2 provider in Authentik. The service redirects to Authentik for login, receives a JWT with group claims, and maps groups to roles.
+Services that support OpenID Connect get a dedicated OAuth2 provider in Authentik. The service redirects to Authentik for login, receives a {{< abbr "JWT" >}} with group claims, and maps groups to roles.
 
-- **ArgoCD** — `oidc.config` in `argocd-cm`, groups mapped via `policy.csv` RBAC
+- **ArgoCD** — `oidc.config` in `argocd-cm`, groups mapped via `policy.csv` {{< abbr "RBAC" >}}
 - **Grafana** — `auth.generic_oauth` in `grafana.ini`, JMESPath role mapping from group claims
 
 ### Pattern 2: Forward Auth Proxy
@@ -111,7 +111,7 @@ ClusterRoleBindings map Authentik groups to Kubernetes RBAC:
 
 Two ArgoCD apps:
 
-- **`authentik`** — Helm chart. Server, worker, embedded PostgreSQL (no env var collision — unlike Infisical's chart). Redis is also embedded. Secret key and PostgreSQL password come from a SOPS-encrypted Secret applied out-of-band.
+- **`authentik`** — Helm chart. Server, worker, embedded PostgreSQL (no env var collision — unlike Infisical's chart). Redis is also embedded. Secret key and PostgreSQL password come from a {{< abbr "SOPS" >}}-encrypted Secret applied out-of-band.
 - **`authentik-extras`** — raw manifests. Blueprint ConfigMaps, Cilium L2 LoadBalancer, ClusterRoleBindings.
 
 Key Helm values:
@@ -124,7 +124,7 @@ authentik:
   bootstrap_password: ""
 ```
 
-The bootstrap password creates an `akadmin` user on first boot. After SSO is working, this account becomes the break-glass fallback.
+The bootstrap password creates an `akadmin` user on first boot. After {{< abbr "SSO" >}} is working, this account becomes the break-glass fallback.
 
 ## Blueprints: Declarative (Eventually)
 
@@ -148,7 +148,7 @@ Layer 13 is now fully declarative. If Authentik's database is lost, all provider
 
 ArgoCD was bootstrapped manually with `helm install` during Layer 0 and never brought under App-of-Apps control. Changing its Helm values to add OIDC config had no declarative path.
 
-The fix was to create an Application CR that adopts the existing release:
+The fix was to create an Application {{< abbr "CR" >}} that adopts the existing release:
 
 ```yaml
 apiVersion: argoproj.io/v1alpha1
@@ -204,7 +204,7 @@ Infisical's admin UI requires manual OIDC configuration — there is no Helm val
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **Forward-auth redirects to unreachable address** — `AUTHENTIK_HOST` not set, outpost defaults to `http://0.0.0.0:9000` | Outpost needs its external URL for correct OAuth2 redirect URIs | Added `AUTHENTIK_HOST: https://auth.frank.derio.net` via `global.env` | `9f1e7c4d` |
+| **Forward-auth redirects to unreachable address** — `AUTHENTIK_HOST` not set, outpost defaults to `http://0.0.0.0:9000` | Outpost needs its external URL for correct OAuth2 redirect {{< abbr "URI" "URIs" >}} | Added `AUTHENTIK_HOST: https://auth.frank.derio.net` via `global.env` | `9f1e7c4d` |
 | **Provider blueprints silently failed** — auto-discovery reported `status: error` with no actionable message | Blueprint YAML syntax issues (indentation, missing fields) | Worked around with REST API initially; later corrected blueprint YAML | `2a4b6d8f` |
 | **Grafana OIDC silent auth failure** — Secret key `client_secret` does not match expected env var name `GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET` | `envFromSecret` maps Secret key names directly to env var names | Renamed Secret key to match Grafana's expected env var | `5c3e8a1b` |
 | **ArgoCD not under App-of-Apps** — Helm values changes required manual `helm upgrade` | Bootstrapped manually in Layer 0, never adopted | Created Application CR with `ignoreDifferences` to adopt existing release | `7d1f2b9e` |

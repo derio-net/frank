@@ -12,11 +12,11 @@ diataxis: explainer
 last_updated: 2026-07-15
 ---
 
-I knew Kubernetes from the cloud. EKS, GKE — they hand you a cluster with networking, storage, and GPU scheduling already wired. You push a manifest, it works, and you have no idea how. The abstraction is the point if your job is shipping features. But if your job is understanding infrastructure, the abstraction is the obstacle.
+I knew Kubernetes from the cloud. {{< abbr "EKS" >}}, {{< abbr "GKE" >}} — they hand you a cluster with networking, storage, and GPU scheduling already wired. You push a manifest, it works, and you have no idea how. The abstraction is the point if your job is shipping features. But if your job is understanding infrastructure, the abstraction is the obstacle.
 
-I wanted to know what happens between `kubectl apply` and a running pod. How does the CNI assign an IP? How does Longhorn replicate data without a SAN? How does an immutable OS manage disk mounts when there is no SSH and no shell? You can read about eBPF kube-proxy replacement or DRA-based GPU sharing all day. But you can also break it, fix it, and actually learn it.
+I wanted to know what happens between `kubectl apply` and a running pod. How does the {{< abbr "CNI" >}} assign an IP? How does Longhorn replicate data without a SAN? How does an immutable OS manage disk mounts when there is no SSH and no shell? You can read about eBPF kube-proxy replacement or {{< abbr "DRA" >}}-based GPU sharing all day. But you can also break it, fix it, and actually learn it.
 
-The hardware was already sitting around. An i9 desktop retired from daily use. A stack of Intel NUCs. Two Raspberry Pi 4s gathering dust. The cluster turns idle machines into a platform. The goal was never "run a production cluster at home." It was to build one that *could* be production, so the skills transfer directly.
+The hardware was already sitting around. An i9 desktop retired from daily use. A stack of Intel {{< abbr "NUC" "NUCs" >}}. Two Raspberry Pi 4s gathering dust. The cluster turns idle machines into a platform. The goal was never "run a production cluster at home." It was to build one that *could* be production, so the skills transfer directly.
 
 ## The Shape That Emerged
 
@@ -48,11 +48,11 @@ flowchart LR
   omni -->|machine config| pc
 ```
 
-**Zone A** is a single Raspberry Pi 5 that lives outside the cluster. It runs Sidero Omni (machine lifecycle), Authentik (SSO), and Traefik (ingress). Putting management outside the cluster was a lesson learned the hard way — more on that in Missteps.
+**Zone A** is a single Raspberry Pi 5 that lives outside the cluster. It runs Sidero Omni (machine lifecycle), Authentik ({{< abbr "SSO" >}}), and Traefik (ingress). Putting management outside the cluster was a lesson learned the hard way — more on that in Missteps.
 
-**Zone B** is three identical Intel NUCs (Ultra 5, 64GB, 1TB NVMe). They form the HA control plane. Because Talos lets control planes run workloads, these also host Longhorn storage and most cluster services. Identical hardware means predictable capacity. No surprises.
+**Zone B** is three identical Intel NUCs (Ultra 5, 64GB, 1TB NVMe). They form the {{< abbr "HA" >}} control plane. Because Talos lets control planes run workloads, these also host Longhorn storage and most cluster services. Identical hardware means predictable capacity. No surprises.
 
-**Zone C** is one machine: a custom desktop with an i9, 128GB RAM, an RTX 5070, and two 4TB SATA SSDs. It is the single node that makes the cluster interesting — local LLM inference, diffusion models, agentic workloads. Everything GPU-related lands here.
+**Zone C** is one machine: a custom desktop with an i9, 128GB RAM, an RTX 5070, and two 4TB SATA SSDs. It is the single node that makes the cluster interesting — local {{< abbr "LLM" >}} inference, diffusion models, agentic workloads. Everything GPU-related lands here.
 
 **Zone D** is the rag-tag edge: a legacy desktop (pc-1) and two Raspberry Pi 4s. They run CI/CD pipelines, monitoring scrapers, DNS caches — workloads that need to be always-on but do not need a GPU or fast storage.
 

@@ -50,17 +50,17 @@ The standard choice is `kube-prometheus-stack` — Prometheus, Alertmanager, Gra
 |---|---|---|
 | Prometheus / VMSingle | ~1–2 GB RAM | ~50–150 MB RAM |
 | Full stack baseline | ~2–4 GB RAM | ~200–400 MB RAM |
-| Storage format | TSDB (per-sample blocks) | custom compressed format |
+| Storage format | {{< abbr "TSDB" >}} (per-sample blocks) | custom compressed format |
 | Long-term retention | needs Thanos / Cortex | built-in, single binary |
 
-VictoriaMetrics is not a drop-in replacement in the sense that it requires rethinking the architecture — but the `victoria-metrics-k8s-stack` Helm chart is deliberately structured to be familiar to anyone who has used `kube-prometheus-stack`. It ships the same CRD patterns (`VMServiceMonitor`, `VMPodMonitor`), the same Grafana dashboards, and the same exporters.
+VictoriaMetrics is not a drop-in replacement in the sense that it requires rethinking the architecture — but the `victoria-metrics-k8s-stack` Helm chart is deliberately structured to be familiar to anyone who has used `kube-prometheus-stack`. It ships the same {{< abbr "CRD" >}} patterns (`VMServiceMonitor`, `VMPodMonitor`), the same Grafana dashboards, and the same exporters.
 
 ## The Stack
 
 Four ArgoCD Applications make up the observability layer:
 
 **`victoria-metrics`** — Core chart (`victoria-metrics-k8s-stack` v0.72.4). Deploys:
-- `VMSingle` — single-node time-series DB with 20Gi Longhorn PVC, 1-month retention
+- `VMSingle` — single-node time-series DB with 20Gi Longhorn {{< abbr "PVC" >}}, 1-month retention
 - `vmagent` — metrics scraper; reads `VMServiceMonitor` and `VMPodMonitor` CRDs
 - `node-exporter` — DaemonSet on all nodes
 - `kube-state-metrics` — Kubernetes object metrics
@@ -170,7 +170,7 @@ The victoria-metrics operator uses a `ValidatingWebhookConfiguration` to validat
 2. Something went wrong mid-install (the 63-char service name issue)
 3. Application was deleted and reinstalled
 4. The old `ValidatingWebhookConfiguration` remained — not owned by the Helm release
-5. The stale webhook pointed at the old operator's TLS certificate
+5. The stale webhook pointed at the old operator's {{< abbr "TLS" >}} certificate
 6. Every API call to reconcile the `VMAgent` resource hit the webhook, TLS handshake failed, reconciliation silently dropped
 
 The giveaway:
@@ -326,8 +326,8 @@ The lesson: Helm chart composition is leaky. When chart A embeds chart B as a su
 | **Stale ValidatingWebhookConfiguration from reinstall** — deleting and recreating the Application left the old webhook pointing at a nonexistent operator TLS cert | The webhook was not owned by the Helm release; Helm did not clean it up on uninstall | Manual `kubectl delete validatingwebhookconfiguration`; operator re-registered with fresh cert | `edec8a48` |
 | **Fluent Bit hostname missing `-server` suffix** — the VictoriaLogs chart appends `-server` to its Service name, which is not documented in the chart README | Wrong DNS name caused silent retry loops with no error output; Fluent Bit retries on any transport failure without differentiating DNS from HTTP errors | Corrected `Host` to `victoria-logs-victoria-logs-single-server.monitoring.svc.cluster.local` | `83dfb68a` |
 | **`grafana.additionalDataSources` silently ignored** — the victoria-metrics chart overrides Grafana's datasource provisioning with its own ConfigMap, making the subchart value a no-op | Helm chart composition is leaky; the parent chart intercepts the subchart's provisioning mechanism | Used `extraConfigmapMounts` to mount a standalone provisioning ConfigMap at the Pod level | `bbc93d3b` |
-| **High-cardinality node-meta labels flooded VictoriaMetrics** — Cilium's default pod metadata labels exploded metric cardinality, causing OOMs | `node-meta` labels include pod IPs and container IDs — billions of unique series | Dropped high-cardinality labels via Cilium Helm value overrides | `193c3890` |
-| **Grafana deployment strategy defaulted to RollingUpdate** — persistent PVC sometimes stuck during rolling updates due to ReadWriteOnce access mode | Grafana's PVC is RWO; a rolling update can leave the old pod terminating while the new pod is pending, neither able to mount | Set `Grafana.deploymentStrategy` to `Recreate` | `e40c952d` |
+| **High-cardinality node-meta labels flooded VictoriaMetrics** — Cilium's default pod metadata labels exploded metric cardinality, causing {{< abbr "OOM" "OOMs" >}} | `node-meta` labels include pod IPs and container IDs — billions of unique series | Dropped high-cardinality labels via Cilium Helm value overrides | `193c3890` |
+| **Grafana deployment strategy defaulted to RollingUpdate** — persistent PVC sometimes stuck during rolling updates due to ReadWriteOnce access mode | Grafana's PVC is {{< abbr "RWO" >}}; a rolling update can leave the old pod terminating while the new pod is pending, neither able to mount | Set `Grafana.deploymentStrategy` to `Recreate` | `e40c952d` |
 
 ## References
 

@@ -50,7 +50,7 @@ or cloud-managed. Heavy CD pipeline → keep it, layer GitOps on top.
 
 The cluster is a folder. That is the GitOps premise, stripped to its
 load-bearing claim: the desired state of every workload, every
-ConfigMap, every Application CR, lives in a Git repository, and
+ConfigMap, every Application {{< abbr "CR" >}}, lives in a Git repository, and
 something inside the cluster watches the repo and reconciles the
 difference. Push code; the cluster catches up. Edit the cluster by
 hand; the reconciler erases your edit. The audit trail is `git log`.
@@ -96,7 +96,7 @@ job (opinionated), or a kit of controllers you compose yourself
 
 {{< papers/landscape axes="x:OSS↔commercial,y:unbundled↔opinionated" >}}
         title GitOps reconcilers — 2026
-        x-axis OSS --> Commercial
+        x-axis {{< abbr "OSS" >}} --> Commercial
         y-axis Unbundled --> Opinionated
         quadrant-1 "Opinionated · Commercial"
         quadrant-2 "Opinionated · OSS"
@@ -149,7 +149,7 @@ fits the team's workflow, it fits beautifully; when it does not, the
 abstractions become walls.
 
 **Cloud-managed GitOps** is the hyperscaler answer. Anthos Config
-Management on GCP, Azure Arc with GitOps add-ons on Azure, EKS
+Management on GCP, Azure Arc with GitOps add-ons on Azure, {{< abbr "EKS" >}}
 GitOps add-ons (Flux or ArgoCD, vendor-deployed) on AWS. The trade
 is identical to managed Postgres: the operational tax goes to the
 cloud vendor; the per-month bill arrives.
@@ -244,7 +244,7 @@ flowchart TD
 ```
 
 Flux's answer is *don't ship one application; ship a Lego kit*. The
-source-controller is the only thing that talks to Git or OCI; it
+source-controller is the only thing that talks to Git or {{< abbr "OCI" >}}; it
 publishes immutable artifacts (tar.gz of rendered manifests) which
 the other controllers consume. The kustomize-controller and the
 helm-controller both reconcile from that artifact — they do not
@@ -306,8 +306,8 @@ flowchart TD
 
 The reconciler runs in the cluster the same way it would for OSS
 ArgoCD or Flux; the difference is that the operator's runtime
-configuration, upgrades, and SLA all belong to the cloud vendor.
-Anthos Config Management on GKE is essentially Config Sync (a
+configuration, upgrades, and {{< abbr "SLA" >}} all belong to the cloud vendor.
+Anthos Config Management on {{< abbr "GKE" >}} is essentially Config Sync (a
 Google-developed Kustomize reconciler) plus Policy Controller for
 admission rules; Azure Arc with GitOps add-ons can install Flux or
 ArgoCD on any Kubernetes cluster the Arc agent reaches. The data
@@ -428,7 +428,7 @@ after every symlink commit is now muscle memory.
 We patched an Application's `syncPolicy` live to suspend `selfHeal`
 during a validation test. Within the root's sync window, the
 App-of-Apps re-templated the leaf Application from
-`apps/root/templates/<app>.yaml` and SSA-reverted the patch. The
+`apps/root/templates/<app>.yaml` and {{< abbr "SSA" >}}-reverted the patch. The
 leaf came back exactly as the chart rendered it, including
 `selfHeal: true`. The fix was not to fight the parent harder; the
 fix was to *understand* that live spec mutations against

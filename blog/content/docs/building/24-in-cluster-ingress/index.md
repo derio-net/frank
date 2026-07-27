@@ -12,9 +12,9 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-Up until now, all of Frank's services were reachable via direct Cilium L2 LoadBalancer IPs. That works on a local network, but it means no TLS, no unified authentication, no human-readable URLs, and no single place to see what is running. The external Traefik on raspi-omni handled `*.frank.derio.net` routing, but it sat *outside* the cluster — a separate Ansible-managed box.
+Up until now, all of Frank's services were reachable via direct Cilium L2 LoadBalancer IPs. That works on a local network, but it means no {{< abbr "TLS" >}}, no unified authentication, no human-readable URLs, and no single place to see what is running. The external Traefik on raspi-omni handled `*.frank.derio.net` routing, but it sat *outside* the cluster — a separate Ansible-managed box.
 
-This post moves the ingress controller inside the cluster: Traefik v3 on the raspi edge nodes, serving all services under `*.cluster.derio.net` with wildcard TLS from Let's Encrypt, Authentik forward-auth for services without native SSO, and a gethomepage.dev dashboard at `master.cluster.derio.net`.
+This post moves the ingress controller inside the cluster: Traefik v3 on the raspi edge nodes, serving all services under `*.cluster.derio.net` with wildcard TLS from Let's Encrypt, Authentik forward-auth for services without native {{< abbr "SSO" >}}, and a gethomepage.dev dashboard at `master.cluster.derio.net`.
 
 ## Architecture
 
@@ -62,7 +62,7 @@ Evaluated Traefik, Envoy Gateway, and Contour. Traefik won on:
 
 ## TLS: Built-in ACME, Not cert-manager
 
-cert-manager is already deployed for internal webhook TLS, but for this use case Traefik's built-in ACME resolver is simpler — no extra CRDs, no Issuer/Certificate objects. One wildcard cert for `*.cluster.derio.net` via Cloudflare DNS-01:
+cert-manager is already deployed for internal webhook TLS, but for this use case Traefik's built-in {{< abbr "ACME" >}} resolver is simpler — no extra {{< abbr "CRD" "CRDs" >}}, no Issuer/Certificate objects. One wildcard cert for `*.cluster.derio.net` via Cloudflare DNS-01:
 
 ```yaml
 # apps/traefik/values.yaml (excerpt)
@@ -78,9 +78,9 @@ certificatesResolvers:
           delayBeforeChecks: 60
 ```
 
-`disableChecks: true` skips local DNS propagation verification (blocked by router ACLs). `delayBeforeChecks: 60` gives Cloudflare 60 seconds to propagate the TXT record globally.
+`disableChecks: true` skips local DNS propagation verification (blocked by router {{< abbr "ACL" "ACLs" >}}). `delayBeforeChecks: 60` gives Cloudflare 60 seconds to propagate the TXT record globally.
 
-The cert stores in `acme.json` on a 128Mi Longhorn PV. Since the PV is RWO, Traefik runs with `strategy: Recreate`.
+The cert stores in `acme.json` on a 128Mi Longhorn {{< abbr "PV" >}}. Since the PV is {{< abbr "RWO" >}}, Traefik runs with `strategy: Recreate`.
 
 ### PVC Permissions Gotcha
 
@@ -98,7 +98,7 @@ The Helm chart uses top-level `podSecurityContext`, not `deployment.podSecurityC
 
 Three Middleware CRDs in `traefik-system`:
 
-**`security-headers`** — HSTS, X-Frame-Options, Content-Type sniffing protection, referrer policy.
+**`security-headers`** — {{< abbr "HSTS" >}}, X-Frame-Options, Content-Type sniffing protection, referrer policy.
 
 **`ip-allowlist`** — restricts to RFC 1918 ranges. This is a homelab, not public-facing.
 
@@ -123,7 +123,7 @@ All 16 IngressRoutes live in a single `ingressroutes.yaml`. Each route targets t
 Services split into two tiers:
 
 - **Direct proxy (no forward-auth):** ArgoCD, Sympozium, Authentik, Homepage — either have their own login or are the IdP itself.
-- **Forward-auth via Authentik:** Grafana, Longhorn, Infisical, LiteLLM, Paperclip, ComfyUI, n8n, Gitea, Zot, Tekton — services without native OIDC.
+- **Forward-auth via Authentik:** Grafana, Longhorn, Infisical, LiteLLM, Paperclip, ComfyUI, n8n, Gitea, Zot, Tekton — services without native {{< abbr "OIDC" >}}.
 
 ```console
 $ kubectl get ingressroutes -n traefik-system -o wide
@@ -162,7 +162,7 @@ The proxy providers for `*.cluster.derio.net` are managed declaratively via an A
 
 The `invalidation_flow` field is required in Authentik 2026.x — without it, the blueprint fails silently with a serializer error.
 
-Blueprint creates providers and applications but does **not** assign them to the embedded outpost. Outpost assignment must be done via Django ORM after the blueprint applies — Authentik blueprints cannot append to an outpost's provider list without replacing existing assignments.
+Blueprint creates providers and applications but does **not** assign them to the embedded outpost. Outpost assignment must be done via Django {{< abbr "ORM" >}} after the blueprint applies — Authentik blueprints cannot append to an outpost's provider list without replacing existing assignments.
 
 ## Homepage Dashboard
 
@@ -172,7 +172,7 @@ A gethomepage.dev instance at `master.cluster.derio.net` provides the cluster la
 - **CI/CD**: Gitea, Zot, Tekton
 - **Development**: LiteLLM, Sympozium, n8n, Paperclip, ComfyUI
 
-Health checks use `siteMonitor` (HTTP HEAD/GET), not `ping` (ICMP) — Kubernetes ClusterIP addresses do not respond to ICMP from inside the cluster.
+Health checks use `siteMonitor` (HTTP HEAD/GET), not `ping` ({{< abbr "ICMP" >}}) — Kubernetes ClusterIP addresses do not respond to ICMP from inside the cluster.
 
 ## Missteps
 

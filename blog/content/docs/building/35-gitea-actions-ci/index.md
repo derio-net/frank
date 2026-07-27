@@ -20,7 +20,7 @@ chart, and the last line says `2026-07-19  13  (cum 2000)`.
 I already mirror those repositories to my own Gitea. The obvious question —
 the one that started this layer — was: *isn't Tekton's format compatible with
 Actions, so the workflows can just be reused?* The answer is no, and the
-answer is also the design: Tekton speaks Task/Pipeline CRDs, and every Tekton
+answer is also the design: Tekton speaks Task/Pipeline {{< abbr "CRD" "CRDs" >}}, and every Tekton
 pipeline I run was a hand translation. What IS compatible with GitHub Actions
 workflow YAML is **Gitea Actions** — which had been sitting in my Gitea,
 disabled by default, the whole time.
@@ -165,14 +165,14 @@ containers:
 
 Capacity is 2 (`runner.capacity` in the config ConfigMap) so a Playwright run
 and a compose smoke can't jointly eat a 32GB node. The registration token is
-minted inside Gitea and delivered by ESO:
+minted inside Gitea and delivered by {{< abbr "ESO" >}}:
 
 ```bash
 kubectl -n gitea exec deploy/gitea -- gitea actions generate-runner-token
 # → store in your secret store; ESO delivers it as Secret gitea-runner-token
 ```
 
-Registration is **one-shot state on the PVC** (`/data/.runner`): rotating the
+Registration is **one-shot state on the {{< abbr "PVC" >}}** (`/data/.runner`): rotating the
 token does not re-register an existing runner. To force fresh registration,
 scale to 0, delete `/data/.runner`, scale up.
 
@@ -276,7 +276,7 @@ gh api "repos/$ORG/$REPO/commits/$SHA/statuses" \
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Runner pod 2/2 but jobs hang "Running" forever | dind serving TLS on 2376, runner talking plain to 2375 | `DOCKER_TLS_CERTDIR: ""` + explicit `--host=tcp://0.0.0.0:2375` |
+| Runner pod 2/2 but jobs hang "Running" forever | dind serving {{< abbr "TLS" >}} on 2376, runner talking plain to 2375 | `DOCKER_TLS_CERTDIR: ""` + explicit `--host=tcp://0.0.0.0:2375` |
 | Runner healthy but Offline in Gitea admin | stale one-shot registration on the PVC | scale to 0, delete `/data/.runner`, scale up |
 | Workflow exists on mirror, push arrives, **no run, no error** | Actions unit off on that repo | `PATCH …/repos/{owner}/{repo}` `{"has_actions": true}` |
 | Run fails only at the artifact step | official upload-artifact's GHES rejection | split per side (Step 3) |

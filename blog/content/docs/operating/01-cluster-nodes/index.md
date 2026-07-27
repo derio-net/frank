@@ -190,7 +190,7 @@ To roll back a patch:
 omnictl delete configpatch <patch-id>
 ```
 
-**Gotcha:** On UKI-booted machines (gpu-1 with SecureBoot), `ConfigPatches` with `machine.install.extraKernelArgs` is **inert** — the UKI cmdline is baked into the signed image and `extraKernelArgs` doesn't change the schematic ID, so Omni never reinstalls. Use `KernelArgs.omni.sidero.dev` instead (`patches/phase04-gpu/403-gpu1-pcie-aspm.yaml:38`):
+**Gotcha:** On {{< abbr "UKI" >}}-booted machines (gpu-1 with SecureBoot), `ConfigPatches` with `machine.install.extraKernelArgs` is **inert** — the UKI cmdline is baked into the signed image and `extraKernelArgs` doesn't change the schematic ID, so Omni never reinstalls. Use `KernelArgs.omni.sidero.dev` instead (`patches/phase04-gpu/403-gpu1-pcie-aspm.yaml:38`):
 
 ```bash
 omnictl get kernelargsstatus <machine-id>
@@ -251,7 +251,7 @@ If `kubectl get nodes` shows a node as `NotReady`:
 
 #### Recovery: DNS boot hang
 
-A node that pings but never reaches `Ready` (ICMP replies, `apid:50000` refuses, Omni shows `CONNECTED: false`) is likely stuck on the time-sync gate. The root cause: a static interface with no nameservers falls back to public DNS (`1.1.1.1`, `8.8.8.8`), which the homelab ACL blocks → NTP never syncs → `apid`/`kubelet` hang.
+A node that pings but never reaches `Ready` ({{< abbr "ICMP" >}} replies, `apid:50000` refuses, Omni shows `CONNECTED: false`) is likely stuck on the time-sync gate. The root cause: a static interface with no nameservers falls back to public DNS (`1.1.1.1`, `8.8.8.8`), which the homelab {{< abbr "ACL" >}} blocks → {{< abbr "NTP" >}} never syncs → `apid`/`kubelet` hang.
 
 Fix: Apply the cluster-wide nameservers patch:
 
@@ -283,7 +283,7 @@ When pods cannot reach each other or external services:
    ```bash
    cilium endpoint list
    ```
-   Endpoints in a state other than `ready` indicate the agent has not finished programming BPF for that pod.
+   Endpoints in a state other than `ready` indicate the agent has not finished programming {{< abbr "BPF" >}} for that pod.
 
 #### Recovery: restart the Cilium agent
 
@@ -310,7 +310,7 @@ kubectl get pods -n kube-system -l k8s-app=cilium
 
 #### Recovery: NIC link-flap
 
-If all pod traffic on one node drops (SSH-via-LB dies, `kubectl exec` still works) and the Cilium agent logs contain `"IPv4 direct routing device IP not found"` or `"Failed to initialize datapath, retrying later"`, a physical NIC link-flap has stripped the node IP off Cilium's direct-routing device (`docs/runbooks/frank-gotchas/networking.md:62-143`).
+If all pod traffic on one node drops (SSH-via-{{< abbr "LB" >}} dies, `kubectl exec` still works) and the Cilium agent logs contain `"IPv4 direct routing device IP not found"` or `"Failed to initialize datapath, retrying later"`, a physical {{< abbr "NIC" >}} link-flap has stripped the node IP off Cilium's direct-routing device (`docs/runbooks/frank-gotchas/networking.md:62-143`).
 
 ```bash
 # Check for link flaps
@@ -321,7 +321,7 @@ Recovery is physical — reseat the cable or replace the NIC. Do **not** drain t
 
 ### Omni Unreachable
 
-If `omnictl` commands return gRPC 500s or the browser shows a TLS error:
+If `omnictl` commands return gRPC 500s or the browser shows a {{< abbr "TLS" >}} error:
 
 #### Recovery: cert expiry
 
@@ -355,7 +355,7 @@ omnictl talosconfig .talos/Frank_Talos_Config.yaml -c frank -f --merge=false
 | `ConfigPatches` `machine.install.extraKernelArgs` works on UKI machines | The UKI cmdline is baked into the signed image; `extraKernelArgs` doesn't change the schematic ID, so Omni never reinstalls | Hours debugging why PCIe ASPM args wouldn't stick on gpu-1. Fixed via `KernelArgs.omni.sidero.dev` resource (`patches/phase04-gpu/403-gpu1-pcie-aspm.yaml`). |
 | Omni cert auto-renews via snap's certbot timer | The snap certbot scans `/etc/letsencrypt/`; Omni's install uses a custom `--config-dir` | Cert expired silently for 30+ days, taking down the management plane. Fixed via dedicated systemd unit (`omni/certbot/certbot.md`). |
 | Omni reconcile is resilient to clock jumps | A cold-boot clock skew freezes the reconcile runtime — Omni serves cached reads but applies nothing | Config patches silently unapplied; reboot of affected nodes did nothing. Fixed by `docker restart omni`. |
-| Static-IP nodes get DNS from DHCP | Static `dhcp: false` → Talos falls back to public resolvers blocked by homelab ACL | Nodes ping but never reach `Ready` (time-sync gate). Fixed fleet-wide by cluster-wide nameservers patch (`patches/phase01-node-config/02-cluster-wide-nameservers.yaml`). |
+| Static-IP nodes get DNS from {{< abbr "DHCP" >}} | Static `dhcp: false` → Talos falls back to public resolvers blocked by homelab ACL | Nodes ping but never reach `Ready` (time-sync gate). Fixed fleet-wide by cluster-wide nameservers patch (`patches/phase01-node-config/02-cluster-wide-nameservers.yaml`). |
 
 ## Quick Reference
 

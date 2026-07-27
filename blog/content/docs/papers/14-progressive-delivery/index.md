@@ -46,9 +46,9 @@ replicas, 20→50→100 `setWeight` with manual pauses at each step. The scars
 came in the seams: a traffic-router plugin URL that 404'd for 21 days, a
 `workloadRef.scaleDown: never` default that doubled traffic to the canary
 without anyone noticing, an AnalysisTemplate pointed at a Prometheus metric
-that doesn't exist on the OSS image.
+that doesn't exist on the {{< abbr "OSS" >}} image.
 
-Frank's answer does not generalize. Stateful + RWO PVC workloads → plain
+Frank's answer does not generalize. Stateful + {{< abbr "RWO" >}} {{< abbr "PVC" >}} workloads → plain
 `Recreate` Deployment. Already on a service mesh → Flagger. Scale beyond
 a human pause-button → Spinnaker + Kayenta.
 
@@ -128,7 +128,7 @@ replica-count fallback, and licensing. The mesh-required column is the
 one that does the most work; it is also the one most vendor docs mention
 only after you have read the install guide.
 
-**Argo Rollouts** optimises for working without a mesh. The Rollout CR
+**Argo Rollouts** optimises for working without a mesh. The Rollout {{< abbr "CR" >}}
 replaces the Deployment (or wraps it via `workloadRef`); staged exposure
 runs on replica count by default, with optional traffic-router plugins
 for SMI, NGINX, ALB, Istio, and — in theory — Cilium. The trade is that
@@ -155,7 +155,7 @@ Contour or Gloo or NGINX in your cluster.
 
 **Linkerd's built-in traffic split** is the mesh-native answer. Linkerd
 ships SMI/HTTPRoute traffic-split primitives that any controller can
-drive; "canary" becomes a CRD that points at two Services and a weight,
+drive; "canary" becomes a {{< abbr "CRD" >}} that points at two Services and a weight,
 and the mesh does the rest. There is no controller, no metric gating —
 those are bring-your-own. The architecture is the cleanest in the
 landscape and the integration surface is the largest. If you already
@@ -184,7 +184,7 @@ study*. It is the same Flagger from earlier, sitting on the heaviest
 mesh in common use. The benefits are real — full per-request routing,
 fault injection, retry budgets — and the cost is exactly proportional
 to those benefits. The mesh control plane runs. The sidecars run on
-every pod. Every request adds the sidecar's P50 and P99 latency budget.
+every pod. Every request adds the sidecar's {{< abbr "P50" >}} and {{< abbr "P99" >}} latency budget.
 The diagram below for §3 will show the layering; the §4 scale section
 will quantify it.
 
@@ -394,7 +394,7 @@ manual pauses and stay sane — one human can watch two or three rollouts
 concurrently if the dashboards are good. A fifty-service cluster cannot.
 The crossover is not a number; it is "how many concurrent rollouts can
 one human watch?" Once the answer is *not enough*, Kayenta-style
-automated multi-metric analysis stops being optional. The CNCF
+automated multi-metric analysis stops being optional. The {{< abbr "CNCF" >}}
 practitioner comparison frames the migration crisply:
 
 {{< papers/pullquote source="CNCF blog — Flagger vs Argo Rollouts vs service meshes" url="https://www.cncf.io/blog/2024/02/27/flagger-vs-argo-rollouts-vs-service-meshes-a-guide-to-progressive-delivery-in-kubernetes/" >}}
@@ -410,8 +410,8 @@ the calculus inverts.
 
 **Mesh overhead per request.** Istio sidecars add roughly 1–2 ms P50
 and 5–10 ms P99 to every request, depending on the mesh version,
-sidecar configuration, and whether mTLS is enforced. At 10 RPS that is
-free. At 10,000 RPS it is a SLO budget you spent on canary gating.
+sidecar configuration, and whether mTLS is enforced. At 10 {{< abbr "RPS" >}} that is
+free. At 10,000 RPS it is a {{< abbr "SLO" >}} budget you spent on canary gating.
 Linkerd's proxies are lighter and typically add sub-millisecond P50,
 but the same shape of trade applies: per-request routing is not free,
 and the tax is paid on every request whether you are in the middle of a
@@ -439,7 +439,7 @@ fight the controller's scale-down.
 
 I did not pick Argo Rollouts over Flagger on the merits in the abstract.
 I picked it because there is no service mesh on Frank — Cilium provides
-the L2 LB and L7 stats, but no mesh sidecar — and adding a mesh solely
+the L2 {{< abbr "LB" >}} and L7 stats, but no mesh sidecar — and adding a mesh solely
 to enable Flagger would have meant paying the §4 mesh tax forever in
 exchange for canary on one workload. That trade was not worth it.
 

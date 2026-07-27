@@ -15,7 +15,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/14d0b674
 
 {{< last-updated >}}
 
-The companion to [Automation with AWX]({{< relref "/docs/building/32-automation" >}}). This post is the cheat-sheet for living with it — onboarding hosts, reading failed jobs, rotating the OIDC secret, and breaking glass when SSO is down.
+The companion to [Automation with AWX]({{< relref "/docs/building/32-automation" >}}). This post is the cheat-sheet for living with it — onboarding hosts, reading failed jobs, rotating the {{< abbr "OIDC" >}} secret, and breaking glass when {{< abbr "SSO" >}} is down.
 
 Assumes the `awx` namespace exists and `.env` (Frank `KUBECONFIG`) is sourced.
 
@@ -178,10 +178,10 @@ Read the specific task that failed, not the recap. The ansible task path in the 
 
 | What we assumed | Why it was wrong | What it cost |
 |---|---|---|
-| `Synced/Healthy` in ArgoCD means AWX is ready | ArgoCD installs the operator + CR. The operator then builds pods, runs migrations, and configures the app — none of which ArgoCD tracks. | Always read the pods directly; `Synced/Healthy` is only the first layer. |
+| `Synced/Healthy` in ArgoCD means AWX is ready | ArgoCD installs the operator + {{< abbr "CR" >}}. The operator then builds pods, runs migrations, and configures the app — none of which ArgoCD tracks. | Always read the pods directly; `Synced/Healthy` is only the first layer. |
 | PATCH to `settings/authentication/` with the OIDC secret works | AWX accepts the PATCH with 200 but silently drops the key if the category is wrong. The key must go to `settings/oidc/`. | Debugging session to discover the silent 200 drop. |
 | The Authentik blueprint applies correctly across version upgrades | The 2026.x Authentik schema change broke the AWX OIDC blueprint's `invalidation_flow` and `redirect_uris` shape. | Blueprint re-sync and manual fix. |
-| An OIDC-authenticated user has RBAC automatically | SSO authenticates but doesn't authorize. The user lands in AWX with zero permissions. | Must map Authentik groups to AWX teams/roles explicitly. |
+| An OIDC-authenticated user has {{< abbr "RBAC" >}} automatically | SSO authenticates but doesn't authorize. The user lands in AWX with zero permissions. | Must map Authentik groups to AWX teams/roles explicitly. |
 
 ## Quick Reference
 

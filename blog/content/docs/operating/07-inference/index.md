@@ -15,7 +15,7 @@ last_updated_commit: https://github.com/derio-net/frank/commit/a77bf484
 
 {{< last-updated >}}
 
-This is the operational companion to [Local Inference]({{< relref "/docs/building/10-local-inference" >}}). That post covers the architecture and deployment. This one is what you type when a model won't load, LiteLLM returns 404, or the GPU shows plenty of free VRAM but Ollama insists there's not enough memory — and the probes that keep the ops board honest about a time-shared GPU.
+This is the operational companion to [Local Inference]({{< relref "/docs/building/10-local-inference" >}}). That post covers the architecture and deployment. This one is what you type when a model won't load, LiteLLM returns 404, or the GPU shows plenty of free {{< abbr "VRAM" >}} but Ollama insists there's not enough memory — and the probes that keep the ops board honest about a time-shared GPU.
 
 Before any of the commands below, source the environment:
 
@@ -147,7 +147,7 @@ kubectl logs -n ollama deploy/ollama --tail=100
 
 Ollama emits **two error patterns** that both look like "out of memory" but have different root causes. Mis-identify which one you're hitting and you'll waste time trying smaller quants when the issue is something else.
 
-**Pattern A — VRAM exhaustion** (real GPU OOM). The model genuinely doesn't fit in the RTX 5070 Ti's 16 GB GDDR7, or you're loading two models at once:
+**Pattern A — VRAM exhaustion** (real GPU {{< abbr "OOM" >}}). The model genuinely doesn't fit in the RTX 5070 Ti's 16 GB {{< abbr "GDDR7" >}}, or you're loading two models at once:
 
 ```bash
 kubectl exec -n ollama deploy/ollama -- nvidia-smi --query-gpu=memory.used,memory.free --format=csv
@@ -166,7 +166,7 @@ kubectl exec -n ollama deploy/ollama -- ollama pull qwen2.5-coder:14b-instruct-q
 kubectl exec -n ollama deploy/ollama -- sh -c 'cat /sys/fs/cgroup/memory.current; echo; cat /sys/fs/cgroup/memory.max'
 ```
 
-If `memory.current` is within 1–2 GiB of `memory.max`, that's the constraint. We bumped the limit to 64 GiB to fit 24B+ models (commit `8a135bcc`). Reducing `num_ctx` via a derived Modelfile will **not** help here — the bottleneck is at-load buffers, not the KV cache.
+If `memory.current` is within 1–2 GiB of `memory.max`, that's the constraint. We bumped the limit to 64 GiB to fit 24B+ models (commit `8a135bcc`). Reducing `num_ctx` via a derived Modelfile will **not** help here — the bottleneck is at-load buffers, not the {{< abbr "KV" >}} cache.
 
 ### Reconciling LiteLLM Aliases vs. Ollama Tags
 
@@ -197,7 +197,7 @@ kubectl exec -n litellm deploy/litellm -- curl -s http://ollama.ollama.svc:11434
 
 ### Model Loading Very Slow
 
-Large models take 30-60 seconds to load into VRAM. If `nvidia-smi` shows no memory being allocated, the model is falling back to CPU — extremely slow. Check Ollama logs for "no compatible CUDA device" or similar.
+Large models take 30-60 seconds to load into VRAM. If `nvidia-smi` shows no memory being allocated, the model is falling back to CPU — extremely slow. Check Ollama logs for "no compatible {{< abbr "CUDA" >}} device" or similar.
 
 ## Missteps
 

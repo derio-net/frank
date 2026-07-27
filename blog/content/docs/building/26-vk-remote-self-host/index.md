@@ -12,7 +12,7 @@ diataxis: tutorial
 last_updated: 2026-07-15
 ---
 
-On April 10th, VibeKanban announced it was shutting down. Thirty days. The OAuth flow was already failing — likely early decommissioning. The local VK features (workspaces, sessions, git worktrees, agent spawning) would survive. But the kanban board, issue management, the 33 MCP tools that the agentic workflow depends on — all that lives in the remote crate, backed by a PostgreSQL database that was about to stop existing.
+On April 10th, VibeKanban announced it was shutting down. Thirty days. The OAuth flow was already failing — likely early decommissioning. The local {{< abbr "VK" >}} features (workspaces, sessions, git worktrees, agent spawning) would survive. But the kanban board, issue management, the 33 {{< abbr "MCP" >}} tools that the agentic workflow depends on — all that lives in the remote crate, backed by a PostgreSQL database that was about to stop existing.
 
 The good news: VK's remote crate already supports self-hosting with local auth. Fork the repo, build the image, deploy three containers, point the agent at it.
 
@@ -47,7 +47,7 @@ Three components, one namespace, zero cloud dependencies:
 | Component | Image | Port | Purpose |
 |-----------|-------|------|---------|
 | **vk-remote** | `ghcr.io/derio-net/vk-remote` (Rust/Axum) | 8081 | Kanban API server |
-| **postgres-vk** | `postgres:16-alpine` | 5432 | Issue/project data, WAL logical replication |
+| **postgres-vk** | `postgres:16-alpine` | 5432 | Issue/project data, {{< abbr "WAL" >}} logical replication |
 | **electric** | `electricsql/electric:1.4.13` | 3000 | Real-time sync engine for frontend |
 
 ElectricSQL reads PostgreSQL's logical replication stream to push live updates to the browser — when an issue changes status, every open tab sees it immediately. That requires `wal_level=logical` and a dedicated PostgreSQL instance.
@@ -98,7 +98,7 @@ containers:
       - "max_wal_senders=5"
 ```
 
-Recreate strategy because of RWO PVC.
+Recreate strategy because of {{< abbr "RWO" >}} {{< abbr "PVC" >}}.
 
 A PostSync Job creates the ElectricSQL role with replication privileges:
 
@@ -119,7 +119,7 @@ SELF_HOST_LOCAL_AUTH_EMAIL=admin@localhost
 SELF_HOST_LOCAL_AUTH_PASSWORD=<from Infisical>
 ```
 
-POST to `/v1/auth/local/login` returns JWT tokens. Browser access goes through Authentik forward-auth at Traefik — the VK remote itself does not know about SSO.
+POST to `/v1/auth/local/login` returns {{< abbr "JWT" >}} tokens. Browser access goes through Authentik forward-auth at Traefik — the VK remote itself does not know about {{< abbr "SSO" >}}.
 
 ## Secrets via Infisical
 
@@ -153,9 +153,9 @@ The spec originally called for `vk.frank.derio.net`, but Frank's Traefik wildcar
 |---------------|-----------------|-----------------|--------|
 | **ElectricSQL cannot connect to PG** — `wal_level=logical` not set, no replication slot available | Default PG `wal_level` is `replica`, not `logical` | Added `-c wal_level=logical` to postgres container args | `c3d4e5f6` |
 | **PostSync Job backoff limit exhausted** — Job fails if PG takes >5 retries to become ready on cold node | `pg_isready` polling with sleep loop, Job has 5-retry default | Delete failed Job, let ArgoCD re-trigger; or increase backoff limit | `g7h8i9j0` |
-| **Blueprint needs manual outpost assignment** — Authentik proxy provider and application created but not assigned to embedded outpost | Blueprints cannot append to outpost provider list without replacing existing assignments | Manual Django ORM: `outpost.providers.add(provider)` | `k1l2m3n4` |
+| **Blueprint needs manual outpost assignment** — Authentik proxy provider and application created but not assigned to embedded outpost | Blueprints cannot append to outpost provider list without replacing existing assignments | Manual Django {{< abbr "ORM" >}}: `outpost.providers.add(provider)` | `k1l2m3n4` |
 | **Old cloud data inaccessible** — expected migration path, but cloud was already decommissioned by the time self-hosted was ready | 30-day shutdown window, OAuth failing before migration completed | Fresh project, fresh issues, fresh start — no data migration | `o5p6q7r8` |
-| **Cross-namespace DNS confusion** — agent pod tried `vk-remote:8081` without FQDN | Pod in `secure-agent-pod` namespace needs `vk-remote.agents.svc.cluster.local` | Updated env var to use FQDN | `s9t0u1v2` |
+| **Cross-namespace DNS confusion** — agent pod tried `vk-remote:8081` without {{< abbr "FQDN" >}} | Pod in `secure-agent-pod` namespace needs `vk-remote.agents.svc.cluster.local` | Updated env var to use FQDN | `s9t0u1v2` |
 
 ## Recovery Path
 

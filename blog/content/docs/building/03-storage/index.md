@@ -46,7 +46,7 @@ flowchart LR
 
 ## Why Longhorn
 
-The serious contender for Kubernetes storage is Rook-Ceph, and it is the wrong choice for a homelab. Ceph demands a minimum of three dedicated OSDs on separate nodes with raw disks, plus monitors, managers, and metadata servers. The control plane overhead in memory and CPU is substantial, and the operational model — PG placement groups, recovery semantics, CRUSH maps — is a full-time education.
+The serious contender for Kubernetes storage is Rook-Ceph, and it is the wrong choice for a homelab. Ceph demands a minimum of three dedicated {{< abbr "OSD" "OSDs" >}} on separate nodes with raw disks, plus monitors, managers, and metadata servers. The control plane overhead in memory and CPU is substantial, and the operational model — PG placement groups, recovery semantics, {{< abbr "CRUSH" >}} maps — is a full-time education.
 
 Longhorn inverts the complexity. Each volume is an independent Linux process backed by a sparse file. Replication happens at the volume level, not the cluster level. A 3-replica volume is three copies of the data on three different nodes. That is the entire mental model.
 
@@ -90,7 +90,7 @@ Look for `siderolabs/iscsi-tools`. If it is missing, check the Omni UI for image
 
 Most nodes use their single internal disk for both the OS and Longhorn storage. The gpu-1 node is different — it has two Samsung 870 EVO 4TB SATA SSDs dedicated to storage. Eight terabytes of capacity for model caches, datasets, and diffusion outputs.
 
-On a standard Linux system, you partition and mount these drives with `fdisk` and `fstab`. On Talos, disk management is declarative. This patch targets only gpu-1 (by its Omni machine UUID):
+On a standard Linux system, you partition and mount these drives with `fdisk` and `fstab`. On Talos, disk management is declarative. This patch targets only gpu-1 (by its Omni machine {{< abbr "UUID" >}}):
 
 ```yaml
 # patches/phase03-longhorn/401-gpu1-extra-disks.yaml
@@ -174,7 +174,7 @@ Each setting was chosen through experience, not by default:
 
 **`defaultDataLocality: best-effort`** — Tries to keep one replica on the same node as the consuming pod. Improves read performance without blocking scheduling if the local node has no space.
 
-**`defaultClass: true`** — The Longhorn StorageClass becomes the cluster default. Any PVC without an explicit StorageClass gets a Longhorn volume.
+**`defaultClass: true`** — The Longhorn StorageClass becomes the cluster default. Any {{< abbr "PVC" >}} without an explicit StorageClass gets a Longhorn volume.
 
 ## GPU-Local StorageClass
 
@@ -284,11 +284,11 @@ The storage layer is live. Anything that needs persistent data — databases, mo
 
 | What Happened | Why It Was Wrong | How We Fixed It | Commit |
 |---------------|-----------------|-----------------|--------|
-| **Longhorn 1.11.0 heap leak on gpu-1** — instance manager process grew unbounded over days, OOM-killing volumes | Upstream bug (longhorn#12575) triggered by sustained I/O on large SSDs | Bumped chart to 1.11.2, which included the fix | `b99085af`, `78a6c45a` |
+| **Longhorn 1.11.0 heap leak on gpu-1** — instance manager process grew unbounded over days, {{< abbr "OOM" >}}-killing volumes | Upstream bug (longhorn#12575) triggered by sustained I/O on large SSDs | Bumped chart to 1.11.2, which included the fix | `b99085af`, `78a6c45a` |
 | **raspi-1 memory wedge** — Longhorn replicas consumed all 4GB RAM, node became unresponsive | Pi 4s have 4GB RAM; default cache settings exhaust this under write pressure | Excluded raspi-1/2 from Longhorn scheduling, added headroom alerting | `16385077` |
 | **ArgoCD sync failures on backup manifests** — R2 backup target caused health check timeouts | Backup target validation needs external connectivity that ArgoCD health checks could not reach | Separated backup manifests into own Application with relaxed sync policy | `9fd060fc` |
 | **No CI/CD StorageClass** — all CI pipeline pods consumed 3-replica volumes, wasting storage | CI artifacts are ephemeral; every pipeline run provisioned 3x the requested storage | Added `longhorn-cicd` with 1 replica and nodeSelector for CI nodes | `be9f5743` |
-| **Default backup target pointed at nonexistent NAS** — config referenced a Synology path before the NAS was purchased | Planned infrastructure that was never bought; backup target was unreachable from day one | Switched default to Cloudflare R2, stubbed NAS as future improvement | `3df7c9ad` |
+| **Default backup target pointed at nonexistent {{< abbr "NAS" >}}** — config referenced a Synology path before the NAS was purchased | Planned infrastructure that was never bought; backup target was unreachable from day one | Switched default to Cloudflare R2, stubbed NAS as future improvement | `3df7c9ad` |
 
 ## References
 
@@ -296,6 +296,6 @@ The storage layer is live. Anything that needs persistent data — databases, mo
 - [Longhorn StorageClass Parameters](https://longhorn.io/docs/latest/references/storage-class-parameters/) — numberOfReplicas, dataLocality, diskSelector
 - [Talos Linux Storage Guide](https://docs.siderolabs.com/kubernetes-guides/csi/storage) — iSCSI prerequisites on Talos
 - [Talos System Extensions](https://github.com/siderolabs/extensions) — Official extension repository (iscsi-tools)
-- [Kubernetes Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) — PV and PVC documentation
+- [Kubernetes Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) — {{< abbr "PV" >}} and PVC documentation
 
 **Next: [GPU Compute — NVIDIA and Intel](/docs/building/04-gpu-compute)**
